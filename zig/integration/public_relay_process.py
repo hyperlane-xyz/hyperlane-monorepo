@@ -116,7 +116,7 @@ def verify_sealed_delivery(chain, destination_rpc, mailbox, message, probe, sour
     return relayer_process.verify_sealed_singleton(chain, destination_rpc, mailbox, message, probe, source)
 
 
-def run_case(binary, oracle, contracts, filtered, temporary):
+def run_case(binary, oracle, contracts, filtered, temporary, output, mode):
     chain = evm.Chain(f"http://127.0.0.1:{relayer_process.port()}")
     anvil_log = (temporary / "anvil.log").open("w")
     anvil = relayer_process.subprocess.Popen(
@@ -259,6 +259,7 @@ def run_case(binary, oracle, contracts, filtered, temporary):
                     assert not delivered(chain, domains["test2"]["mailbox"], messages[1]["id"])
                 early_included = relayer_process.early_included_guard(admin_port, "test1", 0 if filtered else len(messages) - 1, included, initial=True)
                 settlement = relayer_process.wait_for_retirement(admin_port, running, included, historical_confirmed_offset=0, historical_offset_reason="all current-process canonical and admitted public IDs tracked")
+                relayer_process.persist_progress(output, "public-"+mode+"-retired", {"destination":destination_rpc}, settlement=settlement, early_included=early_included)
                 metrics_status, metrics_body, _ = request(f"http://127.0.0.1:{admin_port}/metrics")
                 assert metrics_status == 200 and admin_port != public_port
                 assert b"hyperlane_relay_api_requests_total" in metrics_body
@@ -273,6 +274,7 @@ def run_case(binary, oracle, contracts, filtered, temporary):
 
             probe_count = len(messages) + (2 if filtered else 0)
             probe = relayer_process.rust_probe(oracle, database, probe_count)
+            relayer_process.persist_progress(output, "public-"+mode+"-stopped-readback", {"destination":destination_rpc}, settlement=settlement, stopped_rust_readback=probe)
             assert len(probe["messages"]) == probe_count
             if filtered:
                 assert probe["messages"][0]["present"] and probe["messages"][0]["processed"]
@@ -352,12 +354,12 @@ def run_case(binary, oracle, contracts, filtered, temporary):
 def run_case_with_artifacts(binary, oracle, contracts, filtered, prefix, output, mode):
     with tempfile.TemporaryDirectory(prefix=prefix) as directory:
         try:
-            return run_case(binary, oracle, contracts, filtered, pathlib.Path(directory))
+            return run_case(binary, oracle, contracts, filtered, pathlib.Path(directory), output, mode)
         except Exception as error:
             preserve = output.parent / f"{output.stem}-fixtures" / mode
             preserve.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(directory, preserve, dirs_exist_ok=True)
-            partial = {"passed": False, "mode": mode, "errors": [{"type": type(error).__name__, "detail": "case assertion failed; see preserved local logs/config"}]}
+            partial = relayer_process.persist_failure(output,error,preserve)
             (preserve / "partial-result.json").write_text(json.dumps(partial, indent=2) + "\n")
             raise
 
@@ -393,10 +395,11 @@ def main():
     except Exception as error:
         result["errors"].append({"type": type(error).__name__, "detail": "acceptance assertion failed; see local test output"})
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, indent=2) + "\n")
+        relayer_process.persist_failure(args.output,error)
+        relayer_process.finish_result(args.output,result)
         raise
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    relayer_process.finish_result(args.output,result)
     print(json.dumps({"passed": True, "normal_indexed": True, "sole_sidecar": True}))
 
 

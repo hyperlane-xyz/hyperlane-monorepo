@@ -166,6 +166,8 @@ class RpcProxy:
         self.raw_transactions = []
         self.broadcasts = []
         self.estimates = []
+        self.rpc_log = []
+        self.trace_lock = threading.Lock()
         self.receipt_inclusions = {}
         self.delivered_inclusions = {}
         self.forbid_addresses = set()
@@ -189,6 +191,7 @@ class RpcProxy:
                 request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
                 method = request["method"]
                 requested_unix_seconds = time.time()
+                requested_monotonic_seconds = time.monotonic()
                 params = request.get("params", [])
                 address = ""
                 if method == "eth_getLogs" and params:
@@ -214,7 +217,7 @@ class RpcProxy:
                         with urllib.request.urlopen(upstream, timeout=30) as response:
                             body = response.read()
                     with owner.lock:
-                        relayer_process.capture_proxy_response(owner, method, request, body, requested_unix_seconds)
+                        relayer_process.capture_proxy_response(owner, method, request, body, requested_unix_seconds, requested_monotonic_seconds)
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
@@ -767,6 +770,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
 
                 first_a = probe(oracle, database, "test1", len(messages["test1"]))
                 first_b = probe(oracle, database, "test3", len(messages["test3"]))
+                relayer_process.persist_progress(output, "stream-first-stopped-readback", {"destination":rpc_destination}, stopped_rust_readback={"test1":first_a,"test3":first_b}, first_stop=first_stop)
                 assert all(row["present"] and row["insertion_id_chunks"] and row["payment"] and row["payloads"] for row in first_a["messages"][:-1])
                 assert not first_a["messages"][-1]["present"]
                 assert first_b["messages"][0]["present"] and first_b["messages"][0]["insertion_id_chunks"] and first_b["messages"][0]["payment"] and first_b["messages"][0]["payloads"]
@@ -810,6 +814,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
                 }
                 historical_confirmed_offset = sum(not row.get("processed", False) for row in first_a["messages"][:-1]) + sum(not row.get("processed", False) for row in first_b["messages"])
                 settlement = relayer_process.wait_for_retirement(metrics_port, restarted, [hidden, latest_b], historical_confirmed_offset=historical_confirmed_offset, historical_offset_reason="pending older canonical IDs in first stopped Rust readback; completed IDs skipped on replay")
+                relayer_process.persist_progress(output, "stream-retired", {"destination": rpc_destination}, settlement=settlement, early_included=early_included)
                 time.sleep(2)
                 assert rpc_a.event_count() == before_a and rpc_b.event_count() == before_b and rpc_destination.event_count() == before_d
                 assert rpc_a.forbidden_count() == 0 and rpc_b.forbidden_count() == 0 and rpc_destination.forbidden_count() == 0
@@ -820,6 +825,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
 
                 final_a = probe(oracle, database, "test1", len(messages["test1"]))
                 final_b = probe(oracle, database, "test3", len(messages["test3"]))
+                relayer_process.persist_progress(output, "stream-stopped-readback", {"destination": rpc_destination}, settlement=settlement, stopped_rust_readback={"test1":final_a,"test3":final_b}, final_stop=final_stop)
                 for snapshot in (final_a, final_b):
                     assert all(row["present"] and row["processed"] and row["payment"] and row["insertion_id_chunks"] and row["payloads"] for row in snapshot["messages"]), snapshot
                     assert all(int(row["spent"]["gas_used"]) > 0 and int(row["spent"]["tokens_used"]) > 0 for row in snapshot["messages"]), snapshot
@@ -889,6 +895,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
                 }
     finally:
         failure = sys.exc_info()[0]
+        failure_error = sys.exc_info()[1]
         for process in agents:
             if process.poll() is None:
                 relayer_process.stop(process)
@@ -900,7 +907,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
             preserve = output.parent / f"{output.stem}-failed-latest"
             preserve.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(temporary, preserve, dirs_exist_ok=True)
-            partial = {"passed": False, "stage": "failed; latest stopped fixture preserved", "failed_fixture": str(preserve), "errors": [{"type": failure.__name__, "detail": "acceptance failed; see latest preserved stopped DB/logs/config"}]}
+            partial = relayer_process.persist_failure(output,failure_error,preserve)
             (preserve / "partial-result.json").write_text(json.dumps(partial, indent=2) + "\n")
 
 
@@ -931,9 +938,10 @@ def main():
     except Exception as error:
         result["failed_fixture"] = str(args.output.parent / f"{args.output.stem}-failed-latest")
         result["errors"].append({"type": type(error).__name__, "detail": "acceptance assertion failed; see latest preserved stopped DB/logs/config"})
-        args.output.write_text(json.dumps(chunks(result), indent=2) + "\n")
+        relayer_process.persist_failure(args.output,error,result["failed_fixture"])
+        relayer_process.finish_result(args.output,chunks(result))
         raise
-    args.output.write_text(json.dumps(chunks(result), indent=2) + "\n")
+    relayer_process.finish_result(args.output,chunks(result))
     print(json.dumps({"passed": True, "legacy_v2": True, "v3": True, "multi_origin": True, "restart": True}))
 
 

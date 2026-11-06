@@ -5,7 +5,7 @@ Correctness + durable recovery, not a throughput benchmark or production rollout
 Rust HyperlaneRocksDB/FullPayload reads independently decode the stopped database.
 """
 from __future__ import annotations
-import argparse,collections,contextlib,hashlib,http.server,json,math,os,pathlib,re,shutil,signal,socket,subprocess,sys,tempfile,threading,time,urllib.error,urllib.request
+import argparse,collections,contextlib,copy,hashlib,http.server,json,math,os,pathlib,re,shutil,signal,socket,subprocess,sys,tempfile,threading,time,urllib.error,urllib.request
 import evm
 ROOT=evm.ROOT
 ORIGIN,DESTINATION=9913371,9913372
@@ -15,24 +15,78 @@ def record_first_inclusion(mapping,key,observed_monotonic_seconds,observed_unix_
   if len(mapping)>=capacity:mapping.pop(next(iter(mapping)))
   mapping[key]={'monotonic':observed_monotonic_seconds,'unix':observed_unix_seconds}
  return mapping[key]
-def capture_proxy_response(owner,method,request,body,requested_unix_seconds):
- value=json.loads(body);observed_monotonic=time.monotonic();observed=time.time()
- if method=='eth_sendRawTransaction'and'result'in value:
-  owner.raw_transactions.append(value['result']);owner.broadcasts.append({'hash':value['result'],'requested_unix_seconds':requested_unix_seconds,'confirmed_unix_seconds':observed})
- if method=='eth_estimateGas'and'result'in value:
-  call=request['params'][0];owner.estimates.append({'from':call.get('from'),'to':call.get('to'),'data':call.get('data'),'block':request['params'][1]if len(request['params'])>1 else None,'result':value['result'],'unix_seconds':observed})
- if method=='eth_getTransactionReceipt'and value.get('result')is not None:record_first_inclusion(owner.receipt_inclusions,request['params'][0].lower(),observed_monotonic,observed)
- if method=='eth_call'and value.get('result')is not None:
-  call=request['params'][0];data=call.get('data','')
-  if data.startswith(DELIVERED_SELECTOR)and len(data)==len(DELIVERED_SELECTOR)+64 and int(value['result'],16)==1:record_first_inclusion(owner.delivered_inclusions,'0x'+data[-64:].lower(),observed_monotonic,observed)
+def capture_proxy_response(owner,method,request,body,requested_unix_seconds,requested_monotonic_seconds):
+    value = json.loads(body)
+    observed_monotonic, observed = time.monotonic(), time.time()
+    with owner.trace_lock:
+        record = {'completion_sequence':len(owner.rpc_log),'method':method,'request':copy.deepcopy(request),'response':copy.deepcopy(value),'request_id':request.get('id'),'requested_unix_seconds':requested_unix_seconds,'requested_monotonic_seconds':requested_monotonic_seconds,'completed_unix_seconds':observed,'completed_monotonic_seconds':observed_monotonic} if method in ('eth_estimateGas','eth_sendRawTransaction') else None
+        if method in ('eth_estimateGas','eth_sendRawTransaction'):owner.rpc_log.append(record)
+        if method == 'eth_sendRawTransaction' and 'result' in value:
+            owner.raw_transactions.append(value['result'])
+            owner.broadcasts.append(dict(record,hash=value['result'],confirmed_unix_seconds=observed))
+        if method == 'eth_estimateGas':
+            params = request.get('params', [])
+            call = params[0] if params and isinstance(params[0], dict) else {}
+            owner.estimates.append(dict(record,**{'from':call.get('from'),'to':call.get('to'),'data':call.get('data'),'block':params[1] if len(params)>1 else None,'result':value.get('result'),'unix_seconds':observed}))
+        if method == 'eth_getTransactionReceipt' and value.get('result') is not None:
+            record_first_inclusion(owner.receipt_inclusions,request['params'][0].lower(),observed_monotonic,observed)
+        if method == 'eth_call' and value.get('result') is not None:
+            call=request['params'][0];data=call.get('data','')
+            if data.startswith(DELIVERED_SELECTOR) and len(data)==len(DELIVERED_SELECTOR)+64 and int(value['result'],16)==1:
+                record_first_inclusion(owner.delivered_inclusions,'0x'+data[-64:].lower(),observed_monotonic,observed)
+
+def rpc_snapshot(proxy):
+    with proxy.trace_lock:
+        return copy.deepcopy({'observations':proxy.rpc_log,'estimates':proxy.estimates,'broadcasts':proxy.broadcasts,'raw_transactions':proxy.raw_transactions})
+
+def write_snapshot(path,value):
+    path=pathlib.Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+    temporary=path.with_name('.'+path.name+'.tmp')
+    temporary.write_text(json.dumps(value,indent=2)+'\n')
+    os.replace(temporary,path)
+
+def existing_snapshot(path):
+    path=pathlib.Path(path)
+    return json.loads(path.read_text()) if path.exists() else {}
+
+def persist_progress(output,stage,proxies=None,**achieved):
+    previous=existing_snapshot(output)
+    point={'stage':stage,'captured_unix_seconds':time.time(),'captured_monotonic_seconds':time.monotonic(),'achieved':achieved}
+    if proxies:
+        trace_path=pathlib.Path(output).with_name(pathlib.Path(output).stem+'-'+stage+'-rpc.json')
+        assert not trace_path.exists(),'refusing to overwrite achieved RPC trace'
+        write_snapshot(trace_path,{name:rpc_snapshot(proxy) for name,proxy in proxies.items()})
+        point['rpc_trace']={'path':str(trace_path),'sha256_chunks':sha(trace_path)}
+    previous.setdefault('progress',[]).append(point)
+    previous.update(passed=False,stage=stage)
+    write_snapshot(output,previous)
+    return point
+
+def persist_failure(output,error,preserve=None):
+    previous=existing_snapshot(output)
+    if 'last_completed_stage' not in previous:previous['last_completed_stage']=previous.get('stage')
+    previous.update(passed=False,stage='failed; achieved progress retained')
+    if preserve is not None:previous['failed_fixture']=str(preserve)
+    previous.setdefault('errors',[]).append({'type':type(error).__name__,'detail':str(error)})
+    write_snapshot(output,previous)
+    return previous
+
+def finish_result(output,result):
+    previous=existing_snapshot(output)
+    if previous.get('progress'):result=dict(result,progress=previous['progress'])
+    if previous.get('last_completed_stage'):result=dict(result,last_completed_stage=previous['last_completed_stage'])
+    if previous.get('failed_fixture'):result=dict(result,failed_fixture=previous['failed_fixture'])
+    if previous.get('errors') and not result.get('passed'):result=dict(result,errors=previous['errors'])
+    write_snapshot(output,result)
+
 class RpcProxy:
- def __init__(self,chain,delay=0,fail_method=None):self.chain=chain;self.delay=delay;self.fail_method=fail_method;self.methods=collections.Counter();self.stop=threading.Event();self.stall_receipts=False;self.receipt_stalls=0;self.raw_transactions=[];self.broadcasts=[];self.estimates=[];self.receipt_inclusions={};self.delivered_inclusions={}
+ def __init__(self,chain,delay=0,fail_method=None):self.chain=chain;self.delay=delay;self.fail_method=fail_method;self.methods=collections.Counter();self.stop=threading.Event();self.stall_receipts=False;self.receipt_stalls=0;self.raw_transactions=[];self.broadcasts=[];self.estimates=[];self.rpc_log=[];self.trace_lock=threading.Lock();self.receipt_inclusions={};self.delivered_inclusions={}
  def __enter__(self):
   owner=self
   class Handler(http.server.BaseHTTPRequestHandler):
    protocol_version='HTTP/1.1'
    def do_POST(self):
-    request=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))));method=request['method'];owner.methods[method]+=1;requested_unix_seconds=time.time()
+    request=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))));method=request['method'];owner.methods[method]+=1;requested_unix_seconds=time.time();requested_monotonic_seconds=time.monotonic()
     if owner.delay:time.sleep(owner.delay)
     if method=='eth_getTransactionReceipt'and owner.stall_receipts:owner.receipt_stalls+=1;owner.stop.wait(30);self.close_connection=True;return
     try:
@@ -40,7 +94,7 @@ class RpcProxy:
      if method==owner.fail_method:body=json.dumps({'jsonrpc':'2.0','id':request['id'],'error':{'code':-32000,'message':'public fixture endpoint failure'}}).encode()
      else:
       with urllib.request.urlopen(upstream,timeout=20)as response:body=response.read()
-     capture_proxy_response(owner,method,request,body,requested_unix_seconds)
+     capture_proxy_response(owner,method,request,body,requested_unix_seconds,requested_monotonic_seconds)
      self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
     except (BrokenPipeError,ConnectionResetError,urllib.error.URLError):self.close_connection=True
    def log_message(self,*args):pass
@@ -385,10 +439,39 @@ def canonical_receipt(chain,transaction):
  canonical=chain.rpc('eth_getBlockByNumber',[receipt['blockNumber'],False]);assert canonical['hash'].lower()==receipt['blockHash'].lower()and int(canonical['number'],16)==int(receipt['blockNumber'],16)
  return receipt,canonical
 def original_estimate(proxy,calldata,signer,target,broadcast_hash):
- broadcasts=[row for row in proxy.broadcasts if row['hash'].lower()==broadcast_hash.lower()];assert broadcasts,'missing actual matching broadcast';requested=min(row['requested_unix_seconds']for row in broadcasts)
- matches=[row for row in proxy.estimates if row['from']and row['to']and row['data']and row['from'].lower()==signer.lower()and row['to'].lower()==target.lower()and row['data'].lower()==calldata.lower()and row['unix_seconds']<requested]
- assert len(matches)==1,('original estimate identity/timestamp mismatch',len(matches));proof=matches[0];assert isinstance(proof['result'],str)and proof['result'].startswith('0x');int(proof['result'],16)
- return dict(proof,broadcast_requested_unix_seconds=requested)
+    broadcasts=[row for row in proxy.broadcasts if row['hash'].lower()==broadcast_hash.lower()]
+    assert broadcasts,'missing actual matching broadcast'
+    for row in broadcasts:
+        request,response=row['request'],row['response']
+        assert request.get('jsonrpc')=='2.0' and request.get('method')=='eth_sendRawTransaction' and response.get('jsonrpc')=='2.0' and type(response.get('id')) is type(request.get('id')) and response.get('id')==request.get('id') and response.get('result','').lower()==broadcast_hash.lower() and 'error' not in response,'invalid matching broadcast'
+        assert math.isfinite(row['requested_monotonic_seconds']) and row['requested_monotonic_seconds']<=row['completed_monotonic_seconds'], 'invalid broadcast timestamp'
+    broadcast=min(broadcasts,key=lambda row:row['requested_monotonic_seconds'])
+    requested=broadcast['requested_monotonic_seconds']
+    attempts=[];candidates=[]
+    for row in proxy.estimates:
+        request=row.get('request');params=request.get('params') if isinstance(request,dict) else None
+        call=params[0] if isinstance(params,list) and params and isinstance(params[0],dict) else {}
+        def matches(value):
+            return all(isinstance(value.get(key),str) and value[key].lower()==expected.lower() for key,expected in [('from',signer),('to',target),('data',calldata)])
+        if not matches(call) and not matches(row):continue
+        assert isinstance(request,dict) and request.get('jsonrpc')=='2.0' and request.get('method')=='eth_estimateGas' and isinstance(params,list) and isinstance(call,dict),'malformed matching estimate request'
+        assert matches(call) and all(row.get(key)==call.get(key) for key in ('from','to','data')),'estimate projection/identity mismatch'
+        response=row.get('response')
+        assert isinstance(response,dict) and type(response.get('id')) is type(request.get('id')) and response.get('id')==request.get('id') and response.get('jsonrpc')=='2.0','malformed estimate response'
+        started,completed=row['requested_monotonic_seconds'],row['completed_monotonic_seconds']
+        assert math.isfinite(started) and math.isfinite(completed) and started<=completed,'invalid estimate timestamps'
+        attempts.append(row)
+        assert ('result' in response) != ('error' in response),'ambiguous or missing estimate outcome'
+        if 'error' in response:assert isinstance(response['error'],dict) and type(response['error'].get('code')) is int and isinstance(response['error'].get('message'),str),'malformed estimate error'
+        success='result' in response
+        if success:
+            result=response['result'];assert isinstance(result,str) and re.fullmatch(r'0x[0-9a-fA-F]+',result) and row['result']==result,'malformed estimate result'
+        # evm_prepare.estimateCall has precisely these3 keys and one param.
+        # Lander fee/value/accessList estimates are evidence, not sealed weights.
+        if success and len(params)==1 and set(call)=={'from','to','data'} and completed<requested:
+            candidates.append(row)
+    assert len(candidates)==1,('unique prebroadcast prepare estimate required',len(candidates))
+    return dict(candidates[0],broadcast_requested_unix_seconds=broadcast['requested_unix_seconds'],broadcast_requested_monotonic_seconds=requested,matching_estimate_attempts=attempts,selection='unique-successful-prepare-request-shape-before-first-matching-broadcast')
 def verify_process_events(receipt,mailbox,identities):
  assert receipt.get('status')=='0x1','Mailbox delivery receipt must succeed'
  expected={identity.lower()for identity in identities};assert len(expected)==len(identities),'duplicate expected ProcessId member'
@@ -441,15 +524,18 @@ def static_contract_tests():
    if method=='eth_getBlockByNumber':return dict(self.canonical)
    if method=='eth_estimateGas':raise AssertionError('Mailbox.process AlreadyDelivered post-mine re-estimation is forbidden')
    raise AssertionError(f'unexpected static RPC {method}')
- chain=Chain();proxy=RpcProxy(chain);proxy.raw_transactions=[transaction_hash];proxy.broadcasts=[{'hash':transaction_hash,'requested_unix_seconds':200.0,'confirmed_unix_seconds':201.0}]
- original={'from':evm.TEST_SIGNER,'to':mailbox,'data':transaction['input'],'block':'0xf','result':hex(70000),'unix_seconds':100.0};proxy.estimates=[dict(original)]
+ chain=Chain();proxy=RpcProxy(chain);call={'from':evm.TEST_SIGNER,'to':mailbox,'data':transaction['input']}
+ capture_proxy_response(proxy,'eth_estimateGas',{'jsonrpc':'2.0','id':1,'method':'eth_estimateGas','params':[call]},json.dumps({'jsonrpc':'2.0','id':1,'result':hex(70000)}),99.0,99.0)
+ original=copy.deepcopy(proxy.estimates[0]);original.update(unix_seconds=100.0,completed_unix_seconds=100.0,completed_monotonic_seconds=100.0)
+ capture_proxy_response(proxy,'eth_sendRawTransaction',{'jsonrpc':'2.0','id':2,'method':'eth_sendRawTransaction','params':['0xabcd']},json.dumps({'jsonrpc':'2.0','id':2,'result':transaction_hash}),200.0,200.0)
+ proxy.estimates=[copy.deepcopy(original)]
  message={'id':identity,'wire':wire};probe={'sealed_payload_links':[{'message_id_chunks':chunks(identity.removeprefix('0x')),'estimated_gas':'70000','spent':{'gas_used':'70000','tokens_used':'140000'},'gas_expenditure_record_present':True,'message_source':'canonical','canonical_nonce_message_present':True,'canonical_nonce_matches_message':True,'private_operation_stage':'delivered','destination_payload_present':True}]}
  proof=verify_sealed_singleton(chain,proxy,mailbox,message,probe,'canonical');assert proof['original_process_estimate']==70000 and proof['original_estimate_proof']['unix_seconds']<200;passed.append('original_prebroadcast_estimate_accepted_without_postmine_rpc')
  chain.canonical={'hash':'0x'+'33'*32,'number':'0x10'};rejects('orphan_header_rejected_at_canonical_height',lambda:canonical_receipt(chain,transaction));chain.canonical={'hash':block_hash,'number':'0x10'}
  for label,field,value in [('wrong_calldata_rejected','data','0xdead'),('wrong_signer_rejected','from','0x'+'55'*20),('wrong_target_rejected','to','0x'+'66'*20)]:
   proxy.estimates=[dict(original,**{field:value})];rejects(label,lambda:original_estimate(proxy,transaction['input'],evm.TEST_SIGNER,mailbox,transaction_hash))
  proxy.estimates=[dict(original,result='0x1')];rejects('wrong_estimate_result_rejected',lambda:verify_sealed_singleton(chain,proxy,mailbox,message,probe,'canonical'))
- proxy.estimates=[dict(original,unix_seconds=200.0)];rejects('postbroadcast_estimate_rejected',lambda:original_estimate(proxy,transaction['input'],evm.TEST_SIGNER,mailbox,transaction_hash))
+ proxy.estimates=[dict(original,unix_seconds=200.0,completed_monotonic_seconds=200.0)];rejects('postbroadcast_estimate_rejected',lambda:original_estimate(proxy,transaction['input'],evm.TEST_SIGNER,mailbox,transaction_hash))
  proxy.estimates=[dict(original)];assert verify_sealed_singleton(chain,proxy,mailbox,message,probe,'canonical')['original_estimate_proof']['result']==hex(70000)
  proxy.receipt_inclusions={transaction_hash.lower():{'monotonic':100.0,'unix':1000.0}};proxy.delivered_inclusions={identity.lower():{'monotonic':150.0,'unix':1500.0}};observed,included_transaction=proxy_inclusion(proxy,chain,message);message['included_unix_seconds']=observed['unix'];message['included_monotonic']=observed['monotonic'];assert observed['monotonic']==100.0 and included_transaction['hash']==transaction_hash;assert not retirement_lower_bound([message],160.0) and not retirement_lower_bound([message],699.0) and retirement_lower_bound([message],700.0);passed.append('first_proxy_inclusion_rejects_60s_and_enforces_exact_600s_lower_bound')
  rejects('already_complete_at_zero_rejected_immediately',lambda:retirement_poll([],1,[message],0.0))
@@ -504,12 +590,13 @@ def main():
     with (temporary/'relayer-first.log').open('w')as log:
      running=launch(binary,relayer_config,log);agents.append(running);started=time.monotonic();observe_inclusions(delivered,messages,running,'all3 ISM deliveries',destination_rpc,chain,domains['test2']['mailbox']);delivery_ms=(time.monotonic()-started)*1000
      early_included=early_included_guard(value['metricsPort'],'test1',len(messages)-1,messages,initial=True)
-     settlement=wait_for_retirement(value['metricsPort'],running,messages);metrics=telemetry(value['metricsPort']);first_stop=stop(running)
+     settlement=wait_for_retirement(value['metricsPort'],running,messages);persist_progress(args.output,'initial-retired',{'destination':destination_rpc},settlement=settlement,early_included=early_included,messages=messages);metrics=telemetry(value['metricsPort']);first_stop=stop(running)
     assert first_stop['exit']==0,first_stop
     first_probe=rust_probe(oracle,database,3)
+    persist_progress(args.output,'initial-stopped-readback',{'destination':destination_rpc},settlement=settlement,first_rust_readback=first_probe,first_stop=first_stop)
     assert all(v['present']and v['processed']and v['payment']and v['payloads']and all(p['present']for p in v['payloads'])for v in first_probe['messages']),first_probe
     initial_receipt_proofs=[verify_sealed_singleton(chain,destination_rpc,domains['test2']['mailbox'],message,first_probe,'canonical')for message in messages]
-    args.output.write_text(json.dumps({'passed':False,'stage':'three ISM deliveries completed; crash/recovery acceptance pending','first_rust_readback':first_probe,'gas_expenditure_recorded':all(int(v['spent']['gas_used'])>0 and int(v['spent']['tokens_used'])>0 for v in first_probe['messages'])},indent=2)+'\n')
+    persist_progress(args.output,'initial-receipt-verified',initial_receipt_proofs=initial_receipt_proofs)
     before_nonce=chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest'])
     with (temporary/'relayer-restart.log').open('w')as log:
      running=launch(binary,relayer_config,log);agents.append(running);restart_readiness=wait_role_ready(value['metricsPort'],running);restart_stop=stop(running)
@@ -533,9 +620,9 @@ def main():
     with (temporary/'relayer-batch.log').open('w')as log:
      running=launch(binary,batch_config,log);agents.append(running);batch_messages=messages[batch_start:];observe_inclusions(delivered,batch_messages,running,'four ready messages in maxBatchSize4 role run',destination_rpc,chain,domains['test2']['mailbox'])
      batch_early=early_included_guard(batch_value['metricsPort'],'test1',len(messages)-1,batch_messages)
-     batch_settlement=wait_for_retirement(batch_value['metricsPort'],running,batch_messages,historical_offset_reason='exact four target IDs admitted by whitelist; older canonical nonces indexed but denied');batch_stop=stop(running)
+     batch_settlement=wait_for_retirement(batch_value['metricsPort'],running,batch_messages,historical_offset_reason='exact four target IDs admitted by whitelist; older canonical nonces indexed but denied');persist_progress(args.output,'batch-retired',{'destination':destination_rpc},settlement=batch_settlement,early_included=batch_early);batch_stop=stop(running)
     assert batch_stop['exit']==0,batch_stop
-    batch_probe=rust_probe(oracle,batch_database,len(messages));assert all(row['present']and row['processed']and row['payment']and row['payloads']for row in batch_probe['messages'][batch_start:]),batch_probe
+    batch_probe=rust_probe(oracle,batch_database,len(messages));persist_progress(args.output,'batch-stopped-readback',{'destination':destination_rpc},settlement=batch_settlement,stopped_rust_readback=batch_probe);assert all(row['present']and row['processed']and row['payment']and row['payloads']for row in batch_probe['messages'][batch_start:]),batch_probe
     batch_transactions=[]
     for transaction_hash in dict.fromkeys(destination_rpc.raw_transactions[raw_before_batch:]):
      transaction=chain.rpc('eth_getTransactionByHash',[transaction_hash])
@@ -557,9 +644,9 @@ def main():
      if not captured:continue
      before_recovery_nonce=int(chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest']),16)
      with (temporary/'relayer-crash-recovery.log').open('w')as log:
-      recovering=launch(binary,crash_config,log);agents.append(recovering);wait(lambda:delivered(crash_message['id']),recovering,90,'sealed payload replay delivery');observe_inclusions(delivered,[crash_message],recovering,'latest recovered inclusion',destination_rpc,chain,domains['test2']['mailbox']);recovery_early=early_included_guard(crash_value['metricsPort'],'test1',len(messages)-1,[crash_message]);recovery_settlement=wait_for_retirement(crash_value['metricsPort'],recovering,[crash_message],historical_offset_reason='exact fresh crash target admitted by whitelist; older canonical nonces indexed but denied');recovery_stop=stop(recovering)
+      recovering=launch(binary,crash_config,log);agents.append(recovering);wait(lambda:delivered(crash_message['id']),recovering,90,'sealed payload replay delivery');observe_inclusions(delivered,[crash_message],recovering,'latest recovered inclusion',destination_rpc,chain,domains['test2']['mailbox']);recovery_early=early_included_guard(crash_value['metricsPort'],'test1',len(messages)-1,[crash_message]);recovery_settlement=wait_for_retirement(crash_value['metricsPort'],recovering,[crash_message],historical_offset_reason='exact fresh crash target admitted by whitelist; older canonical nonces indexed but denied');persist_progress(args.output,f'crash-{attempt}-retired',{'destination':destination_rpc},settlement=recovery_settlement,early_included=recovery_early);recovery_stop=stop(recovering)
      after_recovery_nonce=int(chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest']),16);assert after_recovery_nonce==before_recovery_nonce+1,(before_recovery_nonce,after_recovery_nonce)
-     recovered=rust_probe(oracle,crash_database,len(messages));assert recovered['messages'][-1]['processed'],recovered
+     recovered=rust_probe(oracle,crash_database,len(messages));persist_progress(args.output,f'crash-{attempt}-stopped-readback',{'destination':destination_rpc},settlement=recovery_settlement,stopped_rust_readback=recovered);assert recovered['messages'][-1]['processed'],recovered
      recovery_receipt_proof=verify_sealed_singleton(chain,destination_rpc,domains['test2']['mailbox'],messages[-1],recovered,'canonical')
      with (temporary/'relayer-crash-recovered-restart.log').open('w')as log:
       replayed=launch(binary,crash_config,log);agents.append(replayed);replay_readiness=wait_role_ready(crash_value['metricsPort'],replayed);replay_stop=stop(replayed)
@@ -569,11 +656,11 @@ def main():
     assert crash_result is not None,crash_attempts
     expenditure=all(int(v['spent']['gas_used'])>0 and int(v['spent']['tokens_used'])>0 for v in first_probe['messages'])
     result={'passed':expenditure,'scope':__doc__,'binaries':{'relayer_sha256_chunks':sha(binary),'validator_sha256_chunks':sha(validator_binary),'rust_oracle_sha256_chunks':sha(oracle)},'validator_stop':validator_stop,'telemetry':metrics,'delivery_ms':delivery_ms,'early_included':early_included,'settlement':settlement,'first_stop':first_stop,'restart_readiness':restart_readiness,'restart_stop':restart_stop,'stalled_stop':stalled_stop,'restart_nonce_unchanged':True,'receipt_stall_requests':destination_rpc.receipt_stalls,'origin_progress_during_receipt_stall':True,'gas_expenditure_recorded':expenditure,'first_rust_readback':first_probe,'initial_receipt_proofs':initial_receipt_proofs,'stalled_rust_readback':stalled_probe,'max_batch_4':{'config':{'maxBatchSize':4,'batchContractAddress':multicall,'whitelist_message_ids_chunks':[chunks(message['id'])for message in batch_messages]},'early_included':batch_early,'settlement':batch_settlement,'stop':batch_stop,'stopped_rust_readback':batch_probe,'actual_allocation':batch_allocation},'rpc_methods':dict(destination_rpc.methods),'messages':[{'id_chunks':chunks(v['id']),'label':v['label'],'dispatch_block':v['dispatch_block'],'gas_block':v['gas_block']}for v in messages],'preenqueue_crash':crash_result,'fault_injection':fault_identity}
-    args.output.write_text(json.dumps(result,indent=2)+'\n')
+    finish_result(args.output,result)
     if not expenditure and not args.skip_expenditure_assert:raise AssertionError('actual Rust readback found missing receipt gas expenditure; diagnostic artifact retained')
     print(json.dumps({'passed':result['passed'],'delivered_cases':3,'max_batch_4_calls':batch_allocation['calls'],'restart_nonce_unchanged':True,'receipt_stall_origin_progress':True}))
   finally:
-   failure=sys.exc_info()[0];preserve=args.keep_fixture
+   failure=sys.exc_info()[0];failure_error=sys.exc_info()[1];preserve=args.keep_fixture
    for agent in agents:
     if agent.poll()is None:stop(agent)
    anvil.terminate()
@@ -583,5 +670,5 @@ def main():
    if preserve:
     preserve.mkdir(parents=True,exist_ok=True);shutil.copytree(temporary,preserve,dirs_exist_ok=True)
    if failure is not None:
-    partial={'passed':False,'stage':'failed; latest stopped fixture preserved','failed_fixture':str(preserve),'errors':[{'type':failure.__name__,'detail':'acceptance failed; see latest preserved stopped DB/logs/config'}]};(preserve/'partial-result.json').write_text(json.dumps(partial,indent=2)+'\n');args.output.write_text(json.dumps(partial,indent=2)+'\n')
+    partial=persist_failure(args.output,failure_error,preserve);write_snapshot(preserve/'partial-result.json',partial)
 if __name__=='__main__':main()
