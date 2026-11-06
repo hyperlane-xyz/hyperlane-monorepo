@@ -215,7 +215,7 @@ describe('EvmHookReader', () => {
         TestChainName.test1,
         undefined,
         undefined,
-        { expandWormhole: true },
+        { expandNonDeployableHookIsms: true },
       );
       sandbox
         .stub(diagnosticReader, 'deriveHookConfigFromAddress')
@@ -266,7 +266,7 @@ describe('EvmHookReader', () => {
       TestChainName.test1,
       undefined,
       undefined,
-      { expandWormhole: true },
+      { expandNonDeployableHookIsms: true },
     ).deriveHookConfigFromAddress(router);
 
     expect(config).to.have.nested.property(

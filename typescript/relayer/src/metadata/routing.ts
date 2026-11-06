@@ -114,7 +114,7 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
         destination,
         undefined,
         undefined,
-        { expandWormhole: true },
+        { expandNonDeployableHookIsms: true },
       );
       const nextConfig = await ismReader.deriveIsmConfig(moduleAddress);
       const selectedIsmResult = await this.baseMetadataBuilder.build(

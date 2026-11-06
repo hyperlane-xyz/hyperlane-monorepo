@@ -73,6 +73,7 @@ import {
   RoutingHookConfig,
   WormholeHookConfig,
 } from './types.js';
+import { isCombinedHookIsmHookNode } from './utils.js';
 
 function isUnsupportedIgpDomainError(
   error: unknown,
@@ -128,7 +129,7 @@ export interface HookReader {
 }
 
 export interface EvmHookReaderOptions {
-  expandWormhole?: boolean;
+  expandNonDeployableHookIsms?: boolean;
 }
 
 export class EvmHookReader extends HyperlaneReader implements HookReader {
@@ -139,7 +140,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
    * the specific hook methods.
    */
   private _cache: Map<Address, any> = new Map();
-  protected readonly expandWormhole: boolean;
+  protected readonly expandNonDeployableHookIsms: boolean;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -151,7 +152,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     options: EvmHookReaderOptions = {},
   ) {
     super(multiProvider, chain);
-    this.expandWormhole = options.expandWormhole ?? false;
+    this.expandNonDeployableHookIsms =
+      options.expandNonDeployableHookIsms ?? false;
   }
 
   async deriveHookConfigFromAddress(
@@ -338,16 +340,20 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config as DerivedHookConfig;
   }
 
-  // Returns original HookConfig for non-redeployable standalone types (CCTP,
-  // PREDICATE, and Wormhole) so that normalizeConfig — which strips 'address'
-  // from all objects — does not discard the address. Flow-control hybrid
-  // hook/ISMs deliberately keep their derived config: warp read/apply needs
-  // the typed node on both surfaces to identify the shared instance.
+  // Returns original HookConfig for non-redeployable types so that
+  // normalizeConfig — which strips 'address' from all objects — does not
+  // discard the address. Warp reads opt into expanding external-protocol
+  // hook/ISMs for diagnostics. Flow-control hook/ISMs deliberately remain
+  // expanded: warp apply needs the typed node on both surfaces to identify the
+  // shared instance.
   private preserveUnredeployable(
     original: HookConfig,
     derived: DerivedHookConfig,
   ): HookConfig {
-    if (this.expandWormhole && derived.type === HookType.WORMHOLE) {
+    if (
+      this.expandNonDeployableHookIsms &&
+      isCombinedHookIsmHookNode(derived)
+    ) {
       return derived;
     }
     const nonRedeployable: HookType[] = [

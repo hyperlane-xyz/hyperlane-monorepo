@@ -44,6 +44,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { isCombinedHookIsmNode } from '../utils/ism.js';
 import { EvmWormholeHookIsmReader } from '../wormhole/EvmWormholeHookIsmReader.js';
 import {
   contractHasString,
@@ -103,7 +104,7 @@ const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
 ]);
 
 export interface EvmIsmReaderOptions {
-  expandWormhole?: boolean;
+  expandNonDeployableHookIsms?: boolean;
 }
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
@@ -301,7 +302,10 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     original: IsmConfig,
     derived: DerivedIsmConfig,
   ): IsmConfig {
-    if (this.options.expandWormhole && derived.type === IsmType.WORMHOLE) {
+    if (
+      this.options.expandNonDeployableHookIsms &&
+      isCombinedHookIsmNode(derived)
+    ) {
       return derived;
     }
     if (!NON_REDEPLOYABLE_ISM_TYPES.has(derived.type)) return derived;

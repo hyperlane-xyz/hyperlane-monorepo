@@ -224,7 +224,7 @@ describe('EvmIsmReader', () => {
       },
       {
         name: 'expands the config when requested for diagnostics',
-        options: { expandWormhole: true },
+        options: { expandNonDeployableHookIsms: true },
         expandsWormhole: true,
       },
     ];
