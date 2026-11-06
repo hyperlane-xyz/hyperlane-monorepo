@@ -13,6 +13,13 @@ pub fn setup_db(db_path: String) -> DB {
         .into()
 }
 
+/// Reopen an existing test database with real reads but failing writes.
+pub fn setup_read_only_db(db_path: String) -> DB {
+    rocksdb::DB::open_for_read_only(&Options::default(), db_path, false)
+        .expect("Failed to open read-only test db")
+        .into()
+}
+
 /// Create a temporary database for testing purposes.
 pub async fn run_test_db<T, Fut>(test: T)
 where

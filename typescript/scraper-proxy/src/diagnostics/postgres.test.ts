@@ -208,3 +208,140 @@ void it(
     }
   },
 );
+
+async function withDiagnosticTable(
+  run: (
+    client: pg.Client,
+    service: DiagnosticsService,
+    messageId: string,
+  ) => Promise<void>,
+) {
+  const client = new pg.Client({
+    connectionString: process.env.DIAGNOSTICS_TEST_DATABASE_URL,
+  });
+  await client.connect();
+  try {
+    await client.query(`CREATE TEMP TABLE message_activity (
+      id bigint PRIMARY KEY, message_id bytea, relayer bytea, origin bigint, destination bigint,
+      observed_at timestamptz, received_at timestamptz, version integer, activity jsonb
+    )`);
+    const service = new DiagnosticsService({
+      query: async (sql, values) =>
+        (
+          await client.query<Record<string, unknown>>(
+            sql.replaceAll(
+              'public.message_activity',
+              'pg_temp.message_activity',
+            ),
+            values,
+          )
+        ).rows,
+    });
+    await run(client, service, `0x${'01'.repeat(32)}`);
+  } finally {
+    await client.end();
+  }
+}
+
+void it(
+  'keeps anchored reporters complete when legacy history fills the row budget',
+  { skip: !process.env.DIAGNOSTICS_TEST_DATABASE_URL },
+  async () => {
+    await withDiagnosticTable(async (client, service, messageId) => {
+      const module = { node_id: 'root', ism: 'root-ism', children: [] };
+      await client.query(
+        `INSERT INTO message_activity VALUES
+        (1,decode($1,'hex'),decode('02','hex'),1,2,now(),now(),1,$2),
+        (103,decode($1,'hex'),decode('02','hex'),1,2,now(),now(),1,$3)`,
+        [
+          messageId.slice(2),
+          {
+            type: 'snapshot',
+            state: { phase: 'preparing', tree_root: 'root', modules: [module] },
+          },
+          {
+            type: 'snapshot_update',
+            state: {
+              phase: 'ready_to_submit',
+              tree_root: 'root',
+              modules: [{ ...module, verified: 1 }],
+              removed_modules: [],
+            },
+          },
+        ],
+      );
+      await client.query(
+        `INSERT INTO message_activity
+        SELECT n,decode($1,'hex'),decode('03','hex'),1,2,now(),now(),1,
+          '{"type":"status","status":"FirstPrepareAttempt"}'::jsonb
+        FROM generate_series(2,102) AS n`,
+        [messageId.slice(2)],
+      );
+      const [result] = await service.snapshots([messageId]);
+      assert(result);
+      assert.equal(result.partial, true);
+      assert(result.activities.length <= 100);
+      assert(result.activities.some((row) => row.id === '1'));
+      assert(result.activities.some((row) => row.id === '103'));
+      const anchored = result.relayers.find((row) =>
+        row.relayer.endsWith('02'),
+      );
+      assert.equal(anchored?.phase, Phase.ReadyToSubmit);
+      assert.equal(anchored?.modules[0]?.node_id, 'root');
+      assert.equal(anchored?.modules[0]?.verified, 1);
+    });
+  },
+);
+
+void it(
+  'projects newer legacy events after the latest snapshot state on writer rollback',
+  { skip: !process.env.DIAGNOSTICS_TEST_DATABASE_URL },
+  async () => {
+    await withDiagnosticTable(async (client, service, messageId) => {
+      const state = (phase: string) => ({
+        phase,
+        tree_root: null,
+        modules: [],
+      });
+      async function insert(id: number, activity: Record<string, unknown>) {
+        await client.query(
+          `INSERT INTO message_activity VALUES
+          ($1,decode($2,'hex'),decode('02','hex'),1,2,now(),now(),1,$3)`,
+          [id, messageId.slice(2), activity],
+        );
+      }
+      await insert(7, { type: 'delivered' }); // Superseded by the full anchor.
+      await insert(8, { type: 'snapshot', state: state('preparing') });
+      await insert(9, {
+        type: 'snapshot_update',
+        state: { ...state('awaiting_signatures'), removed_modules: [] },
+      });
+      await insert(10, { type: 'delivered' }); // A legacy writer resumes this reporter.
+      const [delivered] = await service.snapshots([messageId]);
+      assert.deepEqual(
+        delivered?.activities.map((row) => row.id),
+        ['8', '9', '10'],
+      );
+      assert.equal(delivered?.relayers[0]?.phase, Phase.Delivered);
+      await insert(11, { type: 'snapshot', state: state('preparing') });
+      await insert(12, { type: 'status', status: 'ReadyToSubmit' });
+      const [ready] = await service.snapshots([messageId]);
+      assert.deepEqual(
+        ready?.activities.map((row) => row.id),
+        ['11', '12'],
+      );
+      assert.equal(ready?.relayers[0]?.phase, Phase.ReadyToSubmit);
+      await insert(13, {
+        type: 'snapshot_update',
+        state: { ...state('confirming'), removed_modules: [] },
+      });
+      await insert(14, { type: 'dropped' });
+      const [dropped] = await service.snapshots([messageId]);
+      assert.deepEqual(
+        dropped?.activities.map((row) => row.id),
+        ['11', '13', '14'],
+      );
+      assert.equal(dropped?.relayers[0]?.phase, Phase.Dropped);
+    });
+  },
+);

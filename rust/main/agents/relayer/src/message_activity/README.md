@@ -53,6 +53,11 @@ reader needs only that anchor and the newest update. Updates never use ambiguous
 field-level JSON patches. A writer restart or failed database write publishes
 another complete anchor before updates resume.
 
+Failed local recovery writes remain pending in memory and are retried on the next
+observation, including failed submission invalidations. Recovery is best effort:
+process loss or cache eviction before any successful invalidation write can lose
+that transition. An unwritable local store does not provide crash durability.
+
 `relayer_first_seen_at_millis` is captured when the relayer creates the pending
 operation, not when its first prepare attempt runs. `phase_started_at_millis`
 marks the current phase transition. Submission updates carry their own observation

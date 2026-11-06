@@ -22,6 +22,45 @@ function activityColumns(alias = ''): string {
 const columns = activityColumns();
 const currentColumns = activityColumns('current_activity');
 
+/** Keep each selected reporter's snapshot baseline within the row budget. */
+function snapshotActivities(rows: ActivityRow[]): ActivityRow[] {
+  const snapshots = new Map<
+    string,
+    { anchor?: ActivityRow; update?: ActivityRow }
+  >();
+  const newest = new Map<string, ActivityRow>();
+  for (const row of rows) {
+    if (!newest.has(row.relayer)) newest.set(row.relayer, row);
+    const type = row.activity.type;
+    if (type !== 'snapshot' && type !== 'snapshot_update') continue;
+    const state = snapshots.get(row.relayer) ?? {};
+    if (type === 'snapshot' && !state.anchor) state.anchor = row;
+    if (type === 'snapshot_update' && !state.update) state.update = row;
+    snapshots.set(row.relayer, state);
+  }
+  const selected = new Map<string, ActivityRow>();
+  for (const row of rows) {
+    const state = snapshots.get(row.relayer);
+    if (row.activity.type === 'snapshot_update' && !state?.anchor) continue;
+    const group = new Map<string, ActivityRow>();
+    for (const item of [
+      row,
+      state?.anchor,
+      state?.anchor ? state.update : undefined,
+      state?.anchor ? newest.get(row.relayer) : undefined,
+    ]) {
+      if (item && !selected.has(item.id)) group.set(item.id, item);
+    }
+    if (selected.size + group.size > SNAPSHOT_LIMIT) continue;
+    for (const [id, item] of group) selected.set(id, item);
+  }
+  return [...selected.values()].sort((a, b) => {
+    const left = BigInt(a.id);
+    const right = BigInt(b.id);
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+}
+
 export class DiagnosticsService {
   constructor(
     private readonly db: ScraperDbDatabase,
@@ -71,35 +110,39 @@ export class DiagnosticsService {
            WHERE message_id = decode(requested.message_hex, 'hex')
              AND activity->>'type' = 'snapshot'
            GROUP BY relayer
+         ), states AS MATERIALIZED (
+           SELECT anchors.*, coalesce(latest_update.id, anchors.anchor_id) AS state_id
+           FROM anchors LEFT JOIN LATERAL (
+             SELECT current_activity.id FROM public.message_activity AS current_activity
+             WHERE current_activity.message_id = decode(requested.message_hex, 'hex')
+               AND current_activity.relayer = anchors.relayer
+               AND current_activity.id > anchors.anchor_id
+               AND current_activity.activity->>'type' = 'snapshot_update'
+             ORDER BY current_activity.id DESC LIMIT 1
+           ) latest_update ON true
          )
          SELECT ${currentColumns} FROM public.message_activity AS current_activity
-         JOIN anchors ON current_activity.id = anchors.anchor_id
+         JOIN states ON current_activity.id = states.anchor_id
          UNION ALL
-         SELECT updates.* FROM anchors CROSS JOIN LATERAL (
-           SELECT ${currentColumns} FROM public.message_activity AS current_activity
-           WHERE current_activity.message_id = decode(requested.message_hex, 'hex')
-             AND current_activity.relayer = anchors.relayer
-             AND current_activity.id > anchors.anchor_id
-             AND current_activity.activity->>'type' = 'snapshot_update'
-           ORDER BY current_activity.id DESC LIMIT 1
-         ) updates
+         SELECT ${currentColumns} FROM public.message_activity AS current_activity
+         JOIN states ON current_activity.id = states.state_id
+         WHERE states.state_id > states.anchor_id
          UNION ALL
          (SELECT ${currentColumns} FROM public.message_activity AS current_activity
+          LEFT JOIN states ON states.relayer = current_activity.relayer
           WHERE current_activity.message_id = decode(requested.message_hex, 'hex')
-            AND NOT EXISTS (
-              SELECT 1 FROM anchors WHERE anchors.relayer = current_activity.relayer
-            )
+            AND (states.relayer IS NULL OR current_activity.id > states.state_id)
           ORDER BY current_activity.id DESC LIMIT $2)
        ) activity ORDER BY activity.message_id, activity.id::bigint DESC`,
       [normalized.map((id) => id.slice(2)), SNAPSHOT_LIMIT + 1],
     );
     return normalized.map((id) => {
       const matching = rows.filter((row) => row.message_id === id);
-      const activities = matching.slice(0, SNAPSHOT_LIMIT).reverse();
+      const activities = snapshotActivities(matching);
       return {
         version: 1,
         message_id: id,
-        partial: matching.length > SNAPSHOT_LIMIT,
+        partial: matching.length > activities.length,
         activities,
         relayers: reduceStatus(activities),
       };

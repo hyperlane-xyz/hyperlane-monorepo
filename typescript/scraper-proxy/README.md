@@ -279,6 +279,11 @@ Snapshot nodes use `node_id` identity, so repeated ISM addresses remain distinct
 Collection IDs and offchain attempt counters are nullable when omitted by the
 snapshot producer; legacy events retain their original values.
 
+The bounded snapshot selection retains anchors and updates together. Legacy
+events newer than a reporter's latest snapshot state are included, so rolling
+back a writer does not leave its status frozen at an older snapshot. Truncated
+responses remain marked `partial`; older history is available through GraphQL.
+
 PostgreSQL notifications are wakeups, not the data payload. Notifications are
 coalesced, and the proxy reloads only affected watched IDs. New subscriptions are
 read once; there is no periodic polling. After a listener reconnect, the proxy

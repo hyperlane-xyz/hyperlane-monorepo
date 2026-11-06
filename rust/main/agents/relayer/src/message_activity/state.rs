@@ -23,6 +23,8 @@ struct MessageState {
     #[serde(skip)]
     anchor_snapshot: Option<Arc<Value>>,
     submitted_validation: Option<Value>,
+    #[serde(skip)]
+    persistence_pending: bool,
 }
 
 impl Default for MessageState {
@@ -32,6 +34,7 @@ impl Default for MessageState {
             published_snapshot: None,
             anchor_snapshot: None,
             submitted_validation: None,
+            persistence_pending: false,
         }
     }
 }
@@ -148,10 +151,15 @@ impl ActivityState {
             if submitted {
                 state.submitted_validation = Some(state.validation());
             }
-            let persisted = if submitted || invalidated_submission {
-                // Persist invalidation too, so restart cannot restore an old attempt.
-                // Cache the transition even if optional recovery storage fails.
-                self.persist(event.message_id, &state).await
+            state.persistence_pending |= submitted || invalidated_submission;
+            let persisted = if state.persistence_pending {
+                // A failed write is not a durable transition. Keep it pending
+                // in cache and retry on subsequent observations.
+                let result = self.persist(event.message_id, &state).await;
+                if result.is_ok() {
+                    state.persistence_pending = false;
+                }
+                result
             } else {
                 Ok(())
             };
@@ -1612,5 +1620,122 @@ mod tests {
         .await;
         assert_eq!(snapshot(&manual)["phase"], "retrying");
         assert_eq!(snapshot(&manual)["retry"], Value::Null);
+    }
+    #[tokio::test]
+    async fn a_failed_invalidation_is_retried_before_later_restart() {
+        use hyperlane_base::db::test_utils::{setup_db, setup_read_only_db};
+        let directory = tempfile::tempdir().expect("test db directory");
+        let path = directory.path().to_str().expect("test path").to_owned();
+        let database = setup_db(path.clone());
+        let states = ActivityState::new(Some(database.clone()));
+        project(
+            &states,
+            &[
+                module("old-submission"),
+                metadata("old-submission", None),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                    },
+                ),
+            ],
+        )
+        .await;
+        drop(states);
+        drop(database);
+        let mut states = ActivityState::new(Some(setup_read_only_db(path.clone())));
+        let retry = [event(
+            None,
+            Activity::Retry {
+                reason: Some(ReprepareReason::RevertedOrReorged),
+                retry_count: 1,
+                next_attempt_at_millis: Some(12345),
+            },
+        )];
+        assert!(states.project(&retry).await.is_err());
+        states.failed(&retry).await;
+        let stale = states
+            .database
+            .as_ref()
+            .expect("readonly db")
+            .retrieve(&state_key(H256::zero()))
+            .expect("read old record")
+            .expect("old record");
+        let stale: MessageState = serde_json::from_slice(&stale).expect("decode old record");
+        assert!(stale.submitted_validation.is_some());
+        drop(states.database.take());
+        let database = setup_db(path);
+        states.database = Some(database.clone());
+        // No new capture or invalidation: only the outstanding dirty write can repair disk.
+        project(
+            &states,
+            &[event(
+                None,
+                Activity::Retry {
+                    reason: None,
+                    retry_count: 1,
+                    next_attempt_at_millis: None,
+                },
+            )],
+        )
+        .await;
+        drop(states);
+        let restarted = ActivityState::new(Some(database));
+        let delivered = project(
+            &restarted,
+            &[
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::AlreadySubmitted),
+                    },
+                ),
+                event(None, Activity::Delivered),
+            ],
+        )
+        .await;
+        assert_eq!(snapshot(&delivered)["tree_root"], Value::Null);
+        assert_eq!(snapshot(&delivered)["modules"], json!([]));
+    }
+
+    #[tokio::test]
+    async fn a_failed_capture_is_retried_without_another_submission_event() {
+        use hyperlane_base::db::test_utils::{setup_db, setup_read_only_db};
+        let directory = tempfile::tempdir().expect("test db directory");
+        let path = directory.path().to_str().expect("test path").to_owned();
+        drop(setup_db(path.clone()));
+        let mut states = ActivityState::new(Some(setup_read_only_db(path.clone())));
+        let capture = [
+            module("own-submission"),
+            metadata("own-submission", None),
+            event(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                },
+            ),
+        ];
+        assert!(states.project(&capture).await.is_err());
+        states.failed(&capture).await;
+        drop(states.database.take());
+        let database = setup_db(path);
+        states.database = Some(database.clone());
+        project(
+            &states,
+            &[event(
+                None,
+                Activity::Retry {
+                    reason: None,
+                    retry_count: 0,
+                    next_attempt_at_millis: None,
+                },
+            )],
+        )
+        .await;
+        drop(states);
+        let restarted = ActivityState::new(Some(database));
+        let delivered = project(&restarted, &[event(None, Activity::Delivered)]).await;
+        assert_eq!(snapshot(&delivered)["tree_root"], "own-submission");
     }
 }

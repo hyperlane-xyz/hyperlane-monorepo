@@ -755,3 +755,89 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
     await app.close();
   }
 });
+
+void it('truncates interleaved reporters as complete snapshot groups', async () => {
+  const rows: ActivityRow[] = [];
+  for (let index = 0; index < 51; index++) {
+    const state = { phase: 'preparing', tree_root: null, modules: [] };
+    const reporter = `relayer-${index}`;
+    rows.push(row({ type: 'snapshot', state }, index + 1, reporter));
+    rows.push(
+      row(
+        {
+          type: 'snapshot_update',
+          state: { ...state, phase: 'delivered', removed_modules: [] },
+        },
+        index + 52,
+        reporter,
+      ),
+    );
+  }
+  const service = new DiagnosticsService({
+    query: async () => rows.sort((a, b) => Number(b.id) - Number(a.id)),
+  });
+  const [snapshot] = await service.snapshots([id]);
+  assert(snapshot);
+  assert.equal(snapshot.partial, true);
+  assert.equal(snapshot.activities.length, 100);
+  assert.equal(snapshot.relayers.length, 50);
+  assert(
+    snapshot.relayers.every((relayer) => relayer.phase === Phase.Delivered),
+  );
+  for (const update of snapshot.activities.filter(
+    (row) => row.activity.type === 'snapshot_update',
+  )) {
+    assert(
+      snapshot.activities.some(
+        (row) =>
+          row.relayer === update.relayer && row.activity.type === 'snapshot',
+      ),
+    );
+  }
+});
+
+void it('omits a reporter when its newest legacy event does not fit with its baseline', async () => {
+  const state = { phase: 'preparing', tree_root: null, modules: [] };
+  const rows: ActivityRow[] = [
+    row({ type: 'snapshot', state }, 1, 'older-reporter'),
+    row(
+      {
+        type: 'snapshot_update',
+        state: { ...state, phase: 'ready_to_submit', removed_modules: [] },
+      },
+      2,
+      'older-reporter',
+    ),
+    row({ type: 'delivered' }, 3, 'older-reporter'),
+  ];
+  for (let index = 0; index < 49; index++) {
+    const reporter = `relayer-${index}`;
+    rows.push(row({ type: 'snapshot', state }, 4 + index * 2, reporter));
+    rows.push(
+      row(
+        {
+          type: 'snapshot_update',
+          state: { ...state, phase: 'delivered', removed_modules: [] },
+        },
+        5 + index * 2,
+        reporter,
+      ),
+    );
+  }
+  const service = new DiagnosticsService({
+    query: async () => rows.sort((a, b) => Number(b.id) - Number(a.id)),
+  });
+  const [snapshot] = await service.snapshots([id]);
+  assert(snapshot);
+  assert.equal(snapshot.partial, true);
+  assert.equal(snapshot.activities.length, 98);
+  assert.equal(snapshot.relayers.length, 49);
+  assert(
+    snapshot.activities.every(
+      (activity) => activity.relayer !== 'older-reporter',
+    ),
+  );
+  assert(
+    snapshot.relayers.every((relayer) => relayer.phase === Phase.Delivered),
+  );
+});
