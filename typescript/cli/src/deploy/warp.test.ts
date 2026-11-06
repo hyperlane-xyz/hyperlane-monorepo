@@ -2,21 +2,31 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import {
+  type IPostDispatchHook,
+  IPostDispatchHook__factory,
+} from '@hyperlane-xyz/core';
+import {
   ProtocolType,
   addressToBytes32,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  type DerivedTokenRouterConfig,
   EvmWarpModule,
+  EvmWarpRouteReader,
+  EvmWormholeHookIsmModule,
   HyperlaneDeployer,
   HookType,
   IsmType,
   MultiProvider,
+  TestChainName,
   TokenStandard,
   TokenMetadataMap,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
+  WormholeConsistencyType,
+  testChainMetadata,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -627,6 +637,98 @@ describe('runWarpRouteApply', () => {
       expect(updateSplitSpy.called).to.equal(false);
       expect(deployTimelockSpy.called).to.equal(false);
     }
+  });
+
+  it('rethrows a transport error from the Wormhole router probe instead of dropping the deployed router', async () => {
+    const DEPLOYED_ROUTER = '0x4444444444444444444444444444444444444444';
+    const SHARED_HOOK_ISM = '0x5555555555555555555555555555555555555555';
+    const WORMHOLE_CORE = '0x6666666666666666666666666666666666666666';
+    const wormholeChainConfig = (
+      wormholeChainId: number,
+    ): WarpRouteDeployConfigMailboxRequired[string] => ({
+      type: TokenType.native,
+      mailbox: MAILBOX,
+      owner: OWNER,
+      hook: { type: HookType.WORMHOLE },
+      interchainSecurityModule: {
+        type: IsmType.WORMHOLE,
+        owner: OWNER,
+        core: WORMHOLE_CORE,
+        wormholeChainId,
+        consistencyLevel: { type: WormholeConsistencyType.Finalized },
+        urls: ['https://example.com/{data}'],
+      },
+    });
+    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+      [TestChainName.test1]: wormholeChainConfig(4001),
+      [TestChainName.test2]: wormholeChainConfig(4002),
+    };
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        {
+          chainName: TestChainName.test1,
+          standard: TokenStandard.EvmHypNative,
+          decimals: 18,
+          symbol: 'ETH',
+          name: 'Ether',
+          addressOrDenom: DEPLOYED_ROUTER,
+        },
+      ],
+    };
+    const deployed: DerivedTokenRouterConfig = {
+      type: TokenType.native,
+      mailbox: MAILBOX,
+      owner: OWNER,
+      hook: SHARED_HOOK_ISM,
+      interchainSecurityModule: SHARED_HOOK_ISM,
+      remoteRouters: {},
+      destinationGas: {},
+    };
+    const transportError = Object.assign(
+      new Error(
+        'missing revert data in call exception (data="0x", code=CALL_EXCEPTION)',
+      ),
+      {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+        error: {
+          code: 'SERVER_ERROR',
+          message:
+            'bad response (status=429, headers={}, body="Too Many Requests")',
+          status: 429,
+        },
+      },
+    );
+    sinon
+      .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
+      .resolves(deployed);
+    const connect = sinon.stub(IPostDispatchHook__factory, 'connect').returns({
+      hookType: sinon.stub().rejects(transportError),
+      // CAST: test double exposing only the hookType() probe.
+    } as unknown as IPostDispatchHook);
+    const reconcileMesh = sinon.stub(EvmWormholeHookIsmModule, 'reconcileMesh');
+
+    try {
+      await runWarpRouteApply({
+        context: {
+          altVmSigners: {},
+          chainMetadata: {},
+          multiProvider: new MultiProvider(testChainMetadata),
+          registry: {},
+          skipConfirmation: true,
+        },
+        warpCoreConfig,
+        warpDeployConfig,
+        // CAST: runWarpRouteApply rejects in the Wormhole prepass, before extension or update planning reads the remaining context.
+      } as unknown as Parameters<typeof runWarpRouteApply>[0]);
+      expect.fail('expected the Wormhole probe transport error to reject');
+    } catch (error) {
+      expect(error).to.equal(transportError);
+    }
+
+    expect(connect.calledOnce).to.equal(true);
+    expect(connect.firstCall.args[0]).to.equal(SHARED_HOOK_ISM);
+    expect(reconcileMesh.called).to.equal(false);
   });
 });
 

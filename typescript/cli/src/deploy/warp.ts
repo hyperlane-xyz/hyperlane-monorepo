@@ -90,6 +90,7 @@ import {
   planWarpRouteHybrids,
   pairWormholeConfigs,
   splitWarpCoreAndExtendedConfigs,
+  throwIfNotMissingSelector,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
 import { mapHybridHookNodes } from '@hyperlane-xyz/sdk/hook/utils';
@@ -706,8 +707,9 @@ async function materializeWormholeMeshForApply(
           multiProvider.getProvider(chain),
         ).hookType();
         if (hookType === OnchainHookType.WORMHOLE) matches.push(candidate);
-      } catch {
+      } catch (error) {
         // Shared hook/ISM addresses of other types are not Wormhole candidates.
+        throwIfNotMissingSelector(error);
       }
     }
     assert(

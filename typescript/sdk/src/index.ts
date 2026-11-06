@@ -1050,6 +1050,7 @@ export {
   TypedSigner,
   IMultiProtocolSignerManager,
 } from './types.js';
+export { throwIfNotMissingSelector } from './utils/contract.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export {
   alignLocalAmountToMessage,
