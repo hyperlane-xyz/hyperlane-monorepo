@@ -415,6 +415,91 @@ def early_included_guard(metrics_port,origin,latest_nonce,messages,initial=False
             return result
         assert time.monotonic() < deadline, 'bounded wait for active Confirm witnesses expired'
         time.sleep(.05)
+
+def prepared_batch_snapshot(operations,messages):
+    assert isinstance(operations,list) and len(messages)==4,'four tracked prepared messages required'
+    expected={message['id'].lower():message for message in messages}
+    assert len(expected)==4 and all(re.fullmatch(r'0x[0-9a-f]{64}',identity) for identity in expected),'duplicate/invalid prepared ID'
+    seen=set();witnesses=[];ready=True
+    for row in operations:
+        assert isinstance(row,dict) and isinstance(row.get('id'),str),'invalid prepared admin row'
+        identity=row['id'].lower()
+        assert identity in expected and identity not in seen,'foreign or duplicate prepared operation'
+        seen.add(identity)
+        wire=bytes.fromhex(expected[identity]['wire']);assert len(wire)>=77,'truncated prepared wire'
+        known={'version':wire[0],'nonce':int.from_bytes(wire[1:5],'big'),'origin':int.from_bytes(wire[5:9],'big'),'sender':'0x'+wire[9:41].hex(),'destination':int.from_bytes(wire[41:45],'big'),'recipient':'0x'+wire[45:77].hex(),'body':list(wire[77:])}
+        assert known['origin']==ORIGIN and known['destination']==DESTINATION,'prepared message domain mismatch'
+        operation=row.get('operation');assert isinstance(operation,dict) and operation.get('type')=='PendingMessage','invalid prepared operation type'
+        actual=operation.get('message');assert isinstance(actual,dict) and actual.keys()==known.keys(),'invalid prepared message schema'
+        assert all(type(actual[key])is int for key in ('version','nonce','origin','destination')),'invalid prepared numeric field'
+        assert isinstance(actual['body'],list) and all(type(byte)is int and 0<=byte<=255 for byte in actual['body']),'invalid prepared body'
+        assert actual==known,'prepared operation differs from exact known wire'
+        assert operation.get('submitted')is False,'held preparation must not submit or confirm'
+        status=operation.get('status')
+        retry=isinstance(status,dict) and set(status)=={'Retry'}
+        assert status in ('FirstPrepareAttempt','ReadyToSubmit') or retry,'invalid held preparation status'
+        ready=ready and status=='ReadyToSubmit'
+        witnesses.append({'id':identity,'message':known,'status':status,'submitted':False})
+    return {'ready':ready and seen==set(expected),'operations':witnesses,'tracked_ids':sorted(expected)}
+
+def prepared_batch_probe(probe,messages):
+    expected={message['id'].removeprefix('0x').lower():message for message in messages}
+    assert len(expected)==4,'four unique sealed payloads required'
+    links={''.join(link['message_id_chunks']).lower():link for link in probe['sealed_payload_links']}
+    assert len(links)==len(probe['sealed_payload_links'])==4 and set(links)==set(expected),'sealed preparation membership mismatch'
+    rows={''.join(row['id_chunks']).lower():row for row in probe['messages'] if row['present']}
+    result=[]
+    for identity,message in expected.items():
+        link=links[identity];row=rows[identity]
+        assert link['message_source']=='canonical' and link['canonical_nonce_message_present']is True and link['canonical_nonce_matches_message']is True,'prepared canonical authority missing'
+        assert link['private_operation_stage']=='ready' and link['destination_payload_present']is True,'actual sealed pending payload missing'
+        assert link['estimated_gas']is not None and int(link['estimated_gas'])>0,'sealed preparation estimate missing'
+        assert link['gas_expenditure_record_present']is False and row['gas_expenditure_record_present']is False,'held preparation has expenditure'
+        assert row['processed']in (None,False) and row['payment'] and len(row['payloads'])==1,'held canonical row already processed or payload missing'
+        payload=row['payloads'][0];uuid=''.join(link['uuid_chunks']).replace('-','').lower()
+        assert payload['present']is True and payload['status']=='ReadyToSubmit' and payload['uuid'].replace('-','').lower()==uuid,'pending payload identity/status mismatch'
+        assert link['nonce']==int.from_bytes(bytes.fromhex(message['wire'])[1:5],'big')==row['nonce'],'prepared nonce mismatch'
+        result.append({'id':identity,'uuid':uuid,'estimated_gas':str(link['estimated_gas']),'nonce':link['nonce'],'private_operation_stage':'ready','payload_status':'ReadyToSubmit'})
+    return result
+
+def assert_prepared_batch_replayed(prepared,probe):
+    links={''.join(link['message_id_chunks']).lower():link for link in probe['sealed_payload_links']}
+    assert set(links)=={item['id'] for item in prepared},'replayed sealed membership changed'
+    for item in prepared:
+        link=links[item['id']]
+        assert ''.join(link['uuid_chunks']).replace('-','').lower()==item['uuid'] and str(link['estimated_gas'])==item['estimated_gas'] and link['nonce']==item['nonce'],'restart changed sealed UUID, estimate or nonce'
+
+def hold_batch_preparation(binary,config,value,database,log_path,messages,count,chain,proxy,oracle,agents):
+    assert value['chains']['test2']['maxBatchSize']==4 and value['chains']['test2'].get('maxSubmitQueueLength')is None,'expected uncapped maxBatch4 fixture'
+    held=copy.deepcopy(value);held['chains']['test2']['maxSubmitQueueLength']=0
+    released=copy.deepcopy(held);released['chains']['test2'].pop('maxSubmitQueueLength')
+    expected_release=copy.deepcopy(value);expected_release['chains']['test2'].pop('maxSubmitQueueLength',None)
+    assert released==expected_release,'preparation release changed more than queue cap'
+    (config/'public.json').write_text(json.dumps(held))
+    before_nonce=chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest'])
+    before_sends=sum(row['method']=='eth_sendRawTransaction' for row in rpc_snapshot(proxy)['observations'])
+    evidence={}
+    with log_path.open('w')as log:
+        running=launch(binary,config,log);agents.append(running)
+        try:
+            wait_role_ready(value['metricsPort'],running)
+            def prepared():
+                with urllib.request.urlopen(f'http://127.0.0.1:{value["metricsPort"]}/list_operations?destination_domain={DESTINATION}',timeout=3)as response:operations=json.loads(response.read())
+                snapshot=prepared_batch_snapshot(operations,messages)
+                assert chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest'])==before_nonce,'held preparation consumed account nonce'
+                assert sum(row['method']=='eth_sendRawTransaction' for row in rpc_snapshot(proxy)['observations'])==before_sends,'held preparation broadcast'
+                if snapshot['ready']:evidence.update(snapshot)
+                return snapshot['ready']
+            wait(prepared,running,90,'four exact sealed pending operations under queue cap0')
+        finally:
+            stopped=stop(running)
+    assert stopped['exit']==0,stopped
+    assert chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest'])==before_nonce,'held preparation shutdown consumed nonce'
+    assert sum(row['method']=='eth_sendRawTransaction' for row in rpc_snapshot(proxy)['observations'])==before_sends,'held preparation shutdown broadcast'
+    probe=rust_probe(oracle,database,count);sealed=prepared_batch_probe(probe,messages)
+    (config/'public.json').write_text(json.dumps(released))
+    return {'admin':evidence,'sealed_pending':sealed,'stopped_rust_readback':probe,'stop':stopped,'account_nonce_before':before_nonce,'account_nonce_after':before_nonce,'broadcast_requests_before':before_sends,'broadcast_requests_after':before_sends,'held_max_submit_queue_length':0,'released_max_submit_queue_length':None,'same_database':str(database),'configuration_change':'only destination maxSubmitQueueLength removed; operation context domain/chain/mailbox/signer/origin/hook unchanged'}
+
 def deploy_multicall3(chain):
  source=(ROOT/'rust/main/utils/run-locally/src/ethereum/multicall.rs').read_text();marker='SIGNED_DEPLOY_MULTICALL_TX: &str = "';start=source.index(marker)+len(marker);deployment=source[start:source.index('";',start)]
  if chain.rpc('eth_getCode',[MULTICALL3,'latest'])=='0x':
@@ -616,13 +701,17 @@ def main():
      validating=launch(validator_binary,validator_config,log);agents.append(validating);wait(lambda:(checkpoints/f'{len(messages)-1}_with_id.json').exists(),validating,45,'batch validator checkpoint history');batch_validator_stop=stop(validating)
     assert batch_validator_stop['exit']==0,batch_validator_stop
     batch_messages=messages[batch_start:]
-    batch_config=temporary/'batch-config';batch_config.mkdir();batch_database=temporary/'batch-db';batch_value=json.loads(json.dumps(value));batch_value['db']=str(batch_database);batch_value['metricsPort']=port();batch_value['whitelist']=[{'messageId':[message['id']for message in batch_messages]}];batch_value['chains']['test2']['maxBatchSize']=4;batch_value['chains']['test2']['batchContractAddress']=multicall;(batch_config/'public.json').write_text(json.dumps(batch_value));raw_before_batch=len(destination_rpc.raw_transactions)
+    batch_config=temporary/'batch-config';batch_config.mkdir();batch_database=temporary/'batch-db';batch_value=json.loads(json.dumps(value));batch_value['db']=str(batch_database);batch_value['metricsPort']=port();batch_value['whitelist']=[{'messageId':[message['id']for message in batch_messages]}];batch_value['chains']['test2']['maxBatchSize']=4;batch_value['chains']['test2']['batchContractAddress']=multicall
+    batch_prepared=hold_batch_preparation(binary,batch_config,batch_value,batch_database,temporary/'relayer-batch-prepare.log',batch_messages,len(messages),chain,destination_rpc,oracle,agents)
+    persist_progress(args.output,'batch-prepared-held',{'destination':destination_rpc},prepared_barrier=batch_prepared)
+    raw_before_batch=len(destination_rpc.raw_transactions)
     with (temporary/'relayer-batch.log').open('w')as log:
      running=launch(binary,batch_config,log);agents.append(running);batch_messages=messages[batch_start:];observe_inclusions(delivered,batch_messages,running,'four ready messages in maxBatchSize4 role run',destination_rpc,chain,domains['test2']['mailbox'])
      batch_early=early_included_guard(batch_value['metricsPort'],'test1',len(messages)-1,batch_messages)
      batch_settlement=wait_for_retirement(batch_value['metricsPort'],running,batch_messages,historical_offset_reason='exact four target IDs admitted by whitelist; older canonical nonces indexed but denied');persist_progress(args.output,'batch-retired',{'destination':destination_rpc},settlement=batch_settlement,early_included=batch_early);batch_stop=stop(running)
     assert batch_stop['exit']==0,batch_stop
     batch_probe=rust_probe(oracle,batch_database,len(messages));persist_progress(args.output,'batch-stopped-readback',{'destination':destination_rpc},settlement=batch_settlement,stopped_rust_readback=batch_probe);assert all(row['present']and row['processed']and row['payment']and row['payloads']for row in batch_probe['messages'][batch_start:]),batch_probe
+    assert_prepared_batch_replayed(batch_prepared['sealed_pending'],batch_probe)
     batch_transactions=[]
     for transaction_hash in dict.fromkeys(destination_rpc.raw_transactions[raw_before_batch:]):
      transaction=chain.rpc('eth_getTransactionByHash',[transaction_hash])
@@ -655,7 +744,7 @@ def main():
      crash_result={'passed':True,'attempts':crash_attempts,'actual_pre_enqueue_rust_readback':snapshot,'recovered_rust_readback':recovered,'replayed_rust_readback':replayed_probe,'recovery_receipt_proof':recovery_receipt_proof,'replay_readiness':replay_readiness,'recovery_new_nonce_count':1,'restart_new_nonce_count':0,'early_included':recovery_early,'settlement':recovery_settlement,'recovery_stop':recovery_stop,'replay_stop':replay_stop};break
     assert crash_result is not None,crash_attempts
     expenditure=all(int(v['spent']['gas_used'])>0 and int(v['spent']['tokens_used'])>0 for v in first_probe['messages'])
-    result={'passed':expenditure,'scope':__doc__,'binaries':{'relayer_sha256_chunks':sha(binary),'validator_sha256_chunks':sha(validator_binary),'rust_oracle_sha256_chunks':sha(oracle)},'validator_stop':validator_stop,'telemetry':metrics,'delivery_ms':delivery_ms,'early_included':early_included,'settlement':settlement,'first_stop':first_stop,'restart_readiness':restart_readiness,'restart_stop':restart_stop,'stalled_stop':stalled_stop,'restart_nonce_unchanged':True,'receipt_stall_requests':destination_rpc.receipt_stalls,'origin_progress_during_receipt_stall':True,'gas_expenditure_recorded':expenditure,'first_rust_readback':first_probe,'initial_receipt_proofs':initial_receipt_proofs,'stalled_rust_readback':stalled_probe,'max_batch_4':{'config':{'maxBatchSize':4,'batchContractAddress':multicall,'whitelist_message_ids_chunks':[chunks(message['id'])for message in batch_messages]},'early_included':batch_early,'settlement':batch_settlement,'stop':batch_stop,'stopped_rust_readback':batch_probe,'actual_allocation':batch_allocation},'rpc_methods':dict(destination_rpc.methods),'messages':[{'id_chunks':chunks(v['id']),'label':v['label'],'dispatch_block':v['dispatch_block'],'gas_block':v['gas_block']}for v in messages],'preenqueue_crash':crash_result,'fault_injection':fault_identity}
+    result={'passed':expenditure,'scope':__doc__,'binaries':{'relayer_sha256_chunks':sha(binary),'validator_sha256_chunks':sha(validator_binary),'rust_oracle_sha256_chunks':sha(oracle)},'validator_stop':validator_stop,'telemetry':metrics,'delivery_ms':delivery_ms,'early_included':early_included,'settlement':settlement,'first_stop':first_stop,'restart_readiness':restart_readiness,'restart_stop':restart_stop,'stalled_stop':stalled_stop,'restart_nonce_unchanged':True,'receipt_stall_requests':destination_rpc.receipt_stalls,'origin_progress_during_receipt_stall':True,'gas_expenditure_recorded':expenditure,'first_rust_readback':first_probe,'initial_receipt_proofs':initial_receipt_proofs,'stalled_rust_readback':stalled_probe,'max_batch_4':{'config':{'maxBatchSize':4,'batchContractAddress':multicall,'whitelist_message_ids_chunks':[chunks(message['id'])for message in batch_messages]},'prepared_barrier':batch_prepared,'early_included':batch_early,'settlement':batch_settlement,'stop':batch_stop,'stopped_rust_readback':batch_probe,'actual_allocation':batch_allocation},'rpc_methods':dict(destination_rpc.methods),'messages':[{'id_chunks':chunks(v['id']),'label':v['label'],'dispatch_block':v['dispatch_block'],'gas_block':v['gas_block']}for v in messages],'preenqueue_crash':crash_result,'fault_injection':fault_identity}
     finish_result(args.output,result)
     if not expenditure and not args.skip_expenditure_assert:raise AssertionError('actual Rust readback found missing receipt gas expenditure; diagnostic artifact retained')
     print(json.dumps({'passed':result['passed'],'delivered_cases':3,'max_batch_4_calls':batch_allocation['calls'],'restart_nonce_unchanged':True,'receipt_stall_origin_progress':True}))

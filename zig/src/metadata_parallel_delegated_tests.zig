@@ -931,12 +931,16 @@ test "verification replay does not consume cumulative ISM count twice" {
     const allocator = std.heap.c_allocator;
     const root = try parallel.Root.start(allocator, .{});
     defer root.deinit();
-    var fixture: Fixture = .{ .child_count = 4, .threshold = 2, .pending_verify = true };
+    // Require all four children: a partial quorum may cancel a trailing child
+    // before it enters, making an exact visit count depend on scheduling.
+    var fixture: Fixture = .{ .child_count = 4, .threshold = 4, .pending_verify = true };
     var cancel = std.atomic.Value(bool).init(false);
     var source: Source = .{ .allocator = allocator, .fixture = &fixture, .cancel = &cancel };
     var builder: metadata.Builder(Source) = .{ .allocator = allocator, .source = &source, .executor = &root.executor, .max_count = 5 };
     const encoded = try builder.build(@splat(0), message());
     defer allocator.free(encoded);
+    try expectSelection(encoded, 4, &.{ 0, 1, 2, 3 });
+    for (fixture.verify_ready[0..4]) |*ready| try std.testing.expect(ready.load(.acquire));
     try std.testing.expectEqual(@as(usize, 5), builder.visited);
     try drain(root, &fixture);
 }
