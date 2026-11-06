@@ -20,8 +20,12 @@ observation/receipt timestamps and structured activity data. Storage is best eff
 RPC/storage URLs, credentials, raw errors, message bodies, metadata and signature
 bytes are excluded. Offchain success means metadata was received, not verified.
 
-One prepare-start event clears stale attempt state in the reader. Nested metadata
-starts and routine validator storage, proof and simulation starts/successes are omitted. Configuration
+Legacy event readers clear attempt state on prepare start. Snapshot writers retain
+the latest known observations when preparation reuses cached metadata; changed
+validator sets, checkpoint identities and metadata failures invalidate the affected
+proof state. A reprepare invalidates the frozen submission path, while confirmation
+polling retains it. Nested metadata starts and routine proof and simulation
+starts/successes are omitted. Configuration
 (module types, routes, validators) is retained per attempt so each attempt remains
 interpretable. Real retries retain their reason/count/deadline; restart does not
 replay stored status or backoff. CCIP pending retries emit the first pending state
@@ -48,6 +52,11 @@ apply removals. Each update is cumulative relative to the latest anchor, so the
 reader needs only that anchor and the newest update. Updates never use ambiguous
 field-level JSON patches. A writer restart or failed database write publishes
 another complete anchor before updates resume.
+
+Failed local recovery writes remain pending in memory and are retried on the next
+observation, including failed submission invalidations. Recovery is best effort:
+process loss or cache eviction before any successful invalidation write can lose
+that transition. An unwritable local store does not provide crash durability.
 
 `relayer_first_seen_at_millis` is captured when the relayer creates the pending
 operation, not when its first prepare attempt runs. `phase_started_at_millis`

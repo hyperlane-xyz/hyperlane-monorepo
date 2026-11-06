@@ -356,10 +356,21 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             continue;
                         }
 
-                        if let Some(syncer) = self
+                        let syncer = match self
                             .build_and_validate(&mut states, &config, validator, storage_location)
-                            .await?
+                            .await
                         {
+                            Ok(syncer) => syncer,
+                            Err(error) => {
+                                self.report_activity(message, Activity::ValidatorStorage {
+                                    validator: *validator,
+                                    states: states.into_iter().collect(),
+                                    usable: false,
+                                });
+                                return Err(error);
+                            }
+                        };
+                        if let Some(syncer) = syncer {
                             // found the syncer for this validator
                             self.report_activity(message, Activity::ValidatorStorage {
                                 validator: *validator,

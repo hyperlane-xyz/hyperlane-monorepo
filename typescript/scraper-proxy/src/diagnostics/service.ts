@@ -13,9 +13,53 @@ export const MESSAGE_ACTIVITY_CHANNEL = 'message_activity_insert';
 const LISTENER_HEALTH_MS = 30_000;
 const MAX_HISTORY_LIMIT = 500;
 const logger = rootLogger.child({ module: 'Diagnostics' });
-const columns = `id::text, '0x' || encode(message_id, 'hex') AS message_id,
-  '0x' || encode(relayer, 'hex') AS relayer, origin, destination,
-  observed_at::text, received_at::text, version, activity`;
+function activityColumns(alias = ''): string {
+  const prefix = alias ? `${alias}.` : '';
+  return `${prefix}id::text, '0x' || encode(${prefix}message_id, 'hex') AS message_id,
+    '0x' || encode(${prefix}relayer, 'hex') AS relayer, ${prefix}origin, ${prefix}destination,
+    ${prefix}observed_at::text, ${prefix}received_at::text, ${prefix}version, ${prefix}activity`;
+}
+const columns = activityColumns();
+const currentColumns = activityColumns('current_activity');
+
+/** Keep each selected reporter's snapshot baseline within the row budget. */
+function snapshotActivities(rows: ActivityRow[]): ActivityRow[] {
+  const snapshots = new Map<
+    string,
+    { anchor?: ActivityRow; update?: ActivityRow }
+  >();
+  const newest = new Map<string, ActivityRow>();
+  for (const row of rows) {
+    if (!newest.has(row.relayer)) newest.set(row.relayer, row);
+    const type = row.activity.type;
+    if (type !== 'snapshot' && type !== 'snapshot_update') continue;
+    const state = snapshots.get(row.relayer) ?? {};
+    if (type === 'snapshot' && !state.anchor) state.anchor = row;
+    if (type === 'snapshot_update' && !state.update) state.update = row;
+    snapshots.set(row.relayer, state);
+  }
+  const selected = new Map<string, ActivityRow>();
+  for (const row of rows) {
+    const state = snapshots.get(row.relayer);
+    if (row.activity.type === 'snapshot_update' && !state?.anchor) continue;
+    const group = new Map<string, ActivityRow>();
+    for (const item of [
+      row,
+      state?.anchor,
+      state?.anchor ? state.update : undefined,
+      state?.anchor ? newest.get(row.relayer) : undefined,
+    ]) {
+      if (item && !selected.has(item.id)) group.set(item.id, item);
+    }
+    if (selected.size + group.size > SNAPSHOT_LIMIT) continue;
+    for (const [id, item] of group) selected.set(id, item);
+  }
+  return [...selected.values()].sort((a, b) => {
+    const left = BigInt(a.id);
+    const right = BigInt(b.id);
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+}
 
 export class DiagnosticsService {
   constructor(
@@ -61,37 +105,44 @@ export class DiagnosticsService {
     const rows = await this.read(
       `SELECT activity.* FROM unnest($1::text[]) AS requested(message_hex)
        CROSS JOIN LATERAL (
-         (SELECT DISTINCT ON (relayer, activity->>'type') ${columns}
-          FROM public.message_activity AS current_activity
-          WHERE message_id = decode(requested.message_hex, 'hex')
-            AND activity->>'type' IN ('snapshot', 'snapshot_update')
-            AND id >= (
-              SELECT max(anchor.id) FROM public.message_activity AS anchor
-              WHERE anchor.message_id = current_activity.message_id
-                AND anchor.relayer = current_activity.relayer
-                AND anchor.activity->>'type' = 'snapshot'
-            )
-          ORDER BY relayer, activity->>'type', id DESC)
-         UNION
-         (SELECT ${columns} FROM public.message_activity
-          WHERE message_id = decode(requested.message_hex, 'hex')
-            AND NOT EXISTS (
-              SELECT 1 FROM public.message_activity AS snapshot
-              WHERE snapshot.message_id = message_activity.message_id
-                AND snapshot.relayer = message_activity.relayer
-                AND snapshot.activity->>'type' = 'snapshot'
-            )
-          ORDER BY message_activity.id DESC LIMIT $2)
+         WITH anchors AS MATERIALIZED (
+           SELECT relayer, max(id) AS anchor_id FROM public.message_activity
+           WHERE message_id = decode(requested.message_hex, 'hex')
+             AND activity->>'type' = 'snapshot'
+           GROUP BY relayer
+         ), states AS MATERIALIZED (
+           SELECT anchors.*, coalesce(latest_update.id, anchors.anchor_id) AS state_id
+           FROM anchors LEFT JOIN LATERAL (
+             SELECT current_activity.id FROM public.message_activity AS current_activity
+             WHERE current_activity.message_id = decode(requested.message_hex, 'hex')
+               AND current_activity.relayer = anchors.relayer
+               AND current_activity.id > anchors.anchor_id
+               AND current_activity.activity->>'type' = 'snapshot_update'
+             ORDER BY current_activity.id DESC LIMIT 1
+           ) latest_update ON true
+         )
+         SELECT ${currentColumns} FROM public.message_activity AS current_activity
+         JOIN states ON current_activity.id = states.anchor_id
+         UNION ALL
+         SELECT ${currentColumns} FROM public.message_activity AS current_activity
+         JOIN states ON current_activity.id = states.state_id
+         WHERE states.state_id > states.anchor_id
+         UNION ALL
+         (SELECT ${currentColumns} FROM public.message_activity AS current_activity
+          LEFT JOIN states ON states.relayer = current_activity.relayer
+          WHERE current_activity.message_id = decode(requested.message_hex, 'hex')
+            AND (states.relayer IS NULL OR current_activity.id > states.state_id)
+          ORDER BY current_activity.id DESC LIMIT $2)
        ) activity ORDER BY activity.message_id, activity.id::bigint DESC`,
       [normalized.map((id) => id.slice(2)), SNAPSHOT_LIMIT + 1],
     );
     return normalized.map((id) => {
       const matching = rows.filter((row) => row.message_id === id);
-      const activities = matching.slice(0, SNAPSHOT_LIMIT).reverse();
+      const activities = snapshotActivities(matching);
       return {
         version: 1,
         message_id: id,
-        partial: matching.length > SNAPSHOT_LIMIT,
+        partial: matching.length > activities.length,
         activities,
         relayers: reduceStatus(activities),
       };

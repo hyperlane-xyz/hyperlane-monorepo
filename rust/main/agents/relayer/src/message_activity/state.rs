@@ -23,6 +23,8 @@ struct MessageState {
     #[serde(skip)]
     anchor_snapshot: Option<Arc<Value>>,
     submitted_validation: Option<Value>,
+    #[serde(skip)]
+    persistence_pending: bool,
 }
 
 impl Default for MessageState {
@@ -32,6 +34,7 @@ impl Default for MessageState {
             published_snapshot: None,
             anchor_snapshot: None,
             submitted_validation: None,
+            persistence_pending: false,
         }
     }
 }
@@ -88,13 +91,19 @@ impl ActivityState {
     }
 
     pub(super) async fn committed(&self, events: &[StoredEvent]) -> eyre::Result<()> {
-        for event in events {
-            if let StoredActivity::Snapshot { state } = &event.activity {
-                if state["phase"] == "delivered" || state["phase"] == "dropped" {
-                    if let Some(database) = self.database.clone() {
-                        let key = state_key(event.message_id);
-                        tokio::task::spawn_blocking(move || database.delete(&key)).await??;
-                    }
+        // A batch can include a terminal attempt followed by a manual retry.
+        // Only the last projected state may retire that message's pending record.
+        let latest = events
+            .iter()
+            .map(|event| (event.message_id, event))
+            .collect::<BTreeMap<_, _>>();
+        for event in latest.values() {
+            let (StoredActivity::Snapshot { state } | StoredActivity::SnapshotUpdate { state }) =
+                &event.activity;
+            if state["phase"] == "delivered" || state["phase"] == "dropped" {
+                if let Some(database) = self.database.clone() {
+                    let key = state_key(event.message_id);
+                    tokio::task::spawn_blocking(move || database.delete(&key)).await??;
                 }
             }
         }
@@ -108,23 +117,58 @@ impl ActivityState {
         let mut output = Vec::new();
         for event in events {
             let mut state = self.load(event.message_id).await?;
-            state.observe(event)?;
-            if matches!(
-                event.activity,
-                Activity::Status {
-                    status: super::PendingOperationStatus::Confirm(
-                        super::ConfirmReason::SubmittedBySelf
-                    )
-                }
-            ) {
-                state.submitted_validation = Some(state.validation());
-                self.persist(event.message_id, &state).await?;
+            let delivered = state
+                .current
+                .get("message")
+                .is_some_and(|message| message["phase"] == "delivered");
+            // Preserve the submitted path after delivery, but still allow a
+            // frozen terminal anchor to be republished after a failed write.
+            if !delivered {
+                state.observe(event)?;
             }
+            // Retrying preparation invalidates the previous submission path.
+            // Confirmation polling uses reason=None and retains the same path.
+            let invalidated_submission = !delivered
+                && matches!(
+                    event.activity,
+                    Activity::Retry {
+                        reason: Some(_),
+                        ..
+                    } | Activity::Status {
+                        status: super::PendingOperationStatus::Retry(_)
+                    }
+                )
+                && state.submitted_validation.take().is_some();
+            let submitted = !delivered
+                && matches!(
+                    event.activity,
+                    Activity::Status {
+                        status: super::PendingOperationStatus::Confirm(
+                            super::ConfirmReason::SubmittedBySelf
+                        )
+                    }
+                );
+            if submitted {
+                state.submitted_validation = Some(state.validation());
+            }
+            state.persistence_pending |= submitted || invalidated_submission;
+            let persisted = if state.persistence_pending {
+                // A failed write is not a durable transition. Keep it pending
+                // in cache and retry on subsequent observations.
+                let result = self.persist(event.message_id, &state).await;
+                if result.is_ok() {
+                    state.persistence_pending = false;
+                }
+                result
+            } else {
+                Ok(())
+            };
             // Initial discovery is accumulated into one whole-tree snapshot. Afterwards,
             // checkpoint/verification changes can animate progress without replaying configuration.
             let root_result = matches!(event.activity, Activity::Metadata { .. })
                 && event.node_id.as_ref().is_some_and(|id| !id.contains('/'));
-            let meaningful = root_result
+            let meaningful = (delivered && state.published_snapshot.is_none())
+                || root_result
                 || match &event.activity {
                     Activity::Checkpoint { .. }
                     | Activity::IsmVerification { .. }
@@ -187,6 +231,7 @@ impl ActivityState {
                 }
             }
             self.messages.insert(event.message_id, state).await;
+            persisted?;
         }
         Ok(output)
     }
@@ -531,6 +576,23 @@ impl MessageState {
             Activity::Status { status } => match status {
                 super::PendingOperationStatus::ReadyToSubmit => Some("ready_to_submit"),
                 super::PendingOperationStatus::Confirm(_) => Some("confirming"),
+                super::PendingOperationStatus::Retry(reason) => {
+                    // Normal reprepare reports count/deadline before setting
+                    // Retry status. Preserve that matching observation; a
+                    // status-only manual reset cannot supply those details.
+                    if matches!(reason, super::ReprepareReason::Manual)
+                        || message["retry"]["reason"] != value["status"]["Retry"]
+                    {
+                        message["retry"] = Value::Null;
+                    }
+                    Some(
+                        if matches!(reason, super::ReprepareReason::AwaitingValidatorSignatures) {
+                            "awaiting_signatures"
+                        } else {
+                            "retrying"
+                        },
+                    )
+                }
                 _ => None,
             },
             Activity::FirstSeen { at_millis } => {
@@ -1233,5 +1295,447 @@ mod tests {
             snapshot(&delivered)["delivered_observed_at_millis"],
             1_700_000_004_000_i64
         );
+    }
+    // Scratch regression cases for insertion into the existing state.rs tests module.
+    // Uses exact-head test helpers; original source unchanged. Parent owns compilation.
+
+    #[tokio::test]
+    async fn invalidated_self_submission_does_not_claim_an_external_delivery_tree() {
+        let states = ActivityState::new(None);
+        project(
+            &states,
+            &[
+                module("own-tree"),
+                metadata("own-tree", None),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                    },
+                ),
+            ],
+        )
+        .await;
+        project(
+            &states,
+            &[
+                event(
+                    None,
+                    Activity::Retry {
+                        reason: Some(ReprepareReason::RevertedOrReorged),
+                        retry_count: 1,
+                        next_attempt_at_millis: Some(1000),
+                    },
+                ),
+                module("other-inspected-tree"),
+                metadata("other-inspected-tree", None),
+            ],
+        )
+        .await;
+        let delivered = project(
+            &states,
+            &[
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::AlreadySubmitted),
+                    },
+                ),
+                event(None, Activity::Delivered),
+            ],
+        )
+        .await;
+        assert_eq!(snapshot(&delivered)["tree_root"], Value::Null);
+        assert_eq!(snapshot(&delivered)["modules"], json!([]));
+    }
+
+    #[tokio::test]
+    async fn invalidated_submission_stays_invalidated_across_restart() {
+        hyperlane_base::db::test_utils::run_test_db(|database| async move {
+            let states = ActivityState::new(Some(database.clone()));
+            project(
+                &states,
+                &[
+                    module("own-tree"),
+                    metadata("own-tree", None),
+                    event(
+                        None,
+                        Activity::Status {
+                            status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                        },
+                    ),
+                    event(
+                        None,
+                        Activity::Retry {
+                            reason: Some(ReprepareReason::RevertedOrReorged),
+                            retry_count: 1,
+                            next_attempt_at_millis: Some(1000),
+                        },
+                    ),
+                ],
+            )
+            .await;
+            drop(states);
+            let restarted = ActivityState::new(Some(database));
+            let delivered = project(
+                &restarted,
+                &[
+                    event(
+                        None,
+                        Activity::Status {
+                            status: PendingOperationStatus::Confirm(
+                                ConfirmReason::AlreadySubmitted,
+                            ),
+                        },
+                    ),
+                    event(None, Activity::Delivered),
+                ],
+            )
+            .await;
+            assert_eq!(snapshot(&delivered)["tree_root"], Value::Null);
+            assert_eq!(snapshot(&delivered)["modules"], json!([]));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn an_earlier_terminal_row_does_not_delete_a_later_pending_submission() {
+        hyperlane_base::db::test_utils::run_test_db(|database| async move {
+            let states = ActivityState::new(Some(database.clone()));
+            let updates = project(
+                &states,
+                &[
+                    module("first-tree"),
+                    metadata("first-tree", None),
+                    event(
+                        None,
+                        Activity::Status {
+                            status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                        },
+                    ),
+                    event(None, Activity::Dropped),
+                    event(
+                        None,
+                        Activity::Status {
+                            status: PendingOperationStatus::Retry(ReprepareReason::Manual),
+                        },
+                    ),
+                    module("retry-tree"),
+                    metadata("retry-tree", None),
+                    event(
+                        None,
+                        Activity::Status {
+                            status: PendingOperationStatus::ReadyToSubmit,
+                        },
+                    ),
+                    event(
+                        None,
+                        Activity::Status {
+                            status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                        },
+                    ),
+                ],
+            )
+            .await;
+            assert!(database
+                .retrieve(&state_key(H256::zero()))
+                .expect("read pending state")
+                .is_some());
+            states
+                .committed(&updates)
+                .await
+                .expect("commit activity batch");
+            assert!(database
+                .retrieve(&state_key(H256::zero()))
+                .expect("read retained pending state")
+                .is_some());
+            drop(states);
+            let restarted = ActivityState::new(Some(database));
+            let delivered = project(&restarted, &[event(None, Activity::Delivered)]).await;
+            assert_eq!(snapshot(&delivered)["tree_root"], "retry-tree");
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn late_observations_cannot_rewrite_a_delivered_validation_path() {
+        let states = ActivityState::new(None);
+        project(
+            &states,
+            &[
+                module("own-tree"),
+                metadata("own-tree", None),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                    },
+                ),
+                module("later-inspected-tree"),
+                metadata("later-inspected-tree", None),
+                event(None, Activity::Delivered),
+            ],
+        )
+        .await;
+        let late = project(
+            &states,
+            &[
+                event(
+                    None,
+                    Activity::Retry {
+                        reason: Some(ReprepareReason::Manual),
+                        retry_count: 0,
+                        next_attempt_at_millis: None,
+                    },
+                ),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                    },
+                ),
+                module("late-tree"),
+            ],
+        )
+        .await;
+        assert!(late.is_empty());
+    }
+    #[tokio::test]
+    async fn a_failed_terminal_write_can_republish_the_frozen_path() {
+        let states = ActivityState::new(None);
+        let observations = [
+            module("own-tree"),
+            metadata("own-tree", None),
+            event(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                },
+            ),
+            module("later-inspected-tree"),
+            metadata("later-inspected-tree", None),
+            event(None, Activity::Delivered),
+        ];
+        project(&states, &observations).await;
+        states.failed(&observations).await;
+        let retried = project(
+            &states,
+            &[event(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                },
+            )],
+        )
+        .await;
+        assert!(is_full_snapshot(&retried));
+        assert_eq!(snapshot(&retried)["phase"], "delivered");
+        assert_eq!(snapshot(&retried)["tree_root"], "own-tree");
+    }
+
+    #[tokio::test]
+    async fn a_manual_retry_status_invalidates_the_old_submission() {
+        let states = ActivityState::new(None);
+        project(
+            &states,
+            &[
+                module("own-tree"),
+                metadata("own-tree", None),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                    },
+                ),
+            ],
+        )
+        .await;
+        let retry = project(
+            &states,
+            &[event(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::Retry(ReprepareReason::Manual),
+                },
+            )],
+        )
+        .await;
+        assert_eq!(snapshot(&retry)["phase"], "retrying");
+        let delivered = project(
+            &states,
+            &[
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::AlreadySubmitted),
+                    },
+                ),
+                event(None, Activity::Delivered),
+            ],
+        )
+        .await;
+        assert_eq!(snapshot(&delivered)["tree_root"], Value::Null);
+    }
+    #[tokio::test]
+    async fn a_normal_retry_status_preserves_its_preceding_retry_details() {
+        let states = ActivityState::new(None);
+        let retry = project(
+            &states,
+            &[
+                event(
+                    None,
+                    Activity::Retry {
+                        reason: Some(ReprepareReason::AwaitingValidatorSignatures),
+                        retry_count: 7,
+                        next_attempt_at_millis: Some(12345),
+                    },
+                ),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Retry(
+                            ReprepareReason::AwaitingValidatorSignatures,
+                        ),
+                    },
+                ),
+            ],
+        )
+        .await;
+        assert_eq!(snapshot(&retry)["phase"], "awaiting_signatures");
+        assert_eq!(snapshot(&retry)["retry"]["count"], 7);
+        assert_eq!(
+            snapshot(&retry)["retry"]["reason"],
+            "AwaitingValidatorSignatures"
+        );
+        assert_eq!(snapshot(&retry)["retry"]["next_attempt_at_millis"], 12345);
+        let manual = project(
+            &states,
+            &[event(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::Retry(ReprepareReason::Manual),
+                },
+            )],
+        )
+        .await;
+        assert_eq!(snapshot(&manual)["phase"], "retrying");
+        assert_eq!(snapshot(&manual)["retry"], Value::Null);
+    }
+    #[tokio::test]
+    async fn a_failed_invalidation_is_retried_before_later_restart() {
+        use hyperlane_base::db::test_utils::{setup_db, setup_read_only_db};
+        let directory = tempfile::tempdir().expect("test db directory");
+        let path = directory.path().to_str().expect("test path").to_owned();
+        let database = setup_db(path.clone());
+        let states = ActivityState::new(Some(database.clone()));
+        project(
+            &states,
+            &[
+                module("old-submission"),
+                metadata("old-submission", None),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                    },
+                ),
+            ],
+        )
+        .await;
+        drop(states);
+        drop(database);
+        let mut states = ActivityState::new(Some(setup_read_only_db(path.clone())));
+        let retry = [event(
+            None,
+            Activity::Retry {
+                reason: Some(ReprepareReason::RevertedOrReorged),
+                retry_count: 1,
+                next_attempt_at_millis: Some(12345),
+            },
+        )];
+        assert!(states.project(&retry).await.is_err());
+        states.failed(&retry).await;
+        let stale = states
+            .database
+            .as_ref()
+            .expect("readonly db")
+            .retrieve(&state_key(H256::zero()))
+            .expect("read old record")
+            .expect("old record");
+        let stale: MessageState = serde_json::from_slice(&stale).expect("decode old record");
+        assert!(stale.submitted_validation.is_some());
+        drop(states.database.take());
+        let database = setup_db(path);
+        states.database = Some(database.clone());
+        // No new capture or invalidation: only the outstanding dirty write can repair disk.
+        project(
+            &states,
+            &[event(
+                None,
+                Activity::Retry {
+                    reason: None,
+                    retry_count: 1,
+                    next_attempt_at_millis: None,
+                },
+            )],
+        )
+        .await;
+        drop(states);
+        let restarted = ActivityState::new(Some(database));
+        let delivered = project(
+            &restarted,
+            &[
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::Confirm(ConfirmReason::AlreadySubmitted),
+                    },
+                ),
+                event(None, Activity::Delivered),
+            ],
+        )
+        .await;
+        assert_eq!(snapshot(&delivered)["tree_root"], Value::Null);
+        assert_eq!(snapshot(&delivered)["modules"], json!([]));
+    }
+
+    #[tokio::test]
+    async fn a_failed_capture_is_retried_without_another_submission_event() {
+        use hyperlane_base::db::test_utils::{setup_db, setup_read_only_db};
+        let directory = tempfile::tempdir().expect("test db directory");
+        let path = directory.path().to_str().expect("test path").to_owned();
+        drop(setup_db(path.clone()));
+        let mut states = ActivityState::new(Some(setup_read_only_db(path.clone())));
+        let capture = [
+            module("own-submission"),
+            metadata("own-submission", None),
+            event(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                },
+            ),
+        ];
+        assert!(states.project(&capture).await.is_err());
+        states.failed(&capture).await;
+        drop(states.database.take());
+        let database = setup_db(path);
+        states.database = Some(database.clone());
+        project(
+            &states,
+            &[event(
+                None,
+                Activity::Retry {
+                    reason: None,
+                    retry_count: 0,
+                    next_attempt_at_millis: None,
+                },
+            )],
+        )
+        .await;
+        drop(states);
+        let restarted = ActivityState::new(Some(database));
+        let delivered = project(&restarted, &[event(None, Activity::Delivered)]).await;
+        assert_eq!(snapshot(&delivered)["tree_root"], "own-submission");
     }
 }

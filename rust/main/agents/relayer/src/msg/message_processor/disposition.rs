@@ -146,8 +146,17 @@ pub(crate) async fn awaiting_transaction_finality(
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> bool {
+    let status = operation_payload_status(entrypoint, db, op).await;
+    if matches!(
+        status,
+        Ok(Some(PayloadStatus::InTransaction(
+            TransactionStatus::Finalized
+        )))
+    ) {
+        op.on_submission_stage(SubmissionStage::Finalized);
+    }
     matches!(
-        operation_payload_status(entrypoint, db, op).await,
+        status,
         Ok(Some(PayloadStatus::ReadyToSubmit))
             | Ok(Some(PayloadStatus::InTransaction(
                 TransactionStatus::PendingInclusion

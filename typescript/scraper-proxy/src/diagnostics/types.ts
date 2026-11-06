@@ -14,7 +14,8 @@ export enum Phase {
 }
 
 export type SignatureProgress = {
-  collection_id: string;
+  /** Absent in producer snapshots, which deduplicate across collection attempts. */
+  collection_id?: string | null;
   index?: number | null;
   root?: string | null;
   collected?: number | null;
@@ -22,6 +23,9 @@ export type SignatureProgress = {
   unavailable: { validator: string; reason: string }[];
 };
 export type IsmProgress = {
+  node_id?: string;
+  children?: { node_id: string; ism: string }[];
+  selected_children?: string[];
   /** 'unknown' groups observations whose producer did not supply an ISM. */
   ism: string;
   observed_at: string;
@@ -40,6 +44,7 @@ export type RelayerProgress = {
   relayer: string;
   phase: Phase;
   observed_at: string;
+  tree_root?: string | null;
   failure?: { stage: string; reason: string } | null;
   retry?: {
     reason: string;
@@ -60,7 +65,8 @@ export enum VerificationOutcome {
 
 export type OffchainReadProgress = {
   state: string;
-  attempt: number;
+  /** Producer snapshots omit per-request attempt counters. */
+  attempt?: number | null;
   endpoint: number | null;
   http_status: number | null;
 };

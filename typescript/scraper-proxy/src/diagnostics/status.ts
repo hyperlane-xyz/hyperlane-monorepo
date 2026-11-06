@@ -19,7 +19,65 @@ const ism = z.string();
 const count = z.number().int().nonnegative();
 const reason = z.union([z.string(), z.record(z.string(), z.unknown())]);
 const verificationOutcome = z.enum(VerificationOutcome);
+const snapshotModule = z.looseObject({
+  node_id: z.string(),
+  ism,
+  module_type: z.string().nullish(),
+  validators: z.array(z.string()).nullish(),
+  threshold: count.nullish(),
+  children: z.array(z.object({ node_id: z.string(), ism })).optional(),
+  selected_children: z.array(z.string()).optional(),
+  verified: count.nullish(),
+  verification: z
+    .string()
+    .nullish()
+    .transform((value) =>
+      value == null
+        ? value
+        : (verificationOutcome.safeParse(value).data ??
+          VerificationOutcome.Unknown),
+    ),
+  metadata_error: z.string().nullish(),
+  signatures: z
+    .object({
+      collection_id: z.string().nullish(),
+      index: count.nullish(),
+      root: z.string().nullish(),
+      collected: count.nullish(),
+      threshold: count,
+      unavailable: z.array(
+        z.object({ validator: z.string(), reason: z.string() }),
+      ),
+    })
+    .nullish(),
+  offchain_read: z
+    .object({
+      state: z.string(),
+      attempt: count.nullish(),
+      endpoint: count.nullable(),
+      http_status: count.nullable(),
+    })
+    .nullish(),
+});
+const snapshotState = z.looseObject({
+  phase: z.enum(Phase),
+  tree_root: z.string().nullable(),
+  modules: z.array(snapshotModule),
+  failure: z.object({ stage: z.string(), reason: z.string() }).nullish(),
+  retry: z
+    .object({
+      reason: z.string(),
+      count,
+      next_attempt_at_millis: count.nullable(),
+    })
+    .nullish(),
+});
 const event = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('snapshot'), state: snapshotState }),
+  z.object({
+    type: z.literal('snapshot_update'),
+    state: snapshotState.extend({ removed_modules: z.array(z.string()) }),
+  }),
   z.object({
     type: z.literal('chain_failure'),
     stage: z.string(),
@@ -123,6 +181,7 @@ const event = z.discriminatedUnion('type', [
  */
 export function reduceStatus(rows: ActivityRow[]): RelayerProgress[] {
   const relayers = new Map<string, RelayerProgress>();
+  const anchors = new Map<string, z.infer<typeof snapshotState>>();
   for (const row of rows) {
     let state = relayers.get(row.relayer);
     if (!state) {
@@ -140,6 +199,39 @@ export function reduceStatus(rows: ActivityRow[]): RelayerProgress[] {
     const parsed = event.safeParse(row.activity);
     if (!parsed.success) continue;
     const value = parsed.data;
+    if (value.type === 'snapshot' || value.type === 'snapshot_update') {
+      if (value.type === 'snapshot') anchors.set(row.relayer, value.state);
+      const anchor = anchors.get(row.relayer);
+      // A cumulative update cannot describe nodes omitted from a missing anchor.
+      if (!anchor) continue;
+      const modules = new Map(
+        anchor.modules.map((module) => [module.node_id, module]),
+      );
+      if (value.type === 'snapshot_update') {
+        for (const id of value.state.removed_modules) modules.delete(id);
+        for (const module of value.state.modules)
+          modules.set(module.node_id, module);
+      }
+      relayers.set(row.relayer, {
+        ...value.state,
+        relayer: row.relayer,
+        observed_at: row.observed_at,
+        modules: [...modules.values()].map((module) => ({
+          ...module,
+          observed_at: row.observed_at,
+          modules: module.children?.map((child) => child.ism),
+          signatures: module.signatures && {
+            ...module.signatures,
+            collection_id: module.signatures.collection_id ?? null,
+          },
+          offchain_read: module.offchain_read && {
+            ...module.offchain_read,
+            attempt: module.offchain_read.attempt ?? null,
+          },
+        })),
+      });
+      continue;
+    }
     if ('ism' in value) {
       // Null ISMs still carry validator/checkpoint progress from the relayer.
       const moduleIsm = value.ism ?? 'unknown';
