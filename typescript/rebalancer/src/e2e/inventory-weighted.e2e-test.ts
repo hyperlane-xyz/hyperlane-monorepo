@@ -411,17 +411,18 @@ describe('Inventory WeightedStrategy E2E', function () {
       nativeDeployedAddresses,
     );
 
-    // Cycle 1: Bridge fails — intent created but stays not_started, no actions
+    // Cycle 1: A proven pre-send failure releases its reservation for retry.
     mockBridge.failNextExecute();
     await executeCycle(context);
 
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
-    expect(activeIntents.length).to.equal(0);
+    expect(activeIntents.length).to.equal(1);
 
     const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
-    expect(partialIntents[0].intent.status).to.equal('not_started');
+    expect(partialIntents[0].intent.status).to.equal('in_progress');
+    expect(partialIntents[0].hasInflightMovement).to.equal(false);
     expect(partialIntents[0].completedAmount).to.equal(0n);
     expect(partialIntents[0].remaining).to.equal(
       WEIGHTED_EXPECTED_DEFICIT_1ETH.toBigInt(),
@@ -430,9 +431,12 @@ describe('Inventory WeightedStrategy E2E', function () {
     const intentId = partialIntents[0].intent.id;
     const actionsAfterFailure =
       await context.tracker.getActionsForIntent(intentId);
-    expect(actionsAfterFailure.length).to.equal(0);
+    expect(actionsAfterFailure.length).to.equal(1);
+    expect(actionsAfterFailure[0].status).to.equal('failed');
+    expect(actionsAfterFailure[0].submissionState).to.equal('not_submitted');
+    expect(actionsAfterFailure[0].txHash).to.equal(undefined);
 
-    // Cycle 2: Bridge succeeds — creates movement, intent becomes in_progress
+    // Cycle 2: The same intent retries and completes its bridge movement.
     await executeCycle(context);
     await context.tracker.syncInventoryMovementActions({
       [ExternalBridgeType.LiFi]: mockBridge,
@@ -451,9 +455,9 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(cycle2Partial.length).to.equal(1);
 
     const cycle2Actions = await context.tracker.getActionsForIntent(intentId);
-    expect(cycle2Actions.length).to.equal(1);
+    expect(cycle2Actions.length).to.equal(2);
     const movementAction = cycle2Actions.find(
-      (a) => a.type === 'inventory_movement',
+      (a) => a.type === 'inventory_movement' && a.status === 'complete',
     );
     expect(movementAction).to.exist;
     expect(movementAction!.status).to.equal('complete');
@@ -477,9 +481,9 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(completedIntent!.status).to.equal('complete');
 
     const finalActions = await context.tracker.getActionsForIntent(intentId);
-    expect(finalActions.length).to.equal(2);
+    expect(finalActions.length).to.equal(3);
     const finalMovement = finalActions.find(
-      (a) => a.type === 'inventory_movement',
+      (a) => a.type === 'inventory_movement' && a.status === 'complete',
     );
     expect(finalMovement).to.exist;
     const depositAction = finalActions.find(

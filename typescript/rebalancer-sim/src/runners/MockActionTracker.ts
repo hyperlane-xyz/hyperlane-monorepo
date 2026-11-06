@@ -7,6 +7,7 @@ import type {
   RebalanceAction,
   RebalanceIntent,
   Transfer,
+  UpdateRebalanceActionExecutionParams,
 } from '@hyperlane-xyz/rebalancer';
 import type { Domain } from '@hyperlane-xyz/utils';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -259,6 +260,17 @@ export class MockActionTracker implements IActionTracker {
     return Array.from(this.actions.values()).filter(
       (a) => a.status === 'in_progress',
     );
+  }
+
+  async updateRebalanceActionExecution(
+    id: string,
+    params: UpdateRebalanceActionExecutionParams,
+  ): Promise<void> {
+    const action = this.actions.get(id);
+    if (!action) {
+      throw new Error(`RebalanceAction ${id} not found`);
+    }
+    Object.assign(action, params, { updatedAt: Date.now() });
   }
 
   async completeRebalanceAction(id: string): Promise<void> {

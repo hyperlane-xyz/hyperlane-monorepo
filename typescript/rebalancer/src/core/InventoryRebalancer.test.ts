@@ -8,20 +8,36 @@ import Sinon, { type SinonStubbedInstance } from 'sinon';
 import {
   type ChainName,
   HyperlaneCore,
+  MultiProtocolCore,
   type MultiProvider,
   ProviderType,
   TokenStandard,
   WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { assert, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ProtocolType,
+  TransactionSubmissionError,
+} from '@hyperlane-xyz/utils';
 
-import { ExternalBridgeType } from '../config/types.js';
+import { Erc20ApprovalError } from '../bridges/erc20Approve.js';
+import {
+  DEFAULT_MOVEMENT_STALENESS_MS,
+  ExternalBridgeType,
+} from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import { createMockBridgeQuote } from '../test/lifiMocks.js';
+import { ActionTracker } from '../tracking/ActionTracker.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
-import type { RebalanceIntent } from '../tracking/types.js';
+import { InMemoryStore } from '../tracking/store/InMemoryStore.js';
+import type {
+  RebalanceAction,
+  RebalanceIntent,
+  Transfer,
+} from '../tracking/types.js';
+import { ExplorerClient } from '../utils/ExplorerClient.js';
 
 import {
   InventoryRebalancer,
@@ -82,6 +98,7 @@ describe('InventoryRebalancer E2E', () => {
       getInflightInventoryMovements: Sinon.stub(),
       getPartiallyFulfilledInventoryIntents: Sinon.stub(),
       createRebalanceAction: Sinon.stub(),
+      updateRebalanceActionExecution: Sinon.stub(),
       completeRebalanceAction: Sinon.stub(),
       failRebalanceAction: Sinon.stub(),
       logStoreContents: Sinon.stub(),
@@ -89,6 +106,17 @@ describe('InventoryRebalancer E2E', () => {
 
     // Default: No active (partial) inventory intents
     actionTracker.getPartiallyFulfilledInventoryIntents.resolves([]);
+    actionTracker.createRebalanceAction.resolves({
+      id: 'action-1',
+      status: 'in_progress',
+      type: 'inventory_movement',
+      intentId: 'intent-1',
+      origin: 1,
+      destination: 2,
+      amount: 1n,
+      createdAt: 1,
+      updatedAt: 1,
+    });
 
     bridge = {
       bridgeId: 'lifi',
@@ -297,6 +325,186 @@ describe('InventoryRebalancer E2E', () => {
       transferId: 'provider-transfer-id',
     });
   }
+
+  describe('movement reservations with the real tracker', () => {
+    const intentTTL = 1_000;
+    let tracker: ActionTracker;
+    let clock: Sinon.SinonFakeTimers;
+    let intents: InMemoryStore<RebalanceIntent, RebalanceIntent['status']>;
+    let actions: InMemoryStore<RebalanceAction, RebalanceAction['status']>;
+
+    beforeEach(() => {
+      clock = Sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+      intents = new InMemoryStore();
+      actions = new InMemoryStore();
+      tracker = new ActionTracker(
+        new InMemoryStore<Transfer, Transfer['status']>(),
+        intents,
+        actions,
+        Sinon.createStubInstance(ExplorerClient),
+        Sinon.createStubInstance(MultiProtocolCore),
+        {
+          routersByDomain: {},
+          bridges: [],
+          rebalancerAddress: INVENTORY_SIGNER,
+          intentTTL,
+        },
+        testLogger,
+      );
+      inventoryRebalancer = new InventoryRebalancer(
+        config,
+        tracker,
+        { debridge: bridge },
+        warpCore,
+        multiProvider,
+        testLogger,
+      );
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: 20_000_000_000n,
+      });
+      mockSuccessfulBridge(20_000_000_000n, 20_000_000_000n);
+      bridge.getStatus.resolves({ status: 'not_found' });
+    });
+
+    afterEach(() => clock.restore());
+
+    function route(): InventoryRoute {
+      return createTestRoute({ externalBridge: ExternalBridgeType.DeBridge });
+    }
+
+    async function expectReservedAcrossRetries() {
+      const [intent] = await tracker.getActiveRebalanceIntents();
+      const [movement] = await tracker.getInProgressActions();
+      assert(intent && movement, 'Expected a reserved intent and movement');
+      for (let cycle = 0; cycle < 3; cycle++) {
+        clock.tick(DEFAULT_MOVEMENT_STALENESS_MS + intentTTL + 1);
+        await tracker.syncInventoryMovementActions({ debridge: bridge });
+        await tracker.syncRebalanceIntents();
+        const result = await inventoryRebalancer.rebalance([
+          createTestRoute({ amount: 5_000_000_000n }),
+        ]);
+        expect(result).to.deep.equal([]);
+        expect(bridge.execute.callCount).to.equal(1);
+        expect((await intents.getAll()).map((item) => item.id)).to.deep.equal([
+          intent.id,
+        ]);
+        expect((await tracker.getActiveRebalanceIntents())[0]?.id).to.equal(
+          intent.id,
+        );
+        expect((await tracker.getInProgressActions())[0]?.id).to.equal(
+          movement.id,
+        );
+        expect(
+          await tracker.getInflightInventoryMovements(movement.origin),
+        ).to.equal(movement.amount);
+      }
+      return movement.id;
+    }
+
+    for (const status of [
+      'OrderCancelled',
+      'SentOrderCancel',
+      'ClaimedOrderCancel',
+    ]) {
+      it(`keeps ${status} reserved beyond TTL without another intent or execution`, async () => {
+        bridge.getStatus.resolves({ status: 'failed', error: status });
+        await inventoryRebalancer.rebalance([route()]);
+        const actionId = await expectReservedAcrossRetries();
+        expect((await actions.get(actionId))?.lastBridgeStatus).to.equal(
+          'failed',
+        );
+      });
+    }
+
+    it('keeps repeated not_found reserved beyond movement staleness and intent TTL', async () => {
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      expect((await actions.get(actionId))?.lastBridgeStatus).to.equal(
+        'not_found',
+      );
+    });
+
+    it('reserves an uninstrumented ambiguous send without a transaction hash', async () => {
+      bridge.execute.rejects(new Error('lost bridge response'));
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      const action = await actions.get(actionId);
+      expect(action?.submissionState).to.equal('unknown');
+      expect(action?.txHash).to.equal(undefined);
+      expect(bridge.getStatus.called).to.equal(false);
+    });
+
+    it('records source identity before a post-submit error and never downgrades it', async () => {
+      bridge.execute.callsFake(async (_quote, _keys, options) => {
+        expect(await tracker.getInProgressActions()).to.have.lengthOf(1);
+        await options?.onTransferId?.('debridge-order');
+        await options?.onSubmitted?.('source-hash');
+        throw new TransactionSubmissionError(
+          new Error('outer wrapper lost inner submission state'),
+          'not_submitted',
+        );
+      });
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      expect(await actions.get(actionId)).to.include({
+        txHash: 'source-hash',
+        externalBridgeTransferId: 'debridge-order',
+        submissionState: 'submitted',
+      });
+    });
+
+    it('keeps ambiguous approval identity separate from the unsubmitted primary', async () => {
+      bridge.execute.callsFake(async (_quote, _keys, options) => {
+        await options?.onApproval?.({ txHash: 'approval-hash' });
+        throw new Erc20ApprovalError(
+          new Error('approval response lost'),
+          'unknown',
+          'approval-hash',
+        );
+      });
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      const action = await actions.get(actionId);
+      expect(action?.submissionState).to.equal('not_submitted');
+      expect(action?.txHash).to.equal(undefined);
+      expect(action?.pendingApproval?.txHash).to.equal('approval-hash');
+    });
+
+    it('retries proven pre-send failure within the same intent', async () => {
+      bridge.execute
+        .onFirstCall()
+        .rejects(
+          new TransactionSubmissionError(
+            new Error('invalid quote'),
+            'not_submitted',
+          ),
+        );
+      await inventoryRebalancer.rebalance([route()]);
+      expect(await tracker.getInProgressActions()).to.have.lengthOf(0);
+      expect((await actions.getAll())[0]?.status).to.equal('failed');
+      await inventoryRebalancer.rebalance([route()]);
+      expect(bridge.execute.callCount).to.equal(2);
+      expect(await intents.getAll()).to.have.lengthOf(1);
+      expect(await tracker.getInProgressActions()).to.have.lengthOf(1);
+    });
+
+    it('preserves completed movement inventory awaiting deposit past TTL', async () => {
+      await inventoryRebalancer.rebalance([route()]);
+      bridge.getStatus.resolves({
+        status: 'complete',
+        receivingTxHash: 'destination-hash',
+        receivedAmount: 20_000_000_000n,
+      });
+      await tracker.syncInventoryMovementActions({ debridge: bridge });
+      clock.tick(intentTTL + 1);
+      await tracker.syncRebalanceIntents();
+      expect(await tracker.getActiveRebalanceIntents()).to.have.lengthOf(1);
+      const [partial] = await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partial?.hasInflightMovement).to.equal(false);
+      expect(partial?.remaining).to.equal(route().amount);
+    });
+  });
 
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
     // NOTE: Strategy route is arbitrum (surplus) → solana (deficit)
@@ -741,9 +949,13 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
       expect(actionParams.type).to.equal('inventory_movement');
-      expect(actionParams.externalBridgeTransferId).to.equal(
-        'provider-transfer-id',
-      );
+      expect(actionParams.externalBridgeTransferId).to.be.undefined;
+      expect(
+        actionTracker.updateRebalanceActionExecution.calledWith(
+          'action-1',
+          Sinon.match({ externalBridgeTransferId: 'provider-transfer-id' }),
+        ),
+      ).to.be.true;
     });
 
     it('returns failure for unrelated fee-aware probe errors', async () => {
@@ -839,6 +1051,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 3000000000n,
           remaining: 7000000000n, // 7k remaining
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);
@@ -876,6 +1089,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 3000000000n,
           remaining: 7000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: true,
         },
       ]);
@@ -920,6 +1134,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 0n,
           remaining: 10000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);
@@ -963,6 +1178,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 0n,
           remaining: 10000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);

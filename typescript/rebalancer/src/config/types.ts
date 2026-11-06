@@ -38,6 +38,7 @@ export enum ExecutionType {
 
 export enum ExternalBridgeType {
   LiFi = 'lifi',
+  DeBridge = 'debridge',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -131,8 +132,16 @@ export const LiFiBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+export const DeBridgeBridgeConfigSchema = z.object({
+  maxFeeBps: z.number().int().min(0).max(10_000).default(50),
+  maxEvmNativeValueWei: z.coerce.bigint().nonnegative().optional(),
+  maxTronNativeValueSun: z.coerce.bigint().nonnegative().optional(),
+  maxSolanaNativeSpendLamports: z.coerce.bigint().nonnegative().optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
+  debridge: DeBridgeBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
@@ -378,15 +387,6 @@ export const RebalancerConfigSchema = z
           // Other protocols: accept any non-empty string (future-proof)
         }
       }
-
-      if (!config.externalBridges?.lifi?.integrator) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'externalBridges.lifi is required when using inventory execution',
-          path: ['externalBridges', 'lifi'],
-        });
-      }
     }
 
     for (
@@ -396,37 +396,41 @@ export const RebalancerConfigSchema = z
     ) {
       const strategy = config.strategy[strategyIndex];
       for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
-        const checkLifiBridge = (
+        const checkExternalBridge = (
           externalBridge: ExternalBridgeType | undefined,
           path: (string | number)[],
         ) => {
-          if (
-            externalBridge === ExternalBridgeType.LiFi &&
-            !config.externalBridges?.lifi?.integrator
-          ) {
+          const isConfigured =
+            externalBridge === undefined ||
+            (externalBridge === ExternalBridgeType.LiFi &&
+              !!config.externalBridges?.lifi?.integrator) ||
+            (externalBridge === ExternalBridgeType.DeBridge &&
+              config.externalBridges?.debridge !== undefined);
+          if (!isConfigured) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
+              message: `Chain '${chainName}' uses externalBridge: '${externalBridge}' but externalBridges.${externalBridge} is not configured`,
               path,
             });
           }
         };
 
-        checkLifiBridge(chainConfig.externalBridge, [
-          'externalBridges',
-          'lifi',
+        checkExternalBridge(chainConfig.externalBridge, [
+          'strategy',
+          strategyIndex,
+          'chains',
+          chainName,
+          'externalBridge',
         ]);
 
         if (chainConfig.override) {
           for (const [destination, overrideConfig] of Object.entries(
             chainConfig.override,
           )) {
-            const merged = {
-              ...chainConfig,
-              ...(overrideConfig as Record<string, unknown>),
-            };
-            checkLifiBridge(
-              merged.externalBridge as ExternalBridgeType | undefined,
+            const parsedOverride =
+              RebalancerBridgeConfigSchema.partial().parse(overrideConfig);
+            checkExternalBridge(
+              parsedOverride.externalBridge ?? chainConfig.externalBridge,
               [
                 'strategy',
                 strategyIndex,
