@@ -23,7 +23,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     ChainCommunicationError, ConfirmReason, HyperlaneMessage, ModuleType, PendingOperationStatus,
-    ReprepareReason, H160, H256, H512,
+    ReprepareReason, SubmissionStage, H160, H256, H512,
 };
 
 use crate::msg::metadata::MetadataBuildError;
@@ -40,16 +40,14 @@ const WARNING_INTERVAL: Duration = Duration::from_secs(30);
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Activity {
-    /// Complete current message and ISM-tree state.
-    Snapshot {
-        state: serde_json::Value,
-    },
-    /// Complete message state plus nodes changed since the latest full snapshot.
-    SnapshotUpdate {
-        state: serde_json::Value,
-    },
     Status {
         status: PendingOperationStatus,
+    },
+    FirstSeen {
+        at_millis: u64,
+    },
+    Submission {
+        stage: SubmissionStage,
     },
     Retry {
         reason: Option<ReprepareReason>,
@@ -143,6 +141,16 @@ pub enum Activity {
     OriginSenderDenied,
     Delivered,
     Dropped,
+}
+
+/// Stable activity shapes stored for external consumers.
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum StoredActivity {
+    /// Complete current message and ISM-tree state.
+    Snapshot { state: serde_json::Value },
+    /// Message state plus ISM nodes changed since the latest full snapshot.
+    SnapshotUpdate { state: serde_json::Value },
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -264,7 +272,7 @@ pub fn metadata_error(error: &MetadataBuildError) -> String {
 }
 
 #[derive(Debug, Serialize)]
-struct Event {
+struct ObservationEvent {
     relayer: H160,
     observed_at: i64,
     message_id: H256,
@@ -273,6 +281,16 @@ struct Event {
     activity: Activity,
     #[serde(skip)]
     node_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct StoredEvent {
+    relayer: H160,
+    observed_at: i64,
+    message_id: H256,
+    origin: u32,
+    destination: u32,
+    activity: StoredActivity,
 }
 
 #[derive(Clone, Debug)]
@@ -299,7 +317,7 @@ impl ActivityMetrics {
 
 #[derive(Clone, Debug)]
 pub struct MessageActivityReporter {
-    sender: mpsc::Sender<Event>,
+    sender: mpsc::Sender<ObservationEvent>,
     relayer: H160,
     metrics: ActivityMetrics,
 }
@@ -347,7 +365,7 @@ impl MessageActivityReporter {
         activity: Activity,
         node_id: Option<String>,
     ) {
-        let event = Event {
+        let event = ObservationEvent {
             relayer: self.relayer,
             observed_at: Utc::now().timestamp_millis(),
             message_id,
@@ -499,7 +517,7 @@ async fn connect(url: &Secret<String>) -> Result<DatabaseConnection, sea_orm::Db
 
 async fn write_events(
     url: Secret<String>,
-    mut receiver: mpsc::Receiver<Event>,
+    mut receiver: mpsc::Receiver<ObservationEvent>,
     metrics: ActivityMetrics,
     database: Option<hyperlane_base::db::DB>,
 ) {
@@ -565,7 +583,10 @@ async fn write_events(
     }
 }
 
-async fn insert_events(db: &DatabaseConnection, events: &[Event]) -> Result<(), sea_orm::DbErr> {
+async fn insert_events(
+    db: &DatabaseConnection,
+    events: &[StoredEvent],
+) -> Result<(), sea_orm::DbErr> {
     let json = serde_json::to_string(events)
         .map_err(|_| sea_orm::DbErr::Custom("Activity serialization failed".to_owned()))?;
     db.execute(Statement::from_sql_and_values(

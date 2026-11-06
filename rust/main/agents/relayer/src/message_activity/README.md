@@ -7,6 +7,7 @@ observation/receipt timestamps and structured activity data. Storage is best eff
 
 | Area | Activities |
 | --- | --- |
+| Lifecycle | Relayer first-seen time, phase start, retries, submitter acceptance, pending inclusion, mempool, inclusion/finality and delivery observation |
 | Admission | Runtime denylist drops of in-flight messages and queue evictions |
 | Retries | Status, reason, count, next attempt, retry limit and drops |
 | ISMs | Metadata build results, module types, routed children, aggregation members/threshold and verified count |
@@ -48,6 +49,14 @@ reader needs only that anchor and the newest update. Updates never use ambiguous
 field-level JSON patches. A writer restart or failed database write publishes
 another complete anchor before updates resume.
 
+`relayer_first_seen_at_millis` is captured when the relayer creates the pending
+operation, not when its first prepare attempt runs. `phase_started_at_millis`
+marks the current phase transition. Submission updates carry their own observation
+time; `included`/`finalized` describe the destination transaction, while
+`delivered_observed_at_millis` is when the relayer confirmed mailbox delivery.
+Repeated lander status polls are suppressed before enqueue and again by the state
+projector. A row is emitted only for a changed public stage or other state.
+
 ## Deployment wiring
 
 Hyperlane, release-candidate and fast-path relayers reference GCP secrets in project
@@ -84,8 +93,8 @@ notifications within a transaction. Notifications are wakeups, not durable histo
 readers refresh watched messages after reconnecting.
 
 Transaction hashes/outcomes currently cover the classic submitter only. Lander
-submission does not yet provide its dispatcher transaction outcome to this reporter;
-its history still includes retries, payload errors and observed delivery completion.
+reports submitter acceptance, pending inclusion, mempool, included and finalized
+stages, but does not expose its dispatcher transaction hash through this interface.
 The startup log records the chosen identity domain/address. Identity uses the
 lowest initialized destination signer, so it may change if that destination fails
 startup; this is not a stable deployment identifier.

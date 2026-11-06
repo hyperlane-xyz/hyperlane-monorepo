@@ -7,7 +7,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     test_utils::dummy_domain, PendingOperation, PendingOperationResult, PendingOperationStatus,
-    ReprepareReason,
+    ReprepareReason, SubmissionStage,
 };
 
 use crate::{
@@ -22,7 +22,7 @@ use crate::{
     test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
 };
 
-fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<Event>) {
+fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<ObservationEvent>) {
     let (sender, receiver) = mpsc::channel(capacity);
     (
         MessageActivityReporter {
@@ -169,6 +169,42 @@ async fn live_denylist_and_retry_limit_transitions_still_emit_diagnostics() {
     .await;
 }
 
+#[tokio::test]
+async fn repeated_submission_stage_is_suppressed_before_enqueue() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let cache = OptionalCache::new(None);
+        let (reporter, mut activities) = reporter(4);
+        let builder = dummy_metadata_builder(&origin, &destination, &db, cache.clone())
+            .with_activity_reporter(Some(reporter));
+        let context = Arc::new(dummy_message_context(Arc::new(builder), &db, cache));
+        let pending = PendingMessage::new(
+            HyperlaneMessage {
+                origin: origin.id(),
+                destination: destination.id(),
+                ..Default::default()
+            },
+            context,
+            PendingOperationStatus::ReadyToSubmit,
+            None,
+            1,
+        );
+
+        pending.on_submission_stage(SubmissionStage::PendingInclusion);
+        pending.on_submission_stage(SubmissionStage::PendingInclusion);
+        assert!(matches!(
+            activities.try_recv().expect("new stage").activity,
+            Activity::Submission {
+                stage: SubmissionStage::PendingInclusion
+            }
+        ));
+        assert!(activities.try_recv().is_err());
+    })
+    .await;
+}
+
 #[test]
 fn metadata_errors_exclude_external_text() {
     for error in [
@@ -280,20 +316,18 @@ async fn postgres() -> eyre::Result<()> {
         "#)).await?;
         let (mut reporter, mut receiver) = reporter(2);
         let message = HyperlaneMessage { origin: u32::MAX, destination: 1, ..Default::default() };
-        let observer = reporter.checkpoint_observer(&message, Some(H256::repeat_byte(7)), 2);
-        observer.observe(CheckpointObservation::Fetching { index: 12 });
-        observer.observe(CheckpointObservation::Signature {
-            validator: H256::repeat_byte(1), index: 12, root: H256::repeat_byte(2), collected: 1,
-        });
-        observer.report();
+        reporter.report(&message, Activity::Delivered);
         let batch = vec![receiver.try_recv()?];
-        insert_events(&db, &batch).await?;
+        let stored = state::ActivityState::new(None).project(&batch).await?;
+        insert_events(&db, &stored).await?;
         assert!(db.execute_unprepared("DELETE FROM public.message_activity").await.is_err());
         assert!(db.execute_unprepared("UPDATE public.message_activity SET relayer = 'spoof'").await.is_err());
         // Shared credentials allow different configured EVM identities.
         reporter.relayer = H160::repeat_byte(0x22);
         reporter.report(&message, Activity::Delivered);
-        insert_events(&db, &[receiver.try_recv()?]).await?;
+        let batch = vec![receiver.try_recv()?];
+        let stored = state::ActivityState::new(None).project(&batch).await?;
+        insert_events(&db, &stored).await?;
         // The shared writer still cannot choose server receipt timestamps.
         assert!(db.execute_unprepared("INSERT INTO public.message_activity (received_at) VALUES (now())").await.is_err());
         db.execute_unprepared("RESET SESSION AUTHORIZATION").await?;
@@ -305,12 +339,12 @@ async fn postgres() -> eyre::Result<()> {
         assert_eq!(row.try_get::<String>("", "relayer")?, hex::encode(H160::repeat_byte(0x11)));
         assert_eq!(row.try_get::<i64>("", "origin")?, i64::from(u32::MAX));
         assert_eq!(row.try_get::<String>("", "message_id")?, hex::encode(message.id()));
-        let checkpoint = db.query_one(Statement::from_string(DbBackend::Postgres,
-            "SELECT activity FROM public.message_activity WHERE activity->>'type' = 'checkpoint'"))
-            .await?.ok_or_else(|| eyre::eyre!("missing checkpoint"))?;
-        let activity: serde_json::Value = checkpoint.try_get("", "activity")?;
-        assert_eq!(activity["summary"]["collected"], 1);
-        assert_eq!(activity["summary"]["index"], 12);
+        let snapshot = db.query_one(Statement::from_string(DbBackend::Postgres,
+            "SELECT activity FROM public.message_activity LIMIT 1"))
+            .await?.ok_or_else(|| eyre::eyre!("missing snapshot"))?;
+        let activity: serde_json::Value = snapshot.try_get("", "activity")?;
+        assert_eq!(activity["type"], "snapshot");
+        assert_eq!(activity["state"]["phase"], "delivered");
         // Exercise the background writer and its success counter, not only INSERT.
         let (writer_reporter, writer_receiver) = self::reporter(1);
         let metrics = writer_reporter.metrics.clone();

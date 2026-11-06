@@ -11,7 +11,7 @@ use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::{Activity, Event, H256};
+use super::{Activity, ObservationEvent, StoredActivity, StoredEvent, H256};
 
 const STATE_CACHE_ENTRIES: u64 = 10_000;
 
@@ -52,7 +52,7 @@ impl ActivityState {
         }
     }
 
-    pub(super) async fn failed(&self, events: &[Event]) {
+    pub(super) async fn failed(&self, events: &[ObservationEvent]) {
         for event in events {
             if let Some(mut state) = self.messages.get(&event.message_id).await {
                 // The next observation republishes the complete known baseline after a failed write.
@@ -87,9 +87,9 @@ impl ActivityState {
         Ok(())
     }
 
-    pub(super) async fn committed(&self, events: &[Event]) -> eyre::Result<()> {
+    pub(super) async fn committed(&self, events: &[StoredEvent]) -> eyre::Result<()> {
         for event in events {
-            if let Activity::Snapshot { state } = &event.activity {
+            if let StoredActivity::Snapshot { state } = &event.activity {
                 if state["phase"] == "delivered" || state["phase"] == "dropped" {
                     if let Some(database) = self.database.clone() {
                         let key = state_key(event.message_id);
@@ -101,7 +101,10 @@ impl ActivityState {
         Ok(())
     }
 
-    pub(super) async fn project(&self, events: &[Event]) -> eyre::Result<Vec<Event>> {
+    pub(super) async fn project(
+        &self,
+        events: &[ObservationEvent],
+    ) -> eyre::Result<Vec<StoredEvent>> {
         let mut output = Vec::new();
         for event in events {
             let mut state = self.load(event.message_id).await?;
@@ -137,6 +140,7 @@ impl ActivityState {
                     | Activity::ChainFailure { .. }
                     | Activity::ConfirmationError { .. }
                     | Activity::TransactionOutcome { .. }
+                    | Activity::Submission { .. }
                     | Activity::RecipientNotContract
                     | Activity::OriginSenderDenied => true,
                     _ => false,
@@ -157,11 +161,11 @@ impl ActivityState {
                     let snapshot = Arc::new(snapshot);
                     let activity = if anchor {
                         state.anchor_snapshot = Some(snapshot.clone());
-                        Activity::Snapshot {
+                        StoredActivity::Snapshot {
                             state: snapshot.as_ref().clone(),
                         }
                     } else {
-                        Activity::SnapshotUpdate {
+                        StoredActivity::SnapshotUpdate {
                             state: snapshot_update(
                                 state
                                     .anchor_snapshot
@@ -171,14 +175,13 @@ impl ActivityState {
                             ),
                         }
                     };
-                    output.push(Event {
+                    output.push(StoredEvent {
                         relayer: event.relayer,
                         observed_at: event.observed_at,
                         message_id: event.message_id,
                         origin: event.origin,
                         destination: event.destination,
                         activity,
-                        node_id: None,
                     });
                     state.published_snapshot = Some(snapshot);
                 }
@@ -364,7 +367,7 @@ impl MessageState {
             .retain(|key, _| !key.starts_with("node:") || reachable.contains(key));
     }
 
-    fn observe(&mut self, event: &Event) -> eyre::Result<()> {
+    fn observe(&mut self, event: &ObservationEvent) -> eyre::Result<()> {
         if self
             .current
             .get("message")
@@ -514,7 +517,7 @@ impl MessageState {
                 reason: Some(reason),
                 ..
             } => {
-                message["retry"] = json!({"reason": value["reason"], "count": value["retry_count"], "next_attempt_at_millis": value["next_attempt_at_millis"]});
+                message["retry"] = json!({"reason": value["reason"], "count": value["retry_count"], "observed_at_millis": event.observed_at, "next_attempt_at_millis": value["next_attempt_at_millis"]});
                 Some(
                     if matches!(reason, super::ReprepareReason::AwaitingValidatorSignatures) {
                         "awaiting_signatures"
@@ -530,7 +533,36 @@ impl MessageState {
                 super::PendingOperationStatus::Confirm(_) => Some("confirming"),
                 _ => None,
             },
-            Activity::Delivered => Some("delivered"),
+            Activity::FirstSeen { at_millis } => {
+                message["relayer_first_seen_at_millis"] = json!(at_millis);
+                if message.get("phase_started_at_millis").is_none() {
+                    message["phase_started_at_millis"] = json!(at_millis);
+                }
+                return Ok(());
+            }
+            Activity::Submission { stage } => {
+                let phase = match stage {
+                    super::SubmissionStage::Submitting
+                    | super::SubmissionStage::Submitted
+                    | super::SubmissionStage::PendingInclusion
+                    | super::SubmissionStage::Mempool => "submitting",
+                    super::SubmissionStage::Included | super::SubmissionStage::Finalized => {
+                        "confirming"
+                    }
+                };
+                if message["submission"]["stage"] == value["stage"] && message["phase"] == phase {
+                    return Ok(());
+                }
+                message["submission"] = json!({
+                    "stage": value["stage"],
+                    "observed_at_millis": event.observed_at,
+                });
+                Some(phase)
+            }
+            Activity::Delivered => {
+                message["delivered_observed_at_millis"] = json!(event.observed_at);
+                Some("delivered")
+            }
             Activity::Dropped | Activity::Filtered { .. } | Activity::RetryLimitReached { .. } => {
                 message["terminal"] = value.clone();
                 Some("dropped")
@@ -544,8 +576,16 @@ impl MessageState {
                 None
             }
             Activity::TransactionOutcome { .. } => {
-                message["transaction"] = value.clone();
-                None
+                message["submission"] = json!({
+                    "stage": "included",
+                    "observed_at_millis": event.observed_at,
+                });
+                message["transaction"] = json!({
+                    "transaction_id": value["transaction_id"],
+                    "executed": value["executed"],
+                    "included_observed_at_millis": event.observed_at,
+                });
+                Some("confirming")
             }
             Activity::Progress {
                 stage: super::Stage::Submit,
@@ -585,6 +625,11 @@ impl MessageState {
             }
         };
         if let Some(phase) = phase {
+            if message["phase"].as_str() != Some(phase)
+                || message.get("phase_started_at_millis").is_none()
+            {
+                message["phase_started_at_millis"] = json!(event.observed_at);
+            }
             message["phase"] = json!(phase);
             if matches!(
                 phase,
@@ -603,13 +648,17 @@ mod tests {
     use super::*;
     use crate::message_activity::{CheckpointSummary, Outcome, Stage, ValidatorStorageState};
     use hyperlane_core::{
-        ConfirmReason, ModuleType, PendingOperationStatus, ReprepareReason, H160,
+        ConfirmReason, ModuleType, PendingOperationStatus, ReprepareReason, SubmissionStage, H160,
     };
 
-    fn event(node: Option<&str>, activity: Activity) -> Event {
-        Event {
+    fn event(node: Option<&str>, activity: Activity) -> ObservationEvent {
+        event_at(node, activity, 1_700_000_000_000)
+    }
+
+    fn event_at(node: Option<&str>, activity: Activity, observed_at: i64) -> ObservationEvent {
+        ObservationEvent {
             relayer: H160::zero(),
-            observed_at: 1_700_000_000_000,
+            observed_at,
             message_id: H256::zero(),
             origin: 1,
             destination: 2,
@@ -617,7 +666,7 @@ mod tests {
             node_id: node.map(str::to_owned),
         }
     }
-    fn module(id: &str) -> Event {
+    fn module(id: &str) -> ObservationEvent {
         event(
             Some(id),
             Activity::MetadataModule {
@@ -626,7 +675,7 @@ mod tests {
             },
         )
     }
-    fn metadata(id: &str, error: Option<&str>) -> Event {
+    fn metadata(id: &str, error: Option<&str>) -> ObservationEvent {
         event(
             Some(id),
             Activity::Metadata {
@@ -635,7 +684,7 @@ mod tests {
             },
         )
     }
-    fn checkpoint(collection: &str, index: u32, collected: usize) -> Event {
+    fn checkpoint(collection: &str, index: u32, collected: usize) -> ObservationEvent {
         event(
             Some("root"),
             Activity::Checkpoint {
@@ -651,20 +700,19 @@ mod tests {
             },
         )
     }
-    fn snapshot(events: &[Event]) -> &Value {
+    fn snapshot(events: &[StoredEvent]) -> &Value {
         match &events.last().expect("snapshot event").activity {
-            Activity::Snapshot { state } | Activity::SnapshotUpdate { state } => state,
-            other => unreachable!("expected snapshot, got {other:?}"),
+            StoredActivity::Snapshot { state } | StoredActivity::SnapshotUpdate { state } => state,
         }
     }
 
-    fn is_full_snapshot(events: &[Event]) -> bool {
+    fn is_full_snapshot(events: &[StoredEvent]) -> bool {
         matches!(
             events.last().expect("snapshot event").activity,
-            Activity::Snapshot { .. }
+            StoredActivity::Snapshot { .. }
         )
     }
-    async fn project(states: &ActivityState, events: &[Event]) -> Vec<Event> {
+    async fn project(states: &ActivityState, events: &[ObservationEvent]) -> Vec<StoredEvent> {
         states.project(events).await.expect("project observations")
     }
 
@@ -1093,5 +1141,97 @@ mod tests {
         )
         .await
         .is_empty());
+    }
+
+    #[tokio::test]
+    async fn lifecycle_timestamps_and_submission_stages_are_compact() {
+        let states = ActivityState::new(None);
+        let first_seen = event_at(
+            None,
+            Activity::FirstSeen {
+                at_millis: 1_700_000_000_000,
+            },
+            1_700_000_000_001,
+        );
+        let initial = project(
+            &states,
+            &[first_seen, module("root"), metadata("root", None)],
+        )
+        .await;
+        assert_eq!(
+            snapshot(&initial)["relayer_first_seen_at_millis"],
+            1_700_000_000_000_u64
+        );
+        assert_eq!(
+            snapshot(&initial)["phase_started_at_millis"],
+            1_700_000_000_000_u64
+        );
+
+        project(
+            &states,
+            &[event_at(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::ReadyToSubmit,
+                },
+                1_700_000_001_000,
+            )],
+        )
+        .await;
+        let submitting = project(
+            &states,
+            &[event_at(
+                None,
+                Activity::Submission {
+                    stage: SubmissionStage::PendingInclusion,
+                },
+                1_700_000_002_000,
+            )],
+        )
+        .await;
+        assert_eq!(snapshot(&submitting)["phase"], "submitting");
+        assert_eq!(
+            snapshot(&submitting)["submission"],
+            json!({"stage": "pending_inclusion", "observed_at_millis": 1_700_000_002_000_i64})
+        );
+        assert_eq!(snapshot(&submitting)["modules"], json!([]));
+        assert!(project(
+            &states,
+            &[event_at(
+                None,
+                Activity::Submission {
+                    stage: SubmissionStage::PendingInclusion,
+                },
+                1_700_000_002_100,
+            )]
+        )
+        .await
+        .is_empty());
+
+        let included = project(
+            &states,
+            &[event_at(
+                None,
+                Activity::Submission {
+                    stage: SubmissionStage::Included,
+                },
+                1_700_000_003_000,
+            )],
+        )
+        .await;
+        assert_eq!(snapshot(&included)["phase"], "confirming");
+        assert_eq!(snapshot(&included)["submission"]["stage"], "included");
+        assert_eq!(snapshot(&included)["modules"], json!([]));
+
+        let delivered = project(
+            &states,
+            &[event_at(None, Activity::Delivered, 1_700_000_004_000)],
+        )
+        .await;
+        assert!(is_full_snapshot(&delivered));
+        assert_eq!(
+            snapshot(&delivered)["delivered_observed_at_millis"],
+            1_700_000_004_000_i64
+        );
     }
 }

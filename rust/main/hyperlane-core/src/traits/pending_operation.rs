@@ -26,6 +26,24 @@ use crate::{
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
 
+/// Protocol-neutral progress through transaction submission.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SubmissionStage {
+    /// The operation is building or sending its transaction payload.
+    Submitting,
+    /// The payload was accepted by the transaction submitter.
+    Submitted,
+    /// The transaction is waiting to be created or accepted by a node.
+    PendingInclusion,
+    /// The transaction is in a node's mempool.
+    Mempool,
+    /// The transaction was included in a block.
+    Included,
+    /// The transaction reached the chain's configured finality threshold.
+    Finalized,
+}
+
 /// A pending operation that will be processed by the MessageProcessor.
 ///
 /// There are three stages to the lifecycle of a pending operation:
@@ -181,6 +199,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Called immediately after the process tx for this operation is successfully submitted.
     /// Default no-op; override for latency-sensitive follow-up work (e.g. UR reveal).
     fn on_submitted_success(&self) {}
+
+    /// Called when the submission pipeline advances to a new observable stage.
+    fn on_submission_stage(&self, _stage: SubmissionStage) {}
 
     /// Called before a runtime denylist drop, so the operation can arrange
     /// to be reconsidered once it is released if its rule was removed meanwhile.
