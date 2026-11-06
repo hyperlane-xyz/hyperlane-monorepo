@@ -1,0 +1,68 @@
+{
+  "kind": "functional portability regression; not a performance benchmark",
+  "linux": "38 passed, 0 failed",
+  "macos": "38 passed, 0 failed",
+  "root_cause": "Zig Linux openDir with iterate=false uses O_PATH; fsync cannot synchronize that descriptor. Open writable-store directory handles with iterate=true; reopen borrowed journal directory before fsync. Preserve file and directory synchronization.",
+  "initial_linux_fixture_failure": "Source was read-only mounted and test cwd read-only; std.testing.tmpDir could not create its test directory. Retained separately, rerun with writable cwd.",
+  "diagnostic": "GDB sampled only this task native test process within its local build VM, then detached. Reused this task toolchain and native archives for direct Linux functional test. No cold-build timing claim.",
+  "sources_sha256_chunks": {
+    "zig/src/storage/local.zig": [
+      "dd15ffc5b79df066b314957c516643b5",
+      "056a9370ac17117030f0664407f028e8"
+    ],
+    "zig/src/cloud/credential_io.zig": [
+      "d520e4b94b0011ed6699da0ec5110fba",
+      "265889796ac5192fd84d4d2611ac475c"
+    ],
+    "zig/src/runtime/journal.zig": [
+      "5d7af6614f65a08e6a82d488c593f0c0",
+      "c38665d1e63f741ea842655cd24751e1"
+    ],
+    "zig/src/durable_directory_tests.zig": [
+      "4afb2bcb21641189d1886088934cf978",
+      "518ae645e4f2f8c16d93250b33158cd3"
+    ]
+  },
+  "artifacts": [
+    {
+      "file": "ziggy-durable-directory-macos-tests.log.gz",
+      "uncompressed_bytes": 3464,
+      "sha256_chunks": [
+        "5d0efee07aefd9b5adc817a3d43fb94a",
+        "52eca139e046a6a57df94b11e868f5db"
+      ]
+    },
+    {
+      "file": "ziggy-durable-directory-linux-tests.log.gz",
+      "uncompressed_bytes": 681,
+      "sha256_chunks": [
+        "ed7da9721174c7d675b7cecb8121bcce",
+        "6a865a0e1c784bb7b629636bf8a26e95"
+      ]
+    },
+    {
+      "file": "ziggy-durable-directory-linux-correctcwd-tests.log.gz",
+      "uncompressed_bytes": 3464,
+      "sha256_chunks": [
+        "5d0efee07aefd9b5adc817a3d43fb94a",
+        "52eca139e046a6a57df94b11e868f5db"
+      ]
+    },
+    {
+      "file": "ziggy-linux-native-hang-stack.txt.gz",
+      "uncompressed_bytes": 1304,
+      "sha256_chunks": [
+        "af0314aadb2925b59e021a58291ff5cd",
+        "67fc766a78580dcc6537c68bd4d62540"
+      ]
+    },
+    {
+      "file": "ziggy-linux-native-hang-symbols.txt.gz",
+      "uncompressed_bytes": 12655,
+      "sha256_chunks": [
+        "61ebe3807041c0fda2e70d5bee312e34",
+        "c37d2d318d165717e97681a45899075f"
+      ]
+    }
+  ]
+}

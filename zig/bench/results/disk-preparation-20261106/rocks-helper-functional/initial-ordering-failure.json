@@ -1,0 +1,11 @@
+{
+  "purpose": "Retained mistaken wrapper ordering; not a source failure or acceptance result",
+  "command": [
+    "ziggy-rocks-oracle",
+    "verify",
+    "roundtrip-db"
+  ],
+  "exit_code": 101,
+  "reason": "verify requires Zig mutation after populate; processed=false initially vs expectedtrue aftermutation",
+  "stderr_not_retained_by_original_wrapper": true
+}

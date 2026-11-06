@@ -1,0 +1,1071 @@
+warning: unused config key `build.exclude` in `/Users/pbio/work/ziggy/rust/main/.cargo/config.toml`
+warning: /Users/pbio/work/ziggy/rust/main/hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-core` (manifest) generated 1 warning
+    Checking libc v0.2.189
+    Checking serde_core v1.0.228
+    Checking cfg-if v1.0.0
+    Checking getrandom v0.2.15
+    Checking zeroize v1.8.1
+    Checking typenum v1.20.1
+    Checking serde v1.0.228
+    Checking subtle v2.6.1
+    Checking rand_core v0.6.4
+    Checking generic-array v0.14.7
+    Checking const-oid v0.9.6
+    Checking byteorder v1.5.0
+    Checking once_cell v1.21.3
+    Checking crypto-common v0.1.6
+    Checking block-buffer v0.10.4
+    Checking cpufeatures v0.2.17
+    Checking memchr v2.7.4
+    Checking digest v0.10.7
+    Checking zerocopy v0.7.35
+    Checking num-traits v0.2.19
+    Checking itoa v1.0.11
+    Checking sha2 v0.10.8
+    Checking log v0.4.28
+    Checking ppv-lite86 v0.2.20
+    Checking bytes v1.10.1
+    Checking rand_chacha v0.3.1
+    Checking rand v0.8.5
+    Checking pin-project-lite v0.2.14
+    Checking zmij v1.0.19
+    Checking serde_json v1.0.151
+    Checking smallvec v1.15.1
+    Checking fnv v1.0.7
+    Checking bytemuck v1.25.0
+    Checking borsh v1.6.0
+    Checking curve25519-dalek v4.1.3
+    Checking tracing-core v0.1.36
+    Checking futures-core v0.3.31
+    Checking scopeguard v1.2.0
+    Checking tracing v0.1.44
+    Checking lock_api v0.4.12
+    Checking futures-sink v0.3.31
+    Checking parking_lot_core v0.9.10
+    Checking percent-encoding v2.3.1
+    Checking signal-hook-registry v1.4.2
+    Checking parking_lot v0.12.3
+    Checking socket2 v0.6.5
+    Checking mio v1.2.2
+    Checking pin-utils v0.1.0
+    Checking slab v0.4.9
+    Checking tokio v1.53.1
+    Checking futures-channel v0.3.31
+    Checking futures-task v0.3.31
+    Checking futures-io v0.3.31
+    Checking futures-util v0.3.31
+    Checking bitflags v2.13.0
+    Checking equivalent v1.0.1
+    Checking hashbrown v0.16.0
+    Checking indexmap v2.12.0
+    Checking base64ct v1.6.0
+    Checking lazy_static v1.5.0
+    Checking hmac v0.12.1
+    Checking bincode v1.3.3
+    Checking tokio-util v0.7.18
+    Checking solana-sanitize v3.0.1
+    Checking five8_core v1.0.0
+    Checking httparse v1.9.4
+    Checking five8 v1.0.0
+    Checking spin v0.9.8
+    Checking base64 v0.22.1
+    Checking solana-atomic-u64 v3.0.0
+    Checking solana-hash v4.0.1
+    Checking untrusted v0.9.0
+    Checking tower-service v0.3.3
+    Checking solana-program-error v3.0.0
+    Checking ring v0.17.8
+    Checking solana-sha256-hasher v3.1.0
+    Checking five8_core v0.1.2
+    Checking five8 v0.2.1
+    Checking five8_const v1.0.0
+    Checking try-lock v0.2.5
+    Checking httpdate v1.0.3
+    Checking hex v0.4.3
+    Checking want v0.3.1
+    Checking solana-address v2.0.0
+    Checking num-integer v0.1.46
+    Checking thiserror v1.0.63
+    Checking zerofrom v0.1.6
+    Checking stable_deref_trait v1.2.0
+    Checking either v1.13.0
+    Checking yoke v0.8.1
+    Checking form_urlencoded v1.2.1
+    Checking zerovec v0.11.5
+    Checking ryu v1.0.18
+    Checking signature v2.2.0
+    Checking litemap v0.8.1
+    Checking tinystr v0.8.2
+    Checking writeable v0.6.2
+    Checking potential_utf v0.1.4
+    Checking icu_locale_core v2.1.1
+    Checking zerotrie v0.2.3
+    Checking core-foundation-sys v0.8.7
+    Checking icu_collections v2.1.1
+    Checking icu_provider v2.1.1
+    Checking icu_properties_data v2.1.1
+    Checking icu_normalizer_data v2.1.1
+    Checking thiserror v2.0.18
+    Checking icu_normalizer v2.1.1
+    Checking icu_properties v2.1.1
+    Checking utf8_iter v1.0.4
+    Checking http v0.2.12
+    Checking idna_adapter v1.2.1
+    Checking idna v1.1.0
+    Checking keccak v0.1.5
+    Checking ahash v0.8.11
+    Checking url v2.5.4
+    Checking sha3 v0.10.8
+    Checking http v1.2.0
+    Checking solana-address v1.1.0
+    Checking solana-instruction-error v2.1.0
+    Checking arrayvec v0.7.6
+    Checking security-framework-sys v2.17.0
+    Checking solana-pubkey v3.0.0
+    Checking solana-sdk-ids v3.1.0
+    Checking base64 v0.21.7
+    Checking ipnet v2.9.0
+    Checking http-body v0.4.6
+    Checking ed25519 v2.2.3
+    Checking num-bigint v0.4.6
+    Checking solana-pubkey v4.0.0
+    Checking http-body v1.0.1
+    Checking crypto-bigint v0.5.5
+    Checking solana-instruction v3.1.0
+    Checking serde_urlencoded v0.7.1
+    Checking socket2 v0.5.7
+    Checking http-body-util v0.1.4
+    Checking core-foundation v0.10.0
+    Checking solana-hash v3.1.0
+    Checking rfc6979 v0.4.0
+    Checking security-framework v3.7.0
+    Checking password-hash v0.4.2
+    Checking serde_bytes v0.11.15
+    Checking opaque-debug v0.3.1
+    Checking pbkdf2 v0.11.0
+    Checking getrandom v0.3.2
+    Checking ed25519-dalek v2.1.1
+    Checking h2 v0.3.26
+    Checking solana-sysvar-id v3.1.0
+    Checking solana-transaction-error v3.0.0
+    Checking hashbrown v0.13.2
+    Checking serde_with v3.12.0
+    Checking deranged v0.5.8
+    Checking hyper v0.14.30
+    Checking num_threads v0.1.7
+    Checking num-conv v0.2.2
+    Checking powerfmt v0.2.0
+    Checking arrayref v0.3.9
+    Checking time-core v0.1.9
+    Checking time v0.3.54
+    Checking crunchy v0.2.2
+    Checking sct v0.7.1
+    Checking pem-rfc7468 v0.7.0
+    Checking futures-executor v0.3.31
+    Checking der v0.7.9
+    Checking bv v0.11.1
+    Checking rustls-pki-types v1.14.0
+    Checking crc32fast v1.4.2
+    Checking spki v0.7.3
+    Checking futures v0.3.31
+    Checking static_assertions v1.1.0
+    Checking atomic-waker v1.1.2
+    Checking solana-sanitize v2.2.1
+    Checking h2 v0.4.15
+    Checking pkcs8 v0.10.2
+    Checking rustls-webpki v0.101.7
+    Checking aho-corasick v1.1.3
+    Checking ff v0.13.0
+    Checking constant_time_eq v0.3.1
+    Checking regex-syntax v0.8.4
+    Checking solana-atomic-u64 v2.2.1
+    Checking tower-layer v0.3.3
+    Checking base16ct v0.2.0
+    Checking regex-automata v0.4.7
+    Checking sec1 v0.7.3
+    Checking solana-hash v2.3.0
+    Checking blake3 v1.8.2
+    Checking group v0.13.0
+    Checking aws-lc-sys v0.41.0
+    Checking serde-big-array v0.5.1
+    Checking rustc-hex v2.1.0
+    Checking solana-signature v3.1.0
+    Checking rustls v0.21.12
+    Checking aws-lc-rs v1.17.0
+    Checking elliptic-curve v0.13.8
+    Checking digest v0.9.0
+    Checking mime v0.3.17
+    Checking rustls-webpki v0.103.9
+    Checking borsh v0.10.4
+    Checking solana-program-memory v3.1.0
+    Checking solana-account-info v3.1.0
+    Checking rustls v0.23.43
+    Checking ecdsa v0.16.9
+    Checking tokio-rustls v0.24.1
+    Checking solana-sha256-hasher v2.3.0
+    Checking five8_const v0.1.4
+    Checking solana-decode-error v2.3.0
+    Checking fastrand v2.3.0
+    Checking solana-pubkey v2.4.0
+    Checking solana-signer v3.0.0
+    Checking pin-project v1.1.13
+    Checking core-foundation v0.9.4
+    Checking derivation-path v0.2.0
+    Checking k256 v0.13.4
+    Checking uriparse v0.6.4
+    Checking qstring v0.7.2
+    Checking block-buffer v0.9.0
+    Checking security-framework v2.11.1
+    Checking rustls-pemfile v1.0.4
+    Checking sync_wrapper v1.0.2
+    Checking semver v1.0.27
+    Checking sha2 v0.9.9
+    Checking solana-clock v3.0.0
+    Checking rustls-native-certs v0.6.3
+    Checking solana-epoch-schedule v3.0.0
+    Checking solana-short-vec v3.2.0
+    Checking bitflags v1.3.2
+    Checking hyper-rustls v0.24.2
+    Checking hyper v1.11.0
+    Checking solana-slot-hashes v3.0.0
+    Checking solana-fee-calculator v3.0.0
+    Checking byte-slice-cast v1.2.2
+    Checking parity-scale-codec v3.6.12
+    Checking hyper-util v0.1.17
+    Checking tower v0.5.2
+    Checking solana-rent v3.1.0
+    Checking iana-time-zone v0.1.60
+    Checking der v0.6.1
+    Checking errno v0.3.14
+    Checking solana-define-syscall v4.0.1
+    Checking solana-program-entrypoint v3.1.1
+    Checking rustix v1.1.2
+    Checking spki v0.6.0
+    Checking chrono v0.4.45
+    Checking tokio-rustls v0.26.1
+    Checking rlp v0.5.2 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+    Checking solana-epoch-rewards v3.0.0
+    Checking solana-last-restart-slot v3.0.0
+    Checking solana-slot-history v3.0.0
+    Checking tempfile v3.23.0
+    Checking solana-sysvar v3.1.1
+    Checking pkcs8 v0.9.0
+    Checking solana-message v3.0.1
+    Checking inout v0.1.3
+    Checking crypto-bigint v0.4.9
+    Checking ff v0.12.1
+    Checking base64 v0.13.1
+    Checking base16ct v0.1.1
+    Checking solana-msg v3.0.0
+    Checking sec1 v0.3.0
+    Checking group v0.12.1
+    Checking cipher v0.4.4
+    Checking native-tls v0.2.18
+    Checking scale-info v2.11.3
+    Checking solana-derivation-path v3.0.0
+    Checking solana-serialize-utils v3.1.0
+    Checking tiny-keccak v2.0.2
+    Checking solana-seed-derivable v3.0.0
+    Checking tokio-native-tls v0.3.1
+    Checking elliptic-curve v0.12.3
+    Checking rfc6979 v0.3.1
+    Checking impl-rlp v0.3.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+    Checking impl-rlp v0.3.0
+    Checking impl-codec v0.6.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+    Checking impl-codec v0.6.0
+    Checking fixed-hash v0.8.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+    Checking fixed-hash v0.8.0
+    Checking uint v0.9.5
+    Checking solana-seed-phrase v3.0.0
+    Checking signature v1.6.4
+    Checking impl-serde v0.4.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+    Checking impl-serde v0.4.0
+    Checking adler2 v2.0.0
+    Checking ethbloom v0.13.0
+    Checking miniz_oxide v0.8.0
+    Checking primitive-types v0.12.1 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+    Checking ecdsa v0.14.8
+    Checking hyper-tls v0.5.0
+    Checking solana-instructions-sysvar v3.0.0
+    Checking bs58 v0.5.1
+    Checking sync_wrapper v0.1.2
+    Checking webpki-roots v0.25.4
+    Checking ethereum-types v0.14.1
+    Checking flate2 v1.0.33
+    Checking memoffset v0.9.1
+    Checking solana-instruction v2.3.3
+    Checking indenter v0.3.3
+    Checking eyre v0.6.8
+    Checking unicase v2.7.0
+    Checking aes v0.8.4
+    Checking ctr v0.9.2
+    Checking solana-system-interface v2.0.0
+    Checking regex v1.10.6
+    Checking solana-serde-varint v3.0.0
+    Checking encoding_rs v0.8.34
+    Checking alloc-no-stdlib v2.0.4
+    Checking alloc-stdlib v0.2.2
+    Checking system-configuration-sys v0.5.0
+    Checking mime_guess v2.0.5
+    Checking unicode-ident v1.0.18
+    Checking proc-macro2 v1.0.93
+    Checking system-configuration v0.5.1
+    Checking brotli-decompressor v4.0.1
+    Checking solana-account v3.4.0
+    Checking solana-sdk-ids v2.2.1
+    Checking webpki-roots v1.0.0
+    Checking quote v1.0.42
+    Checking brotli v6.0.0
+    Checking reqwest v0.11.27
+    Checking strum v0.24.1
+    Checking uuid v1.11.0
+    Checking solana-program-option v3.0.0
+    Checking crossbeam-utils v0.8.20
+    Checking unicode-segmentation v1.11.0
+    Checking utf-8 v0.7.6
+    Checking async-compression v0.4.12
+    Checking iri-string v0.7.10
+    Checking hyper-rustls v0.27.6
+    Checking itertools v0.10.5
+    Checking tower-http v0.6.8
+    Checking camino v1.1.9
+    Checking getrandom v0.1.16
+    Checking solana-transaction v3.0.2
+    Checking num_enum v0.7.5
+    Checking rand_core v0.5.1
+    Checking k256 v0.11.6
+    Checking solana-nonce v3.0.0
+    Checking ed25519-dalek-bip32 v0.3.0
+    Checking solana-program-pack v3.0.0
+    Checking solana-keypair v3.1.0
+    Checking solana-borsh v3.0.0
+    Checking cargo-platform v0.1.8
+    Checking solana-time-utils v3.0.0
+    Checking ahash v0.7.8
+    Checking cargo_metadata v0.15.4
+    Checking syn v1.0.109
+    Checking convert_case v0.6.0
+    Checking solana-sysvar-id v2.2.1
+    Checking ethabi v18.0.0
+    Checking open-fastrlp v0.1.4
+    Checking solana-address-lookup-table-interface v3.0.1
+    Checking solana-cpi v3.1.0
+    Checking webpki v0.22.4
+    Checking blake2 v0.10.6
+    Checking solana-inflation v3.0.0
+    Checking same-file v1.0.6
+    Checking unicode-xid v0.2.5
+    Checking futures-timer v3.0.3
+    Checking untrusted v0.7.1
+    Checking ethers-core v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking ring v0.16.20
+    Checking walkdir v2.5.0
+    Checking hashbrown v0.12.3
+    Checking solana-packet v3.0.0
+    Checking num-iter v0.1.45
+    Checking rustls v0.20.9
+    Checking solana-keccak-hasher v3.1.0
+    Checking itertools v0.12.1
+    Checking solana-serde v3.0.0
+    Checking event-listener v2.5.3
+    Checking solana-example-mocks v3.0.0
+    Checking Inflector v0.11.4
+    Checking solana-secp256k1-recover v3.1.0
+    Checking solana-blake3-hasher v3.1.0
+    Checking solana-stable-layout v3.0.0
+    Checking solana-big-mod-exp v3.0.0
+    Checking solana-epoch-stake v3.0.0
+    Checking sha-1 v0.10.1
+    Checking solana-epoch-info v3.1.0
+    Checking solana-native-token v3.0.0
+    Checking tungstenite v0.17.3
+    Checking solana-program v3.0.0
+    Checking tokio-rustls v0.23.4
+    Checking webpki-roots v0.22.6
+    Checking tokio-stream v0.1.17
+    Checking fxhash v0.2.1
+    Checking toml v0.5.11
+    Checking base64 v0.12.3
+    Checking hashers v1.0.1
+    Checking tokio-tungstenite v0.17.2
+    Checking tracing-futures v0.2.5
+    Checking dunce v1.0.5
+    Checking solana-msg v2.2.1
+    Checking ethers-contract-abigen v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking solana-program-error v2.2.2
+    Checking ethers-providers v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking solana-system-interface v1.0.0
+    Checking protobuf-support v3.7.2
+    Checking universal-hash v0.5.1
+    Checking polyval v0.6.2
+    Checking protobuf v3.7.2
+    Checking ethers-contract v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking typeid v1.0.2
+    Checking reqwest v0.12.28
+    Checking crossbeam-epoch v0.9.18
+    Checking num-rational v0.4.2
+    Checking num-complex v0.4.6
+    Checking aead v0.5.2
+    Checking solana-program-memory v2.3.1
+    Checking bech32 v0.11.0
+    Checking siphasher v0.3.11
+    Checking solana-hard-forks v3.0.0
+    Checking solana-shred-version v3.0.0
+    Checking solana-epoch-rewards-hasher v3.1.0
+    Checking num v0.4.3
+    Checking solana-account-info v2.3.0
+    Checking aes-gcm-siv v0.11.1
+    Checking libm v0.2.8
+    Checking prometheus v0.14.0
+    Checking erased-serde v0.4.5
+    Checking solana-clock v2.2.2
+    Checking async-mutex v1.4.0
+    Checking solana-offchain-message v3.0.0
+    Checking strum v0.26.3
+    Checking solana-presigner v3.0.0
+    Checking merlin v3.0.0
+    Checking solana-fee-structure v3.0.0
+    Checking vsimd v0.8.0
+    Checking outref v0.5.2
+    Checking inventory v0.3.15
+    Checking base64-simd v0.8.0
+    Checking typetag v0.2.18
+    Checking solana-sdk v3.0.0
+    Checking hyperlane-application v2.3.0 (/Users/pbio/work/ziggy/rust/main/applications/hyperlane-application)
+    Checking bigdecimal v0.4.5
+    Checking async-rwlock v1.3.0
+    Checking crossbeam-deque v0.8.5
+    Checking bytes-utils v0.1.4
+    Checking hyperlane-core v2.3.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-core)
+    Checking aws-smithy-types v1.3.0
+    Checking rayon-core v1.12.1
+    Checking matchers v0.2.0
+    Checking sharded-slab v0.1.7
+    Checking tracing-serde v0.2.0
+    Checking tracing-log v0.2.0
+    Checking ripemd v0.1.3
+    Checking thread_local v1.1.8
+    Checking nu-ansi-term v0.50.3
+    Checking anyhow v1.0.100
+    Checking prost v0.13.4
+    Checking tracing-subscriber v0.3.23
+    Checking rayon v1.10.0
+    Checking solana-transaction-error v2.2.1
+    Checking rand_core v0.9.3
+    Checking rand_chacha v0.9.0
+    Checking solana-rent v2.2.1
+    Checking solana-slot-hashes v2.2.1
+    Checking rand_chacha v0.2.2
+    Checking solana-serialize-utils v2.2.1
+    Checking solana-fee-calculator v2.2.1
+    Checking solana-short-vec v2.2.1
+    Checking allocator-api2 v0.2.18
+    Checking rand v0.7.3
+    Checking rand v0.9.5
+    Checking zstd-sys v2.0.13+zstd.1.5.6
+    Checking solana-cpi v2.2.1
+    Checking solana-bincode v2.2.1
+    Checking salsa20 v0.10.2
+    Checking hyper-timeout v0.5.2
+    Checking libsecp256k1-core v0.2.2
+    Checking rustls-native-certs v0.8.1
+    Checking hybrid-array v0.4.13
+    Checking num_cpus v1.17.0
+    Checking bech32 v0.9.1
+    Checking libsecp256k1 v0.6.0
+    Checking scrypt v0.10.0
+    Checking solana-message v2.4.0
+    Checking solana-stake-interface v1.2.1
+    Checking solana-nonce v2.2.1
+    Checking solana-instructions-sysvar v2.2.2
+    Checking solana-address-lookup-table-interface v2.2.2
+    Checking spl-discriminator v0.5.1
+    Checking solana-account v2.2.1
+    Checking solana-program-entrypoint v2.3.0
+    Checking solana-last-restart-slot v2.2.1
+    Checking solana-epoch-rewards v2.2.1
+    Checking solana-epoch-schedule v2.2.1
+    Checking solana-slot-history v2.2.1
+    Checking solana-keccak-hasher v2.2.1
+    Checking aws-smithy-async v1.2.5
+    Checking uuid v0.8.2
+    Checking solana-serde-varint v2.2.2
+    Checking cmov v0.5.4
+    Checking rustc-demangle v0.1.24
+    Checking data-encoding v2.6.0
+    Checking ctutils v0.4.2
+    Checking solana-vote-interface v2.2.6
+    Checking eth-keystore v0.5.0
+    Checking aws-smithy-runtime-api v1.7.4
+    Checking solana-example-mocks v2.2.1
+    Checking solana-sysvar v2.3.0
+    Checking solana-feature-gate-interface v2.2.2
+    Checking solana-secp256k1-recover v2.2.1
+    Checking block-buffer v0.12.1
+    Checking crypto-common v0.2.2
+    Checking solana-loader-v3-interface v5.0.0
+    Checking solana-loader-v4-interface v2.2.1
+    Checking solana-program-pack v2.2.1
+    Checking solana-loader-v2-interface v2.2.1
+    Checking solana-stable-layout v2.2.1
+    Checking solana-borsh v2.2.1
+    Checking solana-blake3-hasher v2.2.1
+    Checking solana-big-mod-exp v2.2.1
+    Checking lambdaworks-math v0.13.0
+    Checking toml_datetime v0.6.8
+    Checking serde_spanned v0.6.8
+    Checking solana-native-token v2.3.0
+    Checking rand_core v0.10.1
+    Checking winnow v0.6.18
+    Checking solana-program-option v2.2.1
+    Checking const-oid v0.10.2
+    Checking void v1.0.2
+    Checking minimal-lexical v0.2.1
+    Checking lambdaworks-crypto v0.13.0
+    Checking nom v7.1.3
+    Checking unreachable v1.0.0
+    Checking digest v0.11.3
+    Checking solana-program v2.3.0
+    Checking toml_edit v0.22.20
+    Checking indexmap v1.9.3
+    Checking zstd-safe v7.2.1
+    Checking hashbrown v0.14.5
+    Checking subtle-encoding v0.5.1
+    Checking foldhash v0.1.5
+    Checking ascii v0.9.3
+    Checking dyn-clone v1.0.17
+    Checking schemars v0.8.21
+    Checking combine v3.8.1
+    Checking zstd v0.13.3
+    Checking tower v0.4.13
+    Checking getrandom v0.4.3
+    Checking starknet-types-core v0.2.4
+    Checking chacha20 v0.10.1
+    Checking crossbeam-channel v0.5.15
+    Checking flex-error v0.4.4
+    Checking solana-derivation-path v2.2.1
+    Checking solana-signature v2.3.0
+    Checking hash32 v0.3.1
+    Checking generic-array v0.12.4
+    Checking cpufeatures v0.3.0
+    Checking matchit v0.7.3
+    Checking solana-svm-feature-set v3.0.14
+    Checking byte-tools v0.3.1
+    Checking block-padding v0.1.5
+    Checking agave-feature-set v3.0.14
+    Checking solana-sbpf v0.12.2
+    Checking solana-signer v2.2.1
+    Checking solana-seed-derivable v2.2.1
+    Checking rand v0.10.2
+    Checking starknet-curve v0.6.0
+    Checking solana-account-decoder-client-types v3.0.14
+    Checking curve25519-dalek v3.2.2 (https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek?branch=v3.2.2-relax-zeroize#5154e5d0)
+    Checking google-cloud-wkt v1.6.0
+    Checking solana-seed-phrase v2.2.1
+    Checking sha1 v0.10.6
+    Checking solana-commitment-config v3.1.0
+    Checking dirs-sys-next v0.1.2
+    Checking async-stream v0.3.5
+    Checking dirs-next v2.0.0
+    Checking spl-program-error v0.5.0
+    Checking solana-zk-sdk v2.3.13
+    Checking serde_json_pythonic v0.1.2
+    Checking ed25519-zebra v3.1.0
+    Checking starknet-crypto v0.8.1
+    Checking solana-transaction-context v3.0.14
+    Checking block-buffer v0.7.3
+    Checking digest v0.8.1
+    Checking spl-generic-token v2.0.1
+    Checking crypto-mac v0.11.0
+    Checking solana-reward-info v3.0.0
+    Checking shlex v1.3.0
+    Checking opaque-debug v0.2.3
+    Checking fake-simd v0.1.2
+    Checking subtle-ng v2.5.0
+    Checking sha2 v0.8.2
+    Checking curve25519-dalek-ng v4.1.1
+    Checking rusoto_credential v0.48.0
+    Checking solana-transaction-status-client-types v3.0.14
+    Checking hmac v0.11.0
+    Checking prost v0.14.4
+    Checking starknet-core v0.16.0
+    Checking cosmwasm-crypto v1.5.7
+    Checking spl-pod v0.4.0
+    Checking google-cloud-rpc v1.6.0
+    Checking portable-atomic v1.13.1
+    Checking rusticata-macros v4.1.0
+    Checking spl-discriminator v0.3.0
+    Checking solana-zk-sdk v4.0.0
+    Checking concurrent-queue v2.5.0
+    Checking md-5 v0.9.1
+    Checking rustls-platform-verifier v0.7.0
+    Checking solana-cluster-type v3.0.0
+    Checking opentelemetry v0.32.0
+    Checking bnum v0.11.0
+    Checking serde-json-wasm v0.5.2
+    Checking gethostname v0.2.3
+    Checking bnum v0.10.0
+    Checking base58 v0.1.0
+    Checking forward_ref v1.0.0
+    Checking base58check v0.1.0
+    Checking solana-metrics v3.0.14
+    Checking asn1-rs v0.5.2
+    Checking reqwest v0.13.4
+    Checking cosmwasm-std v1.5.7
+    Checking rusoto_signature v0.48.0
+    Checking spl-type-length-value v0.6.0
+    Checking google-cloud-gax v1.12.0
+    Checking solana-version v3.0.14
+    Checking ed25519-consensus v2.1.0
+    Checking sha2 v0.11.0
+    Checking hmac v0.13.0
+    Checking tonic v0.14.6
+    Checking ark-std v0.4.0
+    Checking aws-smithy-eventstream v0.60.8
+    Checking axum-core v0.4.5
+    Checking safe_arch v0.7.4
+    Checking xml-rs v0.8.21
+    Checking anstyle v1.0.10
+    Checking bech32 v0.7.3
+    Checking axum v0.7.9
+    Checking coins-core v0.7.0
+    Checking rusoto_core v0.48.0
+    Checking wide v0.7.33
+    Checking tonic-prost v0.14.6
+    Checking ark-serialize v0.4.2
+    Checking google-cloud-auth v1.14.0
+    Checking solana-rpc-client-types v3.0.14
+    Checking derive_builder v0.12.0
+    Checking secp256k1-sys v0.9.2
+    Checking num-bigint v0.2.6
+    Checking starknet-signers v0.14.0
+    Checking starknet-providers v0.16.0
+    Checking opentelemetry_sdk v0.32.1
+    Checking tracing-opentelemetry v0.33.0
+    Checking spl-pod v0.7.1
+    Checking prost-types v0.14.4
+    Checking tendermint-proto v0.40.1
+    Checking dashmap v5.5.3
+    Checking aws-credential-types v1.2.2
+    Checking aws-smithy-http v0.62.0
+    Checking threadpool v1.8.1
+    Checking rustls-pemfile v2.2.0
+    Checking radix-rust v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking const-sha1 v0.3.0
+    Checking maplit v1.0.2
+    Checking opentelemetry-semantic-conventions v0.32.1
+    Checking bs58 v0.4.0
+    Checking radium v0.3.0
+    Checking siphasher v1.0.2
+    Checking tinyvec_macros v0.1.1
+    Checking fastbloom v0.9.0
+    Checking tinyvec v1.8.0
+    Checking bitvec v0.17.4
+    Checking coins-bip32 v0.7.0
+    Checking google-cloud-gax-internal v0.7.15
+    Checking hyperlane-metric v3.0.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-metric)
+    Checking sbor v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking dlopen2 v0.5.0
+    Checking tonic v0.12.3
+    Checking blst v0.3.15
+    Checking starknet-accounts v0.16.0
+    Checking num-rational v0.2.4
+    Checking secp256k1 v0.28.2
+    Checking ark-ff v0.4.2
+    Checking nix v0.30.1
+    Checking num-complex v0.2.4
+    Checking oid-registry v0.6.1
+    Checking der-parser v8.2.0
+    Checking toml v0.8.19
+    Checking aws-smithy-observability v0.1.2
+    Checking aws-smithy-http-client v1.0.1
+    Checking solana-rayon-threadlimit v3.0.14
+    Checking reqwest-middleware v0.4.2
+    Checking ecdsa-signature v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/ecdsa-signature)
+    Checking serializable-account-meta v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/serializable-account-meta)
+    Checking quanta v0.12.4
+    Checking solana-vote-interface v3.0.0
+    Checking p256 v0.11.1
+    Checking rustls-platform-verifier v0.5.3
+    Checking jsonrpc-core v18.0.0
+    Checking lru-slab v0.1.2
+    Checking rustc-hash v2.1.1
+    Checking parking v2.2.1
+    Checking solana-measure v3.0.14
+    Checking rand_core v0.4.2
+    Checking unicode-width v0.2.2
+    Checking utf8parse v0.2.2
+    Checking console v0.16.2
+    Checking anstyle-parse v0.2.6
+    Checking rand_core v0.3.1
+    Checking event-listener v5.3.1
+    Checking solana-rpc-client-api v3.0.14
+    Checking quinn-proto v0.11.12
+    Checking cosmwasm-schema v1.5.7
+    Checking aws-sigv4 v1.3.0
+    Checking package-versioned v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/package-versioned)
+    Checking aws-smithy-runtime v1.8.1
+    Checking solana-perf v3.0.14
+    Checking ark-poly v0.4.2
+    Checking x509-parser v0.14.0
+    Checking num v0.2.1
+    Checking solana-net-utils v3.0.14
+    Checking radix-common v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking starknet-contract v0.16.0
+    Checking quinn-udp v0.5.12
+    Checking aws-types v1.3.6
+    Checking coins-bip39 v0.7.0
+    Checking heapsize v0.4.2
+    Checking rusoto_kms v0.48.0
+    Checking aws-smithy-http v0.60.12
+    Checking cw-storage-plus v1.2.0
+    Checking account-utils v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/account-utils)
+    Checking hyperlane-warp-route v2.3.0 (/Users/pbio/work/ziggy/rust/main/applications/hyperlane-warp-route)
+    Checking hyperlane-operation-verifier v3.0.0 (/Users/pbio/work/ziggy/rust/main/applications/hyperlane-operation-verifier)
+    Checking access-control v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/access-control)
+    Checking solana-quic-definitions v3.0.0
+    Checking webpki-roots v0.24.0
+    Checking spinning_top v0.3.0
+    Checking serde-aux v4.5.0
+    Checking redact v0.1.11
+    Checking anstyle-query v1.1.2
+    Checking is_terminal_polyfill v1.70.1
+    Checking colorchoice v1.0.3
+    Checking no-std-compat v0.4.1
+    Checking unit-prefix v0.5.2
+    Checking peg-runtime v0.8.3
+    Checking nonzero_ext v0.3.0
+    Checking peg v0.8.4
+    Checking indicatif v0.18.3
+    Checking governor v0.6.3
+    Checking anstream v0.6.17
+    Checking ethers-etherscan v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking tungstenite v0.20.1
+    Checking cw2 v1.1.2
+    Checking ethers-signers v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking aws-runtime v1.5.6
+    Checking quinn v0.11.8
+    Checking starknet v0.17.0
+    Checking solana-tls-utils v3.0.14
+    Checking percentage v0.1.0
+    Checking ark-ec v0.4.2
+    Checking solana-transaction-metrics-tracker v3.0.14
+    Checking event-listener-strategy v0.5.3
+    Checking rand v0.5.6
+    Checking solana-connection-cache v3.0.14
+    Checking tendermint v0.40.1
+    Checking spl-type-length-value v0.9.0
+    Checking hyperlane-sealevel-interchain-security-module-interface v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/interchain-security-module-interface)
+    Checking hyperlane-sealevel-message-recipient-interface v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/message-recipient-interface)
+    Checking async-channel v1.9.0
+    Checking proc-macro-crate v3.2.0
+    Checking spl-noop v1.0.0
+    Checking tracing-test v0.2.5
+    Checking syn v2.0.109
+    Checking pem v1.1.1
+    Checking primeorder v0.13.6
+    Checking rlp v0.4.6
+    Checking solana-feature-gate-interface v3.1.0
+    Checking solana-curve25519 v3.1.8
+    Checking arc-swap v1.8.1
+    Checking futures-locks v0.7.1
+    Checking instant v0.1.13
+    Checking clap_lex v0.7.2
+    Checking regex-lite v0.1.6
+    Checking static_assertions v0.2.5
+    Checking strsim v0.11.1
+    Checking histogram v0.6.9
+    Checking clap_builder v4.5.20
+    Checking solana-streamer v3.0.14
+    Checking fixed-hash v0.3.2
+    Checking ethers-middleware v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking spl-token-confidential-transfer-proof-extraction v0.5.1
+    Checking solana-rpc-client v3.0.14
+    Checking impl-rlp v0.2.1
+    Checking p256 v0.13.2
+    Checking tendermint-config v0.40.1
+    Checking prost v0.12.6
+    Checking hyperlane-sealevel-mailbox v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/mailbox)
+    Checking spl-token-metadata-interface v0.8.0
+    Checking ark-bls12-381 v0.4.0
+    Checking async-lock v3.4.2
+    Checking cw-utils v1.0.3
+    Checking axum-core v0.3.4
+    Checking tokio-tungstenite v0.20.1
+    Checking crc32c v0.6.8
+    Checking radix-blueprint-schema-init v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking cosmos-sdk-proto v0.26.1
+    Checking google-cloud-longrunning v1.12.0
+    Checking spl-token-group-interface v0.7.1
+    Checking spl-token-confidential-transfer-proof-generation v0.5.1
+    Checking google-cloud-type v1.6.0
+    Checking cometbft-proto v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+    Checking ed25519-zebra v4.0.3
+    Checking prost-types v0.13.4
+    Checking ethers-addressbook v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking convert_case v0.8.0
+    Checking reqwest-utils v3.0.0 (/Users/pbio/work/ziggy/rust/main/utils/reqwest-utils)
+    Checking solana-loader-v3-interface v6.1.0
+    Checking tiny-keccak v1.5.0
+    Checking tokio-io-timeout v1.2.0
+    Checking impl-serde v0.2.3
+    Checking cosmwasm-core v2.1.3
+    Checking gimli v0.28.1
+    Checking predicates-core v1.0.8
+    Checking adler v1.0.2
+    Checking xmlparser v0.13.6
+    Checking aws-smithy-xml v0.60.9
+    Checking miniz_oxide v0.7.4
+    Checking addr2line v0.21.0
+    Checking cosmwasm-crypto v2.1.3
+    Checking ethbloom v0.6.4
+    Checking hyper-timeout v0.4.1
+    Checking cainome-parser v0.6.0
+    Checking ethers v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+    Checking prettyplease v0.2.22
+    Checking google-cloud-iam-v1 v1.11.0
+    Checking spl-token-2022-interface v2.1.0
+    Checking radix-engine-interface v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking cometbft v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+    Checking google-cloud-lro v1.9.0
+    Checking axum v0.6.20
+    Checking solana-pubsub-client v3.0.14
+    Checking cw20 v1.1.2
+    Checking tendermint-rpc v0.40.1
+    Checking clap v4.5.20
+    Checking cainome-cairo-serde v0.4.1
+    Checking uint v0.5.0
+    Checking derive_more v1.0.0
+    Checking multisig-ism v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/multisig-ism)
+    Checking google-cloud-location v1.11.0
+    Checking solana-client-traits v3.0.0
+    Checking aws-smithy-json v0.60.7
+    Checking aws-smithy-json v0.61.3
+    Checking solana-stake-interface v2.0.2
+    Checking spl-token-interface v2.0.0
+    Checking solana-config-interface v2.0.0
+    Checking informalsystems-pbjson v0.7.0
+    Checking float-cmp v0.9.0
+    Checking object v0.32.2
+    Checking serde-json-wasm v1.0.1
+    Checking ethereum-types-serialize v0.2.2
+    Checking normalize-line-endings v0.3.0
+    Checking termtree v0.4.1
+    Checking humantime v2.1.0
+    Checking dlv-list v0.3.0
+    Checking ucd-trie v0.1.6
+    Checking unicode-width v0.1.13
+    Checking urlencoding v2.1.3
+    Checking difflib v0.4.0
+    Checking predicates v2.1.5
+    Checking aws-smithy-query v0.60.7
+    Checking backtrace v0.3.71
+    Checking annotate-snippets v0.10.2
+    Checking pest v2.7.11
+    Checking ordered-multimap v0.4.3
+    Checking predicates-tree v1.0.11
+    Checking ethereum-types v0.5.2
+    Checking cosmwasm-std v2.1.3
+    Checking ics23 v0.12.0
+    Checking solana-account-decoder v3.0.14
+    Checking cosmrs v0.21.0
+    Checking solana-tpu-client v3.0.14
+    Checking google-cloud-kms-v1 v1.12.0
+    Checking cainome-rs v0.5.1
+    Checking clap_complete v4.5.36
+    Checking cw20-base v1.1.2
+    Checking tonic v0.10.2
+    Checking cometbft-config v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+    Checking ethers-prometheus v3.0.0 (/Users/pbio/work/ziggy/rust/main/ethers-prometheus)
+    Checking protobuf v2.28.0
+    Checking libz-sys v1.1.16
+    Checking solana-quic-client v3.0.14
+    Checking bzip2-sys v0.1.11+1.0.8
+    Checking prost-types v0.12.6
+    Checking solana-rpc-client-nonce-utils v3.0.14
+    Checking lz4-sys v1.10.0
+    Checking solana-udp-client v3.0.14
+    Checking radix-substate-store-interface v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking quote-verifier v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/quote-verifier)
+    Checking cosmwasm-storage v1.5.2
+    Checking tungstenite v0.21.0
+    Checking agave-reserved-account-keys v3.0.14
+    Checking sha1 v0.11.0
+    Checking hashbrown v0.15.2
+    Checking tracing-error v0.2.0
+    Checking core-api-client-async v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+    Checking gateway-api-client-async v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+    Checking crypto v3.0.0 (/Users/pbio/work/ziggy/rust/main/utils/crypto)
+    Checking solana-loader-v2-interface v3.0.0
+    Checking spl-associated-token-account-interface v2.0.0
+    Checking spl-memo-interface v2.0.0
+    Checking headers-core v0.2.0
+    Checking sha256 v1.5.0
+    Checking md-5 v0.10.6
+    Checking serde-cw-value v0.7.0
+    Checking fragile v2.0.0
+    Checking owo-colors v3.5.0
+    Checking linked-hash-map v0.5.6
+    Checking downcast v0.11.0
+    Checking seahash v4.1.0
+    Checking hex-literal v0.4.1
+    Checking yup-oauth2 v8.3.1
+    Checking hyperlane-ethereum v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-ethereum)
+    Checking color-spantrace v0.2.1
+    Checking mockall v0.11.4
+    Checking yaml-rust v0.4.5
+    Checking core-api-client v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+    Checking injective-std v1.13.6
+warning: unused import: `error`
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-ethereum/src/rpc_clients/retrying.rs:14:15
+   |
+14 | use tracing::{error, instrument, trace, warn, warn_span};
+   |               ^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hyperlane-ethereum` (lib) generated 1 warning (run `cargo clippy --fix --lib -p hyperlane-ethereum -- --no-deps -D warnings` to apply 1 suggestion)
+    Checking aws-smithy-checksums v0.60.13
+    Checking headers v0.3.9
+    Checking solana-transaction-status v3.0.14
+    Checking gateway-api-client v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+    Checking lru v0.12.5
+    Checking tokio-tungstenite v0.21.0
+    Checking tungstenite v0.30.0
+    Checking hyperlane-cosmwasm-interface v0.0.6-rc6
+    Checking hyperlane-sealevel-igp v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/hyperlane-sealevel-igp)
+    Checking radix-transactions v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking solana-client v3.0.14
+    Checking librocksdb-sys v0.17.3+10.4.2
+    Checking console-api v0.6.0
+    Checking injective-protobuf v0.2.2
+    Checking cometbft-rpc v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+    Checking cainome v0.10.1
+    Checking scrypto v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+    Checking hyperlane-cosmos-rs v0.1.4
+    Checking ibc-proto v0.51.1
+    Checking json5 v0.4.1
+    Checking multer v2.1.0
+    Checking rust-ini v0.18.0
+    Checking aws-sdk-sts v1.50.0
+    Checking humantime-serde v1.1.1
+    Checking aws-sdk-sso v1.50.0
+    Checking aws-sdk-ssooidc v1.50.0
+    Checking hyperlane-sealevel-composite-ism v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/ism/composite-ism)
+    Checking hyperlane-sealevel-multisig-ism-message-id v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/ism/multisig-ism-message-id)
+    Checking tron-rs v0.1.0
+    Checking hyperlane-sealevel-validator-announce v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/validator-announce)
+    Checking hdrhistogram v7.5.4
+    Checking solana-loader-v3-interface v3.0.0
+    Checking tokio-metrics v0.4.0
+    Checking webpki-roots v0.26.11
+    Checking ron v0.7.1
+    Checking tame-gcs v0.10.0
+    Checking axum-core v0.5.2
+    Checking solana-compute-budget-interface v3.0.0
+    Checking serde_path_to_error v0.1.16
+    Checking pathdiff v0.2.1
+    Checking tagptr v0.2.0
+    Checking matchit v0.8.4
+    Checking scoped-tls v1.0.1
+    Checking triomphe v0.1.11
+    Checking hyperlane-tron v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-tron)
+    Checking moka v0.12.8
+    Checking warp v0.3.7
+    Checking axum v0.8.4
+    Checking config v0.13.4
+    Checking hyperlane-sealevel v0.1.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-sealevel)
+    Checking ya-gcp v0.12.0
+    Checking tokio-tungstenite v0.30.0
+    Checking hyperlane-radix v0.1.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-radix)
+    Checking console-subscriber v0.2.0
+    Checking aws-config v1.1.9
+    Checking hyperlane-cosmos v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos)
+    Checking hyperlane-starknet v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-starknet)
+    Checking rocksdb v0.24.0
+    Checking aws-sdk-s3 v1.65.0
+warning: struct `Log` is never constructed
+ --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:9:12
+  |
+9 | pub struct Log {
+  |            ^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `Events` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:15:12
+   |
+15 | pub struct Events {
+   |            ^^^^^^
+
+warning: struct `Event` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:20:12
+   |
+20 | pub struct Event {
+   |            ^^^^^
+
+warning: struct `QueryRoutingIsmRouteResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/ism_routes.rs:25:12
+   |
+25 | pub struct QueryRoutingIsmRouteResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `QueryIsmModuleTypeResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/ism_routes.rs:40:12
+   |
+40 | pub struct QueryIsmModuleTypeResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `CountRequest` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/mailbox.rs:12:12
+   |
+12 | pub struct CountRequest {
+   |            ^^^^^^^^^^^^
+
+warning: struct `CountResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/mailbox.rs:59:12
+   |
+59 | pub struct CountResponse {
+   |            ^^^^^^^^^^^^^
+
+warning: struct `GetAnnouncedValidatorsRequest` is never constructed
+ --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/validator_announce.rs:6:12
+  |
+6 | pub struct GetAnnouncedValidatorsRequest {
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `GetAnnouncedValidatorsResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/validator_announce.rs:35:12
+   |
+35 | pub struct GetAnnouncedValidatorsResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Checking hyperlane-test v3.0.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-test)
+    Checking color-eyre v0.6.3
+warning: `hyperlane-cosmos` (lib) generated 9 warnings
+    Checking backtrace-oneline v0.1.0 (/Users/pbio/work/ziggy/rust/main/utils/backtrace-oneline)
+    Checking rusoto_sts v0.48.0
+    Checking hyperlane-base v3.0.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-base)
+warning: hiding a lifetime that's elided elsewhere is confusing
+    --> /Users/pbio/work/ziggy/rust/main/hyperlane-base/src/settings/chains.rs:1622:16
+     |
+1622 |     fn locator(&self, address: H256) -> ContractLocator {
+     |                ^^^^^                    ^^^^^^^^^^^^^^^ the same lifetime is hidden here
+     |                |
+     |                the lifetime is elided here
+     |
+     = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+     = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+     |
+1622 |     fn locator(&self, address: H256) -> ContractLocator<'_> {
+     |                                                        ++++
+
+warning: `hyperlane-base` (lib) generated 1 warning (run `cargo clippy --fix --lib -p hyperlane-base -- --no-deps -D warnings` to apply 1 suggestion)
+    Checking lander v3.0.0 (/Users/pbio/work/ziggy/rust/main/lander)
+    Checking ziggy-rocks-oracle v0.1.0 (/Users/pbio/work/ziggy/zig/reference/rocks)
+    Finished `release` profile [optimized] target(s) in 2m 35s
+warning: the following packages contain code that will be rejected by a future version of Rust: cometbft-proto v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

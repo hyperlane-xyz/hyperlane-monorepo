@@ -1,0 +1,12 @@
+{
+  "scope": "Annotation only; original manifest bytes preserved",
+  "original_manifest_sha256_chunks": [
+    "028d4d0eda9c5a5e55275f2856bf43a4",
+    "fd969fbfc2ac5d1bceb74458774ebf0f"
+  ],
+  "original_stage": "executing",
+  "interrupted": true,
+  "authority": "Parent confirmed harness74384 and CLI38705 gracefully stopped; executing stage is stale, not a completed benchmark.",
+  "benchmark_accepted": false,
+  "pinned_binaries_retained_with_identical_hashes": true
+}

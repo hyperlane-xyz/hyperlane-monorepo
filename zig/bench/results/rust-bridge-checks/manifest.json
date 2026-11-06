@@ -1,0 +1,328 @@
+{
+  "captured_utc": "2026-11-06T06:04:56.506083+00:00",
+  "scope": "Four actual runtime Rust FFI bridges: exact-source Clippy metadata/check, not SDK linking, runtime execution or benchmark; standalone helper prior-evidence inventory separately qualified.",
+  "passed": true,
+  "toolchain": {
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8",
+    "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+    "clippy": "clippy 0.1.98 (88d9e12ae1 2026-08-18)"
+  },
+  "commands_and_results": {
+    "regex": {
+      "crate": "zig/src/ops/regex-native",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig/src/ops/regex-native",
+      "started_utc": "2026-11-06T06:00:42.732467+00:00",
+      "free_bytes_before": 42857381888,
+      "source_sha256_chunks": {
+        "zig/src/ops/regex-native/Cargo.toml": [
+          "48e47e1951d6ff6f09ac3d83b9ab7238",
+          "fd9488c6f31e0c06e2e1d7bcdf1b5b13"
+        ],
+        "zig/src/ops/regex-native/Cargo.lock": [
+          "ad990290069262515b95f3860fc36a48",
+          "fc8b7b4df248708c7225797fc2676689"
+        ],
+        "zig/src/ops/regex-native/src/lib.rs": [
+          "ac76290fe308b6a891e808027a3f7168",
+          "9442a8515401636b2d3fecf8cb28de3c"
+        ]
+      },
+      "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "status": "passed",
+      "exit_code": 0,
+      "free_bytes_after": 42844696576,
+      "finished_utc": "2026-11-06T06:00:45.274842+00:00",
+      "source_unchanged": true,
+      "raw_log": {
+        "path": "zig/bench/results/rust-bridge-checks/regex.log.gz",
+        "sha256_chunks": [
+          "1a55620c4363cb7238cfc9c07837e730",
+          "a1c257b1689b203c003133fd2e88c89a"
+        ],
+        "decoded_sha256_chunks": [
+          "d040efc012e3e781bac78c6b094218fd",
+          "b9029e971b95038a17484501edea70c2"
+        ]
+      }
+    },
+    "starknet_crypto": {
+      "crate": "zig/src/starknet/native-crypto",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto",
+      "started_utc": "2026-11-06T06:01:10.646676+00:00",
+      "free_bytes_before": 42826432512,
+      "source_sha256_chunks": {
+        "zig/src/starknet/native-crypto/Cargo.toml": [
+          "18d0722543056c3fd4cfd4ca56204f59",
+          "ca2eb2f90743ad0e794ec91c4406de07"
+        ],
+        "zig/src/starknet/native-crypto/Cargo.lock": [
+          "f093a1662902a50d4293b89e6e5a75f1",
+          "963775c7ad949ce2daca29bec40d54d4"
+        ],
+        "zig/src/starknet/native-crypto/src/lib.rs": [
+          "b60e45be103c4aeb66585f2abe390bf3",
+          "335400ae19c275e49617b246d258b8fe"
+        ]
+      },
+      "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "status": "passed",
+      "exit_code": 0,
+      "free_bytes_after": 42732752896,
+      "finished_utc": "2026-11-06T06:01:25.347983+00:00",
+      "source_unchanged": true,
+      "raw_log": {
+        "path": "zig/bench/results/rust-bridge-checks/starknet.log.gz",
+        "sha256_chunks": [
+          "65beb0135d43bbe50aa89159e9a0ace6",
+          "905db78b989a2481508d24f33d284068"
+        ],
+        "decoded_sha256_chunks": [
+          "92ac09d8d5851dfe16bc6f2dcdcf6f93",
+          "48dc3ecdb81b804eb3d1807d40ab5553"
+        ]
+      }
+    },
+    "aleo_crypto": {
+      "crate": "zig/src/aleo/native-crypto",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto",
+      "started_utc": "2026-11-06T06:03:47.704063+00:00",
+      "free_bytes_before": 42084626432,
+      "source_sha256_chunks": {
+        "zig/src/aleo/native-crypto/Cargo.toml": [
+          "1894d10c30d2fbb0c94101489ca12715",
+          "25e06dcef6e20492cc63eea3ff0f6445"
+        ],
+        "zig/src/aleo/native-crypto/Cargo.lock": [
+          "e1586a4aca326433f5164b5ad502b37f",
+          "c35249ca780f5e861b6197aff0b1c0b7"
+        ],
+        "zig/src/aleo/native-crypto/src/lib.rs": [
+          "12c77cd334130f3bba9e694604b6b5dc",
+          "e2d179ce2496e34667188d2767821546"
+        ]
+      },
+      "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "status": "passed",
+      "exit_code": 0,
+      "free_bytes_after": 42084327424,
+      "finished_utc": "2026-11-06T06:03:48.720783+00:00",
+      "source_unchanged": true,
+      "raw_log": {
+        "path": "zig/bench/results/rust-bridge-checks/aleo-crypto-fixed.log.gz",
+        "sha256_chunks": [
+          "e977b2fff235ab779fe570fb1e1e86af",
+          "43b385d650be5109dddf09b15751080c"
+        ],
+        "decoded_sha256_chunks": [
+          "944daf7b43271a9ab944a749aedb9d4e",
+          "3dd84287c3081b633b26ee4abdbd8320"
+        ]
+      }
+    },
+    "aleo_vm": {
+      "crate": "zig/src/aleo/native-vm",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm",
+      "started_utc": "2026-11-06T06:02:27.860271+00:00",
+      "free_bytes_before": 42548273152,
+      "source_sha256_chunks": {
+        "zig/src/aleo/native-vm/Cargo.toml": [
+          "79af6bc722818265a2d29dfc5f4e2773",
+          "0896bbaee0b5e4a412d52c10ae455104"
+        ],
+        "zig/src/aleo/native-vm/Cargo.lock": [
+          "42d183085c79b9cb0307bed6fe3af5e7",
+          "5b36dc2d3c0c1bdf0b759b6fad161df6"
+        ],
+        "zig/src/aleo/native-vm/src/lib.rs": [
+          "3c16622e396b505e72c17dcd23e28adf",
+          "77f6ffb11d04d910e42be6d025e4dfc8"
+        ],
+        "zig/src/aleo/native-vm/vendor/aleo-std-storage-1.0.3/Cargo.toml": [
+          "c1da598c952e8c973573e2ba62b092c5",
+          "e0e91045974415f86bb1d55883454b93"
+        ],
+        "zig/src/aleo/native-vm/vendor/aleo-std-storage-1.0.3/src/lib.rs": [
+          "2b6b34397b550e1b89da2350c5569784",
+          "5e29ecc0aa71c1317784f771a497d95e"
+        ]
+      },
+      "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+      "environment": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "status": "passed",
+      "exit_code": 0,
+      "free_bytes_after": 42085117952,
+      "finished_utc": "2026-11-06T06:03:40.277825+00:00",
+      "source_unchanged": true,
+      "raw_log": {
+        "path": "zig/bench/results/rust-bridge-checks/aleo-vm.log.gz",
+        "sha256_chunks": [
+          "68c670d28eb5b2e027c98a27d1e808fe",
+          "11ad944b84e5d7562ce4847918c4b0c6"
+        ],
+        "decoded_sha256_chunks": [
+          "2e4bd0da085672aa665e0ca3da9f5bcd",
+          "c3b689e45cdfce46d3179c1a0605be8e"
+        ]
+      }
+    }
+  },
+  "preserved_failure": {
+    "crate": "zig/src/aleo/native-crypto",
+    "command": [
+      "cargo",
+      "+1.98.0",
+      "clippy",
+      "--locked",
+      "--offline",
+      "--all-targets",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto",
+    "started_utc": "2026-11-06T06:01:33.417117+00:00",
+    "free_bytes_before": 42735157248,
+    "source_sha256_chunks": {
+      "zig/src/aleo/native-crypto/Cargo.toml": [
+        "1894d10c30d2fbb0c94101489ca12715",
+        "25e06dcef6e20492cc63eea3ff0f6445"
+      ],
+      "zig/src/aleo/native-crypto/Cargo.lock": [
+        "e1586a4aca326433f5164b5ad502b37f",
+        "c35249ca780f5e861b6197aff0b1c0b7"
+      ],
+      "zig/src/aleo/native-crypto/src/lib.rs": [
+        "03595c86751d450005a3b4c114bf16e6",
+        "8a9c14581556dd774df7887e8f3e2063"
+      ]
+    },
+    "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+    "environment": {
+      "CARGO_INCREMENTAL": "0"
+    },
+    "status": "failed",
+    "exit_code": 101,
+    "free_bytes_after": 42552336384,
+    "finished_utc": "2026-11-06T06:02:02.254382+00:00",
+    "source_unchanged": true,
+    "raw_log": {
+      "path": "zig/bench/results/rust-bridge-checks/aleo-crypto.log.gz",
+      "sha256_chunks": [
+        "ee906da07da3cf76f330ea85baf2451d",
+        "8340f23dd823ca995cd5d9607786890c"
+      ],
+      "decoded_sha256_chunks": [
+        "27ed2b177787e290451eb340e21950fd",
+        "3dca4dba5b1f6ae006594c1fbed98ab5"
+      ]
+    }
+  },
+  "authorized_fix": {
+    "scope": "Move only existing cfg(test) module after all exported items; no ABI/function/dependency changes",
+    "before_sha256_chunks": [
+      "03595c86751d450005a3b4c114bf16e6",
+      "8a9c14581556dd774df7887e8f3e2063"
+    ],
+    "moved_source_sha256_chunks": [
+      "12c77cd334130f3bba9e694604b6b5dc",
+      "e2d179ce2496e34667188d2767821546"
+    ],
+    "final_sha256_chunks": [
+      "12c77cd334130f3bba9e694604b6b5dc",
+      "e2d179ce2496e34667188d2767821546"
+    ],
+    "non_test_nonempty_source_lines_identical_in_order": true,
+    "functional_library_qualification": "Existing runtime DSO predates test-module reorder. Non-test function text is identical; final cold matrix rebuild + native SDK acceptance still required."
+  },
+  "crate_inventory": "zig/bench/results/rust-bridge-checks/authored-crate-inventory.json",
+  "standalone_projects": 19,
+  "vendored_projects": 1,
+  "prior_evidence": {
+    "locks": "docs/zig-agent-rewrite/helper-locks.md; zig/bench/results/source-inventory-helper-lock-closure.json",
+    "rocks_exact_source": "zig/bench/results/disk-preparation-20261106/rocks-helper-functional/result.json",
+    "lander_historical_not_current_main": "zig/bench/results/lander-golden-recovery/result.json",
+    "reference_functional": "zig/bench/results/{differential,crypto-differential,settings-parity,rocksdb-interop,validator-http-parallel-process}.json"
+  },
+  "disk_policy": {
+    "minimum_free_bytes": 37580963840,
+    "current_free_bytes": 42045554688,
+    "user_caches_pruned": false,
+    "new_dependency_downloads": false
+  },
+  "timing_qualification": "Sequential -j2 shared-host compilation/check/proc-macro metadata work occurred while final timing windows were closed. No performance result is drawn from these durations. Team must drain compiler work before final benchmarks.",
+  "runtime_library_qualification": "Existing loaded Aleo crypto DSO predates pure test-module reorder; non-test text unchanged. Final matrix must build new runtime artifacts and native SDK tests must use those exact final artifacts.",
+  "ffi_panic_audit": {
+    "scope": "Only four authored runtime FFI src/lib.rs files, excluding cfg(test) code, upstream SDK/dependency code and standalone reference fixtures.",
+    "non_test_panicking_unwrap_or_expect": 0,
+    "non_test_explicit_panic_assert_unreachable_todo": 0,
+    "findings": [],
+    "classification": [
+      "Aleo VM expect/assert sites are inside cfg(test) module lines583-626 only.",
+      "Other bridge asserts are cfg(test) only.",
+      "Aleo VM transaction_info unwrap_or(0) and unwrap_or_else(zero bytes) are nonpanicking Option defaults for absent fee/payer, not unwrap()/expect().",
+      "Starknet, Aleo crypto and VM computational exports use checked catch_unwind -> -3; ABI constants and valid-handle destructors do not parse external text.",
+      "Regex compilation returns Result errors; invalid UTF-8 subject returns no match. Diagnostic slicing bounds follow the nonempty output check and UTF-8 boundary adjustment. No concrete authored panic path found for documented live-buffer/handle inputs."
+    ],
+    "qualification": "This is an authored-source audit, not a blanket claim that allocation aborts, invalid unsafe C pointers or every upstream destructor can be recovered. No speculative warning or Source relaxation added."
+  }
+}

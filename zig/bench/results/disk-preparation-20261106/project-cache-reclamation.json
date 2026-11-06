@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "stamp": "20261106T003459Z",
+  "diagnostic_pins": [
+    {
+      "source": "/Users/pbio/work/ziggy/zig/zig-out/bin/relayer",
+      "pin": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/diagnostic-pins-20261106T003459Z/relayer",
+      "sha256_chunks": [
+        "d1747c33e3c3f19c472bd753c83ab97a",
+        "dae7019688ba40992b2c990a8f4374a0"
+      ],
+      "bytes": 14394408,
+      "qualifier": "diagnostic existing output snapshot; not final-source benchmark build"
+    },
+    {
+      "source": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator",
+      "pin": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/diagnostic-pins-20261106T003459Z/validator",
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ],
+      "bytes": 13208632,
+      "qualifier": "diagnostic existing output snapshot; not final-source benchmark build"
+    },
+    {
+      "source": "/Users/pbio/work/ziggy/zig/zig-out/bin/scraper",
+      "pin": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/diagnostic-pins-20261106T003459Z/scraper",
+      "sha256_chunks": [
+        "f3c0068ca4f5c04bde88befe6f312700",
+        "1686f73182b83bed3d9c30a00e34c8b1"
+      ],
+      "bytes": 2630664,
+      "qualifier": "diagnostic existing output snapshot; not final-source benchmark build"
+    }
+  ],
+  "quarantine": "/Users/pbio/work/ziggy/zig/.zig-cache-baseline-retired-20261106T003459Z",
+  "lsof_returncode": 0,
+  "old_cache_users": [],
+  "free_before_bytes": 42109681664,
+  "deleted": true,
+  "new_original_cache_exists": false,
+  "free_after_bytes": 43938426880
+}

@@ -1,0 +1,460 @@
+1/424 pg_tests.test_0...OK
+2/424 pg_tests.test_1...OK
+3/424 agents.scraper.native_test.test.scraper native PG complete worker publishes then independently enriches receipts and raw dispatches...OK
+4/424 agents.scraper.native_test.test.scraper native PG restart reproof rewinds an unpublished incomplete suffix...OK
+5/424 agents.scraper.native_test.test.scraper concrete factory rejects unsupported protocol before touching native resources...OK
+6/424 agents.scraper.native_test.test.scraper shared native service validates writer before touching resources...OK
+7/424 agents.scraper.native_test.test.scraper pooled PG runtime reconnects after poisoned jobs and recovers durable frontiers without duplicating events...OK
+8/424 agents.scraper.native_test.test.scraper actual TaskSet opens lazily with independent lane contexts and cancellation before resource I/O...OK
+9/424 agents.scraper.native_test.test.scraper native PG unresolved source transaction metadata stays SQLNULL and never enters receipt pages...OK
+10/424 db.postgres_test.test.libpq bound binary/text/null values result ownership and aborted transaction rollback...OK
+11/424 db.postgres_test.test.actual scraper schema stage four streams confirm frontier cursor and atomic reorg suffix...OK
+12/424 db.postgres_test.test.database clock writer takeover and actual advisory transaction lock...OK
+13/424 db.postgres_test.test.bounded batches and confirmation preserve oversized atomic block publication...OK
+14/424 db.postgres_test.test.native Postgres absolute query deadline closes an ambiguous operation even without server statement timeout...OK
+15/424 db.postgres_test.test.native Postgres precancel sends no query and a completed SQL error drains for subsequent use...OK
+16/424 db.postgres_test.test.native Postgres nonblocking authentication handshake obeys deadline and DNS policy before opening a socket...OK
+17/424 db.postgres_test.test.native Postgres lost COMMIT response returns unknown outcome and never replays the committed transaction...OK
+18/424 db.postgres_test.test.native Postgres hostname resolver preconnect preserves configured host and shares the full connect deadline...OK
+19/424 db.postgres_test.test.native Postgres pool leases bound wait reuse clean sessions and reconnect poisoned or unclosed transactions...OK
+20/424 db.postgres_test.test.native Postgres pool initializes session deadlines on every new connection while per job cancellation and timeout remain active...OK
+21/424 critical_metrics_tests.test_0...OK
+22/424 agents.scraper.task.test.scraper receipt cadence follows configured chain interval...OK
+23/424 agents.scraper.task.test.scraper startup and independent lane recovery preserve health construction failure...[default] (warn): scraper chain=critical-fixture lane=gas failed=RpcHttpStatus
+OK
+24/424 agents.scraper.task.test.scraper optional CCR startup participates and canceled setup has no failure sample...[default] (warn): scraper chain=critical-ccr-fixture lane=ccr failed=RequestCancelled
+OK
+25/424 agents.scraper.task.test.scraper head control and allocation errors cannot create or reset source failure streak...[default] (warn): scraper chain=head-control-fixture lane=head failed=RequestCancelled
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RequestCancelled
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RequestCancelled
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=OutOfMemory
+[default] (warn): scraper chain=head-control-fixture lane=head failed=OutOfMemory
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=OutOfMemory
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingReadIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingReadIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingReadIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+OK
+26/424 net.curl.test.native HTTP sink bounds body headers and cancellation without loading curl...OK
+27/424 net.curl.test.native HTTP validates NUL controls token headers and content encoding before loading curl...OK
+28/424 net.curl.test.public HTTP rejects literal destinations and native socket callback prevents rebinding...OK
+29/424 net.curl.test.native public HTTP blocks localhost and noncanonical numeric IPv4 without connecting...OK
+30/424 net.curl.test.native HTTP reuses keepalive and isolates headers methods cancellation and trust pools...OK
+31/424 net.curl.test.native TCP resolver uses async DNS closes fresh socket and sends no application bytes...OK
+32/424 net.curl.test.native HTTP read-only override validates request cancellation and response bounds without loading curl...OK
+33/424 net.curl.test.native HTTP growing body sink is lazy bounded and transfers exact ownership...OK
+34/424 net.curl.test.native HTTP growing sink preserves OOM and cleanup on every allocation...OK
+35/424 net.curl.test.native HTTP max8MiB transfer initialization fits64KiB without eager body allocation...OK
+36/424 net.curl.test.native HTTP response payload moves across owned adapters without copying...OK
+37/424 net.curl.test.native HTTP429 policy stops only complete final head and preserves other errors...OK
+38/424 protocol.root.test_0...OK
+39/424 protocol.message.test.canonical message fixture and borrowed decode...OK
+40/424 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+41/424 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+42/424 agents.scraper.testing.test.scraper source complete range counts publish and restart catches fork...OK
+43/424 agents.scraper.testing.test.scraper dropped tail never publishes and recovers without a new block...OK
+44/424 agents.scraper.testing.test.scraper historical count outage holds provisional tail and restart reproof repairs it...OK
+45/424 agents.scraper.testing.test.scraper lagging RPC and midrange reorg pause publication...OK
+46/424 agents.scraper.testing.test.scraper stream tips cap ingestion and confirmed fork mismatch halts...OK
+47/424 agents.scraper.testing.test.scraper empty sparse range rechecks its canonical tip after fetching logs...OK
+48/424 agents.scraper.testing.test.scraper receipt timeout preserves cached and independently persisted neighbors...OK
+49/424 agents.scraper.testing.test.scraper receipt plan rejects missing retained headers...OK
+50/424 agents.scraper.testing.test.scraper reconciliation snapshots frontiers preempts sweeps and backs off only failed lane...OK
+51/424 agents.scraper.testing.test.scraper reconciliation poison retry tracking is bounded and ordered...OK
+52/424 agents.scraper.testing.test.scraper generic source pages complete blocks derives insertions and caches cycle tips...OK
+53/424 agents.scraper.testing.test.scraper generic sparse slots advance past an entirely skipped chunk within observed head...OK
+54/424 agents.scraper.testing.test.scraper setup validates capabilities before cutover and does not demand saved indexed RPC height...OK
+55/424 agents.scraper.reconciliation.test.reconciliation first page is immediately due after frontier and domains have independent cadence...OK
+56/424 agents.scraper.ccr.test.scraper CCR synthetic ID matches shared TypeScript production fixture...OK
+57/424 evm.provider.test.RPC envelope rejects ambiguous mismatched and malformed responses...OK
+58/424 evm.provider.test.JSON-RPC errors retain only safe error code...OK
+59/424 evm.provider.test.RPC configuration and invalid log ranges reject before network access...OK
+60/424 evm.provider.test.RPC endpoint credentials and custom headers are owned sanitized and emitted once...OK
+61/424 evm.provider.test.missing blocks and noncanonical block quantities reject...OK
+62/424 evm.provider.test.native RPC transport enforces envelope bounds cancellation and deadline...OK
+63/424 evm.provider.test.HTTP loopback exercises typed RPC calls and bounded envelopes...OK
+64/424 evm.provider.test.HTTP loopback validates block and call result types...OK
+65/424 evm.provider.test.log parser validates full metadata canonical identity and removed logs...OK
+66/424 evm.provider.test.HTTP log filter rejects out of range and mismatched contract logs...OK
+67/424 net.endpoint.test.shared endpoint custom RPC header URLs match production extraction duplicate replacement and form queries...OK
+68/424 net.endpoint.test.shared endpoint canonical identity matches actual production Rust URL corpus or explicitly rejects unsupported spellings...OK
+69/424 cloud.http.test.metadata cleartext policy allows only implemented hosts methods paths and required headers...OK
+70/424 cloud.http.test.percent encoding distinguishes path slashes and literal percent signs...OK
+71/424 cloud.http.test.transport rejects credentials in URLs header injection and cleartext before connecting...OK
+72/424 cloud.http.test.real HTTP loopback enforces exclusive byte cap no redirect and one signed host...OK
+73/424 cloud.http.test.opt-in native cloud transport enforces deadline cancellation byte cap and no redirect...OK
+74/424 cloud.http.test.ADC AWS metadata IMDSv1 is explicit per request and never widens host path or token defaults...OK
+75/424 evm.pool.test.exact JSON normalization ignores object order and decimal spelling without f64...OK
+76/424 evm.pool.test.configuration rejects impossible thresholds before native loading...OK
+77/424 evm.pool.test.native fallback aging uses exact SVM processed block height and Tendermint latest block probes...OK
+78/424 evm.pool.test.native RPC owner suspends between active socket polls instead of spinning on a stalled request...OK
+79/424 net.dynamic_tip_cache.test.tip cache Source eligibility keys ignore only blockNumber params and isolate complete endpoint identities...OK
+80/424 net.dynamic_tip_cache.test.tip cache TTL starts at successful insertion, strict250ms expiry, and failed generations release every follower...OK
+81/424 net.dynamic_tip_cache.test.tip cache bounded entries never evict active leaders and byte pressure releases followers without fake data...OK
+82/424 net.dynamic_tip_cache.test.tip cache concurrent claims elect one leader and bounded followers with no I/O inside ownership lock...OK
+83/424 net.dynamic_tip_cache.test.tip cache failed-generation follower may use newer ready result but never waits behind newer leader...OK
+84/424 net.curl_multi.test.curl multi rejects invalid capacities without loading a native library...OK
+85/424 net.curl_multi.test.curl multi starts healthy validators beyond eight stalled requests and cancels every loser...OK
+86/424 net.curl_multi.test.curl multi bounds queued memory capacity deadlines and stale identities without network...OK
+87/424 net.curl_multi.test.curl multi releases partial allocation failures and never retains borrowed request buffers...OK
+88/424 net.curl_multi.test.curl multi enforces body and header caps no redirects and private socket policy...OK
+89/424 relayer.public_address.test.CCIP public IP policy rejects private special-use and transition destinations...OK
+90/424 evm.codecs.test.strict quantities and hex data...OK
+91/424 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+92/424 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+93/424 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+94/424 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+95/424 db.pool.test.Postgres pool validates bounds and owns connection configuration without native I/O...OK
+96/424 config.test.environment and CLI layer over JSON; empty and false remain explicit...OK
+97/424 config.test.invalid scalar types, ambiguous keys and huge integers fail...OK
+98/424 agents.chain_source.test.chain source resources validate constructor bounds before loading native dependencies...OK
+99/424 agents.chain_source.test_0...OK
+100/424 agents.chain_source.test.Cosmos RPC direct budget stays finite and intersects both actual owner clocks...OK
+101/424 agents.chain_source.test.Cosmos RPC direct budget preserves expiration cancellation halt and invalid bounds...OK
+102/424 net.read_replay.test.cooperative RPC replay identity preserves exact numbers, normalizes keys, forbids writes...OK
+103/424 net.read_replay.test.cooperative shared replay byte budget rejects overflow and releases exact reservations...OK
+104/424 net.read_replay.test.cooperative JSON identity and ID substitution free every partial allocation...OK
+105/424 net.read_replay.test.cooperative RPC completed timeout preserves owner clamp expiry cancellation and injected clocks...OK
+106/424 agents.scraper.receipt_jobs.test.receipt limiter enforces16 global4 per domain and releases admission without new threads...OK
+107/424 agents.scraper.receipt_jobs.test.receipt batches retain four stalled peers while healthy domains persist neighbors once and cancellation releases quota...OK
+108/424 agents.scraper.receipt_jobs.test.receipt batches release admission owned results and quota on every allocation failure...OK
+109/424 runtime.supervisor.test.supervisor timeout retains mutable role exclusively until actual worker retirement...OK
+110/424 runtime.supervisor.test.supervisor fatal classification exposes original error halts all lanes and drains cancellation...OK
+111/424 runtime.supervisor.test.supervisor mailbox wake bypasses interval without reusing active or retiring role...OK
+112/424 runtime.supervisor.test.supervisor cooperative reads resume without consuming failures retries or completion...OK
+113/424 ops.metrics.test.metrics preserve source labels help types histogram buckets and escaping...OK
+114/424 ops.metrics.test.metrics concurrent counters are lossless and series removal frees its bounded budget...OK
+115/424 ops.metrics.test.metrics allocation failure does not leak partially installed series...OK
+116/424 ops.metrics.test.registry cursor raises are atomic with other writers and preserve metric shape...OK
+117/424 ops.metrics_schema.test.generated descriptors have unique names and labels within each group...OK
+118/424 ops.critical_metrics.test.critical tracker has no constructor sample and startup cannot clear recorded failure...OK
+119/424 ops.critical_metrics.test.critical independent reasons and Source WS recovery preserve unrelated failures...OK
+120/424 ops.critical_metrics.test.critical telemetry pressure cannot fail or reset operational state...[default] (warn): critical metric update failed: MetricSeriesLimit
+OK
+121/424 runtime.lane_owner.test.eight stalled destination owners leave shared supervisor workers available...OK
+122/424 runtime.lane_owner.test.expired owner keeps stable cancellation and exclusive context through retirement...OK
+123/424 runtime.lane_owner.test.owner completion before deadline survives delayed polling and idle teardown creates no thread...OK
+124/424 ops.rpc_metrics.test.RPC metric labels sanitize endpoints and bounded methods without retaining credentials...OK
+125/424 ops.rpc_metrics.test.RPC metric scanner skips large params and results, bounds labels, classifies JSON RPC error...OK
+126/424 ops.rpc_metrics.test.RPC metric actual native and pooled completions count physical successes and failures once...OK
+127/424 ops.rpc_metrics.test.RPC metric descriptions survive request destruction and gRPC status preserves failure...OK
+128/424 ops.rpc_metrics.test.RPC metric actual fallback observes block probes as distinct physical methods...OK
+129/424 ops.rpc_metrics.test.RPC metric immutable scoped operation replaces default once and survives cancellation retirement...OK
+130/424 agents.scraper.factory.test.scraper concrete source factory rejects mismatched clients before reading resources...OK
+131/424 net.http_replay.test.HTTP replay separates complete-body and Ethereum429-head transfer identities...OK
+132/424 net.http_replay.test.HTTP replay accepts source read routes rejects broadcast and bounds JSON before recursion...OK
+133/424 sealevel.provider.test.Solana account JSON validates owner data encoding and bounded uint...OK
+134/424 sealevel.provider.test.SVM HTTP requests preserve finality genesis account context and schemas...OK
+135/424 tron.provider.test.Tron wallet solidity split preserves CCIP revert bytes, rejects failed energy and historical calls...OK
+136/424 agents.scraper.starknet.test_0...OK
+137/424 aleo.crypto.test.Aleo pinned native primitives validate program address and BHP mapping key IDs...OK
+138/424 cosmos.curl_grpc.test.gRPC native transport declarations typecheck without loading a library...OK
+139/424 cosmos.curl_grpc.test.native libcurl HTTP2 gRPC loopback validates trailers height framing and deadline...SKIP
+140/424 cosmos.curl_grpc.test.Cosmos gRPC NotFound remains distinct from authentication transport and missing status...OK
+141/424 cosmos.fallback_grpc.test.gRPC fallback retries full snapshots until at least four errors with cooperative100ms rounds...OK
+142/424 cosmos.fallback_grpc.test.gRPC typed continuations keep identical before after calls physically distinct and memoize completed prefix once...OK
+143/424 cosmos.fallback_grpc.test.gRPC shared height probe is serialized across fork clients and late result retains original query height...OK
+144/424 cosmos.fallback_grpc.test.gRPC health10failures reprioritize subsequent snapshots while single endpoint never probes...OK
+145/424 cosmos.fallback_grpc.test.gRPC probe timeout rotates without publishing stale success and cancellation releases shared probe lock...OK
+146/424 cosmos.fallback_grpc.test.gRPC fallback releases shared quota snapshots outcomes and probe locks on every allocation failure...OK
+147/424 cosmos.fallback_grpc.test.gRPC direct vote capture propagates control without retry or poisoning endpoint health...OK
+148/424 agents.scraper.receipt_factory.test.scraper receipt factory rejects protocol mismatch and production unbounded transports before I/O...OK
+149/424 radix.provider.test.Radix provider declarations compile against injected native HTTP boundary...OK
+150/424 cosmos.tendermint.test.Tendermint concrete client declarations typecheck...OK
+151/424 cosmos.tendermint.test.Tendermint HTTP ABI schema height and unverified proof decoding...OK
+152/424 cosmos.contracts.test.typed Cosmos clients compile with the injected gRPC transport...OK
+153/424 cosmos.contracts.test.Cosmos delivered historical queries retain and authenticate requested height...OK
+154/424 cosmos.contracts.test.CosmWasm contract-info distinguishes NotFound from transport and validates recipient...OK
+155/424 cosmos.contracts.test.Cosmos announcement historical absence authenticates height and never masks pinned failure...OK
+156/424 cosmos.grpc.test.gRPC unary framing rejects compression truncation and extra messages...OK
+157/424 cosmos.config.test.Cosmos fees ceil exact decimal rational and preserve minimum simulation multiplier...OK
+158/424 tron.rpc.test.Tron pools preserve paths and query, reject failure envelopes and mismatched RPC IDs...OK
+159/424 tron.rpc.test.Tron cooperative control preserves wallet and JSON RPC endpoint ordering...OK
+160/424 starknet.provider.test.Starknet provider latest confirmed calls reorg periods safe remote codes and typed receipt...OK
+161/424 net.json_rpc.test.shared JSON-RPC owns data rejects ambiguous envelopes and preserves safe remote code and structured data...OK
+162/424 net.json_rpc.test.JSON integer boundaries retain full unsigned precision and reject fractional quantities...OK
+163/424 net.json_rpc.test.JSON RPC cooperative control never advances endpoint fallback...OK
+164/424 aleo.rest.test.Aleo REST URL matches actual Rust Url segment and bracket escaping...OK
+165/424 aleo.rest.test.Aleo cooperative control never advances read fallback...OK
+166/424 aleo.plaintext.test.Aleo plaintext typed nested public mapping values reject ambiguity and bounds...OK
+167/424 aleo.worker.test.Aleo isolated worker frames own responses and rejected job is killed and reaped...OK
+168/424 aleo.worker.test.Aleo isolated worker absolute deadline and partial output retire before return...OK
+169/424 aleo.worker.test.Aleo isolated worker pipe bounds cancellation and process memory are enforced...OK
+170/424 aleo.worker.test.Aleo actual isolated native worker authorizes fees and exports source proving wire through pipes...OK
+171/424 aleo.worker.test.Aleo actual isolated local proof is bound to exact authorized execution and fee...OK
+172/424 aleo.worker.test.Aleo actual proof worker OS sandbox forbids loopback network connections...OK
+173/424 agents.scraper.sealevel.test.scraper Sealevel concrete sequence factory requires finalized clients before indexing...OK
+174/424 agents.scraper.sealevel.test.scraper Sealevel pruned canonical transaction metadata remains absent rather than an enrichable zero signature...OK
+175/424 agents.scraper.cosmos.test.scraper Cosmos concrete source binds real Tendermint and gRPC callbacks...OK
+176/424 agents.scraper.cosmos.test.scraper Cosmos block events retain absent transaction metadata while transaction events keep SHA256 identity...OK
+177/424 agents.scraper.radix.test.scraper Radix concrete source binds actual Core and Gateway callbacks...OK
+178/424 agents.scraper.tron.test.scraper Tron concrete source binds real provider callbacks...OK
+179/424 sealevel.log_meta.test.scraper SVM instruction variants reject every truncation wrong tag and trailing byte...OK
+180/424 sealevel.log_meta.test.scraper SVM transaction relevance matches nine actual production Rust fixtures including ALTs inner instructions and reverted siblings...OK
+181/424 sealevel.log_meta.test.SVM log meta allocation failure cannot become permanently unknown signers...OK
+182/424 agents.scraper.receipts_sealevel.test.scraper Sealevel receipt matches production parsed transactions and recipient heuristic...OK
+183/424 agents.scraper.receipts_cosmos.test.scraper Cosmos receipt decodes independently produced SDK transaction payer sequence and denomination policy...OK
+184/424 agents.scraper.receipts_cosmos.test.scraper Cosmos recipient handles batched execution IBC packets and strict native process priority...OK
+185/424 agents.scraper.receipts_radix.test.scraper Radix fee payer matches pinned actual SDK manifest parser for comments escapes and injection...OK
+186/424 agents.scraper.receipts_radix.test.scraper Radix receipt preserves manifest sender primary component atto fee and source cumulative field...OK
+187/424 agents.scraper.receipts_starknet.test.Starknet actual SDK receipt and transaction fixture preserve paid-fee TxnInfo semantics...OK
+188/424 agents.scraper.receipts_starknet.test.Starknet receipt fetcher binds concrete deadline transport callbacks...OK
+189/424 agents.scraper.receipts_aleo.test.Aleo receipt projection retains source fee-as-gas and zero-sender semantics...OK
+190/424 agents.scraper.receipts_aleo.test.Aleo receipt fetcher binds concrete native and deadline transport callbacks...OK
+191/424 starknet.codec.test.Starknet felt strict field range JSON selectors and Cairo serde packed bytes...OK
+192/424 net.json_bounds.test.JSON scanner rejects attacker depth before DOM allocation and ignores delimiters in strings...OK
+193/424 altvm.base58.test.base58 fixed vectors leading zeroes and invalid alphabet...OK
+194/424 cosmos.proto.test.protobuf responses reject duplicate scalars invalid booleans and missing native state...OK
+195/424 altvm.protobuf.test.protobuf canonical encoder and bounded decoder...OK
+196/424 sealevel.mailbox.test.mailbox adapter declarations typecheck with concrete read-only client...OK
+197/424 sealevel.mailbox.test.HTTP process preparation resolves recipient ISM and account-meta fixpoint without keys...OK
+198/424 sealevel.mailbox.test.HTTP recipient cannot smuggle payer into dynamic CPI accounts...OK
+199/424 sealevel.accounts.test.mailbox account decoders reject every truncated prefix and wrong discriminator...OK
+200/424 sealevel.accounts.test.inbox verifies canonical PDA and account owner...OK
+201/424 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+202/424 protocol.merkle.test.three-leaf Merkle fixture...OK
+203/424 protocol.merkle.test.full tree rejects without mutation...OK
+204/424 protocol.merkle.test.snapshot restore checks count root and shape...OK
+205/424 altvm.solana.test.shortvec canonical u16 boundary roundtrip and rejection...OK
+206/424 altvm.solana.test.legacy compilation deduplicates merges privileges and signs canonical message...OK
+207/424 altvm.solana.test.PDA seeds validate limits and canonical bump yields an offcurve key...OK
+208/424 agents.scraper.time.test.scraper header timestamp handles leap days fractions offsets and invalid dates...OK
+209/424 cosmos.events.test.native gas events preserve JSON quotes denom and strict attribute identity...OK
+210/424 cosmos.events.test.CosmWasm event plaintext and base64 attribute dialects preserve canonical messages...OK
+211/424 altvm.bech32.test.Cosmos address source fixture and BIP173 mixed case checksum...OK
+212/424 altvm.bech32.test.generic addresses decode BIP350 without weakening Cosmos checksum policy...OK
+213/424 radix.events.test.Radix decimal fixed 18 digit arithmetic bounds and negative source semantics...OK
+214/424 radix.sbor.test.SBOR rejects malformed sizes truncation booleans and trailing values...OK
+215/424 tron.contracts.test.Tron strict nested announcement locations ABI and aggregation metadata bounds...OK
+216/424 tron.contracts.test.Tron contract verify fallback preserves cooperative control before any module queries...OK
+217/424 tron.contracts.test.Tron CCIP lookup preserves actual constant-result revert binds sender and rejects empty or malformed bytes...OK
+218/424 tron.transaction.test.Tron checked energy fees TAPOS expiry raw signing owner and classification...OK
+219/424 altvm.tron.test.Tron zero-address base58check fixture and checksum rejection...OK
+220/424 altvm.tron.test.Tron raw transaction TAPOS and direct signature...OK
+221/424 aleo.codec.test.Aleo fixed body and little endian hashes preserve public source layouts...OK
+222/424 altvm.cosmos.test.direct signing preserves chain account and sequence replay protection...OK
+223/424 altvm.ripemd160.test.RIPEMD-160 published vectors and multi-block padding boundaries...OK
+224/424 protocol.checkpoint.test.domain hash fixtures...OK
+225/424 protocol.checkpoint.test.checkpoint digest separates every field...OK
+226/424 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+227/424 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+228/424 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+229/424 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+230/424 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+231/424 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+232/424 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+233/424 testing.fixture.test.compressed SDK fixtures preserve exact bytes numbers and parsed ownership...OK
+234/424 testing.fixture.test.compressed fixture allocation failures release decoded and parsed storage...OK
+235/424 agents.chain_source_testing.test.source resource read forks own IDs journals and sanitized environment while borrowing transport...OK
+236/424 agents.chain_source_testing.test.source resource configured metadata parallelism admits healthy ninth call behind eight stalled calls on one endpoint...OK
+237/424 agents.chain_source_testing.test.source resource rejects impossible session parallelism and fanout without truncating peer sets...OK
+238/424 agents.chain_source_testing.test.source resource Cosmos forks retain gRPC fallback snapshots across native HTTP2 yields and share one height probe...SKIP
+239/424 runtime.io_pool.test.completed I/O follows arrival order when owner polls after multiple responses...OK
+240/424 runtime.io_pool.test.deadline returns promptly, keeps capacity bounded and discards late completion...OK
+241/424 runtime.io_pool.test.queued cancellation never executes; running output is discarded after cancellation...OK
+242/424 runtime.io_pool.test.two workers claim cancelled-input cleanup exactly once...OK
+243/424 agents.scraper.starknet_testing.test.Starknet scraper concrete HTTP source pins counters by hash and derives canonical receipt event identity...OK
+244/424 agents.scraper.starknet_testing.test.Starknet scraper factory consumes typed committed settings and owns endpoint strings...OK
+245/424 sealevel.instructions.test.instruction discriminators match production SHA256 domain strings...OK
+246/424 sealevel.instructions.test.dynamic account sanitizer preserves only explicitly separate identity...OK
+247/424 sealevel.instructions.test.metadata spec recursion cannot bypass node depth or threshold limits...OK
+248/424 evm.announce.test.7 independent Foundry announcement ABI fixtures with truncations offsets padding UTF8 and aggregate bounds...OK
+249/424 relayer.metadata.test.aggregation chooses cheapest verified child and preserves present empty metadata...OK
+250/424 relayer.metadata.test.recursive routing and cumulative ISM counts fail at the configured boundary...OK
+251/424 relayer.metadata.test.aggregation preserves module order when verification is unpriced and rejects false verification...OK
+252/424 relayer.metadata.test.CCIP pending is terminal only without threshold and never masks healthy metadata or refusal...OK
+253/424 relayer.metadata.test.metadata refusals cancellation and pending IO propagate across optional branches and serial checkpoints...OK
+254/424 relayer.metadata.test.routing aggregation preserve full felt module addresses while validators stay Ethereum addresses...OK
+255/424 relayer.metadata.test_0...OK
+256/424 relayer.evm_source.test.full-prefix proof authenticates every leaf and rejects a changed checkpoint...OK
+257/424 relayer.evm_source.test.member ABI bounds address width and threshold are strict...OK
+258/424 evm.root.test_0...OK
+259/424 relayer.ccip.test.CCIP authentication hash matches production Rust and TypeScript fixture...OK
+260/424 relayer.ccip.test.CCIP response pending shapes retry boundedly and bare404 fails immediately...OK
+261/424 relayer.ccip.test.CCIP OffchainLookup matches independent Foundry ABI and bounds every truncation...OK
+262/424 relayer.ccip.test.CCIP GET skips signer POST caches verified signature and invalid URL never signs...OK
+263/424 relayer.ccip.test.CCIP concurrent equal hashes coalesce KMS success and in-flight failure...OK
+264/424 ops.validator_observability.test.production Registry publishes full set with missing indices and 180 second membership grace...OK
+265/424 ops.validator_observability.test.concurrent observation sets retain every validator and OOM does not remove existing series...OK
+266/424 ops.validator_observability.test.observation allocation failures preserve existing production series...OK
+267/424 ops.validator_observability.test.Active observation is best effort when metric storage is exhausted...[default] (warn): validator observation metric update failed
+OK
+268/424 ops.validator_observability.test.Active emits terminal ISM status and latches only real Merkle mismatch...OK
+269/424 relayer.metadata_parallel.test.executor lifetime stop token cancels active blocking and queued jobs before join...OK
+270/424 relayer.metadata_parallel.test.executor lifetime stop token retires a retained cooperative continuation...OK
+271/424 relayer.quorum.test.arrival order selects root while output signatures follow validator order; Aleo pads...OK
+272/424 relayer.quorum.test.range boundary includes missing latest slots without claiming a quorum...OK
+273/424 storage.objects.test.23 production Rust checkpoint announcement snapshot reorg and index objects...OK
+274/424 metadata_parallel_delegated_tests.test.parallel threshold returns with eight stalled peers and later builds are independent...OK
+275/424 metadata_parallel_delegated_tests.test.failed verification does not reach threshold...OK
+276/424 metadata_parallel_delegated_tests.test.first observed refusal wins but a cancelled late refusal cannot veto...OK
+277/424 metadata_parallel_delegated_tests.test.unpriced valid candidates preserve arrival set and index order without fake zero gas...OK
+278/424 metadata_parallel_delegated_tests.test.parallel CCIP pending is terminal only after unmet threshold...OK
+279/424 metadata_parallel_delegated_tests.test.terminal multisig and CCIP observations exclude replay and cancellation...OK
+280/424 metadata_parallel_delegated_tests.test.EVM proof observation latches only actual root mismatch...OK
+281/424 metadata_parallel_delegated_tests.test.root ISM app context preserves explicit default Unknown and replay semantics...OK
+282/424 metadata_parallel_delegated_tests.test.MessageId observation replays once and publishes full set without changing refusal...OK
+283/424 metadata_parallel_delegated_tests.test.direct root observation submits once across checkpoint replay...OK
+284/424 metadata_parallel_delegated_tests.test.observation enqueue saturation preserves valid metadata and releases its fork exactly once...OK
+285/424 metadata_parallel_delegated_tests.test.pending latest observation retires on global stop without publishing...OK
+286/424 metadata_parallel_delegated_tests.test.detached observation publishes exactly 27 validators to production Registry...OK
+287/424 metadata_parallel_delegated_tests.test.threshold one MessageIdMultisig fast path cancels trailing discovery...OK
+288/424 metadata_parallel_delegated_tests.test.fast path fallback reuses discovered source types...OK
+289/424 metadata_parallel_delegated_tests.test.verification replay does not consume cumulative ISM count twice...OK
+290/424 metadata_parallel_delegated_tests.test.nested fast path fallback counts a fresh build rather than a replay...OK
+291/424 metadata_parallel_delegated_tests.test.nested aggregations cooperate on eight workers and enforce exact shared bounds...OK
+292/424 metadata_parallel_delegated_tests.test.OOM at every allocation cancels and retires without output leaks...OK
+293/424 metadata_parallel_delegated_tests.test.nested cancellation ancestry retires at every allocation failure...OK
+294/424 metadata_parallel_delegated_tests.test.EVM fork rejects uncloneable CCIP handler context...OK
+295/424 metadata_parallel_delegated_tests.test.EVM fork owns cloned CCIP handler through actual retirement...OK
+296/424 metadata_parallel_delegated_tests.test.native Pool yields eight stalled peers and verifies healthy EVM children three times...OK
+297/424 metadata_parallel_delegated_tests.test.one leaf observation survives twenty quorum and candidate verification suspensions...OK
+298/424 metadata_parallel_delegated_tests.test.nested leaf observation survives twenty parent verification replays...OK
+299/424 metadata_parallel_delegated_tests.test.successful latest read completing after global stop cannot publish...OK
+300/424 metadata_parallel_delegated_tests.test.latest-only storage OOM does not veto an exact signed quorum...OK
+301/424 metadata_parallel_delegated_tests.test.latest-only fork OOM does not veto an exact signed quorum or leak owned copies...OK
+302/424 metadata_parallel_delegated_tests.test.early threshold child uses owned EVM fork clock after parent frame returns...OK
+303/424 metadata_parallel_delegated_tests.test.early threshold discards uncancellable leaf completion without a terminal metric...OK
+304/424 agents.metadata_session_test.test.checkpoint session retains completed discovery and no-pool results per attempt...OK
+305/424 agents.metadata_session_test.test.checkpoint session allocation failures preserve ownership...OK
+306/424 agents.metadata_session_test.test.checkpoint session shared byte quota fails closed and releases...OK
+307/424 agents.metadata_session_test.test.native session returns 27-peer quorum and latest without replay refetch...OK
+308/424 agents.metadata_session_test.test.native Builder publishes full 27-peer observation through production Registry...OK
+309/424 agents.metadata_session_test.test.eight blocked multisig jobs do not delay the healthy ninth Null child...OK
+310/424 agents.metadata_session_test.test.parent cancel returns promptly and children never reuse the caller flag...OK
+311/424 agents.metadata_session_test.test.parent cancellation fixture cancels and joins before early error unwind...OK
+312/424 relayer.evm_source_cache_tests.test.default ISM getter pins block and CachedSource forks use independent child getter...OK
+313/424 relayer.evm_source_cache_tests.test.two independent discoveries make progress round robin and drain shared quota...OK
+314/424 storage.root.test_0...OK
+315/424 storage.local.test.writer lock excludes second writer while readers neither lock nor create paths...OK
+316/424 storage.local.test.same signer conflict persists guard preserves old checkpoint and blocks all late writes...OK
+317/424 storage.local.test.different signer checkpoint is overwritten without creating a false reorg...OK
+318/424 storage.local.test.latest-first publication validates target while historical checkpoints fill and snapshot survives reopen...OK
+319/424 storage.local.test.malformed unreadable and oversized reorg flags are never treated as absent...OK
+320/424 storage.local.test.read errors torn checkpoint and snapshot size boundaries fail closed...OK
+321/424 storage.local.test.failed guard persistence stays halted and can retry without accepting late writes...OK
+322/424 storage.local.test.local sign-and-write checks durable history before generating another signature...OK
+323/424 storage.local.test.nested and absolute writer directories are created through durable parent entries...OK
+324/424 evm.transaction.test.EIP-155 reference transaction and independent Foundry EIP-1559 vector...OK
+325/424 evm.transaction.test.canonical RLP zero short-byte and long-length boundaries...OK
+326/424 evm.transaction.test.checked transaction fees chain id and nonce boundaries...OK
+327/424 evm.transaction.test.51 production ethers fixtures match unsigned digest signed wire hash and signer...OK
+328/424 evm.indexer.test.EVM indexer refuses invalid tags and unverified chain reads before I/O...OK
+329/424 agents.operation.test.Rust retry import preserves manual authority stale-version precedence and rollback clamps...OK
+330/424 relayer.app_context.test.metadata root app classification preserves explicit precedence strict errors and post fetch TTL...OK
+331/424 relayer.app_context.test.successful default RPC survives clock failure and no cache still classifies strictly...OK
+332/424 relayer.remote_checkpoints.test.remote checkpoint engine validates configuration without native loading...OK
+333/424 relayer.remote_checkpoints.test_0...OK
+334/424 relayer.checkpoint_pool.test.parallel checkpoint quorum returns first root without waiting for slow configured validators...OK
+335/424 relayer.checkpoint_pool.test.parallel checkpoint latest queries retain validator positions and report failed storage...OK
+336/424 relayer.checkpoint_pool.test.parallel checkpoint guards await every selected backend before early quorum...OK
+337/424 relayer.checkpoint_pool.test.parallel checkpoint validation and reads retain the same locations during registry rotation...OK
+338/424 cloud.storage.test.cloud storage preserves distinct S3 and GCS names folder rules and locations...OK
+339/424 cloud.storage.test.cloud prepared native GET owns URL auth exact keys caps and narrow loopback policy without IO...OK
+340/424 cloud.storage.test.GCS legacy root guard blocks folder writer even when malformed...OK
+341/424 cloud.storage.test.S3 reads anonymously and PUT signs escaped object path and temporary credentials...OK
+342/424 cloud.storage.test.GCS checkpoint publication snapshot announcement and reorg serialization...OK
+343/424 cloud.sigv4.test.published AWS S3 GET Object SigV4 fixture...OK
+344/424 cloud.sigv4.test.query sorting session credentials and header whitespace are canonical...OK
+345/424 agents.metadata_session.test.rejected checkpoint cache reservation never releases another session's quota...OK
+346/424 relayer.prover.test.packed prover authenticates historical prefixes across chunk and power-of-two boundaries...OK
+347/424 relayer.prover.test.packed prover allocation failures retain logical tree and release every chunk...OK
+348/424 db.root.test_0...OK
+349/424 agents.announcement_source.test.announcement source constructor does no I/O and cancelled callbacks cannot touch providers...OK
+350/424 agents.announcement_source.test.announcement source owns ordered lists bounds all bytes and cleans allocator failures...OK
+351/424 relayer.announced_readers.test.announced readers retain latest-first locations, reorg policy and removal...OK
+352/424 relayer.announced_readers.test.cooperative discovery resumes stable inputs and resets retained replay on cancel...OK
+353/424 relayer.announced_readers.test.discovery active and cache allocation failures preserve ownership...OK
+354/424 relayer.checkpoint_reader.test.checkpoint announcement parser preserves source S3 and GCS path shapes...OK
+355/424 relayer.checkpoint_reader.test.checkpoint location reader opens existing local history and treats every reorg flag as fatal...OK
+356/424 cloud.root.test_0...OK
+357/424 sealevel.announcement.test.Sealevel announcement instruction accounts data and replay ID roundtrip reject truncation...OK
+358/424 sealevel.announcement.test.Sealevel announcement bytes accounts and replay PDA match actual production Rust program fixtures...OK
+359/424 radix.contracts.test.Radix delivered state query pins and authenticates exact state version...OK
+360/424 radix.contracts.test.Radix announcement historical absence authenticates state version...OK
+361/424 runtime.sequence_cursor.test.sequence cursor prioritizes forward traffic detects missing logs and accepts duplicate overlap...OK
+362/424 runtime.sequence_cursor.test.sequence cursor resumes empty backwards scans and clears per-gap progress after indexed recovery...OK
+363/424 runtime.sequence_cursor.test.sequence cursor cumulative missing sets prevent alternating response retry storms...OK
+364/424 runtime.sequence_cursor.test.sequence cursor bounds database skipping relative floors and unavailable counts...OK
+365/424 runtime.sequence_cursor.test.cooperative cursor query slicing preserves forward prefixes backward suffixes and exact pending tokens...OK
+366/424 runtime.sequence_cursor.test.cooperative cursor sliced block gaps persist only the searched suffix and resume after restart...OK
+367/424 db.json.test.serde status wire spelling nested report and fail-closed recovery...OK
+368/424 runtime.relayer.test.ambiguous broadcast survives restart without creating another transaction...OK
+369/424 runtime.relayer.test.stale metadata, insufficient payment and unverified metadata cannot submit...OK
+370/424 runtime.relayer.test.retry curve matches production Rust boundaries...OK
+371/424 runtime.relayer.test.source explicit delays preserve ordinary retry budget and reject stale or signed work...OK
+372/424 runtime.relayer.test.deny/allow never discards an in-flight transaction...OK
+373/424 runtime.relayer.test.source production confirmation delay starts at successful inclusion and retry gets a fresh window...OK
+374/424 relayer.remote_checkpoints_testing.test.remote checkpoint engine fans out beyond eight stalled peers and checks every guard first...OK
+375/424 relayer.remote_checkpoints_testing.test.remote checkpoint global guard rejects a late malformed flag and ignore skips its data...OK
+376/424 relayer.remote_checkpoints_testing.test.remote checkpoint snapshots retain local reader across registry rotation and combine local remote quorum...OK
+377/424 relayer.remote_checkpoints_testing.test.remote checkpoint engine serves concurrent origins and cancels one without poisoning later sessions...OK
+378/424 relayer.remote_checkpoints_testing.test.remote checkpoint GCS preserves legacy root guard folder keys owned bearer and canonical latest objects...OK
+379/424 relayer.remote_checkpoints_testing.test.remote checkpoint unreadable guards skip peers and deadline cancellation releases running disk snapshots...OK
+380/424 relayer.remote_checkpoints_testing.test.remote checkpoint engine partial allocation failures release registries sessions and native owners...OK
+381/424 relayer.remote_checkpoints_testing.test.remote checkpoint ordered fallback skips ignored flags unreadable and invalid candidates before one guarded fetch...OK
+382/424 relayer.remote_checkpoints_testing.test.remote checkpoint empty location registration removes cache while an in-flight snapshot remains valid...OK
+383/424 relayer.remote_checkpoints_testing.test.remote checkpoint async retained request polls without blocking beyond eight stalled peers and owns validator IDs...OK
+384/424 relayer.remote_checkpoints_testing.test.remote checkpoint async request preserves global flag barrier and cancellation consumes once...OK
+385/424 db.golden_test.test.93 production Rust DB codec fixtures and all fixed-record truncation boundaries...OK
+386/424 db.codec.test.integer endianness and strict bool match production...OK
+387/424 db.keys.test.domain names and prefix upper bounds match Rust...OK
+388/424 cloud.google_adc.test_0...OK
+389/424 cloud.aws_profile.test_0...OK
+390/424 cloud.credential_io.test.credential cache writes atomic private files and refuses missing parents...OK
+391/424 cloud.command.test.credential command owns bounded stdout hides failures and kills process group on deadline...OK
+392/424 cloud.rs256.test.JWT claims require Google audience service account email and bounded lifetime...OK
+393/424 cloud.rs256.test.opt-in OpenSSL RS256 agrees with external Node generated ephemeral fixtures...FAIL (EnvironmentVariableNotFound)
+394/424 cloud.identity.test.UTC credential expiration validates calendar and explicit environment requires complete pair...OK
+395/424 cloud.identity.test.IMDSv2 token role credentials cache and refresh use only injected time and transport...OK
+396/424 cloud.identity.test.GCP metadata scopes project cache refresh and response flavor verification...OK
+397/424 cloud.identity.test.authorized-user ADC refresh escapes form secrets and selects the correct credential parser...OK
+398/424 cloud.identity.test.STS web identity form uses rotated injected token and caches temporary credentials...OK
+399/424 cloud.identity.test.STS structural parser rejects duplicate credential fields unbalanced XML and entities...OK
+400/424 cloud.identity.test.ECS container credentials are cached and full URI cleartext is explicitly constrained...OK
+401/424 cloud.identity.test.opt-in service-account ADC JWT exchange matches external signature and caches token...FAIL (EnvironmentVariableNotFound)
+402/424 cloud.identity.test.profile credential RFC3339 offsets and signed AssumeRole use exact STS structural path...OK
+403/424 cloud.kms.test.KMS DER signatures normalize low s and bind raw digest to configured public key...OK
+404/424 cloud.kms.test.AWS KMS request uses DIGEST and validates response ARN algorithm DER and signer...OK
+405/424 cloud.kms.test.GCP KMS validates digest CRC response CRC version and HSM before recovery...OK
+406/424 cloud.kms.test.GCP integrity retry budget is three total calls and permanent errors stop immediately...OK
+407/424 cloud.kms.test.SPKI PEM bootstrap pins secp256k1 OIDs rejects mutation and validates cloud metadata...OK
+408/424 cloud.kms.test.AWS alias resolution owns canonical ARN pins key metadata and rejects later alias rotation...OK
+409/424 cloud.kms.test.GCP KMS propagates explicit ADC quota billing project without mixing bearer identity...OK
+410/424 cloud.google_adc_test.test.Google ADC file federation exchanges actual STS grant caches token and refreshes injected subject...OK
+411/424 cloud.google_adc_test.test.Google ADC URL federation retains configured headers and IAM impersonation uses scoped STS token...OK
+412/424 cloud.google_adc_test.test.Google ADC impersonated authorized-user source pins quota delegates and rejects nested impersonation...OK
+413/424 cloud.google_adc_test.test.Google ADC executable requires explicit source optin supports valid output cache and uses direct whitespace argv...OK
+414/424 cloud.google_adc_test.test.Google ADC file federation covers every allocation failure and rejects insecure STS...OK
+415/424 cloud.google_adc_test.test.Google ADC AWS federation signs native Source GetCallerIdentity envelope and never sends AWS request...OK
+416/424 cloud.google_adc_test.test.Google ADC AWS federation preserves explicit IMDSv2 token region role and credentials metadata sequence...OK
+417/424 cloud.google_adc_test.test.opt-in Google ADC service account uses independent verified direct access JWT without OAuth network...FAIL (EnvironmentVariableNotFound)
+418/424 cloud.google_adc_test.test.Google ADC JSON subject preserves multiline SAML through form encoding...OK
+419/424 cloud.aws_profile_test.test.AWS profile resolves Source nested role chain self static preference and credentials-file override...OK
+420/424 cloud.aws_profile_test.test.AWS profile process credentials are bounded cached case-insensitive and refreshed at expiration...OK
+421/424 cloud.aws_profile_test.test.AWS profile rejects cycles unknown named sources conflicting chains and permits credentials-free default fallback...OK
+422/424 cloud.aws_profile_test.test.AWS profile SSO refresh writes rotated session cache before role credentials and preserves old cache after write failure...OK
+423/424 cloud.aws_profile_test.test.AWS profile SDK environment skips partial pairs uses actual fallback secret and trims only session token...OK
+424/424 cloud.aws_profile_test.test.AWS profile every allocation failure preserves recursive provider document ownership...OK
+419 passed; 2 skipped; 3 failed.
+Traceback (most recent call last):
+  File "/Users/pbio/work/ziggy/zig/integration/postgres.py", line 160, in <module>
+    main()
+    ~~~~^^
+  File "/Users/pbio/work/ziggy/zig/integration/postgres.py", line 122, in main
+    tested.check_returncode()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 509, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+                             self.stderr)
+subprocess.CalledProcessError: Command '['/var/folders/1g/284xdqbn7_338zrkrk4ln6yr0000gn/T/ziggy-pg-tests-ccwqaq7i/postgres-tests']' returned non-zero exit status 1.

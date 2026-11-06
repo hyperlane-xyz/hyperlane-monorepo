@@ -1,0 +1,522 @@
+[
+  {
+    "path": "zig/native/rocks",
+    "package": "ziggy-native-rocks-build",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/native/rocks/Cargo.toml": [
+        "3b329c4c598f61e4c6ea975e74f061cb",
+        "9c435d1d4582df47de9dafdada669c5b"
+      ],
+      "zig/native/rocks/Cargo.lock": [
+        "495d2ebda2c762cfcdf8559dfe8579d6",
+        "37b7c490e458861fa1487d77527c933c"
+      ],
+      "zig/native/rocks/src/lib.rs": [
+        "f5caba765931cd64251db2b32f6e7639",
+        "80cd833ab335bd3e13ad77c0d4eab2f0"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference",
+    "package": "ziggy-rust-reference",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/Cargo.toml": [
+        "ae03de55adaa3fae3a107bb2b5ca6859",
+        "3a32110815712f5934ed7f0399281fad"
+      ],
+      "zig/reference/Cargo.lock": [
+        "1bb3719ebb2ff0ce877eb1a75d71f31b",
+        "0799b3cc92226c9d5533218fe57fe8dd"
+      ],
+      "zig/reference/settings/Cargo.toml": [
+        "e8b5b13c0f37b4ca8c925ad4352bd3e5",
+        "7d672414d11795bff3511805e7e2912b"
+      ],
+      "zig/reference/settings/Cargo.lock": [
+        "9ff8af384a218c419fddb5c5acebe61e",
+        "39082316504849600efc3101de644ffe"
+      ],
+      "zig/reference/settings/src/main.rs": [
+        "580cbe5b9a37e06b674247d6d5a443d3",
+        "f8b7c33de0c7654ae5af53bded01ab45"
+      ],
+      "zig/reference/db-codecs/Cargo.toml": [
+        "29e08394ccd7a2b97bb67316f9017765",
+        "2d93cab452c4499bce9fed735115a276"
+      ],
+      "zig/reference/db-codecs/Cargo.lock": [
+        "b257affe847d3a4f4a9cab87f2f6a26c",
+        "4971635c1ef42750f5f1885d55ad0909"
+      ],
+      "zig/reference/db-codecs/src/main.rs": [
+        "ce1dc771f5339bc31043c157f5ee1f58",
+        "8581c23282e6c9a7cbf7f0c88b90d41f"
+      ],
+      "zig/reference/reveal/Cargo.toml": [
+        "acc19e6649e6915ef5e436a807c9dedf",
+        "fd6f9cef69a2fe3bf24145dce97087b9"
+      ],
+      "zig/reference/reveal/Cargo.lock": [
+        "c2ce483b3f3a98709e81881e041bcbef",
+        "1a4ce86fe1e1efe589fd35e561b5ec78"
+      ],
+      "zig/reference/reveal/build.rs": [
+        "6a7760ed08660510c17cc32a9e9ebe6f",
+        "11d1e0c0abfc10ef1d6c7e2f802ea6b1"
+      ],
+      "zig/reference/reveal/src/main.rs": [
+        "415bfea8ae8edd77b44edcaa6508534f",
+        "50bf343d00796d1714d41ee19dde19e9"
+      ],
+      "zig/reference/validator-http/Cargo.toml": [
+        "2b01f3c0d7b6ea2f35620fabef4254a0",
+        "e083b0ea6dd21aba2eefdd036645843d"
+      ],
+      "zig/reference/validator-http/Cargo.lock": [
+        "c4096cf6201d28c0fafa87a6cb65725f",
+        "8a52ca8b17b996aa08a6f5a71d7ef51b"
+      ],
+      "zig/reference/validator-http/src/main.rs": [
+        "3f19397afbdf4754f265547d2b61b9d2",
+        "a944b637c2704ba926782ee5d3353eb0"
+      ],
+      "zig/reference/tron/Cargo.toml": [
+        "61f5ce307a04be2b4e95610b169b01b4",
+        "c0f3c91fa2cef47dcdadf24bd91b7045"
+      ],
+      "zig/reference/tron/Cargo.lock": [
+        "58f2ecd643fa07ffaea789c59c051914",
+        "14ca5e949bd6c500babe970de24816dd"
+      ],
+      "zig/reference/tron/src/main.rs": [
+        "a77f733a8f6c0ea57f18c57a227bad6b",
+        "335b01480183bc0a2a18734f1a7a43cf"
+      ],
+      "zig/reference/evm/Cargo.toml": [
+        "b0c33eecfcc7ad5cc29ef1c468540a2e",
+        "c57014738c9697d4a27b7217b98dc8ee"
+      ],
+      "zig/reference/evm/Cargo.lock": [
+        "54dd0172d44ced3c096cdb01492d3d34",
+        "fe5be8ad9d0ee28776afdff60f08f3b4"
+      ],
+      "zig/reference/evm/src/main.rs": [
+        "75b2384727a85f3762674d68eee94404",
+        "356fd9e8e6a108b99ce248d9592997c5"
+      ],
+      "zig/reference/rocks/Cargo.toml": [
+        "d56a90e69be7e17f3306cbfd69187c52",
+        "108a8490784fef3b6617aa7b5d8f1474"
+      ],
+      "zig/reference/rocks/Cargo.lock": [
+        "e05bd62a98071d2ab6f18c917d63561c",
+        "7e755bcb45f9f9637de8d36e97f09ba0"
+      ],
+      "zig/reference/rocks/src/main.rs": [
+        "854cc91506d8d19811aeae5710ebe0a3",
+        "f6a2ea1d137c813db71a8af208308a62"
+      ],
+      "zig/reference/src/packed_prover.rs": [
+        "dc8f3876c0811700581b400030940204",
+        "ea8c3d91d7f9adccee042519873a0bd3"
+      ],
+      "zig/reference/src/settings_merge.rs": [
+        "6d30fd81f44e08e37c6845ea9057c91b",
+        "3d3c3b2963dc34e6e90f51e5ea66e34f"
+      ],
+      "zig/reference/src/gas_cost.rs": [
+        "c1fc52a75df434767b5d1cf8895c8b7a",
+        "02884f8a4b6f2bb87604b8aa04e186cc"
+      ],
+      "zig/reference/src/main.rs": [
+        "ef8b509e3d33ec426ada56a8ac9683ba",
+        "1d41be23ea5bf877883cde2b57637b50"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference/settings",
+    "package": "ziggy-settings-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/settings/Cargo.toml": [
+        "e8b5b13c0f37b4ca8c925ad4352bd3e5",
+        "7d672414d11795bff3511805e7e2912b"
+      ],
+      "zig/reference/settings/Cargo.lock": [
+        "9ff8af384a218c419fddb5c5acebe61e",
+        "39082316504849600efc3101de644ffe"
+      ],
+      "zig/reference/settings/src/main.rs": [
+        "580cbe5b9a37e06b674247d6d5a443d3",
+        "f8b7c33de0c7654ae5af53bded01ab45"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference/db-codecs",
+    "package": "ziggy-db-codec-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/db-codecs/Cargo.toml": [
+        "29e08394ccd7a2b97bb67316f9017765",
+        "2d93cab452c4499bce9fed735115a276"
+      ],
+      "zig/reference/db-codecs/Cargo.lock": [
+        "b257affe847d3a4f4a9cab87f2f6a26c",
+        "4971635c1ef42750f5f1885d55ad0909"
+      ],
+      "zig/reference/db-codecs/src/main.rs": [
+        "ce1dc771f5339bc31043c157f5ee1f58",
+        "8581c23282e6c9a7cbf7f0c88b90d41f"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference/reveal",
+    "package": "ziggy-reveal-reference",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/reveal/Cargo.toml": [
+        "acc19e6649e6915ef5e436a807c9dedf",
+        "fd6f9cef69a2fe3bf24145dce97087b9"
+      ],
+      "zig/reference/reveal/Cargo.lock": [
+        "c2ce483b3f3a98709e81881e041bcbef",
+        "1a4ce86fe1e1efe589fd35e561b5ec78"
+      ],
+      "zig/reference/reveal/build.rs": [
+        "6a7760ed08660510c17cc32a9e9ebe6f",
+        "11d1e0c0abfc10ef1d6c7e2f802ea6b1"
+      ],
+      "zig/reference/reveal/src/main.rs": [
+        "415bfea8ae8edd77b44edcaa6508534f",
+        "50bf343d00796d1714d41ee19dde19e9"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference/validator-http",
+    "package": "ziggy-validator-http-reference",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/validator-http/Cargo.toml": [
+        "2b01f3c0d7b6ea2f35620fabef4254a0",
+        "e083b0ea6dd21aba2eefdd036645843d"
+      ],
+      "zig/reference/validator-http/Cargo.lock": [
+        "c4096cf6201d28c0fafa87a6cb65725f",
+        "8a52ca8b17b996aa08a6f5a71d7ef51b"
+      ],
+      "zig/reference/validator-http/src/main.rs": [
+        "3f19397afbdf4754f265547d2b61b9d2",
+        "a944b637c2704ba926782ee5d3353eb0"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference/tron",
+    "package": "ziggy-tron-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/tron/Cargo.toml": [
+        "61f5ce307a04be2b4e95610b169b01b4",
+        "c0f3c91fa2cef47dcdadf24bd91b7045"
+      ],
+      "zig/reference/tron/Cargo.lock": [
+        "58f2ecd643fa07ffaea789c59c051914",
+        "14ca5e949bd6c500babe970de24816dd"
+      ],
+      "zig/reference/tron/src/main.rs": [
+        "a77f733a8f6c0ea57f18c57a227bad6b",
+        "335b01480183bc0a2a18734f1a7a43cf"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference/evm",
+    "package": "ziggy-evm-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/evm/Cargo.toml": [
+        "b0c33eecfcc7ad5cc29ef1c468540a2e",
+        "c57014738c9697d4a27b7217b98dc8ee"
+      ],
+      "zig/reference/evm/Cargo.lock": [
+        "54dd0172d44ced3c096cdb01492d3d34",
+        "fe5be8ad9d0ee28776afdff60f08f3b4"
+      ],
+      "zig/reference/evm/src/main.rs": [
+        "75b2384727a85f3762674d68eee94404",
+        "356fd9e8e6a108b99ce248d9592997c5"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/reference/rocks",
+    "package": "ziggy-rocks-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/reference/rocks/Cargo.toml": [
+        "d56a90e69be7e17f3306cbfd69187c52",
+        "108a8490784fef3b6617aa7b5d8f1474"
+      ],
+      "zig/reference/rocks/Cargo.lock": [
+        "e05bd62a98071d2ab6f18c917d63561c",
+        "7e755bcb45f9f9637de8d36e97f09ba0"
+      ],
+      "zig/reference/rocks/src/main.rs": [
+        "854cc91506d8d19811aeae5710ebe0a3",
+        "f6a2ea1d137c813db71a8af208308a62"
+      ]
+    },
+    "validation_scope": "Retained source manifest/main/lock exactly match current; previous locked offline build/test/Clippy evidence reused."
+  },
+  {
+    "path": "zig/src/net/testing/endpoint-reference",
+    "package": "ziggy-endpoint-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/net/testing/endpoint-reference/Cargo.toml": [
+        "e76488440a02b380829b25b74221c0d0",
+        "fbfbd28567c1b8c2fb6a8f0543bc940e"
+      ],
+      "zig/src/net/testing/endpoint-reference/Cargo.lock": [
+        "e2782ae7f3dd2be33b24f73e4dfa9c4d",
+        "d6066f161df9cf1fd1cc077b442fccbd"
+      ],
+      "zig/src/net/testing/endpoint-reference/src/main.rs": [
+        "2872001066c7c8b6899a855eca45ef84",
+        "9b4172c33897e41bca6d8562b76c9fda"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/src/lander/testing/reference",
+    "package": "lander-escalator-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/lander/testing/reference/Cargo.toml": [
+        "2a320b8230f86ded1284a22dd70afef1",
+        "a246fbcb3f7db7e1328c0214c5543259"
+      ],
+      "zig/src/lander/testing/reference/Cargo.lock": [
+        "8ad950fe0627c743223a5c7df30e7572",
+        "db6707c3afb14df54964719874cfb4a2"
+      ],
+      "zig/src/lander/testing/reference/build.rs": [
+        "1027a79386fe9b9102959ff57bed76ff",
+        "cea55bbf66a5f10f57c2f20d22bc75d7"
+      ],
+      "zig/src/lander/testing/reference/src/main.rs": [
+        "5583a729a5ac16e8ce94ce6c920b4140",
+        "f832ca81f8ea7e4cc1214871c06ada3a"
+      ],
+      "zig/src/lander/testing/reference/src/bin/multicall.rs": [
+        "88340659c091c5bb1c628b71c4e11333",
+        "eb33afe5b2ef3d529d6a46d49d34bb37"
+      ],
+      "zig/src/lander/testing/reference/src/bin/eip2930.rs": [
+        "cfb0d82fa666a78bf4d8e47ac0bcd8b4",
+        "23660f90fb80a5b6f4fcbfaab3235c9b"
+      ]
+    },
+    "validation_scope": "Retained locked offline three-binary/golden functional build passed historically, but current main.rs hash differs; NOT an exact-current-source functional or Clippy claim."
+  },
+  {
+    "path": "zig/src/aleo/native-vm",
+    "package": "ziggy-aleo-vm",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/aleo/native-vm/Cargo.toml": [
+        "79af6bc722818265a2d29dfc5f4e2773",
+        "0896bbaee0b5e4a412d52c10ae455104"
+      ],
+      "zig/src/aleo/native-vm/Cargo.lock": [
+        "42d183085c79b9cb0307bed6fe3af5e7",
+        "5b36dc2d3c0c1bdf0b759b6fad161df6"
+      ],
+      "zig/src/aleo/native-vm/src/lib.rs": [
+        "3c16622e396b505e72c17dcd23e28adf",
+        "77f6ffb11d04d910e42be6d025e4dfc8"
+      ]
+    },
+    "validation_scope": "Current exact-source all-target Clippy -D warnings passed; metadata only."
+  },
+  {
+    "path": "zig/src/aleo/native-vm/vendor/aleo-std-storage-1.0.3",
+    "package": "aleo-std-storage",
+    "vendored_dependency": true,
+    "source_sha256_chunks": {
+      "zig/src/aleo/native-vm/vendor/aleo-std-storage-1.0.3/Cargo.toml": [
+        "c1da598c952e8c973573e2ba62b092c5",
+        "e0e91045974415f86bb1d55883454b93"
+      ],
+      "zig/src/aleo/native-vm/vendor/aleo-std-storage-1.0.3/src/lib.rs": [
+        "2b6b34397b550e1b89da2350c5569784",
+        "5e29ecc0aa71c1317784f771a497d95e"
+      ]
+    },
+    "validation_scope": "Vendored patched dependency owned by Aleo VM lock and included in VM metadata dependency graph; not an independent authored FFI crate/all-target Clippy acceptance."
+  },
+  {
+    "path": "zig/src/aleo/native-crypto",
+    "package": "ziggy-aleo-crypto",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/aleo/native-crypto/Cargo.toml": [
+        "1894d10c30d2fbb0c94101489ca12715",
+        "25e06dcef6e20492cc63eea3ff0f6445"
+      ],
+      "zig/src/aleo/native-crypto/Cargo.lock": [
+        "e1586a4aca326433f5164b5ad502b37f",
+        "c35249ca780f5e861b6197aff0b1c0b7"
+      ],
+      "zig/src/aleo/native-crypto/src/lib.rs": [
+        "12c77cd334130f3bba9e694604b6b5dc",
+        "e2d179ce2496e34667188d2767821546"
+      ]
+    },
+    "validation_scope": "Current exact-source all-target Clippy -D warnings passed; metadata only."
+  },
+  {
+    "path": "zig/src/radix/reference",
+    "package": "ziggy-radix-reference",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/radix/reference/Cargo.toml": [
+        "a1ef81424eb468f48ec90ee4f3afeb31",
+        "9e10ac57d6b52f7a990885831243eec5"
+      ],
+      "zig/src/radix/reference/Cargo.lock": [
+        "c766d5b66f0f682689fa4be6aa613fca",
+        "ca9f98bd1c4562371c38857963628b38"
+      ],
+      "zig/src/radix/reference/src/main.rs": [
+        "d2a6fc71687acb9376aa48761413614a",
+        "d036a47efc1c7777e7f31a86c636e3eb"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/src/ops/testing/reference",
+    "package": "ziggy-denylist-reference",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/ops/testing/reference/Cargo.toml": [
+        "ba592802565ff6682a3da300fbdcd960",
+        "a7c5ffe26564743b36e095e5288abdea"
+      ],
+      "zig/src/ops/testing/reference/Cargo.lock": [
+        "87ca22299d0405af440b73f94e4b3e24",
+        "15aac374ad0f666e2a47ec08100aaa95"
+      ],
+      "zig/src/ops/testing/reference/build.rs": [
+        "9e593d57b7689255c79f4363ea4bb77c",
+        "b5d95e1088bef0033f744e8464ff6a9f"
+      ],
+      "zig/src/ops/testing/reference/src/main.rs": [
+        "4f5e1eee1cce86277348622ffc360c11",
+        "929f608edbf52a6558108630fee9abc6"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/src/ops/regex-native",
+    "package": "ziggy-regex",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/ops/regex-native/Cargo.toml": [
+        "48e47e1951d6ff6f09ac3d83b9ab7238",
+        "fd9488c6f31e0c06e2e1d7bcdf1b5b13"
+      ],
+      "zig/src/ops/regex-native/Cargo.lock": [
+        "ad990290069262515b95f3860fc36a48",
+        "fc8b7b4df248708c7225797fc2676689"
+      ],
+      "zig/src/ops/regex-native/src/lib.rs": [
+        "ac76290fe308b6a891e808027a3f7168",
+        "9442a8515401636b2d3fecf8cb28de3c"
+      ]
+    },
+    "validation_scope": "Current exact-source all-target Clippy -D warnings passed; metadata only."
+  },
+  {
+    "path": "zig/src/altvm/reference",
+    "package": "ziggy-altvm-reference",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/altvm/reference/Cargo.toml": [
+        "8f39d7aec567cd5ade65de1c99d10176",
+        "a9b685302ea49f7bfd44f6ae8f2ecf02"
+      ],
+      "zig/src/altvm/reference/Cargo.lock": [
+        "50246803b5563fbf019efd64244a4d00",
+        "931decfaca20c960e4cba83b71eed229"
+      ],
+      "zig/src/altvm/reference/src/main.rs": [
+        "8eb9a1ddadc98ab36d86022c39f103ad",
+        "ccaf54c01b12f4175f2a3c7ed0f94bfe"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/src/starknet/testing/reference",
+    "package": "ziggy-starknet-oracle",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/starknet/testing/reference/Cargo.toml": [
+        "25bc60f0ee2c4cce1b1234d25f49de30",
+        "a0d6395618bf51b429a12b55af619e4d"
+      ],
+      "zig/src/starknet/testing/reference/Cargo.lock": [
+        "46478ececc0dd64e1797023653e47f7a",
+        "3c7dc5fb1ef4ef367f8bce4c93207f6f"
+      ],
+      "zig/src/starknet/testing/reference/build.rs": [
+        "49b500c66eaee204543536e674168c75",
+        "755089d2ce4be0014ae1920dd3e84d5b"
+      ],
+      "zig/src/starknet/testing/reference/src/main.rs": [
+        "8179f211746e4dcf6b46c87281d99641",
+        "603392eb8e241832e4119240ba90f70b"
+      ]
+    },
+    "validation_scope": "Lock closure/prior fixture or build evidence only; no newly asserted all-target Clippy pass for this helper."
+  },
+  {
+    "path": "zig/src/starknet/native-crypto",
+    "package": "ziggy-starknet-crypto",
+    "vendored_dependency": false,
+    "source_sha256_chunks": {
+      "zig/src/starknet/native-crypto/Cargo.toml": [
+        "18d0722543056c3fd4cfd4ca56204f59",
+        "ca2eb2f90743ad0e794ec91c4406de07"
+      ],
+      "zig/src/starknet/native-crypto/Cargo.lock": [
+        "f093a1662902a50d4293b89e6e5a75f1",
+        "963775c7ad949ce2daca29bec40d54d4"
+      ],
+      "zig/src/starknet/native-crypto/src/lib.rs": [
+        "b60e45be103c4aeb66585f2abe390bf3",
+        "335400ae19c275e49617b246d258b8fe"
+      ]
+    },
+    "validation_scope": "Current exact-source all-target Clippy -D warnings passed; metadata only."
+  }
+]

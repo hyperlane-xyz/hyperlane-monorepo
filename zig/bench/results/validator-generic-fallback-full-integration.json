@@ -1,0 +1,383 @@
+{
+  "passed": true,
+  "binary_sha256_chunks": [
+    "46e296a8bf6a03e255026845eb16400d",
+    "71b1594b33edd09276b753f8f8210710"
+  ],
+  "source_sha256_chunks": {
+    "zig/src/agents/validator/generic.zig": [
+      "a6a3edab0d03e56f561d251ad1a3fb4b",
+      "45e67b5a1e381bd526495e87c553a192"
+    ],
+    "zig/src/agents/validator/frontier_audit.zig": [
+      "7857872762dace133a13c0820de5c15e",
+      "9914530f91d3fa3c77d6416673a513c0"
+    ],
+    "zig/src/agents/validator/chain_checkpoint.zig": [
+      "c9d2b60a6d9b11711f5e2a4333b9ed92",
+      "f72a86b7355c526b6ca71d8d65784feb"
+    ],
+    "zig/src/agents/validator/chain_votes.zig": [
+      "ee13fab8220489225684d75fa524247b",
+      "301a3a2c78c0f0b15a65fd3201347819"
+    ],
+    "zig/src/agents/validator/replay.zig": [
+      "95302643e61b0f9814587fe61eedb7d6",
+      "8101264a78597052f990ecee0c16e701"
+    ],
+    "zig/src/agents/validator.zig": [
+      "53b9fa18446632cf2b462d63b1f87b06",
+      "7e7bc35f343d71fb521da250b56fb2a1"
+    ],
+    "zig/src/agents/indexing/source.zig": [
+      "e75aba3841f7feaf128fc17a249a9c0f",
+      "133f77629173cf3488c2097ba9f1ce6d"
+    ],
+    "zig/src/agents/store.zig": [
+      "324ed3bc20d58171ecd399779cc2be82",
+      "746c3dff486b0e6d5437b7d984b161c0"
+    ],
+    "zig/src/agents/validator_task.zig": [
+      "6b1142b40e4444ec4ccee97a0c5ed959",
+      "15ad158d79392fe360de482ba3495a51"
+    ],
+    "zig/src/agents/validator/announcement_task.zig": [
+      "8b5d4e3573416d6a07fb3180fdeadb6a",
+      "3a08b23bdfb2f90b8023ae74f0b8a1d1"
+    ],
+    "zig/src/agents/validator/announcement.zig": [
+      "8c2452759342aa255d91139f1905cf4e",
+      "d73b2a43a80b3b91ec9ab4e69e4b5544"
+    ],
+    "zig/src/agents/validator/mailbox.zig": [
+      "4f2fac9fce2e43928774a5e676122fbc",
+      "0b1af90c503e34d1338b0dd468733c74"
+    ]
+  },
+  "checkpoint_objects_utf8_chunks": {
+    "0": [
+      "{\n  \"value\": {\n    \"checkpoint\":",
+      " {\n      \"merkle_tree_hook_addre",
+      "ss\": \"0x000000000000000000000000",
+      "e7f1725e7734ce288f8367e1bb143e90",
+      "bb3f0512\",\n      \"mailbox_domain",
+      "\": 3999999999,\n      \"root\": \"0x",
+      "04dbc18970e613602f2c12313403a42e",
+      "b15bf603170bd07714eba083521af7ae",
+      "\",\n      \"index\": 0\n    },\n    \"",
+      "message_id\": \"0x59e0cc8042040299",
+      "65ec8305689307cf2731b467860ee2b7",
+      "5952f9cb2271df31\"\n  },\n  \"signat",
+      "ure\": {\n    \"r\": \"0x23dd541902a0",
+      "0391e9ec07e77ee34091c8c49df16cc8",
+      "fd7be781f2ee7241172d\",\n    \"s\": ",
+      "\"0x16d441dca8aeefc0e9e2bdad5f8e7",
+      "a2a30abcc45fa718370139f09aa7d39d",
+      "dc1\",\n    \"v\": 28\n  },\n  \"serial",
+      "ized_signature\": \"0x23dd541902a0",
+      "0391e9ec07e77ee34091c8c49df16cc8",
+      "fd7be781f2ee7241172d16d441dca8ae",
+      "efc0e9e2bdad5f8e7a2a30abcc45fa71",
+      "8370139f09aa7d39ddc11c\"\n}"
+    ],
+    "1": [
+      "{\n  \"value\": {\n    \"checkpoint\":",
+      " {\n      \"merkle_tree_hook_addre",
+      "ss\": \"0x000000000000000000000000",
+      "e7f1725e7734ce288f8367e1bb143e90",
+      "bb3f0512\",\n      \"mailbox_domain",
+      "\": 3999999999,\n      \"root\": \"0x",
+      "eb4f4e6184b74a171c9b8f86ebfae1d9",
+      "bff29ba6fe6b78f0a6b35b8c51416ca4",
+      "\",\n      \"index\": 1\n    },\n    \"",
+      "message_id\": \"0xfb3e0b6c8b5ccbf8",
+      "d7868ea2f02fb1fb8a01d9b8e3b39777",
+      "955cdf574abeaa97\"\n  },\n  \"signat",
+      "ure\": {\n    \"r\": \"0x8a526bdbd7ea",
+      "f2557577fd6164a8255bb8057dd66850",
+      "7292efcc00e591074959\",\n    \"s\": ",
+      "\"0x768dd31018d7c94ee11468b2f09ea",
+      "612b0bb0f60fd557afa87c302f00d653",
+      "018\",\n    \"v\": 28\n  },\n  \"serial",
+      "ized_signature\": \"0x8a526bdbd7ea",
+      "f2557577fd6164a8255bb8057dd66850",
+      "7292efcc00e591074959768dd31018d7",
+      "c94ee11468b2f09ea612b0bb0f60fd55",
+      "7afa87c302f00d6530181c\"\n}"
+    ],
+    "2": [
+      "{\n  \"value\": {\n    \"checkpoint\":",
+      " {\n      \"merkle_tree_hook_addre",
+      "ss\": \"0x000000000000000000000000",
+      "e7f1725e7734ce288f8367e1bb143e90",
+      "bb3f0512\",\n      \"mailbox_domain",
+      "\": 3999999999,\n      \"root\": \"0x",
+      "aa3dc969026c20370026503baf7d64b7",
+      "f911482f90e67a0be0500b3f5a48b818",
+      "\",\n      \"index\": 2\n    },\n    \"",
+      "message_id\": \"0xf9929761600c5084",
+      "b11c6470469ef130e76640838fa0ba33",
+      "d75efbba02ce9ee8\"\n  },\n  \"signat",
+      "ure\": {\n    \"r\": \"0xe59bfc8d000d",
+      "91cfcd18c07e282cbc14a3a63a528bff",
+      "28d8e59aae8c5d5c63c3\",\n    \"s\": ",
+      "\"0x4178fc8eb1d7856b6770cffd3d840",
+      "7d09bf601f32c1036b1e21c55c65372c",
+      "359\",\n    \"v\": 27\n  },\n  \"serial",
+      "ized_signature\": \"0xe59bfc8d000d",
+      "91cfcd18c07e282cbc14a3a63a528bff",
+      "28d8e59aae8c5d5c63c34178fc8eb1d7",
+      "856b6770cffd3d8407d09bf601f32c10",
+      "36b1e21c55c65372c3591b\"\n}"
+    ]
+  },
+  "rust_vectors": [
+    {
+      "root": [
+        "04dbc18970e613602f2c12313403a42e",
+        "b15bf603170bd07714eba083521af7ae"
+      ],
+      "id": [
+        "59e0cc804204029965ec8305689307cf",
+        "2731b467860ee2b75952f9cb2271df31"
+      ],
+      "encoded": [
+        "0300000000ee6b27ff00000000000000",
+        "0000000000f39fd6e51aad88f6f4ce6a",
+        "b8827279cfffb92266000007d0000000",
+        "000000000000000000f39fd6e51aad88",
+        "f6f4ce6ab8827279cfffb9226667656e",
+        "657269632d6e61746976652d30"
+      ]
+    },
+    {
+      "root": [
+        "eb4f4e6184b74a171c9b8f86ebfae1d9",
+        "bff29ba6fe6b78f0a6b35b8c51416ca4"
+      ],
+      "id": [
+        "fb3e0b6c8b5ccbf8d7868ea2f02fb1fb",
+        "8a01d9b8e3b39777955cdf574abeaa97"
+      ],
+      "encoded": [
+        "0300000001ee6b27ff00000000000000",
+        "0000000000f39fd6e51aad88f6f4ce6a",
+        "b8827279cfffb92266000007d0000000",
+        "000000000000000000f39fd6e51aad88",
+        "f6f4ce6ab8827279cfffb9226667656e",
+        "657269632d6e61746976652d31"
+      ]
+    },
+    {
+      "root": [
+        "aa3dc969026c20370026503baf7d64b7",
+        "f911482f90e67a0be0500b3f5a48b818"
+      ],
+      "id": [
+        "f9929761600c5084b11c6470469ef130",
+        "e76640838fa0ba33d75efbba02ce9ee8"
+      ],
+      "encoded": [
+        "0300000002ee6b27ff00000000000000",
+        "0000000000f39fd6e51aad88f6f4ce6a",
+        "b8827279cfffb92266000007d0000000",
+        "000000000000000000f39fd6e51aad88",
+        "f6f4ce6ab8827279cfffb9226667656e",
+        "657269632d6e61746976652d32"
+      ]
+    }
+  ],
+  "scope": "Native generic validator + Tron HTTP surface against disposable Solidity state.\n\nThis validates real native codecs/indexing/DB/sign/publication and restart/fork\nhandling. The HTTP gateway bridges walletSolidity reads to local Anvil; it is\nnot a Tron consensus/execution client or an all-VM process parity claim.\n",
+  "two_descriptor_task": null,
+  "protocol": "tron",
+  "cases": [
+    "offchain announcement + actual Solidity location gate",
+    "native source indexing/RocksDB/sign/publication",
+    "three checkpoint roots and IDs match actual Rust",
+    "same DB restart no signatures/publications",
+    "authenticated snapshot restart repairs old history",
+    "lying indexer unsigned suffix repaired after root-authenticated audit and endpoint rotation",
+    "growing-count signed prefix fork via complete independently root-authenticated replay, halt before signing",
+    "mixed-count3+4 quorum independently authenticates common canonical prefix and halts conflicting old signed prefix"
+  ],
+  "first": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 0,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 3,
+    "published": 3,
+    "configured_slots": 2,
+    "unavailable": 0
+  },
+  "replay": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 0,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 0,
+    "published": 0,
+    "configured_slots": 2,
+    "unavailable": 0
+  },
+  "bootstrap": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 3,
+    "recoveries": 0,
+    "bootstrap_index": 2,
+    "checkpoint_signatures": 0,
+    "published": 0,
+    "configured_slots": 2,
+    "unavailable": 0
+  },
+  "fork": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": true,
+        "failure": null,
+        "count": 4
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 4
+      }
+    ],
+    "fresh_verified": null,
+    "halted": true,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 0,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 0,
+    "published": 0,
+    "configured_slots": 2,
+    "unavailable": 0
+  },
+  "unsigned_suffix_recovery": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 1,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 3,
+    "published": 3,
+    "configured_slots": 2,
+    "unavailable": 0
+  },
+  "mixed_count_fork": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": true,
+        "failure": null,
+        "count": 4
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": null,
+    "halted": true,
+    "announcement_pending": false,
+    "tree_count": 4,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 0,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 0,
+    "published": 0,
+    "configured_slots": 2,
+    "unavailable": 0
+  },
+  "requests_by_path": {
+    "/walletsolidity/triggerconstantcontract": 148,
+    "/walletsolidity/getnowblock": 106,
+    "/walletsolidity/getblockbynum": 93,
+    "/": 24
+  }
+}

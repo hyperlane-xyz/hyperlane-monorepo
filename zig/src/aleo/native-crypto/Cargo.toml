@@ -1,0 +1,16 @@
+[package]
+name = "ziggy-aleo-crypto"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+snarkvm-console-account = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "6c5b8762d8058287d1d2ca27c391aeb0eccdf9fa" }
+snarkvm-console-network = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "6c5b8762d8058287d1d2ca27c391aeb0eccdf9fa" }
+snarkvm-console-program = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "6c5b8762d8058287d1d2ca27c391aeb0eccdf9fa" }
+
+[profile.release]
+strip = true

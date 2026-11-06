@@ -1,0 +1,101 @@
+{
+  "compiler_version": "0.15.2",
+  "native_db_libraries": [
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "bytes": 2248,
+      "sha256_chunks": [
+        "4dd69640a11c7d9ca0e083abcda67fb1",
+        "6ef7f7178768adc80dd5628971e5a0f7"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "bytes": 23612472,
+      "sha256_chunks": [
+        "69637bb2e93e53754d16ac2c206c65e3",
+        "18372cfd90b1c45bcbb8727de934f197"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "bytes": 46848,
+      "sha256_chunks": [
+        "46b099671486a27e44a2bfe1feedc33d",
+        "a75d445f6a0b427f5ee6a0a5d517b8c7"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "bytes": 171664,
+      "sha256_chunks": [
+        "0d127682f40c021aaa7ac1a2be83a9e1",
+        "4a7de4e5586007db541babdd4709aea5"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "bytes": 913048,
+      "sha256_chunks": [
+        "06de5b23f0e2e439d2754cb1fc4f9322",
+        "c4f8fde79dd2e008beb9443efa6afb8c"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "bytes": 85440,
+      "sha256_chunks": [
+        "edc94c727fbc3ce0bbf3b8e0720e2dfd",
+        "458a96d30262d780bb2c2aa8f43abb26"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "bytes": 70328,
+      "sha256_chunks": [
+        "47967209ef6ac19a0535aab801721995",
+        "ef065ffb6a6e48da0ff765acfa8c6e2a"
+      ]
+    }
+  ],
+  "builds": [
+    {
+      "mode": "ReleaseSafe",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "build-exe",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+        "-O",
+        "ReleaseSafe",
+        "--dep",
+        "service_options",
+        "-Mroot=zig/src/service_main.zig",
+        "-Mservice_options=zig/bench/service_options.zig",
+        "-lc",
+        "-lc++",
+        "-femit-bin=/Users/pbio/work/ziggy/zig/zig-out/bin/validator-releasesafe",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib"
+      ],
+      "elapsed_seconds": 49.57021695794538,
+      "source_unchanged_during_build": false,
+      "source_before": "ReleaseSafe-source-before.json",
+      "source_after": "ReleaseSafe-source-after.json",
+      "cache_state": "normal shared compiler cache; not cold",
+      "exit_code": 0,
+      "binary": "zig/zig-out/bin/validator-releasesafe",
+      "bytes": 13336952,
+      "sha256_chunks": [
+        "2364d84741b1767bca503c3e90f705ed",
+        "626e38c3b55771a225865d3543baf4cf"
+      ]
+    }
+  ]
+}

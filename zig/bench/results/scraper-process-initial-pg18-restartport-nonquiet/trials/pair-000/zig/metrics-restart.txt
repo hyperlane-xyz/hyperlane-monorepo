@@ -1,0 +1,31 @@
+# HELP hyperlane_chain_config_confirmations Configured number of blocks to wait before considering a transaction confirmed
+# TYPE hyperlane_chain_config_confirmations gauge
+hyperlane_chain_config_confirmations{chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+# HELP hyperlane_chain_config_estimated_block_time Configured estimated block time for the chain, in seconds
+# TYPE hyperlane_chain_config_estimated_block_time gauge
+hyperlane_chain_config_estimated_block_time{chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+# HELP hyperlane_chain_config_native_token_decimals Configured native token decimals for the chain
+# TYPE hyperlane_chain_config_native_token_decimals gauge
+hyperlane_chain_config_native_token_decimals{chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 18
+# HELP hyperlane_chain_config_reorg_period Configured reorg period (finality blocks) for the chain
+# TYPE hyperlane_chain_config_reorg_period gauge
+hyperlane_chain_config_reorg_period{chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_contract_sync_block_height Height of a recently observed block
+# TYPE hyperlane_contract_sync_block_height gauge
+hyperlane_contract_sync_block_height{data_type="message_dispatch",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 106
+hyperlane_contract_sync_block_height{data_type="message_delivery",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 106
+hyperlane_contract_sync_block_height{data_type="gas_payment",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 106
+hyperlane_contract_sync_block_height{data_type="merkle_tree_insertion",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 106
+# HELP hyperlane_contract_sync_stored_events Number of events stored into db
+# TYPE hyperlane_contract_sync_stored_events counter
+hyperlane_contract_sync_stored_events{data_type="message_dispatch",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_contract_sync_stored_events{data_type="message_delivery",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_contract_sync_stored_events{data_type="gas_payment",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_contract_sync_stored_events{data_type="merkle_tree_insertion",chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+# HELP hyperlane_raw_message_dispatch_reconciliation_operations Number of raw dispatch reconciliation operations
+# TYPE hyperlane_raw_message_dispatch_reconciliation_operations counter
+hyperlane_raw_message_dispatch_reconciliation_operations{chain="scraperprocess",kind="discovery_page",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_raw_message_dispatch_reconciliation_operations{chain="scraperprocess",kind="sweep_page",agent="scraper",hyperlane_baselib_version="3.0.0"} 1
+# HELP hyperlane_raw_message_dispatch_reconciliation_pending_retries Raw dispatch rows waiting for a direct retry
+# TYPE hyperlane_raw_message_dispatch_reconciliation_pending_retries gauge
+hyperlane_raw_message_dispatch_reconciliation_pending_retries{chain="scraperprocess",agent="scraper",hyperlane_baselib_version="3.0.0"} 0

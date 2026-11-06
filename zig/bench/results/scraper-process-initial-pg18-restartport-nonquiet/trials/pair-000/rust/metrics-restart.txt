@@ -1,0 +1,163 @@
+# HELP hyperlane_block_height Tracks the current block height of the chain
+# TYPE hyperlane_block_height gauge
+hyperlane_block_height{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 106
+# HELP hyperlane_chain_config_confirmations Configured number of blocks to wait before considering a transaction confirmed
+# TYPE hyperlane_chain_config_confirmations gauge
+hyperlane_chain_config_confirmations{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 1
+# HELP hyperlane_chain_config_estimated_block_time Configured estimated block time for the chain, in seconds
+# TYPE hyperlane_chain_config_estimated_block_time gauge
+hyperlane_chain_config_estimated_block_time{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 1
+# HELP hyperlane_chain_config_info Static chain configuration info, always set to 1. Labels expose string configuration values.
+# TYPE hyperlane_chain_config_info gauge
+hyperlane_chain_config_info{agent="scraper",chain="scraperprocess",chain_id="31337",domain_id="99995",hyperlane_baselib_version="3.0.0",native_token_symbol="",protocol="ethereum",technical_stack="other"} 1
+# HELP hyperlane_chain_config_native_token_decimals Configured native token decimals for the chain
+# TYPE hyperlane_chain_config_native_token_decimals gauge
+hyperlane_chain_config_native_token_decimals{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 18
+# HELP hyperlane_chain_config_reorg_period Configured reorg period (finality blocks) for the chain
+# TYPE hyperlane_chain_config_reorg_period gauge
+hyperlane_chain_config_reorg_period{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_contract_sync_block_height Height of a recently observed block
+# TYPE hyperlane_contract_sync_block_height gauge
+hyperlane_contract_sync_block_height{agent="scraper",chain="scraperprocess",data_type="gas_payment",hyperlane_baselib_version="3.0.0"} 106
+hyperlane_contract_sync_block_height{agent="scraper",chain="scraperprocess",data_type="merkle_tree_insertion",hyperlane_baselib_version="3.0.0"} 106
+hyperlane_contract_sync_block_height{agent="scraper",chain="scraperprocess",data_type="message_delivery",hyperlane_baselib_version="3.0.0"} 106
+hyperlane_contract_sync_block_height{agent="scraper",chain="scraperprocess",data_type="message_dispatch",hyperlane_baselib_version="3.0.0"} 106
+hyperlane_contract_sync_block_height{agent="scraper",chain="scraperprocess",data_type="near_head",hyperlane_baselib_version="3.0.0"} 106
+# HELP hyperlane_contract_sync_liveness Last timestamp observed by contract sync
+# TYPE hyperlane_contract_sync_liveness gauge
+hyperlane_contract_sync_liveness{agent="scraper",chain="scraperprocess",data_type="raw_message_dispatch_reconciliation",hyperlane_baselib_version="3.0.0",task="reconcile_task"} 1793902342
+# HELP hyperlane_contract_sync_stored_events Number of events stored into db
+# TYPE hyperlane_contract_sync_stored_events counter
+hyperlane_contract_sync_stored_events{agent="scraper",chain="scraperprocess",data_type="gas_payment",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_contract_sync_stored_events{agent="scraper",chain="scraperprocess",data_type="merkle_tree_insertion",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_contract_sync_stored_events{agent="scraper",chain="scraperprocess",data_type="message_delivery",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_contract_sync_stored_events{agent="scraper",chain="scraperprocess",data_type="message_dispatch_reconciled",hyperlane_baselib_version="3.0.0"} 1
+hyperlane_contract_sync_stored_events{agent="scraper",chain="scraperprocess",data_type="raw_message_dispatch",hyperlane_baselib_version="3.0.0"} 1
+# HELP hyperlane_critical_error Boolean marker for critical errors on a chain, signalling loss of liveness
+# TYPE hyperlane_critical_error gauge
+hyperlane_critical_error{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_gas_price Tracks the current gas price of the chain, in the lowest denomination (e.g. wei)
+# TYPE hyperlane_gas_price gauge
+hyperlane_gas_price{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 940.0000000000001
+# HELP hyperlane_provider_create_count Total number of times this provider was instantiated by this client
+# TYPE hyperlane_provider_create_count counter
+hyperlane_provider_create_count{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 3
+# HELP hyperlane_raw_message_dispatch_reconciliation_duration_seconds Raw dispatch reconciliation operation duration
+# TYPE hyperlane_raw_message_dispatch_reconciliation_duration_seconds histogram
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="0.01"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="0.1"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="0.5"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="1"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="5"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="15"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="30"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="60"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="120"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier",le="+Inf"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_sum{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier"} 0.001579166
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_count{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier"} 2
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="0.01"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="0.1"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="0.5"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="1"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="5"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="15"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="30"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="60"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="120"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page",le="+Inf"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_sum{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page"} 0.008895875
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_count{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="0.01"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="0.1"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="0.5"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="1"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="5"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="15"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="30"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="60"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="120"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier",le="+Inf"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_sum{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier"} 0.000427167
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_count{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="0.01"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="0.1"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="0.5"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="1"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="5"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="15"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="30"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="60"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="120"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_bucket{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page",le="+Inf"} 1
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_sum{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page"} 0.001043959
+hyperlane_raw_message_dispatch_reconciliation_duration_seconds_count{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page"} 1
+# HELP hyperlane_raw_message_dispatch_reconciliation_operations Number of raw dispatch reconciliation operations
+# TYPE hyperlane_raw_message_dispatch_reconciliation_operations counter
+hyperlane_raw_message_dispatch_reconciliation_operations{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_frontier"} 2
+hyperlane_raw_message_dispatch_reconciliation_operations{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="discovery_page"} 1
+hyperlane_raw_message_dispatch_reconciliation_operations{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_frontier"} 1
+hyperlane_raw_message_dispatch_reconciliation_operations{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0",kind="sweep_page"} 1
+# HELP hyperlane_raw_message_dispatch_reconciliation_pending_retries Raw dispatch rows waiting for a direct retry
+# TYPE hyperlane_raw_message_dispatch_reconciliation_pending_retries gauge
+hyperlane_raw_message_dispatch_reconciliation_pending_retries{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_raw_message_dispatch_reconciliation_retry_capacity_overflows Number of missing raw dispatches left to the completeness sweep because the direct retry set was full
+# TYPE hyperlane_raw_message_dispatch_reconciliation_retry_capacity_overflows counter
+hyperlane_raw_message_dispatch_reconciliation_retry_capacity_overflows{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_raw_message_dispatch_unenriched_max_age_seconds Maximum age in seconds of raw message dispatches pending reconciliation
+# TYPE hyperlane_raw_message_dispatch_unenriched_max_age_seconds gauge
+hyperlane_raw_message_dispatch_unenriched_max_age_seconds{agent="scraper",chain="scraperprocess",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_request_count Total number of requests made to this client
+# TYPE hyperlane_request_count counter
+hyperlane_request_count{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_call",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 4
+hyperlane_request_count{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getBlockByNumber",operation="agent_metrics",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 2
+hyperlane_request_count{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getBlockByNumber",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 15
+hyperlane_request_count{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getLogs",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 1
+hyperlane_request_count{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getTransactionByHash",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 3
+hyperlane_request_count{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getTransactionReceipt",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 3
+# HELP hyperlane_request_duration_seconds Total number of seconds spent making requests
+# TYPE hyperlane_request_duration_seconds counter
+hyperlane_request_duration_seconds{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_call",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 0.0043151660000000005
+hyperlane_request_duration_seconds{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getBlockByNumber",operation="agent_metrics",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 0.001421916
+hyperlane_request_duration_seconds{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getBlockByNumber",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 0.012117250000000001
+hyperlane_request_duration_seconds{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getLogs",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 0.001256125
+hyperlane_request_duration_seconds{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getTransactionByHash",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 0.007388876
+hyperlane_request_duration_seconds{agent="scraper",chain="scraperprocess",connection="rpc",hyperlane_baselib_version="3.0.0",method="eth_getTransactionReceipt",operation="unattributed",provider_node="127.0.0.1:57431",rpc_role="primary",status="success"} 0.003068416
+# HELP hyperlane_scraper_receipt_oldest_pending_seconds Age since creation of the oldest pending receipt event by ID, in seconds
+# TYPE hyperlane_scraper_receipt_oldest_pending_seconds gauge
+hyperlane_scraper_receipt_oldest_pending_seconds{agent="scraper",chain="scraperprocess",event_type="delivery",hyperlane_baselib_version="3.0.0"} 0
+hyperlane_scraper_receipt_oldest_pending_seconds{agent="scraper",chain="scraperprocess",event_type="gas_payment",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_span_count Number of times a span was exited
+# TYPE hyperlane_span_count counter
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="Scraper server",span_target="scraper::agent"} 1
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="build_chain_scraper",span_target="scraper::agent"} 1
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="connect_with_options",span_target="scraper::db"} 1
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="get_txn_by_hash",span_target="hyperlane_ethereum::rpc_clients::provider"} 3
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="request",span_target="hyperlane_ethereum::rpc_clients::retrying"} 28
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="request_with_retry",span_target="hyperlane_ethereum::rpc_clients::retrying"} 56
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="retrieve_unenriched_raw_dispatches",span_target="scraper::db::raw_message_dispatch"} 2
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="store_dispatched_messages",span_target="scraper::db::message"} 1
+hyperlane_span_count{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="store_txns",span_target="scraper::db::txn"} 3
+# HELP hyperlane_span_duration_seconds Duration from tracing span creation to span destruction
+# TYPE hyperlane_span_duration_seconds counter
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="Scraper server",span_target="scraper::agent"} 0.000180625
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="build_chain_scraper",span_target="scraper::agent"} 0.113624834
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="connect_with_options",span_target="scraper::db"} 0.002877083
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="get_txn_by_hash",span_target="hyperlane_ethereum::rpc_clients::provider"} 0.010595584
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="request",span_target="hyperlane_ethereum::rpc_clients::retrying"} 0.030033664999999998
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="request_with_retry",span_target="hyperlane_ethereum::rpc_clients::retrying"} 0.029924708000000005
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="retrieve_unenriched_raw_dispatches",span_target="scraper::db::raw_message_dispatch"} 0.002150833
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="store_dispatched_messages",span_target="scraper::db::message"} 0.002516542
+hyperlane_span_duration_seconds{agent="scraper",hyperlane_baselib_version="3.0.0",span_name="store_txns",span_target="scraper::db::txn"} 0.009766709
+# HELP hyperlane_span_events_total Number of span events (logs and time metrics) emitted by level
+# TYPE hyperlane_span_events_total counter
+hyperlane_span_events_total{agent="scraper",event_level="info",hyperlane_baselib_version="3.0.0"} 10
+# HELP hyperlane_tokio_blocking_threads The number of Tokio blocking pool threads, including idle threads
+# TYPE hyperlane_tokio_blocking_threads gauge
+hyperlane_tokio_blocking_threads{agent="scraper",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_tokio_dropped_tasks The number of tasks dropped
+# TYPE hyperlane_tokio_dropped_tasks counter
+hyperlane_tokio_dropped_tasks{agent="scraper",hyperlane_baselib_version="3.0.0"} 0
+# HELP hyperlane_tokio_idle_blocking_threads The number of idle Tokio blocking pool threads
+# TYPE hyperlane_tokio_idle_blocking_threads gauge
+hyperlane_tokio_idle_blocking_threads{agent="scraper",hyperlane_baselib_version="3.0.0"} 0

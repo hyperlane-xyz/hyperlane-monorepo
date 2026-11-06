@@ -1,0 +1,3 @@
+zig/src/agents/stream/relayer_bridge.zig:476:21: error: expected ';' after statement
+                null
+                    ^

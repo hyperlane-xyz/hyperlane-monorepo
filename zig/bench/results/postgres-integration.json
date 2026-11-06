@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "scope": "native libpq and near-head PostgreSQL persistence on actual Rust migrations; not a whole-agent replay",
+  "server": "postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2)",
+  "client_library": "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+  "docker_image": "postgres:16",
+  "docker_image_digest_chunks": [
+    "01e529f5119d4a943b55567d8aaa14a7",
+    "1a19c07054873617b406cd5f04b91380"
+  ],
+  "production_migrations_applied": 21,
+  "zig_optimize": "ReleaseSafe",
+  "functional_cases": [
+    "parameterized text/binary/null values and result ownership",
+    "aborted transaction rollback and SQLSTATE",
+    "four staged event streams and confirmed frontier views",
+    "gas cursor publication",
+    "atomic append failure",
+    "reorg suffix rollback and confirmed-boundary protection",
+    "expired confirmation rollback",
+    "database-clock writer takeover",
+    "advisory transaction locking",
+    "1000-row batches and oversized-block atomic publication",
+    "u32 domain INTEGER bitcast compatibility"
+  ],
+  "source_sha256_chunks": {
+    "zig/src/db/postgres.zig": [
+      "4d2f88a7d34e8daf1ed3e242dced4f40",
+      "d60736112e8bf6837cfa4aced92708c3"
+    ],
+    "zig/src/db/scraper_store.zig": [
+      "7eaf6c0d77f869fb326b3e4da27e8992",
+      "355fdc8745cf513b9b1280c55f93eacf"
+    ],
+    "zig/src/db/postgres_test.zig": [
+      "daae788d4148b8339c5fad2e192ce939",
+      "2c1d5c9a1d7ba78927981b54e3ae46e6"
+    ],
+    "rust/main/agents/scraper/src/near_head/store.rs": [
+      "e5aa372fd265d132a18f173d946dd56a",
+      "41b18c0f12a31ff7008f6815f30de891"
+    ],
+    "rust/main/agents/scraper/src/near_head/store/batch.rs": [
+      "4a916c5b3cb3ddd87bfddaf960c950be",
+      "1cd097ebda42ba9fa0f7d15d039f4367"
+    ]
+  },
+  "isolation": "task-owned Docker container; fresh database; dynamic loopback-only port; removed in finally"
+}

@@ -1,0 +1,146 @@
+{
+  "passed": true,
+  "scope": "Final native PG, compressed SDK fixtures and actual CPU-fixed scraper process acceptance; correctness only, not matched performance",
+  "git_head": "43c65fc631c340ab607e79a93535a8163921656f",
+  "protocol_scraper_owned_source_fingerprint": [
+    "e7835292fa2bb008eedc03e4d9137d3f",
+    "b49ec4c066c1a8d2f35f025fa919d31a"
+  ],
+  "protocol_scraper_owned_source_files": 136,
+  "protocol_scraper_changed_during_validation": [],
+  "pg_import_closure_fingerprint": [
+    "8bfbde3d12ddee4baa967debadf97cab",
+    "40ae619f00e425927e52f859bc1b5020"
+  ],
+  "pg_import_closure_files": 186,
+  "pg_source_changes_during_suite": [],
+  "global_source_before": [
+    "6b37726a6d40052b877b916bbf6d60f9",
+    "e39ab711cc48752e198632e4ae0dcfaa"
+  ],
+  "global_source_after": [
+    "27a07b95d8e7f86857c5ac7042c5b5d9",
+    "8495b0a30d4f64be585e13393e4d5d45"
+  ],
+  "concurrent_parent_changes_outside_pg_closure": [
+    "zig/src/agents/relayer/ccs_signer_test.zig",
+    "zig/src/agents/stream/relayer_bridge.zig",
+    "zig/src/agents/stream/relayer_store.zig",
+    "zig/src/ops/tools/locked.py",
+    "zig/src/scope_ws_controller_native_root.zig",
+    "zig/tools/native_deps.py"
+  ],
+  "scraper_compile_parent_changes": [
+    "zig/src/agents/stream/relayer_store.zig"
+  ],
+  "scraper_compile_qualification": "Only relayer stream store changed during compile; scraper ownership and service entry point remained stable. Binary SHA identifies exact executable; shared checkout was not globally frozen.",
+  "scraper_binary": "/tmp/ziggy-scraper-final-integration/scraper",
+  "scraper_binary_bytes": 2707032,
+  "scraper_binary_sha256": [
+    "9534cb72701c2e22f2b3396f81b5bb26",
+    "ff516b1c5a387a56c0d56dbf13e1741d"
+  ],
+  "zig_version": "0.15.2",
+  "optimize": "ReleaseSafe",
+  "sdk": "MacOSX15.4.sdk",
+  "libpq_library": "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+  "migrator_sha256": [
+    "ff5c3552213fca6a6b464d0c1f8d4207",
+    "539e8377b8e1a7e8c5d45270de0da9e5"
+  ],
+  "native_pg": {
+    "tests_passed": 361,
+    "optional_skipped": 10,
+    "failed": 0,
+    "total": 371,
+    "server": "postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2)",
+    "actual_migrations": 21,
+    "functional_cases": 11,
+    "native_tests_executed": true,
+    "prior_retirement_failure_replacement": "two independent discoveries make progress round robin and drain shared quota: passed"
+  },
+  "gzip_fixtures": {
+    "passed": 62,
+    "optional_skipped": 2,
+    "failed": 0
+  },
+  "actual_scraper_process": {
+    "passed": true,
+    "scope": "actual scraper process / production Solidity / Anvil / migrated PostgreSQL16; correctness, not throughput",
+    "messages": [
+      [
+        "0x0c0b1e8c2e3b962786373e9adc74a0",
+        "4ffe31f22cc83ce418243512ddef8f79",
+        "f4"
+      ],
+      [
+        "0x3e448702060f24d15e580433579333",
+        "1814339f65ed9b6e54d9e9296b5705f1",
+        "58"
+      ],
+      [
+        "0x0cc9c76a4af5490ab303f49662b598",
+        "5657e550f0ba8dc7ecb3ca4cbd13ac94",
+        "cb"
+      ]
+    ],
+    "first_run_counts": "2|2|2|2|2",
+    "restart_counts": "3|3|3|3|3",
+    "head_progress_while_receipts_stalled": true,
+    "receipt_concurrency_peak": 4,
+    "neighbor_receipt_linked_while_one_hash_stalled": true,
+    "head_owner_liveness": {
+      "configured_chains": 9,
+      "stalled_heads": 8,
+      "observed_stalled_identity_requests": 8,
+      "healthy_chain_position": 9,
+      "fresh_height": 20,
+      "fresh_insertion_count": 1,
+      "healthy_elapsed_ms": 242,
+      "process_rss_kib": 22384,
+      "process_threads_sampled": 66,
+      "head_owner_stack_bytes_each": 1048576,
+      "head_owner_threads_configured": 9,
+      "supervisor_workers": 8
+    },
+    "fixture_expired_stopped_writer_lease": true,
+    "signals": [
+      {
+        "signal": "SIGTERM",
+        "drain_ms": 9
+      },
+      {
+        "signal": "SIGINT",
+        "drain_ms": 12
+      },
+      {
+        "signal": "SIGTERM",
+        "drain_ms": 29
+      }
+    ],
+    "metrics": {
+      "get_status": 200,
+      "head_status": 200,
+      "body_bytes": 6822,
+      "source_version": "3.0.0",
+      "observed_chain_height_series": true
+    },
+    "fatal_published_reorg": {
+      "exit_code": 1,
+      "error": "ScraperPublishedReorg",
+      "all_lanes_drained": true,
+      "published_rows_preserved": 3,
+      "database_halted": true,
+      "exit_ms": 314
+    },
+    "proxy_rpc_requests": 99,
+    "python_fixture_rpc_requests": 68
+  },
+  "process_only_database_checks": {
+    "native_tests_executed": false,
+    "sql_smoke_cases": 5,
+    "actual_migrations": 21
+  },
+  "no_production_access": true,
+  "no_paired_timing": true
+}

@@ -1,0 +1,34 @@
+1/26 db_tests.test_0...OK
+2/26 db_tests.test_1...OK
+3/26 db_tests.test_2...OK
+4/26 db_tests.test_3...OK
+5/26 db_tests.test_4...OK
+6/26 agents.indexing.native_test.test_0...OK
+7/26 agents.indexing.native_test.test_1...OK
+8/26 agents.indexing.native_test.test_2...OK
+9/26 agents.destination.operation_test.test_0...OK
+10/26 agents.destination.operation_test.test_1...OK
+11/26 agents.destination.operation_test.test_2...OK
+12/26 agents.validator.fetch_backoff_native_test.test.validator Source fetch backoff generic native store retries and healthy peer fallback...[default] (warn): origin insertion range fetch failed; retry in 5000ms: RpcHttpStatus
+[default] (warn): origin insertion range fetch failed; retry in 10000ms: RpcHttpStatus
+[default] (warn): origin insertion range fetch failed; retry in 5000ms: RpcHttpStatus
+OK
+13/26 agents.validator.fetch_backoff_native_test.test.validator Source cursor initialization generic real native failures and recovery...[default] (warn): validator cursor initialization attempt 1/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+OK
+14/26 agents.validator.fetch_backoff_native_test.test.validator Source fetch backoff EVM actual native HTTP fallback and completion clock...FAIL (SyntaxError)
+15/26 relayer_halt_tests.test_0...OK
+16/26 evm_prepare_delegated_tests.test_0...OK
+17/26 agent_metrics_tests.test_0...OK
+18/26 cache_metrics_tests.test_0...OK
+19/26 health_metrics_tests.test_0...OK
+20/26 critical_metrics_tests.test_0...OK
+21/26 app_context_tests.test_0...OK
+22/26 public_identity_tests.test_0...OK
+23/26 protocol.root.test_0...OK
+24/26 db.root.test_0...OK
+25/26 agents.chain_source.test_0...OK
+26/26 agents.scraper.starknet.test_0...OK
+25 passed; 0 skipped; 1 failed.
+error: the following test command failed with exit code 1:
+/Users/pbio/.cache/zig/o/27e5fd9a48a654d4999b293845b27050/test --seed=0x2944a0b0

@@ -1,0 +1,1319 @@
+{
+  "executed": false,
+  "authorization": "Parent authorized only this checkout ignored rebuildable compiler deps/build/incremental/fingerprint; preserve role/oracle/native runtime artifacts. No global caches/source/locks/manifests/parameters touched.",
+  "preserved_artifacts": [
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/init-db",
+      "bytes": 7048176,
+      "inode": 898533674,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ],
+      "dependencies": [
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/relayer",
+      "bytes": 110418192,
+      "inode": 898509141,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/scraper",
+      "bytes": 62846864,
+      "inode": 898509218,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ],
+      "dependencies": [
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/validator",
+      "bytes": 86492544,
+      "inode": 898509184,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/ziggy-denylist-reference",
+      "bytes": 2491616,
+      "inode": 898959816,
+      "sha256_chunks": [
+        "041d802ba6fe88b0e347d018e314721d",
+        "fd172f76c9ff87f2f7a30766aafbebb7"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/ziggy-evm-oracle",
+      "bytes": 865472,
+      "inode": 899193390,
+      "sha256_chunks": [
+        "374f50eac22f90c313cd47cd795dc721",
+        "479eddf0a966625224bf179b09111135"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/ziggy-reveal-reference",
+      "bytes": 1166464,
+      "inode": 899203848,
+      "sha256_chunks": [
+        "8b21b3202fa2d8a1132936839db5a6d2",
+        "f8ba89797fb816735f95766c4933a04d"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/ziggy-rocks-oracle",
+      "bytes": 10237744,
+      "inode": 899078748,
+      "sha256_chunks": [
+        "4493ef8be51da171cd18de8e9cd68fcc",
+        "d7e1e8b364b370952698c792612fa9ce"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/ziggy-settings-oracle",
+      "bytes": 11123648,
+      "inode": 899014654,
+      "sha256_chunks": [
+        "abddb0335af39c45379974910243c59e",
+        "bf2a201216624a962b601434262c9caa"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/ziggy-validator-http-reference",
+      "bytes": 11315904,
+      "inode": 899190663,
+      "sha256_chunks": [
+        "70fc9b9323da8840ae5ba246c110429c",
+        "e17a6f05069c4450c66e2aea0ff8d2d4"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/035b98270630d3ad83f4f624a3a8172a/validator-fallback-before",
+      "bytes": 10882904,
+      "inode": 899098617,
+      "sha256_chunks": [
+        "035b98270630d3ad83f4f624a3a8172a",
+        "bcc14c00f58da8cf260c97cbf445f82f"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/0423a0e978135e819b17c883539890c2/relayer",
+      "bytes": 13384712,
+      "inode": 899095670,
+      "sha256_chunks": [
+        "0423a0e978135e819b17c883539890c2",
+        "007232fa450c3d927ca872bfa6ae6265"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/1f71fc2367b83bd3728940be083b23e4/validator",
+      "bytes": 13208632,
+      "inode": 899217543,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/1f71fc2367b83bd3728940be083b23e4/validator-http-parallel-rpc",
+      "bytes": 13208632,
+      "inode": 899199710,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/374f50eac22f90c313cd47cd795dc721/public-key11-kms-oracle",
+      "bytes": 865472,
+      "inode": 899197434,
+      "sha256_chunks": [
+        "374f50eac22f90c313cd47cd795dc721",
+        "479eddf0a966625224bf179b09111135"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/46e296a8bf6a03e255026845eb16400d/generic-validator-fallback-after",
+      "bytes": 11787432,
+      "inode": 899099720,
+      "sha256_chunks": [
+        "46e296a8bf6a03e255026845eb16400d",
+        "71b1594b33edd09276b753f8f8210710"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/5f266894ab0b81beaa6026ca67c8c2ca/relayer",
+      "bytes": 14173976,
+      "inode": 899231020,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/716b88ba132dc8aa5bea9501f37b0a90/relayer",
+      "bytes": 14118248,
+      "inode": 899217542,
+      "sha256_chunks": [
+        "716b88ba132dc8aa5bea9501f37b0a90",
+        "ebb442a0a6e64bc110ca7ef7d94c3574"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/72740b4836cb7b4281868d9d34b290b5/validator-parallel-http",
+      "bytes": 10585800,
+      "inode": 899210607,
+      "sha256_chunks": [
+        "72740b4836cb7b4281868d9d34b290b5",
+        "200ec5cc029647e0fa0680606a357143"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/9e789f837632f3346fc256b55d16d223/relayer",
+      "bytes": 14155976,
+      "inode": 899219335,
+      "sha256_chunks": [
+        "9e789f837632f3346fc256b55d16d223",
+        "de5a22bf557c01479c0672b36fa78e9c"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/aa0637432c09bcc14c664b24ce95dfcc/validator-fallback-after",
+      "bytes": 10942640,
+      "inode": 899098619,
+      "sha256_chunks": [
+        "aa0637432c09bcc14c664b24ce95dfcc",
+        "3f28c074323efa275e2af52fc7ba40d2"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/bbe93430929f5628b37a2d15a1b59a4f/validator-parallel-http",
+      "bytes": 10585152,
+      "inode": 899197432,
+      "sha256_chunks": [
+        "bbe93430929f5628b37a2d15a1b59a4f",
+        "b0241231fe50489b191786fc68a3b468"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/bc697d306b5c6551508af98bb41bccc5/generic-validator-fallback-before",
+      "bytes": 11672160,
+      "inode": 899099716,
+      "sha256_chunks": [
+        "bc697d306b5c6551508af98bb41bccc5",
+        "fa453255937767a5f8c9b804b568e72a"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/d3d17e83d61ea29b21a3f66604eb09ea/validator-stream-rpc-mode",
+      "bytes": 13335864,
+      "inode": 899229037,
+      "sha256_chunks": [
+        "d3d17e83d61ea29b21a3f66604eb09ea",
+        "9fc942cd40f84e74293e29536c781055"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/d9df653fd63a3d48a4174027921e7c41/origin-cooperative-integration",
+      "bytes": 11557792,
+      "inode": 899095109,
+      "sha256_chunks": [
+        "d9df653fd63a3d48a4174027921e7c41",
+        "3828f1a600025b336c6f681eeb550e91"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/e7c2e8403c4fd6344daf2bce2c135f9d/validator-parallel-http",
+      "bytes": 10585152,
+      "inode": 899197724,
+      "sha256_chunks": [
+        "e7c2e8403c4fd6344daf2bce2c135f9d",
+        "139566a5f895ab28db713ae2134431e3"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache/relayer-binaries/ecce942c163f56be2c59aae703d2e49c/validator",
+      "bytes": 12967400,
+      "inode": 899095675,
+      "sha256_chunks": [
+        "ecce942c163f56be2c59aae703d2e49c",
+        "ca8c383a3d53d90a67bfd3f3775021b5"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/abi.o",
+      "bytes": 1968,
+      "inode": 899059241,
+      "sha256_chunks": [
+        "3a0294cf3cc32d8d39d8160f316dacba",
+        "cd6872845b426c8ed06e03751578cbf5"
+      ],
+      "dependencies": []
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/cargo-build.log",
+      "bytes": 62,
+      "inode": 899054547,
+      "sha256_chunks": [
+        "9576f1f7e73fc2bb1ec2336aae60cb48",
+        "5c591eadc60a1b998573411c34057e08"
+      ],
+      "dependencies": []
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/cargo-messages.jsonl",
+      "bytes": 41399,
+      "inode": 899054546,
+      "sha256_chunks": [
+        "20a4210d6915a5771c82c819e02ae0f4",
+        "be873143fdfbb384070554e008ee01dd"
+      ],
+      "dependencies": []
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "bytes": 70328,
+      "inode": 899059240,
+      "sha256_chunks": [
+        "47967209ef6ac19a0535aab801721995",
+        "ef065ffb6a6e48da0ff765acfa8c6e2a"
+      ],
+      "dependencies": [
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a(a9dc8ba631b1466a-blocksort.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a(a9dc8ba631b1466a-huffman.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a(a9dc8ba631b1466a-crctable.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a(a9dc8ba631b1466a-randtable.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a(a9dc8ba631b1466a-compress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a(a9dc8ba631b1466a-decompress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a(a9dc8ba631b1466a-bzlib.o):"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "bytes": 171664,
+      "inode": 899059237,
+      "sha256_chunks": [
+        "0d127682f40c021aaa7ac1a2be83a9e1",
+        "4a7de4e5586007db541babdd4709aea5"
+      ],
+      "dependencies": [
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a(efce31824dbf3730-lz4.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a(efce31824dbf3730-lz4frame.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a(efce31824dbf3730-lz4hc.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a(efce31824dbf3730-xxhash.o):"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "bytes": 23612472,
+      "inode": 899059235,
+      "sha256_chunks": [
+        "69637bb2e93e53754d16ac2c206c65e3",
+        "18372cfd90b1c45bcbb8727de934f197"
+      ],
+      "dependencies": [
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-cache_entry_roles.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-cache_key.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-cache_helpers.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-cache_reservation_manager.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-charged_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-clock_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-lru_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-compressed_secondary_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-secondary_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-secondary_cache_adapter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-sharded_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(40a8ecc0aa07be2f-tiered_secondary_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-arena_wrapped_db_iter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-attribute_group_iterator_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_contents.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_fetcher.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_file_addition.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_file_builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_file_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_file_garbage.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_file_meta.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_file_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_garbage_meter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_log_format.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_log_sequential_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_log_writer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-blob_source.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(644b6a24ae2ff5c1-prefetch_buffer_collection.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-c.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-coalescing_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-column_family.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_job.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_picker.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_picker_fifo.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_picker_level.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_picker_universal.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_service_job.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_state.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-compaction_outputs.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-sst_partitioner.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d2c62978fd411bee-subcompaction_state.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-convenience.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-db_filesnapshot.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-compacted_db_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_compaction_flush.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_debug.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_experimental.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_files.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_follower.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_open.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_readonly.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_secondary.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fb8935d9b2e862b1-db_impl_write.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-db_info_dumper.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-db_iter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-dbformat.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-error_handler.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-event_helpers.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-experimental.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-external_sst_file_ingestion_job.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-file_indexer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-flush_job.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-flush_scheduler.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-forward_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-import_column_family_job.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-internal_stats.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-logs_with_prep_tracker.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-log_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-log_writer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-malloc_stats.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-manifest_ops.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-memtable.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-memtable_list.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-merge_helper.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-merge_operator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-output_validator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-periodic_task_scheduler.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-range_del_aggregator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-range_tombstone_fragmenter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-repair.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-seqno_to_time_mapping.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-snapshot_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-table_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-table_properties_collector.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-transaction_log_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-trim_history_scheduler.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-version_builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-version_edit.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-version_edit_handler.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-version_set.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-wal_edit.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-wal_manager.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fe29f3d3b3c15862-wide_column_serialization.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fe29f3d3b3c15862-wide_columns.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(fe29f3d3b3c15862-wide_columns_helper.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-write_batch.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-write_batch_base.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-write_controller.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-write_stall_stats.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3ac6d140080a8125-write_thread.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-composite_env.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-env.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-env_chroot.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-env_encryption.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-env_posix.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-file_system.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-fs_on_demand.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-fs_posix.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-fs_remap.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-file_system_tracer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-io_posix.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-mock_env.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(676314c7dcdc695c-unique_id_gen.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-delete_scheduler.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-file_prefetch_buffer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-file_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-filename.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-line_file_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-random_access_file_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-read_write_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-readahead_raf.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-sequence_file_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-sst_file_manager_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(da3ab92499883738-writable_file_writer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(70011f31bdb5bbb8-auto_roll_logger.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(70011f31bdb5bbb8-event_logger.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(70011f31bdb5bbb8-log_buffer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3f656f9377396f29-arena.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3f656f9377396f29-concurrent_arena.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3f656f9377396f29-jemalloc_nodump_allocator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3f656f9377396f29-memkind_kmem_allocator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3f656f9377396f29-memory_allocator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(9b96b3b3b98b387b-alloc_tracker.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(9b96b3b3b98b387b-hash_linklist_rep.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(9b96b3b3b98b387b-hash_skiplist_rep.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(9b96b3b3b98b387b-skiplistrep.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(9b96b3b3b98b387b-vectorrep.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(9b96b3b3b98b387b-wbwi_memtable.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(9b96b3b3b98b387b-write_buffer_manager.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-histogram.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-histogram_windowing.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-in_memory_stats_history.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-instrumented_mutex.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-iostats_context.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-perf_context.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-perf_level.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-persistent_stats_history.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-statistics.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-thread_status_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-thread_status_updater.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-thread_status_updater_debug.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-thread_status_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8d9638b5dd27dacb-thread_status_util_debug.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-cf_options.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-configurable.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-customizable.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-db_options.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-offpeak_time_info.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-options.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-options_helper.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(94ad6eef41e52848-options_parser.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1938569c7fa5575d-mmap.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1938569c7fa5575d-port_posix.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1938569c7fa5575d-stack_trace.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(a357d10ea739bc2c-adaptive_table_factory.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-binary_search_index_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_based_table_builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_based_table_factory.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_based_table_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_based_table_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_prefetcher.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-block_prefix_index.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-data_block_hash_index.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-data_block_footer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-filter_block_reader_common.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-filter_policy.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-flush_block_policy.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-full_filter_block.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-hash_index_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-index_builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-index_reader_common.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-parsed_full_filter_block.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-partitioned_filter_block.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-partitioned_index_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-partitioned_index_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-reader_common.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(053adb4869b9269c-uncompression_dict_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-block_fetcher.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(c86869a0439ab749-cuckoo_table_builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(c86869a0439ab749-cuckoo_table_factory.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(c86869a0439ab749-cuckoo_table_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-external_table.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-format.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-get_context.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-merging_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-compaction_merging_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-meta_blocks.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-persistent_cache_helper.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(96179ac854910877-plain_table_bloom.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(96179ac854910877-plain_table_builder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(96179ac854910877-plain_table_factory.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(96179ac854910877-plain_table_index.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(96179ac854910877-plain_table_key_coding.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(96179ac854910877-plain_table_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-sst_file_dumper.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-sst_file_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-sst_file_writer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-table_factory.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-table_properties.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-two_level_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de3a59d2b327cf3e-unique_id.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6ff5e2bcfd54571a-sync_point.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6ff5e2bcfd54571a-sync_point_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6ff5e2bcfd54571a-transaction_test_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(62e4247c7e3acbf8-db_dump_tool.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6c7cb00c5af69c91-trace_record_handler.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6c7cb00c5af69c91-trace_record_result.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6c7cb00c5af69c91-trace_record.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6c7cb00c5af69c91-trace_replay.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6c7cb00c5af69c91-block_cache_tracer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6c7cb00c5af69c91-io_tracer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-async_file_reader.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-cleanable.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-coding.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-compaction_job_stats_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-comparator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-compression.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-auto_skip_compressor.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-compression_context_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-concurrent_task_limiter_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-crc32c.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-crc32c_arm64.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-data_structure.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-dynamic_bloom.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-hash.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-murmurhash.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-random.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-rate_limiter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-ribbon_config.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-slice.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-file_checksum_helper.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-simple_mixed_compressor.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-status.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-stderr_logger.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-string_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-thread_local.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-threadpool_imp.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-udt_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-write_batch_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(3b2529d97c048fcf-xxhash.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(ffca04ec699f924d-agg_merge.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(680ea5bfcda36bad-backup_engine.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8a36ee46de28e3a1-blob_compaction_filter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8a36ee46de28e3a1-blob_db.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8a36ee46de28e3a1-blob_db_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8a36ee46de28e3a1-blob_db_impl_filesnapshot.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(8a36ee46de28e3a1-blob_file.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-cache_dump_load.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-cache_dump_load_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1a7ad8d647829f63-cassandra_compaction_filter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1a7ad8d647829f63-format.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1a7ad8d647829f63-merge_operator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(bfe5d317b023d6cf-checkpoint_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-compaction_filters.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(e6fb36093b6c7f9c-remove_emptyvalue_compactionfilter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(6f13908978987418-info_log_finder.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-counted_fs.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-debug.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-env_mirror.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-env_timed.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-fault_injection_env.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-fault_injection_fs.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-fault_injection_secondary_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(5afb3ff7633dc2fb-leveldb_options.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(d11b32dac0d420e2-memory_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-merge_operators.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(95142990c9f32b11-max.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(95142990c9f32b11-put.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(95142990c9f32b11-sortlist.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(295e51bc886f8746-stringappend.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(295e51bc886f8746-stringappend2.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(95142990c9f32b11-uint64add.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(95142990c9f32b11-bytesxor.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-object_registry.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(eed78112942e6750-option_change_migration.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(344b77162fb042a9-options_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(bc3ca9fd31330109-block_cache_tier.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(bc3ca9fd31330109-block_cache_tier_file.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(bc3ca9fd31330109-block_cache_tier_metadata.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(bc3ca9fd31330109-persistent_cache_tier.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(bc3ca9fd31330109-volatile_tier_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(febe0d3ecee0eefd-secondary_index_iterator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(febe0d3ecee0eefd-simple_secondary_index.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(7c507fad16f0e0af-cache_simulator.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(7c507fad16f0e0af-sim_cache.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(00f98e2cfb02dfa2-compact_for_tiering_collector.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(00f98e2cfb02dfa2-compact_on_deletion_collector.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1be370c996a69411-file_trace_reader_writer.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(1be370c996a69411-replayer_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(81b322a025988031-lock_manager.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(43e3cfe3ab3ed8dd-point_lock_tracker.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(43e3cfe3ab3ed8dd-point_lock_manager.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-optimistic_transaction.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-optimistic_transaction_db_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-pessimistic_transaction.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-pessimistic_transaction_db.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-snapshot_checker.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-transaction_base.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-transaction_db_mutex_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-transaction_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-write_prepared_txn.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-write_prepared_txn_db.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-write_unprepared_txn.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(de7823aa5b770310-write_unprepared_txn_db.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(24bbbf8ebb94fff2-db_ttl_impl.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-types_util.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(2a4ad7c17d803644-wal_filter.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(b37e6271521afe11-write_batch_with_index.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(b37e6271521afe11-write_batch_with_index_internal.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a(a1edd97dd51cd48d-build_version.o):"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "bytes": 46848,
+      "inode": 899059236,
+      "sha256_chunks": [
+        "46b099671486a27e44a2bfe1feedc33d",
+        "a75d445f6a0b427f5ee6a0a5d517b8c7"
+      ],
+      "dependencies": [
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a(f7d414e3d26e1ee6-snappy.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a(f7d414e3d26e1ee6-snappy-sinksource.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a(f7d414e3d26e1ee6-snappy-c.o):"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "bytes": 85440,
+      "inode": 899059239,
+      "sha256_chunks": [
+        "edc94c727fbc3ce0bbf3b8e0720e2dfd",
+        "458a96d30262d780bb2c2aa8f43abb26"
+      ],
+      "dependencies": [
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-adler32.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-compress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-crc32.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-deflate.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-infback.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-inffast.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-inflate.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-inftrees.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-trees.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-uncompr.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a(f0389296f42960e9-zutil.o):"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "bytes": 2248,
+      "inode": 899059246,
+      "sha256_chunks": [
+        "4dd69640a11c7d9ca0e083abcda67fb1",
+        "6ef7f7178768adc80dd5628971e5a0f7"
+      ],
+      "dependencies": [
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a(abi.o):"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "bytes": 913048,
+      "inode": 899059238,
+      "sha256_chunks": [
+        "06de5b23f0e2e439d2754cb1fc4f9322",
+        "c4f8fde79dd2e008beb9443efa6afb8c"
+      ],
+      "dependencies": [
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(44ff4c55aa9e5133-debug.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(44ff4c55aa9e5133-entropy_common.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(44ff4c55aa9e5133-error_private.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(44ff4c55aa9e5133-fse_decompress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(44ff4c55aa9e5133-pool.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(44ff4c55aa9e5133-threading.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(44ff4c55aa9e5133-zstd_common.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-fse_compress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-hist.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-huf_compress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_compress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_compress_literals.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_compress_sequences.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_compress_superblock.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_double_fast.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_fast.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_lazy.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_ldm.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstd_opt.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(fb80479a5fb81f6a-zstdmt_compress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(88f362f13b0528ed-huf_decompress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(88f362f13b0528ed-zstd_ddict.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(88f362f13b0528ed-zstd_decompress.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(88f362f13b0528ed-zstd_decompress_block.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(a6c81c75fc82913a-cover.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(a6c81c75fc82913a-divsufsort.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(a6c81c75fc82913a-fastcover.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(a6c81c75fc82913a-zdict.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(3f451b2306bc13c8-zstd_v01.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(3f451b2306bc13c8-zstd_v02.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(3f451b2306bc13c8-zstd_v03.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(3f451b2306bc13c8-zstd_v04.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(3f451b2306bc13c8-zstd_v05.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(3f451b2306bc13c8-zstd_v06.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(3f451b2306bc13c8-zstd_v07.o):",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a(7faed3f8272f2313-huf_decompress_amd64.o):"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/manifest.json",
+      "bytes": 46003,
+      "inode": 899057683,
+      "sha256_chunks": [
+        "af7280533f85acc6a4616311e53bfd2b",
+        "290e911a3527bd4b0246fd9c8cbbb661"
+      ],
+      "dependencies": []
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/native-probe",
+      "bytes": 10797920,
+      "inode": 899059250,
+      "sha256_chunks": [
+        "af03ec075151643c8af4be5f363d5992",
+        "0f81d56ba4ec594bde00ea31d39c3987"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)",
+        "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.178.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/native-probe-build.log",
+      "bytes": 0,
+      "inode": 899057376,
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "dependencies": []
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.dylib",
+      "bytes": 884096,
+      "inode": 898931986,
+      "sha256_chunks": [
+        "c2d54d88c5009b9bf014835f45aed739",
+        "a5ea140232f9f217fbbcd7256f218b4b"
+      ],
+      "dependencies": [
+        "\t/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/deps/libziggy_aleo_crypto.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.dylib",
+      "bytes": 49750352,
+      "inode": 899076288,
+      "sha256_chunks": [
+        "ad8afda4fd78a8b074bea40c84086632",
+        "bb2a5649bb16238f2ebbc364ae1af08a"
+      ],
+      "dependencies": [
+        "\t/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/deps/libziggy_aleo_vm.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/ziggy-altvm-reference",
+      "bytes": 4384664,
+      "inode": 898995691,
+      "sha256_chunks": [
+        "4d3050fa95b6f29d42b9eb01a9abe6d4",
+        "68fbccd705307630caa39467ae54e16b"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/ziggy-radix-reference",
+      "bytes": 8373928,
+      "inode": 898963220,
+      "sha256_chunks": [
+        "54404d00a642fcc7ac517614142ff051",
+        "7edcee472f2fdb51b42a09f6215a8a27"
+      ],
+      "dependencies": [
+        "\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1405.120.5)",
+        "\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61901.120.67)",
+        "\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 5026.5.4)",
+        "\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib",
+      "bytes": 616400,
+      "inode": 898688300,
+      "sha256_chunks": [
+        "3cc4267be662704e48ca5c4b9e1c4286",
+        "b6d368511b8fc423fc4d9019033d6a16"
+      ],
+      "dependencies": [
+        "\t/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/deps/libziggy_starknet_crypto.dylib (compatibility version 0.0.0, current version 0.0.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/chain-votes-integration",
+      "bytes": 1661464,
+      "inode": 899087783,
+      "sha256_chunks": [
+        "f84b8084d5fcc7b9a4c2de67bad55913",
+        "2c9dd0a7d1fc179ce84f6f4c934577c9"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/generic-validator-integration",
+      "bytes": 11672160,
+      "inode": 899031635,
+      "sha256_chunks": [
+        "bc697d306b5c6551508af98bb41bccc5",
+        "fa453255937767a5f8c9b804b568e72a"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/generic-validator-integration-fallback",
+      "bytes": 11787432,
+      "inode": 899099394,
+      "sha256_chunks": [
+        "46e296a8bf6a03e255026845eb16400d",
+        "71b1594b33edd09276b753f8f8210710"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/hyperlane-zig",
+      "bytes": 1215568,
+      "inode": 898418974,
+      "sha256_chunks": [
+        "9bc3066c07b7c72107c1009ef9e84b7e",
+        "8cd5d2e41a985b7ea1af875f66a354f0"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/origin-cooperative-integration",
+      "bytes": 11557792,
+      "inode": 899094939,
+      "sha256_chunks": [
+        "d9df653fd63a3d48a4174027921e7c41",
+        "3828f1a600025b336c6f681eeb550e91"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/relayer",
+      "bytes": 14173976,
+      "inode": 899231017,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/scraper",
+      "bytes": 2630664,
+      "inode": 899092622,
+      "sha256_chunks": [
+        "f3c0068ca4f5c04bde88befe6f312700",
+        "1686f73182b83bed3d9c30a00e34c8b1"
+      ],
+      "dependencies": [
+        "\t/opt/homebrew/opt/libpq/lib/libpq.5.dylib (compatibility version 5.0.0, current version 5.16.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator",
+      "bytes": 13208632,
+      "inode": 899199375,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator-parallel-http-integration",
+      "bytes": 10585152,
+      "inode": 899197523,
+      "sha256_chunks": [
+        "e7c2e8403c4fd6344daf2bce2c135f9d",
+        "139566a5f895ab28db713ae2134431e3"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator-parallel-http-integration-guard",
+      "bytes": 10585800,
+      "inode": 899210590,
+      "sha256_chunks": [
+        "72740b4836cb7b4281868d9d34b290b5",
+        "200ec5cc029647e0fa0680606a357143"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator-releasefast",
+      "bytes": 10965720,
+      "inode": 898930047,
+      "sha256_chunks": [
+        "1e00464029851c37d194ebe27d073ae0",
+        "a3f149aa1063152f8391c92a45a09abf"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator-releasesafe",
+      "bytes": 13336712,
+      "inode": 899233074,
+      "sha256_chunks": [
+        "a3362e64fd8b255b3b3a0d5071012b0b",
+        "0bc282e21ea6c3ece6df0621ec089e52"
+      ],
+      "dependencies": []
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator-task-integration",
+      "bytes": 12646648,
+      "inode": 899060349,
+      "sha256_chunks": [
+        "70f38b8bebbed5ce15f99b0cf0125f7f",
+        "757058ff322005bead89027da033d107"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/zig-agent-bench",
+      "bytes": 372224,
+      "inode": 899037004,
+      "sha256_chunks": [
+        "c7dd65a333793aa76b17602fee1c1d47",
+        "241fe3d9c1be14803d2ffb12497106b4"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/zig-db-interop",
+      "bytes": 9448304,
+      "inode": 898531467,
+      "sha256_chunks": [
+        "63ba8d5375769d1888f910e7b030ffef",
+        "f1163bb01be8ab9ffc9ee904b72028b9"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/zig-evm-integration",
+      "bytes": 1518544,
+      "inode": 898710533,
+      "sha256_chunks": [
+        "3ceb8b06a086c2765706a52634643de5",
+        "e132910b1dd3af5419217adc9a5117ab"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/zig-pg-tests",
+      "bytes": 657024,
+      "inode": 898532064,
+      "sha256_chunks": [
+        "dc29311f66d40ceb6f0956d69cd04db8",
+        "e01644486888dae5d7b5f882bd4aae9d"
+      ],
+      "dependencies": [
+        "\t/opt/homebrew/opt/libpq/lib/libpq.5.dylib (compatibility version 5.0.0, current version 5.16.0)",
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/zig-validator-integration",
+      "bytes": 10882904,
+      "inode": 898934730,
+      "sha256_chunks": [
+        "035b98270630d3ad83f4f624a3a8172a",
+        "bcc14c00f58da8cf260c97cbf445f82f"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/zig-validator-integration-fallback",
+      "bytes": 10942640,
+      "inode": 899098323,
+      "sha256_chunks": [
+        "aa0637432c09bcc14c664b24ce95dfcc",
+        "3f28c074323efa275e2af52fc7ba40d2"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/zig-validator-stream-integration",
+      "bytes": 11056704,
+      "inode": 899227602,
+      "sha256_chunks": [
+        "b12abb6b2131f8e638c6e4b60b2f1ed6",
+        "be36ba7f661c078511b146398a8eebfb"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    },
+    {
+      "path": "/tmp/ziggy-aleo-vm-worker",
+      "bytes": 403528,
+      "inode": 898961524,
+      "sha256_chunks": [
+        "92270198c4788f7baf3fe937b1087359",
+        "6e537be330c750cc9eaa3825ceee62fc"
+      ],
+      "dependencies": [
+        "\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)"
+      ]
+    }
+  ],
+  "candidates": [
+    "/Users/pbio/work/ziggy/rust/main/target/debug/.fingerprint",
+    "/Users/pbio/work/ziggy/rust/main/target/debug/build",
+    "/Users/pbio/work/ziggy/rust/main/target/debug/deps",
+    "/Users/pbio/work/ziggy/rust/main/target/release/.fingerprint",
+    "/Users/pbio/work/ziggy/rust/main/target/release/build",
+    "/Users/pbio/work/ziggy/rust/main/target/release/deps",
+    "/Users/pbio/work/ziggy/rust/main/target/release/incremental",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/.fingerprint",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/build",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/deps",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/incremental",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/.fingerprint",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/build",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/deps",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/incremental",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/.fingerprint",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/build",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/deps",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/incremental",
+    "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/.fingerprint",
+    "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/build",
+    "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/deps",
+    "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/incremental",
+    "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/.fingerprint",
+    "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/build",
+    "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/deps",
+    "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/incremental",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/.fingerprint",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/build",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/deps",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/incremental",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/.fingerprint",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/build",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/deps",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/incremental"
+  ],
+  "unexpected_dynamic_dependencies": [
+    {
+      "consumer": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.dylib",
+      "dependency": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/deps/libziggy_aleo_crypto.dylib"
+    },
+    {
+      "consumer": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.dylib",
+      "dependency": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/deps/libziggy_aleo_vm.dylib"
+    },
+    {
+      "consumer": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib",
+      "dependency": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/deps/libziggy_starknet_crypto.dylib"
+    }
+  ],
+  "process_check": "No active host cargo/rustc/SDK worker seen immediately before planning; all owners must confirm idle before deletion.",
+  "protected_inside_candidates": [
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/deps/libziggy_aleo_crypto.dylib",
+      "bytes": 884096,
+      "sha256_chunks": [
+        "c2d54d88c5009b9bf014835f45aed739",
+        "a5ea140232f9f217fbbcd7256f218b4b"
+      ],
+      "reason": "conservatively retain in-deps dylib install-ID path as well as top-level runtime library"
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/deps/libziggy_aleo_vm.dylib",
+      "bytes": 49750352,
+      "sha256_chunks": [
+        "ad8afda4fd78a8b074bea40c84086632",
+        "bb2a5649bb16238f2ebbc364ae1af08a"
+      ],
+      "reason": "conservatively retain in-deps dylib install-ID path as well as top-level runtime library"
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/deps/libziggy_starknet_crypto.dylib",
+      "bytes": 616400,
+      "sha256_chunks": [
+        "3cc4267be662704e48ca5c4b9e1c4286",
+        "b6d368511b8fc423fc4d9019033d6a16"
+      ],
+      "reason": "conservatively retain in-deps dylib install-ID path as well as top-level runtime library"
+    }
+  ],
+  "pre_execution_expected_functional_build_changes": [
+    {
+      "path": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator-releasesafe",
+      "previous_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "current_sha256_chunks": [
+        "a3362e64fd8b255b3b3a0d5071012b0b",
+        "0bc282e21ea6c3ece6df0621ec089e52"
+      ],
+      "reason": "functional build completed after plan; no reclamation had begun"
+    }
+  ]
+}

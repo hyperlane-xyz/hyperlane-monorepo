@@ -1,0 +1,76 @@
+{
+  "observed_utc": "2026-11-06T00:38:56.471912+00:00",
+  "during_functional_helper_build_before_RocksDB_link": true,
+  "archives": [
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "sha256_chunks": [
+        "4dd69640a11c7d9ca0e083abcda67fb",
+        "16ef7f7178768adc80dd5628971e5a0",
+        "f7"
+      ],
+      "matches_manifest": true,
+      "bytes": 2248
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "sha256_chunks": [
+        "69637bb2e93e53754d16ac2c206c65e",
+        "318372cfd90b1c45bcbb8727de934f1",
+        "97"
+      ],
+      "matches_manifest": true,
+      "bytes": 23612472
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "sha256_chunks": [
+        "46b099671486a27e44a2bfe1feedc33",
+        "da75d445f6a0b427f5ee6a0a5d517b8",
+        "c7"
+      ],
+      "matches_manifest": true,
+      "bytes": 46848
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "sha256_chunks": [
+        "0d127682f40c021aaa7ac1a2be83a9e",
+        "14a7de4e5586007db541babdd4709ae",
+        "a5"
+      ],
+      "matches_manifest": true,
+      "bytes": 171664
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "sha256_chunks": [
+        "06de5b23f0e2e439d2754cb1fc4f932",
+        "2c4f8fde79dd2e008beb9443efa6afb",
+        "8c"
+      ],
+      "matches_manifest": true,
+      "bytes": 913048
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "sha256_chunks": [
+        "edc94c727fbc3ce0bbf3b8e0720e2df",
+        "d458a96d30262d780bb2c2aa8f43abb",
+        "26"
+      ],
+      "matches_manifest": true,
+      "bytes": 85440
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "sha256_chunks": [
+        "47967209ef6ac19a0535aab80172199",
+        "5ef065ffb6a6e48da0ff765acfa8c6e",
+        "2a"
+      ],
+      "matches_manifest": true,
+      "bytes": 70328
+    }
+  ]
+}

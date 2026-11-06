@@ -1,0 +1,1390 @@
+1/1022 db_tests.test_0...OK
+2/1022 db_tests.test_1...OK
+3/1022 db_tests.test_2...OK
+4/1022 db_tests.test_3...OK
+5/1022 db_tests.test_4...OK
+6/1022 db_tests.test_5...OK
+7/1022 db_tests.test_6...OK
+8/1022 agents.indexing.native_test.test.native generic relayer origin persists every stream reopens cursors and builds historical proofs...OK
+9/1022 agents.indexing.native_test.test_0...OK
+10/1022 agents.indexing.native_test.test_1...OK
+11/1022 agents.indexing.native_test.test_2...OK
+12/1022 agents.indexing.cooperative_native_test.test.native generic cooperative origins sixteen SDK readers bypass eight stalled origins and persist canonical insertion proofs...OK
+13/1022 agents.indexing.cosmos_native_test.test.native Cosmos cooperative quantum32 finishes admitted range before cadence with no skipped or repeated block fetch...OK
+14/1022 agents.scraper.aleo_cooperative_test.test.Aleo cooperative origin keeps completed production native-decoded block through later readonly yields and RocksDB reopen...OK
+15/1022 db.native_test.test.native batch fsync reopen empty values domain isolation and copied iterator ownership...OK
+16/1022 db.native_test.test.native open errors copy diagnostic before freeing C allocation...OK
+17/1022 db.native_test.test.native typed seeks retain bounds and highest fixed key skips overlapping records...OK
+18/1022 agents.store_test.test.agent native store preserves canonical nonce maps repairs pending and atomically changes destinations...OK
+19/1022 agents.store_test.test.agent native store deduplicates gas metadata saturates totals and repairs tree reverse indices...OK
+20/1022 agents.store_test.test.native loader repairs legacy indexes and alternates new historical and released work...OK
+21/1022 agents.store_test.test.receipt admission never changes indexed nonce authority and survives reopen...OK
+22/1022 agents.validator.test.test.durable reservation and signature resume latest and snapshot failures latest-first without signing twice...OK
+23/1022 agents.validator.test.test.configured vote denominator retains failures and conflicts below signed watermark persist fatal guard...OK
+24/1022 agents.validator.test.test.preexisting same signer conflicting remote checkpoint prevents signature and survives reopen...OK
+25/1022 agents.validator.test.test.history exceeds in-memory model capacities and publication tick stays bounded...OK
+26/1022 agents.validator.test.test.actual durable local checkpoint publisher latest-first snapshot and restart authentication...OK
+27/1022 agents.validator.test.test.bounded driver replays 64 observations and retains unavailable configured endpoint slots...OK
+28/1022 agents.validator.test.test.cloud signer adapters submit exact EIP191 digest and publisher missing reads use injected transport...OK
+29/1022 agents.validator.test.test.remote snapshot resumes live indexing while bounded durable prefix repair finds and signs historical holes only after anchor authentication...OK
+30/1022 agents.validator.test.test.remote snapshot tampering wrong signer and durable backend guard never seed a signing frontier...OK
+31/1022 agents.validator.test.test.snapshot prefix repair never signs RPC holes whose replay conflicts with the authenticated anchor...OK
+32/1022 agents.validator.test.test.typed local validator factory and operational EVM role canonicalize slots and wire bounded cancellation without reading credentials...OK
+33/1022 agents.validator.test.test.native unsigned suffix rollback preserves committed signed prefix and survives reopen with no duplicate signature...OK
+34/1022 agents.validator.test.test.RPC-authenticated committed prefix conflict halts even when signer never completed...OK
+35/1022 agents.validator.test.test.same-block provenance change remains recoverable until prefix RPC authorization...OK
+36/1022 agents.validator.test.test.checkpoint storage factory uses distinct AWS and GCS leases without granting them to KMS...OK
+37/1022 agents.validator.test.test.unknown stream header hash transitions to canonical RPC within the same block without weakening known header conflict guard...OK
+38/1022 agents.validator.concurrent_test.test.concurrent native publication bound latest-first covering snapshot and failed-latest restart never resigns...OK
+39/1022 agents.validator.concurrent_test.test.guard precommit and ambiguous postcommit failures retain event retry fsync gate effects and reopen halted...[default] (warn): validator reorg guard persistence pending: InjectedGuardCommitFailure
+[default] (warn): validator backend reorg guard persistence pending: InjectedGuardBackendFailure
+[default] (warn): validator reorg guard persistence pending: InjectedGuardCommitOutcomeUnknown
+[default] (warn): validator backend reorg guard persistence pending: InjectedGuardBackendFailure
+OK
+40/1022 agents.origin_test.test.native origin proofs rebuild after canonical replacement and resume across bounded gap recovery...OK
+41/1022 agents.operation_test.test.native operation stale owners cannot overwrite new progress or an operator manual retry...OK
+42/1022 agents.operation_test.test.native operation persists signed bytes before broadcast and resumes with Rust status and retry rows...OK
+43/1022 agents.operation_test.test.native operation imports manual retries and old delivery cannot process a replacement nonce...OK
+44/1022 agents.operation_test.test.source confirmation deadline rebases durably and payload replay never postpones or bypasses it...OK
+45/1022 agents.operation_test.test.source imported Rust Confirm with durable deadline resumes remaining window instead of adding600s...OK
+46/1022 agents.payload_links_test.test.native payload link survives pre-enqueue crash preserves Rust relation and rejects stale authority...OK
+47/1022 agents.origin_tasks_test.test.origin task construction performs no database network or native-library discovery...OK
+48/1022 agents.origin_tasks_test.test.origin bootstrap pre-canceled descriptor never constructs resources or records failures...OK
+49/1022 agents.origin_tasks_test.test.transaction-ID disabled role flag performs ordinary indexing without companion construction or receipt requests...OK
+50/1022 agents.destination.operation_test.test.Native destination operation recovers full512bit identity and commits Rust delivery markers atomically...OK
+51/1022 agents.destination.operation_test.test.Native destination stale owners cannot overwrite signatures or process replacement nonces...OK
+52/1022 agents.destination.operation_test.test.Native destination finalized failures archive old signed identity before a fresh prepare generation...OK
+53/1022 agents.destination.operation_test.test.Native destination manual Rust retry unparks existing rows and stale callbacks cannot erase operator action...OK
+54/1022 agents.destination.operation_test.test.Native destination announcement mode requires pinned target and never touches process nonce markers...OK
+55/1022 agents.destination.operation_test.test.Native destination staged recovery quotes identical source Tron intent before approving production signing...OK
+56/1022 agents.destination.operation_test.test.Native destination unsigned external delivery commits canonical markers and delay spends no retry...OK
+57/1022 agents.destination.operation_test.test_0...OK
+58/1022 agents.destination.operation_test.test_1...OK
+59/1022 agents.destination.operation_test.test_2...OK
+60/1022 agents.destination.operation_test.test.Native destination inherited Rust payload relations block fresh staging signing and rebroadcast but permit independent finalized delivery...OK
+61/1022 agents.destination.operation_test.test.Native destination public receipt admission signs exact message ID and never acknowledges different canonical same nonce...OK
+62/1022 agents.destination.operation_test.test.source600s native signed and external confirmation rebases across DB restart without early canonical completion...OK
+63/1022 agents.destination.operation_test.test.source Manual clears a native confirmation wait while retaining confirmed-generation identity...OK
+64/1022 agents.destination.operation_test.test.source imported Rust Confirm resumes native remaining deadline without synthetic signed identity...OK
+65/1022 lander.tests.test.native nonce committed zero freed reuse missing and old owner protection...OK
+66/1022 lander.tests.test.native reservation survives crash and boundary allocation serializes...OK
+67/1022 lander.tests.test.signed attempts and exact Rust nonce keys persist...OK
+68/1022 lander.tests.test.service timeout after accepted broadcast recovers exact bytes before finalizing...OK
+69/1022 lander.tests.test.same fee retry rebroadcasts identical durable bytes without duplicate hash...OK
+70/1022 lander.tests.test.every replacement hash is paged and oldest finalized attempt wins after restart...OK
+71/1022 lander.tests.test.noncanonical receipt is pending and finalized reverted execution only drops payload...OK
+72/1022 lander.tests.test.enqueue conflicts unsupported branches and cancellation fail visibly...OK
+73/1022 lander.tests.test.production Rust serde oracle accepts omitted EIP1559 chain id and all statuses...OK
+74/1022 lander.tests.test.bounded nonce scan resumes and finds freed gap without skipping it...OK
+75/1022 lander.tests.test.startup stale recovery drops delivered transaction without another nonce or broadcast...OK
+76/1022 lander.tests.test.canonical pending rebuild is paged and legacy missing gas limit builds...OK
+77/1022 lander.tests.test.included payload criterion uses current head not older finalized height...OK
+78/1022 lander.tests.test.recovered finalized boundary does not clear reorg range before bounded drain...OK
+79/1022 lander.tests.test.configured submit queue length applies backpressure until finality...OK
+80/1022 lander.tests.test.dropped status behind saved nonce cursor invalidates resume generation...OK
+81/1022 lander.tests.test.ready payload with dropped transaction association rebuilds atomically...OK
+82/1022 lander.tests.test.reorg reactivation consumes configured submit queue capacity...OK
+83/1022 lander.tests.test.absent receipt is refreshed and later finalizes...OK
+84/1022 lander.tests.test.recovery holds new builds and nonces through pages errors and restart...OK
+85/1022 lander.tests.test.request access list malformed second entry and all allocation failures are safe...OK
+86/1022 lander.tests.test.multicall build uses aggregate calldata and one atomic association...OK
+87/1022 lander.tests.test.multicall missing code and cap precheck fall back to independent transactions...OK
+88/1022 lander.tests.test.partial multicall simulation rebuilds survivor and drops failed payload...OK
+89/1022 lander.tests.test.MEV reveal uses protected chain while commit stays public...OK
+90/1022 lander.tests.test.MEV mixed batch and timeout recover without public fallback...OK
+91/1022 lander.tests.test.zkSync estimation applies source cap order and failure reserves no nonce...OK
+92/1022 lander.tests.test.checkpointed active recovery avoids finalized history RPC...OK
+93/1022 lander.tests.test.finalized observer receives winning receipt and payload gas outcome...OK
+94/1022 lander.tests.test.all failed multicall simulation persists terminal drops...OK
+95/1022 lander.tests.test.value bearing multicall simulation includes aggregate msg value...OK
+96/1022 lander.tests.test.zkSync MEV estimation uses protected not public RPC...OK
+97/1022 lander.tests.test.EIP2930 builds signs and persists type one transaction...OK
+98/1022 lander.tests.test.reverted unfinalized payload is not stale dropped after reorg...OK
+99/1022 lander.tests.test.reverted finalized observer outcome is not delivered...OK
+100/1022 lander.tests.test.finalized receipt survives restart and nonfinal reorg invalidates old winner...OK
+101/1022 lander.tests.test.missing gas fields fail finalization without fabricating projection...OK
+102/1022 lander.tests.test.receipt optional fee roundtrip and nonfinal delete are exact...OK
+103/1022 lander.tests.test.owned status reason survives record destruction and allocation failures...OK
+104/1022 lander.tests.test.receipt progress allocation is initialized before publication and OOM safe...OK
+105/1022 lander.http_tests.test.loopback EVM code zkSync raw send and receipt outcomes...OK
+106/1022 lander.http_tests.test.loopback estimation serializes access lists...OK
+107/1022 lander.anvil_tests.test.local Anvil Multicall3 returns positional allowFailure results...OK
+108/1022 evm.eip2930.test.EIP-2930 populated access list matches production ethers...OK
+109/1022 evm.eip2930.test.EIP-2930 contract creation and empty access list match production ethers...OK
+110/1022 evm.eip2930.test.EIP-2930 signed encoding rejects noncanonical signatures...OK
+111/1022 agents.validator_task_test.test.validator constructors are allocation-only and announcement HTTP and scheduling are independent...OK
+112/1022 agents.validator.fetch_backoff_native_test.test.validator Source fetch backoff generic native store retries and healthy peer fallback...[default] (warn): origin insertion range fetch failed; retry in 5000ms: RpcHttpStatus
+[default] (warn): origin insertion range fetch failed; retry in 10000ms: RpcHttpStatus
+[default] (warn): origin insertion range fetch failed; retry in 5000ms: RpcHttpStatus
+OK
+113/1022 agents.validator.fetch_backoff_native_test.test.validator Source cursor initialization generic real native failures and recovery...[default] (warn): validator cursor initialization attempt 1/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+OK
+114/1022 agents.validator.fetch_backoff_native_test.test.validator Source fetch backoff EVM actual native HTTP fallback and completion clock...[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+OK
+115/1022 agents.validator.fetch_backoff_native_test.test.validator Source fetch backoff EVM native HTTP200 malformed and429 response provenance...[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcRateLimited
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+OK
+116/1022 agents.validator.fetch_backoff_native_test.test.validator Source fetch backoff EVM standard HTTP503 HTTP200 malformed and429 response provenance...[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcRateLimited
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcRateLimited
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcRateLimited
+OK
+117/1022 agents.validator.fetch_backoff_native_test.test.validator typed header recovery native healthy peer allbad backoff and startup...[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+OK
+118/1022 agents.validator.fetch_backoff_native_test.test.validator typed header recovery standard healthy peer allbad backoff and startup...[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 5000ms: RpcResponseDecode
+[default] (warn): validator insertion range fetch failed; retry in 10000ms: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 1/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcResponseDecode
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcResponseDecode
+OK
+119/1022 agents.validator.mailbox_native_test.test.actual RocksDB mailbox retains first signature bounds pending slot and reopens completed goal...OK
+120/1022 relayer_reservation_native_test.test.Root native public reserve ordinary load and commit retain capacity and per-lane limits...OK
+121/1022 relayer_reservation_native_test.test.Root ordinary and public lazy metric labels are inside retained byte budgets...OK
+122/1022 relayer_reservation_native_test.test.Root core allocation failures roll back ownership while telemetry pressure preserves admitted work...[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+OK
+123/1022 relayer_reservation_native_test.test.Root registry pressure preserves durable retirement and never re-admits a completed actor...[default] (warn): relayer telemetry update failed: MetricSeriesLimit
+[default] (warn): relayer telemetry update failed: MetricStorageLimit
+[default] (warn): relayer telemetry update failed: OutOfMemory
+OK
+124/1022 relayer_reservation_native_test.test.Root optional app labels cannot consume the core admission budget...[default] (warn): relayer telemetry update failed: MetricMemoryLimit
+OK
+125/1022 relayer_reservation_native_test.test.Root native submit zero holds fresh supported protocols without prepare signing retries or public admission loss...OK
+126/1022 relayer_reservation_native_test.test.Root native submit cap hydrates restored ready state and control retry releases queue independently of metrics...OK
+127/1022 relayer_reservation_native_test.test.Root native submit batch threshold permits overshoot and excludes popped signed or confirmation actors...OK
+128/1022 relayer_reservation_native_test.test.Root native submit admitted preparation batch survives pending IO without admitting another batch...OK
+129/1022 relayer_reservation_native_test.test.Root native submit popped ready IO is excluded from backpressure and control restores admission...OK
+130/1022 retained_halt_tests.test.global halt cancels retained effects after polling callback yielded...OK
+131/1022 relayer_halt_tests.test_0...OK
+132/1022 agents.relayer.evm_accounting_test.test.Rust ratio oracle full fallback token conversion and u256 extremes...OK
+133/1022 agents.relayer.evm_accounting_test.test.native Rocks marker survives restart and duplicate batch and new generation accounting is exact...OK
+134/1022 agents.relayer.evm_accounting_test.test.partial marker states fail closed without creating a zero expenditure...OK
+135/1022 agents.relayer.evm_accounting_test.test.aggregate uses Rust saturation while marker conflict and token overflow never overwrite...OK
+136/1022 agents.relayer.evm_driver_test.test.durable pre-enqueue cancellation replays exact sealed input after real DB restart...OK
+137/1022 agents.relayer.evm_driver_test.test.foreign Rust relation and missing status never authorize a fresh generation or nonce...OK
+138/1022 agents.relayer.evm_driver_test.test.malformed retry status is not positive failure and cannot clear linkage...OK
+139/1022 agents.relayer.evm_driver_test.test.runtime denial never cancels an already delegated payload...OK
+140/1022 agents.relayer.evm_driver_test.test.positive drop clears only expected UUID before deterministic new generation...OK
+141/1022 agents.relayer.evm_driver_test.test.mixed payload dispositions retain all relations until every payload positively fails...OK
+142/1022 agents.relayer.evm_driver_test.test.crash after terminal relation clear durably retries before a new generation...OK
+143/1022 agents.relayer.evm_driver_test.test.native successful receipt charges actual gas and sealed estimate not paid allowance...OK
+144/1022 agents.relayer.evm_driver_test.test.native failed finalized receipt is accounted before relation retry...OK
+145/1022 agents.relayer.evm_driver_test.test.native pruned receipt blocks terminal completion without zero accounting...OK
+146/1022 agents.relayer.evm_driver_test.test.native included payload is not charged before finality...OK
+147/1022 agents.relayer.evm_driver_test.test.native batch uses surviving payload estimate sum for source ratio...OK
+148/1022 agents.relayer.evm_driver_test.test.cross-origin destination batch resolves every simulation estimate...OK
+149/1022 agents.relayer.evm_driver_test.test.public receipt message keeps canonical nonce lifecycle until later index arrival...OK
+150/1022 agents.relayer.evm_driver_test.test.projected finalized receipt supports authoritative zero fee without RPC receipt...OK
+151/1022 agents.relayer.evm_driver_test.test.native missing receipt price accepts matching authoritative zero gasPrice...OK
+152/1022 agents.relayer.evm_driver_test.test.native missing receipt price uses matching positive transaction gasPrice...OK
+153/1022 agents.relayer.evm_driver_test.test.finalized associated and external deliveries complete but unfinalized inclusion waits...OK
+154/1022 agents.relayer.evm_driver_test.test.positive finalized non-delivery reconciles retry without receipt inference...OK
+155/1022 agents.relayer.evm_driver_test.test.deny retains canonical work and policy allow prepares without synthetic transaction...OK
+156/1022 agents.relayer.evm_driver_test.test.source normal retry increments once while configured finality wait only delays...OK
+157/1022 agents.relayer.evm_driver_test.test.non-contract terminal marker and canonical pending cleanup commit together...OK
+158/1022 agents.relayer.evm_driver_test.test.hard source failure propagates without sealing payload or flattening retry...OK
+159/1022 agents.relayer.evm_driver_test.test.driver starts without retained source metadata...OK
+160/1022 agents.relayer.evm_driver_test.test.native reverted finalized payload accounts canonical actual cost before retry...OK
+161/1022 agents.relayer.evm_driver_test.test.native reverted included payload retains association before transaction finality...OK
+162/1022 agents.relayer.evm_driver_test.test.native pre-submission dropped payload retries without invented gas cost...OK
+163/1022 agents.relayer.evm_driver_test.test.source600s EVM inclusion confirmation survives DB restart and finalized proof cannot complete early...OK
+164/1022 agents.relayer.evm_driver_test.test.source600s external delivery starts wait before finality and requires a fresh finalized recheck...OK
+165/1022 agents.relayer.evm_driver_test.test.source600s external reorg retries and a new inclusion receives its own full confirmation window...OK
+166/1022 agents.relayer.evm_driver_test.test.source600s finalized failure charges and retries without waiting for an earlier success window...OK
+167/1022 agents.relayer.evm_driver_test.test.source600s observation clock starts at actual latest delivery and refreshes eligibility after IO...OK
+168/1022 agents.relayer.evm_driver_test.test.source600s latest delivery retains observed deadline through transient finality failure without normal retry...OK
+169/1022 agents.relayer.evm_driver_test.test.post latest-delivery finality control refusal deadline and corruption errors propagate...OK
+170/1022 evm_prepare_delegated_tests.test.ready matches unchanged Rust ethers process and delivered payload oracle with full u256 gas...OK
+171/1022 evm_prepare_delegated_tests.test.source order builds real null ISM metadata and paid allowance uses remaining gas...OK
+172/1022 evm_prepare_delegated_tests.test.metadata executor forwards shared root through builder...OK
+173/1022 evm_prepare_delegated_tests.test.CCIP pending uses source delay without retry increment and preserves control errors...OK
+174/1022 evm_prepare_delegated_tests.test.finalized delivery is distinguishable from unfinalized delivery and stops preparation...OK
+175/1022 evm_prepare_delegated_tests.test.configured block delivery finality uses head minus depth without finalized tag...OK
+176/1022 evm_prepare_delegated_tests.test.unpaid and matching denied messages never request metadata or gas estimation...OK
+177/1022 evm_prepare_delegated_tests.test.not contract malformed code ISM and gas responses stay unsigned typed outcomes...OK
+178/1022 evm_prepare_delegated_tests.test.hard reorg cancellation and wrong chain propagate without payload effects...OK
+179/1022 evm_prepare_delegated_tests.test.Arbitrum retryable estimate supplies enforceable L2 gas and failed retryable uses direct fallback...OK
+180/1022 evm_prepare_delegated_tests.test.direct process RPC ICA reveal error uses injected retry state without rebuilding metadata...OK
+181/1022 evm_prepare_delegated_tests.test.matching private reveal never uses public gas and ICA state retains metadata across retry...OK
+182/1022 evm_prepare_delegated_tests.test.missing protected estimator fails closed without public fallback and max gas is exact...OK
+183/1022 evm_prepare_delegated_tests.test.metadata size cap rejects cached bytes before process estimation...OK
+184/1022 evm_prepare_delegated_tests.test.origin signer runtime denial follows paid preflight and skips metadata...OK
+185/1022 evm_prepare_delegated_tests.test.preparation and outcome ownership survive allocation failure sweep...OK
+186/1022 evm_prepare_delegated_tests.test_0...OK
+187/1022 evm_prepare_delegated_tests.test.opt-in loopback prepares actual repo Solidity without delivery or nonce mutation...SKIP
+188/1022 evm_prepare_delegated_tests.test.settings resolve Arbitrum protected routers and skipped maximum gas...OK
+189/1022 agents.relayer.native_driver_test.test.Native destination driver orders source gates gas allowance durable sign restart reconciliation and final external delivery...OK
+190/1022 agents.relayer.native_driver_test.test.Native CCIP pending delays repeat without retry exhaustion and cooperative IO remains control...OK
+191/1022 agents.relayer.native_driver_test.test.source600s Native driver retains unsigned external delivery until eligibility and rechecks before processing...OK
+192/1022 agents.destination.source_metadata_svm_test.test.SVM native ProductionCompositeSpec nested leaves publish one ISM result and full latest set per leaf under resolved root context...OK
+193/1022 agents.destination.source_metadata_svm_test.test.SVM native ProductionCompositeSpec detached latest observes global shutdown after operation cancellation...OK
+194/1022 agents.destination.source_metadata_svm_test.test.SVM native ProductionCompositeSpec cancellation during suspended quorum drains nested leaf forks without publishing completion...OK
+195/1022 agents.destination.source_metadata_svm_test.test.SVM native inline validator fork owns decoded spec state and releases every partial allocation...OK
+196/1022 agents.relayer.ccip_sessions_test.test.CCIP owner preserves ten pending delays ordered fallback and metadata cache...OK
+197/1022 agents.relayer.ccip_sessions_test.test.CCIP authentication error is retryable and refreshed credentials precede cache hit...OK
+198/1022 agents.relayer.ccip_sessions_test.test.CCIP canonical context and origin domain keys cannot share sessions...OK
+199/1022 agents.relayer.ccip_sessions_test.test.CCIP advancing blocks preserve pending retries while context and message changes reset...OK
+200/1022 agents.relayer.ccip_sessions_test.test.CCIP pendingDelayForMessage returns minimum live delay across ISMs...OK
+201/1022 agents.relayer.ccip_sessions_test.test.CCIP lookup cache has fixed creation expiration and OptionalCache disabled semantics...OK
+202/1022 agents.relayer.ccip_sessions_test.test.CCIP handler fork owns independent Binding RPC identity and cancellation...OK
+203/1022 agents.relayer.ccip_sessions_test.test.CCIP PendingReadIo yields without session URL or signature side effects...OK
+204/1022 agents.relayer.ccip_sessions_test.test.CCIP malformed revert and responses retire entries and enforce byte budget...OK
+205/1022 agents.relayer.ccip_sessions_test.test.CCIP cancellation retires borrow without retaining the job token...OK
+206/1022 agents.relayer.ccip_sessions_test.test.CCIP native lookup fork replaces source client allocator and cancellation...OK
+207/1022 agents.relayer.ccip_sessions_test.test.CCIP binding rejects missing lookup and half retained signer...OK
+208/1022 agents.relayer.ccip_sessions_test.test.CCIP native lookup and metadata ownership survive allocation failure sweep...OK
+209/1022 agents.relayer.ccip_sessions_test.test.CCIP shared global cap releases across independent owners...OK
+210/1022 agents.relayer.ccip_sessions_test.test.CCIP async submits once across stalls and never reruns POST signing...OK
+211/1022 agents.relayer.ccip_sessions_test.test.CCIP disabled cache memo survives verification PIO and releases shared quota...OK
+212/1022 agents.relayer.ccip_sessions_test.test.CCIP disabled cache preserves native async continuation without duplicate signing...OK
+213/1022 agents.relayer.ccip_sessions_test.test.CCIP async cancel drains retained handle before clean resubmission...OK
+214/1022 agents.relayer.ccip_sessions_test.test.CCIP async retained callback outlives fork and TTL expiry cancels old attempt...OK
+215/1022 agents.relayer.ccip_sessions_test.test.CCIP async retained request bytes reject before submit without URL advance...OK
+216/1022 agents.relayer.ccip_sessions_test.test.CCIP async native Runtime rejects private destinations before KMS...OK
+217/1022 agents.relayer.ccip_sessions_test.test.CCIP borrowed entry cannot be evicted and same key does not race...OK
+218/1022 agents.relayer.ccip_sessions_test.test.CCIP native public egress rejects every literal before KMS...OK
+219/1022 agents.relayer.ccip_sessions_test.test.CCIP owner and handler results survive allocation failure sweep...OK
+220/1022 agents.relayer.ccs_signer_test.test.CCS constructor is lazy and filtered chain signer never resolves transaction credentials...OK
+221/1022 agents.relayer.ccs_signer_test.test.CCS absent configuration has no identity work...OK
+222/1022 agents.relayer.ccs_signer_test.test.CCS refreshed signature must recover the pinned identity and clears cancellation...OK
+223/1022 agents.relayer.ccs_signer_test.test.CCS concurrent gate wait observes operation cancel and completes refresh safely...OK
+224/1022 agents.relayer.ccs_signer_test.test.CCS retained Scope outlives root Scope Binding and honors late child cancel...OK
+225/1022 agents.relayer.ccs_signer_test.test.CCS concurrent releases from different allocators retire Scope only after last child...OK
+226/1022 agents.relayer.ccs_signer_test.test.CCS lazy provider avoids Null GET and invalid URL identity work then signs POST...OK
+227/1022 agents.relayer.ccs_signer_test.test.CCS lazy async submit releases provider without signing replay on poll...OK
+228/1022 agents.relayer.ccs_signer_test.test.CCS role halt operation cancel and deadline after lease block actual sign...OK
+229/1022 agents.relayer.ccs_signer_test.test.CCS late halt cancel and deadline discard result without cache or HTTP request...OK
+230/1022 agents.relayer.ccs_signer_test.test.CCS owner scope and refreshed identity survive allocation failure sweep...OK
+231/1022 agents.relayer.control_test.test.relayer control declarations...OK
+232/1022 agents.relayer.control_test.test.control construction performs no origin or signer access...OK
+233/1022 agents.relayer.control_test.test.queued cancellation skips gas mutation and retires independent request memory...OK
+234/1022 agents.relayer.control_test.test.control pre-init allocation failures clean hub lane and policy ownership...OK
+235/1022 agents.relayer.control_test.test.control policy initialization metrics follow actual successful first constructor and exclude allocation failure...OK
+236/1022 agents.relayer.public_relay_test.test.public relay declarations...OK
+237/1022 agents.relayer.public_relay_test.test.receipt extraction releases every allocation on every failure...OK
+238/1022 agents.relayer.public_relay_test.test.public admission pending allocation transfers domains exactly once...OK
+239/1022 agents.stream.relayer_test.test.authoritative cutover requires parity fresh probe and acknowledged RPC pause then revokes on lag...OK
+240/1022 agents.stream.relayer_test.test.observer keeps RPC and never credits gas or stores missing canonical events...OK
+241/1022 agents.stream.relayer_test.test.fresh markers retry local presence and durable replay survives native reopen...OK
+242/1022 agents.stream.relayer_test.test.canonical fork persists unhealthy v2 without replacing processed canonical message...OK
+243/1022 agents.stream.relayer_test.test.gas sequence conflict is contained without double credit or authority...OK
+244/1022 agents.stream.relayer_test.test.bounded parity overflow revokes and OOM cannot partially admit an event...OK
+245/1022 agents.stream.relayer_test.test.wire decoders preserve full identities and gas JSON field order does not alter parity...OK
+246/1022 agents.stream.relayer_test.test.deterministic bounded event sequence duplicates reconnect and late parity preserve integrity...OK
+247/1022 agents.stream.relayer_test.test.late probe snapshot cannot activate until current cursors are canonically fresh...OK
+248/1022 agents.stream.relayer_test.test.consecutive ahead and failed probes revoke only after their specified grace...OK
+249/1022 agents.stream.relayer_test.test.stream gap immediately restores RPC and cannot write past the gap...OK
+250/1022 agents.stream.relayer_test.test.ready v3 negotiation and caught-up envelope fields gate gas authority...OK
+251/1022 agents.stream.relayer_test.test.merkle JSON acceptance matches canonical insertion and advances exact cursor...OK
+252/1022 agents.stream.relayer_test.test.invalid fresh baseline after append transfers body ownership through cleanup and every allocation failure...OK
+253/1022 agents.stream.relayer_store.test.gas cursor encoding is exact and sequenced prefixes cannot be confused...OK
+254/1022 agents.stream.relayer_store.test.websocket insertion barrier preserves the canonical RPC winner and block...OK
+255/1022 agents.stream.relayer_store.test.matching websocket dispatch retries bounded notification after canonical commit...OK
+256/1022 agents.stream.relayer_bridge.test.unsupported gas row cursor predicate is exact...OK
+257/1022 agents.stream.relayer_bridge.test.subscription plans deep own all cursors across allocation failures...OK
+258/1022 agents.stream.relayer_bridge.test.subscription JSON matches Source fresh floor zero and positive cursors...OK
+259/1022 agents.stream.relayer_bridge.test.changed domain reconnect failure preserves the owned plan through retry and teardown...OK
+260/1022 agents.stream.relayer_bridge.test.real callback outcomes distinguish conflict dropped marker and admission refusal...OK
+261/1022 agents.stream.relayer_bridge.test.joint caught-up precedes terminal parity then independently becomes ready...OK
+262/1022 agent_metrics_tests.test.Lander observer maps every variant to captured source families and labels...OK
+263/1022 agent_metrics_tests.test.Lander zero and overflow conversions match source casts and Duration saturation...OK
+264/1022 agent_metrics_tests.test.Lander labels are escaped and registry errors reach the observer caller...OK
+265/1022 agent_metrics_tests.test.relayer processed operation metadata and queue metrics use source terminal semantics...OK
+266/1022 agent_metrics_tests.test.pending tracker deduplicates references contexts and ordered oldest timestamps...OK
+267/1022 agent_metrics_tests.test.metadata wait attempts recovery cancellation and wait-only to pending transition match source...OK
+268/1022 agent_metrics_tests.test.role tracker owns labels bounds entries and shares pending with waits...OK
+269/1022 agent_metrics_tests.test.relayer adapters release entries and registry labels on every allocation failure...OK
+270/1022 agent_metrics_tests.test_0...OK
+271/1022 agents.process_clock.test.concurrent observation callbacks share the scheduler epoch...OK
+272/1022 cache_metrics_tests.test_0...OK
+273/1022 health_metrics_tests.test_0...OK
+274/1022 ops.init_metrics.test.initialization adapter has no sample until actual completion and preserves Source millisecond gauge labels...OK
+275/1022 ops.init_metrics.test.actual submillisecond destination completion may be zero and telemetry failure cannot fail construction...[default] (warn): initialization metric update failed: MetricSeriesLimit
+OK
+276/1022 critical_metrics_tests.test_0...OK
+277/1022 app_context_tests.test_0...OK
+278/1022 public_identity_tests.test_0...OK
+279/1022 agents.indexing.tx_id_native_test.test.transaction-ID EVM recovers omitted range gas and tree from actual receipt without advancing range watermarks...OK
+280/1022 agents.indexing.tx_id_native_test.test.transaction-ID receipt failure rotates to healthy queued transaction and retries missing neighbor...[default] (warn): origin transaction receipt fetch failed; retained for retry: TransactionReceiptUnavailable
+OK
+281/1022 agents.indexing.tx_id_native_test.test.transaction-ID producer persists more rows than queue capacity without losing notification or cursor ownership...OK
+282/1022 agents.indexing.tx_id_native_test.test.transaction-ID bad receipt validates all metadata before mutation and cancellation never consumes queued work...[default] (warn): origin transaction receipt fetch failed; retained for retry: FailedTransactionReceipt
+OK
+283/1022 agents.indexing.tx_id_native_test.test.transaction-ID generic producer retains frame beyond queue and completed-dedup capacities with full-width IDs...OK
+284/1022 agents.indexing.tx_id_native_test.test.transaction-ID restart rescans durable canonical dispatch and immutable Source Rust oracle decodes repaired rows...immutable Rust tx-ID restart readback: {"destination_namespaces":{"9913372":"test2"},"messages":[{"destination":9913372,"destination_namespace":"test2","gas_expenditure_record_present":false,"id_chunks":["b55e59ed41f4d0422b57d3890334923f","33459f15336f48e6239b47b3c6c05270"],"insertion_id_chunks":["b55e59ed41f4d0422b57d3890334923f","33459f15336f48e6239b47b3c6c05270"],"nonce":0,"origin":9913371,"payloads":[],"payment":{"gas_amount":"1000","payment":"500"},"present":true,"processed":null,"spent":{"gas_used":"0","tokens_used":"0"}}],"origin_domain":9913371,"origin_namespace":"test1","origin_nonce_count":1,"reader":"actual production HyperlaneRocksDB + FullPayload decoder","sealed_payload_links":[]}
+
+OK
+285/1022 agents.indexing.tx_id_native_test.test.transaction-ID receipt allocation failures never persist an unvalidated partial receipt or leak ownership...OK
+286/1022 agents.indexing.tx_id_native_test.test.transaction-ID disabled stream mask cancels retained reads and makes no receipt requests...OK
+287/1022 agents.indexing.tx_id_native_test.test.transaction-ID missing transaction metadata never synthesizes a receipt identity...OK
+288/1022 agents.indexing.tx_id_native_test.test.transaction-ID startup scanner crosses bounded completion eviction without requeueing its completed prefix...OK
+289/1022 agents.indexing.tx_id_native_test.test.transaction-ID permanently missing prefix yields capacity to healthy later dispatch and remains recoverable...[default] (warn): origin transaction receipt fetch failed; retained for retry: TransactionReceiptUnavailable
+OK
+290/1022 agents.indexing.tx_id_native_test.test.transaction-ID failed receipt processed before cooldown retires replay hint without immediate rescan loop...[default] (warn): origin transaction receipt fetch failed; retained for retry: TransactionReceiptUnavailable
+OK
+291/1022 agents.indexing.tx_id_native_test.test.transaction-ID protocol authority permits distinct mapping streams but rejects same-stream conflicts and EVM index aliases...[default] (warn): origin transaction receipt rejected; retained for retry: ConflictingTransactionReceiptLog
+[default] (warn): origin transaction receipt rejected; retained for retry: ConflictingTransactionReceiptLog
+OK
+292/1022 transaction_adapter_native_tests.test_0...OK
+293/1022 native_group_tests.test_0...OK
+294/1022 agents.destination.group_guard_native_test.test.native group guards reject stale journal row status and inherited ownership without any partial write...OK
+295/1022 agents.destination.group_guard_native_test.test.native group guards reject duplicate member wrong authority and stale intent digest before mutation...OK
+296/1022 agents.destination.group_guard_native_test.test.native group guards require every durable member link before common signature commit...OK
+297/1022 agents.destination.group_guard_native_test.test.native group guards prohibit ordinary scalar intent and signature routes before and after restart...OK
+298/1022 agents.destination.group_guard_native_test.test.native group guards key barrier rejects missing foreign links and stale journal before signer admission...OK
+299/1022 agents.destination.group_guard_native_test.test.native group guards preserve confirmation monotonic bound under wall rollback and repeated observations...OK
+300/1022 agents.destination.group_guard_native_test.test.native group guards committed creation followed by load OOM remains durably owned and recoverable...OK
+301/1022 agents.destination.group_guard_native_test.test.native group guards signer admission checks expected second member status inherited owner and complete member set...OK
+302/1022 starknet_group_control_native_test.test.Starknet Root control cold signed recovery performs initial sender lookup before new address policy permits rebroadcast...OK
+303/1022 starknet_group_control_native_test.test.Starknet Root control cold sender peer failures retain Source30 60 120 240 second waits before giveup...OK
+304/1022 starknet_group_control_native_test.test.Starknet Root control missing dispatch hash waits once30 seconds on cold signed recovery...OK
+305/1022 starknet_group_control_native_test.test.Starknet Root control cold denied sender still reconciles actual inclusion without new sign or broadcast...OK
+306/1022 starknet_group_control_native_test.test.Starknet Root control submitted counts two cold group members once across unknown inclusion outcome and historical Confirm restore...OK
+307/1022 starknet_group_control_native_test.test.Starknet Root control deny cancel and real manual reprocess cut whole prepared group before executable signature...OK
+308/1022 native_sender_recovery_test.test.Native cold sender recovered Tron Ready performs initial lookup and Source backoff before any executable key...OK
+309/1022 native_sender_recovery_test.test.Native cold sender recovered Tron Signed blocks exact-byte broadcast until sender policy permits and drains receipt while denied...OK
+310/1022 shared_remote_signer_timeout_tests.test_0...OK
+311/1022 agents.indexing.testing.test.native origin generic source rotates block and sequence lanes stores before cursors and avoids disabled gas calls...OK
+312/1022 agents.indexing.testing.test.native origin generic source rejects changed canonical fence and cancellation before durable writes...OK
+313/1022 agents.indexing.testing.test.native origin incomplete source and partial DB failure retain gap repair and replay neighboring rows...OK
+314/1022 agents.indexing.testing.test.native origin unsequenced gas keeps separate conservative watermark and source poll cadence...OK
+315/1022 agents.indexing.testing.test.native origin insertion-only validator lane filters rotation polling and rejects no active streams...OK
+316/1022 agents.indexing.testing.test.native origin cooperative frame freezes selected lane and decodes each completed block once across repeated yields...OK
+317/1022 agents.indexing.testing.test.native origin cooperative frame rejects a late range fork and releases retained budget before DB writes...OK
+318/1022 agents.indexing.testing.test.native origin stream mask aborts only disabled pending frame releases quota and resumes unskipped cursor...OK
+319/1022 agents.indexing.testing.test.origin Source fetch backoff preserves healthy streams disjoint forward work and exact retry metrics...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+OK
+320/1022 agents.indexing.testing.test.origin indexing metrics count committed partial rows and keep cancellation IO refusal out of retries...OK
+321/1022 agents.indexing.testing.test.origin cooperative fetch failure abandons uncommitted frame keeps healthy stream and resumes exact range...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+OK
+322/1022 agents.indexing.testing.test.shared indexing core keeps existing caller fetch error semantics unless relayer enables Source backoff...OK
+323/1022 agents.indexing.testing.test.origin cooperative backed-off candidate computes remaining delay from resumed clock...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+OK
+324/1022 agents.indexing.testing.test.origin cooperative gap delay starts at actual completed observation and suppresses early duplicate fetch...OK
+325/1022 protocol.root.test_0...OK
+326/1022 protocol.message.test.canonical message fixture and borrowed decode...OK
+327/1022 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+328/1022 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+329/1022 runtime.sequence_cursor.test.sequence cursor prioritizes forward traffic detects missing logs and accepts duplicate overlap...OK
+330/1022 runtime.sequence_cursor.test.sequence cursor resumes empty backwards scans and clears per-gap progress after indexed recovery...OK
+331/1022 runtime.sequence_cursor.test.sequence cursor cumulative missing sets prevent alternating response retry storms...OK
+332/1022 runtime.sequence_cursor.test.sequence cursor bounds database skipping relative floors and unavailable counts...OK
+333/1022 runtime.sequence_cursor.test.cooperative cursor query slicing preserves forward prefixes backward suffixes and exact pending tokens...OK
+334/1022 runtime.sequence_cursor.test.cooperative cursor sliced block gaps persist only the searched suffix and resume after restart...OK
+335/1022 db.root.test_0...OK
+336/1022 ops.metrics.test.metrics preserve source labels help types histogram buckets and escaping...OK
+337/1022 ops.metrics.test.metrics concurrent counters are lossless and series removal frees its bounded budget...OK
+338/1022 ops.metrics.test.metrics allocation failure does not leak partially installed series...OK
+339/1022 ops.metrics.test.registry cursor raises are atomic with other writers and preserve metric shape...OK
+340/1022 ops.metrics_schema.test.generated descriptors have unique names and labels within each group...OK
+341/1022 relayer.remote_checkpoints.test.remote checkpoint engine validates configuration without native loading...OK
+342/1022 relayer.remote_checkpoints.test_0...OK
+343/1022 relayer.prover.test.packed prover authenticates historical prefixes across chunk and power-of-two boundaries...OK
+344/1022 relayer.prover.test.packed prover allocation failures retain logical tree and release every chunk...OK
+345/1022 net.curl_multi.test.curl multi rejects invalid capacities without loading a native library...OK
+346/1022 net.curl_multi.test.curl multi starts healthy validators beyond eight stalled requests and cancels every loser...OK
+347/1022 net.curl_multi.test.curl multi bounds queued memory capacity deadlines and stale identities without network...OK
+348/1022 net.curl_multi.test.curl multi releases partial allocation failures and never retains borrowed request buffers...OK
+349/1022 net.curl_multi.test.curl multi enforces body and header caps no redirects and private socket policy...OK
+350/1022 runtime.io_pool.test.completed I/O follows arrival order when owner polls after multiple responses...OK
+351/1022 runtime.io_pool.test.deadline returns promptly, keeps capacity bounded and discards late completion...OK
+352/1022 runtime.io_pool.test.queued cancellation never executes; running output is discarded after cancellation...OK
+353/1022 runtime.io_pool.test.two workers claim cancelled-input cleanup exactly once...OK
+354/1022 net.curl.test.native HTTP sink bounds body headers and cancellation without loading curl...OK
+355/1022 net.curl.test.native HTTP validates NUL controls token headers and content encoding before loading curl...OK
+356/1022 net.curl.test.public HTTP rejects literal destinations and native socket callback prevents rebinding...OK
+357/1022 net.curl.test.native public HTTP blocks localhost and noncanonical numeric IPv4 without connecting...OK
+358/1022 net.curl.test.native HTTP reuses keepalive and isolates headers methods cancellation and trust pools...OK
+359/1022 net.curl.test.native TCP resolver uses async DNS closes fresh socket and sends no application bytes...OK
+360/1022 net.curl.test.native HTTP read-only override validates request cancellation and response bounds without loading curl...OK
+361/1022 net.curl.test.native HTTP growing body sink is lazy bounded and transfers exact ownership...OK
+362/1022 net.curl.test.native HTTP growing sink preserves OOM and cleanup on every allocation...OK
+363/1022 net.curl.test.native HTTP max8MiB transfer initialization fits64KiB without eager body allocation...OK
+364/1022 net.curl.test.native HTTP response payload moves across owned adapters without copying...OK
+365/1022 net.curl.test.native HTTP429 policy stops only complete final head and preserves other errors...OK
+366/1022 relayer.checkpoint_pool.test.parallel checkpoint quorum returns first root without waiting for slow configured validators...OK
+367/1022 relayer.checkpoint_pool.test.parallel checkpoint latest queries retain validator positions and report failed storage...OK
+368/1022 relayer.checkpoint_pool.test.parallel checkpoint guards await every selected backend before early quorum...OK
+369/1022 relayer.checkpoint_pool.test.parallel checkpoint validation and reads retain the same locations during registry rotation...OK
+370/1022 cloud.storage.test.cloud storage preserves distinct S3 and GCS names folder rules and locations...OK
+371/1022 cloud.storage.test.cloud prepared native GET owns URL auth exact keys caps and narrow loopback policy without IO...OK
+372/1022 cloud.storage.test.GCS legacy root guard blocks folder writer even when malformed...OK
+373/1022 cloud.storage.test.S3 reads anonymously and PUT signs escaped object path and temporary credentials...OK
+374/1022 cloud.storage.test.GCS checkpoint publication snapshot announcement and reorg serialization...OK
+375/1022 cloud.sigv4.test.published AWS S3 GET Object SigV4 fixture...OK
+376/1022 cloud.sigv4.test.query sorting session credentials and header whitespace are canonical...OK
+377/1022 storage.objects.test.23 production Rust checkpoint announcement snapshot reorg and index objects...OK
+378/1022 protocol.checkpoint.test.domain hash fixtures...OK
+379/1022 protocol.checkpoint.test.checkpoint digest separates every field...OK
+380/1022 runtime.block_cursor.test.block cursor preserves configured polling conservative replay and relative start...OK
+381/1022 runtime.block_cursor.test.cooperative block slices finish original range before rate limit and preserve configured watermark...OK
+382/1022 runtime.block_cursor.test.cooperative block failed slice retries same unread positions and waits for regressed finality...OK
+383/1022 agents.indexing.fetch_backoff.test.fetch backoff matches Source exact delays and deadline eligibility without clearing state...OK
+384/1022 agents.indexing.fetch_backoff.test.fetch backoff moving ranges union inclusively and partial overlapping success resets all...OK
+385/1022 agents.indexing.fetch_backoff.test.fetch backoff disjoint forward success bypasses without pruning and disjoint failure restarts...OK
+386/1022 agents.indexing.fetch_backoff.test.fetch backoff endpoint boundaries do not overflow or mistake adjacency for overlap...OK
+387/1022 agents.indexing.fetch_backoff.test.fetch backoff saturates failure count and preserves checked clock overflow semantics...OK
+388/1022 agents.indexing.fetch_backoff.test.fetch backoff has independent bounded state for the three origin streams...OK
+389/1022 agents.indexing.fetch_backoff.test.fetch backoff all small inclusive intervals agree with actual point intersection...OK
+390/1022 ops.critical_metrics.test.critical tracker has no constructor sample and startup cannot clear recorded failure...OK
+391/1022 ops.critical_metrics.test.critical independent reasons and Source WS recovery preserve unrelated failures...OK
+392/1022 ops.critical_metrics.test.critical telemetry pressure cannot fail or reset operational state...[default] (warn): critical metric update failed: MetricSeriesLimit
+OK
+393/1022 agents.indexing.cursor_bootstrap.test.cursor bootstrap sleeps after tenth failure and clears only recovered stream...OK
+394/1022 agents.indexing.cursor_bootstrap.test.cursor bootstrap controls and persistence errors do not consume retry budget...OK
+395/1022 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+396/1022 protocol.merkle.test.three-leaf Merkle fixture...OK
+397/1022 protocol.merkle.test.full tree rejects without mutation...OK
+398/1022 protocol.merkle.test.snapshot restore checks count root and shape...OK
+399/1022 db.keys.test.domain names and prefix upper bounds match Rust...OK
+400/1022 db.codec.test.integer endianness and strict bool match production...OK
+401/1022 agents.indexing.evm_native_test.test.EVM origin metrics follow actual empty cycles and Source scheduled fetch recovery...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcHttpStatus
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcHttpStatus
+OK
+402/1022 agents.indexing.evm_native_test.test.EVM stored event metrics count actual native commits once across exact batch replay...OK
+403/1022 agents.indexing.evm_native_test.test.origin bootstrap EVM actual count failures independent retries recovery and WS reasons...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+OK
+404/1022 agents.indexing.evm_native_test.test.origin bootstrap EVM direct native physical request timeout consumes one completed attempt...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: ConnectionTimedOut
+OK
+405/1022 agents.indexing.bootstrap_native_test.test.origin bootstrap independent Source budget real recovery and WS mask legacy...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+OK
+406/1022 agents.indexing.bootstrap_native_test.test.origin bootstrap independent Source budget real recovery and WS mask cooperative...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+OK
+407/1022 agents.indexing.bootstrap_native_test.test.origin bootstrap controls uncounted and retry delay starts after completed read...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: ConnectionTimedOut
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: UpstreamReadTimeout
+OK
+408/1022 testing.fixture.test.compressed SDK fixtures preserve exact bytes numbers and parsed ownership...OK
+409/1022 testing.fixture.test.compressed fixture allocation failures release decoded and parsed storage...OK
+410/1022 net.read_replay.test.cooperative RPC replay identity preserves exact numbers, normalizes keys, forbids writes...OK
+411/1022 net.read_replay.test.cooperative shared replay byte budget rejects overflow and releases exact reservations...OK
+412/1022 net.read_replay.test.cooperative JSON identity and ID substitution free every partial allocation...OK
+413/1022 net.read_replay.test.cooperative RPC completed timeout preserves owner clamp expiry cancellation and injected clocks...OK
+414/1022 net.http_replay.test.HTTP replay separates complete-body and Ethereum429-head transfer identities...OK
+415/1022 net.http_replay.test.HTTP replay accepts source read routes rejects broadcast and bounds JSON before recursion...OK
+416/1022 cloud.http.test.metadata cleartext policy allows only implemented hosts methods paths and required headers...OK
+417/1022 cloud.http.test.percent encoding distinguishes path slashes and literal percent signs...OK
+418/1022 cloud.http.test.transport rejects credentials in URLs header injection and cleartext before connecting...OK
+419/1022 cloud.http.test.real HTTP loopback enforces exclusive byte cap no redirect and one signed host...OK
+420/1022 cloud.http.test.opt-in native cloud transport enforces deadline cancellation byte cap and no redirect...OK
+421/1022 cloud.http.test.ADC AWS metadata IMDSv1 is explicit per request and never widens host path or token defaults...OK
+422/1022 net.json_rpc.test.shared JSON-RPC owns data rejects ambiguous envelopes and preserves safe remote code and structured data...OK
+423/1022 net.json_rpc.test.JSON integer boundaries retain full unsigned precision and reject fractional quantities...OK
+424/1022 net.json_rpc.test.JSON RPC cooperative control never advances endpoint fallback...OK
+425/1022 net.endpoint.test.shared endpoint custom RPC header URLs match production extraction duplicate replacement and form queries...OK
+426/1022 net.endpoint.test.shared endpoint canonical identity matches actual production Rust URL corpus or explicitly rejects unsupported spellings...OK
+427/1022 starknet.provider.test.Starknet provider latest confirmed calls reorg periods safe remote codes and typed receipt...OK
+428/1022 agents.scraper.starknet.test_0...OK
+429/1022 ops.rpc_metrics.test.RPC metric labels sanitize endpoints and bounded methods without retaining credentials...OK
+430/1022 ops.rpc_metrics.test.RPC metric scanner skips large params and results, bounds labels, classifies JSON RPC error...OK
+431/1022 ops.rpc_metrics.test.RPC metric actual native and pooled completions count physical successes and failures once...OK
+432/1022 ops.rpc_metrics.test.RPC metric descriptions survive request destruction and gRPC status preserves failure...OK
+433/1022 ops.rpc_metrics.test.RPC metric actual fallback observes block probes as distinct physical methods...OK
+434/1022 ops.rpc_metrics.test.RPC metric immutable scoped operation replaces default once and survives cancellation retirement...OK
+435/1022 starknet.codec.test.Starknet felt strict field range JSON selectors and Cairo serde packed bytes...OK
+436/1022 runtime.supervisor.test.supervisor timeout retains mutable role exclusively until actual worker retirement...OK
+437/1022 runtime.supervisor.test.supervisor fatal classification exposes original error halts all lanes and drains cancellation...OK
+438/1022 runtime.supervisor.test.supervisor mailbox wake bypasses interval without reusing active or retiring role...OK
+439/1022 runtime.supervisor.test.supervisor cooperative reads resume without consuming failures retries or completion...OK
+440/1022 relayer.public_address.test.CCIP public IP policy rejects private special-use and transition destinations...OK
+441/1022 net.json_bounds.test.JSON scanner rejects attacker depth before DOM allocation and ignores delimiters in strings...OK
+442/1022 cosmos.proto.test.protobuf responses reject duplicate scalars invalid booleans and missing native state...OK
+443/1022 evm.pool.test.exact JSON normalization ignores object order and decimal spelling without f64...OK
+444/1022 evm.pool.test.configuration rejects impossible thresholds before native loading...OK
+445/1022 evm.pool.test.native fallback aging uses exact SVM processed block height and Tendermint latest block probes...OK
+446/1022 evm.pool.test.native RPC owner suspends between active socket polls instead of spinning on a stalled request...OK
+447/1022 net.dynamic_tip_cache.test.tip cache Source eligibility keys ignore only blockNumber params and isolate complete endpoint identities...OK
+448/1022 net.dynamic_tip_cache.test.tip cache TTL starts at successful insertion, strict250ms expiry, and failed generations release every follower...OK
+449/1022 net.dynamic_tip_cache.test.tip cache bounded entries never evict active leaders and byte pressure releases followers without fake data...OK
+450/1022 net.dynamic_tip_cache.test.tip cache concurrent claims elect one leader and bounded followers with no I/O inside ownership lock...OK
+451/1022 net.dynamic_tip_cache.test.tip cache failed-generation follower may use newer ready result but never waits behind newer leader...OK
+452/1022 evm.provider.test.RPC envelope rejects ambiguous mismatched and malformed responses...OK
+453/1022 evm.provider.test.JSON-RPC errors retain only safe error code...OK
+454/1022 evm.provider.test.RPC configuration and invalid log ranges reject before network access...OK
+455/1022 evm.provider.test.RPC endpoint credentials and custom headers are owned sanitized and emitted once...OK
+456/1022 evm.provider.test.missing blocks and noncanonical block quantities reject...OK
+457/1022 evm.provider.test.native RPC transport enforces envelope bounds cancellation and deadline...OK
+458/1022 evm.provider.test.HTTP loopback exercises typed RPC calls and bounded envelopes...OK
+459/1022 evm.provider.test.HTTP loopback validates block and call result types...OK
+460/1022 evm.provider.test.log parser validates full metadata canonical identity and removed logs...OK
+461/1022 evm.provider.test.HTTP log filter rejects out of range and mismatched contract logs...OK
+462/1022 cosmos.tendermint.test.Tendermint concrete client declarations typecheck...OK
+463/1022 cosmos.tendermint.test.Tendermint HTTP ABI schema height and unverified proof decoding...OK
+464/1022 agents.scraper.cosmos.test.scraper Cosmos concrete source binds real Tendermint and gRPC callbacks...OK
+465/1022 agents.scraper.cosmos.test.scraper Cosmos block events retain absent transaction metadata while transaction events keep SHA256 identity...OK
+466/1022 cosmos.contracts.test.typed Cosmos clients compile with the injected gRPC transport...OK
+467/1022 cosmos.contracts.test.Cosmos delivered historical queries retain and authenticate requested height...OK
+468/1022 cosmos.contracts.test.CosmWasm contract-info distinguishes NotFound from transport and validates recipient...OK
+469/1022 cosmos.contracts.test.Cosmos announcement historical absence authenticates height and never masks pinned failure...OK
+470/1022 cosmos.grpc.test.gRPC unary framing rejects compression truncation and extra messages...OK
+471/1022 cosmos.config.test.Cosmos fees ceil exact decimal rational and preserve minimum simulation multiplier...OK
+472/1022 evm.codecs.test.strict quantities and hex data...OK
+473/1022 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+474/1022 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+475/1022 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+476/1022 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+477/1022 agents.scraper.time.test.scraper header timestamp handles leap days fractions offsets and invalid dates...OK
+478/1022 cosmos.events.test.native gas events preserve JSON quotes denom and strict attribute identity...OK
+479/1022 cosmos.events.test.CosmWasm event plaintext and base64 attribute dialects preserve canonical messages...OK
+480/1022 altvm.bech32.test.Cosmos address source fixture and BIP173 mixed case checksum...OK
+481/1022 altvm.bech32.test.generic addresses decode BIP350 without weakening Cosmos checksum policy...OK
+482/1022 altvm.protobuf.test.protobuf canonical encoder and bounded decoder...OK
+483/1022 aleo.crypto.test.Aleo pinned native primitives validate program address and BHP mapping key IDs...OK
+484/1022 aleo.worker.test.Aleo isolated worker frames own responses and rejected job is killed and reaped...OK
+485/1022 aleo.worker.test.Aleo isolated worker absolute deadline and partial output retire before return...OK
+486/1022 aleo.worker.test.Aleo isolated worker pipe bounds cancellation and process memory are enforced...OK
+487/1022 aleo.worker.test.Aleo actual isolated native worker authorizes fees and exports source proving wire through pipes...OK
+488/1022 aleo.worker.test.Aleo actual isolated local proof is bound to exact authorized execution and fee...OK
+489/1022 aleo.worker.test.Aleo actual proof worker OS sandbox forbids loopback network connections...OK
+490/1022 aleo.rest.test.Aleo REST URL matches actual Rust Url segment and bracket escaping...OK
+491/1022 aleo.rest.test.Aleo cooperative control never advances read fallback...OK
+492/1022 aleo.plaintext.test.Aleo plaintext typed nested public mapping values reject ambiguity and bounds...OK
+493/1022 aleo.codec.test.Aleo fixed body and little endian hashes preserve public source layouts...OK
+494/1022 db.json.test.serde status wire spelling nested report and fail-closed recovery...OK
+495/1022 agents.validator.readiness.test.source readiness retains unrelated blockers sorts names and reports maxima...OK
+496/1022 agents.validator.readiness.test.Eigen source delta thresholds include negative and initially zero gauges...OK
+497/1022 runtime.validator.test.consensus preserves failed endpoint denominator and authenticates local root...OK
+498/1022 runtime.validator.test.gaps and unfinalized insertions do not advance the local tree...OK
+499/1022 runtime.validator.test.conflicting finalized observations halt even after a signed checkpoint...OK
+500/1022 runtime.validator.test.thresholds match Rust ceil-half and ceil-two-thirds...OK
+501/1022 runtime.validator.test.mixed endpoint heights authenticate required-th index and every intermediate signature...OK
+502/1022 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+503/1022 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+504/1022 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+505/1022 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+506/1022 storage.local.test.writer lock excludes second writer while readers neither lock nor create paths...OK
+507/1022 storage.local.test.same signer conflict persists guard preserves old checkpoint and blocks all late writes...OK
+508/1022 storage.local.test.different signer checkpoint is overwritten without creating a false reorg...OK
+509/1022 storage.local.test.latest-first publication validates target while historical checkpoints fill and snapshot survives reopen...OK
+510/1022 storage.local.test.malformed unreadable and oversized reorg flags are never treated as absent...OK
+511/1022 storage.local.test.read errors torn checkpoint and snapshot size boundaries fail closed...OK
+512/1022 storage.local.test.failed guard persistence stays halted and can retry without accepting late writes...OK
+513/1022 storage.local.test.local sign-and-write checks durable history before generating another signature...OK
+514/1022 storage.local.test.nested and absolute writer directories are created through durable parent entries...OK
+515/1022 cloud.root.test_0...OK
+516/1022 cloud.kms.test.KMS DER signatures normalize low s and bind raw digest to configured public key...OK
+517/1022 cloud.kms.test.AWS KMS request uses DIGEST and validates response ARN algorithm DER and signer...OK
+518/1022 cloud.kms.test.GCP KMS validates digest CRC response CRC version and HSM before recovery...OK
+519/1022 cloud.kms.test.GCP integrity retry budget is three total calls and permanent errors stop immediately...OK
+520/1022 cloud.kms.test.SPKI PEM bootstrap pins secp256k1 OIDs rejects mutation and validates cloud metadata...OK
+521/1022 cloud.kms.test.AWS alias resolution owns canonical ARN pins key metadata and rejects later alias rotation...OK
+522/1022 cloud.kms.test.GCP KMS propagates explicit ADC quota billing project without mixing bearer identity...OK
+523/1022 agents.validator.evm.test.vote early completion preserves higher mixed-height quorum and tolerates stalled minority...OK
+524/1022 agents.validator.evm.test.classic fallback does not wait for a stalled redundant slot...OK
+525/1022 config.test.environment and CLI layer over JSON; empty and false remain explicit...OK
+526/1022 config.test.invalid scalar types, ambiguous keys and huge integers fail...OK
+527/1022 agents.signer.test.digest signer owns local identity and signs arbitrary raw digests without network...OK
+528/1022 agents.validator.stream_cadence.test.stream cadence retains source minimum retries thirty-second waiting samples and sixty-second idle audits...OK
+529/1022 agents.validator.cursor_init.test.cursor initialization Source ten attempts delays tenth notice and only actual success publishes false...[default] (warn): validator cursor initialization attempt 1/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 2/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 3/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 4/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 5/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 6/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 7/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 8/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 9/10 failed: RpcHttpStatus
+[default] (warn): validator cursor initialization attempt 10/10 failed: RpcHttpStatus
+OK
+530/1022 agents.validator.cursor_init.test.cursor initialization control failures do not consume a Source attempt...[default] (warn): validator cursor initialization attempt 1/10 failed: ConnectionTimedOut
+OK
+531/1022 evm.indexer.test.EVM indexer refuses invalid tags and unverified chain reads before I/O...OK
+532/1022 agents.stream.socket_owner.test.socket mailbox owns copied text counts borrowed bytes and backpressures before extra allocation...OK
+533/1022 agents.stream.socket_owner.test.outbound command cap includes active owned command and stop rejects new effects...OK
+534/1022 agents.stream.socket_owner.test.socket owner every allocation failure frees constructor mailbox and pending command ownership...OK
+535/1022 agents.validator.rpc_observation.test.physical completion snapshot survives moves and counts once without sensitive URL retention...OK
+536/1022 evm.announce.test.7 independent Foundry announcement ABI fixtures with truncations offsets padding UTF8 and aggregate bounds...OK
+537/1022 altvm.base58.test.base58 fixed vectors leading zeroes and invalid alphabet...OK
+538/1022 agents.operation.test.Rust retry import preserves manual authority stale-version precedence and rollback clamps...OK
+539/1022 runtime.relayer.test.ambiguous broadcast survives restart without creating another transaction...OK
+540/1022 runtime.relayer.test.stale metadata, insufficient payment and unverified metadata cannot submit...OK
+541/1022 runtime.relayer.test.retry curve matches production Rust boundaries...OK
+542/1022 runtime.relayer.test.source explicit delays preserve ordinary retry budget and reject stale or signed work...OK
+543/1022 runtime.relayer.test.deny/allow never discards an in-flight transaction...OK
+544/1022 runtime.relayer.test.source production confirmation delay starts at successful inclusion and retry gets a fresh window...OK
+545/1022 agents.payload_links.test.payload UUID namespace separates chain authority message and retry generation...OK
+546/1022 lander.records.test.canonical payload and transaction records retain EVM JSON...OK
+547/1022 lander.types.test.UUID, status precedence and H512 compatibility...OK
+548/1022 evm.transaction.test.EIP-155 reference transaction and independent Foundry EIP-1559 vector...OK
+549/1022 evm.transaction.test.canonical RLP zero short-byte and long-length boundaries...OK
+550/1022 evm.transaction.test.checked transaction fees chain id and nonce boundaries...OK
+551/1022 evm.transaction.test.51 production ethers fixtures match unsigned digest signed wire hash and signer...OK
+552/1022 lander.service.test.new receipt progress entry is initialized before item OOM...OK
+553/1022 agents.chain_source.test.chain source resources validate constructor bounds before loading native dependencies...OK
+554/1022 agents.chain_source.test_0...OK
+555/1022 agents.chain_source.test.Cosmos RPC direct budget stays finite and intersects both actual owner clocks...OK
+556/1022 agents.chain_source.test.Cosmos RPC direct budget preserves expiration cancellation halt and invalid bounds...OK
+557/1022 agents.announcement_source.test.announcement source constructor does no I/O and cancelled callbacks cannot touch providers...OK
+558/1022 agents.announcement_source.test.announcement source owns ordered lists bounds all bytes and cleans allocator failures...OK
+559/1022 relayer.announced_readers.test.announced readers retain latest-first locations, reorg policy and removal...OK
+560/1022 relayer.announced_readers.test.cooperative discovery resumes stable inputs and resets retained replay on cancel...OK
+561/1022 relayer.announced_readers.test.discovery active and cache allocation failures preserve ownership...OK
+562/1022 runtime.authority_gate.test.authority revocation rejects late pause acknowledgements and wakes RPC fallback...OK
+563/1022 runtime.authority_gate.test.gas cutover cannot reuse an acknowledgement for the sequenced streams alone...OK
+564/1022 agents.indexing.tx_id_queue.test.transaction-ID queue bounds admission deduplicates full IDs and rotates failed neighbors...OK
+565/1022 agents.indexing.tx_id_queue.test.transaction-ID queue allocation failures release every partial buffer...OK
+566/1022 agents.indexing.tx_id_queue.test.transaction-ID failed replay hints bound memory yield admission and expire without a busy loop...OK
+567/1022 cosmos.fallback_grpc.test.gRPC fallback retries full snapshots until at least four errors with cooperative100ms rounds...OK
+568/1022 cosmos.fallback_grpc.test.gRPC typed continuations keep identical before after calls physically distinct and memoize completed prefix once...OK
+569/1022 cosmos.fallback_grpc.test.gRPC shared height probe is serialized across fork clients and late result retains original query height...OK
+570/1022 cosmos.fallback_grpc.test.gRPC health10failures reprioritize subsequent snapshots while single endpoint never probes...OK
+571/1022 cosmos.fallback_grpc.test.gRPC probe timeout rotates without publishing stale success and cancellation releases shared probe lock...OK
+572/1022 cosmos.fallback_grpc.test.gRPC fallback releases shared quota snapshots outcomes and probe locks on every allocation failure...OK
+573/1022 cosmos.fallback_grpc.test.gRPC direct vote capture propagates control without retry or poisoning endpoint health...OK
+574/1022 agents.scraper.factory.test.scraper concrete source factory rejects mismatched clients before reading resources...OK
+575/1022 sealevel.provider.test.Solana account JSON validates owner data encoding and bounded uint...OK
+576/1022 sealevel.provider.test.SVM HTTP requests preserve finality genesis account context and schemas...OK
+577/1022 tron.provider.test.Tron wallet solidity split preserves CCIP revert bytes, rejects failed energy and historical calls...OK
+578/1022 cosmos.curl_grpc.test.gRPC native transport declarations typecheck without loading a library...OK
+579/1022 cosmos.curl_grpc.test.native libcurl HTTP2 gRPC loopback validates trailers height framing and deadline...OK
+580/1022 cosmos.curl_grpc.test.Cosmos gRPC NotFound remains distinct from authentication transport and missing status...OK
+581/1022 agents.scraper.receipt_factory.test.scraper receipt factory rejects protocol mismatch and production unbounded transports before I/O...OK
+582/1022 radix.provider.test.Radix provider declarations compile against injected native HTTP boundary...OK
+583/1022 tron.rpc.test.Tron pools preserve paths and query, reject failure envelopes and mismatched RPC IDs...OK
+584/1022 tron.rpc.test.Tron cooperative control preserves wallet and JSON RPC endpoint ordering...OK
+585/1022 agents.scraper.sealevel.test.scraper Sealevel concrete sequence factory requires finalized clients before indexing...OK
+586/1022 agents.scraper.sealevel.test.scraper Sealevel pruned canonical transaction metadata remains absent rather than an enrichable zero signature...OK
+587/1022 agents.scraper.radix.test.scraper Radix concrete source binds actual Core and Gateway callbacks...OK
+588/1022 agents.scraper.tron.test.scraper Tron concrete source binds real provider callbacks...OK
+589/1022 sealevel.log_meta.test.scraper SVM instruction variants reject every truncation wrong tag and trailing byte...OK
+590/1022 sealevel.log_meta.test.scraper SVM transaction relevance matches nine actual production Rust fixtures including ALTs inner instructions and reverted siblings...OK
+591/1022 sealevel.log_meta.test.SVM log meta allocation failure cannot become permanently unknown signers...OK
+592/1022 agents.scraper.receipts_sealevel.test.scraper Sealevel receipt matches production parsed transactions and recipient heuristic...OK
+593/1022 agents.scraper.receipts_cosmos.test.scraper Cosmos receipt decodes independently produced SDK transaction payer sequence and denomination policy...OK
+594/1022 agents.scraper.receipts_cosmos.test.scraper Cosmos recipient handles batched execution IBC packets and strict native process priority...OK
+595/1022 agents.scraper.receipts_radix.test.scraper Radix fee payer matches pinned actual SDK manifest parser for comments escapes and injection...OK
+596/1022 agents.scraper.receipts_radix.test.scraper Radix receipt preserves manifest sender primary component atto fee and source cumulative field...OK
+597/1022 agents.scraper.receipts_starknet.test.Starknet actual SDK receipt and transaction fixture preserve paid-fee TxnInfo semantics...OK
+598/1022 agents.scraper.receipts_starknet.test.Starknet receipt fetcher binds concrete deadline transport callbacks...OK
+599/1022 agents.scraper.receipts_aleo.test.Aleo receipt projection retains source fee-as-gas and zero-sender semantics...OK
+600/1022 agents.scraper.receipts_aleo.test.Aleo receipt fetcher binds concrete native and deadline transport callbacks...OK
+601/1022 evm.root.test_0...OK
+602/1022 relayer.checkpoint_reader.test.checkpoint announcement parser preserves source S3 and GCS path shapes...OK
+603/1022 relayer.checkpoint_reader.test.checkpoint location reader opens existing local history and treats every reorg flag as fatal...OK
+604/1022 storage.root.test_0...OK
+605/1022 sealevel.mailbox.test.mailbox adapter declarations typecheck with concrete read-only client...OK
+606/1022 sealevel.mailbox.test.HTTP process preparation resolves recipient ISM and account-meta fixpoint without keys...OK
+607/1022 sealevel.mailbox.test.HTTP recipient cannot smuggle payer into dynamic CPI accounts...OK
+608/1022 sealevel.accounts.test.mailbox account decoders reject every truncated prefix and wrong discriminator...OK
+609/1022 sealevel.accounts.test.inbox verifies canonical PDA and account owner...OK
+610/1022 altvm.solana.test.shortvec canonical u16 boundary roundtrip and rejection...OK
+611/1022 altvm.solana.test.legacy compilation deduplicates merges privileges and signs canonical message...OK
+612/1022 altvm.solana.test.PDA seeds validate limits and canonical bump yields an offcurve key...OK
+613/1022 radix.events.test.Radix decimal fixed 18 digit arithmetic bounds and negative source semantics...OK
+614/1022 radix.sbor.test.SBOR rejects malformed sizes truncation booleans and trailing values...OK
+615/1022 tron.contracts.test.Tron strict nested announcement locations ABI and aggregation metadata bounds...OK
+616/1022 tron.contracts.test.Tron contract verify fallback preserves cooperative control before any module queries...OK
+617/1022 tron.contracts.test.Tron CCIP lookup preserves actual constant-result revert binds sender and rejects empty or malformed bytes...OK
+618/1022 tron.transaction.test.Tron checked energy fees TAPOS expiry raw signing owner and classification...OK
+619/1022 altvm.tron.test.Tron zero-address base58check fixture and checksum rejection...OK
+620/1022 altvm.tron.test.Tron raw transaction TAPOS and direct signature...OK
+621/1022 sealevel.announcement.test.Sealevel announcement instruction accounts data and replay ID roundtrip reject truncation...OK
+622/1022 sealevel.announcement.test.Sealevel announcement bytes accounts and replay PDA match actual production Rust program fixtures...OK
+623/1022 radix.contracts.test.Radix delivered state query pins and authenticates exact state version...OK
+624/1022 radix.contracts.test.Radix announcement historical absence authenticates state version...OK
+625/1022 agents.destination.types.test.Destination canonical recovery binds authority and rejects edited context...OK
+626/1022 agents.destination.factory.test.Native destination dispatcher declarations cover concrete retained chain clients...OK
+627/1022 agents.destination.factory.test.Native destination metadata dispatcher rejects unconfigured origin before any network or credentials...OK
+628/1022 agents.destination.factory.test.Native destination scopes separate credential HTTP owner and restores job cancellation pointers...OK
+629/1022 agents.destination.factory.test.RPC timeout nonRPC nested owner scopes restore capability on error...OK
+630/1022 agents.destination.factory.test.RPC timeout Factory scope binds actual minimum deadline and restores separate credential owner...OK
+631/1022 agents.destination.factory.test.native announcement halt is independent of job cancellation and rechecked immediately before every key effect...OK
+632/1022 agents.destination.factory.test.native metadata cache uses immutable metric rules across messages and preserves public signer context...OK
+633/1022 relayer.ccip.test.CCIP authentication hash matches production Rust and TypeScript fixture...OK
+634/1022 relayer.ccip.test.CCIP response pending shapes retry boundedly and bare404 fails immediately...OK
+635/1022 relayer.ccip.test.CCIP OffchainLookup matches independent Foundry ABI and bounds every truncation...OK
+636/1022 relayer.ccip.test.CCIP GET skips signer POST caches verified signature and invalid URL never signs...OK
+637/1022 relayer.ccip.test.CCIP concurrent equal hashes coalesce KMS success and in-flight failure...OK
+638/1022 starknet.crypto.test.Starknet native crypto optional pinned-library hashing signing and malformed scalars...OK
+639/1022 starknet.transaction.test.Starknet account legacy and modern calldata preserve offsets and checked fee bounds...OK
+640/1022 aleo.prover.test.Aleo delegated prover refreshes endpoint key seals binary auth and preserves JWT cookie session...OK
+641/1022 aleo.prover.test.Aleo delegated gateway504 never forwards the authorization to another prover...OK
+642/1022 aleo.prover.test.Aleo prover cookie host path expiry and deletion enforce session authority...OK
+643/1022 agents.destination.reveal.test.SVM reveal source tick arithmetic URLs and ownership reject malformed inputs...OK
+644/1022 agents.destination.reveal.test_0...OK
+645/1022 agents.destination.reveal.test.SVM reveal commitment CLMM overrides ATAs wrapped SOL and CCS authentication survive allocation failures...OK
+646/1022 agents.destination.reveal.test.SVM reveal observes genuine process Custom10 before shared preparation returns simulation failure...OK
+647/1022 agents.destination.reveal.test_1...OK
+648/1022 relayer.metadata_parallel.test.executor lifetime stop token cancels active blocking and queued jobs before join...OK
+649/1022 relayer.metadata_parallel.test.executor lifetime stop token retires a retained cooperative continuation...OK
+650/1022 relayer.metadata.test.aggregation chooses cheapest verified child and preserves present empty metadata...OK
+651/1022 relayer.metadata.test.recursive routing and cumulative ISM counts fail at the configured boundary...OK
+652/1022 relayer.metadata.test.aggregation preserves module order when verification is unpriced and rejects false verification...OK
+653/1022 relayer.metadata.test.CCIP pending is terminal only without threshold and never masks healthy metadata or refusal...OK
+654/1022 relayer.metadata.test.metadata refusals cancellation and pending IO propagate across optional branches and serial checkpoints...OK
+655/1022 relayer.metadata.test.routing aggregation preserve full felt module addresses while validators stay Ethereum addresses...OK
+656/1022 relayer.metadata.test_0...OK
+657/1022 ops.validator_observability.test.production Registry publishes full set with missing indices and 180 second membership grace...OK
+658/1022 ops.validator_observability.test.concurrent observation sets retain every validator and OOM does not remove existing series...OK
+659/1022 ops.validator_observability.test.observation allocation failures preserve existing production series...OK
+660/1022 ops.validator_observability.test.Active observation is best effort when metric storage is exhausted...[default] (warn): validator observation metric update failed
+OK
+661/1022 ops.validator_observability.test.Active emits terminal ISM status and latches only real Merkle mismatch...OK
+662/1022 agents.destination.sealevel.test.SVM destination recovers independent SDK wire gates signing and rotates exact full signature broadcasts...OK
+663/1022 agents.destination.sealevel.test.SVM destination concurrent Helius estimation requires independent deadline scoped HTTP owner...OK
+664/1022 agents.destination.cosmos.test.Cosmos destination actual SDK account simulation DIRECT signature and native hash persist before broadcast...OK
+665/1022 agents.destination.cosmos.test.Cosmos destination metadata Source uses full32 module addresses and real CW query contract...OK
+666/1022 agents.destination.cosmos.test.Cosmos destination receipt binds actual SDK transaction hash index and canonical block before finality or expense...OK
+667/1022 agents.destination.radix.test.Radix destination restores exact independent SDK intent and gates key reads and native submit...OK
+668/1022 agents.destination.radix.test.Radix destination retirement reads epoch at exact configured finalized state rather than moving gateway tip...OK
+669/1022 agents.destination.tron.test.Tron destination persists exact intent before signing and signed native identity before broadcast...OK
+670/1022 agents.destination.starknet.test.Starknet destination restores canonical Invoke intent and persists native signed hash before broadcast...OK
+671/1022 agents.destination.starknet.test.Starknet batch fee allocation generated floor conservation seed 0x6261746368666565 cases 1024...OK
+672/1022 agents.destination.starknet.test_0...OK
+673/1022 agents.destination.aleo.test.Aleo destination resumes exact persisted authorization in isolated worker and validates real proof before native broadcast...OK
+674/1022 agents.destination.aleo.test.Aleo destination receipt binds production confirmed transaction to canonical native block inclusion...OK
+675/1022 sealevel.transaction.test.SVM budget bytes, saturating costs and signed native identity...OK
+676/1022 cosmos.transactions.test.Cosmos transaction client declarations typecheck...OK
+677/1022 altvm.cosmos.test.direct signing preserves chain account and sequence replay protection...OK
+678/1022 ops.matching.test.matching list preserves empty defaults and exact ID semantics...OK
+679/1022 ops.matching.test.hot matcher keeps borrowed old snapshot alive across update...OK
+680/1022 ops.matching.test.body uses lowercase hex without prefix when native regex is available...OK
+681/1022 ops.matching.test.lower hex encoding is lowercase unprefixed and bounded...OK
+682/1022 ops.matching.test.matching list allocation failure cleans only initialized native handles...OK
+683/1022 sealevel.instructions.test.instruction discriminators match production SHA256 domain strings...OK
+684/1022 sealevel.instructions.test.dynamic account sanitizer preserves only explicitly separate identity...OK
+685/1022 sealevel.instructions.test.metadata spec recursion cannot bypass node depth or threshold limits...OK
+686/1022 altvm.ripemd160.test.RIPEMD-160 published vectors and multi-block padding boundaries...OK
+687/1022 radix.runtime.test.Radix expiry requires reconciliation and never proves nondelivery...OK
+688/1022 agents.destination.reveal_queue_test.test.UR reveal queue survives replay rotates routes CAS guards edits and scopes new cycles without process markers...OK
+689/1022 agents.destination.reveal_runner_test.test.UR reveal runner replays delivered commit without process signing persists CCS authorization and recovers exact signed auxiliary transaction...OK
+690/1022 lander.mev.test.ICA routing requires mailbox process recipient and reveal body...OK
+691/1022 lander.gas.test.Rust escalation saturation caps order and zero estimate...OK
+692/1022 lander.gas.test.fee bounds preserve base allowance and saturate u256...OK
+693/1022 lander.gas.test.priority estimator handles outliers and empty rewards...OK
+694/1022 lander.gas.test.gas limit caps never truncate paid floor...OK
+695/1022 lander.multicall.test.empty aggregate and result use canonical dynamic arrays...OK
+696/1022 lander.multicall.test.aggregate value addition overflows instead of wrapping...OK
+697/1022 lander.multicall.test.Error string reason is borrowed and strictly validated...OK
+698/1022 lander.multicall.test.aggregate encodings exactly match pinned ethers...OK
+699/1022 lander.multicall.test.aggregate results borrow return data and revert reasons...OK
+700/1022 lander.multicall.test.aggregate result decoding rejects counts offsets bounds padding and trailing data...OK
+701/1022 lander.backoff.test.source age backoff boundaries and saturation...OK
+702/1022 agents.validator_task.test.validator signing date uses current UTC and bounds epoch conversion...OK
+703/1022 agents.validator_task.test.validator metric adapter uses actual source names labels and durable worker progress...OK
+704/1022 agents.validator.mailbox.test.announcement mailbox rejects unknown shape selectors and oversized requests...OK
+705/1022 agents.validator.mailbox.test.native mailbox validates signature and allocation failures unwind decoded arenas...OK
+706/1022 agents.validator.http.test.actual source validator routes schemas methods and query bounds...OK
+707/1022 agents.validator.http.test.Merkle row budget matches serialization and rejects before the next row allocation...OK
+708/1022 agents.validator.http.test.29 actual production Axum validator routes exact status schema fields methods and errors...OK
+709/1022 agents.destination.root.test_0...OK
+710/1022 agents.validator.index_source.test.transaction-ID validator wrapper forwards current protocol authority and preserves absent capability...OK
+711/1022 agents.validator.chain_checkpoint.test.checkpoint readers preserve source finality arithmetic and never fake historical state...OK
+712/1022 agents.validator.frontier_audit.test.canonical replay authenticates mixed-count quorum without fabricating historical calls...OK
+713/1022 agents.validator.frontier_audit.test.minority conflicting roots and votes before trusted watermark cannot authenticate...OK
+714/1022 agents.validator.frontier_audit.test.canonical audit allocation failures leave no partially initialized proof...OK
+715/1022 cosmos.announcement.test.Cosmos announcement wire preserves exact CW JSON and native protobuf public payload...OK
+716/1022 cosmos.announcement.test.Cosmos announcement bytes match exact production CW payload and real SDK native protobuf fixture...OK
+717/1022 radix.announcement.test.Radix announcement manifest uses transparent EthAddress tuple and public signature...OK
+718/1022 radix.announcement.test.Radix announcement manifest bytes match actual pinned production SDK transparent EthAddress...OK
+719/1022 agents.validator.replay.test.read replay identity ignores only RPC correlation ID and validates original response before rewriting...OK
+720/1022 agents.validator.replay.test.read replay cloning owns headers and rewrites correlation ID without modifying cached response...OK
+721/1022 agents.validator.replay.test.read replay allocation failures unwind and write methods are rejected...OK
+722/1022 ops.http.test.generated malformed request boundaries stay bounded and panic free...OK
+723/1022 ops.http.test.aggregate reservation is atomic and strictly bounded...OK
+724/1022 agents.relayer_task.test.effects halt blocks the real destination signer before touching key state...OK
+725/1022 agents.relayer_task.test.metadata cache growth preserves pending public byte reservations and releases evicted bytes...OK
+726/1022 agents.relayer_task.test.relayer Root tip cache opt-in is confined to origin indexing options...OK
+727/1022 agents.relayer_task.test.relayer Root always caches unmetered default ISM with contract caching disabled and publishes no wallet before initialization...OK
+728/1022 agents.relayer_task.test.relayer Root observation capacity follows static routes beyond old 256 lifetime contexts...OK
+729/1022 agents.relayer_task.test.Root production metadata observer preserves success under registry pressure and drains wait ownership...[default] (warn): relayer telemetry update failed: MetricSeriesLimit
+[default] (warn): relayer telemetry update failed: MetricStorageLimit
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: MetricTrackerLimit
+OK
+730/1022 runtime.lane_owner.test.eight stalled destination owners leave shared supervisor workers available...OK
+731/1022 runtime.lane_owner.test.expired owner keeps stable cancellation and exclusive context through retirement...OK
+732/1022 runtime.lane_owner.test.owner completion before deadline survives delayed polling and idle teardown creates no thread...OK
+733/1022 agents.credentials.test.credential Manager local-only roles never read ambient files or call transport...OK
+734/1022 agents.credentials.test.credential Manager preserves different KMS container and S3 profile identities and refreshes date...OK
+735/1022 agents.credentials.test.credential Manager keeps GCS user identity separate from KMS ADC identity...OK
+736/1022 agents.credentials.test.credential Manager KMS custom chain falls through container failure to web identity without profile discovery...OK
+737/1022 agents.credentials.test.credential Manager partial unused web identity cannot shadow valid KMS container credentials...OK
+738/1022 agents.credentials.test.credential Manager allocation failures preserve owners and wipe independent static leases...OK
+739/1022 agents.credentials.test.credential Manager storage SDK process chain remains separate from KMS custom container chain...OK
+740/1022 agents.credentials.test.credential Manager modern KMS wellknown ADC and legacy GCS metadata use different discovery and quota rules...OK
+741/1022 agents.credentials.test.credential Manager legacy GCS application-default does not silently adopt modern authorized-user ADC...OK
+742/1022 agents.relayer.evm_driver.test_0...OK
+743/1022 ops.stream_metrics.test_0...OK
+744/1022 ops.runtime_denylist.test.runtime denylist validates constraints and rejects dangerous aliases...OK
+745/1022 ops.runtime_denylist.test.runtime denylist parses exact addresses and prunes expired rules...OK
+746/1022 ops.runtime_denylist.test.runtime denylist keeps active snapshot after fetch and parse failures...OK
+747/1022 ops.runtime_denylist.test.runtime expiry retains nanoseconds prunes during outage and owns returned reason...OK
+748/1022 ops.runtime_denylist.test.runtime canonical fingerprints ignore object order and exclude expired rules...OK
+749/1022 ops.runtime_denylist.test.runtime Tron rules reject checksum typos in scalar address and matching arrays...OK
+750/1022 ops.runtime_denylist.test.runtime allocation failure releases partially parsed rules and failed hot replacements...OK
+751/1022 ops.runtime_denylist.test.206 unchanged production Rust denylist parser cases including canonical fingerprints and expiry...OK
+752/1022 runtime.cancel_gate.test.cancelled gate waiter cannot bind or release another operation's client...OK
+753/1022 agents.stream.relayer.test.stream cursor rejects gaps conflicts and bounded duplicate history...OK
+754/1022 agents.stream.relayer.test.duplicate window eviction and sequence exhaustion are explicit...OK
+755/1022 agents.stream.relayer.test.injected reconnect jitter is bounded and rejection backoff is explicit...OK
+756/1022 agents.relay_policy.test.relayer policy preserves loader defaults first gas match and explicit context match...OK
+757/1022 agents.relay_policy.test.relayer policy denies whitelist blacklist and address while hot snapshots can update...OK
+758/1022 agents.relay_policy.test.relayer policy cleans partially constructed rule context and matcher ownership...OK
+759/1022 agents.relay_policy.test.relayer queued signer gate applies new runtime address rules and owns denial reason across refresh...OK
+760/1022 agents.relay_policy.test.lane gas policy observes shared administrative matching updates...OK
+761/1022 ops.address_blacklist.test.address scanner preserves Rust prefix and empty-needle semantics...OK
+762/1022 relayer.policies.test.minimum zero requires an observed payment; none does not...OK
+763/1022 relayer.policies.test.minimum preserves unspent paid gas and subsidizes exhausted budgets...OK
+764/1022 relayer.policies.test.fraction policy enforces L2 gas but returns full transaction gas and rejects division zero...OK
+765/1022 runtime.commands.test.command timeout retains running request and cancellation until actual owner retirement...OK
+766/1022 runtime.commands.test.cancelled queued command has no owner mutation and shutdown retires its owned payload...OK
+767/1022 ops.admin.json.test.message json round trips source field and body representation...OK
+768/1022 ops.admin.json.test.gas policy matching list and errors parse source shapes...OK
+769/1022 ops.admin.json.test.matching rule debug format matches rust derive...OK
+770/1022 cloud.google_adc.test_0...OK
+771/1022 cloud.credential_io.test.credential cache writes atomic private files and refuses missing parents...OK
+772/1022 cloud.command.test.credential command owns bounded stdout hides failures and kills process group on deadline...OK
+773/1022 cloud.identity.test.UTC credential expiration validates calendar and explicit environment requires complete pair...OK
+774/1022 cloud.identity.test.IMDSv2 token role credentials cache and refresh use only injected time and transport...OK
+775/1022 cloud.identity.test.GCP metadata scopes project cache refresh and response flavor verification...OK
+776/1022 cloud.identity.test.authorized-user ADC refresh escapes form secrets and selects the correct credential parser...OK
+777/1022 cloud.identity.test.STS web identity form uses rotated injected token and caches temporary credentials...OK
+778/1022 cloud.identity.test.STS structural parser rejects duplicate credential fields unbalanced XML and entities...OK
+779/1022 cloud.identity.test.ECS container credentials are cached and full URI cleartext is explicitly constrained...OK
+780/1022 cloud.identity.test.opt-in service-account ADC JWT exchange matches external signature and caches token...OK
+781/1022 cloud.identity.test.profile credential RFC3339 offsets and signed AssumeRole use exact STS structural path...OK
+782/1022 cloud.aws_profile.test_0...OK
+783/1022 cloud.rs256.test.JWT claims require Google audience service account email and bounded lifetime...OK
+784/1022 cloud.rs256.test.opt-in OpenSSL RS256 agrees with external Node generated ephemeral fixtures...OK
+785/1022 agents.relayer.evm_accounting.test_0...OK
+786/1022 agents.relayer.native_driver.test.source600s Native inclusion hook enqueues before hold survives restart and respects halt...OK
+787/1022 agents.relayer.native_driver.test.native preparation limit follows Source supported protocol subset...OK
+788/1022 agents.relayer.native_driver.test.native submission phase restoration keeps Ready Confirm and popped signed work out of fresh preparation...OK
+789/1022 agents.destination.source_metadata.test.native metadata source preserves full felt addresses and rejects non-padded Tron modules before IO...OK
+790/1022 agents.destination.source_metadata.test_0...OK
+791/1022 agents.destination.source_metadata.test.native metadata Aleo pads authenticated quorum signatures at original validator positions...OK
+792/1022 agents.metadata_session.test.rejected checkpoint cache reservation never releases another session's quota...OK
+793/1022 sealevel.metadata.test.SVM composite inline selection prioritizes non-Null and checks identity...OK
+794/1022 sealevel.metadata.test.SVM inline composite late reorg refusal overrides an already satisfied threshold...OK
+795/1022 sealevel.metadata.test.SVM inline composite allocator ownership on every allocation failure...OK
+796/1022 relayer.quorum.test.arrival order selects root while output signatures follow validator order; Aleo pads...OK
+797/1022 relayer.quorum.test.range boundary includes missing latest slots without claiming a quorum...OK
+798/1022 relayer.app_context.test.metadata root app classification preserves explicit precedence strict errors and post fetch TTL...OK
+799/1022 relayer.app_context.test.successful default RPC survives clock failure and no cache still classifies strictly...OK
+800/1022 sealevel.ism.test.SVM validators Borsh rejects every truncated prefix...OK
+801/1022 sealevel.inline_metadata.test.SVM inline executor joins all independent continuations and late refusal beats early threshold...OK
+802/1022 agents.relayer.rpc_budget.test.protected estimate sequence shares one deadline and restores its client's transport...OK
+803/1022 relayer.evm_source.test.full-prefix proof authenticates every leaf and rejects a changed checkpoint...OK
+804/1022 relayer.evm_source.test.member ABI bounds address width and threshold are strict...OK
+805/1022 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+806/1022 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+807/1022 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+808/1022 sealevel.signers.test.SVM parsed transaction signer lookup keeps sponsored depositor and native identity...OK
+809/1022 agents.chain_source_testing.test.source resource read forks own IDs journals and sanitized environment while borrowing transport...OK
+810/1022 agents.chain_source_testing.test.source resource configured metadata parallelism admits healthy ninth call behind eight stalled calls on one endpoint...OK
+811/1022 agents.chain_source_testing.test.source resource rejects impossible session parallelism and fanout without truncating peer sets...OK
+812/1022 agents.chain_source_testing.test.source resource Cosmos forks retain gRPC fallback snapshots across native HTTP2 yields and share one height probe...OK
+813/1022 ops.cache_metrics_test.test.cache metrics actual decisions aggregate both address partitions and count serialized JSON...OK
+814/1022 ops.cache_metrics_test.test.cache metrics key and output allocation errors are failures never premature hits...OK
+815/1022 ops.cache_metrics_test.test.cache metrics disabled and default ISM operations are completely unmetered...OK
+816/1022 ops.cache_metrics_test.test.cache metrics registry allocation failure cannot change cache success...[default] (warn): contract cache metric update failed: OutOfMemory
+OK
+817/1022 ops.cache_metrics_test.test.cache metrics actual CachedSource distinguishes cache success miss from remote call failure...OK
+818/1022 ops.cache_metrics_test.test.cache metrics grow replace budget eviction and partition retirement never reset cumulative totals...OK
+819/1022 ops.cache_metrics_test.test.cache metrics concurrent callbacks preserve shared counters and partition gauges...OK
+820/1022 ops.cache_metrics_test.test.cache metrics Source method labels cover all typed query kinds without default ISM...OK
+821/1022 relayer.contract_cache_test.test.Rust moduleType and route keys preserve origin message domain and context isolation...OK
+822/1022 relayer.contract_cache_test.test.Rust members recipient and CCIP keys preserve function recipient and message isolation...OK
+823/1022 relayer.contract_cache_test.test.malformed CCIP slices fail cloning without pointer overflow or leaks...OK
+824/1022 relayer.contract_cache_test.test.generic TTL environment override and distinct default ISM TTL match source...OK
+825/1022 relayer.contract_cache_test.test.disabled oversized and LRU behavior stays bounded without caching failures...OK
+826/1022 relayer.contract_cache_test.test.growing replacement evicts other entries and preserves aggregate byte bound...OK
+827/1022 relayer.contract_cache_test.test.classifier preserves first match app context module chain and failure controls...OK
+828/1022 relayer.contract_cache_test.test.default ISM fetch errors are not cached and control errors propagate...OK
+829/1022 relayer.contract_cache_test.test.cache and classifier clean every allocation failure...OK
+830/1022 relayer.contract_cache_test.test.parallel workers retire values within global count and byte bounds...OK
+831/1022 agents.destination.public_wallet_test.test.health native public wallet encodings use actual initialized signer identities...OK
+832/1022 agents.destination.public_wallet_test.test.health native Aleo public wallet uses actual native addressText...OK
+833/1022 agents.health_set_test.test.configured scraper public identity is ready for the first actual balance read...OK
+834/1022 agents.health_set_test.test.configured scraper remote public identity yields before wallet snapshot and cancels cleanly...OK
+835/1022 agents.health_set_test.test.health role set selects destinations indexed chains and wallet-free validator origin without constructor requests...OK
+836/1022 agents.health_set_test.test.health role set actual shared runtime observes late public wallet and drains before providers...OK
+837/1022 agents.health_set_test.test.health role fixture failure unwinds suspended supervisor before registry and providers...OK
+838/1022 agents.health_set_test.test.health public wallet publication copies atomically and exposes only caller-owned text...OK
+839/1022 agents.health_set_test.test.health provider constructor OOM is isolated and recovery clears only its shared critical reason...OK
+840/1022 agents.health_metrics_test.test.Source monitor cadence has two startup passes, fixed60s ticks and skips missed intervals...OK
+841/1022 agents.health_metrics_test.test.monitor retains wallet snapshot/stage over PIO, queries next details without repeating balance...OK
+842/1022 agents.health_metrics_test.test.failed wallet does not suppress chain, failed chain preserves real prior samples and absent block omits sample...[default] (warn): Common health metric update failed: BalanceUnavailable
+[default] (warn): Common health metric update failed: ChainUnavailable
+OK
+843/1022 agents.health_metrics_test.test.validator no wallet callback or eager identity work; late identity is loaded only on cadence; identity rotation bounded...[default] (warn): Common health metric update failed: HealthWalletIdentityChanged
+OK
+844/1022 agents.health_metrics_test.test.health samples use configured decimals, Source unsupported gas zero after success, and maxU256 stays finite...OK
+845/1022 agents.health_metrics_test.test.health pending wallet snapshot survives identity change and cancellation emits no fabricated samples...OK
+846/1022 agents.health_metrics_test.test.health task construction allocation failures release copied labels and never perform identity or RPC work...OK
+847/1022 agents.health_metrics_test.test.health mutable public identity is copied under publisher lock into task buffer...OK
+848/1022 agents.health_provider_test.test.health provider Ethereum uses latest base fee not gasPrice, null block stays absent, balance exact request...OK
+849/1022 agents.health_provider_test.test.health provider Sealevel finalized slot and processed wallet balance preserve distinct Source commitments...OK
+850/1022 agents.health_provider_test.test.health provider Cosmos and CosmosNative use latest Tendermint block, canonical asset ABCI protobuf...OK
+851/1022 agents.health_provider_test.test.health provider Radix Gateway tip, account XRD balance call and Decimal attos use Source routes...OK
+852/1022 agents.health_provider_test.test.health provider Tron solidity head and eth balance, Starknet block number/fee token balance and Aleo latest height...OK
+853/1022 agents.health_provider_test.test.health native monitor construction reads no key/network, cooperative completion emits only physical agent_metrics requests...OK
+854/1022 agents.health_provider_test.test.health Aleo public address balance uses actual native decoder and Source absent credits mapping zero...OK
+855/1022 agents.public_identity_test.test.public identity local Ethereum Tron Cosmos and CosmosNative match production SDK identities without auth...OK
+856/1022 agents.public_identity_test.test.public identity SVM Radix and Starknet retain Source public address formats without signing...OK
+857/1022 agents.public_identity_test.test.public identity absent signer cancellation and invalid key fail before transport discovery...OK
+858/1022 agents.public_identity_test.test.public identity AWS and GCP query public key only retain pending attempt and never sign or discover native auth for injected lease...OK
+859/1022 agents.public_identity_test.test.public identity explicit signer credential scope uses real Manager without unrelated ambient identities...OK
+860/1022 agents.public_identity_test.test.public identity Aleo resolves actual private key through existing isolated SDK worker without proving...OK
+861/1022 agents.public_identity_test.test.public identity canceled managed pending lookup retires all auth and restarts a fresh attempt...OK
+862/1022 agents.public_identity_test.test.public identity pending lookup honors one absolute deadline without another request...OK
+863/1022 agents.public_identity_test.test.public identity every allocation failure releases signer manager response and public storage...OK
+864/1022 agents.public_identity_test.test.public identity real auth-only native transport performs one signed GetPublicKey then retires without chain replay...OK
+865/1022 agents.public_identity_test.test.public identity actual ADC executable receives aggregate remaining budget and cancellation before any HTTP...OK
+866/1022 transaction_adapter_tests.test_0...OK
+867/1022 transaction_adapter_consumer_native_test.test.common transaction consumer persists omitted Cosmos gas and tree rows once without moving gas watermark...OK
+868/1022 transaction_adapter_aleo_native_test.test.Aleo native transaction companion filters the exact accepted delivery and preserves production metadata...OK
+869/1022 transaction_adapter_aleo_native_test.test.Aleo native transaction companion accepts an empty accepted receipt and propagates cancellation and invalid IDs...OK
+870/1022 transaction_adapter_aleo_native_test.test.Aleo native transaction companion rejects rejected missing malformed and noncanonical transactions...OK
+871/1022 transaction_adapter_aleo_native_test.test.Aleo actual same-index batch reaches common Companion and real Rocks idempotently...OK
+872/1022 transaction_adapter_aleo_native_test.test.Aleo same-kind emitter index conflict rejects before any Rocks writes...[default] (warn): origin transaction receipt rejected; retained for retry: ConflictingTransactionReceiptLog
+OK
+873/1022 transaction_adapter_aleo_native_test.test.Aleo actual Core range accepts program emitter authority over logical hook...OK
+874/1022 transaction_adapter_aleo_authority_native_test.test.Aleo authority uses actual program emitters and same-index gas and tree namespaces...OK
+875/1022 relayer_control_delegated_tests.test.native manual retry is canonical durable and preserves in-flight message and dispatched hash...OK
+876/1022 relayer_control_delegated_tests.test.native running caller timeout retires after durable mutation and orphan cannot resurrect...OK
+877/1022 relayer_control_delegated_tests.test.native reprocess uses canonical store reset and source pending debug...OK
+878/1022 relayer_control_delegated_tests.test.native gas broadcast rebuilds current and future policies and queue snapshot is source shaped...OK
+879/1022 relayer_control_delegated_tests.test.native nonce command resets manager scan and reopens recovery including null sentinel...OK
+880/1022 relayer_control_delegated_tests.test.native bindings bound ranges cancel and dynamically hide unready origins...OK
+881/1022 relayer_control_delegated_tests.test_0...OK
+882/1022 public_relay_delegated_tests.test.native public relay extracts sidecars preserves canonical rows and deduplicates IGP...OK
+883/1022 public_relay_delegated_tests.test.native public relay rejects non-CCTP without Active or gas writes...OK
+884/1022 public_relay_delegated_tests.test.native public relay cross-destination saturation aborts earlier reservations...OK
+885/1022 public_relay_delegated_tests.test.native public relay queued cancellation leaves no Active or sidecar...OK
+886/1022 public_relay_delegated_tests.test.native public relay running reserve timeout aborts without partial handoff...OK
+887/1022 public_relay_delegated_tests.test.native public relay chain check and receipt share one whole extraction deadline...OK
+888/1022 public_relay_delegated_tests.test.native public relay source gate wait observes cancellation...OK
+889/1022 public_relay_delegated_tests.test.native public relay admission gate wait observes cancellation...OK
+890/1022 public_relay_delegated_tests.test_0...OK
+891/1022 starknet_group_native_test.test.Starknet Root group one multi-call durable transaction survives lost response and restart then600s per-message completion...[default] (warn): native submission group RPC: FixtureResponseLost
+OK
+892/1022 starknet_group_native_test.test.Starknet Root scalar maxBatch1 and allzero fallback retain full canonical fee once...OK
+893/1022 starknet_group_native_test.test.Starknet Root mixed zero weights persist present zero expenditure and conserve one whole fee...OK
+894/1022 starknet_group_native_test.test.Starknet Root nonfinal inclusion reorg replays reserved exact nonce without resigning or extending confirmation...OK
+895/1022 starknet_group_native_test.test.Starknet Root popped quote PIO is excluded from positive submit cap and resumes one selected group...OK
+896/1022 starknet_group_native_test.test.Starknet Root imported Rust ready without native intent stays queue pressure and cannot enter group...OK
+897/1022 starknet_group_native_test.test.Starknet Root signed group reopens actual Rocks and fresh Factory Lane without nonce query estimate or executable resign...OK
+898/1022 starknet_group_native_test.test.Starknet Root seeded crash schedules preserve all member barriers and forbid effects before durable common signature...OK
+899/1022 starknet_group_native_test.test.Starknet Root fresh receipt clock starts common confirmation after blocking RPC...OK
+900/1022 starknet_group_native_test.test.Starknet Root retained included nonce blocks competing fresh group before executable signing...OK
+901/1022 starknet_group_native_test.test.Starknet Root included GC poll budget remains bounded while normal ready work advances...OK
+902/1022 starknet_group_native_test.test.Starknet Root ordinary receipt failure preserves signed owner while finalized delivery drains and retires group...[default] (warn): native submission group RPC: FixtureReceiptUnavailable
+OK
+903/1022 starknet_group_native_test.test.Starknet Root included receipt error rotates bounded GC and clears healthy later group...[default] (warn): native submission group RPC: FixtureReceiptUnavailable
+OK
+904/1022 starknet_group_native_test.test.Starknet Root final canonical receipt refreshes provisional allocation audit and matches actual once-only member ledgers...OK
+905/1022 starknet_group_native_test.test.Starknet Root mixed delivery after reorg consumes exact original group then retries only undelivered member...OK
+906/1022 starknet_group_native_test.test.Starknet Root scalar signed nonce superseded proof retires without inventing unknown fee...OK
+907/1022 starknet_group_native_test.test.Starknet Root atomic fullFelt nonce retirement survives both WAL boundaries and real restart...OK
+908/1022 starknet_group_native_test.test.Starknet Root negative nonce and canonical fence leave complete signed ownership untouched...[default] (warn): native submission group RPC: NoncanonicalStarknetReceipt
+OK
+909/1022 starknet_group_native_test.test.Starknet Root all independently delivered orphan retains nonce until canonical consumption proof...OK
+910/1022 starknet_group_native_test.test.Starknet Root per-member failed receipt after coordinator read failure cannot partially reset group...[default] (warn): native submission group RPC: FixtureReceiptUnavailable
+OK
+911/1022 starknet_group_native_test.test.Starknet Root delayed shared receipt counts prior per-member submission and inactive member exactly once...OK
+912/1022 starknet_group_native_test.test.Starknet Root changed canonical inclusion refreshes fence before releasing settled group...OK
+913/1022 starknet_group_native_test.test.Starknet Root higher pending nonce cannot starve exact lower orphan replay...[default] (warn): native submission group RPC: FixtureNonceNotReady
+OK
+914/1022 starknet_group_native_test.test.Starknet Root alternates priority before old deadline callbacks so current progresses independently of old group count...OK
+915/1022 agents.destination.group_commit_native_test.test.native group atomically restages cross-origin members before shared signature and confirmation recovery...OK
+916/1022 agents.destination.group_commit_native_test.test.native group confirmation replay never extends started or elapsed source window...OK
+917/1022 agents.destination.group_commit_native_test.test.native group commit failures cannot expose partial member state and unknown signed commit recovers...OK
+918/1022 agents.destination.group_commit_native_test.test.native group every allocation preserves partial constructor and atomic snapshot ownership...OK
+919/1022 agents.destination.group_commit_native_test.test.native group every retirement allocation preserves whole group signed or retired snapshot...OK
+920/1022 agents.destination.group_commit_native_test.test.native group retirement rejects wrong account missing absence and different proof height without any row transition...OK
+921/1022 agents.destination.starknet_batch_testing.test.Starknet batch actual V3 one nonce quote sign broadcast canonical receipt and exact recovery both encodings...OK
+922/1022 agents.destination.starknet_batch_testing.test.Starknet batch rejects incomplete altered authority calldata manifest nonce signature and persistence before broadcast...OK
+923/1022 agents.destination.starknet_batch_testing.test.Starknet batch zero total is ineligible before query mixed zero has record present zero share and refresh is unsigned only...OK
+924/1022 agents.destination.starknet_batch_testing.test.Starknet batch every allocation failure unwinds partial intents decoded calldata and receipt validation...OK
+925/1022 agents.destination.starknet_batch_testing.test.Starknet batch forwards every query cancellation deadline pending and allocation control without production signature...OK
+926/1022 agents.destination.shared_remote_signer_timeout_test.test.shared remote Tron actual Manager lease Factory digest physical timeout retains controls and RPC retry capability...OK
+927/1022 agents.destination.shared_remote_signer_timeout_test.test.shared remote Tron actual Manager web identity auth physical timeout keeps owner deadline cancel and halt...OK
+928/1022 db.golden_test.test.93 production Rust DB codec fixtures and all fixed-record truncation boundaries...OK
+929/1022 relayer.remote_checkpoints_testing.test.remote checkpoint engine fans out beyond eight stalled peers and checks every guard first...OK
+930/1022 relayer.remote_checkpoints_testing.test.remote checkpoint global guard rejects a late malformed flag and ignore skips its data...OK
+931/1022 relayer.remote_checkpoints_testing.test.remote checkpoint snapshots retain local reader across registry rotation and combine local remote quorum...OK
+932/1022 relayer.remote_checkpoints_testing.test.remote checkpoint engine serves concurrent origins and cancels one without poisoning later sessions...OK
+933/1022 relayer.remote_checkpoints_testing.test.remote checkpoint GCS preserves legacy root guard folder keys owned bearer and canonical latest objects...OK
+934/1022 relayer.remote_checkpoints_testing.test.remote checkpoint unreadable guards skip peers and deadline cancellation releases running disk snapshots...OK
+935/1022 relayer.remote_checkpoints_testing.test.remote checkpoint engine partial allocation failures release registries sessions and native owners...OK
+936/1022 relayer.remote_checkpoints_testing.test.remote checkpoint ordered fallback skips ignored flags unreadable and invalid candidates before one guarded fetch...OK
+937/1022 relayer.remote_checkpoints_testing.test.remote checkpoint empty location registration removes cache while an in-flight snapshot remains valid...OK
+938/1022 relayer.remote_checkpoints_testing.test.remote checkpoint async retained request polls without blocking beyond eight stalled peers and owns validator IDs...OK
+939/1022 relayer.remote_checkpoints_testing.test.remote checkpoint async request preserves global flag barrier and cancellation consumes once...OK
+940/1022 agents.scraper.starknet_testing.test.Starknet scraper concrete HTTP source pins counters by hash and derives canonical receipt event identity...OK
+941/1022 agents.scraper.starknet_testing.test.Starknet scraper factory consumes typed committed settings and owns endpoint strings...OK
+942/1022 agents.destination.reveal_oracle_test.test.SVM reveal matches37 actual production Rust helper and Solana SDK full wire fixtures...OK
+943/1022 metadata_parallel_delegated_tests.test.parallel threshold returns with eight stalled peers and later builds are independent...OK
+944/1022 metadata_parallel_delegated_tests.test.failed verification does not reach threshold...OK
+945/1022 metadata_parallel_delegated_tests.test.first observed refusal wins but a cancelled late refusal cannot veto...OK
+946/1022 metadata_parallel_delegated_tests.test.unpriced valid candidates preserve arrival set and index order without fake zero gas...OK
+947/1022 metadata_parallel_delegated_tests.test.parallel CCIP pending is terminal only after unmet threshold...OK
+948/1022 metadata_parallel_delegated_tests.test.terminal multisig and CCIP observations exclude replay and cancellation...OK
+949/1022 metadata_parallel_delegated_tests.test.EVM proof observation latches only actual root mismatch...OK
+950/1022 metadata_parallel_delegated_tests.test.root ISM app context preserves explicit default Unknown and replay semantics...OK
+951/1022 metadata_parallel_delegated_tests.test.MessageId observation replays once and publishes full set without changing refusal...OK
+952/1022 metadata_parallel_delegated_tests.test.direct root observation submits once across checkpoint replay...OK
+953/1022 metadata_parallel_delegated_tests.test.observation enqueue saturation preserves valid metadata and releases its fork exactly once...OK
+954/1022 metadata_parallel_delegated_tests.test.pending latest observation retires on global stop without publishing...OK
+955/1022 metadata_parallel_delegated_tests.test.detached observation publishes exactly 27 validators to production Registry...OK
+956/1022 metadata_parallel_delegated_tests.test.threshold one MessageIdMultisig fast path cancels trailing discovery...OK
+957/1022 metadata_parallel_delegated_tests.test.fast path fallback reuses discovered source types...OK
+958/1022 metadata_parallel_delegated_tests.test.verification replay does not consume cumulative ISM count twice...OK
+959/1022 metadata_parallel_delegated_tests.test.nested fast path fallback counts a fresh build rather than a replay...OK
+960/1022 metadata_parallel_delegated_tests.test.nested aggregations cooperate on eight workers and enforce exact shared bounds...OK
+961/1022 metadata_parallel_delegated_tests.test.OOM at every allocation cancels and retires without output leaks...OK
+962/1022 metadata_parallel_delegated_tests.test.nested cancellation ancestry retires at every allocation failure...OK
+963/1022 metadata_parallel_delegated_tests.test.EVM fork rejects uncloneable CCIP handler context...OK
+964/1022 metadata_parallel_delegated_tests.test.EVM fork owns cloned CCIP handler through actual retirement...OK
+965/1022 metadata_parallel_delegated_tests.test.native Pool yields eight stalled peers and verifies healthy EVM children three times...OK
+966/1022 metadata_parallel_delegated_tests.test.one leaf observation survives twenty quorum and candidate verification suspensions...OK
+967/1022 metadata_parallel_delegated_tests.test.nested leaf observation survives twenty parent verification replays...OK
+968/1022 metadata_parallel_delegated_tests.test.successful latest read completing after global stop cannot publish...OK
+969/1022 metadata_parallel_delegated_tests.test.latest-only storage OOM does not veto an exact signed quorum...OK
+970/1022 metadata_parallel_delegated_tests.test.latest-only fork OOM does not veto an exact signed quorum or leak owned copies...OK
+971/1022 metadata_parallel_delegated_tests.test.early threshold child uses owned EVM fork clock after parent frame returns...OK
+972/1022 metadata_parallel_delegated_tests.test.early threshold discards uncancellable leaf completion without a terminal metric...OK
+973/1022 agents.metadata_session_test.test.checkpoint session retains completed discovery and no-pool results per attempt...OK
+974/1022 agents.metadata_session_test.test.checkpoint session allocation failures preserve ownership...OK
+975/1022 agents.metadata_session_test.test.checkpoint session shared byte quota fails closed and releases...OK
+976/1022 agents.metadata_session_test.test.native session returns 27-peer quorum and latest without replay refetch...OK
+977/1022 agents.metadata_session_test.test.native Builder publishes full 27-peer observation through production Registry...OK
+978/1022 agents.metadata_session_test.test.eight blocked multisig jobs do not delay the healthy ninth Null child...OK
+979/1022 agents.metadata_session_test.test.parent cancel returns promptly and children never reuse the caller flag...OK
+980/1022 agents.metadata_session_test.test.parent cancellation fixture cancels and joins before early error unwind...OK
+981/1022 relayer.evm_source_cache_tests.test.default ISM getter pins block and CachedSource forks use independent child getter...OK
+982/1022 relayer.evm_source_cache_tests.test.two independent discoveries make progress round robin and drain shared quota...OK
+983/1022 ops.admin.query.test.query parser decodes source parameters...OK
+984/1022 ops.stream_metrics_test.test.Source relayer WS lifecycle records actual decisions and suppresses unchanged gauge polls...OK
+985/1022 ops.stream_metrics_test.test.Source relayer WS terminal parity and event labels are bounded actual outcomes...OK
+986/1022 ops.stream_metrics_test.test.Source WS cursor labels raise atomically over RPC progress and canonical max-only probes...OK
+987/1022 ops.stream_metrics_test.test.Source relayer stream metrics release every partial allocation...OK
+988/1022 cloud.google_adc_test.test.Google ADC file federation exchanges actual STS grant caches token and refreshes injected subject...OK
+989/1022 cloud.google_adc_test.test.Google ADC URL federation retains configured headers and IAM impersonation uses scoped STS token...OK
+990/1022 cloud.google_adc_test.test.Google ADC impersonated authorized-user source pins quota delegates and rejects nested impersonation...OK
+991/1022 cloud.google_adc_test.test.Google ADC executable requires explicit source optin supports valid output cache and uses direct whitespace argv...OK
+992/1022 cloud.google_adc_test.test.Google ADC file federation covers every allocation failure and rejects insecure STS...OK
+993/1022 cloud.google_adc_test.test.Google ADC AWS federation signs native Source GetCallerIdentity envelope and never sends AWS request...OK
+994/1022 cloud.google_adc_test.test.Google ADC AWS federation preserves explicit IMDSv2 token region role and credentials metadata sequence...OK
+995/1022 cloud.google_adc_test.test.opt-in Google ADC service account uses independent verified direct access JWT without OAuth network...OK
+996/1022 cloud.google_adc_test.test.Google ADC JSON subject preserves multiline SAML through form encoding...OK
+997/1022 cloud.aws_profile_test.test.AWS profile resolves Source nested role chain self static preference and credentials-file override...OK
+998/1022 cloud.aws_profile_test.test.AWS profile process credentials are bounded cached case-insensitive and refreshed at expiration...OK
+999/1022 cloud.aws_profile_test.test.AWS profile rejects cycles unknown named sources conflicting chains and permits credentials-free default fallback...OK
+1000/1022 cloud.aws_profile_test.test.AWS profile SSO refresh writes rotated session cache before role credentials and preserves old cache after write failure...OK
+1001/1022 cloud.aws_profile_test.test.AWS profile SDK environment skips partial pairs uses actual fallback secret and trims only session token...OK
+1002/1022 cloud.aws_profile_test.test.AWS profile every allocation failure preserves recursive provider document ownership...OK
+1003/1022 agents.destination.source_metadata_testing.test.native metadata actual Tron HTTP threshold finishes before stalled sibling with isolated replay forks...OK
+1004/1022 agents.destination.source_metadata_testing.test.native metadata cached Tron forks keep independent handlers and immutable classification...OK
+1005/1022 agents.destination.source_metadata_testing.test.native EVM origin to Tron CCIP metadata uses actual wallet revert nativeFork and cached full32 wrapper...OK
+1006/1022 transaction_adapter_cosmos_test.test.Cosmos transaction companion recovers omitted native gas and tree events at canonical nonzero transaction index...OK
+1007/1022 transaction_adapter_cosmos_test.test.Cosmos transaction companion accepts a valid empty receipt and propagates cancellation...OK
+1008/1022 transaction_adapter_cosmos_test.test.Cosmos transaction companion rejects missing failed wrong-ID reorg and malformed metadata...OK
+1009/1022 transaction_adapter_cosmos_test.test.Cosmos transaction companion owns response-independent events on every allocation failure...OK
+1010/1022 transaction_adapter_cosmos_test.test_0...OK
+1011/1022 transaction_adapter_tron_test.test.Tron transaction companion recovers exact ABI gas and tree rows from one hash-addressed receipt...OK
+1012/1022 transaction_adapter_tron_test.test.Tron transaction companion accepts a valid empty receipt and propagates cancellation...OK
+1013/1022 transaction_adapter_tron_test.test.Tron transaction companion rejects missing failed identity hash and log metadata failures...OK
+1014/1022 transaction_adapter_tron_test.test.Tron transaction companion propagates cooperative pending I/O...OK
+1015/1022 transaction_adapter_tron_test.test.Tron transaction companion releases receipt logs and output on every allocation failure...OK
+1016/1022 transaction_adapter_tron_test.test_0...OK
+1017/1022 transaction_adapter_radix_test.test.Radix transaction companion recovers exact SBOR gas and tree events at real receipt indices...OK
+1018/1022 transaction_adapter_radix_test.test.Radix transaction companion accepts a valid empty receipt and propagates cancellation...OK
+1019/1022 transaction_adapter_radix_test.test.Radix transaction companion rejects missing failed wrong identity height and malformed SBOR...OK
+1020/1022 transaction_adapter_radix_test.test.Radix transaction companion propagates cooperative pending I/O...OK
+1021/1022 transaction_adapter_radix_test.test.Radix transaction companion owns decoded SBOR and output on every allocation failure...OK
+1022/1022 transaction_adapter_radix_test.test_0...OK
+1021 passed; 1 skipped; 0 failed.

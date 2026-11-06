@@ -1,0 +1,4 @@
+{
+  "exit_code": 0,
+  "expected": "Missing RSA fixture should fail if the substantive opt-in is reachable; an all-root-smoke pass would disprove this packaging gap"
+}

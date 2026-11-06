@@ -1,0 +1,37 @@
+{
+  "crate": "zig/src/starknet/native-crypto",
+  "command": [
+    "cargo",
+    "+1.98.0",
+    "clippy",
+    "--locked",
+    "--offline",
+    "--all-targets",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto",
+  "started_utc": "2026-11-06T06:01:10.646676+00:00",
+  "free_bytes_before": 42826432512,
+  "source_sha256_chunks": {
+    "zig/src/starknet/native-crypto/Cargo.toml": [
+      "18d0722543056c3fd4cfd4ca56204f59",
+      "ca2eb2f90743ad0e794ec91c4406de07"
+    ],
+    "zig/src/starknet/native-crypto/Cargo.lock": [
+      "f093a1662902a50d4293b89e6e5a75f1",
+      "963775c7ad949ce2daca29bec40d54d4"
+    ],
+    "zig/src/starknet/native-crypto/src/lib.rs": [
+      "b60e45be103c4aeb66585f2abe390bf3",
+      "335400ae19c275e49617b246d258b8fe"
+    ]
+  },
+  "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+  "environment": {
+    "CARGO_INCREMENTAL": "0"
+  },
+  "status": "running"
+}

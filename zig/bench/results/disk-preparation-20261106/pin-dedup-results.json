@@ -1,0 +1,835 @@
+{
+  "executed": true,
+  "scope": "Parent authorized hash+mode hardlink dedup of completed immutable task benchmark pins, preserving every path/content/executable semantics. No Source/manifests/oracles/global caches/volumes mutated.",
+  "plan": "pin-dedup-plan.json",
+  "all_paths_bytes_modes_uid_gid_mtime_xattrs_acl_identical": true,
+  "all_protected_role_oracle_sdk_archive_hashes_identical": true,
+  "protected_artifacts": [
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/relayer",
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/scraper",
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/validator",
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/abi.o",
+      "sha256_chunks": [
+        "3a0294cf3cc32d8d39d8160f316dacba",
+        "cd6872845b426c8ed06e03751578cbf5"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/cargo-build.log",
+      "sha256_chunks": [
+        "9576f1f7e73fc2bb1ec2336aae60cb48",
+        "5c591eadc60a1b998573411c34057e08"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/cargo-messages.jsonl",
+      "sha256_chunks": [
+        "20a4210d6915a5771c82c819e02ae0f4",
+        "be873143fdfbb384070554e008ee01dd"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "sha256_chunks": [
+        "47967209ef6ac19a0535aab801721995",
+        "ef065ffb6a6e48da0ff765acfa8c6e2a"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "sha256_chunks": [
+        "0d127682f40c021aaa7ac1a2be83a9e1",
+        "4a7de4e5586007db541babdd4709aea5"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "sha256_chunks": [
+        "69637bb2e93e53754d16ac2c206c65e3",
+        "18372cfd90b1c45bcbb8727de934f197"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "sha256_chunks": [
+        "46b099671486a27e44a2bfe1feedc33d",
+        "a75d445f6a0b427f5ee6a0a5d517b8c7"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "sha256_chunks": [
+        "edc94c727fbc3ce0bbf3b8e0720e2dfd",
+        "458a96d30262d780bb2c2aa8f43abb26"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "sha256_chunks": [
+        "4dd69640a11c7d9ca0e083abcda67fb1",
+        "6ef7f7178768adc80dd5628971e5a0f7"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "sha256_chunks": [
+        "06de5b23f0e2e439d2754cb1fc4f9322",
+        "c4f8fde79dd2e008beb9443efa6afb8c"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/manifest.json",
+      "sha256_chunks": [
+        "af7280533f85acc6a4616311e53bfd2b",
+        "290e911a3527bd4b0246fd9c8cbbb661"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/native-probe",
+      "sha256_chunks": [
+        "af03ec075151643c8af4be5f363d5992",
+        "0f81d56ba4ec594bde00ea31d39c3987"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/native-probe-build.log",
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/evm/target/release/ziggy-evm-oracle",
+      "sha256_chunks": [
+        "aa29b61dbade379d6c35745d84d5cbdf",
+        "c0ecfb93cb7e4fe71026bb9134fbdb68"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/target/release/packed-prover",
+      "sha256_chunks": [
+        "08d1cbbfdf71e0deef7b921d0ff98eae",
+        "1e72ad5ad6fd970b7b1c2c56879114ae"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/target/release/settings-merge",
+      "sha256_chunks": [
+        "026c148ee0cb952e4ece465c9f9f74d1",
+        "f1ee82f3c6582e298b43e6e1ec5efe6e"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/target/release/ziggy-db-codec-oracle",
+      "sha256_chunks": [
+        "d13d91a6e45bc45a74b6cfd8b719c27e",
+        "f148d0f09ad4a1ee7127a67fbcea80ec"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/target/release/ziggy-rust-reference",
+      "sha256_chunks": [
+        "de1a7ce2afa16e1c527fe875082bff28",
+        "0868bfadaaa5c3088aeef277e5b5c52e"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/target/release/ziggy-tron-oracle",
+      "sha256_chunks": [
+        "a322ee32f17d1037148b1b9a73dfe824",
+        "8394d60eeb0f6ac0cebcb6a2177452e5"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/tron/target/release/ziggy-tron-oracle",
+      "sha256_chunks": [
+        "4a6666852d84a60d2abc4f1a09fcb5da",
+        "f4cc2fdcf46ae6a8f61625a5f47409f2"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/deps/libziggy_aleo_crypto.dylib",
+      "sha256_chunks": [
+        "c2d54d88c5009b9bf014835f45aed739",
+        "a5ea140232f9f217fbbcd7256f218b4b"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.dylib",
+      "sha256_chunks": [
+        "c2d54d88c5009b9bf014835f45aed739",
+        "a5ea140232f9f217fbbcd7256f218b4b"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/deps/libziggy_aleo_vm.dylib",
+      "sha256_chunks": [
+        "ad8afda4fd78a8b074bea40c84086632",
+        "bb2a5649bb16238f2ebbc364ae1af08a"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.dylib",
+      "sha256_chunks": [
+        "ad8afda4fd78a8b074bea40c84086632",
+        "bb2a5649bb16238f2ebbc364ae1af08a"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/net/testing/endpoint-reference/target/release/ziggy-endpoint-oracle",
+      "sha256_chunks": [
+        "6e57cdd87ddc628de875b8e72e80f381",
+        "480334c1acac6ee197d4fd431a4a1964"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/deps/libziggy_starknet_crypto.dylib",
+      "sha256_chunks": [
+        "3cc4267be662704e48ca5c4b9e1c4286",
+        "b6d368511b8fc423fc4d9019033d6a16"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib",
+      "sha256_chunks": [
+        "3cc4267be662704e48ca5c4b9e1c4286",
+        "b6d368511b8fc423fc4d9019033d6a16"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/testing/reference/target/release/ziggy-starknet-oracle",
+      "sha256_chunks": [
+        "0528d1eb7e0c1291724752005bfabcf3",
+        "9aa95277a0e054cf2986239e5a185613"
+      ]
+    },
+    {
+      "path": "/tmp/ziggy-aleo-vm-worker",
+      "sha256_chunks": [
+        "92270198c4788f7baf3fe937b1087359",
+        "6e537be330c750cc9eaa3825ceee62fc"
+      ]
+    }
+  ],
+  "verified_pins": 67,
+  "atomic_replacements": [
+    {
+      "path": "zig/bench/results/scraper-process-finalhead-pg18-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899050117,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-initial-pg18-restartport-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899036704,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-initial2-pg18-restartport-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899041812,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke-pg16-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899030079,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke2-pg18-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899030510,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke3-pg18-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899036467,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke4-sameport-pg18-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899049745,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-timeout-cleanup-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/69d4121f958d24013e55c0afe5865396/rust",
+      "old_inode": 899059753,
+      "new_inode": 899060621,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-finalhead-pg18-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "old_inode": 899050119,
+      "new_inode": 899060623,
+      "sha256_chunks": [
+        "8146e882e9b357b3b91cf258337d289f",
+        "89b2acc746a10e32b75862754c67662b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-initial2-pg18-restartport-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "old_inode": 899041814,
+      "new_inode": 899060623,
+      "sha256_chunks": [
+        "8146e882e9b357b3b91cf258337d289f",
+        "89b2acc746a10e32b75862754c67662b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke4-sameport-pg18-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "old_inode": 899049747,
+      "new_inode": 899060623,
+      "sha256_chunks": [
+        "8146e882e9b357b3b91cf258337d289f",
+        "89b2acc746a10e32b75862754c67662b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-timeout-cleanup-pg16-15-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/8146e882e9b357b3b91cf258337d289f/zig",
+      "old_inode": 899059755,
+      "new_inode": 899060623,
+      "sha256_chunks": [
+        "8146e882e9b357b3b91cf258337d289f",
+        "89b2acc746a10e32b75862754c67662b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-finalhead-pg18-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899050121,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-initial-pg18-restartport-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899036708,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-initial2-pg18-restartport-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899041816,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke-pg16-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899030087,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke2-pg18-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899030521,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke3-pg18-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899036471,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke4-sameport-pg18-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899049749,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-timeout-cleanup-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "canonical": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/pinned/ff5c3552213fca6a6b464d0c1f8d4207/init-db",
+      "old_inode": 899059757,
+      "new_inode": 899060625,
+      "sha256_chunks": [
+        "ff5c3552213fca6a6b464d0c1f8d4207",
+        "539e8377b8e1a7e8c5d45270de0da9e5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke-pg16-nonquiet/pinned/167b36929b2fc780c7647bc9d0474606/zig",
+      "canonical": "zig/bench/results/scraper-process-initial-pg18-restartport-nonquiet/pinned/167b36929b2fc780c7647bc9d0474606/zig",
+      "old_inode": 899030085,
+      "new_inode": 899036706,
+      "sha256_chunks": [
+        "167b36929b2fc780c7647bc9d0474606",
+        "e80d3dc2ff1542f5c9fce0c49c399ee5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke2-pg18-nonquiet/pinned/167b36929b2fc780c7647bc9d0474606/zig",
+      "canonical": "zig/bench/results/scraper-process-initial-pg18-restartport-nonquiet/pinned/167b36929b2fc780c7647bc9d0474606/zig",
+      "old_inode": 899030519,
+      "new_inode": 899036706,
+      "sha256_chunks": [
+        "167b36929b2fc780c7647bc9d0474606",
+        "e80d3dc2ff1542f5c9fce0c49c399ee5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke3-pg18-nonquiet/pinned/167b36929b2fc780c7647bc9d0474606/zig",
+      "canonical": "zig/bench/results/scraper-process-initial-pg18-restartport-nonquiet/pinned/167b36929b2fc780c7647bc9d0474606/zig",
+      "old_inode": 899036469,
+      "new_inode": 899036706,
+      "sha256_chunks": [
+        "167b36929b2fc780c7647bc9d0474606",
+        "e80d3dc2ff1542f5c9fce0c49c399ee5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899312517,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899322254,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-2/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899285949,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-3/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899286115,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-4/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899286459,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899309259,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-7/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899310243,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899310659,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/1f71fc2367b83bd3728940be083b23e4/zig_validator",
+      "old_inode": 899311499,
+      "new_inode": 899285524,
+      "sha256_chunks": [
+        "1f71fc2367b83bd3728940be083b23e4",
+        "eff5a94ae76900c212629a360f3220d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899312515,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899322251,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-2/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899285947,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-3/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899286113,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-4/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899286457,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899309257,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-7/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899310241,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899310657,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/3ebecdcf76ded141a16eeb5d78133320/rust_validator",
+      "old_inode": 899311497,
+      "new_inode": 899285548,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899312512,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899322249,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-2/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899285945,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-3/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899286111,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-4/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899286455,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899309255,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-7/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899310239,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899310655,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/5f266894ab0b81beaa6026ca67c8c2ca/zig",
+      "old_inode": 899311495,
+      "new_inode": 899285522,
+      "sha256_chunks": [
+        "5f266894ab0b81beaa6026ca67c8c2ca",
+        "c5e83285ff76a3b16dedecc8a7526791"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899312510,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899322247,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-2/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899285943,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-3/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899286109,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-4/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899286453,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899309253,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-7/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899310237,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899310653,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "canonical": "zig/bench/results/whole-relayer-smoke-actual/pinned/f103c0d8dee889ce605751ff83de4464/rust",
+      "old_inode": 899311491,
+      "new_inode": 899285546,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    }
+  ],
+  "unique_inode_allocated_bytes_before": 2895163392,
+  "unique_inode_allocated_bytes_after": 299323392,
+  "unique_inode_allocated_reduction_bytes": 2595840000,
+  "free_disk_bytes_before": 39591346176,
+  "free_disk_bytes_after": 42085531648,
+  "observed_free_disk_delta_bytes": 2494185472,
+  "allocation_qualification": "Measured st_blocks once per inode, not apparent du size. This is an allocated-inode reduction; APFS shared extents and concurrent host writes prevent exclusive attribution of global free-space delta.",
+  "elapsed_seconds": 4.326398832956329,
+  "live_descriptor_check": "No candidate descriptor/executable mapping before mutation; Parent confirmed both old harness/CLI stopped and external worker no-execution gate."
+}

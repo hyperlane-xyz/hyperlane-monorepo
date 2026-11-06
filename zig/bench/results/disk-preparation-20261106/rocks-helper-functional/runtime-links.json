@@ -1,0 +1,9 @@
+{
+  "observed_utc": "2026-11-06T01:08:11.095121+00:00",
+  "no_compiler_target_runtime_library_paths": true,
+  "links": {
+    "oracle": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle:\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.178.0)\n\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.101.1)\n\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1351.101.1)\n\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3423.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n",
+    "unit-tests": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/pinned/ziggy-rocks-oracle-tests:\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.178.0)\n\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.101.1)\n\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1351.101.1)\n\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3423.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n",
+    "zig-interop": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/pinned/zig-db-interop:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "scope": "Move only existing cfg(test) module after all exported items; no ABI/function/dependency changes",
+  "before_sha256_chunks": [
+    "03595c86751d450005a3b4c114bf16e6",
+    "8a9c14581556dd774df7887e8f3e2063"
+  ],
+  "moved_source_sha256_chunks": [
+    "12c77cd334130f3bba9e694604b6b5dc",
+    "e2d179ce2496e34667188d2767821546"
+  ],
+  "final_sha256_chunks": [
+    "12c77cd334130f3bba9e694604b6b5dc",
+    "e2d179ce2496e34667188d2767821546"
+  ],
+  "non_test_nonempty_source_lines_identical_in_order": true,
+  "functional_library_qualification": "Existing runtime DSO predates test-module reorder. Non-test function text is identical; final cold matrix rebuild + native SDK acceptance still required."
+}

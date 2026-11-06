@@ -1,0 +1,52 @@
+{
+  "crate": "zig/src/starknet/native-crypto",
+  "command": [
+    "cargo",
+    "+1.98.0",
+    "clippy",
+    "--locked",
+    "--offline",
+    "--all-targets",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto",
+  "started_utc": "2026-11-06T06:01:10.646676+00:00",
+  "free_bytes_before": 42826432512,
+  "source_sha256_chunks": {
+    "zig/src/starknet/native-crypto/Cargo.toml": [
+      "18d0722543056c3fd4cfd4ca56204f59",
+      "ca2eb2f90743ad0e794ec91c4406de07"
+    ],
+    "zig/src/starknet/native-crypto/Cargo.lock": [
+      "f093a1662902a50d4293b89e6e5a75f1",
+      "963775c7ad949ce2daca29bec40d54d4"
+    ],
+    "zig/src/starknet/native-crypto/src/lib.rs": [
+      "b60e45be103c4aeb66585f2abe390bf3",
+      "335400ae19c275e49617b246d258b8fe"
+    ]
+  },
+  "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+  "environment": {
+    "CARGO_INCREMENTAL": "0"
+  },
+  "status": "passed",
+  "exit_code": 0,
+  "free_bytes_after": 42732752896,
+  "finished_utc": "2026-11-06T06:01:25.347983+00:00",
+  "source_unchanged": true,
+  "raw_log": {
+    "path": "zig/bench/results/rust-bridge-checks/starknet.log.gz",
+    "sha256_chunks": [
+      "65beb0135d43bbe50aa89159e9a0ace6",
+      "905db78b989a2481508d24f33d284068"
+    ],
+    "decoded_sha256_chunks": [
+      "92ac09d8d5851dfe16bc6f2dcdcf6f93",
+      "48dc3ecdb81b804eb3d1807d40ab5553"
+    ]
+  }
+}

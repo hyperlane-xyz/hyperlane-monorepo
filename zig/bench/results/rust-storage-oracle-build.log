@@ -1,0 +1,5 @@
+warning: /Users/pbio/work/ziggy/rust/main/hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-core` (manifest) generated 1 warning
+   Compiling ziggy-rust-reference v0.1.0 (/Users/pbio/work/ziggy/zig/reference)
+    Finished `release` profile [optimized] target(s) in 8.01s

@@ -1,0 +1,678 @@
+{
+  "passed": true,
+  "scope": "Actual relayer executable on disposable Anvil/repository contracts/public key11.\n\nCorrectness + durable recovery, not a throughput benchmark or production rollout.\nRust HyperlaneRocksDB/FullPayload reads independently decode the stopped database.\n",
+  "binaries": {
+    "relayer_sha256_chunks": [
+      "9e789f837632f3346fc256b55d16d223",
+      "de5a22bf557c01479c0672b36fa78e9c"
+    ],
+    "validator_sha256_chunks": [
+      "1f71fc2367b83bd3728940be083b23e4",
+      "eff5a94ae76900c212629a360f3220d8"
+    ],
+    "rust_oracle_sha256_chunks": [
+      "4493ef8be51da171cd18de8e9cd68fcc",
+      "d7e1e8b364b370952698c792612fa9ce"
+    ]
+  },
+  "validator_stop": {
+    "exit": 0,
+    "milliseconds": 4.291791003197432,
+    "signal": "SIGTERM"
+  },
+  "telemetry": {
+    "get_status": 200,
+    "head_status": 200,
+    "head_bytes": 0,
+    "bytes": 13836,
+    "sha256_chunks": [
+      "b625325844f43c3f7cca2b4e65bf61c5",
+      "597f189e74675f26faee005e0d4cb861"
+    ],
+    "source_base_version": "3.0.0",
+    "agent": "relayer"
+  },
+  "delivery_ms": 7060.488082934171,
+  "first_stop": {
+    "exit": 0,
+    "milliseconds": 16.118125058710575,
+    "signal": "SIGTERM"
+  },
+  "restart_stop": {
+    "exit": 0,
+    "milliseconds": 16.09962503425777,
+    "signal": "SIGTERM"
+  },
+  "stalled_stop": {
+    "exit": 0,
+    "milliseconds": 22.24945812486112,
+    "signal": "SIGTERM"
+  },
+  "restart_nonce_unchanged": true,
+  "receipt_stall_requests": 1,
+  "origin_progress_during_receipt_stall": true,
+  "gas_expenditure_recorded": true,
+  "first_rust_readback": {
+    "messages": [
+      {
+        "id_chunks": [
+          "4f41ca5dac994c54b9cc256ed021b273",
+          "9bd951b112f7f8f19a01856723077f22"
+        ],
+        "insertion_id_chunks": [
+          "4f41ca5dac994c54b9cc256ed021b273",
+          "9bd951b112f7f8f19a01856723077f22"
+        ],
+        "nonce": 0,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "2711a238-a0cb-8133-8b56-d9ffedfdf050"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "111553",
+          "tokens_used": "1968280844868"
+        }
+      },
+      {
+        "id_chunks": [
+          "f6b6b1f190e907c4c5b8041ae433015b",
+          "628575b344a1f6b30fa9df73f2867547"
+        ],
+        "insertion_id_chunks": [
+          "f6b6b1f190e907c4c5b8041ae433015b",
+          "628575b344a1f6b30fa9df73f2867547"
+        ],
+        "nonce": 1,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "2a4adc4d-7c46-8463-80c7-ac4494ae2de2"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "125222",
+          "tokens_used": "1698829397102"
+        }
+      },
+      {
+        "id_chunks": [
+          "87a87fb1aca8947984f6e3a1f67f2d31",
+          "73b4ac330deaa08372f278aeb851f7a5"
+        ],
+        "insertion_id_chunks": [
+          "87a87fb1aca8947984f6e3a1f67f2d31",
+          "73b4ac330deaa08372f278aeb851f7a5"
+        ],
+        "nonce": 2,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "bf0e2309-4a17-8e09-aaed-78faa2b73ea4"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "155173",
+          "tokens_used": "2400157153433"
+        }
+      }
+    ],
+    "reader": "actual production HyperlaneRocksDB + FullPayload decoder",
+    "sealed_payload_links": [
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "2711a238a0cb81338b56d9ffedfdf050"
+        ]
+      },
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "bf0e23094a178e09aaed78faa2b73ea4"
+        ]
+      },
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "2a4adc4d7c46846380c7ac4494ae2de2"
+        ]
+      }
+    ]
+  },
+  "stalled_rust_readback": {
+    "messages": [
+      {
+        "id_chunks": [
+          "4f41ca5dac994c54b9cc256ed021b273",
+          "9bd951b112f7f8f19a01856723077f22"
+        ],
+        "insertion_id_chunks": [
+          "4f41ca5dac994c54b9cc256ed021b273",
+          "9bd951b112f7f8f19a01856723077f22"
+        ],
+        "nonce": 0,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "2711a238-a0cb-8133-8b56-d9ffedfdf050"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "111553",
+          "tokens_used": "1968280844868"
+        }
+      },
+      {
+        "id_chunks": [
+          "f6b6b1f190e907c4c5b8041ae433015b",
+          "628575b344a1f6b30fa9df73f2867547"
+        ],
+        "insertion_id_chunks": [
+          "f6b6b1f190e907c4c5b8041ae433015b",
+          "628575b344a1f6b30fa9df73f2867547"
+        ],
+        "nonce": 1,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "2a4adc4d-7c46-8463-80c7-ac4494ae2de2"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "125222",
+          "tokens_used": "1698829397102"
+        }
+      },
+      {
+        "id_chunks": [
+          "87a87fb1aca8947984f6e3a1f67f2d31",
+          "73b4ac330deaa08372f278aeb851f7a5"
+        ],
+        "insertion_id_chunks": [
+          "87a87fb1aca8947984f6e3a1f67f2d31",
+          "73b4ac330deaa08372f278aeb851f7a5"
+        ],
+        "nonce": 2,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "bf0e2309-4a17-8e09-aaed-78faa2b73ea4"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "155173",
+          "tokens_used": "2400157153433"
+        }
+      },
+      {
+        "id_chunks": [
+          "0d10ef40f6ac18010e45a3065c21189f",
+          "7ae91f67e906b5d055734f1a201bb1c4"
+        ],
+        "insertion_id_chunks": [
+          "0d10ef40f6ac18010e45a3065c21189f",
+          "7ae91f67e906b5d055734f1a201bb1c4"
+        ],
+        "nonce": 3,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(PendingInclusion)",
+            "uuid": "b10c6f2f-8df9-8224-a468-ee71b3d34b7d"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": null,
+        "spent": {
+          "gas_used": "0",
+          "tokens_used": "0"
+        }
+      },
+      {
+        "id_chunks": [
+          "9021733a96542c7f3f326d0ecb643a96",
+          "b44941494b5b99671e2825ecb8d4dd75"
+        ],
+        "insertion_id_chunks": [
+          "9021733a96542c7f3f326d0ecb643a96",
+          "b44941494b5b99671e2825ecb8d4dd75"
+        ],
+        "nonce": 4,
+        "payloads": [],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": null,
+        "spent": {
+          "gas_used": "0",
+          "tokens_used": "0"
+        }
+      }
+    ],
+    "reader": "actual production HyperlaneRocksDB + FullPayload decoder",
+    "sealed_payload_links": [
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "b10c6f2f8df98224a468ee71b3d34b7d"
+        ]
+      },
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "2711a238a0cb81338b56d9ffedfdf050"
+        ]
+      },
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "bf0e23094a178e09aaed78faa2b73ea4"
+        ]
+      },
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "2a4adc4d7c46846380c7ac4494ae2de2"
+        ]
+      }
+    ]
+  },
+  "rpc_methods": {
+    "eth_chainId": 27,
+    "eth_blockNumber": 45,
+    "eth_getTransactionCount": 18,
+    "eth_getBlockByNumber": 128,
+    "eth_call": 74,
+    "eth_getCode": 7,
+    "eth_estimateGas": 10,
+    "eth_gasPrice": 5,
+    "eth_feeHistory": 5,
+    "eth_sendRawTransaction": 5,
+    "eth_getTransactionReceipt": 9,
+    "eth_getLogs": 7
+  },
+  "messages": [
+    {
+      "id_chunks": [
+        "0x4f41ca5dac994c54b9cc256ed021b2",
+        "739bd951b112f7f8f19a01856723077f",
+        "22"
+      ],
+      "label": "null",
+      "dispatch_block": 26,
+      "gas_block": 27
+    },
+    {
+      "id_chunks": [
+        "0xf6b6b1f190e907c4c5b8041ae43301",
+        "5b628575b344a1f6b30fa9df73f28675",
+        "47"
+      ],
+      "label": "message-id",
+      "dispatch_block": 28,
+      "gas_block": 29
+    },
+    {
+      "id_chunks": [
+        "0x87a87fb1aca8947984f6e3a1f67f2d",
+        "3173b4ac330deaa08372f278aeb851f7",
+        "a5"
+      ],
+      "label": "merkle-root",
+      "dispatch_block": 30,
+      "gas_block": 31
+    },
+    {
+      "id_chunks": [
+        "0x0d10ef40f6ac18010e45a3065c2118",
+        "9f7ae91f67e906b5d055734f1a201bb1",
+        "c4"
+      ],
+      "label": "receipt-stall-delivery",
+      "dispatch_block": 36,
+      "gas_block": 37
+    },
+    {
+      "id_chunks": [
+        "0x9021733a96542c7f3f326d0ecb643a",
+        "96b44941494b5b99671e2825ecb8d4dd",
+        "75"
+      ],
+      "label": "origin-progress-during-receipt-stall",
+      "dispatch_block": 39,
+      "gas_block": 40
+    }
+  ],
+  "preenqueue_crash": {
+    "passed": true,
+    "attempts": [
+      {
+        "attempt": 0,
+        "sigkill": true,
+        "fault_proof": {
+          "fixture": "dyld-real-wal-write",
+          "seal_wal_fsynced_before_sigkill": true
+        },
+        "sealed_links": [
+          {
+            "destination_payload_present": false,
+            "uuid_chunks": [
+              "3555127ce0038eeaa7ce5168c25b556e"
+            ]
+          }
+        ],
+        "captured_pre_enqueue": true
+      }
+    ],
+    "actual_pre_enqueue_rust_readback": {
+      "messages": [
+        {
+          "id_chunks": [
+            "4f41ca5dac994c54b9cc256ed021b273",
+            "9bd951b112f7f8f19a01856723077f22"
+          ],
+          "insertion_id_chunks": null,
+          "nonce": 0,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "f6b6b1f190e907c4c5b8041ae433015b",
+            "628575b344a1f6b30fa9df73f2867547"
+          ],
+          "insertion_id_chunks": null,
+          "nonce": 1,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "87a87fb1aca8947984f6e3a1f67f2d31",
+            "73b4ac330deaa08372f278aeb851f7a5"
+          ],
+          "insertion_id_chunks": null,
+          "nonce": 2,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "0d10ef40f6ac18010e45a3065c21189f",
+            "7ae91f67e906b5d055734f1a201bb1c4"
+          ],
+          "insertion_id_chunks": null,
+          "nonce": 3,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "9021733a96542c7f3f326d0ecb643a96",
+            "b44941494b5b99671e2825ecb8d4dd75"
+          ],
+          "insertion_id_chunks": null,
+          "nonce": 4,
+          "payloads": [
+            {
+              "present": false,
+              "status": null,
+              "uuid": "3555127c-e003-8eea-a7ce-5168c25b556e"
+            }
+          ],
+          "payment": null,
+          "present": true,
+          "processed": null,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        }
+      ],
+      "reader": "actual production HyperlaneRocksDB + FullPayload decoder",
+      "sealed_payload_links": [
+        {
+          "destination_payload_present": false,
+          "uuid_chunks": [
+            "3555127ce0038eeaa7ce5168c25b556e"
+          ]
+        }
+      ]
+    },
+    "recovered_rust_readback": {
+      "messages": [
+        {
+          "id_chunks": [
+            "4f41ca5dac994c54b9cc256ed021b273",
+            "9bd951b112f7f8f19a01856723077f22"
+          ],
+          "insertion_id_chunks": [
+            "4f41ca5dac994c54b9cc256ed021b273",
+            "9bd951b112f7f8f19a01856723077f22"
+          ],
+          "nonce": 0,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "f6b6b1f190e907c4c5b8041ae433015b",
+            "628575b344a1f6b30fa9df73f2867547"
+          ],
+          "insertion_id_chunks": [
+            "f6b6b1f190e907c4c5b8041ae433015b",
+            "628575b344a1f6b30fa9df73f2867547"
+          ],
+          "nonce": 1,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "87a87fb1aca8947984f6e3a1f67f2d31",
+            "73b4ac330deaa08372f278aeb851f7a5"
+          ],
+          "insertion_id_chunks": [
+            "87a87fb1aca8947984f6e3a1f67f2d31",
+            "73b4ac330deaa08372f278aeb851f7a5"
+          ],
+          "nonce": 2,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "0d10ef40f6ac18010e45a3065c21189f",
+            "7ae91f67e906b5d055734f1a201bb1c4"
+          ],
+          "insertion_id_chunks": [
+            "0d10ef40f6ac18010e45a3065c21189f",
+            "7ae91f67e906b5d055734f1a201bb1c4"
+          ],
+          "nonce": 3,
+          "payloads": [],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "0",
+            "tokens_used": "0"
+          }
+        },
+        {
+          "id_chunks": [
+            "9021733a96542c7f3f326d0ecb643a96",
+            "b44941494b5b99671e2825ecb8d4dd75"
+          ],
+          "insertion_id_chunks": [
+            "9021733a96542c7f3f326d0ecb643a96",
+            "b44941494b5b99671e2825ecb8d4dd75"
+          ],
+          "nonce": 4,
+          "payloads": [
+            {
+              "present": true,
+              "status": "InTransaction(Finalized)",
+              "uuid": "3555127c-e003-8eea-a7ce-5168c25b556e"
+            }
+          ],
+          "payment": null,
+          "present": true,
+          "processed": true,
+          "spent": {
+            "gas_used": "119741",
+            "tokens_used": "739030196346"
+          }
+        }
+      ],
+      "reader": "actual production HyperlaneRocksDB + FullPayload decoder",
+      "sealed_payload_links": [
+        {
+          "destination_payload_present": true,
+          "uuid_chunks": [
+            "3555127ce0038eeaa7ce5168c25b556e"
+          ]
+        }
+      ]
+    },
+    "recovery_new_nonce_count": 1,
+    "restart_new_nonce_count": 0,
+    "recovery_stop": {
+      "exit": 0,
+      "milliseconds": 39.91975006647408,
+      "signal": "SIGTERM"
+    },
+    "replay_stop": {
+      "exit": 0,
+      "milliseconds": 43.65991707891226,
+      "signal": "SIGTERM"
+    }
+  },
+  "fault_injection": {
+    "scope": "fixture-only dyld interposition after actual task-owned WAL write; unchanged executable",
+    "library_sha256_chunks": [
+      "c1a4915ab61937d2cf4c7693e6de946f",
+      "fd7ac9af9178e785458fcfeda56ddd18"
+    ],
+    "source_sha256_chunks": [
+      "3a0bc86fbbd34ce5034bb1ee4668e2e2",
+      "9036147ec35229b8d45c0e1b17d2681a"
+    ],
+    "compile_command": [
+      "/usr/bin/clang",
+      "-dynamiclib",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-isysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "/Users/pbio/work/ziggy/zig/integration/faults/seal_crash.c",
+      "-o",
+      "/Users/pbio/work/ziggy/zig/integration/.cache/seal-crash-3a0bc86fbbd34ce5034bb1ee4668e2e2.dylib"
+    ],
+    "self_test": {
+      "positive_real_write_sigkill": true,
+      "unrelated_path_negative_control": true,
+      "source_sha256_chunks": [
+        "71d4550eeb0285c4d9d9aa0adccc67e7",
+        "e4281f5bd138d5035fa08ea84c439314"
+      ],
+      "writer_sha256_chunks": [
+        "79fcaabcbfc6abf84569ccf7ba588428",
+        "f0abb758d31bdc90dfc411c3debb9dbd"
+      ]
+    }
+  }
+}

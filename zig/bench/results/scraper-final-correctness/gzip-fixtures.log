@@ -1,0 +1,67 @@
+1/64 root.test_0...OK
+2/64 protocol.root.test_0...OK
+3/64 evm.root.test_0...OK
+4/64 altvm.root.test_0...OK
+5/64 storage.root.test_0...OK
+6/64 sealevel.root.test_0...OK
+7/64 relayer.metadata.test_0...OK
+8/64 db.root.test_0...OK
+9/64 cloud.root.test_0...OK
+10/64 cosmos.root.test_0...OK
+11/64 tron.root.test_0...OK
+12/64 radix.root.test_0...OK
+13/64 relayer.ccip.test.CCIP authentication hash matches production Rust and TypeScript fixture...OK
+14/64 agents.scraper.test_0...OK
+15/64 relayer.remote_checkpoints.test_0...OK
+16/64 ops.root.test_0...OK
+17/64 agents.destination.root.test_0...OK
+18/64 starknet.root.test_0...OK
+19/64 agents.scraper.starknet.test_0...OK
+20/64 agents.indexing.root.test_0...OK
+21/64 aleo.root.test_0...OK
+22/64 protocol.message.test.canonical message fixture and borrowed decode...OK
+23/64 protocol.merkle.test.three-leaf Merkle fixture...OK
+24/64 protocol.checkpoint.test.domain hash fixtures...OK
+25/64 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+26/64 evm.transaction.test.51 production ethers fixtures match unsigned digest signed wire hash and signer...OK
+27/64 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+28/64 evm.announce.test.7 independent Foundry announcement ABI fixtures with truncations offsets padding UTF8 and aggregate bounds...OK
+29/64 altvm.sdk_fixtures.test.independent Solana SDK compile sign and PDA vectors...OK
+30/64 altvm.sdk_fixtures.test.independent Solana v0 SDK lookup table compilation and Ed25519 transaction...OK
+31/64 altvm.sdk_fixtures.test.independent Cosmos SDK DIRECT protobuf address and signature vectors...OK
+32/64 altvm.sdk_fixtures.test.independent Tron prost transaction TAPOS and SHA256 txid vector...OK
+33/64 altvm.bech32.test.Cosmos address source fixture and BIP173 mixed case checksum...OK
+34/64 altvm.tron.test.Tron zero-address base58check fixture and checksum rejection...OK
+35/64 sealevel.sdk_fixtures.test.production Rust Borsh mailbox and IGP account fixtures...OK
+36/64 sealevel.sdk_fixtures.test.production Rust process instruction account-meta and recursive ISM fixtures...OK
+37/64 sealevel.sdk_fixtures.test.Solana SDK ALT bincode metadata respects extension and deactivation windows...OK
+38/64 sealevel.log_meta.test.scraper SVM transaction relevance matches nine actual production Rust fixtures including ALTs inner instructions and reverted siblings...OK
+39/64 sealevel.announcement.test.Sealevel announcement bytes accounts and replay PDA match actual production Rust program fixtures...OK
+40/64 db.golden_test.test.93 production Rust DB codec fixtures and all fixed-record truncation boundaries...OK
+41/64 cloud.google_adc.test_0...OK
+42/64 cloud.aws_profile.test_0...OK
+43/64 cloud.rs256.test.opt-in OpenSSL RS256 agrees with external Node generated ephemeral fixtures...SKIP
+44/64 cloud.sigv4.test.published AWS S3 GET Object SigV4 fixture...OK
+45/64 cosmos.sdk_fixtures.test.Cosmos native and CosmWasm queries match independent pinned SDK requests and responses...OK
+46/64 cosmos.sdk_fixtures.test.native tree rejects malformed frontier and false claimed roots...OK
+47/64 cosmos.sdk_fixtures.test.Cosmos sequence fee timeout and sign-doc match SDK and bind the configured signer...OK
+48/64 cosmos.sdk_fixtures.test.Cosmos announcements preserve configured validator order and query errors...[default] (warn): Cosmos native validator locations unavailable: UnexpectedGrpcCall
+OK
+49/64 cosmos.sdk_fixtures.test.Cosmos native announcement outage skips one validator preserves neighbors and propagates cancellation...[default] (warn): Cosmos native validator locations unavailable: GrpcRemoteStatus
+OK
+50/64 cosmos.announcement.test.Cosmos announcement bytes match exact production CW payload and real SDK native protobuf fixture...OK
+51/64 tron.testing.test.Tron source wallet HTTP serde fixtures preserve defaults and exact trigger request wire...OK
+52/64 tron.testing.test.Tron sixteen independent tron-rs prost agent transaction fixtures exact bytes hashes signatures and decode...OK
+53/64 radix.sdk_fixtures.test.Radix production SDK V2 manifest intent preview hashes and notarization fixtures...OK
+54/64 agents.scraper.ccr.test.scraper CCR synthetic ID matches shared TypeScript production fixture...OK
+55/64 agents.scraper.receipts_starknet.test.Starknet actual SDK receipt and transaction fixture preserve paid-fee TxnInfo semantics...OK
+56/64 agents.destination.source_metadata.test_0...OK
+57/64 agents.destination.reveal.test_0...OK
+58/64 agents.destination.reveal.test_1...OK
+59/64 agents.chain_source.test_0...OK
+60/64 starknet.testing.test.Starknet actual cainome message process and Dispatch fixtures cover packed byte boundaries...OK
+61/64 aleo.testing.test.Aleo production mapping fixtures retain typed widths little endian tree root and observed height...SKIP
+62/64 testing.fixture.test.compressed SDK fixtures preserve exact bytes numbers and parsed ownership...OK
+63/64 testing.fixture.test.compressed fixture allocation failures release decoded and parsed storage...OK
+64/64 agents.destination.reveal_oracle_test.test.SVM reveal matches37 actual production Rust helper and Solana SDK full wire fixtures...OK
+62 passed; 2 skipped; 0 failed.

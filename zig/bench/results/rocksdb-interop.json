@@ -1,0 +1,81 @@
+{
+  "passed": true,
+  "engine": "actual production RocksDB10.4.2",
+  "scope": "disposable database, production Rust HyperlaneRocksDB/TypedDB -> Zig native C API -> production Rust typed readback; not complete agent DB semantics",
+  "rust_fixture_rows": 12,
+  "checks": [
+    {
+      "verified_rows": 12,
+      "reader": "Zig native RocksDB C API"
+    },
+    {
+      "mutated": true,
+      "atomic": true,
+      "wal_sync": true
+    },
+    {
+      "verified": true,
+      "reader": "production HyperlaneRocksDB and TypedDB"
+    }
+  ],
+  "native_libraries": {
+    "rust/main/target/release/build/librocksdb-sys-e9e273bf61e48040/out/librocksdb.a": [
+      "0e96400a4158c1f2a293a5b55343c22f",
+      "d959f4bf794e84936c89354f6b1b320c"
+    ],
+    "rust/main/target/release/build/librocksdb-sys-e9e273bf61e48040/out/libsnappy.a": [
+      "5f0a4f969148a8533f7a3b37b3867f9d",
+      "b5ddd2cb65676721d2ba39a4791b908f"
+    ],
+    "rust/main/target/release/build/zstd-sys-aa8fc3ea64e8bbd6/out/libzstd.a": [
+      "2979956b3c04f6bcdf04bd563073ee85",
+      "ea2ff6ca0b2cf728697129bf43a4e235"
+    ],
+    "rust/main/target/release/build/lz4-sys-1c560f68511faa38/out/liblz4.a": [
+      "bb36ed64d0351ee96a6ec2172ce4f8cb",
+      "4ee952ad3573e9bb5f17b1848af0d328"
+    ],
+    "rust/main/target/release/build/bzip2-sys-a5fc0982b4bd0f7f/out/lib/libbz2.a": [
+      "93a1f8ec7f4c5cfade215b85c65f91b9",
+      "391d2f4ea3524a2cb58af30e5f6d1846"
+    ],
+    "rust/main/target/release/build/libz-sys-99bbd62b9b10c5ab/out/lib/libz.a": [
+      "0023a715e07e66b229e3384fcf74457d",
+      "7b104d1d3585d7de60e05e114334783f"
+    ]
+  },
+  "source_sha256_chunks": {
+    "zig/reference/rocks/src/main.rs": [
+      "c52a595b901038751d48ac09f7a7ddbd",
+      "4950f79b0b7ff6c8743da5ea96aa2175"
+    ],
+    "zig/src/db/interop.zig": [
+      "52890880cc73a8c6752727a3af3433cd",
+      "7ad5cb978e23598afc39b8e836caf036"
+    ],
+    "zig/src/db/rocks.zig": [
+      "f97a956ddfb0d01992ea415cc46767ea",
+      "9aa3702570d7369d7b586c2bcdb85e37"
+    ],
+    "zig/src/db/codec.zig": [
+      "8904d757666af68f16e2006f4878cb87",
+      "a94c051d240c7fba0cd56f9d44f80909"
+    ],
+    "zig/src/db/json.zig": [
+      "d6084f87a3bf3fe42f4237d5dfd6ae03",
+      "ceef7ce7fd7e0244c50dfd85a1bf6b81"
+    ],
+    "rust/main/hyperlane-base/src/db/rocks/typed_db.rs": [
+      "cc06a0c654fbe9cee8ed2e8d41a5c14f",
+      "fdf7ef581b9cd3e5f68e4e30234531d2"
+    ],
+    "rust/main/hyperlane-base/src/db/rocks/hyperlane_db.rs": [
+      "3f5b29bfca8d12045b1d9070496083b5",
+      "3644bb864292b1349b1bbd77b0357a12"
+    ],
+    "rust/main/hyperlane-base/src/db/storage_types.rs": [
+      "179357b9c39052cec38fce56ead8358d",
+      "e541a4bb024b8e8b03a37133d4376460"
+    ]
+  }
+}

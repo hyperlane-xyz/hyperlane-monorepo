@@ -1,0 +1,123 @@
+{
+  "cwd": "/Users/pbio/work/ziggy",
+  "runs": [
+    {
+      "name": "runtime-values",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "/tmp/ziggy-public-literal-values.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib"
+      ],
+      "environment": {
+        "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_CLOUD_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_STARKNET_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 4.202,
+      "log": "/tmp/ziggy-public-literal-runtime-values.log"
+    },
+    {
+      "name": "batch",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "zig/src/starknet_batch_tests.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib",
+        "--test-filter",
+        "Starknet"
+      ],
+      "environment": {
+        "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_CLOUD_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_STARKNET_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 30.86,
+      "log": "/tmp/ziggy-public-literal-batch.log"
+    },
+    {
+      "name": "headers-and-producers",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "zig/src/rpc_producer_tests.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib",
+        "--test-filter",
+        "RPC producers",
+        "--test-filter",
+        "typed header"
+      ],
+      "environment": {
+        "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_CLOUD_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_STARKNET_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 24.985,
+      "log": "/tmp/ziggy-public-literal-headers-and-producers.log"
+    },
+    {
+      "name": "pool",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "zig/src/rpc_pool_delegated_tests.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib"
+      ],
+      "environment": {
+        "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_CLOUD_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_STARKNET_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 24.374,
+      "log": "/tmp/ziggy-public-literal-pool.log"
+    },
+    {
+      "name": "cosmos",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "zig/src/transaction_adapter_tests.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib",
+        "--test-filter",
+        "Cosmos transaction companion"
+      ],
+      "environment": {
+        "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_CLOUD_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+        "HYPERLANE_STARKNET_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 19.337,
+      "log": "/tmp/ziggy-public-literal-cosmos.log"
+    }
+  ]
+}

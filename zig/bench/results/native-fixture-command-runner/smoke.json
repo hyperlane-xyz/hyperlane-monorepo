@@ -1,0 +1,19 @@
+{
+  "scope": "Reused existing fixture helper custom command and error cleanup; no packaging requirement claim",
+  "command": [
+    "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "zig/tools/native_http_tests.py",
+    "--timeout-seconds",
+    "30",
+    "--",
+    "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "-c",
+    "import os,pathlib,json,stat,sys; p=pathlib.Path(os.environ['HYPERLANE_TEST_RSA_FIXTURE_DIR']); assert p.is_dir(); assert stat.S_IMODE(p.stat().st_mode)==0o700; assert os.environ['HYPERLANE_COSMOS_GRPC_TEST_URL'].startswith('http://127.0.0.1:'); print(json.dumps({'fixture_path':str(p),'files':len(list(p.iterdir()))})); sys.exit(7)"
+  ],
+  "child_exit_code": 7,
+  "expected_exit_code": 7,
+  "ephemeral_fixture_directory_removed": true,
+  "fixture_file_count": 9,
+  "actual_loopback_grpc_env_present": true,
+  "private_keys_not_retained": true
+}

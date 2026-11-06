@@ -1,0 +1,16 @@
+{
+  "role": "scraper",
+  "scope": "post active-wait/session-default fixes; ReleaseSafe candidate, correctness tested, no matched performance claim",
+  "binary": "/tmp/ziggy-scraper-diagnostic-fixed",
+  "bytes": 2707072,
+  "sha256": [
+    "a1ad7527894cd49f7e0393cefc5840f6",
+    "28a52fd4f1e636415d49a7b019615606"
+  ],
+  "zig": "0.15.2",
+  "sdk": "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+  "native_libpq": "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+  "process_correctness": "/tmp/ziggy-scraper-cpu-fixed-process/scraper-process.json",
+  "diagnostic_report": "/tmp/ziggy-scraper-cpu-diagnostic-report.md",
+  "source_notes": "Shared checkout concurrently edited; binary digest identifies this built candidate. Fixture-consumer gzip edits after build only affect tests."
+}

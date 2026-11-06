@@ -1,0 +1,412 @@
+{
+  "scope": "Historical Source HTTP alignment component snapshot. Source hashes describe that earlier snapshot, not current production source. Follow-up upstream response classification and current verification are in rpc-response-recovery/manifest.json. No benchmark or global acceptance claim.",
+  "toolchain": "Zig 0.15.2 aarch64-macos",
+  "artifacts": [
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/native-integration-previous.log.gz",
+      "uncompressed_bytes": 1945,
+      "uncompressed_sha256_chunks": [
+        "ba84b083161f2e60b139d24fc244eec2",
+        "8f955542697bf835c0ea16a524562915"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/cache-unit.log.gz",
+      "uncompressed_bytes": 1081,
+      "uncompressed_sha256_chunks": [
+        "5296e37f0bd1ad1aff079ab568434de0",
+        "687c5051e374ce2772457b840653af30"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/pool-regression.log.gz",
+      "uncompressed_bytes": 9355,
+      "uncompressed_sha256_chunks": [
+        "a009fa629f738291dee9a220d358f6b4",
+        "dac3d14bb35cdc0c0119f4241189a8ec"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/pool-command.json.gz",
+      "uncompressed_bytes": 236,
+      "uncompressed_sha256_chunks": [
+        "7202e9cf2e67d5d4cd2300c3e17b9c9d",
+        "777eea8b59c284056965787fcab48a0c"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/transitive-interrupted-fixture.log.gz",
+      "uncompressed_bytes": 28915,
+      "uncompressed_sha256_chunks": [
+        "a7f32e8d9c8249abc92f812c9a3bdb4a",
+        "80baf579618c977352010cf48056bc14"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/transitive-command.json.gz",
+      "uncompressed_bytes": 2501,
+      "uncompressed_sha256_chunks": [
+        "03ff9b5fc811c1a12b96b541f5872a5c",
+        "93d292b226fb814f014b830c3c6f5e9e"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/native-integration-final.log.gz",
+      "uncompressed_bytes": 1945,
+      "uncompressed_sha256_chunks": [
+        "ba84b083161f2e60b139d24fc244eec2",
+        "8f955542697bf835c0ea16a524562915"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/manifest-before429.json.gz",
+      "uncompressed_bytes": 4567,
+      "uncompressed_sha256_chunks": [
+        "5718612034e3b1fb5e1f05ae3e289168",
+        "bc71637963e4871e5a2466738119d121"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/probe429-regression.log.gz",
+      "uncompressed_bytes": 212,
+      "uncompressed_sha256_chunks": [
+        "455ff91180b16267d6d4691bf34e1b7c",
+        "75da9e6026d652ba997646ac16d7e782"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/native-integration-post429.log.gz",
+      "uncompressed_bytes": 2104,
+      "uncompressed_sha256_chunks": [
+        "ce7ed50823331e7ef2750424c249eb19",
+        "b668b01a0af0553958b8d801bc16e447"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/pool-probes-post429.log.gz",
+      "uncompressed_bytes": 671,
+      "uncompressed_sha256_chunks": [
+        "77017bf67a51ac915ffb26afeb61c20f",
+        "8aab75ee140358c0a1605491b95a64de"
+      ],
+      "scope": "historical; superseded by Source HTTP status alignment; not current acceptance"
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/manifest-before-source-http-status.json.gz",
+      "scope": "historical manifest before Source HTTP status alignment",
+      "uncompressed_bytes": 7723,
+      "uncompressed_sha256_chunks": [
+        "54e842fb07d4c599ae7c372d1363d544",
+        "352b85429fd1d29f179ba39747d611fe"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/native-integration-source-status.log.gz",
+      "scope": "Source HTTP status alignment verification",
+      "uncompressed_bytes": 2937,
+      "uncompressed_sha256_chunks": [
+        "5be1b5f48c6d06b16751dfa0c6cc3cf4",
+        "0a47ff7ecf1ff516e1e7c5ed5d994d0f"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/pool-regression-source-status.log.gz",
+      "scope": "Source HTTP status alignment verification",
+      "uncompressed_bytes": 9460,
+      "uncompressed_sha256_chunks": [
+        "402cc635263d94545d05b7bc38bbfcf2",
+        "76b2c979c73a79ab7014b86c420ed748"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/native-http-source-status.log.gz",
+      "scope": "Source HTTP status alignment verification",
+      "uncompressed_bytes": 1147,
+      "uncompressed_sha256_chunks": [
+        "d04769bebc6bc1afd1fa1f267421a5c9",
+        "5acf1e5e215d902edfce6f419bd33ab5"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/std-http-source-status.log.gz",
+      "scope": "Source HTTP status alignment verification",
+      "uncompressed_bytes": 327,
+      "uncompressed_sha256_chunks": [
+        "2d0d9c259d000bf10bf282c0445f07a8",
+        "3fe0e304c89bb20065db3ebad9f56b6c"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-provider-producers/http-replay-source-status.log.gz",
+      "scope": "Source HTTP status alignment verification",
+      "uncompressed_bytes": 282,
+      "uncompressed_sha256_chunks": [
+        "bd3eeee1bb552a04b31149029f0f6363",
+        "0a85ce25ae887abb263353b9f4ba6699"
+      ]
+    }
+  ],
+  "source_files": [
+    {
+      "path": "zig/src/evm/pool.zig",
+      "sha256_chunks": [
+        "ea3f6a241f7d07d89d850dc323b428ba",
+        "f39f1fd2729b96d0503cdd13f12b2f99"
+      ]
+    },
+    {
+      "path": "zig/src/evm/provider.zig",
+      "sha256_chunks": [
+        "e877526ddb951a801dec9bdb385e1bb9",
+        "87cfaaab259ea65207d0547bd0654540"
+      ]
+    },
+    {
+      "path": "zig/src/evm/rpc_producers_test.zig",
+      "sha256_chunks": [
+        "025e6e919b46a22c17c23785736c36aa",
+        "3ac08e08e5c97185a80320f9572bdc67"
+      ]
+    },
+    {
+      "path": "zig/src/net/dynamic_tip_cache.zig",
+      "sha256_chunks": [
+        "f8b72cff33c1f249383bfc5d2f84cdbb",
+        "fe4f0e18832cbb1fba8aca8fe9d71d6c"
+      ]
+    },
+    {
+      "path": "zig/src/net/read_replay.zig",
+      "sha256_chunks": [
+        "a41af8eded3de30f8dd5bc049b24eacb",
+        "74f6516b10ccf6801138475dbfae6d2b"
+      ]
+    },
+    {
+      "path": "zig/src/ops/rpc_metrics.zig",
+      "sha256_chunks": [
+        "979925193ffaa3bb4b00bdb8ed48241b",
+        "37d712ce1a928685d28eb18f342aa56f"
+      ]
+    },
+    {
+      "path": "zig/src/agents/chain_source.zig",
+      "sha256_chunks": [
+        "b911f6205a12aa06d056bb3eb620b3f5",
+        "ee178f514fea0108b296cb9e4c1af3cc"
+      ]
+    },
+    {
+      "path": "zig/src/rpc_producer_tests.zig",
+      "sha256_chunks": [
+        "1357b70d83e006a5f875779673a33b64",
+        "c6e116e4a4552ad81e12298bac04e263"
+      ]
+    },
+    {
+      "path": "zig/src/rpc_pool_delegated_tests.zig",
+      "sha256_chunks": [
+        "9ea978a699f05f2e6ff82fa5e379b1ac",
+        "e3edf39f274d04b39c868df397965471"
+      ]
+    },
+    {
+      "path": "rust/main/chains/hyperlane-ethereum/src/rpc_clients/http.rs",
+      "sha256_chunks": [
+        "3a67f5875be4636f761b857d83d899fc",
+        "ed9bd6ba388a6e8a1e26e96166c18cfb"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-core/src/rpc_clients/fallback.rs",
+      "sha256_chunks": [
+        "a05ed700e337d8c6346ee052c4b6119d",
+        "f76dbb34b417dc3c1163fed8cb730633"
+      ]
+    },
+    {
+      "path": "zig/src/net/curl.zig",
+      "sha256_chunks": [
+        "119612ce3f174b10622881ac532b5ec9",
+        "997f37352efc1e44da8c9a75d11dc6e7"
+      ]
+    },
+    {
+      "path": "zig/src/net/curl_multi.zig",
+      "sha256_chunks": [
+        "861913b091245039d9c565dc46b9f433",
+        "dda80b7346fa128edf577c68bef6486e"
+      ]
+    },
+    {
+      "path": "zig/src/net/http_replay.zig",
+      "sha256_chunks": [
+        "0c70c6e40b2bd76aef4f96b853427608",
+        "9108114834b71ad0bee2a8a1959ec872"
+      ]
+    },
+    {
+      "path": "zig/src/evm/pool_testing.zig",
+      "sha256_chunks": [
+        "ca78c0cd52347ba9dc0ae64f3130fb87",
+        "1f000677cddd9d739a89dae4eb8d6d53"
+      ]
+    },
+    {
+      "path": "zig/src/sealevel/provider.zig",
+      "sha256_chunks": [
+        "21dd7b7b82a04db12a5bc485232d8747",
+        "134dfb9e18cab0804d884371cfb08f6f"
+      ]
+    }
+  ],
+  "focused_command": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/rpc_producer_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "--test-filter",
+    "RPC producers"
+  ],
+  "focused_environment": {
+    "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib"
+  },
+  "results": {
+    "focused_native": {
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "substantive_cases": 19
+    },
+    "pool_regression": {
+      "passed": 85,
+      "failed": 0,
+      "skipped": 1
+    },
+    "native_http": {
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "standard_http_loopback": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    },
+    "http_replay_identity": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    "transitive_root": {
+      "state": "global current full-root acceptance remains separate; earlier interrupted fixture log retained"
+    }
+  },
+  "additional_commands": {
+    "pool_regression": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_pool_delegated_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib"
+    ],
+    "native_http": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_producer_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "--test-filter",
+      "native HTTP"
+    ],
+    "standard_http": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_producer_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "--test-filter",
+      "HTTP loopback"
+    ],
+    "http_replay": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_producer_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "--test-filter",
+      "HTTP replay"
+    ]
+  },
+  "source_policy_qualification": "Ethereum: complete HTTP429 head rejects before body; all other statuses decode valid JSON-RPC result/error. Valid500 results are physical successes/cacheable when valid tip;500 structured errors retain OffchainLookup data and count failure. Malformed/HTML/version/id failures and429 stay uncached. Rejected probes retain old height, reset Source block-age clock/failure count and demote. Curl intentional429-head abort retains headers and never masks bounds/cancel/OOM/deadline/unrelated errors. Other VM/auth policies unchanged. Raw block DTO typed-deserialization difference remains documented.",
+  "historical_results_before_source_status_alignment": {
+    "cache_unit_prior": {
+      "passed": 6,
+      "skipped": 2
+    },
+    "transitive_root": {
+      "state": "interrupted at metadata parent-cancel fixture; retained for diagnosis, not acceptance"
+    },
+    "focused_native_before429": {
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0,
+      "substantive_cases": 12
+    },
+    "focused_native": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "substantive_cases": 13
+    },
+    "probe429_regression": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "substantive_cases": 1
+    },
+    "pool_probe_regressions": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "pool_regression_before429": {
+      "passed": 84,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "historical": true,
+  "superseded_by": "zig/bench/results/rpc-response-recovery/manifest.json"
+}

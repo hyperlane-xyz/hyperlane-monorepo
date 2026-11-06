@@ -1,0 +1,2 @@
+error: undefined symbol: _PQfinish
+    note: referenced by /Users/pbio/.cache/zig/o/0bc879ac23ea75691c89e4bec9b37983/test_zcu.o:_db.pool.Pool.deinit

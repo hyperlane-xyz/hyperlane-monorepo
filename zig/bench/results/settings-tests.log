@@ -1,0 +1,11 @@
+1/10 settings_tests.test.committed configs select Ethereum relayer without reading process environment...OK
+2/10 settings_tests.test.all committed chain settings and validator scraper roles parse with explicit sources...OK
+3/10 settings_tests.test.15 production Rust config source differential fixtures...OK
+4/10 settings_tests.test.role selection deduplicates and numeric parser rejects Rust-invalid underscore and hex strings...OK
+5/10 settings_tests.test.60 actual production Rust role parser differential fixtures...OK
+6/10 config.test.environment and CLI layer over JSON; empty and false remain explicit...OK
+7/10 config.test.invalid scalar types, ambiguous keys and huge integers fail...OK
+8/10 altvm.bech32.test.Cosmos address source fixture and BIP173 mixed case checksum...OK
+9/10 altvm.bech32.test.generic addresses decode BIP350 without weakening Cosmos checksum policy...OK
+10/10 altvm.base58.test.base58 fixed vectors leading zeroes and invalid alphabet...OK
+All 10 tests passed.

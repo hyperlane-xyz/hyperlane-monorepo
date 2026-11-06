@@ -1,0 +1,26 @@
+# Allowlist implementation sources and production Rust lock/manifest inputs.
+# Re-include sources first, then exclude every generated target/cache/secret.
+*
+!zig/
+!rust/
+rust/*
+!rust/main/
+!rust/sealevel/
+!rust/LICENSE.md
+!rust/main/Cargo.toml
+!rust/main/Cargo.lock
+**/.zig-cache/
+**/.cache/
+**/target/
+**/__pycache__/
+zig/.toolchain/
+zig/zig-out/
+zig/bench/results/
+zig/native/rocks/out*/
+zig/src/aleo/native-vm/vendor/
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx

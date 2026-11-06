@@ -1,0 +1,35 @@
+{
+  "captured_utc": "2026-11-06T08:33:54.104971+00:00",
+  "benchmark_timing": false,
+  "scope": "Only old task-specific explicit Zig local/global cache directories under /tmp; task-generated cache, not user global cache",
+  "ownership_evidence": "/tmp/ziggy-validator-backoff-owned-source.json",
+  "removed": [
+    {
+      "path": "/tmp/ziggy-validator-backoff-cache",
+      "allocated_KiB_upper_bound": 391048
+    },
+    {
+      "path": "/tmp/ziggy-validator-backoff-global",
+      "allocated_KiB_upper_bound": 97856
+    }
+  ],
+  "preserved_sha256_chunks": {
+    "/tmp/ziggy-validator-backoff-role": [
+      "1c00f102df937db21625f3bfa9728ac7",
+      "0f071abf2f235cd7fd7e2dca5f0e5b3a"
+    ],
+    "/tmp/ziggy-validator-backoff-generic-role": [
+      "9f386786115865a3ca3f58a7f65d8086",
+      "ee0e1a7937445394de2f8375d9f99c20"
+    ],
+    "/tmp/ziggy-validator-backoff-owned-source.json": [
+      "346dac164543ffd838b680e77d871370",
+      "dc6438912e31bf1a52700acdc012570b"
+    ]
+  },
+  "all_preserved_bytes_identical": true,
+  "no_open_handles_before_reclaim": true,
+  "free_disk_bytes_before": 40394047488,
+  "free_disk_bytes_after": 40895459328,
+  "qualification": "Observed free delta includes APFS/hardlink and unrelated host effects. No source, parameters, runtime binary, toolchain, downloads or user-global cache removed."
+}

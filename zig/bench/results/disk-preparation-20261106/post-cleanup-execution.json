@@ -1,0 +1,33 @@
+{
+  "purpose": "Post-cache-retirement execution proves preserved standalone helpers remain runnable; functional only",
+  "checks": [
+    {
+      "name": "pinned_real_db_test_executable",
+      "passed": 3
+    },
+    {
+      "name": "pinned_rust_typed_readback",
+      "result": {
+        "verified": true,
+        "reader": "production HyperlaneRocksDB and TypedDB"
+      }
+    },
+    {
+      "name": "lander-escalator-oracle",
+      "exit_code": 0,
+      "exact_previous_output": false
+    },
+    {
+      "name": "multicall",
+      "exit_code": 0,
+      "exact_previous_output": true
+    },
+    {
+      "name": "eip2930",
+      "exit_code": 0,
+      "exact_previous_output": true
+    }
+  ],
+  "canonical_type_bytes_still_equal": true,
+  "passed": true
+}

@@ -1,0 +1,29 @@
+Error: ParsingError
+
+#####
+
+config_path: ``
+env_path: `HYP`
+arg_key: `--`
+error: Parsing base config
+
+Caused by:
+    ParsingError
+
+    #####
+
+    config_path: `chains.scraperprocess.blocks.estimateBlockTime`
+    env_path: `HYP_CHAINS_SCRAPERPROCESS_BLOCKS_ESTIMATEBLOCKTIME`
+    arg_key: `--chains.scraperprocess.blocks.estimateBlockTime`
+    error: Expected key `estimateBlockTime` to be defined
+
+    Location:
+        hyperlane-base/src/settings/parser/json_value_parser.rs:56:28
+
+
+Location:
+    hyperlane-base/src/settings/parser/json_value_parser.rs:330:10
+
+
+Location:
+    hyperlane-base/src/agent.rs:103:20

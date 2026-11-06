@@ -1,0 +1,1581 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-11-06T10:09:05.997134+00:00",
+  "status": "closed_source_guard_and_current_postgres_aggregate_passed",
+  "scope": "Source-equivalent read-only scraper startup catalog guard. Focused14 and final current-source PostgreSQL437 pass. No performance/finalSDK/whole-role/Linux acceptance is claimed by this slice.",
+  "artifacts": [
+    {
+      "path": "aggregate-accepted/aggregate.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/aggregate.log",
+      "raw_bytes": 126,
+      "gzip_bytes": 129,
+      "raw_sha256_chunks": [
+        "574395febfcaf29113cd061b7dc06",
+        "db6a827934d77ebd1d0d8006a0f00",
+        "087898"
+      ],
+      "gzip_sha256_chunks": [
+        "2dd11856ef9a0a48c54e8a50ec07c",
+        "8b969bd7b1a932684184f4611e021",
+        "73bf11"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/command.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/command.json",
+      "raw_bytes": 3778,
+      "gzip_bytes": 1615,
+      "raw_sha256_chunks": [
+        "dce9ab6c59c238f35ab9686f59692",
+        "00169ce764d7061d61d2ad499a190",
+        "a581a7"
+      ],
+      "gzip_sha256_chunks": [
+        "f137cbf59b32a6bae6c53a307af11",
+        "9c29b8b04931b56ca6203a0164a7d",
+        "4563b0"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/postgres/postgres-integration.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/postgres/postgres-integration.json",
+      "raw_bytes": 2301,
+      "gzip_bytes": 1181,
+      "raw_sha256_chunks": [
+        "ea62ef05f63c9631c7aef7818a2c4",
+        "85ad392a488f0cbd57f5917febb77",
+        "95c1df"
+      ],
+      "gzip_sha256_chunks": [
+        "36e24d0eab6b5f810b176aaa7a18e",
+        "250c7a47456f3afeca70c870b57d4",
+        "144b0f"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/postgres/postgres-integration.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/postgres/postgres-integration.log",
+      "raw_bytes": 52473,
+      "gzip_bytes": 14750,
+      "raw_sha256_chunks": [
+        "dcaf68c109db24bc867ca411cbd0c",
+        "2bc475f7567664252ffd3fe0ad016",
+        "737ddc"
+      ],
+      "gzip_sha256_chunks": [
+        "c20c29215c00c42574dcd19102f41",
+        "14c2cfab4b813f80c3de7d8ac9720",
+        "5c4dcb"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/postgres/postgres-migrations.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/postgres/postgres-migrations.log",
+      "raw_bytes": 113500,
+      "gzip_bytes": 13353,
+      "raw_sha256_chunks": [
+        "a45b1c57b310eb037a6ec3a1da797",
+        "a549f3e242b2fddab5ed6bbf9d925",
+        "37807f"
+      ],
+      "gzip_sha256_chunks": [
+        "a45cd914f4d82062487ad5fc7683e",
+        "a41841a1954115141d2965035a3ea",
+        "1a88ac"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/postgres/postgres-native-tests.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/postgres/postgres-native-tests.json",
+      "raw_bytes": 77,
+      "gzip_bytes": 76,
+      "raw_sha256_chunks": [
+        "e62dbeb74599b4b41e343281f50d0",
+        "098db12b83597f53f2715a87f5b75",
+        "e2fa24"
+      ],
+      "gzip_sha256_chunks": [
+        "ca2db66d007aedc869a60a975ace2",
+        "731574d5e3ea6c05a845f3eed22bf",
+        "43aa5b"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/postgres/postgres-sql-smoke.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/postgres/postgres-sql-smoke.log",
+      "raw_bytes": 2,
+      "gzip_bytes": 22,
+      "raw_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d5700025",
+        "4b84bd9eba34b4df7ce4b87db8b93",
+        "7b7703"
+      ],
+      "gzip_sha256_chunks": [
+        "0e596773c90e34f23a48e25f57da1",
+        "7ce580f05de9d1c7d97388f0f40ed",
+        "4dac56"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/postgres/postgres-test-build.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/postgres/postgres-test-build.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "aggregate-accepted/result.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-accepted/result.json",
+      "raw_bytes": 5379,
+      "gzip_bytes": 1664,
+      "raw_sha256_chunks": [
+        "364e2ee88d6bb423e77946478bfe1",
+        "d9e6ea6b056f4690fbda460476d7f",
+        "6bedd6"
+      ],
+      "gzip_sha256_chunks": [
+        "fbcddc3b37a5ce35f1d9364ffbd85",
+        "c3c1cd32073da5469b14d19f8e37c",
+        "3c4b5e"
+      ]
+    },
+    {
+      "path": "aggregate-final/aggregate.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/aggregate.log",
+      "raw_bytes": 126,
+      "gzip_bytes": 129,
+      "raw_sha256_chunks": [
+        "574395febfcaf29113cd061b7dc06",
+        "db6a827934d77ebd1d0d8006a0f00",
+        "087898"
+      ],
+      "gzip_sha256_chunks": [
+        "2dd11856ef9a0a48c54e8a50ec07c",
+        "8b969bd7b1a932684184f4611e021",
+        "73bf11"
+      ]
+    },
+    {
+      "path": "aggregate-final/command.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/command.json",
+      "raw_bytes": 3775,
+      "gzip_bytes": 1609,
+      "raw_sha256_chunks": [
+        "9ce660002393da7fb12f47a0e670f",
+        "b4689f04199678ee2a1ce7c2b97d8",
+        "5e7f2f"
+      ],
+      "gzip_sha256_chunks": [
+        "d058c20e21018cb96a5cb0ebf3c88",
+        "b6837237d618d02ce56c036b87ff6",
+        "814904"
+      ]
+    },
+    {
+      "path": "aggregate-final/postgres/postgres-integration.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/postgres/postgres-integration.json",
+      "raw_bytes": 2301,
+      "gzip_bytes": 1181,
+      "raw_sha256_chunks": [
+        "ea62ef05f63c9631c7aef7818a2c4",
+        "85ad392a488f0cbd57f5917febb77",
+        "95c1df"
+      ],
+      "gzip_sha256_chunks": [
+        "36e24d0eab6b5f810b176aaa7a18e",
+        "250c7a47456f3afeca70c870b57d4",
+        "144b0f"
+      ]
+    },
+    {
+      "path": "aggregate-final/postgres/postgres-integration.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/postgres/postgres-integration.log",
+      "raw_bytes": 52473,
+      "gzip_bytes": 14750,
+      "raw_sha256_chunks": [
+        "dcaf68c109db24bc867ca411cbd0c",
+        "2bc475f7567664252ffd3fe0ad016",
+        "737ddc"
+      ],
+      "gzip_sha256_chunks": [
+        "c20c29215c00c42574dcd19102f41",
+        "14c2cfab4b813f80c3de7d8ac9720",
+        "5c4dcb"
+      ]
+    },
+    {
+      "path": "aggregate-final/postgres/postgres-migrations.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/postgres/postgres-migrations.log",
+      "raw_bytes": 113509,
+      "gzip_bytes": 13370,
+      "raw_sha256_chunks": [
+        "4075416fc61b982b90763f09a2d2f",
+        "f8ed71da5ba52d8cd53e96117b39b",
+        "364129"
+      ],
+      "gzip_sha256_chunks": [
+        "b882eff5de5c3f3c19f18a9f97858",
+        "626ef52b3eceb22a0162b98b9c90c",
+        "a0bc3f"
+      ]
+    },
+    {
+      "path": "aggregate-final/postgres/postgres-native-tests.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/postgres/postgres-native-tests.json",
+      "raw_bytes": 77,
+      "gzip_bytes": 76,
+      "raw_sha256_chunks": [
+        "e62dbeb74599b4b41e343281f50d0",
+        "098db12b83597f53f2715a87f5b75",
+        "e2fa24"
+      ],
+      "gzip_sha256_chunks": [
+        "ca2db66d007aedc869a60a975ace2",
+        "731574d5e3ea6c05a845f3eed22bf",
+        "43aa5b"
+      ]
+    },
+    {
+      "path": "aggregate-final/postgres/postgres-sql-smoke.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/postgres/postgres-sql-smoke.log",
+      "raw_bytes": 2,
+      "gzip_bytes": 22,
+      "raw_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d5700025",
+        "4b84bd9eba34b4df7ce4b87db8b93",
+        "7b7703"
+      ],
+      "gzip_sha256_chunks": [
+        "0e596773c90e34f23a48e25f57da1",
+        "7ce580f05de9d1c7d97388f0f40ed",
+        "4dac56"
+      ]
+    },
+    {
+      "path": "aggregate-final/postgres/postgres-test-build.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/postgres/postgres-test-build.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "aggregate-final/result.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate-final/result.json",
+      "raw_bytes": 5376,
+      "gzip_bytes": 1660,
+      "raw_sha256_chunks": [
+        "1506c25a62c22a35f64d70da47553",
+        "665c3843393c9fa21a2bc435b3fa0",
+        "61e0b7"
+      ],
+      "gzip_sha256_chunks": [
+        "5f6c57dfc10d73d0aa74ad2843ea7",
+        "607a163e80254451d470b1d4f1a5b",
+        "285c02"
+      ]
+    },
+    {
+      "path": "aggregate-initial/aggregate.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/aggregate.log",
+      "raw_bytes": 53004,
+      "gzip_bytes": 15095,
+      "raw_sha256_chunks": [
+        "71fe8c6f43fb0bd22ca7250f65071",
+        "0e2694a3a4ce2fa10e879c17c55b9",
+        "2fd44c"
+      ],
+      "gzip_sha256_chunks": [
+        "abd23ff8c0bf713c45335b038b272",
+        "ca87e32e3636eb4c05d782421aedc",
+        "7ed2cb"
+      ]
+    },
+    {
+      "path": "aggregate-initial/command.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/command.json",
+      "raw_bytes": 3330,
+      "gzip_bytes": 1409,
+      "raw_sha256_chunks": [
+        "2317c7627774ed38ff40d36b1c5ab",
+        "cfd2d7482223ea8f12b282954cb1f",
+        "1fbf0c"
+      ],
+      "gzip_sha256_chunks": [
+        "37da9b6ab916fc7919940b2dd6384",
+        "b6dee12dbb72274f02b1b1c730fe5",
+        "cb1657"
+      ]
+    },
+    {
+      "path": "aggregate-initial/postgres/postgres-integration.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/postgres/postgres-integration.log",
+      "raw_bytes": 52296,
+      "gzip_bytes": 14752,
+      "raw_sha256_chunks": [
+        "a14c9ab03a00617e4969e7ec4206c",
+        "08dfe3804c90e2e784b12d69856a6",
+        "4cea3f"
+      ],
+      "gzip_sha256_chunks": [
+        "8b5f8bac3a8a3ae7f543c5e8e9ffe",
+        "c0b859bf04291a4be9dcec8bcf537",
+        "3617b2"
+      ]
+    },
+    {
+      "path": "aggregate-initial/postgres/postgres-migrations.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/postgres/postgres-migrations.log",
+      "raw_bytes": 113816,
+      "gzip_bytes": 13462,
+      "raw_sha256_chunks": [
+        "ada992d7647d6ef3f088db5ee8254",
+        "c8b4c9cf9efe90a9aa61cb18d4f02",
+        "8bf39d"
+      ],
+      "gzip_sha256_chunks": [
+        "e817b982957be25812922b4138d83",
+        "0a189631bad586180a66aa31a534a",
+        "69e484"
+      ]
+    },
+    {
+      "path": "aggregate-initial/postgres/postgres-native-tests.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/postgres/postgres-native-tests.json",
+      "raw_bytes": 78,
+      "gzip_bytes": 82,
+      "raw_sha256_chunks": [
+        "02f2cc8dcae4a39be1eec188fe774",
+        "be58baaabfcfc27e3c11e5831d0db",
+        "b5d324"
+      ],
+      "gzip_sha256_chunks": [
+        "645697743f9cbd0fb3259c91becd0",
+        "3442da066deca4758bbcea1c231e3",
+        "14f861"
+      ]
+    },
+    {
+      "path": "aggregate-initial/postgres/postgres-sql-smoke.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/postgres/postgres-sql-smoke.log",
+      "raw_bytes": 2,
+      "gzip_bytes": 22,
+      "raw_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d5700025",
+        "4b84bd9eba34b4df7ce4b87db8b93",
+        "7b7703"
+      ],
+      "gzip_sha256_chunks": [
+        "0e596773c90e34f23a48e25f57da1",
+        "7ce580f05de9d1c7d97388f0f40ed",
+        "4dac56"
+      ]
+    },
+    {
+      "path": "aggregate-initial/postgres/postgres-test-build.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/postgres/postgres-test-build.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "aggregate-initial/result.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-aggregate/result.json",
+      "raw_bytes": 4492,
+      "gzip_bytes": 1458,
+      "raw_sha256_chunks": [
+        "00c205d1d72ce4a3fb16e8d260e61",
+        "0ef177df54e494fb9fae6c91efbfb",
+        "c25897"
+      ],
+      "gzip_sha256_chunks": [
+        "8e23d314b1d507d1ef121e2ec8de1",
+        "79c780b757b2ed8148147b72035a7",
+        "0918cf"
+      ]
+    },
+    {
+      "path": "build-logs/compile-canonical.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-compile-canonical.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "build-logs/compile-expanded.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-compile-expanded.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "build-logs/compile-final.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-compile-final.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "build-logs/compile-fixture-correction.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-compile-fixture-correction.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "build-logs/compile.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-compile.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "focused-canonical/docker-remove.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-canonical/docker-remove.log",
+      "raw_bytes": 25,
+      "gzip_bytes": 45,
+      "raw_sha256_chunks": [
+        "f1e81e0d1cfa5d057d4ed98432a15",
+        "dc26112af73dcc7e7c69b6579ccf4",
+        "a62b43"
+      ],
+      "gzip_sha256_chunks": [
+        "2d782d9d3d94cc7381dc8592cb8d3",
+        "bf7706281daa9898fe9e1e22cbc15",
+        "f3e69f"
+      ]
+    },
+    {
+      "path": "focused-canonical/docker-run.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-canonical/docker-run.log",
+      "raw_bytes": 65,
+      "gzip_bytes": 72,
+      "raw_sha256_chunks": [
+        "4aac5245963cf8911fcaa6efa67f3",
+        "748845e9e027882a09bd72a9b264a",
+        "b44b80"
+      ],
+      "gzip_sha256_chunks": [
+        "deb4f83bda290928bc3d3598db600",
+        "33bde64eda82e5a176acf563a6254",
+        "21ac45"
+      ]
+    },
+    {
+      "path": "focused-canonical/migrations.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-canonical/migrations.log",
+      "raw_bytes": 113541,
+      "gzip_bytes": 13439,
+      "raw_sha256_chunks": [
+        "b03733ec660d47d2250ccf89e9cbf",
+        "a1ac32f4641086fb3ca9906167167",
+        "235736"
+      ],
+      "gzip_sha256_chunks": [
+        "1a87999f8e0ac8adfb16e050e5d25",
+        "337c3b5c9b320bd3e6529d72dfe6c",
+        "348046"
+      ]
+    },
+    {
+      "path": "focused-canonical/result.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-canonical/result.json",
+      "raw_bytes": 5056,
+      "gzip_bytes": 1458,
+      "raw_sha256_chunks": [
+        "53b4e0894a160213377bc27e644e3",
+        "0b63d113b684f57e14d184a590501",
+        "4a250e"
+      ],
+      "gzip_sha256_chunks": [
+        "e9c84b608c6ca64bd63008da1b06b",
+        "392316d927e2a99bce8bcfccb757f",
+        "d0f021"
+      ]
+    },
+    {
+      "path": "focused-canonical/tests.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-canonical/tests.log",
+      "raw_bytes": 1544,
+      "gzip_bytes": 564,
+      "raw_sha256_chunks": [
+        "b57b58529ac1d63f1240720635685",
+        "6604d86868e9cde141d77d6ed280e",
+        "94eb6b"
+      ],
+      "gzip_sha256_chunks": [
+        "85efd1bfd7c352756e6fef338ac1d",
+        "42ed6c3f14f0e8f88e2416939bbe6",
+        "2ab804"
+      ]
+    },
+    {
+      "path": "focused-compile-command.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-command.json",
+      "raw_bytes": 384,
+      "gzip_bytes": 251,
+      "raw_sha256_chunks": [
+        "77943ec4ce640d70c57dd409e644b",
+        "4c0143d4eac626d46e6c1090d71ac",
+        "e8f66b"
+      ],
+      "gzip_sha256_chunks": [
+        "a413d0946bda55fe03a666198ce59",
+        "18c4ba25a7466802842ea0bbf84e4",
+        "f84263"
+      ]
+    },
+    {
+      "path": "focused-final/docker-remove.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-final/docker-remove.log",
+      "raw_bytes": 25,
+      "gzip_bytes": 45,
+      "raw_sha256_chunks": [
+        "67425c3b96b999471f31042a731b6",
+        "803f14cc76f71725893eaa05df647",
+        "b8b4b9"
+      ],
+      "gzip_sha256_chunks": [
+        "8916d26d60895a21e8cd7b41a7f6e",
+        "16651b2c8e79df8881af12bcffe5d",
+        "937b10"
+      ]
+    },
+    {
+      "path": "focused-final/docker-run.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-final/docker-run.log",
+      "raw_bytes": 65,
+      "gzip_bytes": 72,
+      "raw_sha256_chunks": [
+        "0a1baea3d5e63eaef936ff5ea2fa8",
+        "34c68cef0c10ed409e19492b4a0a2",
+        "01749a"
+      ],
+      "gzip_sha256_chunks": [
+        "c25d61bc0e634da577067b2f836d3",
+        "71db1c80d3c3a5dd92615fb02ec93",
+        "a95c48"
+      ]
+    },
+    {
+      "path": "focused-final/migrations.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-final/migrations.log",
+      "raw_bytes": 113516,
+      "gzip_bytes": 13307,
+      "raw_sha256_chunks": [
+        "0ae5a27d1397ae0da91beb003cf4e",
+        "63360b878752fbdef5f7bd95cd12d",
+        "a2a1e8"
+      ],
+      "gzip_sha256_chunks": [
+        "4e885a521dc4aff3df3111be49b1c",
+        "8f5a9caab25008b7bd4e2081d53de",
+        "c2cd10"
+      ]
+    },
+    {
+      "path": "focused-final/result.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-final/result.json",
+      "raw_bytes": 4290,
+      "gzip_bytes": 1226,
+      "raw_sha256_chunks": [
+        "16bdc26ca01ebaf09f9a8ced43f01",
+        "6e339123196d8cd0ee896a05ac717",
+        "9bb0cf"
+      ],
+      "gzip_sha256_chunks": [
+        "3fa896e5b6b5a65da867c71bc3c38",
+        "59404f1f658c55dd419c6cf645233",
+        "6d8d12"
+      ]
+    },
+    {
+      "path": "focused-final/tests.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-final/tests.log",
+      "raw_bytes": 1544,
+      "gzip_bytes": 564,
+      "raw_sha256_chunks": [
+        "b57b58529ac1d63f1240720635685",
+        "6604d86868e9cde141d77d6ed280e",
+        "94eb6b"
+      ],
+      "gzip_sha256_chunks": [
+        "85efd1bfd7c352756e6fef338ac1d",
+        "42ed6c3f14f0e8f88e2416939bbe6",
+        "2ab804"
+      ]
+    },
+    {
+      "path": "focused-first/docker-remove.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-first/docker-remove.log",
+      "raw_bytes": 25,
+      "gzip_bytes": 45,
+      "raw_sha256_chunks": [
+        "5f4ea7eeea65c6e7780e4297458a9",
+        "88d63f287cf640007837fffb1f903",
+        "272549"
+      ],
+      "gzip_sha256_chunks": [
+        "c7bd9442823d0c6817e4e840ca0ee",
+        "3333ea8a50b9a710ce46b46c1f8f8",
+        "fcd705"
+      ]
+    },
+    {
+      "path": "focused-first/docker-run.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-first/docker-run.log",
+      "raw_bytes": 65,
+      "gzip_bytes": 71,
+      "raw_sha256_chunks": [
+        "32e63bbaa0b29c8036a1841f89d43",
+        "9f20bf72e25dc19a119d5eb4d19b8",
+        "857387"
+      ],
+      "gzip_sha256_chunks": [
+        "718e9d18143e614afd5b17645deb7",
+        "92308403c4f867206f520be1545d1",
+        "69a0c1"
+      ]
+    },
+    {
+      "path": "focused-first/migrations.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-first/migrations.log",
+      "raw_bytes": 113624,
+      "gzip_bytes": 13330,
+      "raw_sha256_chunks": [
+        "b581ddc69dddeeda8628348bc0759",
+        "c8752a5c8e6812c1f79194f83a6f9",
+        "425316"
+      ],
+      "gzip_sha256_chunks": [
+        "1521b89f03fd9a49d4644a3b79666",
+        "79ed59d4bae264eb279fc579812a0",
+        "931c9e"
+      ]
+    },
+    {
+      "path": "focused-first/result.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-first/result.json",
+      "raw_bytes": 3990,
+      "gzip_bytes": 1221,
+      "raw_sha256_chunks": [
+        "e5b5790f797f96d919aeb46798bdd",
+        "cf48bc8a27129219a3dda526b4de3",
+        "b6fc8c"
+      ],
+      "gzip_sha256_chunks": [
+        "0fc90a0a6d9b4ed53ecd30d97bb8f",
+        "7ed749c30ffc0c94b5065be942c6c",
+        "7e4efa"
+      ]
+    },
+    {
+      "path": "focused-first/tests.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-first/tests.log",
+      "raw_bytes": 1651,
+      "gzip_bytes": 599,
+      "raw_sha256_chunks": [
+        "25c6013d0706c63fce0fb71019b7a",
+        "90147059c6482cc6243a9eac7574c",
+        "cb5208"
+      ],
+      "gzip_sha256_chunks": [
+        "9ce4f554f683b43e753bcf0477531",
+        "02f7d6ad6fb7f965609fccf201f48",
+        "410159"
+      ]
+    },
+    {
+      "path": "focused-second/docker-remove.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-second/docker-remove.log",
+      "raw_bytes": 25,
+      "gzip_bytes": 45,
+      "raw_sha256_chunks": [
+        "c86e9460bd9bfd528c3b0c07e535a",
+        "500f8667ab96fc03af9400a63dfd3",
+        "864495"
+      ],
+      "gzip_sha256_chunks": [
+        "9988e9dc3076541e5648382350ad1",
+        "968f5d91333a25242333c5d3873b0",
+        "226c26"
+      ]
+    },
+    {
+      "path": "focused-second/docker-run.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-second/docker-run.log",
+      "raw_bytes": 65,
+      "gzip_bytes": 72,
+      "raw_sha256_chunks": [
+        "23a5a6185011d480d1cdce3b9d066",
+        "4ee21171c8dfa5356fecb4c9543c2",
+        "13a902"
+      ],
+      "gzip_sha256_chunks": [
+        "e773aca33c7c82ebd56a827bad4be",
+        "a3aed55401c4e89cdb62150b5aa79",
+        "d41786"
+      ]
+    },
+    {
+      "path": "focused-second/migrations.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-second/migrations.log",
+      "raw_bytes": 113356,
+      "gzip_bytes": 13249,
+      "raw_sha256_chunks": [
+        "b89dffca882a3a0ca3a8249772af9",
+        "58e743b5ea9533e35c2eac99175b5",
+        "7b6de9"
+      ],
+      "gzip_sha256_chunks": [
+        "ea46a53043d4a37db0c39365a9b5a",
+        "9e9f88d99ba6e92edceedc07ee1a8",
+        "2bec50"
+      ]
+    },
+    {
+      "path": "focused-second/result.json.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-second/result.json",
+      "raw_bytes": 4290,
+      "gzip_bytes": 1226,
+      "raw_sha256_chunks": [
+        "042150a8d39e6ec6cb4669d884bbb",
+        "e39c8b9a05900185a1c9627d1c859",
+        "01107a"
+      ],
+      "gzip_sha256_chunks": [
+        "05aedce6b8d221cda6c174b3d6568",
+        "f9a254e5c945303b2d3e8021cd967",
+        "f1aed8"
+      ]
+    },
+    {
+      "path": "focused-second/tests.log.gz",
+      "original": "/tmp/ziggy-scraper-schema-pg-second/tests.log",
+      "raw_bytes": 1597,
+      "gzip_bytes": 609,
+      "raw_sha256_chunks": [
+        "0b9c305894a13a3569fb3affb53ac",
+        "5277552ea1eb52a55611b1950d8c9",
+        "7215d4"
+      ],
+      "gzip_sha256_chunks": [
+        "15f80a0f97a5c19efec3fb40189e6",
+        "ac09028e2c7c1727c30da6e1a77a9",
+        "6303cc"
+      ]
+    },
+    {
+      "path": "initial-missing-guard-audit.md.gz",
+      "original": "/tmp/ziggy-final-completeness-audit.md",
+      "raw_bytes": 14592,
+      "gzip_bytes": 6161,
+      "raw_sha256_chunks": [
+        "2fbd0de0b201aad750649fa9a24e0",
+        "f13edbcb75e297a72bbc5a79c9a86",
+        "ba8437"
+      ],
+      "gzip_sha256_chunks": [
+        "da321cd27efd73c207c4d4db728d4",
+        "58e6ce4a61fb3afdd66b97edb7459",
+        "07ef90"
+      ]
+    },
+    {
+      "path": "rust-source/agent.rs.gz",
+      "original": "/Users/pbio/work/ziggy/rust/main/agents/scraper/src/agent.rs",
+      "raw_bytes": 12670,
+      "gzip_bytes": 3400,
+      "raw_sha256_chunks": [
+        "8990e942c9e93e5aedb06a469c8a4",
+        "09ce5d54b3ae0cde7f1bda1bc0766",
+        "a66112"
+      ],
+      "gzip_sha256_chunks": [
+        "7b65bccb659b19ed3c78c26ce43a2",
+        "6a2dde850aa19053321f8b757be94",
+        "dc62ca"
+      ]
+    },
+    {
+      "path": "rust-source/indexes.rs.gz",
+      "original": "/Users/pbio/work/ziggy/rust/main/agents/scraper/migration/src/indexes.rs",
+      "raw_bytes": 13665,
+      "gzip_bytes": 3483,
+      "raw_sha256_chunks": [
+        "63e34a090dfd207cc45f1ac4899b4",
+        "5e3dd9340ad13fc3c57e0f165f75a",
+        "71cc3a"
+      ],
+      "gzip_sha256_chunks": [
+        "987eff4cdfbaa2b8ffe209a3df982",
+        "1546edead25c3aaa37b4451ae6504",
+        "4d30bb"
+      ]
+    },
+    {
+      "path": "source-accepted/rust/main/agents/scraper/migration/src/indexes.rs.gz",
+      "original": "/Users/pbio/work/ziggy/rust/main/agents/scraper/migration/src/indexes.rs",
+      "raw_bytes": 13665,
+      "gzip_bytes": 3483,
+      "raw_sha256_chunks": [
+        "63e34a090dfd207cc45f1ac4899b4",
+        "5e3dd9340ad13fc3c57e0f165f75a",
+        "71cc3a"
+      ],
+      "gzip_sha256_chunks": [
+        "987eff4cdfbaa2b8ffe209a3df982",
+        "1546edead25c3aaa37b4451ae6504",
+        "4d30bb"
+      ],
+      "logical_source": "rust/main/agents/scraper/migration/src/indexes.rs"
+    },
+    {
+      "path": "source-accepted/rust/main/agents/scraper/src/agent.rs.gz",
+      "original": "/Users/pbio/work/ziggy/rust/main/agents/scraper/src/agent.rs",
+      "raw_bytes": 12670,
+      "gzip_bytes": 3400,
+      "raw_sha256_chunks": [
+        "8990e942c9e93e5aedb06a469c8a4",
+        "09ce5d54b3ae0cde7f1bda1bc0766",
+        "a66112"
+      ],
+      "gzip_sha256_chunks": [
+        "7b65bccb659b19ed3c78c26ce43a2",
+        "6a2dde850aa19053321f8b757be94",
+        "dc62ca"
+      ],
+      "logical_source": "rust/main/agents/scraper/src/agent.rs"
+    },
+    {
+      "path": "source-accepted/zig/integration/postgres.py.gz",
+      "original": "/Users/pbio/work/ziggy/zig/integration/postgres.py",
+      "raw_bytes": 11034,
+      "gzip_bytes": 3874,
+      "raw_sha256_chunks": [
+        "fb37cedc705da06f1828fb0349d8a",
+        "7db91a2f06e9897a4fb5b6755b5d6",
+        "23d0f8"
+      ],
+      "gzip_sha256_chunks": [
+        "75bddcb18696a2a6c634b22c94ee0",
+        "9f609c0c51723eb7fb596f94bf4cb",
+        "8fa461"
+      ],
+      "logical_source": "zig/integration/postgres.py"
+    },
+    {
+      "path": "source-accepted/zig/src/agents/metadata_session_test.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/agents/metadata_session_test.zig",
+      "raw_bytes": 31386,
+      "gzip_bytes": 6843,
+      "raw_sha256_chunks": [
+        "0dfa7214b38643f1f1d3d751431da",
+        "3dcd7a2eb37ff31beb11dab971b7a",
+        "6330a0"
+      ],
+      "gzip_sha256_chunks": [
+        "81b383a5886f2b1c14c3b2cd90a07",
+        "1cb239f4e663f86e52dfa9533bb23",
+        "1ee4fb"
+      ],
+      "logical_source": "zig/src/agents/metadata_session_test.zig"
+    },
+    {
+      "path": "source-accepted/zig/src/agents/scraper/native_test.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/agents/scraper/native_test.zig",
+      "raw_bytes": 16716,
+      "gzip_bytes": 4214,
+      "raw_sha256_chunks": [
+        "fdc85fb90ba15e34c85dc89421bba",
+        "e130d9c47da770af5a9889a105b2c",
+        "30a94e"
+      ],
+      "gzip_sha256_chunks": [
+        "c4e21b50bd5e8d92a8971ec9feb1e",
+        "a2baf54427cb8c2e5731babbf30a9",
+        "e9bcb9"
+      ],
+      "logical_source": "zig/src/agents/scraper/native_test.zig"
+    },
+    {
+      "path": "source-accepted/zig/src/agents/scraper/task.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/agents/scraper/task.zig",
+      "raw_bytes": 35102,
+      "gzip_bytes": 8237,
+      "raw_sha256_chunks": [
+        "39d5f45671dd6a155b20f05373fb5",
+        "92c49c4ad9801da513d0bbc7edbe2",
+        "ca2303"
+      ],
+      "gzip_sha256_chunks": [
+        "d59b479d12ee7416d030d55b5d944",
+        "36bdc72bbe0658ce4e6a57bfa82f7",
+        "a01f1e"
+      ],
+      "logical_source": "zig/src/agents/scraper/task.zig"
+    },
+    {
+      "path": "source-accepted/zig/src/cloud/testing/generate-rsa.mjs.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/cloud/testing/generate-rsa.mjs",
+      "raw_bytes": 3338,
+      "gzip_bytes": 1085,
+      "raw_sha256_chunks": [
+        "6b74f44db5d6466d23cce4f6f367a",
+        "02f7400f875a8fd637263367a1116",
+        "93c614"
+      ],
+      "gzip_sha256_chunks": [
+        "77563274536cbdae1ff5a8948b825",
+        "38d8c9f0fdd06078731370961893f",
+        "235013"
+      ],
+      "logical_source": "zig/src/cloud/testing/generate-rsa.mjs"
+    },
+    {
+      "path": "source-accepted/zig/src/cosmos/testing/grpc-server.mjs.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/cosmos/testing/grpc-server.mjs",
+      "raw_bytes": 3353,
+      "gzip_bytes": 1353,
+      "raw_sha256_chunks": [
+        "54fbfc50567d480f4f73ed5b52fe6",
+        "6548f87adac10622d58ddc833843e",
+        "011199"
+      ],
+      "gzip_sha256_chunks": [
+        "2c51b83babf4fffa3f474fd443885",
+        "48d9efc45a6b378bb402e22e04b99",
+        "90e6eb"
+      ],
+      "logical_source": "zig/src/cosmos/testing/grpc-server.mjs"
+    },
+    {
+      "path": "source-accepted/zig/src/db/scraper_schema.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/db/scraper_schema.zig",
+      "raw_bytes": 3444,
+      "gzip_bytes": 1202,
+      "raw_sha256_chunks": [
+        "442ecb057a6a3531b2b64886d636c",
+        "2fef7f29f37a3b7a32eae2d4e2ac4",
+        "96eb75"
+      ],
+      "gzip_sha256_chunks": [
+        "d4751ad62ca724ebc8b021eb06d53",
+        "2c0530433e8d13617283612e575f0",
+        "a40cf9"
+      ],
+      "logical_source": "zig/src/db/scraper_schema.zig"
+    },
+    {
+      "path": "source-accepted/zig/src/db/scraper_schema_test.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/db/scraper_schema_test.zig",
+      "raw_bytes": 16775,
+      "gzip_bytes": 3911,
+      "raw_sha256_chunks": [
+        "b0a0709128084c80fb0143c3472c7",
+        "33d32159df3adc5e760a003aeb264",
+        "662239"
+      ],
+      "gzip_sha256_chunks": [
+        "a7d7d0ccb7c29fd35c3ca2de54329",
+        "2361ab0e52897c99e53f934678d28",
+        "c140ac"
+      ],
+      "logical_source": "zig/src/db/scraper_schema_test.zig"
+    },
+    {
+      "path": "source-accepted/zig/src/pg_tests.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/pg_tests.zig",
+      "raw_bytes": 314,
+      "gzip_bytes": 172,
+      "raw_sha256_chunks": [
+        "6ab4eaf3edfd4cb3a813a710ae085",
+        "e3d57ba64c1e0736589dd168c0ada",
+        "b06c33"
+      ],
+      "gzip_sha256_chunks": [
+        "b3c913858b31dda66ed404f19240f",
+        "72b3540c3232d8a0885639880b5a6",
+        "563fc1"
+      ],
+      "logical_source": "zig/src/pg_tests.zig"
+    },
+    {
+      "path": "source-accepted/zig/src/scraper_schema_tests.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/scraper_schema_tests.zig",
+      "raw_bytes": 56,
+      "gzip_bytes": 73,
+      "raw_sha256_chunks": [
+        "de3094ae051cd46d7abd806e0a160",
+        "4fa88df326be11324dadcee6f70bb",
+        "9d06f1"
+      ],
+      "gzip_sha256_chunks": [
+        "9ba5e41eb99701de4ef850aa74cfc",
+        "ce9d8702c72dc9414315b3a0b2a7e",
+        "c28b33"
+      ],
+      "logical_source": "zig/src/scraper_schema_tests.zig"
+    },
+    {
+      "path": "source-accepted/zig/src/service_main.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/service_main.zig",
+      "raw_bytes": 14909,
+      "gzip_bytes": 4085,
+      "raw_sha256_chunks": [
+        "6acf5eee62f83a17d8939ebbbcf90",
+        "0959ff1547b1fb1dfc61f51b68a9f",
+        "787157"
+      ],
+      "gzip_sha256_chunks": [
+        "8fa929d2627277f8bcc0d5ca235a9",
+        "bbbef9b73cd683b97f756c3e7ad33",
+        "252887"
+      ],
+      "logical_source": "zig/src/service_main.zig"
+    },
+    {
+      "path": "source-accepted/zig/tools/native_http_tests.py.gz",
+      "original": "/Users/pbio/work/ziggy/zig/tools/native_http_tests.py",
+      "raw_bytes": 3232,
+      "gzip_bytes": 1337,
+      "raw_sha256_chunks": [
+        "2c83b740d099eaf27a303039268e1",
+        "6536da7f3d08a013d4a68106f6798",
+        "73771a"
+      ],
+      "gzip_sha256_chunks": [
+        "ecbe02f12d767bae82ed9bf2d781a",
+        "a1fe00e0141b871f677c4fac36640",
+        "c81e34"
+      ],
+      "logical_source": "zig/tools/native_http_tests.py"
+    },
+    {
+      "path": "source-after/rust/main/agents/scraper/migration/src/indexes.rs.gz",
+      "original": "/Users/pbio/work/ziggy/rust/main/agents/scraper/migration/src/indexes.rs",
+      "raw_bytes": 13665,
+      "gzip_bytes": 3483,
+      "raw_sha256_chunks": [
+        "63e34a090dfd207cc45f1ac4899b4",
+        "5e3dd9340ad13fc3c57e0f165f75a",
+        "71cc3a"
+      ],
+      "gzip_sha256_chunks": [
+        "987eff4cdfbaa2b8ffe209a3df982",
+        "1546edead25c3aaa37b4451ae6504",
+        "4d30bb"
+      ],
+      "logical_source": "rust/main/agents/scraper/migration/src/indexes.rs"
+    },
+    {
+      "path": "source-after/rust/main/agents/scraper/src/agent.rs.gz",
+      "original": "/Users/pbio/work/ziggy/rust/main/agents/scraper/src/agent.rs",
+      "raw_bytes": 12670,
+      "gzip_bytes": 3400,
+      "raw_sha256_chunks": [
+        "8990e942c9e93e5aedb06a469c8a4",
+        "09ce5d54b3ae0cde7f1bda1bc0766",
+        "a66112"
+      ],
+      "gzip_sha256_chunks": [
+        "7b65bccb659b19ed3c78c26ce43a2",
+        "6a2dde850aa19053321f8b757be94",
+        "dc62ca"
+      ],
+      "logical_source": "rust/main/agents/scraper/src/agent.rs"
+    },
+    {
+      "path": "source-after/zig/integration/postgres.py.gz",
+      "original": "/Users/pbio/work/ziggy/zig/integration/postgres.py",
+      "raw_bytes": 11034,
+      "gzip_bytes": 3874,
+      "raw_sha256_chunks": [
+        "fb37cedc705da06f1828fb0349d8a",
+        "7db91a2f06e9897a4fb5b6755b5d6",
+        "23d0f8"
+      ],
+      "gzip_sha256_chunks": [
+        "75bddcb18696a2a6c634b22c94ee0",
+        "9f609c0c51723eb7fb596f94bf4cb",
+        "8fa461"
+      ],
+      "logical_source": "zig/integration/postgres.py"
+    },
+    {
+      "path": "source-after/zig/src/agents/metadata_session_test.zig.gz",
+      "original": "/tmp/ziggy-metadata-fixture-before-count-correction.zig",
+      "raw_bytes": 29444,
+      "gzip_bytes": 6403,
+      "raw_sha256_chunks": [
+        "ed7a7a0a7c593abcc437c83b98729",
+        "ba56187b5b3740ae6d5d46952388f",
+        "5540a5"
+      ],
+      "gzip_sha256_chunks": [
+        "2bca15681d0e1309a6ad608028700",
+        "1f8691255ab34a0a26494bf29338a",
+        "aeba03"
+      ],
+      "logical_source": "zig/src/agents/metadata_session_test.zig"
+    },
+    {
+      "path": "source-after/zig/src/agents/scraper/native_test.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/agents/scraper/native_test.zig",
+      "raw_bytes": 16716,
+      "gzip_bytes": 4214,
+      "raw_sha256_chunks": [
+        "fdc85fb90ba15e34c85dc89421bba",
+        "e130d9c47da770af5a9889a105b2c",
+        "30a94e"
+      ],
+      "gzip_sha256_chunks": [
+        "c4e21b50bd5e8d92a8971ec9feb1e",
+        "a2baf54427cb8c2e5731babbf30a9",
+        "e9bcb9"
+      ],
+      "logical_source": "zig/src/agents/scraper/native_test.zig"
+    },
+    {
+      "path": "source-after/zig/src/agents/scraper/task.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/agents/scraper/task.zig",
+      "raw_bytes": 35102,
+      "gzip_bytes": 8237,
+      "raw_sha256_chunks": [
+        "39d5f45671dd6a155b20f05373fb5",
+        "92c49c4ad9801da513d0bbc7edbe2",
+        "ca2303"
+      ],
+      "gzip_sha256_chunks": [
+        "d59b479d12ee7416d030d55b5d944",
+        "36bdc72bbe0658ce4e6a57bfa82f7",
+        "a01f1e"
+      ],
+      "logical_source": "zig/src/agents/scraper/task.zig"
+    },
+    {
+      "path": "source-after/zig/src/cloud/testing/generate-rsa.mjs.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/cloud/testing/generate-rsa.mjs",
+      "raw_bytes": 3338,
+      "gzip_bytes": 1085,
+      "raw_sha256_chunks": [
+        "6b74f44db5d6466d23cce4f6f367a",
+        "02f7400f875a8fd637263367a1116",
+        "93c614"
+      ],
+      "gzip_sha256_chunks": [
+        "77563274536cbdae1ff5a8948b825",
+        "38d8c9f0fdd06078731370961893f",
+        "235013"
+      ],
+      "logical_source": "zig/src/cloud/testing/generate-rsa.mjs"
+    },
+    {
+      "path": "source-after/zig/src/cosmos/testing/grpc-server.mjs.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/cosmos/testing/grpc-server.mjs",
+      "raw_bytes": 3353,
+      "gzip_bytes": 1353,
+      "raw_sha256_chunks": [
+        "54fbfc50567d480f4f73ed5b52fe6",
+        "6548f87adac10622d58ddc833843e",
+        "011199"
+      ],
+      "gzip_sha256_chunks": [
+        "2c51b83babf4fffa3f474fd443885",
+        "48d9efc45a6b378bb402e22e04b99",
+        "90e6eb"
+      ],
+      "logical_source": "zig/src/cosmos/testing/grpc-server.mjs"
+    },
+    {
+      "path": "source-after/zig/src/db/scraper_schema.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/db/scraper_schema.zig",
+      "raw_bytes": 3444,
+      "gzip_bytes": 1202,
+      "raw_sha256_chunks": [
+        "442ecb057a6a3531b2b64886d636c",
+        "2fef7f29f37a3b7a32eae2d4e2ac4",
+        "96eb75"
+      ],
+      "gzip_sha256_chunks": [
+        "d4751ad62ca724ebc8b021eb06d53",
+        "2c0530433e8d13617283612e575f0",
+        "a40cf9"
+      ],
+      "logical_source": "zig/src/db/scraper_schema.zig"
+    },
+    {
+      "path": "source-after/zig/src/db/scraper_schema_test.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/db/scraper_schema_test.zig",
+      "raw_bytes": 16775,
+      "gzip_bytes": 3911,
+      "raw_sha256_chunks": [
+        "b0a0709128084c80fb0143c3472c7",
+        "33d32159df3adc5e760a003aeb264",
+        "662239"
+      ],
+      "gzip_sha256_chunks": [
+        "a7d7d0ccb7c29fd35c3ca2de54329",
+        "2361ab0e52897c99e53f934678d28",
+        "c140ac"
+      ],
+      "logical_source": "zig/src/db/scraper_schema_test.zig"
+    },
+    {
+      "path": "source-after/zig/src/pg_tests.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/pg_tests.zig",
+      "raw_bytes": 314,
+      "gzip_bytes": 172,
+      "raw_sha256_chunks": [
+        "6ab4eaf3edfd4cb3a813a710ae085",
+        "e3d57ba64c1e0736589dd168c0ada",
+        "b06c33"
+      ],
+      "gzip_sha256_chunks": [
+        "b3c913858b31dda66ed404f19240f",
+        "72b3540c3232d8a0885639880b5a6",
+        "563fc1"
+      ],
+      "logical_source": "zig/src/pg_tests.zig"
+    },
+    {
+      "path": "source-after/zig/src/scraper_schema_tests.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/scraper_schema_tests.zig",
+      "raw_bytes": 56,
+      "gzip_bytes": 73,
+      "raw_sha256_chunks": [
+        "de3094ae051cd46d7abd806e0a160",
+        "4fa88df326be11324dadcee6f70bb",
+        "9d06f1"
+      ],
+      "gzip_sha256_chunks": [
+        "9ba5e41eb99701de4ef850aa74cfc",
+        "ce9d8702c72dc9414315b3a0b2a7e",
+        "c28b33"
+      ],
+      "logical_source": "zig/src/scraper_schema_tests.zig"
+    },
+    {
+      "path": "source-after/zig/src/service_main.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/service_main.zig",
+      "raw_bytes": 14909,
+      "gzip_bytes": 4085,
+      "raw_sha256_chunks": [
+        "6acf5eee62f83a17d8939ebbbcf90",
+        "0959ff1547b1fb1dfc61f51b68a9f",
+        "787157"
+      ],
+      "gzip_sha256_chunks": [
+        "8fa929d2627277f8bcc0d5ca235a9",
+        "bbbef9b73cd683b97f756c3e7ad33",
+        "252887"
+      ],
+      "logical_source": "zig/src/service_main.zig"
+    },
+    {
+      "path": "source-after/zig/tools/native_http_tests.py.gz",
+      "original": "/Users/pbio/work/ziggy/zig/tools/native_http_tests.py",
+      "raw_bytes": 3232,
+      "gzip_bytes": 1337,
+      "raw_sha256_chunks": [
+        "2c83b740d099eaf27a303039268e1",
+        "6536da7f3d08a013d4a68106f6798",
+        "73771a"
+      ],
+      "gzip_sha256_chunks": [
+        "ecbe02f12d767bae82ed9bf2d781a",
+        "a1fe00e0141b871f677c4fac36640",
+        "c81e34"
+      ],
+      "logical_source": "zig/tools/native_http_tests.py"
+    },
+    {
+      "path": "source-before/zig/src/agents/scraper/native_test.zig.gz",
+      "original": "/tmp/ziggy-scraper-schema-source-before/zig/src/agents/scraper/native_test.zig",
+      "raw_bytes": 16245,
+      "gzip_bytes": 4198,
+      "raw_sha256_chunks": [
+        "975520ab7784e8a2e66b99a9942b8",
+        "781fbcc4aa9a4a547e090e0cfccf9",
+        "394317"
+      ],
+      "gzip_sha256_chunks": [
+        "22bbd11c90cc657005576d8ed1592",
+        "37cf089faaca936b392655fe9578b",
+        "9a0404"
+      ]
+    },
+    {
+      "path": "source-before/zig/src/agents/scraper/task.zig.gz",
+      "original": "/tmp/ziggy-scraper-schema-source-before/zig/src/agents/scraper/task.zig",
+      "raw_bytes": 33948,
+      "gzip_bytes": 7999,
+      "raw_sha256_chunks": [
+        "2ea109ad92aad97015d8294afbaee",
+        "5ac162a1213a458957b523e23aebe",
+        "84fe25"
+      ],
+      "gzip_sha256_chunks": [
+        "e803950ee957f69e95ced1ae2668b",
+        "db5245347a9390b5c667f3c19ec1a",
+        "5e7971"
+      ]
+    },
+    {
+      "path": "source-before/zig/src/pg_tests.zig.gz",
+      "original": "/tmp/ziggy-scraper-schema-source-before/zig/src/pg_tests.zig",
+      "raw_bytes": 267,
+      "gzip_bytes": 163,
+      "raw_sha256_chunks": [
+        "1e80282788414051d07aa3b4638c1",
+        "6ba40f11b84f548c64572cd82ac4a",
+        "c9406a"
+      ],
+      "gzip_sha256_chunks": [
+        "d333404c671260e5f00b0518e9007",
+        "419c6f64b7372e9287d29d4642f3f",
+        "9eca3d"
+      ]
+    },
+    {
+      "path": "source-before/zig/src/service_main.zig.gz",
+      "original": "/tmp/ziggy-scraper-schema-source-before/zig/src/service_main.zig",
+      "raw_bytes": 14880,
+      "gzip_bytes": 4075,
+      "raw_sha256_chunks": [
+        "03c956b66f31ab97ec6c7ccc500ea",
+        "979e8c14feebe29476fb38bef9d62",
+        "832aac"
+      ],
+      "gzip_sha256_chunks": [
+        "811999c9225ed317e86e0cfce8c9f",
+        "3b08f51340dfba1db58b0dddb70d5",
+        "e5a0cc"
+      ]
+    },
+    {
+      "path": "release-report.md.gz",
+      "original": "/tmp/ziggy-scraper-schema-release.md",
+      "raw_bytes": 7099,
+      "gzip_bytes": 2397,
+      "raw_sha256_chunks": [
+        "f328a4cdccadaf60389fa0b4ae681",
+        "c74f217d3c4bfda3dcba60352ced3",
+        "dabcf3"
+      ],
+      "gzip_sha256_chunks": [
+        "051de4a9edc2a92dd992f31d93c65",
+        "e2fce8f972297d024d84276cee4b2",
+        "d8d5ff"
+      ]
+    }
+  ],
+  "pre_guard_source_proof": "Four existing files reverse only owned edits and match exact0933Safe recorded source hashes. New module/tests were absent in that snapshot.",
+  "canonical_json": "Exact lossless gzip originals; exact ignored JSON mirrors only inside this artifact directory.",
+  "pre_guard_sources": [
+    {
+      "source": "zig/src/agents/scraper/native_test.zig",
+      "sha256_chunks": [
+        "975520ab7784e8a2e66b99a9942b8",
+        "781fbcc4aa9a4a547e090e0cfccf9",
+        "394317"
+      ],
+      "matches_recorded_0933_safe": true
+    },
+    {
+      "source": "zig/src/agents/scraper/task.zig",
+      "sha256_chunks": [
+        "2ea109ad92aad97015d8294afbaee",
+        "5ac162a1213a458957b523e23aebe",
+        "84fe25"
+      ],
+      "matches_recorded_0933_safe": true
+    },
+    {
+      "source": "zig/src/pg_tests.zig",
+      "sha256_chunks": [
+        "1e80282788414051d07aa3b4638c1",
+        "6ba40f11b84f548c64572cd82ac4a",
+        "c9406a"
+      ],
+      "matches_recorded_0933_safe": true
+    },
+    {
+      "source": "zig/src/service_main.zig",
+      "sha256_chunks": [
+        "03c956b66f31ab97ec6c7ccc500ea",
+        "979e8c14feebe29476fb38bef9d62",
+        "832aac"
+      ],
+      "matches_recorded_0933_safe": true
+    }
+  ],
+  "write_set": {
+    "production": [
+      "zig/src/db/scraper_schema.zig",
+      "zig/src/agents/scraper/task.zig",
+      "zig/src/service_main.zig"
+    ],
+    "tests": [
+      "zig/src/db/scraper_schema_test.zig",
+      "zig/src/scraper_schema_tests.zig",
+      "zig/src/pg_tests.zig",
+      "zig/src/agents/scraper/native_test.zig"
+    ]
+  },
+  "historical_stages": [
+    {
+      "name": "focused-first",
+      "passed": 10,
+      "failed": 4,
+      "skipped": 0,
+      "reason": "Test helper supplied customRpcUrls as JSON instead of Source CSV override string; corrected test only."
+    },
+    {
+      "name": "focused-second",
+      "passed": 13,
+      "failed": 1,
+      "skipped": 0,
+      "reason": "Expected4 lanes but committed Ethereum config enables fifthCCR; corrected test expectation only."
+    },
+    {
+      "name": "focused-final",
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "reason": "Earlier passing focused snapshot before native and metadata fixture updates."
+    },
+    {
+      "name": "aggregate-initial",
+      "passed": 433,
+      "failed": 2,
+      "skipped": 0,
+      "reason": "Old lazy-DB fixture pointed at port1/opened0; independent metadata preheaderEOF fixture failure. Diagnostic."
+    },
+    {
+      "name": "aggregate-final",
+      "passed": 437,
+      "failed": 0,
+      "skipped": 0,
+      "reason": "Passing snapshot before subsequent independent metadata physical-read-count assertion correction. Exact old metadata test bytes reconstructed by Parent and matched to accepted hash; archived in source-after."
+    }
+  ],
+  "qualifications": [
+    "Production verification uses only SELECTs; no runtime DDL or automatic repair.",
+    "One absolute DB budget covers acquisition, connection/session setup and all five catalog queries. service_main supplies startup signal cancellation; retained TaskSet configuration and released leases clear borrowed tokens.",
+    "Catalog mutation tests run only on a fresh task-owned PostgreSQL16.15 instance. Invalid/not-ready flags use fixture-only pg_index updates and rollback.",
+    "Canonical gas predicate preserves the exact Source checking boundary, including its existing table/access-method boundary. All three frontier definitions match Source.",
+    "Separate roots overlap and must not be summed as unique project coverage.",
+    "Existing built libraries and existing Rust init-db are used. No Rust/C/SDK rebuild, role, image build, production RPC or benchmark.",
+    "Four pre-guard existing sources reverse only owned hunks and exactly match recorded0933Safe hashes; new module/tests were absent. Earlier selected global maps are not inferred to cover every repository extension.",
+    "Parent independently corrected the metadata test physical-read assertions after the historical437pass, without metadata production changes. The final fresh437pass covers those frozen current fixture bytes; exact old bytes remain in source-after and current bytes in source-accepted."
+  ],
+  "accepted_tests": [
+    {
+      "name": "focused-canonical",
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "own_substantive_declarations": 10,
+      "import_roots": 4,
+      "selected_sources_unchanged": 12,
+      "raw_log": "focused-canonical/tests.log.gz",
+      "qualification": "Guard source/test bytes unchanged afterward; separately owned metadata test assertions changed later and are covered by current final aggregate."
+    },
+    {
+      "name": "aggregate-accepted",
+      "passed": 437,
+      "failed": 0,
+      "skipped": 0,
+      "selected_sources_unchanged": 14,
+      "production_migrations": 21,
+      "persistence_functional_cases": 11,
+      "raw_log": "aggregate-accepted/postgres/postgres-integration.log.gz"
+    }
+  ],
+  "source_status": {
+    "pre_guard_existing_sources_verified": 4,
+    "pre_guard_sources_new_files_absent": true,
+    "historical_aggregate_source_captures": 14,
+    "accepted_current_source_captures": 14,
+    "all_accepted_before_after_capture_hashes_equal": true
+  },
+  "closed_utc": "2026-11-06T10:27:23.611259+00:00",
+  "report": "docs/zig-agent-rewrite/scraper-schema-guard.md",
+  "accepted_commands": {
+    "focused_compile": "focused-compile-command.json.gz",
+    "focused_fixture": "focused-canonical/result.json.gz",
+    "full_postgres": "aggregate-accepted/command.json.gz"
+  }
+}

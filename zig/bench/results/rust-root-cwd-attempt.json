@@ -1,0 +1,11 @@
+{
+  "command": "/usr/bin/time -l cargo +1.98.0 build --manifest-path rust/main/Cargo.toml --locked --release -p relayer -p validator -p scraper -j 4",
+  "working_directory": "repository root",
+  "status": "failed",
+  "exit_code": 101,
+  "elapsed_seconds": 1099.97,
+  "maximum_resident_set_size_bytes": 2543108096,
+  "reason": "Cargo config discovery uses invocation working directory, so rust/main/.cargo/config.toml tokio_unstable flag was not applied. This is an invocation error, not a source defect.",
+  "valid_successful_build_baseline": false,
+  "raw_log": "rust-full-build.log"
+}

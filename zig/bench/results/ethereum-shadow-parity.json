@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "scope": "bounded Ethereum capture; protocol parity only",
+  "from_block": 26348808,
+  "to_block": 26348815,
+  "dispatches": 1,
+  "insertions": 1,
+  "rust_message_encoding_and_id_match": true,
+  "insertion_ids_match_dispatches": true,
+  "passed": true
+}

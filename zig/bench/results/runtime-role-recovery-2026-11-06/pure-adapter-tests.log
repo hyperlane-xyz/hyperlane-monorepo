@@ -1,0 +1,22 @@
+1/21 agent_metrics_tests.test.Lander observer maps every variant to captured source families and labels...OK
+2/21 agent_metrics_tests.test.Lander zero and overflow conversions match source casts and Duration saturation...OK
+3/21 agent_metrics_tests.test.Lander labels are escaped and registry errors reach the observer caller...OK
+4/21 agent_metrics_tests.test.relayer processed operation metadata and queue metrics use source terminal semantics...OK
+5/21 agent_metrics_tests.test.pending tracker deduplicates references contexts and ordered oldest timestamps...OK
+6/21 agent_metrics_tests.test.metadata wait attempts recovery cancellation and wait-only to pending transition match source...OK
+7/21 agent_metrics_tests.test.role tracker owns labels bounds entries and shares pending with waits...OK
+8/21 agent_metrics_tests.test.relayer adapters release entries and registry labels on every allocation failure...OK
+9/21 agent_metrics_tests.test_0...OK
+10/21 ops.metrics.test.metrics preserve source labels help types histogram buckets and escaping...OK
+11/21 ops.metrics.test.metrics concurrent counters are lossless and series removal frees its bounded budget...OK
+12/21 ops.metrics.test.metrics allocation failure does not leak partially installed series...OK
+13/21 ops.metrics.test.registry cursor raises are atomic with other writers and preserve metric shape...OK
+14/21 ops.metrics_schema.test.generated descriptors have unique names and labels within each group...OK
+15/21 lander.types.test.UUID, status precedence and H512 compatibility...OK
+16/21 db.json.test.serde status wire spelling nested report and fail-closed recovery...OK
+17/21 evm.codecs.test.strict quantities and hex data...OK
+18/21 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+19/21 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+20/21 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+21/21 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+All 21 tests passed.

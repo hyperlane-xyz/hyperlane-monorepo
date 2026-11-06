@@ -1,0 +1,35 @@
+1/34 validator_mailbox_tests.test_0...OK
+2/34 validator_mailbox_tests.test_1...OK
+3/34 agents.validator.mailbox.test.announcement mailbox rejects unknown shape selectors and oversized requests...OK
+4/34 agents.validator.mailbox.test.native mailbox validates signature and allocation failures unwind decoded arenas...OK
+5/34 agents.validator.mailbox_native_test.test.actual RocksDB mailbox retains first signature bounds pending slot and reopens completed goal...OK
+6/34 evm.codecs.test.strict quantities and hex data...OK
+7/34 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+8/34 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+9/34 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+10/34 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+11/34 evm.announce.test.7 independent Foundry announcement ABI fixtures with truncations offsets padding UTF8 and aggregate bounds...OK
+12/34 storage.objects.test.23 production Rust checkpoint announcement snapshot reorg and index objects...OK
+13/34 protocol.root.test_0...OK
+14/34 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+15/34 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+16/34 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+17/34 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+18/34 protocol.checkpoint.test.domain hash fixtures...OK
+19/34 protocol.checkpoint.test.checkpoint digest separates every field...OK
+20/34 db.root.test_0...OK
+21/34 db.keys.test.domain names and prefix upper bounds match Rust...OK
+22/34 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+23/34 protocol.merkle.test.three-leaf Merkle fixture...OK
+24/34 protocol.merkle.test.full tree rejects without mutation...OK
+25/34 protocol.merkle.test.snapshot restore checks count root and shape...OK
+26/34 protocol.message.test.canonical message fixture and borrowed decode...OK
+27/34 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+28/34 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+29/34 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+30/34 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+31/34 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+32/34 db.golden_test.test.93 production Rust DB codec fixtures and all fixed-record truncation boundaries...OK
+33/34 db.codec.test.integer endianness and strict bool match production...OK
+34/34 db.json.test.serde status wire spelling nested report and fail-closed recovery...OK
+All 34 tests passed.

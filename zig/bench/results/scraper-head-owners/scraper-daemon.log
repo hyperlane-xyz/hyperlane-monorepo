@@ -1,0 +1,10 @@
+warning: scraper chain=stalledhead0 lane=head failed=RequestCancelled
+warning: scraper chain=stalledhead7 lane=head failed=RequestCancelled
+warning: scraper chain=stalledhead4 lane=head failed=RequestCancelled
+warning: scraper chain=stalledhead1 lane=head failed=RequestCancelled
+warning: scraper chain=stalledhead5 lane=head failed=RequestCancelled
+warning: scraper chain=stalledhead6 lane=head failed=RequestCancelled
+warning: scraper chain=stalledhead3 lane=head failed=RequestCancelled
+warning: scraper chain=stalledhead2 lane=head failed=RequestCancelled
+warning: scraper chain=scraperprocess lane=head failed=ScraperPublishedReorg
+error: agent stopped: ScraperPublishedReorg

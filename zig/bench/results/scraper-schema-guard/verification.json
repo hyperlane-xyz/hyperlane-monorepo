@@ -1,0 +1,17 @@
+{
+  "scope": "Archive verification only; no builds/tests or Source edits in verification.",
+  "gzip_artifacts_verified": 88,
+  "all_original_payload_bytes_preserved": true,
+  "exact_ignored_raw_json_mirrors": 16,
+  "accepted_source_before_after_current_captures_equal": 14,
+  "historical_source_captures_match_recorded_hashes": 14,
+  "pre_guard_existing_sources_match0933": 4,
+  "new_sources_absent_from0933_selected_map": 3,
+  "all_documentation_links_resolve": 12,
+  "normal_zig_fmt_check": "passed_seven_owned_files",
+  "normal_oxfmt_check": "passed_new_doc",
+  "non_ignored_plaintext_full_width_hashes": 0,
+  "source_status": "frozen_no_planned_edits",
+  "accepted_focused": "14passed_0skip_0fail",
+  "accepted_postgres": "437passed_0skip_0fail_21migrations_11functional_cases"
+}

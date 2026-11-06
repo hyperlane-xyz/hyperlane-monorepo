@@ -1,0 +1,5 @@
+{
+  "failure": "New unit fixture json! macro repetition syntax unsupported; corrected only to vec! in two test expressions",
+  "status": "superseded by narrow test syntax fix; API fields unchanged",
+  "benchmark": false
+}

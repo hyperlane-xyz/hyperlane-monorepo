@@ -1,0 +1,116 @@
+1/20 origin_bootstrap_tests.test_0...OK
+2/20 agents.indexing.native_test.test_0...OK
+3/20 agents.indexing.native_test.test_1...OK
+4/20 agents.indexing.native_test.test_2...OK
+5/20 agents.origin_tasks_test.test.origin bootstrap pre-canceled descriptor never constructs resources or records failures...OK
+6/20 agents.indexing.evm_native_test.test.origin bootstrap EVM actual count failures independent retries recovery and WS reasons...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+OK
+7/20 agents.indexing.evm_native_test.test.origin bootstrap EVM direct native physical request timeout consumes one completed attempt...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin merkle_tree_hook_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: ConnectionTimedOut
+OK
+8/20 agents.indexing.bootstrap_native_test.test.origin bootstrap independent Source budget real recovery and WS mask legacy...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+OK
+9/20 agents.indexing.bootstrap_native_test.test.origin bootstrap independent Source budget real recovery and WS mask cooperative...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (1/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (2/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (3/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (4/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (5/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (6/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (7/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (8/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (9/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin message_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+[default] (warn): origin gas_payment_sync cursor startup failed (10/10); retry in 2000ms: RpcHttpStatus
+OK
+10/20 agents.indexing.bootstrap_native_test.test.origin bootstrap controls uncounted and retry delay starts after completed read...[default] (warn): origin message_sync cursor startup failed (1/10); retry in 2000ms: ConnectionTimedOut
+[default] (warn): origin message_sync cursor startup failed (2/10); retry in 2000ms: UpstreamReadTimeout
+OK
+11/20 relayer.remote_checkpoints.test_0...OK
+12/20 protocol.root.test_0...OK
+13/20 agents.chain_source.test_0...OK
+14/20 agents.scraper.starknet.test_0...OK
+15/20 evm.root.test_0...OK
+16/20 db.root.test_0...OK
+17/20 storage.root.test_0...OK
+18/20 cloud.root.test_0...OK
+19/20 cloud.google_adc.test_0...OK
+20/20 cloud.aws_profile.test_0...OK
+All 20 tests passed.

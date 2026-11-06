@@ -1,0 +1,11 @@
+Differential parity passed: 716 inputs
+message_id                 body=    0 Rust=     168.1 ns Zig=     160.1 ns Rust/Zig=1.050
+message_id                 body=   64 Rust=     325.4 ns Zig=     313.9 ns Rust/Zig=1.037
+message_id                 body= 1024 Rust=    1427.6 ns Zig=    1406.4 ns Rust/Zig=1.015
+message_id                 body=65536 Rust=   73305.2 ns Zig=   71173.8 ns Rust/Zig=1.030
+message_roundtrip_owned    body=    0 Rust=     189.3 ns Zig=     177.5 ns Rust/Zig=1.067
+message_roundtrip_owned    body=   64 Rust=     367.6 ns Zig=     339.8 ns Rust/Zig=1.082
+message_roundtrip_owned    body= 1024 Rust=    1514.8 ns Zig=    1444.1 ns Rust/Zig=1.049
+message_roundtrip_owned    body=65536 Rust=   78688.5 ns Zig=   85721.3 ns Rust/Zig=0.918
+merkle_ingest              body=    0 Rust=     165.2 ns Zig=     163.4 ns Rust/Zig=1.011
+merkle_ingest_root         body=    0 Rust=    5068.0 ns Zig=    5061.8 ns Rust/Zig=1.001

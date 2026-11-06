@@ -1,0 +1,39 @@
+{
+  "scope": "Focused actual native/runtime validation logs; not timings. Optional native backend skips stay explicit in original logs. Further final process artifacts referenced separately; includes retained failed HTTP503 repro.",
+  "logs": [
+    {
+      "path": "native-validator.log",
+      "original": "/tmp/ziggy-validator-stream-provenance-native.log",
+      "sha256_chunks": [
+        "26b9b7fd16571ec2abe743cc32037f92",
+        "ac1fe245ceedfc6a89dbe93c88ce1b3d"
+      ]
+    },
+    {
+      "path": "native-websocket.log",
+      "original": "/tmp/ziggy-websocket-fixture-retirement.log",
+      "sha256_chunks": [
+        "6cae40a07764b1feeabfebd1d574694b",
+        "a2991697a62be291cd0c893765cc3e75"
+      ]
+    },
+    {
+      "path": "socket-owner.log",
+      "original": "/tmp/ziggy-socket-owner-retry-unit.log",
+      "sha256_chunks": [
+        "61915875f83e021786ceec08c49f8472",
+        "e8dde64bc5f51888537cce84cbe66fcc"
+      ]
+    }
+  ],
+  "native_validator": {
+    "passed": 164,
+    "skipped": 18,
+    "failed": 0
+  },
+  "native_websocket": {
+    "passed": 22,
+    "failed": 0
+  },
+  "http503_repro": "../validator-wss-initial-handshake-stall.json"
+}

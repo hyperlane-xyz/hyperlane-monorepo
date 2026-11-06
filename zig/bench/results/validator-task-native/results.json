@@ -1,0 +1,73 @@
+{
+  "passed": true,
+  "scope": "Focused actual production-version RocksDB mailbox and allocation-only two-descriptor validator constructors; not whole-agent performance",
+  "mailbox_tests": 34,
+  "constructor_filtered_tests": 9,
+  "mailbox_command": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/validator_mailbox_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "-lc++",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a"
+  ],
+  "constructor_command": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/validator_task_native_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "-lc++",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+    "--test-filter",
+    "validator constructors"
+  ],
+  "source_sha256_chunks": {
+    "zig/src/agents/validator_task.zig": [
+      "6b1142b40e4444ec4ccee97a0c5ed959",
+      "15ad158d79392fe360de482ba3495a51"
+    ],
+    "zig/src/agents/validator_task_test.zig": [
+      "92ed98cbe74cfe25be2feb455bb6e400",
+      "87a7b333f3e679dd2c9155e665df00ef"
+    ],
+    "zig/src/agents/validator/mailbox.zig": [
+      "4f2fac9fce2e43928774a5e676122fbc",
+      "0b1af90c503e34d1338b0dd468733c74"
+    ],
+    "zig/src/agents/validator/mailbox_native_test.zig": [
+      "20b55eee800dee1a2ee2402ddd627fb5",
+      "a3ed8b8759117d79339a428b18ec9ef3"
+    ],
+    "zig/src/validator_mailbox_tests.zig": [
+      "4e6da659ffece91f4af6ab4e569a2b2b",
+      "839fe00f6ac2bc5fb0adb59fdac94454"
+    ],
+    "zig/src/validator_task_native_tests.zig": [
+      "7b472ff065f08540c5aef45fc9fcf310",
+      "d22c7d9e3824a5abbce344bebfdd3913"
+    ]
+  },
+  "native_manifest": "zig/native/rocks/out-final/manifest.json"
+}

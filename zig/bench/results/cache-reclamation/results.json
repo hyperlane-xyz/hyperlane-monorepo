@@ -1,0 +1,157 @@
+{
+  "executed": true,
+  "preservation_plan": "preservation-plan.json",
+  "scope": "Only explicitly authorized ignored compiler subdirectories in THIS checkout; listed source/locks/parameters/manifests/top-level agent/oracle executables/runtime libraries and pinned artifacts preserved with identical SHA256. No global/user caches touched.",
+  "free_bytes_before": 7961026560,
+  "free_bytes_after": 45725048832,
+  "elapsed_seconds": 14.336473665898666,
+  "removed": [
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/debug/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/debug/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/debug/deps",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/deps",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/incremental",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/deps",
+      "preserved_children": true
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/incremental",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/deps",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug/incremental",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/deps",
+      "preserved_children": true
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/incremental",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/deps",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/altvm/reference/target/debug/incremental",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/deps",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/radix/reference/target/debug/incremental",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/deps",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug/incremental",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/.fingerprint",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/build",
+      "preserved_children": false
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/deps",
+      "preserved_children": true
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/incremental",
+      "preserved_children": false
+    }
+  ],
+  "protected_in_candidate_files": [
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/deps/libziggy_aleo_crypto.dylib",
+    "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/deps/libziggy_aleo_vm.dylib",
+    "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/deps/libziggy_starknet_crypto.dylib"
+  ],
+  "all_preserved_hashes_identical": true,
+  "active_host_rust_before": []
+}

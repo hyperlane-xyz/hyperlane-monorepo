@@ -1,0 +1,10 @@
+[
+  "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+  "test",
+  "zig/src/read_replay_tests.zig",
+  "-O",
+  "ReleaseSafe",
+  "-lc",
+  "--sysroot",
+  "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk"
+]

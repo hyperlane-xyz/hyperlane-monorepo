@@ -1,0 +1,301 @@
+{
+  "scope": "Ethereum upstream response decode/rate-limit provenance and actual validator fallback/backoff recovery. No production network/credentials, role freeze or performance claim.",
+  "toolchain": "Zig0.15.2 aarch64-macos",
+  "environment": {
+    "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib"
+  },
+  "commands": {
+    "producer": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_producer_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "--test-filter",
+      "RPC producers"
+    ],
+    "pool": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_pool_delegated_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib"
+    ],
+    "native_http": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_producer_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "--test-filter",
+      "native HTTP"
+    ],
+    "standard_http": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_producer_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "--test-filter",
+      "HTTP loopback"
+    ],
+    "http_replay": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/rpc_producer_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "--test-filter",
+      "HTTP replay"
+    ],
+    "validator": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/db_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "-lc++",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "--test-filter",
+      "validator Source fetch backoff",
+      "--test-filter",
+      "validator Source cursor initialization"
+    ]
+  },
+  "results": {
+    "producer": {
+      "passed": 26,
+      "skipped": 0,
+      "failed": 0,
+      "substantive_cases": 22
+    },
+    "pool": {
+      "passed": 85,
+      "skipped": 1,
+      "failed": 0
+    },
+    "native_http": {
+      "passed": 11,
+      "skipped": 0,
+      "failed": 0
+    },
+    "standard_http": {
+      "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    },
+    "http_replay": {
+      "passed": 3,
+      "skipped": 0,
+      "failed": 0
+    },
+    "original_validator": {
+      "passed": 26,
+      "skipped": 0,
+      "failed": 0
+    },
+    "expanded_validator": {
+      "passed": 28,
+      "skipped": 0,
+      "failed": 0,
+      "test_declarations_with_scenarios": 5,
+      "scenario_runs": 10
+    },
+    "before_fix": {
+      "state": "failed SyntaxError on unchanged native HTTP503 fixture; diagnostic only"
+    }
+  },
+  "classification": "Only Ethereum upstream JSON/envelope SyntaxError/UnexpectedEndOfInput/UnexpectedToken/DuplicateField/InvalidRpcEnvelope become RpcResponseDecode. Exact RpcResponseDecode and RpcRateLimited enter indexing retryability. ID mismatch, OOM, control, limits and deadlines retain errors. Generic SyntaxError remains nonretryable. Valid500 result/revert/OffchainLookup,429head/cooldown/RetryAfter and strategy/denominator logic preserved.",
+  "source_files": [
+    {
+      "path": "zig/src/evm/provider.zig",
+      "sha256_chunks": [
+        "411f672f62a5aca561c2bd9a2a364cc6",
+        "c2b82c06e979add6f212444d119012db"
+      ]
+    },
+    {
+      "path": "zig/src/evm/pool.zig",
+      "sha256_chunks": [
+        "79850769f9062bd9b00e423752c31341",
+        "adeadd18574e126d873524e71deaf3ff"
+      ]
+    },
+    {
+      "path": "zig/src/evm/rpc_producers_test.zig",
+      "sha256_chunks": [
+        "23d93f0422ebebb3b717606b978c290f",
+        "03f3d57df5b0b5388e72c6554eda55ed"
+      ]
+    },
+    {
+      "path": "zig/src/runtime/indexing_observer.zig",
+      "sha256_chunks": [
+        "5ed73bc3b3568d9cf4ca0a91653e6b7d",
+        "bcdd8d8572a1b4ed8e20ebdcd2090fe6"
+      ]
+    },
+    {
+      "path": "zig/src/agents/validator/evm.zig",
+      "sha256_chunks": [
+        "4712cd2eb92eb539f43a6b216d179861",
+        "8d3b8ab14617d4dc65fd676cf614eca1"
+      ]
+    },
+    {
+      "path": "zig/src/agents/validator/fetch_backoff_test.zig",
+      "sha256_chunks": [
+        "b7741105f5766662548284b34978bfda",
+        "41cc190b75194cc1937b1ffa15181450"
+      ]
+    },
+    {
+      "path": "zig/src/agents/validator/fetch_backoff_native_test.zig",
+      "sha256_chunks": [
+        "0184f1b262ebbf6f6edca5f5d70586f8",
+        "9cc563263439ed5f9bd70b56a7e8be6e"
+      ]
+    },
+    {
+      "path": "zig/src/rpc_producer_tests.zig",
+      "sha256_chunks": [
+        "1357b70d83e006a5f875779673a33b64",
+        "c6e116e4a4552ad81e12298bac04e263"
+      ]
+    },
+    {
+      "path": "zig/src/rpc_pool_delegated_tests.zig",
+      "sha256_chunks": [
+        "9ea978a699f05f2e6ff82fa5e379b1ac",
+        "e3edf39f274d04b39c868df397965471"
+      ]
+    },
+    {
+      "path": "rust/main/chains/hyperlane-ethereum/src/rpc_clients/http.rs",
+      "sha256_chunks": [
+        "3a67f5875be4636f761b857d83d899fc",
+        "ed9bd6ba388a6e8a1e26e96166c18cfb"
+      ]
+    },
+    {
+      "path": "rust/main/chains/hyperlane-ethereum/src/rpc_clients/mod.rs",
+      "sha256_chunks": [
+        "0537b962285c62a2fee508a642a475d1",
+        "d75217c0f30d520df93aea4defef0a31"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/producer-final.log.gz",
+      "scope": "Current 26-test provider suite",
+      "uncompressed_bytes": 3367,
+      "uncompressed_sha256_chunks": [
+        "beaf6d788f93d8f1ef35aa372c7e84df",
+        "f2a664e9dcc98bd1b64e16b343cd8240"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/pool-final.log.gz",
+      "scope": "Current full dedicated Pool suite",
+      "uncompressed_bytes": 9460,
+      "uncompressed_sha256_chunks": [
+        "402cc635263d94545d05b7bc38bbfcf2",
+        "76b2c979c73a79ab7014b86c420ed748"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/native-http.log.gz",
+      "scope": "Current native transport suite",
+      "uncompressed_bytes": 1147,
+      "uncompressed_sha256_chunks": [
+        "d04769bebc6bc1afd1fa1f267421a5c9",
+        "5acf1e5e215d902edfce6f419bd33ab5"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/std-http.log.gz",
+      "scope": "Current standard HTTP loopbacks",
+      "uncompressed_bytes": 327,
+      "uncompressed_sha256_chunks": [
+        "2d0d9c259d000bf10bf282c0445f07a8",
+        "3fe0e304c89bb20065db3ebad9f56b6c"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/http-replay.log.gz",
+      "scope": "Current HTTP replay identity/route checks",
+      "uncompressed_bytes": 282,
+      "uncompressed_sha256_chunks": [
+        "bd3eeee1bb552a04b31149029f0f6363",
+        "0a85ce25ae887abb263353b9f4ba6699"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/validator-original-final.log.gz",
+      "scope": "Preserved original validator aggregate after production fix; before additive fixture variants",
+      "uncompressed_bytes": 2924,
+      "uncompressed_sha256_chunks": [
+        "a70f72ca7d7bdc11d020ede94dd968c1",
+        "74a545d43fb4bc07af5c530c81fee81d"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/validator-variants-final.log.gz",
+      "scope": "Current expanded actual Role aggregate including forward-cursor stability",
+      "uncompressed_bytes": 10970,
+      "uncompressed_sha256_chunks": [
+        "40beea4263d19c0dd9dc03d4a291d3b7",
+        "a6b24243941b7a58b23e7b517d61e1c2"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/validator-before-fix.log.gz",
+      "scope": "Original failing SyntaxError regression; diagnostic only",
+      "uncompressed_bytes": 1923,
+      "uncompressed_sha256_chunks": [
+        "f82ae89f553fc3bcc5821086b97d991c",
+        "504a8632b620112a59892f0c6828458f"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/rpc-response-recovery/validator-command.json.gz",
+      "scope": "Exact validator native archive link command",
+      "uncompressed_bytes": 815,
+      "uncompressed_sha256_chunks": [
+        "479f310936a0b467570e8532ff554e22",
+        "aa8577fca48be1aba8ff7db88e251784"
+      ]
+    }
+  ]
+}

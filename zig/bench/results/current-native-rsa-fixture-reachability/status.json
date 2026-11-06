@@ -1,0 +1,7 @@
+{
+  "scope": "Current expanded native DB aggregate exact reachability audit",
+  "passed_root_smokes": 30,
+  "substantive_rsa_tests_reached": 0,
+  "conclusion": "No current native DB RSA fixture packaging gap; the delegated442 root has different transitive test reachability. No Docker Node/RSA dependency added.",
+  "broad_native_failure": "Separate missing defaultIsm fixture step, fixed with442/442 delegated proof"
+}

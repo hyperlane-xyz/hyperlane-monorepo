@@ -1,0 +1,190 @@
+{
+  "passed": true,
+  "scope": "actual native validator CLI, disposable Anvil production contracts, authenticated WSS scraper fixture, actual Rust checkpoint oracle; correctness only",
+  "binary": "/private/tmp/ziggy-validator-stream-cadence-pinned",
+  "binary_sha256": [
+    "a3362e64fd8b255b3b3a0d5071012b0b",
+    "0bc282e21ea6c3ece6df0621ec089e52"
+  ],
+  "cases": {
+    "lightweight": {
+      "wss": true,
+      "rpc_event_indexing_requests": 0,
+      "reconnect_from_open_after_schema_rejection": true,
+      "initial_objects": 3,
+      "restart_objects_unchanged": true,
+      "restart_nonce_unchanged": true,
+      "sigterm_ms": 246.64462497457862,
+      "subscriptions": [
+        {
+          "streams": [
+            {
+              "cursors": [
+                {
+                  "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+                  "allowReplay": true,
+                  "afterSequence": "-1",
+                  "domain": 9913371
+                }
+              ],
+              "domains": [
+                9913371
+              ],
+              "eventType": "merkle_tree_insertion"
+            }
+          ],
+          "type": "subscribe"
+        },
+        {
+          "streams": [
+            {
+              "cursors": [
+                {
+                  "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+                  "allowReplay": true,
+                  "afterSequence": "-1",
+                  "domain": 9913371
+                }
+              ],
+              "domains": [
+                9913371
+              ],
+              "eventType": "merkle_tree_insertion"
+            }
+          ],
+          "type": "subscribe"
+        },
+        {
+          "streams": [
+            {
+              "cursors": [
+                {
+                  "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+                  "allowReplay": true,
+                  "afterSequence": "2",
+                  "domain": 9913371
+                }
+              ],
+              "domains": [
+                9913371
+              ],
+              "eventType": "merkle_tree_insertion"
+            }
+          ],
+          "type": "subscribe"
+        }
+      ],
+      "rpc_methods": {
+        "eth_chainId": 4,
+        "eth_getBlockByNumber": 18,
+        "eth_call": 20,
+        "eth_blockNumber": 13,
+        "eth_getTransactionCount": 11,
+        "eth_estimateGas": 1,
+        "eth_feeHistory": 5,
+        "eth_sendRawTransaction": 1,
+        "eth_getTransactionReceipt": 1
+      }
+    },
+    "snapshot_history": {
+      "missing_index": 1,
+      "foreground_advanced_before_history": true,
+      "snapshot_waited_for_history": true,
+      "history_repaired": true,
+      "rpc_event_indexing_requests": 0,
+      "configured_socket_owner_threads": 1,
+      "configured_socket_owner_stack_bytes": 1048576,
+      "connections": 2,
+      "subscriptions": [
+        {
+          "streams": [
+            {
+              "cursors": [
+                {
+                  "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+                  "allowReplay": true,
+                  "afterSequence": "2",
+                  "domain": 9913371
+                }
+              ],
+              "domains": [
+                9913371
+              ],
+              "eventType": "merkle_tree_insertion"
+            }
+          ],
+          "type": "subscribe"
+        },
+        {
+          "streams": [
+            {
+              "cursors": [
+                {
+                  "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+                  "allowReplay": true,
+                  "afterSequence": "0",
+                  "domain": 9913371
+                }
+              ],
+              "domains": [
+                9913371
+              ],
+              "eventType": "merkle_tree_insertion"
+            }
+          ],
+          "type": "subscribe"
+        }
+      ],
+      "sigterm_ms": 197.82729190774262
+    },
+    "normal": {
+      "rpc_backfill_requests": 1,
+      "rpc_indexing_after_cutover": 0,
+      "wss_live_checkpoint": true,
+      "sigterm_ms": 138.8809171039611,
+      "rpc_methods": {
+        "eth_chainId": 2,
+        "eth_getBlockByNumber": 30,
+        "eth_call": 34,
+        "eth_blockNumber": 6,
+        "eth_getTransactionCount": 4,
+        "eth_estimateGas": 1,
+        "eth_feeHistory": 1,
+        "eth_sendRawTransaction": 1,
+        "eth_getLogs": 1,
+        "eth_getTransactionReceipt": 1
+      },
+      "subscriptions": [
+        {
+          "streams": [
+            {
+              "confirmations": 0,
+              "domains": [
+                9913371
+              ],
+              "eventType": "merkle_tree_insertion"
+            }
+          ],
+          "type": "subscribe"
+        }
+      ]
+    },
+    "idle_audit": {
+      "same_count_fork_detected_without_new_stream_leaf": true,
+      "authenticated_idle_audit_interval_ms": 60000,
+      "fork_detection_ms": 57421.586957992986,
+      "checkpoint_rpc_calls_during_3s_idle": 0,
+      "rpc_event_indexing_requests": 0,
+      "exit": 1,
+      "signed_objects_unchanged": true,
+      "rpc_methods": {
+        "eth_chainId": 2,
+        "eth_getBlockByNumber": 8,
+        "eth_call": 8
+      }
+    }
+  },
+  "rust_checkpoint_parity": true,
+  "messages": 5,
+  "environment": "empty except explicit defaults/native curl/public fixture CA; no user credentials"
+}

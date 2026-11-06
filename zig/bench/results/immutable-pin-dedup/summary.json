@@ -1,0 +1,18 @@
+{
+  "executed": true,
+  "all_before_after_hashes_identical": true,
+  "replaced_pins": 8,
+  "logical_duplicate_bytes": 91779960,
+  "free_disk_bytes_before": 42287304704,
+  "free_disk_bytes_after": 42379001856,
+  "manifest": "manifest.json.gz",
+  "manifest_sha256_chunks": [
+    "178c3b85b5c4166110a9bc49a4aa255d",
+    "187e7c837f2c0150db52b280456844d3"
+  ],
+  "decoded_sha256_chunks": [
+    "68de77362c9aeadea67c1c9a24b5d0c2",
+    "d86ec86d05125823ee7238d3f0635f1e"
+  ],
+  "scope": "Only task-owned explicitly pinned immutable executables; no source/release targets/SDKs/user caches"
+}

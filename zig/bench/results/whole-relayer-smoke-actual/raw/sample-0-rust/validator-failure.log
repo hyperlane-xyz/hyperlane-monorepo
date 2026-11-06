@@ -1,0 +1,21 @@
+Validator starting up...
+Agent validator starting up with version c5202242cc6569da4a858ed7ddbb34170ab696aa
+Loading settings: 2026-11-05T22:55:50.809603Z
+Error: ParsingError
+
+#####
+
+config_path: ``
+env_path: `HYP`
+arg_key: `--`
+error: Failed to open config directory
+
+Caused by:
+    No such file or directory (os error 2)
+
+Location:
+    hyperlane-base/src/settings/loader/mod.rs:36:10
+
+
+Location:
+    hyperlane-base/src/agent.rs:103:20

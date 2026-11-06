@@ -1,0 +1,27 @@
+test
++- run test 673/678 passed, 3 failed, 2 skipped
+error: 'cloud.rs256.test.opt-in OpenSSL RS256 agrees with external Node generated ephemeral fixtures' failed: [default] (warn): initialization metric update failed: MetricSeriesLimit
+[default] (warn): validator observation metric update failed
+error: 'cloud.identity.test.opt-in service-account ADC JWT exchange matches external signature and caches token' failed
+error: 'cloud.google_adc_test.test.opt-in Google ADC service account uses independent verified direct access JWT without OAuth network' failed: [default] (warn): Cosmos native validator locations unavailable: UnexpectedGrpcCall
+[default] (warn): Cosmos native validator locations unavailable: GrpcRemoteStatus
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+[default] (warn): contract cache metric update failed: OutOfMemory
+[default] (warn): Common health metric update failed: BalanceUnavailable
+[default] (warn): Common health metric update failed: ChainUnavailable
+[default] (warn): Common health metric update failed: HealthWalletIdentityChanged
+[default] (warn): critical metric update failed: MetricSeriesLimit
+error: while executing test 'agents.indexing.cursor_bootstrap.test.cursor bootstrap controls and persistence errors do not consume retry budget', the following test command failed:
+./.zig-cache/o/7e3f1b37f2b24d604ef48775a220d5ad/test --cache-dir=./.zig-cache --seed=0xe74dd251 --listen=-
+
+Build Summary: 1/3 steps succeeded; 1 failed; 673/678 tests passed; 2 skipped; 3 failed
+test transitive failure
++- run test 673/678 passed, 3 failed, 2 skipped
+   +- compile test ReleaseSafe native success 1m MaxRSS:3G
+
+error: the following build command failed with exit code 1:
+.zig-cache/o/20dc4507bd90e07a74d1d71bcb8ed1c6/build /private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig /private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/lib /Users/pbio/work/ziggy/zig .zig-cache /Users/pbio/.cache/zig --seed 0xe74dd251 -Z5d2e767d40cb3189 test -Doptimize=ReleaseSafe --summary all

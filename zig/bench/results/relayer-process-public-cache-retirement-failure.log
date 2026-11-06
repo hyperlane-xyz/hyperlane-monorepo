@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/Users/pbio/work/ziggy/zig/integration/relayer_process.py", line 182, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "/Users/pbio/work/ziggy/zig/integration/relayer_process.py", line 128, in main
+    wait(settled,running,45,'finalized receipt accounting and active retirement');metrics=telemetry(value['metricsPort']);first_stop=stop(running)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/pbio/work/ziggy/zig/integration/relayer_process.py", line 57, in wait
+    raise AssertionError(f'deadline waiting for{description}')
+AssertionError: deadline waiting forfinalized receipt accounting and active retirement

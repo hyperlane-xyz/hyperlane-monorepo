@@ -1,0 +1,5 @@
+Hyperlane validator (Zig, experimental)
+Rust-compatible CONFIG_FILES, HYP_ environment and --key=value configuration.
+HYPERLANE_ZIG_DEFAULTS: defaults directory (default ./config).
+HYPERLANE_CURL_LIBRARY: vetted native libcurl path.
+--zig-once: execute one bounded worker cycle and report health.

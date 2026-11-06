@@ -1,0 +1,23 @@
+{
+  "baseline": "c520224",
+  "baseline_full_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
+  "baseline_build_evidence": "zig/bench/results/rust-full-build-configured.json",
+  "baseline_toolchain": "cargo +1.98.0 build --locked --release -p relayer -p validator -p scraper -j 4",
+  "zig_note": "CURRENT native Zig binaries, not Rust baseline artifacts; pinned before hashing without rebuilding",
+  "rust_sha256": [
+    "f103c0d8dee889ce605751ff83de4464",
+    "f3569a12e104d27a8b1b05398c0fad39"
+  ],
+  "rust_validator_sha256": [
+    "3ebecdcf76ded141a16eeb5d78133320",
+    "7aebac5a483724cd3bf07d56a98693c3"
+  ],
+  "zig_sha256": [
+    "5f266894ab0b81beaa6026ca67c8c2ca",
+    "c5e83285ff76a3b16dedecc8a7526791"
+  ],
+  "zig_validator_sha256": [
+    "1f71fc2367b83bd3728940be083b23e4",
+    "eff5a94ae76900c212629a360f3220d8"
+  ]
+}

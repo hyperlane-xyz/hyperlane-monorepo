@@ -1,0 +1,583 @@
+warning: /Users/pbio/work/ziggy/rust/main/hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-core` (manifest) generated 1 warning
+    Blocking waiting for file lock on build directory
+   Compiling serde_core v1.0.228
+   Compiling serde v1.0.228
+   Compiling smallvec v1.15.1
+   Compiling parking_lot_core v0.9.10
+   Compiling parking_lot v0.12.3
+   Compiling futures-io v0.3.31
+   Compiling futures-util v0.3.31
+   Compiling bytes v1.10.1
+   Compiling serde_json v1.0.151
+   Compiling curve25519-dalek v4.1.3
+   Compiling tokio v1.53.1
+   Compiling bitflags v2.13.0
+   Compiling indexmap v2.12.0
+   Compiling bincode v1.3.3
+   Compiling solana-hash v4.0.1
+   Compiling solana-program-error v3.0.0
+   Compiling solana-sha256-hasher v3.1.0
+   Compiling solana-address v2.0.0
+   Compiling either v1.13.0
+   Compiling icu_normalizer v2.1.1
+   Compiling tokio-util v0.7.18
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling http v0.2.12
+   Compiling url v2.5.4
+   Compiling http v1.2.0
+   Compiling solana-address v1.1.0
+   Compiling solana-instruction-error v2.1.0
+   Compiling arrayvec v0.7.6
+   Compiling solana-pubkey v3.0.0
+   Compiling solana-sdk-ids v3.1.0
+   Compiling http-body v0.4.6
+   Compiling num-bigint v0.4.6
+   Compiling solana-pubkey v4.0.0
+   Compiling http-body v1.0.1
+   Compiling solana-instruction v3.1.0
+   Compiling serde_urlencoded v0.7.1
+   Compiling http-body-util v0.1.4
+   Compiling security-framework v3.7.0
+   Compiling solana-hash v3.1.0
+   Compiling serde_bytes v0.11.15
+   Compiling ed25519-dalek v2.1.1
+   Compiling h2 v0.3.26
+   Compiling solana-sysvar-id v3.1.0
+   Compiling solana-transaction-error v3.0.0
+   Compiling serde_with v3.12.0
+   Compiling deranged v0.5.8
+   Compiling hyper v0.14.30
+   Compiling time v0.3.54
+   Compiling futures-executor v0.3.31
+   Compiling bv v0.11.1
+   Compiling futures v0.3.31
+   Compiling h2 v0.4.15
+   Compiling blake3 v1.8.2
+   Compiling solana-hash v2.3.0
+   Compiling serde-big-array v0.5.1
+   Compiling solana-signature v3.1.0
+   Compiling solana-account-info v3.1.0
+   Compiling tokio-rustls v0.24.1
+   Compiling solana-sha256-hasher v2.3.0
+   Compiling solana-pubkey v2.4.0
+   Compiling solana-signer v3.0.0
+   Compiling security-framework v2.11.1
+   Compiling semver v1.0.27
+   Compiling rustls-native-certs v0.6.3
+   Compiling solana-clock v3.0.0
+   Compiling solana-epoch-schedule v3.0.0
+   Compiling solana-short-vec v3.2.0
+   Compiling hyper-rustls v0.24.2
+   Compiling hyper v1.11.0
+   Compiling solana-slot-hashes v3.0.0
+   Compiling solana-fee-calculator v3.0.0
+   Compiling parity-scale-codec v3.6.12
+   Compiling hyper-util v0.1.17
+   Compiling tower v0.5.2
+   Compiling solana-rent v3.1.0
+   Compiling solana-program-entrypoint v3.1.1
+   Compiling rustix v1.1.2
+   Compiling chrono v0.4.45
+   Compiling tokio-rustls v0.26.1
+   Compiling rlp v0.5.2 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling solana-last-restart-slot v3.0.0
+   Compiling solana-epoch-rewards v3.0.0
+   Compiling solana-slot-history v3.0.0
+   Compiling solana-sysvar v3.1.1
+   Compiling tempfile v3.23.0
+   Compiling solana-message v3.0.1
+   Compiling native-tls v0.2.18
+   Compiling scale-info v2.11.3
+   Compiling solana-serialize-utils v3.1.0
+   Compiling tokio-native-tls v0.3.1
+   Compiling impl-rlp v0.3.0
+   Compiling impl-rlp v0.3.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling impl-codec v0.6.0
+   Compiling impl-codec v0.6.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling impl-serde v0.4.0
+   Compiling impl-serde v0.4.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling primitive-types v0.12.1 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling ethbloom v0.13.0
+   Compiling hyper-tls v0.5.0
+   Compiling solana-instructions-sysvar v3.0.0
+   Compiling bs58 v0.5.1
+   Compiling ethereum-types v0.14.1
+   Compiling solana-instruction v2.3.3
+   Compiling solana-system-interface v2.0.0
+   Compiling solana-serde-varint v3.0.0
+   Compiling solana-account v3.4.0
+   Compiling solana-sdk-ids v2.2.1
+   Compiling reqwest v0.11.27
+   Compiling uuid v1.11.0
+   Compiling async-compression v0.4.12
+   Compiling tower-http v0.6.8
+   Compiling hyper-rustls v0.27.6
+   Compiling itertools v0.10.5
+   Compiling camino v1.1.9
+   Compiling solana-transaction v3.0.2
+   Compiling solana-nonce v3.0.0
+   Compiling ed25519-dalek-bip32 v0.3.0
+   Compiling solana-keypair v3.1.0
+   Compiling solana-program-pack v3.0.0
+   Compiling cargo-platform v0.1.8
+   Compiling cargo_metadata v0.15.4
+   Compiling solana-sysvar-id v2.2.1
+   Compiling ethabi v18.0.0
+   Compiling open-fastrlp v0.1.4
+   Compiling solana-address-lookup-table-interface v3.0.1
+   Compiling solana-cpi v3.1.0
+   Compiling solana-inflation v3.0.0
+   Compiling ethers-core v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling solana-packet v3.0.0
+   Compiling solana-keccak-hasher v3.1.0
+   Compiling itertools v0.12.1
+   Compiling solana-serde v3.0.0
+   Compiling solana-example-mocks v3.0.0
+   Compiling solana-blake3-hasher v3.1.0
+   Compiling solana-big-mod-exp v3.0.0
+   Compiling solana-stable-layout v3.0.0
+   Compiling solana-epoch-stake v3.0.0
+   Compiling solana-epoch-info v3.1.0
+   Compiling solana-program v3.0.0
+   Compiling tungstenite v0.17.3
+   Compiling tokio-rustls v0.23.4
+   Compiling tokio-stream v0.1.17
+   Compiling toml v0.5.11
+   Compiling tokio-tungstenite v0.17.2
+   Compiling solana-program-error v2.2.2
+   Compiling ethers-contract-abigen v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling ethers-providers v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling solana-system-interface v1.0.0
+   Compiling ethers-contract v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling reqwest v0.12.28
+   Compiling num-rational v0.4.2
+   Compiling num-complex v0.4.6
+   Compiling solana-epoch-rewards-hasher v3.1.0
+   Compiling solana-account-info v2.3.0
+   Compiling solana-shred-version v3.0.0
+   Compiling num v0.4.3
+   Compiling prometheus v0.14.0
+   Compiling erased-serde v0.4.5
+   Compiling solana-clock v2.2.2
+   Compiling solana-offchain-message v3.0.0
+   Compiling bigdecimal v0.4.5
+   Compiling solana-presigner v3.0.0
+   Compiling solana-fee-structure v3.0.0
+   Compiling typetag v0.2.18
+   Compiling solana-sdk v3.0.0
+   Compiling hyperlane-application v2.3.0 (/Users/pbio/work/ziggy/rust/main/applications/hyperlane-application)
+   Compiling bytes-utils v0.1.4
+   Compiling aws-smithy-types v1.3.0
+   Compiling hyperlane-core v2.3.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-core)
+   Compiling tracing-serde v0.2.0
+   Compiling tracing-subscriber v0.3.23
+   Compiling prost v0.13.4
+   Compiling rayon v1.10.0
+   Compiling solana-transaction-error v2.2.1
+   Compiling solana-rent v2.2.1
+   Compiling solana-slot-hashes v2.2.1
+   Compiling solana-serialize-utils v2.2.1
+   Compiling solana-short-vec v2.2.1
+   Compiling solana-fee-calculator v2.2.1
+   Compiling solana-cpi v2.2.1
+   Compiling solana-bincode v2.2.1
+   Compiling hyper-timeout v0.5.2
+   Compiling rustls-native-certs v0.8.1
+   Compiling libsecp256k1 v0.6.0
+   Compiling solana-message v2.4.0
+   Compiling solana-stake-interface v1.2.1
+   Compiling solana-nonce v2.2.1
+   Compiling solana-instructions-sysvar v2.2.2
+   Compiling solana-address-lookup-table-interface v2.2.2
+   Compiling spl-discriminator v0.5.1
+   Compiling solana-account v2.2.1
+   Compiling solana-program-entrypoint v2.3.0
+   Compiling solana-epoch-schedule v2.2.1
+   Compiling solana-last-restart-slot v2.2.1
+   Compiling solana-epoch-rewards v2.2.1
+   Compiling solana-slot-history v2.2.1
+   Compiling solana-keccak-hasher v2.2.1
+   Compiling aws-smithy-async v1.2.5
+   Compiling solana-serde-varint v2.2.2
+   Compiling uuid v0.8.2
+   Compiling solana-vote-interface v2.2.6
+   Compiling eth-keystore v0.5.0
+   Compiling aws-smithy-runtime-api v1.7.4
+   Compiling solana-example-mocks v2.2.1
+   Compiling solana-sysvar v2.3.0
+   Compiling solana-feature-gate-interface v2.2.2
+   Compiling solana-secp256k1-recover v2.2.1
+   Compiling solana-loader-v4-interface v2.2.1
+   Compiling solana-loader-v3-interface v5.0.0
+   Compiling solana-program-pack v2.2.1
+   Compiling solana-loader-v2-interface v2.2.1
+   Compiling solana-stable-layout v2.2.1
+   Compiling solana-blake3-hasher v2.2.1
+   Compiling solana-big-mod-exp v2.2.1
+   Compiling lambdaworks-math v0.13.0
+   Compiling toml_datetime v0.6.8
+   Compiling serde_spanned v0.6.8
+   Compiling toml_edit v0.22.20
+   Compiling lambdaworks-crypto v0.13.0
+   Compiling solana-program v2.3.0
+   Compiling schemars v0.8.21
+   Compiling combine v3.8.1
+   Compiling tower v0.4.13
+   Compiling starknet-types-core v0.2.4
+   Compiling agave-feature-set v3.0.14
+   Compiling starknet-curve v0.6.0
+   Compiling solana-sbpf v0.12.2
+   Compiling solana-signer v2.2.1
+   Compiling abigen v3.0.0 (/Users/pbio/work/ziggy/rust/main/utils/abigen)
+   Compiling solana-account-decoder-client-types v3.0.14
+   Compiling google-cloud-wkt v1.6.0
+   Compiling solana-commitment-config v3.1.0
+   Compiling spl-program-error v0.5.0
+   Compiling solana-zk-sdk v2.3.13
+   Compiling serde_json_pythonic v0.1.2
+   Compiling ed25519-zebra v3.1.0
+   Compiling solana-transaction-context v3.0.14
+   Compiling starknet-crypto v0.8.1
+   Compiling spl-generic-token v2.0.1
+   Compiling solana-reward-info v3.0.0
+   Compiling rusoto_credential v0.48.0
+   Compiling spl-pod v0.4.0
+   Compiling solana-transaction-status-client-types v3.0.14
+   Compiling prost v0.14.4
+   Compiling starknet-core v0.16.0
+   Compiling cosmwasm-crypto v1.5.7
+   Compiling google-cloud-rpc v1.6.0
+   Compiling spl-discriminator v0.3.0
+   Compiling solana-zk-sdk v4.0.0
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling solana-cluster-type v3.0.0
+   Compiling serde-json-wasm v0.5.2
+   Compiling cosmwasm-std v1.5.7
+   Compiling solana-metrics v3.0.14
+   Compiling asn1-rs v0.5.2
+   Compiling reqwest v0.13.4
+   Compiling rusoto_signature v0.48.0
+   Compiling spl-type-length-value v0.6.0
+   Compiling google-cloud-gax v1.12.0
+   Compiling solana-version v3.0.14
+   Compiling tonic v0.14.6
+   Compiling ark-std v0.4.0
+   Compiling aws-smithy-eventstream v0.60.8
+   Compiling axum-core v0.4.5
+   Compiling rusoto_core v0.48.0
+   Compiling coins-core v0.7.0
+   Compiling axum v0.7.9
+   Compiling tonic-prost v0.14.6
+   Compiling ark-serialize v0.4.2
+   Compiling google-cloud-auth v1.14.0
+   Compiling solana-rpc-client-types v3.0.14
+   Compiling spl-pod v0.7.1
+   Compiling opentelemetry_sdk v0.32.1
+   Compiling tracing-opentelemetry v0.33.0
+   Compiling starknet-signers v0.14.0
+   Compiling starknet-providers v0.16.0
+   Compiling prost-types v0.14.4
+   Compiling tendermint-proto v0.40.1
+   Compiling dashmap v5.5.3
+   Compiling aws-smithy-http v0.62.0
+   Compiling aws-credential-types v1.2.2
+   Compiling radix-rust v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling coins-bip32 v0.7.0
+   Compiling sbor v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling google-cloud-gax-internal v0.7.15
+   Compiling bitvec v0.17.4
+   Compiling hyperlane-metric v3.0.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-metric)
+   Compiling tonic v0.12.3
+   Compiling starknet-accounts v0.16.0
+   Compiling ark-ff v0.4.2
+   Compiling nix v0.30.1
+   Compiling oid-registry v0.6.1
+   Compiling der-parser v8.2.0
+   Compiling toml v0.8.19
+   Compiling aws-smithy-observability v0.1.2
+   Compiling aws-smithy-http-client v1.0.1
+   Compiling ecdsa-signature v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/ecdsa-signature)
+   Compiling reqwest-middleware v0.4.2
+   Compiling serializable-account-meta v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/serializable-account-meta)
+   Compiling solana-vote-interface v3.0.0
+   Compiling rustls-platform-verifier v0.5.3
+   Compiling jsonrpc-core v18.0.0
+   Compiling quinn-proto v0.11.12
+   Compiling cosmwasm-schema v1.5.7
+   Compiling solana-rpc-client-api v3.0.14
+   Compiling aws-sigv4 v1.3.0
+   Compiling package-versioned v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/package-versioned)
+   Compiling solana-perf v3.0.14
+   Compiling aws-smithy-runtime v1.8.1
+   Compiling x509-parser v0.14.0
+   Compiling solana-net-utils v3.0.14
+   Compiling ark-poly v0.4.2
+   Compiling radix-common v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling starknet-contract v0.16.0
+   Compiling aws-types v1.3.6
+   Compiling coins-bip39 v0.7.0
+   Compiling rusoto_kms v0.48.0
+   Compiling aws-smithy-http v0.60.12
+   Compiling account-utils v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/account-utils)
+   Compiling cw-storage-plus v1.2.0
+   Compiling hyperlane-operation-verifier v3.0.0 (/Users/pbio/work/ziggy/rust/main/applications/hyperlane-operation-verifier)
+   Compiling hyperlane-warp-route v2.3.0 (/Users/pbio/work/ziggy/rust/main/applications/hyperlane-warp-route)
+   Compiling access-control v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/access-control)
+   Compiling solana-quic-definitions v3.0.0
+   Compiling serde-aux v4.5.0
+   Compiling redact v0.1.11
+   Compiling governor v0.6.3
+   Compiling ethers-etherscan v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling tungstenite v0.20.1
+   Compiling cw2 v1.1.2
+   Compiling ethers-signers v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling aws-runtime v1.5.6
+   Compiling quinn v0.11.8
+   Compiling starknet v0.17.0
+   Compiling ark-ec v0.4.2
+   Compiling solana-tls-utils v3.0.14
+   Compiling solana-transaction-metrics-tracker v3.0.14
+   Compiling solana-connection-cache v3.0.14
+   Compiling tendermint v0.40.1
+   Compiling spl-type-length-value v0.9.0
+   Compiling hyperlane-sealevel-message-recipient-interface v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/message-recipient-interface)
+   Compiling hyperlane-sealevel-interchain-security-module-interface v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/interchain-security-module-interface)
+   Compiling spl-noop v1.0.0
+   Compiling proc-macro-crate v3.2.0
+   Compiling tracing-test v0.2.5
+   Compiling solana-feature-gate-interface v3.1.0
+   Compiling solana-curve25519 v3.1.8
+   Compiling solana-streamer v3.0.14
+   Compiling ethers-middleware v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling spl-token-confidential-transfer-proof-extraction v0.5.1
+   Compiling solana-rpc-client v3.0.14
+   Compiling prost v0.12.6
+   Compiling hyperlane-sealevel-mailbox v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/mailbox)
+   Compiling tendermint-config v0.40.1
+   Compiling spl-token-metadata-interface v0.8.0
+   Compiling ark-bls12-381 v0.4.0
+   Compiling cw-utils v1.0.3
+   Compiling tokio-tungstenite v0.20.1
+   Compiling axum-core v0.3.4
+   Compiling radix-blueprint-schema-init v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling cosmos-sdk-proto v0.26.1
+   Compiling google-cloud-longrunning v1.12.0
+   Compiling spl-token-group-interface v0.7.1
+   Compiling spl-token-confidential-transfer-proof-generation v0.5.1
+   Compiling google-cloud-type v1.6.0
+   Compiling ethers-prometheus v3.0.0 (/Users/pbio/work/ziggy/rust/main/ethers-prometheus)
+   Compiling cometbft-proto v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+   Compiling ed25519-zebra v4.0.3
+   Compiling prost-types v0.13.4
+   Compiling ethers-addressbook v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling reqwest-utils v3.0.0 (/Users/pbio/work/ziggy/rust/main/utils/reqwest-utils)
+   Compiling solana-loader-v3-interface v6.1.0
+   Compiling tokio-io-timeout v1.2.0
+   Compiling impl-serde v0.2.3
+   Compiling cosmwasm-crypto v2.1.3
+   Compiling ethbloom v0.6.4
+   Compiling hyper-timeout v0.4.1
+   Compiling cainome-parser v0.6.0
+   Compiling ethers v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling cometbft v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+   Compiling google-cloud-iam-v1 v1.11.0
+   Compiling spl-token-2022-interface v2.1.0
+   Compiling radix-engine-interface v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling google-cloud-lro v1.9.0
+   Compiling axum v0.6.20
+   Compiling solana-pubsub-client v3.0.14
+   Compiling cw20 v1.1.2
+   Compiling tendermint-rpc v0.40.1
+   Compiling cainome-cairo-serde v0.4.1
+   Compiling hyperlane-ethereum v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-ethereum)
+   Compiling multisig-ism v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/multisig-ism)
+   Compiling google-cloud-location v1.11.0
+   Compiling solana-client-traits v3.0.0
+   Compiling aws-smithy-json v0.61.3
+   Compiling aws-smithy-json v0.60.7
+   Compiling solana-stake-interface v2.0.2
+   Compiling spl-token-interface v2.0.0
+   Compiling solana-config-interface v2.0.0
+   Compiling informalsystems-pbjson v0.7.0
+   Compiling serde-json-wasm v1.0.1
+   Compiling ethereum-types-serialize v0.2.2
+   Compiling aws-smithy-query v0.60.7
+   Compiling predicates v2.1.5
+   Compiling ethereum-types v0.5.2
+   Compiling cosmwasm-std v2.1.3
+   Compiling ics23 v0.12.0
+   Compiling solana-account-decoder v3.0.14
+   Compiling solana-tpu-client v3.0.14
+   Compiling google-cloud-kms-v1 v1.12.0
+   Compiling cosmrs v0.21.0
+   Compiling cainome-rs v0.5.1
+   Compiling cw20-base v1.1.2
+   Compiling tonic v0.10.2
+   Compiling cometbft-config v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+   Compiling protobuf v2.28.0
+   Compiling solana-quic-client v3.0.14
+   Compiling prost-types v0.12.6
+   Compiling solana-rpc-client-nonce-utils v3.0.14
+   Compiling solana-udp-client v3.0.14
+   Compiling radix-substate-store-interface v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling hyperlane-tron v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-tron)
+   Compiling quote-verifier v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/libraries/quote-verifier)
+   Compiling cosmwasm-storage v1.5.2
+   Compiling tungstenite v0.21.0
+   Compiling hyperlane-starknet v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-starknet)
+   Compiling agave-reserved-account-keys v3.0.14
+   Compiling tracing-error v0.2.0
+   Compiling gateway-api-client-async v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+   Compiling core-api-client-async v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+   Compiling crypto v3.0.0 (/Users/pbio/work/ziggy/rust/main/utils/crypto)
+   Compiling solana-loader-v2-interface v3.0.0
+   Compiling spl-associated-token-account-interface v2.0.0
+   Compiling spl-memo-interface v2.0.0
+   Compiling headers-core v0.2.0
+   Compiling sha256 v1.5.0
+   Compiling serde-cw-value v0.7.0
+   Compiling mockall v0.11.4
+   Compiling yup-oauth2 v8.3.1
+   Compiling color-spantrace v0.2.1
+   Compiling aws-smithy-checksums v0.60.13
+   Compiling injective-std v1.13.6
+warning: unused import: `error`
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-ethereum/src/rpc_clients/retrying.rs:14:15
+   |
+14 | use tracing::{error, instrument, trace, warn, warn_span};
+   |               ^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hyperlane-ethereum` (lib) generated 1 warning (run `cargo fix --lib -p hyperlane-ethereum` to apply 1 suggestion)
+   Compiling headers v0.3.9
+   Compiling solana-transaction-status v3.0.14
+   Compiling core-api-client v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+   Compiling gateway-api-client v1.0.0 (https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad)
+   Compiling tungstenite v0.30.0
+   Compiling tokio-tungstenite v0.21.0
+   Compiling hyperlane-cosmwasm-interface v0.0.6-rc6
+   Compiling hyperlane-sealevel-igp v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/hyperlane-sealevel-igp)
+   Compiling radix-transactions v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling solana-client v3.0.14
+   Compiling console-api v0.6.0
+   Compiling injective-protobuf v0.2.2
+   Compiling hyperlane-base v3.0.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-base)
+   Compiling cometbft-rpc v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+   Compiling cainome v0.10.1
+   Compiling hyperlane-cosmos-rs v0.1.4
+   Compiling scrypto v1.3.0 (https://github.com/hyperlane-xyz/radixdlt-scrypto.git?branch=hyperlane#0ff82f3b)
+   Compiling ibc-proto v0.51.1
+   Compiling multer v2.1.0
+   Compiling aws-sdk-sts v1.50.0
+   Compiling json5 v0.4.1
+   Compiling humantime-serde v1.1.1
+   Compiling aws-sdk-ssooidc v1.50.0
+   Compiling aws-sdk-sso v1.50.0
+   Compiling hyperlane-sealevel-composite-ism v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/ism/composite-ism)
+   Compiling hyperlane-sealevel-multisig-ism-message-id v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/ism/multisig-ism-message-id)
+   Compiling tron-rs v0.1.0
+   Compiling hyperlane-sealevel-validator-announce v0.1.0 (/Users/pbio/work/ziggy/rust/sealevel/programs/validator-announce)
+   Compiling solana-loader-v3-interface v3.0.0
+   Compiling tokio-metrics v0.4.0
+   Compiling ron v0.7.1
+   Compiling tame-gcs v0.10.0
+   Compiling axum-core v0.5.2
+   Compiling solana-compute-budget-interface v3.0.0
+   Compiling serde_path_to_error v0.1.16
+   Compiling config v0.13.4
+   Compiling axum v0.8.4
+   Compiling moka v0.12.8
+   Compiling warp v0.3.7
+   Compiling hyperlane-sealevel v0.1.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-sealevel)
+   Compiling ya-gcp v0.12.0
+   Compiling tokio-tungstenite v0.30.0
+   Compiling hyperlane-radix v0.1.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-radix)
+   Compiling console-subscriber v0.2.0
+   Compiling aws-config v1.1.9
+   Compiling hyperlane-cosmos v3.0.0 (/Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos)
+warning: struct `Log` is never constructed
+ --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:9:12
+  |
+9 | pub struct Log {
+  |            ^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `Events` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:15:12
+   |
+15 | pub struct Events {
+   |            ^^^^^^
+
+warning: struct `Event` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:20:12
+   |
+20 | pub struct Event {
+   |            ^^^^^
+
+warning: struct `QueryRoutingIsmRouteResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/ism_routes.rs:25:12
+   |
+25 | pub struct QueryRoutingIsmRouteResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `QueryIsmModuleTypeResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/ism_routes.rs:40:12
+   |
+40 | pub struct QueryIsmModuleTypeResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `CountRequest` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/mailbox.rs:12:12
+   |
+12 | pub struct CountRequest {
+   |            ^^^^^^^^^^^^
+
+warning: struct `CountResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/mailbox.rs:59:12
+   |
+59 | pub struct CountResponse {
+   |            ^^^^^^^^^^^^^
+
+warning: struct `GetAnnouncedValidatorsRequest` is never constructed
+ --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/validator_announce.rs:6:12
+  |
+6 | pub struct GetAnnouncedValidatorsRequest {
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `GetAnnouncedValidatorsResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/validator_announce.rs:35:12
+   |
+35 | pub struct GetAnnouncedValidatorsResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling aws-sdk-s3 v1.65.0
+warning: `hyperlane-cosmos` (lib) generated 9 warnings
+   Compiling color-eyre v0.6.3
+   Compiling hyperlane-test v3.0.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-test)
+   Compiling backtrace-oneline v0.1.0 (/Users/pbio/work/ziggy/rust/main/utils/backtrace-oneline)
+   Compiling rusoto_sts v0.48.0
+warning: hiding a lifetime that's elided elsewhere is confusing
+    --> /Users/pbio/work/ziggy/rust/main/hyperlane-base/src/settings/chains.rs:1622:16
+     |
+1622 |     fn locator(&self, address: H256) -> ContractLocator {
+     |                ^^^^^                    ^^^^^^^^^^^^^^^ the same lifetime is hidden here
+     |                |
+     |                the lifetime is elided here
+     |
+     = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+     = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+     |
+1622 |     fn locator(&self, address: H256) -> ContractLocator<'_> {
+     |                                                        ++++
+
+warning: `hyperlane-base` (lib) generated 1 warning (run `cargo fix --lib -p hyperlane-base` to apply 1 suggestion)
+   Compiling ziggy-rocks-oracle v0.1.0 (/Users/pbio/work/ziggy/zig/reference/rocks)
+    Finished `release` profile [optimized] target(s) in 15m 36s
+warning: the following packages contain code that will be rejected by a future version of Rust: cometbft-proto v0.1.0-alpha.2 (https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31)
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 2`

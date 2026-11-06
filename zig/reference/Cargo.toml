@@ -1,0 +1,31 @@
+[package]
+name = "ziggy-rust-reference"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Separate lockfile/target; production core remains a path dependency, unmodified.
+[workspace]
+
+[dependencies]
+hyperlane-core = { path = "../../rust/main/hyperlane-core" }
+serde_json = "=1.0.151"
+k256 = { version = "=0.13.4", features = ["arithmetic", "std", "ecdsa"] }
+sha3 = "=0.10.8"
+config = "=0.13.4"
+convert_case = "=0.6.0"
+derive-new = "=0.5.9"
+itertools = "=0.14.0"
+thiserror = "=1.0.69"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[[bin]]
+name = "settings-merge"
+path = "src/settings_merge.rs"
+
+[[bin]]
+name = "packed-prover"
+path = "src/packed_prover.rs"

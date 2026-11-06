@@ -1,0 +1,47 @@
+Scraper starting up...
+Agent scraper starting up with version c5202242cc6569da4a858ed7ddbb34170ab696aa
+Loading settings: 2026-11-05T18:15:38.234316Z
+Loaded settings: 2026-11-05T18:15:38.235301Z
+  [2m2026-11-05T18:15:38.241565Z[0m [32m INFO[0m [1;32mmigration::indexes[0m[32m: [32mVerified scraper index, [1;32mindex[0m[32m: "delivery_frontier_unenriched"[0m
+    [2;3mat[0m agents/scraper/migration/src/indexes.rs:249
+
+  [2m2026-11-05T18:15:38.242560Z[0m [32m INFO[0m [1;32mmigration::indexes[0m[32m: [32mVerified scraper index, [1;32mindex[0m[32m: "gas_payment_frontier_unenriched"[0m
+    [2;3mat[0m agents/scraper/migration/src/indexes.rs:249
+
+  [2m2026-11-05T18:15:38.243187Z[0m [32m INFO[0m [1;32mmigration::indexes[0m[32m: [32mVerified scraper index, [1;32mindex[0m[32m: "gas_payment_frontier_height"[0m
+    [2;3mat[0m agents/scraper/migration/src/indexes.rs:249
+
+  [2m2026-11-05T18:15:38.243677Z[0m [32m INFO[0m [1;32mscraper::agent[0m[32m: [32mcreate chain scraper for domain, [1;32mdomain[0m[32m: "scraperprocess"[0m
+    [2;3mat[0m agents/scraper/src/agent.rs:309
+    [2;3min[0m scraper::agent::[1mbuild_chain_scraper[0m [2;3mwith[0m [1mdomain[0m: scraperprocess
+
+  [2m2026-11-05T18:15:38.243698Z[0m [32m INFO[0m [1;32mscraper::agent[0m[32m: [32mcreate HyperlaneProvider, [1;32mdomain[0m[32m: "scraperprocess"[0m
+    [2;3mat[0m agents/scraper/src/agent.rs:311
+    [2;3min[0m scraper::agent::[1mbuild_chain_scraper[0m [2;3mwith[0m [1mdomain[0m: scraperprocess
+
+  [2m2026-11-05T18:15:38.357607Z[0m [32m INFO[0m [1;32mscraper::agent[0m[32m: [32mcreate HyperlaneDbStore, [1;32mdomain[0m[32m: "scraperprocess"[0m
+    [2;3mat[0m agents/scraper/src/agent.rs:313
+    [2;3min[0m scraper::agent::[1mbuild_chain_scraper[0m [2;3mwith[0m [1mdomain[0m: scraperprocess
+
+  [2m2026-11-05T18:15:38.357648Z[0m [32m INFO[0m [1;32mscraper::agent[0m[32m: [32minsert chain scraper, [1;32mdomain[0m[32m: "scraperprocess"[0m
+    [2;3mat[0m agents/scraper/src/agent.rs:340
+
+  [2m2026-11-05T18:15:38.357851Z[0m [32m INFO[0m [1;32mhyperlane_base::server::base_server[0m[32m: [32mstarting server on 0.0.0.0, [1;32mport[0m[32m: 63523[0m
+    [2;3mat[0m hyperlane-base/src/server/base_server.rs:29
+    [2;3min[0m scraper::agent::[1mScraper server[0m
+
+  [2m2026-11-05T18:15:43.395552Z[0m [32m INFO[0m [1;32mscraper::reconciliation::metrics[0m[32m: [32mReconciled raw message dispatches, [1;32mkind[0m[32m: "discovery_page", [1;32mcandidates[0m[32m: 24, [1;32mattempted[0m[32m: 24, [1;32mskipped_backoff[0m[32m: 0, [1;32mstored[0m[32m: 24, [1;32mretry_capacity_overflows[0m[32m: 0, [1;32mafter_id[0m[32m: 0, [1;32mthrough_id[0m[32m: 24, [1;32mdomain[0m[32m: "scraperprocess"[0m
+    [2;3mat[0m agents/scraper/src/reconciliation/metrics.rs:103
+    [2;3min[0m scraper::reconciliation::[1mRawDispatchReconciliation[0m [2;3mwith[0m [1mchain[0m: scraperprocess
+    [2;3min[0m scraper::agent::[1mscrape[0m [2;3mwith[0m [1mdomain[0m: scraperprocess
+
+  [2m2026-11-05T18:15:48.410529Z[0m [32m INFO[0m [1;32mscraper::reconciliation::metrics[0m[32m: [32mReconciled raw message dispatches, [1;32mkind[0m[32m: "discovery_page", [1;32mcandidates[0m[32m: 3, [1;32mattempted[0m[32m: 3, [1;32mskipped_backoff[0m[32m: 0, [1;32mstored[0m[32m: 3, [1;32mretry_capacity_overflows[0m[32m: 0, [1;32mafter_id[0m[32m: 24, [1;32mthrough_id[0m[32m: 27, [1;32mdomain[0m[32m: "scraperprocess"[0m
+    [2;3mat[0m agents/scraper/src/reconciliation/metrics.rs:103
+    [2;3min[0m scraper::reconciliation::[1mRawDispatchReconciliation[0m [2;3mwith[0m [1mchain[0m: scraperprocess
+    [2;3min[0m scraper::agent::[1mscrape[0m [2;3mwith[0m [1mdomain[0m: scraperprocess
+
+  [2m2026-11-05T18:15:53.426417Z[0m [32m INFO[0m [1;32mscraper::reconciliation::metrics[0m[32m: [32mReconciled raw message dispatches, [1;32mkind[0m[32m: "discovery_page", [1;32mcandidates[0m[32m: 5, [1;32mattempted[0m[32m: 5, [1;32mskipped_backoff[0m[32m: 0, [1;32mstored[0m[32m: 5, [1;32mretry_capacity_overflows[0m[32m: 0, [1;32mafter_id[0m[32m: 27, [1;32mthrough_id[0m[32m: 32, [1;32mdomain[0m[32m: "scraperprocess"[0m
+    [2;3mat[0m agents/scraper/src/reconciliation/metrics.rs:103
+    [2;3min[0m scraper::reconciliation::[1mRawDispatchReconciliation[0m [2;3mwith[0m [1mchain[0m: scraperprocess
+    [2;3min[0m scraper::agent::[1mscrape[0m [2;3mwith[0m [1mdomain[0m: scraperprocess
+

@@ -1,0 +1,907 @@
+{
+  "scope": "Zig public recovery/signing microbenchmark; not Rust or whole-agent performance",
+  "host_limit": "Shared host; balanced pairs reduce order drift but do not establish idle-host performance",
+  "samples_per_kernel_variant": 9,
+  "iterations_per_process": 200,
+  "zig": "0.15.2",
+  "source_sha256_chunks": {
+    "before": [
+      "686db61400e36eef0c507cebe0a17f8b",
+      "4bd0ad67795321d4286910e8c393d171"
+    ],
+    "after": [
+      "9dc7df232f8cb251ac2a543b5a7da5d6",
+      "8eb5231da576886b978f842a35612aa4"
+    ]
+  },
+  "harness_sha256_chunks": [
+    "2c9e7063dcf56db437d9882a0792eb39",
+    "53ddb03f77966a4c8163a6605b2c6d2c"
+  ],
+  "load_start": [
+    3.2685546875,
+    6.017578125,
+    9.466796875
+  ],
+  "raw": [
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 117066292,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 0,
+      "order": 0,
+      "ns_per_operation": 585331.46
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34414792,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 0,
+      "order": 1,
+      "ns_per_operation": 172073.96
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34018833,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 1,
+      "order": 2,
+      "ns_per_operation": 170094.165
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 115792959,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 1,
+      "order": 3,
+      "ns_per_operation": 578964.795
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 115671791,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 2,
+      "order": 4,
+      "ns_per_operation": 578358.955
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34053333,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 2,
+      "order": 5,
+      "ns_per_operation": 170266.665
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34026166,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 3,
+      "order": 6,
+      "ns_per_operation": 170130.83
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 115716875,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 3,
+      "order": 7,
+      "ns_per_operation": 578584.375
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 123136375,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 4,
+      "order": 8,
+      "ns_per_operation": 615681.875
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34764750,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 4,
+      "order": 9,
+      "ns_per_operation": 173823.75
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34882125,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 5,
+      "order": 10,
+      "ns_per_operation": 174410.625
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 116340750,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 5,
+      "order": 11,
+      "ns_per_operation": 581703.75
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 116114792,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 6,
+      "order": 12,
+      "ns_per_operation": 580573.96
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34049583,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 6,
+      "order": 13,
+      "ns_per_operation": 170247.915
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34006166,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 7,
+      "order": 14,
+      "ns_per_operation": 170030.83
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 122743750,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 7,
+      "order": 15,
+      "ns_per_operation": 613718.75
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118465500,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 8,
+      "order": 16,
+      "ns_per_operation": 592327.5
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34740083,
+      "checksum": 31850,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 8,
+      "order": 17,
+      "ns_per_operation": 173700.415
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 221624417,
+      "checksum": 25652,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 0,
+      "order": 18,
+      "ns_per_operation": 1108122.085
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 101738459,
+      "checksum": 25652,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 0,
+      "order": 19,
+      "ns_per_operation": 508692.295
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 109898041,
+      "checksum": 27253,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 1,
+      "order": 20,
+      "ns_per_operation": 549490.205
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 250542709,
+      "checksum": 27253,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 1,
+      "order": 21,
+      "ns_per_operation": 1252713.545
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 242331583,
+      "checksum": 24062,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 2,
+      "order": 22,
+      "ns_per_operation": 1211657.915
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 107154375,
+      "checksum": 24062,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 2,
+      "order": 23,
+      "ns_per_operation": 535771.875
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 102519458,
+      "checksum": 24760,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 3,
+      "order": 24,
+      "ns_per_operation": 512597.29
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 239702958,
+      "checksum": 24760,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 3,
+      "order": 25,
+      "ns_per_operation": 1198514.79
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 203027333,
+      "checksum": 24188,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 4,
+      "order": 26,
+      "ns_per_operation": 1015136.665
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 96621791,
+      "checksum": 24188,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 4,
+      "order": 27,
+      "ns_per_operation": 483108.955
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 103603375,
+      "checksum": 24517,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 5,
+      "order": 28,
+      "ns_per_operation": 518016.875
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 226363875,
+      "checksum": 24517,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 5,
+      "order": 29,
+      "ns_per_operation": 1131819.375
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 246371167,
+      "checksum": 25037,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 6,
+      "order": 30,
+      "ns_per_operation": 1231855.835
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 108480667,
+      "checksum": 25037,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 6,
+      "order": 31,
+      "ns_per_operation": 542403.335
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 110000417,
+      "checksum": 24046,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 7,
+      "order": 32,
+      "ns_per_operation": 550002.085
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 247518333,
+      "checksum": 24046,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 7,
+      "order": 33,
+      "ns_per_operation": 1237591.665
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 215180750,
+      "checksum": 24190,
+      "mode": "ReleaseSafe",
+      "variant": "before",
+      "sample": 8,
+      "order": 34,
+      "ns_per_operation": 1075903.75
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 102204042,
+      "checksum": 24190,
+      "mode": "ReleaseSafe",
+      "variant": "after",
+      "sample": 8,
+      "order": 35,
+      "ns_per_operation": 511020.21
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118614917,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 0,
+      "order": 36,
+      "ns_per_operation": 593074.585
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 35401416,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 0,
+      "order": 37,
+      "ns_per_operation": 177007.08
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34786709,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 1,
+      "order": 38,
+      "ns_per_operation": 173933.545
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 117781750,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 1,
+      "order": 39,
+      "ns_per_operation": 588908.75
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118133666,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 2,
+      "order": 40,
+      "ns_per_operation": 590668.33
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34572667,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 2,
+      "order": 41,
+      "ns_per_operation": 172863.335
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34561459,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 3,
+      "order": 42,
+      "ns_per_operation": 172807.295
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118090666,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 3,
+      "order": 43,
+      "ns_per_operation": 590453.33
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 117934833,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 4,
+      "order": 44,
+      "ns_per_operation": 589674.165
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34778375,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 4,
+      "order": 45,
+      "ns_per_operation": 173891.875
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 35434584,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 5,
+      "order": 46,
+      "ns_per_operation": 177172.92
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118198625,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 5,
+      "order": 47,
+      "ns_per_operation": 590993.125
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118129833,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 6,
+      "order": 48,
+      "ns_per_operation": 590649.165
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34586042,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 6,
+      "order": 49,
+      "ns_per_operation": 172930.21
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34689166,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 7,
+      "order": 50,
+      "ns_per_operation": 173445.83
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118467875,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 7,
+      "order": 51,
+      "ns_per_operation": 592339.375
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 118356625,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 8,
+      "order": 52,
+      "ns_per_operation": 591783.125
+    },
+    {
+      "kernel": "recover",
+      "iterations": 200,
+      "elapsed_ns": 34620833,
+      "checksum": 31850,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 8,
+      "order": 53,
+      "ns_per_operation": 173104.165
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 222212208,
+      "checksum": 25652,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 0,
+      "order": 54,
+      "ns_per_operation": 1111061.04
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 102219250,
+      "checksum": 25652,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 0,
+      "order": 55,
+      "ns_per_operation": 511096.25
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 109895250,
+      "checksum": 27253,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 1,
+      "order": 56,
+      "ns_per_operation": 549476.25
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 251078166,
+      "checksum": 27253,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 1,
+      "order": 57,
+      "ns_per_operation": 1255390.83
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 241095541,
+      "checksum": 24062,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 2,
+      "order": 58,
+      "ns_per_operation": 1205477.705
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 105698500,
+      "checksum": 24062,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 2,
+      "order": 59,
+      "ns_per_operation": 528492.5
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 100041792,
+      "checksum": 24760,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 3,
+      "order": 60,
+      "ns_per_operation": 500208.96
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 218562667,
+      "checksum": 24760,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 3,
+      "order": 61,
+      "ns_per_operation": 1092813.335
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 195740000,
+      "checksum": 24188,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 4,
+      "order": 62,
+      "ns_per_operation": 978700.0
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 93137750,
+      "checksum": 24188,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 4,
+      "order": 63,
+      "ns_per_operation": 465688.75
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 99790875,
+      "checksum": 24517,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 5,
+      "order": 64,
+      "ns_per_operation": 498954.375
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 227489291,
+      "checksum": 24517,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 5,
+      "order": 65,
+      "ns_per_operation": 1137446.455
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 242536209,
+      "checksum": 25037,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 6,
+      "order": 66,
+      "ns_per_operation": 1212681.045
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 105003083,
+      "checksum": 25037,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 6,
+      "order": 67,
+      "ns_per_operation": 525015.415
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 106359541,
+      "checksum": 24046,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 7,
+      "order": 68,
+      "ns_per_operation": 531797.705
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 239186792,
+      "checksum": 24046,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 7,
+      "order": 69,
+      "ns_per_operation": 1195933.96
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 210761709,
+      "checksum": 24190,
+      "mode": "ReleaseFast",
+      "variant": "before",
+      "sample": 8,
+      "order": 70,
+      "ns_per_operation": 1053808.545
+    },
+    {
+      "kernel": "sign",
+      "iterations": 200,
+      "elapsed_ns": 97187375,
+      "checksum": 24190,
+      "mode": "ReleaseFast",
+      "variant": "after",
+      "sample": 8,
+      "order": 71,
+      "ns_per_operation": 485936.875
+    }
+  ],
+  "builds": [],
+  "binary_sha256_chunks": {
+    "ReleaseSafe/before": [
+      "f26b6584bf5de68cfa40808911285b62",
+      "dfd30f1898b8170506ded333df9368a3"
+    ],
+    "ReleaseSafe/after": [
+      "d297ce1f1e6218da50066bff0e4a9f90",
+      "f3279f1b6ee9f10477faf70e23347697"
+    ],
+    "ReleaseFast/before": [
+      "ab0c6e692c52a6d1cda9a092879c6245",
+      "e26c50def02f00244a0696ab000f68cd"
+    ],
+    "ReleaseFast/after": [
+      "5796f098957bad9c1b3537e357946c9c",
+      "9bb2ad0e941c812fb2fb97926bfd1d50"
+    ]
+  },
+  "summary": [
+    {
+      "mode": "ReleaseSafe",
+      "kernel": "recover",
+      "before": {
+        "median_ns": 581703.75,
+        "min_ns": 578358.955,
+        "max_ns": 615681.875
+      },
+      "after": {
+        "median_ns": 170266.665,
+        "min_ns": 170030.83,
+        "max_ns": 174410.625
+      },
+      "before_over_after": 3.4164276959321427
+    },
+    {
+      "mode": "ReleaseSafe",
+      "kernel": "sign",
+      "before": {
+        "median_ns": 1198514.79,
+        "min_ns": 1015136.665,
+        "max_ns": 1252713.545
+      },
+      "after": {
+        "median_ns": 518016.875,
+        "min_ns": 483108.955,
+        "max_ns": 550002.085
+      },
+      "before_over_after": 2.313659743227477
+    },
+    {
+      "mode": "ReleaseFast",
+      "kernel": "recover",
+      "before": {
+        "median_ns": 590668.33,
+        "min_ns": 588908.75,
+        "max_ns": 593074.585
+      },
+      "after": {
+        "median_ns": 173445.83,
+        "min_ns": 172807.295,
+        "max_ns": 177172.92
+      },
+      "before_over_after": 3.405491674259335
+    },
+    {
+      "mode": "ReleaseFast",
+      "kernel": "sign",
+      "before": {
+        "median_ns": 1137446.455,
+        "min_ns": 978700.0,
+        "max_ns": 1255390.83
+      },
+      "after": {
+        "median_ns": 511096.25,
+        "min_ns": 465688.75,
+        "max_ns": 549476.25
+      },
+      "before_over_after": 2.225503425235462
+    }
+  ],
+  "load_end": [
+    3.0791015625,
+    5.88525390625,
+    9.37890625
+  ],
+  "passed": true
+}

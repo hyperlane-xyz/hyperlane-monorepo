@@ -1,0 +1,480 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-11-06T08:01:02.254212+00:00",
+  "scope": "Functional native timeout/fallback recovery only. No performance ratios, final-role/matrix/build acceptance, or production endpoint requests.",
+  "released_source_scope": [
+    "zig/src/evm/pool.zig",
+    "zig/src/net/read_replay.zig",
+    "zig/src/cosmos_rpc_timeout_testing.zig",
+    "zig/src/cosmos_rpc_timeout_tests.zig"
+  ],
+  "final_proofs": [
+    {
+      "name": "Actual Resources direct Cosmos and cooperative CosmosNative",
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0,
+      "owned_substantive": 13,
+      "parent_budget_cases": 2,
+      "root_import_smokes": 4,
+      "command": "resources-command.json.gz",
+      "result": "resources-result.json.gz",
+      "raw_log": "resources-tests.log.gz",
+      "eight_selected_sources_unchanged_before_after": true
+    },
+    {
+      "name": "Existing native Pool regression root",
+      "passed": 86,
+      "failed": 0,
+      "skipped": 0,
+      "command_and_environment": "regression-results.json.gz",
+      "raw_log": "regression-pool.log.gz"
+    },
+    {
+      "name": "Existing producer/header/replay focused root",
+      "passed": 37,
+      "failed": 0,
+      "skipped": 0,
+      "command_and_environment": "regression-results.json.gz",
+      "raw_log": "regression-producers-and-replay.log.gz"
+    }
+  ],
+  "historical_attempts": [
+    {
+      "raw_log": "initial8-tests.log.gz",
+      "passed": 8,
+      "qualification": "Initial Pool/Replay proof before production Resources wiring; only retained log, no exact historical test-source snapshot."
+    },
+    {
+      "raw_log": "pool-replay10-tests.log.gz",
+      "passed": 10,
+      "command": "final-command.json.gz",
+      "result": "final-result.json.gz",
+      "qualification": "Adds lower-level direct full20s case; superseded by final actual Resources19, no captured historical source inventory."
+    },
+    {
+      "raw_log": "resources-before-fixture-lifetime-tests.log.gz",
+      "passed": 18,
+      "qualification": "Earlier actual Resources run overlapped correction of test fixture environment ownership; not exact-source acceptance. Keep the borrowed environment alive through Resources teardown."
+    },
+    {
+      "raw_log": "resources18-tests.log.gz",
+      "passed": 18,
+      "result": "resources18-result.json.gz",
+      "qualification": "Corrected fixture lifetime with stable eight-source before/after hashes; predates positive read-fork case in final19."
+    }
+  ],
+  "initial_diagnostic_limit": "An initial new-test literal syntax error was corrected before initial8. Its diagnostic is in the original session transcript, not a surviving standalone raw /tmp log; no replacement raw log is fabricated.",
+  "source_status": "source-status.json",
+  "snapshot_qualification": "Selected Source bytes only; all matching current captures are archived. Historical logs/results remain exact original bytes; their source claims are not upgraded to the final19 snapshot. Separate roots overlap and are not a unique project-wide total.",
+  "original_tmp_inputs_preserved": true,
+  "canonical_json": "Lossless gzip copies preserve original full-hash JSON bytes. Exact-path .gitignore entries exclude only convenience raw mirrors in this new artifact directory; normal hooks/configuration remain unchanged.",
+  "artifacts": [
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/final-command.json.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-final-command.json",
+      "raw_bytes": 393,
+      "gzip_bytes": 277,
+      "raw_sha256_chunks": [
+        "658db7652d290591dd2abd33f5a50",
+        "cce71bdfff14f1c7fb233103488f9",
+        "d8e097"
+      ],
+      "gzip_sha256_chunks": [
+        "4f1bb5667fa4ee75bef281903738f",
+        "ef74dcc296c3a12b6a09943916ac4",
+        "1d0640"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/final-result.json.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-final-result.json",
+      "raw_bytes": 62,
+      "gzip_bytes": 76,
+      "raw_sha256_chunks": [
+        "c3adb5e1951e64b76ed878262a301",
+        "16661580b3d4203ff55713ad8b68d",
+        "ed24e2"
+      ],
+      "gzip_sha256_chunks": [
+        "63d07a65d4ea1b0688dc363c42c17",
+        "775c529ba4afed2bb2614f5bd18d3",
+        "c0a276"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/initial8-tests.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-initial8-tests.log",
+      "raw_bytes": 915,
+      "gzip_bytes": 382,
+      "raw_sha256_chunks": [
+        "361be07400658d4b59fb901f76acd",
+        "c89d2508037e2773f860428c85c7d",
+        "b30d1b"
+      ],
+      "gzip_sha256_chunks": [
+        "2cb2cceb876cb7425f09998b0383d",
+        "2613a669ac46feda5da2de9b48d1f",
+        "bb45c4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/pool-replay10-tests.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-pool-replay10-tests.log",
+      "raw_bytes": 1168,
+      "gzip_bytes": 435,
+      "raw_sha256_chunks": [
+        "d9ce797e397d3ceb8767fcded61b3",
+        "d6d23a7ab709f9e37d92d331a0088",
+        "a267de"
+      ],
+      "gzip_sha256_chunks": [
+        "51ec781cf41dcbf5ada8dc266ece2",
+        "7685ea723579b53c83d4eedb28f1f",
+        "2ad917"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/regression-pool.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-regression-pool.log",
+      "raw_bytes": 9447,
+      "gzip_bytes": 3175,
+      "raw_sha256_chunks": [
+        "bec00522753fc724717f940d8c543",
+        "1a787985000821de37b3ff46afeac",
+        "011110"
+      ],
+      "gzip_sha256_chunks": [
+        "cca55a9f79f21ac920bbb4c9211cd",
+        "af5f5b5f4eed937f4c164b58ea3a1",
+        "d1a3d3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/regression-producers-and-replay.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-regression-producers-and-replay.log",
+      "raw_bytes": 4723,
+      "gzip_bytes": 1574,
+      "raw_sha256_chunks": [
+        "aec252c79f09c9f4df45733608a51",
+        "8be370018f614e522205f0a81acc7",
+        "e1aced"
+      ],
+      "gzip_sha256_chunks": [
+        "edb399016b5ae119bf48fcd7cd926",
+        "2e5e5d88d9dec8a4fb6fd0be3f31c",
+        "f2e230"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/regression-results.json.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-regression-results.json",
+      "raw_bytes": 1498,
+      "gzip_bytes": 479,
+      "raw_sha256_chunks": [
+        "46781e79a699c7ba1c56dd61b41e4",
+        "2ddd5c950df47db556272410d5798",
+        "4e9836"
+      ],
+      "gzip_sha256_chunks": [
+        "0a96e5cd464e3b6afaecacce4da78",
+        "be3c6a413a10e6d4ab2cae862c026",
+        "d8cc0a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/release-source-hashes.json.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-release-source-hashes.json",
+      "raw_bytes": 420,
+      "gzip_bytes": 272,
+      "raw_sha256_chunks": [
+        "0292df3de61fa99a5104df2cca11f",
+        "a0e5f3711bb41fef178863b1f3250",
+        "17f058"
+      ],
+      "gzip_sha256_chunks": [
+        "180a183631e97d0df1d7a1043a65c",
+        "c10290bfa5851367209784e9a306d",
+        "be9a1a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/release.md.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-release.md",
+      "raw_bytes": 5359,
+      "gzip_bytes": 2506,
+      "raw_sha256_chunks": [
+        "db01ad1281cece0963d16bc112dfd",
+        "86cf56f153d976b1443a6d05a267e",
+        "5577dc"
+      ],
+      "gzip_sha256_chunks": [
+        "6654a49a88d99a04420531998239e",
+        "05764bc032fd8e3ffa81d55291b4c",
+        "fd2693"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/resources-before-fixture-lifetime-tests.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-resources-before-fixture-lifetime-tests.log",
+      "raw_bytes": 1934,
+      "gzip_bytes": 644,
+      "raw_sha256_chunks": [
+        "b3a1bdf59f0f4e26a142f27c4ad31",
+        "84ed94b8ba29935e34eec8d2d34a0",
+        "a1f79b"
+      ],
+      "gzip_sha256_chunks": [
+        "b408bf2c007d8c06efa2b0bd63901",
+        "a382430ed9db54a0f022875e3f51d",
+        "4aded1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/resources-command.json.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-resources-command.json",
+      "raw_bytes": 1277,
+      "gzip_bytes": 714,
+      "raw_sha256_chunks": [
+        "1559ef89d2796f387da6f9ab605f7",
+        "fe6d46af923a710cb4e517005159a",
+        "2b2a90"
+      ],
+      "gzip_sha256_chunks": [
+        "4577e0166a0f9b3fa1a930065a9bb",
+        "a6d815b5224330c177404913d9b83",
+        "0ef988"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/resources-result.json.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-resources-result.json",
+      "raw_bytes": 2262,
+      "gzip_bytes": 795,
+      "raw_sha256_chunks": [
+        "9458987f91def29251542491f9739",
+        "321cabb5fe57f473c5ef64a44f8b3",
+        "1c02b0"
+      ],
+      "gzip_sha256_chunks": [
+        "0394c5c4a56f3409c097d52ea56ea",
+        "685283c4002c120ea872b1da95150",
+        "19ef89"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/resources-tests.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-resources-tests.log",
+      "raw_bytes": 2072,
+      "gzip_bytes": 683,
+      "raw_sha256_chunks": [
+        "b834ca6e4fa23e82be246f6097472",
+        "8b25b696ea4b131512b54014c690b",
+        "a4d8d2"
+      ],
+      "gzip_sha256_chunks": [
+        "4581a831acd2bf4a38e11fddf6861",
+        "ed70e9dbf1fa04fdc20c823d1fa3e",
+        "5cde01"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/resources18-result.json.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-resources18-result.json",
+      "raw_bytes": 2262,
+      "gzip_bytes": 795,
+      "raw_sha256_chunks": [
+        "90170bd6dcd23e225b3542aa2670c",
+        "b2bc83177c8a999a7b1fe84632223",
+        "484c51"
+      ],
+      "gzip_sha256_chunks": [
+        "52d0022477adfc527c24883d9aa9f",
+        "9dda9880b4799aa5c927f057b1684",
+        "62558d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/resources18-tests.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-resources18-tests.log",
+      "raw_bytes": 1934,
+      "gzip_bytes": 644,
+      "raw_sha256_chunks": [
+        "b3a1bdf59f0f4e26a142f27c4ad31",
+        "84ed94b8ba29935e34eec8d2d34a0",
+        "a1f79b"
+      ],
+      "gzip_sha256_chunks": [
+        "b408bf2c007d8c06efa2b0bd63901",
+        "a382430ed9db54a0f022875e3f51d",
+        "4aded1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/tests.log.gz",
+      "original": "/tmp/ziggy-cosmos-rpc-timeout-tests.log",
+      "raw_bytes": 1168,
+      "gzip_bytes": 435,
+      "raw_sha256_chunks": [
+        "d9ce797e397d3ceb8767fcded61b3",
+        "d6d23a7ab709f9e37d92d331a0088",
+        "a267de"
+      ],
+      "gzip_sha256_chunks": [
+        "51ec781cf41dcbf5ada8dc266ece2",
+        "7685ea723579b53c83d4eedb28f1f",
+        "2ad917"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/initial-source-audit.md.gz",
+      "original": "/tmp/ziggy-direct-vm-timeout-source-audit.md",
+      "raw_bytes": 10957,
+      "gzip_bytes": 4635,
+      "raw_sha256_chunks": [
+        "518dbd1149df0ff50991d805811bc",
+        "76847f44a0a0778820b0b33e27690",
+        "4e79e8"
+      ],
+      "gzip_sha256_chunks": [
+        "119a97e76be19775bb4947a2507c2",
+        "653d0e87b4448164f3b21f712f94c",
+        "4a73ee"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/evm/pool.zig.source.gz",
+      "original": null,
+      "raw_bytes": 104378,
+      "gzip_bytes": 20112,
+      "raw_sha256_chunks": [
+        "dc5d8ea4dd9460a2fded82e51838f",
+        "b44b7bf77f1df9832d5a5888c438b",
+        "1172e0"
+      ],
+      "gzip_sha256_chunks": [
+        "59858a8464ffa1e661d6af3bccb70",
+        "b4a4e19b4b417bfe151a27876c65d",
+        "224c7e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/net/read_replay.zig.source.gz",
+      "original": null,
+      "raw_bytes": 21043,
+      "gzip_bytes": 5677,
+      "raw_sha256_chunks": [
+        "31ad6faec0e3e82300b0045a5c9b1",
+        "1c0cb6637efaf2d295225381fafaf",
+        "6c0225"
+      ],
+      "gzip_sha256_chunks": [
+        "832e6419e81d1db4489164394dc11",
+        "1b49a72b49c7a63e64657103754cc",
+        "813f55"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/cosmos_rpc_timeout_testing.zig.source.gz",
+      "original": null,
+      "raw_bytes": 20803,
+      "gzip_bytes": 4031,
+      "raw_sha256_chunks": [
+        "6f288d4aafb7798ce174f43a8efb8",
+        "83825493e304a3aa82dbfc5da9ec9",
+        "cd17c9"
+      ],
+      "gzip_sha256_chunks": [
+        "1bcb4e97347152f88e829eff23514",
+        "16d90b19726309c718a4d52d61b93",
+        "cbd86d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/cosmos_rpc_timeout_tests.zig.source.gz",
+      "original": null,
+      "raw_bytes": 60,
+      "gzip_bytes": 77,
+      "raw_sha256_chunks": [
+        "22d04c1f7300013f23b6eccc1004f",
+        "d332965fe6be3420279a97b38ca75",
+        "4f0fda"
+      ],
+      "gzip_sha256_chunks": [
+        "9f95c52663c7c285bb0f5faa27a85",
+        "78ceb4d8f30756bcb435561da79f3",
+        "ea3bf2"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/agents/chain_source.zig.source.gz",
+      "original": null,
+      "raw_bytes": 37671,
+      "gzip_bytes": 8218,
+      "raw_sha256_chunks": [
+        "40e868c6880c3de6aafdfe81338f6",
+        "0c23aa0253e54f5b714ed5ff963b5",
+        "5a5912"
+      ],
+      "gzip_sha256_chunks": [
+        "d75359c12d9529b10b4b9373baf04",
+        "391e959efea99505caa6369b4e378",
+        "1a44e3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/agents/chain_source_testing.zig.source.gz",
+      "original": null,
+      "raw_bytes": 14308,
+      "gzip_bytes": 3841,
+      "raw_sha256_chunks": [
+        "55b0bb6580956ad124d6d92628377",
+        "fa1d921e4a57e5d1244f7b6890f51",
+        "ef718a"
+      ],
+      "gzip_sha256_chunks": [
+        "2b57aee498286585df50bc1670baa",
+        "eeb6db1a27ee4cc0379436c4d7830",
+        "334ed9"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/cloud/http.zig.source.gz",
+      "original": null,
+      "raw_bytes": 27716,
+      "gzip_bytes": 7056,
+      "raw_sha256_chunks": [
+        "d25513a56d805c3b63f52bda1add1",
+        "fd64d23d1a2babf09ff5d0cedfffb",
+        "7bbb2a"
+      ],
+      "gzip_sha256_chunks": [
+        "02e8fd7e18fb6f9840c86759be2d4",
+        "ee2a10a53ccd3fbe1f80d7220262e",
+        "501eda"
+      ]
+    },
+    {
+      "path": "zig/bench/results/cosmos-rpc-timeout-recovery/sources/zig/src/agents/destination/factory.zig.source.gz",
+      "original": null,
+      "raw_bytes": 83728,
+      "gzip_bytes": 16756,
+      "raw_sha256_chunks": [
+        "07c09af31bad93b6f672742b3a0e3",
+        "31890768c959d6a544034dd50541f",
+        "34fb13"
+      ],
+      "gzip_sha256_chunks": [
+        "72bc263d96d4ac2d51b1026d544de",
+        "b8de94ddb4af789529b3fde85497c",
+        "1479d6"
+      ]
+    }
+  ],
+  "independent_http_review": {
+    "status": "confirmed_P2_shared_Tron_signer_owner_open",
+    "report": "http-independent-review.md",
+    "source_readback": "http-independent-review.json",
+    "scope": "Read-only review of protocol owner released HTTP/Factory/receipt bindings; no further builds/tests. Parent and implementation owner notified. Historical protocol acceptance bytes preserved."
+  }
+}

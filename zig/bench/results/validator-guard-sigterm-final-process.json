@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "scope": "unchanged native CLI with fixture-only task-path-restricted DYLD interposer; real guard WAL fsync succeeds but reports EIO; no production fault code",
+  "binary": "/private/tmp/ziggy-validator-wss-final-functional",
+  "binary_sha256": [
+    "fcc6faa669bdf7547e04abd601307e77",
+    "5b7831a0567c04fa11f0efc43aa0fd85"
+  ],
+  "interposer_sha256": [
+    "3541ed30d6cc2e594aa48e22d5f7736a",
+    "7e9f28b041620ea4cd029cce064b7118"
+  ],
+  "source_sha256": [
+    "d2b1b4de019d4df17789b51cec13d363",
+    "aa01c2e3cecf8752ea22978200bcae4c"
+  ],
+  "unrelated_path_negative_control": true,
+  "actual_guard_sync": {
+    "fixture": "guard-fsync-outcome-unknown",
+    "real_fsync_succeeded": true,
+    "reported_errno": 5
+  },
+  "sigterm_exit": 1,
+  "sigterm_ms": 45.73670891113579,
+  "restart_exit": 1,
+  "restart_backend_guard_durable": true,
+  "signed_objects_unchanged": true,
+  "signed_objects": 3,
+  "new_checkpoint_objects_after_halt": 0,
+  "transaction_nonce_unchanged_after_pending_observed": true,
+  "transaction_nonce_before_fork": 1,
+  "transaction_nonce_at_pending": 1
+}

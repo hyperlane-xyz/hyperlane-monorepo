@@ -1,0 +1,21 @@
+[
+  "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+  "test",
+  "zig/src/origin_bootstrap_tests.zig",
+  "-O",
+  "ReleaseSafe",
+  "-lc",
+  "-lc++",
+  "--sysroot",
+  "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+  "-L/usr/lib",
+  "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+  "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+  "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+  "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+  "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+  "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+  "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+  "--test-filter",
+  "origin bootstrap"
+]

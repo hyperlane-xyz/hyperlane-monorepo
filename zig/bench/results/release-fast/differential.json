@@ -1,0 +1,21 @@
+{
+  "input_count": 716,
+  "valid_count": 639,
+  "invalid_count": 77,
+  "seed": "0x5a49474759",
+  "corpus_sha256_chunks": [
+    "e99902217e519f0e4680de3e2c4cd7d7",
+    "8e4fe0ceafe0579ae9a90f31fac359f0"
+  ],
+  "checked": [
+    "canonical encoding",
+    "message ID",
+    "incremental root after every valid message",
+    "count",
+    "checkpoint signing hash",
+    "EIP-191 digest",
+    "truncated message rejection"
+  ],
+  "independent_vector": "vectors/message.json",
+  "passed": true
+}

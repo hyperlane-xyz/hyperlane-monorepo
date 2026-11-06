@@ -1,0 +1,151 @@
+warning: unused config key `build.exclude` in `/Users/pbio/work/ziggy/rust/main/.cargo/config.toml`
+warning: hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-core` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/programs/mailbox/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-sealevel-mailbox` (manifest) generated 1 warning
+warning: chains/hyperlane-starknet/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-starknet` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/programs/validator-announce/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-sealevel-validator-announce` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/programs/ism/composite-ism/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-sealevel-composite-ism` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/libraries/multisig-ism/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `multisig-ism` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/libraries/message-recipient-interface/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-sealevel-message-recipient-interface` (manifest) generated 1 warning
+warning: applications/hyperlane-warp-route/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-warp-route` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/libraries/serializable-account-meta/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `serializable-account-meta` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/libraries/account-utils/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `account-utils` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/programs/ism/multisig-ism-message-id/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-sealevel-multisig-ism-message-id` (manifest) generated 1 warning
+warning: applications/hyperlane-application/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-application` (manifest) generated 1 warning
+warning: applications/hyperlane-operation-verifier/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-operation-verifier` (manifest) generated 1 warning
+warning: chains/hyperlane-aleo/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-aleo` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/libraries/interchain-security-module-interface/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-sealevel-interchain-security-module-interface` (manifest) generated 1 warning
+warning: utils/aleo-serialize-macro/Cargo.toml: `package.edition` is unspecified, defaulting to `2015` while the latest is `2024`
+warning: `aleo-serialize-macro` (manifest) generated 1 warning
+warning: /Users/pbio/work/ziggy/rust/sealevel/programs/hyperlane-sealevel-igp/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-sealevel-igp` (manifest) generated 1 warning
+   Compiling libc v0.2.189
+   Compiling serde v1.0.228
+   Compiling num-traits v0.2.19
+   Compiling displaydoc v0.2.5
+   Compiling smallvec v1.15.1
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.1
+   Compiling tinystr v0.8.2
+   Compiling icu_locale_core v2.1.1
+   Compiling zerotrie v0.2.3
+   Compiling icu_collections v2.1.1
+   Compiling icu_provider v2.1.1
+   Compiling crypto-common v0.1.6
+   Compiling block-buffer v0.10.4
+   Compiling subtle v2.6.1
+   Compiling crossbeam-utils v0.8.20
+   Compiling memchr v2.7.4
+   Compiling digest v0.10.7
+   Compiling parking_lot_core v0.9.10
+   Compiling tracing-core v0.1.36
+   Compiling num-integer v0.1.46
+   Compiling getrandom v0.3.2
+   Compiling futures-sink v0.3.31
+   Compiling serde_json v1.0.151
+   Compiling log v0.4.28
+   Compiling bitflags v2.13.0
+   Compiling tracing v0.1.44
+   Compiling num-bigint v0.4.6
+   Compiling parking_lot v0.12.3
+   Compiling icu_properties v2.1.1
+   Compiling icu_normalizer v2.1.1
+   Compiling errno v0.3.14
+   Compiling futures-task v0.3.31
+   Compiling byteorder v1.5.0
+   Compiling zerocopy v0.7.35
+   Compiling darling_core v0.20.10
+   Compiling futures-util v0.3.31
+   Compiling rust_decimal v1.36.0
+   Compiling time v0.3.54
+   Compiling rustix v1.1.2
+   Compiling chrono v0.4.45
+   Compiling bigdecimal v0.4.5
+   Compiling idna_adapter v1.2.1
+   Compiling security-framework-sys v2.17.0
+   Compiling core-foundation v0.10.0
+   Compiling uuid v1.11.0
+   Compiling getrandom v0.2.15
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.2
+   Compiling signal-hook-registry v1.4.2
+   Compiling thiserror v2.0.18
+   Compiling bytes v1.10.1
+   Compiling idna v1.1.0
+   Compiling tokio v1.53.1
+   Compiling form_urlencoded v1.2.1
+   Compiling tempfile v3.23.0
+   Compiling rand_core v0.6.4
+   Compiling security-framework v3.7.0
+   Compiling darling_macro v0.20.10
+   Compiling ppv-lite86 v0.2.20
+   Compiling concurrent-queue v2.5.0
+   Compiling futures-channel v0.3.31
+   Compiling cpufeatures v0.2.17
+   Compiling indexmap v2.12.0
+   Compiling event-listener v5.3.1
+   Compiling sha2 v0.10.8
+   Compiling rand_chacha v0.3.1
+   Compiling darling v0.20.10
+   Compiling tokio-stream v0.1.17
+   Compiling native-tls v0.2.18
+   Compiling url v2.5.4
+   Compiling crossbeam-queue v0.3.11
+   Compiling futures-intrusive v0.5.0
+   Compiling hmac v0.12.1
+   Compiling either v1.13.0
+   Compiling base64 v0.22.1
+   Compiling sqlx-core v0.8.5
+   Compiling hkdf v0.12.4
+   Compiling sea-query-derive v0.4.3
+   Compiling rand v0.8.5
+   Compiling md-5 v0.10.6
+   Compiling ordered-float v4.6.0
+   Compiling atoi v2.0.0
+   Compiling sqlx-postgres v0.8.5
+   Compiling sea-query v0.32.4
+   Compiling regex-syntax v0.8.4
+   Compiling regex-automata v0.4.7
+   Compiling sqlx v0.8.5
+   Compiling sea-query-binder v0.7.0
+   Compiling matchers v0.2.0
+   Compiling futures v0.3.31
+   Compiling strum v0.26.3
+   Compiling sea-orm v1.1.10
+   Compiling tracing-subscriber v0.3.23
+   Compiling sea-schema v0.16.1
+   Compiling sea-orm-migration v1.1.10
+   Compiling migration v3.0.0 (/Users/pbio/work/ziggy/rust/main/agents/scraper/migration)
+    Finished `release` profile [optimized] target(s) in 1m 57s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 3`

@@ -1,0 +1,12 @@
+[
+  "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+  "test",
+  "zig/src/root.zig",
+  "-O",
+  "ReleaseSafe",
+  "-lc",
+  "--sysroot",
+  "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+  "-L/usr/lib",
+  "--test-no-exec"
+]

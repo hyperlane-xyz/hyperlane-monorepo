@@ -1,0 +1,45 @@
+{
+  "crate": "zig/src/aleo/native-vm",
+  "command": [
+    "cargo",
+    "+1.98.0",
+    "clippy",
+    "--locked",
+    "--offline",
+    "--all-targets",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm",
+  "started_utc": "2026-11-06T06:02:27.860271+00:00",
+  "free_bytes_before": 42548273152,
+  "source_sha256_chunks": {
+    "zig/src/aleo/native-vm/Cargo.toml": [
+      "79af6bc722818265a2d29dfc5f4e2773",
+      "0896bbaee0b5e4a412d52c10ae455104"
+    ],
+    "zig/src/aleo/native-vm/Cargo.lock": [
+      "42d183085c79b9cb0307bed6fe3af5e7",
+      "5b36dc2d3c0c1bdf0b759b6fad161df6"
+    ],
+    "zig/src/aleo/native-vm/src/lib.rs": [
+      "3c16622e396b505e72c17dcd23e28adf",
+      "77f6ffb11d04d910e42be6d025e4dfc8"
+    ],
+    "zig/src/aleo/native-vm/vendor/aleo-std-storage-1.0.3/Cargo.toml": [
+      "c1da598c952e8c973573e2ba62b092c5",
+      "e0e91045974415f86bb1d55883454b93"
+    ],
+    "zig/src/aleo/native-vm/vendor/aleo-std-storage-1.0.3/src/lib.rs": [
+      "2b6b34397b550e1b89da2350c5569784",
+      "5e29ecc0aa71c1317784f771a497d95e"
+    ]
+  },
+  "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+  "environment": {
+    "CARGO_INCREMENTAL": "0"
+  },
+  "status": "running"
+}

@@ -1,0 +1,32 @@
+{
+  "scope": "Read-only global Zig cache association; protected cache unchanged, no ownership-policy relaxation",
+  "allocated_bytes": 26805428224,
+  "associated_compiler_outputs": 2874,
+  "associated_allocated_bytes": 22590910464,
+  "proven_exclusively_owned_deletion_candidates": 0,
+  "no_open_handles_in_two_snapshots": true,
+  "shared_cache_references_proven_absent": false,
+  "artifacts": {
+    "audit.json.gz": {
+      "uncompressed_bytes": 1880012,
+      "sha256_chunks": [
+        "2d164e27215cc17719d8421a03c7079b",
+        "adb7865f6aa9dae3a908cdfcc1611a58"
+      ]
+    },
+    "audit.md.gz": {
+      "uncompressed_bytes": 2733,
+      "sha256_chunks": [
+        "043935c77e795c1481eb8aa16c03d9f2",
+        "fe1cf2407df7f089a30cb60d236dd49b"
+      ]
+    },
+    "audit.py.gz": {
+      "uncompressed_bytes": 5099,
+      "sha256_chunks": [
+        "16163127db65522ef9297e00bd742dac",
+        "002cef77705121950c843afa5319738d"
+      ]
+    }
+  }
+}

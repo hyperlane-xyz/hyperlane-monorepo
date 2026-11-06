@@ -1,0 +1,49 @@
+{
+  "captured_utc": "2026-11-06T06:52:19.717505+00:00",
+  "scope": "Only four task-created Rust bridge target/debug directories; Clippy completed and Rust/C compilers idle; Zig tests use preserved target/release SDKs",
+  "benchmark_timing": false,
+  "removed": [
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/ops/regex-native/target/debug",
+      "files": 44,
+      "logical_bytes": 9449821
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/debug",
+      "files": 573,
+      "logical_bytes": 90623752
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/debug",
+      "files": 1439,
+      "logical_bytes": 174630186
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/debug",
+      "files": 2780,
+      "logical_bytes": 300858710
+    }
+  ],
+  "preserved_release_sdk_sha256_chunks": {
+    "zig/src/ops/regex-native/target/release/libziggy_regex.dylib": [
+      "11ae50f90214b956b0c8f28b8d03ed12",
+      "0b1aea5513547c8da930470e916dcb94"
+    ],
+    "zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib": [
+      "3cc4267be662704e48ca5c4b9e1c4286",
+      "b6d368511b8fc423fc4d9019033d6a16"
+    ],
+    "zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.dylib": [
+      "c2d54d88c5009b9bf014835f45aed739",
+      "a5ea140232f9f217fbbcd7256f218b4b"
+    ],
+    "zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.dylib": [
+      "ad8afda4fd78a8b074bea40c84086632",
+      "bb2a5649bb16238f2ebbc364ae1af08a"
+    ]
+  },
+  "all_preserved_hashes_identical": true,
+  "free_disk_bytes_before": 41932300288,
+  "free_disk_bytes_after": 42489307136,
+  "qualification": "Logical deletion size is not physical reclaimed bytes; APFS and unrelated writes affect observed free delta. No source, fixture, release artifact, SDK parameters, download or user-global caches touched."
+}

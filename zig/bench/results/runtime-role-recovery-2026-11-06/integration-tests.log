@@ -1,0 +1,76 @@
+1/52 db_tests.test_0...OK
+2/52 db_tests.test_1...OK
+3/52 db_tests.test_2...OK
+4/52 db_tests.test_3...OK
+5/52 db_tests.test_4...OK
+6/52 agents.indexing.native_test.test_0...OK
+7/52 agents.indexing.native_test.test_1...OK
+8/52 agents.indexing.native_test.test_2...OK
+9/52 agents.destination.operation_test.test_0...OK
+10/52 agents.destination.operation_test.test_1...OK
+11/52 agents.destination.operation_test.test_2...OK
+12/52 relayer_reservation_native_test.test.Root native public reserve ordinary load and commit retain capacity and per-lane limits...OK
+13/52 relayer_reservation_native_test.test.Root ordinary and public lazy metric labels are inside retained byte budgets...OK
+14/52 relayer_reservation_native_test.test.Root core allocation failures roll back ownership while telemetry pressure preserves admitted work...[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+OK
+15/52 relayer_reservation_native_test.test.Root registry pressure preserves durable retirement and never re-admits a completed actor...[default] (warn): relayer telemetry update failed: MetricSeriesLimit
+[default] (warn): relayer telemetry update failed: MetricStorageLimit
+[default] (warn): relayer telemetry update failed: OutOfMemory
+OK
+16/52 relayer_reservation_native_test.test.Root optional app labels cannot consume the core admission budget...[default] (warn): relayer telemetry update failed: MetricMemoryLimit
+OK
+17/52 relayer_halt_tests.test_0...OK
+18/52 agents.relayer.control_test.test.control policy initialization metrics follow actual successful first constructor and exclude allocation failure...OK
+19/52 agent_metrics_tests.test_0...OK
+20/52 cache_metrics_tests.test_0...OK
+21/52 health_metrics_tests.test_0...OK
+22/52 critical_metrics_tests.test_0...OK
+23/52 app_context_tests.test_0...OK
+24/52 public_identity_tests.test_0...OK
+25/52 protocol.root.test_0...OK
+26/52 agents.relayer_task.test.relayer Root tip cache opt-in is confined to origin indexing options...OK
+27/52 agents.relayer_task.test.relayer Root always caches unmetered default ISM with contract caching disabled and publishes no wallet before initialization...OK
+28/52 agents.relayer_task.test.relayer Root observation capacity follows static routes beyond old 256 lifetime contexts...OK
+29/52 agents.relayer_task.test.Root production metadata observer preserves success under registry pressure and drains wait ownership...[default] (warn): relayer telemetry update failed: MetricSeriesLimit
+[default] (warn): relayer telemetry update failed: MetricStorageLimit
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: MetricTrackerLimit
+OK
+30/52 agents.chain_source.test_0...OK
+31/52 agents.destination.root.test_0...OK
+32/52 agents.relayer.evm_driver.test_0...OK
+33/52 relayer.remote_checkpoints.test_0...OK
+34/52 ops.stream_metrics.test_0...OK
+35/52 relayer.metadata.test_0...OK
+36/52 agents.scraper.starknet.test_0...OK
+37/52 evm.root.test_0...OK
+38/52 db.root.test_0...OK
+39/52 cloud.root.test_0...OK
+40/52 cloud.google_adc.test_0...OK
+41/52 cloud.aws_profile.test_0...OK
+42/52 agents.destination.reveal.test_0...OK
+43/52 agents.destination.reveal.test_1...OK
+44/52 agents.relayer.evm_accounting.test_0...OK
+45/52 agents.destination.source_metadata.test_0...OK
+46/52 storage.root.test_0...OK
+47/52 agents.destination.public_wallet_test.test.health native public wallet encodings use actual initialized signer identities...OK
+48/52 agents.destination.public_wallet_test.test.health native Aleo public wallet uses actual native addressText...OK
+49/52 agents.health_set_test.test.health role set selects destinations indexed chains and wallet-free validator origin without constructor requests...OK
+50/52 agents.health_set_test.test.health role set actual shared runtime observes late public wallet and drains before providers...OK
+51/52 agents.health_set_test.test.health public wallet publication copies atomically and exposes only caller-owned text...OK
+52/52 agents.health_set_test.test.health provider constructor OOM is isolated and recovery clears only its shared critical reason...OK
+All 52 tests passed.

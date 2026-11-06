@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "zig/reference/Cargo.lock.gz",
+      "restore": "zig/reference/Cargo.lock",
+      "bytes": 42606,
+      "sha256_chunks": [
+        "1bb3719ebb2ff0ce877eb1a75d71f31",
+        "b0799b3cc92226c9d5533218fe57fe8",
+        "dd"
+      ]
+    },
+    {
+      "path": "zig/reference/db-codecs/Cargo.lock.gz",
+      "restore": "zig/reference/db-codecs/Cargo.lock",
+      "bytes": 30611,
+      "sha256_chunks": [
+        "b257affe847d3a4f4a9cab87f2f6a26",
+        "c4971635c1ef42750f5f1885d55ad09",
+        "09"
+      ]
+    },
+    {
+      "path": "zig/reference/evm/Cargo.lock.gz",
+      "restore": "zig/reference/evm/Cargo.lock",
+      "bytes": 30704,
+      "sha256_chunks": [
+        "54dd0172d44ced3c096cdb01492d3d3",
+        "4fe5be8ad9d0ee28776afdff60f08f3",
+        "b4"
+      ]
+    },
+    {
+      "path": "zig/reference/reveal/Cargo.lock.gz",
+      "restore": "zig/reference/reveal/Cargo.lock",
+      "bytes": 68058,
+      "sha256_chunks": [
+        "c2ce483b3f3a98709e81881e041bcbe",
+        "f1a4ce86fe1e1efe589fd35e561b5ec",
+        "78"
+      ]
+    },
+    {
+      "path": "zig/reference/rocks/Cargo.lock.gz",
+      "restore": "zig/reference/rocks/Cargo.lock",
+      "bytes": 353935,
+      "sha256_chunks": [
+        "e05bd62a98071d2ab6f18c917d63561",
+        "c7e755bcb45f9f9637de8d36e97f09b",
+        "a0"
+      ]
+    },
+    {
+      "path": "zig/reference/settings/Cargo.lock.gz",
+      "restore": "zig/reference/settings/Cargo.lock",
+      "bytes": 355113,
+      "sha256_chunks": [
+        "9ff8af384a218c419fddb5c5acebe61",
+        "e39082316504849600efc3101de644f",
+        "fe"
+      ]
+    },
+    {
+      "path": "zig/reference/tron/Cargo.lock.gz",
+      "restore": "zig/reference/tron/Cargo.lock",
+      "bytes": 30407,
+      "sha256_chunks": [
+        "58f2ecd643fa07ffaea789c59c05191",
+        "414ca5e949bd6c500babe970de24816",
+        "dd"
+      ]
+    },
+    {
+      "path": "zig/reference/validator-http/Cargo.lock.gz",
+      "restore": "zig/reference/validator-http/Cargo.lock",
+      "bytes": 353496,
+      "sha256_chunks": [
+        "c4096cf6201d28c0fafa87a6cb65725",
+        "f8a52ca8b17b996aa08a6f5a71d7ef5",
+        "1b"
+      ]
+    },
+    {
+      "path": "zig/src/altvm/reference/Cargo.lock.gz",
+      "restore": "zig/src/altvm/reference/Cargo.lock",
+      "bytes": 126535,
+      "sha256_chunks": [
+        "50246803b5563fbf019efd64244a4d0",
+        "0931decfaca20c960e4cba83b71eed2",
+        "29"
+      ]
+    },
+    {
+      "path": "zig/src/lander/testing/reference/Cargo.lock.gz",
+      "restore": "zig/src/lander/testing/reference/Cargo.lock",
+      "bytes": 81123,
+      "sha256_chunks": [
+        "8ad950fe0627c743223a5c7df30e757",
+        "2db6707c3afb14df54964719874cfb4",
+        "a2"
+      ]
+    },
+    {
+      "path": "zig/src/ops/regex-native/Cargo.lock.gz",
+      "restore": "zig/src/ops/regex-native/Cargo.lock",
+      "bytes": 1331,
+      "sha256_chunks": [
+        "ad990290069262515b95f3860fc36a4",
+        "8fc8b7b4df248708c7225797fc26766",
+        "89"
+      ]
+    },
+    {
+      "path": "zig/src/ops/testing/reference/Cargo.lock.gz",
+      "restore": "zig/src/ops/testing/reference/Cargo.lock",
+      "bytes": 34238,
+      "sha256_chunks": [
+        "87ca22299d0405af440b73f94e4b3e2",
+        "415aac374ad0f666e2a47ec08100aaa",
+        "95"
+      ]
+    },
+    {
+      "path": "zig/src/radix/reference/Cargo.lock.gz",
+      "restore": "zig/src/radix/reference/Cargo.lock",
+      "bytes": 64420,
+      "sha256_chunks": [
+        "c766d5b66f0f682689fa4be6aa613fc",
+        "aca9f98bd1c4562371c38857963628b",
+        "38"
+      ]
+    }
+  ]
+}

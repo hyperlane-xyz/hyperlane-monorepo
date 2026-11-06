@@ -1,0 +1,505 @@
+{
+  "scope": "All three actual agent executables; native dependency and optional Rust FFI phases explicit. Correctness/feature parity required separately. No execution by default.",
+  "captured_utc": "2026-11-05T23:52:35.469151+00:00",
+  "cache_root": "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z",
+  "jobs": 2,
+  "cpu_policy": "native",
+  "sdk_root": "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+  "rust_features": "relayer/aleo,validator/aleo,scraper/aleo",
+  "removed_environment_key_names": [],
+  "minimum_free_disk_GiB": 40,
+  "required_free_disk_GiB": 40,
+  "disk_model": {
+    "estimate_not_measurement": true,
+    "group_peak_GiB": {
+      "native": 2,
+      "regex": 1,
+      "starknet": 4,
+      "aleo-crypto": 4,
+      "aleo-vm": 8,
+      "rust": 28,
+      "zig-ReleaseSafe": 6,
+      "zig-ReleaseFast": 6
+    },
+    "group_retained_runtime_GiB": {
+      "native": 0.2,
+      "regex": 0.05,
+      "starknet": 0.1,
+      "aleo-crypto": 0.1,
+      "aleo-vm": 0.5,
+      "rust": 1,
+      "zig-ReleaseSafe": 0.15,
+      "zig-ReleaseFast": 0.15
+    },
+    "phases": [
+      {
+        "phase": "native-sdk-cold",
+        "cache_group": "native",
+        "estimated_peak_retained_GiB": 2,
+        "estimated_after_phase_GiB": 0.2,
+        "reclaim_after_phase": true
+      },
+      {
+        "phase": "optional-regex-cold",
+        "cache_group": "regex",
+        "estimated_peak_retained_GiB": 1.2,
+        "estimated_after_phase_GiB": 0.25,
+        "reclaim_after_phase": true
+      },
+      {
+        "phase": "optional-starknet-cold",
+        "cache_group": "starknet",
+        "estimated_peak_retained_GiB": 4.25,
+        "estimated_after_phase_GiB": 0.35000000000000003,
+        "reclaim_after_phase": true
+      },
+      {
+        "phase": "optional-aleo-crypto-cold",
+        "cache_group": "aleo-crypto",
+        "estimated_peak_retained_GiB": 4.35,
+        "estimated_after_phase_GiB": 0.45,
+        "reclaim_after_phase": true
+      },
+      {
+        "phase": "optional-aleo-vm-cold",
+        "cache_group": "aleo-vm",
+        "estimated_peak_retained_GiB": 8.45,
+        "estimated_after_phase_GiB": 0.9500000000000001,
+        "reclaim_after_phase": true
+      },
+      {
+        "phase": "rust-three-agent-cold",
+        "cache_group": "rust",
+        "estimated_peak_retained_GiB": 28.95,
+        "estimated_after_phase_GiB": 28.95,
+        "reclaim_after_phase": false
+      },
+      {
+        "phase": "rust-three-agent-no-change",
+        "cache_group": "rust",
+        "estimated_peak_retained_GiB": 28.95,
+        "estimated_after_phase_GiB": 1.95,
+        "reclaim_after_phase": true
+      },
+      {
+        "phase": "zig-ReleaseSafe-three-agent-cold",
+        "cache_group": "zig-ReleaseSafe",
+        "estimated_peak_retained_GiB": 7.95,
+        "estimated_after_phase_GiB": 7.95,
+        "reclaim_after_phase": false
+      },
+      {
+        "phase": "zig-ReleaseSafe-three-agent-no-change",
+        "cache_group": "zig-ReleaseSafe",
+        "estimated_peak_retained_GiB": 7.95,
+        "estimated_after_phase_GiB": 2.1,
+        "reclaim_after_phase": true
+      },
+      {
+        "phase": "zig-ReleaseFast-three-agent-cold",
+        "cache_group": "zig-ReleaseFast",
+        "estimated_peak_retained_GiB": 8.1,
+        "estimated_after_phase_GiB": 8.1,
+        "reclaim_after_phase": false
+      },
+      {
+        "phase": "zig-ReleaseFast-three-agent-no-change",
+        "cache_group": "zig-ReleaseFast",
+        "estimated_peak_retained_GiB": 8.1,
+        "estimated_after_phase_GiB": 2.25,
+        "reclaim_after_phase": true
+      }
+    ],
+    "estimated_maximum_retained_GiB": 28.95,
+    "additional_headroom_GiB": 8,
+    "required_estimated_GiB": 36.95,
+    "qualification": "Source/toolchain/download caches already exist and are excluded. Estimates are conservative budgets based on observed task targets, not guaranteed maxima; actual samples and disk guard retained. No-cache-reclamation plan retains all prior target/compiler caches."
+  },
+  "reclaim_phase_caches": true,
+  "compiler_cache_policy": {
+    "rust_wrappers_explicitly_empty": true,
+    "ccache_disable": "1",
+    "sccache_disable": "1",
+    "inherited_cache_controls": {},
+    "compiler_environment_signatures": {},
+    "explicit_cache_wrapper_compiler_keys": [],
+    "no_user_cache_deleted": true
+  },
+  "free_disk_bytes": 40442191872,
+  "native_cold": true,
+  "optional_sdk_cold": true,
+  "setup_commands_before_measurement": [
+    [
+      "python3",
+      "/Users/pbio/work/ziggy/zig/tools/fixture_pack.py",
+      "restore-locks"
+    ],
+    [
+      "python3",
+      "/Users/pbio/work/ziggy/zig/tools/native_deps.py",
+      "--restore-only"
+    ],
+    [
+      "python3",
+      "/Users/pbio/work/ziggy/zig/src/starknet/testing/locked.py",
+      "--restore-only"
+    ],
+    [
+      "python3",
+      "/Users/pbio/work/ziggy/zig/src/aleo/testing/locked.py",
+      "--restore-only"
+    ],
+    [
+      "python3",
+      "/Users/pbio/work/ziggy/zig/src/ops/tools/locked.py",
+      "--restore-only"
+    ]
+  ],
+  "phases": [
+    {
+      "name": "native-sdk-cold",
+      "command": [
+        "python3",
+        "/Users/pbio/work/ziggy/zig/tools/native_deps.py",
+        "--offline",
+        "--target-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-target",
+        "--output",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk",
+        "--jobs",
+        "2",
+        "--toolchain",
+        "1.98.0",
+        "--format",
+        "libs",
+        "--sdk-root",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk"
+      ],
+      "cwd": "/Users/pbio/work/ziggy",
+      "environment": {},
+      "cache_state": "fresh standalone native dependency target; downloads excluded",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/librocksdb.a",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libziggy_rocks_abi.a"
+      ]
+    },
+    {
+      "name": "optional-regex-cold",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "/Users/pbio/work/ziggy/zig/src/ops/regex-native/Cargo.toml",
+        "--target-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-regex",
+        "-j",
+        "2"
+      ],
+      "cwd": "/Users/pbio/work/ziggy",
+      "environment": {
+        "RUSTFLAGS": "--cfg tokio_unstable -Ctarget-cpu=native"
+      },
+      "cache_state": "fresh optional Rust SDK target; parameter downloads/runtime proving excluded",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-regex/release/libziggy_regex.dylib"
+      ]
+    },
+    {
+      "name": "optional-starknet-cold",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/Cargo.toml",
+        "--target-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-starknet",
+        "-j",
+        "2"
+      ],
+      "cwd": "/Users/pbio/work/ziggy",
+      "environment": {
+        "RUSTFLAGS": "--cfg tokio_unstable -Ctarget-cpu=native"
+      },
+      "cache_state": "fresh optional Rust SDK target; parameter downloads/runtime proving excluded",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-starknet/release/libziggy_starknet_crypto.dylib"
+      ]
+    },
+    {
+      "name": "optional-aleo-crypto-cold",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/Cargo.toml",
+        "--target-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-aleo-crypto",
+        "-j",
+        "2"
+      ],
+      "cwd": "/Users/pbio/work/ziggy",
+      "environment": {
+        "RUSTFLAGS": "--cfg tokio_unstable -Ctarget-cpu=native"
+      },
+      "cache_state": "fresh optional Rust SDK target; parameter downloads/runtime proving excluded",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-aleo-crypto/release/libziggy_aleo_crypto.dylib"
+      ]
+    },
+    {
+      "name": "optional-aleo-vm-cold",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/Cargo.toml",
+        "--target-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-aleo-vm",
+        "-j",
+        "2"
+      ],
+      "cwd": "/Users/pbio/work/ziggy",
+      "environment": {
+        "RUSTFLAGS": "--cfg tokio_unstable -Ctarget-cpu=native"
+      },
+      "cache_state": "fresh optional Rust SDK target; parameter downloads/runtime proving excluded",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/sdk-aleo-vm/release/libziggy_aleo_vm.dylib"
+      ]
+    },
+    {
+      "name": "rust-three-agent-cold",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "relayer",
+        "-p",
+        "validator",
+        "-p",
+        "scraper",
+        "--target-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target",
+        "-j",
+        "2",
+        "--features",
+        "relayer/aleo,validator/aleo,scraper/aleo"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/rust/main",
+      "environment": {
+        "RUSTFLAGS": "--cfg tokio_unstable -Ctarget-cpu=native"
+      },
+      "cache_state": "fresh cargo target; default production release profiles + explicit recorded CPU flag; registry/git source caches retained",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/relayer",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper"
+      ]
+    },
+    {
+      "name": "rust-three-agent-no-change",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "relayer",
+        "-p",
+        "validator",
+        "-p",
+        "scraper",
+        "--target-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target",
+        "-j",
+        "2",
+        "--features",
+        "relayer/aleo,validator/aleo,scraper/aleo"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/rust/main",
+      "environment": {
+        "RUSTFLAGS": "--cfg tokio_unstable -Ctarget-cpu=native"
+      },
+      "cache_state": "same isolated target, no source changes, no-change incremental",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/relayer",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper"
+      ]
+    },
+    {
+      "name": "zig-ReleaseSafe-three-agent-cold",
+      "command": [
+        "python3",
+        "/Users/pbio/work/ziggy/zig/tools/zig.py",
+        "--compiler",
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "--sdk-root",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "build",
+        "validator",
+        "relayer",
+        "scraper",
+        "-Doptimize=ReleaseSafe",
+        "-Dnative-db-libs=/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libziggy_rocks_abi.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/librocksdb.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libsnappy.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/liblz4.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libzstd.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libz.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libbz2.a",
+        "-Dlibpq-library=/opt/homebrew/Cellar/libpq/16.3/lib/libpq.5.dylib",
+        "--cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-local-ReleaseSafe",
+        "--global-cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-global-ReleaseSafe",
+        "--prefix",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe",
+        "-j2",
+        "-Dcpu=native",
+        "aleo-vm-worker"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig",
+      "environment": {},
+      "cache_state": "fresh local+global compiler cache; native SDKs built in separately measured prerequisite phases",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/relayer",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/scraper",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/hyperlane-aleo-vm-worker"
+      ]
+    },
+    {
+      "name": "zig-ReleaseSafe-three-agent-no-change",
+      "command": [
+        "python3",
+        "/Users/pbio/work/ziggy/zig/tools/zig.py",
+        "--compiler",
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "--sdk-root",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "build",
+        "validator",
+        "relayer",
+        "scraper",
+        "-Doptimize=ReleaseSafe",
+        "-Dnative-db-libs=/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libziggy_rocks_abi.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/librocksdb.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libsnappy.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/liblz4.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libzstd.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libz.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libbz2.a",
+        "-Dlibpq-library=/opt/homebrew/Cellar/libpq/16.3/lib/libpq.5.dylib",
+        "--cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-local-ReleaseSafe",
+        "--global-cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-global-ReleaseSafe",
+        "--prefix",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe",
+        "-j2",
+        "-Dcpu=native",
+        "aleo-vm-worker"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig",
+      "environment": {},
+      "cache_state": "same isolated compiler cache; no source changes, no-change incremental",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/relayer",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/scraper",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/hyperlane-aleo-vm-worker"
+      ]
+    },
+    {
+      "name": "zig-ReleaseFast-three-agent-cold",
+      "command": [
+        "python3",
+        "/Users/pbio/work/ziggy/zig/tools/zig.py",
+        "--compiler",
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "--sdk-root",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "build",
+        "validator",
+        "relayer",
+        "scraper",
+        "-Doptimize=ReleaseFast",
+        "-Dnative-db-libs=/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libziggy_rocks_abi.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/librocksdb.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libsnappy.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/liblz4.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libzstd.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libz.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libbz2.a",
+        "-Dlibpq-library=/opt/homebrew/Cellar/libpq/16.3/lib/libpq.5.dylib",
+        "--cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-local-ReleaseFast",
+        "--global-cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-global-ReleaseFast",
+        "--prefix",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast",
+        "-j2",
+        "-Dcpu=native",
+        "aleo-vm-worker"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig",
+      "environment": {},
+      "cache_state": "fresh local+global compiler cache; native SDKs built in separately measured prerequisite phases",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/relayer",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/scraper",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/hyperlane-aleo-vm-worker"
+      ]
+    },
+    {
+      "name": "zig-ReleaseFast-three-agent-no-change",
+      "command": [
+        "python3",
+        "/Users/pbio/work/ziggy/zig/tools/zig.py",
+        "--compiler",
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "--sdk-root",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "build",
+        "validator",
+        "relayer",
+        "scraper",
+        "-Doptimize=ReleaseFast",
+        "-Dnative-db-libs=/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libziggy_rocks_abi.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/librocksdb.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libsnappy.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/liblz4.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libzstd.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libz.a,/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/native-sdk/libbz2.a",
+        "-Dlibpq-library=/opt/homebrew/Cellar/libpq/16.3/lib/libpq.5.dylib",
+        "--cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-local-ReleaseFast",
+        "--global-cache-dir",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-global-ReleaseFast",
+        "--prefix",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast",
+        "-j2",
+        "-Dcpu=native",
+        "aleo-vm-worker"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/zig",
+      "environment": {},
+      "cache_state": "same isolated compiler cache; no source changes, no-change incremental",
+      "artifacts": [
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/relayer",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/scraper",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/hyperlane-aleo-vm-worker"
+      ]
+    }
+  ],
+  "methodology": [
+    "Cold means fresh compiler/target caches, with already-downloaded source/toolchains. SDK and registry network downloads are excluded.",
+    "No-change incremental is labeled explicitly; no source-edit incremental claim.",
+    "Native Rust SDK/proving/regex dependencies are included when selected. No zero-dependency claim.",
+    "wait4 maximum-child RSS and sampled200ms aggregate process-tree RSS are separate; summed RSS double-counts shared pages and may miss shorter peaks. Binaries/bundle/disk sizes reported separately.",
+    "Run only in coordinated team compiler-idle window; capture shared-host load and preserve every row/failure.",
+    "Optional all-eight build uses Rust features relayer/aleo,validator/aleo,scraper/aleo plus --optional-native-sdks and --native-cold. Runtime Aleo parameters/proving not a compile-time operation."
+  ]
+}

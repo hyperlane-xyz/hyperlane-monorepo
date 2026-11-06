@@ -1,0 +1,3015 @@
+{
+  "encoding": "gzip",
+  "files": [
+    {
+      "path": "zig/bench/results/default-test-wiring-2026-11-06/manifest.json.gz",
+      "bytes": 2547,
+      "gzip_bytes": 1218,
+      "sha256_chunks": [
+        "d2caa538c405b244557cd57587e4070",
+        "478f4a9f9de264f890c2dd33433066f",
+        "f6"
+      ]
+    },
+    {
+      "path": "zig/bench/results/global-source-candidate-20261106T0727/all-manifest.json.gz",
+      "bytes": 176093,
+      "gzip_bytes": 64666,
+      "sha256_chunks": [
+        "3752f0bf326711e60f710042d65647e",
+        "029099685a791370a037b8b1cf3366f",
+        "9d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/global-source-candidate-20261106T0727/default.log.gz",
+      "bytes": 77063,
+      "gzip_bytes": 5284,
+      "sha256_chunks": [
+        "c0f7dd9f7ba8475e49d2f9b82b9e430",
+        "170b666fca00769cca2db25f78c7519",
+        "0f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/global-source-candidate-20261106T0727/runner.py.gz",
+      "bytes": 8982,
+      "gzip_bytes": 3093,
+      "sha256_chunks": [
+        "b03492d3c6d539e37e8f612aee43ac8",
+        "c712fa3f207d12e2546650e4a0f24b2",
+        "df"
+      ]
+    },
+    {
+      "path": "zig/bench/results/global-source-final-20261106T0853-safe/all-manifest.json.gz",
+      "bytes": 179755,
+      "gzip_bytes": 65883,
+      "sha256_chunks": [
+        "1010b9afecbdd5ac32bc25093200b29",
+        "57c468c0806d33a9bf9c6328e275242",
+        "a7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/global-source-final-20261106T0853-safe/default.log.gz",
+      "bytes": 1255,
+      "gzip_bytes": 409,
+      "sha256_chunks": [
+        "2a96ebbea63d3583cbb79c9ca02ee72",
+        "ae791d00d6f5515aef2a10cea4ab261",
+        "18"
+      ]
+    },
+    {
+      "path": "zig/bench/results/global-source-final-20261106T0853-safe/native-db.log.gz",
+      "bytes": 37860,
+      "gzip_bytes": 6039,
+      "sha256_chunks": [
+        "a2b6f54a22640cc8675489d5d886840",
+        "60d398f3752adf378efb695c6163852",
+        "24"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-lifetime-review-2026-11-06/manifest.json.gz",
+      "bytes": 3846,
+      "gzip_bytes": 1487,
+      "sha256_chunks": [
+        "01243346fd8e501f1ec27e15615c493",
+        "2692aa43e75709b4b5ce28ec9204b75",
+        "94"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-lifetime-review-2026-11-06/tested-source-snapshot.json.gz",
+      "bytes": 1120,
+      "gzip_bytes": 564,
+      "sha256_chunks": [
+        "e0b896ec8703de9b13a1c785f42f6d3",
+        "89efa470145673e6cc359a6956a2312",
+        "db"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-submit-backpressure-2026-11-06/manifest.json.gz",
+      "bytes": 2680,
+      "gzip_bytes": 1368,
+      "sha256_chunks": [
+        "11147c3ae589ce6b1719e9403d49e2a",
+        "59590c0476d50e25dea36b7dc32d9d8",
+        "c1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-submit-backpressure-2026-11-06/source-snapshot.json.gz",
+      "bytes": 566,
+      "gzip_bytes": 324,
+      "sha256_chunks": [
+        "d49023d9467e107716f09f09cc4ab05",
+        "9af79b81fd000f748356509baf1feeb",
+        "fd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/origin-bootstrap-failures/manifest.json.gz",
+      "bytes": 3809,
+      "gzip_bytes": 1788,
+      "sha256_chunks": [
+        "cb3475695e34889d0609f3923b1f130",
+        "0e0263d81e782f81f300244faa0277b",
+        "83"
+      ]
+    },
+    {
+      "path": "zig/bench/results/public-relay-process.json.gz",
+      "bytes": 13835,
+      "gzip_bytes": 2818,
+      "sha256_chunks": [
+        "9cdbad752ca924ec5196596a9d6bca3",
+        "8d0d30475dfc2a58733dcd2838510f0",
+        "bc"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/acceptance-status.json.gz",
+      "bytes": 451,
+      "gzip_bytes": 289,
+      "sha256_chunks": [
+        "2cef7a83e7da0c36a5cdfb52d458b3d",
+        "e7ac063503b026754081d39cc874669",
+        "ca"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/commands.json.gz",
+      "bytes": 1898,
+      "gzip_bytes": 495,
+      "sha256_chunks": [
+        "71762aa9f29d0eaee2bdb038ddccd3d",
+        "fbe742b3b23a32511370c7e2fe2fbe3",
+        "02"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/factory.log.gz",
+      "bytes": 568,
+      "gzip_bytes": 271,
+      "sha256_chunks": [
+        "6b166e788e8a3951755abfab27c3f14",
+        "e03fb30eb3388e62e42a837753f416b",
+        "bd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/final-acceptance-status.json.gz",
+      "bytes": 557,
+      "gzip_bytes": 301,
+      "sha256_chunks": [
+        "aa0764476ad2c7d898cd07e3f4989a9",
+        "d80682ddf2f8c5a851eafe0afa0f744",
+        "e9"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/focused.log.gz",
+      "bytes": 1222,
+      "gzip_bytes": 499,
+      "sha256_chunks": [
+        "52c16e08894524c5d8dcacc81b76942",
+        "c7021954b29d05b7d8d6d16b05d4406",
+        "95"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/manifest.json.gz",
+      "bytes": 4196,
+      "gzip_bytes": 1954,
+      "sha256_chunks": [
+        "247c3d1d549ae62709ef3df169477c7",
+        "af2829294a69ab6fcd84fa322eb07f5",
+        "7b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/origin.log.gz",
+      "bytes": 1997,
+      "gzip_bytes": 831,
+      "sha256_chunks": [
+        "8b2a8f19b85cde86c77389892c87707",
+        "34a9dea24f7949560a73f2802c3ea76",
+        "b0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/receipts.log.gz",
+      "bytes": 42990,
+      "gzip_bytes": 12604,
+      "sha256_chunks": [
+        "222eb2a1f1878f5c3561d2633370d23",
+        "7ff26d8461b4544bf60f4845586b2ef",
+        "09"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/result.json.gz",
+      "bytes": 2712,
+      "gzip_bytes": 1175,
+      "sha256_chunks": [
+        "d6af79c1819482763070fc2c232a1d1",
+        "e369b969264c3d90538adbfe069a5d7",
+        "34"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/commands.json.gz",
+      "bytes": 1898,
+      "gzip_bytes": 495,
+      "sha256_chunks": [
+        "71762aa9f29d0eaee2bdb038ddccd3d",
+        "fbe742b3b23a32511370c7e2fe2fbe3",
+        "02"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/factory.log.gz",
+      "bytes": 568,
+      "gzip_bytes": 271,
+      "sha256_chunks": [
+        "6b166e788e8a3951755abfab27c3f14",
+        "e03fb30eb3388e62e42a837753f416b",
+        "bd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/focused.log.gz",
+      "bytes": 1222,
+      "gzip_bytes": 499,
+      "sha256_chunks": [
+        "52c16e08894524c5d8dcacc81b76942",
+        "c7021954b29d05b7d8d6d16b05d4406",
+        "95"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/manifest.json.gz",
+      "bytes": 3961,
+      "gzip_bytes": 1856,
+      "sha256_chunks": [
+        "aaea689836c3425d12a936edd8b53fe",
+        "c28d63eec2eae7d6f0c25bebd85486a",
+        "76"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/origin.log.gz",
+      "bytes": 1997,
+      "gzip_bytes": 831,
+      "sha256_chunks": [
+        "8b2a8f19b85cde86c77389892c87707",
+        "34a9dea24f7949560a73f2802c3ea76",
+        "b0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/receipts.log.gz",
+      "bytes": 42990,
+      "gzip_bytes": 12604,
+      "sha256_chunks": [
+        "222eb2a1f1878f5c3561d2633370d23",
+        "7ff26d8461b4544bf60f4845586b2ef",
+        "09"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/result.json.gz",
+      "bytes": 2418,
+      "gzip_bytes": 1040,
+      "sha256_chunks": [
+        "847c9c41dd232eba377595f3639fcfb",
+        "e573ff0e276ee7930c1478ff2ef7d64",
+        "a3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-fix/source-before.json.gz",
+      "bytes": 1874,
+      "gzip_bytes": 901,
+      "sha256_chunks": [
+        "0d2416e0d07890268e2f75252138006",
+        "4da975d4e3b4e3e2ff7c80bd6f73482",
+        "b5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/commands.json.gz",
+      "bytes": 1898,
+      "gzip_bytes": 495,
+      "sha256_chunks": [
+        "71762aa9f29d0eaee2bdb038ddccd3d",
+        "fbe742b3b23a32511370c7e2fe2fbe3",
+        "02"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/factory.log.gz",
+      "bytes": 568,
+      "gzip_bytes": 271,
+      "sha256_chunks": [
+        "6b166e788e8a3951755abfab27c3f14",
+        "e03fb30eb3388e62e42a837753f416b",
+        "bd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/focused.log.gz",
+      "bytes": 1332,
+      "gzip_bytes": 526,
+      "sha256_chunks": [
+        "3c5832b4bcaa4ffd733fc379b7c619a",
+        "c416af6b61644a55cfb484fc6011194",
+        "99"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/historical-scope-restoration/after.log.gz",
+      "bytes": 539,
+      "gzip_bytes": 256,
+      "sha256_chunks": [
+        "968bb8329fbdd9427a11253c4ccc896",
+        "5953320ba7d3ff1af6ce46771eec27d",
+        "32"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/historical-scope-restoration/before.log.gz",
+      "bytes": 787,
+      "gzip_bytes": 419,
+      "sha256_chunks": [
+        "a9252ccb65df07114ef070f59e34392",
+        "095e4574beab0da5eaee94e02f4477d",
+        "91"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/independent-command.json.gz",
+      "bytes": 2212,
+      "gzip_bytes": 685,
+      "sha256_chunks": [
+        "41328fc9dea49ed7e7ba8dc2de24eda",
+        "45698f68197140674bb7b288b314c54",
+        "98"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/independent-result.json.gz",
+      "bytes": 2382,
+      "gzip_bytes": 657,
+      "sha256_chunks": [
+        "34dc06894264e6e4bdab32f1241be12",
+        "7a77c98920a67b63ecebebcb38610b5",
+        "1e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/independent-tests.log.gz",
+      "bytes": 2675,
+      "gzip_bytes": 939,
+      "sha256_chunks": [
+        "93782eba5d0c7a1866bd4ab90ebaa4b",
+        "953e2df011a0c4df7671bf392e545e1",
+        "b1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/manifest.json.gz",
+      "bytes": 4604,
+      "gzip_bytes": 2062,
+      "sha256_chunks": [
+        "d6a1da5ecb340e1efb75aea0e1c796b",
+        "e1d9692efb7467584de64599db82900",
+        "4b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/origin.log.gz",
+      "bytes": 1997,
+      "gzip_bytes": 831,
+      "sha256_chunks": [
+        "8b2a8f19b85cde86c77389892c87707",
+        "34a9dea24f7949560a73f2802c3ea76",
+        "b0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/receipts.log.gz",
+      "bytes": 42990,
+      "gzip_bytes": 12604,
+      "sha256_chunks": [
+        "222eb2a1f1878f5c3561d2633370d23",
+        "7ff26d8461b4544bf60f4845586b2ef",
+        "09"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/result.json.gz",
+      "bytes": 2422,
+      "gzip_bytes": 1038,
+      "sha256_chunks": [
+        "43cd2dd9cece5fc9a0e30c9663cb1e5",
+        "f4f4dd19ecad9f4ad07e25762f1c11a",
+        "f7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/shared-signer-restoration-fix/source-before.json.gz",
+      "bytes": 1874,
+      "gzip_bytes": 901,
+      "sha256_chunks": [
+        "dde2dc4a776d0393658316be165f17a",
+        "35ddd6c7332b5b7757f98510993c827",
+        "8d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-physical-timeout-recovery/source-before.json.gz",
+      "bytes": 2174,
+      "gzip_bytes": 1042,
+      "sha256_chunks": [
+        "28db6f2845ee227836f095603803e4e",
+        "b76ca79f6e054de37b9a941b6921cab",
+        "1e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-typed-header-recovery/commands.json.gz",
+      "bytes": 4321,
+      "gzip_bytes": 1119,
+      "sha256_chunks": [
+        "62fe3495f55ad56557bd0b42aed4dc0",
+        "2e0288e4e9e503feaf755b5d64ca53f",
+        "92"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-typed-header-recovery/manifest.json.gz",
+      "bytes": 5515,
+      "gzip_bytes": 1810,
+      "sha256_chunks": [
+        "62e958377412d333df693c14f1d2a98",
+        "3fce506edf8d9b895de732d08d5950a",
+        "18"
+      ]
+    },
+    {
+      "path": "zig/bench/results/runtime-role-recovery-2026-11-06/manifest.json.gz",
+      "bytes": 5081,
+      "gzip_bytes": 2550,
+      "sha256_chunks": [
+        "76e82d3050af9c66d0c4c5d519b6aeb",
+        "b662600860ec654ae354127a2e06c92",
+        "46"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-post-cadence-process/scraper-process.log.gz",
+      "bytes": 978,
+      "gzip_bytes": 598,
+      "sha256_chunks": [
+        "3772f0f80b6c14d19c980900da3d92d",
+        "58e2a92638806a90bac6d8822fb0a3f",
+        "23"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/regression-analysis.json.gz",
+      "bytes": 7276,
+      "gzip_bytes": 2130,
+      "sha256_chunks": [
+        "cfa4749789d4e4e29ebe62688872c6d",
+        "5205c981c984eed58ea3862b9a53279",
+        "dc"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-batch-backend/manifest.json.gz",
+      "bytes": 3544,
+      "gzip_bytes": 1604,
+      "sha256_chunks": [
+        "10b2c5804f4040d565fd4af638205d4",
+        "1eb1251035ea88f2ff652a09ce55519",
+        "42"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/commands.json.gz",
+      "bytes": 955,
+      "gzip_bytes": 379,
+      "sha256_chunks": [
+        "3d3afcfa51d0579bc61ef6b8e04cae2",
+        "b648e824163b0d1f4ec5c2be3653ac9",
+        "1b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/historical-pre-scalar-binding/commands.json.gz",
+      "bytes": 955,
+      "gzip_bytes": 379,
+      "sha256_chunks": [
+        "3d3afcfa51d0579bc61ef6b8e04cae2",
+        "b648e824163b0d1f4ec5c2be3653ac9",
+        "1b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/historical-pre-scalar-binding/manifest.json.gz",
+      "bytes": 2910,
+      "gzip_bytes": 1399,
+      "sha256_chunks": [
+        "cea81e03f3bd9117c0f723ab8cf749a",
+        "d4ab45deb52378956adc0926199686c",
+        "10"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/independent-command.json.gz",
+      "bytes": 584,
+      "gzip_bytes": 352,
+      "sha256_chunks": [
+        "b4129042ac944d5ad78640ff2236483",
+        "0d790d9a11ea981adf5bb6c0096581d",
+        "ad"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/independent-result.json.gz",
+      "bytes": 1975,
+      "gzip_bytes": 879,
+      "sha256_chunks": [
+        "f8484a82e91716f32a13d5651a7bff2",
+        "8ed7a07abafa77eec8e309d64021fac",
+        "05"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/independent-status.json.gz",
+      "bytes": 734,
+      "gzip_bytes": 418,
+      "sha256_chunks": [
+        "ec96b6501bf031eca7f577bd21b2e27",
+        "0793302f72d11e176596ae50779209a",
+        "1f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/independent-tests.log.gz",
+      "bytes": 1194,
+      "gzip_bytes": 446,
+      "sha256_chunks": [
+        "e49bf88b163e14440cb85d9b6da9222",
+        "54d7520966c3a0789768890addd2359",
+        "97"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-nonce-proof/manifest.json.gz",
+      "bytes": 3283,
+      "gzip_bytes": 1594,
+      "sha256_chunks": [
+        "ecc76b19954d12c64ccd1f25daa32e1",
+        "69e6e2846cf879783270e945f7bb52d",
+        "b2"
+      ]
+    },
+    {
+      "path": "zig/bench/results/transaction-id-companion/manifest.json.gz",
+      "bytes": 4588,
+      "gzip_bytes": 2083,
+      "sha256_chunks": [
+        "51c3ed1e8dd29941bc2de1d07f1f04c",
+        "339e07edf0fcf8b5a970e976b65ff5e",
+        "e3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/manifest.json.gz",
+      "bytes": 380760,
+      "gzip_bytes": 116622,
+      "sha256_chunks": [
+        "ede157311553ef6b7d961ba87b542e0",
+        "c9dbc991d59aefe8faf2c88352b9671",
+        "9e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/0_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 372,
+      "sha256_chunks": [
+        "f48dea2f908e95a57d3ec88347a0d1d",
+        "5f0db7fd79e1ffc57dbcc694481a405",
+        "14"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/1_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 373,
+      "sha256_chunks": [
+        "447f50e99ac3a02daa4d63bf133a7de",
+        "5335283895b3d4e65936204374c7448",
+        "22"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/2_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 370,
+      "sha256_chunks": [
+        "5149dda290444d57001a715af699693",
+        "7b6e78c1d71f60d562245c62bd08828",
+        "3b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/3_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "2465091a883bd9dab119948f47b68c8",
+        "c178eee1c48a89e59fe9d04b38d9474",
+        "65"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/4_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "cdf902d8899c80e5168409e83811e85",
+        "10cf735dc4f9ad514a42c9568f6e182",
+        "87"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/5_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "cf4b97fdeb5a6f16d79dcf526ae4191",
+        "a57d3430a0433a113b39b37bd53e41e",
+        "5f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/6_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "4f34a6d1a5a8141a25ede76aa6f87bb",
+        "f9c2465ed05eff819370d4136431f5d",
+        "cb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/announcement.json.gz",
+      "bytes": 689,
+      "gzip_bytes": 372,
+      "sha256_chunks": [
+        "0ef5e55a4405eaef03171d063295652",
+        "f432eef53e55e55fc5fa616a4b47076",
+        "2b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/merkle_snapshot.json.gz",
+      "bytes": 3798,
+      "gzip_bytes": 1658,
+      "sha256_chunks": [
+        "64e2678778d69f0046dd51f6e5f96d2",
+        "3b23570de2d6d3af8bbcf5c751cf4f1",
+        "ee"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/checkpoints/metadata_latest.json.gz",
+      "bytes": 295,
+      "gzip_bytes": 225,
+      "sha256_chunks": [
+        "91b4463a03ad65913ccb72ac9003aae",
+        "f0193282bfbd6b3a0f6be7782bfdffe",
+        "73"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/partial-summary.json.gz",
+      "bytes": 10770,
+      "gzip_bytes": 1640,
+      "sha256_chunks": [
+        "6c489f24c520cc8dcdd052a9e83c722",
+        "4b1f2f739e4c785489363a4ce200a3e",
+        "fc"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/relayer-first.log.gz",
+      "bytes": 1812994,
+      "gzip_bytes": 42307,
+      "sha256_chunks": [
+        "0c9df244bfb11d8f6f6ab812f7d2154",
+        "9099d1e95015a5df2b86da5fdae851b",
+        "67"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/relayer-public.json.gz",
+      "bytes": 2212,
+      "gzip_bytes": 832,
+      "sha256_chunks": [
+        "cb46855a6ed87b497385588b953edaa",
+        "37d0466155c54e5c8c20c4746dd8b2c",
+        "5e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/validator-failure.log.gz",
+      "bytes": 22908,
+      "gzip_bytes": 3350,
+      "sha256_chunks": [
+        "b667f6e39d2c86fcb6e46207499254b",
+        "edee85fb63691914ca3383438e1d798",
+        "3e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-10/raw/sample-0-rust/validator-public.json.gz",
+      "bytes": 1063,
+      "gzip_bytes": 545,
+      "sha256_chunks": [
+        "8726d1c6931b7434b7cb698cfab78d2",
+        "65adbd789dbacad6c9f338cb6573649",
+        "0a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/0_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 372,
+      "sha256_chunks": [
+        "f48dea2f908e95a57d3ec88347a0d1d",
+        "5f0db7fd79e1ffc57dbcc694481a405",
+        "14"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/1_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 373,
+      "sha256_chunks": [
+        "447f50e99ac3a02daa4d63bf133a7de",
+        "5335283895b3d4e65936204374c7448",
+        "22"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/2_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 370,
+      "sha256_chunks": [
+        "5149dda290444d57001a715af699693",
+        "7b6e78c1d71f60d562245c62bd08828",
+        "3b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/3_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "2465091a883bd9dab119948f47b68c8",
+        "c178eee1c48a89e59fe9d04b38d9474",
+        "65"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/4_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "cdf902d8899c80e5168409e83811e85",
+        "10cf735dc4f9ad514a42c9568f6e182",
+        "87"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/5_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "cf4b97fdeb5a6f16d79dcf526ae4191",
+        "a57d3430a0433a113b39b37bd53e41e",
+        "5f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/6_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "4f34a6d1a5a8141a25ede76aa6f87bb",
+        "f9c2465ed05eff819370d4136431f5d",
+        "cb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/announcement.json.gz",
+      "bytes": 689,
+      "gzip_bytes": 373,
+      "sha256_chunks": [
+        "75905ecfc008ad237bd9de5f7ff744c",
+        "9083fddf306515fb9eb1b41565f125b",
+        "18"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/merkle_snapshot.json.gz",
+      "bytes": 3798,
+      "gzip_bytes": 1658,
+      "sha256_chunks": [
+        "64e2678778d69f0046dd51f6e5f96d2",
+        "3b23570de2d6d3af8bbcf5c751cf4f1",
+        "ee"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/checkpoints/metadata_latest.json.gz",
+      "bytes": 295,
+      "gzip_bytes": 225,
+      "sha256_chunks": [
+        "7418d0cf6b23d4e08e63b2e2855f9db",
+        "5cf03b49e0b2b8a68c1fcb51c17ede8",
+        "a1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/partial-summary.json.gz",
+      "bytes": 6803,
+      "gzip_bytes": 1332,
+      "sha256_chunks": [
+        "ee16172593c07be640fa46942f064e0",
+        "7e2402c670ebd325fee235a7e1e2d24",
+        "0a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/relayer-failure.log.gz",
+      "bytes": 1179879,
+      "gzip_bytes": 36282,
+      "sha256_chunks": [
+        "6a7d21b97f0479d07a60dd4889b3caf",
+        "ca1526cd7ccf27af2a11d50394157c1",
+        "c3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/relayer-public.json.gz",
+      "bytes": 2212,
+      "gzip_bytes": 833,
+      "sha256_chunks": [
+        "bb87ca0b58066e5831e5900e2ed62ef",
+        "7b02d4c455bd962ff60107988835b74",
+        "16"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/validator-failure.log.gz",
+      "bytes": 22908,
+      "gzip_bytes": 3350,
+      "sha256_chunks": [
+        "c40b394b8696a4752486e541a9a07e7",
+        "682ef3a878a69eb0b88ab1a397596c3",
+        "92"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-11/raw/sample-0-rust/validator-public.json.gz",
+      "bytes": 1063,
+      "gzip_bytes": 546,
+      "sha256_chunks": [
+        "0bc32b42638280de6ae8bbb2d719b94",
+        "4a3b028ff144af7431fa2ec77d82c4a",
+        "20"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-2/raw/sample-0-rust/validator.log.gz",
+      "bytes": 12532,
+      "gzip_bytes": 2776,
+      "sha256_chunks": [
+        "918ea49901f21c31ce48f3639c86bde",
+        "959c3071ee1aaf392fa4ec283045179",
+        "11"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-3/raw/sample-0-rust/validator.log.gz",
+      "bytes": 12532,
+      "gzip_bytes": 2777,
+      "sha256_chunks": [
+        "c84f7a38e836edf4bcbe7dbd27571c9",
+        "032b76602ac30de88d2e0081f499c19",
+        "2f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-4/raw/sample-0-rust/relayer-failure.log.gz",
+      "bytes": 503654,
+      "gzip_bytes": 21582,
+      "sha256_chunks": [
+        "3567da40956116659cc2f400ff18c09",
+        "5d678dcf557dd795974a778b8d98171",
+        "19"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-4/raw/sample-0-rust/validator.log.gz",
+      "bytes": 12531,
+      "gzip_bytes": 2769,
+      "sha256_chunks": [
+        "caa04134015f191fb6e7dc8c3a1c7a7",
+        "23ab80bf607003796a225729f97c3f1",
+        "a9"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/manifest.json.gz",
+      "bytes": 391618,
+      "gzip_bytes": 117940,
+      "sha256_chunks": [
+        "21a0673f5fc719273b54dc2b7e50fa6",
+        "00d49a45dd3a21f450f1adc4ff8a4d0",
+        "eb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/checkpoints/0_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 372,
+      "sha256_chunks": [
+        "f48dea2f908e95a57d3ec88347a0d1d",
+        "5f0db7fd79e1ffc57dbcc694481a405",
+        "14"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/checkpoints/1_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 373,
+      "sha256_chunks": [
+        "447f50e99ac3a02daa4d63bf133a7de",
+        "5335283895b3d4e65936204374c7448",
+        "22"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/checkpoints/2_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 370,
+      "sha256_chunks": [
+        "5149dda290444d57001a715af699693",
+        "7b6e78c1d71f60d562245c62bd08828",
+        "3b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/checkpoints/3_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "2465091a883bd9dab119948f47b68c8",
+        "c178eee1c48a89e59fe9d04b38d9474",
+        "65"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/checkpoints/announcement.json.gz",
+      "bytes": 689,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "741e6f88949fbb9550a9e154afd905b",
+        "ddf209b680841c3382fd14775720b8a",
+        "8c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/checkpoints/merkle_snapshot.json.gz",
+      "bytes": 3802,
+      "gzip_bytes": 1667,
+      "sha256_chunks": [
+        "511d7c04507869637736dcffc02baf8",
+        "748ada1d286b27b7a9affcb2e62d66f",
+        "ed"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/checkpoints/metadata_latest.json.gz",
+      "bytes": 295,
+      "gzip_bytes": 223,
+      "sha256_chunks": [
+        "cb6bab722e742f3eaf07325dbb3db77",
+        "6e0aac19fdea250a6f3170d501ff077",
+        "c9"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/partial-summary.json.gz",
+      "bytes": 3189,
+      "gzip_bytes": 793,
+      "sha256_chunks": [
+        "464ec8bb606993afba15fb93ab3dfd0",
+        "12901d83085dbe2b58a64a7779e5f60",
+        "06"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/relayer-failure.log.gz",
+      "bytes": 462857,
+      "gzip_bytes": 16812,
+      "sha256_chunks": [
+        "6859c55b3961249ffda4f7b118bdd4f",
+        "7e2190695f800486eae5fbc470ff27c",
+        "92"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/relayer-public.json.gz",
+      "bytes": 2166,
+      "gzip_bytes": 806,
+      "sha256_chunks": [
+        "73a349f6b2827cd3a1f6244891a3806",
+        "5dde1e868418c8abda39cb83794c109",
+        "0c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/validator-failure.log.gz",
+      "bytes": 12528,
+      "gzip_bytes": 2770,
+      "sha256_chunks": [
+        "dd8785c2de452b04bc14365fef5886f",
+        "894f161aa404ba4f07f28009aefa1d4",
+        "c1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-6/raw/sample-0-rust/validator-public.json.gz",
+      "bytes": 1063,
+      "gzip_bytes": 546,
+      "sha256_chunks": [
+        "61f949d60673f486dd8ce93f7905e64",
+        "8c70bf7d0deaa952b083e325fd35490",
+        "ec"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/manifest.json.gz",
+      "bytes": 376016,
+      "gzip_bytes": 116186,
+      "sha256_chunks": [
+        "5ab4af897e8437fdff7680b6115ee38",
+        "5609ee99aec03d0c37676f67b358c15",
+        "64"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/0_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 372,
+      "sha256_chunks": [
+        "f48dea2f908e95a57d3ec88347a0d1d",
+        "5f0db7fd79e1ffc57dbcc694481a405",
+        "14"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/1_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 373,
+      "sha256_chunks": [
+        "447f50e99ac3a02daa4d63bf133a7de",
+        "5335283895b3d4e65936204374c7448",
+        "22"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/2_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 370,
+      "sha256_chunks": [
+        "5149dda290444d57001a715af699693",
+        "7b6e78c1d71f60d562245c62bd08828",
+        "3b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/3_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "2465091a883bd9dab119948f47b68c8",
+        "c178eee1c48a89e59fe9d04b38d9474",
+        "65"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/4_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "cdf902d8899c80e5168409e83811e85",
+        "10cf735dc4f9ad514a42c9568f6e182",
+        "87"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/5_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "cf4b97fdeb5a6f16d79dcf526ae4191",
+        "a57d3430a0433a113b39b37bd53e41e",
+        "5f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/6_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "4f34a6d1a5a8141a25ede76aa6f87bb",
+        "f9c2465ed05eff819370d4136431f5d",
+        "cb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/announcement.json.gz",
+      "bytes": 689,
+      "gzip_bytes": 374,
+      "sha256_chunks": [
+        "95787e5d2fa06b91c7290ccf6f1845e",
+        "aa5fe83d91e6007c0c94c0a291cbf1d",
+        "f3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/merkle_snapshot.json.gz",
+      "bytes": 3798,
+      "gzip_bytes": 1658,
+      "sha256_chunks": [
+        "64e2678778d69f0046dd51f6e5f96d2",
+        "3b23570de2d6d3af8bbcf5c751cf4f1",
+        "ee"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/checkpoints/metadata_latest.json.gz",
+      "bytes": 295,
+      "gzip_bytes": 225,
+      "sha256_chunks": [
+        "6c463ee7a9b450de90f292bcc0d96d2",
+        "113e892bb9f246c26011e1595a657d5",
+        "d4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/partial-summary.json.gz",
+      "bytes": 6775,
+      "gzip_bytes": 1333,
+      "sha256_chunks": [
+        "44071753c143c02c6505eab243499bb",
+        "5185814018c2fc3d6c53c2ac832d5e1",
+        "13"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/relayer-failure.log.gz",
+      "bytes": 776394,
+      "gzip_bytes": 30169,
+      "sha256_chunks": [
+        "a26c96320ee4d682cf3bbc223f5b108",
+        "464716d772d27d54e16009d4970369f",
+        "9a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/relayer-public.json.gz",
+      "bytes": 2212,
+      "gzip_bytes": 834,
+      "sha256_chunks": [
+        "1f69fc4e22990f3621363a32b75769a",
+        "0bbb6ba5f6cc00df423c0b9ad010b76",
+        "95"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/validator-failure.log.gz",
+      "bytes": 22909,
+      "gzip_bytes": 3360,
+      "sha256_chunks": [
+        "6b6884580441c856a9170b4bc03780d",
+        "466f86b5c7c85611611fcdaafc4aee6",
+        "3b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-8/raw/sample-0-rust/validator-public.json.gz",
+      "bytes": 1063,
+      "gzip_bytes": 545,
+      "sha256_chunks": [
+        "3ef35782b5949b541616e1d15f974c3",
+        "d9e68de8b555375367877ba1fff5a42",
+        "8e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/manifest.json.gz",
+      "bytes": 376247,
+      "gzip_bytes": 116263,
+      "sha256_chunks": [
+        "6a4a9d0e19b0f11dbe7666768fb0b1a",
+        "b1dc34d2898c5c9766bceaa1ac4595e",
+        "b1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/0_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 372,
+      "sha256_chunks": [
+        "f48dea2f908e95a57d3ec88347a0d1d",
+        "5f0db7fd79e1ffc57dbcc694481a405",
+        "14"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/1_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 373,
+      "sha256_chunks": [
+        "447f50e99ac3a02daa4d63bf133a7de",
+        "5335283895b3d4e65936204374c7448",
+        "22"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/2_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 370,
+      "sha256_chunks": [
+        "5149dda290444d57001a715af699693",
+        "7b6e78c1d71f60d562245c62bd08828",
+        "3b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/3_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "2465091a883bd9dab119948f47b68c8",
+        "c178eee1c48a89e59fe9d04b38d9474",
+        "65"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/4_with_id.json.gz",
+      "bytes": 726,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "cdf902d8899c80e5168409e83811e85",
+        "10cf735dc4f9ad514a42c9568f6e182",
+        "87"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/5_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 371,
+      "sha256_chunks": [
+        "cf4b97fdeb5a6f16d79dcf526ae4191",
+        "a57d3430a0433a113b39b37bd53e41e",
+        "5f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/6_with_id.json.gz",
+      "bytes": 725,
+      "gzip_bytes": 375,
+      "sha256_chunks": [
+        "4f34a6d1a5a8141a25ede76aa6f87bb",
+        "f9c2465ed05eff819370d4136431f5d",
+        "cb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/announcement.json.gz",
+      "bytes": 689,
+      "gzip_bytes": 374,
+      "sha256_chunks": [
+        "e20d26ff77d6ae0f489b77f9b39cdf8",
+        "9d94625b5545fd5b7500c8ade6696ad",
+        "22"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/merkle_snapshot.json.gz",
+      "bytes": 3798,
+      "gzip_bytes": 1658,
+      "sha256_chunks": [
+        "64e2678778d69f0046dd51f6e5f96d2",
+        "3b23570de2d6d3af8bbcf5c751cf4f1",
+        "ee"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/checkpoints/metadata_latest.json.gz",
+      "bytes": 295,
+      "gzip_bytes": 225,
+      "sha256_chunks": [
+        "4f32af5112fadc6580da8bd6d64e444",
+        "de1ebe04da2c5d8a1db61565c9f7719",
+        "02"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/partial-summary.json.gz",
+      "bytes": 6803,
+      "gzip_bytes": 1331,
+      "sha256_chunks": [
+        "97117eb699306360b8fd49218bbc345",
+        "be6d54b435d4034d5f2deca3ca4bb2a",
+        "95"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/relayer-failure.log.gz",
+      "bytes": 691335,
+      "gzip_bytes": 27349,
+      "sha256_chunks": [
+        "39978f0f5d1a63a686cc81261c88074",
+        "722a2bf4314d560b504d357c6921ac2",
+        "5f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/relayer-public.json.gz",
+      "bytes": 2212,
+      "gzip_bytes": 835,
+      "sha256_chunks": [
+        "cad5ebe7f52cc632e1fb9bf431deb54",
+        "980b9beeb6739edbd70b089076f24d3",
+        "d1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/validator-failure.log.gz",
+      "bytes": 23349,
+      "gzip_bytes": 3423,
+      "sha256_chunks": [
+        "8296feb310d6f8170499985e43a4c94",
+        "5b234de05adf818a2910f08aa01e1ae",
+        "ad"
+      ]
+    },
+    {
+      "path": "zig/bench/results/whole-relayer-smoke-actual-9/raw/sample-0-rust/validator-public.json.gz",
+      "bytes": 1063,
+      "gzip_bytes": 547,
+      "sha256_chunks": [
+        "830127e5452b57a664d7c871458a60d",
+        "3b73bffa3491769763384ed2722f32d",
+        "01"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/metadata-ReleaseFast.log.gz",
+      "bytes": 42683,
+      "gzip_bytes": 12584,
+      "sha256_chunks": [
+        "31ec1cc15ae9f4c0b46f8e4ca87caca",
+        "fd4ca59dac4ecab4c1c65a3eaf1d84b",
+        "ab"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/validator-ReleaseFast.log.gz",
+      "bytes": 15948,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "4542286b17930c357b49c775f62936e",
+        "e7efcb349e6a02b7605bb74b5084b4c",
+        "21"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/commands.json.gz",
+      "bytes": 6803,
+      "gzip_bytes": 480,
+      "sha256_chunks": [
+        "6997d870c6aa80d3088e75ac750c327",
+        "8859341a572ae29ada4f5d72bb126bf",
+        "b8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/tron-after.log.gz",
+      "bytes": 3201,
+      "gzip_bytes": 280,
+      "sha256_chunks": [
+        "1b42326786be237cc65f609aab9b6df",
+        "5763468ea49b37878653cfee9fc2765",
+        "24"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/after-debug.log.gz",
+      "bytes": 419,
+      "gzip_bytes": 227,
+      "sha256_chunks": [
+        "7fa7935bd59f47c0e39c3ddba4dfee2",
+        "bba50a189f57fd722c086509f9e0e11",
+        "6a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/svm-ReleaseSafe.log.gz",
+      "bytes": 45997,
+      "gzip_bytes": 13387,
+      "sha256_chunks": [
+        "36ee807ae7fa35aca151f3ad3e8bc56",
+        "9e2bdae3d57f9ba4a56893cb55d1284",
+        "50"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/manifest.json.gz",
+      "bytes": 4130,
+      "gzip_bytes": 1604,
+      "sha256_chunks": [
+        "2111f68a5e44428ec9142ea69f9e193",
+        "cc31e9bd84efc7aff60cf327be4eac2",
+        "fb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/before-command.json.gz",
+      "bytes": 803,
+      "gzip_bytes": 338,
+      "sha256_chunks": [
+        "ac39d2e45cc864be3046f3497bc0ff9",
+        "e7688b9d29ea0a5ab49f92244446a2c",
+        "e2"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/tron-repeat-command.json.gz",
+      "bytes": 474,
+      "gzip_bytes": 331,
+      "sha256_chunks": [
+        "20c133003ef4141b76c9f7ca8f5d919",
+        "4595417b3c22a0d8d2599489cd4c8b6",
+        "32"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/executor-ReleaseSafe.log.gz",
+      "bytes": 419,
+      "gzip_bytes": 227,
+      "sha256_chunks": [
+        "7fa7935bd59f47c0e39c3ddba4dfee2",
+        "bba50a189f57fd722c086509f9e0e11",
+        "6a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/tron-before.log.gz",
+      "bytes": 1115,
+      "gzip_bytes": 466,
+      "sha256_chunks": [
+        "20828be0deeee20789b791b4d4aa78e",
+        "29d3a01ed910c9a93c46c448c6000e6",
+        "04"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/executor-ReleaseFast.log.gz",
+      "bytes": 419,
+      "gzip_bytes": 227,
+      "sha256_chunks": [
+        "7fa7935bd59f47c0e39c3ddba4dfee2",
+        "bba50a189f57fd722c086509f9e0e11",
+        "6a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/svm-ReleaseFast.log.gz",
+      "bytes": 45997,
+      "gzip_bytes": 13387,
+      "sha256_chunks": [
+        "36ee807ae7fa35aca151f3ad3e8bc56",
+        "9e2bdae3d57f9ba4a56893cb55d1284",
+        "50"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/before.log.gz",
+      "bytes": 650,
+      "gzip_bytes": 361,
+      "sha256_chunks": [
+        "104f34301050aaf60b9f2438a362f48",
+        "ed81125f1ac27783ac9256a731df47b",
+        "20"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/validator-ReleaseSafe.log.gz",
+      "bytes": 15948,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "4542286b17930c357b49c775f62936e",
+        "e7efcb349e6a02b7605bb74b5084b4c",
+        "21"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/result.json.gz",
+      "bytes": 1481,
+      "gzip_bytes": 424,
+      "sha256_chunks": [
+        "c3eae9a70aedadecab68eaa98e1a27c",
+        "63869a476d31791a38c85a3b38f32c4",
+        "e4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-executor-wakeup/metadata-ReleaseSafe.log.gz",
+      "bytes": 42683,
+      "gzip_bytes": 12584,
+      "sha256_chunks": [
+        "31ec1cc15ae9f4c0b46f8e4ca87caca",
+        "fd4ca59dac4ecab4c1c65a3eaf1d84b",
+        "ab"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-final-commands.json.gz",
+      "bytes": 2652,
+      "gzip_bytes": 614,
+      "sha256_chunks": [
+        "df2aab522387ba7e3fc0354ebd6a",
+        "2295ec3e51f2f875703db27c7fdd",
+        "93419ed0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-final-matrix-result.json.gz",
+      "bytes": 721,
+      "gzip_bytes": 283,
+      "sha256_chunks": [
+        "08dca64345ba5175581b1b16e860",
+        "d398df293bb2f06f49c2dc7e816e",
+        "519e5917"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-final-source.json.gz",
+      "bytes": 290,
+      "gzip_bytes": 206,
+      "sha256_chunks": [
+        "3827b7142826d8236492f6c8f2cd",
+        "6c114a03f20142161308c3df52fd",
+        "4d77c4ad"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-sdk-final-result.json.gz",
+      "bytes": 189,
+      "gzip_bytes": 111,
+      "sha256_chunks": [
+        "2f65c7dde61eeee698aab242a600",
+        "aaade822e665c7a57723fb3a4a28",
+        "124a7eb5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-final-Debug.log.gz",
+      "bytes": 288,
+      "gzip_bytes": 176,
+      "sha256_chunks": [
+        "19a82502f414c57e7829100e86e7",
+        "a16b37d664f7e80034b082297b5a",
+        "4b16dc3c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-final-ReleaseSafe.log.gz",
+      "bytes": 288,
+      "gzip_bytes": 176,
+      "sha256_chunks": [
+        "19a82502f414c57e7829100e86e7",
+        "a16b37d664f7e80034b082297b5a",
+        "4b16dc3c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-final-ReleaseFast.log.gz",
+      "bytes": 288,
+      "gzip_bytes": 176,
+      "sha256_chunks": [
+        "19a82502f414c57e7829100e86e7",
+        "a16b37d664f7e80034b082297b5a",
+        "4b16dc3c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/sdk-runtime-aleo-final-safe.log.gz",
+      "bytes": 5535,
+      "gzip_bytes": 1940,
+      "sha256_chunks": [
+        "87bb4f5e018497952c751eb38d06",
+        "04c83a0e20ec647f681cf644e848",
+        "7f36078a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/sdk-runtime-aleo-final-fast.log.gz",
+      "bytes": 5535,
+      "gzip_bytes": 1940,
+      "sha256_chunks": [
+        "87bb4f5e018497952c751eb38d06",
+        "04c83a0e20ec647f681cf644e848",
+        "7f36078a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-inherited-rss.zig.gz",
+      "bytes": 1006,
+      "gzip_bytes": 483,
+      "sha256_chunks": [
+        "b02c771655a29a1d28cea6097722",
+        "0e33a8684723a47e63c6c54d2574",
+        "5aef1421"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-inherited-rss-argv-before.log.gz",
+      "bytes": 905,
+      "gzip_bytes": 460,
+      "sha256_chunks": [
+        "13b690637ea8c7efb7eab69e255a",
+        "0ede09a792340e4d5fa0b8cb28d1",
+        "7e6ad3f0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-inherited-rss-after.log.gz",
+      "bytes": 123,
+      "gzip_bytes": 119,
+      "sha256_chunks": [
+        "7c4823b52cec0d395da7f594d349",
+        "605e1ba243645105e98d93539aef",
+        "8477ac01"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-probe-before-after.json.gz",
+      "bytes": 819,
+      "gzip_bytes": 283,
+      "sha256_chunks": [
+        "0de9ff54e9227fcc3c979317826f",
+        "6dfe0051797ef0acb3dd035df5f9",
+        "1756cf90"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-network-direct.json.gz",
+      "bytes": 340,
+      "gzip_bytes": 215,
+      "sha256_chunks": [
+        "00c59f25e17107e7bfe5fc236cff",
+        "d4ba6817b07f8fd5b0c53d911cfa",
+        "6cd097b4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-probe-control-final2.log.gz",
+      "bytes": 135,
+      "gzip_bytes": 126,
+      "sha256_chunks": [
+        "fe6a4b5c02d9ab2cf531dfc3e076",
+        "c045fc11ae7e394c69a89eb987b5",
+        "2637504b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/sdk-test-only-python-install.log.gz",
+      "bytes": 4054,
+      "gzip_bytes": 897,
+      "sha256_chunks": [
+        "1d3847834da909a3bb2d84c0f721",
+        "daa25c6f864094f761c839420689",
+        "640397f7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-memory-debug.log.gz",
+      "bytes": 1791,
+      "gzip_bytes": 584,
+      "sha256_chunks": [
+        "dd3b45761b5d376d614a274e7138",
+        "01a0286883ca1e43d8d52143970e",
+        "5a5e36a7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/worker-memory-crypto-debug.log.gz",
+      "bytes": 1735,
+      "gzip_bytes": 578,
+      "sha256_chunks": [
+        "5ceadc253b9fc5d46dfb5215b0f5",
+        "0d0da17b76a39a023a3bc8dc7605",
+        "b95c0aba"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/manifest.json.gz",
+      "bytes": 6373,
+      "gzip_bytes": 1779,
+      "sha256_chunks": [
+        "18c3e71df7cc2be0b7cfc4ad7c02",
+        "e6f62ba54f761c1e3aa1439432f0",
+        "49b7ce72"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/historical/sdk-runtime-aleo.log.gz",
+      "bytes": 5447,
+      "gzip_bytes": 1949,
+      "sha256_chunks": [
+        "0fabaf6700ac932bc61348b97f9b",
+        "bb9f1a47ae19117e965d9dda103c",
+        "c598ba17"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/historical/sdk-runtime-command.json.gz",
+      "bytes": 898,
+      "gzip_bytes": 428,
+      "sha256_chunks": [
+        "c70457f343c100a7fa44c4bfede4",
+        "651b7a08d4ba121f5498e1f46a85",
+        "312488e3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/historical/sdk-runtime-result.json.gz",
+      "bytes": 993,
+      "gzip_bytes": 374,
+      "sha256_chunks": [
+        "9454eb46757da5244bbc4e3ecd68",
+        "62c66c5d417ab96275d9e552cec1",
+        "3ec63571"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/historical/sdk-runtime-aleo-fixed-worker.log.gz",
+      "bytes": 5299,
+      "gzip_bytes": 1924,
+      "sha256_chunks": [
+        "df5f68953dff7847616ce114c04f",
+        "21cf7d6ed356f15ae7c5b967bb92",
+        "1df9638a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/historical/sdk-runtime-aleo-cwd.log.gz",
+      "bytes": 2122,
+      "gzip_bytes": 764,
+      "sha256_chunks": [
+        "abf542dc39e26c3108a52dc54d64",
+        "8720ff5f179f061f11f7b149779c",
+        "537e34ce"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/historical/sdk-runtime-starknet.log.gz",
+      "bytes": 5027,
+      "gzip_bytes": 1739,
+      "sha256_chunks": [
+        "c3874cd4b762e5fa80d559284929",
+        "7e1f2bd14f1cb35cb09e8d1c5fad",
+        "a5404365"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/historical/manifest.json.gz",
+      "bytes": 2005,
+      "gzip_bytes": 702,
+      "sha256_chunks": [
+        "00531cb9ae88c8f4c4eca0611e15",
+        "df5d6bac6ea6c2219302bd1815c7",
+        "30527c5a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/network-probe-guard-commands.json.gz",
+      "bytes": 1009,
+      "gzip_bytes": 329,
+      "sha256_chunks": [
+        "cefa2fd3e115cdf0141c66042143",
+        "bebfe16fca3d8f2b27f6a4a1fc13",
+        "cc8d006d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/network-probe-guard-result.json.gz",
+      "bytes": 420,
+      "gzip_bytes": 262,
+      "sha256_chunks": [
+        "e53904fff5be1c93695ec22fb5d6",
+        "7ef1eccb9550aad7baae9ec29254",
+        "5e41bf4c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/network-probe-guard-mac-ReleaseSafe.log.gz",
+      "bytes": 135,
+      "gzip_bytes": 126,
+      "sha256_chunks": [
+        "fe6a4b5c02d9ab2cf531dfc3e076",
+        "c045fc11ae7e394c69a89eb987b5",
+        "2637504b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/network-probe-guard-mac-ReleaseFast.log.gz",
+      "bytes": 135,
+      "gzip_bytes": 126,
+      "sha256_chunks": [
+        "fe6a4b5c02d9ab2cf531dfc3e076",
+        "c045fc11ae7e394c69a89eb987b5",
+        "2637504b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/network-probe-guard-linux-ReleaseSafe.log.gz",
+      "bytes": 135,
+      "gzip_bytes": 126,
+      "sha256_chunks": [
+        "fe6a4b5c02d9ab2cf531dfc3e076",
+        "c045fc11ae7e394c69a89eb987b5",
+        "2637504b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/network-probe-mac-safe.log.gz",
+      "bytes": 3788,
+      "gzip_bytes": 559,
+      "sha256_chunks": [
+        "53df1f753bf87fdf3ac58f12ada7",
+        "804fb7ed7391d952bed47d92910d",
+        "0dca233d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/network-probe-mac-fast.log.gz",
+      "bytes": 3019,
+      "gzip_bytes": 545,
+      "sha256_chunks": [
+        "3870b6795e740bd46c59c52bc231",
+        "eca0f98a74f44d59e267f2478dad",
+        "a513364c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/aleo-worker-linux-lifecycle/network-fixture-os-guard/manifest.json.gz",
+      "bytes": 2882,
+      "gzip_bytes": 888,
+      "sha256_chunks": [
+        "4760bc6bd463d63d06e698eb5cd9",
+        "5183a502f1f5a63723c832168a3a",
+        "659ff081"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/explicit-diagnostics.log.gz",
+      "bytes": 3496,
+      "gzip_bytes": 1074,
+      "sha256_chunks": [
+        "95f12d0b6d7f62dddfcd40d4c33a",
+        "35482d178f5c56bdd21047e51e33",
+        "a4bb009d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/actual-probe.log.gz",
+      "bytes": 98,
+      "gzip_bytes": 108,
+      "sha256_chunks": [
+        "d8a7c643a8f5497f10d407644ea5",
+        "542db49ed7509a1bac9a59152f26",
+        "24a65f5b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-actual.log.gz",
+      "bytes": 6564,
+      "gzip_bytes": 2407,
+      "sha256_chunks": [
+        "d26104fe26079fef39743f64860a",
+        "892af45ba5c2724e6b9b955ddf22",
+        "baee6d3b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-actual-command.json.gz",
+      "bytes": 313,
+      "gzip_bytes": 194,
+      "sha256_chunks": [
+        "14d9a03a48de97f50c46a261519a",
+        "8d169e932dea68d613e4c1ad074d",
+        "636e01d0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-node26.log.gz",
+      "bytes": 6564,
+      "gzip_bytes": 2407,
+      "sha256_chunks": [
+        "d0621bbd79011f708715f38d243a",
+        "c3729dcf98939db06b79f1708ae2",
+        "f2fc6b62"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-curl-cli.log.gz",
+      "bytes": 1225,
+      "gzip_bytes": 590,
+      "sha256_chunks": [
+        "bb32b3e9bba3a4d1d8aff03ccd8e",
+        "a036f6079ae1f63005d82ce001fe",
+        "8b615359"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-curl-reuse-cli.log.gz",
+      "bytes": 1737,
+      "gzip_bytes": 677,
+      "sha256_chunks": [
+        "0f4c28c2b3c7d0673c29ef5c6da4",
+        "fd03887f5fbea278141a5f64f775",
+        "1a1d333f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-curl-reuse-node26.log.gz",
+      "bytes": 1751,
+      "gzip_bytes": 690,
+      "sha256_chunks": [
+        "11fa4d65c5cd2906a773c85dc65c",
+        "6681dd4f0241b36bac2c1f596237",
+        "ad6e6cbe"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-curl8-node18.log.gz",
+      "bytes": 4933,
+      "gzip_bytes": 1769,
+      "sha256_chunks": [
+        "75e6ca42b1e613e2d1777199d8f6",
+        "c70d86ee8d1b77af05d61d3e5167",
+        "a083d6f9"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/grpc-curl8-node26.log.gz",
+      "bytes": 4933,
+      "gzip_bytes": 1769,
+      "sha256_chunks": [
+        "75e6ca42b1e613e2d1777199d8f6",
+        "c70d86ee8d1b77af05d61d3e5167",
+        "a083d6f9"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/node26-install.log.gz",
+      "bytes": 30,
+      "gzip_bytes": 50,
+      "sha256_chunks": [
+        "5063310f5df29af84a43c2fd6d14",
+        "ad96c59cf902ef4a16424a324f44",
+        "5d2a923a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/curl-backports-policy.log.gz",
+      "bytes": 1361,
+      "gzip_bytes": 250,
+      "sha256_chunks": [
+        "57381f1ea5167db318acb49ea2e5",
+        "c4b713340aa91b707f852dfac65e",
+        "da6be343"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/curl-backports-simulation.log.gz",
+      "bytes": 5263,
+      "gzip_bytes": 871,
+      "sha256_chunks": [
+        "1fd0c9e7fb854dc7dbba8f11c6a0",
+        "215796513695ce961e4cefda6308",
+        "36bf97de"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/curl8-package-closure.log.gz",
+      "bytes": 4404,
+      "gzip_bytes": 1392,
+      "sha256_chunks": [
+        "8a600a11a8a456698cad476330d2",
+        "46ebac4f66270edd5260c10e1d33",
+        "48ce0b2e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/curl7-baseline-packages.log.gz",
+      "bytes": 174,
+      "gzip_bytes": 119,
+      "sha256_chunks": [
+        "cbc945bff384c69e1f40a6b278aa",
+        "107c5bd0e20327348cae244e47b7",
+        "d7d999ae"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/backports-signature.log.gz",
+      "bytes": 454,
+      "gzip_bytes": 249,
+      "sha256_chunks": [
+        "97553b1b8600a1c3ab1f4d099d68",
+        "a3287601a4af29f6eb2f46c739e4",
+        "4aaa52be"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/curl8-debs.log.gz",
+      "bytes": 505,
+      "gzip_bytes": 273,
+      "sha256_chunks": [
+        "87095d9b85c30b83bef004eb48ca",
+        "5db4b945dac47b5325ec00b6be62",
+        "f2316efc"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/smoke-diagnostic.log.gz",
+      "bytes": 919,
+      "gzip_bytes": 410,
+      "sha256_chunks": [
+        "e52d93f984c3d0644deaab9e5bdf",
+        "e8bd7d8a3d5f97db07fcc67777ff",
+        "77c92a80"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/diagnostics/smoke-diagnostic-domain.log.gz",
+      "bytes": 926,
+      "gzip_bytes": 412,
+      "sha256_chunks": [
+        "5fe32e82b0f2785ad7eecafc88f3",
+        "f26ab48902741492a43ed0bbaa8b",
+        "2156fc7f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-first-core-build/core-command.json.gz",
+      "bytes": 476,
+      "gzip_bytes": 268,
+      "sha256_chunks": [
+        "8a20272055cd6a95e3b9178040fc",
+        "86f5ab6a05d4bf0162244f5980cb",
+        "bec7c6f7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-first-core-build/source-before.json.gz",
+      "bytes": 1278,
+      "gzip_bytes": 731,
+      "sha256_chunks": [
+        "89fdb394053c72f1bd4c69ed7e71",
+        "189aaf9f191935f1416bcaaeff47",
+        "0436c4c4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-first-core-build/core-result.json.gz",
+      "bytes": 73,
+      "gzip_bytes": 87,
+      "sha256_chunks": [
+        "eda4f43fda610b1adeaf5bf457a2",
+        "8814c9ef5b648c3dde6f6771fc6c",
+        "220808f5"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-first-core-build/core-build.log.gz",
+      "bytes": 122844,
+      "gzip_bytes": 17825,
+      "sha256_chunks": [
+        "86d81853b1efa3d931587c7b5b53",
+        "bdb56273b5bd6dee75f1db1f679b",
+        "18000ef8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/executor-ReleaseSafe.log.gz",
+      "bytes": 419,
+      "gzip_bytes": 227,
+      "sha256_chunks": [
+        "7fa7935bd59f47c0e39c3ddba4df",
+        "ee2bba50a189f57fd722c086509f",
+        "9e0e116a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/metadata-regression-result.json.gz",
+      "bytes": 1481,
+      "gzip_bytes": 427,
+      "sha256_chunks": [
+        "3e09a338f448bef52731950ea46a",
+        "7bee3a728987275287eff51b1dcb",
+        "aaec0ef8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/validator-ReleaseFast.log.gz",
+      "bytes": 15948,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "4542286b17930c357b49c775f629",
+        "36ee7efcb349e6a02b7605bb74b5",
+        "084b4c21"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/metadata-ReleaseFast.log.gz",
+      "bytes": 42719,
+      "gzip_bytes": 12699,
+      "sha256_chunks": [
+        "fd93226eadd302fbc5277b605ea1",
+        "c89e085e3c194fadf7dd2f00da95",
+        "6f8cd49b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/svm-ReleaseFast.log.gz",
+      "bytes": 45991,
+      "gzip_bytes": 13483,
+      "sha256_chunks": [
+        "eca1e640577396846fd5f83ba987",
+        "c9475e05825d3cfe888b3e019f0b",
+        "e987393e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/metadata-regression-commands.json.gz",
+      "bytes": 6803,
+      "gzip_bytes": 480,
+      "sha256_chunks": [
+        "6997d870c6aa80d3088e75ac750c",
+        "3278859341a572ae29ada4f5d72b",
+        "b126bfb8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/metadata-ReleaseSafe.log.gz",
+      "bytes": 42676,
+      "gzip_bytes": 12675,
+      "sha256_chunks": [
+        "035e120d4aaf91d0854d0d7f8f59",
+        "8108c590a21618b9294f702a91fa",
+        "ffa11ee9"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/validator-ReleaseSafe.log.gz",
+      "bytes": 15948,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "4542286b17930c357b49c775f629",
+        "36ee7efcb349e6a02b7605bb74b5",
+        "084b4c21"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/executor-ReleaseFast.log.gz",
+      "bytes": 419,
+      "gzip_bytes": 227,
+      "sha256_chunks": [
+        "7fa7935bd59f47c0e39c3ddba4df",
+        "ee2bba50a189f57fd722c086509f",
+        "9e0e116a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-libcurl7-http2/svm-ReleaseSafe.log.gz",
+      "bytes": 45991,
+      "gzip_bytes": 13484,
+      "sha256_chunks": [
+        "ac3fdb4ead5e06a909a6841dc4fa",
+        "aa8e2f7368cb0f641054965aa989",
+        "f82ae7a8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/executor-ReleaseSafe.log.gz",
+      "bytes": 419,
+      "gzip_bytes": 227,
+      "sha256_chunks": [
+        "7fa7935bd59f47c0e39c3ddba4df",
+        "ee2bba50a189f57fd722c086509f",
+        "9e0e116a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/metadata-regression-result.json.gz",
+      "bytes": 1481,
+      "gzip_bytes": 427,
+      "sha256_chunks": [
+        "2b0a0da0d769848a79c9774f9c27",
+        "f53fcb6398e76452d3ac5ede25c1",
+        "b056b37d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/validator-ReleaseFast.log.gz",
+      "bytes": 15948,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "4542286b17930c357b49c775f629",
+        "36ee7efcb349e6a02b7605bb74b5",
+        "084b4c21"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/metadata-ReleaseFast.log.gz",
+      "bytes": 42683,
+      "gzip_bytes": 12584,
+      "sha256_chunks": [
+        "31ec1cc15ae9f4c0b46f8e4ca87c",
+        "acafd4ca59dac4ecab4c1c65a3ea",
+        "f1d84bab"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/svm-ReleaseFast.log.gz",
+      "bytes": 45997,
+      "gzip_bytes": 13387,
+      "sha256_chunks": [
+        "36ee807ae7fa35aca151f3ad3e8b",
+        "c569e2bdae3d57f9ba4a56893cb5",
+        "5d128450"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/metadata-regression-commands.json.gz",
+      "bytes": 6803,
+      "gzip_bytes": 480,
+      "sha256_chunks": [
+        "6997d870c6aa80d3088e75ac750c",
+        "3278859341a572ae29ada4f5d72b",
+        "b126bfb8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/metadata-ReleaseSafe.log.gz",
+      "bytes": 42720,
+      "gzip_bytes": 12671,
+      "sha256_chunks": [
+        "f6eb62e82d7241b44fd4185d7f89",
+        "93629b81e4509faec8a629d9137f",
+        "109b1212"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/validator-ReleaseSafe.log.gz",
+      "bytes": 15948,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "4542286b17930c357b49c775f629",
+        "36ee7efcb349e6a02b7605bb74b5",
+        "084b4c21"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/executor-ReleaseFast.log.gz",
+      "bytes": 419,
+      "gzip_bytes": 227,
+      "sha256_chunks": [
+        "7fa7935bd59f47c0e39c3ddba4df",
+        "ee2bba50a189f57fd722c086509f",
+        "9e0e116a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-root-fixture-negative/svm-ReleaseSafe.log.gz",
+      "bytes": 46034,
+      "gzip_bytes": 13478,
+      "sha256_chunks": [
+        "9c78af57b8d1bf1a52d076a99a2d",
+        "6de562177ae18a1682de901e8821",
+        "2bf9a672"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-command.json.gz",
+      "bytes": 494,
+      "gzip_bytes": 272,
+      "sha256_chunks": [
+        "3124e046d350ec4b08a58fa9d7bc",
+        "d0978d329f38aabe09639e8073bb",
+        "587896ee"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-build.log.gz",
+      "bytes": 153686,
+      "gzip_bytes": 21948,
+      "sha256_chunks": [
+        "12e774877b8a41b44963b5d29e5d",
+        "f91a8c17bd6ff45dc4fe1c9b5777",
+        "4984a260"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-metadata.json.gz",
+      "bytes": 2771,
+      "gzip_bytes": 1010,
+      "sha256_chunks": [
+        "bbeb0caaebac06dfbb388dc2bac1",
+        "6b2da7c2c4fcaae021cccc397d44",
+        "e74c359e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-result.json.gz",
+      "bytes": 79,
+      "gzip_bytes": 93,
+      "sha256_chunks": [
+        "417a8284c39c6c8a61be930f57da",
+        "a53c4fdd53f9dd8e53a92ab0c07a",
+        "c3e25bdf"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/full-sdk-final-command.json.gz",
+      "bytes": 510,
+      "gzip_bytes": 276,
+      "sha256_chunks": [
+        "fac9a43c360cd96fd7afefe8b62d",
+        "b50f7a17520d2ab6eeee6054b4d0",
+        "eca05a68"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/full-sdk-final-build.log.gz",
+      "bytes": 249192,
+      "gzip_bytes": 33239,
+      "sha256_chunks": [
+        "b825facafb28fe818a5f45fe4ba0",
+        "14dad52b024e7210e7ada1a1bed4",
+        "7676466f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/full-sdk-final-metadata.json.gz",
+      "bytes": 2783,
+      "gzip_bytes": 1014,
+      "sha256_chunks": [
+        "eaee9bc06240b227fd053d7e8d8b",
+        "2efec1c84424713b286a43edf12c",
+        "7eb921bb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/full-sdk-final-result.json.gz",
+      "bytes": 83,
+      "gzip_bytes": 97,
+      "sha256_chunks": [
+        "9a281d98c2babb6d0864f0d08913",
+        "eade0c3b4f2de00feb39a4648672",
+        "b9c3a3d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/full-sdk-final-runtime.json.gz",
+      "bytes": 2935,
+      "gzip_bytes": 917,
+      "sha256_chunks": [
+        "42cc042a6985d04a599dcf3e7cd4",
+        "37f51d55f4309c6a4ea80089ad71",
+        "8bd0fd9b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/full-sdk-final-runtime.log.gz",
+      "bytes": 0,
+      "gzip_bytes": 20,
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996f",
+        "b92427ae41e4649b934ca495991b",
+        "7852b855"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-regex-command.json.gz",
+      "bytes": 660,
+      "gzip_bytes": 360,
+      "sha256_chunks": [
+        "3de35b125fd4b5178e762ddd40ad",
+        "1216d2d18187fcac26875fdc7890",
+        "c8829919"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-regex-result.json.gz",
+      "bytes": 78,
+      "gzip_bytes": 91,
+      "sha256_chunks": [
+        "6b2831196ffbb69ca83d51c2e861",
+        "57a873b89d87b0622f61c62b11c5",
+        "e675b3f4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-regex.log.gz",
+      "bytes": 742,
+      "gzip_bytes": 397,
+      "sha256_chunks": [
+        "8405572027aadff061c5fde85608",
+        "2ef4a85451a25986f970c9bb8e6d",
+        "3b51ec36"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-runtime-commands.json.gz",
+      "bytes": 3650,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "5678328aec5ce017af5e38e9fc69",
+        "720d62a2f1a600e1ed0cbd6c407c",
+        "04b014dd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-runtime-result.json.gz",
+      "bytes": 119815,
+      "gzip_bytes": 51292,
+      "sha256_chunks": [
+        "5bb5a153790bf4e987621e882ed0",
+        "b734256370ed2765dfb9a5c5adb3",
+        "754c3bba"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-aleo.log.gz",
+      "bytes": 5535,
+      "gzip_bytes": 1940,
+      "sha256_chunks": [
+        "87bb4f5e018497952c751eb38d06",
+        "04c83a0e20ec647f681cf644e848",
+        "7f36078a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-starknet.log.gz",
+      "bytes": 4865,
+      "gzip_bytes": 1623,
+      "sha256_chunks": [
+        "220046875e06cb3e9dc46d42fa20",
+        "c50c27f8b6f8b92f693a3e4c4f68",
+        "a537e232"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-regex.log.gz",
+      "bytes": 742,
+      "gzip_bytes": 397,
+      "sha256_chunks": [
+        "8405572027aadff061c5fde85608",
+        "2ef4a85451a25986f970c9bb8e6d",
+        "3b51ec36"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-http-runtime-commands.json.gz",
+      "bytes": 3029,
+      "gzip_bytes": 1013,
+      "sha256_chunks": [
+        "aa2bc4578f5c7a041b63b7ea478e",
+        "d11c329eed872a6acc8f6057056d",
+        "19c9d997"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-http-runtime-result.json.gz",
+      "bytes": 119822,
+      "gzip_bytes": 51318,
+      "sha256_chunks": [
+        "cdcfcf82ff66f50f53ddb49c5a81",
+        "6c0c890ca13307f2fdb93084e584",
+        "950e1196"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-http-http2.log.gz",
+      "bytes": 1757,
+      "gzip_bytes": 582,
+      "sha256_chunks": [
+        "aa604fd4a56acc865ebefb931fd3",
+        "b75e75a5a56b7cfb58373b6e9fa4",
+        "051fb152"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-http-files-packages.log.gz",
+      "bytes": 1007,
+      "gzip_bytes": 560,
+      "sha256_chunks": [
+        "e5a6e207815e981ed935fae9f965",
+        "222f9509747694aedb2b96ff5452",
+        "d769e28a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-sdk-selected-counts.json.gz",
+      "bytes": 425,
+      "gzip_bytes": 152,
+      "sha256_chunks": [
+        "249ce6bab6b73245029fdbd75d14",
+        "6d173fd089ee21ae485f74bfbc49",
+        "68ddcd97"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-images-inspect.json.gz",
+      "bytes": 9512,
+      "gzip_bytes": 2464,
+      "sha256_chunks": [
+        "f57e199b482d914c85b8c53d768c",
+        "280f9efdc158280d74fd246dfa25",
+        "18bbeb1c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/core-final-source-before.json.gz",
+      "bytes": 58492,
+      "gzip_bytes": 25778,
+      "sha256_chunks": [
+        "168b9d93ea0fb8377b71dca9a022",
+        "98725c2ea738985f2eca142c81a4",
+        "2e9b9ea1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-image-source-before.json.gz",
+      "bytes": 58492,
+      "gzip_bytes": 25775,
+      "sha256_chunks": [
+        "6e2ed55f01ecd159b4228b6586da",
+        "0aa487ba8945a5b8dd1890dd4207",
+        "dc628642"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-image-source-difference.json.gz",
+      "bytes": 387,
+      "gzip_bytes": 300,
+      "sha256_chunks": [
+        "15db885ddef52888be2a6a0defa7",
+        "3312952b883815c2e53ffdda8f69",
+        "dc459ed6"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-source-result.json.gz",
+      "bytes": 119237,
+      "gzip_bytes": 51107,
+      "sha256_chunks": [
+        "0de84119e526917f6e23a909c6b4",
+        "2faf00035b37635a73975d1dca07",
+        "b828e0cb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/aleo-parameter-clone.json.gz",
+      "bytes": 1788,
+      "gzip_bytes": 642,
+      "sha256_chunks": [
+        "9290ce99230185c3bc27fcaa4558",
+        "482f182a059ccead00e93b12d037",
+        "3b9d670e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/static-canonical-final.json.gz",
+      "bytes": 300,
+      "gzip_bytes": 197,
+      "sha256_chunks": [
+        "82b6f2f03b4ee8ffa3d9beac0d3d",
+        "d4b7abaedce781e6af4fbecaf916",
+        "af9f7437"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/actionlint-final.log.gz",
+      "bytes": 0,
+      "gzip_bytes": 20,
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996f",
+        "b92427ae41e4649b934ca495991b",
+        "7852b855"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/docker-check-final.log.gz",
+      "bytes": 2380,
+      "gzip_bytes": 741,
+      "sha256_chunks": [
+        "d284df85837a049f376d9c61943f",
+        "bbaff2f629967600eea5768ff896",
+        "43ac39b6"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/logs/relayer-0.log.gz",
+      "bytes": 165,
+      "gzip_bytes": 101,
+      "sha256_chunks": [
+        "3e972216c736070dd5cbe26b8825",
+        "c57eccfedd7bed39881a68b23ef6",
+        "0801687e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/logs/relayer-1.log.gz",
+      "bytes": 165,
+      "gzip_bytes": 101,
+      "sha256_chunks": [
+        "3e972216c736070dd5cbe26b8825",
+        "c57eccfedd7bed39881a68b23ef6",
+        "0801687e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/logs/scraper-0.log.gz",
+      "bytes": 198,
+      "gzip_bytes": 131,
+      "sha256_chunks": [
+        "44242d58d4d6822939b248bb5283",
+        "9e16bf0d7658eaeb86e8a06b09f2",
+        "2b174f7b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/logs/scraper-1.log.gz",
+      "bytes": 198,
+      "gzip_bytes": 131,
+      "sha256_chunks": [
+        "44242d58d4d6822939b248bb5283",
+        "9e16bf0d7658eaeb86e8a06b09f2",
+        "2b174f7b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/logs/validator-0.log.gz",
+      "bytes": 114,
+      "gzip_bytes": 113,
+      "sha256_chunks": [
+        "f0a4e1b9fec442bffdc7a949aa9a",
+        "d3ff363b20188cb7deb581c9aa76",
+        "32011bf4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/logs/validator-1.log.gz",
+      "bytes": 114,
+      "gzip_bytes": 113,
+      "sha256_chunks": [
+        "f0a4e1b9fec442bffdc7a949aa9a",
+        "d3ff363b20188cb7deb581c9aa76",
+        "32011bf4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/runtime.json.gz",
+      "bytes": 2709,
+      "gzip_bytes": 878,
+      "sha256_chunks": [
+        "877f02f2a01be47e79fc4950ad8a",
+        "88891e116db6f4449e1a9c87cfc0",
+        "2ff81937"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-core/runtime.log.gz",
+      "bytes": 0,
+      "gzip_bytes": 20,
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996f",
+        "b92427ae41e4649b934ca495991b",
+        "7852b855"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-full-sdk/logs/relayer-0.log.gz",
+      "bytes": 165,
+      "gzip_bytes": 101,
+      "sha256_chunks": [
+        "380fd3656b15ceab061f45e70b5a",
+        "d2cf86d91017aca16c6a6f0fef53",
+        "4a3f4dde"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-full-sdk/logs/relayer-1.log.gz",
+      "bytes": 165,
+      "gzip_bytes": 101,
+      "sha256_chunks": [
+        "3e972216c736070dd5cbe26b8825",
+        "c57eccfedd7bed39881a68b23ef6",
+        "0801687e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-full-sdk/logs/scraper-0.log.gz",
+      "bytes": 198,
+      "gzip_bytes": 131,
+      "sha256_chunks": [
+        "44242d58d4d6822939b248bb5283",
+        "9e16bf0d7658eaeb86e8a06b09f2",
+        "2b174f7b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-full-sdk/logs/scraper-1.log.gz",
+      "bytes": 198,
+      "gzip_bytes": 131,
+      "sha256_chunks": [
+        "44242d58d4d6822939b248bb5283",
+        "9e16bf0d7658eaeb86e8a06b09f2",
+        "2b174f7b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-full-sdk/logs/validator-0.log.gz",
+      "bytes": 114,
+      "gzip_bytes": 113,
+      "sha256_chunks": [
+        "f0a4e1b9fec442bffdc7a949aa9a",
+        "d3ff363b20188cb7deb581c9aa76",
+        "32011bf4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-full-sdk/logs/validator-1.log.gz",
+      "bytes": 114,
+      "gzip_bytes": 113,
+      "sha256_chunks": [
+        "f0a4e1b9fec442bffdc7a949aa9a",
+        "d3ff363b20188cb7deb581c9aa76",
+        "32011bf4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/final-full-sdk/runtime.json.gz",
+      "bytes": 2935,
+      "gzip_bytes": 917,
+      "sha256_chunks": [
+        "42cc042a6985d04a599dcf3e7cd4",
+        "37f51d55f4309c6a4ea80089ad71",
+        "8bd0fd9b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-final-sdk-fixture-minimal/final-sdk-http2.log.gz",
+      "bytes": 162,
+      "gzip_bytes": 154,
+      "sha256_chunks": [
+        "d1b1ff382d4003e2b118d46fa2ba",
+        "11f265ac4605741f5741a8100a47",
+        "9b66f984"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-final-sdk-fixture-minimal/final-sdk-runtime-commands.json.gz",
+      "bytes": 3650,
+      "gzip_bytes": 948,
+      "sha256_chunks": [
+        "5678328aec5ce017af5e38e9fc69",
+        "720d62a2f1a600e1ed0cbd6c407c",
+        "04b014dd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-final-sdk-fixture-minimal/final-sdk-runtime-result.json.gz",
+      "bytes": 119815,
+      "gzip_bytes": 51292,
+      "sha256_chunks": [
+        "5bb5a153790bf4e987621e882ed0",
+        "b734256370ed2765dfb9a5c5adb3",
+        "754c3bba"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-final-sdk-fixture-minimal/final-sdk-runtime-runner.log.gz",
+      "bytes": 1131,
+      "gzip_bytes": 438,
+      "sha256_chunks": [
+        "3ae1bd952d8f2f9cf9a2268dce10",
+        "460479df22ddd51aa63ef5ce0af6",
+        "3c2e42fc"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/core-command.json.gz",
+      "bytes": 476,
+      "gzip_bytes": 268,
+      "sha256_chunks": [
+        "8a20272055cd6a95e3b9178040fc",
+        "86f5ab6a05d4bf0162244f5980cb",
+        "bec7c6f7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/core-result.json.gz",
+      "bytes": 73,
+      "gzip_bytes": 87,
+      "sha256_chunks": [
+        "8fc35c6d804f860a02d5c1c9880e",
+        "41ea090373c422057edc82fc2795",
+        "e404ae7a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/core-build.log.gz",
+      "bytes": 154619,
+      "gzip_bytes": 21940,
+      "sha256_chunks": [
+        "5267e9e7658af37b75aaec38464c",
+        "e1ec48ad06f4a02f16fcf5f4b0cf",
+        "95462038"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/core-metadata.json.gz",
+      "bytes": 2765,
+      "gzip_bytes": 1008,
+      "sha256_chunks": [
+        "8a76ac064bc2e5cae8a2ab647a34",
+        "2f8db01526a0f6573d9624aa0e8c",
+        "87a064f8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/core-runtime.json.gz",
+      "bytes": 2708,
+      "gzip_bytes": 870,
+      "sha256_chunks": [
+        "dc911cf8193cb64a7ee393145b66",
+        "492aeb76538537508cf23e09319d",
+        "d55aeaa6"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/core-runtime-command.json.gz",
+      "bytes": 487,
+      "gzip_bytes": 296,
+      "sha256_chunks": [
+        "91fa34d6012742773b98ae4d0ab7",
+        "0caee2775cef2ae2714317d33bd3",
+        "678a61d8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/core-packages.log.gz",
+      "bytes": 229,
+      "gzip_bytes": 155,
+      "sha256_chunks": [
+        "03d008522b552932459c40cfd1bd",
+        "2734eca9741f30b80be17772ca24",
+        "2820b86d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/full-sdk-command.json.gz",
+      "bytes": 492,
+      "gzip_bytes": 271,
+      "sha256_chunks": [
+        "dee68aa511f0b282b3466b06ca53",
+        "52f527bedccb64464e1de0499005",
+        "815ba0df"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/full-sdk-result.json.gz",
+      "bytes": 77,
+      "gzip_bytes": 91,
+      "sha256_chunks": [
+        "cbcbcbb87abdf6a16e14ebf21c8a",
+        "f214b161a16bc0de50169a1e2de5",
+        "135077b4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/full-sdk-build.log.gz",
+      "bytes": 249606,
+      "gzip_bytes": 34620,
+      "sha256_chunks": [
+        "1d996bb5952e54b9e6dca49c9350",
+        "262a8e503a639205b7819cc55e08",
+        "3c4bf647"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/full-sdk-metadata.json.gz",
+      "bytes": 2777,
+      "gzip_bytes": 1011,
+      "sha256_chunks": [
+        "cde45692b49909da217127a70295",
+        "6a39558b5754d17c0dd768af9d85",
+        "addd089f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/full-sdk-runtime.json.gz",
+      "bytes": 2933,
+      "gzip_bytes": 915,
+      "sha256_chunks": [
+        "e4ae3d32b52962ddbaf95b28561b",
+        "d17a144fdc591585ae433948d280",
+        "247eff24"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/full-sdk-runtime-command.json.gz",
+      "bytes": 336,
+      "gzip_bytes": 204,
+      "sha256_chunks": [
+        "09f0c38925086aeaaad04cb8039e",
+        "30d94b039171591653e72be1f49e",
+        "ca0d502c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/full-sdk-files-packages.log.gz",
+      "bytes": 984,
+      "gzip_bytes": 541,
+      "sha256_chunks": [
+        "c3cbbe361d3868ae401503491f38",
+        "bced3769aafa20ef802afe9a3a4d",
+        "be358d14"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/historical-pre-worker-fix/current-source-before.json.gz",
+      "bytes": 58492,
+      "gzip_bytes": 25780,
+      "sha256_chunks": [
+        "fc3c4bc27551a5d50eb4f2c685d5",
+        "05b1c82ba829ccd6fc79445bb14f",
+        "adc51dd3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/manifest.json.gz",
+      "bytes": 34955,
+      "gzip_bytes": 6932,
+      "sha256_chunks": [
+        "86c802d32b99e3ebb9f7daf0301e",
+        "4dfcbe2fc97ca49e13678ea79c8e",
+        "e27cfeaf"
+      ]
+    },
+    {
+      "path": "zig/bench/results/container-acceptance/accepted/final-runtime-commands.json.gz",
+      "bytes": 1212,
+      "gzip_bytes": 388,
+      "sha256_chunks": [
+        "641d171db27d81c190724fd5aff4",
+        "fc573100722dca02281d8d42226d",
+        "68bcddfc"
+      ]
+    }
+  ]
+}

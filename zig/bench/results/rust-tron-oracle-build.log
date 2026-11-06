@@ -1,0 +1,18 @@
+   Compiling ziggy-tron-oracle v0.1.0 (/Users/pbio/work/ziggy/zig/reference/tron)
+warning: fields `code` and `message` are never read
+  --> src/../../../../rust/main/chains/hyperlane-tron/src/provider/types.rs:53:9
+   |
+51 | pub struct TronApiError {
+   |            ------------ fields in this struct
+52 |     /// Error code (present on failure)
+53 |     pub code: Option<String>,
+   |         ^^^^
+54 |     /// Error message (hex-encoded on failure)
+55 |     pub message: Option<String>,
+   |         ^^^^^^^
+   |
+   = note: `TronApiError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `ziggy-tron-oracle` (bin "ziggy-tron-oracle") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 1.88s

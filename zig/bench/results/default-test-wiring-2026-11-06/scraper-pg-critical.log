@@ -1,0 +1,33 @@
+1/10 pg_tests.test_0...OK
+2/10 pg_tests.test_1...OK
+3/10 critical_metrics_tests.test_0...OK
+4/10 agents.scraper.task.test.scraper receipt cadence follows configured chain interval...OK
+5/10 agents.scraper.task.test.scraper startup and independent lane recovery preserve health construction failure...[default] (warn): scraper chain=critical-fixture lane=gas failed=RpcHttpStatus
+OK
+6/10 agents.scraper.task.test.scraper optional CCR startup participates and canceled setup has no failure sample...[default] (warn): scraper chain=critical-ccr-fixture lane=ccr failed=RequestCancelled
+OK
+7/10 agents.scraper.task.test.scraper head control and allocation errors cannot create or reset source failure streak...[default] (warn): scraper chain=head-control-fixture lane=head failed=RequestCancelled
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RequestCancelled
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RequestCancelled
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=OutOfMemory
+[default] (warn): scraper chain=head-control-fixture lane=head failed=OutOfMemory
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=OutOfMemory
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingReadIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingReadIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingReadIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+[default] (warn): scraper chain=head-control-fixture lane=head failed=PendingIo
+[default] (warn): scraper chain=head-control-fixture lane=head failed=RpcHttpStatus
+OK
+8/10 agents.chain_source.test_0...OK
+9/10 agents.scraper.starknet.test_0...OK
+10/10 protocol.root.test_0...OK
+All 10 tests passed.

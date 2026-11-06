@@ -1,0 +1,68 @@
+1/49 db_tests.test_0...OK
+2/49 db_tests.test_1...OK
+3/49 db_tests.test_2...OK
+4/49 db_tests.test_3...OK
+5/49 db_tests.test_4...OK
+6/49 agents.indexing.native_test.test_0...OK
+7/49 agents.indexing.native_test.test_1...OK
+8/49 agents.indexing.native_test.test_2...OK
+9/49 agents.destination.operation_test.test_0...OK
+10/49 agents.destination.operation_test.test_1...OK
+11/49 agents.destination.operation_test.test_2...OK
+12/49 relayer_reservation_native_test.test.Root core allocation failures roll back ownership while telemetry pressure preserves admitted work...[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+[default] (warn): relayer telemetry update failed: OutOfMemory
+OK
+13/49 relayer_reservation_native_test.test.Root registry pressure preserves durable retirement and never re-admits a completed actor...[default] (warn): relayer telemetry update failed: MetricSeriesLimit
+[default] (warn): relayer telemetry update failed: MetricStorageLimit
+[default] (warn): relayer telemetry update failed: OutOfMemory
+OK
+14/49 relayer_reservation_native_test.test.Root native submit zero holds fresh supported protocols without prepare signing retries or public admission loss...OK
+15/49 relayer_reservation_native_test.test.Root native submit cap hydrates restored ready state and control retry releases queue independently of metrics...OK
+16/49 relayer_reservation_native_test.test.Root native submit batch threshold permits overshoot and excludes popped signed or confirmation actors...OK
+17/49 relayer_reservation_native_test.test.Root native submit admitted preparation batch survives pending IO without admitting another batch...OK
+18/49 relayer_reservation_native_test.test.Root native submit popped ready IO is excluded from backpressure and control restores admission...OK
+19/49 relayer_halt_tests.test_0...OK
+20/49 evm_prepare_delegated_tests.test_0...OK
+21/49 agents.relayer.native_driver_test.test.Native destination driver orders source gates gas allowance durable sign restart reconciliation and final external delivery...OK
+22/49 agents.relayer.native_driver_test.test.Native CCIP pending delays repeat without retry exhaustion and cooperative IO remains control...OK
+23/49 agents.relayer.native_driver_test.test.source600s Native driver retains unsigned external delivery until eligibility and rechecks before processing...OK
+24/49 agent_metrics_tests.test_0...OK
+25/49 cache_metrics_tests.test_0...OK
+26/49 health_metrics_tests.test_0...OK
+27/49 critical_metrics_tests.test_0...OK
+28/49 app_context_tests.test_0...OK
+29/49 public_identity_tests.test_0...OK
+30/49 protocol.root.test_0...OK
+31/49 agents.chain_source.test_0...OK
+32/49 agents.destination.root.test_0...OK
+33/49 relayer.remote_checkpoints.test_0...OK
+34/49 ops.stream_metrics.test_0...OK
+35/49 relayer.metadata.test_0...OK
+36/49 agents.scraper.starknet.test_0...OK
+37/49 evm.root.test_0...OK
+38/49 db.root.test_0...OK
+39/49 cloud.root.test_0...OK
+40/49 cloud.google_adc.test_0...OK
+41/49 cloud.aws_profile.test_0...OK
+42/49 agents.destination.reveal.test_0...OK
+43/49 agents.destination.reveal.test_1...OK
+44/49 agents.relayer.evm_driver.test_0...OK
+45/49 agents.relayer.evm_accounting.test_0...OK
+46/49 agents.relayer.native_driver.test.native preparation limit follows Source supported protocol subset...OK
+47/49 agents.relayer.native_driver.test.native submission phase restoration keeps Ready Confirm and popped signed work out of fresh preparation...OK
+48/49 agents.destination.source_metadata.test_0...OK
+49/49 storage.root.test_0...OK
+All 49 tests passed.

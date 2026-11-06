@@ -1,0 +1,14 @@
+{
+  "scope": "Archive verification only. Historical pre-final Aleo worker/root registration results; no current acceptance claim.",
+  "gzip_payloads_exact": 22,
+  "raw_json_mirrors_exact_and_ignored": 5,
+  "original_manifests_logs_unchanged": true,
+  "preserved_role_binaries_hash_and_size_matches": 3,
+  "original_roles_directory_exact_ignore": true,
+  "all_doc_links_resolved": 40,
+  "non_ignored_plaintext_full_width_hashes": 0,
+  "native_skip_verified_both_runs": "evm_prepare_delegated_tests.test.opt-in loopback prepares actual repo Solidity without delivery or nonce mutation",
+  "normal_doc_oxfmt_check": "passed",
+  "source_edits_tests_compilers_deletions_performed": false,
+  "live1055_outputs_accessed": false
+}

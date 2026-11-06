@@ -1,0 +1,10 @@
+1/9 validator_http_tests.test_0...OK
+2/9 agents.validator.http.test.actual source validator routes schemas methods and query bounds...OK
+3/9 agents.validator.http.test.Merkle row budget matches serialization and rejects before the next row allocation...OK
+4/9 agents.validator.http.test.29 actual production Axum validator routes exact status schema fields methods and errors...OK
+5/9 agents.validator.readiness.test.source readiness retains unrelated blockers sorts names and reports maxima...OK
+6/9 agents.validator.readiness.test.Eigen source delta thresholds include negative and initially zero gauges...OK
+7/9 ops.http.test.generated malformed request boundaries stay bounded and panic free...OK
+8/9 ops.http.test.aggregate reservation is atomic and strictly bounded...OK
+9/9 ops.admin.query.test.query parser decodes source parameters...OK
+All 9 tests passed.

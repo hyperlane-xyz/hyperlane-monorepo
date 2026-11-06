@@ -1,0 +1,1 @@
+Historical non-acceptance snapshot. Independent review found missing scalar process calldata-to-outer-authority validation despite these green tests. Current parent manifest/results include the correction and four signed scalar negative cases.

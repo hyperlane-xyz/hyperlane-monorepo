@@ -1,0 +1,37 @@
+{
+  "command": "/usr/bin/time -l cargo +1.98.0 build --locked --release -p relayer -p validator -p scraper -j 4",
+  "working_directory": "rust/main",
+  "rustflags_from_config": [
+    "--cfg",
+    "tokio_unstable"
+  ],
+  "status": "succeeded",
+  "exit_code": 0,
+  "elapsed_seconds": 1017.13,
+  "maximum_resident_set_size_bytes": 2886713344,
+  "cache_state": "reused existing target after root-cwd attempt, but rustflags changed to production config; not a pristine cold build",
+  "raw_log": "rust-full-build-configured.log",
+  "artifacts": {
+    "relayer": {
+      "size_bytes": 110418192,
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ]
+    },
+    "validator": {
+      "size_bytes": 86492544,
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ]
+    },
+    "scraper": {
+      "size_bytes": 62846864,
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ]
+    }
+  }
+}

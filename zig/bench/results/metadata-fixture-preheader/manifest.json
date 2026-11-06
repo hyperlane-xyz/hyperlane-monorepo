@@ -1,0 +1,336 @@
+{
+  "captured_utc": "2026-11-06T10:43:26.468727+00:00",
+  "scope": "Test-only TCP fixture cancellation and strict quorum/cache assertions; no comparative performance result",
+  "accepted_result": "canonical-result.json.gz",
+  "accepted_counts": "macOS10/10 and Linux14/14 per mode; ten substantive module tests with four extra Linux import roots; zero skips",
+  "test_only_history": "Original test module source exactly reconstructed and verified against0933 selected source map; pre-count correction ed7a7a snapshot similarly verified",
+  "historical_results_qualified": true,
+  "all_payloads_losslessly_verified": true,
+  "artifacts": [
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/Linux-ReleaseFast-canonical.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/Linux-ReleaseFast.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/Linux-ReleaseSafe-canonical.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/Linux-ReleaseSafe-final.log.gz",
+      "bytes": 1556,
+      "gzip_bytes": 667,
+      "sha256_chunks": [
+        "85d29c0d8386827b7e85d46770ac25ef",
+        "f8442f3bd866c71b520a8ced30a67a3e"
+      ],
+      "gzip_sha256_chunks": [
+        "9793237dfe0cbc5789b5b7057bb95aa7",
+        "307aa2318ddc58d6c0152e6f356e0071"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/Linux-ReleaseSafe.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/macOS-ReleaseFast-canonical.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/macOS-ReleaseFast-final.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/macOS-ReleaseFast.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/macOS-ReleaseSafe-canonical.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/macOS-ReleaseSafe-final.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/macOS-ReleaseSafe.log.gz",
+      "bytes": 1373,
+      "gzip_bytes": 536,
+      "sha256_chunks": [
+        "a29bf1593d37d360424ab7fead184847",
+        "d3de73c0787a939ef7d2329202fc7f7c"
+      ],
+      "gzip_sha256_chunks": [
+        "e272f2796d2031501e9e01bc090b1786",
+        "17646cfdcb42155f68e8e6dbd2cc5837"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/canonical-result.json.gz",
+      "bytes": 4584,
+      "gzip_bytes": 715,
+      "sha256_chunks": [
+        "9a51b0b8b79bb2b7877872e6f698b4e4",
+        "09947c313892d845690b48a299c76314"
+      ],
+      "gzip_sha256_chunks": [
+        "1b444214035122d80baad018ed281894",
+        "29f3c2e75831a6dbd2674e3d69a77077"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/final-result.json.gz",
+      "bytes": 3528,
+      "gzip_bytes": 692,
+      "sha256_chunks": [
+        "2ba8b25abcf1116b1f89b1189d0f9694",
+        "986b5e040f4ec630cb20097bb81f4946"
+      ],
+      "gzip_sha256_chunks": [
+        "df0144e8005a6b38d3e38f052aa79809",
+        "8dc57a8c8eda7910599331412bb5585a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/result.json.gz",
+      "bytes": 4544,
+      "gzip_bytes": 710,
+      "sha256_chunks": [
+        "0a57667f50218dd16474bb831572fce0",
+        "2fe4d3c0af707bcdd2b7c726b65798c6"
+      ],
+      "gzip_sha256_chunks": [
+        "02bfb546940b52bff4d4418fc32b0c82",
+        "2ef9ca8a2941edeebd7509b4f7be6d84"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/original-preheader-failure.log.gz",
+      "bytes": 327,
+      "gzip_bytes": 257,
+      "sha256_chunks": [
+        "e9f873facf42da9f1524ba73af0f580f",
+        "e00d37a3578315955bc889bdf4fd4b71"
+      ],
+      "gzip_sha256_chunks": [
+        "63149ae850057faaa385286727041433",
+        "8dbe130b223908d93476094ea3267faa"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/original-preheader-command.json.gz",
+      "bytes": 795,
+      "gzip_bytes": 297,
+      "sha256_chunks": [
+        "ee0108e2224899c58fd604fda1f83b1c",
+        "a4b9ac1f693e24e4a0e815b822450489"
+      ],
+      "gzip_sha256_chunks": [
+        "e8e993993b6fed561c83833529bb65f1",
+        "82440c7bd1509f3f36dfa3c4fb660c11"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/two-socket-regressions.json.gz",
+      "bytes": 2009,
+      "gzip_bytes": 382,
+      "sha256_chunks": [
+        "eecb15debc097d5d57d1f7be6cd4cbd7",
+        "ef0c6a7a4b683f3286b7b39d4c41a3ea"
+      ],
+      "gzip_sha256_chunks": [
+        "bbce855007135090b7aeaf4f259862b9",
+        "1453204d65ee885fc76c20d624dba78f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/two-socket-regressions-ReleaseSafe.log.gz",
+      "bytes": 267,
+      "gzip_bytes": 163,
+      "sha256_chunks": [
+        "430ac1ffc4b8ad8a15f6aa1ab3acf780",
+        "ec99ed21ddfc7eac644c30718abf109b"
+      ],
+      "gzip_sha256_chunks": [
+        "1595aa3d24ad850b0956d5fb8a871ac6",
+        "34ec5aedc906bcebb1fbc2e2b0e7575d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/two-socket-regressions-ReleaseFast.log.gz",
+      "bytes": 267,
+      "gzip_bytes": 163,
+      "sha256_chunks": [
+        "430ac1ffc4b8ad8a15f6aa1ab3acf780",
+        "ec99ed21ddfc7eac644c30718abf109b"
+      ],
+      "gzip_sha256_chunks": [
+        "1595aa3d24ad850b0956d5fb8a871ac6",
+        "34ec5aedc906bcebb1fbc2e2b0e7575d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/request-count-independent-review.md.gz",
+      "bytes": 3772,
+      "gzip_bytes": 1904,
+      "sha256_chunks": [
+        "976bbe72e2ddd4db94e74b518f6c131d",
+        "53a28d49a5736c56655322d850d410f3"
+      ],
+      "gzip_sha256_chunks": [
+        "623f8170d949e0198fa76fdc896b5622",
+        "764c1b2d09231206fa870f570fe68d1a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/four-mode-runner.py.gz",
+      "bytes": 1365,
+      "gzip_bytes": 751,
+      "sha256_chunks": [
+        "610a87421f01ce7700e730b3a080ba9a",
+        "0010176626bbcee213ccd2cc4b3f8795"
+      ],
+      "gzip_sha256_chunks": [
+        "2654ab524ea2caadf08865ffcf73809f",
+        "207e97d0c3e2a6ffd7b93d8bdbf59127"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/diagnostic-root.zig.gz",
+      "bytes": 66,
+      "gzip_bytes": 86,
+      "sha256_chunks": [
+        "75a2a71d47e77f7fc7b24b54d0c00de1",
+        "2945631951fdaf331f34f728476485a9"
+      ],
+      "gzip_sha256_chunks": [
+        "8b6efaf0cde355160c20898336064b10",
+        "d7f8ad85319edd4652cb3ca095b5b0cd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/accepted-test-source.zig.gz",
+      "bytes": 31386,
+      "gzip_bytes": 6843,
+      "sha256_chunks": [
+        "0dfa7214b38643f1f1d3d751431da3dc",
+        "d7a2eb37ff31beb11dab971b7a6330a0"
+      ],
+      "gzip_sha256_chunks": [
+        "81b383a5886f2b1c14c3b2cd90a071cb",
+        "239f4e663f86e52dfa9533bb231ee4fb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/original-fixture-source.zig.gz",
+      "bytes": 25939,
+      "gzip_bytes": 5855,
+      "sha256_chunks": [
+        "27233e4c3293f6907e46574e334b4af5",
+        "364fe4b8f613b2dcf7993f72630b36a4"
+      ],
+      "gzip_sha256_chunks": [
+        "cedb0d19e679b8150e083191741e30e6",
+        "d73ad54c57390409923c68fc15ae6cb0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-fixture-preheader/before-count-correction.zig.gz",
+      "bytes": 29444,
+      "gzip_bytes": 6403,
+      "sha256_chunks": [
+        "ed7a7a0a7c593abcc437c83b98729ba5",
+        "6187b5b3740ae6d5d46952388f5540a5"
+      ],
+      "gzip_sha256_chunks": [
+        "2bca15681d0e1309a6ad6080287001f8",
+        "691255ab34a0a26494bf29338aaeba03"
+      ]
+    }
+  ]
+}

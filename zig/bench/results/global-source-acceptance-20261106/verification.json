@@ -1,0 +1,18 @@
+{
+  "status": "sealed_current_selected_source_functional_acceptance",
+  "payloads_exact": 22,
+  "raw_json_mirrors_exact_and_ignored": 5,
+  "selected_source_mappings_equal_before_after_across_runs_and_current": 650,
+  "runtime_environment_artifact_records_hash_verified": 8,
+  "runtime_distinct_files_hash_verified": 7,
+  "native_archives_hash_verified": 7,
+  "emitted_roles_hash_verified_preserved_ignored": 3,
+  "safe_checks_exit_zero": 11,
+  "fast_default_exit_zero": true,
+  "fast_native_exit_zero": true,
+  "normal_doc_oxfmt_check": "passed",
+  "no_Source_edits_tests_compilers_deletions": true,
+  "writer_status": "finished_no_more_writes_unless_requested",
+  "all_doc_links_resolved": 62,
+  "non_ignored_plaintext_full_width_hashes": 0
+}

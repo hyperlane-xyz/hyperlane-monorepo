@@ -1,0 +1,11 @@
+{
+  "status": "accepted_test_fixture_only_correction",
+  "tests": 442,
+  "evm_driver_cases": 34,
+  "accounting_cases": 4,
+  "skips": 0,
+  "failures": 0,
+  "sources_unchanged": true,
+  "recorded_files": 6,
+  "production_edits": false
+}

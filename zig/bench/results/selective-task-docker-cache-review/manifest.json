@@ -1,0 +1,24 @@
+{
+  "scope": "Read-only Docker exact cache-ID capability and ownership assessment; no mutation and no eligible current deletion",
+  "records": 13,
+  "reclaimable_records": 0,
+  "eligible_deletion_ids": [],
+  "artifacts": {
+    "selective-docker-cache-review.json.gz": {
+      "original": "/tmp/ziggy-selective-docker-cache-review.json",
+      "uncompressed_bytes": 15285,
+      "sha256_chunks": [
+        "052c6c0f2addc5b677cb139515ecb54e",
+        "55e6bca9d811457d2cb04da8104c7dec"
+      ]
+    },
+    "selective-docker-cache-review.md.gz": {
+      "original": "/tmp/ziggy-selective-docker-cache-review.md",
+      "uncompressed_bytes": 4173,
+      "sha256_chunks": [
+        "bdc51da88b9eb9bf9d3323de90b5b93a",
+        "4bc7c0f5838d8cc3f414a60d302e516d"
+      ]
+    }
+  }
+}

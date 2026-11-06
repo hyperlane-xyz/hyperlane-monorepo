@@ -1,0 +1,12 @@
+{
+  "captured_utc": "2026-11-06T08:45:59.962739+00:00",
+  "scope": "Only byte-identical immutable library files in two task-local Zig0.15.2 distributions; compiler executables excluded",
+  "benchmark_timing": false,
+  "deduplicated_files": 18006,
+  "skipped_distinct_mtime_files": 95,
+  "all_bytes_modes_mtimes_unchanged": true,
+  "paths_unchanged": true,
+  "free_disk_bytes_before": 40769097728,
+  "free_disk_bytes_after": 40984993792,
+  "qualification": "Hardlinks preserve every path and byte. Observed free-space delta may reflect APFS clones/hardlinks and unrelated host writes. No source/runtime artifact/download/global user cache deleted."
+}

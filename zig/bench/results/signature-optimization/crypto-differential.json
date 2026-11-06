@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "fixture_cases": 73,
+  "cross_implementation_recoveries": 146,
+  "invalid_signatures_per_implementation": 6,
+  "seed": "0x5349474e",
+  "rust_crypto": "k256 0.13.4",
+  "zig_crypto": "std.crypto Secp256k1",
+  "policy": "Compare cross-recovery/address, not nonce-dependent signature byte equality"
+}

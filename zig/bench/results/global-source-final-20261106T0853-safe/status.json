@@ -1,0 +1,15 @@
+{
+  "scope": "Functional snapshot, not comparative benchmark or final all-gates acceptance",
+  "default_tests_passed": 738,
+  "default_tests_total": 738,
+  "default_skipped": 0,
+  "native_aggregate_total": 1022,
+  "native_stopped_at": 144,
+  "native_failure": "Missing defaultIsm fixture step shifted scripted RPC responses; null payload unwrap then panicked. Only native test fixture changed in correction; delegated442/442 proof retained separately.",
+  "later_checks_executed": false,
+  "source_unchanged_during_checks": true,
+  "fresh_full_source_rerun": "global-source-final-20261106T0913-safe",
+  "canonical_manifest": "all-manifest.json.gz",
+  "default_log": "default.log.gz",
+  "native_log": "native-db.log.gz"
+}

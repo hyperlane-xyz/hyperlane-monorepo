@@ -1,0 +1,14 @@
+{
+  "scope": "Only four authored runtime FFI src/lib.rs files, excluding cfg(test) code, upstream SDK/dependency code and standalone reference fixtures.",
+  "non_test_panicking_unwrap_or_expect": 0,
+  "non_test_explicit_panic_assert_unreachable_todo": 0,
+  "findings": [],
+  "classification": [
+    "Aleo VM expect/assert sites are inside cfg(test) module lines583-626 only.",
+    "Other bridge asserts are cfg(test) only.",
+    "Aleo VM transaction_info unwrap_or(0) and unwrap_or_else(zero bytes) are nonpanicking Option defaults for absent fee/payer, not unwrap()/expect().",
+    "Starknet, Aleo crypto and VM computational exports use checked catch_unwind -> -3; ABI constants and valid-handle destructors do not parse external text.",
+    "Regex compilation returns Result errors; invalid UTF-8 subject returns no match. Diagnostic slicing bounds follow the nonempty output check and UTF-8 boundary adjustment. No concrete authored panic path found for documented live-buffer/handle inputs."
+  ],
+  "qualification": "This is an authored-source audit, not a blanket claim that allocation aborts, invalid unsafe C pointers or every upstream destructor can be recovered. No speculative warning or Source relaxation added."
+}

@@ -1,0 +1,57 @@
+{
+  "scope": "Pure proof archive loading and existing retirement/accounting guards; no daemon or timing acceptance",
+  "executed": true,
+  "passed": true,
+  "tests": 28,
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "zig/bench",
+    "-p",
+    "relayer_test.py"
+  ],
+  "captured_utc": "2026-11-06T05:17:45.067632+00:00",
+  "source_before": {
+    "zig/bench/relayer.py": [
+      "5c15fe51fa9dfa23954164e96620bfb1",
+      "b568275952f1ca5cfe998037d23559ca"
+    ],
+    "zig/bench/relayer_test.py": [
+      "5ffa125f6f26bdfa73e2c310fa71f529",
+      "9287a0585cc73343188e124ac27d9861"
+    ],
+    "docs/zig-agent-rewrite/relayer-benchmark.md": [
+      "bdbb2567059e77da7d870e0a97cf37f2",
+      "0dfd73d8081947534090fe52dc09ebf0"
+    ]
+  },
+  "source_after": {
+    "zig/bench/relayer.py": [
+      "5c15fe51fa9dfa23954164e96620bfb1",
+      "b568275952f1ca5cfe998037d23559ca"
+    ],
+    "zig/bench/relayer_test.py": [
+      "5ffa125f6f26bdfa73e2c310fa71f529",
+      "9287a0585cc73343188e124ac27d9861"
+    ],
+    "docs/zig-agent-rewrite/relayer-benchmark.md": [
+      "bdbb2567059e77da7d870e0a97cf37f2",
+      "0dfd73d8081947534090fe52dc09ebf0"
+    ]
+  },
+  "source_unchanged": true,
+  "log": "zig/bench/results/harness-packed-proofs/tests.log",
+  "log_sha256_chunks": [
+    "89a51c359aad8d1c68883206f3a2e542",
+    "3695216940256bfd75aff9da87efa900"
+  ],
+  "checks": [
+    "raw and lossless gzip proofs use identical exact-binary and per-ID600s gates",
+    "record actual archive hash and decoded JSON hash",
+    "corrupt archive fails closed",
+    "compressed failed public-sidecar case still rejected"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "passed": false,
+  "stage": "lightweight first connection",
+  "error": "deadline: lightweight replay/reconnect",
+  "binary": "/private/tmp/ziggy-validator-frozen-functional",
+  "binary_sha256": [
+    "3e16325768ec4d358d89f9d8632875ba",
+    "5fdd63a10585b718a7b2afe7c1303619"
+  ],
+  "handshakes": 1,
+  "subscriptions": [],
+  "injected_http503_handshakes": 1,
+  "remaining_injected_failures": 0
+}

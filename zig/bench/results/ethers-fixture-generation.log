@@ -1,0 +1,24 @@
+   Compiling ziggy-evm-oracle v0.1.0 (/Users/pbio/work/ziggy/zig/reference/evm)
+    Finished `release` profile [optimized] target(s) in 1.09s
+Generated 51 transaction fixtures and 21 signature-recovery fixtures
+v_0 aaa639f620ca3788c3fa9f9743b7d3859732c9e5
+v_1 19e7e376e7c213b7e7e7e46cc70a5dd086daff2a
+v_2 None
+v_3 None
+v_26 None
+v_27 aaa639f620ca3788c3fa9f9743b7d3859732c9e5
+v_28 19e7e376e7c213b7e7e7e46cc70a5dd086daff2a
+v_29 None
+v_34 None
+v_35 aaa639f620ca3788c3fa9f9743b7d3859732c9e5
+v_36 19e7e376e7c213b7e7e7e46cc70a5dd086daff2a
+v_37 aaa639f620ca3788c3fa9f9743b7d3859732c9e5
+v_38 19e7e376e7c213b7e7e7e46cc70a5dd086daff2a
+v_255 aaa639f620ca3788c3fa9f9743b7d3859732c9e5
+v_256 19e7e376e7c213b7e7e7e46cc70a5dd086daff2a
+v_18446744073709551615 aaa639f620ca3788c3fa9f9743b7d3859732c9e5
+high_s 19e7e376e7c213b7e7e7e46cc70a5dd086daff2a
+r_zero None
+s_zero None
+r_order None
+s_order None

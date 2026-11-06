@@ -1,0 +1,118 @@
+{
+  "captured_utc": "2026-11-06T09:21:11.178581+00:00",
+  "benchmark_timing": false,
+  "scope": "Only compiler subdirectories in three verified task-created standalone targets; runtime binaries and generated source/data retained",
+  "independent_review": "Runtime reviewer verified paths,433 preservation entries including604-byte textual additions, loader closure and seven archives; no mutation by reviewer",
+  "preserved_file_count": 433,
+  "all_preserved_hashes_identical": true,
+  "all_seven_native_archive_hashes_identical": true,
+  "native_archive_sha256_chunks": {
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a": [
+      "4dd69640a11c7d9ca0e083abcda67fb1",
+      "6ef7f7178768adc80dd5628971e5a0f7"
+    ],
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a": [
+      "69637bb2e93e53754d16ac2c206c65e3",
+      "18372cfd90b1c45bcbb8727de934f197"
+    ],
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a": [
+      "46b099671486a27e44a2bfe1feedc33d",
+      "a75d445f6a0b427f5ee6a0a5d517b8c7"
+    ],
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a": [
+      "0d127682f40c021aaa7ac1a2be83a9e1",
+      "4a7de4e5586007db541babdd4709aea5"
+    ],
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a": [
+      "06de5b23f0e2e439d2754cb1fc4f9322",
+      "c4f8fde79dd2e008beb9443efa6afb8c"
+    ],
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a": [
+      "edc94c727fbc3ce0bbf3b8e0720e2dfd",
+      "458a96d30262d780bb2c2aa8f43abb26"
+    ],
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a": [
+      "47967209ef6ac19a0535aab801721995",
+      "ef065ffb6a6e48da0ff765acfa8c6e2a"
+    ]
+  },
+  "loads_before": [],
+  "loads_after": [],
+  "removed": [
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/deps",
+      "files": 336,
+      "logical_bytes": 243922025,
+      "allocated_bytes_upper_bound": 244690944
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/build",
+      "files": 181,
+      "logical_bytes": 26643844,
+      "allocated_bytes_upper_bound": 27152384
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/incremental",
+      "files": 0,
+      "logical_bytes": 0,
+      "allocated_bytes_upper_bound": 0
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target/release/.fingerprint",
+      "files": 451,
+      "logical_bytes": 13781,
+      "allocated_bytes_upper_bound": 1847296
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/target/release/deps",
+      "files": 105,
+      "logical_bytes": 115852448,
+      "allocated_bytes_upper_bound": 116084736
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/target/release/build",
+      "files": 472,
+      "logical_bytes": 100611659,
+      "allocated_bytes_upper_bound": 101675008
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/target/release/incremental",
+      "files": 0,
+      "logical_bytes": 0,
+      "allocated_bytes_upper_bound": 0
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/target/release/.fingerprint",
+      "files": 146,
+      "logical_bytes": 4014,
+      "allocated_bytes_upper_bound": 598016
+    },
+    {
+      "path": "/private/tmp/ziggy-gas-cost-target/debug/deps",
+      "files": 693,
+      "logical_bytes": 291437885,
+      "allocated_bytes_upper_bound": 292876288
+    },
+    {
+      "path": "/private/tmp/ziggy-gas-cost-target/debug/build",
+      "files": 174,
+      "logical_bytes": 26329393,
+      "allocated_bytes_upper_bound": 26800128
+    },
+    {
+      "path": "/private/tmp/ziggy-gas-cost-target/debug/incremental",
+      "files": 247,
+      "logical_bytes": 45135081,
+      "allocated_bytes_upper_bound": 45617152
+    },
+    {
+      "path": "/private/tmp/ziggy-gas-cost-target/debug/.fingerprint",
+      "files": 420,
+      "logical_bytes": 12893,
+      "allocated_bytes_upper_bound": 1720320
+    }
+  ],
+  "free_disk_bytes_before": 40316895232,
+  "free_disk_bytes_after": 41130639360,
+  "qualification": "Deletion counts are upper bounds under hardlinks/APFS; observed free delta includes unrelated writes. No source, runtime artifact, parameter, license, toolchain, download or user-global/shared cache deleted."
+}

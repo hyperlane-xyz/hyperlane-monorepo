@@ -1,0 +1,9 @@
+1/8 health_metrics_tests.test_0...OK
+2/8 agents.health_set_test.test.configured scraper public identity is ready for the first actual balance read...OK
+3/8 agents.chain_source.test_0...OK
+4/8 agents.scraper.starknet.test_0...OK
+5/8 protocol.root.test_0...OK
+6/8 cloud.root.test_0...OK
+7/8 cloud.google_adc.test_0...OK
+8/8 cloud.aws_profile.test_0...OK
+All 8 tests passed.

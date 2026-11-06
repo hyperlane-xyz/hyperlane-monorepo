@@ -1,0 +1,48 @@
+{
+  "status": "newly_recovered_exact_production_closure",
+  "historical_lock_recovered": false,
+  "method": "seed immutable production Cargo.lock, add production primitive-types/rlp patches to standalone manifest, cargo metadata --offline; no compile or network",
+  "production_seed": "rust/main/Cargo.lock",
+  "production_seed_sha256_chunks": [
+    "773987fad52712c3c433427be0bb881",
+    "f7b87a6c6b4378193c0f637eefcdaf4",
+    "ee"
+  ],
+  "manifest": "zig/src/lander/testing/reference/Cargo.toml",
+  "manifest_sha256_chunks": [
+    "2a320b8230f86ded1284a22dd70afef",
+    "1a246fbcb3f7db7e1328c0214c55432",
+    "59"
+  ],
+  "packages": 328,
+  "external_packages": 325,
+  "external_identity_differences_from_production": [],
+  "lock_sha256_chunks": [
+    "8ad950fe0627c743223a5c7df30e757",
+    "2db6707c3afb14df54964719874cfb4",
+    "a2"
+  ],
+  "later_acceptance": "Golden regeneration byte equality after parent grants compile slot; not executed in lock-only recovery",
+  "old_canonical_fixture": "zig/src/lander/testing/reference/fixtures/lander_types.json.gz",
+  "old_canonical_uncompressed_sha256_chunks": [
+    "d6aaa8ce9796cd796e6fc8ea414c558",
+    "30a0f020c51bde77bf10d77cb4011ce",
+    "5f"
+  ],
+  "old_canonical_gzip_sha256_chunks": [
+    "ed8f0302f8c71ebdd816d2889367375",
+    "6ec7428070a550c3cdf6bfad40bb2a4",
+    "e3"
+  ],
+  "portability": "std-only build.rs generates four path-module declarations from current checkout without modifying production bytes; helper-only ZIGGY_LANDER_FIXTURE_OUTPUT supports isolated candidate",
+  "build_script_sha256_chunks": [
+    "1027a79386fe9b9102959ff57bed76f",
+    "fcea55bbf66a5f10f57c2f20d22bc75",
+    "d7"
+  ],
+  "helper_source_sha256_chunks": [
+    "f58ff38cc9827c9c61cd3f6d6bc15b3",
+    "f287461cee67388de184501a591af7e",
+    "18"
+  ]
+}

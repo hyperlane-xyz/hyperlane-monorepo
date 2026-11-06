@@ -1,0 +1,16 @@
+/focused-compile-command.json
+/focused-first/result.json
+/focused-second/result.json
+/focused-final/result.json
+/aggregate-initial/command.json
+/aggregate-initial/postgres/postgres-native-tests.json
+/aggregate-initial/result.json
+/aggregate-final/command.json
+/aggregate-final/postgres/postgres-integration.json
+/aggregate-final/postgres/postgres-native-tests.json
+/aggregate-final/result.json
+/focused-canonical/result.json
+/aggregate-accepted/command.json
+/aggregate-accepted/postgres/postgres-integration.json
+/aggregate-accepted/postgres/postgres-native-tests.json
+/aggregate-accepted/result.json

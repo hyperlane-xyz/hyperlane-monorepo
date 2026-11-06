@@ -1,0 +1,29 @@
+1/28 db_tests.test_0...OK
+2/28 db.native_test.test.native batch fsync reopen empty values domain isolation and copied iterator ownership...OK
+3/28 db.native_test.test.native open errors copy diagnostic before freeing C allocation...OK
+4/28 db.native_test.test.native typed seeks retain bounds and highest fixed key skips overlapping records...OK
+5/28 agents.store_test.test.agent native store preserves canonical nonce maps repairs pending and atomically changes destinations...OK
+6/28 agents.store_test.test.agent native store deduplicates gas metadata saturates totals and repairs tree reverse indices...OK
+7/28 db.codec.test.integer endianness and strict bool match production...OK
+8/28 db.keys.test.domain names and prefix upper bounds match Rust...OK
+9/28 db.root.test_0...OK
+10/28 protocol.root.test_0...OK
+11/28 protocol.message.test.canonical message fixture and borrowed decode...OK
+12/28 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+13/28 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+14/28 db.golden_test.test.93 production Rust DB codec fixtures and all fixed-record truncation boundaries...OK
+15/28 db.json.test.serde status wire spelling nested report and fail-closed recovery...OK
+16/28 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+17/28 protocol.merkle.test.three-leaf Merkle fixture...OK
+18/28 protocol.merkle.test.full tree rejects without mutation...OK
+19/28 protocol.merkle.test.snapshot restore checks count root and shape...OK
+20/28 protocol.checkpoint.test.domain hash fixtures...OK
+21/28 protocol.checkpoint.test.checkpoint digest separates every field...OK
+22/28 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+23/28 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+24/28 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+25/28 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+26/28 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+27/28 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+28/28 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+All 28 tests passed.

@@ -1,0 +1,1 @@
+Final independent read-only Root/retirement review accepted the exact 95/95 owner snapshot and verified all16 recorded Source hashes. Files are lossless gzip copies; full chronology is historical and explicitly superseded by the final review. Subsequent disjoint Factory physical-timeout corrections are outside this accepted snapshot.

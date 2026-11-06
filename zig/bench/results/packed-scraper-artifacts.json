@@ -1,0 +1,125 @@
+{
+  "encoding": "gzip",
+  "files": [
+    {
+      "path": "zig/bench/results/scraper-post-cadence-process/scraper-process.json.gz",
+      "bytes": 1222,
+      "gzip_bytes": 648,
+      "sha256_chunks": [
+        "5905e085081e596de434110ca782c4d",
+        "3b761031c4e202755e9197ca70d4495",
+        "3c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-finalhead-pg16-15-nonquiet/scraper-process.json.gz",
+      "bytes": 548054,
+      "gzip_bytes": 84878,
+      "sha256_chunks": [
+        "774cdc5c3821d9f9b6af9b2d498376b",
+        "dc09979340300e889ed9475033cbec1",
+        "6a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-finalhead-pg18-nonquiet/scraper-process.json.gz",
+      "bytes": 546880,
+      "gzip_bytes": 84762,
+      "sha256_chunks": [
+        "b97a5f6dcd643353c5c88582984f23b",
+        "487cbad48b9e6eecea6c18511390840",
+        "7d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-initial-pg18-restartport-nonquiet/scraper-process.json.gz",
+      "bytes": 413228,
+      "gzip_bytes": 64955,
+      "sha256_chunks": [
+        "049bdb4ac955ea1c242db29f3bca53f",
+        "2cde8e8cbc2b1700eab5d3f983254b5",
+        "24"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-initial2-pg18-restartport-nonquiet/scraper-process.json.gz",
+      "bytes": 551913,
+      "gzip_bytes": 84588,
+      "sha256_chunks": [
+        "5c36d7a6006b248a391d87c10e2dcf9",
+        "e5952a7fa8359d85fdfa6c26d75f81f",
+        "51"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke-pg16-nonquiet/scraper-process.json.gz",
+      "bytes": 308003,
+      "gzip_bytes": 69485,
+      "sha256_chunks": [
+        "d195909c63c8877d223ec251431df3d",
+        "5ddcd98f13588dc5b099808ce62bacb",
+        "e2"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke2-pg18-nonquiet/scraper-process.json.gz",
+      "bytes": 312485,
+      "gzip_bytes": 70987,
+      "sha256_chunks": [
+        "ed7f22556adf04f21a8296d4fce9c8f",
+        "f054512f9ba46059934c12456d494ec",
+        "f7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke3-pg18-nonquiet/scraper-process.json.gz",
+      "bytes": 315537,
+      "gzip_bytes": 71069,
+      "sha256_chunks": [
+        "912d844af985477ed80e53e464c5939",
+        "5e2b2e66a23aeadfbce27ad95ba2104",
+        "eb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-smoke4-sameport-pg18-nonquiet/scraper-process.json.gz",
+      "bytes": 318940,
+      "gzip_bytes": 71729,
+      "sha256_chunks": [
+        "aca89b70fd72e7c0c1b5623674b85ca",
+        "5aedf8229a93975b1c42ab24071aff4",
+        "eb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-process-timeout-cleanup-pg16-15-nonquiet/scraper-process.json.gz",
+      "bytes": 338797,
+      "gzip_bytes": 77350,
+      "sha256_chunks": [
+        "53bb21db4b410f54bbb5a4bd983361f",
+        "ae89bdd51a3fc48bd500651dd6844bb",
+        "78"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-telemetry-fatal/scraper-process.json.gz",
+      "bytes": 1419,
+      "gzip_bytes": 779,
+      "sha256_chunks": [
+        "8448e6aac6ae128ecdcd717f88a4df7",
+        "eca0550ae3fbf48c21dd1321dec5963",
+        "7a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/scraper-telemetry-process/scraper-process.json.gz",
+      "bytes": 1208,
+      "gzip_bytes": 692,
+      "sha256_chunks": [
+        "95f514e7b7923f308ad9c1a3f3b3a6c",
+        "1bb58c8b1e57fee465c6ce452572f38",
+        "20"
+      ]
+    }
+  ]
+}

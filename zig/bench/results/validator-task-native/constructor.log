@@ -1,0 +1,10 @@
+1/9 validator_task_native_tests.test_0...OK
+2/9 agents.validator_task_test.test.validator constructors are allocation-only and announcement HTTP and scheduling are independent...OK
+3/9 cloud.root.test_0...OK
+4/9 evm.root.test_0...OK
+5/9 agents.destination.root.test_0...OK
+6/9 db.root.test_0...OK
+7/9 agents.scraper.starknet.test_0...OK
+8/9 protocol.root.test_0...OK
+9/9 agents.destination.reveal.test_0...OK
+All 9 tests passed.

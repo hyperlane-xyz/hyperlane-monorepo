@@ -1,0 +1,10 @@
+zig/src/agents/origin_tasks.zig:261:43: error: expected number, found '?u64'
+        report.next_delay_ms = @min(report.next_delay_ms, companion_report.next_delay_ms);
+                                    ~~~~~~^~~~~~~~~~~~~~
+referenced by:
+    run: zig/src/agents/origin_tasks.zig:206:26
+    descriptor: zig/src/agents/origin_tasks.zig:309:43
+    8 reference(s) hidden; use '-freference-trace=10' to see all references
+zig/src/agents/origin_tasks.zig:289:17: error: expected error union type, found '@typeInfo(@typeInfo(@TypeOf(agents.chain_source.Resources.source)).@"fn".return_type.?).error_union.error_set'
+                return err;
+                ^~~~~~~~~~

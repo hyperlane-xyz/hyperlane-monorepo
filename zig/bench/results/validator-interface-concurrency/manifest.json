@@ -1,0 +1,173 @@
+{
+  "scope": "Source validator HTTP interface and bounded parallel signing/publication correctness, not benchmark results.",
+  "native_suite": {
+    "passed": 157,
+    "optional_skipped": 16,
+    "failed": 0
+  },
+  "production_axum_route_fixtures": 29,
+  "native_http_tests": 9,
+  "actual_mock_kms": {
+    "configured_concurrency": 4,
+    "observed_native_requests_in_parallel": 4,
+    "signed_checkpoints": 8,
+    "new_signatures_after_restart": 0
+  },
+  "source_inventory_note": "Post-acceptance inventory; identifies current files, not a frozen build-input assertion. Exact binaries are separately hashed by each integration artifact.",
+  "source_sha256_chunks": {
+    "zig/integration/validator.py": [
+      "a83c7b959f68c5bd0d1de85234bcea0d",
+      "eae8b752ef3f7c2a746fb6bbbe3f2716"
+    ],
+    "zig/integration/validator_parallel_http.py": [
+      "b6ab2c09b8ec730db7131ba3c3547105",
+      "cac903212418de650e74bc4869ceb288"
+    ],
+    "zig/reference/validator-http/Cargo.lock": [
+      "c4096cf6201d28c0fafa87a6cb65725f",
+      "8a52ca8b17b996aa08a6f5a71d7ef51b"
+    ],
+    "zig/reference/validator-http/Cargo.toml": [
+      "2b01f3c0d7b6ea2f35620fabef4254a0",
+      "e083b0ea6dd21aba2eefdd036645843d"
+    ],
+    "zig/reference/validator-http/generate.py": [
+      "ac5d9a2d2c1b0ce85d6101367ed86a50",
+      "7b5be566e7bee48ef650430f80efc698"
+    ],
+    "zig/reference/validator-http/src/main.rs": [
+      "ef7ef72bea65f4d83c25c82050099107",
+      "66174d8d756e02b1717226582b475119"
+    ],
+    "zig/src/agents/signer.zig": [
+      "8880ce064eaa40629715df3d6422cebb",
+      "996fcb5aba4bb008e00ac76870e1110d"
+    ],
+    "zig/src/agents/validator/announcement.zig": [
+      "8c2452759342aa255d91139f1905cf4e",
+      "d73b2a43a80b3b91ec9ab4e69e4b5544"
+    ],
+    "zig/src/agents/validator/announcement_task.zig": [
+      "8b5d4e3573416d6a07fb3180fdeadb6a",
+      "3a08b23bdfb2f90b8023ae74f0b8a1d1"
+    ],
+    "zig/src/agents/validator/chain_checkpoint.zig": [
+      "c9d2b60a6d9b11711f5e2a4333b9ed92",
+      "f72a86b7355c526b6ca71d8d65784feb"
+    ],
+    "zig/src/agents/validator/chain_votes.zig": [
+      "ee13fab8220489225684d75fa524247b",
+      "301a3a2c78c0f0b15a65fd3201347819"
+    ],
+    "zig/src/agents/validator/cloud.zig": [
+      "d8ab1bfc747620ee0dbb35e2b6596dbc",
+      "e58216490f07c3f150900382de42ebc2"
+    ],
+    "zig/src/agents/validator/concurrent_test.zig": [
+      "da49288ec548cb929fc9a60777aa79fd",
+      "30d97ec748648f19ce33210fad4879d8"
+    ],
+    "zig/src/agents/validator/config.zig": [
+      "6c61bed7219ce19ecf28d7734c11ba99",
+      "9f8d283e9b00715c15808f44547c2985"
+    ],
+    "zig/src/agents/validator/date.zig": [
+      "c47c44f517c21142f646e15bed79eff3",
+      "a0075e500233521efb46c12b7f6b5c8e"
+    ],
+    "zig/src/agents/validator/driver.zig": [
+      "9d41c2556c060f64f8c15a8e348a15cc",
+      "3b64cf8424bc3ec863d6dad5b4f43395"
+    ],
+    "zig/src/agents/validator/evm.zig": [
+      "a9a08fb4ddf39e51c2647198b7dc2675",
+      "5a67c0d55c403aeceebae526cb09fc29"
+    ],
+    "zig/src/agents/validator/fixtures/http.jsonl": [
+      "f27a39ff7775cfdbb28f515747ea3caa",
+      "54a29bb2ca2c0f16c1db1d68f2f6b960"
+    ],
+    "zig/src/agents/validator/frontier_audit.zig": [
+      "7857872762dace133a13c0820de5c15e",
+      "9914530f91d3fa3c77d6416673a513c0"
+    ],
+    "zig/src/agents/validator/generic.zig": [
+      "15f0f975cf4be85c5e7f3338752cead4",
+      "3dc43ce29b7bc43ad303f8a728791c4d"
+    ],
+    "zig/src/agents/validator/http.zig": [
+      "2bbd2efd59cda83b7be4f536e6d07a65",
+      "ed736d6fe70cd99e9042bdf7101ef0df"
+    ],
+    "zig/src/agents/validator/mailbox.zig": [
+      "4f2fac9fce2e43928774a5e676122fbc",
+      "0b1af90c503e34d1338b0dd468733c74"
+    ],
+    "zig/src/agents/validator/mailbox_native_test.zig": [
+      "20b55eee800dee1a2ee2402ddd627fb5",
+      "a3ed8b8759117d79339a428b18ec9ef3"
+    ],
+    "zig/src/agents/validator/prefix.zig": [
+      "f3c8d5300de9811a8aa2e4e1851381ae",
+      "2f79d81f1d161dccd0fc52db4c492e56"
+    ],
+    "zig/src/agents/validator/readiness.zig": [
+      "c39dd99d47ff70e2221421d92ab215b8",
+      "16c82315199f8e024cf9692eebdb714d"
+    ],
+    "zig/src/agents/validator/replay.zig": [
+      "95302643e61b0f9814587fe61eedb7d6",
+      "8101264a78597052f990ecee0c16e701"
+    ],
+    "zig/src/agents/validator/rpc_observation.zig": [
+      "5001ddc62dd1020da85c7c19e952ee4a",
+      "5657b1fd6dc9b673f0118749a72d1785"
+    ],
+    "zig/src/agents/validator/test.zig": [
+      "26f9fc4091ca1e8fbf2e3e7d4a79951a",
+      "cd8ffd8c522cc8b537b4b7925ffe642a"
+    ],
+    "zig/src/agents/validator/votes.zig": [
+      "13acd491a4e69d6150f6ced5d698b054",
+      "818cf058327ecc1d6d359b49774ae5f3"
+    ],
+    "zig/src/agents/validator.zig": [
+      "a0d5048f678339285d49360ae0972701",
+      "274f2ac6c8b9a9ea842196fdbeea2ab8"
+    ],
+    "zig/src/agents/validator_task.zig": [
+      "211a46910f1500ef2670a0394958a71c",
+      "22a10d5514137bcbab8e4d82924aa7ad"
+    ],
+    "zig/src/validator_parallel_http_integration.zig": [
+      "00ca41ab84d0c553fa661e3223c85c37",
+      "dd386a85c660fad6e1fa889a5cd638da"
+    ]
+  },
+  "logs_sha256_chunks": {
+    "native.log": [
+      "65c4129fae85a78a2f77e9a59e394a93",
+      "569d463cbe394b0199589a5c291be332"
+    ],
+    "http-unit.log": [
+      "cda5a2fa4b206519b5893cf502c7473a",
+      "6021ba8c27bb9dfec385e8533b142bec"
+    ],
+    "http-reference-check.log": [
+      "fabb1d610a615fcabc9e3b8f7c98855e",
+      "a906a60d8f5b5c4ffc12c84b93b45c27"
+    ],
+    "kms-integration.log": [
+      "3e32eed685400f298e0b69d5c0a80bf5",
+      "04a9f7d3df4a9ba08f67034527d7c7ec"
+    ],
+    "daemon-integration.log": [
+      "20e616890eae3297a00f74a79105e60d",
+      "3052ff7ad98aa99a60172c68e69897b6"
+    ]
+  },
+  "artifacts": [
+    "../validator-parallel-http-integration.json",
+    "../validator-http-parallel-process.json"
+  ]
+}

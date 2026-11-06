@@ -1,0 +1,20 @@
+[
+  "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+  "test",
+  "zig/src/pg_tests.zig",
+  "-O",
+  "ReleaseSafe",
+  "-lc",
+  "--sysroot",
+  "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+  "-L/usr/lib",
+  "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+  "--test-filter",
+  "scraper startup",
+  "--test-filter",
+  "scraper optional CCR",
+  "--test-filter",
+  "scraper head control",
+  "--test-filter",
+  "scraper receipt cadence"
+]

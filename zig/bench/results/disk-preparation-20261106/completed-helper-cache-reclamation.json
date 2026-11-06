@@ -1,0 +1,364 @@
+{
+  "schema": 1,
+  "created_utc": "2026-11-06T01:16:05.419128+00:00",
+  "purpose": "Outside performance timers: reclaim only completed task helper compiler outputs after functional acceptance",
+  "authorization": "Parent completed task-cache reclamation; Rocks and Lander goldens fully checked/pinned before cleanup",
+  "free_before_bytes": 36803993600,
+  "compiler_processes": [],
+  "open_target_users": [],
+  "lsof_returncode": 0,
+  "preserved_before": {
+    "/tmp/ziggy-rocks-helper-functional-target/release/ziggy-rocks-oracle": {
+      "sha256_chunks": [
+        "8e295002b44b4248d00d6627aaa47a21",
+        "2315f6f837f3a2d652f2e7f6ada69fd9"
+      ],
+      "bytes": 10394784,
+      "mode": "0o755"
+    },
+    "/tmp/ziggy-rocks-helper-functional-target/release/lander-escalator-oracle": {
+      "sha256_chunks": [
+        "d8df280cfdf2fb305549731ff7d1c18d",
+        "92793b2c21ad56925bf8b9239ada71f4"
+      ],
+      "bytes": 1229008,
+      "mode": "0o755"
+    },
+    "/tmp/ziggy-rocks-helper-functional-target/release/multicall": {
+      "sha256_chunks": [
+        "209a564b51b18ea764a52d122951516a",
+        "73d9ed2d0f7d2506733d517cfd426ea6"
+      ],
+      "bytes": 611744,
+      "mode": "0o755"
+    },
+    "/tmp/ziggy-rocks-helper-functional-target/release/eip2930": {
+      "sha256_chunks": [
+        "8488cc94f9bcb6560f27deb04e457ae5",
+        "b24a81a33da5a8a75710247ddb261185"
+      ],
+      "bytes": 651104,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/rust/main/target/release/relayer": {
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ],
+      "bytes": 110418192,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/rust/main/target/release/validator": {
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ],
+      "bytes": 86492544,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/rust/main/target/release/scraper": {
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ],
+      "bytes": 62846864,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle": {
+      "sha256_chunks": [
+        "8e295002b44b4248d00d6627aaa47a21",
+        "2315f6f837f3a2d652f2e7f6ada69fd9"
+      ],
+      "bytes": 10394784,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/pinned/ziggy-rocks-oracle-tests": {
+      "sha256_chunks": [
+        "f58f7e85d3ef2f34b33ed3abe656ceb4",
+        "4785bc144073ab6f27816ac5d82c78ef"
+      ],
+      "bytes": 10818688,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/pinned/zig-db-interop": {
+      "sha256_chunks": [
+        "3802df4d7e6eca5a92e02f034061a9e2",
+        "fa635db5d79b5492c9a92d5b37ec4a46"
+      ],
+      "bytes": 9469040,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/lander-escalator-oracle": {
+      "sha256_chunks": [
+        "d8df280cfdf2fb305549731ff7d1c18d",
+        "92793b2c21ad56925bf8b9239ada71f4"
+      ],
+      "bytes": 1229008,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/multicall": {
+      "sha256_chunks": [
+        "209a564b51b18ea764a52d122951516a",
+        "73d9ed2d0f7d2506733d517cfd426ea6"
+      ],
+      "bytes": 611744,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/eip2930": {
+      "sha256_chunks": [
+        "8488cc94f9bcb6560f27deb04e457ae5",
+        "b24a81a33da5a8a75710247ddb261185"
+      ],
+      "bytes": 651104,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a": {
+      "sha256_chunks": [
+        "4dd69640a11c7d9ca0e083abcda67fb1",
+        "6ef7f7178768adc80dd5628971e5a0f7"
+      ],
+      "bytes": 2248,
+      "mode": "0o644"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a": {
+      "sha256_chunks": [
+        "69637bb2e93e53754d16ac2c206c65e3",
+        "18372cfd90b1c45bcbb8727de934f197"
+      ],
+      "bytes": 23612472,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a": {
+      "sha256_chunks": [
+        "46b099671486a27e44a2bfe1feedc33d",
+        "a75d445f6a0b427f5ee6a0a5d517b8c7"
+      ],
+      "bytes": 46848,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a": {
+      "sha256_chunks": [
+        "0d127682f40c021aaa7ac1a2be83a9e1",
+        "4a7de4e5586007db541babdd4709aea5"
+      ],
+      "bytes": 171664,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a": {
+      "sha256_chunks": [
+        "06de5b23f0e2e439d2754cb1fc4f9322",
+        "c4f8fde79dd2e008beb9443efa6afb8c"
+      ],
+      "bytes": 913048,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a": {
+      "sha256_chunks": [
+        "edc94c727fbc3ce0bbf3b8e0720e2dfd",
+        "458a96d30262d780bb2c2aa8f43abb26"
+      ],
+      "bytes": 85440,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a": {
+      "sha256_chunks": [
+        "47967209ef6ac19a0535aab801721995",
+        "ef065ffb6a6e48da0ff765acfa8c6e2a"
+      ],
+      "bytes": 70328,
+      "mode": "0o600"
+    }
+  },
+  "deleted": [
+    {
+      "path": "/tmp/ziggy-rocks-helper-functional-target/release/deps",
+      "allocated_du_upper_bound_bytes": 5985116160
+    },
+    {
+      "path": "/tmp/ziggy-rocks-helper-functional-target/release/build",
+      "allocated_du_upper_bound_bytes": 447598592
+    },
+    {
+      "path": "/tmp/ziggy-rocks-helper-functional-target/release/.fingerprint",
+      "allocated_du_upper_bound_bytes": 50192384
+    },
+    {
+      "path": "/tmp/ziggy-rocks-helper-functional-target/release/incremental",
+      "allocated_du_upper_bound_bytes": 0
+    },
+    {
+      "path": "/tmp/ziggy-helper-interop-cache",
+      "allocated_du_upper_bound_bytes": 2338816
+    },
+    {
+      "path": "/tmp/ziggy-helper-interop-global",
+      "allocated_du_upper_bound_bytes": 71884800
+    }
+  ],
+  "status": "complete",
+  "qualification": "du values include any hardlinks/APFS allocation effects; observed free delta recorded separately. No incremental build performance claim after deleting compiler caches.",
+  "preserved_after": {
+    "/tmp/ziggy-rocks-helper-functional-target/release/ziggy-rocks-oracle": {
+      "sha256_chunks": [
+        "8e295002b44b4248d00d6627aaa47a21",
+        "2315f6f837f3a2d652f2e7f6ada69fd9"
+      ],
+      "bytes": 10394784,
+      "mode": "0o755"
+    },
+    "/tmp/ziggy-rocks-helper-functional-target/release/lander-escalator-oracle": {
+      "sha256_chunks": [
+        "d8df280cfdf2fb305549731ff7d1c18d",
+        "92793b2c21ad56925bf8b9239ada71f4"
+      ],
+      "bytes": 1229008,
+      "mode": "0o755"
+    },
+    "/tmp/ziggy-rocks-helper-functional-target/release/multicall": {
+      "sha256_chunks": [
+        "209a564b51b18ea764a52d122951516a",
+        "73d9ed2d0f7d2506733d517cfd426ea6"
+      ],
+      "bytes": 611744,
+      "mode": "0o755"
+    },
+    "/tmp/ziggy-rocks-helper-functional-target/release/eip2930": {
+      "sha256_chunks": [
+        "8488cc94f9bcb6560f27deb04e457ae5",
+        "b24a81a33da5a8a75710247ddb261185"
+      ],
+      "bytes": 651104,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/rust/main/target/release/relayer": {
+      "sha256_chunks": [
+        "f103c0d8dee889ce605751ff83de4464",
+        "f3569a12e104d27a8b1b05398c0fad39"
+      ],
+      "bytes": 110418192,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/rust/main/target/release/validator": {
+      "sha256_chunks": [
+        "3ebecdcf76ded141a16eeb5d78133320",
+        "7aebac5a483724cd3bf07d56a98693c3"
+      ],
+      "bytes": 86492544,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/rust/main/target/release/scraper": {
+      "sha256_chunks": [
+        "69d4121f958d24013e55c0afe5865396",
+        "90f39534431a97858657bae35b721c06"
+      ],
+      "bytes": 62846864,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle": {
+      "sha256_chunks": [
+        "8e295002b44b4248d00d6627aaa47a21",
+        "2315f6f837f3a2d652f2e7f6ada69fd9"
+      ],
+      "bytes": 10394784,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/pinned/ziggy-rocks-oracle-tests": {
+      "sha256_chunks": [
+        "f58f7e85d3ef2f34b33ed3abe656ceb4",
+        "4785bc144073ab6f27816ac5d82c78ef"
+      ],
+      "bytes": 10818688,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/pinned/zig-db-interop": {
+      "sha256_chunks": [
+        "3802df4d7e6eca5a92e02f034061a9e2",
+        "fa635db5d79b5492c9a92d5b37ec4a46"
+      ],
+      "bytes": 9469040,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/lander-escalator-oracle": {
+      "sha256_chunks": [
+        "d8df280cfdf2fb305549731ff7d1c18d",
+        "92793b2c21ad56925bf8b9239ada71f4"
+      ],
+      "bytes": 1229008,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/multicall": {
+      "sha256_chunks": [
+        "209a564b51b18ea764a52d122951516a",
+        "73d9ed2d0f7d2506733d517cfd426ea6"
+      ],
+      "bytes": 611744,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/eip2930": {
+      "sha256_chunks": [
+        "8488cc94f9bcb6560f27deb04e457ae5",
+        "b24a81a33da5a8a75710247ddb261185"
+      ],
+      "bytes": 651104,
+      "mode": "0o755"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a": {
+      "sha256_chunks": [
+        "4dd69640a11c7d9ca0e083abcda67fb1",
+        "6ef7f7178768adc80dd5628971e5a0f7"
+      ],
+      "bytes": 2248,
+      "mode": "0o644"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a": {
+      "sha256_chunks": [
+        "69637bb2e93e53754d16ac2c206c65e3",
+        "18372cfd90b1c45bcbb8727de934f197"
+      ],
+      "bytes": 23612472,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a": {
+      "sha256_chunks": [
+        "46b099671486a27e44a2bfe1feedc33d",
+        "a75d445f6a0b427f5ee6a0a5d517b8c7"
+      ],
+      "bytes": 46848,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a": {
+      "sha256_chunks": [
+        "0d127682f40c021aaa7ac1a2be83a9e1",
+        "4a7de4e5586007db541babdd4709aea5"
+      ],
+      "bytes": 171664,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a": {
+      "sha256_chunks": [
+        "06de5b23f0e2e439d2754cb1fc4f9322",
+        "c4f8fde79dd2e008beb9443efa6afb8c"
+      ],
+      "bytes": 913048,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a": {
+      "sha256_chunks": [
+        "edc94c727fbc3ce0bbf3b8e0720e2dfd",
+        "458a96d30262d780bb2c2aa8f43abb26"
+      ],
+      "bytes": 85440,
+      "mode": "0o600"
+    },
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a": {
+      "sha256_chunks": [
+        "47967209ef6ac19a0535aab801721995",
+        "ef065ffb6a6e48da0ff765acfa8c6e2a"
+      ],
+      "bytes": 70328,
+      "mode": "0o600"
+    }
+  },
+  "free_after_bytes": 43151159296,
+  "observed_free_delta_bytes": 6347165696
+}

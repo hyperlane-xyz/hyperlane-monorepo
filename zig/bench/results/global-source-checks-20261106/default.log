@@ -1,0 +1,89 @@
+test
++- run test
+   +- compile test ReleaseSafe native 25 errors
+error: undefined symbol: _PQfinish
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_db.pool.Pool.deinit
+error: undefined symbol: _rocksdb_close
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.deinit
+error: undefined symbol: _rocksdb_free
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_db.rocks.Typed.get
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_db.rocks.Typed.get
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_db.rocks.Typed.get
+    note: referenced 3 more times
+error: undefined symbol: _rocksdb_get
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_db.rocks.Typed.get
+error: undefined symbol: _rocksdb_open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_options_create
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_options_destroy
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_options_set_create_if_missing
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_options_set_keep_log_file_num
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_options_set_max_log_file_size
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_put
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.storeGasWatermark
+error: undefined symbol: _rocksdb_readoptions_create
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_readoptions_destroy
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.deinit
+error: undefined symbol: _rocksdb_write
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_db.rocks.TypedBatch.commit
+error: undefined symbol: _rocksdb_writebatch_create
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.putPayment
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.indexing.source.Core(agents.store.Store).persist
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.indexing.source.Core(agents.store.Store).persist
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.indexing.source.Core(agents.store.Store).persist
+    note: referenced 3 more times
+error: undefined symbol: _rocksdb_writebatch_delete
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.delete__anon_734945
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.delete__anon_735048
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.indexing.source.Core(agents.store.Store).persist
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.indexing.source.Core(agents.store.Store).persist
+error: undefined symbol: _rocksdb_writebatch_destroy
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_db.rocks.TypedBatch.commit
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.putPayment
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.putPayment
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.putPayment
+    note: referenced 19 more times
+error: undefined symbol: _rocksdb_writebatch_put
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.updateMaximum
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.put__anon_734977
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.put__anon_734991
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.store.Store.put__anon_735244
+    note: referenced 9 more times
+error: undefined symbol: _rocksdb_writeoptions_create
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_writeoptions_destroy
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.deinit
+error: undefined symbol: _rocksdb_writeoptions_disable_WAL
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _rocksdb_writeoptions_set_sync
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _ziggy_rocksdb_abi_version
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _ziggy_rocksdb_header_version
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: undefined symbol: _ziggy_rocksdb_runtime_version
+    note: referenced by .zig-cache/o/df8c73a1ffdca1a1032e34d8cf282f20/test_zcu.o:_agents.validator.fetch_backoff_test.Database.open
+error: the following command failed with 25 compilation errors:
+/private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig test -OReleaseSafe -Mroot=/Users/pbio/work/ziggy/zig/src/root.zig -lc --cache-dir .zig-cache --global-cache-dir /Users/pbio/.cache/zig --name test --zig-lib-dir /private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/lib/ --listen=-
+
+Build Summary: 0/3 steps succeeded; 1 failed
+test transitive failure
++- run test transitive failure
+   +- compile test ReleaseSafe native 25 errors
+
+error: the following build command failed with exit code 1:
+.zig-cache/o/20dc4507bd90e07a74d1d71bcb8ed1c6/build /private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig /private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/lib /Users/pbio/work/ziggy/zig .zig-cache /Users/pbio/.cache/zig --seed 0x90c6087 -Z4a42c707cb428986 test -Doptimize=ReleaseSafe --summary all

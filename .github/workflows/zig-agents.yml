@@ -1,0 +1,249 @@
+name: zig-agents
+
+on:
+  pull_request:
+    paths:
+      - 'zig/**'
+      - 'rust/main/Cargo.toml'
+      - 'rust/main/Cargo.lock'
+      - 'rust/main/hyperlane-core/**'
+      - 'rust/main/agents/scraper/migration/**'
+      - 'vectors/**'
+      - 'docs/zig-agent-rewrite/container.md'
+      - '.github/workflows/zig-agents.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'zig/**'
+      - 'rust/main/Cargo.toml'
+      - 'rust/main/Cargo.lock'
+      - 'rust/main/hyperlane-core/**'
+      - 'rust/main/agents/scraper/migration/**'
+      - 'vectors/**'
+      - 'docs/zig-agent-rewrite/container.md'
+      - '.github/workflows/zig-agents.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zig-agents-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  POSTGRES_DIGEST_A: 933463a6c8eba2b9f5cd414138738cd8
+  POSTGRES_DIGEST_B: d5519cd2c471214c222652f547a66a32
+
+jobs:
+  unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        mode: [ReleaseSafe, ReleaseFast]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Zig
+        run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
+      - name: Check formatting
+        run: '"$ZIG" fmt --check zig/build.zig zig/src zig/bench/main.zig'
+      - name: Test
+        run: python3 zig/tools/zig.py build test -Doptimize=${{ matrix.mode }} --summary all
+
+  evm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: '.nvmrc'
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
+        with:
+          version: v1.5.0
+      - name: Install pinned Zig
+        run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
+      - name: Build integration fixture
+        run: python3 zig/tools/zig.py build integration-driver -Doptimize=ReleaseSafe
+      - name: Exercise repository Solidity contracts
+        run: python3 zig/integration/evm.py --output zig/integration/.cache/result.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-evm-integration
+          path: zig/integration/.cache/result.json
+          if-no-files-found: ignore
+
+  native-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: '.nvmrc'
+      - name: Install pinned Zig
+        run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
+      - name: Exercise actual native HTTP/2 and cancellation
+        run: python3 zig/tools/native_http_tests.py
+
+  native-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      HYPERLANE_CURL_LIBRARY: libcurl.so.4
+      HYPERLANE_LIBCRYPTO_LIBRARY: libcrypto.so.3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: '.nvmrc'
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
+        with:
+          version: v1.5.0
+      - name: Install native build requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang cmake libclang-dev libcurl4-openssl-dev libpq-dev libssl-dev make pkg-config python3
+      - name: Select Rust 1.98.0
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup default 1.98.0
+      - name: Install pinned Zig
+        run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
+      - name: Build pinned RocksDB 10.4.2 archives
+        run: |
+          mkdir -p zig/bench/results/native-linux
+          python3 zig/tools/fixture_pack.py restore-locks
+          python3 zig/tools/native_deps.py --restore-only
+          cargo +1.98.0 fetch --locked --manifest-path zig/native/rocks/Cargo.toml
+          python3 zig/tools/native_deps.py --offline --jobs 4 \
+            --target-dir zig/native/rocks/target-ci \
+            --output zig/bench/results/native-linux/deps \
+            --format json > zig/bench/results/native-linux/bootstrap.json
+          echo "LIBS=$(python3 -c 'import json; print(json.load(open("zig/bench/results/native-linux/deps/manifest.json"))["native_db_libs"])')" >> "$GITHUB_ENV"
+      - name: Resolve actual libpq and GNU unwind ELFs
+        run: |
+          LIBPQ="$(readlink -f "$(pkg-config --variable=libdir libpq)/libpq.so.5")"
+          GNU_UNWIND="$(readlink -f "$(c++ -print-file-name=libgcc_s.so.1)")"
+          readelf -h "$LIBPQ" "$GNU_UNWIND"
+          echo "LIBPQ=$LIBPQ" >> "$GITHUB_ENV"
+          echo "LIBS=$LIBS,$GNU_UNWIND" >> "$GITHUB_ENV"
+      - name: Test native DB and build relayer/validator
+        run: |
+          python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
+            python3 zig/tools/zig.py build -j4 native-db-test relayer validator \
+            -Doptimize=ReleaseSafe "-Dnative-db-libs=$LIBS" --summary all
+      - name: Test durable directory fsync variants
+        run: |
+          IFS=',' read -r -a native_libs <<< "$LIBS"
+          python3 zig/tools/zig.py test src/durable_directory_tests.zig -O ReleaseSafe -j4 -lc -lstdc++ "${native_libs[@]}"
+      - name: Build scraper
+        run: python3 zig/tools/zig.py build -j4 scraper -Doptimize=ReleaseSafe "-Dlibpq-library=$LIBPQ"
+      - name: Compile relayer Bridge Solidity fixtures
+        run: python3 zig/integration/relayer_process.py --compile-only
+      - name: Test native WS and WSS transports
+        run: |
+          openssl version
+          export HYPERLANE_CURL_LIBRARY=libcurl.so.4
+          export HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3
+          python3 zig/tools/zig.py test src/socket_owner_tests.zig -O ReleaseSafe -j4 -lc
+          python3 zig/tools/zig.py test src/websocket_delegated_tests.zig -O ReleaseSafe -j4 -lc
+      - name: Test relayer Bridge fixtures from repository root
+        run: |
+          mkdir -p zig/bench/results/native-linux
+          IFS=',' read -r -a native_libs <<< "$LIBS"
+          python3 zig/tools/zig.py build-exe src/relayer_bridge_tests.zig -O ReleaseSafe -j4 -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"
+          cd "$GITHUB_WORKSPACE"
+          ./zig/bench/results/native-linux/relayer_bridge_tests
+      - name: Test exact Rust regex semantics
+        run: |
+          python3 zig/src/ops/tools/locked.py --toolchain 1.98.0
+          export ZIGGY_REGEX_LIBRARY="$PWD/zig/src/ops/regex-native/target/release/libziggy_regex.so"
+          python3 zig/tools/zig.py test src/ops_tests.zig -O ReleaseSafe -lc
+      - name: Test PostgreSQL 16.15 and all 21 migrations
+        run: |
+          POSTGRES_IMAGE="postgres:16.15@sha256:${POSTGRES_DIGEST_A}${POSTGRES_DIGEST_B}"
+          docker pull "$POSTGRES_IMAGE"
+          python3 zig/tools/native_http_tests.py --timeout-seconds 1800 -- \
+            python3 zig/integration/postgres.py --compiler "$ZIG" \
+            --libpq-library "$LIBPQ" --image "$POSTGRES_IMAGE" \
+            --scraper-binary zig/zig-out/bin/scraper \
+            --output zig/bench/results/native-linux/postgres
+          python3 -c 'import json; r=json.load(open("zig/bench/results/native-linux/postgres/postgres-integration.json")); assert r["production_migrations_applied"] == 21; assert "16.15" in r["server"]'
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-native-linux
+          path: |
+            zig/bench/results/native-linux/
+            zig/zig-out/bin/
+          if-no-files-found: warn
+
+  container:
+    needs: native-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: zig-native-linux
+          path: zig
+      - name: Restore executable permissions and check static package
+        run: |
+          chmod +x zig/entrypoint.sh zig/zig-out/bin/*
+          python3 zig/tools/container_check.py static --output zig/bench/results/container/static.json
+      - name: Build core and fixture-only Linux migration images
+        run: |
+          docker build --build-arg BUILD_JOBS=4 --target runtime-core --tag zig-agents:ci-core -f zig/Dockerfile .
+          docker build --build-arg BUILD_JOBS=4 --target migration-image --tag zig-agents:ci-migration -f zig/Dockerfile .
+      - name: Check image and run local SIGTERM/restart smoke
+        run: python3 zig/tools/container_check.py runtime --image zig-agents:ci-core --smoke --migration-image zig-agents:ci-migration --output zig/bench/results/container/runtime.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-container-core
+          path: zig/bench/results/container/
+          if-no-files-found: warn
+
+  vm-images:
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [starknet, aleo]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Check static package
+        run: |
+          chmod +x zig/entrypoint.sh
+          python3 zig/tools/container_check.py static --output zig/bench/results/container-${{ matrix.variant }}/static.json
+      - name: Build qualified SDK image
+        run: docker build --build-arg BUILD_JOBS=4 --target runtime-${{ matrix.variant }} --tag zig-agents:ci-${{ matrix.variant }} -f zig/Dockerfile .
+      - name: Check SDK image linkage and role help
+        run: python3 zig/tools/container_check.py runtime --image zig-agents:ci-${{ matrix.variant }} --output zig/bench/results/container-${{ matrix.variant }}/runtime.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-container-${{ matrix.variant }}
+          path: zig/bench/results/container-${{ matrix.variant }}/
+          if-no-files-found: warn

@@ -1,0 +1,23 @@
+1/22 websocket_delegated_tests.test.native WS handshake fragmented ping masked subscribe close and partial writes...OK
+2/22 websocket_delegated_tests.test.native WS partially sent application frame finishes before pong...OK
+3/22 websocket_delegated_tests.test.native WS coalesced large frame preserves payload and cross-fragment UTF8...OK
+4/22 websocket_delegated_tests.test.native WS message cap fails closed without desynchronizing ownership...OK
+5/22 websocket_delegated_tests.test.native wait uses socket readiness for complete not partial buffered frames...OK
+6/22 websocket_delegated_tests.test.native WS reconnect generations EOF cancel deadline and no WSS downgrade...OK
+7/22 websocket_delegated_tests.test.native WSS verifies CA hostname and rejects wrong hostname or untrusted certificate...OK
+8/22 websocket_delegated_tests.test.Rust subscription JSON sequence gas and optional fields match exactly...OK
+9/22 websocket_delegated_tests.test.Rust server envelopes StringOrNumber and malformed boundaries...OK
+10/22 websocket_delegated_tests.test.confirmation deep owns strings domains and both cursor variants...OK
+11/22 websocket_delegated_tests.test.moved Document preserves arena allocator and parsed values...OK
+12/22 websocket_delegated_tests.test.subscription acknowledgement ordering and deep comparison...OK
+13/22 websocket_delegated_tests.test.address Merkle identity and source health boundaries...OK
+14/22 websocket_delegated_tests.test.schema allocation failures release every owned document...OK
+15/22 net.websocket.testing.test.fixture teardown wakes accept when a test aborts before any expected reconnect connection...OK
+16/22 net.websocket.testing.test.fixture teardown shuts down an active incomplete handshake without closing a reused descriptor...OK
+17/22 net.websocket.testing.test.fixture teardown retires reconnect accept after only the first expected connection completes...OK
+18/22 evm.codecs.test.strict quantities and hex data...OK
+19/22 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+20/22 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+21/22 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+22/22 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+All 22 tests passed.

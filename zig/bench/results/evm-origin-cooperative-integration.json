@@ -1,0 +1,133 @@
+{
+  "passed": true,
+  "scope": "Real scheduled cooperative EVM origin, three streams and Rust DB restart proof.\n\nDisposable Anvil/repository contracts; public test data only. Correctness evidence,\nnot a Rust-versus-Zig benchmark or production deployment.\n",
+  "driver_sha256_chunks": [
+    "d9df653fd63a3d48a4174027921e7c41",
+    "3828f1a600025b336c6f681eeb550e91"
+  ],
+  "native_manifest": "zig/native/rocks/out-final/manifest.json",
+  "first": {
+    "messages": 3,
+    "scheduled_worker_cycles": 5,
+    "suspended_read_continuations": 35,
+    "gas_payments": 3,
+    "gas_watermark": 0,
+    "native_rocksdb": true,
+    "historical_proofs": 3,
+    "passed": true
+  },
+  "reopen": {
+    "messages": 3,
+    "scheduled_worker_cycles": 1,
+    "suspended_read_continuations": 4,
+    "gas_payments": 3,
+    "gas_watermark": 0,
+    "native_rocksdb": true,
+    "historical_proofs": 3,
+    "passed": true
+  },
+  "rust_readback": {
+    "messages": [
+      {
+        "id_chunks": [
+          "f143a1059c1dcd8a7d83f8a80e4d671e",
+          "43f862e05ea5f023bccec7aad8d4f481"
+        ],
+        "insertion_id_chunks": [
+          "f143a1059c1dcd8a7d83f8a80e4d671e",
+          "43f862e05ea5f023bccec7aad8d4f481"
+        ],
+        "nonce": 0,
+        "payloads": [],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": null,
+        "spent": {
+          "gas_used": "0",
+          "tokens_used": "0"
+        }
+      },
+      {
+        "id_chunks": [
+          "2482798ecad3ce8b62f326ffe5c90e48",
+          "40e870bfc3f2206742fb29664e1f9ed8"
+        ],
+        "insertion_id_chunks": [
+          "2482798ecad3ce8b62f326ffe5c90e48",
+          "40e870bfc3f2206742fb29664e1f9ed8"
+        ],
+        "nonce": 1,
+        "payloads": [],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": null,
+        "spent": {
+          "gas_used": "0",
+          "tokens_used": "0"
+        }
+      },
+      {
+        "id_chunks": [
+          "6272c5e5be7b3cf039c3804408dac7b8",
+          "fd91a8f5a39921c1cfac5d7e0b967027"
+        ],
+        "insertion_id_chunks": [
+          "6272c5e5be7b3cf039c3804408dac7b8",
+          "fd91a8f5a39921c1cfac5d7e0b967027"
+        ],
+        "nonce": 2,
+        "payloads": [],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": null,
+        "spent": {
+          "gas_used": "0",
+          "tokens_used": "0"
+        }
+      }
+    ],
+    "reader": "actual production HyperlaneRocksDB + FullPayload decoder",
+    "sealed_payload_links": []
+  },
+  "restart_payment_dedup": true,
+  "rpc_methods": {
+    "eth_chainId": 2,
+    "eth_getBlockByNumber": 29,
+    "eth_call": 7,
+    "eth_getLogs": 3
+  },
+  "rust_source_message_id_parity": true,
+  "source": "actual agents/origin_tasks.zig + evm_origin.zig + native RocksDB + repository Solidity logs",
+  "source_hash_scope": "recorded after successful run; executable digest identifies exact tested binary",
+  "source_sha256_chunks": {
+    "zig/src/origin_cooperative_integration.zig": [
+      "13b9a89d5fbe9d4f61902497264254b5",
+      "de3fb5530a2309aa7bee32dad31a0bb8"
+    ],
+    "zig/integration/origin_cooperative.py": [
+      "a52e0ee75efd070d932a1baa97e413bd",
+      "f2086bd305e2c5f0af1d37a38006c96c"
+    ],
+    "zig/src/agents/origin_tasks.zig": [
+      "f5ab40fecb24d3f9e367eecaca4ec667",
+      "5884a959bb9092bd14bfe02c5ce18251"
+    ],
+    "zig/src/agents/evm_origin.zig": [
+      "1debded2433f1485f933c56eb0c2005b",
+      "6f488c068879810cc68da2923e5d6035"
+    ],
+    "zig/src/net/read_replay.zig": [
+      "d17ffc53ac027d4ea169fe5b4133a478",
+      "e0ce83fa71f773bc1a655495f338b917"
+    ]
+  }
+}

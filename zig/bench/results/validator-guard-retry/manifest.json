@@ -1,0 +1,74 @@
+{
+  "scope": "Retained reorg-guard persistence and immediate announcement/signing gate, actual native RocksDB and LocalStore, public key11; no live production state.",
+  "passed": true,
+  "faults": [
+    "before actual guard WriteBatch.commitSync",
+    "after actual successful commitSync returning an ambiguous-outcome error",
+    "external guard callback fails before write"
+  ],
+  "assertions": [
+    "in-memory halt and announcement atomic signal set before failed guard persistence",
+    "full event retained across retry",
+    "uncertain commit visibility is insufficient: later retry performs another sync commit and readback",
+    "backend guard failure retains pending status",
+    "same DB reopen halted and no additional signer call",
+    "constructor gate prevents DB/credential/client I/O"
+  ],
+  "fault_hook": "Compile-time test-only flags around actual Rocks guard commit; production has no commit override.",
+  "native_suite": {
+    "passed": 159,
+    "optional_skipped": 16,
+    "failed": 0
+  },
+  "focused_guard_tests": 3,
+  "constructor_tests": 13,
+  "source_sha256_chunks": {
+    "zig/src/agents/validator.zig": [
+      "e28d2f2ff4b66b440cd0cab8bfe94716",
+      "8697373e247d6d4e70ebd0469b35eb77"
+    ],
+    "zig/src/agents/validator/concurrent_test.zig": [
+      "3b22c9222757c6cbfe81ced8c83d9616",
+      "f4341534ad069d582172e80c98ada22f"
+    ],
+    "zig/src/agents/validator_task.zig": [
+      "8fe4790e318e65d7ed9b75114a1bfb8b",
+      "638816c4bbd022a56dd2582eee82f71b"
+    ],
+    "zig/src/agents/validator_task_test.zig": [
+      "345c9a756292047ab210296ce1e856cf",
+      "d4aa96625b30892981e7f04b47263db0"
+    ],
+    "zig/src/agents/validator/announcement_task.zig": [
+      "ff911b12ee1746c20d1f601de54e6626",
+      "523e5013c1d851fe211507b8869ad773"
+    ],
+    "zig/src/agents/validator/evm.zig": [
+      "8025d70f1f29b024961f5a13935b9f6a",
+      "621fc326f22576c5d85ae98f4d546d85"
+    ],
+    "zig/src/agents/validator/generic.zig": [
+      "0a4138eea9396ecf35509574e20f6020",
+      "4cbc38be00bb3f6f68d01d954e2c47ce"
+    ]
+  },
+  "logs_sha256_chunks": {
+    "constructors.log": [
+      "644b0b16499d6280dc8191657058dba0",
+      "e40674e2853995e03df5850caefbd191"
+    ],
+    "native.log": [
+      "784e24af68d6e613ccd99f2a591e79d7",
+      "c261852ba09517e6b83774f1e0de1557"
+    ],
+    "independent-review-before.md": [
+      "bbe4ecccb7d4b52d9f6fed80ed4508fe",
+      "2281c989e6ba6624225dbd1b1259d386"
+    ],
+    "focused.log": [
+      "8881f4cd8a848a3635bd11c2b4c67580",
+      "23193514230f9c6ca03755546b606138"
+    ]
+  },
+  "limits": "A new guard cannot survive SIGKILL or permanent storage failure before any successful fsync. The retained process keeps signing halted and retries; post-drain shutdown reports unpersisted guards. Previously durable signed-history authentication remains required on reopen."
+}

@@ -1,0 +1,21 @@
+[package]
+name = "ziggy-aleo-vm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[lib]
+crate-type = ["cdylib", "rlib"]
+[dependencies]
+snarkvm = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "6c5b8762d8058287d1d2ca27c391aeb0eccdf9fa", default-features = false, features = ["algorithms", "circuit", "console", "ledger", "parameters", "synthesizer", "utilities", "parameters_no_std_out", "test_targets", "test_consensus_heights"] }
+snarkvm-parameters = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "6c5b8762d8058287d1d2ca27c391aeb0eccdf9fa", features=["filesystem"] }
+aleo-std = "=1.0.3"
+rand_chacha = "=0.10.0"
+serde = {version="1.0",features=["derive"]}
+serde_json = "1.0"
+anyhow = "1.0"
+zeroize = "=1.8.1"
+[profile.release]
+strip = true
+
+[patch.crates-io]
+aleo-std-storage = { path="vendor/aleo-std-storage-1.0.3" }

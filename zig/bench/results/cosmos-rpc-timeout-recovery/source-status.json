@@ -1,0 +1,165 @@
+{
+  "scope": "Eight selected hashes recorded before and after final19; matching current bytes archived only where digest matches. Not a complete transitive source snapshot.",
+  "files": [
+    {
+      "source": "zig/src/evm/pool.zig",
+      "recorded_before_sha256_chunks": [
+        "dc5d8ea4dd9460a2fded82e51838f",
+        "b44b7bf77f1df9832d5a5888c438b",
+        "1172e0"
+      ],
+      "recorded_after_sha256_chunks": [
+        "dc5d8ea4dd9460a2fded82e51838f",
+        "b44b7bf77f1df9832d5a5888c438b",
+        "1172e0"
+      ],
+      "current_sha256_chunks": [
+        "dc5d8ea4dd9460a2fded82e51838f",
+        "b44b7bf77f1df9832d5a5888c438b",
+        "1172e0"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/evm/pool.zig.source.gz"
+    },
+    {
+      "source": "zig/src/net/read_replay.zig",
+      "recorded_before_sha256_chunks": [
+        "31ad6faec0e3e82300b0045a5c9b1",
+        "1c0cb6637efaf2d295225381fafaf",
+        "6c0225"
+      ],
+      "recorded_after_sha256_chunks": [
+        "31ad6faec0e3e82300b0045a5c9b1",
+        "1c0cb6637efaf2d295225381fafaf",
+        "6c0225"
+      ],
+      "current_sha256_chunks": [
+        "31ad6faec0e3e82300b0045a5c9b1",
+        "1c0cb6637efaf2d295225381fafaf",
+        "6c0225"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/net/read_replay.zig.source.gz"
+    },
+    {
+      "source": "zig/src/cosmos_rpc_timeout_testing.zig",
+      "recorded_before_sha256_chunks": [
+        "6f288d4aafb7798ce174f43a8efb8",
+        "83825493e304a3aa82dbfc5da9ec9",
+        "cd17c9"
+      ],
+      "recorded_after_sha256_chunks": [
+        "6f288d4aafb7798ce174f43a8efb8",
+        "83825493e304a3aa82dbfc5da9ec9",
+        "cd17c9"
+      ],
+      "current_sha256_chunks": [
+        "6f288d4aafb7798ce174f43a8efb8",
+        "83825493e304a3aa82dbfc5da9ec9",
+        "cd17c9"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/cosmos_rpc_timeout_testing.zig.source.gz"
+    },
+    {
+      "source": "zig/src/cosmos_rpc_timeout_tests.zig",
+      "recorded_before_sha256_chunks": [
+        "22d04c1f7300013f23b6eccc1004f",
+        "d332965fe6be3420279a97b38ca75",
+        "4f0fda"
+      ],
+      "recorded_after_sha256_chunks": [
+        "22d04c1f7300013f23b6eccc1004f",
+        "d332965fe6be3420279a97b38ca75",
+        "4f0fda"
+      ],
+      "current_sha256_chunks": [
+        "22d04c1f7300013f23b6eccc1004f",
+        "d332965fe6be3420279a97b38ca75",
+        "4f0fda"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/cosmos_rpc_timeout_tests.zig.source.gz"
+    },
+    {
+      "source": "zig/src/agents/chain_source.zig",
+      "recorded_before_sha256_chunks": [
+        "40e868c6880c3de6aafdfe81338f6",
+        "0c23aa0253e54f5b714ed5ff963b5",
+        "5a5912"
+      ],
+      "recorded_after_sha256_chunks": [
+        "40e868c6880c3de6aafdfe81338f6",
+        "0c23aa0253e54f5b714ed5ff963b5",
+        "5a5912"
+      ],
+      "current_sha256_chunks": [
+        "40e868c6880c3de6aafdfe81338f6",
+        "0c23aa0253e54f5b714ed5ff963b5",
+        "5a5912"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/agents/chain_source.zig.source.gz"
+    },
+    {
+      "source": "zig/src/agents/chain_source_testing.zig",
+      "recorded_before_sha256_chunks": [
+        "55b0bb6580956ad124d6d92628377",
+        "fa1d921e4a57e5d1244f7b6890f51",
+        "ef718a"
+      ],
+      "recorded_after_sha256_chunks": [
+        "55b0bb6580956ad124d6d92628377",
+        "fa1d921e4a57e5d1244f7b6890f51",
+        "ef718a"
+      ],
+      "current_sha256_chunks": [
+        "55b0bb6580956ad124d6d92628377",
+        "fa1d921e4a57e5d1244f7b6890f51",
+        "ef718a"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/agents/chain_source_testing.zig.source.gz"
+    },
+    {
+      "source": "zig/src/cloud/http.zig",
+      "recorded_before_sha256_chunks": [
+        "d25513a56d805c3b63f52bda1add1",
+        "fd64d23d1a2babf09ff5d0cedfffb",
+        "7bbb2a"
+      ],
+      "recorded_after_sha256_chunks": [
+        "d25513a56d805c3b63f52bda1add1",
+        "fd64d23d1a2babf09ff5d0cedfffb",
+        "7bbb2a"
+      ],
+      "current_sha256_chunks": [
+        "d25513a56d805c3b63f52bda1add1",
+        "fd64d23d1a2babf09ff5d0cedfffb",
+        "7bbb2a"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/cloud/http.zig.source.gz"
+    },
+    {
+      "source": "zig/src/agents/destination/factory.zig",
+      "recorded_before_sha256_chunks": [
+        "07c09af31bad93b6f672742b3a0e3",
+        "31890768c959d6a544034dd50541f",
+        "34fb13"
+      ],
+      "recorded_after_sha256_chunks": [
+        "07c09af31bad93b6f672742b3a0e3",
+        "31890768c959d6a544034dd50541f",
+        "34fb13"
+      ],
+      "current_sha256_chunks": [
+        "07c09af31bad93b6f672742b3a0e3",
+        "31890768c959d6a544034dd50541f",
+        "34fb13"
+      ],
+      "current_matches_recorded": true,
+      "source_archive": "sources/zig/src/agents/destination/factory.zig.source.gz"
+    }
+  ]
+}

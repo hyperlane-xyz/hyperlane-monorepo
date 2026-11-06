@@ -1,0 +1,717 @@
+{
+  "scope": "Sustained contiguous finalized Ethereum read-only capture + Rust codec/ID/count parity; no signing/storage leases/publication/broadcast; not full-agent parity",
+  "paused": true,
+  "pause_file": "zig/integration/.cache/shadow-paused",
+  "snapshot": "five-hour-observation.json",
+  "snapshot_sha256_chunks": [
+    "0e7ae43094a4713d0e0e690d0cf6cd32",
+    "355c14a90e05291ab5f8473768e009e6"
+  ],
+  "active_observation_seconds": 19024.71681295801,
+  "from_block": 26350112,
+  "to_block": 26351682,
+  "captured_blocks": 1571,
+  "dispatches": 147,
+  "insertions": 147,
+  "all_successful_windows_contiguous": true,
+  "no_parity_fatal": true,
+  "http_transport_failures": {},
+  "last_retryable_loop_error": "EndpointError",
+  "error_accounting_qualification": "The running watcher counts HTTP/network forwarding failures but not every JSON-RPC/loop EndpointError. Last retryable EndpointError is retained; total such retries was not measured. This5h capture must not be described as zero endpoint failures. Failed windows retry the same contiguous starting block.",
+  "first_hour_preserved_separately": "first-hour-manifest.json",
+  "windows": [
+    {
+      "path": "window-000000.json",
+      "sha256_chunks": [
+        "b109fe643313aea7a1343e0f0d39f709",
+        "2189afc025065b4035a56851323e7d23"
+      ]
+    },
+    {
+      "path": "window-000001.json",
+      "sha256_chunks": [
+        "f01670c83f543f8137ff702f3d575616",
+        "8ebe10c34a84f6dcff494cf9894780b8"
+      ]
+    },
+    {
+      "path": "window-000002.json",
+      "sha256_chunks": [
+        "5dff66761abbb1ef0d5ce905d12977a5",
+        "c3a903af0dbbc4832d05a733adcb0314"
+      ]
+    },
+    {
+      "path": "window-000003.json",
+      "sha256_chunks": [
+        "9952dff3df34571e532fbdabbd60f2e2",
+        "917be9eb833d47c9aa8215440870aafa"
+      ]
+    },
+    {
+      "path": "window-000004.json",
+      "sha256_chunks": [
+        "85d7450a8ec92e1e4d4d09eb5aefe73d",
+        "ea878ae2c87795b43178dcf6cbc9ba18"
+      ]
+    },
+    {
+      "path": "window-000005.json",
+      "sha256_chunks": [
+        "d470a4efac659fab278efa95cc1b4896",
+        "076acd4cb68244635281c03b24d935ea"
+      ]
+    },
+    {
+      "path": "window-000006.json",
+      "sha256_chunks": [
+        "8cc1ec05bb85c5606c8a27bb7db21209",
+        "54680134fa54fb1e3cc848871c94ffbb"
+      ]
+    },
+    {
+      "path": "window-000007.json",
+      "sha256_chunks": [
+        "f0f939456867f06ca66589727de2d9fe",
+        "56e00fb59ddce04c74c06cd8179891e3"
+      ]
+    },
+    {
+      "path": "window-000008.json",
+      "sha256_chunks": [
+        "7793ff57b81dc2a566e50d75d326559c",
+        "a6c6545602febe3968130ff17d6a0896"
+      ]
+    },
+    {
+      "path": "window-000009.json",
+      "sha256_chunks": [
+        "8d8900d6a010074ab2d2ff585d8dd75e",
+        "bbb5df135f6b9987117fddc321029b9d"
+      ]
+    },
+    {
+      "path": "window-000010.json",
+      "sha256_chunks": [
+        "9797f2a6854425c40805e7cba852a29b",
+        "5537ea9c2fe2d7079c398eb83b1f5c5e"
+      ]
+    },
+    {
+      "path": "window-000011.json",
+      "sha256_chunks": [
+        "75dba20195a4dc09da7e62663b968525",
+        "520ec5e50e747295af6998927b8557b9"
+      ]
+    },
+    {
+      "path": "window-000012.json",
+      "sha256_chunks": [
+        "6c20c893526bbdae1a32002d68b1cbb7",
+        "efc2f1567c2dbd8bfdd523da12622450"
+      ]
+    },
+    {
+      "path": "window-000013.json",
+      "sha256_chunks": [
+        "e03693298815075e763e1e502e108988",
+        "bcfdaeb40f3945378b11f13d99b17af7"
+      ]
+    },
+    {
+      "path": "window-000014.json",
+      "sha256_chunks": [
+        "1bcfe35cad486070ea868fad84620d1a",
+        "25118b4c3afc8e7240e8bc559bd8e110"
+      ]
+    },
+    {
+      "path": "window-000015.json",
+      "sha256_chunks": [
+        "0f18862050765b0e98b7bdab1c9acb8b",
+        "c52cae9ab26e8a79966a1eac2b36a0eb"
+      ]
+    },
+    {
+      "path": "window-000016.json",
+      "sha256_chunks": [
+        "2d39d19e853ce050cd3c0f7b2c3ca70d",
+        "d974331cfed8b8f00a0ea8c3a9196087"
+      ]
+    },
+    {
+      "path": "window-000017.json",
+      "sha256_chunks": [
+        "d49c8d5b21106442fcd2b657c02dfdea",
+        "accd70a166efd8a333eb78fccc172054"
+      ]
+    },
+    {
+      "path": "window-000018.json",
+      "sha256_chunks": [
+        "a29ac7e778b010ff01b149544123605e",
+        "514d42da1eacaf9acc846d3eb91867b5"
+      ]
+    },
+    {
+      "path": "window-000019.json",
+      "sha256_chunks": [
+        "c0d8cf739350879b5edaffc290196c44",
+        "1e90ec2f616c4397b2814e765acc0e4d"
+      ]
+    },
+    {
+      "path": "window-000020.json",
+      "sha256_chunks": [
+        "bd2ed58b6e2488608a252d889b3ecfba",
+        "a47c64cd8b2b1f276b5681d5b0c05062"
+      ]
+    },
+    {
+      "path": "window-000021.json",
+      "sha256_chunks": [
+        "6d6c982755e2f4a9941b591d1ed0c672",
+        "3e147e05fc664cbb41d679844e2ea992"
+      ]
+    },
+    {
+      "path": "window-000022.json",
+      "sha256_chunks": [
+        "9f8724feb94ac06ac3287fcfa1c514af",
+        "788b1c81c38f4ab8e204e34251a7077b"
+      ]
+    },
+    {
+      "path": "window-000023.json",
+      "sha256_chunks": [
+        "145f304add3f92329fc41ef6077e77b3",
+        "fb226419deb057b2cfb8c174ae720ebd"
+      ]
+    },
+    {
+      "path": "window-000024.json",
+      "sha256_chunks": [
+        "359136acee0cee49327700315beab84a",
+        "f7c7fc64c7d5f9b02fcb954e77d4ba9b"
+      ]
+    },
+    {
+      "path": "window-000025.json",
+      "sha256_chunks": [
+        "d824cdf2989b23408e04ee3c900d7c49",
+        "50bf8a11e6846f7f39b1c05f289fcb97"
+      ]
+    },
+    {
+      "path": "window-000026.json",
+      "sha256_chunks": [
+        "51680b2ba8c11663e7d16674047e542b",
+        "f3de06bd776e10d11c9fc8558a12810b"
+      ]
+    },
+    {
+      "path": "window-000027.json",
+      "sha256_chunks": [
+        "3b5f945afdcc93e93fff0c593522bce2",
+        "52fed66fead1da60fb4154ab6dfcefe7"
+      ]
+    },
+    {
+      "path": "window-000028.json",
+      "sha256_chunks": [
+        "9985fce57af4b9dcebe7cc3d2fa62e63",
+        "e2df190c9f5a3f60c562c59b391d70d4"
+      ]
+    },
+    {
+      "path": "window-000029.json",
+      "sha256_chunks": [
+        "27b57f0548e561b69a36ca4475ffe292",
+        "5e2dca79b38b7036ecdd8363f4a954fd"
+      ]
+    },
+    {
+      "path": "window-000030.json",
+      "sha256_chunks": [
+        "5680e7c8d1747a5c30610954b0ecf6c3",
+        "f0368ec76464c8fe2a86af2448bafd42"
+      ]
+    },
+    {
+      "path": "window-000031.json",
+      "sha256_chunks": [
+        "860e5b9d3e039e217efa97f7737d6c76",
+        "3bf54489d697d85b22a651b972ee844e"
+      ]
+    },
+    {
+      "path": "window-000032.json",
+      "sha256_chunks": [
+        "528306d2ddb4954289c696bc09ff2238",
+        "8c2411aa80061ec4c373f0cdb762e6f2"
+      ]
+    },
+    {
+      "path": "window-000033.json",
+      "sha256_chunks": [
+        "0dd170154c4cb5c8147ce6587c434335",
+        "f7e6df46e6ae6ae66374a210d67a587f"
+      ]
+    },
+    {
+      "path": "window-000034.json",
+      "sha256_chunks": [
+        "207d75bb526064aa657ed6a57b8cae2d",
+        "c12a518a528309cf4840f113669cb1f2"
+      ]
+    },
+    {
+      "path": "window-000035.json",
+      "sha256_chunks": [
+        "7e54a426576dba5ab2cf56eff18ce9e9",
+        "46943e21b991f4fda68a50ec58dc58bd"
+      ]
+    },
+    {
+      "path": "window-000036.json",
+      "sha256_chunks": [
+        "c33f237d112177e09685f075d85c86f9",
+        "59005695289724d78e9c8dbb756cf441"
+      ]
+    },
+    {
+      "path": "window-000037.json",
+      "sha256_chunks": [
+        "19d059a58c28579bc4492036cb33cf23",
+        "949ed97cf1fd12c10f0b5fdeeef3cf8c"
+      ]
+    },
+    {
+      "path": "window-000038.json",
+      "sha256_chunks": [
+        "8542443e95b999e1c72ad2a15a71334e",
+        "73aa95d01c60597714ef452053432eb9"
+      ]
+    },
+    {
+      "path": "window-000039.json",
+      "sha256_chunks": [
+        "cbb910cf7fd0dba66336b01158023d31",
+        "f567319965341d56974ed2476c6b1caf"
+      ]
+    },
+    {
+      "path": "window-000040.json",
+      "sha256_chunks": [
+        "479b9b0528a57ef04bd92843960ee355",
+        "0c4727e542da2760cbf6af50876473b7"
+      ]
+    },
+    {
+      "path": "window-000041.json",
+      "sha256_chunks": [
+        "6986b7f46e0313234d1da95faa8ba8f3",
+        "46550a80365b9268b6b65904d56760ad"
+      ]
+    },
+    {
+      "path": "window-000042.json",
+      "sha256_chunks": [
+        "2a806db7180ccf8d5d73f30b963cf7c2",
+        "f2da0ce13f5fba930a558c788c831f24"
+      ]
+    },
+    {
+      "path": "window-000043.json",
+      "sha256_chunks": [
+        "102cef8ac579eadff7b3e80922546b35",
+        "43649e217e7f9b5b2fa04bf81afa1456"
+      ]
+    },
+    {
+      "path": "window-000044.json",
+      "sha256_chunks": [
+        "0bedb7d9f8ac90c571d3ab5367963a66",
+        "c74e4cc3bb18dad883f1b24205796281"
+      ]
+    },
+    {
+      "path": "window-000045.json",
+      "sha256_chunks": [
+        "a5761d9b9145857366a57e474d02c4c3",
+        "1a701b813cd4482da6efb07d82fd1f49"
+      ]
+    },
+    {
+      "path": "window-000046.json",
+      "sha256_chunks": [
+        "d099886bc560ff7584ef053e076db6ac",
+        "32e489995634523643683801a79779a7"
+      ]
+    },
+    {
+      "path": "window-000047.json",
+      "sha256_chunks": [
+        "f1fbcbb4623bd889cf301f79d803dfc7",
+        "8b54914c5c1a3bfdb820b4f35a385351"
+      ]
+    },
+    {
+      "path": "window-000048.json",
+      "sha256_chunks": [
+        "88203552fc8b6fb0193fcaacac5c7a39",
+        "73fa292dc27b8bb917ded0cfe38aae44"
+      ]
+    },
+    {
+      "path": "window-000049.json",
+      "sha256_chunks": [
+        "2e0b2209d5c13d12f6ce216e32ce7056",
+        "eac36b0bcb125cf2181c6a98d6469830"
+      ]
+    },
+    {
+      "path": "window-000050.json",
+      "sha256_chunks": [
+        "f0bba9c1eb85880f150178c5ea1fa630",
+        "708a95bd08121e50f7462a95ab230d73"
+      ]
+    },
+    {
+      "path": "window-000051.json",
+      "sha256_chunks": [
+        "001cc6188b0554b3df3b43617db00397",
+        "93defead56d11d48ec0db11ac65435da"
+      ]
+    },
+    {
+      "path": "window-000052.json",
+      "sha256_chunks": [
+        "aadf2b33a6a166b072f73a8d80add190",
+        "2f2127266ee0cb9e7360ea4cb613e596"
+      ]
+    },
+    {
+      "path": "window-000053.json",
+      "sha256_chunks": [
+        "a2f10e39eab984a854f47d542d12cfd0",
+        "ff194e5de4809d6d3e4a54f577448b08"
+      ]
+    },
+    {
+      "path": "window-000054.json",
+      "sha256_chunks": [
+        "46ce8f4e5529c7ecde36ffe17064a9ea",
+        "f8a1f299a4f10fdd84523c555ec33437"
+      ]
+    },
+    {
+      "path": "window-000055.json",
+      "sha256_chunks": [
+        "7e90d093ee20f48ccc64bfeb596f776d",
+        "a932a753eb9e80e27607e9b3f09b36b9"
+      ]
+    },
+    {
+      "path": "window-000056.json",
+      "sha256_chunks": [
+        "2fa60bf194dc2eadbe698c03ca75318c",
+        "5acfdaf1541f98ee12ed2e142c2b7cac"
+      ]
+    },
+    {
+      "path": "window-000057.json",
+      "sha256_chunks": [
+        "66c922f0ca7bc3e8df0214c4e08e7716",
+        "7f0ed4d850d01162f2e6566a864e695b"
+      ]
+    },
+    {
+      "path": "window-000058.json",
+      "sha256_chunks": [
+        "5d0597ee87efc1d34fc448eddb4ccf5c",
+        "f9f39ff222799663da779bff6b0fca61"
+      ]
+    },
+    {
+      "path": "window-000059.json",
+      "sha256_chunks": [
+        "53719d5c2cacb08148572dcb2014771e",
+        "084c4a5808c072c16301ff710b314d78"
+      ]
+    },
+    {
+      "path": "window-000060.json",
+      "sha256_chunks": [
+        "8ab64ecb391df2821b9b45ffa7bd2fb0",
+        "916a25525b0fd5e977fccce880262a6e"
+      ]
+    },
+    {
+      "path": "window-000061.json",
+      "sha256_chunks": [
+        "8b74b6db609ae35017dda4ec648072ee",
+        "6af04b16c9b3754101785816546f4d9a"
+      ]
+    },
+    {
+      "path": "window-000062.json",
+      "sha256_chunks": [
+        "396e4a99a7d4a9a766162e0b9f23ab95",
+        "cddf9204643f72ed1efe2af839a312d7"
+      ]
+    },
+    {
+      "path": "window-000063.json",
+      "sha256_chunks": [
+        "85dc5c0ad6a6e0972da7efa424d60034",
+        "eb2f989cc4b45c4386c6364d7df13da3"
+      ]
+    },
+    {
+      "path": "window-000064.json",
+      "sha256_chunks": [
+        "26c4a5f47d415248c08d050bc3a4bd0a",
+        "78a339973c218302e098c4e4b52504b7"
+      ]
+    },
+    {
+      "path": "window-000065.json",
+      "sha256_chunks": [
+        "c1882600cd21424a8e109c574d9d0bcb",
+        "7bd2af43844887571290634dad8a8878"
+      ]
+    },
+    {
+      "path": "window-000066.json",
+      "sha256_chunks": [
+        "5b66d7e20df91d55c191e94300d2baec",
+        "12b3ddeacb9de0b02f301ed3e19392ee"
+      ]
+    },
+    {
+      "path": "window-000067.json",
+      "sha256_chunks": [
+        "251311c48f84810f29dedf2d40b7f19a",
+        "060d82a8c17adc007b14a237c7ca85c0"
+      ]
+    },
+    {
+      "path": "window-000068.json",
+      "sha256_chunks": [
+        "7fe8f5e1d530551942e965c043b22198",
+        "2be121ce529298c3b7126b7309075c1d"
+      ]
+    },
+    {
+      "path": "window-000069.json",
+      "sha256_chunks": [
+        "2245fa5cc6db18cdeaebaf4d5f696986",
+        "3f976e41f4a0dfedafdcf473942b2fc4"
+      ]
+    },
+    {
+      "path": "window-000070.json",
+      "sha256_chunks": [
+        "3f6934edc37a7d69a3091b36d94936b5",
+        "20f534263721e207a32e0dd493b24ee3"
+      ]
+    },
+    {
+      "path": "window-000071.json",
+      "sha256_chunks": [
+        "d36fe82127e3ada9dc5e5582c0b9b94e",
+        "eab30b6070b626f0483fb961425cabd8"
+      ]
+    },
+    {
+      "path": "window-000072.json",
+      "sha256_chunks": [
+        "a4035256221d1abb4ffef09ef54d3f3b",
+        "63e62d28931330cae46ae20cc4b1369c"
+      ]
+    },
+    {
+      "path": "window-000073.json",
+      "sha256_chunks": [
+        "4164dbc8db4c7eb61b2ce8d5773a4661",
+        "e88d2a2b705e22a3bf4c9492a0931e7d"
+      ]
+    },
+    {
+      "path": "window-000074.json",
+      "sha256_chunks": [
+        "03555bcf1ffbed4395c04dd9cb6bbd82",
+        "1d57b3dd198f742e8673fedb2c5ef4cb"
+      ]
+    },
+    {
+      "path": "window-000075.json",
+      "sha256_chunks": [
+        "e647a1340bf1e1d6760418d8cfbf2be4",
+        "4c8453c6f741579cbe4d40e893e56b05"
+      ]
+    },
+    {
+      "path": "window-000076.json",
+      "sha256_chunks": [
+        "8676ada4a23b89afbcc03eb492d5adf5",
+        "8f8cca93ad93c794816f771c36bb630c"
+      ]
+    },
+    {
+      "path": "window-000077.json",
+      "sha256_chunks": [
+        "055b400c8cbbaf9d77bcc4d92a03d9ca",
+        "7a5abc4fd5f2230346712b555cacc62c"
+      ]
+    },
+    {
+      "path": "window-000078.json",
+      "sha256_chunks": [
+        "b64d6231708cb9ecee155c0534d15014",
+        "a45001d01e2d8ad2466db28074660b07"
+      ]
+    },
+    {
+      "path": "window-000079.json",
+      "sha256_chunks": [
+        "3ccfb381dc2cfe3de85ef2ca2cacd90b",
+        "637a98316b67ea318689b39992350127"
+      ]
+    },
+    {
+      "path": "window-000080.json",
+      "sha256_chunks": [
+        "cec950abeb07351c26862b1b8f8923b7",
+        "24604bd592ba5f4a9192a3284aec5472"
+      ]
+    },
+    {
+      "path": "window-000081.json",
+      "sha256_chunks": [
+        "ef053f64b0884663eb253f6b6178207d",
+        "982021a27802bab3cb8c3929e99c82ac"
+      ]
+    },
+    {
+      "path": "window-000082.json",
+      "sha256_chunks": [
+        "0d9ed42af1bfff3fae6dae34e3d60b0c",
+        "42dc654685abe93f53b3f971d64b4307"
+      ]
+    },
+    {
+      "path": "window-000083.json",
+      "sha256_chunks": [
+        "3066dfbd5db9004f756d15a2962b2c00",
+        "2ac4963b6beda35dcb42e08b3d221d9d"
+      ]
+    },
+    {
+      "path": "window-000084.json",
+      "sha256_chunks": [
+        "4abd67b64f4dd3b5b7e02feacabcf3f3",
+        "7bb0a6d862488b8b7e01bc1ed1d3c167"
+      ]
+    },
+    {
+      "path": "window-000085.json",
+      "sha256_chunks": [
+        "b3dcefcf43714116f510a7cd5f8e40d7",
+        "485b81d1d0802930274b23bc902f8dda"
+      ]
+    },
+    {
+      "path": "window-000086.json",
+      "sha256_chunks": [
+        "f1014c35c716a665a6a8b6dcbab7ddb5",
+        "d4680b6a264d1bf010d4664e788a5933"
+      ]
+    },
+    {
+      "path": "window-000087.json",
+      "sha256_chunks": [
+        "898107feb442c548dcd5a07b93ccb0a9",
+        "760d12a6454b09b7086ec439f9eff429"
+      ]
+    },
+    {
+      "path": "window-000088.json",
+      "sha256_chunks": [
+        "fd90f036e4cdc7c8a6fd99f5a3f36fcd",
+        "27d822bf39fbd9198fe4d996cf1bdcc6"
+      ]
+    },
+    {
+      "path": "window-000089.json",
+      "sha256_chunks": [
+        "0879af8dd82c18f9b50b67cd5a170da6",
+        "5727cf959b1b8f4109cf6d8c98423022"
+      ]
+    },
+    {
+      "path": "window-000090.json",
+      "sha256_chunks": [
+        "685d26fca7a35b782a5b756e468e93ff",
+        "cfc0ba9e771992b91f4ee1eebbaf8979"
+      ]
+    },
+    {
+      "path": "window-000091.json",
+      "sha256_chunks": [
+        "1599573f8b890e59019a649c3d2b1a27",
+        "a0e1f11e0e43a8500eae3e328c0df2a6"
+      ]
+    },
+    {
+      "path": "window-000092.json",
+      "sha256_chunks": [
+        "c1623ce4debf10f6f17c9738567bd96b",
+        "64443eac94e61fa8cea752b6ad69558d"
+      ]
+    },
+    {
+      "path": "window-000093.json",
+      "sha256_chunks": [
+        "53566564b0ceca886793f8376010fe5d",
+        "f17e7022d40fde56b93900489e52e649"
+      ]
+    },
+    {
+      "path": "window-000094.json",
+      "sha256_chunks": [
+        "58a54fd74ea993f8198658b6d0c1bea1",
+        "9812ce744f8a5e2527145557db6720dd"
+      ]
+    },
+    {
+      "path": "window-000095.json",
+      "sha256_chunks": [
+        "047b90cd46aea74951eab0899cc283ca",
+        "700777adbbdc3ab6b1779bd7123fb663"
+      ]
+    },
+    {
+      "path": "window-000096.json",
+      "sha256_chunks": [
+        "83180fab1f1e1eecfafebdf3ca07ff6b",
+        "1c215db01fe6925cb43677a69a03b656"
+      ]
+    },
+    {
+      "path": "window-000097.json",
+      "sha256_chunks": [
+        "3e1cfa8dd22aa37a4ba7712452b7609a",
+        "cc1a5652e11470776b7460007c9b7530"
+      ]
+    },
+    {
+      "path": "window-000098.json",
+      "sha256_chunks": [
+        "47be2d40a9ae432cff3a2c1ff2d47406",
+        "fbb8944f3699273057b47d2fd4b2e0fb"
+      ]
+    }
+  ]
+}

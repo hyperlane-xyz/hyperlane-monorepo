@@ -1,0 +1,15 @@
+{
+  "scope": "Negative archive verification only; no current all-source acceptance.",
+  "gzip_payloads_exact": 7,
+  "original_manifests_logs_source_backup_unchanged": true,
+  "raw_json_mirrors_exact_and_individually_ignored": 2,
+  "failed_roots_each": "744passed_1failed_0skipped_of745",
+  "selected_source_entries_unchanged_per_run": 650,
+  "before_source_backup_matches_both_run_hashes": true,
+  "source_correction_only_named_test_block": true,
+  "all_documentation_links_resolved": 47,
+  "normal_doc_oxfmt_check": "passed",
+  "non_ignored_plaintext_full_width_hashes": 0,
+  "live1110_1115_outputs_accessed": false,
+  "Source_edits_tests_compilers_deletions_performed": false
+}

@@ -1,0 +1,130 @@
+{
+  "schema": 1,
+  "created_utc": "2026-11-06T00:33:30.923249+00:00",
+  "purpose": "Functional helper rebuild only; no benchmark timing or production role rebuild",
+  "executed": false,
+  "cwd": "/Users/pbio/work/ziggy/rust/main",
+  "command": [
+    "cargo",
+    "+1.98.0",
+    "build",
+    "--locked",
+    "--offline",
+    "--release",
+    "--manifest-path",
+    "/Users/pbio/work/ziggy/zig/reference/rocks/Cargo.toml",
+    "--target-dir",
+    "/tmp/ziggy-rocks-helper-functional-target",
+    "-j",
+    "2",
+    "--bin",
+    "ziggy-rocks-oracle"
+  ],
+  "environment_overrides": {
+    "RUSTFLAGS": "--cfg tokio_unstable -l dylib=c++",
+    "SDKROOT": "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "MACOSX_DEPLOYMENT_TARGET": "11.0",
+    "ROCKSDB_LIB_DIR": "/Users/pbio/work/ziggy/zig/native/rocks/out-final",
+    "ROCKSDB_STATIC": "1",
+    "ROCKSDB_COMPILE": "0",
+    "ROCKSDB_INCLUDE_DIR": "/Users/pbio/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/librocksdb-sys-0.17.3+10.4.2/rocksdb/include",
+    "SNAPPY_LIB_DIR": "/Users/pbio/work/ziggy/zig/native/rocks/out-final",
+    "SNAPPY_STATIC": "1",
+    "SNAPPY_COMPILE": "0",
+    "BINDGEN_EXTRA_CLANG_ARGS": "-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0",
+    "CARGO_PROFILE_RELEASE_STRIP": "debuginfo",
+    "CARGO_INCREMENTAL": "0",
+    "RUSTC_WRAPPER": "",
+    "RUSTC_WORKSPACE_WRAPPER": "",
+    "CCACHE_DISABLE": "1",
+    "SCCACHE_DISABLE": "1"
+  },
+  "unset_environment": [
+    "CARGO_ENCODED_RUSTFLAGS",
+    "CARGO_TARGET_DIR",
+    "CARGO_PROFILE_RELEASE_LTO",
+    "CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS",
+    "CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS",
+    "CARGO_BUILD_RUSTC_WRAPPER",
+    "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER"
+  ],
+  "native_abi_packages": [
+    {
+      "name": "librocksdb-sys",
+      "version": "0.17.3+10.4.2",
+      "checksum_chunks": [
+        "cef2a00ee60fe526157c9023edab2394",
+        "3fae1ce2ab6f4abb2a807c1746835de9"
+      ],
+      "matches_native_lock": true
+    },
+    {
+      "name": "lz4-sys",
+      "version": "1.10.0",
+      "checksum_chunks": [
+        "109de74d5d2353660401699a4174a4ff",
+        "23fcc649caf553df71933c7fb45ad868"
+      ],
+      "matches_native_lock": true
+    },
+    {
+      "name": "zstd-sys",
+      "version": "2.0.13+zstd.1.5.6",
+      "checksum_chunks": [
+        "38ff0f21cfee8f97d94cef41359e0c89",
+        "aa6113028ab0291aa8ca0038995a95aa"
+      ],
+      "matches_native_lock": true
+    },
+    {
+      "name": "libz-sys",
+      "version": "1.1.16",
+      "checksum_chunks": [
+        "5e143b5e666b2695d28f6bca64977208",
+        "13f699c9602dd7f5cac91008b8ada7f9"
+      ],
+      "matches_native_lock": true
+    },
+    {
+      "name": "bzip2-sys",
+      "version": "0.1.11+1.0.8",
+      "checksum_chunks": [
+        "736a955f3fa7875102d57c82b8cac37e",
+        "c45224a07fd32d58f9f7a186b6cd4cdc"
+      ],
+      "matches_native_lock": true
+    }
+  ],
+  "native_link_qualification": "Reuses exact pinned RocksDB and Snappy archives through documented librocksdb-sys environment. Other codec sys crates rebuild matching pinned versions. Final helper explicitly links system libc++; bindgen uses exact same RocksDB headers. Does not claim all seven native archives are reused.",
+  "build_script_sha256_chunks": [
+    "089d72a501a39df02d4a5fb3a653876f",
+    "98447d4a3742775b7aa4b1676b67201c"
+  ],
+  "native_manifest_sha256_chunks": [
+    "af7280533f85acc6a4616311e53bfd2b",
+    "290e911a3527bd4b0246fd9c8cbbb661"
+  ],
+  "helper_manifest_sha256_chunks": [
+    "07967f0fb0be511e8aa56da2e644ba3f",
+    "4c50991e4f70b454598c12222a37a6ae"
+  ],
+  "helper_source_sha256_chunks": [
+    "106030695a17dca26264d8b34bfeede6",
+    "5339af46666a9d32c1330dce438777a4"
+  ],
+  "canonical_lock_sha256_chunks": [
+    "e05bd62a98071d2ab6f18c917d63561c",
+    "7e755bcb45f9f9637de8d36e97f09ba0"
+  ],
+  "disk": {
+    "current_free_bytes": 42129924096,
+    "required_start_free_bytes": 42949672960,
+    "target_budget_bytes": 12884901888,
+    "minimum_remaining_bytes": 8589934592,
+    "prior_full_helper_target_gib": 7.8,
+    "budget_is_estimate_guard_required": true
+  },
+  "preservation": "Keep old helper executables and immutable three production agents. Pin/hash new helper and run interoperability before any task target compiler-output cleanup. No source/download/global-cache deletion.",
+  "shared_compile_configuration": "Same environment and Cargo target for build, two unit tests, clippy; no second fingerprint caused by final-binary-only link flags."
+}

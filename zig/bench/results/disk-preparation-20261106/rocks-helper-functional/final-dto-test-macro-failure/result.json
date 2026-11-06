@@ -1,0 +1,109 @@
+{
+  "purpose": "Functional helper build/check only; not benchmark timing",
+  "source_manifest_sha256_chunks": [
+    "d56a90e69be7e17f3306cbfd69187c52",
+    "108a8490784fef3b6617aa7b5d8f1474"
+  ],
+  "source_main_sha256_chunks": [
+    "14e17469f2e108d504cf75bfcb2a8c6e",
+    "c164c54a6f6c61f7396022c91f2aa7d3"
+  ],
+  "lock_sha256_chunks": [
+    "e05bd62a98071d2ab6f18c917d63561c",
+    "7e755bcb45f9f9637de8d36e97f09ba0"
+  ],
+  "environment_overrides": {
+    "RUSTFLAGS": "--cfg tokio_unstable -l dylib=c++",
+    "SDKROOT": "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "MACOSX_DEPLOYMENT_TARGET": "11.0",
+    "ROCKSDB_LIB_DIR": "/Users/pbio/work/ziggy/zig/native/rocks/out-final",
+    "ROCKSDB_STATIC": "1",
+    "ROCKSDB_COMPILE": "0",
+    "ROCKSDB_INCLUDE_DIR": "/Users/pbio/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/librocksdb-sys-0.17.3+10.4.2/rocksdb/include",
+    "SNAPPY_LIB_DIR": "/Users/pbio/work/ziggy/zig/native/rocks/out-final",
+    "SNAPPY_STATIC": "1",
+    "SNAPPY_COMPILE": "0",
+    "BINDGEN_EXTRA_CLANG_ARGS": "-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0",
+    "CARGO_PROFILE_RELEASE_STRIP": "debuginfo",
+    "CARGO_INCREMENTAL": "0",
+    "RUSTC_WRAPPER": "",
+    "RUSTC_WORKSPACE_WRAPPER": "",
+    "CCACHE_DISABLE": "1",
+    "SCCACHE_DISABLE": "1"
+  },
+  "commands": [
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "/Users/pbio/work/ziggy/zig/reference/rocks/Cargo.toml",
+        "--target-dir",
+        "/tmp/ziggy-rocks-helper-functional-target",
+        "-j",
+        "2",
+        "--bin",
+        "ziggy-rocks-oracle"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/rust/main",
+      "log": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/build.log",
+      "status": "passed",
+      "exit_code": 0,
+      "failure": null,
+      "maximum_observed_target_bytes": 5315854336,
+      "free_after_bytes": 38501208064
+    },
+    {
+      "name": "unit-tests",
+      "command": [
+        "cargo",
+        "+1.98.0",
+        "test",
+        "--locked",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "/Users/pbio/work/ziggy/zig/reference/rocks/Cargo.toml",
+        "--target-dir",
+        "/tmp/ziggy-rocks-helper-functional-target",
+        "-j",
+        "2",
+        "--bin",
+        "ziggy-rocks-oracle",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/Users/pbio/work/ziggy/rust/main",
+      "log": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/unit-tests.log",
+      "status": "failed",
+      "exit_code": 101,
+      "failure": null,
+      "maximum_observed_target_bytes": 5332623360,
+      "free_after_bytes": 38500302848
+    }
+  ],
+  "primary_rust_before": {
+    "relayer": [
+      "f103c0d8dee889ce605751ff83de4464",
+      "f3569a12e104d27a8b1b05398c0fad39"
+    ],
+    "validator": [
+      "3ebecdcf76ded141a16eeb5d78133320",
+      "7aebac5a483724cd3bf07d56a98693c3"
+    ],
+    "scraper": [
+      "69d4121f958d24013e55c0afe5865396",
+      "90f39534431a97858657bae35b721c06"
+    ]
+  },
+  "started_utc": "2026-11-06T00:52:22.031057+00:00",
+  "budget_bytes": 12884901888,
+  "minimum_remaining_bytes": 8589934592,
+  "free_before_bytes": 39631798272
+}

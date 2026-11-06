@@ -1,0 +1,17 @@
+1/16 metadata_parallel_delegated_tests.test.first observed refusal wins but a cancelled late refusal cannot veto...OK
+2/16 metadata_parallel_delegated_tests.test.terminal multisig and CCIP observations exclude replay and cancellation...OK
+3/16 metadata_parallel_delegated_tests.test.observation enqueue saturation preserves valid metadata and releases its fork exactly once...OK
+4/16 metadata_parallel_delegated_tests.test.pending latest observation retires on global stop without publishing...OK
+5/16 metadata_parallel_delegated_tests.test.nested aggregations cooperate on eight workers and enforce exact shared bounds...OK
+6/16 metadata_parallel_delegated_tests.test.OOM at every allocation cancels and retires without output leaks...OK
+7/16 metadata_parallel_delegated_tests.test.nested cancellation ancestry retires at every allocation failure...OK
+8/16 metadata_parallel_delegated_tests.test.one leaf observation survives twenty quorum and candidate verification suspensions...OK
+9/16 metadata_parallel_delegated_tests.test.nested leaf observation survives twenty parent verification replays...OK
+10/16 metadata_parallel_delegated_tests.test.successful latest read completing after global stop cannot publish...OK
+11/16 metadata_parallel_delegated_tests.test.early threshold child uses owned EVM fork clock after parent frame returns...OK
+12/16 metadata_parallel_delegated_tests.test.early threshold discards uncancellable leaf completion without a terminal metric...OK
+13/16 relayer.metadata.test_0...OK
+14/16 protocol.root.test_0...OK
+15/16 evm.root.test_0...OK
+16/16 storage.root.test_0...OK
+All 16 tests passed.

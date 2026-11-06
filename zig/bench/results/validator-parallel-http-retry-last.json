@@ -1,0 +1,82 @@
+{
+  "passed": true,
+  "scope": "Native AWS KMS wire/concurrency + real RocksDB/local checkpoint recovery.\n\nA loopback emulator checks the real SigV4 request and signs only public test key11\nthrough the independent Rust k256 oracle. No live cloud access or benchmark claim.\n",
+  "driver_sha256_chunks": [
+    "72740b4836cb7b4281868d9d34b290b5",
+    "200ec5cc029647e0fa0680606a357143"
+  ],
+  "oracle_sha256_chunks": [
+    "374f50eac22f90c313cd47cd795dc721",
+    "479eddf0a966625224bf179b09111135"
+  ],
+  "checkpoints": 8,
+  "configured_concurrency": 4,
+  "observed_native_kms_overlap": 4,
+  "public_key_requests": 1,
+  "signature_requests": 48,
+  "injected_failures_per_digest": 5,
+  "exhausted_same_identity_attempts": null,
+  "exhausted_unsigned_digests": 0,
+  "recovered_same_db_after_exhaustion": false,
+  "all_sigv4_requests_verified": true,
+  "roots_message_ids_match_production_rust": true,
+  "restart_new_signature_requests": 0,
+  "digest_counts": [
+    {
+      "digest_chunks": [
+        "b1f4cbbb45075093f459d74de9f88dc2",
+        "d3ae280c60481452b3faf3f1644a5f9e"
+      ],
+      "calls": 6
+    },
+    {
+      "digest_chunks": [
+        "e62ef222fbcfaccbab1a7a970444c6a9",
+        "43492beb6c18374cf197be0907337674"
+      ],
+      "calls": 6
+    },
+    {
+      "digest_chunks": [
+        "1b5b45e32ca0cb2e7acc4b592f6f88e8",
+        "55f0f9bf46b774428df5e80b0b6f30f5"
+      ],
+      "calls": 6
+    },
+    {
+      "digest_chunks": [
+        "fa44f4c51956a92e0cf66b27bf343d1e",
+        "4f6790d5e59372eb4d7bebfe2dfd6036"
+      ],
+      "calls": 6
+    },
+    {
+      "digest_chunks": [
+        "ad0f8c9286686ae8fe72a3eff60fe05a",
+        "962b154c68c6ee8377bab7b43aa2a4b6"
+      ],
+      "calls": 6
+    },
+    {
+      "digest_chunks": [
+        "b5a0cfd2efdb23920cb9544c27ca15a0",
+        "ab7c3ded71681134b7eefb59091ca55c"
+      ],
+      "calls": 6
+    },
+    {
+      "digest_chunks": [
+        "5c401b8a6d6309b245c50e3e32d530a2",
+        "7bc0ac1770ad2b53241f346f582f1f33"
+      ],
+      "calls": 6
+    },
+    {
+      "digest_chunks": [
+        "ed08ba46cfff2bc963319afa451a6d33",
+        "5cec753aa4ebf9eedf73594c97267f77"
+      ],
+      "calls": 6
+    }
+  ]
+}

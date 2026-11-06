@@ -1,0 +1,19 @@
+{
+  "cwd": "/Users/pbio/work/ziggy",
+  "argv": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/starknet_batch_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "--test-filter",
+    "Starknet"
+  ],
+  "env": {
+    "HYPERLANE_STARKNET_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib"
+  }
+}

@@ -1,0 +1,487 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-11-06T06:48:47.144785+00:00",
+  "scope": "Historical released functional component evidence; not current integration/final-role/performance acceptance.",
+  "proofs": [
+    {
+      "name": "tron",
+      "historical_passed": 20,
+      "historical_failed": 0,
+      "historical_skipped": 0,
+      "new_substantive_tests": 2,
+      "transitive_root_smoke_declarations": 18,
+      "result": "zig/bench/results/native-sender-recovery/tron-result.json.gz",
+      "command": "zig/bench/results/native-sender-recovery/tron-command.json.gz",
+      "raw_log": "zig/bench/results/native-sender-recovery/tron-tests.log.gz",
+      "report": "zig/bench/results/native-sender-recovery/tron-review.md.gz"
+    },
+    {
+      "name": "starknet",
+      "historical_passed": 26,
+      "historical_failed": 0,
+      "historical_skipped": 0,
+      "new_substantive_tests": 6,
+      "transitive_root_smoke_declarations": 20,
+      "result": "zig/bench/results/native-sender-recovery/starknet-result.json.gz",
+      "command": "zig/bench/results/native-sender-recovery/starknet-command.json.gz",
+      "raw_log": "zig/bench/results/native-sender-recovery/starknet-tests.log.gz",
+      "report": "zig/bench/results/native-sender-recovery/starknet-review.md.gz"
+    }
+  ],
+  "snapshot_qualification": "Original result files preserve the recorded post-run source hashes. Later integration changed some dependencies; source-status.json.gz lists exact drift. Only bytes still matching recorded hashes are archived as matching snapshots. No assertion that a concurrently edited current tree was the compiled historical tree.",
+  "source_status": "zig/bench/results/native-sender-recovery/source-status.json.gz",
+  "artifacts": [
+    {
+      "path": "zig/bench/results/native-sender-recovery/tron-result.json.gz",
+      "raw_bytes": 2855,
+      "gzip_bytes": 1353,
+      "raw_sha256_chunks": [
+        "bd3fa063b2d823bf0444feb5f173a36",
+        "a42f40a3f6fe2a68134311566cb1af3",
+        "a5"
+      ],
+      "gzip_sha256_chunks": [
+        "b0ba5eb7a9dac5af4432dfdc29651c1",
+        "5263158798931a773d790be548233a9",
+        "42"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/tron-command.json.gz",
+      "raw_bytes": 759,
+      "gzip_bytes": 288,
+      "raw_sha256_chunks": [
+        "14944bd69bdeb170e133bdefc9fc9ee",
+        "efc0105ebefac8cc6ee9c466e02fb6e",
+        "e2"
+      ],
+      "gzip_sha256_chunks": [
+        "1439ab376b71ab6b9d90fe1c4af8946",
+        "1a3d10b4655b647453a6381ab16f3da",
+        "e0"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/tron-tests.log.gz",
+      "raw_bytes": 1040,
+      "gzip_bytes": 416,
+      "raw_sha256_chunks": [
+        "d19af29e1842a1eb08b397bcd9d890e",
+        "229861a4e896e369ab75c17cc0f5d35",
+        "0f"
+      ],
+      "gzip_sha256_chunks": [
+        "2375c0cdc477423dd5e50aa54bc698e",
+        "666089ca6ed7c7748c1c0aa2ef37b33",
+        "35"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/tron-review.md.gz",
+      "raw_bytes": 3068,
+      "gzip_bytes": 1590,
+      "raw_sha256_chunks": [
+        "48a7c26dc98c5e86d9c97518d47ffdd",
+        "31be12d8581c019c237923126edfa6e",
+        "31"
+      ],
+      "gzip_sha256_chunks": [
+        "7589df8bb64553e5674364bd36b2635",
+        "126b54a4f8a90f45669e6ebab79949e",
+        "25"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/native_sender_recovery_test.zig.source.gz",
+      "raw_bytes": 22395,
+      "gzip_bytes": 5353,
+      "raw_sha256_chunks": [
+        "df0b648bb858f992f06f837de1b68ed",
+        "fe7b625e4433c41af0f81a918113dbc",
+        "99"
+      ],
+      "gzip_sha256_chunks": [
+        "7486f7badf6b3ff176588dea41f0e46",
+        "d7ff8d4e187c1486a7fdea0fefdd03c",
+        "0d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/native_sender_recovery_tests.zig.source.gz",
+      "raw_bytes": 112,
+      "gzip_bytes": 102,
+      "raw_sha256_chunks": [
+        "29d9dfd660d017ada8b0aaada0e9166",
+        "3e7262269644c61793da6e0ce648678",
+        "4b"
+      ],
+      "gzip_sha256_chunks": [
+        "112cf86d290cdbc439720fd0481f39a",
+        "ae1335394bbd7016eef19c400ad20e2",
+        "62"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/agents/destination/tron.zig.source.gz",
+      "raw_bytes": 14352,
+      "gzip_bytes": 3678,
+      "raw_sha256_chunks": [
+        "54aa769648e8b0fcc2ce27bb7f5a0a4",
+        "0253a643922783934ff3dd856295abf",
+        "0b"
+      ],
+      "gzip_sha256_chunks": [
+        "b679b92fc81a92e6d5ba2e20ea6c046",
+        "7ea8f8c328ed74959df05e2deb41a6c",
+        "76"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/agents/origin_signers.zig.source.gz",
+      "raw_bytes": 12836,
+      "gzip_bytes": 3411,
+      "raw_sha256_chunks": [
+        "2b4609bcc65c51fba362be6c59d606b",
+        "db4c977c633ace89999fa994dd6c557",
+        "8e"
+      ],
+      "gzip_sha256_chunks": [
+        "641647247e4dadf80583c26a748ae54",
+        "7ea465b5c95802ed9bd7077b30df12f",
+        "79"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/agents/origin_signer_tasks.zig.source.gz",
+      "raw_bytes": 4129,
+      "gzip_bytes": 1462,
+      "raw_sha256_chunks": [
+        "2ad51b0e909262890add425db33f26b",
+        "6efe4231367dd9735c61a3ba73d8dff",
+        "a3"
+      ],
+      "gzip_sha256_chunks": [
+        "af0288f918c9ba2ba8366d06406ba56",
+        "0b44a544c321da37daee9bdd49e148f",
+        "49"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/agents/origin_signer_source.zig.source.gz",
+      "raw_bytes": 16124,
+      "gzip_bytes": 3632,
+      "raw_sha256_chunks": [
+        "35b8d9aaa37d78f5fe0151377d40137",
+        "6421fd75f92420af3944d172273bdc1",
+        "32"
+      ],
+      "gzip_sha256_chunks": [
+        "a29c310c28612c256bf49ec55888768",
+        "b35e7018fea7b5a776fe542139356da",
+        "9d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/ops/runtime_denylist.zig.source.gz",
+      "raw_bytes": 40251,
+      "gzip_bytes": 9703,
+      "raw_sha256_chunks": [
+        "06492a8b3517b69399d84e3571662db",
+        "44efdb8fb8bd4804b30fbe153659dcc",
+        "40"
+      ],
+      "gzip_sha256_chunks": [
+        "d7c070df161622e0818523d9fe4b817",
+        "b06ae5e69fc858fe35f7d575f13a60c",
+        "cb"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/tron/provider.zig.source.gz",
+      "raw_bytes": 20598,
+      "gzip_bytes": 5219,
+      "raw_sha256_chunks": [
+        "867f25686c4e11a2478431c4ab625de",
+        "5c21cde1c9f564c018fc2cf7179de4c",
+        "af"
+      ],
+      "gzip_sha256_chunks": [
+        "e27fb556aace1072baa41fdf3c885eb",
+        "f347f9360db34b92b4d310d99b5b9ce",
+        "2c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/tron/transaction.zig.source.gz",
+      "raw_bytes": 14075,
+      "gzip_bytes": 3727,
+      "raw_sha256_chunks": [
+        "d7e2f40e8d04c468070faaa6ee67da0",
+        "0f8e35d65646c0c576717c3a6655180",
+        "b8"
+      ],
+      "gzip_sha256_chunks": [
+        "f3ace8807230d3cd52962859bcb82dd",
+        "229c57b1b960c0fed9a2c9e4844a00d",
+        "df"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/historical/ziggy-native-sender-recovery-first-compile.log.gz",
+      "raw_bytes": 1040,
+      "gzip_bytes": 495,
+      "raw_sha256_chunks": [
+        "4da9ab18eb6a933b378a9c037d42c3b",
+        "dae510538d23ba23117cf6df40a1acc",
+        "7a"
+      ],
+      "gzip_sha256_chunks": [
+        "f2ebebf759b4dd3a9c9d5626ade47f3",
+        "c77cba36b9ff87a276db184b890a6f3",
+        "ed"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/starknet-result.json.gz",
+      "raw_bytes": 4029,
+      "gzip_bytes": 1727,
+      "raw_sha256_chunks": [
+        "b4aa98b6a257aa77c5dbee0b6fe6b45",
+        "a5469e40c8f84fb24b818ac38ec09bd",
+        "90"
+      ],
+      "gzip_sha256_chunks": [
+        "602fecf0fcd6f9f4424cfe9065d1cd1",
+        "4618177fa5462ed3f289d9c89585b2e",
+        "e7"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/starknet-command.json.gz",
+      "raw_bytes": 762,
+      "gzip_bytes": 291,
+      "raw_sha256_chunks": [
+        "f52e5562a97f715d3da62a63b710df1",
+        "9dfda7e5ff7e0fe8ea60732cb2121f5",
+        "83"
+      ],
+      "gzip_sha256_chunks": [
+        "ceb2b584defca1b137f59772ea4c18f",
+        "0a3514e11261abf38ee5bd276ed4ec5",
+        "96"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/starknet-tests.log.gz",
+      "raw_bytes": 1759,
+      "gzip_bytes": 620,
+      "raw_sha256_chunks": [
+        "de9d2b76c4122ccd454390141c11945",
+        "dc28b50ef0167bb89518bc5ce04e525",
+        "17"
+      ],
+      "gzip_sha256_chunks": [
+        "d9190e7fb0b6e1694affc4bb074bc2c",
+        "5212b5085633e6b6c2bf4650696972f",
+        "ab"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/starknet-review.md.gz",
+      "raw_bytes": 4118,
+      "gzip_bytes": 2032,
+      "raw_sha256_chunks": [
+        "b2c504b1c1725d6bcb2512180bac9fb",
+        "0c508d7d675e64bdf5a3fd34d02fc8d",
+        "f1"
+      ],
+      "gzip_sha256_chunks": [
+        "97f922e1d292139d57d25b9b2f37fab",
+        "f46841f33a20ae599effe21bc087886",
+        "e3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/starknet_group_control_native_test.zig.source.gz",
+      "raw_bytes": 19520,
+      "gzip_bytes": 4698,
+      "raw_sha256_chunks": [
+        "d1412006ade149b7a78eaa7aa50028c",
+        "4fce4bb3f9a2ebc5c14e024cb398f92",
+        "d1"
+      ],
+      "gzip_sha256_chunks": [
+        "c3ef90fee8faff4942367c82dafb0b1",
+        "a4da4f55ae7b285f98bc3e6f724fd7c",
+        "c1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/starknet_group_control_tests.zig.source.gz",
+      "raw_bytes": 119,
+      "gzip_bytes": 110,
+      "raw_sha256_chunks": [
+        "22475bdd16da8b93c63d17955f77564",
+        "78fda7b745a2c8124118dea7fdd8c10",
+        "a1"
+      ],
+      "gzip_sha256_chunks": [
+        "5b20f975c4cb0b9baede011f264213a",
+        "5db2db3a229c2dccee65fa31f9b9175",
+        "e4"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/agents/relayer/control.zig.source.gz",
+      "raw_bytes": 42168,
+      "gzip_bytes": 8762,
+      "raw_sha256_chunks": [
+        "a4a80d047be2149770b8f81aafd7747",
+        "d034d2cd2e0ae6ec13c861839ecb855",
+        "31"
+      ],
+      "gzip_sha256_chunks": [
+        "58e6e4069eb128744e15128de61e025",
+        "3fb5d83e1268f147ed701fd3abd10e6",
+        "3a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/ops/metrics.zig.source.gz",
+      "raw_bytes": 20202,
+      "gzip_bytes": 4913,
+      "raw_sha256_chunks": [
+        "28c14c8a1c4d381482fd8456d8bd96c",
+        "1ac7add855df9922507aa5ded46e53e",
+        "25"
+      ],
+      "gzip_sha256_chunks": [
+        "a5f877191a429372652d30e5d3840ed",
+        "6d949130f21c6fc126524e96a155ea0",
+        "53"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/sources/zig/src/ops/relayer_metrics.zig.source.gz",
+      "raw_bytes": 17895,
+      "gzip_bytes": 4259,
+      "raw_sha256_chunks": [
+        "9193285896d1c115b72bf3b8809fc05",
+        "a856500e4e56b8cb3212810c0633e1c",
+        "88"
+      ],
+      "gzip_sha256_chunks": [
+        "8dae5709cc708715358f9cf828b2366",
+        "4a9657bb8fe9a95d747ed4b58d0d6cf",
+        "72"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/historical/ziggy-starknet-group-control-cold-22pass.log.gz",
+      "raw_bytes": 1334,
+      "gzip_bytes": 486,
+      "raw_sha256_chunks": [
+        "c16379e97be3ec2c13eae5414f977c0",
+        "577b2b92679f7cef0e19579f9d6ffcc",
+        "52"
+      ],
+      "gzip_sha256_chunks": [
+        "516aa655d13354add9f41cf8f1359f2",
+        "4006bf0ab09b5948a453faf41bc463b",
+        "24"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/historical/ziggy-starknet-group-control-first-compile.log.gz",
+      "raw_bytes": 1313,
+      "gzip_bytes": 653,
+      "raw_sha256_chunks": [
+        "d156161cb0a4929efea762c28911e30",
+        "118cf58c115f54de0efe877171f9b93",
+        "8e"
+      ],
+      "gzip_sha256_chunks": [
+        "f66edc27befc8d434e6e080f619ff4d",
+        "5f86c3589cad001f1bd6fab86b3d36c",
+        "cf"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/historical/ziggy-starknet-group-control-fourth-compile.log.gz",
+      "raw_bytes": 848,
+      "gzip_bytes": 458,
+      "raw_sha256_chunks": [
+        "05ce5a2a8020b61d852251ea6b54bdd",
+        "daba1f73ec9a81ae7236ee8881a016f",
+        "dd"
+      ],
+      "gzip_sha256_chunks": [
+        "d863f0ba3a1ddb16e595984d4e83c96",
+        "c4c96030ff480c311c635c9253ceb1a",
+        "71"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/historical/ziggy-starknet-group-control-metrics-25pass.log.gz",
+      "raw_bytes": 1595,
+      "gzip_bytes": 569,
+      "raw_sha256_chunks": [
+        "8009f82201e3edb16cbef34e2826ae7",
+        "7d4c1fb3f305edd246ce090dc84e5ae",
+        "f8"
+      ],
+      "gzip_sha256_chunks": [
+        "d2ffe49f28bd7ef159b972a96eb27a2",
+        "1b14f5dcd10122c3b4bf8f8c6db0604",
+        "61"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/historical/ziggy-starknet-group-control-second-compile.log.gz",
+      "raw_bytes": 482,
+      "gzip_bytes": 300,
+      "raw_sha256_chunks": [
+        "38cb46cb130f13f1a73352c757c2ebb",
+        "d7eb50d00e0c55e1f823f30955c1a63",
+        "20"
+      ],
+      "gzip_sha256_chunks": [
+        "05d1bc4d84192e6cb7b032f6961a7e5",
+        "317ad129453d0dff0fe2453ecd8ff5e",
+        "34"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/historical/ziggy-starknet-group-control-third-compile.log.gz",
+      "raw_bytes": 392,
+      "gzip_bytes": 236,
+      "raw_sha256_chunks": [
+        "f4660c7728550e5c53e11b8dceba5eb",
+        "3abed6bec59b003f4b0823c7477de9a",
+        "2d"
+      ],
+      "gzip_sha256_chunks": [
+        "a908dce50389d6cc7b60b6693ca89b6",
+        "b20fbd1bd9c233ac96d2667c8ba7f7d",
+        "96"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-sender-recovery/source-status.json.gz",
+      "raw_bytes": 14633,
+      "gzip_bytes": 2005,
+      "raw_sha256_chunks": [
+        "5e770ffa35a0233008e93eb50f56655",
+        "3e5c16b3aa44d2ee7aa86517e925082",
+        "c0"
+      ],
+      "gzip_sha256_chunks": [
+        "393ee31825f0ca2461f8c6d4445460f",
+        "905370eb9596f32b5a387e9c5d3b689",
+        "f1"
+      ]
+    }
+  ],
+  "archive_policy": "Deterministic gzip mtime0; original result/command JSON bytes preserved losslessly; exact ignored raw mirrors in local .gitignore, no hook bypass. Normal hooks still run.",
+  "counts_qualification": "20 and26 are standalone focused-root totals, including transitive test_0 smoke declarations. New substantive tests are2 and6. No role or benchmark run was performed for archiving."
+}

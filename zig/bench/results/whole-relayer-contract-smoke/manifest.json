@@ -1,0 +1,58 @@
+{
+  "passed": false,
+  "stage": "contract compilation complete; no daemons launched",
+  "started_at_utc": "2026-11-05T21:57:41.577106+00:00",
+  "scope": "Actual production Rust c520224 vs native Zig relayer; fresh local Anvil/Mailbox/IGP/three ISM types/public key11 only",
+  "mode": "smoke",
+  "configuration": {
+    "mode": "smoke",
+    "execute": false,
+    "dry_run": false,
+    "compile_only": true,
+    "rust": "/Users/pbio/work/ziggy/rust/main/target/release/relayer",
+    "zig": "/Users/pbio/work/ziggy/zig/zig-out/bin/relayer",
+    "rust_validator": "/Users/pbio/work/ziggy/rust/main/target/release/validator",
+    "zig_validator": "/Users/pbio/work/ziggy/zig/zig-out/bin/validator",
+    "oracle": "/Users/pbio/work/ziggy/rust/main/target/release/ziggy-rocks-oracle",
+    "baseline_provenance": "None",
+    "samples": 1,
+    "catchup": 4,
+    "steady": 2,
+    "steady_interval_ms": 1000,
+    "deadline": 90,
+    "max_batch_size": 1,
+    "stall": true,
+    "quiet_host": false,
+    "output": "/Users/pbio/work/ziggy/zig/bench/results/whole-relayer-contract-smoke"
+  },
+  "environment": "CONFIG_FILES for Rust; HYPERLANE_ZIG_DEFAULTS and explicit native curl path for Zig; no inherited environment",
+  "durability_and_feature_gaps": [
+    "Zig operation/payload transitions request RocksDB WAL fsync; Rust production database/fsync policy is not rewritten by this harness",
+    "Rust production tracing/Prometheus/Tokio behavior and Zig telemetry/runtime implementation differ; physical HELP inventories are recorded",
+    "SIGTERM/SIGINT behavior is measured separately; no all-runtime-feature equivalence claim",
+    "EVM/local signer/local checkpoint storage only; other VMs, KMS/cloud, production networks and workload shapes excluded"
+  ],
+  "host": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "load_average_before": [
+      7.06103515625,
+      6.10546875,
+      5.59619140625
+    ],
+    "compilers_before": [],
+    "quiet_host_asserted": false
+  },
+  "raw_samples": [],
+  "compiled_contracts": [
+    "InterchainGasPaymaster",
+    "Mailbox",
+    "MerkleTreeHook",
+    "StorageGasOracle",
+    "StorageMerkleRootMultisigIsm",
+    "StorageMessageIdMultisigIsm",
+    "TestIsm",
+    "TestPostDispatchHook",
+    "TestRecipient",
+    "ValidatorAnnounce"
+  ]
+}

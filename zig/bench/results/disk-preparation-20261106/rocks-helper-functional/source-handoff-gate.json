@@ -1,0 +1,7 @@
+{
+  "runner_pid": 88947,
+  "cargo_group": 88952,
+  "state": "initial dependency build finished; original coordinator retired; final source feature graph rebuild active",
+  "reason": "Parent helper DTO edits pending final source handoff",
+  "secondary_disk_watchdog": true
+}

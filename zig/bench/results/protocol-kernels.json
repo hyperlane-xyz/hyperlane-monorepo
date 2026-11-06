@@ -1,0 +1,114 @@
+{
+  "base_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
+  "git_status": "?? docs/zig-agent-rewrite/\n?? zig/",
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "cpu": "Apple M3 Pro",
+  "zig_version": "0.15.2",
+  "rust_version": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "builds": [],
+  "rustflags": "-C target-cpu=native",
+  "zig_optimize": "ReleaseFast",
+  "allocator": {
+    "rust": "Rust system allocator",
+    "zig": "std.heap.smp_allocator"
+  },
+  "sample_count": 9,
+  "execution": "alternating language order; one warmup each; fresh process per sample",
+  "binary_sizes": {
+    "rust_reference": 663664,
+    "zig_benchmark": 161232
+  },
+  "source_sha256_chunks": {
+    "zig/reference/Cargo.lock": [
+      "24ea79a94d901e0bd45aaa8312eb34e1",
+      "7b1f4ee0c147f65587be5bf873003b05"
+    ],
+    "zig/reference/Cargo.toml": [
+      "3b364bf1e4f79588db631ad82fc0b3cc",
+      "3c2dfd7c4443a62d1f916ebf51d923d3"
+    ],
+    "zig/reference/src/main.rs": [
+      "1615649329f1a68fa66a814e575c8876",
+      "6914059af99f1fb004a7362b9a380ca8"
+    ],
+    "rust/main/hyperlane-core/src/types/message.rs": [
+      "7c990074592d095b6018b9dddf6adabb",
+      "27132fc52e2a354b6253371e70508cf6"
+    ],
+    "rust/main/hyperlane-core/src/accumulator/incremental.rs": [
+      "77500df03189f74f3d1a9d9edc3b855f",
+      "4064b2019d9785fe0de318cc303bcde4"
+    ],
+    "zig/bench/main.zig": [
+      "7b33277cb6bc6841f45e1ef82b876ed1",
+      "1e51ef4d94fe6a70def524e66eff7313"
+    ],
+    "zig/bench/run.py": [
+      "d78899a25b914631ab736e2c78cd6266",
+      "35e8ff4761d7b5636281d18af1e38f1b"
+    ],
+    "zig/src/protocol/checkpoint.zig": [
+      "2e89980a1fcf8b5bd70c38f94cfa3f24",
+      "5090794b0f660c870bebc4f4332da6a2"
+    ],
+    "zig/src/protocol/merkle.zig": [
+      "4c022f9b33ce3eeb710e9d09c10c9ec0",
+      "1544995852d2f272714c53356ce78f4e"
+    ],
+    "zig/src/protocol/message.zig": [
+      "e433f1e755fee5ea0c6aac93928aa1a3",
+      "1083fe5358895813fe0f4577f0125568"
+    ],
+    "zig/src/protocol/metadata.zig": [
+      "e61cb6faa01660a6d2088133a19f9182",
+      "d0549d71d753bbbcc4d468ab03c79917"
+    ],
+    "zig/src/protocol/root.zig": [
+      "1cf74a49103888893972f7056b04cffb",
+      "cd7c4371c4d390236be99a87eb55c381"
+    ],
+    "zig/src/protocol/signature.zig": [
+      "5d3d31e07b3e983a54fe5f1f0a57c60a",
+      "b12374158d08bb09e62b660eab2173c9"
+    ]
+  },
+  "scope": "protocol CPU kernels only; not whole-agent throughput, memory, build, LOC, or dependency parity",
+  "sdkroot": "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+  "differential": {
+    "input_count": 716,
+    "valid_count": 639,
+    "invalid_count": 77,
+    "seed": "0x5a49474759",
+    "corpus_sha256_chunks": [
+      "e99902217e519f0e4680de3e2c4cd7d7",
+      "8e4fe0ceafe0579ae9a90f31fac359f0"
+    ],
+    "checked": [
+      "canonical encoding",
+      "message ID",
+      "incremental root after every valid message",
+      "count",
+      "checkpoint signing hash",
+      "EIP-191 digest",
+      "truncated message rejection"
+    ],
+    "independent_vector": "vectors/message.json",
+    "passed": true
+  },
+  "crypto_differential": {
+    "passed": true,
+    "fixture_cases": 73,
+    "cross_implementation_recoveries": 146,
+    "invalid_signatures_per_implementation": 6,
+    "seed": "0x5349474e",
+    "rust_crypto": "k256 0.13.4",
+    "zig_crypto": "std.crypto Secp256k1",
+    "policy": "Compare cross-recovery/address, not nonce-dependent signature byte equality"
+  },
+  "status": "superseded correctness smoke; no performance acceptance results",
+  "superseded_by": [
+    "release-safe/protocol-kernels.json",
+    "release-fast/protocol-kernels.json"
+  ]
+}

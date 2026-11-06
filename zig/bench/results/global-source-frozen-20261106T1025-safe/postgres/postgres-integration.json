@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "scope": "native libpq and near-head PostgreSQL persistence on actual Rust migrations; not a whole-agent replay",
+  "mode": "native-and-optional-process",
+  "native_tests": {
+    "executed": true,
+    "passed": true,
+    "reason": null,
+    "exit_code": 0
+  },
+  "sql_smoke_cases": [
+    "actual21 production migration records",
+    "source event tables confirmed views and writer/frontier fields",
+    "SQL binary NULL signed-integer values",
+    "transaction advisory lock and database clock",
+    "rollback removes all temporary smoke state"
+  ],
+  "server": "postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2)",
+  "client_library": "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+  "docker_image": "postgres:16.15",
+  "docker_image_digest_chunks": [
+    "933463a6c8eba2b9f5cd414138738cd8",
+    "d5519cd2c471214c222652f547a66a32"
+  ],
+  "production_migrations_applied": 21,
+  "zig_optimize": "ReleaseSafe",
+  "functional_cases": [
+    "parameterized text/binary/null values and result ownership",
+    "aborted transaction rollback and SQLSTATE",
+    "four staged event streams and confirmed frontier views",
+    "gas cursor publication",
+    "atomic append failure",
+    "reorg suffix rollback and confirmed-boundary protection",
+    "expired confirmation rollback",
+    "database-clock writer takeover",
+    "advisory transaction locking",
+    "1000-row batches and oversized-block atomic publication",
+    "u32 domain INTEGER bitcast compatibility"
+  ],
+  "source_sha256_chunks": {
+    "zig/src/db/postgres.zig": [
+      "5de80cda81218fbf834461fa55d1928b",
+      "7278926f1e06c67dd58e544769ee117f"
+    ],
+    "zig/src/db/scraper_store.zig": [
+      "7eaf6c0d77f869fb326b3e4da27e8992",
+      "355fdc8745cf513b9b1280c55f93eacf"
+    ],
+    "zig/src/db/postgres_test.zig": [
+      "a3a8eef7e01f4d18924fc73b1ce58394",
+      "ebc74dad4cd292c034eac4a5fb27f0ff"
+    ],
+    "rust/main/agents/scraper/src/near_head/store.rs": [
+      "e5aa372fd265d132a18f173d946dd56a",
+      "41b18c0f12a31ff7008f6815f30de891"
+    ],
+    "rust/main/agents/scraper/src/near_head/store/batch.rs": [
+      "4a916c5b3cb3ddd87bfddaf960c950be",
+      "1cd097ebda42ba9fa0f7d15d039f4367"
+    ]
+  },
+  "isolation": "task-owned Docker container; fresh database; dynamic loopback-only port; removed in finally"
+}

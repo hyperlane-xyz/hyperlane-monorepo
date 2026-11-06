@@ -1,0 +1,170 @@
+{
+  "scope": "SVM composite production observations, ownership and assisted nested cancellation component verification. No global acceptance, mainnet/object-store claim, or benchmark timings.",
+  "toolchain": "Zig 0.15.2 aarch64-macos",
+  "command": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/svm_metadata_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "--test-filter",
+    "SVM"
+  ],
+  "environment": {
+    "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib"
+  },
+  "results": {
+    "svm_native_enabled_suite": {
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0,
+      "substantive_cases": 14,
+      "new_native_cases": 4
+    },
+    "historical_native_subset": {
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "pre_link_active_cancel": {
+      "state": "failed CompositeCancellationTooSlow; regression fixed in current suite"
+    },
+    "nonnull_link_fork_allocation_sweep": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "substantive_cases": 1
+    }
+  },
+  "source_files": [
+    {
+      "path": "zig/src/sealevel/metadata.zig",
+      "sha256_chunks": [
+        "caa1c164a20b7a1bf4c6b84dde20d466",
+        "ef08a2a13c4b183db08ee3ad8aaa52d8"
+      ]
+    },
+    {
+      "path": "zig/src/agents/destination/source_metadata.zig",
+      "sha256_chunks": [
+        "b41277c81d78666c97d4a3fc8918d15b",
+        "cc8d4ffa6b15377f1ab40d1e293a4059"
+      ]
+    },
+    {
+      "path": "zig/src/agents/destination/source_metadata_svm_test.zig",
+      "sha256_chunks": [
+        "d7952588de077a0dfdc6996ded7626f0",
+        "cbf8eb1db7b0068c2fe5048b63097d86"
+      ]
+    },
+    {
+      "path": "zig/src/svm_metadata_tests.zig",
+      "sha256_chunks": [
+        "8a89304512e3b7613a5ff01e71634109",
+        "719071fddafd89fa1a278da0fc252c59"
+      ]
+    },
+    {
+      "path": "zig/src/relayer/metadata.zig",
+      "sha256_chunks": [
+        "3d0d5754cb359789cba04e2fde6a85b8",
+        "8db75a6dcc591a8e560c516fd30cffca"
+      ]
+    },
+    {
+      "path": "zig/src/relayer/metadata_parallel.zig",
+      "sha256_chunks": [
+        "0bdafa8563304f920419ca1cddcc356f",
+        "4b203f0031c1fbaf3c396e2aabe30c3b"
+      ]
+    },
+    {
+      "path": "zig/src/relayer/cached_source.zig",
+      "sha256_chunks": [
+        "514cc7cc69bbbcf9ab1f7dddda1c1ff1",
+        "10e51338e4fb8da6b5ef781695414507"
+      ]
+    },
+    {
+      "path": "zig/src/ops/validator_observability.zig",
+      "sha256_chunks": [
+        "63c4799b55d176da3ba9765b3cf5672a",
+        "1a70849b6781f3e6ae7eb1e64d532633"
+      ]
+    },
+    {
+      "path": "zig/src/sealevel/instructions.zig",
+      "sha256_chunks": [
+        "6686d764dad97fef1a5aaad415fb76a8",
+        "5a6a838e3e2c50df3df140f6d28fc108"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact": "zig/bench/results/sealevel-metadata-observation/svm-focused-final.log.gz",
+      "scope": "Current 22-test SVM suite after native clock and strengthened per-allocation link assertions",
+      "uncompressed_bytes": 2166,
+      "uncompressed_sha256_chunks": [
+        "f86ffca075969ddb975fd85043790cb0",
+        "a2f48baa254b60093dd518c7a821f9e5"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/sealevel-metadata-observation/native-subset-before-final-ref-assert.log.gz",
+      "scope": "Earlier 11-test native subset before strengthening the allocation sweep with explicit CancelLink refcount balance",
+      "uncompressed_bytes": 972,
+      "uncompressed_sha256_chunks": [
+        "21c16380b7a8c528432abdb6fc2003bf",
+        "0de1c3a78891ef3c875a0d34289cfa50"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/sealevel-metadata-observation/active-cancel-before-link.log.gz",
+      "scope": "Expected failed regression before retained ancestry; diagnostic only",
+      "uncompressed_bytes": 639,
+      "uncompressed_sha256_chunks": [
+        "6ddc01c990756b8be9854fc44efbcf9f",
+        "fd615c07cd856ba5c9ade8cc792fc34e"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/sealevel-metadata-observation/manifest-before-native-clock.json.gz",
+      "scope": "Historical component snapshot before additive native post-fetch clock and per-invocation refcount assertions",
+      "uncompressed_bytes": 4200,
+      "uncompressed_sha256_chunks": [
+        "d2e8d533736e0378946e9aba8c9ac93e",
+        "4f0941e2dbabfc33fb0c577809254c8e"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/sealevel-metadata-observation/fork-link-oom-final.log.gz",
+      "scope": "Focused per-invocation nonnull link reference-count sweep; production clock method added afterward, then covered by final22 compilation",
+      "uncompressed_bytes": 398,
+      "uncompressed_sha256_chunks": [
+        "9b2247811f9d7d38eec6535803a2f131",
+        "a4b72d1e689ab9f4324f5d28b1400373"
+      ]
+    }
+  ],
+  "ownership": "Protocol owner: sealevel/metadata, destination/source_metadata and new SVM tests. Metadata owner: common retained cancellation links, VisitMemo dedup, cached-source forwarding and observation clock. Source hashes are component snapshot, not global role freeze.",
+  "additional_command_fork_oom": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/svm_metadata_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "--test-filter",
+    "SVM native inline validator"
+  ],
+  "native_cache_clock": "NativeSource.defaultIsmNow uses raw receipts_evm.nowNs()/ns_per_ms, the same raw Instant epoch as Factory.active_cache_ms and Default.observedNow; shared cached-source callbacks now use fresh post-fetch insertion time. No I/O, source check, or borrowed clock context."
+}

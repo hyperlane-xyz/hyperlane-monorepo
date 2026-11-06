@@ -1,0 +1,77 @@
+{
+  "scope": "Actual unmodified Rust production helper bodies + Solana SDK legacy compiler. RPC fixture returns injected account bytes. Minimal RevealContext exposes only fields read by production build_instruction. No live CCS, chain, simulation, transaction broadcast or durable runner acceptance.",
+  "source": "rust/main/chains/hyperlane-sealevel/src/universal_router_reveal.rs",
+  "source_sha256_chunks": [
+    "f65321a84b2a01ae0a2e08eeb096eee9",
+    "b2f3ba7e8d411125a9bc9ee5b25ecc2d"
+  ],
+  "extraction_spans": [
+    {
+      "first_line": 76,
+      "last_line": 151,
+      "sha256_chunks": [
+        "83e1a78142a080b9138a92e14a621ec0",
+        "5984bd3707efb7507a875e15c0165912"
+      ]
+    },
+    {
+      "first_line": 151,
+      "last_line": 163,
+      "sha256_chunks": [
+        "8cf1736bbc1b8541ab7d5f56ba218980",
+        "0719e64f415c0cf3fb1905457bb53082"
+      ]
+    },
+    {
+      "first_line": 166,
+      "last_line": 346,
+      "sha256_chunks": [
+        "da10cea1b6e0847783736a8ae221aa9d",
+        "e00412c1bfa6619ce632332f0a52a21a"
+      ]
+    },
+    {
+      "first_line": 355,
+      "last_line": 372,
+      "sha256_chunks": [
+        "afd07c3607a138c6942cc2882acfda77",
+        "086df415160353b706ea741093ea3e56"
+      ]
+    },
+    {
+      "first_line": 1081,
+      "last_line": 1107,
+      "sha256_chunks": [
+        "c0e40ce13a17270bc306ea82cbc4ddf1",
+        "cebf85cd448a33f62b79f01f06ba9c03"
+      ]
+    },
+    {
+      "first_line": 1133,
+      "last_line": 1495,
+      "sha256_chunks": [
+        "3cce24a419df7ab4861e6360ad2c0e23",
+        "6c117906c8ac3875926b24b4a128044e"
+      ]
+    }
+  ],
+  "reference_sha256_chunks": [
+    "415bfea8ae8edd77b44edcaa6508534f",
+    "50bf343d00796d1714d41ee19dde19e9"
+  ],
+  "lock_sha256_chunks": [
+    "c2ce483b3f3a98709e81881e041bcbef",
+    "1a4ce86fe1e1efe589fd35e561b5ec78"
+  ],
+  "binary_sha256_chunks": [
+    "8b21b3202fa2d8a1132936839db5a6d2",
+    "f8ba89797fb816735f95766c4933a04d"
+  ],
+  "fixtures": 37,
+  "fixture_sha256_chunks": [
+    "2532100a444cb813c1fd69bc7bca5f5a",
+    "44e6ec8c4b5250cbe7cc7f4f6362e1ca"
+  ],
+  "public_signing_keys": "Ed25519 seed7; secp256k1 key11 only",
+  "transaction_wrapper": "Solana SDK compute limit then price0 then actual source instructions; blockhash repeated8; SDK Transaction::new with seed7. This is a transparent reference wrapper around production instruction helpers, not an invocation of production submit_reveal."
+}

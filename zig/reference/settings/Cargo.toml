@@ -1,0 +1,31 @@
+[package]
+name = "ziggy-settings-oracle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[workspace]
+[dependencies]
+hyperlane-base = { path = "../../../rust/main/hyperlane-base", features = ["test-utils"] }
+hyperlane-core = { path = "../../../rust/main/hyperlane-core", features = ["agent", "async", "matching-list"] }
+relayer = { path = "../../../rust/main/agents/relayer" }
+aws-config = "=1.1.9"
+derive_more = "=0.99.20"
+eyre = "=0.6.8"
+itertools = "=0.14.0"
+redact = { version = "=0.1.11", features = ["serde"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+url = "=2.5.7"
+tracing = "=0.1.44"
+serde_json = "=1.0.151"
+[patch.crates-io.curve25519-dalek]
+branch = "v3.2.2-relax-zeroize"
+git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
+version = "3.2.2"
+[patch.crates-io.primitive-types]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.12.1"
+[patch.crates-io.rlp]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.5.2"

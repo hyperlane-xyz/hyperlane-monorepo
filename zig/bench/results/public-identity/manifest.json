@@ -1,0 +1,108 @@
+{
+  "scope": "Configured scraper public identity correctness; no timing measurements or production credentials/requests. Runtime Node integration verified separately.",
+  "toolchain": "Zig 0.15.2 aarch64-macos",
+  "command": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/public_identity_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "--test-filter",
+    "public identity"
+  ],
+  "environment": {
+    "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib",
+    "HYPERLANE_ALEO_VM_WORKER": "/tmp/ziggy-aleo-vm-worker",
+    "HYPERLANE_ALEO_VM_LIBRARY": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.dylib",
+    "HYPERLANE_ALEO_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.dylib"
+  },
+  "results": {
+    "identity_final": {
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "substantive_cases": 11
+    },
+    "health_snapshot_order": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "source_files": [
+    {
+      "path": "zig/src/agents/public_identity.zig",
+      "sha256_chunks": [
+        "4603d18d460603573f4b23f9c046ace5",
+        "a90909668a1bbdadd07b094790b85658"
+      ]
+    },
+    {
+      "path": "zig/src/agents/public_identity_test.zig",
+      "sha256_chunks": [
+        "dc3d59d4bacffc80d3fe8aa31b6e8917",
+        "99da68c8d2de43121eaaaa0c19bacbb6"
+      ]
+    },
+    {
+      "path": "zig/src/public_identity_tests.zig",
+      "sha256_chunks": [
+        "82e664eba6d53a0c1617d4dde685504f",
+        "7d65ff9dcf16896c01de44b84805798c"
+      ]
+    },
+    {
+      "path": "zig/src/agents/credentials.zig",
+      "sha256_chunks": [
+        "c5bcf2468f2ed94192389e936a4bc5f1",
+        "fecc4dcf5fd488b0f77ad7547da00a21"
+      ]
+    },
+    {
+      "path": "zig/src/agents/health_metrics.zig",
+      "sha256_chunks": [
+        "2600a2196ec6da551ff79c99208350c6",
+        "f0d253560ceac5280cd47ba36fc51f3e"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact": "zig/bench/results/public-identity/identity-final.log.gz",
+      "uncompressed_bytes": 1866,
+      "uncompressed_sha256_chunks": [
+        "7a19e449af7d7f04d82c683b4d10f815",
+        "621fbabbf0e0cdd9800b162bffe00423"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/public-identity/health-snapshot-order.log.gz",
+      "uncompressed_bytes": 594,
+      "uncompressed_sha256_chunks": [
+        "829b70f550172186023a7d9088e5a08f",
+        "eb5c1f707752ab06ff315fab3f5f869c"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/public-identity/adc-command-budget.log.gz",
+      "uncompressed_bytes": 407,
+      "uncompressed_sha256_chunks": [
+        "5c74439202df51dff558e5d399acd86b",
+        "b9211c071007a8ae4351d92908aeb8ce"
+      ]
+    },
+    {
+      "artifact": "zig/bench/results/public-identity/own-native-auth.log.gz",
+      "uncompressed_bytes": 415,
+      "uncompressed_sha256_chunks": [
+        "f7ba0754170aeb5fa2986913f3342023",
+        "3cf5534621f5efea335b44da0996d377"
+      ]
+    }
+  ],
+  "qualification": "Aleo existing isolated worker initializes the SDK VM before key_address; no minimal key-only ABI or absence of SDK built-in parameters is claimed."
+}

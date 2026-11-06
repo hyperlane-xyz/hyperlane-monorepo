@@ -1,0 +1,49 @@
+1/41 origin_bootstrap_tests.test_0...OK
+2/41 agents.indexing.native_test.test.native generic relayer origin persists every stream reopens cursors and builds historical proofs...OK
+3/41 agents.indexing.native_test.test_0...OK
+4/41 agents.indexing.native_test.test_1...OK
+5/41 agents.indexing.native_test.test_2...OK
+6/41 agents.origin_tasks_test.test.origin task construction performs no database network or native-library discovery...OK
+7/41 agents.origin_tasks_test.test.origin bootstrap pre-canceled descriptor never constructs resources or records failures...OK
+8/41 agents.indexing.testing.test.native origin generic source rotates block and sequence lanes stores before cursors and avoids disabled gas calls...OK
+9/41 agents.indexing.testing.test.native origin generic source rejects changed canonical fence and cancellation before durable writes...OK
+10/41 agents.indexing.testing.test.native origin incomplete source and partial DB failure retain gap repair and replay neighboring rows...OK
+11/41 agents.indexing.testing.test.native origin unsequenced gas keeps separate conservative watermark and source poll cadence...OK
+12/41 agents.indexing.testing.test.native origin insertion-only validator lane filters rotation polling and rejects no active streams...OK
+13/41 agents.indexing.testing.test.native origin cooperative frame freezes selected lane and decodes each completed block once across repeated yields...OK
+14/41 agents.indexing.testing.test.native origin cooperative frame rejects a late range fork and releases retained budget before DB writes...OK
+15/41 agents.indexing.testing.test.native origin stream mask aborts only disabled pending frame releases quota and resumes unskipped cursor...OK
+16/41 agents.indexing.testing.test.origin Source fetch backoff preserves healthy streams disjoint forward work and exact retry metrics...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+OK
+17/41 agents.indexing.testing.test.origin indexing metrics count committed partial rows and keep cancellation IO refusal out of retries...OK
+18/41 agents.indexing.testing.test.origin cooperative fetch failure abandons uncommitted frame keeps healthy stream and resumes exact range...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+OK
+19/41 agents.indexing.testing.test.origin cooperative backed-off candidate computes remaining delay from resumed clock...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+OK
+20/41 agents.indexing.testing.test.origin cooperative gap delay starts at actual completed observation and suppresses early duplicate fetch...OK
+21/41 protocol.root.test_0...OK
+22/41 db.root.test_0...OK
+23/41 relayer.remote_checkpoints.test_0...OK
+24/41 runtime.block_cursor.test.cooperative block slices finish original range before rate limit and preserve configured watermark...OK
+25/41 agents.indexing.fetch_backoff.test.fetch backoff has independent bounded state for the three origin streams...OK
+26/41 agents.indexing.evm_native_test.test.EVM origin metrics follow actual empty cycles and Source scheduled fetch recovery...[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcHttpStatus
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcHttpStatus
+OK
+27/41 agents.indexing.evm_native_test.test.origin bootstrap EVM actual count failures independent retries recovery and WS reasons...OK
+28/41 agents.indexing.evm_native_test.test.origin bootstrap EVM direct native physical request timeout consumes one completed attempt...OK
+29/41 agents.indexing.bootstrap_native_test.test.origin bootstrap independent Source budget real recovery and WS mask legacy...OK
+30/41 agents.indexing.bootstrap_native_test.test.origin bootstrap independent Source budget real recovery and WS mask cooperative...OK
+31/41 agents.indexing.bootstrap_native_test.test.origin bootstrap controls uncounted and retry delay starts after completed read...OK
+32/41 runtime.supervisor.test.supervisor fatal classification exposes original error halts all lanes and drains cancellation...OK
+33/41 agents.chain_source.test_0...OK
+34/41 cosmos.fallback_grpc.test.gRPC shared height probe is serialized across fork clients and late result retains original query height...OK
+35/41 agents.scraper.starknet.test_0...OK
+36/41 evm.root.test_0...OK
+37/41 storage.root.test_0...OK
+38/41 cloud.root.test_0...OK
+39/41 relayer.remote_checkpoints_testing.test.remote checkpoint engine serves concurrent origins and cancels one without poisoning later sessions...OK
+40/41 cloud.google_adc.test_0...OK
+41/41 cloud.aws_profile.test_0...OK
+All 41 tests passed.

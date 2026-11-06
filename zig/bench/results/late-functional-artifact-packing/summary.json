@@ -1,0 +1,69 @@
+{
+  "scope": "Lossless packing of six immutable functional evidence JSONs; no measurement edits or new acceptance claim",
+  "new_records": [
+    {
+      "path": "zig/bench/results/default-test-wiring-2026-11-06/manifest.json.gz",
+      "bytes": 2547,
+      "gzip_bytes": 1218,
+      "sha256_chunks": [
+        "d2caa538c405b244557cd57587e4070",
+        "478f4a9f9de264f890c2dd33433066f",
+        "f6"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-lifetime-review-2026-11-06/manifest.json.gz",
+      "bytes": 3846,
+      "gzip_bytes": 1487,
+      "sha256_chunks": [
+        "01243346fd8e501f1ec27e15615c493",
+        "2692aa43e75709b4b5ce28ec9204b75",
+        "94"
+      ]
+    },
+    {
+      "path": "zig/bench/results/metadata-lifetime-review-2026-11-06/tested-source-snapshot.json.gz",
+      "bytes": 1120,
+      "gzip_bytes": 564,
+      "sha256_chunks": [
+        "e0b896ec8703de9b13a1c785f42f6d3",
+        "89efa470145673e6cc359a6956a2312",
+        "db"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-submit-backpressure-2026-11-06/manifest.json.gz",
+      "bytes": 2680,
+      "gzip_bytes": 1368,
+      "sha256_chunks": [
+        "11147c3ae589ce6b1719e9403d49e2a",
+        "59590c0476d50e25dea36b7dc32d9d8",
+        "c1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/native-submit-backpressure-2026-11-06/source-snapshot.json.gz",
+      "bytes": 566,
+      "gzip_bytes": 324,
+      "sha256_chunks": [
+        "d49023d9467e107716f09f09cc4ab05",
+        "9af79b81fd000f748356509baf1feeb",
+        "fd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/starknet-batch-backend/manifest.json.gz",
+      "bytes": 3544,
+      "gzip_bytes": 1604,
+      "sha256_chunks": [
+        "10b2c5804f4040d565fd4af638205d4",
+        "1eb1251035ea88f2ff652a09ce55519",
+        "42"
+      ]
+    }
+  ],
+  "old_records_preserved": true,
+  "historical_records_verified": 102,
+  "raw_mirrors_preserved": true,
+  "normal_hooks_unchanged": true
+}

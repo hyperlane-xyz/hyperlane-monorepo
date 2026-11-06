@@ -1,0 +1,23 @@
+[package]
+name = "ziggy-starknet-crypto"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Exact versions selected by the production agents' Cargo.lock.
+starknet-core = "=0.16.0"
+starknet-crypto = "=0.8.1"
+starknet-curve = "=0.6.0"
+starknet-types-core = { version = "=0.2.4", features = ["secret-felt"] }
+zeroize = "=1.8.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

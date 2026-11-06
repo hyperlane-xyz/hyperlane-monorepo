@@ -1,0 +1,15 @@
+{
+  "scope": "disposable PG statement log; total includes harness SELECTs; timeout SET is scraper only",
+  "total_statements": 3739,
+  "timeout_config_roundtrips": 8,
+  "first_word_counts": {
+    "SELECT": 2397,
+    "BEGIN": 60,
+    "INSERT": 415,
+    "COMMIT": 60,
+    "UPDATE": 325,
+    "WITH": 11,
+    "DELETE": 11,
+    "EMPTY": 460
+  }
+}

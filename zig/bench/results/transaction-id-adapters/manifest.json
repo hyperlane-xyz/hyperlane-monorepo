@@ -1,0 +1,324 @@
+{
+  "scope": "Four source-supported generic tx-ID adapters plus real SDK/native consumer correctness; not final whole-rewrite acceptance or benchmark",
+  "passed": true,
+  "executed_by": "external adapter owner; Parent checked all supplied source hashes and lossless archived bytes",
+  "archived_utc": "2026-11-06T05:48:30.064187+00:00",
+  "source": [
+    {
+      "path": "zig/src/agents/scraper/cosmos.zig",
+      "bytes": 16594,
+      "sha256_chunks": [
+        "e77ecc6eb2ba4f17be0f440f8324a28d",
+        "04fcb2d45c36976ce33b28f1847a4cb2"
+      ]
+    },
+    {
+      "path": "zig/src/agents/scraper/tron.zig",
+      "bytes": 8898,
+      "sha256_chunks": [
+        "70113a81917b6acccbdd578dc9f08379",
+        "21c1a906fde4775cd45c383823c9e721"
+      ]
+    },
+    {
+      "path": "zig/src/agents/scraper/radix.zig",
+      "bytes": 14286,
+      "sha256_chunks": [
+        "e171e3992c68993e622e261bb97b9212",
+        "1428c374b9c9e80b89dea52ecdd3190d"
+      ]
+    },
+    {
+      "path": "zig/src/agents/scraper/aleo.zig",
+      "bytes": 20079,
+      "sha256_chunks": [
+        "4e821c48a47aad7377329e353444e9dc",
+        "57490b2144301f715ab817f9e306ce7a"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_tests.zig",
+      "bytes": 218,
+      "sha256_chunks": [
+        "a6d30caae367bdacb7e94bda97e69904",
+        "a3d1fb737a496333bda9f0e6575a8298"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_cosmos_test.zig",
+      "bytes": 10480,
+      "sha256_chunks": [
+        "58885c48918d12585347970818be00b5",
+        "d18a948cb901a8ab5778f465a353ce59"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_tron_test.zig",
+      "bytes": 8653,
+      "sha256_chunks": [
+        "ae2ee147a7ef41441f55c87d2462807d",
+        "7129eccda004e1ac1bacc876ea96fcec"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_radix_test.zig",
+      "bytes": 9093,
+      "sha256_chunks": [
+        "8c895b050cfc528809898a696104d598",
+        "5be91295183405c7db98429e26612347"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_native_tests.zig",
+      "bytes": 294,
+      "sha256_chunks": [
+        "cb151446f44204a5c902565e6f28257c",
+        "f22944d25fc87eb9c402709dd1db0dd1"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_consumer_native_test.zig",
+      "bytes": 3741,
+      "sha256_chunks": [
+        "e6c7c19e04c722a61f7120c2ab34ca96",
+        "35b288f78ea90a9fe0c527fdcdc55c04"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_aleo_native_test.zig",
+      "bytes": 21577,
+      "sha256_chunks": [
+        "b4b39eef6ba4c78b93a2bb6bd92ced83",
+        "eb3a412a8d223bd471550d239b1a5e25"
+      ]
+    },
+    {
+      "path": "zig/src/transaction_adapter_aleo_authority_native_test.zig",
+      "bytes": 9713,
+      "sha256_chunks": [
+        "a179289694b51fbc9e6655c70c16a7d5",
+        "3c5f6eeb69ebb5279f60e4eb3b2f5848"
+      ]
+    }
+  ],
+  "common_source_at_archive": {
+    "zig/src/agents/scraper/source.zig": [
+      "93067e32774fd0d7fb15bf2f9e7d7a27",
+      "9528924b0552cabd888c7030858b74d4"
+    ],
+    "zig/src/agents/indexing/tx_id_companion.zig": [
+      "6bed8b3cadd45b46b54e55cf3eb3dbd2",
+      "ed5579d84159045a9ca6154154e4fc13"
+    ],
+    "zig/src/agents/indexing/tx_id_queue.zig": [
+      "239a0a4cea83a3f77b553da9b78a4fbe",
+      "d0e5e19fc577ab0b0dc024a484debb61"
+    ],
+    "zig/src/agents/indexing/source.zig": [
+      "bc650fd3b96b012ca5004f05ef2e1450",
+      "f8e269a6415171e0189fd99a8d6a921c"
+    ],
+    "zig/src/agents/validator/index_source.zig": [
+      "d4cd78d21dcb18bc39b4e7789341c15f",
+      "0d7488f28d48614db2f63ab370d1317f"
+    ],
+    "zig/src/agents/store.zig": [
+      "2f6773523b333ac07274ac71c114905e",
+      "5c615d2b1dda790282d199ebe2e99a9f"
+    ]
+  },
+  "commands": [
+    {
+      "name": "pure-release",
+      "cwd": "/Users/pbio/work/ziggy/zig",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "src/transaction_adapter_tests.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib",
+        "--test-filter",
+        "transaction companion"
+      ]
+    },
+    {
+      "name": "consumer",
+      "cwd": "/Users/pbio/work/ziggy/zig",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "src/transaction_adapter_native_tests.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "-lc++",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+        "--test-filter",
+        "common transaction consumer"
+      ]
+    },
+    {
+      "name": "aleo",
+      "cwd": "/Users/pbio/work/ziggy/zig",
+      "command": [
+        "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+        "test",
+        "src/transaction_adapter_native_tests.zig",
+        "-O",
+        "ReleaseSafe",
+        "-lc",
+        "-lc++",
+        "--sysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+        "-L/usr/lib",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+        "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+        "--test-filter",
+        "Aleo"
+      ],
+      "environment": {
+        "HYPERLANE_ALEO_CRYPTO_LIBRARY": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.dylib",
+        "HYPERLANE_ALEO_VM_LIBRARY": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.dylib",
+        "HYPERLANE_ALEO_VM_WORKER": "/tmp/ziggy-aleo-vm-worker",
+        "HYPERLANE_ALEO_PARAMETER_HOME": "/tmp/ziggy-aleo-parameters"
+      }
+    }
+  ],
+  "logs": [
+    {
+      "path": "zig/bench/results/transaction-id-adapters/pure-release.log.gz",
+      "encoding": "gzip",
+      "sha256_chunks": [
+        "32030447e79218b0f6f70458d1ac2564",
+        "7ca71a990df4f66096792517f726125c"
+      ],
+      "decoded_sha256_chunks": [
+        "e4f9f13ed2f6e68a8f7318e28d96d73d",
+        "cc418c9161ab46b03f95abd06e866bee"
+      ],
+      "bytes": 2110,
+      "tail": "All 19 tests passed."
+    },
+    {
+      "path": "zig/bench/results/transaction-id-adapters/consumer.log.gz",
+      "encoding": "gzip",
+      "sha256_chunks": [
+        "627153c79091e106e9d257d112917df8",
+        "bffaae90258e0fcd2cb048df133e62b9"
+      ],
+      "decoded_sha256_chunks": [
+        "fc8a3222077788107f68a35ffc5832d4",
+        "3236528630301c07a60d869ee5f205e0"
+      ],
+      "bytes": 465,
+      "tail": "All 8 tests passed."
+    },
+    {
+      "path": "zig/bench/results/transaction-id-adapters/aleo.log.gz",
+      "encoding": "gzip",
+      "sha256_chunks": [
+        "d0b34b2663dc6e298d6916d80f12d302",
+        "7f16745a932033f236641182959fdb47"
+      ],
+      "decoded_sha256_chunks": [
+        "746dea8469409a83673154482cd69f19",
+        "ad6e59a3968d65bd14f42abd1f379846"
+      ],
+      "bytes": 2049,
+      "tail": "All 21 tests passed."
+    },
+    {
+      "path": "zig/bench/results/transaction-id-adapters/followup-pure.log.gz",
+      "encoding": "gzip",
+      "sha256_chunks": [
+        "9b023de61bf6bc9609dbdd84fca99615",
+        "bc1e794a6dfbfcc3a73fd3fa12d7807a"
+      ],
+      "decoded_sha256_chunks": [
+        "e4f9f13ed2f6e68a8f7318e28d96d73d",
+        "cc418c9161ab46b03f95abd06e866bee"
+      ],
+      "bytes": 2110,
+      "tail": "All 19 tests passed."
+    },
+    {
+      "path": "zig/bench/results/transaction-id-adapters/followup-consumer.log.gz",
+      "encoding": "gzip",
+      "sha256_chunks": [
+        "722cb75fde17afdc6d88adfd54b0279d",
+        "06e47e321b54872539df08e03686e6c6"
+      ],
+      "decoded_sha256_chunks": [
+        "fc8a3222077788107f68a35ffc5832d4",
+        "3236528630301c07a60d869ee5f205e0"
+      ],
+      "bytes": 465,
+      "tail": "All 8 tests passed."
+    },
+    {
+      "path": "zig/bench/results/transaction-id-adapters/followup-aleo.log.gz",
+      "encoding": "gzip",
+      "sha256_chunks": [
+        "68570c240eee46410bf8b5a2e518bc8d",
+        "62a7b5a04f6d380b22f69932bc2c09dd"
+      ],
+      "decoded_sha256_chunks": [
+        "1e1843e821be28078e6803aea939ea9d",
+        "75f65ed4d1680d84b11371ace032a822"
+      ],
+      "bytes": 2569,
+      "tail": "All 25 tests passed."
+    }
+  ],
+  "final_reported_counts": {
+    "pure": {
+      "passed": 19,
+      "skipped": 0,
+      "import_roots": 5
+    },
+    "cosmos_consumer": {
+      "passed": 8,
+      "skipped": 0,
+      "import_roots": 7
+    },
+    "aleo": {
+      "passed": 25,
+      "skipped": 0,
+      "note": "Includes three new actual adapter\u2192Companion\u2192Store and Core authority cases; counts include import roots and transitive SDK cases."
+    }
+  },
+  "checks": [
+    "Cosmos canonical tx index membership, hash/height, malformed/no-event/cancel/PIO/OOM",
+    "Tron receipt/log identity, canonical header fences, no-event/cancel/PIO/OOM",
+    "Radix committed success, intent/state identity, SBOR/no-event/cancel/PIO/OOM",
+    "Aleo accepted membership/finalize mapping/real native decoder, canonical fences, no-event/cancel",
+    "Actual Aleo same-index gas/tree program emitters persist through common consumer with logical mapping keys unchanged",
+    "Same-kind conflicting payload rejects before gas/tree/meta/watermark writes",
+    "Actual Core insertion-range accepts concrete program emitter",
+    "Fresh consumer replay idempotent, full64tx metadata and no gas-watermark advance"
+  ],
+  "limits": [
+    "Source-common29/29+origin42/42 evidence remains separately archived.",
+    "Full combined default/native/PG and all-role final snapshot still pending grouped Starknet integration.",
+    "No production endpoints, credentials or performance timings used; heavyweight Aleo/Starknet SDK libraries were reused."
+  ],
+  "exploratory_setup": "Before accepted tests, owner invoked native_deps.py --format libs to discover default output paths. That helper may perform cached native build/probe/copy work; no claim of zero build activity is made. Final accepted commands use the canonical unchanged seven out-final archives. No setup duration is a benchmark."
+}

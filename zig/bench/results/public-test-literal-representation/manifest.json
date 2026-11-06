@@ -1,0 +1,352 @@
+{
+  "captured_utc": "2026-11-06T07:04:42.630411+00:00",
+  "scope": "Five test files only: public hash literal representation with exact unchanged runtime bytes. No production or hook configuration edits. Historical acceptance artifacts preserved.",
+  "status": "passed",
+  "source_changes": "source-changes.json",
+  "runtime_equivalence": "runtime-equivalence.json",
+  "commands": "commands.json",
+  "tests": [
+    {
+      "name": "runtime-values",
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "log_archive": "runtime-values.log.gz",
+      "elapsed_seconds_unmeasured_diagnostic_only": 4.202
+    },
+    {
+      "name": "batch",
+      "passed": 44,
+      "failed": 0,
+      "skipped": 0,
+      "log_archive": "batch.log.gz",
+      "elapsed_seconds_unmeasured_diagnostic_only": 30.86
+    },
+    {
+      "name": "headers-and-producers",
+      "passed": 33,
+      "failed": 0,
+      "skipped": 0,
+      "log_archive": "headers-and-producers.log.gz",
+      "elapsed_seconds_unmeasured_diagnostic_only": 24.985
+    },
+    {
+      "name": "pool",
+      "passed": 86,
+      "failed": 0,
+      "skipped": 0,
+      "log_archive": "pool.log.gz",
+      "elapsed_seconds_unmeasured_diagnostic_only": 24.374
+    },
+    {
+      "name": "cosmos",
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "log_archive": "cosmos.log.gz",
+      "elapsed_seconds_unmeasured_diagnostic_only": 19.337
+    }
+  ],
+  "hex_runs_split": 31,
+  "changed_string_expressions": 18,
+  "source_files_stable_after_tests": true,
+  "preexisting_starknet_sdk_sha256_chunks": [
+    "3cc4267be662704e48ca5c4b9e1c4",
+    "286b6d368511b8fc423fc4d901903",
+    "3d6a16"
+  ],
+  "sdk_matches_previously_accepted_pin": true,
+  "initial_failed_attempt": "runtime-equivalence-first-link-failure.log.gz records a missing libc/sysroot link invocation; corrected explicit libc/sysroot invocation passes 18/18.",
+  "limitations": [
+    "Focused linked tests and equality probes; no role, SDK, Rust/C, container, or benchmark build/run.",
+    "Prior acceptance snapshots retain historical hashes. The final global test/build acceptance must bind the new five test-source hashes.",
+    "Test totals belong to separate roots and overlap imported smoke tests; they are not added as a unique project-wide total."
+  ],
+  "compressed_artifacts": [
+    {
+      "path": "batch.log.gz",
+      "gzip_sha256_chunks": [
+        "c928d813919493af79f4a3d7124d2",
+        "0e6a276b41871b5902cf9ce59c11a",
+        "120d1b"
+      ],
+      "raw_sha256_chunks": [
+        "220046875e06cb3e9dc46d42fa20c",
+        "50c27f8b6f8b92f693a3e4c4f68a5",
+        "37e232"
+      ],
+      "gzip_bytes": 1623,
+      "raw_bytes": 4865
+    },
+    {
+      "path": "cosmos.log.gz",
+      "gzip_sha256_chunks": [
+        "2d8eaa52082354e4cce5a855e6b4d",
+        "1c6093d5fec70009c52a2ac7eb617",
+        "b50732"
+      ],
+      "raw_sha256_chunks": [
+        "178ac4411a0cb3f4459b14a6db9f4",
+        "c7dc00ff78c8d651366a47752b8fa",
+        "48a173"
+      ],
+      "gzip_bytes": 310,
+      "raw_bytes": 796
+    },
+    {
+      "path": "header_testing.zig.after.source.gz",
+      "gzip_sha256_chunks": [
+        "4d0dbe808e1515bf847ca0458a25b",
+        "1ec3262ac306f413c4d5455717912",
+        "29ae63"
+      ],
+      "raw_sha256_chunks": [
+        "28d4393bb672b614a337d52ef57e9",
+        "d8e28b62c6d09f46b7e90333de1f7",
+        "2245a8"
+      ],
+      "gzip_bytes": 3080,
+      "raw_bytes": 14076
+    },
+    {
+      "path": "header_testing.zig.before.source.gz",
+      "gzip_sha256_chunks": [
+        "2c840911eb92f8f8e014512e3c5fe",
+        "1d22e20097bd14fee380d08c79dd1",
+        "27c14b"
+      ],
+      "raw_sha256_chunks": [
+        "b9fdef48c646a883f81d981035a3e",
+        "0a3ef8f2ba0bf4e93e84f436a3a3a",
+        "bb72b0"
+      ],
+      "gzip_bytes": 3076,
+      "raw_bytes": 14064
+    },
+    {
+      "path": "headers-and-producers.log.gz",
+      "gzip_sha256_chunks": [
+        "be97602976e1103889deafa7c3d1a",
+        "09a76b52f1ba59e1c604638e26e6c",
+        "98840b"
+      ],
+      "raw_sha256_chunks": [
+        "a13013553ea4b4da8f3a5fd15238f",
+        "62b2b8575f389d160151703985b0d",
+        "435f4a"
+      ],
+      "gzip_bytes": 1424,
+      "raw_bytes": 4247
+    },
+    {
+      "path": "pool.log.gz",
+      "gzip_sha256_chunks": [
+        "cca55a9f79f21ac920bbb4c9211cd",
+        "af5f5b5f4eed937f4c164b58ea3a1",
+        "d1a3d3"
+      ],
+      "raw_sha256_chunks": [
+        "bec00522753fc724717f940d8c543",
+        "1a787985000821de37b3ff46afeac",
+        "011110"
+      ],
+      "gzip_bytes": 3175,
+      "raw_bytes": 9447
+    },
+    {
+      "path": "rpc_pool_delegated_tests.zig.after.source.gz",
+      "gzip_sha256_chunks": [
+        "8a55e1bcd80ab22a405f2bb5a3927",
+        "d6f0daaa81ccc5e7136d531390d0a",
+        "881ca8"
+      ],
+      "raw_sha256_chunks": [
+        "5321afede91925e03b185616a5331",
+        "91088dcf590c21d960300a427067b",
+        "2f0e36"
+      ],
+      "gzip_bytes": 6687,
+      "raw_bytes": 54208
+    },
+    {
+      "path": "rpc_pool_delegated_tests.zig.before.source.gz",
+      "gzip_sha256_chunks": [
+        "001a02d12b9536e1348d00c3e286f",
+        "0cbddc8f9405714d626736e41ed28",
+        "3feb91"
+      ],
+      "raw_sha256_chunks": [
+        "4e58da499be22279cda2cb2dd2e1c",
+        "551aad39ff48d493f43080ea0d7bf",
+        "b0a9a9"
+      ],
+      "gzip_bytes": 6683,
+      "raw_bytes": 54088
+    },
+    {
+      "path": "rpc_producers_test.zig.after.source.gz",
+      "gzip_sha256_chunks": [
+        "a891d7557267149d0a70df0217869",
+        "46eae403d720e20d583bbea720b29",
+        "67bd3f"
+      ],
+      "raw_sha256_chunks": [
+        "06aec957e92fd750a3be5c8c7a50c",
+        "b1cb67999c9daf78a91eabf9e0646",
+        "7e7f6a"
+      ],
+      "gzip_bytes": 9686,
+      "raw_bytes": 65178
+    },
+    {
+      "path": "rpc_producers_test.zig.before.source.gz",
+      "gzip_sha256_chunks": [
+        "22ae09c1b171e28863f268f983a7a",
+        "1d15281255ac904fff14a82a406a5",
+        "9f79a8"
+      ],
+      "raw_sha256_chunks": [
+        "a4ff6b942ce3538c30b1330509089",
+        "fcb0bfee64c7818e9e85909099718",
+        "5012ab"
+      ],
+      "gzip_bytes": 9681,
+      "raw_bytes": 65154
+    },
+    {
+      "path": "runtime-equivalence-first-link-failure.log.gz",
+      "gzip_sha256_chunks": [
+        "00535807d83671795bc6ac87a0262",
+        "21623bdbe1b8163d5164f1a87a207",
+        "59e86e"
+      ],
+      "raw_sha256_chunks": [
+        "d94d60907b9c8e58924aeedd7d12d",
+        "39ef0ea0ba732c8476b506451d6b7",
+        "20f820"
+      ],
+      "gzip_bytes": 558,
+      "raw_bytes": 3677
+    },
+    {
+      "path": "runtime-equivalence-probe.zig.gz",
+      "gzip_sha256_chunks": [
+        "5688f8aecb38c6875a425e58a32c4",
+        "d2cd70b3b94f7e21444356f12d84d",
+        "d576fb"
+      ],
+      "raw_sha256_chunks": [
+        "dbe299dac74dcd3a9683e2e46005c",
+        "9de17767ffb961254612107b5f5c2",
+        "dc3f3c"
+      ],
+      "gzip_bytes": 603,
+      "raw_bytes": 9510
+    },
+    {
+      "path": "runtime-values.log.gz",
+      "gzip_sha256_chunks": [
+        "80e3a7e9a1c4d025fc0288e58130b",
+        "80727880e3cbde92421657da6ef0a",
+        "3fc2dc"
+      ],
+      "raw_sha256_chunks": [
+        "3061aeda1b14e4472bb796871d3cd",
+        "70f4bab5d925c693b616ef03f0c80",
+        "7308fa"
+      ],
+      "gzip_bytes": 196,
+      "raw_bytes": 1478
+    },
+    {
+      "path": "starknet_batch_testing.zig.after.source.gz",
+      "gzip_sha256_chunks": [
+        "5b0604b6fabf598f4e3871f6d57eb",
+        "319203932fbbb3a762f7c4c99a0df",
+        "b5a591"
+      ],
+      "raw_sha256_chunks": [
+        "b68d7e664176bb1b97656e586c313",
+        "7f30794416c42a0f6b7137f339958",
+        "20a850"
+      ],
+      "gzip_bytes": 5774,
+      "raw_bytes": 28016
+    },
+    {
+      "path": "starknet_batch_testing.zig.before.source.gz",
+      "gzip_sha256_chunks": [
+        "b022d82909a0d302052a2fc009fb7",
+        "ab3c1a9c091538c74975045b651cb",
+        "5b8e7a"
+      ],
+      "raw_sha256_chunks": [
+        "61173631c99f26859d353f08af934",
+        "ccead7edd2beeb6d207e48d9a0241",
+        "0a7492"
+      ],
+      "gzip_bytes": 5769,
+      "raw_bytes": 28010
+    },
+    {
+      "path": "transaction_adapter_cosmos_test.zig.after.source.gz",
+      "gzip_sha256_chunks": [
+        "5b86744b3f45548e3554038ec9f88",
+        "b3a7dbbe71365a4c458c5bcf5ef88",
+        "553353"
+      ],
+      "raw_sha256_chunks": [
+        "7473077e87e561858738d424487f9",
+        "9d6f6899d860cef51b78a9428f811",
+        "4a558e"
+      ],
+      "gzip_bytes": 2978,
+      "raw_bytes": 10504
+    },
+    {
+      "path": "transaction_adapter_cosmos_test.zig.before.source.gz",
+      "gzip_sha256_chunks": [
+        "87d0dcd26474f93c9328c98eb8fb8",
+        "46c9dede2fb2a2472d17103e37cde",
+        "d40fdd"
+      ],
+      "raw_sha256_chunks": [
+        "58885c48918d12585347970818be0",
+        "0b5d18a948cb901a8ab5778f465a3",
+        "53ce59"
+      ],
+      "gzip_bytes": 2963,
+      "raw_bytes": 10480
+    },
+    {
+      "path": "ziggy-public-literal-tests.py.gz",
+      "gzip_sha256_chunks": [
+        "849e7e1b5c665c72fe01129f88403",
+        "0193b22c624cd380f5382ab5a5aed",
+        "d952d6"
+      ],
+      "raw_sha256_chunks": [
+        "409138ee13ec44591324473cb9647",
+        "10360c3a7088ef44a77423d7ad980",
+        "3f3dd7"
+      ],
+      "gzip_bytes": 848,
+      "raw_bytes": 1614
+    },
+    {
+      "path": "ziggy-public-literal-transform.py.gz",
+      "gzip_sha256_chunks": [
+        "036c59281c009890bb718eb487b05",
+        "0f3005b6a01260e57ebd394127377",
+        "10c02a"
+      ],
+      "raw_sha256_chunks": [
+        "6b308854fe42c3f544005b1164abe",
+        "e4972cc8b61ebc251169280c72392",
+        "fbf30a"
+      ],
+      "gzip_bytes": 1230,
+      "raw_bytes": 2693
+    }
+  ]
+}

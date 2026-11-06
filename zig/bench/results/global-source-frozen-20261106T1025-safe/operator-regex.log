@@ -1,0 +1,57 @@
+1/56 ops_tests.test_0...OK
+2/56 ops.matching.test.matching list preserves empty defaults and exact ID semantics...OK
+3/56 ops.matching.test.hot matcher keeps borrowed old snapshot alive across update...OK
+4/56 ops.matching.test.body uses lowercase hex without prefix when native regex is available...OK
+5/56 ops.matching.test.lower hex encoding is lowercase unprefixed and bounded...OK
+6/56 ops.matching.test.matching list allocation failure cleans only initialized native handles...OK
+7/56 ops.address_blacklist.test.address scanner preserves Rust prefix and empty-needle semantics...OK
+8/56 ops.runtime_denylist.test.runtime denylist validates constraints and rejects dangerous aliases...OK
+9/56 ops.runtime_denylist.test.runtime denylist parses exact addresses and prunes expired rules...OK
+10/56 ops.runtime_denylist.test.runtime denylist keeps active snapshot after fetch and parse failures...OK
+11/56 ops.runtime_denylist.test.runtime expiry retains nanoseconds prunes during outage and owns returned reason...OK
+12/56 ops.runtime_denylist.test.runtime canonical fingerprints ignore object order and exclude expired rules...OK
+13/56 ops.runtime_denylist.test.runtime Tron rules reject checksum typos in scalar address and matching arrays...OK
+14/56 ops.runtime_denylist.test.runtime allocation failure releases partially parsed rules and failed hot replacements...OK
+15/56 ops.runtime_denylist.test.206 unchanged production Rust denylist parser cases including canonical fingerprints and expiry...OK
+16/56 ops.metrics.test.metrics preserve source labels help types histogram buckets and escaping...OK
+17/56 ops.metrics.test.metrics concurrent counters are lossless and series removal frees its bounded budget...OK
+18/56 ops.metrics.test.metrics allocation failure does not leak partially installed series...OK
+19/56 ops.metrics.test.registry cursor raises are atomic with other writers and preserve metric shape...OK
+20/56 agents.relay_policy.test.relayer policy preserves loader defaults first gas match and explicit context match...OK
+21/56 agents.relay_policy.test.relayer policy denies whitelist blacklist and address while hot snapshots can update...OK
+22/56 agents.relay_policy.test.relayer policy cleans partially constructed rule context and matcher ownership...OK
+23/56 agents.relay_policy.test.relayer queued signer gate applies new runtime address rules and owns denial reason across refresh...OK
+24/56 agents.relay_policy.test.lane gas policy observes shared administrative matching updates...OK
+25/56 protocol.root.test_0...OK
+26/56 protocol.message.test.canonical message fixture and borrowed decode...OK
+27/56 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+28/56 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+29/56 altvm.bech32.test.Cosmos address source fixture and BIP173 mixed case checksum...OK
+30/56 altvm.bech32.test.generic addresses decode BIP350 without weakening Cosmos checksum policy...OK
+31/56 altvm.base58.test.base58 fixed vectors leading zeroes and invalid alphabet...OK
+32/56 altvm.tron.test.Tron zero-address base58check fixture and checksum rejection...OK
+33/56 altvm.tron.test.Tron raw transaction TAPOS and direct signature...OK
+34/56 config.test.environment and CLI layer over JSON; empty and false remain explicit...OK
+35/56 config.test.invalid scalar types, ambiguous keys and huge integers fail...OK
+36/56 testing.fixture.test.compressed SDK fixtures preserve exact bytes numbers and parsed ownership...OK
+37/56 testing.fixture.test.compressed fixture allocation failures release decoded and parsed storage...OK
+38/56 ops.metrics_schema.test.generated descriptors have unique names and labels within each group...OK
+39/56 relayer.policies.test.minimum zero requires an observed payment; none does not...OK
+40/56 relayer.policies.test.minimum preserves unspent paid gas and subsidizes exhausted budgets...OK
+41/56 relayer.policies.test.fraction policy enforces L2 gas but returns full transaction gas and rejects division zero...OK
+42/56 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+43/56 protocol.merkle.test.three-leaf Merkle fixture...OK
+44/56 protocol.merkle.test.full tree rejects without mutation...OK
+45/56 protocol.merkle.test.snapshot restore checks count root and shape...OK
+46/56 protocol.checkpoint.test.domain hash fixtures...OK
+47/56 protocol.checkpoint.test.checkpoint digest separates every field...OK
+48/56 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+49/56 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+50/56 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+51/56 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+52/56 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+53/56 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+54/56 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+55/56 altvm.protobuf.test.protobuf canonical encoder and bounded decoder...OK
+56/56 altvm.cosmos.test.direct signing preserves chain account and sequence replay protection...OK
+All 56 tests passed.

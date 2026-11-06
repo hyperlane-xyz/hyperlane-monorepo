@@ -1,0 +1,1376 @@
+{
+  "started_at_utc": "2026-11-05T15:07:45.350708+00:00",
+  "base_commit": "43c65fc631c340ab607e79a93535a8163921656f",
+  "git_status": "?? .github/workflows/zig-agents.yml\n?? docs/zig-agent-rewrite/architecture-review.md\n?? docs/zig-agent-rewrite/benchmarks.md\n?? docs/zig-agent-rewrite/db.md\n?? docs/zig-agent-rewrite/results.md\n?? docs/zig-agent-rewrite/scope.md\n?? docs/zig-agent-rewrite/settings.md\n?? docs/zig-agent-rewrite/status.md\n?? docs/zig-agent-rewrite/validator.md\n?? zig/",
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "cpu": "Apple M3 Pro",
+  "zig_version": "0.15.2",
+  "rust_version": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "zig_optimize": "ReleaseSafe",
+  "rustflags": "-C target-cpu=native",
+  "zig_command": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "build-exe",
+    "zig/src/prover_bench.zig",
+    "-O",
+    "ReleaseSafe",
+    "-mcpu=native",
+    "-lc",
+    "-femit-bin=/Users/pbio/work/ziggy/zig/bench/.cache/zig-prover-ReleaseSafe",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib"
+  ],
+  "rust_release_overflow_checks": false,
+  "source_sha256_chunks": {
+    "zig/reference/src/packed_prover.rs": [
+      "dc8f3876c0811700581b400030940204",
+      "ea8c3d91d7f9adccee042519873a0bd3"
+    ],
+    "zig/reference/Cargo.toml": [
+      "ae03de55adaa3fae3a107bb2b5ca6859",
+      "3a32110815712f5934ed7f0399281fad"
+    ],
+    "zig/reference/Cargo.lock": [
+      "1bb3719ebb2ff0ce877eb1a75d71f31b",
+      "0799b3cc92226c9d5533218fe57fe8dd"
+    ],
+    "rust/main/agents/relayer/src/prover/packed.rs": [
+      "a1cf3b4256d4d01aeecefac75df1a8bf",
+      "b44b9a1c5cc002fb3f7a2e40aff240d5"
+    ],
+    "rust/main/hyperlane-core/src/accumulator/merkle.rs": [
+      "db58e232db36fbdbeabf53e8217a95c2",
+      "b96b355415788ea37bfb2a29229d2099"
+    ],
+    "rust/main/hyperlane-core/src/accumulator/incremental.rs": [
+      "77500df03189f74f3d1a9d9edc3b855f",
+      "4064b2019d9785fe0de318cc303bcde4"
+    ],
+    "zig/src/prover_bench.zig": [
+      "6fd9bc3926a955f2fb3cba12757d326d",
+      "520547ce64ec1aae41b2776cd41dd74e"
+    ],
+    "zig/src/relayer/prover.zig": [
+      "adcc191464996fd66c7e4554100bc05c",
+      "df4a849e563eacee33d88a23f74e269c"
+    ],
+    "zig/src/protocol/merkle.zig": [
+      "4c022f9b33ce3eeb710e9d09c10c9ec0",
+      "1544995852d2f272714c53356ce78f4e"
+    ],
+    "zig/bench/prover.py": [
+      "2f44da1e85ae245552d37bc87bda73a8",
+      "1c8b1037c592411a36c16e6b647f3666"
+    ],
+    "zig/bench/run.py": [
+      "963fd13ee282c8431efb74a3638a08b7",
+      "a48b15b3067b1aaa964519d308e23262"
+    ]
+  },
+  "binary_sha256_chunks": {
+    "rust": [
+      "08d1cbbfdf71e0deef7b921d0ff98eae",
+      "1e72ad5ad6fd970b7b1c2c56879114ae"
+    ],
+    "zig": [
+      "0ce01ed758c129c7ae436386a7cb505d",
+      "606741bf7d65018ec381bb67c89ed24b"
+    ]
+  },
+  "scope": "Actual production PackedMerkle CPU kernels only; excludes network, DB, signer, agent runtime; no whole-agent speedup",
+  "host_contention": "Team compiler jobs paused during measurements; unrelated user workloads remained running and were not stopped",
+  "allocators": {
+    "rust": "system",
+    "zig": "std.heap.smp_allocator"
+  },
+  "differential": {
+    "queries": 82,
+    "counts": [
+      1,
+      2,
+      3,
+      255,
+      256,
+      257,
+      511,
+      512,
+      513,
+      4095,
+      4096,
+      4097,
+      65535,
+      65536,
+      65537
+    ],
+    "checks": [
+      "current root",
+      "leaf",
+      "index",
+      "all32 proof siblings",
+      "historical root",
+      "proof root independently matches production IncrementalMerkle"
+    ]
+  },
+  "load_average_before": [
+    9.7705078125,
+    21.1591796875,
+    39.32568359375
+  ],
+  "benchmarks": [
+    {
+      "kernel": "packed_ingest",
+      "iterations": 8192,
+      "leaves": 0,
+      "samples": {
+        "rust": [
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 46704000,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5701.171875,
+            "trial": 0
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 47322875,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5776.7181396484375,
+            "trial": 1
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 46923208,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5727.9306640625,
+            "trial": 2
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 47968500,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5855.52978515625,
+            "trial": 3
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 47870791,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5843.6024169921875,
+            "trial": 4
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 47194750,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5761.077880859375,
+            "trial": 5
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 47127625,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5752.8839111328125,
+            "trial": 6
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 49444833,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 6035.7462158203125,
+            "trial": 7
+          },
+          {
+            "body_len": 0,
+            "checksum": "c23446f7fa80dc23",
+            "elapsed_ns": 48226125,
+            "iterations": 8192,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 2572288,
+            "ns_per_operation": 5886.9781494140625,
+            "trial": 8
+          }
+        ],
+        "zig": [
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 44458750,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5427.093505859375,
+            "trial": 0
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 44779625,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5466.2628173828125,
+            "trial": 1
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 44553417,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5438.6495361328125,
+            "trial": 2
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 44466750,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5428.070068359375,
+            "trial": 3
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 45261500,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5525.08544921875,
+            "trial": 4
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 45044833,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2621440,
+            "ns_per_operation": 5498.6368408203125,
+            "trial": 5
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 44689708,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5455.28662109375,
+            "trial": 6
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 45009834,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5494.364501953125,
+            "trial": 7
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 8192,
+            "body_len": 0,
+            "elapsed_ns": 46586042,
+            "checksum": "c23446f7fa80dc23",
+            "max_rss_bytes": 2637824,
+            "ns_per_operation": 5686.772705078125,
+            "trial": 8
+          }
+        ]
+      },
+      "summary": {
+        "rust": {
+          "median_ns": 5776.7181396484375,
+          "min_ns": 5701.171875,
+          "max_ns": 6035.7462158203125,
+          "stdev_ns": 103.15947949161028,
+          "median_rss_bytes": 2572288
+        },
+        "zig": {
+          "median_ns": 5466.2628173828125,
+          "min_ns": 5427.093505859375,
+          "max_ns": 5686.772705078125,
+          "stdev_ns": 80.8009948683615,
+          "median_rss_bytes": 2637824
+        }
+      },
+      "rust_over_zig": 1.0567948034401806
+    },
+    {
+      "kernel": "packed_ingest",
+      "iterations": 131072,
+      "leaves": 0,
+      "samples": {
+        "rust": [
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 755320333,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10469376,
+            "ns_per_operation": 5762.636817932129,
+            "trial": 0
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 1168806667,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10469376,
+            "ns_per_operation": 8917.28719329834,
+            "trial": 1
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 765232292,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10469376,
+            "ns_per_operation": 5838.259063720703,
+            "trial": 2
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 1296194042,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10469376,
+            "ns_per_operation": 9889.175735473633,
+            "trial": 3
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 1446717667,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10452992,
+            "ns_per_operation": 11037.579856872559,
+            "trial": 4
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 1504570208,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10469376,
+            "ns_per_operation": 11478.959716796875,
+            "trial": 5
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 941274709,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10469376,
+            "ns_per_operation": 7181.356117248535,
+            "trial": 6
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 779330000,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10485760,
+            "ns_per_operation": 5945.8160400390625,
+            "trial": 7
+          },
+          {
+            "body_len": 0,
+            "checksum": "80424edc96bc27b8",
+            "elapsed_ns": 812874584,
+            "iterations": 131072,
+            "kernel": "packed_ingest",
+            "max_rss_bytes": 10469376,
+            "ns_per_operation": 6201.740905761719,
+            "trial": 8
+          }
+        ],
+        "zig": [
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 861122792,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 6569.845520019531,
+            "trial": 0
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 1423637791,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 10861.49437713623,
+            "trial": 1
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 716905083,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 5469.551719665527,
+            "trial": 2
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 717446333,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 5473.681129455566,
+            "trial": 3
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 1454344167,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 11095.765434265137,
+            "trial": 4
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 1469418583,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 11210.774101257324,
+            "trial": 5
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 725857417,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 5537.852607727051,
+            "trial": 6
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 741931791,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 5660.490348815918,
+            "trial": 7
+          },
+          {
+            "kernel": "packed_ingest",
+            "iterations": 131072,
+            "body_len": 0,
+            "elapsed_ns": 794263708,
+            "checksum": "80424edc96bc27b8",
+            "max_rss_bytes": 10649600,
+            "ns_per_operation": 6059.751190185547,
+            "trial": 8
+          }
+        ]
+      },
+      "summary": {
+        "rust": {
+          "median_ns": 7181.356117248535,
+          "min_ns": 5762.636817932129,
+          "max_ns": 11478.959716796875,
+          "stdev_ns": 2332.8055678854935,
+          "median_rss_bytes": 10469376
+        },
+        "zig": {
+          "median_ns": 6059.751190185547,
+          "min_ns": 5469.551719665527,
+          "max_ns": 11210.774101257324,
+          "stdev_ns": 2654.7032524782294,
+          "median_rss_bytes": 10649600
+        }
+      },
+      "rust_over_zig": 1.1850909207096745
+    },
+    {
+      "kernel": "packed_proof_latest",
+      "iterations": 20000,
+      "leaves": 4096,
+      "samples": {
+        "rust": [
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 1865958,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 93.2979,
+            "trial": 0
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 1843958,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 92.1979,
+            "trial": 1
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 1837667,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 91.88335,
+            "trial": 2
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 3768959,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2326528,
+            "ns_per_operation": 188.44795,
+            "trial": 3
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 2427667,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2326528,
+            "ns_per_operation": 121.38335,
+            "trial": 4
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 1907166,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2326528,
+            "ns_per_operation": 95.3583,
+            "trial": 5
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 5245375,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2326528,
+            "ns_per_operation": 262.26875,
+            "trial": 6
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 9953542,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2326528,
+            "ns_per_operation": 497.6771,
+            "trial": 7
+          },
+          {
+            "body_len": 4096,
+            "checksum": "3cd977f0b5757dc1",
+            "elapsed_ns": 4157583,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 207.87915,
+            "trial": 8
+          }
+        ],
+        "zig": [
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 2434542,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 121.7271,
+            "trial": 0
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 2502334,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 125.1167,
+            "trial": 1
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 2420833,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 121.04165,
+            "trial": 2
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 2428000,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 121.4,
+            "trial": 3
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 4602125,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 230.10625,
+            "trial": 4
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 5917834,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 295.8917,
+            "trial": 5
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 4377459,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2375680,
+            "ns_per_operation": 218.87295,
+            "trial": 6
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 6579625,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 328.98125,
+            "trial": 7
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 2814167,
+            "checksum": "3cd977f0b5757dc1",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 140.70835,
+            "trial": 8
+          }
+        ]
+      },
+      "summary": {
+        "rust": {
+          "median_ns": 121.38335,
+          "min_ns": 91.88335,
+          "max_ns": 497.6771,
+          "stdev_ns": 133.24038224225134,
+          "median_rss_bytes": 2326528
+        },
+        "zig": {
+          "median_ns": 140.70835,
+          "min_ns": 121.04165,
+          "max_ns": 328.98125,
+          "stdev_ns": 81.95174095324333,
+          "median_rss_bytes": 2359296
+        }
+      },
+      "rust_over_zig": 0.8626591812070854
+    },
+    {
+      "kernel": "packed_proof_latest",
+      "iterations": 20000,
+      "leaves": 65536,
+      "samples": {
+        "rust": [
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 3653958,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 182.6979,
+            "trial": 0
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 3758667,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 187.93335,
+            "trial": 1
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 4148667,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 207.43335,
+            "trial": 2
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 2705000,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 135.25,
+            "trial": 3
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 2971750,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 148.5875,
+            "trial": 4
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 2474250,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 123.7125,
+            "trial": 5
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 2558250,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 127.9125,
+            "trial": 6
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 2955708,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 147.7854,
+            "trial": 7
+          },
+          {
+            "body_len": 65536,
+            "checksum": "a04d3d638cdcc00a",
+            "elapsed_ns": 3564125,
+            "iterations": 20000,
+            "kernel": "packed_proof_latest",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 178.20625,
+            "trial": 8
+          }
+        ],
+        "zig": [
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 3709625,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 185.48125,
+            "trial": 0
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 4159417,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 207.97085,
+            "trial": 1
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 3993292,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 199.6646,
+            "trial": 2
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 4309875,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6406144,
+            "ns_per_operation": 215.49375,
+            "trial": 3
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 4146208,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 207.3104,
+            "trial": 4
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 3822292,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 191.1146,
+            "trial": 5
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 3162667,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 158.13335,
+            "trial": 6
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 3159875,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 157.99375,
+            "trial": 7
+          },
+          {
+            "kernel": "packed_proof_latest",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 3148709,
+            "checksum": "a04d3d638cdcc00a",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 157.43545,
+            "trial": 8
+          }
+        ]
+      },
+      "summary": {
+        "rust": {
+          "median_ns": 148.5875,
+          "min_ns": 123.7125,
+          "max_ns": 207.43335,
+          "stdev_ns": 29.82286376741961,
+          "median_rss_bytes": 6258688
+        },
+        "zig": {
+          "median_ns": 191.1146,
+          "min_ns": 157.43545,
+          "max_ns": 215.49375,
+          "stdev_ns": 23.430425960980436,
+          "median_rss_bytes": 6422528
+        }
+      },
+      "rust_over_zig": 0.7774785390545778
+    },
+    {
+      "kernel": "packed_proof_historical",
+      "iterations": 20000,
+      "leaves": 4096,
+      "samples": {
+        "rust": [
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 31739209,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1586.96045,
+            "trial": 0
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 30961042,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1548.0521,
+            "trial": 1
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 31921042,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1596.0521,
+            "trial": 2
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 32234042,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1611.7021,
+            "trial": 3
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 31262417,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1563.12085,
+            "trial": 4
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 31445958,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1572.2979,
+            "trial": 5
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 31316125,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1565.80625,
+            "trial": 6
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 31031542,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 1551.5771,
+            "trial": 7
+          },
+          {
+            "body_len": 4096,
+            "checksum": "347475df7cc0a487",
+            "elapsed_ns": 56859750,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 2310144,
+            "ns_per_operation": 2842.9875,
+            "trial": 8
+          }
+        ],
+        "zig": [
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 30671500,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1533.575,
+            "trial": 0
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 30867084,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1543.3542,
+            "trial": 1
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 31994750,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1599.7375,
+            "trial": 2
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 32452625,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1622.63125,
+            "trial": 3
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 30774500,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1538.725,
+            "trial": 4
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 30732541,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1536.62705,
+            "trial": 5
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 30815958,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1540.7979,
+            "trial": 6
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 30671666,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 1533.5833,
+            "trial": 7
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 4096,
+            "elapsed_ns": 47741834,
+            "checksum": "347475df7cc0a487",
+            "max_rss_bytes": 2359296,
+            "ns_per_operation": 2387.0917,
+            "trial": 8
+          }
+        ]
+      },
+      "summary": {
+        "rust": {
+          "median_ns": 1572.2979,
+          "min_ns": 1548.0521,
+          "max_ns": 2842.9875,
+          "stdev_ns": 423.355076507089,
+          "median_rss_bytes": 2310144
+        },
+        "zig": {
+          "median_ns": 1540.7979,
+          "min_ns": 1533.575,
+          "max_ns": 2387.0917,
+          "stdev_ns": 278.88163929206934,
+          "median_rss_bytes": 2359296
+        }
+      },
+      "rust_over_zig": 1.0204439530972882
+    },
+    {
+      "kernel": "packed_proof_historical",
+      "iterations": 20000,
+      "leaves": 65536,
+      "samples": {
+        "rust": [
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 88660917,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 4433.04585,
+            "trial": 0
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 48566000,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2428.3,
+            "trial": 1
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 48184083,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2409.20415,
+            "trial": 2
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 47988875,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2399.44375,
+            "trial": 3
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 47063042,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2353.1521,
+            "trial": 4
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 47289459,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2364.47295,
+            "trial": 5
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 51087041,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2554.35205,
+            "trial": 6
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 51151333,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2557.56665,
+            "trial": 7
+          },
+          {
+            "body_len": 65536,
+            "checksum": "94021f7a85451cec",
+            "elapsed_ns": 47429375,
+            "iterations": 20000,
+            "kernel": "packed_proof_historical",
+            "max_rss_bytes": 6258688,
+            "ns_per_operation": 2371.46875,
+            "trial": 8
+          }
+        ],
+        "zig": [
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 107586916,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 5379.3458,
+            "trial": 0
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 128369500,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6438912,
+            "ns_per_operation": 6418.475,
+            "trial": 1
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 46139833,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 2306.99165,
+            "trial": 2
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 46060709,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 2303.03545,
+            "trial": 3
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 48221625,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 2411.08125,
+            "trial": 4
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 46349709,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6406144,
+            "ns_per_operation": 2317.48545,
+            "trial": 5
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 46854417,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 2342.72085,
+            "trial": 6
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 45946125,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 2297.30625,
+            "trial": 7
+          },
+          {
+            "kernel": "packed_proof_historical",
+            "iterations": 20000,
+            "body_len": 65536,
+            "elapsed_ns": 49980167,
+            "checksum": "94021f7a85451cec",
+            "max_rss_bytes": 6422528,
+            "ns_per_operation": 2499.00835,
+            "trial": 8
+          }
+        ]
+      },
+      "summary": {
+        "rust": {
+          "median_ns": 2409.20415,
+          "min_ns": 2353.1521,
+          "max_ns": 4433.04585,
+          "stdev_ns": 672.1264690886495,
+          "median_rss_bytes": 6258688
+        },
+        "zig": {
+          "median_ns": 2342.72085,
+          "min_ns": 2297.30625,
+          "max_ns": 6418.475,
+          "stdev_ns": 1585.95254531008,
+          "median_rss_bytes": 6422528
+        }
+      },
+      "rust_over_zig": 1.0283786691871546
+    }
+  ],
+  "load_average_after": [
+    26.78955078125,
+    23.8388671875,
+    39.36083984375
+  ],
+  "finished_at_utc": "2026-11-05T15:08:30.811314+00:00"
+}

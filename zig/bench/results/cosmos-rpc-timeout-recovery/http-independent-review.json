@@ -1,0 +1,132 @@
+{
+  "scope": "Read-only independent review of released HTTP normalization and Factory/receipt bindings, no builds/tests/source edits.",
+  "status": "open_confirmed_shared_signer_owner_finding",
+  "archive_uncompressed_hashes_verified": [
+    "commands.json.gz",
+    "result.json.gz",
+    "source-before.json.gz",
+    "focused.log.gz",
+    "origin.log.gz",
+    "receipts.log.gz",
+    "factory.log.gz"
+  ],
+  "recorded_source_unchanged": true,
+  "current_source_match_count": 20,
+  "recorded_source_count": 20,
+  "source_hashes": {
+    "zig/src/cloud/http.zig": [
+      "d25513a56d805c3b63f52bda1add1",
+      "fd64d23d1a2babf09ff5d0cedfffb",
+      "7bbb2a"
+    ],
+    "zig/src/agents/destination/factory.zig": [
+      "07c09af31bad93b6f672742b3a0e3",
+      "31890768c959d6a544034dd50541f",
+      "34fb13"
+    ],
+    "zig/src/agents/scraper/task.zig": [
+      "5931c554db5e1364600a872a8eb24",
+      "48e61b9d0c9d822bd1072d747808b",
+      "04603a"
+    ],
+    "zig/src/agents/scraper/receipt_jobs.zig": [
+      "d1b30c8c2a050cf8d6abe64578fa9",
+      "1a7743985d202c28df3eab9fe0ac1",
+      "94ecc3"
+    ],
+    "zig/src/agents/scraper/receipts_common.zig": [
+      "42ae4b6e8e87e0323896c4c670ef1",
+      "64fdaff315774f7dfdf64bb252049",
+      "5c3b18"
+    ],
+    "zig/src/agents/origin_signer_source.zig": [
+      "40201d3c7a985ecb6d28a6200757b",
+      "022a3ee62a85ca1553c6a90cdd89c",
+      "4fb74d"
+    ],
+    "zig/src/agents/destination/sealevel.zig": [
+      "08eaeff24e81a6844ba9951895fc1",
+      "8d2372480d5aa237987cba0e58d6f",
+      "67494b"
+    ],
+    "zig/src/agents/destination/aleo.zig": [
+      "677f58f52a82ff4b04aaa4fbae3cb",
+      "97ccd03d45598fed0ddf11aba85f7",
+      "d787ec"
+    ],
+    "zig/src/agents/scraper/receipts_radix.zig": [
+      "479bea49d0e46992d6f824fa4457f",
+      "4edaf57de5e293bcd778f3da938fc",
+      "e64171"
+    ],
+    "zig/src/agents/scraper/receipts_tron.zig": [
+      "3ac6bf5d6159f3f8076f9385e167e",
+      "44ac5519fbd2778c10a73a79dc752",
+      "5eeb75"
+    ],
+    "zig/src/agents/scraper/receipts_aleo.zig": [
+      "6ae066d8dbd29d684689bc52f907f",
+      "1c223ef7e6807c95b43f155cb8e07",
+      "82dbb6"
+    ],
+    "zig/src/agents/scraper/receipts_starknet.zig": [
+      "fbf678652bfe9dc8f20093d33f903",
+      "a3715cd2c3a910f33f75abae58104",
+      "89c24b"
+    ],
+    "zig/src/agents/scraper/receipt_factory.zig": [
+      "eba5bbe9268484fde8003beb4e1ce",
+      "2122ba5320e176b1637e892944505",
+      "f311d7"
+    ],
+    "zig/src/aleo/prover.zig": [
+      "0ccddf8839fbfe8e2779175137e07",
+      "cd09b53c64ac5337dcdb61eba52db",
+      "153af1"
+    ],
+    "zig/src/net/rpc_timeout_testing.zig": [
+      "c52eca434154a8ea6df8272838dbc",
+      "f499c7b8cdf8e6ad8aca5d55fb826",
+      "b1658d"
+    ],
+    "zig/src/net/rpc_timeout_fixture.zig": [
+      "8c22e380870a5b9711ce7b16d60c4",
+      "ef0d9e6fea788908c4ab0fba65fcc",
+      "9177b5"
+    ],
+    "zig/src/rpc_timeout_tests.zig": [
+      "3eb3dd059701c848e49a78814a80e",
+      "1f5f5df195ab85539ca57ebf90a74",
+      "e8596b"
+    ],
+    "zig/src/agents/chain_source.zig": [
+      "40e868c6880c3de6aafdfe81338f6",
+      "0c23aa0253e54f5b714ed5ff963b5",
+      "5a5912"
+    ],
+    "zig/src/evm/pool.zig": [
+      "dc5d8ea4dd9460a2fded82e51838f",
+      "b44b7bf77f1df9832d5a5888c438b",
+      "1172e0"
+    ],
+    "zig/src/net/read_replay.zig": [
+      "31ad6faec0e3e82300b0045a5c9b1",
+      "1c0cb6637efaf2d295225381fafaf",
+      "6c0225"
+    ]
+  },
+  "owner_reported_tests_not_rerun_here": {
+    "focused": "17/17,zero skips",
+    "factory": "12/12,zero skips",
+    "origin": "19 pass /1 optional HTTP2 skip",
+    "receipts": "366 pass /10 optional skips"
+  },
+  "findings": [
+    {
+      "severity": "P2",
+      "summary": "Tron AWS/GCP KMS uses the same Resources.http owner that Factory.begin marks RPC-owned, so KMS physical timeout can be normalized as UpstreamReadTimeout.",
+      "entry": "agents/relayer_task.zig:232\u2013233 -> credentials.Manager.init/lease -> Factory.open/bindSignerOwner -> Factory.sign/begin -> digestSign -> DigestSigner.signDigest -> cloud.kms transport.send",
+      "separate_owner_fixture_gap": true
+    }
+  ]
+}

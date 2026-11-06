@@ -1,0 +1,22 @@
+[package]
+name = "ziggy-evm-oracle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+ethers-core = { git = "https://github.com/hyperlane-xyz/ethers-rs", rev = "66bd6198d8952adfd9395e3f3727682443a031c7" }
+k256 = { version = "=0.13.4", features = ["arithmetic", "std", "ecdsa"] }
+serde_json = "=1.0.151"
+
+[patch.crates-io.primitive-types]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.12.1"
+
+[patch.crates-io.rlp]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.5.2"

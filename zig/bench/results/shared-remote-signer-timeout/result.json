@@ -1,0 +1,9 @@
+{
+  "status": "accepted_independent_focused_functional_review",
+  "tests": 31,
+  "named_functional": 15,
+  "import_roots": 16,
+  "skips": 0,
+  "failures": 0,
+  "sources_unchanged": true
+}

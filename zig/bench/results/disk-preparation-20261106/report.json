@@ -1,0 +1,289 @@
+{
+  "schema": 1,
+  "created_utc": "2026-11-06T00:34:14.526127+00:00",
+  "timing_gate": "closed; no performance timing executed",
+  "free_bytes": 42129764352,
+  "required_start_free_bytes": 42949672960,
+  "candidate_directories": [
+    {
+      "path": "/Users/pbio/work/ziggy/zig/.zig-cache",
+      "allocated_du_bytes": 1826848768,
+      "owner": "project-only compiler cache",
+      "decision": "deferred until parent confirms all host Zig jobs joined and necessary binaries pinned"
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/reference/rocks/target",
+      "allocated_du_bytes": 66220032,
+      "owner": "task oracle",
+      "decision": "preserve existing interoperability executables; compiler deps already reclaimed"
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/rust/main/target",
+      "allocated_du_bytes": 651964416,
+      "owner": "production baseline",
+      "decision": "preserve immutable Rust production agents and helpers"
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/bench/.cache",
+      "allocated_du_bytes": 123797504,
+      "owner": "task benchmark evidence",
+      "decision": "preserve immutable benchmark binary pins; current compiler crumbs below 1 MiB"
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/integration/.cache",
+      "allocated_du_bytes": 219422720,
+      "owner": "task integration evidence",
+      "decision": "preserve executable pins and fixture recovery artifacts"
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final",
+      "allocated_du_bytes": 36712448,
+      "owner": "runtime dependency",
+      "decision": "preserve all seven native archives, manifest, licenses"
+    },
+    {
+      "path": "/tmp/ziggy-gas-cost-target",
+      "allocated_du_bytes": 361873408,
+      "owner": "unknown helper owner",
+      "decision": "not deleted; parent ownership/rebuild status unconfirmed"
+    },
+    {
+      "path": "/tmp/ziggy-linux-durability-kit",
+      "allocated_du_bytes": 433258496,
+      "owner": "active task runtime kit",
+      "decision": "preserve Linux test kit/source/compiler/archives for owner"
+    }
+  ],
+  "completed_reclamation": {
+    "operation": "immutable manifest-backed binary hardlink dedup",
+    "results": "pin-dedup-results.json",
+    "paths_verified": 67,
+    "atomic_replacements": 59,
+    "allocated_inode_reduction_gib": 2.41756,
+    "observed_free_delta_gib": 2.32289,
+    "qualifier": "Logical/inode allocation reductions differ from APFS observed free delta; concurrent host writes possible. Every path/bytes/executable metadata preserved. 32 prior role/oracle/SDK/archive hashes unchanged."
+  },
+  "docker": {
+    "running_containers": [],
+    "buildkit_records": [
+      {
+        "CreatedAt": "2026-11-05 21:55:06.244312275 +0000 UTC",
+        "Description": "[build-base 4/6] WORKDIR /work",
+        "ID": "hfrwwuoxm9t7l0xitspiva7vt",
+        "LastUsedAt": "4 minutes ago",
+        "Mutable": false,
+        "Parents": [
+          "c0bbwbhhtyxrdvujv0dgqiifg"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "94B",
+        "Type": "regular",
+        "UsageCount": 8
+      },
+      {
+        "CreatedAt": "2026-11-05 22:28:36.076851511 +0000 UTC",
+        "Description": "mount / from exec /bin/sh -c apt-get update     && apt-get install -y --no-install-recommends         ca-certificates libcurl4 libpq5 libssl3 libstdc++6     && rm -rf /var/lib/apt/lists/*     && groupadd --gid 10001 hyperlane     && useradd --uid 10001 --gid hyperlane --no-create-home --home-dir /var/lib/hyperlane hyperlane     && mkdir -p /etc/hyperlane /var/lib/hyperlane /opt/hyperlane/bin /opt/hyperlane/libexec /opt/hyperlane/share/native     && chown -R hyperlane:hyperlane /etc/hyperlane /var/lib/hyperlane /opt/hyperlane",
+        "ID": "q7rj1ywyzt4rscmb6sfbw95y6",
+        "LastUsedAt": "",
+        "Mutable": false,
+        "Parents": [
+          "4wq6habr2kt0ljq1b3qs7ailm"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "34.81MB",
+        "Type": "regular",
+        "UsageCount": 0
+      },
+      {
+        "CreatedAt": "2026-11-05 20:54:55.316139118 +0000 UTC",
+        "ID": "i647e8c7ypdu5dyfxi0iiazgw",
+        "LastUsedAt": "4 hours ago",
+        "Mutable": false,
+        "Parents": [
+          "ktck7jrueldzxdxcec0zi9u6v"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "76.43MB",
+        "Type": "regular",
+        "UsageCount": 1,
+        "Description_utf8_chunks": [
+          "pulled from docker.io/library/ru",
+          "st:1.98.0-bookworm@sha256:82150a",
+          "52ec202c1b14d7817e14516c392bb7f5",
+          "cfebd88f1ed531cb37ebd39922"
+        ]
+      },
+      {
+        "CreatedAt": "2026-11-05 21:53:54.122593449 +0000 UTC",
+        "Description": "[build-base 2/6] COPY --from=python312 /usr/local /usr/local",
+        "ID": "cu3kam84wiiznnftsdgen2ou7",
+        "LastUsedAt": "3 hours ago",
+        "Mutable": false,
+        "Parents": [
+          "s4q953g74x2efz4rn5lt54sin"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "98.39MB",
+        "Type": "regular",
+        "UsageCount": 2
+      },
+      {
+        "CreatedAt": "2026-11-05 22:10:28.877025708 +0000 UTC",
+        "Description": "",
+        "ID": "4wq6habr2kt0ljq1b3qs7ailm",
+        "LastUsedAt": "4 minutes ago",
+        "Mutable": false,
+        "Parents": null,
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "136.1MB",
+        "Type": "regular",
+        "UsageCount": 4
+      },
+      {
+        "CreatedAt": "2026-11-05 22:36:40.38078826 +0000 UTC",
+        "Description": "mount / from exec /bin/sh -c rustc +1.98.0 --version     && cargo +1.98.0 --version     && python3 -c 'import sys; assert sys.version_info >= (3, 12), sys.version'     && python3 zig/tools/fixture_pack.py restore-locks     && python3 zig/tools/native_deps.py --restore-only     && cargo +1.98.0 fetch --locked --manifest-path zig/native/rocks/Cargo.toml",
+        "ID": "hf1d6tzsznfrp385s0dtg7vda",
+        "LastUsedAt": "About an hour ago",
+        "Mutable": false,
+        "Parents": [
+          "57q6m51dcxny9ywpofnx297gt"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "166.8MB",
+        "Type": "regular",
+        "UsageCount": 1
+      },
+      {
+        "CreatedAt": "2026-11-05 20:54:55.287247867 +0000 UTC",
+        "ID": "ktck7jrueldzxdxcec0zi9u6v",
+        "LastUsedAt": "4 hours ago",
+        "Mutable": false,
+        "Parents": null,
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "203.1MB",
+        "Type": "regular",
+        "UsageCount": 1,
+        "Description_utf8_chunks": [
+          "pulled from docker.io/library/ru",
+          "st:1.98.0-bookworm@sha256:82150a",
+          "52ec202c1b14d7817e14516c392bb7f5",
+          "cfebd88f1ed531cb37ebd39922"
+        ]
+      },
+      {
+        "CreatedAt": "2026-11-05 20:54:55.337523408 +0000 UTC",
+        "ID": "83s7qzyhg02ud16tz4dzin08o",
+        "LastUsedAt": "4 hours ago",
+        "Mutable": false,
+        "Parents": [
+          "i647e8c7ypdu5dyfxi0iiazgw"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "262.4MB",
+        "Type": "regular",
+        "UsageCount": 1,
+        "Description_utf8_chunks": [
+          "pulled from docker.io/library/ru",
+          "st:1.98.0-bookworm@sha256:82150a",
+          "52ec202c1b14d7817e14516c392bb7f5",
+          "cfebd88f1ed531cb37ebd39922"
+        ]
+      },
+      {
+        "CreatedAt": "2026-11-05 22:36:36.31598993 +0000 UTC",
+        "Description": "[build-base 5/6] COPY . /work",
+        "ID": "57q6m51dcxny9ywpofnx297gt",
+        "LastUsedAt": "About an hour ago",
+        "Mutable": false,
+        "Parents": [
+          "hfrwwuoxm9t7l0xitspiva7vt"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "478.7MB",
+        "Type": "regular",
+        "UsageCount": 1
+      },
+      {
+        "CreatedAt": "2026-11-05 21:55:06.176837192 +0000 UTC",
+        "Description": "mount / from exec /bin/sh -c apt-get update     && apt-get install -y --no-install-recommends         build-essential clang cmake libclang-dev libcurl4-openssl-dev libpq-dev         libssl-dev make pkg-config python3     && rm -rf /var/lib/apt/lists/*",
+        "ID": "c0bbwbhhtyxrdvujv0dgqiifg",
+        "LastUsedAt": "3 hours ago",
+        "Mutable": false,
+        "Parents": [
+          "cu3kam84wiiznnftsdgen2ou7"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "703.9MB",
+        "Type": "regular",
+        "UsageCount": 1
+      },
+      {
+        "CreatedAt": "2026-11-05 20:54:55.385369018 +0000 UTC",
+        "ID": "s4q953g74x2efz4rn5lt54sin",
+        "LastUsedAt": "3 hours ago",
+        "Mutable": false,
+        "Parents": [
+          "ngdqyi4n8q7v3ie98xnn4jvjq"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "714.5MB",
+        "Type": "regular",
+        "UsageCount": 2,
+        "Description_utf8_chunks": [
+          "pulled from docker.io/library/ru",
+          "st:1.98.0-bookworm@sha256:82150a",
+          "52ec202c1b14d7817e14516c392bb7f5",
+          "cfebd88f1ed531cb37ebd39922"
+        ]
+      },
+      {
+        "CreatedAt": "2026-11-05 20:54:55.360033205 +0000 UTC",
+        "ID": "ngdqyi4n8q7v3ie98xnn4jvjq",
+        "LastUsedAt": "4 hours ago",
+        "Mutable": false,
+        "Parents": [
+          "83s7qzyhg02ud16tz4dzin08o"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "794MB",
+        "Type": "regular",
+        "UsageCount": 1,
+        "Description_utf8_chunks": [
+          "pulled from docker.io/library/ru",
+          "st:1.98.0-bookworm@sha256:82150a",
+          "52ec202c1b14d7817e14516c392bb7f5",
+          "cfebd88f1ed531cb37ebd39922"
+        ]
+      },
+      {
+        "CreatedAt": "2026-11-05 23:17:22.701986405 +0000 UTC",
+        "Description": "mount / from exec /bin/sh -c python3 zig/tools/native_deps.py --offline --jobs \"${BUILD_JOBS}\"         --target-dir /work/zig/native/rocks/target-container         --output /opt/hyperlane-native --format json     && ZIG=\"$(python3 zig/tools/bootstrap.py)\"     && LIBS=\"$(python3 -c 'import json; print(json.load(open(\"/opt/hyperlane-native/manifest.json\"))[\"native_db_libs\"])')\"     && LIBPQ=\"$(readlink -f \"$(pkg-config --variable=libdir libpq)/libpq.so.5\")\"     && GNU_UNWIND=\"$(readlink -f \"$(c++ -print-file-name=libgcc_s.so.1)\")\"     && LIBS=\"${LIBS},${GNU_UNWIND}\"     && readelf -h \"${LIBPQ}\" \"${GNU_UNWIND}\"     && python3 zig/tools/zig.py --compiler \"${ZIG}\" build -j4 native-db-test relayer validator         -Doptimize=ReleaseSafe \"-Dnative-db-libs=${LIBS}\"     && python3 zig/tools/zig.py --compiler \"${ZIG}\" build -j4 scraper         -Doptimize=ReleaseSafe \"-Dlibpq-library=${LIBPQ}\"     && python3 zig/tools/container_check.py write-probe --output /tmp/native-runtime-probe.c     && cc -O2 -Wall -Wextra -Werror /tmp/native-runtime-probe.c         -I/usr/include/postgresql -lcurl -lpq -lcrypto -o /opt/hyperlane-native-runtime-probe",
+        "ID": "fvn16kmr8vrm5djh2llhqqf3q",
+        "LastUsedAt": "",
+        "Mutable": false,
+        "Parents": [
+          "hf1d6tzsznfrp385s0dtg7vda"
+        ],
+        "Reclaimable": false,
+        "Shared": false,
+        "Size": "1.133GB",
+        "Type": "regular",
+        "UsageCount": 0
+      }
+    ],
+    "decision": "No deletion: all 13 records currently Reclaimable=false. No global Docker prune, volume prune or unrelated image/cache inspection performed. Task completed RO source-copy container retired automatically."
+  },
+  "excluded": "All user global caches, other projects, unknown anonymous volumes, toolchain/download/source/lock/parameter assets, current native artifacts and immutable role/oracle pins."
+}

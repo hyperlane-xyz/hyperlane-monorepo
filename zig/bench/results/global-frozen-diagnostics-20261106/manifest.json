@@ -1,0 +1,530 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-11-06T11:01:24.047055+00:00",
+  "status": "historical_pre_final_aleo_worker_exec_rss_and_root_import_diagnostics",
+  "scope": "Completed10:25Safe,10:25Fastdefault,10:30Fastnative only. No live10:55 outputs accessed. Not current all-source acceptance or benchmark results.",
+  "runs": {
+    "1025-safe": {
+      "started_utc": "2026-11-06T10:23:45.493827+00:00",
+      "mode": "ReleaseSafe",
+      "check_count": 11,
+      "all_check_exits_zero": true,
+      "source_unchanged": false,
+      "source_map_entries": 650,
+      "changed_source_paths": [
+        "zig/tools/container_check.py"
+      ],
+      "manifest": "1025-safe/all-manifest.json.gz"
+    },
+    "1025-fast-default": {
+      "started_utc": "2026-11-06T10:23:46.623961+00:00",
+      "mode": "ReleaseFast",
+      "check_count": 1,
+      "all_check_exits_zero": true,
+      "source_unchanged": true,
+      "source_map_entries": 650,
+      "changed_source_paths": [],
+      "manifest": "1025-fast-default/default-manifest.json.gz"
+    },
+    "1030-fast-native": {
+      "started_utc": "2026-11-06T10:29:58.905780+00:00",
+      "mode": "ReleaseFast",
+      "check_count": 1,
+      "all_check_exits_zero": true,
+      "source_unchanged": false,
+      "source_map_entries": 650,
+      "changed_source_paths": [
+        "zig/tools/container_check.py"
+      ],
+      "manifest": "1030-fast-native/native-db-manifest.json.gz"
+    }
+  },
+  "authoritative_counts": {
+    "safe_default": {
+      "passed": 741,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_native": {
+      "passed": 1024,
+      "skipped": 1,
+      "failed": 0
+    },
+    "safe_postgres": {
+      "passed": 437,
+      "skipped": 0,
+      "failed": 0,
+      "migrations": 21,
+      "functional_cases": 11
+    },
+    "safe_rpc": {
+      "passed": 407,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_operator": {
+      "passed": 56,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_ws_wss": {
+      "passed": 22,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_socket": {
+      "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    },
+    "fast_default": {
+      "passed": 741,
+      "skipped": 0,
+      "failed": 0
+    },
+    "fast_native": {
+      "passed": 1024,
+      "skipped": 1,
+      "failed": 0
+    }
+  },
+  "native_skip": {
+    "name": "evm_prepare_delegated_tests.test.opt-in loopback prepares actual repo Solidity without delivery or nonce mutation",
+    "occurrences_per_native_run": 1
+  },
+  "source_current_qualifiers": [
+    {
+      "path": "zig/src/aleo/worker.zig",
+      "recorded_old_sha256_chunks": [
+        "f5e4b1575340294e6ec94b49a610ac53",
+        "1477f51d56fd97cc3449245a29b0e18c"
+      ],
+      "post_fix_current_sha256_chunks": [
+        "99f24187ca095c2cc7945ebaa37e9",
+        "56061d2846bc91252cdadec2c71ea",
+        "cca78f"
+      ],
+      "different_from_historical_snapshot": true
+    },
+    {
+      "path": "zig/src/aleo_vm_worker.zig",
+      "recorded_old_sha256_chunks": [
+        "6d41105c572885be5ca233fcd449ebb0",
+        "88a8ab293e265f18a8873a1009c98c35"
+      ],
+      "post_fix_current_sha256_chunks": [
+        "786b8f35703cbfd9003ecf84dd413",
+        "7bf7c2116460e7e3376f68f1d4101",
+        "2648cc"
+      ],
+      "different_from_historical_snapshot": true
+    },
+    {
+      "path": "zig/src/root.zig",
+      "recorded_old_sha256_chunks": [
+        "1a3482713c1a2a8de47a47bb61e23c0c",
+        "738b139ed73ca6794e983f976d2a0c21"
+      ],
+      "post_fix_current_sha256_chunks": [
+        "96871be1b010dfe4fdb791e6767ba",
+        "816ae8c97a0ffe02958b95cbbc78c",
+        "54b5b6"
+      ],
+      "different_from_historical_snapshot": true
+    }
+  ],
+  "role_binaries": [
+    {
+      "role": "validator",
+      "path": "zig/bench/results/global-source-frozen-20261106T1025-safe/roles/bin/validator",
+      "bytes": 13620696,
+      "sha256_chunks": [
+        "a0207154c44959d4c5a7dee63c5f7441",
+        "101d1a66a78123e32450493f30227a10"
+      ]
+    },
+    {
+      "role": "relayer",
+      "path": "zig/bench/results/global-source-frozen-20261106T1025-safe/roles/bin/relayer",
+      "bytes": 14984408,
+      "sha256_chunks": [
+        "bff001dc904ab9cdfaf6b9969c43c3b9",
+        "fa91ba62628569af1c9b0ee9b79bd208"
+      ]
+    },
+    {
+      "role": "scraper",
+      "path": "zig/bench/results/global-source-frozen-20261106T1025-safe/roles/bin/scraper",
+      "bytes": 3247112,
+      "sha256_chunks": [
+        "ce6c3b6dc321f622882d4004b6f77b73",
+        "4747c754349b6323aab8489ca9e3a58a"
+      ]
+    }
+  ],
+  "role_preservation": "Three original10:25Safe binaries are byte/hash verified, preserved locally, and excluded by exact /roles/ ignore only in that original output. No binary copied or deleted.",
+  "runtime_artifact_maps_equal_across_runs": true,
+  "native_archive_maps_equal_across_runs": true,
+  "shared_source_before_map_equal": true,
+  "qualifications": [
+    "All11Safe checks exit0; outer wrapper rejects source stability solely because mapped UNUSEDtools/container_check.py changed. No check command invokes that tool. Rawsource_unchanged=false is preserved.",
+    "Fastnative innercheck exits0; outer wrapper likewise rejects the same unused tool drift. Fastdefault741 passes with its selected source map unchanged. Parent observed outer exit1 for the two drifted runs; original manifests record check exits and failed source invariant, not an explicit outer-status field.",
+    "These runs predate final Aleo worker exec/RSS correction and default-root test registration. Current-source fixes are not accepted by these old results.",
+    "Recorded elapsed durations/RSS in functional logs are diagnostic, not comparative benchmark measurements. Roots overlap and must not be summed as unique coverage.",
+    "All raw manifests/logs preserved exactly through lossless gzip. Exact ignored JSON convenience mirrors are scoped only to this new archive directory. No global packed manifest or bench ignore edits."
+  ],
+  "artifacts": [
+    {
+      "path": "1025-safe/all-manifest.json.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/all-manifest.json",
+      "raw_bytes": 189991,
+      "gzip_bytes": 67810,
+      "raw_sha256_chunks": [
+        "349e700a0d649bbca6b65b753139f",
+        "834d960753b47bca6f823fdfbeefc",
+        "862021"
+      ],
+      "gzip_sha256_chunks": [
+        "8661db16ba03eb6a2bc849e5b1cd6",
+        "ca4c886c81247bdefa7972d227837",
+        "8d0f19"
+      ]
+    },
+    {
+      "path": "1025-safe/default.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/default.log",
+      "raw_bytes": 1255,
+      "gzip_bytes": 408,
+      "raw_sha256_chunks": [
+        "a9bd09e9d38a727f407f087228972",
+        "6d50f7bdffb8d906c46cfb4041d26",
+        "84a5ed"
+      ],
+      "gzip_sha256_chunks": [
+        "cab50c97185f41152074dab8debea",
+        "676ca94a9fe7b9d034a684e9a8f94",
+        "f297f9"
+      ]
+    },
+    {
+      "path": "1025-safe/native-db.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/native-db.log",
+      "raw_bytes": 158907,
+      "gzip_bytes": 34981,
+      "raw_sha256_chunks": [
+        "f19a47540b52b70ebf673d5114d25",
+        "f68ff5ace9b411a5ca6ac594640c3",
+        "22bc08"
+      ],
+      "gzip_sha256_chunks": [
+        "256d1c275bab0821b603db97bc60d",
+        "def114820978c1601994bbf02cf84",
+        "573a1d"
+      ]
+    },
+    {
+      "path": "1025-safe/operator-regex.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/operator-regex.log",
+      "raw_bytes": 5349,
+      "gzip_bytes": 1957,
+      "raw_sha256_chunks": [
+        "badc6739607b75cfd2449cf5ba7cc",
+        "1fe2db76932e1886b93149989dc8c",
+        "6de437"
+      ],
+      "gzip_sha256_chunks": [
+        "4bde70a42859529b3d6abf2ff28d7",
+        "2c13fd0c551d8a09790f8b0cbd3de",
+        "fec7ba"
+      ]
+    },
+    {
+      "path": "1025-safe/postgres/postgres-integration.json.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/postgres/postgres-integration.json",
+      "raw_bytes": 2301,
+      "gzip_bytes": 1181,
+      "raw_sha256_chunks": [
+        "ea62ef05f63c9631c7aef7818a2c4",
+        "85ad392a488f0cbd57f5917febb77",
+        "95c1df"
+      ],
+      "gzip_sha256_chunks": [
+        "36e24d0eab6b5f810b176aaa7a18e",
+        "250c7a47456f3afeca70c870b57d4",
+        "144b0f"
+      ]
+    },
+    {
+      "path": "1025-safe/postgres/postgres-integration.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/postgres/postgres-integration.log",
+      "raw_bytes": 52473,
+      "gzip_bytes": 14750,
+      "raw_sha256_chunks": [
+        "dcaf68c109db24bc867ca411cbd0c",
+        "2bc475f7567664252ffd3fe0ad016",
+        "737ddc"
+      ],
+      "gzip_sha256_chunks": [
+        "c20c29215c00c42574dcd19102f41",
+        "14c2cfab4b813f80c3de7d8ac9720",
+        "5c4dcb"
+      ]
+    },
+    {
+      "path": "1025-safe/postgres/postgres-migrations.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/postgres/postgres-migrations.log",
+      "raw_bytes": 113651,
+      "gzip_bytes": 13405,
+      "raw_sha256_chunks": [
+        "43340d6439835b5b00de9eb50c5a5",
+        "f38dd7f50a805ab896811f1acd41c",
+        "1ed2e3"
+      ],
+      "gzip_sha256_chunks": [
+        "5c44f0690dd9fde193a8473de3142",
+        "0180964b60f7fa482064741a97e0c",
+        "e85966"
+      ]
+    },
+    {
+      "path": "1025-safe/postgres/postgres-native-tests.json.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/postgres/postgres-native-tests.json",
+      "raw_bytes": 77,
+      "gzip_bytes": 76,
+      "raw_sha256_chunks": [
+        "e62dbeb74599b4b41e343281f50d0",
+        "098db12b83597f53f2715a87f5b75",
+        "e2fa24"
+      ],
+      "gzip_sha256_chunks": [
+        "ca2db66d007aedc869a60a975ace2",
+        "731574d5e3ea6c05a845f3eed22bf",
+        "43aa5b"
+      ]
+    },
+    {
+      "path": "1025-safe/postgres/postgres-sql-smoke.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/postgres/postgres-sql-smoke.log",
+      "raw_bytes": 2,
+      "gzip_bytes": 22,
+      "raw_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d5700025",
+        "4b84bd9eba34b4df7ce4b87db8b93",
+        "7b7703"
+      ],
+      "gzip_sha256_chunks": [
+        "0e596773c90e34f23a48e25f57da1",
+        "7ce580f05de9d1c7d97388f0f40ed",
+        "4dac56"
+      ]
+    },
+    {
+      "path": "1025-safe/postgres/postgres-test-build.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/postgres/postgres-test-build.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "1025-safe/postgres.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/postgres.log",
+      "raw_bytes": 126,
+      "gzip_bytes": 129,
+      "raw_sha256_chunks": [
+        "574395febfcaf29113cd061b7dc06",
+        "db6a827934d77ebd1d0d8006a0f00",
+        "087898"
+      ],
+      "gzip_sha256_chunks": [
+        "2dd11856ef9a0a48c54e8a50ec07c",
+        "8b969bd7b1a932684184f4611e021",
+        "73bf11"
+      ]
+    },
+    {
+      "path": "1025-safe/relayer-help.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/relayer-help.log",
+      "raw_bytes": 295,
+      "gzip_bytes": 246,
+      "raw_sha256_chunks": [
+        "d479b6b0abddc958c6e49075b461e",
+        "e3ef8325749d216bb1f4c0719a58f",
+        "f2a63d"
+      ],
+      "gzip_sha256_chunks": [
+        "f9c08e9f1af6c77f969762144700b",
+        "825bc8e61ca864968e50391ea1b03",
+        "15fc3b"
+      ]
+    },
+    {
+      "path": "1025-safe/roles-build.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/roles-build.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "1025-safe/rpc-producers.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/rpc-producers.log",
+      "raw_bytes": 47340,
+      "gzip_bytes": 13654,
+      "raw_sha256_chunks": [
+        "8c61230fb20259543994a05460d3c",
+        "b670b005056e2a220b76cb7f0f721",
+        "0521c7"
+      ],
+      "gzip_sha256_chunks": [
+        "94bb8f616c967e724e4568731e79e",
+        "b15102b6e838dc7d2004dda0176b6",
+        "48e090"
+      ]
+    },
+    {
+      "path": "1025-safe/scraper-help.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/scraper-help.log",
+      "raw_bytes": 295,
+      "gzip_bytes": 247,
+      "raw_sha256_chunks": [
+        "618bfaacc46f158b34069648ce11f",
+        "09a491c6d7d1728e7ab659b827b65",
+        "288ebb"
+      ],
+      "gzip_sha256_chunks": [
+        "6d1db15db978672df7d166e5e5cbb",
+        "5771f1d87a51342e5edb6c7698246",
+        "e74dcb"
+      ]
+    },
+    {
+      "path": "1025-safe/socket-owner.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/socket-owner.log",
+      "raw_bytes": 448,
+      "gzip_bytes": 248,
+      "raw_sha256_chunks": [
+        "61915875f83e021786ceec08c49f8",
+        "472e8dde64bc5f51888537cce84cb",
+        "e66fcc"
+      ],
+      "gzip_sha256_chunks": [
+        "ee3a910f4c92a5fab37496f60039e",
+        "955f907adefd3e24e718b863be76b",
+        "1b539e"
+      ]
+    },
+    {
+      "path": "1025-safe/validator-help.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/validator-help.log",
+      "raw_bytes": 297,
+      "gzip_bytes": 247,
+      "raw_sha256_chunks": [
+        "e89d2996b20dcd673799ea931579d",
+        "7db10d625f41f73f0c5587e4586d4",
+        "678e8e"
+      ],
+      "gzip_sha256_chunks": [
+        "5ed6fa6178d8e4e248cdb3587d28a",
+        "1322145bb82e5d366560856bb986d",
+        "248156"
+      ]
+    },
+    {
+      "path": "1025-safe/ws-wss.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-safe/ws-wss.log",
+      "raw_bytes": 2356,
+      "gzip_bytes": 937,
+      "raw_sha256_chunks": [
+        "6cae40a07764b1feeabfebd1d5746",
+        "94ba2991697a62be291cd0c893765",
+        "cc3e75"
+      ],
+      "gzip_sha256_chunks": [
+        "957ad6798d6363e4b403f6a586e98",
+        "e4c945ee7760f5a3c8b6cc6aee744",
+        "13e40c"
+      ]
+    },
+    {
+      "path": "1025-fast-default/default-manifest.json.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-fast-default/default-manifest.json",
+      "raw_bytes": 180271,
+      "gzip_bytes": 66201,
+      "raw_sha256_chunks": [
+        "24e225b8938ed387f1897a6594c10",
+        "3ebe3667521c65604c1d92191723c",
+        "1a3132"
+      ],
+      "gzip_sha256_chunks": [
+        "71451f2af3a912e20cfa76609b08a",
+        "5921f4f9532b07302ba232b83c72c",
+        "f2aa67"
+      ]
+    },
+    {
+      "path": "1025-fast-default/default.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1025-fast-default/default.log",
+      "raw_bytes": 1255,
+      "gzip_bytes": 409,
+      "raw_sha256_chunks": [
+        "068ef04bf5237efae1374b37fc38b",
+        "be43d010838e78e1de28daff3a375",
+        "05e5d7"
+      ],
+      "gzip_sha256_chunks": [
+        "58db156ea4dbdb5e459b4fdc7c0f6",
+        "cd4c0f5b01dc1dc542c2014755a69",
+        "7a3e57"
+      ]
+    },
+    {
+      "path": "1030-fast-native/native-db-manifest.json.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1030-fast-native/native-db-manifest.json",
+      "raw_bytes": 181042,
+      "gzip_bytes": 66438,
+      "raw_sha256_chunks": [
+        "f13896d72d7e74bf0c01142c091ec",
+        "fffc0a5bcf06664d4ef7e25ec3b09",
+        "8b155f"
+      ],
+      "gzip_sha256_chunks": [
+        "d55704a58c45d5b25cbaee9f5b654",
+        "67567e633c8115b73fb64244eda13",
+        "cec89e"
+      ]
+    },
+    {
+      "path": "1030-fast-native/native-db.log.gz",
+      "original": "zig/bench/results/global-source-frozen-20261106T1030-fast-native/native-db.log",
+      "raw_bytes": 158907,
+      "gzip_bytes": 34981,
+      "raw_sha256_chunks": [
+        "f19a47540b52b70ebf673d5114d25",
+        "f68ff5ace9b411a5ca6ac594640c3",
+        "22bc08"
+      ],
+      "gzip_sha256_chunks": [
+        "256d1c275bab0821b603db97bc60d",
+        "def114820978c1601994bbf02cf84",
+        "573a1d"
+      ]
+    }
+  ]
+}

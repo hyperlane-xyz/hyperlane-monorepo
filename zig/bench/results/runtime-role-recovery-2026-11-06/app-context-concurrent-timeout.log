@@ -1,0 +1,19 @@
+1/16 app_context_tests.test_0...OK
+2/16 relayer.app_context.test.metadata root app classification preserves explicit precedence strict errors and post fetch TTL...OK
+3/16 relayer.app_context.test.successful default RPC survives clock failure and no cache still classifies strictly...OK
+4/16 agents.destination.factory.test.native metadata cache uses immutable metric rules across messages and preserves public signer context...OK
+5/16 protocol.root.test_0...OK
+6/16 relayer.metadata.test_0...OK
+7/16 agents.chain_source.test_0...OK
+8/16 agents.scraper.starknet.test_0...OK
+9/16 agents.destination.reveal.test_0...OK
+10/16 agents.destination.reveal.test_1...OK
+11/16 cloud.root.test_0...OK
+12/16 agents.destination.source_metadata.test_0...OK
+13/16 evm.root.test_0...OK
+14/16 cloud.google_adc.test_0...OK
+15/16 cloud.aws_profile.test_0...OK
+16/16 agents.destination.source_metadata_testing.test.native metadata cached Tron forks keep independent handlers and immutable classification...FAIL (MetadataFixtureRetirementTimeout)
+15 passed; 0 skipped; 1 failed.
+error: the following test command failed with exit code 1:
+/Users/pbio/.cache/zig/o/34d03e5a2e1f5790b022a4fcae95a897/test --seed=0x2d6359d5

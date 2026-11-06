@@ -1,0 +1,94 @@
+{
+  "scope": "Actual nine-chain independent HEAD owner process correctness on fresh PG16/production migrations. Explicit process-only mode: no native tests compiled/executed; five server SQL smoke checks only. Not a paired performance run.",
+  "archive_note": "Long public hex text split into chunks in JSON or delimited text in logs. Original files retained in task temp directory with exact digests below.",
+  "files": {
+    "postgres-integration.json": {
+      "original_sha256_chunks": [
+        "c755399e713acdc6cc775f5be6791977",
+        "64fc979b8e08c9d4267d48dfd1479389"
+      ],
+      "original_bytes": 2068,
+      "archived_sha256_chunks": [
+        "c755399e713acdc6cc775f5be6791977",
+        "64fc979b8e08c9d4267d48dfd1479389"
+      ]
+    },
+    "postgres-migrations.log": {
+      "original_sha256_chunks": [
+        "c6a92d9721116884cb184f00a1606da4",
+        "036049be3366df6cfdac20459236f383"
+      ],
+      "original_bytes": 113776,
+      "archived_sha256_chunks": [
+        "c6a92d9721116884cb184f00a1606da4",
+        "036049be3366df6cfdac20459236f383"
+      ]
+    },
+    "scraper-daemon.log": {
+      "original_sha256_chunks": [
+        "afe75ccad1938b3e369504ed742fc085",
+        "231df5e922186ccdcbfb0834991c51b0"
+      ],
+      "original_bytes": 681,
+      "archived_sha256_chunks": [
+        "afe75ccad1938b3e369504ed742fc085",
+        "231df5e922186ccdcbfb0834991c51b0"
+      ]
+    },
+    "scraper-anvil.log": {
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "original_bytes": 0,
+      "archived_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ]
+    },
+    "postgres-sql-smoke.log": {
+      "original_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d57000254b8",
+        "4bd9eba34b4df7ce4b87db8b937b7703"
+      ],
+      "original_bytes": 2,
+      "archived_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d57000254b8",
+        "4bd9eba34b4df7ce4b87db8b937b7703"
+      ]
+    },
+    "scraper-process.json": {
+      "original_sha256_chunks": [
+        "e295dfa2b79d249fd7c1c8b0dc735a92",
+        "da9b0ab9e1251db4b561b68fe10b504d"
+      ],
+      "original_bytes": 1697,
+      "archived_sha256_chunks": [
+        "f633c154d36235570587ce5d078229c7",
+        "6b9f5b760f231effcd58fe8de3df8df6"
+      ]
+    },
+    "postgres-native-tests.json": {
+      "original_sha256_chunks": [
+        "7cb38d560315108942554acb99446a42",
+        "347ad7c35a29c82727c1c6d6a62163ef"
+      ],
+      "original_bytes": 123,
+      "archived_sha256_chunks": [
+        "7cb38d560315108942554acb99446a42",
+        "347ad7c35a29c82727c1c6d6a62163ef"
+      ]
+    },
+    "scraper-process.log": {
+      "original_sha256_chunks": [
+        "652b4e6bb80f3bb97307b5c79becb3bb",
+        "92240e242b10d411798b2e3ecfe22ab5"
+      ],
+      "original_bytes": 1475,
+      "archived_sha256_chunks": [
+        "f633c154d36235570587ce5d078229c7",
+        "6b9f5b760f231effcd58fe8de3df8df6"
+      ]
+    }
+  }
+}

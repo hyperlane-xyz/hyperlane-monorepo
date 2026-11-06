@@ -1,0 +1,16 @@
+[package]
+name = "ziggy-radix-reference"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+radix-common = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", rev = "0ff82f3ba44cd848d178b5b3ec780ea43ea03bba" }
+radix-transactions = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", rev = "0ff82f3ba44cd848d178b5b3ec780ea43ea03bba" }
+sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", rev = "0ff82f3ba44cd848d178b5b3ec780ea43ea03bba" }
+serde_json = "=1.0.151"
+hex = "=0.4.3"
+core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", rev = "2d284dad4ef48cab302cfa0435c548b54923b7e1" }
+gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", rev = "2d284dad4ef48cab302cfa0435c548b54923b7e1" }

@@ -1,0 +1,624 @@
+{
+  "schema": 1,
+  "sealed_utc": "2026-11-06T11:23:32.928518+00:00",
+  "status": "current_selected_source_functional_gates_passed",
+  "scope": "Current macOS ReleaseSafe all11 functional checks plus ReleaseFast default/native DB checks. Not whole-agent process, final matrix SDK, Linux image or benchmark acceptance. Selected650 mappings only, not an inferred exhaustive repository tree.",
+  "runs": {
+    "1110-safe": {
+      "started_utc": "2026-11-06T11:06:55.597082+00:00",
+      "mode": "ReleaseSafe",
+      "checks": 11,
+      "all_check_exits_zero": true,
+      "source_unchanged": true,
+      "selected_source_entries": 650,
+      "manifest": "1110-safe/all-manifest.json.gz"
+    },
+    "1110-fast-default": {
+      "started_utc": "2026-11-06T11:06:56.726444+00:00",
+      "mode": "ReleaseFast",
+      "checks": 1,
+      "all_check_exits_zero": true,
+      "source_unchanged": true,
+      "selected_source_entries": 650,
+      "manifest": "1110-fast-default/default-manifest.json.gz"
+    },
+    "1115-fast-native": {
+      "started_utc": "2026-11-06T11:13:47.948318+00:00",
+      "mode": "ReleaseFast",
+      "checks": 1,
+      "all_check_exits_zero": true,
+      "source_unchanged": true,
+      "selected_source_entries": 650,
+      "manifest": "1115-fast-native/native-db-manifest.json.gz"
+    }
+  },
+  "test_counts": {
+    "safe_default": {
+      "passed": 745,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_native": {
+      "passed": 1027,
+      "skipped": 1,
+      "failed": 0
+    },
+    "safe_postgres": {
+      "passed": 440,
+      "skipped": 0,
+      "failed": 0,
+      "production_migrations": 21,
+      "functional_persistence_cases": 11
+    },
+    "safe_rpc": {
+      "passed": 410,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_operator": {
+      "passed": 56,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_ws_wss": {
+      "passed": 22,
+      "skipped": 0,
+      "failed": 0
+    },
+    "safe_socket": {
+      "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    },
+    "fast_default": {
+      "passed": 745,
+      "skipped": 0,
+      "failed": 0
+    },
+    "fast_native": {
+      "passed": 1027,
+      "skipped": 1,
+      "failed": 0
+    }
+  },
+  "native_skip": "evm_prepare_delegated_tests.test.opt-in loopback prepares actual repo Solidity without delivery or nonce mutation",
+  "source_maps_equal_before_after_across_runs_and_current": true,
+  "final_source_identity": {
+    "zig/src/aleo/worker.zig": [
+      "99f24187ca095c2cc7945ebaa37e9560",
+      "61d2846bc91252cdadec2c71eacca78f"
+    ],
+    "zig/src/aleo_vm_worker.zig": [
+      "75d6954e466f1039778b06b1266fff5c",
+      "a30516e91e4ce98527cd99f91725942f"
+    ],
+    "zig/src/root.zig": [
+      "96871be1b010dfe4fdb791e6767ba816",
+      "ae8c97a0ffe02958b95cbbc78c54b5b6"
+    ]
+  },
+  "runtime_artifacts_verified": [
+    {
+      "environment_name": "ZIGGY_TXID_ORACLE",
+      "path": "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+      "bytes": 10394784,
+      "sha256_chunks": [
+        "8e295002b44b4248d00d6627aaa47a21",
+        "2315f6f837f3a2d652f2e7f6ada69fd9"
+      ]
+    },
+    {
+      "environment_name": "HYPERLANE_LIBCRYPTO_LIBRARY",
+      "path": "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib",
+      "bytes": 4856256,
+      "sha256_chunks": [
+        "a12805a18cd5e4f733fa8727b91afa08",
+        "b587f9da5a760517cd79cb508a3a3f71"
+      ]
+    },
+    {
+      "environment_name": "HYPERLANE_STARKNET_CRYPTO_LIBRARY",
+      "path": "/Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib",
+      "bytes": 616400,
+      "sha256_chunks": [
+        "3cc4267be662704e48ca5c4b9e1c4286",
+        "b6d368511b8fc423fc4d9019033d6a16"
+      ]
+    },
+    {
+      "environment_name": "HYPERLANE_ALEO_CRYPTO_LIBRARY",
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.dylib",
+      "bytes": 884096,
+      "sha256_chunks": [
+        "c2d54d88c5009b9bf014835f45aed739",
+        "a5ea140232f9f217fbbcd7256f218b4b"
+      ]
+    },
+    {
+      "environment_name": "HYPERLANE_ALEO_VM_LIBRARY",
+      "path": "/Users/pbio/work/ziggy/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.dylib",
+      "bytes": 49750352,
+      "sha256_chunks": [
+        "ad8afda4fd78a8b074bea40c84086632",
+        "bb2a5649bb16238f2ebbc364ae1af08a"
+      ]
+    },
+    {
+      "environment_name": "HYPERLANE_ALEO_VM_WORKER",
+      "path": "/tmp/ziggy-aleo-vm-worker",
+      "bytes": 403528,
+      "sha256_chunks": [
+        "92270198c4788f7baf3fe937b1087359",
+        "6e537be330c750cc9eaa3825ceee62fc"
+      ]
+    },
+    {
+      "environment_name": "ZIGGY_REGEX_LIBRARY",
+      "path": "/Users/pbio/work/ziggy/zig/src/ops/regex-native/target/release/libziggy_regex.dylib",
+      "bytes": 1377568,
+      "sha256_chunks": [
+        "11ae50f90214b956b0c8f28b8d03ed12",
+        "0b1aea5513547c8da930470e916dcb94"
+      ]
+    },
+    {
+      "environment_name": "HYPERLANE_REGEX_LIBRARY",
+      "path": "/Users/pbio/work/ziggy/zig/src/ops/regex-native/target/release/libziggy_regex.dylib",
+      "bytes": 1377568,
+      "sha256_chunks": [
+        "11ae50f90214b956b0c8f28b8d03ed12",
+        "0b1aea5513547c8da930470e916dcb94"
+      ]
+    }
+  ],
+  "runtime_unique_paths": 7,
+  "native_archives_verified": [
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "bytes": 2248,
+      "sha256_chunks": [
+        "4dd69640a11c7d9ca0e083abcda67fb1",
+        "6ef7f7178768adc80dd5628971e5a0f7"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "bytes": 23612472,
+      "sha256_chunks": [
+        "69637bb2e93e53754d16ac2c206c65e3",
+        "18372cfd90b1c45bcbb8727de934f197"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "bytes": 46848,
+      "sha256_chunks": [
+        "46b099671486a27e44a2bfe1feedc33d",
+        "a75d445f6a0b427f5ee6a0a5d517b8c7"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "bytes": 171664,
+      "sha256_chunks": [
+        "0d127682f40c021aaa7ac1a2be83a9e1",
+        "4a7de4e5586007db541babdd4709aea5"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "bytes": 913048,
+      "sha256_chunks": [
+        "06de5b23f0e2e439d2754cb1fc4f9322",
+        "c4f8fde79dd2e008beb9443efa6afb8c"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "bytes": 85440,
+      "sha256_chunks": [
+        "edc94c727fbc3ce0bbf3b8e0720e2dfd",
+        "458a96d30262d780bb2c2aa8f43abb26"
+      ]
+    },
+    {
+      "path": "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "bytes": 70328,
+      "sha256_chunks": [
+        "47967209ef6ac19a0535aab801721995",
+        "ef065ffb6a6e48da0ff765acfa8c6e2a"
+      ]
+    }
+  ],
+  "role_binaries_verified_preserved_and_ignored": [
+    {
+      "role": "validator",
+      "path": "zig/bench/results/global-source-canonical-20261106T1110-safe/roles/bin/validator",
+      "bytes": 13620920,
+      "sha256_chunks": [
+        "75b309c0ee52f6b8583f1b7ce9409d45",
+        "493b6b4cdd279d16463c51dc610cf6a7"
+      ]
+    },
+    {
+      "role": "relayer",
+      "path": "zig/bench/results/global-source-canonical-20261106T1110-safe/roles/bin/relayer",
+      "bytes": 14984504,
+      "sha256_chunks": [
+        "8ffcd44f14c5ab9c4fd3eec3a27c431d",
+        "e0bd55477f8383862731dfa022b801c3"
+      ]
+    },
+    {
+      "role": "scraper",
+      "path": "zig/bench/results/global-source-canonical-20261106T1110-safe/roles/bin/scraper",
+      "bytes": 3247224,
+      "sha256_chunks": [
+        "792365877c3aac3a797d807b53891559",
+        "f1522313df2932e3b5f1c5070d62834b"
+      ]
+    }
+  ],
+  "qualifications": [
+    "Role build and each validator/relayer/scraper --help command exit0; this is not a claim that the three daemons were run in this global gate.",
+    "The four distinct SDK bridges, worker, Rust oracle and libcrypto identities are recorded; regex has two environment aliases to the same artifact. All eight environment entries match across runs and actual current bytes.",
+    "All seven native archives and three emitted Safe role binaries match recorded hashes/sizes. Binaries remain local and ignored; no executable/library copied or deleted.",
+    "Test roots/modes overlap and must not be summed as unique project test coverage. The sole native skip is recorded exactly; optional real-Solidity preparation is not inferred.",
+    "Original durations/RSS are functional diagnostics, not comparative benchmark measurements.",
+    "All manifests/logs are exact lossless gzip payloads; exact ignored convenience mirrors only. Source/CI/global packed manifest/benchignore/results were unchanged."
+  ],
+  "artifacts": [
+    {
+      "path": "1110-safe/all-manifest.json.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/all-manifest.json",
+      "raw_bytes": 190046,
+      "gzip_bytes": 67794,
+      "raw_sha256_chunks": [
+        "0dd024c6bcafb0c0234d997aa88c4",
+        "a98a7d42b7a6b3d81a010fd9b12fb",
+        "b455e3"
+      ],
+      "gzip_sha256_chunks": [
+        "539f1300b29ad560dca2ae5b30690",
+        "f2dcfa2f298c3405278fefb632565",
+        "222934"
+      ]
+    },
+    {
+      "path": "1110-safe/default.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/default.log",
+      "raw_bytes": 1255,
+      "gzip_bytes": 409,
+      "raw_sha256_chunks": [
+        "a7cfc167331eda2ee169e06565d0d",
+        "7a1b1599c253258d832d0f051ff5d",
+        "f99a72"
+      ],
+      "gzip_sha256_chunks": [
+        "01206bbac6ba890281f469c8ef2bc",
+        "0e2933d390028ca8a72f003e1a65f",
+        "1b5505"
+      ]
+    },
+    {
+      "path": "1110-safe/native-db.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/native-db.log",
+      "raw_bytes": 159208,
+      "gzip_bytes": 35038,
+      "raw_sha256_chunks": [
+        "d7a9772023a673abbaba8b9ad4698",
+        "fc0e2b00771598a06a616b3111017",
+        "399377"
+      ],
+      "gzip_sha256_chunks": [
+        "6b9e6d5c55e4de1a2f89b2c3c4fe0",
+        "e80f3aa118aae08151e7b6bdb2623",
+        "a8c6db"
+      ]
+    },
+    {
+      "path": "1110-safe/operator-regex.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/operator-regex.log",
+      "raw_bytes": 5349,
+      "gzip_bytes": 1957,
+      "raw_sha256_chunks": [
+        "badc6739607b75cfd2449cf5ba7cc",
+        "1fe2db76932e1886b93149989dc8c",
+        "6de437"
+      ],
+      "gzip_sha256_chunks": [
+        "4bde70a42859529b3d6abf2ff28d7",
+        "2c13fd0c551d8a09790f8b0cbd3de",
+        "fec7ba"
+      ]
+    },
+    {
+      "path": "1110-safe/postgres/postgres-integration.json.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/postgres/postgres-integration.json",
+      "raw_bytes": 2301,
+      "gzip_bytes": 1181,
+      "raw_sha256_chunks": [
+        "ea62ef05f63c9631c7aef7818a2c4",
+        "85ad392a488f0cbd57f5917febb77",
+        "95c1df"
+      ],
+      "gzip_sha256_chunks": [
+        "36e24d0eab6b5f810b176aaa7a18e",
+        "250c7a47456f3afeca70c870b57d4",
+        "144b0f"
+      ]
+    },
+    {
+      "path": "1110-safe/postgres/postgres-integration.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/postgres/postgres-integration.log",
+      "raw_bytes": 52768,
+      "gzip_bytes": 14823,
+      "raw_sha256_chunks": [
+        "6f40c251a22559a298b2ee0c66511",
+        "4b07f9292586a6c3672255ef5a52d",
+        "105456"
+      ],
+      "gzip_sha256_chunks": [
+        "001173eecc4830a0b783bde32df97",
+        "b171ceb6400aeedc52ac8ba4c90b9",
+        "6c5c83"
+      ]
+    },
+    {
+      "path": "1110-safe/postgres/postgres-migrations.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/postgres/postgres-migrations.log",
+      "raw_bytes": 113762,
+      "gzip_bytes": 13459,
+      "raw_sha256_chunks": [
+        "f2f3471b3bed3ec1ce8468dbd1372",
+        "e191b2990569c0a07e70001497511",
+        "9197c4"
+      ],
+      "gzip_sha256_chunks": [
+        "cf99f84c3b2097b4d8321a3a6a3f2",
+        "9f9caf74a20a63e4d2ebf2b47d74b",
+        "3346e8"
+      ]
+    },
+    {
+      "path": "1110-safe/postgres/postgres-native-tests.json.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/postgres/postgres-native-tests.json",
+      "raw_bytes": 77,
+      "gzip_bytes": 76,
+      "raw_sha256_chunks": [
+        "e62dbeb74599b4b41e343281f50d0",
+        "098db12b83597f53f2715a87f5b75",
+        "e2fa24"
+      ],
+      "gzip_sha256_chunks": [
+        "ca2db66d007aedc869a60a975ace2",
+        "731574d5e3ea6c05a845f3eed22bf",
+        "43aa5b"
+      ]
+    },
+    {
+      "path": "1110-safe/postgres/postgres-sql-smoke.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/postgres/postgres-sql-smoke.log",
+      "raw_bytes": 2,
+      "gzip_bytes": 22,
+      "raw_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d5700025",
+        "4b84bd9eba34b4df7ce4b87db8b93",
+        "7b7703"
+      ],
+      "gzip_sha256_chunks": [
+        "0e596773c90e34f23a48e25f57da1",
+        "7ce580f05de9d1c7d97388f0f40ed",
+        "4dac56"
+      ]
+    },
+    {
+      "path": "1110-safe/postgres/postgres-test-build.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/postgres/postgres-test-build.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "1110-safe/postgres.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/postgres.log",
+      "raw_bytes": 126,
+      "gzip_bytes": 129,
+      "raw_sha256_chunks": [
+        "574395febfcaf29113cd061b7dc06",
+        "db6a827934d77ebd1d0d8006a0f00",
+        "087898"
+      ],
+      "gzip_sha256_chunks": [
+        "2dd11856ef9a0a48c54e8a50ec07c",
+        "8b969bd7b1a932684184f4611e021",
+        "73bf11"
+      ]
+    },
+    {
+      "path": "1110-safe/relayer-help.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/relayer-help.log",
+      "raw_bytes": 295,
+      "gzip_bytes": 246,
+      "raw_sha256_chunks": [
+        "d479b6b0abddc958c6e49075b461e",
+        "e3ef8325749d216bb1f4c0719a58f",
+        "f2a63d"
+      ],
+      "gzip_sha256_chunks": [
+        "f9c08e9f1af6c77f969762144700b",
+        "825bc8e61ca864968e50391ea1b03",
+        "15fc3b"
+      ]
+    },
+    {
+      "path": "1110-safe/roles-build.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/roles-build.log",
+      "raw_bytes": 0,
+      "gzip_bytes": 20,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb",
+        "92427ae41e4649b934ca495991b78",
+        "52b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c",
+        "98d2c485d81cdef906532a801f457",
+        "a38d64"
+      ]
+    },
+    {
+      "path": "1110-safe/rpc-producers.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/rpc-producers.log",
+      "raw_bytes": 47635,
+      "gzip_bytes": 13738,
+      "raw_sha256_chunks": [
+        "c4d14c33435f17aa92586db8997a9",
+        "b8906919e6c3e8f51550d4b267cb7",
+        "2b318f"
+      ],
+      "gzip_sha256_chunks": [
+        "1c36cb662ecad5d43b157f8c2d3a6",
+        "fa6b2bc5a437956d88449e924a634",
+        "cb8021"
+      ]
+    },
+    {
+      "path": "1110-safe/scraper-help.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/scraper-help.log",
+      "raw_bytes": 295,
+      "gzip_bytes": 247,
+      "raw_sha256_chunks": [
+        "618bfaacc46f158b34069648ce11f",
+        "09a491c6d7d1728e7ab659b827b65",
+        "288ebb"
+      ],
+      "gzip_sha256_chunks": [
+        "6d1db15db978672df7d166e5e5cbb",
+        "5771f1d87a51342e5edb6c7698246",
+        "e74dcb"
+      ]
+    },
+    {
+      "path": "1110-safe/socket-owner.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/socket-owner.log",
+      "raw_bytes": 448,
+      "gzip_bytes": 248,
+      "raw_sha256_chunks": [
+        "61915875f83e021786ceec08c49f8",
+        "472e8dde64bc5f51888537cce84cb",
+        "e66fcc"
+      ],
+      "gzip_sha256_chunks": [
+        "ee3a910f4c92a5fab37496f60039e",
+        "955f907adefd3e24e718b863be76b",
+        "1b539e"
+      ]
+    },
+    {
+      "path": "1110-safe/validator-help.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/validator-help.log",
+      "raw_bytes": 297,
+      "gzip_bytes": 247,
+      "raw_sha256_chunks": [
+        "e89d2996b20dcd673799ea931579d",
+        "7db10d625f41f73f0c5587e4586d4",
+        "678e8e"
+      ],
+      "gzip_sha256_chunks": [
+        "5ed6fa6178d8e4e248cdb3587d28a",
+        "1322145bb82e5d366560856bb986d",
+        "248156"
+      ]
+    },
+    {
+      "path": "1110-safe/ws-wss.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-safe/ws-wss.log",
+      "raw_bytes": 2356,
+      "gzip_bytes": 937,
+      "raw_sha256_chunks": [
+        "6cae40a07764b1feeabfebd1d5746",
+        "94ba2991697a62be291cd0c893765",
+        "cc3e75"
+      ],
+      "gzip_sha256_chunks": [
+        "957ad6798d6363e4b403f6a586e98",
+        "e4c945ee7760f5a3c8b6cc6aee744",
+        "13e40c"
+      ]
+    },
+    {
+      "path": "1110-fast-default/default-manifest.json.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-fast-default/default-manifest.json",
+      "raw_bytes": 180273,
+      "gzip_bytes": 66195,
+      "raw_sha256_chunks": [
+        "28c24473fe64b898f1d465643be09",
+        "85eb732c8b90bd5af7d6e56bdd8fc",
+        "9abb41"
+      ],
+      "gzip_sha256_chunks": [
+        "073bbb9eab5146bb54f1ccec46543",
+        "e46d8856b55f57007494d9ac424d4",
+        "704242"
+      ]
+    },
+    {
+      "path": "1110-fast-default/default.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1110-fast-default/default.log",
+      "raw_bytes": 1255,
+      "gzip_bytes": 409,
+      "raw_sha256_chunks": [
+        "0cd4f782363d0ac01306a7588879a",
+        "2c33fcdd46ffc1568acb80d36ad80",
+        "9ed44a"
+      ],
+      "gzip_sha256_chunks": [
+        "1483d423889643782d7be49ab3d68",
+        "b7cfd2af4341bb984a5c58c61d9ad",
+        "ceab44"
+      ]
+    },
+    {
+      "path": "1115-fast-native/native-db-manifest.json.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1115-fast-native/native-db-manifest.json",
+      "raw_bytes": 181046,
+      "gzip_bytes": 66429,
+      "raw_sha256_chunks": [
+        "f5339465344b6bd6536aa2d2522a8",
+        "77507f6dbd79c642df98f236b0c69",
+        "04dfa0"
+      ],
+      "gzip_sha256_chunks": [
+        "cf80473d0c430d3323bfb7ef1cbfc",
+        "3872c1b0c62e06490575764bce843",
+        "29c79d"
+      ]
+    },
+    {
+      "path": "1115-fast-native/native-db.log.gz",
+      "original": "zig/bench/results/global-source-canonical-20261106T1115-fast-native/native-db.log",
+      "raw_bytes": 159208,
+      "gzip_bytes": 35038,
+      "raw_sha256_chunks": [
+        "d7a9772023a673abbaba8b9ad4698",
+        "fc0e2b00771598a06a616b3111017",
+        "399377"
+      ],
+      "gzip_sha256_chunks": [
+        "6b9e6d5c55e4de1a2f89b2c3c4fe0",
+        "e80f3aa118aae08151e7b6bdb2623",
+        "a8c6db"
+      ]
+    }
+  ]
+}

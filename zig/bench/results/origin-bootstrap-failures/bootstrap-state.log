@@ -1,0 +1,7 @@
+1/6 origin_bootstrap_tests.test_0...OK
+2/6 agents.indexing.native_test.test_0...OK
+3/6 agents.indexing.native_test.test_1...OK
+4/6 agents.indexing.native_test.test_2...OK
+5/6 agents.indexing.cursor_bootstrap.test.cursor bootstrap sleeps after tenth failure and clears only recovered stream...OK
+6/6 agents.indexing.cursor_bootstrap.test.cursor bootstrap controls and persistence errors do not consume retry budget...OK
+All 6 tests passed.

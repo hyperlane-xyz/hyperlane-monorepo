@@ -1,0 +1,46 @@
+//! Minimal declarations from RocksDB 10.4.2 include/rocksdb/c.h. Opaque native
+//! owners are managed by rocks.zig; never free RocksDB allocations with Zig.
+pub const DB = opaque {};
+pub const Options = opaque {};
+pub const ReadOptions = opaque {};
+pub const WriteOptions = opaque {};
+pub const WriteBatch = opaque {};
+pub const Iterator = opaque {};
+
+pub extern fn rocksdb_options_create() ?*Options;
+pub extern fn rocksdb_options_destroy(*Options) void;
+pub extern fn rocksdb_options_set_create_if_missing(*Options, u8) void;
+pub extern fn rocksdb_options_set_keep_log_file_num(*Options, usize) void;
+pub extern fn rocksdb_options_set_max_log_file_size(*Options, usize) void;
+pub extern fn rocksdb_options_set_WAL_ttl_seconds(*Options, u64) void;
+pub extern fn rocksdb_options_set_WAL_size_limit_MB(*Options, u64) void;
+pub extern fn rocksdb_open(*const Options, [*:0]const u8, *?[*:0]u8) ?*DB;
+pub extern fn rocksdb_open_for_read_only(*const Options, [*:0]const u8, u8, *?[*:0]u8) ?*DB;
+pub extern fn rocksdb_close(*DB) void;
+pub extern fn rocksdb_free(?*anyopaque) void;
+pub extern fn rocksdb_readoptions_create() ?*ReadOptions;
+pub extern fn rocksdb_readoptions_destroy(*ReadOptions) void;
+pub extern fn rocksdb_writeoptions_create() ?*WriteOptions;
+pub extern fn rocksdb_writeoptions_destroy(*WriteOptions) void;
+pub extern fn rocksdb_writeoptions_set_sync(*WriteOptions, u8) void;
+pub extern fn rocksdb_writeoptions_disable_WAL(*WriteOptions, c_int) void;
+pub extern fn rocksdb_get(*DB, *const ReadOptions, [*]const u8, usize, *usize, *?[*:0]u8) ?[*]u8;
+pub extern fn rocksdb_put(*DB, *const WriteOptions, [*]const u8, usize, [*]const u8, usize, *?[*:0]u8) void;
+pub extern fn rocksdb_delete(*DB, *const WriteOptions, [*]const u8, usize, *?[*:0]u8) void;
+pub extern fn rocksdb_write(*DB, *const WriteOptions, *WriteBatch, *?[*:0]u8) void;
+pub extern fn rocksdb_get_latest_sequence_number(*DB) u64;
+pub extern fn rocksdb_writebatch_create() ?*WriteBatch;
+pub extern fn rocksdb_writebatch_destroy(*WriteBatch) void;
+pub extern fn rocksdb_writebatch_put(*WriteBatch, [*]const u8, usize, [*]const u8, usize) void;
+pub extern fn rocksdb_writebatch_delete(*WriteBatch, [*]const u8, usize) void;
+pub extern fn rocksdb_writebatch_delete_range(*WriteBatch, [*]const u8, usize, [*]const u8, usize) void;
+pub extern fn rocksdb_create_iterator(*DB, *const ReadOptions) ?*Iterator;
+pub extern fn rocksdb_iter_destroy(*Iterator) void;
+pub extern fn rocksdb_iter_valid(*const Iterator) u8;
+pub extern fn rocksdb_iter_seek(*Iterator, [*]const u8, usize) void;
+pub extern fn rocksdb_iter_seek_for_prev(*Iterator, [*]const u8, usize) void;
+pub extern fn rocksdb_iter_next(*Iterator) void;
+pub extern fn rocksdb_iter_prev(*Iterator) void;
+pub extern fn rocksdb_iter_key(*const Iterator, *usize) [*]const u8;
+pub extern fn rocksdb_iter_value(*const Iterator, *usize) [*]const u8;
+pub extern fn rocksdb_iter_get_error(*const Iterator, *?[*:0]u8) void;

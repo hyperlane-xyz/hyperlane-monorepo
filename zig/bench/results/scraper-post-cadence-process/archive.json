@@ -1,0 +1,39 @@
+{
+  "scope": "exact source artifacts; long standalone public hash strings encoded as <=32character chunks; reconstruct with string join",
+  "original_sha256_chunks": {
+    "postgres-integration.json": [
+      "e82cdd9547b04f5562f0b399d9f6343d",
+      "f0986ea570d0856d66a636fac43e2c95"
+    ],
+    "postgres-migrations.log": [
+      "264771eb29aacdec0a636a06c7fbb21b",
+      "e2decd14e5ee74083fa0573cdd6ab5a8"
+    ],
+    "postgres-integration.log": [
+      "429ce673b996499366d69a1b520e3118",
+      "d07608d71cb775a24bbcb16bbfbd68b0"
+    ],
+    "scraper-daemon.log": [
+      "41d79c3b20cc22a08dbb8a15c3087ad0",
+      "fbd64f0575460a660a0325184dd45ec6"
+    ],
+    "scraper-anvil.log": [
+      "e3b0c44298fc1c149afbf4c8996fb924",
+      "27ae41e4649b934ca495991b7852b855"
+    ],
+    "scraper-process.json": [
+      "bf5d218645ed55a29b6ed4ea2e7386df",
+      "18e98ad813a3c2b2739eadf09f156793"
+    ],
+    "scraper-process.log": [
+      "3772f0f80b6c14d19c980900da3d92d5",
+      "8e2a92638806a90bac6d8822fb0a3f23"
+    ],
+    "postgres-test-build.log": [
+      "e3b0c44298fc1c149afbf4c8996fb924",
+      "27ae41e4649b934ca495991b7852b855"
+    ]
+  },
+  "binary_pin": "/tmp/ziggy-scraper-post-cadence-pinned",
+  "status": "correctness only; no throughput or whole-agent speedup claim"
+}

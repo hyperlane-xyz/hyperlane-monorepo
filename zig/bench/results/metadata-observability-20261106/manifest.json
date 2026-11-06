@@ -1,0 +1,386 @@
+{
+  "scope": "Metadata observation and cancellation component closure. Final EVM root includes all enabled metadata replay cases; no final whole-agent runtime, deployment, benchmark, or global acceptance claim.",
+  "created_utc": "2026-11-06T04:16:00.936195+00:00",
+  "toolchain": "Zig 0.15.2 aarch64-macos ReleaseSafe",
+  "environment": {
+    "HYPERLANE_CURL_LIBRARY": "/usr/lib/libcurl.4.dylib"
+  },
+  "commands": {
+    "metadata": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/metadata_parallel_delegated_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "-lc++",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+      "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib"
+    ],
+    "evm_prepare": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "test",
+      "zig/src/evm_prepare_delegated_tests.zig",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "-lc++",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+      "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib"
+    ],
+    "relayer_no_emit": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "build-exe",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "-lc++",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "-fno-emit-bin",
+      "--dep",
+      "service_options",
+      "-Mroot=zig/src/service_main.zig",
+      "-Mservice_options=/tmp/ziggy-health-role-relayer-options.zig"
+    ],
+    "validator_no_emit": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "build-exe",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "-lc++",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "-fno-emit-bin",
+      "--dep",
+      "service_options",
+      "-Mroot=zig/src/service_main.zig",
+      "-Mservice_options=/tmp/ziggy-health-role-validator-options.zig"
+    ],
+    "scraper_no_emit": [
+      "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+      "build-exe",
+      "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+      "-O",
+      "ReleaseSafe",
+      "-lc",
+      "-lc++",
+      "--sysroot",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "-L/usr/lib",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+      "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+      "-fno-emit-bin",
+      "--dep",
+      "service_options",
+      "-Mroot=zig/src/service_main.zig",
+      "-Mservice_options=/tmp/ziggy-health-role-scraper-options.zig"
+    ]
+  },
+  "source_files": [
+    {
+      "path": "zig/src/relayer/metadata.zig",
+      "sha256_chunks": [
+        "77a628b4e1632170f0d7437adb70bf6f",
+        "1b06cafd777be53ffe72bf89a65c1d0e"
+      ]
+    },
+    {
+      "path": "zig/src/relayer/metadata_parallel.zig",
+      "sha256_chunks": [
+        "0bdafa8563304f920419ca1cddcc356f",
+        "4b203f0031c1fbaf3c396e2aabe30c3b"
+      ]
+    },
+    {
+      "path": "zig/src/relayer/cached_source.zig",
+      "sha256_chunks": [
+        "514cc7cc69bbbcf9ab1f7dddda1c1ff1",
+        "10e51338e4fb8da6b5ef781695414507"
+      ]
+    },
+    {
+      "path": "zig/src/relayer/evm_source.zig",
+      "sha256_chunks": [
+        "78c0993e78be88f4cd0e00963f8e8825",
+        "3d2b55ac9bc0c16140a94741b7672112"
+      ]
+    },
+    {
+      "path": "zig/src/ops/validator_observability.zig",
+      "sha256_chunks": [
+        "63c4799b55d176da3ba9765b3cf5672a",
+        "1a70849b6781f3e6ae7eb1e64d532633"
+      ]
+    },
+    {
+      "path": "zig/src/agents/metadata_session.zig",
+      "sha256_chunks": [
+        "d2401053d56a3cccb956a4da44291876",
+        "f4a7119519934fbb3dc72798d0b02a71"
+      ]
+    },
+    {
+      "path": "zig/src/agents/metadata_session_test.zig",
+      "sha256_chunks": [
+        "27233e4c3293f6907e46574e334b4af5",
+        "364fe4b8f613b2dcf7993f72630b36a4"
+      ]
+    },
+    {
+      "path": "zig/src/agents/relayer/evm_prepare.zig",
+      "sha256_chunks": [
+        "dbc616f40fa23a2500b22829ae8f436a",
+        "1deb60044f360e00539a37cc8e2f7380"
+      ]
+    },
+    {
+      "path": "zig/src/evm_prepare_delegated_tests.zig",
+      "sha256_chunks": [
+        "6debd1ab217ef42c132133e7a2e249e9",
+        "b5013ddc2c3b79a969b47ab76d0412fa"
+      ]
+    },
+    {
+      "path": "zig/src/metadata_parallel_delegated_tests.zig",
+      "sha256_chunks": [
+        "caef6deccc98bbd8a37603f427511176",
+        "fcb5f9d92c0a3edc2f93fc66c35f32c5"
+      ]
+    },
+    {
+      "path": "zig/src/sealevel/metadata.zig",
+      "sha256_chunks": [
+        "caa1c164a20b7a1bf4c6b84dde20d466",
+        "ef08a2a13c4b183db08ee3ad8aaa52d8"
+      ]
+    },
+    {
+      "path": "zig/src/agents/destination/source_metadata.zig",
+      "sha256_chunks": [
+        "b41277c81d78666c97d4a3fc8918d15b",
+        "cc8d4ffa6b15377f1ab40d1e293a4059"
+      ]
+    },
+    {
+      "path": "zig/src/agents/destination/source_metadata_svm_test.zig",
+      "sha256_chunks": [
+        "d7952588de077a0dfdc6996ded7626f0",
+        "cbf8eb1db7b0068c2fe5048b63097d86"
+      ]
+    }
+  ],
+  "results": {
+    "final_evm_prepare_native": {
+      "passed": 402,
+      "skipped": 12,
+      "failed": 0,
+      "counts_include_imported_root_checks": true
+    },
+    "metadata_native_before_test_fixture_cleanup": {
+      "passed": 358,
+      "skipped": 10,
+      "failed": 0,
+      "note": "Same production code; native server fixture cleanup changed afterward. Final EVM root repeats these enabled metadata cases."
+    },
+    "actual_clock_and_late_leaf": {
+      "passed": 6,
+      "skipped": 0,
+      "failed": 0
+    },
+    "role_no_emit": [
+      {
+        "role": "relayer",
+        "exit_code": 0,
+        "log": "/tmp/ziggy-metadata-final-role-relayer.log"
+      },
+      {
+        "role": "validator",
+        "exit_code": 0,
+        "log": "/tmp/ziggy-metadata-final-role-validator.log"
+      },
+      {
+        "role": "scraper",
+        "exit_code": 0,
+        "log": "/tmp/ziggy-metadata-final-role-scraper.log"
+      }
+    ],
+    "independent_review": {
+      "report": "zig/bench/results/metadata-lifetime-review-2026-11-06/report.md",
+      "central_passed": 16,
+      "svm_passed": 22,
+      "parent_flag_passed": 7,
+      "skipped": 0,
+      "blocking_findings": 0
+    },
+    "failed_native_eof": {
+      "passed": 402,
+      "skipped": 11,
+      "failed": 1,
+      "cause": "Canceled loser closed TCP before complete HTTP request; test listener treated EOF as fatal and leaked accepted stream. Corrected fixture-only ownership/EOF handling; healthy-hit and uncanceled-upstream-failure assertions unchanged."
+    }
+  },
+  "skipped_final_tests": [
+    "18/414 evm_prepare_delegated_tests.test.opt-in loopback prepares actual repo Solidity without delivery or nonce mutation...SKIP",
+    "41/414 ops.matching.test.body uses lowercase hex without prefix when native regex is available...SKIP",
+    "85/414 cloud.http.test.opt-in native cloud transport enforces deadline cancellation byte cap and no redirect...SKIP",
+    "271/414 aleo.crypto.test.Aleo pinned native primitives validate program address and BHP mapping key IDs...SKIP",
+    "273/414 cosmos.curl_grpc.test.native libcurl HTTP2 gRPC loopback validates trailers height framing and deadline...SKIP",
+    "304/414 aleo.worker.test.Aleo actual isolated native worker authorizes fees and exports source proving wire through pipes...SKIP",
+    "305/414 aleo.worker.test.Aleo actual isolated local proof is bound to exact authorized execution and fee...SKIP",
+    "306/414 aleo.worker.test.Aleo actual proof worker OS sandbox forbids loopback network connections...SKIP",
+    "328/414 agents.chain_source_testing.test.source resource Cosmos forks retain gRPC fallback snapshots across native HTTP2 yields and share one height probe...SKIP",
+    "380/414 cloud.rs256.test.opt-in OpenSSL RS256 agrees with external Node generated ephemeral fixtures...SKIP",
+    "388/414 cloud.identity.test.opt-in service-account ADC JWT exchange matches external signature and caches token...SKIP",
+    "407/414 cloud.google_adc_test.test.opt-in Google ADC service account uses independent verified direct access JWT without OAuth network...SKIP"
+  ],
+  "artifacts": [
+    {
+      "path": "parallel-native.log.gz",
+      "raw_source": "/tmp/ziggy-metadata-recovery-native-final-tests.log",
+      "raw_bytes": 42081,
+      "raw_sha256_chunks": [
+        "034c7980f35875daeb5ff6f3c64cd1a5",
+        "49cba3beffc404db2eb812aa92637045"
+      ],
+      "gzip_sha256_chunks": [
+        "1be938af131d1927b4cb32ea5253794d",
+        "5659ceb4607e7e280d551908d7ab15e5"
+      ],
+      "lossless": true
+    },
+    {
+      "path": "evm-prepare-native.log.gz",
+      "raw_source": "/tmp/ziggy-metadata-recovery-prepare-native-final-tests.log",
+      "raw_bytes": 47267,
+      "raw_sha256_chunks": [
+        "65cad083713e9b7c95024f2f0b47d8f8",
+        "7c6885fba3b1bd505afe04321f6f1af4"
+      ],
+      "gzip_sha256_chunks": [
+        "d833606652176f40522a03efc0cbac27",
+        "e05f9324fd9e3f5c6726a0b8c4c5988b"
+      ],
+      "lossless": true
+    },
+    {
+      "path": "clock-and-late-leaf.log.gz",
+      "raw_source": "/tmp/ziggy-metadata-late-leaf-tests.log",
+      "raw_bytes": 389,
+      "raw_sha256_chunks": [
+        "119c2ab00e2f8c3a5d3af7f130f6cf20",
+        "1bc7e3dd91799a8bee3af58d29d30333"
+      ],
+      "gzip_sha256_chunks": [
+        "c1d32aacd266a23f705cf93dd95a0634",
+        "306f51881ff7a0271f59e4bd5797a366"
+      ],
+      "lossless": true
+    },
+    {
+      "path": "failed-native-eof.log.gz",
+      "raw_source": "/tmp/ziggy-metadata-recovery-prepare-native-early-eof-failed-tests.log",
+      "raw_bytes": 47430,
+      "raw_sha256_chunks": [
+        "2f6169858c85cc8d8f301fecfe9d0998",
+        "c5746e43a0591e3ca86edd013224442c"
+      ],
+      "gzip_sha256_chunks": [
+        "eb1bb8b01b1e705665c0325fe06d5486",
+        "c2d5e1da9849203ef837c95acc4f9952"
+      ],
+      "lossless": true
+    },
+    {
+      "path": "relayer-no-emit.log.gz",
+      "raw_source": "/tmp/ziggy-metadata-final-role-relayer.log",
+      "raw_bytes": 0,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c98d",
+        "2c485d81cdef906532a801f457a38d64"
+      ],
+      "lossless": true
+    },
+    {
+      "path": "validator-no-emit.log.gz",
+      "raw_source": "/tmp/ziggy-metadata-final-role-validator.log",
+      "raw_bytes": 0,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c98d",
+        "2c485d81cdef906532a801f457a38d64"
+      ],
+      "lossless": true
+    },
+    {
+      "path": "scraper-no-emit.log.gz",
+      "raw_source": "/tmp/ziggy-metadata-final-role-scraper.log",
+      "raw_bytes": 0,
+      "raw_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "gzip_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c98d",
+        "2c485d81cdef906532a801f457a38d64"
+      ],
+      "lossless": true
+    }
+  ],
+  "qualifications": [
+    "Rust MessageId tokio::join waits for latest and quorum; Zig detached latest can finish after metadata and owns a global-stop-token Source fork. This differs in critical-path latency, and whole-agent benchmark CPU/RPC must include retained latest work and drain.",
+    "Latest-only queue, allocation, fork and storage failures cannot veto an exact valid quorum. Owner cancellation and stopped-executor control still propagate.",
+    "Latest observations publish every configured validator, missing/error values -1, with 180000 ms membership grace. Bounded metric storage failures are diagnosed and nonfatal. Registry writes are per series, not an atomic Prometheus snapshot.",
+    "Strict root default-ISM classification is performed regardless of an installed observer; root labels propagate to all nested leaves.",
+    "The live EVM prepare Anvil opt-in was not run; its absent flag now correctly produces SkipZigTest. Actual service CLI process integration remains a separate gate."
+  ]
+}

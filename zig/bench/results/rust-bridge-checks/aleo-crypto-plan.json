@@ -1,0 +1,37 @@
+{
+  "crate": "zig/src/aleo/native-crypto",
+  "command": [
+    "cargo",
+    "+1.98.0",
+    "clippy",
+    "--locked",
+    "--offline",
+    "--all-targets",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/Users/pbio/work/ziggy/zig/src/aleo/native-crypto",
+  "started_utc": "2026-11-06T06:01:33.417117+00:00",
+  "free_bytes_before": 42735157248,
+  "source_sha256_chunks": {
+    "zig/src/aleo/native-crypto/Cargo.toml": [
+      "1894d10c30d2fbb0c94101489ca12715",
+      "25e06dcef6e20492cc63eea3ff0f6445"
+    ],
+    "zig/src/aleo/native-crypto/Cargo.lock": [
+      "e1586a4aca326433f5164b5ad502b37f",
+      "c35249ca780f5e861b6197aff0b1c0b7"
+    ],
+    "zig/src/aleo/native-crypto/src/lib.rs": [
+      "03595c86751d450005a3b4c114bf16e6",
+      "8a9c14581556dd774df7887e8f3e2063"
+    ]
+  },
+  "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+  "environment": {
+    "CARGO_INCREMENTAL": "0"
+  },
+  "status": "running"
+}

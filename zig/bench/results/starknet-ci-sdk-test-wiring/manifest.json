@@ -1,0 +1,19 @@
+{
+  "captured_utc": "2026-11-06T07:03:51.032706+00:00",
+  "scope": "Prepared Linux CI coverage wiring only; no executed SDK image or native-test acceptance",
+  "reason": "Base native-db tests run before the Starknet SDK; tests need the actual crypto library selected after build",
+  "docker_sha256_chunks": [
+    "3f147015be551b3eb7dd094d50dbeff7",
+    "5edd01690df7a4d8ba764eee370c9706"
+  ],
+  "commands_added": [
+    "python3 zig/tools/zig.py --compiler \"$ZIG\" test src/starknet_batch_tests.zig -O ReleaseSafe -lc --test-filter Starknet",
+    "python3 zig/tools/zig.py --compiler \"$ZIG\" build -j4 native-db-test -Doptimize=ReleaseSafe \"-Dnative-db-libs=$LIBS\""
+  ],
+  "selected_starknet_library": "/work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so",
+  "native_db_aggregate_wiring": "runtime owner must register all permanent group/control/sender imports before final source release",
+  "static_check": "static-filtered.json",
+  "independent_review": "Protocol owner verified SDK/env/library/reachability; focused Starknet filter required to match accepted component scope",
+  "full_image_execution_pending": true,
+  "hooks_and_security_checks_unchanged": true
+}

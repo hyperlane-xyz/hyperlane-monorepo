@@ -1,0 +1,546 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-11-06T08:53:17.375960+00:00",
+  "scope": "Functional general fallback owner/physical timeout recovery. No performance results or ratios; final aggregate/role/emitted-artifact acceptance remains separate.",
+  "tests": [
+    {
+      "name": "focused",
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "raw_log": "focused.log.gz"
+    },
+    {
+      "name": "pool",
+      "passed": 86,
+      "failed": 0,
+      "skipped": 0,
+      "raw_log": "pool.log.gz"
+    },
+    {
+      "name": "producers",
+      "passed": 37,
+      "failed": 0,
+      "skipped": 0,
+      "raw_log": "producers.log.gz"
+    },
+    {
+      "name": "receipts",
+      "passed": 367,
+      "failed": 0,
+      "skipped": 9,
+      "raw_log": "receipts.log.gz"
+    },
+    {
+      "name": "origin",
+      "passed": 19,
+      "failed": 0,
+      "skipped": 1,
+      "raw_log": "origin.log.gz"
+    },
+    {
+      "name": "public-relay",
+      "passed": 428,
+      "failed": 0,
+      "skipped": 10,
+      "raw_log": "public-relay.log.gz"
+    },
+    {
+      "name": "protected",
+      "passed": 55,
+      "failed": 0,
+      "skipped": 0,
+      "raw_log": "protected.log.gz"
+    }
+  ],
+  "focused_own_substantive_tests": 9,
+  "focused_import_root_smokes": 6,
+  "selected_sources_unchanged_before_after": 14,
+  "selected_source_status": "source-status.json",
+  "commands": "commands.json.gz",
+  "result": "result.json.gz",
+  "canonical_json": "Lossless gzip originals; exact-path ignores only for raw command/result convenience mirrors in this directory. Normal hooks/global ignores unchanged.",
+  "qualifications": [
+    "Separate roots share imports and must not be summed as a unique project test count.",
+    "Focused matrix contains direct/cooperative EVM/SVM and sequential eth_call under configured hedging: each real first peer stalls full configured20s; healthy B succeeds with retained120s owner.",
+    "Immutable hedging retains configured30s physical timing: B delays21s and succeeds, so generic20s cap cannot have replaced30s.",
+    "Origin1 optional native HTTP2 skip; receipt/public-root skips are retained environment-dependent cases, not claimed optional coverage.",
+    "Existing raw Pool defaults, single/quorum, independent native validator votes, method/revert payload and cancellation policies remain distinct.",
+    "Cooperative replay deliberately ignores the new direct-only Options owner metadata and retains its own actual absolute attempt owner.",
+    "Ten owned production files and two new test files frozen; net/read_replay production unchanged. Parent exclusively integrated agents/chain_source and permanent test imports.",
+    "No SDK/Rust/C rebuild, agent role, image, production RPC or benchmark run. Local disposable HTTP and RocksDB fixtures only."
+  ],
+  "historical_logs": "Initial9 and preliminary14 proof logs retained as historical stages; final15 supersedes them, without retroactively asserting their old test-source inventories.",
+  "artifacts": [
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/commands.json.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-commands.json",
+      "raw_bytes": 5079,
+      "gzip_bytes": 1354,
+      "raw_sha256_chunks": [
+        "58d96507835f7fdc462cdf67263f9",
+        "386bada9aee965ffd7582cefaaf95",
+        "308b88"
+      ],
+      "gzip_sha256_chunks": [
+        "d3330917943b6431858d7d7ea5f4a",
+        "fb0eb1306b77c0346b0f0730444c8",
+        "1f6931"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/result.json.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-result.json",
+      "raw_bytes": 4469,
+      "gzip_bytes": 1095,
+      "raw_sha256_chunks": [
+        "6e5e533560231f683418ff890ca5a",
+        "b727556867a3f5f1a7ae223b30819",
+        "4cc649"
+      ],
+      "gzip_sha256_chunks": [
+        "7671b856c5cdc9ca052b19fc6428e",
+        "38d1060bffa1e227cd740876b14c4",
+        "aa7e5e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/focused.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-focused.log",
+      "raw_bytes": 1372,
+      "gzip_bytes": 511,
+      "raw_sha256_chunks": [
+        "d8f77b6a504b570148cf34b91a6ba",
+        "4878d669c976ca133b6c7b305d7c3",
+        "97639c"
+      ],
+      "gzip_sha256_chunks": [
+        "33fb4721ad411e6ac0f6f77f40dc9",
+        "2f6869bd0c03c39d5ca559b0f9515",
+        "53d360"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/pool.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-pool.log",
+      "raw_bytes": 9447,
+      "gzip_bytes": 3175,
+      "raw_sha256_chunks": [
+        "bec00522753fc724717f940d8c543",
+        "1a787985000821de37b3ff46afeac",
+        "011110"
+      ],
+      "gzip_sha256_chunks": [
+        "cca55a9f79f21ac920bbb4c9211cd",
+        "af5f5b5f4eed937f4c164b58ea3a1",
+        "d1a3d3"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/producers.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-producers.log",
+      "raw_bytes": 4723,
+      "gzip_bytes": 1574,
+      "raw_sha256_chunks": [
+        "aec252c79f09c9f4df45733608a51",
+        "8be370018f614e522205f0a81acc7",
+        "e1aced"
+      ],
+      "gzip_sha256_chunks": [
+        "edb399016b5ae119bf48fcd7cd926",
+        "2e5e5d88d9dec8a4fb6fd0be3f31c",
+        "f2e230"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/receipts.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-receipts.log",
+      "raw_bytes": 42987,
+      "gzip_bytes": 12601,
+      "raw_sha256_chunks": [
+        "e0bc3f5df6a3faf15cd8d1a6231da",
+        "e7476ba8baf4ff25dffebb27b67b8",
+        "945b56"
+      ],
+      "gzip_sha256_chunks": [
+        "0b1f3ad3ee974c65f768f6ea62154",
+        "673b9ee2ace58424a860c7b45f242",
+        "c70d11"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/origin.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-origin.log",
+      "raw_bytes": 1997,
+      "gzip_bytes": 831,
+      "raw_sha256_chunks": [
+        "8b2a8f19b85cde86c77389892c877",
+        "0734a9dea24f7949560a73f2802c3",
+        "ea76b0"
+      ],
+      "gzip_sha256_chunks": [
+        "46c1fcccac4a114894559eaf10cfb",
+        "0820d9410d6828b54d0e259e2087f",
+        "213b29"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/public-relay.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-public-relay.log",
+      "raw_bytes": 50321,
+      "gzip_bytes": 14614,
+      "raw_sha256_chunks": [
+        "8c2a132cd0adc53de26792ac35463",
+        "07d7c61f4246b1f0f0cde13852479",
+        "d4b0b6"
+      ],
+      "gzip_sha256_chunks": [
+        "dd42832e35d0c6cdfa5f4eeeb7c95",
+        "e3a3d31d34de2310231cbeaacea53",
+        "4e4cee"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/protected.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-final-protected.log",
+      "raw_bytes": 5959,
+      "gzip_bytes": 2212,
+      "raw_sha256_chunks": [
+        "163e95737e1ec4a9e17c1255f28fc",
+        "8534c8e4d094d6a2a450f947b2141",
+        "2e4353"
+      ],
+      "gzip_sha256_chunks": [
+        "72e11c694a7c20e1f958d243f8dc3",
+        "15ae3bc37e38fcb9c009b44b2cc33",
+        "3e4cbd"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/historical-first.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-first.log",
+      "raw_bytes": 762,
+      "gzip_bytes": 329,
+      "raw_sha256_chunks": [
+        "79d2cb4d8c93c6a19fd31f8220063",
+        "8742a03881be2ca01c11137db6e8f",
+        "ab0159"
+      ],
+      "gzip_sha256_chunks": [
+        "cea43cba6e6d59b900eded9cb4822",
+        "a4c0ec3b525b53f71df54ea373c94",
+        "724991"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/historical-second.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-second.log",
+      "raw_bytes": 1238,
+      "gzip_bytes": 463,
+      "raw_sha256_chunks": [
+        "75ea18880455091cf9e27382203d9",
+        "44414c238fe8626b822815fafee82",
+        "6afc44"
+      ],
+      "gzip_sha256_chunks": [
+        "d2592a25984e2f67112169af9e4f8",
+        "cda05d859ff5c39b48963baf834e8",
+        "1f5d65"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/historical-preliminary14.log.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-preliminary14.log",
+      "raw_bytes": 1238,
+      "gzip_bytes": 463,
+      "raw_sha256_chunks": [
+        "75ea18880455091cf9e27382203d9",
+        "44414c238fe8626b822815fafee82",
+        "6afc44"
+      ],
+      "gzip_sha256_chunks": [
+        "d2592a25984e2f67112169af9e4f8",
+        "cda05d859ff5c39b48963baf834e8",
+        "1f5d65"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/evm/pool.zig.source.gz",
+      "original": null,
+      "raw_bytes": 104576,
+      "gzip_bytes": 20216,
+      "raw_sha256_chunks": [
+        "90b3a21601e1ef98f8356e5a66045",
+        "88c20d35d425f29e03a3821b8343c",
+        "3c091b"
+      ],
+      "gzip_sha256_chunks": [
+        "be8148a8c5a6f40091699f6f72bf4",
+        "252ffa52d707b5650fa6c4250c16f",
+        "e3274f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/evm/provider.zig.source.gz",
+      "original": null,
+      "raw_bytes": 45461,
+      "gzip_bytes": 10478,
+      "raw_sha256_chunks": [
+        "6fecde86bae0037b99868acbf256f",
+        "a22f738a560e8953a61b1dd2ebd40",
+        "eed8f7"
+      ],
+      "gzip_sha256_chunks": [
+        "52347664c0aa069f67f5239366ae6",
+        "1a54072aeac3db8c425dd60ba20ae",
+        "43848c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/sealevel/provider.zig.source.gz",
+      "original": null,
+      "raw_bytes": 24721,
+      "gzip_bytes": 5623,
+      "raw_sha256_chunks": [
+        "462b0c7a1db15134d1d6376fa2113",
+        "893aed9e56de66b9c49da8c1b4658",
+        "7fbee0"
+      ],
+      "gzip_sha256_chunks": [
+        "55262ac8df118e4b2a2ec15620d6f",
+        "d449e625a6da39b28e27413892a76",
+        "def577"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/relayer/evm_source.zig.source.gz",
+      "original": null,
+      "raw_bytes": 19452,
+      "gzip_bytes": 4630,
+      "raw_sha256_chunks": [
+        "e9e96e98bd82bcbddf71e66ea0a72",
+        "504f254923a618ecc547f77f726b0",
+        "91fab1"
+      ],
+      "gzip_sha256_chunks": [
+        "0bc1802a05346ca46d5b4c059077f",
+        "1c34435c7cb58cbc6117e8be483c2",
+        "9b950c"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/agents/origin_signer_source.zig.source.gz",
+      "original": null,
+      "raw_bytes": 16411,
+      "gzip_bytes": 3666,
+      "raw_sha256_chunks": [
+        "121e836fa393648b45f3845e221d8",
+        "fe754e66dadd24c0d4fefbf6e4e2d",
+        "2e1668"
+      ],
+      "gzip_sha256_chunks": [
+        "f1de235400cbd4bc81bd24e8a788e",
+        "7a6d3e793b0f47580160b7efe6e1a",
+        "1836be"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/agents/scraper/receipts_evm.zig.source.gz",
+      "original": null,
+      "raw_bytes": 6641,
+      "gzip_bytes": 2009,
+      "raw_sha256_chunks": [
+        "70767e48a5955637ad09b35ffe696",
+        "6efddddc40a26bbeb398c739cd8c1",
+        "5b27f0"
+      ],
+      "gzip_sha256_chunks": [
+        "0cfa461dcbbe6d2c87996a54a5d3d",
+        "c63ca8b8ab7ad0753d823941b6550",
+        "a04bc1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/agents/scraper/receipts_cosmos.zig.source.gz",
+      "original": null,
+      "raw_bytes": 15842,
+      "gzip_bytes": 4399,
+      "raw_sha256_chunks": [
+        "ce550045ba3d59bc973582d75087a",
+        "c3eef90c6fdedc1c62a311f3b8752",
+        "4f8d49"
+      ],
+      "gzip_sha256_chunks": [
+        "c8b451f75001e155a5f3f41e00bcb",
+        "d001f596f5cbd39866ef30495ec65",
+        "af40d2"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/agents/scraper/receipts_sealevel.zig.source.gz",
+      "original": null,
+      "raw_bytes": 9198,
+      "gzip_bytes": 2752,
+      "raw_sha256_chunks": [
+        "8d1cd2b23ba792675607ce871bb76",
+        "fbfc79576cf3c6c8b7475819718a0",
+        "b5020a"
+      ],
+      "gzip_sha256_chunks": [
+        "ae7d27fe65fd02f66a471747fa43a",
+        "70fc048ba4b57e9fce551423892de",
+        "f6974d"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/agents/relayer/rpc_budget.zig.source.gz",
+      "original": null,
+      "raw_bytes": 4036,
+      "gzip_bytes": 1309,
+      "raw_sha256_chunks": [
+        "10a5cf6b9e4bf968587093d300a7b",
+        "37a447f2a22f94c4eb8387ef9d867",
+        "d66236"
+      ],
+      "gzip_sha256_chunks": [
+        "9ae37adfc1054417090557aecbd5f",
+        "765b5f36e4c4e6d6f5bf61e03654a",
+        "5aa63f"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/agents/relayer/public_relay.zig.source.gz",
+      "original": null,
+      "raw_bytes": 27549,
+      "gzip_bytes": 6664,
+      "raw_sha256_chunks": [
+        "cce6048e85d2bc61d03589af5ad6b",
+        "5cdb6e278b6e91f4e8485cad0c782",
+        "4d7961"
+      ],
+      "gzip_sha256_chunks": [
+        "73223a510090ce9787c6f5adddadd",
+        "cf75b61e51f9909ceeff5a106efea",
+        "d0e207"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/rpc_fallback_owner_testing.zig.source.gz",
+      "original": null,
+      "raw_bytes": 16991,
+      "gzip_bytes": 3951,
+      "raw_sha256_chunks": [
+        "66fed9b93c9f6400580e05df57a79",
+        "6271043ac0ae99d03af14157caa2e",
+        "3d7aba"
+      ],
+      "gzip_sha256_chunks": [
+        "1dadd132531a8f112517cf5c0f197",
+        "0e32ad39c33f4e930e8fa36d449c0",
+        "a5de69"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/rpc_fallback_owner_tests.zig.source.gz",
+      "original": null,
+      "raw_bytes": 60,
+      "gzip_bytes": 77,
+      "raw_sha256_chunks": [
+        "48fc2d0241e624eac32869992567e",
+        "4d3daef5e0dfbf6ec854d50cbe9d7",
+        "4c6940"
+      ],
+      "gzip_sha256_chunks": [
+        "8d6bccb59093b418f3aa96ae62d7d",
+        "5ff74397fa09bbbb8cf69c48c4bee",
+        "2cef35"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/net/read_replay.zig.source.gz",
+      "original": null,
+      "raw_bytes": 21043,
+      "gzip_bytes": 5677,
+      "raw_sha256_chunks": [
+        "31ad6faec0e3e82300b0045a5c9b1",
+        "1c0cb6637efaf2d295225381fafaf",
+        "6c0225"
+      ],
+      "gzip_sha256_chunks": [
+        "832e6419e81d1db4489164394dc11",
+        "1b49a72b49c7a63e64657103754cc",
+        "813f55"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/sources/zig/src/agents/chain_source.zig.source.gz",
+      "original": null,
+      "raw_bytes": 38340,
+      "gzip_bytes": 8339,
+      "raw_sha256_chunks": [
+        "0bcd4f622e77a8f4cc5fe75f00d29",
+        "befabc31a09355e7c8599e003e1e4",
+        "becceb"
+      ],
+      "gzip_sha256_chunks": [
+        "2dd7ad860c242c5bfdf2797e8dcb5",
+        "911b42ec4b6208bd2c6de67be1c93",
+        "85eb3e"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/release-report.md.gz",
+      "original": "/tmp/ziggy-rpc-fallback-owner-release.md",
+      "raw_bytes": 6308,
+      "gzip_bytes": 2818,
+      "raw_sha256_chunks": [
+        "6bfb77941550a4c6fcd66b79bd48c",
+        "a509a067a5eaec12102f6a6db2491",
+        "2fa90d"
+      ],
+      "gzip_sha256_chunks": [
+        "6008b2760307f3c6cede125978a7f",
+        "089ea8cc938b543f259a3cda2cb34",
+        "107296"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/initial-source-audit.md.gz",
+      "original": "/tmp/ziggy-evm-svm-pool-budget-review.md",
+      "raw_bytes": 7698,
+      "gzip_bytes": 3481,
+      "raw_sha256_chunks": [
+        "c4c55d2c237f176dc5c98bde74a58",
+        "ba137fcae9da3dd44d80090a3d032",
+        "5cf228"
+      ],
+      "gzip_sha256_chunks": [
+        "93abeb55ccac166f5ff5d893e95ea",
+        "7bae31082632ebd6f9ab92c48d6c9",
+        "c6d090"
+      ]
+    },
+    {
+      "path": "zig/bench/results/rpc-fallback-owner-recovery/initial-source-snapshot.json.gz",
+      "original": "/tmp/ziggy-evm-svm-pool-budget-source.json",
+      "raw_bytes": 1308,
+      "gzip_bytes": 664,
+      "raw_sha256_chunks": [
+        "d3366a0ebd4c31bd7c85b43b19335",
+        "10bc1d1e0e81080b05017ea4fe79d",
+        "6e4393"
+      ],
+      "gzip_sha256_chunks": [
+        "1dde3c78c8ad1d2b51f3a3039116c",
+        "86cb10fc6ac3fe82b1c5751631eb2",
+        "e105d9"
+      ]
+    }
+  ],
+  "independent_readonly_review": {
+    "status": "closed_no_unresolved_scoped_blocker",
+    "report": "zig/bench/results/rpc-fallback-independent-review/",
+    "reviewer_verified_fourteen_current_before_after_hashes": true,
+    "no_review_builds_tests_or_source_edits": true
+  }
+}

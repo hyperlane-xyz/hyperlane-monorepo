@@ -1,0 +1,179 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-11-06T11:16:19.870660+00:00",
+  "status": "historical_rejected_default_roots_macOS_test_fixture_assumption",
+  "scope": "Completed10:55Safe andFastdefault negative snapshots only. Live11:10/11:15 outputs were not accessed. No current all-source acceptance inferred.",
+  "failure": {
+    "test": "aleo_vm_worker.test.Aleo worker network probe allowed loopback control and invalid inputs remain distinct",
+    "expected": "error.ConnectionRefused",
+    "actual": "error.ConnectionTimedOut",
+    "passed": 744,
+    "discovered": 745,
+    "failed": 1,
+    "skipped": 0,
+    "check_exit_code": 1
+  },
+  "runs": {
+    "1055-safe": {
+      "started_utc": "2026-11-06T10:56:29.244151+00:00",
+      "mode": "ReleaseSafe",
+      "source_unchanged": true,
+      "source_entries": 650,
+      "checks_executed": 1,
+      "stopped_at": "default",
+      "manifest": "1055-safe/all-manifest.json.gz"
+    },
+    "1055-fast-default": {
+      "started_utc": "2026-11-06T10:56:30.336189+00:00",
+      "mode": "ReleaseFast",
+      "source_unchanged": true,
+      "source_entries": 650,
+      "checks_executed": 1,
+      "stopped_at": "default",
+      "manifest": "1055-fast-default/default-manifest.json.gz"
+    }
+  },
+  "source_maps_equal_across_runs": true,
+  "runtime_artifact_maps_equal_across_runs": true,
+  "native_archive_maps_equal_across_runs": true,
+  "test_only_source_correction": {
+    "logical_source": "zig/src/aleo_vm_worker.zig",
+    "pre_correction_bytes_match_both_run_hashes": true,
+    "before_sha256_chunks": [
+      "786b8f35703cbfd9003ecf84dd413",
+      "7bf7c2116460e7e3376f68f1d4101",
+      "2648cc"
+    ],
+    "after_sha256_chunks": [
+      "75d6954e466f1039778b06b1266ff",
+      "f5ca30516e91e4ce98527cd99f917",
+      "25942f"
+    ],
+    "all_bytes_before_named_test_equal": true,
+    "change": "The unlistened bound-port ConnectionRefused assertion is now Linux-only; invalid-input and allowed-loopback control checks remain. Production policy/functions unchanged."
+  },
+  "qualifications": [
+    "These are actual failed default roots on otherwise stable selected source maps. Directoryname accepted does not make them accepted runs.",
+    "The default failure stopped the Safe runner before native/PG/roles/later gates. No role binaries were emitted in either directory.",
+    "The later test-only platform guard is captured and compared; subsequent corrected745/745 outcomes belong to separate validation. No Source correction or tests were run by this archive task.",
+    "The misleading following while-executing test context mentions rpc_budget; the named failure is the Aleo worker network test above.",
+    "All original manifest/log bytes are preserved by lossless gzip. Exact JSON convenience mirrors only are ignored in this new directory; no global manifest/ignore/results edits.",
+    "Process elapsed/RSS entries are diagnostic functional values, not comparative benchmarks. Roots/modes overlap and must not be summed as unique coverage."
+  ],
+  "artifacts": [
+    {
+      "path": "1055-safe/all-manifest.json.gz",
+      "original": "/Users/pbio/work/ziggy/zig/bench/results/global-source-accepted-20261106T1055-safe/all-manifest.json",
+      "raw_bytes": 180265,
+      "gzip_bytes": 66185,
+      "raw_sha256_chunks": [
+        "72b76164329da54933bad41c09356",
+        "388785a5a899abc8104a465f8a3c6",
+        "598b92"
+      ],
+      "gzip_sha256_chunks": [
+        "bb3ed8a95d16bb4fdf67f05dc13be",
+        "aa1ce5d396c197659a94ab9948cde",
+        "6f6655"
+      ]
+    },
+    {
+      "path": "1055-safe/default.log.gz",
+      "original": "/Users/pbio/work/ziggy/zig/bench/results/global-source-accepted-20261106T1055-safe/default.log",
+      "raw_bytes": 2147,
+      "gzip_bytes": 845,
+      "raw_sha256_chunks": [
+        "3297adfa8ce6e838a5963b2e5fa4e",
+        "d7e3c066cedf7c7b0792be286f53e",
+        "74af43"
+      ],
+      "gzip_sha256_chunks": [
+        "7f21e68f0904cfe4de82c9b33ae08",
+        "1797b4124404527098a8f5aebc38d",
+        "088f2f"
+      ]
+    },
+    {
+      "path": "1055-fast-default/default-manifest.json.gz",
+      "original": "/Users/pbio/work/ziggy/zig/bench/results/global-source-accepted-20261106T1055-fast-default/default-manifest.json",
+      "raw_bytes": 180273,
+      "gzip_bytes": 66190,
+      "raw_sha256_chunks": [
+        "d3558e9e30cfba74d35c279c61c3e",
+        "27f9e6d0dddfc58fb60436590a71c",
+        "bb59db"
+      ],
+      "gzip_sha256_chunks": [
+        "a009c50c28a3db7e905ef2b0adc20",
+        "c8ab2b62663f7f2a66c3fd6274f38",
+        "f144f5"
+      ]
+    },
+    {
+      "path": "1055-fast-default/default.log.gz",
+      "original": "/Users/pbio/work/ziggy/zig/bench/results/global-source-accepted-20261106T1055-fast-default/default.log",
+      "raw_bytes": 2147,
+      "gzip_bytes": 847,
+      "raw_sha256_chunks": [
+        "24073fa9cfde3fd6938d12d1e75a4",
+        "1e30c53564ae7368418939e391839",
+        "26bbf6"
+      ],
+      "gzip_sha256_chunks": [
+        "cab5af12676972a130494d0ae6e45",
+        "e1c498e5d30c0395dc90e33b262ee",
+        "f9cb21"
+      ]
+    },
+    {
+      "path": "source-before/aleo_vm_worker.zig.gz",
+      "original": "/tmp/ziggy-worker-main-before-macos-unit-correction.zig",
+      "raw_bytes": 11048,
+      "gzip_bytes": 3091,
+      "raw_sha256_chunks": [
+        "786b8f35703cbfd9003ecf84dd413",
+        "7bf7c2116460e7e3376f68f1d4101",
+        "2648cc"
+      ],
+      "gzip_sha256_chunks": [
+        "4ba54c1f0c67ffa1be70a7c4ef279",
+        "95b970409ad4e650b5f9edfa43ce8",
+        "b89062"
+      ],
+      "logical_source": "zig/src/aleo_vm_worker.zig"
+    },
+    {
+      "path": "source-after-test-correction/aleo_vm_worker.zig.gz",
+      "original": "/Users/pbio/work/ziggy/zig/src/aleo_vm_worker.zig",
+      "raw_bytes": 11273,
+      "gzip_bytes": 3180,
+      "raw_sha256_chunks": [
+        "75d6954e466f1039778b06b1266ff",
+        "f5ca30516e91e4ce98527cd99f917",
+        "25942f"
+      ],
+      "gzip_sha256_chunks": [
+        "b437a1acb64ea71228cf2470c21d4",
+        "4d652e5683811a948eaccf672fae1",
+        "5a7fce"
+      ],
+      "logical_source": "zig/src/aleo_vm_worker.zig"
+    },
+    {
+      "path": "test-only-correction.diff.gz",
+      "original": "/tmp/ziggy-worker-network-fixture-correction.diff",
+      "raw_bytes": 1558,
+      "gzip_bytes": 568,
+      "raw_sha256_chunks": [
+        "9df4b0eb0b88886f4fc52710384f5",
+        "b72d8e8571ae37d0f3e09481e6b0b",
+        "31a72a"
+      ],
+      "gzip_sha256_chunks": [
+        "992aa34aa65fba370399f05cdb613",
+        "2b08235f1f31d66f63dd68525cd22",
+        "188f0a"
+      ]
+    }
+  ]
+}

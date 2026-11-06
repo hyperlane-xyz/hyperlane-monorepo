@@ -1,0 +1,23 @@
+1/22 svm_metadata_tests.test_0...OK
+2/22 sealevel.metadata.test.SVM composite inline selection prioritizes non-Null and checks identity...OK
+3/22 sealevel.metadata.test.SVM inline composite late reorg refusal overrides an already satisfied threshold...OK
+4/22 sealevel.metadata.test.SVM inline composite allocator ownership on every allocation failure...OK
+5/22 agents.destination.source_metadata_svm_test.test.SVM native ProductionCompositeSpec nested leaves publish one ISM result and full latest set per leaf under resolved root context...OK
+6/22 agents.destination.source_metadata_svm_test.test.SVM native ProductionCompositeSpec detached latest observes global shutdown after operation cancellation...OK
+7/22 agents.destination.source_metadata_svm_test.test.SVM native ProductionCompositeSpec cancellation during suspended quorum drains nested leaf forks without publishing completion...OK
+8/22 agents.destination.source_metadata_svm_test.test.SVM native inline validator fork owns decoded spec state and releases every partial allocation...OK
+9/22 storage.root.test_0...OK
+10/22 sealevel.provider.test.SVM HTTP requests preserve finality genesis account context and schemas...OK
+11/22 evm.pool.test.native fallback aging uses exact SVM processed block height and Tendermint latest block probes...OK
+12/22 sealevel.ism.test.SVM validators Borsh rejects every truncated prefix...OK
+13/22 sealevel.inline_metadata.test.SVM inline executor joins all independent continuations and late refusal beats early threshold...OK
+14/22 protocol.root.test_0...OK
+15/22 relayer.metadata.test_0...OK
+16/22 agents.chain_source.test_0...OK
+17/22 agents.scraper.starknet.test_0...OK
+18/22 sealevel.log_meta.test.scraper SVM instruction variants reject every truncation wrong tag and trailing byte...OK
+19/22 sealevel.log_meta.test.scraper SVM transaction relevance matches nine actual production Rust fixtures including ALTs inner instructions and reverted siblings...OK
+20/22 sealevel.log_meta.test.SVM log meta allocation failure cannot become permanently unknown signers...OK
+21/22 agents.destination.source_metadata.test_0...OK
+22/22 evm.root.test_0...OK
+All 22 tests passed.

@@ -1,0 +1,5 @@
+/1025-safe/all-manifest.json
+/1025-safe/postgres/postgres-integration.json
+/1025-safe/postgres/postgres-native-tests.json
+/1025-fast-default/default-manifest.json
+/1030-fast-native/native-db-manifest.json

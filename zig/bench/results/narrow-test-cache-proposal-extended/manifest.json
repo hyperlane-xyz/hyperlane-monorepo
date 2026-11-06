@@ -1,0 +1,86 @@
+{
+  "status": "Read-only extended scope proposal, not authorized or executed",
+  "selected_parent_directories": 1264,
+  "selected_children": 2528,
+  "whole_output_allocated_bytes": 17689358336,
+  "source_bound_manifest_count": 557,
+  "source_bound_manifest_backups_verified": true,
+  "open_manifests_require_join_and_revalidation": 2,
+  "one_to_one_companion_mapping_proven": false,
+  "isolated_regeneration_canary_resolved": true,
+  "all_source_runtime_data_untouched": true,
+  "artifacts": {
+    "plan.json.gz": {
+      "original": "/tmp/ziggy-narrow-test-cache-extended-plan.json",
+      "bytes": 2694308,
+      "sha256_chunks": [
+        "6ff7293e27513eadd5790919b11fcb1e",
+        "3e104197718fa49a50e6cff07c592359"
+      ]
+    },
+    "plan.md.gz": {
+      "original": "/tmp/ziggy-narrow-test-cache-extended-plan.md",
+      "bytes": 4971,
+      "sha256_chunks": [
+        "cea13ad9572f1884c5afd359ab5e8fc1",
+        "63170b973448a2ef4de90c98588f40ea"
+      ]
+    },
+    "plan.py.gz": {
+      "original": "/tmp/ziggy-narrow-test-cache-extended-plan.py",
+      "bytes": 8121,
+      "sha256_chunks": [
+        "504bfb04fc90a5bba52d751ad4a64992",
+        "f4e32ac97af470023565bbf0139a39ae"
+      ]
+    },
+    "other-project-binding-check.json.gz": {
+      "original": "/tmp/ziggy-narrow-test-cache-other-project-manifest-check.json",
+      "bytes": 109,
+      "sha256_chunks": [
+        "a68a7015f4a018380fb7abac9298b926",
+        "6fd93a6e4f0fd334ba9aaad18d562cc5"
+      ]
+    },
+    "resolved-isolated-regeneration/result.json.gz": {
+      "original": "/tmp/ziggy-cache-output-regeneration-20261106-sdk15/result.json",
+      "bytes": 1489,
+      "sha256_chunks": [
+        "9db87a6b40c2d895a7b4bdb2a7985740",
+        "06facd544aaec4244ce8e25378d9add1"
+      ]
+    },
+    "resolved-isolated-regeneration/after-bound-manifest-removal.log.gz": {
+      "original": "/tmp/ziggy-cache-output-regeneration-20261106-sdk15/after-bound-manifest-removal.log",
+      "bytes": 72,
+      "sha256_chunks": [
+        "97ef1715242f291b7558d3be475f0399",
+        "ff0b57e4e31f5b6c9a40cf925b7bd999"
+      ]
+    },
+    "resolved-isolated-regeneration/after-output-directory-removal.log.gz": {
+      "original": "/tmp/ziggy-cache-output-regeneration-20261106-sdk15/after-output-directory-removal.log",
+      "bytes": 173,
+      "sha256_chunks": [
+        "a75e90768f4758415d4a1687c4385167",
+        "d7f95fcc0db84bcb28b783819e5dfbb5"
+      ]
+    },
+    "resolved-isolated-regeneration/after-test-output-removal.log.gz": {
+      "original": "/tmp/ziggy-cache-output-regeneration-20261106-sdk15/after-test-output-removal.log",
+      "bytes": 173,
+      "sha256_chunks": [
+        "1012adc40a048a19de6a61998896842b",
+        "910ab2195f0ed05a9a14182cd61e8b62"
+      ]
+    },
+    "resolved-isolated-regeneration/initial.log.gz": {
+      "original": "/tmp/ziggy-cache-output-regeneration-20261106-sdk15/initial.log",
+      "bytes": 72,
+      "sha256_chunks": [
+        "97ef1715242f291b7558d3be475f0399",
+        "ff0b57e4e31f5b6c9a40cf925b7bd999"
+      ]
+    }
+  }
+}

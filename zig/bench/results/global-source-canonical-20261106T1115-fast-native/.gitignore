@@ -1,0 +1,2 @@
+# Preserve emitted role binaries locally; hashes are recorded in the manifest.
+/roles/

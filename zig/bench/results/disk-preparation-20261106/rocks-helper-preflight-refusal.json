@@ -1,0 +1,10 @@
+{
+  "created_utc": "2026-11-06T00:36:02.304490+00:00",
+  "executed": false,
+  "reason": "40 GiB start floor failed after new task Linux container copied full zig tree",
+  "free_bytes": 42528260096,
+  "minimum_start_bytes": 42949672960,
+  "cargo_started": false,
+  "container_id": "53444efd5ee2",
+  "task": "CCS owner scope Linux native test"
+}

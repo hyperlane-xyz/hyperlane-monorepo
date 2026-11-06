@@ -1,0 +1,13 @@
+{
+  "passed": false,
+  "scope": "fixture precondition failure before any guard-fsync injection; not a measured or completed validator guard gate",
+  "binary_sha256_chunks": [
+    "30c796c30e66d47af0b21cc907984f56",
+    "e23257cf9f8e17e006a221a77dc84c33"
+  ],
+  "stage": "restore public onchain announcement after Anvil snapshot reversion",
+  "outcome": "Manual announcement restoration reverted before fork dispatch/fault observation. Independent announcement lane can replay its already-sealed transaction concurrently.",
+  "followup": "Harness now accepts only exact actual Solidity getAnnouncedStorageLocations ABI readback when a concurrent restore wins. Rerun validator-guard-linux-durability-process.json passed and observed snapshot_announcement_restored_by_daemon=true.",
+  "guard_injection_executed": false,
+  "new_guard_performance_measurement": false
+}

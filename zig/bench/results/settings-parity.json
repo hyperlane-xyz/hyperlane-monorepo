@@ -1,0 +1,134 @@
+{
+  "base_commit": "43c65fc631c340ab607e79a93535a8163921656f",
+  "source_sha256_chunks": {
+    "zig/src/settings/root.zig": [
+      "d5a4d8fe04a9a63c8f57cea3fa9bffb4",
+      "e9906da0499398cbc91c08ff68b4b68e"
+    ],
+    "zig/src/settings/types.zig": [
+      "d19397a3e3175dda24f42818cde13431",
+      "4e4952384bed89289a2ed680324350a7"
+    ],
+    "zig/src/settings/value.zig": [
+      "155e497bcfb2170b8b2bb04157cb9a56",
+      "f6af3b55c7584c22122fa9abea0c75d2"
+    ],
+    "zig/src/settings/known_domains.zig": [
+      "a8e495af05d98cb3cd34adbede6e9f1e",
+      "5b9d4dc5f04171adf80ce435ee5eec3e"
+    ],
+    "zig/src/config.zig": [
+      "4ab667a26af0922d421a7998b0e51436",
+      "527459772c13305c59a56d6e2db26f3d"
+    ],
+    "zig/src/settings_tests.zig": [
+      "157052f994e8ffdd8144cb3430ff9d3b",
+      "2b3476b72235d43de440e436eef76d20"
+    ],
+    "zig/src/settings/fixtures/roles.jsonl": [
+      "061cd8811a546717b69578bd5860ea6e",
+      "d57454f48ddae1c35b5dbe0d50a1063d"
+    ],
+    "zig/src/settings/fixtures/merge.jsonl": [
+      "83323603b3967d79b05bc2a298105494",
+      "59b31927f2ea6dbc5982f7edc291ba71"
+    ],
+    "zig/reference/settings/Cargo.toml": [
+      "e8b5b13c0f37b4ca8c925ad4352bd3e5",
+      "7d672414d11795bff3511805e7e2912b"
+    ],
+    "zig/reference/settings/Cargo.lock": [
+      "9ff8af384a218c419fddb5c5acebe61e",
+      "39082316504849600efc3101de644ffe"
+    ],
+    "zig/reference/settings/src/main.rs": [
+      "580cbe5b9a37e06b674247d6d5a443d3",
+      "f8b7c33de0c7654ae5af53bded01ab45"
+    ],
+    "zig/reference/settings/generate.py": [
+      "d805caa85ebaa078023251fd095ef22c",
+      "8aee6f71ad4d0bdf0764c9420f2985c4"
+    ],
+    "rust/main/hyperlane-base/src/settings/loader/mod.rs": [
+      "bd5d7254078ded9a3afa3ddaeaee17a6",
+      "920cf5affc279444d8fbcad9f6fd8141"
+    ],
+    "rust/main/hyperlane-base/src/settings/loader/environment.rs": [
+      "4ffc5abfb5dd55df361e705a938c0d89",
+      "3f741497456b1430267d135c09e41237"
+    ],
+    "rust/main/hyperlane-base/src/settings/loader/arguments.rs": [
+      "8aa0b84f492f0f4804bf76ca6e25f418",
+      "09ef4dee58c093b3f0f6f12970a3d4a5"
+    ],
+    "rust/main/hyperlane-base/src/settings/loader/case_adapter.rs": [
+      "de025662cf6eaa942fa195c22f91f4d4",
+      "9c7310535662a4d8128e882a0003aa68"
+    ],
+    "rust/main/hyperlane-base/src/settings/parser/mod.rs": [
+      "30654ec1cf85727a9a6c225b97b03d2c",
+      "0bcbe2ac2f833e45d5c6fd920998c92d"
+    ],
+    "rust/main/hyperlane-base/src/settings/parser/connection_parser.rs": [
+      "512caf991c4c0faf5dc20453c6a3e1ab",
+      "797aac9592adc585c9c68534ee1989ba"
+    ],
+    "rust/main/hyperlane-base/src/settings/parser/json_value_parser.rs": [
+      "c31c0d91f6839a621c86a916b25f2e42",
+      "7cc5821066ab27759cae99824de904f8"
+    ],
+    "rust/main/agents/relayer/src/settings/mod.rs": [
+      "aa2a397aa29b697e00a89c23f2749c1c",
+      "7be4c2aaa2cbb24a54105ba4a10fd752"
+    ],
+    "rust/main/agents/validator/src/settings.rs": [
+      "2bd941f7cf62a19dbec85289e5905cb6",
+      "4fe75eb3aa11ba0f17f143a408980383"
+    ],
+    "rust/main/agents/scraper/src/settings.rs": [
+      "e06977dc18d3c8f1b6d351d11d55931d",
+      "bf45db8792505025e16f6969a85f1f0a"
+    ],
+    "rust/main/hyperlane-core/src/chain.rs": [
+      "ef91912f9fa916149751189026ab3d4f",
+      "f8705d0b19b67abc1045ab247ace1d0f"
+    ],
+    "rust/main/hyperlane-core/src/matching_list.rs": [
+      "2d65767fd5d030a104d71b48d7b6199a",
+      "990e590c2324622ad5bbf0847cfdac65"
+    ],
+    "rust/main/hyperlane-core/src/config/str_or_int.rs": [
+      "c6207b56b7f8e641b45393c91f954d8f",
+      "6477b28cfd4bf66a68c3ecd9c762f388"
+    ],
+    "zig/reference/settings/generate_domains.py": [
+      "801c33e96b20e4b77fdd092572234721",
+      "9aa97b53bbeeb50b0d02c60e5be6db8f"
+    ]
+  },
+  "actual_role_cases": 62,
+  "actual_loader_cases": 15,
+  "committed_chain_configs": 103,
+  "focused_tests": 10,
+  "process_environment": "Cleared; only public fixture FIXTURE_ROLE, CONFIG_FILES and explicit HYP_ inputs",
+  "scope": "Configuration parsing and typed summaries; no credential discovery or RPC/signing operations",
+  "role_oracle": "Production relayer associated Settings type; unchanged included validator/scraper source; actual hyperlane-base/core path dependencies",
+  "matching_edgecases": {
+    "cases": 13,
+    "scalar_and_array_hex_domain": "rejected by actual Rust and Zig",
+    "scalar_and_array_plus_decimal": "accepted by actual Rust and Zig",
+    "explicit_null_body_regex": "accepted as absent",
+    "overflow_and_underscores": "rejected by actual Rust and Zig"
+  },
+  "known_domain_stack_values_checked": 88,
+  "technical_stack_source": "actual KnownHyperlaneDomain::domain_technical_stack overrides config for known domains; explicit/defaultOther for unknown domains",
+  "latest_revalidation": {
+    "role_fixture_check": "62 actual Rust fixtures --check passed",
+    "settings_tests": "10/10 ReleaseSafe tests passed with SDK15.4/libc",
+    "logs": [
+      "/tmp/ziggy-settings-final-fixtures.log",
+      "/tmp/ziggy-settings-final-tests-sdk.log"
+    ],
+    "scope": "Existing raw baseline identities remain separate; these hashes describe current source revalidation"
+  }
+}

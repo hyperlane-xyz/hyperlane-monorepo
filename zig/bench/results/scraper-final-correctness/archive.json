@@ -1,0 +1,266 @@
+{
+  "scope": "Final scraper correctness acceptance, source snapshots, actual migrated PostgreSQL/native suite and process fixtures. No comparative timing. Long public hex values normalized into lossless chunks or log segments; original hashes and files retained in /tmp. Executable remains externally pinned and identified in acceptance.json.",
+  "files": [
+    {
+      "archive": "README.md",
+      "original": "/tmp/ziggy-scraper-final-integration/README.md",
+      "original_sha256_chunks": [
+        "069a7b672270d68b4aa680bdbf5a9730",
+        "48821d0ace2cd163b17632134bf8cf83"
+      ],
+      "bytes": 3406
+    },
+    {
+      "archive": "acceptance.json",
+      "original": "/tmp/ziggy-scraper-final-integration/acceptance.json",
+      "original_sha256_chunks": [
+        "c4003469d55013b95552bdd84a5e7acf",
+        "9aff301f0fa68f69567febdc18107f83"
+      ],
+      "bytes": 4397
+    },
+    {
+      "archive": "gzip-fixtures.log",
+      "original": "/tmp/ziggy-scraper-final-integration/gzip-fixtures.log",
+      "original_sha256_chunks": [
+        "eab8523a9fded8dab09b7d5da4c1ff06",
+        "58e1ece61ee306cd1cc8b9dba04cf757"
+      ],
+      "bytes": 5245
+    },
+    {
+      "archive": "owned-source-before.json",
+      "original": "/tmp/ziggy-scraper-final-integration/owned-source-before.json",
+      "original_sha256_chunks": [
+        "183335a72798d9e11f438d7b55284520",
+        "626bba8380ff9cb30184a42bcc19a7b0"
+      ],
+      "bytes": 15183
+    },
+    {
+      "archive": "pg-source-after.json",
+      "original": "/tmp/ziggy-scraper-final-integration/pg-source-after.json",
+      "original_sha256_chunks": [
+        "595069ec02c5f8f71eb85c1774171792",
+        "8311334c4383a60392c1b9a7c295f023"
+      ],
+      "bytes": 20142
+    },
+    {
+      "archive": "pg-source-before.json",
+      "original": "/tmp/ziggy-scraper-final-integration/pg-source-before.json",
+      "original_sha256_chunks": [
+        "595069ec02c5f8f71eb85c1774171792",
+        "8311334c4383a60392c1b9a7c295f023"
+      ],
+      "bytes": 20142
+    },
+    {
+      "archive": "pg-source-validated.json",
+      "original": "/tmp/ziggy-scraper-final-integration/pg-source-validated.json",
+      "original_sha256_chunks": [
+        "1a229f03d995c342ee22eaaf1d91826f",
+        "35dc4719f0f02f32a235203cdbb2a596"
+      ],
+      "bytes": 20243
+    },
+    {
+      "archive": "postgres/postgres-integration.json",
+      "original": "/tmp/ziggy-scraper-final-integration/postgres/postgres-integration.json",
+      "original_sha256_chunks": [
+        "702e7024a8fd1aaf88ab9e47ac7c417a",
+        "7810b718e74ea6e8efa43b2f3aa795a0"
+      ],
+      "bytes": 2298
+    },
+    {
+      "archive": "postgres/postgres-integration.log",
+      "original": "/tmp/ziggy-scraper-final-integration/postgres/postgres-integration.log",
+      "original_sha256_chunks": [
+        "02b8f6bfd87aca817bfd7d0437fd3ffb",
+        "0c19a3b242f936622878b9e794a7d10c"
+      ],
+      "bytes": 42444
+    },
+    {
+      "archive": "postgres/postgres-migrations.log",
+      "original": "/tmp/ziggy-scraper-final-integration/postgres/postgres-migrations.log",
+      "original_sha256_chunks": [
+        "598606818818550aec52a910769657ae",
+        "9413680d5549e7a19ed077dd3b51ebe2"
+      ],
+      "bytes": 113625
+    },
+    {
+      "archive": "postgres/postgres-native-tests.json",
+      "original": "/tmp/ziggy-scraper-final-integration/postgres/postgres-native-tests.json",
+      "original_sha256_chunks": [
+        "e62dbeb74599b4b41e343281f50d0098",
+        "db12b83597f53f2715a87f5b75e2fa24"
+      ],
+      "bytes": 77
+    },
+    {
+      "archive": "postgres/postgres-sql-smoke.log",
+      "original": "/tmp/ziggy-scraper-final-integration/postgres/postgres-sql-smoke.log",
+      "original_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d57000254b8",
+        "4bd9eba34b4df7ce4b87db8b937b7703"
+      ],
+      "bytes": 2
+    },
+    {
+      "archive": "postgres/postgres-test-build.log",
+      "original": "/tmp/ziggy-scraper-final-integration/postgres/postgres-test-build.log",
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "bytes": 0
+    },
+    {
+      "archive": "postgres-driver.log",
+      "original": "/tmp/ziggy-scraper-final-integration/postgres-driver.log",
+      "original_sha256_chunks": [
+        "574395febfcaf29113cd061b7dc06db6",
+        "a827934d77ebd1d0d8006a0f00087898"
+      ],
+      "bytes": 126
+    },
+    {
+      "archive": "process/postgres-integration.json",
+      "original": "/tmp/ziggy-scraper-final-integration/process/postgres-integration.json",
+      "original_sha256_chunks": [
+        "18f74822d9dccf7f66ee236e572b854b",
+        "9935f7ffbdc79df110037a7987520fd0"
+      ],
+      "bytes": 2068
+    },
+    {
+      "archive": "process/postgres-migrations.log",
+      "original": "/tmp/ziggy-scraper-final-integration/process/postgres-migrations.log",
+      "original_sha256_chunks": [
+        "bc978eae3d4eee4819e0dec0397984ec",
+        "ad8427d52274bc41604b62ba014871ea"
+      ],
+      "bytes": 113640
+    },
+    {
+      "archive": "process/postgres-native-tests.json",
+      "original": "/tmp/ziggy-scraper-final-integration/process/postgres-native-tests.json",
+      "original_sha256_chunks": [
+        "7cb38d560315108942554acb99446a42",
+        "347ad7c35a29c82727c1c6d6a62163ef"
+      ],
+      "bytes": 123
+    },
+    {
+      "archive": "process/postgres-sql-smoke.log",
+      "original": "/tmp/ziggy-scraper-final-integration/process/postgres-sql-smoke.log",
+      "original_sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d57000254b8",
+        "4bd9eba34b4df7ce4b87db8b937b7703"
+      ],
+      "bytes": 2
+    },
+    {
+      "archive": "process/scraper-anvil.log",
+      "original": "/tmp/ziggy-scraper-final-integration/process/scraper-anvil.log",
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "bytes": 0
+    },
+    {
+      "archive": "process/scraper-daemon.log",
+      "original": "/tmp/ziggy-scraper-final-integration/process/scraper-daemon.log",
+      "original_sha256_chunks": [
+        "c7213387998ee2e538a72809097b45dc",
+        "d0a58d541e9405e2682b83d9635efbbe"
+      ],
+      "bytes": 681
+    },
+    {
+      "archive": "process/scraper-process.json",
+      "original": "/tmp/ziggy-scraper-final-integration/process/scraper-process.json",
+      "original_sha256_chunks": [
+        "5d3404e351cbdcd5070d9d3c5de28e2d",
+        "db77a21c52ea96cd39862486d9e018e7"
+      ],
+      "bytes": 1698
+    },
+    {
+      "archive": "process/scraper-process.log",
+      "original": "/tmp/ziggy-scraper-final-integration/process/scraper-process.log",
+      "original_sha256_chunks": [
+        "5043199e6f0a9b74ca2ebfe52225f4fb",
+        "1f102253b4e9ca4d69968ffe53aeae8d"
+      ],
+      "bytes": 1476
+    },
+    {
+      "archive": "process-driver.log",
+      "original": "/tmp/ziggy-scraper-final-integration/process-driver.log",
+      "original_sha256_chunks": [
+        "0329590735fde4313eeb26f69ba1b4c5",
+        "cc2ee66f7dafac5c46cd5436647b6b72"
+      ],
+      "bytes": 125
+    },
+    {
+      "archive": "scraper-build.log",
+      "original": "/tmp/ziggy-scraper-final-integration/scraper-build.log",
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "bytes": 0
+    },
+    {
+      "archive": "source-after-cli.json",
+      "original": "/tmp/ziggy-scraper-final-integration/source-after-cli.json",
+      "original_sha256_chunks": [
+        "b61f83f19143653542adf2d88d419acc",
+        "b6e11d3bec7a0c9aa6f12cdbb603294c"
+      ],
+      "bytes": 58510
+    },
+    {
+      "archive": "source-after-pg.json",
+      "original": "/tmp/ziggy-scraper-final-integration/source-after-pg.json",
+      "original_sha256_chunks": [
+        "6e02547a763a2517f74d9e1c0a33bdea",
+        "611053d87c2e7646c07186f2fbbfcd31"
+      ],
+      "bytes": 58510
+    },
+    {
+      "archive": "source-after.json",
+      "original": "/tmp/ziggy-scraper-final-integration/source-after.json",
+      "original_sha256_chunks": [
+        "1f82178dfda62f5f770d56478db5c3a8",
+        "58aa3c7d41386fc0213e66bcd4d3d259"
+      ],
+      "bytes": 58510
+    },
+    {
+      "archive": "source-before-cli.json",
+      "original": "/tmp/ziggy-scraper-final-integration/source-before-cli.json",
+      "original_sha256_chunks": [
+        "a42946a97d162bfa677c0e107f7b52ad",
+        "1d16a2e2d6fff9bea9b975d76b46417c"
+      ],
+      "bytes": 58510
+    },
+    {
+      "archive": "source-before.json",
+      "original": "/tmp/ziggy-scraper-final-integration/source-before.json",
+      "original_sha256_chunks": [
+        "84e019c67fa77f109efe1a0639e49e04",
+        "04d729c800a918bee9c54532d82f2997"
+      ],
+      "bytes": 58629
+    }
+  ]
+}

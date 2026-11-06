@@ -1,0 +1,2 @@
+warning: scraper chain=scraperprocess lane=head failed=ScraperPublishedReorg
+error: agent stopped: ScraperPublishedReorg

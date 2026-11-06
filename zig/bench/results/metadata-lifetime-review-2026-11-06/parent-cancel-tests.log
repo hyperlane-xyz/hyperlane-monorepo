@@ -1,0 +1,8 @@
+1/7 metadata_parallel_delegated_tests.test.failed verification does not reach threshold...OK
+2/7 relayer.metadata.test_0...OK
+3/7 protocol.root.test_0...OK
+4/7 evm.root.test_0...OK
+5/7 storage.root.test_0...OK
+6/7 agents.metadata_session_test.test.parent cancel returns promptly and children never reuse the caller flag...OK
+7/7 agents.metadata_session_test.test.parent cancellation fixture cancels and joins before early error unwind...OK
+All 7 tests passed.

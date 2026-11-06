@@ -1,0 +1,94 @@
+{
+  "messages": [
+    {
+      "id_chunks": [
+        "7dcdceb7930f160827f304746bea8d29",
+        "c40b71df269581e181afc4b3ffe22e3b"
+      ],
+      "insertion_id_chunks": [
+        "7dcdceb7930f160827f304746bea8d29",
+        "c40b71df269581e181afc4b3ffe22e3b"
+      ],
+      "nonce": 0,
+      "payloads": [],
+      "payment": {
+        "gas_amount": "1000000",
+        "payment": "1000000"
+      },
+      "present": true,
+      "processed": null,
+      "spent": {
+        "gas_used": "0",
+        "tokens_used": "0"
+      }
+    },
+    {
+      "id_chunks": [
+        "054320315529c2b1dec9b3a824d06d7b",
+        "7378341173d7f3cd154aacf9facd45d2"
+      ],
+      "insertion_id_chunks": [
+        "054320315529c2b1dec9b3a824d06d7b",
+        "7378341173d7f3cd154aacf9facd45d2"
+      ],
+      "nonce": 1,
+      "payloads": [],
+      "payment": {
+        "gas_amount": "1000000",
+        "payment": "1000000"
+      },
+      "present": true,
+      "processed": null,
+      "spent": {
+        "gas_used": "0",
+        "tokens_used": "0"
+      }
+    },
+    {
+      "id_chunks": [
+        "ec7d872d43ac7eecc4a856c5219048c5",
+        "62713541d4eb6a22d4e527e1522076ad"
+      ],
+      "insertion_id_chunks": [
+        "ec7d872d43ac7eecc4a856c5219048c5",
+        "62713541d4eb6a22d4e527e1522076ad"
+      ],
+      "nonce": 2,
+      "payloads": [],
+      "payment": {
+        "gas_amount": "1000000",
+        "payment": "1000000"
+      },
+      "present": true,
+      "processed": null,
+      "spent": {
+        "gas_used": "0",
+        "tokens_used": "0"
+      }
+    },
+    {
+      "id_chunks": [
+        "ad8ab223dff20484a0842d724401f48d",
+        "895155d5c69d6918804cbbe66c145285"
+      ],
+      "insertion_id_chunks": [
+        "ad8ab223dff20484a0842d724401f48d",
+        "895155d5c69d6918804cbbe66c145285"
+      ],
+      "nonce": 3,
+      "payloads": [],
+      "payment": {
+        "gas_amount": "1000000",
+        "payment": "1000000"
+      },
+      "present": true,
+      "processed": null,
+      "spent": {
+        "gas_used": "0",
+        "tokens_used": "0"
+      }
+    }
+  ],
+  "reader": "actual production HyperlaneRocksDB + FullPayload decoder",
+  "sealed_payload_links": []
+}

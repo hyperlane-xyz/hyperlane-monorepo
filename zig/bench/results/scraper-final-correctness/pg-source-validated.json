@@ -1,0 +1,757 @@
+{
+  "root": "zig/src/pg_tests.zig",
+  "git_head": "43c65fc631c340ab607e79a93535a8163921656f",
+  "scope": "Conservative transitive literal imports/embeds including tests, post-test source snapshot.185 source hashes matched before/after; raw immutable CCIP JSON fixture added post-test (mtime predates baseline).",
+  "source_fingerprint": [
+    "8bfbde3d12ddee4baa967debadf97cab",
+    "40ae619f00e425927e52f859bc1b5020"
+  ],
+  "source_file_count": 186,
+  "missing_baseline_paths": [],
+  "files": {
+    "zig/src/agents/announcement_source.zig": [
+      "c7035b2b477c80aaa3821b1b96fbad0d",
+      "a53f7a1f188a5ab8d17f094e907d5486"
+    ],
+    "zig/src/agents/chain_source.zig": [
+      "733c33c85241cf201954308cf915e4bb",
+      "9f63be828d7053f798d12959da40651d"
+    ],
+    "zig/src/agents/chain_source_testing.zig": [
+      "55b0bb6580956ad124d6d92628377fa1",
+      "d921e4a57e5d1244f7b6890f51ef718a"
+    ],
+    "zig/src/agents/metadata_session.zig": [
+      "d2401053d56a3cccb956a4da44291876",
+      "f4a7119519934fbb3dc72798d0b02a71"
+    ],
+    "zig/src/agents/metadata_session_test.zig": [
+      "b8dc101ad6e21ecd18e268068ecf2e56",
+      "e122c0c7daf9afa336e21e19f4a34906"
+    ],
+    "zig/src/agents/origin.zig": [
+      "1edac4ac9e5bcbdcb4485da0d5cc1a6f",
+      "4ee46c86173983c8b23a396b4b945939"
+    ],
+    "zig/src/agents/scraper/aleo.zig": [
+      "cb6a652a7f18093825c82920975ecbbd",
+      "d5e2918fc923069add2d3d9b5b752fff"
+    ],
+    "zig/src/agents/scraper/ccr.zig": [
+      "db690735abf6d19d915c0428b4fca2f6",
+      "bfe2d26c871537948ef262c2e58a56a0"
+    ],
+    "zig/src/agents/scraper/cosmos.zig": [
+      "8cf659ef4116d93add6c5f1ecd219b1e",
+      "65fe2143b553a40833b6cb0e36031513"
+    ],
+    "zig/src/agents/scraper/enrichment.zig": [
+      "85328ca2659e33776d8dfa280e2c721a",
+      "0b91566ec0f0e87d0681b4b326112f11"
+    ],
+    "zig/src/agents/scraper/evm.zig": [
+      "936fe2b3da7593026a20285f422e467d",
+      "dbd710978a5ab6fa89a23e4957793231"
+    ],
+    "zig/src/agents/scraper/factory.zig": [
+      "1111dc5800e33ea665c8b869594e2c7b",
+      "df38f2a22562c068f3353a4646c0ce73"
+    ],
+    "zig/src/agents/scraper/fixtures/radix-receipt-manifests.json.gz": [
+      "558a342646eaa8038f4d70f91f02feff",
+      "90ab2c9a5af0e87a9582ae3b90c69082"
+    ],
+    "zig/src/agents/scraper/fixtures/svm-meta-production.json.gz": [
+      "c8886a0f31e2d9486e9736db7e77ac05",
+      "4dc306f18c03a59462597f11f3bfac76"
+    ],
+    "zig/src/agents/scraper/fixtures/svm-receipt-eclipse.json.gz": [
+      "0710cfa14d546d8d11b0089a2a9a6761",
+      "27f3e75adce6c3c216e357e8f74f43e6"
+    ],
+    "zig/src/agents/scraper/fixtures/svm-receipt-solana.json.gz": [
+      "b388cf6bebd07166f2dcc26e324f00de",
+      "9cf83bfe51fee9d4b232b082fe6570e5"
+    ],
+    "zig/src/agents/scraper/generic.zig": [
+      "b38d115e16d548e4ca1401822eb7288b",
+      "2e6b41299f2a122d42b44e538f8725c5"
+    ],
+    "zig/src/agents/scraper/native_test.zig": [
+      "975520ab7784e8a2e66b99a9942b8781",
+      "fbcc4aa9a4a547e090e0cfccf9394317"
+    ],
+    "zig/src/agents/scraper/pipeline.zig": [
+      "8dc9047abea3483be3063f7284a3a634",
+      "c258172d16761a323a7f5b0665d26291"
+    ],
+    "zig/src/agents/scraper/radix.zig": [
+      "d2e1b1f8523e8b43739e3577b3074e83",
+      "0f55f3cad2b2c774147f0b9d29dbead4"
+    ],
+    "zig/src/agents/scraper/receipt_factory.zig": [
+      "6e0b9ed3112044a7842f48f3b15101a4",
+      "dba49d281cd7471b10ae094031f923ec"
+    ],
+    "zig/src/agents/scraper/receipt_jobs.zig": [
+      "e73421817c5dbd969aa6966463ffb9e2",
+      "8d5d290ba6acd7a9bfded227d0f40a6d"
+    ],
+    "zig/src/agents/scraper/receipts_aleo.zig": [
+      "f9d58b1e76e278f23f149eb6cfb7cad3",
+      "9a9bfefa92d81b1235d62593e533ad04"
+    ],
+    "zig/src/agents/scraper/receipts_common.zig": [
+      "37c58bfbddd03301eb159e60f4f005c3",
+      "ed3b0b648cc2c9bc586eb8ad578083d2"
+    ],
+    "zig/src/agents/scraper/receipts_cosmos.zig": [
+      "2bcc97db4f4e506acc0c1cd706945438",
+      "ffdbf4734df732b09ce280d17a5e512f"
+    ],
+    "zig/src/agents/scraper/receipts_evm.zig": [
+      "0daeb78e6ef3b813d8693d66f193e478",
+      "53d206ca9f831f79e447079ec2420d57"
+    ],
+    "zig/src/agents/scraper/receipts_radix.zig": [
+      "e523b5664fd2facf807d93cb5a1e4669",
+      "3f4531f441eaad09730b4d394cadb262"
+    ],
+    "zig/src/agents/scraper/receipts_sealevel.zig": [
+      "8945a7b182078921d6f72ce2f45ea453",
+      "6902f0fda39b51798edfe7596647bfa9"
+    ],
+    "zig/src/agents/scraper/receipts_starknet.zig": [
+      "c141a55f1029f9aa1f0c5b4830b78025",
+      "d025defcec222d66433935b5506bea31"
+    ],
+    "zig/src/agents/scraper/receipts_tron.zig": [
+      "a1b58a8733f59768e793329baf381203",
+      "632f000e18e4bf66a42efd1eded5ac57"
+    ],
+    "zig/src/agents/scraper/reconciliation.zig": [
+      "1dedd3be0273cfa719789fe2c88904b4",
+      "9a4cf4a529a66548e63b159c1c99a816"
+    ],
+    "zig/src/agents/scraper/runtime.zig": [
+      "afeb83cc968349c98d07de30ca58e00a",
+      "5d5d15e55d621b5927bbfa3fceb81a8f"
+    ],
+    "zig/src/agents/scraper/sealevel.zig": [
+      "4bdbd06c9b53c700967765e613e3aa98",
+      "4ffefe28e3dbb56ea7e7e8fe5f2ff775"
+    ],
+    "zig/src/agents/scraper/service.zig": [
+      "fe07e5c19be477aab4e20048082e5cd3",
+      "bfc842199b7a6f3e6740f37ad6c2df63"
+    ],
+    "zig/src/agents/scraper/setup.zig": [
+      "ae1dc00f49f09da514b6819bdf5966f6",
+      "6a5cfcfac56ab5bfadf0478202392740"
+    ],
+    "zig/src/agents/scraper/source.zig": [
+      "275063e15faf225f5b892dc2595b9997",
+      "5a26176e51ddc9bd9a9169167c9f585b"
+    ],
+    "zig/src/agents/scraper/starknet.zig": [
+      "9b52e616f8b3974a8bb8072d307ce89c",
+      "bdd483399929f0a11ff18b426948b16a"
+    ],
+    "zig/src/agents/scraper/starknet_testing.zig": [
+      "9eb9476e75788773a63532573824f600",
+      "7d591925f45a974a2fbc08f34afe92aa"
+    ],
+    "zig/src/agents/scraper/storage.zig": [
+      "c96cb50b2935488f27f1ff29aec0294b",
+      "e81f035c9e7fec5efaedcc96d37d988d"
+    ],
+    "zig/src/agents/scraper/task.zig": [
+      "88997c2bcbfb514cdbd3130df07f6012",
+      "28d880965056efc133216f004d5f9d67"
+    ],
+    "zig/src/agents/scraper/testing.zig": [
+      "ea3ab99ae41b9f598860f123d4977db2",
+      "5b16519339a1f40b2a168c383ddb5a45"
+    ],
+    "zig/src/agents/scraper/time.zig": [
+      "3c2e630cdaef6cfc8c3ecad388ee5b6d",
+      "0c5853eb794cce8050faab29bb480989"
+    ],
+    "zig/src/agents/scraper/tron.zig": [
+      "d96939b38561905f1f46ba119a05eedf",
+      "b1041fa4c7502e810f6ae82b2441d3a7"
+    ],
+    "zig/src/agents/store.zig": [
+      "2f7609a4ca658d43b0a0113ed020f882",
+      "2c786479602ce1bf8b6ccd62e6c5942e"
+    ],
+    "zig/src/aleo/codec.zig": [
+      "4336c5b41d75da7e5c54e0b12da8239a",
+      "1a103f4dbbbca9d43f6c780acb8994d9"
+    ],
+    "zig/src/aleo/contracts.zig": [
+      "3db151e7fab47827ff83d6df89096c63",
+      "a66aeb51678141a37edf104552162b11"
+    ],
+    "zig/src/aleo/crypto.zig": [
+      "865ded3b220522d4d3c7eb2385ecadd9",
+      "0efe5b97df1f164d2cafebb8feb55929"
+    ],
+    "zig/src/aleo/events.zig": [
+      "cd52a7f616a9d208207a86219585c566",
+      "aed21eb4bb04bc1c5eae82077871adb9"
+    ],
+    "zig/src/aleo/plaintext.zig": [
+      "6f9168ed65b42277ec4019cbb9167ded",
+      "977afade79908f3e49e42cd21e579dec"
+    ],
+    "zig/src/aleo/provider.zig": [
+      "d0fc5aef97d6df9784f2c2da2d51a4e7",
+      "10742303cf34683422cec877de308157"
+    ],
+    "zig/src/aleo/rest.zig": [
+      "e0d682045d740a22b8bd6e85de788c6d",
+      "08d726b623d4b90480c1e1edb343ec91"
+    ],
+    "zig/src/aleo/worker.zig": [
+      "f5e4b1575340294e6ec94b49a610ac53",
+      "1477f51d56fd97cc3449245a29b0e18c"
+    ],
+    "zig/src/altvm/base58.zig": [
+      "8d1a378dc8a8c803b9474a59187a1294",
+      "36a4f41a4ad18e9bf8d5ffa101ff75b8"
+    ],
+    "zig/src/altvm/bech32.zig": [
+      "3b1b82efef9573d849180899c15e0b0b",
+      "3a2a06548f822d60825cbdc01dcee616"
+    ],
+    "zig/src/altvm/cosmos.zig": [
+      "5892a3258449d3db71aafb69a3fdc005",
+      "13024ae19f95a19a87edf9df44dd8076"
+    ],
+    "zig/src/altvm/fixtures/announcements.json.gz": [
+      "87d7819f1429d30b471d5356503d40d2",
+      "0613696a348ac72a699d823b7814fe86"
+    ],
+    "zig/src/altvm/fixtures/sdk.json.gz": [
+      "123db5e860b12810b5e7e7fbf02f8790",
+      "5ad47b44d0035b38e5cc7227e7c8c1e9"
+    ],
+    "zig/src/altvm/protobuf.zig": [
+      "f620b94b4466eec1cafd668588d7f554",
+      "52fdac94fd295da6e5a006d46d4404ef"
+    ],
+    "zig/src/altvm/ripemd160.zig": [
+      "201383912a2ea243737d530abc1fd77f",
+      "0c6211c065b1cf5a7b332a99cdc38932"
+    ],
+    "zig/src/altvm/solana.zig": [
+      "28cb0124f1e681025fd4dacbeae5945d",
+      "8854c22a69476e5b33729965fbd78d87"
+    ],
+    "zig/src/altvm/tron.zig": [
+      "ea7c17c488280760d1e079eb4c927694",
+      "716bc21e58535e6551d38281ffb41162"
+    ],
+    "zig/src/cloud/aws_profile.zig": [
+      "71071b1fba87a12ef2f074d336c702df",
+      "802a920c9a091a673b323f12f831fe88"
+    ],
+    "zig/src/cloud/aws_profile_test.zig": [
+      "431f3972b3b6cb89318b30767236d6f7",
+      "6d674c110bb154353ba093630c43f6c6"
+    ],
+    "zig/src/cloud/command.zig": [
+      "32a0459b369fe66589a66b30b1523d5b",
+      "044f4efa1ef51640ffb0ef585a971910"
+    ],
+    "zig/src/cloud/credential_io.zig": [
+      "37e762c7f4d1bce01983afdfa457535b",
+      "51e8a7bb13004a6d91f5b1a5e96677f8"
+    ],
+    "zig/src/cloud/google_adc.zig": [
+      "5a96a5e0259793d7bd747e3b2cbbf5dc",
+      "bce77896932ebf71165eafe81d2ec540"
+    ],
+    "zig/src/cloud/google_adc_test.zig": [
+      "aca448160d012158e196f162b4d13256",
+      "8e8fb3098b50b3618d6553f326f50c17"
+    ],
+    "zig/src/cloud/http.zig": [
+      "7902949aee587bead942f1eb21624153",
+      "d27dc177f869ba686c1b2035def71cf4"
+    ],
+    "zig/src/cloud/identity.zig": [
+      "dd7e09653953862a4a0dcf58fc8d9414",
+      "6c3d38ffd4342b39439e05a9e5edccaf"
+    ],
+    "zig/src/cloud/kms.zig": [
+      "e8399ea2eb4b980677217be43d0d0785",
+      "8842215acd9e41c757f03d2a0078013d"
+    ],
+    "zig/src/cloud/root.zig": [
+      "ff0aa674ec0b197a044090fcf39f9ad7",
+      "e1b1fa3a46916dcc28b456ff4c2efcf0"
+    ],
+    "zig/src/cloud/rs256.zig": [
+      "bf846dc1d65f59805da2a09285e176ae",
+      "f22736d30e68faaad97b9aa7923d0648"
+    ],
+    "zig/src/cloud/sigv4.zig": [
+      "4cafa2aac3bd9ec0d172594aadefe361",
+      "3927fc61e453b5e9d5a835da94136486"
+    ],
+    "zig/src/cloud/storage.zig": [
+      "ee33bb90ba65f1da2ab10c2d9471f360",
+      "a8249dfffea8032252cb713fcdee133d"
+    ],
+    "zig/src/cloud/testing.zig": [
+      "07359ca0778b44c671c26f099f712689",
+      "427280d6c696064115dfe7efea9d671c"
+    ],
+    "zig/src/config.zig": [
+      "4ab667a26af0922d421a7998b0e51436",
+      "527459772c13305c59a56d6e2db26f3d"
+    ],
+    "zig/src/cosmos/config.zig": [
+      "68a9a3fe751e17193ad93043dc121546",
+      "c1e2b60dc200053e2331374c772305f6"
+    ],
+    "zig/src/cosmos/contracts.zig": [
+      "3bb1b37ac861b8dda5459fcd2ad533a9",
+      "561d5f81e901b92c99e2ab24da012c12"
+    ],
+    "zig/src/cosmos/curl_grpc.zig": [
+      "5eb0463c35a1b5a3d142c63163a21858",
+      "2e1464dbd1a8dfd379bc83c116037d8c"
+    ],
+    "zig/src/cosmos/events.zig": [
+      "bd41f81966e146216f07da60322953d9",
+      "6c63b7f6186c5e2ab0de119fe336cd6b"
+    ],
+    "zig/src/cosmos/fallback_grpc.zig": [
+      "09c6fdf1eb5e38a35489d3f70b6db37d",
+      "ba20e451761a1d223b2c98d6eaa286a5"
+    ],
+    "zig/src/cosmos/fixtures/sdk.json.gz": [
+      "b5f59e41662086097ba556beea109e59",
+      "004e50f680bcd4cd6128515c69f6a531"
+    ],
+    "zig/src/cosmos/grpc.zig": [
+      "79191a849ded004011a2d82c1f43fcaa",
+      "7101a91aedf19b6e06d3f37258ad66a9"
+    ],
+    "zig/src/cosmos/proto.zig": [
+      "900bafe7b7aa027ddfc404b9c8240700",
+      "95f54541f9e7eef299d6c6cb06dcef82"
+    ],
+    "zig/src/cosmos/tendermint.zig": [
+      "2ba93cf1663f1859504fad6c338c5855",
+      "70161823aa6123dc90d4f390f7f02e83"
+    ],
+    "zig/src/cosmos/types.zig": [
+      "bb97bc4a524d94ca762cebc9ac0cf7e1",
+      "00ad3ccd8d5b055167a5199b2fc95ddd"
+    ],
+    "zig/src/db/c.zig": [
+      "d57c4e738c320054b870728cee3089a6",
+      "2ef90f67e83bbc955b62ae78b05263be"
+    ],
+    "zig/src/db/codec.zig": [
+      "8904d757666af68f16e2006f4878cb87",
+      "a94c051d240c7fba0cd56f9d44f80909"
+    ],
+    "zig/src/db/fixtures/codecs.jsonl.gz": [
+      "ec5192f1af04b50622aa1b64bf1f784e",
+      "2141aca89521ae37304d26bc49590b54"
+    ],
+    "zig/src/db/golden_test.zig": [
+      "13898e672b028c436de9d756b8a6e1ee",
+      "9e3176fa0404ea3a84db5c68dad25e2a"
+    ],
+    "zig/src/db/json.zig": [
+      "d6084f87a3bf3fe42f4237d5dfd6ae03",
+      "ceef7ce7fd7e0244c50dfd85a1bf6b81"
+    ],
+    "zig/src/db/keys.zig": [
+      "85c74bf68798717fdace8e841404d2d6",
+      "cdc6a593d227cf33f93f30524e522729"
+    ],
+    "zig/src/db/native_abi.zig": [
+      "fc37f37126c1aa537c998578bd1b2cec",
+      "6dbb0c1174fe5d793fda2f9ef1c7705c"
+    ],
+    "zig/src/db/pool.zig": [
+      "092da5d63495432fc8f14313caf53024",
+      "5b580e9cad2b4a5ef8961630090a61d7"
+    ],
+    "zig/src/db/postgres.zig": [
+      "5de80cda81218fbf834461fa55d1928b",
+      "7278926f1e06c67dd58e544769ee117f"
+    ],
+    "zig/src/db/postgres_test.zig": [
+      "a3a8eef7e01f4d18924fc73b1ce58394",
+      "ebc74dad4cd292c034eac4a5fb27f0ff"
+    ],
+    "zig/src/db/rocks.zig": [
+      "fadbba0f878f2e7d3ecc546c4b3b0f72",
+      "7a9b472bb14eec627d8ade74facf61cb"
+    ],
+    "zig/src/db/root.zig": [
+      "87dab9d944e9975cc66aa4df0e0a52fb",
+      "57767a0742a2507795c45a1cd57bd15d"
+    ],
+    "zig/src/db/scraper_store.zig": [
+      "7eaf6c0d77f869fb326b3e4da27e8992",
+      "355fdc8745cf513b9b1280c55f93eacf"
+    ],
+    "zig/src/evm/announce.zig": [
+      "746425a2dd13fe0e4c5b28aa98e5aa05",
+      "6e1290d379b1a2c6bfac1770c37eea06"
+    ],
+    "zig/src/evm/codecs.zig": [
+      "a728417f177795861e277244cfacac06",
+      "cd9cddd83ed47776cdb7098246036ceb"
+    ],
+    "zig/src/evm/fixtures/announcements.jsonl.gz": [
+      "5339cb5cbd88e29c7d100090e0ae8f56",
+      "e53796a07ff19edfbe2fd4e495dea01f"
+    ],
+    "zig/src/evm/fixtures/transactions.jsonl.gz": [
+      "af1d6a3e364baa9c11b234b80dd63c22",
+      "001076ed2b7ec032ac56f0a274183e83"
+    ],
+    "zig/src/evm/indexer.zig": [
+      "e90ac35d780013034df6495995e9e091",
+      "69574efc068efcb27b4eca83ec012173"
+    ],
+    "zig/src/evm/pool.zig": [
+      "468770a22e4a982d6a060ffaae7b29b1",
+      "814d9e2ab5f24ba0b0c31e5e4f132119"
+    ],
+    "zig/src/evm/pool_testing.zig": [
+      "d82d3b7c9ac6126c5dfe441ff5fe15d3",
+      "7f85163e8816c4ca5f7d04861ab39b67"
+    ],
+    "zig/src/evm/provider.zig": [
+      "b9b70ddc719e57d15d4cf7c2e0ff4cf4",
+      "a2c7f78d68b7cd0ba5bd4b979f7a2c15"
+    ],
+    "zig/src/evm/root.zig": [
+      "94f466465be9da357d3b3396ffa78a69",
+      "60bc533ebf42be204ca382de1bb1960e"
+    ],
+    "zig/src/evm/transaction.zig": [
+      "cd4dac4593f725a2ac749581b07097b0",
+      "765fe8bc846263a1d2a5ba591b4e6ec4"
+    ],
+    "zig/src/metadata_parallel_delegated_tests.zig": [
+      "c15e962ff0de9b2aaa6f0708006ac6a9",
+      "b4bc0b69f0b893e8d41847270696aa1a"
+    ],
+    "zig/src/net/byte_budget.zig": [
+      "cae704f79938b02abf519c91c48c41e1",
+      "ce395d22df24b4e5402729b85b683f96"
+    ],
+    "zig/src/net/curl.zig": [
+      "dd9829bdf31fbd7cfe5bd91d208eb7c6",
+      "f333d5377418e8677c9142f22d4820d9"
+    ],
+    "zig/src/net/curl_multi.zig": [
+      "861913b091245039d9c565dc46b9f433",
+      "dda80b7346fa128edf577c68bef6486e"
+    ],
+    "zig/src/net/endpoint.zig": [
+      "bc1d90a656deba5c778fa65b138cf030",
+      "be4ef1f0e45f6839eb910cfcb0673cf8"
+    ],
+    "zig/src/net/fixtures/endpoints.jsonl.gz": [
+      "19cc7d6449e39f2e24d9e423eb858fd5",
+      "1a692dd78c769b5dce66d5b2619992e8"
+    ],
+    "zig/src/net/http_replay.zig": [
+      "7a957d96a489685c237b18946e5a527b",
+      "fa5c60ad7ef1db749f3f22ec056be228"
+    ],
+    "zig/src/net/http_runtime.zig": [
+      "84a435859a52428324cbba0adc552f8b",
+      "d810c3aadd16ea30b6e9b93a37952235"
+    ],
+    "zig/src/net/json_bounds.zig": [
+      "65205120c5b60732574b6732cbdf0bc5",
+      "a03f8f6074ae15c2b8ccac2600123938"
+    ],
+    "zig/src/net/json_rpc.zig": [
+      "eb7ba1f471d44e99012715963eb96abe",
+      "0e7e5dd33c75d94a3833101ab39f045e"
+    ],
+    "zig/src/net/read_replay.zig": [
+      "838cc6ebc4cee19bb71db2962342243c",
+      "d20ade9ac733a2a2d2df5b09ccab1e7c"
+    ],
+    "zig/src/ops/metrics.zig": [
+      "0672e92db354c6729cd2db79d6647aa8",
+      "03dec33e87c5ab1baabcfd7cc4c74b57"
+    ],
+    "zig/src/ops/metrics_schema.zig": [
+      "7c0c6ffb6fb8a4d9a1a78272b9488562",
+      "104e4dbe69b69d77f2b9c639754a403f"
+    ],
+    "zig/src/ops/rpc_metrics.zig": [
+      "d5ff72cb0cf719a26915bf179119ced4",
+      "4e566598cf04078a9a054457894f3a36"
+    ],
+    "zig/src/pg_tests.zig": [
+      "7ad647965592fa62b8e31673beb92e94",
+      "3dd33fe8799431048e60ce89339a0473"
+    ],
+    "zig/src/protocol/checkpoint.zig": [
+      "1e620942634e38e360b451a11f9144c5",
+      "55d2fd51e85599eb9dc12bdee1ae92b2"
+    ],
+    "zig/src/protocol/fixtures/ethers-recovery.json.gz": [
+      "db878356fa582f4ea525077051c070d4",
+      "0232cdc3bdb777efadf9248ff6cf3cd1"
+    ],
+    "zig/src/protocol/merkle.zig": [
+      "ad94e976d31cfcbe9fbc8e82d3db4cb1",
+      "091a69075b1096a9002f84e665007ba3"
+    ],
+    "zig/src/protocol/message.zig": [
+      "e0581df26b50111da978dc45c79d527a",
+      "e64f79de5357ee8cb85c4b74d9129d5b"
+    ],
+    "zig/src/protocol/metadata.zig": [
+      "e61cb6faa01660a6d2088133a19f9182",
+      "d0549d71d753bbbcc4d468ab03c79917"
+    ],
+    "zig/src/protocol/root.zig": [
+      "1cf74a49103888893972f7056b04cffb",
+      "cd7c4371c4d390236be99a87eb55c381"
+    ],
+    "zig/src/protocol/signature.zig": [
+      "ec428514d052aa973220c8f1e0cbd11e",
+      "b7b86fba0ec9bcb8ad0ffe7e0e14fe19"
+    ],
+    "zig/src/radix/address.zig": [
+      "28a112ce9c30c40ec8c7136eecbad8d6",
+      "1af9a2c9e3139802bc7ae549627e2171"
+    ],
+    "zig/src/radix/contracts.zig": [
+      "68a1eecf5cb6a9d91769ed78fbcb0667",
+      "af78290b7b1e76a4f4ed27e771139f49"
+    ],
+    "zig/src/radix/crypto.zig": [
+      "a0a062f7b2a4cc205bf665f33b7cf7d9",
+      "d3ebf903b44aa67f42b533041edf777d"
+    ],
+    "zig/src/radix/events.zig": [
+      "73859ce4e38b30ecd6621d6efd036650",
+      "236843f110a8e76dfb9a23e1e43d6e28"
+    ],
+    "zig/src/radix/provider.zig": [
+      "504d4ac521c66909288b0a8803ba52bb",
+      "4cc95cd1d12f95a5e0fa2c4b26405bd5"
+    ],
+    "zig/src/radix/sbor.zig": [
+      "bf22610337733294df42cf51a7a60dbf",
+      "904feaa0767940bc9022739468862e84"
+    ],
+    "zig/src/radix/transaction.zig": [
+      "4b1792e003b39ea1e6a47714d6787cc4",
+      "8fa6eb9bcdebe62443cf6893f3cb7160"
+    ],
+    "zig/src/relayer/announced_readers.zig": [
+      "803d6050ee3c9644dfb8b5f746fdeed2",
+      "ab39c0bce16dc23d4ad752ded577eabc"
+    ],
+    "zig/src/relayer/cached_source.zig": [
+      "02209fdb32ca2e41a8fba7b58967e970",
+      "bb7a24c1ca9590285e6d4e2f785be343"
+    ],
+    "zig/src/relayer/ccip.zig": [
+      "9024e2d2020c6338d65a1080c5df916b",
+      "df4e34e96c84dabfbb702ccef44483fb"
+    ],
+    "zig/src/relayer/checkpoint_pool.zig": [
+      "66d622cbef0bee816c224121184f5d9d",
+      "67ce441aff303f0d4c9bb6debbfc296e"
+    ],
+    "zig/src/relayer/checkpoint_reader.zig": [
+      "e67cd8c72809a8b64b6a68d45ea6ca59",
+      "795759571a31d4d19718455750ea0f14"
+    ],
+    "zig/src/relayer/contract_cache.zig": [
+      "bdef0d0a166a74e32037463d5fa24407",
+      "92b4f9c6ca338e32356a3416555ed2ca"
+    ],
+    "zig/src/relayer/evm_source.zig": [
+      "d81dc08020b0d821bd3b2c9a86011a51",
+      "0896ca670321222c9235d1235c82a7e5"
+    ],
+    "zig/src/relayer/evm_source_cache_tests.zig": [
+      "5eed95ecc1c244ecbb09672179ad6ce8",
+      "57726b9009ac9d899096a2b1fc9bfbb9"
+    ],
+    "zig/src/relayer/metadata.zig": [
+      "d722e694db15d17dd0578225a0c41eb1",
+      "3c7c24cb7653330940fb238d474de16a"
+    ],
+    "zig/src/relayer/metadata_parallel.zig": [
+      "17588e4fe9b95aa40d083a379bb6c844",
+      "c5b9d4a2234c382617403ea8e1daf225"
+    ],
+    "zig/src/relayer/prover.zig": [
+      "adcc191464996fd66c7e4554100bc05c",
+      "df4a849e563eacee33d88a23f74e269c"
+    ],
+    "zig/src/relayer/public_address.zig": [
+      "e1366ee5dca6ae1bb3382f6a8bc2c1d6",
+      "30e4e53418fc2a6caef004cbda355f86"
+    ],
+    "zig/src/relayer/quorum.zig": [
+      "70610e3b7f37f60d809855be6134ed04",
+      "d5aa3e9129db255775b1e8ec97b3bea6"
+    ],
+    "zig/src/relayer/remote_checkpoints.zig": [
+      "ef1d8c83f0097216364f4aafba325574",
+      "ecbb155f5f830b46feafbc027ce2dd8d"
+    ],
+    "zig/src/relayer/remote_checkpoints_testing.zig": [
+      "9b8cfc09fe6034d53a0c5f888ed7b9cc",
+      "a92dfc999f4f8646de3c53c95e55afb3"
+    ],
+    "zig/src/relayer/testing/ccip-lookup.json": [
+      "d6b2cd5b1fa3fb746e8755bd8610c131",
+      "7e15bf00896f988f31fb71bdb0acea6e"
+    ],
+    "zig/src/runtime/io_pool.zig": [
+      "547c497388eb5fb522b57ea62beb8f89",
+      "c6ebdac4d77a6ced7ab237616030c381"
+    ],
+    "zig/src/runtime/lane_owner.zig": [
+      "694159949d9c7b67cba9e4514812dc7e",
+      "e3ab2f284afdf5c3336704522d7d722b"
+    ],
+    "zig/src/runtime/sequence_cursor.zig": [
+      "6060e2d40004cddac5893d556f8615c9",
+      "f8e9ef0c49cadc8653c5e9f7b4e1b4f5"
+    ],
+    "zig/src/runtime/supervisor.zig": [
+      "ef34f29f9bb69e4ab1effc7c7c7ae02f",
+      "6c72cf233a2b1ac3091c28238658b5c3"
+    ],
+    "zig/src/sealevel/accounts.zig": [
+      "00b5e30ebbcf378ab0b1e007337e4f52",
+      "277c1d7fb35c33c02aed3752219a77fe"
+    ],
+    "zig/src/sealevel/announcement.zig": [
+      "ccef19965ef709d5c49bc6b3024a4db6",
+      "d44aedc31c6e891721c25caaa7781cb3"
+    ],
+    "zig/src/sealevel/borsh.zig": [
+      "a31305a16fa9abf1687b0941b7e3da27",
+      "a06d3308a1be8b33986e17ff0a5b3b6d"
+    ],
+    "zig/src/sealevel/instructions.zig": [
+      "6686d764dad97fef1a5aaad415fb76a8",
+      "5a6a838e3e2c50df3df140f6d28fc108"
+    ],
+    "zig/src/sealevel/log_meta.zig": [
+      "539336dc1b4d7fbe0db78b7117d06770",
+      "30cd7a0fc6df42f370cf77396fcaf42a"
+    ],
+    "zig/src/sealevel/mailbox.zig": [
+      "d4adf4b3702dce12456f7b6c585c1652",
+      "f25c0ac162e7d205f4d984996c9c7e08"
+    ],
+    "zig/src/sealevel/provider.zig": [
+      "0b11d75444f74ff2535a0761e1e17df8",
+      "132d6c42d35a4f1f2eaf12f344299b6f"
+    ],
+    "zig/src/settings/known_domains.zig": [
+      "a8e495af05d98cb3cd34adbede6e9f1e",
+      "5b9d4dc5f04171adf80ce435ee5eec3e"
+    ],
+    "zig/src/settings/root.zig": [
+      "d5a4d8fe04a9a63c8f57cea3fa9bffb4",
+      "e9906da0499398cbc91c08ff68b4b68e"
+    ],
+    "zig/src/settings/types.zig": [
+      "d19397a3e3175dda24f42818cde13431",
+      "4e4952384bed89289a2ed680324350a7"
+    ],
+    "zig/src/settings/value.zig": [
+      "155e497bcfb2170b8b2bb04157cb9a56",
+      "f6af3b55c7584c22122fa9abea0c75d2"
+    ],
+    "zig/src/starknet/codec.zig": [
+      "2ce49b9e85a5aa854418329737a1a36d",
+      "126e3df3b1446691fed66875128ea489"
+    ],
+    "zig/src/starknet/contracts.zig": [
+      "daea5df31971af97897ba139ca9aa2dc",
+      "aa75e3be11e4474959a08656205e9dd6"
+    ],
+    "zig/src/starknet/crypto.zig": [
+      "ee8d3503ad6bd42d11ebf9a1bb7b7ec0",
+      "85237e41a09deeadc4019c054baeaf3c"
+    ],
+    "zig/src/starknet/events.zig": [
+      "2f9a8655565f56f9524f76f3b8cd403d",
+      "298c8e98a29c902df623d2705d19c86e"
+    ],
+    "zig/src/starknet/fixtures/sdk.jsonl.gz": [
+      "b554d9dcab689db0b27f889e3d649a39",
+      "af34237109236b63c3fa44c9b5ec885a"
+    ],
+    "zig/src/starknet/provider.zig": [
+      "4ddd87387c81a622197d95ebd3e10472",
+      "b3f13935c01510456e126731b0719e36"
+    ],
+    "zig/src/starknet/transaction.zig": [
+      "d709fc3848a346df2588a8e6ebf24ac7",
+      "5283c51187fe6a44f53152419483e3d3"
+    ],
+    "zig/src/storage/fixtures/objects.jsonl.gz": [
+      "5dc1fe26acb24665bdfa9a73e7e5ce1e",
+      "9f992383d91e6def38103e76a61e445f"
+    ],
+    "zig/src/storage/local.zig": [
+      "1f52f4c6864b70f9d4f14da193660832",
+      "1f4ea60e1a8c231ef340ce2f16361086"
+    ],
+    "zig/src/storage/objects.zig": [
+      "6a13f4c908b3cebc9ea2990b51d87575",
+      "e8929ac053f2728864eb9f675f6c3348"
+    ],
+    "zig/src/storage/root.zig": [
+      "b8b81d9800e05915aabcc4e5e24f49ea",
+      "51a3855779be86da9f325ff3668f6c10"
+    ],
+    "zig/src/testing/fixture.zig": [
+      "36cc5d4abfe9bf95b77455f8f755a1f7",
+      "efdeec301d9068dc3bc143379e0bac90"
+    ],
+    "zig/src/testing/fixtures/gzip-probe.json.gz": [
+      "abde44f14ec4a073182f88d71a54ee25",
+      "b10fc6f1690213b50ad54fdf6f1b1776"
+    ],
+    "zig/src/tron/contracts.zig": [
+      "729a98dce19273569a1525b518a2c33a",
+      "16db4f09acd3ef1dbfc3c36933d06844"
+    ],
+    "zig/src/tron/provider.zig": [
+      "867f25686c4e11a2478431c4ab625de5",
+      "c21cde1c9f564c018fc2cf7179de4caf"
+    ],
+    "zig/src/tron/rpc.zig": [
+      "3314eb8c5863e84207b52ec8d840902b",
+      "b41052714f8b53cc28a1adad73164ee8"
+    ],
+    "zig/src/tron/transaction.zig": [
+      "d7e2f40e8d04c468070faaa6ee67da00",
+      "f8e35d65646c0c576717c3a6655180b8"
+    ]
+  }
+}

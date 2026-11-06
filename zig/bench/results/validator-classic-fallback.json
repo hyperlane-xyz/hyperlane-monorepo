@@ -1,0 +1,130 @@
+{
+  "passed": true,
+  "scope": "Actual classic-fallback Role RPC behavior on disposable Solidity/Anvil.\n\nBefore/after role-level request accounting, not whole-agent throughput. Explicit\nmajority/quorum behavior is verified by the separate full validator integration.\n",
+  "binaries": {
+    "before": {
+      "sha256_chunks": [
+        "035b98270630d3ad83f4f624a3a8172a",
+        "bcc14c00f58da8cf260c97cbf445f82f"
+      ]
+    },
+    "after": {
+      "sha256_chunks": [
+        "aa0637432c09bcc14c664b24ce95dfcc",
+        "3f28c074323efa275e2af52fc7ba40d2"
+      ]
+    }
+  },
+  "cases": {
+    "before": {
+      "physical_rpc_methods": [
+        {
+          "eth_chainId": 2,
+          "eth_getBlockByNumber": 21,
+          "eth_call": 22,
+          "eth_getLogs": 1
+        },
+        {
+          "eth_chainId": 2,
+          "eth_getBlockByNumber": 16,
+          "eth_call": 20
+        },
+        {
+          "eth_chainId": 2,
+          "eth_getBlockByNumber": 14,
+          "eth_call": 14
+        }
+      ],
+      "total_requests": 114,
+      "checkpoint_data_peers": [
+        0,
+        1,
+        2
+      ],
+      "per_role_data_peers": [
+        [
+          0,
+          1,
+          2
+        ],
+        [
+          0,
+          1,
+          2
+        ]
+      ],
+      "checkpoint_objects": 3,
+      "source_rust_roots_match": true,
+      "configured_checkpoint_voting_slots": 1
+    },
+    "after": {
+      "physical_rpc_methods": [
+        {
+          "eth_chainId": 2,
+          "eth_getBlockByNumber": 21,
+          "eth_call": 23,
+          "eth_getLogs": 1
+        },
+        {
+          "eth_chainId": 2
+        },
+        {
+          "eth_chainId": 2
+        }
+      ],
+      "total_requests": 51,
+      "checkpoint_data_peers": [
+        0
+      ],
+      "per_role_data_peers": [
+        [
+          0
+        ],
+        [
+          0
+        ]
+      ],
+      "checkpoint_objects": 3,
+      "source_rust_roots_match": true,
+      "configured_checkpoint_voting_slots": 1
+    },
+    "error_rotation": {
+      "physical_rpc_methods": [
+        {
+          "eth_chainId": 2,
+          "eth_getBlockByNumber": 2,
+          "eth_call": 2
+        },
+        {
+          "eth_chainId": 4,
+          "eth_getBlockByNumber": 21,
+          "eth_call": 22,
+          "eth_getLogs": 1
+        },
+        {
+          "eth_chainId": 2
+        }
+      ],
+      "total_requests": 56,
+      "checkpoint_data_peers": [
+        0,
+        1
+      ],
+      "per_role_data_peers": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "checkpoint_objects": 3,
+      "source_rust_roots_match": true,
+      "configured_checkpoint_voting_slots": 1
+    }
+  },
+  "source_behavior": "checkpoint_consensus null: bounded startup chain-ID readiness, then one priority healthy checkpoint endpoint; next only after actual error",
+  "explicit_consensus_unchanged": true
+}

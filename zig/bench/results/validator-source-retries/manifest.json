@@ -1,0 +1,216 @@
+{
+  "scope": "Functional validator Source retry/init/cache/metric closure under shared host load. No comparative performance measurement and no final global runtime-source freeze. Cached functional build durations in logs are not cold-build or speedup evidence.",
+  "native_acceptance": {
+    "passed": 22,
+    "skipped": 0,
+    "failed": 0
+  },
+  "durable_suite": {
+    "passed": 191,
+    "optional_skipped": 18,
+    "failed": 0
+  },
+  "init_metrics_helper": {
+    "passed": 2,
+    "failed": 0
+  },
+  "owned_source_unchanged": true,
+  "source_retry_constants": {
+    "range_fetch_initial_ms": 5000,
+    "range_fetch_cap_ms": 300000,
+    "cursor_initialization_attempts": 10,
+    "cursor_initialization_delay_ms": 2000,
+    "delay_after_tenth_failure": true
+  },
+  "artifacts": [
+    {
+      "path": "zig/bench/results/validator-source-retries/owned-source.json",
+      "original_bytes": 4118,
+      "original_sha256_chunks": [
+        "346dac164543ffd838b680e77d871370",
+        "dc6438912e31bf1a52700acdc012570b"
+      ],
+      "stored_sha256_chunks": [
+        "346dac164543ffd838b680e77d871370",
+        "dc6438912e31bf1a52700acdc012570b"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/evm-role.json",
+      "original_bytes": 5087,
+      "original_sha256_chunks": [
+        "16ba46a5ec5a75f0337fb44ab1bb5dcc",
+        "882fa2a5af2d79e38fdfbbcb49b5f1cc"
+      ],
+      "stored_sha256_chunks": [
+        "16ba46a5ec5a75f0337fb44ab1bb5dcc",
+        "882fa2a5af2d79e38fdfbbcb49b5f1cc"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/generic-tron-bridge.json",
+      "original_bytes": 11278,
+      "original_sha256_chunks": [
+        "dae135338152c0f47f1975f421935f4d",
+        "b372a98eaa604c9dec1fc69988eff1be"
+      ],
+      "stored_sha256_chunks": [
+        "dae135338152c0f47f1975f421935f4d",
+        "b372a98eaa604c9dec1fc69988eff1be"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/wss-process.json",
+      "original_bytes": 5451,
+      "original_sha256_chunks": [
+        "9ad4c61d403604f2b3dff9aa06884b18",
+        "3909764a8e75b3b0b649a03f77bb9624"
+      ],
+      "stored_sha256_chunks": [
+        "9ad4c61d403604f2b3dff9aa06884b18",
+        "3909764a8e75b3b0b649a03f77bb9624"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/pending-guard-process.json",
+      "original_bytes": 1438,
+      "original_sha256_chunks": [
+        "5d27c4269e162800015d5b9a3e6635ba",
+        "cfec4e49b8742f820f052663e7c6c3c1"
+      ],
+      "stored_sha256_chunks": [
+        "5d27c4269e162800015d5b9a3e6635ba",
+        "cfec4e49b8742f820f052663e7c6c3c1"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/native-acceptance.log.gz",
+      "original_bytes": 4052,
+      "original_sha256_chunks": [
+        "7b5e9fa6125a888636bd9a9526053d02",
+        "e872e6d67fddb4e7050d1b9eae833773"
+      ],
+      "stored_sha256_chunks": [
+        "9b83d233a39cac9817abffaa248ce092",
+        "2b9e9568e0b4e4ec60ac0c8cf940dfe8"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/durable-suite.log.gz",
+      "original_bytes": 25776,
+      "original_sha256_chunks": [
+        "5c0239d00b6b88e9246263d6d38db160",
+        "ab41d48617f0759e18dcd86f1f8dfddb"
+      ],
+      "stored_sha256_chunks": [
+        "95612a40c7042f34bc193848e992953a",
+        "378e3d5edd07bdfc3c396e12c9ca3f76"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/evm-role-build.log.gz",
+      "original_bytes": 0,
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "stored_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c98d",
+        "2c485d81cdef906532a801f457a38d64"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/generic-role-build.log.gz",
+      "original_bytes": 0,
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "stored_sha256_chunks": [
+        "9ceffb7310338057cfe71a4ae1e2c98d",
+        "2c485d81cdef906532a801f457a38d64"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/cli-build.log.gz",
+      "original_bytes": 178,
+      "original_sha256_chunks": [
+        "51b5c5ab08cd5c8deb096fb69b744b60",
+        "0ffeee9e5a4d8ba7f85ed84803aaf3d0"
+      ],
+      "stored_sha256_chunks": [
+        "3e4dbde55552b9621d078ff3b7b8f94e",
+        "608950f6497ee39033669a8d067e3302"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/wss-process.log.gz",
+      "original_bytes": 40,
+      "original_sha256_chunks": [
+        "8ca2333b9f4d37022b4dba1f6dea6c06",
+        "1be3e487b8f1e04049f13cc1a81d9c0a"
+      ],
+      "stored_sha256_chunks": [
+        "f3bd69d23ba2ed9b940cee2df5abe16f",
+        "9d85a58b2d53036c3226430ac777cf96"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/pending-guard-process.log.gz",
+      "original_bytes": 47,
+      "original_sha256_chunks": [
+        "230f81492a5c6fd38ddf2d42db5e46ea",
+        "2364a6b27a5a9407a31c2604381fec98"
+      ],
+      "stored_sha256_chunks": [
+        "d0999fe93fd7df688580b658e0c41b0e",
+        "6d3fbb7ad8109648a0258d23fe33079a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/external-live-compile-failure.log.gz",
+      "original_bytes": 7504,
+      "original_sha256_chunks": [
+        "74c6a09c0e35bc9598e8c34ebb0d0f80",
+        "41eeb66a6c335be92c5f5ed87f276b4e"
+      ],
+      "stored_sha256_chunks": [
+        "9e049040c3fa223d047e105c28c4756c",
+        "f263062ba0b8e83d8e9d8ebfdfa7b0ff"
+      ]
+    }
+  ],
+  "pinned_binaries": [
+    {
+      "path": "zig/bench/results/validator-source-retries/pinned/validator",
+      "source_path": "/tmp/ziggy-validator-backoff-daemon/bin/validator",
+      "bytes": 13463336,
+      "sha256_chunks": [
+        "1ca44f3891e52cdc81430dcb07d52ceb",
+        "eac18eb29c4fc1823dc2c77d2c521c04"
+      ],
+      "executable_mode": "0o755"
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/pinned/evm-role",
+      "source_path": "/tmp/ziggy-validator-backoff-role",
+      "bytes": 11078768,
+      "sha256_chunks": [
+        "1c00f102df937db21625f3bfa9728ac7",
+        "0f071abf2f235cd7fd7e2dca5f0e5b3a"
+      ],
+      "executable_mode": "0o755"
+    },
+    {
+      "path": "zig/bench/results/validator-source-retries/pinned/generic-role",
+      "source_path": "/tmp/ziggy-validator-backoff-generic-role",
+      "bytes": 11993928,
+      "sha256_chunks": [
+        "9f386786115865a3ca3f58a7f65d8086",
+        "ee0e1a7937445394de2f8375d9f99c20"
+      ],
+      "executable_mode": "0o755"
+    }
+  ],
+  "global_performance_gate": "closed; no benchmark or matrix timers run by this validation"
+}

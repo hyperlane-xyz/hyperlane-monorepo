@@ -1,0 +1,9 @@
+{
+  "passed": 95,
+  "named_functional": 73,
+  "import_roots": 22,
+  "failed": 0,
+  "skipped": 0,
+  "sources_unchanged": true,
+  "scope": "functional; no benchmark/global acceptance claim"
+}

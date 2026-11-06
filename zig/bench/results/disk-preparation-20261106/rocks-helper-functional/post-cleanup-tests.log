@@ -1,0 +1,8 @@
+
+running 3 tests
+test relayer_probe_tests::destination_map_rejects_empty_or_normalized_duplicate_domains ... ok
+test relayer_probe_tests::all_destinations_cover_origin_nonces_and_both_real_mapping_namespaces ... ok
+test relayer_probe_tests::sealed_public_sidecar_reports_exact_estimate_private_stage_and_id_accounting ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

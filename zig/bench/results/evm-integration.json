@@ -1,0 +1,41 @@
+{
+  "scope": "local EVM correctness; not whole-agent performance",
+  "contracts": {
+    "Mailbox": "solidity/contracts/Mailbox.sol",
+    "MerkleTreeHook": "solidity/contracts/hooks/MerkleTreeHook.sol",
+    "TestIsm": "solidity/contracts/test/TestIsm.sol",
+    "TestRecipient": "solidity/contracts/test/TestRecipient.sol",
+    "TestPostDispatchHook": "solidity/contracts/test/TestPostDispatchHook.sol",
+    "StorageMessageIdMultisigIsm": "solidity/contracts/isms/multisig/StorageMultisigIsm.sol",
+    "StorageMerkleRootMultisigIsm": "solidity/contracts/isms/multisig/StorageMultisigIsm.sol",
+    "StorageAggregationIsm": "solidity/contracts/isms/aggregation/StorageAggregationIsm.sol",
+    "DomainRoutingIsm": "solidity/contracts/isms/routing/DomainRoutingIsm.sol",
+    "TestCcipReadIsm": "solidity/contracts/test/TestCcipReadIsm.sol"
+  },
+  "compiler": "solc 0.8.33",
+  "cases": [
+    {
+      "case": "message_id_multisig_crash_recovery",
+      "delivered": true,
+      "idempotent_replay": true,
+      "canonical_origin_indexing": true,
+      "ccip_revert_and_get_request": true
+    },
+    {
+      "case": "merkle_root_multisig",
+      "delivered": true,
+      "idempotent_replay": true,
+      "canonical_origin_indexing": true,
+      "ccip_revert_and_get_request": true
+    },
+    {
+      "case": "routing_aggregation",
+      "delivered": true,
+      "idempotent_replay": true,
+      "canonical_origin_indexing": true,
+      "ccip_revert_and_get_request": true
+    }
+  ],
+  "rpc_calls_python_driver": 55,
+  "passed": true
+}

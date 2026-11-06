@@ -1,0 +1,52 @@
+{
+  "crate": "zig/src/ops/regex-native",
+  "command": [
+    "cargo",
+    "+1.98.0",
+    "clippy",
+    "--locked",
+    "--offline",
+    "--all-targets",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/Users/pbio/work/ziggy/zig/src/ops/regex-native",
+  "started_utc": "2026-11-06T06:00:42.732467+00:00",
+  "free_bytes_before": 42857381888,
+  "source_sha256_chunks": {
+    "zig/src/ops/regex-native/Cargo.toml": [
+      "48e47e1951d6ff6f09ac3d83b9ab7238",
+      "fd9488c6f31e0c06e2e1d7bcdf1b5b13"
+    ],
+    "zig/src/ops/regex-native/Cargo.lock": [
+      "ad990290069262515b95f3860fc36a48",
+      "fc8b7b4df248708c7225797fc2676689"
+    ],
+    "zig/src/ops/regex-native/src/lib.rs": [
+      "ac76290fe308b6a891e808027a3f7168",
+      "9442a8515401636b2d3fecf8cb28de3c"
+    ]
+  },
+  "build_scope": "Clippy metadata/check only; existing target debug cache reused, no release SDK/agent codegen or benchmark",
+  "environment": {
+    "CARGO_INCREMENTAL": "0"
+  },
+  "status": "passed",
+  "exit_code": 0,
+  "free_bytes_after": 42844696576,
+  "finished_utc": "2026-11-06T06:00:45.274842+00:00",
+  "source_unchanged": true,
+  "raw_log": {
+    "path": "zig/bench/results/rust-bridge-checks/regex.log.gz",
+    "sha256_chunks": [
+      "1a55620c4363cb7238cfc9c07837e730",
+      "a1c257b1689b203c003133fd2e88c89a"
+    ],
+    "decoded_sha256_chunks": [
+      "d040efc012e3e781bac78c6b094218fd",
+      "b9029e971b95038a17484501edea70c2"
+    ]
+  }
+}

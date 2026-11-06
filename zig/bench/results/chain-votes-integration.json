@@ -1,0 +1,118 @@
+{
+  "passed": true,
+  "scope": "Actual native curl_multi replay of concrete Tron Contracts.tree; fixed denominator; no signer/DB/publication; not full generic validator role parity",
+  "hanging_peers": 9,
+  "healthy_peers": 18,
+  "all_hanging_received_post": true,
+  "native_worker_threads_for_requests": 0,
+  "result": {
+    "passed": true,
+    "physical_rpc_completions": 18,
+    "configured_slots": 27,
+    "required": 18,
+    "ready": 18,
+    "unavailable": 9,
+    "elapsed_ms": 7,
+    "rpc_timeout_ms": 20000,
+    "mismatched_ids": 0,
+    "changed_fences": 0
+  },
+  "process_wall_ms": 191.8970411643386,
+  "requests_by_peer": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "rust_reference": {
+    "message": "vectors/message.json",
+    "root_chunks": [
+      "0xd4c28346ff7c531a290703a3746add",
+      "b9f715f7430c533229bbc948cf4f0f6d",
+      "d9"
+    ]
+  },
+  "properties": [
+    "all27 slots start before socket wait",
+    "nine stalled peers cannot exhaust a blocking worker pool",
+    "configured20s absolute deadline retained",
+    "quorum18 of27 checked against actual Rust frontier root",
+    "all transfers cancelled/drained before borrowed clients destroyed"
+  ],
+  "starknet_cases": [
+    {
+      "passed": true,
+      "physical_rpc_completions": 8,
+      "configured_slots": 2,
+      "required": 2,
+      "ready": 2,
+      "unavailable": 0,
+      "elapsed_ms": 10,
+      "rpc_timeout_ms": 20000,
+      "mismatched_ids": 0,
+      "changed_fences": 0,
+      "kind": "correct",
+      "requests": [
+        4,
+        4
+      ]
+    },
+    {
+      "passed": true,
+      "physical_rpc_completions": 2,
+      "configured_slots": 2,
+      "required": 2,
+      "ready": 0,
+      "unavailable": 2,
+      "elapsed_ms": 4,
+      "rpc_timeout_ms": 20000,
+      "mismatched_ids": 2,
+      "changed_fences": 0,
+      "kind": "wrong-id",
+      "requests": [
+        1,
+        1
+      ]
+    },
+    {
+      "passed": true,
+      "physical_rpc_completions": 8,
+      "configured_slots": 2,
+      "required": 2,
+      "ready": 0,
+      "unavailable": 2,
+      "elapsed_ms": 10,
+      "rpc_timeout_ms": 20000,
+      "mismatched_ids": 0,
+      "changed_fences": 2,
+      "kind": "changed-fence",
+      "requests": [
+        4,
+        4
+      ]
+    }
+  ]
+}

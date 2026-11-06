@@ -1,0 +1,14 @@
+1/12 origin_root.test_0...OK
+2/12 src.agents.origin_tasks.test.review ready origin can fail every initial cursor tip without critical marker...ready=true; 24 ordinary initial-tip failures; dispatch/insertion cursor=null; critical reasons=0
+OK
+3/12 src.protocol.root.test_0...OK
+4/12 src.relayer.remote_checkpoints.test_0...OK
+5/12 src.db.root.test_0...OK
+6/12 src.agents.chain_source.test_0...OK
+7/12 src.agents.scraper.starknet.test_0...OK
+8/12 src.evm.root.test_0...OK
+9/12 src.storage.root.test_0...OK
+10/12 src.cloud.root.test_0...OK
+11/12 src.cloud.google_adc.test_0...OK
+12/12 src.cloud.aws_profile.test_0...OK
+All 12 tests passed.

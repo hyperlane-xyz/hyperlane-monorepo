@@ -1,0 +1,57 @@
+{
+  "checked_via": "GitHub connector get-commit against official repositories",
+  "old_pins": [
+    {
+      "repo": "actions/checkout",
+      "requested": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "isError": false,
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "title": "prep v7.0.1 release (#2531)",
+      "url": "https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1"
+    },
+    {
+      "repo": "actions/setup-node",
+      "requested": "949feb2413d6458794dcd2491c4babbbce0c15c1",
+      "isError": false,
+      "sha": "949feb2413d6458794dcd2491c4babbbce0c15c1",
+      "title": "Bump eslint from 10.5.0 to 10.11.0 and package.json from 7.0.0 to 7.1.0 (#1635)",
+      "url": "https://github.com/actions/setup-node/commit/949feb2413d6458794dcd2491c4babbbce0c15c1"
+    },
+    {
+      "repo": "pnpm/action-setup",
+      "requested": "f53f5227a9e83886ab598c617f3c170fab62f0d3",
+      "isError": true
+    },
+    {
+      "repo": "foundry-rs/foundry-toolchain",
+      "requested": "dba66c27052e63476d886f22216e119ba7e615bf",
+      "isError": false,
+      "sha": "dba66c27052e63476d886f22216e119ba7e615bf",
+      "title": "fix: upgrade Node.js to patch CVE-2026-111497 (#193)",
+      "url": "https://github.com/foundry-rs/foundry-toolchain/commit/dba66c27052e63476d886f22216e119ba7e615bf"
+    },
+    {
+      "repo": "actions/upload-artifact",
+      "requested": "b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+      "isError": false,
+      "sha": "b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+      "title": "Merge pull request #745 from actions/upload-artifact-v6-release",
+      "url": "https://github.com/actions/upload-artifact/commit/b7c566a772e6b6bfb58ed0dc250532a479d7789f"
+    },
+    {
+      "repo": "actions/download-artifact",
+      "requested": "018cc2cf5baa6db3ef3c5f8a56943fffe632ef53",
+      "isError": false,
+      "sha": "018cc2cf5baa6db3ef3c5f8a56943fffe632ef53",
+      "title": "Merge pull request #438 from actions/danwkennedy/prepare-6.0.0",
+      "url": "https://github.com/actions/download-artifact/commit/018cc2cf5baa6db3ef3c5f8a56943fffe632ef53"
+    }
+  ],
+  "replacement": {
+    "repo": "pnpm/action-setup",
+    "ref": "v6",
+    "sha": "73e46992e05b19abd31f2f3c20e0e7370d762115",
+    "url": "https://github.com/pnpm/action-setup/commit/73e46992e05b19abd31f2f3c20e0e7370d762115"
+  },
+  "checked_utc": "2026-11-06T01:03:09.090495+00:00"
+}

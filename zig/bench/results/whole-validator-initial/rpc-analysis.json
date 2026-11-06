@@ -1,0 +1,47 @@
+{
+  "rust": {
+    "median_method_counts": {
+      "eth_blockNumber": 26,
+      "eth_call": 37,
+      "eth_chainId": 1,
+      "eth_estimateGas": 2,
+      "eth_feeHistory": 8,
+      "eth_getBalance": 1,
+      "eth_getBlockByNumber": 7,
+      "eth_getLogs": 8,
+      "eth_getTransactionByHash": 1,
+      "eth_getTransactionCount": 1,
+      "eth_getTransactionReceipt": 2,
+      "eth_sendRawTransaction": 2
+    },
+    "median_startup_rpc": 38,
+    "median_user_seconds": 0.191774,
+    "median_system_seconds": 0.069723
+  },
+  "zig": {
+    "median_method_counts": {
+      "eth_blockNumber": 21,
+      "eth_call": 95,
+      "eth_chainId": 2,
+      "eth_estimateGas": 1,
+      "eth_feeHistory": 5,
+      "eth_getBalance": 0,
+      "eth_getBlockByNumber": 267,
+      "eth_getLogs": 49,
+      "eth_getTransactionByHash": 0,
+      "eth_getTransactionCount": 19,
+      "eth_getTransactionReceipt": 1,
+      "eth_sendRawTransaction": 1
+    },
+    "median_startup_rpc": 208,
+    "median_user_seconds": 0.48696599999999995,
+    "median_system_seconds": 0.52376
+  },
+  "scope": "Initial five-pair common EVM workload; method medians do not necessarily sum to median total; source-backed causes are not CPU-percent attribution",
+  "source_backed_causes": [
+    "EVMRole.insertion fetched every cached database leaf block again with two canonical header fences plus eth_getLogs despite same-round Indexer.Batch; fixed in subsequent cached binaries",
+    "Concurrent RPC voting adds chain/head/count/checkpoint/final hash fences; these checks intentionally remain",
+    "Local signing finds recovery parity through strict secp recovery; durable service and storage independently authenticate signature at their boundaries",
+    "Zig publication explicitly fsyncs WAL/files/directories; Rust LocalStorage direct writes do not provide equivalent explicit durability"
+  ]
+}

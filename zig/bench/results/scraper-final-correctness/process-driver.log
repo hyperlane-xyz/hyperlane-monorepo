@@ -1,0 +1,1 @@
+{"passed": true, "server": "postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2)", "migrations": 21, "functional_cases": 5}

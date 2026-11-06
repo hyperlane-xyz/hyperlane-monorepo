@@ -1,0 +1,15 @@
+# Exact generated mirrors; canonical lossless gzip payloads are committed.
+/Linux-ReleaseFast-canonical.log
+/Linux-ReleaseFast.log
+/Linux-ReleaseSafe-canonical.log
+/Linux-ReleaseSafe-final.log
+/Linux-ReleaseSafe.log
+/canonical-result.json
+/final-result.json
+/macOS-ReleaseFast-canonical.log
+/macOS-ReleaseFast-final.log
+/macOS-ReleaseFast.log
+/macOS-ReleaseSafe-canonical.log
+/macOS-ReleaseSafe-final.log
+/macOS-ReleaseSafe.log
+/result.json

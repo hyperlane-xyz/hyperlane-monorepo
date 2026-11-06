@@ -1,0 +1,21 @@
+{
+  "gzip_artifacts_verified": 31,
+  "exact_ignored_json_mirrors": 7,
+  "original_bytes_unchanged": true,
+  "three_source_maps_stable_within_runs": true,
+  "only_source_difference_between_0913_and_0924": ".github/workflows/zig-agents.yml",
+  "0924_0933_source_maps_equal": true,
+  "all_runtime_artifact_native_archive_environment_maps_equal": true,
+  "individually_successful_gate_types": 11,
+  "single_complete_global_run": false,
+  "roles_binaries_preserved_locally_and_exact_directory_ignored": true,
+  "source_edits_tests_builds_staging_commits_performed": false,
+  "preserved_role_binaries_match_all_three_recorded_hashes": true,
+  "documentation_links_resolved": 25,
+  "normal_doc_format_check": "passed",
+  "normal_hook_requirements_inspected_but_not_executed": true,
+  "non_ignored_plain_text_full_width_hashes": 0,
+  "fast_default_only_passed": true,
+  "post_safe_mjs_format_sources_captured": 2,
+  "post_safe_mjs_historical_equivalence_claimed": false
+}

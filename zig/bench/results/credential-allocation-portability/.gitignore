@@ -1,0 +1,6 @@
+# Exact generated mirrors; lossless gzip records remain committed.
+/Linux-ReleaseFast.log
+/Linux-ReleaseSafe.log
+/macOS-ReleaseFast.log
+/macOS-ReleaseSafe.log
+/result.json

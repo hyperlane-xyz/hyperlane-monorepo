@@ -1,0 +1,163 @@
+{
+  "sources": [
+    {
+      "path": "rust/main/Cargo.toml",
+      "sha256": [
+        "3c80d508d7de30737adc603ebcabf600",
+        "267435f000ce0f3fbc8850793048b9e4"
+      ]
+    },
+    {
+      "path": "rust/main/agents/relayer/src/msg/db_loader.rs",
+      "sha256": [
+        "5f4c30e5b8dd51fe6738a61e60e32b30",
+        "6863292f904b67c56bf30aeffa59589d"
+      ]
+    },
+    {
+      "path": "rust/main/agents/relayer/src/msg/runtime_denylist.rs",
+      "sha256": [
+        "3fd5478e336ade7eb48909717c373e49",
+        "838193a98b5e83d732eec560ee1fb454"
+      ]
+    },
+    {
+      "path": "rust/main/agents/relayer/src/relay_api/metrics.rs",
+      "sha256": [
+        "ab2d548e721c777c1598b5ad2fe21999",
+        "2f874c339a6dc5aeeeeecbb4db0b771b"
+      ]
+    },
+    {
+      "path": "rust/main/agents/relayer/src/scraper_websocket.rs",
+      "sha256": [
+        "b6b202b98ad0d296149cc3b8498b1fb9",
+        "d3ca96261342af662c198f0122b2546d"
+      ]
+    },
+    {
+      "path": "rust/main/agents/scraper/src/agent.rs",
+      "sha256": [
+        "8990e942c9e93e5aedb06a469c8a409c",
+        "e5d54b3ae0cde7f1bda1bc0766a66112"
+      ]
+    },
+    {
+      "path": "rust/main/agents/scraper/src/reconciliation/metrics.rs",
+      "sha256": [
+        "61ca27576cc548928e72b398f619f78a",
+        "38ce5c04f0f245f829aca250c0b3c5e5"
+      ]
+    },
+    {
+      "path": "rust/main/agents/validator/src/validator.rs",
+      "sha256": [
+        "e00176370c20390a667efbb9c25199ef",
+        "2fb56bc21de3b7a14ae6b6c1df459f21"
+      ]
+    },
+    {
+      "path": "rust/main/ethers-prometheus/src/middleware/mod.rs",
+      "sha256": [
+        "7537ca8578fde4c3b1b911202cd04921",
+        "88d78725486de04a916e7a9cde542c3d"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/Cargo.toml",
+      "sha256": [
+        "e158194ca51ae8ca7b21910b05caecee",
+        "651d1f30ca69f514e85c8688920edf31"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/cache/metered_cache.rs",
+      "sha256": [
+        "b02d16598df553558ad1e7ff7a98f24f",
+        "6b509cd0771d62ba163b5dfdb869d79b"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/contract_sync/cursors/metrics.rs",
+      "sha256": [
+        "56467ddf32f5b73bf2f3060170592e6b",
+        "7a5ec41bfecb57f7c50705fdcad20758"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/contract_sync/metrics.rs",
+      "sha256": [
+        "e3f9c77d9128fbb1129111ad88d715ba",
+        "887d2da61978037f614f162b611efc41"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/metrics/agent_metrics.rs",
+      "sha256": [
+        "7cbd6ed43a13d8538f92d93f8a158389",
+        "9b34aee4eede3a2541b0d4912c63108a"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/metrics/cache.rs",
+      "sha256": [
+        "d7a95e727e38a11d6573d0e6bf65d61b",
+        "8bc8243d9cca075961d17f041f936362"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/metrics/core.rs",
+      "sha256": [
+        "82ca23f45915da8f5bfe076ce6ea270e",
+        "fa7c966db9133e2ccb053841e4aa85d7"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/metrics/json_rpc_client.rs",
+      "sha256": [
+        "e792ed5ac778648ef01d9a2bc28780c6",
+        "f16dc58570297c78ef8affa60e845663"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/metrics/provider.rs",
+      "sha256": [
+        "6b4d2e163cd67df5cfe3b80bf01bbf41",
+        "2242a5e28c6e47d5a26dc05794929fd0"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/metrics/runtime_metrics.rs",
+      "sha256": [
+        "be053273b197385ea2fa652a1c073b97",
+        "57077111d8af7c864fb5d52615231442"
+      ]
+    },
+    {
+      "path": "rust/main/hyperlane-metric/src/prometheus_metric.rs",
+      "sha256": [
+        "0cb82254f070122ba588329527edc40f",
+        "576509b0ba28d374487631c8ceb43c18"
+      ]
+    },
+    {
+      "path": "rust/main/lander/src/dispatcher/metrics.rs",
+      "sha256": [
+        "127028f6ae7c9467cb769eea67411688",
+        "75e504b700d081300bdb8f7270afe11d"
+      ]
+    }
+  ],
+  "counts": {
+    "shared": 40,
+    "lazy_shared": 28,
+    "relayer": 46,
+    "validator": 1,
+    "scraper": 6
+  },
+  "baselib_version": "3.0.0",
+  "schema_sha256": [
+    "ce8eb3bdeaa24f55868b046effb9dc3c",
+    "205677c1241012686a9890d39118611b"
+  ]
+}

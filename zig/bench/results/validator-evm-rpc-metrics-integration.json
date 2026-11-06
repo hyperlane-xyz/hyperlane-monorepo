@@ -1,0 +1,237 @@
+{
+  "passed": true,
+  "scope": "Actual EVM validator role/localstorage/nativeRocksDB/HTTP integration; not whole-agent performance",
+  "contracts": {
+    "Mailbox": "solidity/contracts/Mailbox.sol",
+    "MerkleTreeHook": "solidity/contracts/hooks/MerkleTreeHook.sol",
+    "TestIsm": "solidity/contracts/test/TestIsm.sol",
+    "TestPostDispatchHook": "solidity/contracts/test/TestPostDispatchHook.sol",
+    "ValidatorAnnounce": "solidity/contracts/isms/multisig/ValidatorAnnounce.sol"
+  },
+  "daemon": {
+    "passed": true,
+    "actual_binary": "zig/bench/.cache/validator-binaries/ecce942c163f56be2c59aae703d2e49c/validator-rpc-metrics",
+    "credential_environment": "empty except explicit defaults and native curl path",
+    "checkpoint_objects": 3,
+    "announcement_nonce": 1,
+    "restart_objects_unchanged": true,
+    "restart_nonce_unchanged": true,
+    "sigterm_clean_exit": true,
+    "checkpoint_ready_ms": 2454.9416250083596,
+    "receipt_stall_requests": 1,
+    "configured_rpc_deadline_ms": 20000,
+    "checkpoint_progress_while_receipt_worker_stalled": true,
+    "rpc_metrics": {
+      "passed": true,
+      "get_status": 200,
+      "head_status": 200,
+      "physical_request_count_rows": [
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55055\",connection=\"rpc\",chain=\"test1\",method=\"eth_chainId\",status=\"success\",rpc_role=\"quorum\",operation=\"validator_checkpoint\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 1",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55147\",connection=\"rpc\",chain=\"test1\",method=\"eth_chainId\",status=\"success\",rpc_role=\"quorum\",operation=\"validator_checkpoint\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 1",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55055\",connection=\"rpc\",chain=\"test1\",method=\"eth_getBlockByNumber\",status=\"success\",rpc_role=\"quorum\",operation=\"validator_checkpoint\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 6",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55055\",connection=\"rpc\",chain=\"test1\",method=\"eth_call\",status=\"success\",rpc_role=\"quorum\",operation=\"validator_checkpoint\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 6",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55147\",connection=\"rpc\",chain=\"test1\",method=\"eth_getBlockByNumber\",status=\"success\",rpc_role=\"quorum\",operation=\"validator_checkpoint\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 6",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55147\",connection=\"rpc\",chain=\"test1\",method=\"eth_call\",status=\"success\",rpc_role=\"quorum\",operation=\"validator_checkpoint\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 6",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55147\",connection=\"rpc\",chain=\"test1\",method=\"eth_call\",status=\"success\",rpc_role=\"primary\",operation=\"contract_sync\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 10",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55147\",connection=\"rpc\",chain=\"test1\",method=\"eth_getBlockByNumber\",status=\"success\",rpc_role=\"primary\",operation=\"contract_sync\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 7",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55147\",connection=\"rpc\",chain=\"test1\",method=\"eth_getLogs\",status=\"success\",rpc_role=\"primary\",operation=\"contract_sync\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 1",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55055\",connection=\"rpc\",chain=\"test1\",method=\"eth_getBlockByNumber\",status=\"success\",rpc_role=\"primary\",operation=\"contract_sync\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 1",
+        "hyperlane_request_count{provider_node=\"127.0.0.1:55055\",connection=\"rpc\",chain=\"test1\",method=\"eth_call\",status=\"success\",rpc_role=\"primary\",operation=\"contract_sync\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"} 6"
+      ],
+      "scope": "actual EVM vote FSM and primary indexing; chain-votes fixture separately verifies SDK replay accounting"
+    }
+  },
+  "classic_fallback": {
+    "first_role_tick_ms": 39,
+    "configured_slots": 1,
+    "checkpoint_objects": 3
+  },
+  "stalled_first": {
+    "request_seen": true,
+    "configured_rpc_timeout_ms": 20000,
+    "first_role_tick_ms": 326,
+    "requests_started": 28
+  },
+  "cases": [
+    "stalled first endpoint cannot block live quorum and all slots retain20s deadlines",
+    "classic fallback accepts healthy ready slot without waiting for stalled redundant peer",
+    "offchain signed announcement + actual Solidity announcement gate",
+    "canonical RPC URL dedup with unavailable slot retained",
+    "finalized event indexing and checkpoint quorum",
+    "all3 checkpoint roots/message IDs match actual Rust core",
+    "same DB restart publishes/signs nothing twice",
+    "empty DB authenticated snapshot bootstrap + complete history repair",
+    "lying event endpoint unsigned suffix discarded then canonical quorum recovered without signing bad history",
+    "growing-count signed-prefix fork audited within multi-event block then durable local/cloud restart guard"
+  ],
+  "unsigned_suffix_recovery": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": false,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 1,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 3,
+    "published": 3,
+    "configured_slots": 3,
+    "unavailable": 1
+  },
+  "fork": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": false,
+        "failure": null,
+        "count": null
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 4
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 4
+      }
+    ],
+    "fresh_verified": null,
+    "halted": true,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 0,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 0,
+    "published": 0,
+    "configured_slots": 3,
+    "unavailable": 0
+  },
+  "first": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": false,
+        "failure": null,
+        "count": null
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 0,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 3,
+    "published": 3,
+    "configured_slots": 3,
+    "unavailable": 1
+  },
+  "replay": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": false,
+        "failure": null,
+        "count": null
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 0,
+    "recoveries": 0,
+    "bootstrap_index": null,
+    "checkpoint_signatures": 0,
+    "published": 0,
+    "configured_slots": 3,
+    "unavailable": 1
+  },
+  "bootstrap": {
+    "passed": true,
+    "vote_diagnostics": [
+      {
+        "ready": false,
+        "failure": null,
+        "count": null
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      },
+      {
+        "ready": true,
+        "failure": null,
+        "count": 3
+      }
+    ],
+    "fresh_verified": 2,
+    "halted": false,
+    "announcement_pending": false,
+    "tree_count": 3,
+    "latest": 2,
+    "snapshot_through": 2,
+    "repair_complete": true,
+    "history_repaired": 3,
+    "recoveries": 0,
+    "bootstrap_index": 2,
+    "checkpoint_signatures": 0,
+    "published": 0,
+    "configured_slots": 3,
+    "unavailable": 1
+  }
+}

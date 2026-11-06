@@ -1,0 +1,9 @@
+{
+  "observed_utc": "2026-11-06T01:14:06.944639+00:00",
+  "no_compiler_target_runtime_library_paths": true,
+  "links": {
+    "lander-escalator-oracle": "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/lander-escalator-oracle:\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.178.0)\n\t/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.101.1)\n\t/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1351.101.1)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3423.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n",
+    "multicall": "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/multicall:\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.178.0)\n\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3423.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n",
+    "eip2930": "/Users/pbio/work/ziggy/zig/bench/results/lander-golden-recovery/pinned/eip2930:\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.178.0)\n\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3423.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n"
+  }
+}

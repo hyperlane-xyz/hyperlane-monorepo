@@ -1,0 +1,29 @@
+{
+  "scope": "Sustained contiguous finalized Ethereum read-only capture + Rust codec/ID/count parity; no signing/storage leases/publication/broadcast; not full-agent parity",
+  "started_at_utc": "2026-11-05T17:40:23.293190+00:00",
+  "endpoint_host": "ethereum-rpc.publicnode.com",
+  "chain_id": 1,
+  "domain": 1,
+  "binary_sha256_chunks": [
+    "9bc3066c07b7c72107c1009ef9e84b7e",
+    "8cd5d2e41a985b7ea1af875f66a354f0"
+  ],
+  "windows": [],
+  "endpoint_failures": {
+    "HTTPError": 4
+  },
+  "rpc_methods": {
+    "eth_getBlockByNumber": 4
+  },
+  "paused": false,
+  "fatal": null,
+  "captured_blocks": 0,
+  "dispatches": 0,
+  "insertions": 0,
+  "unmatched_initial_insertions": 0,
+  "elapsed_wall_seconds": 100.29922149982303,
+  "active_observation_seconds": 100.29922149982303,
+  "latest_update_utc": "2026-11-05T17:42:03.592891+00:00",
+  "last_transport_error": "HTTPError",
+  "finished_at_utc": "2026-11-05T17:42:03.592875+00:00"
+}

@@ -1,0 +1,14 @@
+{
+  "scope": "Failed functional Source snapshot; not benchmark timing or final acceptance",
+  "default_passed": 698,
+  "default_total": 702,
+  "failed": 4,
+  "leaking_tests": 1,
+  "later_checks_executed": false,
+  "cause_under_repair": "Incomplete typed block header fixtures and failed-test teardown; subsequent corrections need fresh Source-bound rerun",
+  "source_unchanged_during_run": true,
+  "canonical_manifest": "all-manifest.json.gz",
+  "canonical_log": "default.log.gz",
+  "exact_runner_snapshot": "runner.py.gz",
+  "runner_portability": "Task-local host-specific orchestration; underlying commands and explicit environment are recorded for reproduction"
+}

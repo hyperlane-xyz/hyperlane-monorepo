@@ -1,0 +1,171 @@
+const std = @import("std");
+const ops = @import("operation.zig");
+const native = @import("store.zig");
+const db = @import("../db/root.zig");
+const protocol = @import("../protocol/root.zig");
+const lifecycle = @import("../runtime/relayer.zig");
+
+test "native operation stale owners cannot overwrite new progress or an operator manual retry" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "cas" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{ .sync = true });
+    defer database.deinit();
+    var store = native.Store.init(a, &database, "origin");
+    const message: protocol.Message = .{ .origin = 1, .destination = 2, .nonce = 0, .sender = @splat(1), .recipient = @splat(2), .body = "manual race" };
+    _ = try store.storeMessage(message, 10, null);
+    const options: ops.Options = .{ .id = message.id(), .context = @splat(7), .nonce = 0, .destination = 2, .policy = .{ .confirm_delay_ms = 0 } };
+    const now: ops.Times = .{ .unix_ms = 1000, .monotonic_ms = 0 };
+    var first = try ops.Operation.open(a, &store, options, now);
+    defer first.deinit();
+    var second = try ops.Operation.open(a, &store, options, now);
+    defer second.deinit();
+    _ = try second.apply(.{ .tick = .{ .now_ms = 0 } }, now, null);
+    try std.testing.expectError(error.StaleOperationOwner, first.apply(.{ .tick = .{ .now_ms = 0 } }, now, null));
+    try store.storeRetry(message.id(), .{ .retry_count = 0, .next_attempt_at_millis = null, .retry_delay_millis = null, .reason = .Manual }, .{ .Retry = .Manual });
+    try std.testing.expectError(error.StaleOperationOwner, second.apply(.{ .prepared = .{ .generation = 1, .gas_allowed = true, .metadata_valid = true } }, now, null));
+    try std.testing.expectEqual(db.json.Status{ .Retry = .Manual }, (try store.status(message.id())).?);
+    var manual = try ops.Operation.open(a, &store, options, now);
+    defer manual.deinit();
+    try std.testing.expectEqual(lifecycle.Stage.pending, manual.value.stage);
+    try std.testing.expectEqual(@as(u32, 0), manual.value.retries);
+    try std.testing.expectEqual(@as(u64, 1), manual.value.generation);
+    try std.testing.expectEqual(lifecycle.Effect{ .prepare = 2 }, try manual.apply(.{ .tick = .{ .now_ms = 0 } }, now, null));
+}
+
+test "native operation persists signed bytes before broadcast and resumes with Rust status and retry rows" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "ops" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{});
+    defer database.deinit();
+    var store = native.Store.init(a, &database, "origin");
+    const message: protocol.Message = .{ .version = 3, .nonce = 0, .origin = 1, .destination = 2, .sender = @splat(1), .recipient = @splat(2), .body = "durable" };
+    _ = try store.storeMessage(message, 10, null);
+    const options: ops.Options = .{ .id = message.id(), .context = @splat(7), .nonce = message.nonce, .destination = message.destination, .policy = .{ .confirm_delay_ms = 0 } };
+    var operation = try ops.Operation.open(a, &store, options, .{ .unix_ms = 1000, .monotonic_ms = 0 });
+    _ = try operation.apply(.{ .tick = .{ .now_ms = 0 } }, .{ .unix_ms = 1000, .monotonic_ms = 0 }, null);
+    _ = try operation.apply(.{ .prepared = .{ .generation = 1, .gas_allowed = true, .metadata_valid = true } }, .{ .unix_ms = 1000, .monotonic_ms = 0 }, null);
+    const effect = try operation.recordTransaction(1, "public signed fixture", .{ .unix_ms = 1000, .monotonic_ms = 0 });
+    operation.deinit(); // Crash before broadcasting the returned effect.
+    var recovered = try ops.Operation.open(a, &store, options, .{ .unix_ms = 2000, .monotonic_ms = 100 });
+    defer recovered.deinit();
+    try std.testing.expectEqualStrings("public signed fixture", recovered.transaction_bytes.?);
+    try std.testing.expectEqual(lifecycle.Effect{ .reconcile = effect.broadcast }, try recovered.apply(.{ .tick = .{ .now_ms = 100 } }, .{ .unix_ms = 2000, .monotonic_ms = 100 }, null));
+    try std.testing.expectEqual(db.json.Status.ReadyToSubmit, (try store.status(options.id)).?);
+    try std.testing.expectError(error.OperationContextChanged, ops.Operation.open(a, &store, .{ .id = options.id, .context = @splat(8), .nonce = options.nonce, .destination = options.destination }, .{ .unix_ms = 2000, .monotonic_ms = 100 }));
+    _ = try recovered.apply(.{ .already_delivered = .{ .finalized = true } }, .{ .unix_ms = 2000, .monotonic_ms = 100 }, null);
+    try std.testing.expect(try store.processed(message.nonce));
+    try std.testing.expect((try store.pendingAtOrAfter(message.destination, 0)) == null);
+}
+
+test "native operation imports manual retries and old delivery cannot process a replacement nonce" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "ops" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{});
+    defer database.deinit();
+    var store = native.Store.init(a, &database, "origin");
+    const message: protocol.Message = .{ .version = 3, .nonce = 0, .origin = 1, .destination = 2, .sender = @splat(1), .recipient = @splat(2), .body = "old" };
+    _ = try store.storeMessage(message, 10, null);
+    try store.storeRetry(message.id(), .{ .retry_count = 99, .next_attempt_at_millis = 50000, .retry_delay_millis = 10000, .reason = .CouldNotFetchMetadata }, .{ .Retry = .Manual });
+    var operation = try ops.Operation.open(a, &store, .{ .id = message.id(), .context = @splat(7), .nonce = 0, .destination = 2, .policy = .{ .confirm_delay_ms = 0 } }, .{ .unix_ms = 1000, .monotonic_ms = 0 });
+    defer operation.deinit();
+    try std.testing.expectEqual(@as(u32, 0), operation.value.retries);
+    try std.testing.expect(!operation.parked);
+    try std.testing.expectEqual(@as(u32, 0), try store.retryCount(message.id()));
+    var replacement = message;
+    replacement.body = "new";
+    try store.upsertMessage(replacement, 11, null);
+    try std.testing.expectError(error.UnfinalizedDelivery, operation.apply(.{ .already_delivered = .{ .finalized = false } }, .{ .unix_ms = 1000, .monotonic_ms = 0 }, null));
+    _ = try operation.apply(.{ .already_delivered = .{ .finalized = true } }, .{ .unix_ms = 1000, .monotonic_ms = 0 }, null);
+    try std.testing.expect(!try store.processed(replacement.nonce));
+    var pending = (try store.pendingAtOrAfter(2, 0)).?;
+    defer pending.deinit();
+    try std.testing.expectEqualSlices(u8, &replacement.id(), &pending.value.id());
+}
+
+test "source confirmation deadline rebases durably and payload replay never postpones or bypasses it" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "confirm" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{ .sync = true });
+    var store = native.Store.init(a, &database, "origin");
+    const message: protocol.Message = .{ .nonce = 0, .origin = 1, .destination = 2, .sender = @splat(1), .recipient = @splat(2), .body = "source confirmation" };
+    _ = try store.storeMessage(message, 1, null);
+    const options: ops.Options = .{ .id = message.id(), .context = @splat(7), .nonce = 0, .destination = 2 };
+    var actor = try ops.Operation.open(a, &store, options, .{ .unix_ms = 1000, .monotonic_ms = 10 });
+    _ = try actor.apply(.{ .tick = .{ .now_ms = 10 } }, .{ .unix_ms = 1000, .monotonic_ms = 10 }, null);
+    try actor.payloadEnqueued(1, .{ .unix_ms = 1000, .monotonic_ms = 10 });
+    try std.testing.expectEqual(db.json.Status.ReadyToSubmit, actor.current_status);
+    try std.testing.expect(!actor.value.confirmation_started);
+    try actor.beginConfirmation(.{ .unix_ms = 1100, .monotonic_ms = 110 }, true);
+    try actor.payloadEnqueued(1, .{ .unix_ms = 2100, .monotonic_ms = 1110 });
+    try std.testing.expectEqual(@as(u64, 600110), actor.value.next_attempt_ms);
+    try std.testing.expectEqual(@as(u64, 601100), actor.deadline.?.unix_ms);
+    actor.deinit();
+    database.deinit();
+    database = try db.rocks.Database.open(a, path, .{ .sync = true });
+    defer database.deinit();
+    store = native.Store.init(a, &database, "origin");
+    actor = try ops.Operation.open(a, &store, options, .{ .unix_ms = 301100, .monotonic_ms = 5 });
+    defer actor.deinit();
+    try std.testing.expectEqual(@as(u64, 300005), actor.value.next_attempt_ms);
+    try std.testing.expect(actor.value.confirmation_started);
+    const early: ops.Times = .{ .unix_ms = 601099, .monotonic_ms = 300004 };
+    try actor.payloadEnqueued(1, early);
+    try actor.payloadDelivered(early);
+    try std.testing.expectEqual(lifecycle.Stage.ready, actor.value.stage);
+    try std.testing.expect(!try store.processed(0));
+    try std.testing.expectEqual(@as(u64, 300005), actor.value.next_attempt_ms);
+    try actor.payloadDelivered(.{ .unix_ms = 601100, .monotonic_ms = 300005 });
+    try std.testing.expectEqual(lifecycle.Stage.delivered, actor.value.stage);
+    try std.testing.expect(try store.processed(0));
+}
+
+test "source imported Rust Confirm with durable deadline resumes remaining window instead of adding600s" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "import-confirm" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{});
+    defer database.deinit();
+    var store = native.Store.init(a, &database, "origin");
+    const message: protocol.Message = .{ .nonce = 0, .origin = 1, .destination = 2, .sender = @splat(1), .recipient = @splat(2), .body = "imported source confirmation" };
+    _ = try store.storeMessage(message, 1, null);
+    try store.storeRetry(message.id(), .{ .retry_count = 0, .next_attempt_at_millis = 601000, .retry_delay_millis = 600000, .reason = null }, .{ .Confirm = .AlreadySubmitted });
+    const options: ops.Options = .{ .id = message.id(), .context = @splat(7), .nonce = 0, .destination = 2 };
+    var actor = try ops.Operation.open(a, &store, options, .{ .unix_ms = 301000, .monotonic_ms = 7 });
+    try std.testing.expect(actor.value.confirmation_started);
+    try std.testing.expectEqual(@as(u64, 300007), actor.value.next_attempt_ms);
+    try std.testing.expectEqual(db.json.Status{ .Confirm = .AlreadySubmitted }, actor.current_status);
+    try actor.beginConfirmation(.{ .unix_ms = 301001, .monotonic_ms = 8 }, false);
+    try std.testing.expectEqual(@as(u64, 300007), actor.value.next_attempt_ms);
+    actor.deinit();
+    actor = try ops.Operation.open(a, &store, options, .{ .unix_ms = 401000, .monotonic_ms = 5 });
+    defer actor.deinit();
+    try std.testing.expectEqual(@as(u64, 200005), actor.value.next_attempt_ms);
+    _ = try actor.apply(.{ .already_delivered = .{ .finalized = true } }, .{ .unix_ms = 600999, .monotonic_ms = 200004 }, null);
+    try std.testing.expect(!try store.processed(0));
+    _ = try actor.apply(.{ .already_delivered = .{ .finalized = true } }, .{ .unix_ms = 601000, .monotonic_ms = 200005 }, null);
+    try std.testing.expect(try store.processed(0));
+}

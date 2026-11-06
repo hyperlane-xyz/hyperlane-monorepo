@@ -32,6 +32,7 @@
     "typescript/infra/helm/**/templates/**",
     "typescript/infra/src/infrastructure/external-secrets/helm/templates/**",
     "vectors/**",
+    "zig/bench/results/**",
     "typescript/warp-widget/examples/**"
   ]
 }

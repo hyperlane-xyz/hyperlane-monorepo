@@ -1,0 +1,172 @@
+{
+  "scope": "Sustained contiguous finalized Ethereum read-only capture + Rust codec/ID/count parity; no signing/storage leases/publication/broadcast; not full-agent parity",
+  "active_observation_seconds": 3661.032476792112,
+  "captured_blocks": 294,
+  "dispatches": 24,
+  "insertions": 24,
+  "endpoint_failures": {},
+  "from_block": 26350112,
+  "to_block": 26350405,
+  "files": [
+    {
+      "file": "first-hour-observation.json",
+      "bytes": 7188,
+      "sha256_chunks": [
+        "bcd965129d7e059e08d46400b732bbd4",
+        "140d7afcf3b1503a0e2146817edc7e87"
+      ]
+    },
+    {
+      "file": "window-000000.json",
+      "bytes": 10168,
+      "sha256_chunks": [
+        "b109fe643313aea7a1343e0f0d39f709",
+        "2189afc025065b4035a56851323e7d23"
+      ]
+    },
+    {
+      "file": "window-000001.json",
+      "bytes": 15383,
+      "sha256_chunks": [
+        "f01670c83f543f8137ff702f3d575616",
+        "8ebe10c34a84f6dcff494cf9894780b8"
+      ]
+    },
+    {
+      "file": "window-000002.json",
+      "bytes": 16657,
+      "sha256_chunks": [
+        "5dff66761abbb1ef0d5ce905d12977a5",
+        "c3a903af0dbbc4832d05a733adcb0314"
+      ]
+    },
+    {
+      "file": "window-000003.json",
+      "bytes": 17688,
+      "sha256_chunks": [
+        "9952dff3df34571e532fbdabbd60f2e2",
+        "917be9eb833d47c9aa8215440870aafa"
+      ]
+    },
+    {
+      "file": "window-000004.json",
+      "bytes": 15423,
+      "sha256_chunks": [
+        "85d7450a8ec92e1e4d4d09eb5aefe73d",
+        "ea878ae2c87795b43178dcf6cbc9ba18"
+      ]
+    },
+    {
+      "file": "window-000005.json",
+      "bytes": 19784,
+      "sha256_chunks": [
+        "d470a4efac659fab278efa95cc1b4896",
+        "076acd4cb68244635281c03b24d935ea"
+      ]
+    },
+    {
+      "file": "window-000006.json",
+      "bytes": 17602,
+      "sha256_chunks": [
+        "8cc1ec05bb85c5606c8a27bb7db21209",
+        "54680134fa54fb1e3cc848871c94ffbb"
+      ]
+    },
+    {
+      "file": "window-000007.json",
+      "bytes": 17581,
+      "sha256_chunks": [
+        "f0f939456867f06ca66589727de2d9fe",
+        "56e00fb59ddce04c74c06cd8179891e3"
+      ]
+    },
+    {
+      "file": "window-000008.json",
+      "bytes": 22089,
+      "sha256_chunks": [
+        "7793ff57b81dc2a566e50d75d326559c",
+        "a6c6545602febe3968130ff17d6a0896"
+      ]
+    },
+    {
+      "file": "window-000009.json",
+      "bytes": 15411,
+      "sha256_chunks": [
+        "8d8900d6a010074ab2d2ff585d8dd75e",
+        "bbb5df135f6b9987117fddc321029b9d"
+      ]
+    },
+    {
+      "file": "window-000010.json",
+      "bytes": 17598,
+      "sha256_chunks": [
+        "9797f2a6854425c40805e7cba852a29b",
+        "5537ea9c2fe2d7079c398eb83b1f5c5e"
+      ]
+    },
+    {
+      "file": "window-000011.json",
+      "bytes": 26470,
+      "sha256_chunks": [
+        "75dba20195a4dc09da7e62663b968525",
+        "520ec5e50e747295af6998927b8557b9"
+      ]
+    },
+    {
+      "file": "window-000012.json",
+      "bytes": 17719,
+      "sha256_chunks": [
+        "6c20c893526bbdae1a32002d68b1cbb7",
+        "efc2f1567c2dbd8bfdd523da12622450"
+      ]
+    },
+    {
+      "file": "window-000013.json",
+      "bytes": 15403,
+      "sha256_chunks": [
+        "e03693298815075e763e1e502e108988",
+        "bcfdaeb40f3945378b11f13d99b17af7"
+      ]
+    },
+    {
+      "file": "window-000014.json",
+      "bytes": 17633,
+      "sha256_chunks": [
+        "1bcfe35cad486070ea868fad84620d1a",
+        "25118b4c3afc8e7240e8bc559bd8e110"
+      ]
+    },
+    {
+      "file": "window-000015.json",
+      "bytes": 17612,
+      "sha256_chunks": [
+        "0f18862050765b0e98b7bdab1c9acb8b",
+        "c52cae9ab26e8a79966a1eac2b36a0eb"
+      ]
+    },
+    {
+      "file": "window-000016.json",
+      "bytes": 21132,
+      "sha256_chunks": [
+        "2d39d19e853ce050cd3c0f7b2c3ca70d",
+        "d974331cfed8b8f00a0ea8c3a9196087"
+      ]
+    },
+    {
+      "file": "window-000017.json",
+      "bytes": 17594,
+      "sha256_chunks": [
+        "d49c8d5b21106442fcd2b657c02dfdea",
+        "accd70a166efd8a333eb78fccc172054"
+      ]
+    },
+    {
+      "file": "window-000018.json",
+      "bytes": 17594,
+      "sha256_chunks": [
+        "a29ac7e778b010ff01b149544123605e",
+        "514d42da1eacaf9acc846d3eb91867b5"
+      ]
+    }
+  ]
+}

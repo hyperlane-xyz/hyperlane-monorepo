@@ -1,0 +1,325 @@
+{
+  "encoding": "gzip",
+  "scope": "Exact functional acceptance files. Original JSON/log bytes retained losslessly, including source fingerprints; original executable stays at its pinned /tmp path and is identified by digest. No comparative timing.",
+  "files": [
+    {
+      "path": "README.md.gz",
+      "original_path": "README.md",
+      "original_bytes": 3438,
+      "gzip_bytes": 1768,
+      "sha256_chunks": [
+        "65d379ce1f7d042f1ebc85cf7e198a8",
+        "b4b5d107a308c06c20f0ef86d0b6cd3",
+        "85"
+      ]
+    },
+    {
+      "path": "acceptance.json.gz",
+      "original_path": "acceptance.json",
+      "original_bytes": 4397,
+      "gzip_bytes": 1991,
+      "sha256_chunks": [
+        "c4003469d55013b95552bdd84a5e7ac",
+        "f9aff301f0fa68f69567febdc18107f",
+        "83"
+      ]
+    },
+    {
+      "path": "gzip-fixtures.log.gz",
+      "original_path": "gzip-fixtures.log",
+      "original_bytes": 5245,
+      "gzip_bytes": 1901,
+      "sha256_chunks": [
+        "eab8523a9fded8dab09b7d5da4c1ff0",
+        "658e1ece61ee306cd1cc8b9dba04cf7",
+        "57"
+      ]
+    },
+    {
+      "path": "owned-source-before.json.gz",
+      "original_path": "owned-source-before.json",
+      "original_bytes": 15183,
+      "gzip_bytes": 6686,
+      "sha256_chunks": [
+        "183335a72798d9e11f438d7b5528452",
+        "0626bba8380ff9cb30184a42bcc19a7",
+        "b0"
+      ]
+    },
+    {
+      "path": "pg-source-after.json.gz",
+      "original_path": "pg-source-after.json",
+      "original_bytes": 20142,
+      "gzip_bytes": 9120,
+      "sha256_chunks": [
+        "595069ec02c5f8f71eb85c177417179",
+        "28311334c4383a60392c1b9a7c295f0",
+        "23"
+      ]
+    },
+    {
+      "path": "pg-source-before.json.gz",
+      "original_path": "pg-source-before.json",
+      "original_bytes": 20142,
+      "gzip_bytes": 9120,
+      "sha256_chunks": [
+        "595069ec02c5f8f71eb85c177417179",
+        "28311334c4383a60392c1b9a7c295f0",
+        "23"
+      ]
+    },
+    {
+      "path": "pg-source-validated.json.gz",
+      "original_path": "pg-source-validated.json",
+      "original_bytes": 20243,
+      "gzip_bytes": 9199,
+      "sha256_chunks": [
+        "1a229f03d995c342ee22eaaf1d91826",
+        "f35dc4719f0f02f32a235203cdbb2a5",
+        "96"
+      ]
+    },
+    {
+      "path": "postgres/postgres-integration.json.gz",
+      "original_path": "postgres/postgres-integration.json",
+      "original_bytes": 2298,
+      "gzip_bytes": 1179,
+      "sha256_chunks": [
+        "702e7024a8fd1aaf88ab9e47ac7c417",
+        "a7810b718e74ea6e8efa43b2f3aa795",
+        "a0"
+      ]
+    },
+    {
+      "path": "postgres/postgres-integration.log.gz",
+      "original_path": "postgres/postgres-integration.log",
+      "original_bytes": 42444,
+      "gzip_bytes": 12575,
+      "sha256_chunks": [
+        "02b8f6bfd87aca817bfd7d0437fd3ff",
+        "b0c19a3b242f936622878b9e794a7d1",
+        "0c"
+      ]
+    },
+    {
+      "path": "postgres/postgres-migrations.log.gz",
+      "original_path": "postgres/postgres-migrations.log",
+      "original_bytes": 113625,
+      "gzip_bytes": 13390,
+      "sha256_chunks": [
+        "598606818818550aec52a910769657a",
+        "e9413680d5549e7a19ed077dd3b51eb",
+        "e2"
+      ]
+    },
+    {
+      "path": "postgres/postgres-native-tests.json.gz",
+      "original_path": "postgres/postgres-native-tests.json",
+      "original_bytes": 77,
+      "gzip_bytes": 76,
+      "sha256_chunks": [
+        "e62dbeb74599b4b41e343281f50d009",
+        "8db12b83597f53f2715a87f5b75e2fa",
+        "24"
+      ]
+    },
+    {
+      "path": "postgres/postgres-sql-smoke.log.gz",
+      "original_path": "postgres/postgres-sql-smoke.log",
+      "original_bytes": 2,
+      "gzip_bytes": 22,
+      "sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d57000254b",
+        "84bd9eba34b4df7ce4b87db8b937b77",
+        "03"
+      ]
+    },
+    {
+      "path": "postgres/postgres-test-build.log.gz",
+      "original_path": "postgres/postgres-test-build.log",
+      "original_bytes": 0,
+      "gzip_bytes": 20,
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb92",
+        "427ae41e4649b934ca495991b7852b8",
+        "55"
+      ]
+    },
+    {
+      "path": "postgres-driver.log.gz",
+      "original_path": "postgres-driver.log",
+      "original_bytes": 126,
+      "gzip_bytes": 129,
+      "sha256_chunks": [
+        "574395febfcaf29113cd061b7dc06db",
+        "6a827934d77ebd1d0d8006a0f000878",
+        "98"
+      ]
+    },
+    {
+      "path": "process/postgres-integration.json.gz",
+      "original_path": "process/postgres-integration.json",
+      "original_bytes": 2068,
+      "gzip_bytes": 950,
+      "sha256_chunks": [
+        "18f74822d9dccf7f66ee236e572b854",
+        "b9935f7ffbdc79df110037a7987520f",
+        "d0"
+      ]
+    },
+    {
+      "path": "process/postgres-migrations.log.gz",
+      "original_path": "process/postgres-migrations.log",
+      "original_bytes": 113640,
+      "gzip_bytes": 13382,
+      "sha256_chunks": [
+        "bc978eae3d4eee4819e0dec0397984e",
+        "cad8427d52274bc41604b62ba014871",
+        "ea"
+      ]
+    },
+    {
+      "path": "process/postgres-native-tests.json.gz",
+      "original_path": "process/postgres-native-tests.json",
+      "original_bytes": 123,
+      "gzip_bytes": 115,
+      "sha256_chunks": [
+        "7cb38d560315108942554acb99446a4",
+        "2347ad7c35a29c82727c1c6d6a62163",
+        "ef"
+      ]
+    },
+    {
+      "path": "process/postgres-sql-smoke.log.gz",
+      "original_path": "process/postgres-sql-smoke.log",
+      "original_bytes": 2,
+      "gzip_bytes": 22,
+      "sha256_chunks": [
+        "fe8edeeb98cc6d3b93cf2d57000254b",
+        "84bd9eba34b4df7ce4b87db8b937b77",
+        "03"
+      ]
+    },
+    {
+      "path": "process/scraper-anvil.log.gz",
+      "original_path": "process/scraper-anvil.log",
+      "original_bytes": 0,
+      "gzip_bytes": 20,
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb92",
+        "427ae41e4649b934ca495991b7852b8",
+        "55"
+      ]
+    },
+    {
+      "path": "process/scraper-daemon.log.gz",
+      "original_path": "process/scraper-daemon.log",
+      "original_bytes": 681,
+      "gzip_bytes": 155,
+      "sha256_chunks": [
+        "c7213387998ee2e538a72809097b45d",
+        "cd0a58d541e9405e2682b83d9635efb",
+        "be"
+      ]
+    },
+    {
+      "path": "process/scraper-process.json.gz",
+      "original_path": "process/scraper-process.json",
+      "original_bytes": 1698,
+      "gzip_bytes": 832,
+      "sha256_chunks": [
+        "5d3404e351cbdcd5070d9d3c5de28e2",
+        "ddb77a21c52ea96cd39862486d9e018",
+        "e7"
+      ]
+    },
+    {
+      "path": "process/scraper-process.log.gz",
+      "original_path": "process/scraper-process.log",
+      "original_bytes": 1476,
+      "gzip_bytes": 799,
+      "sha256_chunks": [
+        "5043199e6f0a9b74ca2ebfe52225f4f",
+        "b1f102253b4e9ca4d69968ffe53aeae",
+        "8d"
+      ]
+    },
+    {
+      "path": "process-driver.log.gz",
+      "original_path": "process-driver.log",
+      "original_bytes": 125,
+      "gzip_bytes": 128,
+      "sha256_chunks": [
+        "0329590735fde4313eeb26f69ba1b4c",
+        "5cc2ee66f7dafac5c46cd5436647b6b",
+        "72"
+      ]
+    },
+    {
+      "path": "scraper-build.log.gz",
+      "original_path": "scraper-build.log",
+      "original_bytes": 0,
+      "gzip_bytes": 20,
+      "sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb92",
+        "427ae41e4649b934ca495991b7852b8",
+        "55"
+      ]
+    },
+    {
+      "path": "source-after-cli.json.gz",
+      "original_path": "source-after-cli.json",
+      "original_bytes": 58510,
+      "gzip_bytes": 25517,
+      "sha256_chunks": [
+        "b61f83f19143653542adf2d88d419ac",
+        "cb6e11d3bec7a0c9aa6f12cdbb60329",
+        "4c"
+      ]
+    },
+    {
+      "path": "source-after-pg.json.gz",
+      "original_path": "source-after-pg.json",
+      "original_bytes": 58510,
+      "gzip_bytes": 25522,
+      "sha256_chunks": [
+        "6e02547a763a2517f74d9e1c0a33bde",
+        "a611053d87c2e7646c07186f2fbbfcd",
+        "31"
+      ]
+    },
+    {
+      "path": "source-after.json.gz",
+      "original_path": "source-after.json",
+      "original_bytes": 58510,
+      "gzip_bytes": 25517,
+      "sha256_chunks": [
+        "1f82178dfda62f5f770d56478db5c3a",
+        "858aa3c7d41386fc0213e66bcd4d3d2",
+        "59"
+      ]
+    },
+    {
+      "path": "source-before-cli.json.gz",
+      "original_path": "source-before-cli.json",
+      "original_bytes": 58510,
+      "gzip_bytes": 25522,
+      "sha256_chunks": [
+        "a42946a97d162bfa677c0e107f7b52a",
+        "d1d16a2e2d6fff9bea9b975d76b4641",
+        "7c"
+      ]
+    },
+    {
+      "path": "source-before.json.gz",
+      "original_path": "source-before.json",
+      "original_bytes": 58629,
+      "gzip_bytes": 25579,
+      "sha256_chunks": [
+        "84e019c67fa77f109efe1a0639e49e0",
+        "404d729c800a918bee9c54532d82f29",
+        "97"
+      ]
+    }
+  ]
+}

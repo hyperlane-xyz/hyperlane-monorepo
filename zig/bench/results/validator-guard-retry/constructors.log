@@ -1,0 +1,14 @@
+1/13 validator_task_native_tests.test_0...OK
+2/13 agents.validator_task_test.test.validator constructors are allocation-only and announcement HTTP and scheduling are independent...OK
+3/13 cloud.root.test_0...OK
+4/13 evm.root.test_0...OK
+5/13 agents.chain_source.test_0...OK
+6/13 agents.destination.root.test_0...OK
+7/13 db.root.test_0...OK
+8/13 agents.scraper.starknet.test_0...OK
+9/13 protocol.root.test_0...OK
+10/13 agents.destination.reveal.test_0...OK
+11/13 cloud.google_adc.test_0...OK
+12/13 cloud.aws_profile.test_0...OK
+13/13 agents.destination.source_metadata.test_0...OK
+All 13 tests passed.

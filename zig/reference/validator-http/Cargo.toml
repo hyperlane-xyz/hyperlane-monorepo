@@ -1,0 +1,31 @@
+[package]
+name = "ziggy-validator-http-reference"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[workspace]
+[dependencies]
+hyperlane-base = { path = "../../../rust/main/hyperlane-base", features = ["test-utils"] }
+hyperlane-core = { path = "../../../rust/main/hyperlane-core", features = ["agent", "async"] }
+axum = "=0.8.4"
+tokio = { version = "=1.53.1", features = ["macros", "rt-multi-thread"] }
+tower = { version = "=0.5.2", features = ["util"] }
+prometheus = "=0.14.0"
+derive-new = "=0.5.9"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.151"
+tempfile = "=3.23.0"
+eyre = "=0.6.8"
+tracing = "=0.1.44"
+[patch.crates-io.curve25519-dalek]
+branch = "v3.2.2-relax-zeroize"
+git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
+version = "3.2.2"
+[patch.crates-io.primitive-types]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.12.1"
+[patch.crates-io.rlp]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.5.2"

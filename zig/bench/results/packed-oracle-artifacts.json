@@ -1,0 +1,445 @@
+{
+  "encoding": "gzip",
+  "files": [
+    {
+      "path": "zig/reference/Cargo.lock.gz",
+      "bytes": 42606,
+      "gzip_bytes": 10925,
+      "sha256_chunks": [
+        "1bb3719ebb2ff0ce877eb1a75d71f31",
+        "b0799b3cc92226c9d5533218fe57fe8",
+        "dd"
+      ]
+    },
+    {
+      "path": "zig/reference/db-codecs/Cargo.lock.gz",
+      "bytes": 30611,
+      "gzip_bytes": 7880,
+      "sha256_chunks": [
+        "b257affe847d3a4f4a9cab87f2f6a26",
+        "c4971635c1ef42750f5f1885d55ad09",
+        "09"
+      ]
+    },
+    {
+      "path": "zig/reference/evm/Cargo.lock.gz",
+      "bytes": 30704,
+      "gzip_bytes": 7475,
+      "sha256_chunks": [
+        "54dd0172d44ced3c096cdb01492d3d3",
+        "4fe5be8ad9d0ee28776afdff60f08f3",
+        "b4"
+      ]
+    },
+    {
+      "path": "zig/reference/reveal/Cargo.lock.gz",
+      "bytes": 68058,
+      "gzip_bytes": 16233,
+      "sha256_chunks": [
+        "c2ce483b3f3a98709e81881e041bcbe",
+        "f1a4ce86fe1e1efe589fd35e561b5ec",
+        "78"
+      ]
+    },
+    {
+      "path": "zig/reference/rocks/Cargo.lock.gz",
+      "bytes": 353935,
+      "gzip_bytes": 77679,
+      "sha256_chunks": [
+        "e05bd62a98071d2ab6f18c917d63561",
+        "c7e755bcb45f9f9637de8d36e97f09b",
+        "a0"
+      ]
+    },
+    {
+      "path": "zig/reference/settings/Cargo.lock.gz",
+      "bytes": 355113,
+      "gzip_bytes": 78012,
+      "sha256_chunks": [
+        "9ff8af384a218c419fddb5c5acebe61",
+        "e39082316504849600efc3101de644f",
+        "fe"
+      ]
+    },
+    {
+      "path": "zig/reference/tron/Cargo.lock.gz",
+      "bytes": 30407,
+      "gzip_bytes": 7712,
+      "sha256_chunks": [
+        "58f2ecd643fa07ffaea789c59c05191",
+        "414ca5e949bd6c500babe970de24816",
+        "dd"
+      ]
+    },
+    {
+      "path": "zig/reference/validator-http/Cargo.lock.gz",
+      "bytes": 353496,
+      "gzip_bytes": 77702,
+      "sha256_chunks": [
+        "c4096cf6201d28c0fafa87a6cb65725",
+        "f8a52ca8b17b996aa08a6f5a71d7ef5",
+        "1b"
+      ]
+    },
+    {
+      "path": "zig/src/agents/destination/fixtures/reveal.jsonl.gz",
+      "bytes": 185075,
+      "gzip_bytes": 8990,
+      "sha256_chunks": [
+        "2532100a444cb813c1fd69bc7bca5f5",
+        "a44e6ec8c4b5250cbe7cc7f4f6362e1",
+        "ca"
+      ]
+    },
+    {
+      "path": "zig/src/agents/scraper/fixtures/radix-receipt-manifests.json.gz",
+      "bytes": 10304,
+      "gzip_bytes": 658,
+      "sha256_chunks": [
+        "56b0e21a76dd3e71e8c35d80895b2d6",
+        "398d5073432f1abc013bb64ced20b57",
+        "6d"
+      ]
+    },
+    {
+      "path": "zig/src/agents/scraper/fixtures/svm-meta-production.json.gz",
+      "bytes": 109568,
+      "gzip_bytes": 25010,
+      "sha256_chunks": [
+        "04725f6ce9002a032f2990f8193b982",
+        "2ea0b2a10ec441e2cfec0310ed198ea",
+        "99"
+      ]
+    },
+    {
+      "path": "zig/src/agents/scraper/fixtures/svm-receipt-eclipse.json.gz",
+      "bytes": 17443,
+      "gzip_bytes": 3760,
+      "sha256_chunks": [
+        "efcffc6642fd8451d079681be78b29f",
+        "95477f786402b537f669813b5d36825",
+        "1c"
+      ]
+    },
+    {
+      "path": "zig/src/agents/scraper/fixtures/svm-receipt-solana.json.gz",
+      "bytes": 12001,
+      "gzip_bytes": 2806,
+      "sha256_chunks": [
+        "bffdf73b2b5c3ab693bdc69c9fba89a",
+        "c2a3603dc85e13df44023c2e569fa37",
+        "02"
+      ]
+    },
+    {
+      "path": "zig/src/agents/validator/fixtures/http.jsonl.gz",
+      "bytes": 8806,
+      "gzip_bytes": 1131,
+      "sha256_chunks": [
+        "f27a39ff7775cfdbb28f515747ea3ca",
+        "a54a29bb2ca2c0f16c1db1d68f2f6b9",
+        "60"
+      ]
+    },
+    {
+      "path": "zig/src/aleo/fixtures/cooperative.jsonl.gz",
+      "bytes": 1558,
+      "gzip_bytes": 600,
+      "sha256_chunks": [
+        "160aced3ed6451d2858f404bcd9c947",
+        "b8b608c719f141d0dd3b834382f961e",
+        "6f"
+      ]
+    },
+    {
+      "path": "zig/src/aleo/fixtures/source.jsonl.gz",
+      "bytes": 7025,
+      "gzip_bytes": 3137,
+      "sha256_chunks": [
+        "7a903d0e7636d965a8cd35f46a0b8e0",
+        "e6bf100641ccab909b71e71978f3471",
+        "92"
+      ]
+    },
+    {
+      "path": "zig/src/altvm/fixtures/announcements.json.gz",
+      "bytes": 2545,
+      "gzip_bytes": 695,
+      "sha256_chunks": [
+        "3b0aa4bd7e1ba8146f901f798373d71",
+        "8ff101a9e385e32a367f204e68e2735",
+        "f4"
+      ]
+    },
+    {
+      "path": "zig/src/altvm/fixtures/compiler.json.gz",
+      "bytes": 512818,
+      "gzip_bytes": 61525,
+      "sha256_chunks": [
+        "7a0ca6f066fc5d78e2c16d28b0d7851",
+        "fa80ab938eedb96ce36c1391be150b2",
+        "da"
+      ]
+    },
+    {
+      "path": "zig/src/altvm/fixtures/sdk.json.gz",
+      "bytes": 7990,
+      "gzip_bytes": 2792,
+      "sha256_chunks": [
+        "d8b1590eeab75402033501fc6c667f3",
+        "c3edb0a54c731339bda74a9831eccc3",
+        "bd"
+      ]
+    },
+    {
+      "path": "zig/src/altvm/fixtures/svm-destination.json.gz",
+      "bytes": 9761,
+      "gzip_bytes": 1220,
+      "sha256_chunks": [
+        "279828d15e17e383ac4a5bc053fc995",
+        "16baf5d1eb46ffbe0a67bad0e480c75",
+        "3c"
+      ]
+    },
+    {
+      "path": "zig/src/altvm/fixtures/svm-ism.json.gz",
+      "bytes": 1832,
+      "gzip_bytes": 432,
+      "sha256_chunks": [
+        "b40333d7480d0bec45e131039d2c0cf",
+        "fdc95c09d16a751f9cc82fbfc49d00e",
+        "1b"
+      ]
+    },
+    {
+      "path": "zig/src/altvm/reference/Cargo.lock.gz",
+      "bytes": 126535,
+      "gzip_bytes": 28495,
+      "sha256_chunks": [
+        "50246803b5563fbf019efd64244a4d0",
+        "0931decfaca20c960e4cba83b71eed2",
+        "29"
+      ]
+    },
+    {
+      "path": "zig/src/cosmos/fixtures/sdk.json.gz",
+      "bytes": 7477,
+      "gzip_bytes": 2393,
+      "sha256_chunks": [
+        "ece5ed52744bd7803d00042b45f54a7",
+        "a01a0f27b143b03c0fc59b9f71e1ff9",
+        "c8"
+      ]
+    },
+    {
+      "path": "zig/src/db/fixtures/codecs.jsonl.gz",
+      "bytes": 17428,
+      "gzip_bytes": 2056,
+      "sha256_chunks": [
+        "7e8b7ee671d5d99c7101c8ba03a5bdf",
+        "cbae0e8c3e07ec945c59ac3018eb0d3",
+        "ba"
+      ]
+    },
+    {
+      "path": "zig/src/evm/fixtures/announcements.jsonl.gz",
+      "bytes": 6906,
+      "gzip_bytes": 582,
+      "sha256_chunks": [
+        "04f45e5528df6d8ccea96db8ba24a55",
+        "d3bc8713e1136cddbd15830f2bc06d5",
+        "0d"
+      ]
+    },
+    {
+      "path": "zig/src/evm/fixtures/transactions.jsonl.gz",
+      "bytes": 105293,
+      "gzip_bytes": 24829,
+      "sha256_chunks": [
+        "7654c32ef9e8161fb3a08f1e313556f",
+        "592a442794ce804c099309e89e5fecf",
+        "eb"
+      ]
+    },
+    {
+      "path": "zig/src/lander/testing/reference/Cargo.lock.gz",
+      "bytes": 81123,
+      "gzip_bytes": 19548,
+      "sha256_chunks": [
+        "8ad950fe0627c743223a5c7df30e757",
+        "2db6707c3afb14df54964719874cfb4",
+        "a2"
+      ]
+    },
+    {
+      "path": "zig/src/lander/testing/reference/fixtures/lander_types.json.gz",
+      "bytes": 2090,
+      "gzip_bytes": 670,
+      "sha256_chunks": [
+        "d6aaa8ce9796cd796e6fc8ea414c558",
+        "30a0f020c51bde77bf10d77cb4011ce",
+        "5f"
+      ]
+    },
+    {
+      "path": "zig/src/net/fixtures/endpoints.jsonl.gz",
+      "bytes": 2541,
+      "gzip_bytes": 470,
+      "sha256_chunks": [
+        "c91b16990bbd6c230db653f02039e62",
+        "24bcf97095dd5b4a80e1f614379cb11",
+        "65"
+      ]
+    },
+    {
+      "path": "zig/src/ops/regex-native/Cargo.lock.gz",
+      "bytes": 1331,
+      "gzip_bytes": 533,
+      "sha256_chunks": [
+        "ad990290069262515b95f3860fc36a4",
+        "8fc8b7b4df248708c7225797fc26766",
+        "89"
+      ]
+    },
+    {
+      "path": "zig/src/ops/testing/denylist.json.gz",
+      "bytes": 131863,
+      "gzip_bytes": 3665,
+      "sha256_chunks": [
+        "a7cad015fce24a208774e79d7110420",
+        "8b20ea5f1823a31de3ba85354b22be8",
+        "3a"
+      ]
+    },
+    {
+      "path": "zig/src/ops/testing/reference/Cargo.lock.gz",
+      "bytes": 34238,
+      "gzip_bytes": 8813,
+      "sha256_chunks": [
+        "87ca22299d0405af440b73f94e4b3e2",
+        "415aac374ad0f666e2a47ec08100aaa",
+        "95"
+      ]
+    },
+    {
+      "path": "zig/src/protocol/fixtures/ethers-recovery.json.gz",
+      "bytes": 11605,
+      "gzip_bytes": 745,
+      "sha256_chunks": [
+        "866b4b22815d219da4309ff9b156040",
+        "4a1fb9cec9f00868157708c254c35e2",
+        "2d"
+      ]
+    },
+    {
+      "path": "zig/src/radix/fixtures/announcement.json.gz",
+      "bytes": 311,
+      "gzip_bytes": 153,
+      "sha256_chunks": [
+        "8a47e6b5032408cf65805cd3c93adc2",
+        "68a81dddad28eab35a94478d72f9735",
+        "0a"
+      ]
+    },
+    {
+      "path": "zig/src/radix/fixtures/crypto-differential.json.gz",
+      "bytes": 210,
+      "gzip_bytes": 180,
+      "sha256_chunks": [
+        "069b09ddd4735da66016f5e8115c05a",
+        "b697af9143e3000852ea97bfc69dc55",
+        "ac"
+      ]
+    },
+    {
+      "path": "zig/src/radix/fixtures/sdk.json.gz",
+      "bytes": 185009,
+      "gzip_bytes": 12722,
+      "sha256_chunks": [
+        "d12c9fffbc82fc7ce8f9421f9148310",
+        "62633190e6b1a08e775d3aedf1d3b91",
+        "53"
+      ]
+    },
+    {
+      "path": "zig/src/radix/reference/Cargo.lock.gz",
+      "bytes": 64420,
+      "gzip_bytes": 15461,
+      "sha256_chunks": [
+        "c766d5b66f0f682689fa4be6aa613fc",
+        "aca9f98bd1c4562371c38857963628b",
+        "38"
+      ]
+    },
+    {
+      "path": "zig/src/settings/fixtures/merge.jsonl.gz",
+      "bytes": 2384,
+      "gzip_bytes": 746,
+      "sha256_chunks": [
+        "83323603b3967d79b05bc2a29810549",
+        "459b31927f2ea6dbc5982f7edc291ba",
+        "71"
+      ]
+    },
+    {
+      "path": "zig/src/settings/fixtures/roles.jsonl.gz",
+      "bytes": 28367,
+      "gzip_bytes": 2238,
+      "sha256_chunks": [
+        "061cd8811a546717b69578bd5860ea6",
+        "ed57454f48ddae1c35b5dbe0d50a106",
+        "3d"
+      ]
+    },
+    {
+      "path": "zig/src/starknet/fixtures/sdk.jsonl.gz",
+      "bytes": 106067,
+      "gzip_bytes": 8452,
+      "sha256_chunks": [
+        "43dcf8c3110ab3292552a290e32e600",
+        "712090afed6dabf633846b87561d162",
+        "5e"
+      ]
+    },
+    {
+      "path": "zig/src/storage/fixtures/objects.jsonl.gz",
+      "bytes": 43602,
+      "gzip_bytes": 8762,
+      "sha256_chunks": [
+        "69ffcf0246491f731ed3d660e23e36a",
+        "abb49fa6cdf8a3ab956f3fc2b684b39",
+        "c3"
+      ]
+    },
+    {
+      "path": "zig/src/tron/fixtures/http.jsonl.gz",
+      "bytes": 1980,
+      "gzip_bytes": 557,
+      "sha256_chunks": [
+        "589ad135c0166caa5948bdde529f94f",
+        "7cc64fb6be7d5b36cfd29506b5021f4",
+        "aa"
+      ]
+    },
+    {
+      "path": "zig/src/tron/fixtures/transactions-agent.jsonl.gz",
+      "bytes": 68134,
+      "gzip_bytes": 5552,
+      "sha256_chunks": [
+        "965f707fe8654e0a95a21cf7503c3d7",
+        "5ca26aae90c12e25a1a672cfcf84760",
+        "20"
+      ]
+    },
+    {
+      "path": "zig/src/tron/fixtures/transactions.jsonl.gz",
+      "bytes": 68445,
+      "gzip_bytes": 5649,
+      "sha256_chunks": [
+        "677325b3bac6f917698dc977f32e0cb",
+        "1e7547eed6aa46284553dc0e4e09f4d",
+        "ce"
+      ]
+    }
+  ]
+}

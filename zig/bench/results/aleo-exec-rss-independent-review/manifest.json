@@ -1,0 +1,126 @@
+{
+  "status": "Independent scoped read-only review accepted; no unresolved Session exec/RSS blocker",
+  "reviewer_compiled_or_modified_Source": false,
+  "all_reviewed_source_hashes_unchanged": true,
+  "owner_focused_counts": {
+    "Debug": 3,
+    "ReleaseSafe": 3,
+    "ReleaseFast": 3
+  },
+  "owner_nonroot_Linux_actual_SDK_ReleaseSafe": 75,
+  "separate_pending_scope": "Parent canonical image and full global/platform acceptance",
+  "artifacts": {
+    "review.md.gz": {
+      "original": "/tmp/ziggy-aleo-exec-rss-independent-review.md",
+      "bytes": 4145,
+      "sha256_chunks": [
+        "07e2d51d3368874f3522092ddb4860e4",
+        "cfcc0b6428ee4ead9b3c1d7b105f99df"
+      ]
+    },
+    "result.json.gz": {
+      "original": "/tmp/ziggy-aleo-exec-rss-independent-result.json",
+      "bytes": 2765,
+      "sha256_chunks": [
+        "00a3c0e0e74c124754fcd3aa64836631",
+        "06e6fa4263bf93e4aa2927bdc09efd60"
+      ]
+    },
+    "source-before.json.gz": {
+      "original": "/tmp/ziggy-aleo-exec-independent-source-before.json",
+      "bytes": 312,
+      "sha256_chunks": [
+        "009296a22c7c72cb1b7e0c35fd39c341",
+        "52116d14b4a58fc81d3d77941832cdaf"
+      ]
+    },
+    "owner-final-source.json.gz": {
+      "original": "/tmp/ziggy-container-acceptance/worker-final-source.json",
+      "bytes": 290,
+      "sha256_chunks": [
+        "3827b7142826d8236492f6c8f2cd6c11",
+        "4a03f20142161308c3df52fd4d77c4ad"
+      ]
+    },
+    "owner-evidence/worker-exec-focused-final-debug.log.gz": {
+      "original": "/tmp/ziggy-container-acceptance/worker-exec-focused-final-debug.log",
+      "bytes": 288,
+      "sha256_chunks": [
+        "19a82502f414c57e7829100e86e7a16b",
+        "37d664f7e80034b082297b5a4b16dc3c"
+      ]
+    },
+    "owner-evidence/worker-exec-focused-safe.log.gz": {
+      "original": "/tmp/ziggy-container-acceptance/worker-exec-focused-safe.log",
+      "bytes": 288,
+      "sha256_chunks": [
+        "19a82502f414c57e7829100e86e7a16b",
+        "37d664f7e80034b082297b5a4b16dc3c"
+      ]
+    },
+    "owner-evidence/worker-exec-focused-fast.log.gz": {
+      "original": "/tmp/ziggy-container-acceptance/worker-exec-focused-fast.log",
+      "bytes": 288,
+      "sha256_chunks": [
+        "19a82502f414c57e7829100e86e7a16b",
+        "37d664f7e80034b082297b5a4b16dc3c"
+      ]
+    },
+    "owner-evidence/sdk-runtime-aleo-final-safe.log.gz": {
+      "original": "/tmp/ziggy-container-acceptance/sdk-runtime-aleo-final-safe.log",
+      "bytes": 5535,
+      "sha256_chunks": [
+        "87bb4f5e018497952c751eb38d0604c8",
+        "3a0e20ec647f681cf644e8487f36078a"
+      ]
+    },
+    "owner-evidence/worker-inherited-rss-argv-before.log.gz": {
+      "original": "/tmp/ziggy-container-acceptance/worker-inherited-rss-argv-before.log",
+      "bytes": 905,
+      "sha256_chunks": [
+        "13b690637ea8c7efb7eab69e255a0ede",
+        "09a792340e4d5fa0b8cb28d17e6ad3f0"
+      ]
+    },
+    "owner-evidence/worker-inherited-rss-after.log.gz": {
+      "original": "/tmp/ziggy-container-acceptance/worker-inherited-rss-after.log",
+      "bytes": 123,
+      "sha256_chunks": [
+        "7c4823b52cec0d395da7f594d349605e",
+        "1ba243645105e98d93539aef8477ac01"
+      ]
+    },
+    "owner-evidence/worker-inherited-rss.zig.gz": {
+      "original": "/tmp/ziggy-container-acceptance/worker-inherited-rss.zig",
+      "bytes": 1006,
+      "sha256_chunks": [
+        "b02c771655a29a1d28cea60977220e33",
+        "a8684723a47e63c6c54d25745aef1421"
+      ]
+    },
+    "source/zig/src/aleo/worker.zig.gz": {
+      "original": "zig/src/aleo/worker.zig",
+      "bytes": 25598,
+      "sha256_chunks": [
+        "99f24187ca095c2cc7945ebaa37e9560",
+        "61d2846bc91252cdadec2c71eacca78f"
+      ]
+    },
+    "source/zig/src/aleo_vm_worker.zig.gz": {
+      "original": "zig/src/aleo_vm_worker.zig",
+      "bytes": 11048,
+      "sha256_chunks": [
+        "786b8f35703cbfd9003ecf84dd4137bf",
+        "7c2116460e7e3376f68f1d41012648cc"
+      ]
+    },
+    "source/zig/src/aleo/testing/worker_fixture.py.gz": {
+      "original": "zig/src/aleo/testing/worker_fixture.py",
+      "bytes": 1031,
+      "sha256_chunks": [
+        "826be6ab1e0150b47d8413dc3ecfe635",
+        "38bf0f7a6cd92d64ba1d76da69c8be6c"
+      ]
+    }
+  }
+}

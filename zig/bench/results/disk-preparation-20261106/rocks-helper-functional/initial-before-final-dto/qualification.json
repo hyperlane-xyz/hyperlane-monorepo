@@ -1,0 +1,5 @@
+{
+  "status": "dependency build retained; automatic runner retired before tests or pin",
+  "reason": "Final helper source and serde_json arbitrary_precision feature handed off after original Cargo graph resolution",
+  "benchmark": false
+}

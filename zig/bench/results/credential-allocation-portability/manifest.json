@@ -1,0 +1,182 @@
+{
+  "captured_utc": "2026-11-06T09:50:57.321685+00:00",
+  "test_only_change_verified_against_prior_source_snapshot": true,
+  "prior_source_sha256_chunks": [
+    "c5bcf2468f2ed94192389e936a4bc5f1",
+    "fecc4dcf5fd488b0f77ad7547da00a21"
+  ],
+  "current_source_sha256_chunks": [
+    "d1ac8106a37e80158d44e51d1f5a486b",
+    "0960eed100fc0f55651fcaa454a104b4"
+  ],
+  "production_code_unchanged": true,
+  "all_four_mode_checks_source_unchanged": true,
+  "functional_results": [
+    {
+      "system": "Linux",
+      "mode": "ReleaseSafe",
+      "exit_code": 0
+    },
+    {
+      "system": "Linux",
+      "mode": "ReleaseFast",
+      "exit_code": 0
+    },
+    {
+      "system": "macOS",
+      "mode": "ReleaseSafe",
+      "exit_code": 0
+    },
+    {
+      "system": "macOS",
+      "mode": "ReleaseFast",
+      "exit_code": 0
+    }
+  ],
+  "scope": "Fault injection forces resize/remap to fail and grow through alloc; no successful OS remap coverage claim; no benchmark timing claim",
+  "artifacts": [
+    {
+      "path": "zig/bench/results/credential-allocation-portability/original-linux-failure.log.gz",
+      "bytes": 476,
+      "sha256_chunks": [
+        "18ede5ddaab829da6281084406332ef4",
+        "13ab1a03c4da0c9b57f0ee87ae22626c"
+      ],
+      "decoded_bytes": 908,
+      "decoded_sha256_chunks": [
+        "9b89b9b0ed5e60a49df148ae47aae4a8",
+        "8bae9f324ba552f567c5e6a4f8ba34ca"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/isolation.log.gz",
+      "bytes": 164,
+      "sha256_chunks": [
+        "5e9321d2c7e3cba63e782f58209642c3",
+        "467456b08f7d93f01cadcdea5aed824c"
+      ],
+      "decoded_bytes": 280,
+      "decoded_sha256_chunks": [
+        "b074ad279f0ab37ed51a140f96a160b1",
+        "d91bafbfbc553180380938de02ef7186"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/allocation-remap-reproducer.log.gz",
+      "bytes": 213,
+      "sha256_chunks": [
+        "e8bca0e6337ade91a9e0c87b7996ef53",
+        "7b1d62ab9267728d5ab794571b001a48"
+      ],
+      "decoded_bytes": 532,
+      "decoded_sha256_chunks": [
+        "aebd3e550dc7ff8beb88ec78688a115b",
+        "187f67bf2987b403dc81ef6b8360ee51"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/Linux-Debug.log.gz",
+      "bytes": 502,
+      "sha256_chunks": [
+        "3767052b9958b1145cfbc2dc6474bedd",
+        "6bca98111f0f68802815b5fd2a6c449c"
+      ],
+      "decoded_bytes": 1322,
+      "decoded_sha256_chunks": [
+        "3d8176b937012f22123acdcd6a80d80c",
+        "f6f46e2a9ae9cc0c6fe3d9bc6891741a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/independent-review.md.gz",
+      "bytes": 1335,
+      "sha256_chunks": [
+        "beddcbdb0c59733873f18b4f6442ade7",
+        "1b242bcd93a0f7e4f862d3e36e0d9609"
+      ],
+      "decoded_bytes": 2686,
+      "decoded_sha256_chunks": [
+        "e178fa80697588f464186575e54c7904",
+        "5a96815f739c62e5445391b102aa6973"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/Linux-ReleaseFast.log.gz",
+      "bytes": 502,
+      "sha256_chunks": [
+        "3767052b9958b1145cfbc2dc6474bedd",
+        "6bca98111f0f68802815b5fd2a6c449c"
+      ],
+      "decoded_bytes": 1322,
+      "decoded_sha256_chunks": [
+        "3d8176b937012f22123acdcd6a80d80c",
+        "f6f46e2a9ae9cc0c6fe3d9bc6891741a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/Linux-ReleaseSafe.log.gz",
+      "bytes": 502,
+      "sha256_chunks": [
+        "3767052b9958b1145cfbc2dc6474bedd",
+        "6bca98111f0f68802815b5fd2a6c449c"
+      ],
+      "decoded_bytes": 1322,
+      "decoded_sha256_chunks": [
+        "3d8176b937012f22123acdcd6a80d80c",
+        "f6f46e2a9ae9cc0c6fe3d9bc6891741a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/macOS-ReleaseFast.log.gz",
+      "bytes": 502,
+      "sha256_chunks": [
+        "3767052b9958b1145cfbc2dc6474bedd",
+        "6bca98111f0f68802815b5fd2a6c449c"
+      ],
+      "decoded_bytes": 1322,
+      "decoded_sha256_chunks": [
+        "3d8176b937012f22123acdcd6a80d80c",
+        "f6f46e2a9ae9cc0c6fe3d9bc6891741a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/macOS-ReleaseSafe.log.gz",
+      "bytes": 502,
+      "sha256_chunks": [
+        "3767052b9958b1145cfbc2dc6474bedd",
+        "6bca98111f0f68802815b5fd2a6c449c"
+      ],
+      "decoded_bytes": 1322,
+      "decoded_sha256_chunks": [
+        "3d8176b937012f22123acdcd6a80d80c",
+        "f6f46e2a9ae9cc0c6fe3d9bc6891741a"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/result.json.gz",
+      "bytes": 753,
+      "sha256_chunks": [
+        "ed2385dac745668bbe30bf143afc06fa",
+        "48ac46c7668416fe157a9c91eb3aa8fb"
+      ],
+      "decoded_bytes": 2908,
+      "decoded_sha256_chunks": [
+        "f30c4a8127b7107a56f0ebd91f083690",
+        "ac19766ff932637617c5b3acaddf9158"
+      ]
+    },
+    {
+      "path": "zig/bench/results/credential-allocation-portability/diagnostic-root.zig.gz",
+      "bytes": 74,
+      "sha256_chunks": [
+        "c45d5d11afaad3fe1e2fa966a50059b0",
+        "de8d3afbf82a997efc6f5a9a624a2535"
+      ],
+      "decoded_bytes": 56,
+      "decoded_sha256_chunks": [
+        "b3be8cd95cd87ed7f4cfdbf2934645d2",
+        "8ec0a27eb4e10cabf33a185ffcf17ab6"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,191 @@
+warning: unused config key `build.exclude` in `/Users/pbio/work/ziggy/rust/main/.cargo/config.toml`
+warning: /Users/pbio/work/ziggy/rust/main/hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-core` (manifest) generated 1 warning
+   Compiling libc v0.2.189
+   Compiling generic-array v0.14.7
+   Compiling indexmap v2.12.0
+   Compiling getrandom v0.2.15
+   Compiling cc v1.2.65
+   Compiling toml_edit v0.22.20
+   Compiling ring v0.17.8
+   Compiling proc-macro-crate v3.2.0
+   Compiling displaydoc v0.2.5
+   Compiling parity-scale-codec-derive v3.6.12
+   Compiling rand_core v0.6.4
+   Compiling typenum v1.20.1
+   Compiling subtle v2.6.1
+   Compiling byteorder v1.5.0
+   Compiling scale-info-derive v2.11.3
+   Compiling memchr v2.7.4
+   Compiling serde_json v1.0.151
+   Compiling crypto-common v0.1.6
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling zerocopy v0.7.35
+   Compiling spin v0.9.8
+   Compiling ppv-lite86 v0.2.20
+   Compiling rand_chacha v0.3.1
+   Compiling rand v0.8.5
+   Compiling tinystr v0.8.2
+   Compiling smallvec v1.15.1
+   Compiling zeroize v1.8.1
+   Compiling parity-scale-codec v3.6.12
+   Compiling icu_locale_core v2.1.1
+   Compiling zerotrie v0.2.3
+   Compiling socket2 v0.6.5
+   Compiling cpufeatures v0.2.17
+   Compiling mio v1.2.2
+   Compiling icu_provider v2.1.1
+   Compiling tokio v1.53.1
+   Compiling icu_collections v2.1.1
+   Compiling sct v0.7.1
+   Compiling log v0.4.28
+   Compiling der v0.6.1
+   Compiling spki v0.6.0
+   Compiling icu_normalizer v2.1.1
+   Compiling icu_properties v2.1.1
+   Compiling scale-info v2.11.3
+   Compiling tracing-core v0.1.36
+   Compiling ring v0.16.20
+   Compiling futures-task v0.3.31
+   Compiling hex v0.4.3
+   Compiling futures-util v0.3.31
+   Compiling uint v0.9.5
+   Compiling tracing v0.1.44
+   Compiling idna_adapter v1.2.1
+   Compiling pkcs8 v0.9.0
+   Compiling futures-channel v0.3.31
+   Compiling fixed-hash v0.8.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling fixed-hash v0.8.0
+   Compiling impl-codec v0.6.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling impl-codec v0.6.0
+   Compiling crypto-bigint v0.4.9
+   Compiling ff v0.12.1
+   Compiling aho-corasick v1.1.3
+   Compiling regex-automata v0.4.7
+   Compiling sec1 v0.3.0
+   Compiling idna v1.1.0
+   Compiling primitive-types v0.12.1 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+   Compiling ethbloom v0.13.0
+   Compiling group v0.12.1
+   Compiling tokio-util v0.7.18
+   Compiling rustls-webpki v0.101.7
+   Compiling rustls v0.21.12
+   Compiling keccak v0.1.5
+   Compiling webpki v0.22.4
+   Compiling hmac v0.12.1
+   Compiling rustls v0.20.9
+   Compiling rfc6979 v0.3.1
+   Compiling sha3 v0.10.8
+   Compiling h2 v0.3.26
+   Compiling ethereum-types v0.14.1
+   Compiling elliptic-curve v0.12.3
+   Compiling url v2.5.4
+   Compiling regex v1.10.6
+   Compiling signature v1.6.4
+   Compiling socket2 v0.5.7
+   Compiling hyper v0.14.30
+   Compiling ecdsa v0.14.8
+   Compiling system-configuration-sys v0.5.0
+   Compiling tokio-rustls v0.24.1
+   Compiling sha2 v0.10.8
+   Compiling iana-time-zone v0.1.60
+   Compiling core-foundation v0.9.4
+   Compiling num-integer v0.1.46
+   Compiling syn v1.0.109
+   Compiling system-configuration v0.5.1
+   Compiling cargo_metadata v0.15.4
+   Compiling k256 v0.11.6
+   Compiling chrono v0.4.45
+   Compiling hyper-rustls v0.24.2
+   Compiling ethabi v18.0.0
+   Compiling open-fastrlp v0.1.4
+   Compiling sha-1 v0.10.1
+   Compiling ethers-core v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling reqwest v0.11.27
+   Compiling tungstenite v0.17.3
+   Compiling Inflector v0.11.4
+   Compiling num-bigint v0.4.6
+   Compiling tokio-rustls v0.23.4
+   Compiling webpki-roots v0.22.6
+   Compiling fxhash v0.2.1
+   Compiling ethers-contract-abigen v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling hashers v1.0.1
+   Compiling tokio-tungstenite v0.17.2
+   Compiling tracing-futures v0.2.5
+   Compiling parking_lot_core v0.9.10
+   Compiling ethers-providers v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling parking_lot v0.12.3
+   Compiling ethers-contract-derive v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling borsh v1.6.0
+   Compiling num-rational v0.4.2
+   Compiling num-iter v0.1.45
+   Compiling borsh-derive v1.6.0
+   Compiling num v0.4.3
+   Compiling ethers-contract v1.0.2 (https://github.com/hyperlane-xyz/ethers-rs?rev=66bd6198d8952adfd9395e3f3727682443a031c7#66bd6198)
+   Compiling hyperlane-application v2.3.0 (/Users/pbio/work/ziggy/rust/main/applications/hyperlane-application)
+   Compiling bigdecimal v0.4.5
+   Compiling prometheus v0.14.0
+   Compiling uuid v1.11.0
+   Compiling lander-escalator-oracle v0.1.0 (/Users/pbio/work/ziggy/zig/src/lander/testing/reference)
+   Compiling hyperlane-core v2.3.0 (/Users/pbio/work/ziggy/rust/main/hyperlane-core)
+warning: unexpected `cfg` condition value: `integration_test`
+   --> /Users/pbio/work/ziggy/rust/main/lander/src/payload/types.rs:115:21
+    |
+115 |     #[cfg(any(test, feature = "integration_test"))]
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: remove the condition
+    |
+    = note: no expected values for `feature`
+    = help: consider adding `integration_test` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: `#[warn(unexpected_cfgs)]` on by default
+
+warning: unexpected `cfg` condition value: `aleo`
+  --> /Users/pbio/work/ziggy/rust/main/lander/src/transaction/types.rs:11:7
+   |
+11 | #[cfg(feature = "aleo")]
+   |       ^^^^^^^^^^^^^^^^ help: remove the condition
+   |
+   = note: no expected values for `feature`
+   = help: consider adding `aleo` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `aleo`
+   --> /Users/pbio/work/ziggy/rust/main/lander/src/transaction/types.rs:163:11
+    |
+163 |     #[cfg(feature = "aleo")]
+    |           ^^^^^^^^^^^^^^^^ help: remove the condition
+    |
+    = note: no expected values for `feature`
+    = help: consider adding `aleo` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: use of deprecated field `ethers_core::abi::Function::constant`: The constant attribute was removed in Solidity 0.5.0 and has been replaced with stateMutability.
+   --> src/main.rs:307:9
+    |
+307 |         constant: None,
+    |         ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: panic message contains an unused formatting placeholder
+   --> src/main.rs:273:61
+    |
+273 |         assert!(object.contains_key(*field), "missing field {field}");
+    |                                                             ^^^^^^^
+    |
+    = note: this message is not used as a format string when given without arguments, but will be in Rust 2021
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2021/panic-macro-consistency.html>
+    = note: `#[warn(non_fmt_panics)]` (part of `#[warn(rust_2021_compatibility)]`) on by default
+help: add the missing argument
+    |
+273 |         assert!(object.contains_key(*field), "missing field {field}", ...);
+    |                                                                     +++++
+help: or add a "{}" format string to use the message literally
+    |
+273 |         assert!(object.contains_key(*field), "{}", "missing field {field}");
+    |                                              +++++
+
+warning: `lander-escalator-oracle` (bin "lander-escalator-oracle") generated 5 warnings (run `cargo fix --bin "lander-escalator-oracle" -p lander-escalator-oracle` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 1m 30s

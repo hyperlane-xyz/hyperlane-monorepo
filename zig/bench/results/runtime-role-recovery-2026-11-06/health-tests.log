@@ -1,0 +1,46 @@
+1/42 health_metrics_tests.test_0...OK
+2/42 agents.destination.public_wallet_test.test.health native public wallet encodings use actual initialized signer identities...OK
+3/42 agents.destination.public_wallet_test.test.health native Aleo public wallet uses actual native addressText...OK
+4/42 agents.health_set_test.test.configured scraper public identity is ready for the first actual balance read...OK
+5/42 agents.health_set_test.test.configured scraper remote public identity yields before wallet snapshot and cancels cleanly...OK
+6/42 agents.health_set_test.test.health role set selects destinations indexed chains and wallet-free validator origin without constructor requests...OK
+7/42 agents.health_set_test.test.health role set actual shared runtime observes late public wallet and drains before providers...OK
+8/42 agents.health_set_test.test.health public wallet publication copies atomically and exposes only caller-owned text...OK
+9/42 agents.health_set_test.test.health provider constructor OOM is isolated and recovery clears only its shared critical reason...OK
+10/42 agents.health_metrics_test.test.Source monitor cadence has two startup passes, fixed60s ticks and skips missed intervals...OK
+11/42 agents.health_metrics_test.test.monitor retains wallet snapshot/stage over PIO, queries next details without repeating balance...OK
+12/42 agents.health_metrics_test.test.failed wallet does not suppress chain, failed chain preserves real prior samples and absent block omits sample...[default] (warn): Common health metric update failed: BalanceUnavailable
+[default] (warn): Common health metric update failed: ChainUnavailable
+OK
+13/42 agents.health_metrics_test.test.validator no wallet callback or eager identity work; late identity is loaded only on cadence; identity rotation bounded...[default] (warn): Common health metric update failed: HealthWalletIdentityChanged
+OK
+14/42 agents.health_metrics_test.test.health samples use configured decimals, Source unsupported gas zero after success, and maxU256 stays finite...OK
+15/42 agents.health_metrics_test.test.health pending wallet snapshot survives identity change and cancellation emits no fabricated samples...OK
+16/42 agents.health_metrics_test.test.health task construction allocation failures release copied labels and never perform identity or RPC work...OK
+17/42 agents.health_metrics_test.test.health mutable public identity is copied under publisher lock into task buffer...OK
+18/42 agents.health_provider_test.test.health provider Ethereum uses latest base fee not gasPrice, null block stays absent, balance exact request...OK
+19/42 agents.health_provider_test.test.health provider Sealevel finalized slot and processed wallet balance preserve distinct Source commitments...OK
+20/42 agents.health_provider_test.test.health provider Cosmos and CosmosNative use latest Tendermint block, canonical asset ABCI protobuf...OK
+21/42 agents.health_provider_test.test.health provider Radix Gateway tip, account XRD balance call and Decimal attos use Source routes...OK
+22/42 agents.health_provider_test.test.health provider Tron solidity head and eth balance, Starknet block number/fee token balance and Aleo latest height...OK
+23/42 agents.health_provider_test.test.health native monitor construction reads no key/network, cooperative completion emits only physical agent_metrics requests...OK
+24/42 agents.health_provider_test.test.health Aleo public address balance uses actual native decoder and Source absent credits mapping zero...OK
+25/42 agents.chain_source.test_0...OK
+26/42 agents.destination.reveal.test_0...OK
+27/42 agents.destination.reveal.test_1...OK
+28/42 agents.scraper.starknet.test_0...OK
+29/42 cosmos.fallback_grpc.test.gRPC health10failures reprioritize subsequent snapshots while single endpoint never probes...OK
+30/42 cosmos.fallback_grpc.test.gRPC direct vote capture propagates control without retry or poisoning endpoint health...OK
+31/42 net.curl_multi.test.curl multi starts healthy validators beyond eight stalled requests and cancels every loser...OK
+32/42 protocol.root.test_0...OK
+33/42 relayer.metadata.test.CCIP pending is terminal only without threshold and never masks healthy metadata or refusal...OK
+34/42 relayer.metadata.test_0...OK
+35/42 cloud.root.test_0...OK
+36/42 agents.chain_source_testing.test.source resource configured metadata parallelism admits healthy ninth call behind eight stalled calls on one endpoint...OK
+37/42 cloud.google_adc.test_0...OK
+38/42 cloud.aws_profile.test_0...OK
+39/42 metadata_parallel_delegated_tests.test.native Pool yields eight stalled peers and verifies healthy EVM children three times...OK
+40/42 agents.metadata_session_test.test.eight blocked multisig jobs do not delay the healthy ninth Null child...OK
+41/42 evm.root.test_0...OK
+42/42 storage.root.test_0...OK
+All 42 tests passed.

@@ -1,0 +1,104 @@
+warning: unused config key `build.exclude` in `/Users/pbio/work/ziggy/rust/main/.cargo/config.toml`
+warning: /Users/pbio/work/ziggy/rust/main/hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: `hyperlane-core` (manifest) generated 1 warning
+warning: unused import: `error`
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-ethereum/src/rpc_clients/retrying.rs:14:15
+   |
+14 | use tracing::{error, instrument, trace, warn, warn_span};
+   |               ^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hyperlane-ethereum` (lib) generated 1 warning (run `cargo fix --lib -p hyperlane-ethereum` to apply 1 suggestion)
+warning: struct `Log` is never constructed
+ --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:9:12
+  |
+9 | pub struct Log {
+  |            ^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `Events` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:15:12
+   |
+15 | pub struct Events {
+   |            ^^^^^^
+
+warning: struct `Event` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/general.rs:20:12
+   |
+20 | pub struct Event {
+   |            ^^^^^
+
+warning: struct `QueryRoutingIsmRouteResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/ism_routes.rs:25:12
+   |
+25 | pub struct QueryRoutingIsmRouteResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `QueryIsmModuleTypeResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/ism_routes.rs:40:12
+   |
+40 | pub struct QueryIsmModuleTypeResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `CountRequest` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/mailbox.rs:12:12
+   |
+12 | pub struct CountRequest {
+   |            ^^^^^^^^^^^^
+
+warning: struct `CountResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/mailbox.rs:59:12
+   |
+59 | pub struct CountResponse {
+   |            ^^^^^^^^^^^^^
+
+warning: struct `GetAnnouncedValidatorsRequest` is never constructed
+ --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/validator_announce.rs:6:12
+  |
+6 | pub struct GetAnnouncedValidatorsRequest {
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `GetAnnouncedValidatorsResponse` is never constructed
+  --> /Users/pbio/work/ziggy/rust/main/chains/hyperlane-cosmos/src/cw/payloads/validator_announce.rs:35:12
+   |
+35 | pub struct GetAnnouncedValidatorsResponse {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `hyperlane-cosmos` (lib) generated 9 warnings
+warning: hiding a lifetime that's elided elsewhere is confusing
+    --> /Users/pbio/work/ziggy/rust/main/hyperlane-base/src/settings/chains.rs:1622:16
+     |
+1622 |     fn locator(&self, address: H256) -> ContractLocator {
+     |                ^^^^^                    ^^^^^^^^^^^^^^^ the same lifetime is hidden here
+     |                |
+     |                the lifetime is elided here
+     |
+     = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+     = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+     |
+1622 |     fn locator(&self, address: H256) -> ContractLocator<'_> {
+     |                                                        ++++
+
+warning: `hyperlane-base` (lib) generated 1 warning (run `cargo fix --lib -p hyperlane-base` to apply 1 suggestion)
+   Compiling ziggy-rocks-oracle v0.1.0 (/Users/pbio/work/ziggy/zig/reference/rocks)
+error: no rules expected `5u8`
+   --> src/main.rs:707:72
+    |
+707 |                 "context" => operation["context"] = serde_json::json!([5u8; 32]),
+    |                                                                        ^^^ no rules expected this token in macro call
+    |
+    = note: while trying to match end of macro
+
+error: no rules expected `6u8`
+   --> src/main.rs:708:75
+    |
+708 |                 "id" => operation["operation"]["id"] = serde_json::json!([6u8; 32]),
+    |                                                                           ^^^ no rules expected this token in macro call
+    |
+    = note: while trying to match end of macro
+
+error: could not compile `ziggy-rocks-oracle` (bin "ziggy-rocks-oracle" test) due to 2 previous errors

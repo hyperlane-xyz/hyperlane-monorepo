@@ -1,0 +1,93 @@
+{
+  "scope": "Post-receipt-fanout correctness snapshot; not a paired performance result. Original logs and JSON digests retained; public long hex strings split in archived JSON only.",
+  "files": {
+    "postgres-integration.json": {
+      "original_sha256_chunks": [
+        "e82cdd9547b04f5562f0b399d9f6343d",
+        "f0986ea570d0856d66a636fac43e2c95"
+      ],
+      "original_bytes": 1862,
+      "archived_sha256_chunks": [
+        "e82cdd9547b04f5562f0b399d9f6343d",
+        "f0986ea570d0856d66a636fac43e2c95"
+      ]
+    },
+    "postgres-migrations.log": {
+      "original_sha256_chunks": [
+        "c2467f9c61f504a14cd5415aa09f4051",
+        "6b265a266a38cb647bb07872f48193dd"
+      ],
+      "original_bytes": 113533,
+      "archived_sha256_chunks": [
+        "c2467f9c61f504a14cd5415aa09f4051",
+        "6b265a266a38cb647bb07872f48193dd"
+      ]
+    },
+    "postgres-integration.log": {
+      "original_sha256_chunks": [
+        "ca198b42d6c91212e95757b6cee6a221",
+        "552642768e0f67a088061a881c7635e5"
+      ],
+      "original_bytes": 32998,
+      "archived_sha256_chunks": [
+        "ca198b42d6c91212e95757b6cee6a221",
+        "552642768e0f67a088061a881c7635e5"
+      ]
+    },
+    "scraper-daemon.log": {
+      "original_sha256_chunks": [
+        "41d79c3b20cc22a08dbb8a15c3087ad0",
+        "fbd64f0575460a660a0325184dd45ec6"
+      ],
+      "original_bytes": 121,
+      "archived_sha256_chunks": [
+        "41d79c3b20cc22a08dbb8a15c3087ad0",
+        "fbd64f0575460a660a0325184dd45ec6"
+      ]
+    },
+    "scraper-anvil.log": {
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "original_bytes": 0,
+      "archived_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ]
+    },
+    "scraper-process.json": {
+      "original_sha256_chunks": [
+        "725bdd95d951b80acf56d5281270dec8",
+        "f48065bde4ea3eee53b4218e5172dcfd"
+      ],
+      "original_bytes": 1212,
+      "archived_sha256_chunks": [
+        "18a6d54179cd3194d57fa7020ec764de",
+        "b18fedaa188db56f0de8204c49cabd3c"
+      ]
+    },
+    "scraper-process.log": {
+      "original_sha256_chunks": [
+        "30f30469031f2453535770136be5ae38",
+        "c2b63f2da73f17ae0751071a05756319"
+      ],
+      "original_bytes": 1066,
+      "archived_sha256_chunks": [
+        "6e776a667a337f14d8d75c310515ef85",
+        "10a7ba36df3a29b59fe73f4e97d978fc"
+      ]
+    },
+    "postgres-test-build.log": {
+      "original_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ],
+      "original_bytes": 0,
+      "archived_sha256_chunks": [
+        "e3b0c44298fc1c149afbf4c8996fb924",
+        "27ae41e4649b934ca495991b7852b855"
+      ]
+    }
+  }
+}

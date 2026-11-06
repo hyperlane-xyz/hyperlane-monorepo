@@ -1,0 +1,93 @@
+{
+  "captured_utc": "2026-11-06T06:59:43.941279+00:00",
+  "files": [
+    {
+      "path": "zig/src/agents/destination/starknet_batch_testing.zig",
+      "hex_runs_split": 1,
+      "before_sha256_chunks": [
+        "61173631c99f26859d353f08af934cc",
+        "ead7edd2beeb6d207e48d9a02410a74",
+        "92"
+      ],
+      "after_sha256_chunks": [
+        "b68d7e664176bb1b97656e586c313",
+        "7f30794416c42a0f6b7137f339958",
+        "20a850"
+      ],
+      "before_source_archive": "zig/bench/results/public-test-literal-representation/starknet_batch_testing.zig.before.source.gz",
+      "exact_transform_then_zig_fmt_matches": true,
+      "after_source_archive": "zig/bench/results/public-test-literal-representation/starknet_batch_testing.zig.after.source.gz"
+    },
+    {
+      "path": "zig/src/evm/header_testing.zig",
+      "hex_runs_split": 2,
+      "before_sha256_chunks": [
+        "b9fdef48c646a883f81d981035a3e0a",
+        "3ef8f2ba0bf4e93e84f436a3a3abb72",
+        "b0"
+      ],
+      "after_sha256_chunks": [
+        "28d4393bb672b614a337d52ef57e9",
+        "d8e28b62c6d09f46b7e90333de1f7",
+        "2245a8"
+      ],
+      "before_source_archive": "zig/bench/results/public-test-literal-representation/header_testing.zig.before.source.gz",
+      "exact_transform_then_zig_fmt_matches": true,
+      "after_source_archive": "zig/bench/results/public-test-literal-representation/header_testing.zig.after.source.gz"
+    },
+    {
+      "path": "zig/src/evm/rpc_producers_test.zig",
+      "hex_runs_split": 4,
+      "before_sha256_chunks": [
+        "a4ff6b942ce3538c30b1330509089fc",
+        "b0bfee64c7818e9e859090997185012",
+        "ab"
+      ],
+      "after_sha256_chunks": [
+        "06aec957e92fd750a3be5c8c7a50c",
+        "b1cb67999c9daf78a91eabf9e0646",
+        "7e7f6a"
+      ],
+      "before_source_archive": "zig/bench/results/public-test-literal-representation/rpc_producers_test.zig.before.source.gz",
+      "exact_transform_then_zig_fmt_matches": true,
+      "after_source_archive": "zig/bench/results/public-test-literal-representation/rpc_producers_test.zig.after.source.gz"
+    },
+    {
+      "path": "zig/src/rpc_pool_delegated_tests.zig",
+      "hex_runs_split": 20,
+      "before_sha256_chunks": [
+        "4e58da499be22279cda2cb2dd2e1c55",
+        "1aad39ff48d493f43080ea0d7bfb0a9",
+        "a9"
+      ],
+      "after_sha256_chunks": [
+        "5321afede91925e03b185616a5331",
+        "91088dcf590c21d960300a427067b",
+        "2f0e36"
+      ],
+      "before_source_archive": "zig/bench/results/public-test-literal-representation/rpc_pool_delegated_tests.zig.before.source.gz",
+      "exact_transform_then_zig_fmt_matches": true,
+      "after_source_archive": "zig/bench/results/public-test-literal-representation/rpc_pool_delegated_tests.zig.after.source.gz"
+    },
+    {
+      "path": "zig/src/transaction_adapter_cosmos_test.zig",
+      "hex_runs_split": 4,
+      "before_sha256_chunks": [
+        "58885c48918d12585347970818be00b",
+        "5d18a948cb901a8ab5778f465a353ce",
+        "59"
+      ],
+      "after_sha256_chunks": [
+        "7473077e87e561858738d424487f9",
+        "9d6f6899d860cef51b78a9428f811",
+        "4a558e"
+      ],
+      "before_source_archive": "zig/bench/results/public-test-literal-representation/transaction_adapter_cosmos_test.zig.before.source.gz",
+      "exact_transform_then_zig_fmt_matches": true,
+      "after_source_archive": "zig/bench/results/public-test-literal-representation/transaction_adapter_cosmos_test.zig.after.source.gz"
+    }
+  ],
+  "changed_string_expressions": 18,
+  "hex_runs_split": 31,
+  "verification": "Every current file exactly equals archived before source with only string-token hex runs split in <=32-character compile-time concatenations, followed by zig fmt."
+}

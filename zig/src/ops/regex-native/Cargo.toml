@@ -1,0 +1,19 @@
+[package]
+name = "ziggy-regex"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Exact versions selected by rust/main/Cargo.lock.
+regex = { version = "=1.10.6", default-features = false, features = ["std", "perf", "unicode"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

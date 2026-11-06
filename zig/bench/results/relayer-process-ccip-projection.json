@@ -1,0 +1,114 @@
+{
+  "passed": false,
+  "stage": "three ISM deliveries completed; crash/recovery acceptance pending",
+  "first_rust_readback": {
+    "messages": [
+      {
+        "id_chunks": [
+          "4f41ca5dac994c54b9cc256ed021b273",
+          "9bd951b112f7f8f19a01856723077f22"
+        ],
+        "insertion_id_chunks": [
+          "4f41ca5dac994c54b9cc256ed021b273",
+          "9bd951b112f7f8f19a01856723077f22"
+        ],
+        "nonce": 0,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "2711a238-a0cb-8133-8b56-d9ffedfdf050"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "111553",
+          "tokens_used": "1968280844868"
+        }
+      },
+      {
+        "id_chunks": [
+          "f6b6b1f190e907c4c5b8041ae433015b",
+          "628575b344a1f6b30fa9df73f2867547"
+        ],
+        "insertion_id_chunks": [
+          "f6b6b1f190e907c4c5b8041ae433015b",
+          "628575b344a1f6b30fa9df73f2867547"
+        ],
+        "nonce": 1,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "2a4adc4d-7c46-8463-80c7-ac4494ae2de2"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "125222",
+          "tokens_used": "1936886436862"
+        }
+      },
+      {
+        "id_chunks": [
+          "87a87fb1aca8947984f6e3a1f67f2d31",
+          "73b4ac330deaa08372f278aeb851f7a5"
+        ],
+        "insertion_id_chunks": [
+          "87a87fb1aca8947984f6e3a1f67f2d31",
+          "73b4ac330deaa08372f278aeb851f7a5"
+        ],
+        "nonce": 2,
+        "payloads": [
+          {
+            "present": true,
+            "status": "InTransaction(Finalized)",
+            "uuid": "2e038d01-8afc-887a-940a-b5867cd1c3bb"
+          }
+        ],
+        "payment": {
+          "gas_amount": "100000",
+          "payment": "100000"
+        },
+        "present": true,
+        "processed": true,
+        "spent": {
+          "gas_used": "155173",
+          "tokens_used": "2104565622965"
+        }
+      }
+    ],
+    "reader": "actual production HyperlaneRocksDB + FullPayload decoder",
+    "sealed_payload_links": [
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "2711a238a0cb81338b56d9ffedfdf050"
+        ]
+      },
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "2e038d018afc887a940ab5867cd1c3bb"
+        ]
+      },
+      {
+        "destination_payload_present": true,
+        "uuid_chunks": [
+          "2a4adc4d7c46846380c7ac4494ae2de2"
+        ]
+      }
+    ]
+  },
+  "gas_expenditure_recorded": true
+}

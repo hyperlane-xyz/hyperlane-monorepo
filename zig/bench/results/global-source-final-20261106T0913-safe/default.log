@@ -1,0 +1,22 @@
+test
++- run test stderr
+[default] (warn): initialization metric update failed: MetricSeriesLimit
+[default] (warn): validator observation metric update failed
+[default] (warn): Cosmos native validator locations unavailable: UnexpectedGrpcCall
+[default] (warn): Cosmos native validator locations unavailable: GrpcRemoteStatus
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+[default] (warn): contract cache metric update failed: OutOfMemory
+[default] (warn): Common health metric update failed: BalanceUnavailable
+[default] (warn): Common health metric update failed: ChainUnavailable
+[default] (warn): Common health metric update failed: HealthWalletIdentityChanged
+[default] (warn): critical metric update failed: MetricSeriesLimit
+
+Build Summary: 3/3 steps succeeded; 738/738 tests passed
+test success
++- run test 738 passed 1m MaxRSS:430M
+   +- compile test ReleaseSafe native cached 78ms MaxRSS:31M
+

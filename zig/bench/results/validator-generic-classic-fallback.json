@@ -1,0 +1,84 @@
+{
+  "passed": true,
+  "scope": "Generic classic-fallback state-read accounting on the native Tron HTTP bridge.\n\nReal Role/indexing/RocksDB/signing/publication; local repository Solidity state.\nNot a Tron consensus client or whole-agent throughput benchmark.\n",
+  "binaries": {
+    "before": {
+      "sha256_chunks": [
+        "bc697d306b5c6551508af98bb41bccc5",
+        "fa453255937767a5f8c9b804b568e72a"
+      ]
+    },
+    "after": {
+      "sha256_chunks": [
+        "46e296a8bf6a03e255026845eb16400d",
+        "71b1594b33edd09276b753f8f8210710"
+      ]
+    }
+  },
+  "cases": {
+    "before": {
+      "checkpoint_tree_reads": [
+        12,
+        12
+      ],
+      "http_paths": [
+        {
+          "/walletsolidity/triggerconstantcontract": 28,
+          "/walletsolidity/getnowblock": 17,
+          "/walletsolidity/getblockbynum": 11,
+          "/": 4
+        },
+        {
+          "/walletsolidity/triggerconstantcontract": 13
+        }
+      ],
+      "actual_tree_failures": 0,
+      "checkpoint_objects": 3,
+      "rust_roots_match": true,
+      "configured_voting_slots": 1
+    },
+    "after": {
+      "checkpoint_tree_reads": [
+        12,
+        1
+      ],
+      "http_paths": [
+        {
+          "/walletsolidity/triggerconstantcontract": 28,
+          "/walletsolidity/getnowblock": 17,
+          "/walletsolidity/getblockbynum": 11,
+          "/": 4
+        },
+        {
+          "/walletsolidity/triggerconstantcontract": 2
+        }
+      ],
+      "actual_tree_failures": 0,
+      "checkpoint_objects": 3,
+      "rust_roots_match": true,
+      "configured_voting_slots": 1
+    },
+    "error_rotation": {
+      "checkpoint_tree_reads": [
+        3,
+        11
+      ],
+      "http_paths": [
+        {
+          "/walletsolidity/triggerconstantcontract": 19,
+          "/walletsolidity/getnowblock": 17,
+          "/walletsolidity/getblockbynum": 11,
+          "/": 4
+        },
+        {
+          "/walletsolidity/triggerconstantcontract": 12
+        }
+      ],
+      "actual_tree_failures": 1,
+      "checkpoint_objects": 3,
+      "rust_roots_match": true,
+      "configured_voting_slots": 1
+    }
+  },
+  "source_behavior": "normal null-consensus: one protocol-authenticated frontier readiness round then one retained primary; rotate on actual error only; explicit quorum remains full fanout"
+}

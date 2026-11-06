@@ -1,0 +1,122 @@
+{
+  "scope": "Owned validator retry/init/cache/metric slice only; no final global runtime freeze or performance result",
+  "source_before": {
+    "zig/src/agents/validator/evm.zig": [
+      "588f027320d149e1d054f4a1e8d3d481",
+      "06ea05cb93953351d7b05f65e65e8735"
+    ],
+    "zig/src/agents/validator/generic.zig": [
+      "6aadba1199697d24fad665abf87c837a",
+      "74d44b3d178d762db102cca023ac5081"
+    ],
+    "zig/src/agents/validator/index_source.zig": [
+      "fc9869a99103b3e768ff27161fa3622d",
+      "923ca4ea851a10785dd0c17cf9c8a179"
+    ],
+    "zig/src/agents/validator/tick_clock.zig": [
+      "b343ee497bed95b895aac4f7769a3402",
+      "df55c5c3816191762999c2f4f3ec84e8"
+    ],
+    "zig/src/agents/validator/cursor_init.zig": [
+      "290ad69036aced80ff18edf9cca21a39",
+      "eabf41bce7f8512f3a6a17609fc3f7c0"
+    ],
+    "zig/src/agents/validator/fetch_backoff_test.zig": [
+      "f64c540de7a823175e3d4e53b0c35dc6",
+      "a944b37e3d4706f2450bfa9fb9ffdb47"
+    ],
+    "zig/src/agents/validator_task.zig": [
+      "3ed885e25105b8c5d438b5b140cd8ef5",
+      "1bf299c7443bb27e7978b7a02b109e52"
+    ],
+    "zig/src/agents/validator_task_test.zig": [
+      "f99b45aab81daf6d500d4fa21a7358d8",
+      "72ff3a3a2a8b74bd7d46e1628efb20ae"
+    ],
+    "zig/src/validator_fetch_backoff_tests.zig": [
+      "c4a7b91b5fa39eb37ed8ee6c0cd67660",
+      "39868f49aba3bb723229ef42b5f06d54"
+    ],
+    "zig/src/ops/init_metrics.zig": [
+      "7ab0cc739441ec9a4bc8be197e37da95",
+      "211781e09e058cd0d3c9c1651e9be16d"
+    ]
+  },
+  "source_after": {
+    "zig/src/agents/validator/evm.zig": [
+      "588f027320d149e1d054f4a1e8d3d481",
+      "06ea05cb93953351d7b05f65e65e8735"
+    ],
+    "zig/src/agents/validator/generic.zig": [
+      "6aadba1199697d24fad665abf87c837a",
+      "74d44b3d178d762db102cca023ac5081"
+    ],
+    "zig/src/agents/validator/index_source.zig": [
+      "fc9869a99103b3e768ff27161fa3622d",
+      "923ca4ea851a10785dd0c17cf9c8a179"
+    ],
+    "zig/src/agents/validator/tick_clock.zig": [
+      "b343ee497bed95b895aac4f7769a3402",
+      "df55c5c3816191762999c2f4f3ec84e8"
+    ],
+    "zig/src/agents/validator/cursor_init.zig": [
+      "290ad69036aced80ff18edf9cca21a39",
+      "eabf41bce7f8512f3a6a17609fc3f7c0"
+    ],
+    "zig/src/agents/validator/fetch_backoff_test.zig": [
+      "f64c540de7a823175e3d4e53b0c35dc6",
+      "a944b37e3d4706f2450bfa9fb9ffdb47"
+    ],
+    "zig/src/agents/validator_task.zig": [
+      "3ed885e25105b8c5d438b5b140cd8ef5",
+      "1bf299c7443bb27e7978b7a02b109e52"
+    ],
+    "zig/src/agents/validator_task_test.zig": [
+      "f99b45aab81daf6d500d4fa21a7358d8",
+      "72ff3a3a2a8b74bd7d46e1628efb20ae"
+    ],
+    "zig/src/validator_fetch_backoff_tests.zig": [
+      "c4a7b91b5fa39eb37ed8ee6c0cd67660",
+      "39868f49aba3bb723229ef42b5f06d54"
+    ],
+    "zig/src/ops/init_metrics.zig": [
+      "7ab0cc739441ec9a4bc8be197e37da95",
+      "211781e09e058cd0d3c9c1651e9be16d"
+    ]
+  },
+  "owned_source_unchanged": true,
+  "command": [
+    "/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig",
+    "test",
+    "zig/src/validator_fetch_backoff_tests.zig",
+    "-O",
+    "ReleaseSafe",
+    "-lc",
+    "-lc++",
+    "--sysroot",
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+    "-L/usr/lib",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a",
+    "/Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a",
+    "--cache-dir",
+    "/tmp/ziggy-validator-backoff-cache",
+    "--global-cache-dir",
+    "/tmp/ziggy-validator-backoff-global",
+    "--test-filter",
+    "validator Source",
+    "--test-filter",
+    "cursor initialization",
+    "--test-filter",
+    "validator constructors",
+    "--test-filter",
+    "operational methods",
+    "--test-filter",
+    "validator metric adapter"
+  ],
+  "exit_code": 0
+}

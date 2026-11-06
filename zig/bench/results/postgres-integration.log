@@ -1,0 +1,23 @@
+1/22 pg_tests.test_0...OK
+2/22 db.postgres_test.test.libpq bound binary/text/null values result ownership and aborted transaction rollback...OK
+3/22 db.postgres_test.test.actual scraper schema stage four streams confirm frontier cursor and atomic reorg suffix...OK
+4/22 db.postgres_test.test.database clock writer takeover and actual advisory transaction lock...OK
+5/22 db.postgres_test.test.bounded batches and confirmation preserve oversized atomic block publication...OK
+6/22 protocol.root.test_0...OK
+7/22 protocol.message.test.canonical message fixture and borrowed decode...OK
+8/22 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+9/22 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+10/22 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+11/22 protocol.merkle.test.three-leaf Merkle fixture...OK
+12/22 protocol.merkle.test.full tree rejects without mutation...OK
+13/22 protocol.merkle.test.snapshot restore checks count root and shape...OK
+14/22 protocol.checkpoint.test.domain hash fixtures...OK
+15/22 protocol.checkpoint.test.checkpoint digest separates every field...OK
+16/22 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+17/22 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+18/22 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+19/22 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+20/22 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+21/22 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+22/22 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+All 22 tests passed.

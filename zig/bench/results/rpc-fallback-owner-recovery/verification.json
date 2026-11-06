@@ -1,0 +1,11 @@
+{
+  "scope": "Archive verification only. No Source edits or tests/builds.",
+  "gzip_artifacts_verified": 29,
+  "selected_current_before_after_capture_equal": 14,
+  "accepted_roots_exit_zero": 7,
+  "raw_mirrors_exact_and_ignored": 2,
+  "documentation_links_resolved": 14,
+  "plain_text_full_width_hashes": 0,
+  "normal_doc_format_check": "passed",
+  "historical_original_inputs_preserved": true
+}

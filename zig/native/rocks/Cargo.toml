@@ -1,0 +1,20 @@
+[package]
+name = "ziggy-native-rocks-build"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Build-time only. Zig links the native archives, never this Rust crate/rlib.
+[workspace]
+
+[dependencies]
+librocksdb-sys = { version = "=0.17.3", default-features = false, features = ["static", "bindgen-runtime", "snappy", "lz4", "zstd", "zlib", "bzip2"] }
+
+[profile.release]
+opt-level = 3
+debug = 0
+strip = false
+
+[profile.release.build-override]
+opt-level = 0
+debug = false

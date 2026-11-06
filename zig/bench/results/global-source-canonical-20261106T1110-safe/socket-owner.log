@@ -1,0 +1,5 @@
+1/4 socket_owner_tests.test_0...OK
+2/4 agents.stream.socket_owner.test.socket mailbox owns copied text counts borrowed bytes and backpressures before extra allocation...OK
+3/4 agents.stream.socket_owner.test.outbound command cap includes active owned command and stop rejects new effects...OK
+4/4 agents.stream.socket_owner.test.socket owner every allocation failure frees constructor mailbox and pending command ownership...OK
+All 4 tests passed.

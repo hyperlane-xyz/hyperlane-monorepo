@@ -1,0 +1,75 @@
+1/74 pg_tests.test_0...OK
+2/74 agents.scraper.native_test.test.scraper native PG complete worker publishes then independently enriches receipts and raw dispatches...OK
+3/74 agents.scraper.native_test.test.scraper native PG restart reproof rewinds an unpublished incomplete suffix...OK
+4/74 agents.scraper.native_test.test.scraper concrete factory rejects unsupported protocol before touching native resources...OK
+5/74 agents.scraper.native_test.test.scraper shared native service validates writer before touching resources...OK
+6/74 db.postgres_test.test.libpq bound binary/text/null values result ownership and aborted transaction rollback...OK
+7/74 db.postgres_test.test.actual scraper schema stage four streams confirm frontier cursor and atomic reorg suffix...OK
+8/74 db.postgres_test.test.database clock writer takeover and actual advisory transaction lock...OK
+9/74 db.postgres_test.test.bounded batches and confirmation preserve oversized atomic block publication...OK
+10/74 db.postgres_test.test.native Postgres absolute query deadline closes an ambiguous operation even without server statement timeout...OK
+11/74 db.postgres_test.test.native Postgres precancel sends no query and a completed SQL error drains for subsequent use...OK
+12/74 db.postgres_test.test.native Postgres nonblocking authentication handshake obeys deadline and DNS policy before opening a socket...OK
+13/74 db.postgres_test.test.native Postgres lost COMMIT response returns unknown outcome and never replays the committed transaction...OK
+14/74 db.postgres_test.test.native Postgres hostname resolver preconnect preserves configured host and shares the full connect deadline...OK
+15/74 net.curl.test.native HTTP sink bounds body headers and cancellation without loading curl...OK
+16/74 net.curl.test.native HTTP validates NUL controls token headers and content encoding before loading curl...OK
+17/74 net.curl.test.public HTTP rejects literal destinations and native socket callback prevents rebinding...OK
+18/74 net.curl.test.native public HTTP blocks localhost and noncanonical numeric IPv4 without connecting...OK
+19/74 net.curl.test.native HTTP reuses keepalive and isolates headers methods cancellation and trust pools...OK
+20/74 net.curl.test.native TCP resolver uses async DNS closes fresh socket and sends no application bytes...OK
+21/74 protocol.root.test_0...OK
+22/74 protocol.message.test.canonical message fixture and borrowed decode...OK
+23/74 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+24/74 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+25/74 agents.scraper.testing.test.scraper source complete range counts publish and restart catches fork...OK
+26/74 agents.scraper.testing.test.scraper dropped tail never publishes and recovers without a new block...OK
+27/74 agents.scraper.testing.test.scraper historical count outage holds provisional tail and restart reproof repairs it...OK
+28/74 agents.scraper.testing.test.scraper lagging RPC and midrange reorg pause publication...OK
+29/74 agents.scraper.testing.test.scraper stream tips cap ingestion and confirmed fork mismatch halts...OK
+30/74 agents.scraper.testing.test.scraper empty sparse range rechecks its canonical tip after fetching logs...OK
+31/74 agents.scraper.testing.test.scraper receipt timeout preserves cached and independently persisted neighbors...OK
+32/74 agents.scraper.testing.test.scraper receipt plan rejects missing retained headers...OK
+33/74 agents.scraper.testing.test.scraper reconciliation snapshots frontiers preempts sweeps and backs off only failed lane...OK
+34/74 agents.scraper.testing.test.scraper reconciliation poison retry tracking is bounded and ordered...OK
+35/74 agents.scraper.testing.test.scraper generic source pages complete blocks derives insertions and caches cycle tips...OK
+36/74 agents.scraper.testing.test.scraper generic sparse slots advance past an entirely skipped chunk within observed head...OK
+37/74 agents.scraper.testing.test.scraper setup validates capabilities before cutover and does not demand saved indexed RPC height...OK
+38/74 agents.scraper.ccr.test.scraper CCR synthetic ID matches shared TypeScript production fixture...OK
+39/74 evm.provider.test.RPC envelope rejects ambiguous mismatched and malformed responses...OK
+40/74 evm.provider.test.JSON-RPC errors retain only safe error code...OK
+41/74 evm.provider.test.RPC configuration and invalid log ranges reject before network access...OK
+42/74 evm.provider.test.RPC endpoint credentials and custom headers are owned sanitized and emitted once...OK
+43/74 evm.provider.test.missing blocks and noncanonical block quantities reject...OK
+44/74 evm.provider.test.native RPC transport enforces envelope bounds cancellation and deadline...OK
+45/74 evm.provider.test.HTTP loopback exercises typed RPC calls and bounded envelopes...OK
+46/74 evm.provider.test.HTTP loopback validates block and call result types...OK
+47/74 evm.provider.test.log parser validates full metadata canonical identity and removed logs...OK
+48/74 evm.provider.test.HTTP log filter rejects out of range and mismatched contract logs...OK
+49/74 net.endpoint.test.shared endpoint custom RPC header URLs match production extraction duplicate replacement and form queries...OK
+50/74 net.endpoint.test.shared endpoint canonical identity matches actual production Rust URL corpus or explicitly rejects unsupported spellings...OK
+51/74 cloud.http.test.metadata cleartext policy allows only implemented hosts methods paths and required headers...OK
+52/74 cloud.http.test.percent encoding distinguishes path slashes and literal percent signs...OK
+53/74 cloud.http.test.transport rejects credentials in URLs header injection and cleartext before connecting...OK
+54/74 cloud.http.test.real HTTP loopback enforces exclusive byte cap no redirect and one signed host...OK
+55/74 cloud.http.test.opt-in native cloud transport enforces deadline cancellation byte cap and no redirect...SKIP
+56/74 relayer.public_address.test.CCIP public IP policy rejects private special-use and transition destinations...OK
+57/74 evm.codecs.test.strict quantities and hex data...OK
+58/74 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+59/74 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+60/74 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+61/74 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+62/74 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+63/74 protocol.merkle.test.three-leaf Merkle fixture...OK
+64/74 protocol.merkle.test.full tree rejects without mutation...OK
+65/74 protocol.merkle.test.snapshot restore checks count root and shape...OK
+66/74 protocol.checkpoint.test.domain hash fixtures...OK
+67/74 protocol.checkpoint.test.checkpoint digest separates every field...OK
+68/74 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+69/74 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+70/74 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+71/74 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+72/74 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+73/74 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+74/74 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+73 passed; 1 skipped; 0 failed.

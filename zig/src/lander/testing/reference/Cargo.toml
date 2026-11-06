@@ -1,0 +1,26 @@
+[package]
+name = "lander-escalator-oracle"
+version = "0.1.0"
+edition = "2015"
+publish = false
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+ethers-core = { git = "https://github.com/hyperlane-xyz/ethers-rs", rev = "66bd6198d8952adfd9395e3f3727682443a031c7" }
+hyperlane-core = { path = "../../../../../rust/main/hyperlane-core", features = ["ethers"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "=1.11.0", features = ["v4", "serde"] }
+
+[workspace]
+
+# Match production's numeric/RLP forks; the standalone oracle has its own root.
+[patch.crates-io.primitive-types]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.12.1"
+
+[patch.crates-io.rlp]
+branch = "hyperlane"
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+version = "=0.5.2"

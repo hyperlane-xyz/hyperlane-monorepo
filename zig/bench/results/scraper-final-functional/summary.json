@@ -1,0 +1,124 @@
+{
+  "scope": "Final native PG, compressed SDK fixtures and actual CPU-fixed scraper process acceptance; correctness only, not matched performance",
+  "git_head": "43c65fc631c340ab607e79a93535a8163921656f",
+  "native_pg": {
+    "tests_passed": 361,
+    "optional_skipped": 10,
+    "failed": 0,
+    "total": 371,
+    "server": "postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2)",
+    "actual_migrations": 21,
+    "functional_cases": 11,
+    "native_tests_executed": true,
+    "prior_retirement_failure_replacement": "two independent discoveries make progress round robin and drain shared quota: passed"
+  },
+  "gzip_fixtures": {
+    "passed": 62,
+    "optional_skipped": 2,
+    "failed": 0
+  },
+  "protocol_scraper_owned_source_files": 136,
+  "protocol_scraper_changed_during_validation": [],
+  "pg_import_closure_files": 186,
+  "pg_source_changes_during_suite": [],
+  "scraper_compile_parent_changes": [
+    "zig/src/agents/stream/relayer_store.zig"
+  ],
+  "scraper_compile_qualification": "Only relayer stream store changed during compile; scraper ownership and service entry point remained stable. Binary SHA identifies exact executable; shared checkout was not globally frozen.",
+  "zig_version": "0.15.2",
+  "optimize": "ReleaseSafe",
+  "sdk": "MacOSX15.4.sdk",
+  "libpq_library": "/opt/homebrew/opt/libpq/lib/libpq.dylib",
+  "scraper_binary_bytes": 2707032,
+  "process_only_database_checks": {
+    "native_tests_executed": false,
+    "sql_smoke_cases": 5,
+    "actual_migrations": 21
+  },
+  "no_production_access": true,
+  "no_paired_timing": true,
+  "passed": true,
+  "protocol_scraper_owned_source_fingerprint_chunks": [
+    "e7835292fa2bb008eedc03e4d9137d3",
+    "fb49ec4c066c1a8d2f35f025fa919d3",
+    "1a"
+  ],
+  "pg_import_closure_fingerprint_chunks": [
+    "8bfbde3d12ddee4baa967debadf97ca",
+    "b40ae619f00e425927e52f859bc1b50",
+    "20"
+  ],
+  "global_source_before_chunks": [
+    "6b37726a6d40052b877b916bbf6d60f",
+    "9e39ab711cc48752e198632e4ae0dcf",
+    "aa"
+  ],
+  "global_source_after_chunks": [
+    "27a07b95d8e7f86857c5ac7042c5b5d",
+    "98495b0a30d4f64be585e13393e4d5d",
+    "45"
+  ],
+  "scraper_binary_sha256_chunks": [
+    "9534cb72701c2e22f2b3396f81b5bb2",
+    "6ff516b1c5a387a56c0d56dbf13e174",
+    "1d"
+  ],
+  "migrator_sha256_chunks": [
+    "ff5c3552213fca6a6b464d0c1f8d420",
+    "7539e8377b8e1a7e8c5d45270de0da9",
+    "e5"
+  ],
+  "actual_scraper_process": {
+    "passed": true,
+    "first_run_counts": "2|2|2|2|2",
+    "restart_counts": "3|3|3|3|3",
+    "head_progress_while_receipts_stalled": true,
+    "receipt_concurrency_peak": 4,
+    "neighbor_receipt_linked_while_one_hash_stalled": true,
+    "head_owner_liveness": {
+      "configured_chains": 9,
+      "stalled_heads": 8,
+      "observed_stalled_identity_requests": 8,
+      "healthy_chain_position": 9,
+      "fresh_height": 20,
+      "fresh_insertion_count": 1,
+      "healthy_elapsed_ms": 242,
+      "process_rss_kib": 22384,
+      "process_threads_sampled": 66,
+      "head_owner_stack_bytes_each": 1048576,
+      "head_owner_threads_configured": 9,
+      "supervisor_workers": 8
+    },
+    "signals": [
+      {
+        "signal": "SIGTERM",
+        "drain_ms": 9
+      },
+      {
+        "signal": "SIGINT",
+        "drain_ms": 12
+      },
+      {
+        "signal": "SIGTERM",
+        "drain_ms": 29
+      }
+    ],
+    "metrics": {
+      "get_status": 200,
+      "head_status": 200,
+      "body_bytes": 6822,
+      "source_version": "3.0.0",
+      "observed_chain_height_series": true
+    },
+    "fatal_published_reorg": {
+      "exit_code": 1,
+      "error": "ScraperPublishedReorg",
+      "all_lanes_drained": true,
+      "published_rows_preserved": 3,
+      "database_halted": true,
+      "exit_ms": 314
+    },
+    "proxy_rpc_requests": 99,
+    "python_fixture_rpc_requests": 68
+  }
+}

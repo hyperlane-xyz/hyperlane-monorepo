@@ -1,0 +1,126 @@
+1/125 validator_tests.test_0...OK
+2/125 agents.validator.test.test.durable reservation and signature resume latest and snapshot failures latest-first without signing twice...OK
+3/125 agents.validator.test.test.configured vote denominator retains failures and conflicts below signed watermark persist fatal guard...OK
+4/125 agents.validator.test.test.preexisting same signer conflicting remote checkpoint prevents signature and survives reopen...OK
+5/125 agents.validator.test.test.history exceeds in-memory model capacities and publication tick stays bounded...OK
+6/125 agents.validator.test.test.actual durable local checkpoint publisher latest-first snapshot and restart authentication...OK
+7/125 agents.validator.test.test.bounded driver replays 64 observations and retains unavailable configured endpoint slots...OK
+8/125 agents.validator.test.test.cloud signer adapters submit exact EIP191 digest and publisher missing reads use injected transport...OK
+9/125 agents.validator.test.test.remote snapshot resumes live indexing while bounded durable prefix repair finds and signs historical holes only after anchor authentication...OK
+10/125 agents.validator.test.test.remote snapshot tampering wrong signer and durable backend guard never seed a signing frontier...OK
+11/125 agents.validator.test.test.snapshot prefix repair never signs RPC holes whose replay conflicts with the authenticated anchor...OK
+12/125 agents.validator.test.test.typed local validator factory and operational EVM role canonicalize slots and wire bounded cancellation without reading credentials...OK
+13/125 agents.validator.test.test.native unsigned suffix rollback preserves committed signed prefix and survives reopen with no duplicate signature...OK
+14/125 agents.validator.test.test.RPC-authenticated committed prefix conflict halts even when signer never completed...OK
+15/125 agents.validator.test.test.same-block provenance change remains recoverable until prefix RPC authorization...OK
+16/125 agents.validator.test.test.checkpoint storage factory uses distinct AWS and GCS leases without granting them to KMS...OK
+17/125 protocol.root.test_0...OK
+18/125 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+19/125 protocol.merkle.test.three-leaf Merkle fixture...OK
+20/125 protocol.merkle.test.full tree rejects without mutation...OK
+21/125 protocol.merkle.test.snapshot restore checks count root and shape...OK
+22/125 runtime.validator.test.consensus preserves failed endpoint denominator and authenticates local root...OK
+23/125 runtime.validator.test.gaps and unfinalized insertions do not advance the local tree...OK
+24/125 runtime.validator.test.conflicting finalized observations halt even after a signed checkpoint...OK
+25/125 runtime.validator.test.thresholds match Rust ceil-half and ceil-two-thirds...OK
+26/125 runtime.validator.test.mixed endpoint heights authenticate required-th index and every intermediate signature...OK
+27/125 storage.objects.test.23 production Rust checkpoint announcement snapshot reorg and index objects...OK
+28/125 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+29/125 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+30/125 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+31/125 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+32/125 db.keys.test.domain names and prefix upper bounds match Rust...OK
+33/125 protocol.checkpoint.test.domain hash fixtures...OK
+34/125 protocol.checkpoint.test.checkpoint digest separates every field...OK
+35/125 evm.codecs.test.strict quantities and hex data...OK
+36/125 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+37/125 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+38/125 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+39/125 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+40/125 storage.local.test.writer lock excludes second writer while readers neither lock nor create paths...OK
+41/125 storage.local.test.same signer conflict persists guard preserves old checkpoint and blocks all late writes...OK
+42/125 storage.local.test.different signer checkpoint is overwritten without creating a false reorg...OK
+43/125 storage.local.test.latest-first publication validates target while historical checkpoints fill and snapshot survives reopen...OK
+44/125 storage.local.test.malformed unreadable and oversized reorg flags are never treated as absent...OK
+45/125 storage.local.test.read errors torn checkpoint and snapshot size boundaries fail closed...OK
+46/125 storage.local.test.failed guard persistence stays halted and can retry without accepting late writes...OK
+47/125 storage.local.test.local sign-and-write checks durable history before generating another signature...OK
+48/125 storage.local.test.nested and absolute writer directories are created through durable parent entries...OK
+49/125 cloud.root.test_0...OK
+50/125 cloud.http.test.metadata cleartext policy allows only implemented hosts methods paths and required headers...OK
+51/125 cloud.http.test.percent encoding distinguishes path slashes and literal percent signs...OK
+52/125 cloud.http.test.transport rejects credentials in URLs header injection and cleartext before connecting...OK
+53/125 cloud.http.test.real HTTP loopback enforces exclusive byte cap no redirect and one signed host...OK
+54/125 cloud.http.test.opt-in native cloud transport enforces deadline cancellation byte cap and no redirect...SKIP
+55/125 cloud.kms.test.KMS DER signatures normalize low s and bind raw digest to configured public key...OK
+56/125 cloud.kms.test.AWS KMS request uses DIGEST and validates response ARN algorithm DER and signer...OK
+57/125 cloud.kms.test.GCP KMS validates digest CRC response CRC version and HSM before recovery...OK
+58/125 cloud.kms.test.GCP integrity retry budget is three total calls and permanent errors stop immediately...OK
+59/125 cloud.kms.test.SPKI PEM bootstrap pins secp256k1 OIDs rejects mutation and validates cloud metadata...OK
+60/125 cloud.kms.test.AWS alias resolution owns canonical ARN pins key metadata and rejects later alias rotation...OK
+61/125 cloud.sigv4.test.published AWS S3 GET Object SigV4 fixture...OK
+62/125 cloud.sigv4.test.query sorting session credentials and header whitespace are canonical...OK
+63/125 cloud.storage.test.cloud storage preserves distinct S3 and GCS names folder rules and locations...OK
+64/125 cloud.storage.test.cloud prepared native GET owns URL auth exact keys caps and narrow loopback policy without IO...OK
+65/125 cloud.storage.test.GCS legacy root guard blocks folder writer even when malformed...OK
+66/125 cloud.storage.test.S3 reads anonymously and PUT signs escaped object path and temporary credentials...OK
+67/125 cloud.storage.test.GCS checkpoint publication snapshot announcement and reorg serialization...OK
+68/125 net.curl.test.native HTTP sink bounds body headers and cancellation without loading curl...OK
+69/125 net.curl.test.native HTTP validates NUL controls token headers and content encoding before loading curl...OK
+70/125 net.curl.test.public HTTP rejects literal destinations and native socket callback prevents rebinding...OK
+71/125 net.curl.test.native public HTTP blocks localhost and noncanonical numeric IPv4 without connecting...SKIP
+72/125 net.curl.test.native HTTP reuses keepalive and isolates headers methods cancellation and trust pools...SKIP
+73/125 net.curl.test.native TCP resolver uses async DNS closes fresh socket and sends no application bytes...SKIP
+74/125 relayer.public_address.test.CCIP public IP policy rejects private special-use and transition destinations...OK
+75/125 agents.validator.evm.test.vote early completion preserves higher mixed-height quorum and tolerates stalled minority...OK
+76/125 agents.validator.evm.test.classic fallback does not wait for a stalled redundant slot...OK
+77/125 config.test.environment and CLI layer over JSON; empty and false remain explicit...OK
+78/125 config.test.invalid scalar types, ambiguous keys and huge integers fail...OK
+79/125 agents.signer.test.digest signer owns local identity and signs arbitrary raw digests without network...OK
+80/125 runtime.sequence_cursor.test.sequence cursor prioritizes forward traffic detects missing logs and accepts duplicate overlap...OK
+81/125 runtime.sequence_cursor.test.sequence cursor resumes empty backwards scans and clears per-gap progress after indexed recovery...OK
+82/125 runtime.sequence_cursor.test.sequence cursor cumulative missing sets prevent alternating response retry storms...OK
+83/125 runtime.sequence_cursor.test.sequence cursor bounds database skipping relative floors and unavailable counts...OK
+84/125 evm.provider.test.RPC envelope rejects ambiguous mismatched and malformed responses...OK
+85/125 evm.provider.test.JSON-RPC errors retain only safe error code...OK
+86/125 evm.provider.test.RPC configuration and invalid log ranges reject before network access...OK
+87/125 evm.provider.test.RPC endpoint credentials and custom headers are owned sanitized and emitted once...OK
+88/125 evm.provider.test.missing blocks and noncanonical block quantities reject...OK
+89/125 evm.provider.test.native RPC transport enforces envelope bounds cancellation and deadline...SKIP
+90/125 evm.provider.test.HTTP loopback exercises typed RPC calls and bounded envelopes...OK
+91/125 evm.provider.test.HTTP loopback validates block and call result types...OK
+92/125 evm.provider.test.log parser validates full metadata canonical identity and removed logs...OK
+93/125 evm.provider.test.HTTP log filter rejects out of range and mismatched contract logs...OK
+94/125 evm.indexer.test.EVM indexer refuses invalid tags and unverified chain reads before I/O...OK
+95/125 net.endpoint.test.shared endpoint custom RPC header URLs match production extraction duplicate replacement and form queries...OK
+96/125 net.endpoint.test.shared endpoint canonical identity matches actual production Rust URL corpus or explicitly rejects unsupported spellings...OK
+97/125 db.root.test_0...OK
+98/125 net.curl_multi.test.curl multi rejects invalid capacities without loading a native library...OK
+99/125 net.curl_multi.test.curl multi starts healthy validators beyond eight stalled requests and cancels every loser...SKIP
+100/125 net.curl_multi.test.curl multi bounds queued memory capacity deadlines and stale identities without network...SKIP
+101/125 net.curl_multi.test.curl multi releases partial allocation failures and never retains borrowed request buffers...SKIP
+102/125 net.curl_multi.test.curl multi enforces body and header caps no redirects and private socket policy...SKIP
+103/125 evm.announce.test.7 independent Foundry announcement ABI fixtures with truncations offsets padding UTF8 and aggregate bounds...OK
+104/125 protocol.message.test.canonical message fixture and borrowed decode...OK
+105/125 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+106/125 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+107/125 db.codec.test.integer endianness and strict bool match production...OK
+108/125 altvm.bech32.test.Cosmos address source fixture and BIP173 mixed case checksum...OK
+109/125 altvm.bech32.test.generic addresses decode BIP350 without weakening Cosmos checksum policy...OK
+110/125 altvm.base58.test.base58 fixed vectors leading zeroes and invalid alphabet...OK
+111/125 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+112/125 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+113/125 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+114/125 cloud.rs256.test.JWT claims require Google audience service account email and bounded lifetime...OK
+115/125 cloud.rs256.test.opt-in OpenSSL RS256 agrees with external Node generated ephemeral fixtures...SKIP
+116/125 cloud.identity.test.UTC credential expiration validates calendar and explicit environment requires complete pair...OK
+117/125 cloud.identity.test.IMDSv2 token role credentials cache and refresh use only injected time and transport...OK
+118/125 cloud.identity.test.GCP metadata scopes project cache refresh and response flavor verification...OK
+119/125 cloud.identity.test.authorized-user ADC refresh escapes form secrets and selects the correct credential parser...OK
+120/125 cloud.identity.test.STS web identity form uses rotated injected token and caches temporary credentials...OK
+121/125 cloud.identity.test.STS structural parser rejects duplicate credential fields unbalanced XML and entities...OK
+122/125 cloud.identity.test.ECS container credentials are cached and full URI cleartext is explicitly constrained...OK
+123/125 cloud.identity.test.opt-in service-account ADC JWT exchange matches external signature and caches token...SKIP
+124/125 db.golden_test.test.93 production Rust DB codec fixtures and all fixed-record truncation boundaries...OK
+125/125 db.json.test.serde status wire spelling nested report and fail-closed recovery...OK
+114 passed; 11 skipped; 0 failed.

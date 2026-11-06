@@ -1,0 +1,341 @@
+{
+  "status": "Accepted scoped test-only fixture correction; no production fix by this owner",
+  "counts": {
+    "ccip_sessions_delegated_tests-ReleaseSafe": 417,
+    "ccip_sessions_delegated_tests-ReleaseFast": 417,
+    "evm_driver_delegated_tests-ReleaseSafe": 443,
+    "evm_driver_delegated_tests-ReleaseFast": 443
+  },
+  "source_hashes_unchanged": true,
+  "source_sha256_chunks": {
+    "zig/src/agents/relayer/ccip_sessions.zig": [
+      "08a9b72f26c3875cf2e813a3f7017d07",
+      "81869ea53c751edf7a25892b8dc43576"
+    ],
+    "zig/src/agents/relayer/ccip_sessions_test.zig": [
+      "932049479e5c1e0fbb47d7410f817dd9",
+      "2ab2dac7077f290726531d78c2a7f616"
+    ],
+    "zig/src/agents/relayer/evm_driver.zig": [
+      "f8e80c7cbcdfd422fc182d333d50223b",
+      "13e78b3e0cacf26157357501e7dd144c"
+    ],
+    "zig/src/agents/relayer/evm_driver_test.zig": [
+      "7a3eb6b5b8396473d8259107f02b3b43",
+      "489db07e5d8fab03b504c60a4c2dc985"
+    ],
+    "zig/src/agents/relayer/ccs_signer_test.zig": [
+      "5b9bc15449232647dbbcbdfc32aeb1d1",
+      "01bfed9445d781e00aec0a1b10380ad5"
+    ],
+    "zig/src/relayer/metadata_parallel.zig": [
+      "418c1b6dcbb75c0a3c0fb22d7941943a",
+      "e3fc402f7dda87635550fe3cfd82908c"
+    ],
+    "zig/src/agents/credentials.zig": [
+      "d1ac8106a37e80158d44e51d1f5a486b",
+      "0960eed100fc0f55651fcaa454a104b4"
+    ]
+  },
+  "test_only_changes": [
+    "Fixture.initRevert explicitly initializes context_hash before use; strict initial-nine context assertion",
+    "Runtime.initAt explicitly initializes MockChain before interface publication; strict empty initial receipt/hash/header/height assertions"
+  ],
+  "fmt_exit_code": 0,
+  "limits": [
+    "Functional verification only; no benchmark",
+    "Bounded fixture-constructor variant review, not whole repository initialization audit",
+    "Global/native-container acceptance remains Parent-owned",
+    "Full development SDK and explicit temporary RSA/gRPC fixture opt-ins; no production credentials or external chain requests"
+  ],
+  "artifacts": {
+    "accepted/commands.json.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-accepted-commands.json",
+      "uncompressed_bytes": 10117,
+      "sha256_chunks": [
+        "34b59349f3689beab7c6a84ad39f8758",
+        "a8269ab1eea91c826cefb7d31bb52843"
+      ],
+      "qualification": "Accepted final fresh gRPC fixture per binary; full available SDK environment; temporary RSA fixture removed, no keys archived"
+    },
+    "accepted/result.json.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-accepted-result.json",
+      "uncompressed_bytes": 2412,
+      "sha256_chunks": [
+        "04347a344b53bfbda1b00ac21f920f0d",
+        "5973ebb382e5e3e5c795ebaaddede1cf"
+      ],
+      "qualification": "Accepted final fresh gRPC fixture per binary; full available SDK environment; temporary RSA fixture removed, no keys archived"
+    },
+    "accepted/check.py.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-accepted-check.py",
+      "uncompressed_bytes": 3305,
+      "sha256_chunks": [
+        "3fde38e0f7ae8b8f367bfc9f126adea6",
+        "a4b2d638b3ebfdf2fd74bfe988bb8c50"
+      ],
+      "qualification": "Accepted final fresh gRPC fixture per binary; full available SDK environment; temporary RSA fixture removed, no keys archived"
+    },
+    "accepted/ccip_sessions_delegated_tests-ReleaseSafe.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-accepted-ccip_sessions_delegated_tests-ReleaseSafe.log",
+      "uncompressed_bytes": 48101,
+      "sha256_chunks": [
+        "19467be5711e4bf9aaaf29ffa3e747e5",
+        "71db45a23fb41c735afcca6d082024ae"
+      ],
+      "qualification": "Final complete root, exit zero, no skips"
+    },
+    "accepted/ccip_sessions_delegated_tests-ReleaseFast.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-accepted-ccip_sessions_delegated_tests-ReleaseFast.log",
+      "uncompressed_bytes": 48101,
+      "sha256_chunks": [
+        "19467be5711e4bf9aaaf29ffa3e747e5",
+        "71db45a23fb41c735afcca6d082024ae"
+      ],
+      "qualification": "Final complete root, exit zero, no skips"
+    },
+    "accepted/evm_driver_delegated_tests-ReleaseSafe.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-accepted-evm_driver_delegated_tests-ReleaseSafe.log",
+      "uncompressed_bytes": 50674,
+      "sha256_chunks": [
+        "2ca011c4ac2874ac576f1e5768bf0914",
+        "1de4bc04715b6cdc0a97675eb317e46f"
+      ],
+      "qualification": "Final complete root, exit zero, no skips"
+    },
+    "accepted/evm_driver_delegated_tests-ReleaseFast.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-accepted-evm_driver_delegated_tests-ReleaseFast.log",
+      "uncompressed_bytes": 50674,
+      "sha256_chunks": [
+        "2ca011c4ac2874ac576f1e5768bf0914",
+        "1de4bc04715b6cdc0a97675eb317e46f"
+      ],
+      "qualification": "Final complete root, exit zero, no skips"
+    },
+    "accepted/source/zig/src/agents/relayer/ccip_sessions.zig.gz": {
+      "original": "zig/src/agents/relayer/ccip_sessions.zig",
+      "uncompressed_bytes": 27156,
+      "sha256_chunks": [
+        "08a9b72f26c3875cf2e813a3f7017d07",
+        "81869ea53c751edf7a25892b8dc43576"
+      ],
+      "qualification": "Exact accepted source snapshot; this slice changed only the two test constructors and their strict initial assertions"
+    },
+    "accepted/source/zig/src/agents/relayer/ccip_sessions_test.zig.gz": {
+      "original": "zig/src/agents/relayer/ccip_sessions_test.zig",
+      "uncompressed_bytes": 51038,
+      "sha256_chunks": [
+        "932049479e5c1e0fbb47d7410f817dd9",
+        "2ab2dac7077f290726531d78c2a7f616"
+      ],
+      "qualification": "Exact accepted source snapshot; this slice changed only the two test constructors and their strict initial assertions"
+    },
+    "accepted/source/zig/src/agents/relayer/evm_driver.zig.gz": {
+      "original": "zig/src/agents/relayer/evm_driver.zig",
+      "uncompressed_bytes": 23546,
+      "sha256_chunks": [
+        "f8e80c7cbcdfd422fc182d333d50223b",
+        "13e78b3e0cacf26157357501e7dd144c"
+      ],
+      "qualification": "Exact accepted source snapshot; this slice changed only the two test constructors and their strict initial assertions"
+    },
+    "accepted/source/zig/src/agents/relayer/evm_driver_test.zig.gz": {
+      "original": "zig/src/agents/relayer/evm_driver_test.zig",
+      "uncompressed_bytes": 82297,
+      "sha256_chunks": [
+        "7a3eb6b5b8396473d8259107f02b3b43",
+        "489db07e5d8fab03b504c60a4c2dc985"
+      ],
+      "qualification": "Exact accepted source snapshot; this slice changed only the two test constructors and their strict initial assertions"
+    },
+    "accepted/source/zig/src/agents/relayer/ccs_signer_test.zig.gz": {
+      "original": "zig/src/agents/relayer/ccs_signer_test.zig",
+      "uncompressed_bytes": 29001,
+      "sha256_chunks": [
+        "5b9bc15449232647dbbcbdfc32aeb1d1",
+        "01bfed9445d781e00aec0a1b10380ad5"
+      ],
+      "qualification": "Exact accepted source snapshot; this slice changed only the two test constructors and their strict initial assertions"
+    },
+    "accepted/source/zig/src/relayer/metadata_parallel.zig.gz": {
+      "original": "zig/src/relayer/metadata_parallel.zig",
+      "uncompressed_bytes": 19381,
+      "sha256_chunks": [
+        "418c1b6dcbb75c0a3c0fb22d7941943a",
+        "e3fc402f7dda87635550fe3cfd82908c"
+      ],
+      "qualification": "Exact accepted source snapshot; this slice changed only the two test constructors and their strict initial assertions"
+    },
+    "accepted/source/zig/src/agents/credentials.zig.gz": {
+      "original": "zig/src/agents/credentials.zig",
+      "uncompressed_bytes": 38255,
+      "sha256_chunks": [
+        "d1ac8106a37e80158d44e51d1f5a486b",
+        "0960eed100fc0f55651fcaa454a104b4"
+      ],
+      "qualification": "Exact accepted source snapshot; this slice changed only the two test constructors and their strict initial assertions"
+    },
+    "variant-review.md.gz": {
+      "original": "/tmp/ziggy-heap-fixture-variant-review.md",
+      "uncompressed_bytes": 3499,
+      "sha256_chunks": [
+        "94310e12c283109c3e6f334c9f54f979",
+        "bc0d5cd25e439625f2a460936547f9b5"
+      ],
+      "qualification": "Bounded raw Fixture and related Runtime/LifetimeFixture review; two confirmed test-only omissions"
+    },
+    "focused-diagnostics/ccip-context-after-focused-ReleaseFast.log.gz": {
+      "original": "/tmp/ziggy-ccip-context-after-focused-ReleaseFast.log",
+      "uncompressed_bytes": 1481,
+      "sha256_chunks": [
+        "5a724304b20b926f3c6a79e265b066aa",
+        "bd0846569b85f9bbe19e1fadff3ac610"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-after-focused-ReleaseSafe.log.gz": {
+      "original": "/tmp/ziggy-ccip-context-after-focused-ReleaseSafe.log",
+      "uncompressed_bytes": 1481,
+      "sha256_chunks": [
+        "5a724304b20b926f3c6a79e265b066aa",
+        "bd0846569b85f9bbe19e1fadff3ac610"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-after-focused-result.json.gz": {
+      "original": "/tmp/ziggy-ccip-context-after-focused-result.json",
+      "uncompressed_bytes": 571,
+      "sha256_chunks": [
+        "02484d7b9afbde1b42ba8da044d38356",
+        "1508ff4ddedbe52fa982df4b623c194d"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-before-ReleaseFast.log.gz": {
+      "original": "/tmp/ziggy-ccip-context-before-ReleaseFast.log",
+      "uncompressed_bytes": 1679,
+      "sha256_chunks": [
+        "29609b694d75f4e24c30636ec277a9c5",
+        "85c5af0dea243c0fe4140131aae689be"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-before-ReleaseSafe.log.gz": {
+      "original": "/tmp/ziggy-ccip-context-before-ReleaseSafe.log",
+      "uncompressed_bytes": 1481,
+      "sha256_chunks": [
+        "5a724304b20b926f3c6a79e265b066aa",
+        "bd0846569b85f9bbe19e1fadff3ac610"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-before-commands.json.gz": {
+      "original": "/tmp/ziggy-ccip-context-before-commands.json",
+      "uncompressed_bytes": 3114,
+      "sha256_chunks": [
+        "3487470c576972089e4a91b0316aef22",
+        "2d4a8202f54f3880390bb280776c50c4"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-before-result.json.gz": {
+      "original": "/tmp/ziggy-ccip-context-before-result.json",
+      "uncompressed_bytes": 571,
+      "sha256_chunks": [
+        "43cd3e5465b8b61456388cc1b72168aa",
+        "6502ca186c9bcfa315528c463f76ed8e"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-constructor-negative-ReleaseFast.log.gz": {
+      "original": "/tmp/ziggy-ccip-context-constructor-negative-ReleaseFast.log",
+      "uncompressed_bytes": 2227,
+      "sha256_chunks": [
+        "7611af7bc7e4592e29af3099daef6b2a",
+        "deb04d3ab2d66aa8d8f5f24504e9ac66"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "focused-diagnostics/ccip-context-constructor-negative-ReleaseSafe.log.gz": {
+      "original": "/tmp/ziggy-ccip-context-constructor-negative-ReleaseSafe.log",
+      "uncompressed_bytes": 2227,
+      "sha256_chunks": [
+        "5643a1923a970b1853345b8a1c702ebd",
+        "61d876484c7d0e942c3553a1d198f920"
+      ],
+      "qualification": "Before/negative/focused-after causal evidence; not the final full-root acceptance"
+    },
+    "historical-shared-grpc-harness/heap-fixture-defaults-final-ccip_sessions_delegated_tests-ReleaseFast.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-final-ccip_sessions_delegated_tests-ReleaseFast.log",
+      "uncompressed_bytes": 48163,
+      "sha256_chunks": [
+        "bae11798fa1795929059fcf03a7e1d87",
+        "310f5ed6e355a720ebea14c42f2c1aa0"
+      ],
+      "qualification": "Historical diagnostic harness shared one absolute-counter gRPC server across binaries; unrelated accumulated probe counts invalidated later roots"
+    },
+    "historical-shared-grpc-harness/heap-fixture-defaults-final-ccip_sessions_delegated_tests-ReleaseSafe.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-final-ccip_sessions_delegated_tests-ReleaseSafe.log",
+      "uncompressed_bytes": 47970,
+      "sha256_chunks": [
+        "4764477745f496dc5faf0f47f77fd689",
+        "8762b824d85d207fc2cb1eea11b76b4a"
+      ],
+      "qualification": "Historical diagnostic harness shared one absolute-counter gRPC server across binaries; unrelated accumulated probe counts invalidated later roots"
+    },
+    "historical-shared-grpc-harness/heap-fixture-defaults-final-commands.json.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-final-commands.json",
+      "uncompressed_bytes": 5237,
+      "sha256_chunks": [
+        "d0be78f184d18850aa0bf920c54c3003",
+        "ef7cc15de0cabd456f990d1d752c22f1"
+      ],
+      "qualification": "Historical diagnostic harness shared one absolute-counter gRPC server across binaries; unrelated accumulated probe counts invalidated later roots"
+    },
+    "historical-shared-grpc-harness/heap-fixture-defaults-final-evm_driver_delegated_tests-ReleaseFast.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-final-evm_driver_delegated_tests-ReleaseFast.log",
+      "uncompressed_bytes": 50737,
+      "sha256_chunks": [
+        "580b144ffdd5ff6b8865a619cee85277",
+        "07c7a5687d7c9c83e867271608eb21e2"
+      ],
+      "qualification": "Historical diagnostic harness shared one absolute-counter gRPC server across binaries; unrelated accumulated probe counts invalidated later roots"
+    },
+    "historical-shared-grpc-harness/heap-fixture-defaults-final-evm_driver_delegated_tests-ReleaseSafe.log.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-final-evm_driver_delegated_tests-ReleaseSafe.log",
+      "uncompressed_bytes": 50737,
+      "sha256_chunks": [
+        "9960a683246b0cddbcbc9dec3a89424c",
+        "1f6f199e650bf04fd7e5926083885f20"
+      ],
+      "qualification": "Historical diagnostic harness shared one absolute-counter gRPC server across binaries; unrelated accumulated probe counts invalidated later roots"
+    },
+    "historical-shared-grpc-harness/heap-fixture-defaults-final-result.json.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-final-result.json",
+      "uncompressed_bytes": 1962,
+      "sha256_chunks": [
+        "454c197544c112e6d88b06a81a85d188",
+        "9f35c34a9ccdc0ea7ad9a82e266f9b3b"
+      ],
+      "qualification": "Historical diagnostic harness shared one absolute-counter gRPC server across binaries; unrelated accumulated probe counts invalidated later roots"
+    },
+    "historical-shared-grpc-harness/runner.py.gz": {
+      "original": "/tmp/ziggy-heap-fixture-defaults-full-check.py",
+      "uncompressed_bytes": 2811,
+      "sha256_chunks": [
+        "65cd070621ec8a34e21e8304c5ee3ade",
+        "5523aa4736a1af71d37ad5dd1e5c0b25"
+      ],
+      "qualification": "Historical harness, superseded by accepted fresh-server runner"
+    },
+    "original-native-db-fast-failure.log.gz": {
+      "original": "zig/bench/results/global-source-final-20261106T0936-fast-native/native-db.log",
+      "uncompressed_bytes": 158710,
+      "sha256_chunks": [
+        "34c11b731c4fa7f07eb7b32168bd007e",
+        "562c55dfb775474c4d9fc02ed7fccdcd"
+      ],
+      "qualification": "Untouched original broad Fast failure: 1020 passed, 1 skip, 1 CCIP failure"
+    }
+  }
+}

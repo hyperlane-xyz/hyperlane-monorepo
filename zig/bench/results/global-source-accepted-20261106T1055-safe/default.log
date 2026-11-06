@@ -1,0 +1,27 @@
+test
++- run test 744/745 passed, 1 failed
+[default] (warn): validator observation metric update failed
+[default] (warn): Cosmos native validator locations unavailable: UnexpectedGrpcCall
+[default] (warn): Cosmos native validator locations unavailable: GrpcRemoteStatus
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 5000ms: RpcError
+[default] (warn): origin dispatch range fetch failed; retry in 10000ms: RpcError
+[default] (warn): contract cache metric update failed: OutOfMemory
+[default] (warn): Common health metric update failed: BalanceUnavailable
+[default] (warn): Common health metric update failed: ChainUnavailable
+[default] (warn): Common health metric update failed: HealthWalletIdentityChanged
+[default] (warn): critical metric update failed: MetricSeriesLimit
+error: 'aleo_vm_worker.test.Aleo worker network probe allowed loopback control and invalid inputs remain distinct' failed: [default] (warn): initialization metric update failed: MetricSeriesLimit
+expected error.ConnectionRefused, found error.ConnectionTimedOut
+error: while executing test 'agents.relayer.rpc_budget.test.protected estimate sequence shares one deadline and restores its client's transport', the following test command failed:
+./.zig-cache/o/448ca1e8570e341ec92f2cf95d16cab7/test --cache-dir=./.zig-cache --seed=0x65ac79c5 --listen=-
+
+Build Summary: 1/3 steps succeeded; 1 failed; 744/745 tests passed; 1 failed
+test transitive failure
++- run test 744/745 passed, 1 failed
+   +- compile test ReleaseSafe native success 1m MaxRSS:3G
+
+error: the following build command failed with exit code 1:
+.zig-cache/o/20dc4507bd90e07a74d1d71bcb8ed1c6/build /private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig /private/tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/lib /Users/pbio/work/ziggy/zig .zig-cache /Users/pbio/.cache/zig --seed 0x65ac79c5 -Z3aa748dbf6c91bfb test -Doptimize=ReleaseSafe --summary all

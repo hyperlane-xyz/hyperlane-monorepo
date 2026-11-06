@@ -1,0 +1,88 @@
+1/87 read_replay_tests.test_0...OK
+2/87 read_replay_tests.test.cooperative EVM source indexes eight healthy chains past eight stalled chains with eight supervisor workers...OK
+3/87 read_replay_tests.test.cooperative absolute deadline survives repeated passes and async handles cancel before late completions...OK
+4/87 read_replay_tests.test.cooperative EVM source cannot replay the before-header as an after-header across a fork...OK
+5/87 read_replay_tests.test.cooperative global replay quota fails closed and releases cached ownership on every terminal path...OK
+6/87 read_replay_tests.test.cooperative RPC completed native request timeout is ordinary with a live owner budget...OK
+7/87 net.read_replay.test.cooperative RPC replay identity preserves exact numbers, normalizes keys, forbids writes...OK
+8/87 net.read_replay.test.cooperative shared replay byte budget rejects overflow and releases exact reservations...OK
+9/87 net.read_replay.test.cooperative JSON identity and ID substitution free every partial allocation...OK
+10/87 net.read_replay.test.cooperative RPC completed timeout preserves owner clamp expiry cancellation and injected clocks...OK
+11/87 evm.pool.test.exact JSON normalization ignores object order and decimal spelling without f64...OK
+12/87 evm.pool.test.configuration rejects impossible thresholds before native loading...OK
+13/87 evm.pool.test.native fallback aging uses exact SVM processed block height and Tendermint latest block probes...OK
+14/87 evm.pool.test.native RPC owner suspends between active socket polls instead of spinning on a stalled request...OK
+15/87 net.curl_multi.test.curl multi rejects invalid capacities without loading a native library...OK
+16/87 net.curl_multi.test.curl multi starts healthy validators beyond eight stalled requests and cancels every loser...OK
+17/87 net.curl_multi.test.curl multi bounds queued memory capacity deadlines and stale identities without network...OK
+18/87 net.curl_multi.test.curl multi releases partial allocation failures and never retains borrowed request buffers...OK
+19/87 net.curl_multi.test.curl multi enforces body and header caps no redirects and private socket policy...OK
+20/87 net.dynamic_tip_cache.test.tip cache Source eligibility keys ignore only blockNumber params and isolate complete endpoint identities...OK
+21/87 net.dynamic_tip_cache.test.tip cache TTL starts at successful insertion, strict250ms expiry, and failed generations release every follower...OK
+22/87 net.dynamic_tip_cache.test.tip cache bounded entries never evict active leaders and byte pressure releases followers without fake data...OK
+23/87 net.dynamic_tip_cache.test.tip cache concurrent claims elect one leader and bounded followers with no I/O inside ownership lock...OK
+24/87 net.dynamic_tip_cache.test.tip cache failed-generation follower may use newer ready result but never waits behind newer leader...OK
+25/87 net.endpoint.test.shared endpoint custom RPC header URLs match production extraction duplicate replacement and form queries...OK
+26/87 net.endpoint.test.shared endpoint canonical identity matches actual production Rust URL corpus or explicitly rejects unsupported spellings...OK
+27/87 net.curl.test.native HTTP sink bounds body headers and cancellation without loading curl...OK
+28/87 net.curl.test.native HTTP validates NUL controls token headers and content encoding before loading curl...OK
+29/87 net.curl.test.public HTTP rejects literal destinations and native socket callback prevents rebinding...OK
+30/87 net.curl.test.native public HTTP blocks localhost and noncanonical numeric IPv4 without connecting...OK
+31/87 net.curl.test.native HTTP reuses keepalive and isolates headers methods cancellation and trust pools...OK
+32/87 net.curl.test.native TCP resolver uses async DNS closes fresh socket and sends no application bytes...OK
+33/87 net.curl.test.native HTTP read-only override validates request cancellation and response bounds without loading curl...OK
+34/87 net.curl.test.native HTTP growing body sink is lazy bounded and transfers exact ownership...OK
+35/87 net.curl.test.native HTTP growing sink preserves OOM and cleanup on every allocation...OK
+36/87 net.curl.test.native HTTP max8MiB transfer initialization fits64KiB without eager body allocation...OK
+37/87 net.curl.test.native HTTP response payload moves across owned adapters without copying...OK
+38/87 cloud.http.test.metadata cleartext policy allows only implemented hosts methods paths and required headers...OK
+39/87 cloud.http.test.percent encoding distinguishes path slashes and literal percent signs...OK
+40/87 cloud.http.test.transport rejects credentials in URLs header injection and cleartext before connecting...OK
+41/87 cloud.http.test.real HTTP loopback enforces exclusive byte cap no redirect and one signed host...OK
+42/87 cloud.http.test.opt-in native cloud transport enforces deadline cancellation byte cap and no redirect...SKIP
+43/87 cloud.http.test.ADC AWS metadata IMDSv1 is explicit per request and never widens host path or token defaults...OK
+44/87 net.json_bounds.test.JSON scanner rejects attacker depth before DOM allocation and ignores delimiters in strings...OK
+45/87 evm.provider.test.RPC envelope rejects ambiguous mismatched and malformed responses...OK
+46/87 evm.provider.test.JSON-RPC errors retain only safe error code...OK
+47/87 evm.provider.test.RPC configuration and invalid log ranges reject before network access...OK
+48/87 evm.provider.test.RPC endpoint credentials and custom headers are owned sanitized and emitted once...OK
+49/87 evm.provider.test.missing blocks and noncanonical block quantities reject...OK
+50/87 evm.provider.test.native RPC transport enforces envelope bounds cancellation and deadline...OK
+51/87 evm.provider.test.HTTP loopback exercises typed RPC calls and bounded envelopes...OK
+52/87 evm.provider.test.HTTP loopback validates block and call result types...OK
+53/87 evm.provider.test.log parser validates full metadata canonical identity and removed logs...OK
+54/87 evm.provider.test.HTTP log filter rejects out of range and mismatched contract logs...OK
+55/87 relayer.public_address.test.CCIP public IP policy rejects private special-use and transition destinations...OK
+56/87 runtime.supervisor.test.supervisor timeout retains mutable role exclusively until actual worker retirement...OK
+57/87 runtime.supervisor.test.supervisor fatal classification exposes original error halts all lanes and drains cancellation...OK
+58/87 runtime.supervisor.test.supervisor mailbox wake bypasses interval without reusing active or retiring role...OK
+59/87 runtime.supervisor.test.supervisor cooperative reads resume without consuming failures retries or completion...OK
+60/87 runtime.io_pool.test.completed I/O follows arrival order when owner polls after multiple responses...OK
+61/87 runtime.io_pool.test.deadline returns promptly, keeps capacity bounded and discards late completion...OK
+62/87 runtime.io_pool.test.queued cancellation never executes; running output is discarded after cancellation...OK
+63/87 runtime.io_pool.test.two workers claim cancelled-input cleanup exactly once...OK
+64/87 protocol.root.test_0...OK
+65/87 protocol.message.test.canonical message fixture and borrowed decode...OK
+66/87 protocol.message.test.all truncated prefixes and insufficient output fail...OK
+67/87 protocol.message.test.encode decode and streaming hash at block and integer boundaries...OK
+68/87 evm.codecs.test.strict quantities and hex data...OK
+69/87 evm.codecs.test.process calldata canonical offsets and zero padding...OK
+70/87 evm.codecs.test.dispatch validates ABI bounds padding and indexed message fields...OK
+71/87 evm.codecs.test.process insertion and gas events reject type overflow and malformed topics...OK
+72/87 evm.codecs.test.event signatures and calldata selector match Foundry cast fixtures...OK
+73/87 testing.fixture.test.compressed SDK fixtures preserve exact bytes numbers and parsed ownership...OK
+74/87 testing.fixture.test.compressed fixture allocation failures release decoded and parsed storage...OK
+75/87 protocol.merkle.test.incremental root matches independently constructed full tree...OK
+76/87 protocol.merkle.test.three-leaf Merkle fixture...OK
+77/87 protocol.merkle.test.full tree rejects without mutation...OK
+78/87 protocol.merkle.test.snapshot restore checks count root and shape...OK
+79/87 protocol.checkpoint.test.domain hash fixtures...OK
+80/87 protocol.checkpoint.test.checkpoint digest separates every field...OK
+81/87 protocol.metadata.test.multisig metadata roundtrips and rejects truncation...OK
+82/87 protocol.metadata.test.merkle root multisig layout roundtrip and index validation...OK
+83/87 protocol.metadata.test.aggregation preserves absent and empty metadata and validates ranges...OK
+84/87 protocol.signature.test.known key address and deterministic canonical sign/recover...OK
+85/87 protocol.signature.test.invalid scalar recovery ID and high s signatures rejected...OK
+86/87 protocol.signature.test.quorum requires configured threshold ordered unique signers...OK
+87/87 protocol.signature.test.recovery acceptance matches exact production ethers revision fixture...OK
+86 passed; 1 skipped; 0 failed.

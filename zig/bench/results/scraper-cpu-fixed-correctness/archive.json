@@ -1,0 +1,50 @@
+{
+  "scope": "Correctness and intrusive shared-host CPU attribution, not matched throughput. Large raw sample stacks retained only in /tmp. Historical failing and previous process results remain separate.",
+  "files": [
+    {
+      "archive": "scraper-process.json",
+      "original": "/tmp/ziggy-scraper-cpu-fixed-process/scraper-process.json",
+      "original_sha256_chunks": [
+        "d70161ab6d7d7566ba5655d48a4bdd83",
+        "7a6160ab7baedfa154b29bf0c4ddcf96"
+      ],
+      "normalization": "long public hex values split into lossless chunks; original retained in /tmp"
+    },
+    {
+      "archive": "postgres-integration.json",
+      "original": "/tmp/ziggy-scraper-cpu-fixed-process/postgres-integration.json",
+      "original_sha256_chunks": [
+        "18f74822d9dccf7f66ee236e572b854b",
+        "9935f7ffbdc79df110037a7987520fd0"
+      ],
+      "normalization": "long public hex values split into lossless chunks; original retained in /tmp"
+    },
+    {
+      "archive": "binary-manifest.json",
+      "original": "/tmp/ziggy-scraper-cpu-fixed-manifest.json",
+      "original_sha256_chunks": [
+        "500ee32bf08e38257090b4b7f2d2d9e7",
+        "b01431c2339901d7c2c44dbc3cb6cdd6"
+      ],
+      "normalization": "long public hex values split into lossless chunks; original retained in /tmp"
+    },
+    {
+      "archive": "sql-counts-before.json",
+      "original": "/tmp/ziggy-scraper-diagnostic/sql-counts.json",
+      "original_sha256_chunks": [
+        "ecf41eca50a94ff608ada6b74627cb4c",
+        "f8d1233390bf8f1cff51316b8790e49b"
+      ],
+      "normalization": "long public hex values split into lossless chunks; original retained in /tmp"
+    },
+    {
+      "archive": "sql-counts-after.json",
+      "original": "/tmp/ziggy-scraper-diagnostic-after/sql-counts.json",
+      "original_sha256_chunks": [
+        "b26fe26454cbc31a2f8c2e44f70ae1e7",
+        "1ff314028acfdd950272640b0da4569c"
+      ],
+      "normalization": "long public hex values split into lossless chunks; original retained in /tmp"
+    }
+  ]
+}

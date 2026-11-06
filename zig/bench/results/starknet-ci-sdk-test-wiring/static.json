@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "scope": "static packaging and immutable action checks",
+  "roles": [
+    "relayer",
+    "validator",
+    "scraper"
+  ],
+  "runtime_variants": [
+    "core",
+    "starknet",
+    "aleo",
+    "full-sdk"
+  ],
+  "aleo_parameters_baked": false,
+  "root_dockerignore_changed": false
+}

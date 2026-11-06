@@ -1,0 +1,188 @@
+{
+  "executed": false,
+  "status": "PREPARED_NOT_EXECUTED",
+  "prerequisites": [
+    "Complete tx-ID and durable Starknet group Source integration and independent review.",
+    "Combined default/native/Postgres/all3 actual role checks green on one frozen snapshot.",
+    "Final all-eight-feature cold/no-change build matrix completes; use exact emitted binaries and dependency bundle.",
+    "Each mode gets its OWN exact-binary three-ISM/batch4/crash/WSS/public2cases proof; no Source600s delay override.",
+    "Archive completed proof bytes losslessly, verify SHA and decoded hash; never rewrite measurements.",
+    "Create paired-provenance.json from actual matrix Source/binary identity only AFTER matrix succeeds.",
+    "Timing commands run serially, all team compilers/tests/shadow paused; unrelated user workloads untouched.",
+    "After the cold matrix builds SDK bridges, rerun SDK-dependent native correctness checks against those exact preserved matrix DSOs and installed worker, recording hashes; do not substitute earlier development libraries."
+  ],
+  "confirmation_policy": "Every functional tracked ID must remain active until its own actual inclusion+600s; paired measuredCPU/RSS uses equal metrics-only cumulative600s polling for both languages. No accepted relayer performance result yet.",
+  "historical_attempts": "Preserved under whole-relayer-smoke-actual*; never substitute old snapshot or5s retirement.",
+  "commands": [
+    {
+      "mode": "ReleaseSafe",
+      "functional_commands": [
+        {
+          "command": [
+            "python3",
+            "zig/integration/relayer_process.py",
+            "--binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/relayer",
+            "--oracle",
+            "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+            "--output",
+            "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/relayer-process.json",
+            "--validator-binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/validator"
+          ],
+          "expected_proof_after_lossless_archive": "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/relayer-process.json.gz"
+        },
+        {
+          "command": [
+            "python3",
+            "zig/integration/relayer_stream.py",
+            "--binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/relayer",
+            "--oracle",
+            "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+            "--output",
+            "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/relayer-stream.json",
+            "--validator-binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/validator"
+          ],
+          "expected_proof_after_lossless_archive": "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/relayer-stream.json.gz"
+        },
+        {
+          "command": [
+            "python3",
+            "zig/integration/public_relay_process.py",
+            "--binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/relayer",
+            "--oracle",
+            "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+            "--output",
+            "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/public-relay.json"
+          ],
+          "expected_proof_after_lossless_archive": "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/public-relay.json.gz"
+        }
+      ],
+      "paired_command": [
+        "python3",
+        "zig/bench/relayer.py",
+        "paired",
+        "--execute",
+        "--rust",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/relayer",
+        "--zig",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/relayer",
+        "--rust-validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/validator",
+        "--zig-validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/validator",
+        "--oracle",
+        "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+        "--baseline-provenance",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/paired-provenance.json",
+        "--relayer-process-proof",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/relayer-process.json.gz",
+        "--relayer-stream-proof",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/relayer-stream.json.gz",
+        "--public-relay-proof",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasesafe/public-relay.json.gz",
+        "--samples",
+        "5",
+        "--catchup",
+        "32",
+        "--steady",
+        "8",
+        "--steady-interval-ms",
+        "500",
+        "--max-batch-size",
+        "1",
+        "--quiet-host",
+        "--output",
+        "/Users/pbio/work/ziggy/zig/bench/results/whole-relayer-final-releasesafe"
+      ]
+    },
+    {
+      "mode": "ReleaseFast",
+      "functional_commands": [
+        {
+          "command": [
+            "python3",
+            "zig/integration/relayer_process.py",
+            "--binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/relayer",
+            "--oracle",
+            "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+            "--output",
+            "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/relayer-process.json",
+            "--validator-binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/validator"
+          ],
+          "expected_proof_after_lossless_archive": "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/relayer-process.json.gz"
+        },
+        {
+          "command": [
+            "python3",
+            "zig/integration/relayer_stream.py",
+            "--binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/relayer",
+            "--oracle",
+            "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+            "--output",
+            "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/relayer-stream.json",
+            "--validator-binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/validator"
+          ],
+          "expected_proof_after_lossless_archive": "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/relayer-stream.json.gz"
+        },
+        {
+          "command": [
+            "python3",
+            "zig/integration/public_relay_process.py",
+            "--binary",
+            "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/relayer",
+            "--oracle",
+            "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+            "--output",
+            "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/public-relay.json"
+          ],
+          "expected_proof_after_lossless_archive": "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/public-relay.json.gz"
+        }
+      ],
+      "paired_command": [
+        "python3",
+        "zig/bench/relayer.py",
+        "paired",
+        "--execute",
+        "--rust",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/relayer",
+        "--zig",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/relayer",
+        "--rust-validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/validator",
+        "--zig-validator",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/validator",
+        "--oracle",
+        "/Users/pbio/work/ziggy/zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle",
+        "--baseline-provenance",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/paired-provenance.json",
+        "--relayer-process-proof",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/relayer-process.json.gz",
+        "--relayer-stream-proof",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/relayer-stream.json.gz",
+        "--public-relay-proof",
+        "/Users/pbio/work/ziggy/zig/bench/results/final-native-functional-releasefast/public-relay.json.gz",
+        "--samples",
+        "5",
+        "--catchup",
+        "32",
+        "--steady",
+        "8",
+        "--steady-interval-ms",
+        "500",
+        "--max-batch-size",
+        "1",
+        "--quiet-host",
+        "--output",
+        "/Users/pbio/work/ziggy/zig/bench/results/whole-relayer-final-releasefast"
+      ]
+    }
+  ]
+}
