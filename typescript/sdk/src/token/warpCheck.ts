@@ -56,6 +56,19 @@ import {
   scalesEqual,
   verifyScale,
 } from '../utils/decimals.js';
+import { EvmLayerZeroV2HookIsmModule } from '../layerzero/EvmLayerZeroV2HookIsmModule.js';
+import {
+  LayerZeroV2ConfigPair,
+  buildLayerZeroV2MeshConfig,
+  findLayerZeroV2Hooks,
+  findLayerZeroV2Isms,
+  pairLayerZeroV2Configs,
+} from '../layerzero/config.js';
+import {
+  DerivedLayerZeroV2HookIsmConfig,
+  LayerZeroV2MeshConfig,
+  LayerZeroV2RemoteRouterConfig,
+} from '../layerzero/types.js';
 import { collectHybridIsmNodes } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
@@ -914,19 +927,13 @@ export async function checkWarpRouteDeployConfig({
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
-  const wormholeDiff = await deriveWormholeRemoteRouterDiff({
+  const combinedHookIsmDiffs = await deriveCombinedHookIsmRemoteRouterDiffs({
     multiProvider,
     onChainWarpConfig: expandedOnChainWarpConfig,
     warpDeployConfig,
   });
-  for (const [chain, chainDiff] of Object.entries(wormholeDiff)) {
-    if (!rawEvmDiff[chain]) {
-      rawEvmDiff[chain] = chainDiff;
-      continue;
-    }
-    assertObjectDiffMap(rawEvmDiff[chain], `Unexpected diff for ${chain}`);
-    assertObjectDiffMap(chainDiff, `Unexpected Wormhole diff for ${chain}`);
-    Object.assign(rawEvmDiff[chain], chainDiff);
+  for (const combinedHookIsmDiff of combinedHookIsmDiffs) {
+    mergeChainDiffs(rawEvmDiff, combinedHookIsmDiff);
   }
 
   await addOwnerOverrideDiffs({
@@ -1304,6 +1311,18 @@ function resolveCombinedHookIsmAddresses({
   return { addresses, diff };
 }
 
+/** Placement and remote-router diffs of every combined hook/ISM protocol. */
+async function deriveCombinedHookIsmRemoteRouterDiffs(args: {
+  multiProvider: MultiProvider;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): Promise<Record<string, ObjectDiff>[]> {
+  return [
+    await deriveWormholeRemoteRouterDiff(args),
+    await deriveLayerZeroV2RemoteRouterDiff(args),
+  ];
+}
+
 export async function deriveWormholeRemoteRouterDiff({
   multiProvider,
   onChainWarpConfig,
@@ -1342,6 +1361,98 @@ export async function deriveWormholeRemoteRouterDiff({
     addresses,
   );
   const enrollmentDiff = buildWormholeRemoteRouterDiff(
+    actual,
+    expected,
+    unresolvedChains,
+  );
+  for (const [chain, chainDiff] of Object.entries(enrollmentDiff)) {
+    diff[chain] = chainDiff;
+  }
+  return diff;
+}
+
+function normalizeLayerZeroV2RemoteRouters(
+  remoteRouters: Record<string, LayerZeroV2RemoteRouterConfig>,
+) {
+  return Object.fromEntries(
+    Object.entries(remoteRouters).map(([chain, config]) => [
+      chain,
+      {
+        router: normalizeAddressEvm(config.router),
+        layerZeroDomainId: config.layerZeroDomainId,
+      },
+    ]),
+  );
+}
+
+/**
+ * Compares enrolled LayerZero peers. Pathway libraries and policy are part of
+ * the derived ISM config and are already compared by `buildWarpRouteDiff`.
+ */
+export function buildLayerZeroV2RemoteRouterDiff(
+  actual: Record<string, DerivedLayerZeroV2HookIsmConfig>,
+  expected: LayerZeroV2MeshConfig,
+  unresolvedChains: ChainName[] = [],
+): Record<string, ObjectDiff> {
+  const diff: Record<string, ObjectDiff> = {};
+  for (const [chain, expectedConfig] of Object.entries(expected)) {
+    const actualConfig = actual[chain];
+    if (!actualConfig) continue;
+    const result = diffObjMerge(
+      normalizeLayerZeroV2RemoteRouters(
+        objFilter(
+          actualConfig.remoteRouters,
+          (remote, _route): _route is LayerZeroV2RemoteRouterConfig =>
+            !unresolvedChains.includes(remote),
+        ),
+      ),
+      normalizeLayerZeroV2RemoteRouters(expectedConfig.remoteRouters),
+    );
+    if (result.isInvalid) {
+      diff[chain] = { layerZeroRemoteRouters: result.mergedObject };
+    }
+  }
+  return diff;
+}
+
+export async function deriveLayerZeroV2RemoteRouterDiff({
+  multiProvider,
+  onChainWarpConfig,
+  warpDeployConfig,
+}: {
+  multiProvider: MultiProvider;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): Promise<Record<string, ObjectDiff>> {
+  const pairs = pairLayerZeroV2Configs(warpDeployConfig);
+  const chains = Object.keys(pairs);
+  if (chains.length === 0) return {};
+
+  const { addresses, diff } = resolveCombinedHookIsmAddresses({
+    chains,
+    label: IsmType.LAYER_ZERO_V2,
+    onChainWarpConfig,
+    findHooks: findLayerZeroV2Hooks,
+    findIsms: findLayerZeroV2Isms,
+  });
+
+  // Enrollments of an unresolved chain have no expected router address, so
+  // they are compared only among resolved chains; the unresolved chain itself
+  // is already reported above.
+  const resolvedPairs = objFilter(
+    pairs,
+    (chain, _pair): _pair is LayerZeroV2ConfigPair => chain in addresses,
+  );
+  const unresolvedChains = chains.filter((chain) => !(chain in addresses));
+  const expected = EvmLayerZeroV2HookIsmModule.withDeployedRouters(
+    buildLayerZeroV2MeshConfig(warpDeployConfig, resolvedPairs),
+    addresses,
+  );
+  const actual = await EvmLayerZeroV2HookIsmModule.readMesh(
+    multiProvider,
+    addresses,
+  );
+  const enrollmentDiff = buildLayerZeroV2RemoteRouterDiff(
     actual,
     expected,
     unresolvedChains,
@@ -1544,6 +1655,47 @@ async function getCollateralOwnable(
   return collateralTokenAddress
     ? Ownable__factory.connect(collateralTokenAddress, provider)
     : undefined;
+}
+
+/** Deep-merges `additions` into `diff`; colliding leaves are rejected. */
+export function mergeChainDiffs(
+  diff: Record<string, ObjectDiff>,
+  additions: Record<string, ObjectDiff>,
+): void {
+  for (const [chain, chainDiff] of Object.entries(additions)) {
+    const existing = diff[chain];
+    if (!existing) {
+      diff[chain] = chainDiff;
+      continue;
+    }
+    assertObjectDiffMap(existing, `Unexpected diff for ${chain}`);
+    assertObjectDiffMap(chainDiff, `Unexpected diff addition for ${chain}`);
+    mergeObjectDiffMap(existing, chainDiff, chain);
+  }
+}
+
+function mergeObjectDiffMap(
+  target: ObjectDiffMap,
+  source: ObjectDiffMap,
+  path: string,
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    const existing = target[key];
+    if (isNullish(existing)) {
+      target[key] = value;
+      continue;
+    }
+    const keyPath = `${path}.${key}`;
+    assertObjectDiffMap(
+      existing,
+      `Unexpected leaf diff for ${keyPath}; refusing to overwrite it`,
+    );
+    assertObjectDiffMap(
+      value,
+      `Unexpected leaf diff addition for ${keyPath}; refusing to overwrite it`,
+    );
+    mergeObjectDiffMap(existing, value, keyPath);
+  }
 }
 
 function addNestedDiff(

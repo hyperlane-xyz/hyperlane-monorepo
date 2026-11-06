@@ -4,7 +4,12 @@ import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
-import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import {
+  type ObjectDiff,
+  ProtocolType,
+  addressToBytes32,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import {
   test1,
@@ -22,8 +27,16 @@ import { HookType } from '../hook/types.js';
 import {
   type DerivedIsmConfig,
   IsmType,
+  type LayerZeroV2IsmConfig,
   type WormholeIsmConfig,
 } from '../ism/types.js';
+import { EvmLayerZeroV2HookIsmModule } from '../layerzero/EvmLayerZeroV2HookIsmModule.js';
+import { LayerZeroV2ConfigMode } from '../layerzero/types.js';
+import type {
+  DerivedLayerZeroV2HookIsmConfig,
+  LayerZeroV2MeshConfig,
+  LayerZeroV2RemoteRouterConfig,
+} from '../layerzero/types.js';
 import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
 import {
   WormholeConsistencyLevel,
@@ -43,13 +56,16 @@ import {
   altVmScaleMismatch,
   applyAcceptedInactiveOwnerStatus,
   buildAltVmWarpRouteDiff,
+  buildLayerZeroV2RemoteRouterDiff,
   buildWormholeRemoteRouterDiff,
   buildWarpRouteDiff,
   checkWarpRouteDeployConfig,
+  deriveLayerZeroV2RemoteRouterDiff,
   deriveWormholeRemoteRouterDiff,
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
+  mergeChainDiffs,
   normalizeAltVmDestinationGas,
 } from './warpCheck.js';
 
@@ -1485,6 +1501,128 @@ describe('buildWormholeRemoteRouterDiff', () => {
   });
 });
 
+describe('buildLayerZeroV2RemoteRouterDiff', () => {
+  const CHAIN_A = test1.name;
+  const CHAIN_B = test2.name;
+  const ROUTER_A = '0x1111111111111111111111111111111111111111';
+  const ROUTER_B = '0x2222222222222222222222222222222222222222';
+  const ENDPOINT = '0x3333333333333333333333333333333333333333';
+  const SEND_LIBRARY = '0x5555555555555555555555555555555555555555';
+  const RECEIVE_LIBRARY = '0x6666666666666666666666666666666666666666';
+  const URLS = ['https://packets.example/layerzero'];
+
+  function route(
+    router: string,
+    layerZeroDomainId: number,
+  ): LayerZeroV2RemoteRouterConfig {
+    return {
+      router,
+      layerZeroDomainId,
+      sendLibrary: SEND_LIBRARY,
+      receiveLibrary: RECEIVE_LIBRARY,
+      sendConfig: {
+        executor: { type: LayerZeroV2ConfigMode.Default },
+        uln: { type: LayerZeroV2ConfigMode.Default },
+      },
+      receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+    };
+  }
+
+  function mesh(): LayerZeroV2MeshConfig {
+    return {
+      [CHAIN_A]: {
+        owner: OWNER,
+        mailbox: MAILBOX,
+        endpoint: ENDPOINT,
+        layerZeroDomainId: 30_101,
+        urls: URLS,
+        remoteRouters: { [CHAIN_B]: route(ROUTER_B, 30_102) },
+      },
+      [CHAIN_B]: {
+        owner: OWNER,
+        mailbox: MAILBOX,
+        endpoint: ENDPOINT,
+        layerZeroDomainId: 30_102,
+        urls: URLS,
+        remoteRouters: { [CHAIN_A]: route(ROUTER_A, 30_101) },
+      },
+    };
+  }
+
+  function derived(): Record<string, DerivedLayerZeroV2HookIsmConfig> {
+    const { [CHAIN_A]: a, [CHAIN_B]: b } = mesh();
+    assert(a.layerZeroDomainId !== undefined, 'Missing chain A domain ID');
+    assert(b.layerZeroDomainId !== undefined, 'Missing chain B domain ID');
+    return {
+      [CHAIN_A]: {
+        address: ROUTER_A,
+        owner: a.owner,
+        mailbox: a.mailbox,
+        endpoint: a.endpoint,
+        layerZeroDomainId: a.layerZeroDomainId,
+        urls: a.urls,
+        remoteRouters: a.remoteRouters,
+      },
+      [CHAIN_B]: {
+        address: ROUTER_B,
+        owner: b.owner,
+        mailbox: b.mailbox,
+        endpoint: b.endpoint,
+        layerZeroDomainId: b.layerZeroDomainId,
+        urls: b.urls,
+        remoteRouters: b.remoteRouters,
+      },
+    };
+  }
+
+  it('accepts an exact reciprocal peer mesh', () => {
+    expect(buildLayerZeroV2RemoteRouterDiff(derived(), mesh())).to.deep.equal(
+      {},
+    );
+  });
+
+  it('reports a changed enrolled peer and endpoint ID', () => {
+    const actual = derived();
+    actual[CHAIN_A].remoteRouters[CHAIN_B] = route(ROUTER_A, 30_999);
+
+    const diff = buildLayerZeroV2RemoteRouterDiff(actual, mesh());
+
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `layerZeroRemoteRouters.${CHAIN_B}.router.actual`,
+      ROUTER_A.toLowerCase(),
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `layerZeroRemoteRouters.${CHAIN_B}.router.expected`,
+      ROUTER_B.toLowerCase(),
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `layerZeroRemoteRouters.${CHAIN_B}.layerZeroDomainId.actual`,
+      30_999,
+    );
+    expect(diff).not.to.have.property(CHAIN_B);
+  });
+
+  it('leaves pathway policy to the ISM diff', () => {
+    const actual = derived();
+    const changedPolicy = route(ROUTER_B, 30_102);
+    changedPolicy.sendLibrary = RECEIVE_LIBRARY;
+    actual[CHAIN_A].remoteRouters[CHAIN_B] = changedPolicy;
+
+    expect(buildLayerZeroV2RemoteRouterDiff(actual, mesh())).to.deep.equal({});
+  });
+
+  it('skips enrollments of unresolved chains', () => {
+    const expected = mesh();
+    delete expected[CHAIN_A].remoteRouters[CHAIN_B];
+    const actual = derived();
+    actual[CHAIN_A].remoteRouters[CHAIN_B] = route(ROUTER_A, 30_102);
+
+    expect(
+      buildLayerZeroV2RemoteRouterDiff(actual, expected, [CHAIN_B]),
+    ).to.deep.equal({});
+  });
+});
+
 describe('deriveWormholeRemoteRouterDiff', () => {
   const CHAINS = [test1.name, test2.name, test3.name];
   const ROUTERS: Record<string, string> = {
@@ -1698,5 +1836,492 @@ describe('deriveWormholeRemoteRouterDiff', () => {
       },
     });
     expect(diff).to.not.have.property(test2.name);
+  });
+});
+
+describe('deriveLayerZeroV2RemoteRouterDiff', () => {
+  const CHAINS = [test1.name, test2.name, test3.name];
+  const ROUTERS: Record<string, string> = {
+    [test1.name]: '0x1111111111111111111111111111111111111111',
+    [test2.name]: '0x2222222222222222222222222222222222222222',
+    [test3.name]: '0x3333333333333333333333333333333333333333',
+  };
+  const LAYER_ZERO_DOMAIN_IDS: Record<string, number> = {
+    [test1.name]: 30_101,
+    [test2.name]: 30_102,
+    [test3.name]: 30_103,
+  };
+  const ENDPOINT = '0x4444444444444444444444444444444444444444';
+  const LIBRARY = '0x5555555555555555555555555555555555555555';
+  const OTHER = '0x6666666666666666666666666666666666666666';
+  const URLS = ['https://packets.example/layerzero'];
+
+  interface Surfaces {
+    hook: string;
+    ism?: string;
+  }
+
+  function route(
+    router: string,
+    remote: string,
+  ): LayerZeroV2RemoteRouterConfig {
+    return {
+      router,
+      layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[remote],
+      sendLibrary: LIBRARY,
+      receiveLibrary: LIBRARY,
+      sendConfig: {
+        executor: { type: LayerZeroV2ConfigMode.Default },
+        uln: { type: LayerZeroV2ConfigMode.Default },
+      },
+      receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+    };
+  }
+
+  function pathways(
+    chain: string,
+    chains: string[],
+  ): LayerZeroV2IsmConfig['pathways'] {
+    return Object.fromEntries(
+      chains
+        .filter((remote) => remote !== chain)
+        .map((remote) => [
+          remote,
+          {
+            layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[remote],
+            sendLibrary: LIBRARY,
+            receiveLibrary: LIBRARY,
+            sendConfig: {
+              executor: { type: LayerZeroV2ConfigMode.Default },
+              uln: { type: LayerZeroV2ConfigMode.Default },
+            },
+            receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+          },
+        ]),
+    );
+  }
+
+  function deployConfig(
+    chains: string[],
+  ): WarpRouteDeployConfigMailboxRequired {
+    return Object.fromEntries(
+      chains.map((chain) => [
+        chain,
+        {
+          type: TokenType.synthetic,
+          mailbox: MAILBOX,
+          owner: OWNER,
+          hook: { type: HookType.LAYER_ZERO_V2 },
+          interchainSecurityModule: {
+            type: IsmType.LAYER_ZERO_V2,
+            owner: OWNER,
+            endpoint: ENDPOINT,
+            layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[chain],
+            urls: URLS,
+            pathways: pathways(chain, chains),
+          },
+        },
+      ]),
+    );
+  }
+
+  function onChainConfig(
+    chains: string[],
+    surfaces: Record<string, Surfaces>,
+  ): DerivedWarpRouteDeployConfig {
+    return Object.fromEntries(
+      Object.entries(surfaces).map(([chain, { hook, ism }]) => [
+        chain,
+        {
+          type: TokenType.synthetic,
+          mailbox: MAILBOX,
+          owner: OWNER,
+          destinationGas: {},
+          remoteRouters: {},
+          hook: { address: hook, type: HookType.LAYER_ZERO_V2 },
+          interchainSecurityModule: ism
+            ? {
+                address: ism,
+                type: IsmType.LAYER_ZERO_V2,
+                owner: OWNER,
+                endpoint: ENDPOINT,
+                layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[chain],
+                urls: URLS,
+                pathways: pathways(chain, chains),
+              }
+            : { address: OTHER, type: IsmType.TEST_ISM },
+        },
+      ]),
+    );
+  }
+
+  function combined(chain: string): Surfaces {
+    return { hook: ROUTERS[chain], ism: ROUTERS[chain] };
+  }
+
+  function derivedRouter(
+    chain: string,
+    chains: string[],
+  ): DerivedLayerZeroV2HookIsmConfig {
+    return {
+      address: ROUTERS[chain],
+      owner: OWNER,
+      mailbox: MAILBOX,
+      endpoint: ENDPOINT,
+      layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[chain],
+      urls: URLS,
+      remoteRouters: Object.fromEntries(
+        chains
+          .filter((remote) => remote !== chain)
+          .map((remote) => [remote, route(ROUTERS[remote], remote)]),
+      ),
+    };
+  }
+
+  let readMesh: sinon.SinonStub;
+  let routers: Record<string, DerivedLayerZeroV2HookIsmConfig>;
+
+  function deployRouters(chains: string[]): void {
+    routers = Object.fromEntries(
+      chains.map((chain) => [chain, derivedRouter(chain, chains)]),
+    );
+  }
+
+  beforeEach(() => {
+    readMesh = sinon
+      .stub(EvmLayerZeroV2HookIsmModule, 'readMesh')
+      .callsFake(async (_multiProvider, addresses) =>
+        Object.fromEntries(
+          Object.keys(addresses).map((chain) => [chain, routers[chain]]),
+        ),
+      );
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('accepts a mesh whose enrolled peers match the deployed routers', async () => {
+    deployRouters(CHAINS);
+
+    const diff = await deriveLayerZeroV2RemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig(CHAINS, {
+        [test1.name]: combined(test1.name),
+        [test2.name]: combined(test2.name),
+        [test3.name]: combined(test3.name),
+      }),
+      warpDeployConfig: deployConfig(CHAINS),
+    });
+
+    expect(diff).to.deep.equal({});
+    expect(readMesh.firstCall.args[1]).to.deep.equal(ROUTERS);
+  });
+
+  it('reports a wrong enrolled peer', async () => {
+    const chains = [test1.name, test2.name];
+    deployRouters(chains);
+    routers[test1.name].remoteRouters[test2.name].router = OTHER;
+
+    const diff = await deriveLayerZeroV2RemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig(chains, {
+        [test1.name]: combined(test1.name),
+        [test2.name]: combined(test2.name),
+      }),
+      warpDeployConfig: deployConfig(chains),
+    });
+
+    expect(diff).to.deep.equal({
+      [test1.name]: {
+        layerZeroRemoteRouters: {
+          [test2.name]: {
+            router: { actual: OTHER, expected: ROUTERS[test2.name] },
+            layerZeroDomainId: 30_102,
+          },
+        },
+      },
+    });
+  });
+
+  it('reports a chain whose hook and ISM are different instances', async () => {
+    const chains = [test1.name, test2.name];
+    deployRouters(chains);
+
+    const diff = await deriveLayerZeroV2RemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig(chains, {
+        [test1.name]: combined(test1.name),
+        [test2.name]: { hook: OTHER, ism: ROUTERS[test2.name] },
+      }),
+      warpDeployConfig: deployConfig(chains),
+    });
+
+    expect(diff).to.deep.equal({
+      [test2.name]: {
+        combinedHookIsm: {
+          [IsmType.LAYER_ZERO_V2]: {
+            hook: { expected: ROUTERS[test2.name], actual: OTHER },
+          },
+        },
+      },
+    });
+    expect(readMesh.firstCall.args[1]).to.deep.equal({
+      [test1.name]: ROUTERS[test1.name],
+    });
+  });
+
+  it('reports a chain with no combined ISM', async () => {
+    const chains = [test1.name, test2.name];
+    deployRouters(chains);
+
+    const diff = await deriveLayerZeroV2RemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig(chains, {
+        [test1.name]: combined(test1.name),
+        [test2.name]: { hook: ROUTERS[test2.name] },
+      }),
+      warpDeployConfig: deployConfig(chains),
+    });
+
+    expect(diff).to.deep.equal({
+      [test2.name]: {
+        combinedHookIsm: {
+          [IsmType.LAYER_ZERO_V2]: {
+            interchainSecurityModule: {
+              expected: 'one instance',
+              actual: 'missing',
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('skips enrollments of an unresolved chain', async () => {
+    deployRouters(CHAINS);
+    routers[test1.name].remoteRouters[test3.name].router = OTHER;
+
+    const diff = await deriveLayerZeroV2RemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig(CHAINS, {
+        [test1.name]: combined(test1.name),
+        [test2.name]: combined(test2.name),
+        [test3.name]: { hook: OTHER, ism: ROUTERS[test3.name] },
+      }),
+      warpDeployConfig: deployConfig(CHAINS),
+    });
+
+    expect(diff).to.deep.equal({
+      [test3.name]: {
+        combinedHookIsm: {
+          [IsmType.LAYER_ZERO_V2]: {
+            hook: { expected: ROUTERS[test3.name], actual: OTHER },
+          },
+        },
+      },
+    });
+    expect(readMesh.firstCall.args[1]).to.deep.equal({
+      [test1.name]: ROUTERS[test1.name],
+      [test2.name]: ROUTERS[test2.name],
+    });
+  });
+});
+
+describe('mergeChainDiffs', () => {
+  const CHAINS = [test1.name, test2.name];
+  const WORMHOLE_CHAIN_IDS: Record<string, number> = {
+    [test1.name]: 2,
+    [test2.name]: 30,
+  };
+  const LAYER_ZERO_DOMAIN_IDS: Record<string, number> = {
+    [test1.name]: 30_101,
+    [test2.name]: 30_102,
+  };
+  const CORE = '0x4444444444444444444444444444444444444444';
+  const ENDPOINT = '0x5555555555555555555555555555555555555555';
+  const LIBRARY = '0x6666666666666666666666666666666666666666';
+  const AGGREGATION = '0x7777777777777777777777777777777777777777';
+  const SPLIT_HOOK = '0x8888888888888888888888888888888888888888';
+  const WORMHOLE_ISM = '0x9999999999999999999999999999999999999999';
+  const LAYER_ZERO_ISM = '0x1212121212121212121212121212121212121212';
+  const WORMHOLE_URLS = ['https://vaa.example/v1'];
+  const LAYER_ZERO_URLS = ['https://packets.example/layerzero'];
+
+  function wormholeIsm(chain: string): WormholeIsmConfig {
+    return {
+      type: IsmType.WORMHOLE,
+      owner: OWNER,
+      core: CORE,
+      wormholeChainId: WORMHOLE_CHAIN_IDS[chain],
+      consistencyLevel: { type: WormholeConsistencyType.Finalized },
+      urls: WORMHOLE_URLS,
+    };
+  }
+
+  function layerZeroIsm(chain: string): LayerZeroV2IsmConfig {
+    return {
+      type: IsmType.LAYER_ZERO_V2,
+      owner: OWNER,
+      endpoint: ENDPOINT,
+      layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[chain],
+      urls: LAYER_ZERO_URLS,
+      pathways: Object.fromEntries(
+        CHAINS.filter((remote) => remote !== chain).map((remote) => [
+          remote,
+          {
+            layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[remote],
+            sendLibrary: LIBRARY,
+            receiveLibrary: LIBRARY,
+            sendConfig: {
+              executor: { type: LayerZeroV2ConfigMode.Default },
+              uln: { type: LayerZeroV2ConfigMode.Default },
+            },
+            receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+          },
+        ]),
+      ),
+    };
+  }
+
+  function deployConfig(): WarpRouteDeployConfigMailboxRequired {
+    return Object.fromEntries(
+      CHAINS.map((chain) => [
+        chain,
+        {
+          type: TokenType.synthetic,
+          mailbox: MAILBOX,
+          owner: OWNER,
+          hook: {
+            type: HookType.AGGREGATION,
+            hooks: [
+              { type: HookType.WORMHOLE },
+              { type: HookType.LAYER_ZERO_V2 },
+            ],
+          },
+          interchainSecurityModule: {
+            type: IsmType.AGGREGATION,
+            threshold: 2,
+            modules: [wormholeIsm(chain), layerZeroIsm(chain)],
+          },
+        },
+      ]),
+    );
+  }
+
+  function splitOnChainConfig(): DerivedWarpRouteDeployConfig {
+    return Object.fromEntries(
+      CHAINS.map((chain) => {
+        const wormhole = wormholeIsm(chain);
+        const layerZero = layerZeroIsm(chain);
+        return [
+          chain,
+          {
+            type: TokenType.synthetic,
+            mailbox: MAILBOX,
+            owner: OWNER,
+            destinationGas: {},
+            remoteRouters: {},
+            hook: {
+              address: AGGREGATION,
+              type: HookType.AGGREGATION,
+              hooks: [
+                { address: SPLIT_HOOK, type: HookType.WORMHOLE },
+                { address: SPLIT_HOOK, type: HookType.LAYER_ZERO_V2 },
+              ],
+            },
+            interchainSecurityModule: {
+              address: AGGREGATION,
+              type: IsmType.AGGREGATION,
+              threshold: 2,
+              modules: [
+                {
+                  address: WORMHOLE_ISM,
+                  type: wormhole.type,
+                  owner: wormhole.owner,
+                  core: wormhole.core,
+                  wormholeChainId: wormhole.wormholeChainId,
+                  consistencyLevel: wormhole.consistencyLevel,
+                  urls: wormhole.urls,
+                },
+                {
+                  address: LAYER_ZERO_ISM,
+                  type: layerZero.type,
+                  owner: layerZero.owner,
+                  endpoint: layerZero.endpoint,
+                  layerZeroDomainId: layerZero.layerZeroDomainId,
+                  urls: layerZero.urls,
+                  pathways: layerZero.pathways,
+                },
+              ],
+            },
+          },
+        ];
+      }),
+    );
+  }
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('keeps Wormhole and LayerZero placement problems reported on the same chain', async () => {
+    sinon.stub(EvmWormholeHookIsmModule, 'readMesh').resolves({});
+    sinon.stub(EvmLayerZeroV2HookIsmModule, 'readMesh').resolves({});
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const onChainWarpConfig = splitOnChainConfig();
+    const warpDeployConfig = deployConfig();
+    const diff: Record<string, ObjectDiff> = {
+      [test1.name]: { owner: { expected: OWNER, actual: SPLIT_HOOK } },
+    };
+
+    mergeChainDiffs(
+      diff,
+      await deriveWormholeRemoteRouterDiff({
+        multiProvider,
+        onChainWarpConfig,
+        warpDeployConfig,
+      }),
+    );
+    mergeChainDiffs(
+      diff,
+      await deriveLayerZeroV2RemoteRouterDiff({
+        multiProvider,
+        onChainWarpConfig,
+        warpDeployConfig,
+      }),
+    );
+
+    const placement = {
+      combinedHookIsm: {
+        [IsmType.WORMHOLE]: {
+          hook: { expected: WORMHOLE_ISM, actual: SPLIT_HOOK },
+        },
+        [IsmType.LAYER_ZERO_V2]: {
+          hook: { expected: LAYER_ZERO_ISM, actual: SPLIT_HOOK },
+        },
+      },
+    };
+    expect(diff).to.deep.equal({
+      [test1.name]: {
+        owner: { expected: OWNER, actual: SPLIT_HOOK },
+        combinedHookIsm: placement.combinedHookIsm,
+      },
+      [test2.name]: placement,
+    });
+  });
+
+  it('refuses to overwrite a colliding leaf', () => {
+    const diff: Record<string, ObjectDiff> = {
+      [test1.name]: { owner: { expected: OWNER, actual: SPLIT_HOOK } },
+    };
+
+    expect(() =>
+      mergeChainDiffs(diff, {
+        [test1.name]: { owner: { expected: OWNER, actual: AGGREGATION } },
+      }),
+    ).to.throw(
+      `Unexpected leaf diff for ${test1.name}.owner; refusing to overwrite it`,
+    );
   });
 });
