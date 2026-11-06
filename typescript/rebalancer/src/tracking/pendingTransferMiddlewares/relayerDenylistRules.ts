@@ -342,6 +342,21 @@ const NAMED_GROUP_OPENER_REGEX = /^\(\?(P<|<(?![=!]))/;
 const FLAG_GROUP_REGEX = /^\(\?[A-Za-z-]*\)/;
 const DIVERGENT_CLASS_SEQUENCES = ['&&', '--', '~~', '-['];
 const MAX_GROUP_DEPTH = 60;
+const NEGATED_PROPERTY_REGEX = /^\\[pP]\{\^/;
+
+/** The code point of a `\x{...}` escape. */
+function bracedHexValue(escape: string): number | undefined {
+  const hex = /^\\x\{([0-9A-Fa-f]+)\}/.exec(escape)?.[1];
+
+  return hex === undefined ? undefined : parseInt(hex, 16);
+}
+
+/** Surrogates are not Unicode scalar values, which Rust requires. */
+function isSurrogateEscape(escape: string): boolean {
+  const codePoint = bracedHexValue(escape);
+
+  return codePoint !== undefined && codePoint >= 0xd800 && codePoint <= 0xdfff;
+}
 
 function escapeEnd(pattern: string, index: number): number {
   const next = pattern[index + 1] ?? '';
@@ -372,6 +387,10 @@ function divergesFromRelayerRegex(pattern: string): boolean {
       }
 
       const end = escapeEnd(pattern, index);
+      const escape = pattern.slice(index, end);
+      if (NEGATED_PROPERTY_REGEX.test(escape) || isSurrogateEscape(escape)) {
+        return true;
+      }
       if (
         inClass &&
         /[dDwWsSpP]/.test(next) &&
@@ -476,9 +495,7 @@ function escapeSize(escape: string): number {
 }
 
 function isNonAsciiEscape(escape: string): boolean {
-  const hex = /^\\x\{([0-9A-Fa-f]+)/.exec(escape)?.[1];
-
-  return hex !== undefined && parseInt(hex, 16) > 0x7f;
+  return (bracedHexValue(escape) ?? 0) > 0x7f;
 }
 
 /**
@@ -598,6 +615,8 @@ function exceedsRelayerRegexSize(pattern: string): boolean {
  * Syntax RE2 accepts and Rust rejects or reads differently is rejected, so a
  * file the relayer accepts with it is rejected too:
  * - `\` followed by a digit, `\Q`, `\<`, `\>`, `\b{...}` and `\B{...}`;
+ * - a surrogate escape like `\x{d800}` and a negated property like
+ *   `\p{^Greek}`;
  * - a `{` that does not open a counted repetition without spaces or leading
  *   zeros, like `a{,3}`, `a{ 2}` or `a{02}`;
  * - a group name not starting with a letter or `_`, and a quantifier right

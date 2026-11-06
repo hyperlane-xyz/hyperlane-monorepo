@@ -445,6 +445,10 @@ describe('relayerDenylistRules', () => {
         ['a range starting at an escaped class', '[\\d-z]'],
         ['a range starting at a braced Unicode class', '[\\p{L}-z]'],
         ['groups nested 61 deep', `${'('.repeat(61)}a${')'.repeat(61)}`],
+        ['a surrogate escape', '\\x{d800}'],
+        ['a surrogate range end', '[a-\\x{d8c1}]'],
+        ['a negated Unicode property', '\\p{^Greek}'],
+        ['a negated Unicode property in a class', '[\\P{^L}]'],
       ].map(([syntax, bodyRegex]) => ({
         name: `a bodyRegex with ${syntax}`,
         text: rulesFile([
@@ -569,6 +573,8 @@ describe('relayerDenylistRules', () => {
       ['a count after a braced Unicode class', '\\p{L}{2}'],
       ['a count after a braced hex escape', '\\x{61}{2}'],
       ['groups nested 60 deep', `${'('.repeat(60)}a${')'.repeat(60)}`],
+      ['a range across the surrogates', '[\\x{d000}-\\x{e000}]'],
+      ['the code point before the surrogates', '\\x{d7ff}'],
       ['a word class repeated 100 times', '\\w{100}'],
       ['a hex class repeated 1000 times', '[0-9a-f]{1000}'],
       ['the mainnet recipient prefix', '^0{24}[0-9a-f]{40}'],
