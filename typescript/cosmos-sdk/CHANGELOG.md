@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 45.2.0
+
+### Patch Changes
+
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- Updated dependencies [aa84958]
+- Updated dependencies [c520224]
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/provider-sdk@11.0.3
+  - @hyperlane-xyz/cosmos-types@45.2.0
+
 ## 45.1.0
 
 ### Patch Changes
