@@ -503,17 +503,16 @@ describe('DeBridgeBridge.quote', function () {
     expect(error.message).to.include('decimals do not match chain data');
   });
 
-  it('keeps the request deadline active while consuming the body', async () => {
+  it('bounds a stalled response body independently of abort propagation', async () => {
     const clock = sinon.useFakeTimers();
     let aborted = 0;
     const fetch = sinon.stub(globalThis, 'fetch').callsFake(
       async (_url, init) =>
         new Response(
           new ReadableStream({
-            start(controller) {
+            start() {
               init?.signal?.addEventListener('abort', () => {
                 aborted++;
-                controller.error(new Error('body timed out'));
               });
             },
           }),
@@ -523,9 +522,27 @@ describe('DeBridgeBridge.quote', function () {
       new DeBridgeBridge(BRIDGE_CONFIG, logger).quote(BSC_TO_TRON_PARAMS),
     );
     await clock.runAllAsync();
-    expect((await result).message).to.include('body timed out');
+    expect((await result).message).to.include('HTTP request timed out');
     expect(fetch.callCount).to.equal(3);
     expect(aborted).to.equal(3);
+  });
+
+  it('does not retry a permanent HTTP status when its error body stalls', async () => {
+    const clock = sinon.useFakeTimers();
+    const fetch = sinon.stub(globalThis, 'fetch').resolves(
+      new Response(new ReadableStream(), {
+        status: 401,
+        statusText: 'Unauthorized',
+      }),
+    );
+    const result = getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).quote(BSC_TO_TRON_PARAMS),
+    );
+
+    await clock.runAllAsync();
+
+    expect((await result).message).to.include('HTTP 401: Unauthorized');
+    expect(fetch.callCount).to.equal(1);
   });
 
   it('does not retry permanent HTTP errors', async () => {
