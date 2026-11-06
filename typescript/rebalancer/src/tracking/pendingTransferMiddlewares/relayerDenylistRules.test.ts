@@ -475,6 +475,45 @@ describe('relayerDenylistRules', () => {
         failure: DenylistLoadFailure.InvalidFile,
         message: /match.bodyRegex is not a valid regex/,
       })),
+      ...[
+        ['a non-digit class past the relayer size limit', '\\D{900}'],
+        ['a word class past the relayer size limit', '\\w{220}'],
+        ['repeats adding up past the relayer size limit', '\\w{150}\\w{150}'],
+        ['a repeated group past the relayer size limit', '(?:\\w{50}){5}'],
+        ['a negated digit class past the relayer size limit', '[^\\d]{900}'],
+        [
+          'negated space classes adding up past the relayer size limit',
+          '[^\\s]{1000}'.repeat(6),
+        ],
+        [
+          'negated literal classes adding up past the relayer size limit',
+          '[^\\x{10000}]{1000}'.repeat(10),
+        ],
+        [
+          'case-folded negated ranges adding up past the relayer size limit',
+          '(?i)[^\\x{1e00}-\\x{a7ff}]{1000}'.repeat(3),
+        ],
+        [
+          'a negated class of 1000 members past the relayer size limit',
+          `[^${Array.from({ length: 1000 }, (_, i) => `\\x{${(0xe000 + 97 * i).toString(16)}}`).join('')}]{100}`,
+        ],
+        [
+          'a repeated group past the conservative size estimate',
+          '(?:\\w{51})+',
+        ],
+        [
+          'an open-ended count past the conservative size estimate',
+          '\\w{100,}',
+        ],
+        ['alternatives past the conservative size estimate', '\\w{60}|\\w{60}'],
+      ].map(([syntax, bodyRegex]) => ({
+        name: `a bodyRegex with ${syntax}`,
+        text: rulesFile([
+          { reason: 'r', addedBy: 'a', match: { originDomain: 1, bodyRegex } },
+        ]),
+        failure: DenylistLoadFailure.InvalidFile,
+        message: /may exceed the relayer's regex size limit/,
+      })),
       {
         name: 'a non-string bodyRegex',
         text: rulesFile([
@@ -530,6 +569,13 @@ describe('relayerDenylistRules', () => {
       ['a count after a braced Unicode class', '\\p{L}{2}'],
       ['a count after a braced hex escape', '\\x{61}{2}'],
       ['groups nested 60 deep', `${'('.repeat(60)}a${')'.repeat(60)}`],
+      ['a word class repeated 100 times', '\\w{100}'],
+      ['a hex class repeated 1000 times', '[0-9a-f]{1000}'],
+      ['the mainnet recipient prefix', '^0{24}[0-9a-f]{40}'],
+      ['a repeated group at the size estimate', '(?:\\w{50})+'],
+      ['an open-ended count at the size estimate', '\\w{99,}'],
+      ['alternatives at the size estimate', '\\w{50}|\\w{50}'],
+      ['a lazy count at the size estimate', '\\w{100}?'],
     ];
     for (const [syntax, bodyRegex] of acceptedBodyRegexes) {
       it(`accepts a bodyRegex with ${syntax}`, () => {
@@ -546,6 +592,24 @@ describe('relayerDenylistRules', () => {
         expect(rules.matchRules[0].bodyRegex?.pattern()).to.equal(bodyRegex);
       });
     }
+
+    it('rejects the whole file when an unrelated rule exceeds the relayer size limit', () => {
+      const error = captureLoadError(
+        rulesFile([
+          {
+            reason: 'r',
+            addedBy: 'a',
+            match: { originDomain: 999, bodyRegex: '\\D{900}' },
+          },
+          { reason: 'r', addedBy: 'a', match: { messageId: MESSAGE_ID } },
+        ]),
+      );
+
+      expect(error.failure).to.equal(DenylistLoadFailure.InvalidFile);
+      expect(error.message).to.match(
+        /may exceed the relayer's regex size limit/,
+      );
+    });
 
     it('reports the index of the first invalid rule', () => {
       const error = captureLoadError(

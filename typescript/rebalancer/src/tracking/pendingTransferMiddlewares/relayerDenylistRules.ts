@@ -451,6 +451,144 @@ function divergesFromRelayerRegex(pattern: string): boolean {
   return false;
 }
 
+/** Rust's compiled-size limit, in units of the cheapest atom. */
+const MAX_RELAYER_REGEX_SIZE = 10_000;
+
+interface ScannedAtom {
+  end: number;
+  size: number;
+}
+
+/**
+ * Size units of an escape, measured against Rust `regex` 1.10.6. `\w`, `\W`,
+ * `\D` and Unicode properties cost 100, allowing 100 copies where Rust fails
+ * from about 200 (`\w`) to 3,000. `\d` and `\S` cost 10, allowing 1,000
+ * where Rust fails from about 2,000 and 5,500. Other escapes cost 1 like a
+ * literal, allowing 10,000 where the cheapest atoms, like `.`, fail from
+ * about 11,000, a margin of only 1.1x.
+ */
+function escapeSize(escape: string): number {
+  const kind = escape[1] ?? '';
+  if (/[wWDpP]/.test(kind)) return 100;
+  if (/[dS]/.test(kind)) return 10;
+
+  return 1;
+}
+
+function isNonAsciiEscape(escape: string): boolean {
+  const hex = /^\\x\{([0-9A-Fa-f]+)/.exec(escape)?.[1];
+
+  return hex !== undefined && parseInt(hex, 16) > 0x7f;
+}
+
+/**
+ * A class costs the sum of its members. An ASCII class costs at least 2, and
+ * Rust accepts at least 10,000 copies of one made of literals, ranges and
+ * POSIX classes. A class that is negated, or holds a negated POSIX class or a
+ * non-ASCII member, costs at least 100, as its complement or case folding can
+ * be costly: `(?i)[^\x{1e00}-\x{a7ff}]` fails from 3,000 copies and a negated
+ * class with 1,000 members from 100.
+ */
+function scanClass(pattern: string, index: number): ScannedAtom {
+  let end = index + 1;
+  let exotic = pattern[end] === '^';
+  if (exotic) end++;
+  let size = 0;
+  if (pattern[end] === ']') {
+    end++;
+    size++;
+  }
+  while (end < pattern.length && pattern[end] !== ']') {
+    if (pattern[end] === '\\') {
+      const escape = pattern.slice(end, escapeEnd(pattern, end));
+      exotic ||= isNonAsciiEscape(escape);
+      size += escapeSize(escape);
+      end += escape.length;
+    } else if (pattern[end] === '[') {
+      exotic ||= pattern.startsWith('[:^', end);
+      end = pattern.indexOf(':]', end) + 2;
+      size++;
+    } else {
+      exotic ||= pattern.charCodeAt(end) > 0x7f;
+      end++;
+      size++;
+    }
+  }
+
+  return { end: end + 1, size: Math.max(exotic ? 100 : 2, size) };
+}
+
+function scanAtom(pattern: string, index: number): ScannedAtom {
+  const char = pattern[index];
+  if (char === '[') return scanClass(pattern, index);
+  if (char === '\\') {
+    const end = escapeEnd(pattern, index);
+    return { end, size: escapeSize(pattern.slice(index, end)) };
+  }
+
+  return { end: index + 1, size: char === '|' ? 0 : 1 };
+}
+
+/**
+ * Whether Rust may reject a compiled pattern for exceeding its size limit,
+ * which RE2 does not have. Atoms add their size, a repetition multiplies its
+ * atom or group by its largest count, and alternatives add up.
+ */
+function exceedsRelayerRegexSize(pattern: string): boolean {
+  const groupSizes = [0];
+  let lastSize = 0;
+  let index = 0;
+  while (index < pattern.length) {
+    const char = pattern[index];
+    const rest = pattern.slice(index);
+    const flagGroup = FLAG_GROUP_REGEX.exec(rest);
+    const repetition = COUNTED_REPETITION_REGEX.exec(rest);
+
+    if (flagGroup) {
+      index += flagGroup[0].length;
+      lastSize = 0;
+      continue;
+    }
+    if (char === '(') {
+      groupSizes.push(0);
+      index += /^\((\?[^:>]*[:>])?/.exec(rest)?.[0].length ?? 1;
+      lastSize = 0;
+      continue;
+    }
+    if (char === ')') {
+      lastSize = groupSizes.pop() ?? 0;
+      groupSizes[groupSizes.length - 1] += lastSize;
+      index++;
+      continue;
+    }
+
+    let copies: number | undefined;
+    if (char === '*' || char === '?') copies = 1;
+    else if (char === '+') copies = 2;
+    else if (char === '{' && repetition) {
+      const [, min, range, max] = repetition;
+      copies =
+        range === undefined ? Number(min) : max ? Number(max) : Number(min) + 1;
+    }
+
+    if (copies !== undefined) {
+      index += char === '{' && repetition ? repetition[0].length : 1;
+      if (pattern[index] === '?') index++;
+      groupSizes[groupSizes.length - 1] += lastSize * (copies - 1);
+      lastSize *= copies;
+    } else {
+      const atom = scanAtom(pattern, index);
+      lastSize = atom.size;
+      groupSizes[groupSizes.length - 1] += lastSize;
+      index = atom.end;
+    }
+
+    if (groupSizes.some((size) => size > MAX_RELAYER_REGEX_SIZE)) return true;
+  }
+
+  return false;
+}
+
 /**
  * Compiles `match.bodyRegex` with RE2, which like the relayer's Rust `regex`
  * crate matches in linear time. Matching is an unanchored search over the
@@ -475,8 +613,8 @@ function divergesFromRelayerRegex(pattern: string): boolean {
  * 1000, `\p{Script=...}`, unknown POSIX classes and group names with `.` or
  * `[`.
  *
- * Rust's compiled-size limit is not mirrored: Rust rejects patterns such as
- * `\pL{260}`, `\w{220}` or `\D{900}`, which this accepts.
+ * Patterns that may exceed Rust's compiled-size limit, like `\pL{260}`,
+ * `\w{220}` or `\D{900}`, are rejected too.
  */
 function parseBodyRegex(value: unknown): RE2JS | undefined {
   const pattern = parseOrThrow(BodyRegexSchema, value, 'match.bodyRegex');
@@ -489,14 +627,24 @@ function parseBodyRegex(value: unknown): RE2JS | undefined {
     );
   }
 
+  let regex: RE2JS;
   try {
-    return RE2JS.compile(pattern);
+    regex = RE2JS.compile(pattern);
   } catch (error: unknown) {
     throw new DenylistLoadError(
       DenylistLoadFailure.InvalidFile,
       `match.bodyRegex is not a valid regex: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+
+  if (exceedsRelayerRegexSize(pattern)) {
+    throw new DenylistLoadError(
+      DenylistLoadFailure.InvalidFile,
+      "match.bodyRegex may exceed the relayer's regex size limit",
+    );
+  }
+
+  return regex;
 }
 
 function parseMatch(
