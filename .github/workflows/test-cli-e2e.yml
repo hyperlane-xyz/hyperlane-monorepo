@@ -128,6 +128,9 @@ jobs:
           # wormhole
           - wormhole-hook-ism
           - wormhole-warp
+          # layerzero
+          - layerzero-hook-ism
+          - layerzero-warp
           # check
           - warp-check-1
           - warp-check-2

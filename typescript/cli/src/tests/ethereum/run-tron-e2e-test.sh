@@ -16,12 +16,15 @@ SNAPSHOT_TESTS=(
 # relayer (`hyperlane relayer` / `hyperlane send message`), whose test helpers
 # pass a single `--key`, which the CLI maps to the ethereum protocol only, so no
 # Tron signer is available. Wormhole tests deploy contracts excluded from the
-# Tron build.
+# Tron build. LayerZero tests deploy LayerZero mocks, which the Tron build
+# excludes with every other mock contract.
 TRON_INCOMPATIBLE_TESTS=(
 	"warp-delayed-flow"
 	"warp-apply-delayed-flow"
 	"wormhole-hook-ism"
 	"wormhole-warp"
+	"layerzero-hook-ism"
+	"layerzero-warp"
 )
 
 # Build ignore patterns for mocha
