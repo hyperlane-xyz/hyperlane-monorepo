@@ -30,6 +30,8 @@ import {
   ProtocolFee__factory,
   RateLimitedHook,
   RateLimitedHook__factory,
+  StaticAggregationHook,
+  StaticAggregationHook__factory,
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
@@ -96,6 +98,67 @@ describe('EvmHookReader', () => {
       PACKAGE_VERSION: packageVersion,
     } as unknown as PackageVersioned);
   };
+
+  it('should preserve UNUSED hooks as unknown hooks', async () => {
+    const address = randomAddress();
+    sandbox.stub(IPostDispatchHook__factory, 'connect').returns(
+      contractDouble<IPostDispatchHook>({
+        hookType: sandbox.stub().resolves(OnchainHookType.UNUSED),
+      }),
+    );
+
+    expect(await evmHookReader.deriveHookConfig(address)).to.deep.equal({
+      type: HookType.UNKNOWN,
+      address,
+    });
+  });
+
+  it('should derive an aggregation containing an UNUSED hook', async () => {
+    const address = randomAddress();
+    const childAddress = randomAddress();
+    const connect = sandbox.stub(IPostDispatchHook__factory, 'connect');
+    connect.withArgs(address).returns(
+      contractDouble<IPostDispatchHook>({
+        hookType: sandbox.stub().resolves(OnchainHookType.AGGREGATION),
+      }),
+    );
+    connect.withArgs(childAddress).returns(
+      contractDouble<IPostDispatchHook>({
+        hookType: sandbox.stub().resolves(OnchainHookType.UNUSED),
+      }),
+    );
+    sandbox.stub(StaticAggregationHook__factory, 'connect').returns(
+      contractDouble<StaticAggregationHook>({
+        hookType: sandbox.stub().resolves(OnchainHookType.AGGREGATION),
+        hooks: sandbox.stub().resolves([childAddress]),
+      }),
+    );
+
+    expect(await evmHookReader.deriveHookConfig(address)).to.deep.equal({
+      type: HookType.AGGREGATION,
+      address,
+      hooks: [{ type: HookType.UNKNOWN, address: childAddress }],
+    });
+  });
+
+  it('should propagate hookType RPC failures instead of returning an unknown hook', async () => {
+    const address = randomAddress();
+    const error = networkError();
+    sandbox.stub(IPostDispatchHook__factory, 'connect').returns(
+      contractDouble<IPostDispatchHook>({
+        hookType: sandbox.stub().rejects(error),
+      }),
+    );
+
+    let thrown: unknown;
+    try {
+      await evmHookReader.deriveHookConfig(address);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).to.be.instanceOf(Error);
+    expect(String(thrown)).to.contain(error.message);
+  });
 
   it('should derive merkle tree config correctly', async () => {
     const mockAddress = randomAddress();
