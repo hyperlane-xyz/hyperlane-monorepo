@@ -62,6 +62,11 @@ export const TokenBridgeStatusAdapterConfigSchema = z.discriminatedUnion(
       destinationOft: z
         .string()
         .refine(isAddressEvm, 'Invalid destination OFT address'),
+      // An explicit assertion of the monitored recipient, never a wildcard.
+      destinationRecipient: z
+        .string()
+        .refine(isAddressEvm, 'Invalid destination recipient')
+        .optional(),
     }),
   ],
 );
