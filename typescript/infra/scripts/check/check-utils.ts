@@ -4,6 +4,7 @@ import { Registry } from 'prom-client';
 import {
   CheckerViolation,
   defaultEthersV5ProviderBuilder,
+  HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
@@ -16,11 +17,12 @@ import {
   IsmType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../config/environments/utils.js';
+import { getEnvAddresses } from '../../config/registry.js';
 import { chainsToSkip, minimalIcaChains } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
@@ -42,8 +44,13 @@ import {
   withModule,
   withPushMetrics,
 } from '../agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 import { withRegistryUris } from '../github-utils.js';
+
+import {
+  IcaRouterVersion,
+  selectIcaRouterAddresses,
+} from './ica-router-version.js';
 
 export function getCheckBaseArgs() {
   return withAsDeployer(
@@ -56,7 +63,24 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(withModule(getCheckBaseArgs()));
+  return withRegistryUris(withModule(getCheckBaseArgs()))
+    .option('icaRouterVersion', {
+      choices: Object.values(IcaRouterVersion),
+      default: IcaRouterVersion.V2,
+      description:
+        'ICA router generation to check; governance ICAs always use v2 routers',
+    })
+    .option('transactionsFile', {
+      type: 'string',
+      description:
+        'Write prepared governance calls for review without submitting them',
+    })
+    .check(({ govern, transactionsFile }) => {
+      if (govern && transactionsFile) {
+        throw new Error('Use either --govern or --transactionsFile, not both');
+      }
+      return true;
+    });
 }
 
 const ICA_ENABLED_MODULES = [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS];
@@ -141,8 +165,19 @@ export async function getGovernor(
   fork?: string,
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
+  icaRouterVersion: IcaRouterVersion = IcaRouterVersion.V2,
 ) {
   const envConfig = getEnvironmentConfig(environment);
+  const chainAddresses = getEnvAddresses(environment);
+  // A fork check operates on its fork target even when --chains is absent.
+  const requestedChains = fork ? [fork] : chains;
+  const icaChainAddresses = selectIcaRouterAddresses(
+    chainAddresses,
+    icaRouterVersion,
+    ICA_ENABLED_MODULES.includes(module)
+      ? requestedChains?.filter((chain) => !chainsToSkip.includes(chain))
+      : undefined,
+  );
   // If the multiProvider is not passed in, get it from the environment
   if (!multiProvider) {
     multiProvider = await envConfig.getMultiProvider();
@@ -168,10 +203,7 @@ export async function getGovernor(
     }
   }
 
-  const { core, chainAddresses } = await getHyperlaneCore(
-    environment,
-    multiProvider,
-  );
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
   let governor: HyperlaneAppGovernor<any, any>;
 
@@ -182,13 +214,21 @@ export async function getGovernor(
 
   const routerConfig = core.getRouterConfig(envConfig.owners);
 
-  const icaChainAddresses = objFilter(
+  const governanceIcaAddresses = selectIcaRouterAddresses(
     chainAddresses,
-    (chain, _): _ is Record<string, string> =>
-      !!chainAddresses[chain]?.interchainAccountRouter,
+    IcaRouterVersion.V2,
   );
 
   const ica =
+    ICA_ENABLED_MODULES.includes(module) &&
+    Object.keys(governanceIcaAddresses).length > 0
+      ? InterchainAccount.fromAddressesMap(
+          governanceIcaAddresses,
+          multiProvider,
+        )
+      : undefined;
+
+  const checkingIca =
     ICA_ENABLED_MODULES.includes(module) &&
     Object.keys(icaChainAddresses).length > 0
       ? InterchainAccount.fromAddressesMap(icaChainAddresses, multiProvider)
@@ -233,12 +273,16 @@ export async function getGovernor(
       return acc;
     }, {});
 
-    if (!ica) {
+    if (!checkingIca) {
       throw new Error('ICA app not initialized');
     }
 
-    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
-    governor = new ProxiedRouterGovernor(icaChecker);
+    const icaChecker = new HyperlaneICAChecker(
+      multiProvider,
+      checkingIca,
+      icaConfig,
+    );
+    governor = new ProxiedRouterGovernor(icaChecker, ica);
   } else if (module === Modules.HAAS) {
     chainsToSkip.forEach((chain) => delete routerConfig[chain]);
 
@@ -264,11 +308,15 @@ export async function getGovernor(
       return acc;
     }, {});
 
-    if (!ica) {
+    if (!checkingIca) {
       throw new Error('ICA app not initialized');
     }
 
-    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+    const icaChecker = new HyperlaneICAChecker(
+      multiProvider,
+      checkingIca,
+      icaConfig,
+    );
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,
@@ -277,9 +325,6 @@ export async function getGovernor(
       ismFactory,
       chainAddresses,
     );
-    if (!ica) {
-      throw new Error('ICA app not initialized');
-    }
     governor = new HyperlaneHaasGovernor(ica, icaChecker, coreChecker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromAddressesMap(chainAddresses, multiProvider);
