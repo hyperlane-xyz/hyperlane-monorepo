@@ -446,6 +446,8 @@ describe('relayerDenylistRules', () => {
         ['a range starting at a braced Unicode class', '[\\p{L}-z]'],
         ['groups nested 61 deep', `${'('.repeat(61)}a${')'.repeat(61)}`],
         ['a surrogate escape', '\\x{d800}'],
+        ['the last surrogate', '\\x{dfff}'],
+        ['an uppercase surrogate escape', '\\x{D800}'],
         ['a surrogate range end', '[a-\\x{d8c1}]'],
         ['a negated Unicode property', '\\p{^Greek}'],
         ['a negated Unicode property in a class', '[\\P{^L}]'],

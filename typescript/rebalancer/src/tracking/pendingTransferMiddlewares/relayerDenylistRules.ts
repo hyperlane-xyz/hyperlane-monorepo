@@ -495,7 +495,9 @@ function escapeSize(escape: string): number {
 }
 
 function isNonAsciiEscape(escape: string): boolean {
-  return (bracedHexValue(escape) ?? 0) > 0x7f;
+  const codePoint = bracedHexValue(escape);
+
+  return codePoint !== undefined && codePoint > 0x7f;
 }
 
 /**
