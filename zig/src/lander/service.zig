@@ -24,6 +24,12 @@ pub const Signer = struct {
     }
 };
 
+pub const NativeTests = if (@import("builtin").is_test) struct {
+    pub fn simulateBatch(running: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain) !void {
+        try running.simulateBatch(record, allocator, submission);
+    }
+} else struct {};
+
 pub const MevSubmission = struct {
     policy: mev.Config,
     protected_chain: chain.Chain,
@@ -853,8 +859,16 @@ pub const Service = struct {
             const encoded = try multicall.encode(allocator, calls[0..survivor_count]);
             try records.createBatchTransaction(&rebuilt, survivors[0..survivor_count], uuid, self.config.signer.address, self.config.chain_id, timestamp, batch_address, encoded.calldata, encoded.value);
         }
-        try record.parsed.value.object.put("payload_details", rebuilt.root.object.get("payload_details").?);
-        try record.parsed.value.object.put("vm_specific_data", rebuilt.root.object.get("vm_specific_data").?);
+        const details_slot = record.parsed.value.object.getPtr("payload_details") orelse return error.InvalidLanderRecord;
+        const vm_slot = record.parsed.value.object.getPtr("vm_specific_data") orelse return error.InvalidLanderRecord;
+        // Managed JSON containers retain their arena allocator context. Clone
+        // into the record's stable owner before the temporary rebuilt dies;
+        // copying Value alone would retain freed buffers and a stack allocator.
+        // Finish the fallible clone before replacing either existing field.
+        const rebuilt_json = try rebuilt.stringify(allocator);
+        const retained = try std.json.parseFromSliceLeaky(std.json.Value, record.parsed.arena.allocator(), rebuilt_json, .{ .duplicate_field_behavior = .@"error", .allocate = .alloc_always });
+        details_slot.* = retained.object.get("payload_details").?;
+        vm_slot.* = retained.object.get("vm_specific_data").?;
         const failed = try allocator.alloc(storage.PayloadUpdate, failed_count);
         var failed_index: usize = 0;
         for (details.array.items, results) |detail, result| {

@@ -988,6 +988,216 @@ test "partial multicall simulation rebuilds survivor and drops failed payload" {
     try std.testing.expectEqual(uuid, (try fixture.store().payloadTransaction(allocator, id(95))).?);
 }
 
+test "multicall rebuild retains record-owned JSON after simulation returns" {
+    const allocator = std.testing.allocator;
+    for ([_]bool{ true, false }) |second_survives| {
+        var fixture = try DbFixture.open(allocator);
+        defer fixture.close();
+        var mock = MockChain.init(allocator);
+        defer mock.close();
+        const simulation = try multicall.encodeResults(allocator, &.{ .{ .success = true, .return_data = &.{} }, .{ .success = second_survives, .return_data = &.{} } });
+        defer allocator.free(simulation);
+        mock.simulation_results = simulation;
+        var signer = try MockSigner.init();
+        var cancel = std.atomic.Value(bool).init(false);
+        var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .max_batch_size = 2, .batch_contract_address = @splat(0x35), .estimated_block_time_ms = 1 };
+        config.overrides.gas_price = 5;
+        var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+        defer running.deinit();
+        _ = try running.enqueue(legacyPayload(id(151)));
+        _ = try running.enqueue(legacyPayload(id(152)));
+        try std.testing.expectEqual(@as(usize, 1), (try running.tick(1_000, .{})).built);
+        const uuid = (try fixture.store().transactionUuidByIndex(allocator, 1)).?;
+        var record = (try fixture.store().loadTransaction(allocator, uuid)).?;
+        defer record.deinit();
+        {
+            var temporary = std.heap.ArenaAllocator.init(allocator);
+            defer temporary.deinit();
+            try service.NativeTests.simulateBatch(&running, &record, temporary.allocator(), mock.interface());
+        }
+        // A managed JSON container carries its allocator context, not just its
+        // backing buffers. This assertion fails without touching freed memory.
+        const owner = record.parsed.arena.allocator().ptr;
+        const vm = try types.field(record.value(), "vm_specific_data");
+        try std.testing.expect(vm.object.allocator.ptr == owner);
+        const evm = try types.field(vm, "Evm");
+        try std.testing.expect(evm.object.allocator.ptr == owner);
+        const tx = try types.field(evm, "tx");
+        try std.testing.expect(tx.object.allocator.ptr == owner);
+        const details = try types.field(record.value(), "payload_details");
+        try std.testing.expect(details.array.allocator.ptr == owner);
+        try std.testing.expectEqual(@as(usize, if (second_survives) 2 else 1), details.array.items.len);
+        for (details.array.items) |detail| try std.testing.expect(detail.object.allocator.ptr == owner);
+        try churnSimulationMemory(allocator);
+        const tx_ptr = try types.requestPtr(&record.parsed.value);
+        for (0..48) |i| {
+            const key = try std.fmt.allocPrint(record.parsed.arena.allocator(), "lifetime_growth_{d}", .{i});
+            try tx_ptr.object.put(key, .{ .integer = @intCast(i) });
+        }
+        const serialized = try std.json.Stringify.valueAlloc(allocator, record.value(), .{});
+        defer allocator.free(serialized);
+        var reparsed = try std.json.parseFromSlice(std.json.Value, allocator, serialized, .{});
+        defer reparsed.deinit();
+        try std.testing.expectEqual(uuid, try records.transactionUuid(reparsed.value));
+        const retained = try records.payloadTransactionUuids(allocator, reparsed.value);
+        defer allocator.free(retained);
+        try std.testing.expectEqual(id(151), retained[0]);
+        if (second_survives) try std.testing.expectEqual(id(152), retained[1]);
+        try std.testing.expectEqual(@as(u256, 47), try types.uintField(try types.requestFromRecord(reparsed.value), "lifetime_growth_47"));
+    }
+}
+
+noinline fn churnSimulationMemory(allocator: std.mem.Allocator) !void {
+    var stack: [8192]u8 = undefined;
+    @memset(&stack, 0xb7);
+    std.mem.doNotOptimizeAway(&stack);
+    var blocks: [32][]u8 = undefined;
+    var count: usize = 0;
+    defer for (blocks[0..count]) |block| allocator.free(block);
+    for (&blocks, 0..) |*block, i| {
+        block.* = try allocator.alloc(u8, 256 + i * 17);
+        count += 1;
+        @memset(block.*, @intCast(i));
+        std.mem.doNotOptimizeAway(block.*);
+    }
+}
+
+test "multicall rebuild clone allocation failures leave both record fields and durable state unchanged" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    const simulation = try multicall.encodeResults(allocator, &.{ .{ .success = true, .return_data = &.{} }, .{ .success = true, .return_data = &.{} } });
+    defer allocator.free(simulation);
+    mock.simulation_results = simulation;
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .max_batch_size = 2, .batch_contract_address = @splat(0x35) };
+    config.overrides.gas_price = 5;
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer running.deinit();
+    _ = try running.enqueue(legacyPayload(id(155)));
+    _ = try running.enqueue(legacyPayload(id(156)));
+    _ = try running.tick(1_000, .{});
+    const uuid = (try fixture.store().transactionUuidByIndex(allocator, 1)).?;
+    var failures: usize = 0;
+    var succeeded = false;
+    for (0..64) |fail_index| {
+        var record = (try fixture.store().loadTransaction(allocator, uuid)).?;
+        defer record.deinit();
+        const before = try std.json.Stringify.valueAlloc(allocator, record.value(), .{});
+        defer allocator.free(before);
+        const durable_before = (try fixture.store().typed.get(allocator, storage.transaction_by_uuid, &uuid)).?;
+        defer allocator.free(durable_before);
+        var scratch = std.heap.ArenaAllocator.init(allocator);
+        defer scratch.deinit();
+        var failing = std.testing.FailingAllocator.init(allocator, .{ .fail_index = fail_index, .resize_fail_index = 0 });
+        const outcome = blk: {
+            const child = record.parsed.arena.child_allocator;
+            record.parsed.arena.child_allocator = failing.allocator();
+            defer record.parsed.arena.child_allocator = child;
+            break :blk service.NativeTests.simulateBatch(&running, &record, scratch.allocator(), mock.interface());
+        };
+        if (outcome) |_| {
+            succeeded = true;
+            break;
+        } else |err| {
+            try std.testing.expectEqual(error.OutOfMemory, err);
+            failures += 1;
+            const after = try std.json.Stringify.valueAlloc(allocator, record.value(), .{});
+            defer allocator.free(after);
+            try std.testing.expectEqualStrings(before, after);
+            const durable_after = (try fixture.store().typed.get(allocator, storage.transaction_by_uuid, &uuid)).?;
+            defer allocator.free(durable_after);
+            try std.testing.expectEqualStrings(durable_before, durable_after);
+            try std.testing.expectEqual(@as(usize, 0), mock.sent.items.len);
+        }
+    }
+    try std.testing.expect(failures > 0);
+    try std.testing.expect(succeeded);
+}
+
+test "multicall rebuild signs and finalizes exact durable bytes after database reopen" {
+    const allocator = std.testing.allocator;
+    for ([_]bool{ true, false }) |second_survives| {
+        var fixture = try DbFixture.open(allocator);
+        var database_open = true;
+        defer if (database_open) fixture.close() else fixture.temp.cleanup();
+        var mock = MockChain.init(allocator);
+        defer mock.close();
+        const simulation = try multicall.encodeResults(allocator, &.{ .{ .success = true, .return_data = &.{} }, .{ .success = second_survives, .return_data = &.{} } });
+        defer allocator.free(simulation);
+        mock.simulation_results = simulation;
+        var signer = try MockSigner.init();
+        var cancel = std.atomic.Value(bool).init(false);
+        var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .max_batch_size = 2, .batch_contract_address = @splat(0x35), .estimated_block_time_ms = 1 };
+        config.overrides.gas_price = 5;
+        var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+        var running_open = true;
+        defer if (running_open) running.deinit();
+        _ = try running.enqueue(legacyPayload(id(153)));
+        _ = try running.enqueue(legacyPayload(id(154)));
+        try std.testing.expectEqual(@as(usize, 1), (try running.tick(1_000, .{})).built);
+        try churnSimulationMemory(allocator);
+        _ = try running.tick(100_000, .{});
+        try std.testing.expectEqual(@as(usize, 1), mock.sent.items.len);
+        const uuid = (try fixture.store().transactionUuidByIndex(allocator, 1)).?;
+        var hash: types.Hash = undefined;
+        std.crypto.hash.sha3.Keccak256.hash(mock.sent.items[0], &hash, .{});
+        const attempt = (try fixture.store().loadAttempt(allocator, uuid, hash)).?;
+        defer allocator.free(attempt.bytes);
+        try std.testing.expectEqual(@as(u256, 0), attempt.nonce);
+        try std.testing.expectEqualSlices(u8, mock.sent.items[0], attempt.bytes);
+        {
+            var record = (try fixture.store().loadTransaction(allocator, uuid)).?;
+            defer record.deinit();
+            const members = try records.payloadTransactionUuids(allocator, record.value());
+            defer allocator.free(members);
+            try std.testing.expectEqual(@as(usize, if (second_survives) 2 else 1), members.len);
+            try std.testing.expectEqual(id(153), members[0]);
+            if (second_survives) try std.testing.expectEqual(id(154), members[1]);
+            try std.testing.expectEqual(@as(u256, 0), (try types.optionalUint(try types.requestFromRecord(record.value()), "nonce")).?);
+            for ([_]types.Uuid{ id(153), id(154) }) |payload_uuid| {
+                var payload = (try fixture.store().loadPayload(allocator, payload_uuid)).?;
+                defer payload.deinit();
+                try std.testing.expectEqual(@as(u256, 21_000), try types.uintField(payload.value(), "gas_limit"));
+            }
+        }
+        running.deinit();
+        running_open = false;
+        const database_path = try fixture.temp.dir.realpathAlloc(allocator, ".");
+        defer allocator.free(database_path);
+        fixture.database.deinit();
+        database_open = false;
+        fixture.database = try rocks.Database.open(allocator, database_path, .{ .sync = true, .retain_rollback_wal = true });
+        database_open = true;
+        try churnSimulationMemory(allocator);
+        const block_hash: types.Hash = @splat(0x5d);
+        try mock.receipts.put(hash, .{ .block_number = 1, .block_hash = block_hash, .gas_used = 500, .effective_gas_price = 2 });
+        try mock.headers.put(1, .{ .number = 1, .hash = block_hash });
+        mock.finalized_height = 1;
+        mock.next_nonce = 1;
+        var restarted = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+        defer restarted.deinit();
+        const finalized = try restarted.tick(200_000, .{});
+        try std.testing.expectEqual(@as(usize, 1), finalized.finalized);
+        try std.testing.expectEqual(@as(usize, 1), mock.sent.items.len);
+        const restored_attempt = (try fixture.store().loadAttempt(allocator, uuid, hash)).?;
+        defer allocator.free(restored_attempt.bytes);
+        try std.testing.expectEqualSlices(u8, attempt.bytes, restored_attempt.bytes);
+        try std.testing.expectEqual(@as(u256, 0), restored_attempt.nonce);
+        var status = (try fixture.store().transactionStatus(allocator, uuid)).?;
+        defer status.deinit(allocator);
+        try std.testing.expect(status.value == .finalized);
+        if (!second_survives) {
+            var failed = (try fixture.store().loadPayload(allocator, id(154))).?;
+            defer failed.deinit();
+            try std.testing.expectEqualStrings("FailedSimulation", (try types.field(failed.value(), "status")).object.get("Dropped").?.string);
+        }
+    }
+}
+
 test "MEV reveal uses protected chain while commit stays public" {
     const allocator = std.testing.allocator;
     for ([_]struct { body: u8, protected: bool }{ .{ .body = 2, .protected = true }, .{ .body = 1, .protected = false } }) |case| {
