@@ -150,6 +150,13 @@ function createClient(): SwapsXyzClient {
   return new SwapsXyzClient({ apiKey: 'test-key' }, logger);
 }
 
+function apiResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 function createBridge(
   client: SwapsXyzClient,
   overrides: {
@@ -1413,10 +1420,12 @@ describe('SwapsXyzBridge.getStatus', () => {
     expect(result).to.deep.equal({ status: 'pending', substatus: 'success' });
   });
 
-  it('retries persisted transaction registration after status lookup fails', async () => {
+  it('retries persisted transaction registration after explicit status not-found', async () => {
     const client = createClient();
     const getStatusStub = sinon.stub(client, 'getStatus');
-    getStatusStub.onFirstCall().rejects(new Error('not registered'));
+    getStatusStub
+      .onFirstCall()
+      .rejects(new SwapsXyzRequestError('not registered', 404, 'Not Found'));
     getStatusStub
       .onSecondCall()
       .resolves(statusResponse('success', { txId: 'persisted-transfer-id' }));
@@ -1553,4 +1562,179 @@ describe('SwapsXyzBridge.getStatus', () => {
 
     expect(result).to.deep.equal({ status: 'not_found' });
   });
+
+  for (const status of [401, 403]) {
+    it(`does not register after HTTP ${status}, even with a not-found error code`, async () => {
+      const fetch = sinon
+        .stub(globalThis, 'fetch')
+        .callsFake(async () =>
+          apiResponse({ error: { code: 'NOT_FOUND' } }, status),
+        );
+
+      const error = await captureError(
+        createBridge(createClient()).getStatus('0xsource', 1, 8453, 'tx-1'),
+      );
+
+      expect(error).to.be.instanceOf(SwapsXyzRequestError);
+      expect(fetch.callCount).to.equal(1);
+      expect(fetch.firstCall.args[1]?.method).to.equal('GET');
+    });
+  }
+
+  it('does not amplify a status outage into registration requests', async () => {
+    const clock = sinon.useFakeTimers();
+    const fetch = sinon
+      .stub(globalThis, 'fetch')
+      .callsFake(async () =>
+        apiResponse({ error: { code: 'NOT_FOUND' } }, 503),
+      );
+    const result = captureError(
+      createBridge(createClient()).getStatus('0xsource', 1, 8453, 'tx-1'),
+    );
+
+    await clock.runAllAsync();
+
+    expect(await result).to.be.instanceOf(SwapsXyzRequestError);
+    expect(fetch.callCount).to.equal(3);
+    expect(fetch.getCalls().map((call) => call.args[1]?.method)).to.deep.equal([
+      'GET',
+      'GET',
+      'GET',
+    ]);
+    expect(clock.now).to.equal(3_000);
+  });
+
+  it('does not register after a status network error or malformed response', async () => {
+    const clock = sinon.useFakeTimers();
+    const fetch = sinon.stub(globalThis, 'fetch').rejects(new Error('offline'));
+    const bridge = createBridge(createClient());
+    const outage = captureError(bridge.getStatus('0xsource', 1, 8453, 'tx-1'));
+    await clock.runAllAsync();
+    expect((await outage).message).to.equal('offline');
+    expect(fetch.callCount).to.equal(3);
+
+    fetch.resetHistory();
+    fetch.resolves(apiResponse({}));
+    const malformed = await captureError(
+      bridge.getStatus('0xsource', 1, 8453, 'tx-1'),
+    );
+    expect(malformed.message).to.include('Invalid swaps.xyz response');
+    expect(fetch.callCount).to.equal(1);
+    expect(fetch.firstCall.args[1]?.method).to.equal('GET');
+  });
+
+  it('caps registration HTTP failures at three POSTs using the configured delay', async () => {
+    const clock = sinon.useFakeTimers();
+    const fetch = sinon.stub(globalThis, 'fetch');
+    fetch.onFirstCall().resolves(apiResponse({}, 404));
+    fetch.callsFake(async () => apiResponse({}, 503));
+    const result = createBridge(createClient(), {
+      registerTxRetryDelayMs: 10,
+    }).getStatus('0xsource', 1, 8453, 'tx-1');
+
+    await clock.runAllAsync();
+
+    expect(await result).to.deep.equal({ status: 'not_found' });
+    expect(fetch.getCalls().map((call) => call.args[1]?.method)).to.deep.equal([
+      'GET',
+      'POST',
+      'POST',
+      'POST',
+    ]);
+    expect(clock.now).to.equal(30);
+  });
+
+  it('shares one registration budget across HTTP and unsuccessful API results', async () => {
+    const clock = sinon.useFakeTimers();
+    const fetch = sinon.stub(globalThis, 'fetch');
+    fetch.onCall(0).resolves(apiResponse({}, 404));
+    fetch
+      .onCall(1)
+      .resolves(
+        apiResponse([{ success: false, error: 'indexer unavailable' }]),
+      );
+    fetch.onCall(2).resolves(apiResponse({}, 503));
+    fetch.onCall(3).resolves(apiResponse([{ success: true }]));
+    fetch.onCall(4).resolves(apiResponse(statusResponse('pending')));
+    const result = createBridge(createClient(), {
+      registerTxRetryDelayMs: 10,
+    }).getStatus('0xsource', 1, 8453, 'tx-1');
+
+    await clock.runAllAsync();
+
+    expect((await result).status).to.equal('pending');
+    expect(fetch.getCalls().map((call) => call.args[1]?.method)).to.deep.equal([
+      'GET',
+      'POST',
+      'POST',
+      'POST',
+      'GET',
+    ]);
+    expect(clock.now).to.equal(30);
+  });
+
+  for (const registration of [
+    { name: 'unauthorized', status: 401, body: {} },
+    { name: 'forbidden', status: 403, body: {} },
+    { name: 'malformed', status: 200, body: {} },
+  ]) {
+    it(`stops ${registration.name} registration failures after one POST`, async () => {
+      const clock = sinon.useFakeTimers();
+      const fetch = sinon.stub(globalThis, 'fetch');
+      fetch.onFirstCall().resolves(apiResponse({}, 404));
+      fetch
+        .onSecondCall()
+        .resolves(apiResponse(registration.body, registration.status));
+      const result = await createBridge(createClient()).getStatus(
+        '0xsource',
+        1,
+        8453,
+        'tx-1',
+      );
+
+      expect(result).to.deep.equal({ status: 'not_found' });
+      expect(
+        fetch.getCalls().map((call) => call.args[1]?.method),
+      ).to.deep.equal(['GET', 'POST']);
+      expect(clock.now).to.equal(0);
+    });
+  }
+
+  for (const missing of [
+    {
+      name: 'not yet created',
+      status: 200,
+      body: statusResponse('not yet created'),
+    },
+    { name: 'NOT_FOUND', status: 400, body: { error: { code: 'NOT_FOUND' } } },
+    {
+      name: 'TX_NOT_FOUND',
+      status: 400,
+      body: { error: { code: 'TX_NOT_FOUND' } },
+    },
+    {
+      name: 'TRANSACTION_NOT_FOUND',
+      status: 400,
+      body: { error: { code: 'TRANSACTION_NOT_FOUND' } },
+    },
+  ]) {
+    it(`recovers explicit ${missing.name} statuses with registration`, async () => {
+      const fetch = sinon.stub(globalThis, 'fetch');
+      fetch.onFirstCall().resolves(apiResponse(missing.body, missing.status));
+      fetch.onSecondCall().resolves(apiResponse([{ success: true }]));
+      fetch.onThirdCall().resolves(apiResponse(statusResponse('pending')));
+
+      const result = await createBridge(createClient()).getStatus(
+        '0xsource',
+        1,
+        8453,
+        'tx-1',
+      );
+
+      expect(result.status).to.equal('pending');
+      expect(
+        fetch.getCalls().map((call) => call.args[1]?.method),
+      ).to.deep.equal(['GET', 'POST', 'GET']);
+    });
+  }
 });
