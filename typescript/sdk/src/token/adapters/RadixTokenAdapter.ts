@@ -107,8 +107,8 @@ export class RadixTokenAdapter
 
     const { decimals } = await this.getMetadata();
     assert(
-      decimals,
-      `Token decimals not found for "${this.getResourceAddress()}" on chain "${this.chainName}"`,
+      decimals !== undefined,
+      `Token decimals not found for "${denom}" on chain "${this.chainName}"`,
     );
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
 
