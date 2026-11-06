@@ -72,4 +72,11 @@ test {
     _ = @import("starknet_group_control_native_test.zig");
     _ = @import("native_sender_recovery_test.zig");
     _ = @import("shared_remote_signer_timeout_tests.zig");
+    _ = @import("optional_ccs_tests.zig");
+    _ = @import("validator_metadata_native_tests.zig");
+    _ = @import("url_host_tests.zig");
+    _ = @import("configured_rpc_transport_tests.zig");
+    _ = @import("configured_rpc_producer_tests.zig");
+    _ = @import("starknet_chain_id_tests.zig");
+    _ = @import("svm_scraper_log_index_tests.zig");
 }

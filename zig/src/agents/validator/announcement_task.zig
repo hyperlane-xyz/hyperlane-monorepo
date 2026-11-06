@@ -34,6 +34,7 @@ pub const Worker = struct {
     empty_environment: std.process.EnvMap,
     date: [16]u8 = undefined,
     halt_signal: ?*std.atomic.Value(bool) = null,
+    startup_ready: ?*const std.atomic.Value(bool) = null,
     guarded_signer: ?lander.Signer = null,
     idle_cancel: std.atomic.Value(bool) = .init(false),
     pub fn init(a: A, s: *const settings.Settings, database: *DatabaseOwner, mailbox: *queue.Mailbox, options: Options) !*Worker {
@@ -72,7 +73,11 @@ pub const Worker = struct {
     pub fn tick(self: *Worker, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
         if (cancel.load(.acquire)) return error.RequestCancelled;
         try self.checkEffects();
+        // Snapshot once at callback entry, before DB/credentials/initialization.
+        // The supervisor cancellation token still enforces its original watchdog.
+        const deadline = (try @import("../scraper/receipts_evm.zig").nowNs()) +| (self.options.job_timeout_ms *| std.time.ns_per_ms);
         _ = self.mailbox.pending.swap(false, .acq_rel);
+        if (self.startup_ready) |ready| if (!ready.load(.acquire)) return .{};
         if (self.settings.role.validator.skip_announce) return .{};
         var request = try self.mailbox.read(cancel) orelse return .{};
         defer request.deinit();
@@ -136,7 +141,7 @@ pub const Worker = struct {
                 self.native_owner = null;
             }
             const environment = self.options.environment orelse &self.empty_environment;
-            self.native_owner = try native_announcement.Owner.open(self.allocator, try self.database.get(cancel), chain, environment, chain.signer orelse return error.MissingNativeChainSigner, credentials, signed.value.value, .{ .clients = .{ .curl_library = self.options.curl_library, .request_timeout_ms = self.options.request_timeout_ms, .allow_insecure_loopback = self.options.allow_insecure_loopback }, .destination = .{ .starknet_crypto_library = environment.get("HYPERLANE_STARKNET_CRYPTO_LIBRARY"), .aleo_parameter_home = environment.get("HYPERLANE_ALEO_PARAMETER_HOME"), .allow_fixture_transport = self.options.allow_insecure_loopback, .concurrent_svm_estimates = self.allocator.vtable == std.heap.smp_allocator.vtable }, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .revision = request.wire.revision });
+            self.native_owner = try native_announcement.Owner.open(self.allocator, try self.database.get(cancel), chain, environment, chain.signer orelse return error.MissingNativeChainSigner, credentials, signed.value.value, .{ .initialization_clock = .{ .unix_ms = times.unix_ms, .deadline_ns = deadline, .cancel = cancel, .halt = self.halt_signal }, .clients = .{ .curl_library = self.options.curl_library, .request_timeout_ms = self.options.request_timeout_ms, .allow_insecure_loopback = self.options.allow_insecure_loopback }, .destination = .{ .starknet_crypto_library = environment.get("HYPERLANE_STARKNET_CRYPTO_LIBRARY"), .aleo_parameter_home = environment.get("HYPERLANE_ALEO_PARAMETER_HOME"), .allow_fixture_transport = self.options.allow_insecure_loopback, .concurrent_svm_estimates = self.allocator.vtable == std.heap.smp_allocator.vtable }, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .revision = request.wire.revision });
             self.loaded_digest = request.digest;
             self.loaded_revision = request.wire.revision;
         }
@@ -150,9 +155,8 @@ pub const Worker = struct {
             try owner.observedAnnounced(.{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms });
             return .{};
         }
-        const now = try @import("../scraper/receipts_evm.zig").nowNs();
         try self.checkEffects();
-        const work = try owner.tick(.{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms }, .{ .unix_ms = times.unix_ms, .deadline_ns = now +| (self.options.job_timeout_ms *| std.time.ns_per_ms), .cancel = cancel, .halt = self.halt_signal });
+        const work = try owner.tick(.{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms }, .{ .unix_ms = times.unix_ms, .deadline_ns = deadline, .cancel = cancel, .halt = self.halt_signal });
         return .{ .work = work, .next_delay_ms = if (work > 0) 0 else null };
     }
     fn checkEffects(self: *Worker) !void {

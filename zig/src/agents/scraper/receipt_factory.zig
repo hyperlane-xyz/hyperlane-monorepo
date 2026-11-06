@@ -84,7 +84,7 @@ pub const Factory = struct {
         return self;
     }
     fn verify(owner: *Http, transport: @import("../../cloud/http.zig").Transport, options: Options) !void {
-        const bounded: @import("receipts_common.zig").DeadlineTransport = .{ .rpc_read = true, .owner = owner, .deadline_ns = 0, .allow_std_fixture = options.allow_std_fixture };
+        var bounded: @import("receipts_common.zig").DeadlineTransport = .{ .rpc_read = true, .owner = owner, .deadline_ns = 0, .allow_std_fixture = options.allow_std_fixture };
         try bounded.verify(transport);
     }
     pub fn interface(self: *Factory) enrich.Fetcher {

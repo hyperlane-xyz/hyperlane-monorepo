@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
+    const git_sha = buildGitSha(b);
     const native_cpp = b.option([]const u8, "native-cxx-library", "Linux GNU libstdc++ shared library; zig.py discovers the native compiler path");
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode (default ReleaseSafe)") orelse .ReleaseSafe;
     const module = b.addModule("agents", .{
@@ -54,6 +55,7 @@ pub fn build(b: *std.Build) void {
         inline for (.{ "validator", "relayer" }) |role| {
             const service_options = b.addOptions();
             service_options.addOption([]const u8, "role", role);
+            service_options.addOption([]const u8, "git_sha", git_sha);
             const validator_module = b.createModule(.{
                 .root_source_file = b.path("src/service_main.zig"),
                 .target = target,
@@ -82,6 +84,7 @@ pub fn build(b: *std.Build) void {
     if (b.option([]const u8, "libpq-library", "Full path to libpq for isolated PostgreSQL integration tests")) |library| {
         const service_options = b.addOptions();
         service_options.addOption([]const u8, "role", "scraper");
+        service_options.addOption([]const u8, "git_sha", git_sha);
         const scraper_module = b.createModule(.{
             .root_source_file = b.path("src/service_main.zig"),
             .target = target,
@@ -120,4 +123,19 @@ fn linkNativeCpp(module: *std.Build.Module, target: std.Target, native_cpp: ?[]c
     } else {
         module.link_libcpp = true;
     }
+}
+
+fn buildGitSha(b: *std.Build) []const u8 {
+    const unknown = "VERGEN_IDEMPOTENT_OUTPUT";
+    const configured = b.option([]const u8, "git-sha", "Compiled agent source commit; use the actual frozen commit for Git-less packaging");
+    const value = configured orelse blk: {
+        var code: u8 = 0;
+        const output = b.runAllowFail(&.{ "git", "-C", b.build_root.path orelse ".", "rev-parse", "HEAD" }, &code, .Ignore) catch break :blk unknown;
+        break :blk std.mem.trim(u8, output, " \r\n\t");
+    };
+    if (!std.mem.eql(u8, value, unknown)) {
+        if (value.len != 40) @panic("git-sha must be the exact 40-character hexadecimal commit or VERGEN_IDEMPOTENT_OUTPUT");
+        for (value) |c| if (!std.ascii.isHex(c)) @panic("git-sha must be hexadecimal");
+    }
+    return value;
 }

@@ -13,7 +13,7 @@ const generic = @import("generic.zig");
 const Times = destination.operation.Times;
 const A = std.mem.Allocator;
 const prefix = "zig_validator_native_announcement_v1/";
-pub const Options = struct { clients: clients.Options, destination: destination.Options = .{}, interval_ms: u64 = 2000, revision: u64 = 0 };
+pub const Options = struct { initialization_clock: ?destination.Clock = null, clients: clients.Options, destination: destination.Options = .{}, interval_ms: u64 = 2000, revision: u64 = 0 };
 pub const Owner = struct {
     allocator: A,
     expected: objects.Announcement,
@@ -33,12 +33,29 @@ pub const Owner = struct {
         expected_owned.storage_location = storage;
         const resource = try clients.Resources.open(a, chain, environment, options.clients);
         errdefer resource.deinit();
+        const saved_cancel = resource.cancel;
+        const saved_rpc_deadline = resource.rpc_deadline_ns;
+        const saved_owner: ?@import("../../cloud/http.zig").RpcReadOwner = if (resource.http.rpc_read_owner) |guard| .{ .deadline_ns = guard.deadline_ns, .halt = guard.halt, .retry_physical_timeout = guard.retry_physical_timeout } else null;
+        defer {
+            resource.setCancellation(saved_cancel);
+            resource.rpc_deadline_ns = saved_rpc_deadline;
+            resource.http.rpc_read_owner = saved_owner;
+        }
+        if (options.initialization_clock) |clock| {
+            resource.setCancellation(clock.cancel);
+            const deadline = @min(clock.deadline_ns, @min(saved_rpc_deadline orelse clock.deadline_ns, if (saved_owner) |guard| guard.deadline_ns else clock.deadline_ns));
+            resource.rpc_deadline_ns = deadline;
+            resource.http.rpc_read_owner = .{ .deadline_ns = deadline, .halt = if (saved_owner) |guard| guard.halt orelse clock.halt else clock.halt, .retry_physical_timeout = if (saved_owner) |guard| guard.retry_physical_timeout else true };
+        }
         const factory = try destination.Factory.open(a, resource, transaction_signer, credentials, options.destination);
         errdefer factory.deinit();
         const namespace = try std.fmt.allocPrint(a, "{s}:validator-announcement:{d}", .{ chain.name, options.revision });
         errdefer a.free(namespace);
         const self = try a.create(Owner);
-        self.* = .{ .allocator = a, .expected = expected_owned, .expected_storage = storage, .operation_namespace = namespace, .store = native.Store.init(a, database, namespace), .resources = resource, .factory = factory, .options = options };
+        var retained_options = options;
+        // Callback cancellation/deadline pointers are constructor borrows only.
+        retained_options.initialization_clock = null;
+        self.* = .{ .allocator = a, .expected = expected_owned, .expected_storage = storage, .operation_namespace = namespace, .store = native.Store.init(a, database, namespace), .resources = resource, .factory = factory, .options = retained_options };
         errdefer a.destroy(self);
         if (try self.store.typed.get(a, prefix, &expected.digest())) |bytes| {
             defer a.free(bytes);

@@ -54,7 +54,7 @@ fn fetch(owner: anytype, loaded: *queue.Loaded, commit: reveal.Commit) !reveal.C
     const signature = if (loaded.value().signature_hex) |text| try abi.fixedHex(65, text) else blk: {
         // Loaded is a complete, already-synchronous public enqueue record.
         // Persist the signature before forwarding it to the configured CCS.
-        const signed = try signer.signDigest(&digest);
+        const signed = try owner.signCcs(digest);
         try loaded.setSignature(signed);
         try loaded.save();
         break :blk signed;
@@ -73,7 +73,9 @@ fn fetch(owner: anytype, loaded: *queue.Loaded, commit: reveal.Commit) !reveal.C
     }
     http.timeout_ms = @min(http.timeout_ms, 30000);
     http.connect_timeout_ms = @min(http.connect_timeout_ms, http.timeout_ms);
-    var response = try http.interface().send(a, request.request);
+    http.last_native_physical_timeout = false;
+    defer http.last_native_physical_timeout = false;
+    var response = http.interface().send(a, request.request) catch |err| return owner.ccsFailure(err);
     defer response.deinit();
     if (response.status == 404) return error.CcsNotReady;
     if (response.status < 200 or response.status >= 300) return error.CcsHttpFailure;

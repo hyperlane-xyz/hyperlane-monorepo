@@ -158,6 +158,7 @@ pub const Lane = struct {
     protected_adapter: ?evm_lander.Evm = null,
     protected_checked: bool = false,
     credential_manager: ?*credentials.Manager = null,
+    svm_ccs_manager: ?*credentials.Manager = null,
     ccip_owner: ?ccip_sessions.Owner = null,
     ccs_owner: ?*ccs_signer.Owner = null,
     signer: ?*signing.DigestSigner = null,
@@ -202,6 +203,7 @@ pub const Lane = struct {
         if (self.ccip_owner) |*value| value.deinit();
         if (self.ccs_owner) |value| value.deinit();
         if (self.signer) |value| value.deinit();
+        if (self.svm_ccs_manager) |value| value.deinit();
         if (self.credential_manager) |value| value.deinit();
         if (self.protected_network) |value| value.deinit();
         if (self.network) |value| value.deinit();
@@ -215,6 +217,13 @@ pub const Lane = struct {
         const self: *Lane = @ptrCast(@alignCast(context));
         self.owner.effects_halted.store(true, .release);
         self.worker.requestStop();
+    }
+    fn svmCcsLease(context: *anyopaque, unix_seconds: u64) !signing.Credentials {
+        const self: *Lane = @ptrCast(@alignCast(context));
+        if (self.owner.effects_halted.load(.acquire)) return error.RequestCancelled;
+        const configured = self.chain.ccs_signer orelse return error.MissingCcsSigner;
+        if (self.svm_ccs_manager == null) self.svm_ccs_manager = try credentials.Manager.initForSigner(self.owner.allocator, self.owner.settings, self.owner.environment, &self.network.?.http, configured, .{ .libcrypto_path = self.owner.environment.get("HYPERLANE_LIBCRYPTO_LIBRARY") orelse if (@import("builtin").os.tag == .macos) "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib" else "libcrypto.so.3" });
+        return optionalCcsLease(self.svm_ccs_manager.?, &self.network.?.http, unix_seconds);
     }
     fn ensure(self: *Lane, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !void {
         const a = self.owner.allocator;
@@ -235,9 +244,10 @@ pub const Lane = struct {
             if (self.ccip_owner == null) self.ccip_owner = try ccip_sessions.Owner.init(a, .{ .allow_caching = self.owner.settings.role.relayer.allow_contract_call_caching, .cache_ttl_ms = self.owner.evm_cache.default_ttl_ms, .shared_budget = &self.owner.ccip_budget });
             if (self.ccs_owner == null and self.chain.ccs_signer != null) self.ccs_owner = try ccs_signer.Owner.init(a, self.owner.settings, self.chain, self.owner.environment, .{ .curl_library = self.owner.options.curl_library, .halt = &self.owner.effects_halted, .credential_options = .{ .libcrypto_path = self.owner.environment.get("HYPERLANE_LIBCRYPTO_LIBRARY") orelse if (@import("builtin").os.tag == .macos) "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib" else "libcrypto.so.3" } });
         }
-        if (self.credential_manager == null) self.credential_manager = try credentials.Manager.init(a, self.owner.settings, self.owner.environment, &network.http, .{ .libcrypto_path = self.owner.environment.get("HYPERLANE_LIBCRYPTO_LIBRARY") orelse if (@import("builtin").os.tag == .macos) "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib" else "libcrypto.so.3" });
-        const lease = try self.credential_manager.?.lease(times.unix_ms / 1000);
         const signer_config = self.chain.signer orelse return error.MissingTransactionSigner;
+        // A destination's required payer cannot depend on optional CCS auth or
+        // another chain's identity. Existing CCS owners keep separate leases.
+        const lease = try payerLease(a, self.owner.settings, self.owner.environment, &network.http, signer_config, &self.credential_manager, times.unix_ms / 1000);
         if (self.chain.protocol == .ethereum) {
             if (self.signer == null) {
                 var timer = if (self.initialization_metrics != null) std.time.Timer.start() catch null else null;
@@ -296,6 +306,10 @@ pub const Lane = struct {
                 const bindings = try a.alloc(destination.OriginBinding, self.owner.settings.chains.len);
                 defer a.free(bindings);
                 for (bindings, self.owner.settings.chains) |*binding, origin| binding.* = .{ .domain = origin.domain, .hook = origin.contracts.merkle_tree_hook };
+                // Discovery and optional auth use the retained worker clock;
+                // cooperative retries never receive another startup budget.
+                var initialization_scope = try NativeInitializationScope.begin(network, &self.worker, self.chain.protocol, &self.owner.effects_halted);
+                defer initialization_scope.finish();
                 self.native_destination = try destination.Factory.open(a, network, signer_config, lease, .{
                     .origin_bindings = bindings,
                     .regex_engine = if (self.owner.regex_engine) |*value| value else null,
@@ -303,6 +317,7 @@ pub const Lane = struct {
                     .aleo_parameter_home = self.owner.environment.get("HYPERLANE_ALEO_PARAMETER_HOME"),
                     .allow_fixture_transport = self.owner.options.allow_insecure_loopback,
                     .enable_reveals = true,
+                    .ccs_credentials = if (self.chain.protocol == .sealevel) .{ .context = self, .lease_fn = svmCcsLease } else null,
                     .metadata_executor = &self.owner.metadata_executor.executor,
                     .concurrent_svm_estimates = true,
                     .metadata_cache = &self.owner.native_cache,
@@ -2378,7 +2393,69 @@ test "Root production metadata observer preserves success under registry pressur
     }
 }
 
+fn optionalCcsLease(manager: *credentials.Manager, http: *@import("../cloud/http.zig").HttpTransport, unix_seconds: u64) !signing.Credentials {
+    const previous: ?@import("../cloud/http.zig").RpcReadOwner = if (manager.metadata_transport.rpc_read_owner) |guard| .{ .deadline_ns = guard.deadline_ns, .halt = guard.halt, .retry_physical_timeout = guard.retry_physical_timeout } else null;
+    defer manager.metadata_transport.rpc_read_owner = previous;
+    manager.metadata_transport.rpc_read_owner = http.rpc_read_owner;
+    http.last_native_physical_timeout = false;
+    manager.metadata_transport.last_native_physical_timeout = false;
+    defer {
+        http.last_native_physical_timeout = false;
+        manager.metadata_transport.last_native_physical_timeout = false;
+    }
+    return manager.lease(unix_seconds) catch |err| {
+        if (err == error.RequestDeadlineExceeded and (http.last_native_physical_timeout or manager.metadata_transport.last_native_physical_timeout)) {
+            const guard = http.rpc_read_owner orelse return err;
+            _ = try guard.remaining(http.cancel);
+            return error.OptionalCcsPhysicalTimeout;
+        }
+        return err;
+    };
+}
+
+const NativeInitializationScope = struct {
+    network: *resources.Resources,
+    saved_owner: ?@import("../cloud/http.zig").RpcReadOwner,
+    saved_deadline: ?u64,
+    pub fn begin(network: *resources.Resources, worker: *lane_owner.Owner, protocol_kind: settings.Protocol, halt: *const std.atomic.Value(bool)) !NativeInitializationScope {
+        const saved: ?@import("../cloud/http.zig").RpcReadOwner = if (network.http.rpc_read_owner) |guard| .{ .deadline_ns = guard.deadline_ns, .halt = guard.halt, .retry_physical_timeout = guard.retry_physical_timeout } else null;
+        const result: NativeInitializationScope = .{ .network = network, .saved_owner = saved, .saved_deadline = network.rpc_deadline_ns };
+        if (protocol_kind == .sealevel or protocol_kind == .starknet) {
+            var deadline = @min(try initializationDeadline(worker), if (saved) |guard| guard.deadline_ns else std.math.maxInt(u64));
+            if (protocol_kind == .starknet) deadline = @min(deadline, network.rpc_deadline_ns orelse deadline);
+            network.http.rpc_read_owner = .{ .deadline_ns = deadline, .halt = if (saved) |guard| guard.halt orelse halt else halt, .retry_physical_timeout = protocol_kind == .starknet and (if (saved) |guard| guard.retry_physical_timeout else true) };
+            if (protocol_kind == .starknet) network.rpc_deadline_ns = deadline;
+        }
+        return result;
+    }
+    pub fn finish(self: *NativeInitializationScope) void {
+        self.network.http.rpc_read_owner = self.saved_owner;
+        self.network.rpc_deadline_ns = self.saved_deadline;
+    }
+};
+
+fn initializationDeadline(worker: *lane_owner.Owner) !u64 {
+    worker.mutex.lock();
+    const started = if (worker.timer) |timer| timer.started else {
+        worker.mutex.unlock();
+        return error.MissingLaneInitializationClock;
+    };
+    const timeout_ms = worker.config.timeout_ms;
+    worker.mutex.unlock();
+    const start_ns = try std.math.add(u64, try std.math.mul(u64, std.math.cast(u64, started.timestamp.sec) orelse return error.UnsupportedClock, std.time.ns_per_s), @intCast(started.timestamp.nsec));
+    return std.math.add(u64, start_ns, try std.math.mul(u64, timeout_ms, std.time.ns_per_ms));
+}
+
+fn payerLease(a: A, configured: *const settings.Settings, environment: *const std.process.EnvMap, http: *@import("../cloud/http.zig").HttpTransport, signer: settings.Signer, manager: *?*credentials.Manager, unix_seconds: u64) !signing.Credentials {
+    if (manager.* == null) manager.* = try credentials.Manager.initForSigner(a, configured, environment, http, signer, .{ .libcrypto_path = environment.get("HYPERLANE_LIBCRYPTO_LIBRARY") orelse if (@import("builtin").os.tag == .macos) "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib" else "libcrypto.so.3" });
+    return manager.*.?.lease(unix_seconds);
+}
+
 pub const NativeTests = if (@import("builtin").is_test) struct {
+    pub const requiredPayerLease = payerLease;
+    pub const originalInitializationDeadline = initializationDeadline;
+    pub const initializationScope = NativeInitializationScope;
+    pub const optionalSignerLease = optionalCcsLease;
     pub fn evmOperationContext(destination_context: [32]u8, origin: *const settings.Chain) [32]u8 {
         return evmContext(destination_context, origin);
     }

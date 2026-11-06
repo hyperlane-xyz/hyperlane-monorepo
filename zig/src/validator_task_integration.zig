@@ -7,7 +7,7 @@ const a = std.heap.smp_allocator;
 comptime {
     _ = @import("db/bzip2_glue.zig");
 }
-const Fixture = struct { marker: []const u8, config_dir: []const u8, db_path: []const u8, curl_library: []const u8, run_ms: u64 = 10000 };
+const Fixture = struct { marker: []const u8, config_dir: []const u8, db_path: []const u8, curl_library: []const u8, url_library: []const u8, run_ms: u64 = 10000 };
 fn loopback(url: []const u8) !void {
     const uri = try std.Uri.parse(url);
     var buffer: [std.Uri.host_name_max]u8 = undefined;
@@ -32,9 +32,9 @@ pub fn main() !void {
     for (chain.rpc_urls) |url| try loopback(url);
     for (chain.connection.tron.wallet_urls) |url| try loopback(url);
     for (chain.connection.tron.wallet_solidity_urls) |url| try loopback(url);
-    const task = try Task.init(a, &configured, .{ .curl_library = fixture.curl_library, .request_timeout_ms = 20000, .allow_insecure_loopback = true }, null, null);
+    const task = try Task.init(a, &configured, .{ .curl_library = fixture.curl_library, .url_library = fixture.url_library, .request_timeout_ms = 20000, .allow_insecure_loopback = true }, null, null);
     defer task.deinit();
-    if (task.database_owner.value != null or task.native != null or task.announcement.native != null) return error.ConstructorPerformedIo;
+    if (task.database_owner.value != null or task.native != null or task.announcement.native != null or task.metadata_url != null) return error.ConstructorPerformedIo;
     const descriptors = task.descriptors();
     const owner = try scheduler.Supervisor.start(a, &descriptors);
     defer owner.deinit();

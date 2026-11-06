@@ -76,7 +76,7 @@ fn run() !void {
     var once = false;
     for (args[1..]) |argument| {
         if (std.mem.eql(u8, argument, "--help") or std.mem.eql(u8, argument, "-h")) {
-            try std.fs.File.stdout().writeAll("Hyperlane " ++ options.role ++ " (Zig, experimental)\nRust-compatible CONFIG_FILES, HYP_ environment and --key=value configuration.\nHYPERLANE_ZIG_DEFAULTS: defaults directory (default ./config).\nHYPERLANE_CURL_LIBRARY: vetted native libcurl path.\n--zig-once: execute one bounded worker cycle and report health.\n");
+            try std.fs.File.stdout().writeAll("Hyperlane " ++ options.role ++ " (Zig, experimental)\nRust-compatible CONFIG_FILES, HYP_ environment and --key=value configuration.\nHYPERLANE_ZIG_DEFAULTS: defaults directory (default ./config).\nHYPERLANE_CURL_LIBRARY: vetted native libcurl path.\nHYPERLANE_URL_LIBRARY: pinned Rust URL metadata helper path (validator).\n--zig-once: execute one bounded worker cycle and report health.\n");
             return;
         }
         if (std.mem.eql(u8, argument, "--zig-once")) once = true;
@@ -109,7 +109,7 @@ fn run() !void {
             defer transaction_identity.deinit();
             var transaction_signer: ChainSigner = .{ .settings = &configured };
             defer transaction_signer.deinit();
-            const task = try validator.Task.init(a, &configured, .{ .curl_library = library, .metrics = telemetry, .environment = &environment }, .{ .context = &identity, .lease = CredentialOwner.lease }, null);
+            const task = try validator.Task.init(a, &configured, .{ .curl_library = library, .metrics = telemetry, .environment = &environment, .git_sha = options.git_sha, .url_library = environment.get("HYPERLANE_URL_LIBRARY") orelse @import("net/url_host.zig").defaultPath() }, .{ .context = &identity, .lease = CredentialOwner.lease }, null);
             defer task.deinit();
             identity.http = &task.http;
             transaction_identity.http = &task.announcement.http;

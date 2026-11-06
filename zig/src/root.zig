@@ -85,4 +85,5 @@ test {
     _ = @import("rpc_timeout_tests.zig");
     _ = @import("rpc_fallback_owner_tests.zig");
     _ = @import("aleo_vm_worker.zig");
+    _ = @import("validator_metadata_tests.zig");
 }

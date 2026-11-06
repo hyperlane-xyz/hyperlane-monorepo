@@ -60,6 +60,12 @@ pub const Resources = struct {
         }
         return self;
     }
+    pub fn writeMetadata(self: *Resources, bytes: []const u8) !void {
+        switch (self.store) {
+            .local => |*store| try store.writeMetadata(bytes),
+            .cloud => |*store| try store.writeMetadata(bytes, self.publisher_adapter.cloud.amz_date),
+        }
+    }
     pub fn signer(self: *Resources) service.Signer {
         return .{ .parallel_safe = self.digest_signer.backend == .local or self.parallel_safe, .cancel = self.sign_cancel, .context = self.digest_signer, .sign = checkpointSignature, .sign_digest = rawSignature };
     }

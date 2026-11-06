@@ -74,6 +74,9 @@ pub fn rpcNowNs() !u64 {
 }
 
 pub const HttpTransport = struct {
+    /// Diagnostic for the last send only; never changes transport error types.
+    /// Set only by a completed native timeout strictly inside a live owner.
+    last_native_physical_timeout: bool = false,
     client: std.http.Client,
     /// Caller loads and owns this explicit optional native dependency.
     native_curl: ?*curl.Client = null,
@@ -96,8 +99,22 @@ pub const HttpTransport = struct {
     pub fn interface(self: *HttpTransport) Transport {
         return .{ .context = self, .send_fn = send };
     }
+    /// Explicitly configured chain RPCs accept HTTP like the Rust providers.
+    /// This distinct per-call capability never changes the owner's strict
+    /// credential/storage interface or its metadata-only HTTP allowlist.
+    pub fn configuredRpcInterface(self: *HttpTransport) Transport {
+        return .{ .context = self, .send_fn = sendConfiguredRpc };
+    }
     fn send(context: *anyopaque, allocator: Allocator, request: Request) !Response {
         const self: *HttpTransport = @ptrCast(@alignCast(context));
+        return self.sendWithPolicy(allocator, request, false);
+    }
+    fn sendConfiguredRpc(context: *anyopaque, allocator: Allocator, request: Request) !Response {
+        const self: *HttpTransport = @ptrCast(@alignCast(context));
+        return self.sendWithPolicy(allocator, request, true);
+    }
+    fn sendWithPolicy(self: *HttpTransport, allocator: Allocator, request: Request, configured_rpc: bool) !Response {
+        self.last_native_physical_timeout = false;
         const uri = try std.Uri.parse(request.url);
         if (uri.host == null or uri.user != null or uri.password != null or uri.fragment != null) return error.InvalidCloudUrl;
         if (!std.mem.eql(u8, uri.scheme, "https")) {
@@ -105,7 +122,7 @@ pub const HttpTransport = struct {
             const host = try uri.getHost(&host_buffer);
             const loopback = self.allow_insecure_loopback and (std.mem.eql(u8, host, "127.0.0.1") or std.mem.eql(u8, host, "::1"));
             const metadata = self.allow_metadata_http and metadataRequestAllowed(uri, host, request);
-            if (!std.mem.eql(u8, uri.scheme, "http") or (!loopback and !metadata)) return error.InsecureCloudUrl;
+            if (!std.mem.eql(u8, uri.scheme, "http") or (!configured_rpc and !loopback and !metadata)) return error.InsecureCloudUrl;
         }
         for (request.headers) |header| {
             if (header.name.len == 0 or std.mem.indexOfAny(u8, header.name, ":\r\n") != null or std.mem.indexOfAny(u8, header.value, "\r\n") != null) return error.InvalidCloudHeader;
@@ -133,6 +150,7 @@ pub const HttpTransport = struct {
                     // Check genuine controls even when a completed physical
                     // timeout races the owner's cancellation/deadline.
                     _ = try owner.remaining(self.cancel);
+                    self.last_native_physical_timeout = !owner_limited;
                     if (owner.retry_physical_timeout and !owner_limited) return error.UpstreamReadTimeout;
                 };
                 return err;

@@ -21,6 +21,12 @@ const A = std.mem.Allocator;
 const Hash = [32]u8;
 pub const OriginBinding = struct { domain: u32, hook: Hash };
 pub const Clock = struct { unix_ms: u64, deadline_ns: u64, cancel: ?*const std.atomic.Value(bool) = null, halt: ?*const std.atomic.Value(bool) = null };
+/// Borrowed from the destination Lane. The callback and its manager outlive
+/// Factory; auth uses this Factory's Resources.http and never the payer lease.
+pub const CcsCredentials = struct {
+    context: *anyopaque,
+    lease_fn: *const fn (*anyopaque, u64) anyerror!signing.Credentials,
+};
 pub const Options = struct {
     metadata_cache: ?*contract_cache.CacheFor([32]u8).Cache = null,
     default_ism_cache: ?*contract_cache.CacheFor([32]u8).Cache = null,
@@ -37,6 +43,7 @@ pub const Options = struct {
     regex_engine: ?*@import("../../ops/regex.zig").Engine = null,
     allow_fixture_transport: bool = false,
     enable_reveals: bool = false,
+    ccs_credentials: ?CcsCredentials = null,
     reveal_boot: ?Hash = null,
     metadata_observer: ?@import("../../ops/relayer_metrics.zig").MetadataObserver = null,
     observation: ?@import("../../relayer/metadata.zig").Observation = null,
@@ -51,6 +58,9 @@ pub const Factory = struct {
     backend: Backend = undefined,
     backend_ready: bool = false,
     chain_checked: bool = false,
+    /// Only omitted Starknet IDs are discovered. Explicit configured text stays
+    /// byte-exact so existing durable contexts are never normalized/rebound.
+    discovered_chain_id: ?[]const u8 = null,
     digest: ?*signing.DigestSigner = null,
     ccs_digest: ?*signing.DigestSigner = null,
     signer_http: ?*@import("../../cloud/http.zig").HttpTransport = null,
@@ -79,6 +89,16 @@ pub const Factory = struct {
         errdefer self.deinit();
         self.remote_signer = transaction_signer == .aws or transaction_signer == .gcp;
         try self.bindSignerOwner(credentials);
+        if (resources.chain.protocol == .starknet and resources.chain.chain_id.len == 0) {
+            try self.checkDiscoveryControls();
+            const client = switch (resources.clients) {
+                .starknet => |value| value,
+                else => return error.WrongChainConnection,
+            };
+            const observed = try client.provider.chainId();
+            try self.checkDiscoveryControls();
+            self.discovered_chain_id = try std.fmt.allocPrint(self.arena.allocator(), "0x{x}", .{observed.value});
+        }
         var signer_scope = NonRpcScope.init(self.signer_http);
         defer signer_scope.finish();
         if (options.reveal_boot) |boot| self.reveal_boot = boot else std.crypto.random.bytes(&self.reveal_boot);
@@ -132,7 +152,7 @@ pub const Factory = struct {
                 self.stark_crypto = try @import("../../starknet/crypto.zig").Crypto.init(a, path);
                 self.stark_signer = .{ .crypto = &self.stark_crypto.?, .secret = spec.key };
                 const felt = @import("../../starknet/codec.zig").Felt;
-                break :blk .{ .starknet = .{ .chain = .{ .provider = &factory.provider, .mailbox = try felt.fromBytes(resources.chain.contracts.mailbox), .hook = try felt.fromBytes(resources.chain.contracts.merkle_tree_hook), .domain = resources.chain.domain }, .announce = try felt.fromBytes(resources.chain.contracts.validator_announce), .native = &self.stark_crypto.?, .signer = .{ .context = self, .public_key = (try self.stark_signer.?.interface()).public_key, .sign_fn = starkSign }, .account = try felt.fromBytes(spec.address), .chain_id = try felt.fromHex(resources.chain.chain_id), .encoding = if (spec.legacy) .legacy else .modern, .reorg = switch (resources.chain.reorg) {
+                break :blk .{ .starknet = .{ .chain = .{ .provider = &factory.provider, .mailbox = try felt.fromBytes(resources.chain.contracts.mailbox), .hook = try felt.fromBytes(resources.chain.contracts.merkle_tree_hook), .domain = resources.chain.domain }, .announce = try felt.fromBytes(resources.chain.contracts.validator_announce), .native = &self.stark_crypto.?, .signer = .{ .context = self, .public_key = (try self.stark_signer.?.interface()).public_key, .sign_fn = starkSign }, .account = try felt.fromBytes(spec.address), .chain_id = try felt.fromHex(self.chainId()), .encoding = if (spec.legacy) .legacy else .modern, .reorg = switch (resources.chain.reorg) {
                     .blocks => |value| .{ .blocks = value },
                     .tag => |value| .{ .tag = value },
                 }, .maximum_fee = try self.cap(u256, std.math.maxInt(u256)) } };
@@ -158,13 +178,15 @@ pub const Factory = struct {
                     else => return error.SealevelSignerRequired,
                 };
                 const config = resources.chain.connection.sealevel;
-                if (config.ur_reveal) |configured| if (options.enable_reveals) {
+                if (config.ur_reveal) |configured| {
+                    // Invalid endpoint configuration is not optional auth failure.
                     try @import("reveal.zig").validateUrl(configured.ccs_url, options.allow_fixture_transport);
-                    const ccs_signer = resources.chain.ccs_signer orelse return error.MissingCcsSigner;
-                    self.remote_signer = self.remote_signer or ccs_signer == .aws or ccs_signer == .gcp;
-                    try self.bindSignerOwner(credentials);
-                    self.ccs_digest = try signing.DigestSigner.open(a, ccs_signer, credentials);
-                };
+                    if (options.enable_reveals) self.openCcs(credentials) catch |err| {
+                        if (ccsControl(err)) return err;
+                        try self.checkCcsControls();
+                        std.log.warn("CCS signer unavailable; disabling optional SVM reveals for domain {d}: {s}", .{ resources.chain.domain, @errorName(err) });
+                    };
+                }
                 const payer = (try std.crypto.sign.Ed25519.KeyPair.generateDeterministic(self.key.?)).public_key.toBytes();
                 var identity: ?Hash = null;
                 if (resources.chain.identity) |identity_signer| {
@@ -190,12 +212,12 @@ pub const Factory = struct {
                 }
                 const oracle: @import("../../sealevel/transaction.zig").Oracle = switch (config.priority_fee_oracle) {
                     .constant => |value| .{ .constant = value },
-                    .helius => |value| .{ .helius = .{ .transport = self.svm_oracle_http.?.interface(), .url = value.url, .level = try feeLevel(value.fee_level) } },
+                    .helius => |value| .{ .helius = .{ .transport = self.svm_oracle_http.?.configuredRpcInterface(), .url = value.url, .level = try feeLevel(value.fee_level) } },
                 };
                 const decoded_noop = try @import("../../altvm/base58.zig").decode(a, "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV");
                 defer a.free(decoded_noop);
                 if (decoded_noop.len != 32) return error.InvalidNoopProgram;
-                break :blk .{ .sealevel = .{ .chain = .{ .client = client, .program = resources.chain.contracts.mailbox, .domain = resources.chain.domain, .payer = payer }, .chain_id = resources.chain.chain_id, .announce = resources.chain.contracts.validator_announce, .reveal_target = if (config.ur_reveal) |configured| configured.program_id else null, .simulation_observer = if (config.ur_reveal != null and options.enable_reveals) self.svm_witness.observer() else null, .signer = .{ .context = self, .payer = payer, .sign_fn = edSign }, .identity = identity, .noop = decoded_noop[0..32].*, .alt_addresses = config.mailbox_process_alts, .submitter = switch (config.transaction_submitter) {
+                break :blk .{ .sealevel = .{ .chain = .{ .client = client, .program = resources.chain.contracts.mailbox, .domain = resources.chain.domain, .payer = payer }, .chain_id = resources.chain.chain_id, .announce = resources.chain.contracts.validator_announce, .reveal_target = if (config.ur_reveal) |configured| configured.program_id else null, .simulation_observer = if (config.ur_reveal != null and self.revealsAvailable()) self.svm_witness.observer() else null, .signer = .{ .context = self, .payer = payer, .sign_fn = edSign }, .identity = identity, .noop = decoded_noop[0..32].*, .alt_addresses = config.mailbox_process_alts, .submitter = switch (config.transaction_submitter) {
                     .rpc => .rpc,
                     .jito => .jito,
                 }, .oracle = oracle, .oracle_http = if (self.svm_oracle_http) |*owner| owner else null, .concurrent_estimate_reads = options.concurrent_svm_estimates, .fee_cap = null, .maximum_fee = try self.cap(u64, std.math.maxInt(u64)), .submit_clients = self.submission_svm } };
@@ -243,7 +265,7 @@ pub const Factory = struct {
         return error.MissingOriginAuthorityBinding;
     }
     pub fn authorityFor(self: *Factory, origin: u32, operation_id: Hash, generation: u64, kind: types.Kind) !types.Authority {
-        return .{ .protocol = self.resources.chain.protocol, .origin = origin, .destination = self.resources.chain.domain, .mailbox = try self.mailbox(), .chain_id = self.resources.chain.chain_id, .origin_hook = if (kind != .announcement) try self.originHook(origin) else null, .operation_id = operation_id, .generation = generation, .kind = kind, .target = switch (kind) {
+        return .{ .protocol = self.resources.chain.protocol, .origin = origin, .destination = self.resources.chain.domain, .mailbox = try self.mailbox(), .chain_id = self.chainId(), .origin_hook = if (kind != .announcement) try self.originHook(origin) else null, .operation_id = operation_id, .generation = generation, .kind = kind, .target = switch (kind) {
             .process => null,
             .announcement => try self.announcementTarget(),
             .reveal => try self.revealTarget(),
@@ -253,8 +275,20 @@ pub const Factory = struct {
         if (self.resources.chain.protocol != .sealevel) return error.UnsupportedRevealProtocol;
         return (self.resources.chain.connection.sealevel.ur_reveal orelse return error.MissingRevealConfiguration).program_id;
     }
+    fn chainId(self: *const Factory) []const u8 {
+        return self.discovered_chain_id orelse self.resources.chain.chain_id;
+    }
+    fn checkDiscoveryControls(self: *Factory) !void {
+        if (self.resources.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
+        var deadline = self.resources.rpc_deadline_ns;
+        if (self.resources.http.rpc_read_owner) |owner| {
+            try checkHalt(owner.halt);
+            deadline = @min(deadline orelse owner.deadline_ns, owner.deadline_ns);
+        }
+        if (deadline) |limit| _ = try common.milliseconds(limit);
+    }
     fn checkAuthority(self: *Factory, context: types.Authority) !void {
-        if (context.protocol != self.resources.chain.protocol or context.destination != self.resources.chain.domain or !std.mem.eql(u8, context.chain_id, self.resources.chain.chain_id) or !std.mem.eql(u8, &context.mailbox, &try self.mailbox())) return error.DestinationAuthorityMismatch;
+        if (context.protocol != self.resources.chain.protocol or context.destination != self.resources.chain.domain or !std.mem.eql(u8, context.chain_id, self.chainId()) or !std.mem.eql(u8, &context.mailbox, &try self.mailbox())) return error.DestinationAuthorityMismatch;
         if (context.kind == .announcement) {
             if (context.origin != context.destination) return error.DestinationAuthorityMismatch;
             try context.expectTarget(try self.announcementTarget());
@@ -520,9 +554,6 @@ pub const Factory = struct {
         try self.checkAuthority(context);
         try context.message(message);
         self.svm_witness.failure = null;
-        if (self.backend == .sealevel) if (self.resources.chain.connection.sealevel.ur_reveal) |configured| {
-            if (@import("reveal.zig").Commit.message(configured.program_id, message) != null and !self.options.enable_reveals) return error.RevealQueueDisabled;
-        };
         var scope = try self.begin(clock);
         defer scope.finish();
         try self.ensureChain();
@@ -915,7 +946,7 @@ pub const Factory = struct {
         var state = std.crypto.hash.sha2.Sha256.init(.{});
         state.update("HYPERLANE_NATIVE_DESTINATION_CONTEXT_V1");
         hashPart(&state, @tagName(self.resources.chain.protocol));
-        hashPart(&state, self.resources.chain.chain_id);
+        hashPart(&state, self.chainId());
         var domain: [4]u8 = undefined;
         std.mem.writeInt(u32, &domain, self.resources.chain.domain, .big);
         state.update(&domain);
@@ -967,7 +998,7 @@ pub const Factory = struct {
         if (self.backend != .sealevel) return;
         const config = self.resources.chain.connection.sealevel.ur_reveal orelse return;
         const commit = @import("reveal.zig").Commit.message(config.program_id, message) orelse return;
-        if (!self.options.enable_reveals) return error.RevealQueueDisabled;
+        if (!self.revealsAvailable()) return;
         try checked(clock);
         const queue = @import("reveal_queue.zig");
         const route = try queue.routeId(message.destination, commit);
@@ -976,7 +1007,7 @@ pub const Factory = struct {
         _ = try queue.enqueue(self.allocator, store, try self.contextFor(authority), self.reveal_boot, message, commit, .reveal);
     }
     pub fn recoverDuplicateCommit(self: *Factory, store: *@import("../store.zig").Store, message: protocol.Message, clock: Clock) !bool {
-        if (self.backend != .sealevel or !self.options.enable_reveals) return false;
+        if (self.backend != .sealevel or !self.revealsAvailable()) return false;
         const failure = self.svm_witness.failure orelse return false;
         if (failure.instruction != 2 or failure.code != 10) return false;
         const config = self.resources.chain.connection.sealevel.ur_reveal orelse return false;
@@ -989,7 +1020,9 @@ pub const Factory = struct {
         return true;
     }
     pub fn tickReveal(self: *Factory, store: *@import("../store.zig").Store, clock: Clock, now: @import("operation.zig").Times) !usize {
-        if (self.backend != .sealevel or !self.options.enable_reveals or self.resources.chain.connection.sealevel.ur_reveal == null) return 0;
+        self.resources.http.last_native_physical_timeout = false;
+        defer self.resources.http.last_native_physical_timeout = false;
+        if (self.backend != .sealevel or !self.revealsAvailable() or self.resources.chain.connection.sealevel.ur_reveal == null) return 0;
         var scope = try self.begin(clock);
         defer scope.finish();
         // Reveal signing and CCS HTTP share this owner. Chain RPC clients use
@@ -1062,7 +1095,79 @@ pub const Factory = struct {
     pub fn refresh(self: *Factory, credentials: signing.Credentials) !void {
         try self.bindSignerOwner(credentials);
         if (self.digest) |value| try value.refresh(credentials);
-        if (self.ccs_digest) |value| try value.refresh(credentials);
+        if (self.options.ccs_credentials == null) if (self.ccs_digest) |value| try value.refresh(credentials);
+    }
+    pub fn revealsAvailable(self: *const Factory) bool {
+        return self.options.enable_reveals and self.ccs_digest != null;
+    }
+    fn checkCcsControls(self: *Factory) !void {
+        try checkHalt(self.active_halt);
+        if (self.resources.http.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
+        if (self.resources.http.rpc_read_owner) |owner| _ = try owner.remaining(self.resources.http.cancel);
+    }
+    fn ccsLease(self: *Factory, fallback: ?signing.Credentials) !signing.Credentials {
+        try self.checkCcsControls();
+        const provider = self.options.ccs_credentials orelse return fallback orelse error.MissingCcsCredentialProvider;
+        const lease = try provider.lease_fn(provider.context, @intCast(@max(0, std.time.timestamp())));
+        // The optional manager borrows the lane's already bounded transport.
+        // Reject a callback that would escape its cancellation/deadline scope.
+        const transport = self.resources.http.interface();
+        if (lease.http_owner != &self.resources.http or lease.transport.context != transport.context or lease.transport.send_fn != transport.send_fn) return error.SignerTransportOwnerMismatch;
+        try self.checkCcsControls();
+        return lease;
+    }
+    fn openCcs(self: *Factory, fallback: signing.Credentials) !void {
+        try self.checkCcsControls();
+        const configured = self.resources.chain.ccs_signer orelse return error.MissingCcsSigner;
+        var scope = NonRpcScope.init(&self.resources.http);
+        defer scope.finish();
+        self.resources.http.last_native_physical_timeout = false;
+        defer self.resources.http.last_native_physical_timeout = false;
+        const lease = try self.ccsLease(fallback);
+        // A credential fallback may have completed after an earlier timeout.
+        // Only the following key-resolution send can establish its provenance.
+        self.resources.http.last_native_physical_timeout = false;
+        if ((configured == .aws or configured == .gcp) and !self.options.allow_fixture_transport) {
+            const owner = lease.http_owner orelse return error.NativeSignerTransportOwnerRequired;
+            if (owner.native_curl == null) return error.NativeSignerTransportRequired;
+        }
+        const value = signing.DigestSigner.open(self.allocator, configured, lease) catch |err| {
+            if (err == error.RequestDeadlineExceeded and self.resources.http.last_native_physical_timeout) {
+                try self.checkCcsControls();
+                return error.OptionalCcsPhysicalTimeout;
+            }
+            return err;
+        };
+        errdefer value.deinit();
+        try self.checkCcsControls();
+        self.ccs_digest = value;
+    }
+    /// Only new CCS auth needs a renewed optional lease. Failure belongs to the
+    /// durable reveal job; it must not disable ordinary mailbox processing.
+    pub fn refreshCcs(self: *Factory) !void {
+        const value = self.ccs_digest orelse return error.MissingCcsSigner;
+        if (self.options.ccs_credentials == null) return;
+        var scope = NonRpcScope.init(&self.resources.http);
+        defer scope.finish();
+        try value.refresh(try self.ccsLease(null));
+    }
+    /// Auxiliary availability is distinct from the payer's transaction auth.
+    /// Only this send's proven physical timeout can enter durable child backoff.
+    pub fn ccsFailure(self: *Factory, err: anyerror) anyerror {
+        self.checkCcsControls() catch |control| return control;
+        if (err == error.RequestDeadlineExceeded and self.resources.http.last_native_physical_timeout) return error.OptionalCcsPhysicalTimeout;
+        return err;
+    }
+    pub fn signCcs(self: *Factory, digest: Hash) ![65]u8 {
+        var scope = NonRpcScope.init(&self.resources.http);
+        defer scope.finish();
+        self.resources.http.last_native_physical_timeout = false;
+        defer self.resources.http.last_native_physical_timeout = false;
+        try self.refreshCcs();
+        const value = self.ccs_digest orelse return error.MissingCcsSigner;
+        const signature = value.signDigest(&digest) catch |err| return self.ccsFailure(err);
+        try self.checkCcsControls();
+        return signature;
     }
     fn bindSignerOwner(self: *Factory, credentials: signing.Credentials) !void {
         if (credentials.http_owner) |owner| {
@@ -1088,6 +1193,12 @@ pub const Factory = struct {
         self.allocator.destroy(self);
     }
 };
+fn ccsControl(err: anyerror) bool {
+    return @import("../../relayer/metadata.zig").hardFailure(err) or @import("../origin_signers.zig").isControlError(err) or switch (err) {
+        error.CheckpointEffectsHalted => true,
+        else => false,
+    };
+}
 fn evmAddress(value: Hash) ![20]u8 {
     if (!std.mem.allEqual(u8, value[0..12], 0)) return error.InvalidEvmStyleAddress;
     return value[12..32].*;

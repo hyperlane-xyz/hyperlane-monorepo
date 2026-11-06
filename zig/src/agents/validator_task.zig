@@ -11,6 +11,8 @@ const cloud = @import("../cloud/root.zig");
 const supervisor = @import("../runtime/supervisor.zig");
 const metrics = @import("../ops/metrics.zig");
 const A = std.mem.Allocator;
+const metadata = @import("validator/metadata.zig");
+const Url = @import("../net/url_host.zig");
 const AnnouncementWorker = @import("validator/announcement_task.zig");
 const Mailbox = @import("validator/mailbox.zig").Mailbox;
 const DatabaseOwner = @import("origin_tasks.zig").DatabaseOwner;
@@ -18,7 +20,7 @@ const http_api = @import("validator/http.zig");
 const readiness = @import("validator/readiness.zig");
 pub const Credentials = AnnouncementWorker.Credentials;
 pub const ChainSigner = AnnouncementWorker.ChainSigner;
-pub const Options = struct { curl_library: []const u8, request_timeout_ms: u32 = 20000, job_timeout_ms: u64 = 120000, metrics: ?*metrics.Registry = null, environment: ?*const std.process.EnvMap = null, allow_insecure_loopback: bool = false };
+pub const Options = struct { url_library: []const u8 = Url.defaultPath(), metadata_host: ?metadata.HostNormalizer = null, curl_library: []const u8, request_timeout_ms: u32 = 20000, job_timeout_ms: u64 = 120000, metrics: ?*metrics.Registry = null, environment: ?*const std.process.EnvMap = null, allow_insecure_loopback: bool = false, git_sha: []const u8 = @import("validator/metadata.zig").unknown_git_sha };
 pub const Task = struct {
     allocator: A,
     settings: *const settings.Settings,
@@ -36,6 +38,8 @@ pub const Task = struct {
     stream_wake: std.atomic.Value(bool) = .init(false),
     effects_halted: std.atomic.Value(bool) = .init(false),
     checkpoint_cancel: ?*const std.atomic.Value(bool) = null,
+    metadata_ready: std.atomic.Value(bool) = .init(false),
+    metadata_url: ?Url.Library = null,
     resources: ?*config.Resources = null,
     validator: ?*role.Role = null,
     generic_validator: ?*generic.Role = null,
@@ -59,6 +63,7 @@ pub const Task = struct {
         self.http.allow_insecure_loopback = options.allow_insecure_loopback;
         self.announcement = try AnnouncementWorker.Worker.init(a, s, database_owner, &self.mailbox, .{ .curl_library = options.curl_library, .request_timeout_ms = options.request_timeout_ms, .job_timeout_ms = options.job_timeout_ms, .environment = options.environment, .allow_insecure_loopback = options.allow_insecure_loopback });
         self.announcement.halt_signal = &self.effects_halted;
+        self.announcement.startup_ready = &self.metadata_ready;
         self.announcement.setProviders(null, chain_signer);
         return self;
     }
@@ -74,6 +79,7 @@ pub const Task = struct {
         self.http.deinit();
         if (self.native) |*native| native.deinit();
         if (self.tip_cache) |cache| cache.deinit();
+        if (self.metadata_url) |*library| library.deinit();
         self.allocator.destroy(self);
     }
     /// Health construction shares this exact tracker with cursor initialization.
@@ -134,6 +140,7 @@ pub const Task = struct {
             validator.runtime.signer.cancel = null;
             validator.setCancellation(null);
         }
+        try self.publishMetadata(cancel);
         const result = validator.tick(now, times.monotonic_ms +| tick_elapsed.read() / std.time.ns_per_ms) catch |err| {
             self.recordMetrics() catch |metric_error| self.metricFailure(metric_error);
             return err;
@@ -155,6 +162,7 @@ pub const Task = struct {
             validator.runtime.signer.cancel = null;
             validator.setCancellation(null);
         }
+        try self.publishMetadata(cancel);
         const result = validator.tick(now, monotonic_ms +| tick_elapsed.read() / std.time.ns_per_ms) catch |err| {
             self.recordMetrics() catch |metric_error| self.metricFailure(metric_error);
             return err;
@@ -164,6 +172,30 @@ pub const Task = struct {
         self.recordMetrics() catch |err| self.metricFailure(err);
         const source_delay = if (result.next_delay_ms) |delay| @min(self.settings.role.validator.interval *| 1000, delay -| ((tick_elapsed.read() -| role_completed) / std.time.ns_per_ms)) else null;
         return .{ .work = if (result.progress) |progress| progress.published else 0, .next_delay_ms = if (result.indexed_range or result.audit_pending) 0 else source_delay };
+    }
+    fn publishMetadata(self: *Task, cancel: *const std.atomic.Value(bool)) !void {
+        if (cancel.load(.acquire)) return error.RequestCancelled;
+        if (self.effects_halted.load(.acquire)) return error.ValidatorHalted;
+        if (self.validatorState()) |state| if (state.halted) return error.ValidatorHalted;
+        if (self.metadata_ready.load(.acquire)) return;
+        const normalizer = self.options.metadata_host orelse blk: {
+            if (self.metadata_url == null) self.metadata_url = try Url.Library.open(self.options.url_library);
+            break :blk metadata.HostNormalizer.fromLibrary(&self.metadata_url.?);
+        };
+        const bytes = try metadata.serialize(self.allocator, self.options.git_sha, self.settings.role.validator.rpcs, self.settings.role.validator.allow_public_rpcs, normalizer);
+        defer self.allocator.free(bytes);
+        self.resources.?.writeMetadata(bytes) catch |err| {
+            if (err == error.ReorgHalted) {
+                self.effects_halted.store(true, .release);
+                return error.ValidatorHalted;
+            }
+            return err;
+        };
+        if (cancel.load(.acquire)) return error.RequestCancelled;
+        if (self.effects_halted.load(.acquire)) return error.ValidatorHalted;
+        self.metadata_ready.store(true, .release);
+        // Wake the independent descriptor without touching its durable mailbox.
+        self.mailbox.pending.store(true, .release);
     }
     /// Detach the route and drain HTTP workers before deinitializing this Task.
     /// Called after all role jobs join, before teardown, for shutdown diagnostics.
@@ -218,6 +250,10 @@ pub const Task = struct {
         self.readiness.checkpoints(current.fresh_verified_through, current.latest_published);
         if (current.halted or err == error.ValidatorHalted or err == error.ReorgFlagPresent) {
             self.readiness.blocked("checkpoint_reorg") catch |failure_| self.apiFailure(failure_);
+            return;
+        }
+        if (!self.metadata_ready.load(.acquire)) {
+            self.readiness.blocked("validator_initialization") catch |failure_| self.apiFailure(failure_);
             return;
         }
         if (current.options.readiness != null) {
@@ -325,3 +361,7 @@ test "validator metric adapter uses actual source names labels and durable worke
     try std.testing.expect(std.mem.indexOf(u8, rendered, "source=\"rpc\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, rendered, "phase=\"historical_publication\"") == null);
 }
+
+pub const MetadataTests = if (@import("builtin").is_test) struct {
+    pub const publish = Task.publishMetadata;
+} else struct {};

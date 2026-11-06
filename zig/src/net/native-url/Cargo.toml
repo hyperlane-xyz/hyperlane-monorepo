@@ -1,0 +1,20 @@
+[package]
+name = "ziggy-url"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license-file = "LICENSE.md"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Exact URL parser and transitive resolution from rust/main/Cargo.lock.
+url = { version = "=2.5.4", features = ["serde"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

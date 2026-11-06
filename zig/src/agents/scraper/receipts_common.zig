@@ -15,10 +15,16 @@ pub const DeadlineTransport = struct {
     /// Only explicit chain RPC reads may normalize a physical native timeout.
     /// Auth/proving/storage callers keep false, including under an RPC scope.
     rpc_read: bool = false,
-    pub fn verify(self: DeadlineTransport, transport: http.Transport) !void {
+    /// Only an exact validated owner capability may survive the deadline scope.
+    /// The stable owner context is copied, never this temporary wrapper address.
+    delegate: ?http.Transport = null,
+    pub fn verify(self: *DeadlineTransport, transport: http.Transport) !void {
+        self.delegate = null;
         const expected = self.owner.interface();
-        if (transport.context != expected.context or transport.send_fn != expected.send_fn) return error.ReceiptTransportOwnerMismatch;
+        const configured = self.owner.configuredRpcInterface();
+        if (transport.context != expected.context or (transport.send_fn != expected.send_fn and (!self.rpc_read or transport.send_fn != configured.send_fn))) return error.ReceiptTransportOwnerMismatch;
         if (self.owner.native_curl == null and !self.allow_std_fixture) return error.NativeReceiptTransportRequired;
+        self.delegate = transport;
     }
     pub fn interface(self: *DeadlineTransport) http.Transport {
         return .{ .context = self, .send_fn = send };
@@ -41,7 +47,7 @@ pub const DeadlineTransport = struct {
         };
         self.owner.timeout_ms = @min(saved_timeout, try milliseconds(deadline));
         self.owner.connect_timeout_ms = @min(saved_connect, self.owner.timeout_ms);
-        var result = try self.owner.interface().send(allocator, request);
+        var result = try (self.delegate orelse self.owner.interface()).send(allocator, request);
         errdefer result.deinit();
         _ = try milliseconds(deadline);
         return result;

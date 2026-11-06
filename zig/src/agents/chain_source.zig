@@ -251,16 +251,16 @@ pub const Resources = struct {
                 for (gateways, normalized_gateway) |*to, from| to.* = .{ .url = from.url, .headers = from.headers };
                 const core = cores[0];
                 const gateway = gateways[0];
-                break :blk .{ .radix = .{ .allocator = a, .transport = self.http.interface(), .core = .{ .url = core.url, .headers = core.headers }, .gateway = .{ .url = gateway.url, .headers = gateway.headers }, .network = network, .confirmations = self.chain.confirmations, .core_endpoints = cores, .gateway_endpoints = gateways } };
+                break :blk .{ .radix = .{ .allocator = a, .transport = self.http.configuredRpcInterface(), .core = .{ .url = core.url, .headers = core.headers }, .gateway = .{ .url = gateway.url, .headers = gateway.headers }, .network = network, .confirmations = self.chain.confirmations, .core_endpoints = cores, .gateway_endpoints = gateways } };
             },
             .tron => blk: {
                 if (self.chain.connection != .tron) return error.WrongChainConnection;
                 const conf = self.chain.connection.tron;
-                self.tron_client = try @import("../tron/provider.zig").Provider.init(a, self.http.interface(), .{ .rpc_urls = try self.endpoints(self.chain.rpc_urls), .wallet_urls = try self.endpoints(conf.wallet_urls), .wallet_solidity_urls = try self.endpoints(options.wallet_solidity_urls orelse conf.wallet_solidity_urls) });
+                self.tron_client = try @import("../tron/provider.zig").Provider.init(a, self.http.configuredRpcInterface(), .{ .rpc_urls = try self.endpoints(self.chain.rpc_urls), .wallet_urls = try self.endpoints(conf.wallet_urls), .wallet_solidity_urls = try self.endpoints(options.wallet_solidity_urls orelse conf.wallet_solidity_urls) });
                 break :blk .{ .tron = &self.tron_client.? };
             },
             .starknet => blk: {
-                self.starknet_factory = try @import("scraper/starknet.zig").Factory.init(a, self.http.interface(), &self.chain);
+                self.starknet_factory = try @import("scraper/starknet.zig").Factory.init(a, self.http.configuredRpcInterface(), &self.chain);
                 break :blk .{ .starknet = &self.starknet_factory.? };
             },
             .aleo => blk: {
@@ -268,7 +268,7 @@ pub const Resources = struct {
                 const vm = env.get("HYPERLANE_ALEO_VM_LIBRARY") orelse return error.MissingAleoVmLibrary;
                 const worker = env.get("HYPERLANE_ALEO_VM_WORKER") orelse return error.MissingAleoVmWorker;
                 self.aleo_crypto = try @import("../aleo/crypto.zig").Crypto.init(library);
-                self.aleo_factory = try @import("scraper/aleo.zig").Factory.init(a, self.http.interface(), &self.aleo_crypto.?, &self.chain, .{ .executable = worker, .library = vm });
+                self.aleo_factory = try @import("scraper/aleo.zig").Factory.init(a, self.http.configuredRpcInterface(), &self.aleo_crypto.?, &self.chain, .{ .executable = worker, .library = vm });
                 break :blk .{ .aleo = &self.aleo_factory.? };
             },
         };

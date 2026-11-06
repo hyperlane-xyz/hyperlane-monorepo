@@ -144,6 +144,9 @@ pub const Adapter = struct {
             result.block_hash = try p.decodeKey(self.allocator, try p.string(try p.field(actual, "blockhash")));
             result.tx_hash = if (std.mem.allEqual(u8, &identity.hash, 0)) null else identity.hash;
             result.tx_index = identity.index;
+            // Rust advanced LogMeta uses the authenticated stream position,
+            // independent of the creating instruction's transaction index.
+            if (kind != .gas) result.log_index = event.sequence orelse return error.MissingSvmEventSequence;
             return result;
         }
         return event;
@@ -277,4 +280,63 @@ test "scraper Sealevel pruned canonical transaction metadata remains absent rath
     const actual = try adapter.resolve(missing, @splat(5), contracts.mailbox, .delivery);
     try std.testing.expect(actual.tx_hash == null);
     try std.testing.expectEqual(@as(u64, 10), actual.block_number);
+    try std.testing.expectEqual(@as(u64, 0), actual.log_index);
+}
+
+const PositionFixture = struct {
+    fn cache(a: std.mem.Allocator, adapter: *Adapter, slot: u64, block: std.json.Value) !void {
+        const body = try std.json.Stringify.valueAlloc(a, block, .{});
+        defer a.free(body);
+        const hash = try b58.encode(a, &(@as([32]u8, @splat(0x19))));
+        defer a.free(hash);
+        const wire = if (block.object.contains("blockhash"))
+            try std.fmt.allocPrint(a, "{{\"result\":{s}}}", .{body})
+        else
+            try std.fmt.allocPrint(a, "{{\"result\":{s},\"blockhash\":\"{s}\"}}}}", .{ body[0 .. body.len - 1], hash });
+        errdefer a.free(wire);
+        var parsed = try std.json.parseFromSlice(std.json.Value, a, wire, .{});
+        errdefer parsed.deinit();
+        try adapter.blocks.put(a, slot, .{ .allocator = a, .bytes = wire, .parsed = parsed });
+        adapter.block_bytes += wire.len;
+    }
+};
+
+test "scraper Sealevel advanced metadata retains authenticated nonzero event sequences at the resolved transaction" {
+    const a = std.testing.allocator;
+    const fixture = try @import("../../testing/fixture.zig").parse(std.json.Value, a, @embedFile("fixtures/svm-meta-production.json.gz"), .{});
+    defer fixture.deinit();
+    const blocks = try p.field(fixture.value, "blocks");
+    const cases = try p.field(fixture.value, "cases");
+    // Exact production Rust relevance fixtures: dispatch at tx0 and a delivery
+    // at tx33 after reverted siblings. The event position is its authenticated
+    // sequence, independent of that transaction index or instruction position.
+    for ([_]usize{ 0, 7 }, [_]u32{ 7, 42 }) |case_index, sequence| {
+        const case = cases.array.items[case_index];
+        const block = try p.field(blocks, try p.string(try p.field(case, "block")));
+        const program = try p.decodeKey(a, try p.string(try p.field(case, "program")));
+        const pda = try p.decodeKey(a, try p.string(try p.field(case, "pda")));
+        const kind = std.meta.stringToEnum(meta.Kind, try p.string(try p.field(case, "kind"))).?;
+        var context: u8 = 0;
+        var client = try p.Client.init(a, "http://127.0.0.1:1", .{ .exchange = .{ .context = &context, .fetch_fn = PrunedFixture.fetch } });
+        defer client.deinit();
+        const contracts: src.Contracts = .{ .mailbox = program, .hook = @splat(2), .paymaster = @splat(3) };
+        const adapter = try Adapter.init(a, &client, contracts, 1000, 1);
+        defer adapter.deinit();
+        try PositionFixture.cache(a, adapter, 10, block);
+        const event: src.Event = .{ .block_number = 10, .block_hash = @splat(0), .address = program, .tx_hash = null, .sequence = sequence, .log_index = 0, .data = if (kind == .dispatch) .{ .dispatch = .{ .version = 3, .nonce = sequence, .origin = 1000, .sender = @splat(1), .destination = 2000, .recipient = @splat(2), .body = "" } } else .{ .delivery = @splat(4) } };
+        const resolved = try adapter.resolve(event, pda, program, kind);
+        try std.testing.expect(resolved.tx_hash != null);
+        try std.testing.expectEqual(try p.uint(try p.field(case, "index")), resolved.tx_index);
+        try std.testing.expectEqual(@as(u64, sequence), resolved.log_index);
+        try std.testing.expectEqual(@as(?u32, sequence), resolved.sequence);
+        // Solaxy's authenticated PDA can report one slot after its creating
+        // transaction. Resolve still retains the same event sequence.
+        const empty = try std.json.parseFromSlice(std.json.Value, a, "{\"transactions\":[]}", .{});
+        defer empty.deinit();
+        try PositionFixture.cache(a, adapter, 11, empty.value);
+        const shifted = try adapter.resolve(.{ .block_number = 11, .block_hash = event.block_hash, .address = event.address, .tx_hash = null, .sequence = event.sequence, .log_index = event.log_index, .data = event.data }, pda, program, kind);
+        try std.testing.expectEqual(@as(u64, 10), shifted.block_number);
+        try std.testing.expectEqual(resolved.tx_hash, shifted.tx_hash);
+        try std.testing.expectEqual(@as(u64, sequence), shifted.log_index);
+    }
 }
