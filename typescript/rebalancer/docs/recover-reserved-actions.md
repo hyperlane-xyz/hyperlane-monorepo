@@ -15,3 +15,10 @@ For actions that remain reserved:
 5. Resume or restart only after the resolved on-chain state is safe for fresh planning. If any outcome remains uncertain, keep the instance quiesced and escalate with the preserved identities.
 
 Automatic Solana-expiry recovery, verified refund recovery, and durable restart recovery require separate work. There is deliberately no timeout-based or force-release operation in this stack.
+
+## Operational follow-ups
+
+The following improvements are separate work before live activation:
+
+- **Estimation retry backoff.** Add bounded, per-route, in-memory backoff after a proven estimation failure and successful allowance cleanup. Apply the delay before the next approval, preserving exact approval, estimation, submission and cleanup ordering. Unresolved approval or source outcomes must continue blocking their origin independently of the backoff. Cover repeated failures, eventual retry, reset after success and unaffected routes in regression tests.
+- **Explorer outage reconciliation.** Separate discovery of inflight transfers from reconciliation of known actions. Drain concurrent synchronization before finishing a cycle and continue independent reconciliation when Explorer discovery fails. Keep new submissions blocked while discovery is incomplete, and require a fresh balance snapshot after settlement changes. Test a failed discovery alongside successful reconciliation, no overlapping synchronization across cycles, and submission resumption only after complete discovery and fresh balances.
