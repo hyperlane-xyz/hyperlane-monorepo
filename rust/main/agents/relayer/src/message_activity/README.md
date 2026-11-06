@@ -7,7 +7,7 @@ observation/receipt timestamps and structured activity data. Storage is best eff
 
 | Area | Activities |
 | --- | --- |
-| Admission | Explicit blacklist/denylist exclusions and queue evictions |
+| Admission | Runtime denylist drops of in-flight messages and queue evictions |
 | Retries | Status, reason, count, next attempt, retry limit and drops |
 | ISMs | Metadata build results, module types, routed children, aggregation members/threshold and verified count |
 | Validators | Validator sets/thresholds, storage failures and reorg reports |
@@ -26,6 +26,12 @@ interpretable. Real retries retain their reason/count/deadline; restart does not
 replay stored status or backoff. CCIP pending retries emit the first pending state
 and the endpoint's final outcome, not each intermediate request.
 
+Admission scans do not write diagnostics for messages already excluded by a
+blacklist/denylist or already at their persisted retry limit. Startup, migration
+and rescans may revisit large historical backlogs; these decisions remain in
+loader logs/metrics. Live denylist drops and fail-fast retry-limit transitions
+still produce activity events.
+
 Checkpoint summaries retain only the latest attempted index and at most the validated
 validator set (50 entries), regardless of how far the checkpoint search walks.
 Counts never combine different roots or indices. Collection summaries are emitted
@@ -35,14 +41,24 @@ deploy the updated reader before the writer to display compact quorum progress.
 
 ## Deployment wiring
 
-Mainnet, release-candidate and fast-path relayers reference the existing GCP
-secret `hyperlane-mainnet-relayer-postgres-writer-url` in project
-`abacus-labs-dev` through Helm's optional
+Hyperlane, release-candidate and fast-path relayers reference GCP secrets in project
+`abacus-labs-dev`: `hyperlane-mainnet-relayer-postgres-writer-url` on mainnet and
+`hyperlane-testnet4-relayer-postgres-writer-url` on testnet, through Helm's optional
 `hyperlane.relayer.messageActivityDatabaseUrlSecret` value. External Secrets
 injects it as `HYP_MESSAGEACTIVITYDATABASEURL` into the relayer pod. Neither the
 URL nor its credentials belong in Helm values or ConfigMaps. Other environments
 remain opt-in. Run the migrations before deploying a diagnostics-enabled agent
 image.
+
+Both environments share this database. Their scraper proxies use
+`hyperlane-mainnet-relayer-postgres-reader-url` and
+`hyperlane-testnet4-relayer-postgres-reader-url`, respectively, for diagnostics reads.
+The testnet secrets copy the mainnet values under a prefix allowed by testnet's
+External Secrets IAM policy; rotate both copies together. Rows carry
+origin/destination domain IDs; resolve these against registry chain metadata
+(`isTestnet`) to distinguish networks. There is no environment or context column,
+and diagnostics queries are scoped by message ID, not environment. The relayer
+address identifies the reporter, not an explicit Hyperlane/RC/fast-path context.
 
 ## Storage health and coverage
 

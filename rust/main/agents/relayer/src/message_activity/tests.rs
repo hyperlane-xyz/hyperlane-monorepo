@@ -1,5 +1,23 @@
 use super::*;
 
+use hyperlane_base::{cache::OptionalCache, db::test_utils, db::HyperlaneRocksDB};
+use hyperlane_core::{
+    test_utils::dummy_domain, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason,
+};
+
+use crate::{
+    db_loader::DbLoaderExt,
+    msg::{
+        blacklist::AddressBlacklist,
+        db_loader::{tests::dummy_message_loader_metrics, MessageDbLoader},
+        pending_message::PendingMessage,
+        runtime_denylist::RuntimeDenylist,
+    },
+    settings::matching_list::MatchingList,
+    test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
+};
+
 fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<Event>) {
     let (sender, receiver) = mpsc::channel(capacity);
     (
@@ -13,6 +31,138 @@ fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<Event>)
         },
         receiver,
     )
+}
+
+#[tokio::test]
+async fn admission_scans_do_not_replay_diagnostics() {
+    use hyperlane_base::broadcast::IndexingNotification;
+    use std::collections::HashMap;
+
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let messages: Vec<_> = (0..4)
+            .map(|nonce| HyperlaneMessage {
+                nonce,
+                origin: origin.id(),
+                destination: destination.id(),
+                sender: H256::from_low_u64_be(u64::from(nonce)),
+                ..Default::default()
+            })
+            .collect();
+        for message in &messages {
+            db.store_message(message, Default::default()).unwrap();
+        }
+        db.store_pending_message_retry_count_by_message_id(&messages[3].id(), &2)
+            .unwrap();
+
+        // Fresh loaders model restarts; notifications force repeated admission checks.
+        for _ in 0..2 {
+            let (reporter, mut activities) = reporter(64);
+            let cache = OptionalCache::new(None);
+            let builder = dummy_metadata_builder(&origin, &destination, &db, cache.clone())
+                .with_activity_reporter(Some(reporter));
+            let context = Arc::new(dummy_message_context(Arc::new(builder), &db, cache));
+            let (sender, mut operations) = mpsc::channel(1);
+            let mut loader = MessageDbLoader::new(
+                db.clone(),
+                Arc::default(),
+                Arc::new(MatchingList::with_message_id(messages[0].id())),
+                Arc::new(AddressBlacklist::new(vec![messages[1]
+                    .sender
+                    .as_bytes()
+                    .to_vec()])),
+                dummy_message_loader_metrics(),
+                HashMap::from([(destination.id(), sender)]),
+                HashMap::from([(destination.id(), context)]),
+                Arc::new(vec![]),
+                2,
+            )
+            .unwrap();
+            loader.set_runtime_denylist(Arc::new(RuntimeDenylist::from_rules_for_test(
+                serde_json::json!([{
+                    "reason": "historical exclusion",
+                    "addedBy": "test",
+                    "match": { "messageId": format!("{:?}", messages[2].id()) }
+                }]),
+            )));
+            let (notifications, receiver) = mpsc::channel(1);
+            loader.set_index_notifications(Some(receiver));
+            for nonce in (0..4).cycle().take(16) {
+                notifications
+                    .send(IndexingNotification {
+                        tx_id: H512::zero(),
+                        sequences: vec![Some(nonce)],
+                    })
+                    .await
+                    .unwrap();
+                loader.tick().await.unwrap();
+            }
+            assert!(
+                operations.try_recv().is_err(),
+                "excluded history stays unqueued"
+            );
+            assert!(
+                activities.try_recv().is_err(),
+                "scans must not emit activity rows"
+            );
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn live_denylist_and_retry_limit_transitions_still_emit_diagnostics() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let cache = OptionalCache::new(None);
+        let (reporter, mut activities) = reporter(16);
+        let builder = dummy_metadata_builder(&origin, &destination, &db, cache.clone())
+            .with_activity_reporter(Some(reporter));
+        let context = Arc::new(dummy_message_context(Arc::new(builder), &db, cache));
+        let mut pending = PendingMessage::new(
+            HyperlaneMessage {
+                origin: origin.id(),
+                destination: destination.id(),
+                ..Default::default()
+            },
+            context,
+            PendingOperationStatus::FirstPrepareAttempt,
+            None,
+            1,
+        )
+        .with_fail_fast();
+        pending.on_runtime_denylist_drop();
+        assert!(matches!(
+            activities.try_recv().unwrap().activity,
+            Activity::Filtered {
+                reason: FilterReason::RuntimeDenylisted
+            }
+        ));
+
+        assert!(matches!(
+            pending.on_reprepare(None, ReprepareReason::CouldNotFetchMetadata),
+            PendingOperationResult::Drop
+        ));
+        let mut limits = 0;
+        let mut drops = 0;
+        while let Ok(event) = activities.try_recv() {
+            match event.activity {
+                Activity::RetryLimitReached {
+                    retries: 1,
+                    limit: 1,
+                } => limits += 1,
+                Activity::Dropped => drops += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(limits, 1);
+        assert_eq!(drops, 1);
+    })
+    .await;
 }
 
 #[test]

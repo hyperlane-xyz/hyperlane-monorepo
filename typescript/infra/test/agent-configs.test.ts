@@ -105,6 +105,11 @@ describe('Agent configs', () => {
     ['testnet', testnet4Agents],
   ] as const) {
     it(`renders the ${environment} feed for every relayer with only mainnet OFAC addresses left static`, async () => {
+      const diagnosticsSecretPrefix =
+        environment === 'mainnet' ? 'hyperlane-mainnet' : 'hyperlane-testnet4';
+      expect(
+        configs[Contexts.Hyperlane].scraperProxy?.diagnosticsDatabaseSecret,
+      ).to.equal(`${diagnosticsSecretPrefix}-relayer-postgres-reader-url`);
       const ofacAddress = '0x' + 'aa'.repeat(20);
       const fetchStub = sinon
         .stub(globalThis, 'fetch')
@@ -135,9 +140,7 @@ describe('Agent configs', () => {
             environment === 'mainnet' ? ofacAddress.toLowerCase() : '',
           );
           expect(relayer.messageActivityDatabaseUrlSecret).to.equal(
-            environment === 'mainnet'
-              ? 'hyperlane-mainnet-relayer-postgres-writer-url'
-              : undefined,
+            `${diagnosticsSecretPrefix}-relayer-postgres-writer-url`,
           );
           expect(relayer.envConfig).not.to.have.property(
             'messageActivityDatabaseUrl',

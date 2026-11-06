@@ -1056,13 +1056,8 @@ impl PendingMessage {
             }
         }
         if Self::should_skip(num_retries, max_retries) && !manual_retry {
-            ctx.metadata_builder.report_activity(
-                &message,
-                Activity::RetryLimitReached {
-                    retries: num_retries,
-                    limit: max_retries,
-                },
-            );
+            // Loading an already-exhausted message is not a new retry-limit
+            // transition. Repeated admission scans must not replay diagnostics.
             return None;
         }
         let reprepare_reason = match &message_status {

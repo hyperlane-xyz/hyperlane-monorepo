@@ -25,7 +25,7 @@ use super::{
     blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*,
     runtime_denylist::RuntimeDenylist, QueueOperationBatch,
 };
-use crate::message_activity::{Activity, FilterReason};
+use crate::message_activity::FilterReason;
 use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
 
 const LEGACY_MIGRATION_BATCH_SIZE: usize = 256;
@@ -616,11 +616,8 @@ impl MessageDbLoader {
             .0;
         if logged.get(&message_id).await != Some(list) {
             logged.insert(message_id, list).await;
-            if let Some(context) = self.destination_ctxs.get(&message.destination) {
-                context
-                    .metadata_builder
-                    .report_activity(message, Activity::Filtered { reason: list });
-            }
+            // Admission scans revisit retained history on startup and rescan. Keep
+            // these decisions in logs/metrics, not the message activity database.
             info!(
                 ?message_id,
                 origin = message.origin,
