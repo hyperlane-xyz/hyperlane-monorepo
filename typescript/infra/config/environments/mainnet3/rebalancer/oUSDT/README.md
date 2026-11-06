@@ -40,10 +40,13 @@ Arbitrum, Celo and Tron each retain 1,000/3,000. Aggregate collateral must be
 strictly above the 374,000 aggregate target. Halt if insufficient.
 
 The route uses USDT/OFT inventory from Ethereum, movable collateral from
-Arbitrum and Tron, and swaps.xyz for Celo. Celo/Tron is disabled. All provider
-quote-loss caps are 50 bps. Validate provider access and executable quotes
-separately: monitor-only startup skips executor construction and cannot validate
-execution credentials or quotes.
+Arbitrum and Tron, and swaps.xyz for Celo. The Celo-to-Tron and Tron-to-Celo
+`enabled: false` overrides suppress economic strategy proposals. Physical
+inventory sourcing for another enabled proposal can still move inventory between
+Celo and Tron when the provider returns a valid quote. All provider quote-loss
+caps are 50 bps. Validate provider access and executable quotes separately:
+monitor-only startup skips executor construction and cannot validate execution
+credentials or quotes.
 
 Stop the old singleton after a completed cycle and audit shutdown submissions.
 Never overlap execution-enabled instances. After all gates pass, deploy the
