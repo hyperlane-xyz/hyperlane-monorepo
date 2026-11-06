@@ -44,6 +44,10 @@ pub enum Activity {
     Snapshot {
         state: serde_json::Value,
     },
+    /// Complete message state plus nodes changed since the latest full snapshot.
+    SnapshotUpdate {
+        state: serde_json::Value,
+    },
     Status {
         status: PendingOperationStatus,
     },

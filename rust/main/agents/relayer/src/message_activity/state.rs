@@ -2,6 +2,7 @@
 //! Runs exclusively on the background writer; never delays message delivery.
 use std::{
     collections::{BTreeMap, BTreeSet},
+    sync::Arc,
     time::Duration,
 };
 
@@ -18,7 +19,9 @@ const STATE_CACHE_ENTRIES: u64 = 10_000;
 struct MessageState {
     current: BTreeMap<String, Value>,
     #[serde(skip)]
-    published: BTreeMap<String, Value>,
+    published_snapshot: Option<Arc<Value>>,
+    #[serde(skip)]
+    anchor_snapshot: Option<Arc<Value>>,
     submitted_validation: Option<Value>,
 }
 
@@ -26,7 +29,8 @@ impl Default for MessageState {
     fn default() -> Self {
         Self {
             current: BTreeMap::from([("message".to_owned(), json!({"phase": "preparing"}))]),
-            published: BTreeMap::new(),
+            published_snapshot: None,
+            anchor_snapshot: None,
             submitted_validation: None,
         }
     }
@@ -52,7 +56,8 @@ impl ActivityState {
         for event in events {
             if let Some(mut state) = self.messages.get(&event.message_id).await {
                 // The next observation republishes the complete known baseline after a failed write.
-                state.published.clear();
+                state.published_snapshot = None;
+                state.anchor_snapshot = None;
                 self.messages.insert(event.message_id, state).await;
             }
         }
@@ -120,7 +125,7 @@ impl ActivityState {
                 || match &event.activity {
                     Activity::Checkpoint { .. }
                     | Activity::IsmVerification { .. }
-                    | Activity::OffchainRead { .. } => !state.published.is_empty(),
+                    | Activity::OffchainRead { .. } => state.published_snapshot.is_some(),
                     Activity::Retry {
                         reason: Some(_), ..
                     }
@@ -136,23 +141,91 @@ impl ActivityState {
                     | Activity::OriginSenderDenied => true,
                     _ => false,
                 };
-            if meaningful && state.current != state.published {
+            if meaningful {
                 let snapshot = state.snapshot();
-                output.push(Event {
-                    relayer: event.relayer,
-                    observed_at: event.observed_at,
-                    message_id: event.message_id,
-                    origin: event.origin,
-                    destination: event.destination,
-                    activity: Activity::Snapshot { state: snapshot },
-                    node_id: None,
-                });
-                state.published = state.current.clone();
+                if state.published_snapshot.as_deref() != Some(&snapshot) {
+                    let anchor = state.published_snapshot.is_none()
+                        || matches!(
+                            event.activity,
+                            Activity::Status {
+                                status: super::PendingOperationStatus::ReadyToSubmit
+                            } | Activity::Delivered
+                                | Activity::Dropped
+                                | Activity::Filtered { .. }
+                                | Activity::RetryLimitReached { .. }
+                        );
+                    let snapshot = Arc::new(snapshot);
+                    let activity = if anchor {
+                        state.anchor_snapshot = Some(snapshot.clone());
+                        Activity::Snapshot {
+                            state: snapshot.as_ref().clone(),
+                        }
+                    } else {
+                        Activity::SnapshotUpdate {
+                            state: snapshot_update(
+                                state
+                                    .anchor_snapshot
+                                    .as_ref()
+                                    .expect("full snapshot anchor"),
+                                &snapshot,
+                            ),
+                        }
+                    };
+                    output.push(Event {
+                        relayer: event.relayer,
+                        observed_at: event.observed_at,
+                        message_id: event.message_id,
+                        origin: event.origin,
+                        destination: event.destination,
+                        activity,
+                        node_id: None,
+                    });
+                    state.published_snapshot = Some(snapshot);
+                }
             }
             self.messages.insert(event.message_id, state).await;
         }
         Ok(output)
     }
+}
+
+/// An update carries complete message-level state and complete replacements for
+/// nodes changed since the latest full anchor. Consumers upsert nodes by `node_id`
+/// and remove tombstoned IDs. Every update can therefore be applied directly to
+/// its anchor without replaying intermediate updates.
+fn snapshot_update(anchor: &Value, current: &Value) -> Value {
+    let anchor_modules = anchor["modules"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|module| Some((module["node_id"].as_str()?.to_owned(), module)))
+        .collect::<BTreeMap<_, _>>();
+    let current_modules = current["modules"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|module| Some((module["node_id"].as_str()?.to_owned(), module)))
+        .collect::<BTreeMap<_, _>>();
+    let changed = current["modules"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|module| {
+            module["node_id"]
+                .as_str()
+                .is_none_or(|id| anchor_modules.get(id).copied() != Some(*module))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let removed = anchor_modules
+        .keys()
+        .filter(|id| !current_modules.contains_key(*id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut update = current.clone();
+    update["modules"] = json!(changed);
+    update["removed_modules"] = json!(removed);
+    update
 }
 
 fn state_key(id: H256) -> Vec<u8> {
@@ -289,8 +362,6 @@ impl MessageState {
         }
         self.current
             .retain(|key, _| !key.starts_with("node:") || reachable.contains(key));
-        self.published
-            .retain(|key, _| self.current.contains_key(key));
     }
 
     fn observe(&mut self, event: &Event) -> eyre::Result<()> {
@@ -582,12 +653,50 @@ mod tests {
     }
     fn snapshot(events: &[Event]) -> &Value {
         match &events.last().expect("snapshot event").activity {
-            Activity::Snapshot { state } => state,
+            Activity::Snapshot { state } | Activity::SnapshotUpdate { state } => state,
             other => unreachable!("expected snapshot, got {other:?}"),
         }
     }
+
+    fn is_full_snapshot(events: &[Event]) -> bool {
+        matches!(
+            events.last().expect("snapshot event").activity,
+            Activity::Snapshot { .. }
+        )
+    }
     async fn project(states: &ActivityState, events: &[Event]) -> Vec<Event> {
         states.project(events).await.expect("project observations")
+    }
+
+    #[test]
+    fn snapshot_updates_replace_changed_nodes_and_remove_missing_nodes() {
+        let anchor = json!({
+            "phase": "preparing",
+            "tree_root": "a",
+            "modules": [
+                {"node_id": "a", "verified": 0},
+                {"node_id": "b", "verified": 0}
+            ]
+        });
+        let current = json!({
+            "phase": "awaiting_signatures",
+            "tree_root": "b",
+            "modules": [
+                {"node_id": "b", "verified": 1},
+                {"node_id": "c", "verified": 0}
+            ]
+        });
+        let update = snapshot_update(&anchor, &current);
+        assert_eq!(update["phase"], "awaiting_signatures");
+        assert_eq!(update["tree_root"], "b");
+        assert_eq!(
+            update["modules"],
+            json!([
+                {"node_id": "b", "verified": 1},
+                {"node_id": "c", "verified": 0}
+            ])
+        );
+        assert_eq!(update["removed_modules"], json!(["a"]));
     }
 
     #[tokio::test]
@@ -604,6 +713,7 @@ mod tests {
         )
         .await;
         assert_eq!(first.len(), 1);
+        assert!(is_full_snapshot(&first));
         assert_eq!(snapshot(&first)["modules"][0]["signatures"]["collected"], 1);
         for count in 1..=5 {
             let updates = project(
@@ -631,11 +741,10 @@ mod tests {
             )
             .await;
             assert_eq!(updates.len(), 1);
+            assert!(!is_full_snapshot(&updates));
             assert_eq!(snapshot(&updates)["retry"]["count"], count);
-            assert_eq!(
-                snapshot(&updates)["modules"][0]["metadata_status"],
-                "blocked"
-            );
+            assert_eq!(snapshot(&updates)["modules"], json!([]));
+            assert_eq!(snapshot(&updates)["removed_modules"], json!([]));
         }
         assert_eq!(project(&states, &[checkpoint("new", 10, 2)]).await.len(), 1);
         assert_eq!(project(&states, &[metadata("root", None)]).await.len(), 1);
@@ -697,9 +806,94 @@ mod tests {
         states.failed(&batch).await;
         let updates = project(&states, &[metadata("root", None)]).await;
         assert_eq!(updates.len(), 1);
+        assert!(is_full_snapshot(&updates));
         assert_eq!(
             snapshot(&updates)["modules"][0]["module_type"],
             "MessageIdMultisig"
+        );
+    }
+
+    #[tokio::test]
+    async fn ready_and_delivered_are_full_snapshots_between_node_updates() {
+        let states = ActivityState::new(None);
+        let first = project(
+            &states,
+            &[
+                module("root"),
+                checkpoint("first", 10, 1),
+                metadata("root", Some("Awaiting validator signatures")),
+            ],
+        )
+        .await;
+        assert!(is_full_snapshot(&first));
+
+        let update = project(&states, &[checkpoint("second", 10, 2)]).await;
+        assert!(!is_full_snapshot(&update));
+        assert_eq!(
+            snapshot(&update)["modules"].as_array().map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(snapshot(&update)["modules"][0]["node_id"], "root");
+
+        let cumulative = project(
+            &states,
+            &[event(
+                None,
+                Activity::Retry {
+                    reason: Some(ReprepareReason::AwaitingValidatorSignatures),
+                    retry_count: 1,
+                    next_attempt_at_millis: Some(1_000),
+                },
+            )],
+        )
+        .await;
+        assert!(!is_full_snapshot(&cumulative));
+        assert_eq!(
+            snapshot(&cumulative)["modules"].as_array().map(Vec::len),
+            Some(1),
+            "updates remain independently applicable to the latest full anchor"
+        );
+
+        let ready = project(
+            &states,
+            &[
+                metadata("root", None),
+                event(
+                    None,
+                    Activity::Status {
+                        status: PendingOperationStatus::ReadyToSubmit,
+                    },
+                ),
+            ],
+        )
+        .await;
+        assert!(is_full_snapshot(&ready));
+        assert_eq!(snapshot(&ready)["phase"], "ready_to_submit");
+        assert_eq!(
+            snapshot(&ready)["modules"].as_array().map(Vec::len),
+            Some(1)
+        );
+
+        let confirming = project(
+            &states,
+            &[event(
+                None,
+                Activity::Status {
+                    status: PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf),
+                },
+            )],
+        )
+        .await;
+        assert!(!is_full_snapshot(&confirming));
+        assert_eq!(snapshot(&confirming)["phase"], "confirming");
+        assert_eq!(snapshot(&confirming)["modules"], json!([]));
+
+        let delivered = project(&states, &[event(None, Activity::Delivered)]).await;
+        assert!(is_full_snapshot(&delivered));
+        assert_eq!(snapshot(&delivered)["phase"], "delivered");
+        assert_eq!(
+            snapshot(&delivered)["modules"].as_array().map(Vec::len),
+            Some(1)
         );
     }
 

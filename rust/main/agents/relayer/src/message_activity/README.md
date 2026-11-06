@@ -39,6 +39,15 @@ on completion, including failure, but not for canceled aggregation children.
 The reader accepts both compact summaries and the previous per-observation format;
 deploy the updated reader before the writer to display compact quorum progress.
 
+The first public state, every `ready_to_submit` transition, and terminal delivery
+or drop are complete `snapshot` anchors. Between anchors, `snapshot_update` rows
+contain complete message-level state, complete replacements for changed ISM nodes,
+and `removed_modules` node IDs. Consumers upsert modules by stable `node_id` and
+apply removals. Each update is cumulative relative to the latest anchor, so the
+reader needs only that anchor and the newest update. Updates never use ambiguous
+field-level JSON patches. A writer restart or failed database write publishes
+another complete anchor before updates resume.
+
 ## Deployment wiring
 
 Hyperlane, release-candidate and fast-path relayers reference GCP secrets in project

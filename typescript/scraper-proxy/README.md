@@ -195,11 +195,15 @@ success. Unknown verification outcomes map to `unknown`. Retry reasons are stabl
 string codes; tagged reasons become e.g. `ApplicationReport.ZeroAmount`, with
 unrecognized structures reported as `unknown` and preserved in raw history.
 
-New relayers emit one self-contained `snapshot` activity containing the current
-message phase and complete ISM tree. `message_diagnostics` returns the latest
-snapshot per relayer in `activities`; `message_activity` pages older snapshots.
-During a rolling deployment, relayers without snapshots retain the existing
-100-event reduction and `partial` behavior.
+New relayers emit complete `snapshot` anchors for initial state,
+`ready_to_submit`, and terminal state. Between anchors, `snapshot_update`
+activities contain complete message-level state, replacements for changed ISM
+nodes, and removed node IDs. Each update is cumulative relative to its latest
+anchor, so apply the newest update by stable `node_id` without replaying the rows
+between them. `message_diagnostics` returns the latest anchor and newest update
+per relayer; `message_activity` pages older history. During a rolling deployment,
+relayers without snapshots retain the existing 100-event reduction and `partial`
+behavior.
 
 The compatibility reducer exposes phase, retry reason/deadline, failures, and
 per-ISM thresholds, verified module counts, signature collection and offchain reads.

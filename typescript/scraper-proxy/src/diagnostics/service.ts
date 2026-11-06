@@ -61,11 +61,17 @@ export class DiagnosticsService {
     const rows = await this.read(
       `SELECT activity.* FROM unnest($1::text[]) AS requested(message_hex)
        CROSS JOIN LATERAL (
-         (SELECT DISTINCT ON (relayer) ${columns}
-          FROM public.message_activity
+         (SELECT DISTINCT ON (relayer, activity->>'type') ${columns}
+          FROM public.message_activity AS current_activity
           WHERE message_id = decode(requested.message_hex, 'hex')
-            AND activity->>'type' = 'snapshot'
-          ORDER BY relayer, message_activity.id DESC)
+            AND activity->>'type' IN ('snapshot', 'snapshot_update')
+            AND id >= (
+              SELECT max(anchor.id) FROM public.message_activity AS anchor
+              WHERE anchor.message_id = current_activity.message_id
+                AND anchor.relayer = current_activity.relayer
+                AND anchor.activity->>'type' = 'snapshot'
+            )
+          ORDER BY relayer, activity->>'type', id DESC)
          UNION
          (SELECT ${columns} FROM public.message_activity
           WHERE message_id = decode(requested.message_hex, 'hex')
