@@ -172,7 +172,7 @@ describe('EvmHookReader', () => {
     const wormholeAddress = randomAddress();
     const derivedWormholeHook = {
       address: wormholeAddress,
-      type: HookType.WORMHOLE_VAA,
+      type: HookType.WORMHOLE,
     } as const;
 
     it('preserves the address for deployment readers', async () => {
@@ -194,7 +194,7 @@ describe('EvmHookReader', () => {
 
     it('preserves an undeployed Wormhole config object', async () => {
       const wormholeConfig: WormholeHookConfig = {
-        type: HookType.WORMHOLE_VAA,
+        type: HookType.WORMHOLE,
       };
 
       const config = await evmHookReader.deriveHookConfig({

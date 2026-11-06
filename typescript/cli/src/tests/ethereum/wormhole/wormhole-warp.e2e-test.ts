@@ -114,11 +114,11 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
         type: HookType.AGGREGATION,
         hooks: [
           { type: HookType.MAILBOX_DEFAULT },
-          { type: HookType.WORMHOLE_VAA },
+          { type: HookType.WORMHOLE },
         ],
       };
       const interchainSecurityModule = {
-        type: IsmType.WORMHOLE_VAA,
+        type: IsmType.WORMHOLE,
         owner: ANVIL_DEPLOYER_ADDRESS,
         core: mocks[chain].core.address,
         wormholeChainId: mocks[chain].wormholeChainId,
@@ -183,12 +183,11 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
       `Expected aggregation hook on ${chain}`,
     );
     const wormholeHook = hook.hooks.find(
-      (child) =>
-        typeof child !== 'string' && child.type === HookType.WORMHOLE_VAA,
+      (child) => typeof child !== 'string' && child.type === HookType.WORMHOLE,
     );
     assert(
       typeof wormholeHook !== 'string' && wormholeHook,
-      `Expected expanded ${HookType.WORMHOLE_VAA} child on ${chain}`,
+      `Expected expanded ${HookType.WORMHOLE} child on ${chain}`,
     );
     assert(
       'remoteRouters' in wormholeHook &&
@@ -372,7 +371,7 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
 
       for (const chain of chains) {
         const ism = config[chain].interchainSecurityModule;
-        if (typeof ism !== 'string' && ism?.type === IsmType.WORMHOLE_VAA) {
+        if (typeof ism !== 'string' && ism?.type === IsmType.WORMHOLE) {
           ism.urls = ['https://vaa.example/v2'];
         }
       }
@@ -414,7 +413,7 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
       for (const chain of chains) {
         const ism = config[chain].interchainSecurityModule;
         assert(
-          typeof ism !== 'string' && ism?.type === IsmType.WORMHOLE_VAA,
+          typeof ism !== 'string' && ism?.type === IsmType.WORMHOLE,
           `Expected Wormhole ISM config on ${chain}`,
         );
         ism.consistencyLevel = {
@@ -587,11 +586,11 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
           type: HookType.AGGREGATION,
           hooks: [
             { type: HookType.MAILBOX_DEFAULT },
-            { type: HookType.WORMHOLE_VAA },
+            { type: HookType.WORMHOLE },
           ],
         },
         interchainSecurityModule: {
-          type: IsmType.WORMHOLE_VAA,
+          type: IsmType.WORMHOLE,
           owner: ANVIL_DEPLOYER_ADDRESS,
           core: mocks[CHAIN_NAME_4].core.address,
           wormholeChainId: mocks[CHAIN_NAME_4].wormholeChainId,

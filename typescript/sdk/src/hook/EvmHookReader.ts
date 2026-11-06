@@ -347,13 +347,13 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     original: HookConfig,
     derived: DerivedHookConfig,
   ): HookConfig {
-    if (this.expandWormhole && derived.type === HookType.WORMHOLE_VAA) {
+    if (this.expandWormhole && derived.type === HookType.WORMHOLE) {
       return derived;
     }
     const nonRedeployable: HookType[] = [
       HookType.CCTP,
       HookType.PREDICATE,
-      HookType.WORMHOLE_VAA,
+      HookType.WORMHOLE,
     ];
     if (!nonRedeployable.includes(derived.type)) {
       return derived;
@@ -374,7 +374,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     const diagnosticConfig = {
       address,
-      type: HookType.WORMHOLE_VAA,
+      type: HookType.WORMHOLE,
       remoteRouters: derived.remoteRouters,
     };
     return diagnosticConfig;

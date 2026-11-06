@@ -1089,7 +1089,7 @@ describe('buildWarpRouteDiff', () => {
 
   it('accepts a derived Wormhole ISM nested in an aggregation', () => {
     const wormholeIsm: WormholeIsmConfig = {
-      type: IsmType.WORMHOLE_VAA,
+      type: IsmType.WORMHOLE,
       owner: OWNER,
       core: TOKEN_A,
       wormholeChainId: 2,
@@ -1102,7 +1102,7 @@ describe('buildWarpRouteDiff', () => {
     };
     const derivedWormholeIsm = {
       address: TOKEN_A,
-      type: IsmType.WORMHOLE_VAA,
+      type: IsmType.WORMHOLE,
       owner: OWNER,
       core: TOKEN_A,
       wormholeChainId: 2,
@@ -1516,9 +1516,9 @@ describe('deriveWormholeRemoteRouterDiff', () => {
           type: TokenType.synthetic,
           mailbox: MAILBOX,
           owner: OWNER,
-          hook: { type: HookType.WORMHOLE_VAA },
+          hook: { type: HookType.WORMHOLE },
           interchainSecurityModule: {
-            type: IsmType.WORMHOLE_VAA,
+            type: IsmType.WORMHOLE,
             owner: OWNER,
             core: CORE,
             wormholeChainId: WORMHOLE_CHAIN_IDS[chain],
@@ -1542,11 +1542,11 @@ describe('deriveWormholeRemoteRouterDiff', () => {
           owner: OWNER,
           destinationGas: {},
           remoteRouters: {},
-          hook: { address: hook, type: HookType.WORMHOLE_VAA },
+          hook: { address: hook, type: HookType.WORMHOLE },
           interchainSecurityModule: ism
             ? {
                 address: ism,
-                type: IsmType.WORMHOLE_VAA,
+                type: IsmType.WORMHOLE,
                 owner: OWNER,
                 core: CORE,
                 wormholeChainId: WORMHOLE_CHAIN_IDS[chain],
@@ -1627,7 +1627,7 @@ describe('deriveWormholeRemoteRouterDiff', () => {
     expect(diff).to.deep.equal({
       [test2.name]: {
         combinedHookIsm: {
-          [IsmType.WORMHOLE_VAA]: {
+          [IsmType.WORMHOLE]: {
             hook: { expected: ROUTERS[test2.name], actual: OTHER },
           },
         },
@@ -1654,7 +1654,7 @@ describe('deriveWormholeRemoteRouterDiff', () => {
     expect(diff).to.deep.equal({
       [test2.name]: {
         combinedHookIsm: {
-          [IsmType.WORMHOLE_VAA]: {
+          [IsmType.WORMHOLE]: {
             interchainSecurityModule: {
               expected: 'one instance',
               actual: 'missing',
@@ -1681,7 +1681,7 @@ describe('deriveWormholeRemoteRouterDiff', () => {
 
     expect(diff[test3.name]).to.deep.equal({
       combinedHookIsm: {
-        [IsmType.WORMHOLE_VAA]: {
+        [IsmType.WORMHOLE]: {
           hook: { expected: ROUTERS[test3.name], actual: OTHER },
         },
       },

@@ -209,7 +209,7 @@ describe('EvmIsmModule blacklist enumeration probe', () => {
         .withArgs(targetAddress)
         .resolves({
           address: targetAddress,
-          type: IsmType.WORMHOLE_VAA,
+          type: IsmType.WORMHOLE,
           owner,
           core: randomAddress(),
           wormholeChainId: 2,

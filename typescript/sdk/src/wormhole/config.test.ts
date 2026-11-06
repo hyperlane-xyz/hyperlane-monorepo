@@ -33,7 +33,7 @@ const BASE_ROUTER = '0x00000000000000000000000000000000000000ba';
 const OPTIMISM_ROUTER = '0x00000000000000000000000000000000000000b0';
 
 function wormholeHook(): HookConfig {
-  return { type: HookType.WORMHOLE_VAA };
+  return { type: HookType.WORMHOLE };
 }
 
 function wormholeIsm(
@@ -43,7 +43,7 @@ function wormholeIsm(
   },
 ): IsmConfig {
   return {
-    type: IsmType.WORMHOLE_VAA,
+    type: IsmType.WORMHOLE,
     owner: OWNER,
     core: CORE,
     wormholeChainId,

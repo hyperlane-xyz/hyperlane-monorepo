@@ -127,10 +127,10 @@ export class BaseMetadataBuilder implements MetadataBuilder {
           ism,
         });
 
-      case IsmType.WORMHOLE_VAA:
+      case IsmType.WORMHOLE:
         return this.ccipReadMetadataBuilder.build({
           ...context,
-          ism: { ...ism, type: IsmType.WORMHOLE_VAA },
+          ism: { ...ism, type: IsmType.WORMHOLE },
         });
 
       default:

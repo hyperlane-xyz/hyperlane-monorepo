@@ -189,7 +189,7 @@ describe('EvmIsmReader', () => {
 
   it('preserves an undeployed Wormhole config object in a container', async () => {
     const wormholeConfig: WormholeIsmConfig = {
-      type: IsmType.WORMHOLE_VAA,
+      type: IsmType.WORMHOLE,
       owner: randomAddress(),
       core: randomAddress(),
       wormholeChainId: 2,
@@ -242,7 +242,7 @@ describe('EvmIsmReader', () => {
         const wormholeAddress = randomAddress();
         const derivedWormhole: WithAddress<WormholeIsmConfig> = {
           address: wormholeAddress,
-          type: IsmType.WORMHOLE_VAA,
+          type: IsmType.WORMHOLE,
           owner: randomAddress(),
           core: randomAddress(),
           wormholeChainId: 2,

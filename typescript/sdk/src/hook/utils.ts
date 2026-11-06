@@ -134,7 +134,7 @@ export function isCombinedHookIsmHookNode(
 ): hook is CombinedHookIsmHookConfig {
   return (
     isHybridHookNode(hook) ||
-    (!!hook && typeof hook === 'object' && hook.type === HookType.WORMHOLE_VAA)
+    (!!hook && typeof hook === 'object' && hook.type === HookType.WORMHOLE)
   );
 }
 

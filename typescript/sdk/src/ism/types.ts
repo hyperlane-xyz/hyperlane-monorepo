@@ -117,7 +117,7 @@ export const IsmType = {
    * `DeployableIsmType`: one contract serves as both hook and ISM, so it is
    * deployed by `EvmWormholeHookIsmModule`, never by `HyperlaneIsmFactory`.
    */
-  WORMHOLE_VAA: 'wormholeVaaIsm',
+  WORMHOLE: 'wormholeIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -125,7 +125,7 @@ export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
 export type DeployableIsmType = Exclude<
   IsmType,
-  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN | typeof IsmType.WORMHOLE_VAA
+  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN | typeof IsmType.WORMHOLE
 >;
 
 // ISM types that can be updated in-place on EVM chains (consumed by
@@ -210,7 +210,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
     // The Wormhole router receives its VAA through the generic CCIP-read path.
-    case IsmType.WORMHOLE_VAA:
+    case IsmType.WORMHOLE:
       return ModuleType.CCIP_READ;
     case IsmType.COMPOSITE:
       return ModuleType.COMPOSITE;
@@ -378,7 +378,7 @@ export type DeployedIsmType = {
   [IsmType.DELAYED_FLOW_ROUTER]: DelayedFlowRouterHookIsm;
   // Deployed by EvmWormholeHookIsmModule, never by HyperlaneIsmFactory, so the
   // generic interface is all this map needs to express.
-  [IsmType.WORMHOLE_VAA]: IInterchainSecurityModule;
+  [IsmType.WORMHOLE]: IInterchainSecurityModule;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -418,7 +418,7 @@ export const TrustedRelayerIsmConfigSchema = z.object({
 
 export const WormholeIsmConfigSchema = OwnableSchema.extend({
   ...WormholeConsistencyLevelFields,
-  type: z.literal(IsmType.WORMHOLE_VAA),
+  type: z.literal(IsmType.WORMHOLE),
   /** Official Wormhole Core proxy on this chain. */
   core: ZHash,
   /** Expected value returned by the configured Core proxy. */

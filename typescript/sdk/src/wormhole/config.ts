@@ -26,14 +26,12 @@ function isWormholeHook(
   config: HookConfig | undefined,
 ): config is WormholeHookConfig {
   return (
-    !!config &&
-    typeof config !== 'string' &&
-    config.type === HookType.WORMHOLE_VAA
+    !!config && typeof config !== 'string' && config.type === HookType.WORMHOLE
   );
 }
 
 function isWormholeIsm(config: IsmConfig): config is WormholeIsmConfig {
-  return typeof config !== 'string' && config.type === IsmType.WORMHOLE_VAA;
+  return typeof config !== 'string' && config.type === IsmType.WORMHOLE;
 }
 
 export function findWormholeHooks(

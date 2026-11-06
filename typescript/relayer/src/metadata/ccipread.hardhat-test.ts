@@ -420,7 +420,7 @@ describe('Offchain Lookup ISM Integration', () => {
         const result = await metadataBuilder.build(context);
 
         const leaf = ccipReadLeaf(result);
-        expect(leaf.type).to.equal(IsmType.WORMHOLE_VAA);
+        expect(leaf.type).to.equal(IsmType.WORMHOLE);
         expect(leaf.ismAddress).to.equal(destinationHookIsm.address);
         assert('urls' in leaf, `Missing CCIP-read urls for ${leaf.ismAddress}`);
         expect(leaf.urls).to.deep.equal([VAA_URL]);

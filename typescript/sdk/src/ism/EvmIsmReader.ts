@@ -99,7 +99,7 @@ export interface IsmReader {
 const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INTERCHAIN_ACCOUNT_ROUTING,
-  IsmType.WORMHOLE_VAA,
+  IsmType.WORMHOLE,
 ]);
 
 export interface EvmIsmReaderOptions {
@@ -159,7 +159,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     ).deriveWormholeConfig(address);
     const common = {
       address,
-      type: IsmType.WORMHOLE_VAA,
+      type: IsmType.WORMHOLE,
       owner: derived.owner,
       core: derived.core,
       wormholeChainId: derived.wormholeChainId,
@@ -301,7 +301,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     original: IsmConfig,
     derived: DerivedIsmConfig,
   ): IsmConfig {
-    if (this.options.expandWormhole && derived.type === IsmType.WORMHOLE_VAA) {
+    if (this.options.expandWormhole && derived.type === IsmType.WORMHOLE) {
       return derived;
     }
     if (!NON_REDEPLOYABLE_ISM_TYPES.has(derived.type)) return derived;

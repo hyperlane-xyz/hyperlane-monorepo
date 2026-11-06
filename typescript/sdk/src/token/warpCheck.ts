@@ -1319,7 +1319,7 @@ export async function deriveWormholeRemoteRouterDiff({
 
   const { addresses, diff } = resolveCombinedHookIsmAddresses({
     chains,
-    label: IsmType.WORMHOLE_VAA,
+    label: IsmType.WORMHOLE,
     onChainWarpConfig,
     findHooks: findWormholeHooks,
     findIsms: findWormholeIsms,

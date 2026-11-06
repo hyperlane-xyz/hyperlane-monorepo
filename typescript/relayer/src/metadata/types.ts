@@ -142,7 +142,7 @@ export interface ArbL2ToL1MetadataBuildResult extends BaseMetadataBuildResult {
 export interface CcipReadMetadataBuildResult extends BaseMetadataBuildResult {
   // The Wormhole router reverts with the same OffchainLookup shape
   // and its response is a single ABI-encoded `bytes`, so it reuses this path.
-  type: typeof IsmType.OFFCHAIN_LOOKUP | typeof IsmType.WORMHOLE_VAA;
+  type: typeof IsmType.OFFCHAIN_LOOKUP | typeof IsmType.WORMHOLE;
   /** URLs configured for offchain lookup */
   urls: string[];
 }

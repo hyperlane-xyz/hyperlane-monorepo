@@ -99,7 +99,7 @@ export const HookType = {
    * `DeployableHookType`: one contract serves as both hook and ISM, so it is
    * deployed by `EvmWormholeHookIsmModule`, never by the generic hook deployer.
    */
-  WORMHOLE_VAA: 'wormholeVaaHook',
+  WORMHOLE: 'wormholeHook',
   UNKNOWN: 'unknownHook',
   PREDICATE: 'predicateHook',
 } as const;
@@ -114,7 +114,7 @@ export type DeployableHookType = Exclude<
   | typeof HookType.CCTP
   | typeof HookType.NET_FLOW_RATE_LIMITED
   | typeof HookType.DELAYED_FLOW_ROUTER
-  | typeof HookType.WORMHOLE_VAA
+  | typeof HookType.WORMHOLE
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -383,7 +383,7 @@ export type CctpHookConfig = z.infer<typeof CctpHookSchema>;
  * publication has no hook-only configuration.
  */
 export const WormholeHookSchema = z.object({
-  type: z.literal(HookType.WORMHOLE_VAA),
+  type: z.literal(HookType.WORMHOLE),
 });
 export type WormholeHookConfig = z.infer<typeof WormholeHookSchema>;
 

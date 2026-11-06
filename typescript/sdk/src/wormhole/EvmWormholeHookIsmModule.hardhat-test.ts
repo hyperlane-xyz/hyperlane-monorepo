@@ -105,9 +105,9 @@ describe('EvmWormholeHookIsmModule', () => {
           chain,
           {
             mailbox: mailboxes[chain],
-            hook: { type: HookType.WORMHOLE_VAA },
+            hook: { type: HookType.WORMHOLE },
             interchainSecurityModule: {
-              type: IsmType.WORMHOLE_VAA,
+              type: IsmType.WORMHOLE,
               owner: signerAddress,
               core: cores[chain],
               wormholeChainId: wormholeChainIds[chain],
@@ -256,7 +256,7 @@ describe('EvmWormholeHookIsmModule', () => {
     assert(
       changedIsm &&
         typeof changedIsm !== 'string' &&
-        changedIsm.type === IsmType.WORMHOLE_VAA,
+        changedIsm.type === IsmType.WORMHOLE,
       `Missing Wormhole ISM on ${changed}`,
     );
     changedIsm.consistencyLevel = { type: WormholeConsistencyType.Instant };
@@ -375,11 +375,11 @@ describe('EvmWormholeHookIsmModule', () => {
       );
       const wormhole = ism.modules.find(
         (module) =>
-          typeof module === 'object' && module.type === IsmType.WORMHOLE_VAA,
+          typeof module === 'object' && module.type === IsmType.WORMHOLE,
       );
       assert(
-        typeof wormhole === 'object' && wormhole.type === IsmType.WORMHOLE_VAA,
-        `Expected a typed ${IsmType.WORMHOLE_VAA} module on ${chain}`,
+        typeof wormhole === 'object' && wormhole.type === IsmType.WORMHOLE,
+        `Expected a typed ${IsmType.WORMHOLE} module on ${chain}`,
       );
       return wormhole;
     }
