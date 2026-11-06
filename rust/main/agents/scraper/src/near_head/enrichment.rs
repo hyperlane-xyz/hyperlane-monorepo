@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use prometheus::GaugeVec;
 use tokio::{
-    sync::Semaphore,
+    sync::{Notify, Semaphore},
     time::{sleep, timeout},
 };
 use tracing::warn;
@@ -20,24 +20,54 @@ const RECEIPT_DB_CONCURRENCY: usize = 5;
 static RECEIPT_RPC_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_RPC_CONCURRENCY);
 static RECEIPT_DB_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_DB_CONCURRENCY);
 
+#[derive(Default)]
+pub(super) struct ReceiptWakeups {
+    pub delivery: Notify,
+    pub gas_payment: Notify,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PageOutcome {
+    More,
+    Idle,
+    Retry,
+}
+
+impl PageOutcome {
+    async fn wait(self, delay: Duration, wakeup: &Notify) {
+        match self {
+            Self::More => tokio::task::yield_now().await,
+            Self::Idle => tokio::select! {
+                _ = sleep(delay) => {}
+                _ = wakeup.notified() => {}
+            },
+            // A confirmation hint must not bypass RPC/DB failure backoff.
+            Self::Retry => sleep(delay).await,
+        }
+    }
+}
+
 /// Drain healthy full pages immediately; back off on failures and between sweeps.
 /// Independent stream loops keep a slow delivery receipt from delaying gas work.
 pub(super) async fn run(
     store: &HyperlaneDbStore,
     poll_interval: Duration,
     oldest_pending_seconds: &GaugeVec,
+    wakeups: &ReceiptWakeups,
 ) {
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
     tokio::join!(
         run_stream(
             store,
             ReceiptStream::Delivery,
+            &wakeups.delivery,
             poll_interval,
             &domain_rpc_permits
         ),
         run_stream(
             store,
             ReceiptStream::GasPayment,
+            &wakeups.gas_payment,
             poll_interval,
             &domain_rpc_permits
         ),
@@ -89,6 +119,7 @@ async fn update_pending_age(
 async fn run_stream(
     store: &HyperlaneDbStore,
     stream: ReceiptStream,
+    wakeup: &Notify,
     poll_interval: Duration,
     domain_rpc_permits: &Semaphore,
 ) {
@@ -107,9 +138,11 @@ async fn run_stream(
             .checked_rem(stagger_period)
             .unwrap_or_default()
     };
-    sleep(Duration::from_millis(stagger)).await;
+    PageOutcome::Idle
+        .wait(Duration::from_millis(stagger), wakeup)
+        .await;
     loop {
-        let more = enrich_page(
+        let outcome = enrich_page(
             store,
             stream,
             &mut after,
@@ -117,24 +150,18 @@ async fn run_stream(
             domain_rpc_permits,
         )
         .await;
-        if more {
-            // Each turn is bounded to one page. Let other worker tasks run even
-            // when a large cache-only backlog never needs to wait for an RPC.
-            tokio::task::yield_now().await;
-        } else {
-            sleep(poll_interval).await;
-        }
+        outcome.wait(poll_interval, wakeup).await;
     }
 }
 
-/// Return true only when a healthy full page warrants immediate catch-up.
+/// Drain healthy full pages; distinguish idle waits from failure cooldowns.
 async fn enrich_page(
     store: &HyperlaneDbStore,
     stream: ReceiptStream,
     after: &mut i64,
     deadline: Duration,
     domain_rpc_permits: &Semaphore,
-) -> bool {
+) -> PageOutcome {
     let start = *after;
     let result = timeout(deadline, async {
         let db_permit = RECEIPT_DB_PERMITS.acquire().await?;
@@ -152,7 +179,7 @@ async fn enrich_page(
                 &RECEIPT_DB_PERMITS,
             )
             .await?;
-        Ok::<_, eyre::Report>(complete && rows.len() == RECEIPT_PAGE_SIZE)
+        Ok::<_, eyre::Report>((complete, rows.len() == RECEIPT_PAGE_SIZE))
     })
     .await;
 
@@ -180,7 +207,16 @@ async fn enrich_page(
         true
     };
     match result {
-        Ok(Ok(more)) => more && linked,
+        Ok(Ok((true, more))) if linked => {
+            if more {
+                PageOutcome::More
+            } else {
+                // A completed sweep restarts before wake-ups can keep appending newer rows.
+                *after = 0;
+                PageOutcome::Idle
+            }
+        }
+        Ok(Ok(_)) => PageOutcome::Retry,
         result => {
             warn!(
                 domain = store.domain.id(),
@@ -188,7 +224,7 @@ async fn enrich_page(
                 ?result,
                 "Confirmed event enrichment failed; retrying"
             );
-            false
+            PageOutcome::Retry
         }
     }
 }

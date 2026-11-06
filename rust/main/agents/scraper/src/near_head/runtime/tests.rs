@@ -252,6 +252,8 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         chunk_size: 20_000,
         poll_interval: Duration::from_millis(20),
         wakeup: Notify::new(),
+        dispatch_wakeup: Arc::new(Notify::new()),
+        receipt_wakeups: super::super::enrichment::ReceiptWakeups::default(),
         wanted: AtomicU64::new(0),
         heads: tokio::sync::Mutex::new(mpsc::channel(256).1),
         polled_head: watch::channel(0).0,
@@ -1091,6 +1093,58 @@ async fn streamed_headers_preserve_proofs_ancestry_health_and_http_bounds() -> R
 }
 
 #[tokio::test]
+async fn confirmed_events_wake_enrichment_from_headers_and_polls() -> Result<()> {
+    let chain = Arc::new(Chain::new(1, false));
+    chain.events.lock().expect("events").extend([
+        dispatch_event(1, 0),
+        gas_event(1, 10),
+        Event {
+            address: H160::repeat_byte(1).into(),
+            data: EventData::Delivery(H256::repeat_byte(4).into()),
+            ..gas_event(1, 20)
+        },
+    ]);
+    *chain.count_values.lock().expect("counts") = [1, 0];
+    let (_postgres, worker) = header_worker(chain.clone(), 2).await?;
+    let wakeups = [
+        worker.dispatch_wakeup.as_ref(),
+        &worker.receipt_wakeups.delivery,
+        &worker.receipt_wakeups.gas_payment,
+    ];
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    for wakeup in wakeups {
+        assert!(wakeup.notified().now_or_never().is_none());
+    }
+
+    let mut recent = VecDeque::new();
+    for height in 2..=3 {
+        remember_header(&mut recent, streamed_header(height));
+    }
+    worker.header_cycle(&recent, &cache).await?;
+    assert_eq!(worker.store.state().await?.expect("state").confirmed, 1);
+    for wakeup in wakeups {
+        assert!(wakeup.notified().now_or_never().is_some());
+    }
+    worker.header_cycle(&recent, &cache).await?;
+    for wakeup in wakeups {
+        assert!(wakeup.notified().now_or_never().is_none());
+    }
+
+    chain
+        .events
+        .lock()
+        .expect("events")
+        .push(dispatch_event(4, 1));
+    *chain.count_values.lock().expect("counts") = [2, 0];
+    chain.head.store(6, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.expect("state").confirmed, 4);
+    assert!(worker.dispatch_wakeup.notified().now_or_never().is_some());
+    Ok(())
+}
+
+#[tokio::test]
 async fn coalesced_headers_drain_sparse_confirmation_pages_without_rpcs() -> Result<()> {
     let chain = Arc::new(Chain::new(100, false));
     chain.events.lock().expect("events").extend(
@@ -1110,6 +1164,19 @@ async fn coalesced_headers_drain_sparse_confirmation_pages_without_rpcs() -> Res
     assert_eq!(worker.store.state().await?.expect("state").confirmed, 1);
     assert!(!worker.header_cycle(&recent, &cache).await?.more);
     assert_eq!(worker.store.state().await?.expect("state").confirmed, 2);
+    assert!(worker.dispatch_wakeup.notified().now_or_never().is_none());
+    assert!(worker
+        .receipt_wakeups
+        .delivery
+        .notified()
+        .now_or_never()
+        .is_none());
+    assert!(worker
+        .receipt_wakeups
+        .gas_payment
+        .notified()
+        .now_or_never()
+        .is_some());
     Ok(())
 }
 
