@@ -112,6 +112,7 @@ function createMockActionTracker(): IActionTracker {
       status: 'not_started',
     })),
     createRebalanceAction: Sinon.stub().resolves(),
+    updateRebalanceActionExecution: Sinon.stub().resolves(),
     completeRebalanceAction: Sinon.stub().resolves(),
     failRebalanceAction: Sinon.stub().resolves(),
     completeRebalanceIntent: Sinon.stub().resolves(),
