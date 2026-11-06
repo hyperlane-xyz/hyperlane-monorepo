@@ -18,6 +18,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  TransactionSubmission,
+  TransactionSubmissionError,
+  type TransactionSubmissionOptions,
   assert,
   ensure0x,
   fromWei,
@@ -25,6 +28,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
+import { Erc20ApprovalError } from '../bridges/erc20Approve.js';
 import type {
   ExternalBridgeRegistry,
   IExternalBridge,
@@ -1235,6 +1239,20 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Expected at least one transaction from WarpCore',
     );
 
+    assert(
+      transferTxs.filter((tx) => tx.category === WarpTxCategory.Transfer)
+        .length === 1 &&
+        transferTxs.at(-1)?.category === WarpTxCategory.Transfer,
+      'Expected exactly one transfer transaction after all approvals',
+    );
+    const action = await this.actionTracker.createRebalanceAction({
+      intentId: intent.id,
+      origin: this.multiProvider.getDomainId(origin),
+      destination: destinationDomain,
+      amount: fulfilledCanonicalAmount,
+      type: 'inventory_deposit',
+    });
+
     this.logger.info(
       {
         origin,
@@ -1247,12 +1265,53 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
 
     let transferTxHash: string | undefined;
-    for (const tx of transferTxs) {
-      const { txHash } = await this.sendAndConfirmInventoryTx(origin, tx);
-      if (tx.category === WarpTxCategory.Transfer) {
-        transferTxHash = txHash;
-      }
-    }
+    await trackActionSubmission(
+      this.actionTracker,
+      action.id,
+      async (options) => {
+        for (const tx of transferTxs) {
+          if (tx.category === WarpTxCategory.Transfer) {
+            const { txHash } = await this.sendAndConfirmInventoryTx(
+              origin,
+              tx,
+              options,
+            );
+            transferTxHash = txHash;
+            await options.onSubmitted?.(txHash);
+          } else {
+            let approvalHash: string | undefined;
+            try {
+              const { txHash } = await this.sendAndConfirmInventoryTx(
+                origin,
+                tx,
+                {
+                  onSubmissionAttempt: (hash) =>
+                    options.onApproval?.({ txHash: hash }),
+                  onSubmitted: (hash) => options.onApproval?.({ txHash: hash }),
+                },
+              );
+              approvalHash = txHash;
+              await options.onApproval?.(undefined);
+            } catch (error) {
+              const state =
+                error instanceof TransactionSubmissionError
+                  ? error.submissionState
+                  : approvalHash
+                    ? 'submitted'
+                    : 'unknown';
+              throw new Erc20ApprovalError(
+                error,
+                state,
+                approvalHash ??
+                  (error instanceof TransactionSubmissionError
+                    ? error.txHash
+                    : undefined),
+              );
+            }
+          }
+        }
+      },
+    );
 
     const messageId = transferTxHash
       ? await this.extractDispatchedMessageId(origin, transferTxHash)
@@ -1283,13 +1342,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'TransferRemote transaction confirmed',
     );
 
-    // Create the inventory_deposit action with messageId for tracking
-    await this.actionTracker.createRebalanceAction({
-      intentId: intent.id,
-      origin: this.multiProvider.getDomainId(origin),
-      destination: destinationDomain,
-      amount: fulfilledCanonicalAmount,
-      type: 'inventory_deposit',
+    await this.actionTracker.updateRebalanceActionExecution(action.id, {
       txHash: transferTxHash,
       messageId,
     });
@@ -1301,9 +1354,20 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     };
   }
 
-  private async sendAndConfirmInventoryTx(
+  private sendAndConfirmInventoryTx(
     chain: ChainName,
     typedTx: WarpTypedTransaction,
+    options?: TransactionSubmissionOptions,
+  ): Promise<{ txHash: string }> {
+    return new TransactionSubmission(options).run(() =>
+      this.sendInventoryTx(chain, typedTx, options),
+    );
+  }
+
+  private async sendInventoryTx(
+    chain: ChainName,
+    typedTx: WarpTypedTransaction,
+    options?: TransactionSubmissionOptions,
   ): Promise<{ txHash: string }> {
     const protocol = this.getProtocolForChain(chain);
     const signerConfig = this.config.inventorySigners[protocol];
@@ -1333,7 +1397,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const txHash = await signer.sendAndConfirmTransaction(
       toProtocolTransaction(typedTx, protocol),
-      { waitConfirmations },
+      { ...options, waitConfirmations, enableBlockhashResubmit: false },
     );
     return { txHash };
   }

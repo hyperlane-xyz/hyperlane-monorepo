@@ -2,8 +2,13 @@ import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
-import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  parseWarpRouteMessage,
+} from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
@@ -35,7 +40,13 @@ export interface ActionTrackerConfig {
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
-  intentTTL: number; // Max age in ms before in-progress intent is expired
+  intentTTL: number; // Expiry for uncommitted intents; alert threshold for reserved source work.
+}
+
+enum SourceTransactionOutcome {
+  Pending = 'pending',
+  Succeeded = 'succeeded',
+  Failed = 'failed',
 }
 
 /**
@@ -85,14 +96,12 @@ export class ActionTracker implements IActionTracker {
     );
 
     // 2. For each message, create synthetic intent + action
-    for (const msg of inflightMessages) {
-      await this.recoverAction(msg);
-    }
+    await this.recoverActions(inflightMessages);
 
     // 3. Sync all stores
+    await this.syncRebalanceActions();
     await this.syncTransfers();
     await this.syncRebalanceIntents();
-    await this.syncRebalanceActions();
 
     // Log store contents for debugging
     await this.logStoreContents();
@@ -293,24 +302,7 @@ export class ActionTracker implements IActionTracker {
       'Found inflight rebalance actions from Explorer',
     );
 
-    const allActions = await this.rebalanceActionStore.getAll();
-
-    for (const msg of inflightMessages) {
-      const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
-
-      if (!existingAction) {
-        this.logger.info(
-          {
-            msgId: msg.msg_id,
-            origin: msg.origin_domain_id,
-            destination: msg.destination_domain_id,
-          },
-          'Discovered new rebalance action, recovering...',
-        );
-        await this.recoverAction(msg);
-        discoveredActions++;
-      }
-    }
+    discoveredActions = await this.recoverActions(inflightMessages);
 
     // Check delivery status for all in-progress actions in our store
     // Only check delivery for actions that have a messageId (rebalance_message, inventory_deposit)
@@ -318,6 +310,15 @@ export class ActionTracker implements IActionTracker {
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
+      if (
+        action.pendingApproval &&
+        action.submissionState === 'not_submitted'
+      ) {
+        await this.reconcilePendingApproval(action);
+        continue;
+      }
+      if (!action.messageId && (await this.reconcileFailedSource(action)))
+        continue;
       // Skip actions without messageId (e.g., inventory_movement)
       if (!action.messageId) {
         continue;
@@ -797,6 +798,122 @@ export class ActionTracker implements IActionTracker {
     return { completed, failed };
   }
 
+  private async reconcilePendingApproval(
+    action: RebalanceAction,
+  ): Promise<void> {
+    const txHash = action.pendingApproval?.txHash;
+    if (!txHash) return; // A lost broadcast response without an identity requires operator reconciliation.
+    try {
+      if (
+        (await this.getSourceTransactionOutcome(action.origin, txHash)) ===
+        SourceTransactionOutcome.Pending
+      )
+        return;
+      // The approval is settled, and the primary transaction was never submitted.
+      // A retry reads current allowance and sets its exact cap before sending.
+      await this.rebalanceActionStore.update(action.id, {
+        pendingApproval: undefined,
+      });
+      await this.failReconciledAction(action);
+    } catch (error) {
+      this.logger.warn(
+        { actionId: action.id, approvalTxHash: txHash, error },
+        'Approval reconciliation failed; source work remains reserved',
+      );
+    }
+  }
+
+  private async getSourceTransactionOutcome(
+    origin: Domain,
+    txHash: string,
+  ): Promise<SourceTransactionOutcome> {
+    const mp = this.core.multiProvider;
+    const protocol = mp.getProtocol(origin);
+    if (protocol === ProtocolType.Sealevel) {
+      const {
+        value: [status],
+      } = await mp
+        .getSolanaWeb3Provider(origin)
+        .getSignatureStatuses([txHash], { searchTransactionHistory: true });
+      if (status?.confirmationStatus !== 'finalized')
+        return SourceTransactionOutcome.Pending;
+      return status.err != null
+        ? SourceTransactionOutcome.Failed
+        : SourceTransactionOutcome.Succeeded;
+    }
+    assert(
+      protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+      'Unsupported source reconciliation protocol',
+    );
+    const provider = mp.getEthersV5Provider(origin);
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
+      return SourceTransactionOutcome.Pending;
+    const blocks = mp.getChainMetadata(origin).blocks;
+    // Match the monitor's conservative default when no reorg policy is configured.
+    const finality = blocks?.reorgPeriod ?? 32;
+    const minimumConfirmations = Math.max(
+      blocks?.confirmations ?? 1,
+      typeof finality === 'number' ? finality : 1,
+      1,
+    );
+    if (!(receipt.confirmations >= minimumConfirmations))
+      return SourceTransactionOutcome.Pending;
+    if (protocol === ProtocolType.Tron) {
+      assert(
+        provider instanceof TronJsonRpcProvider,
+        'Tron reconciliation requires a finalized-block provider',
+      );
+      if (receipt.blockNumber > (await provider.getFinalizedBlockNumber()))
+        return SourceTransactionOutcome.Pending;
+    } else if (typeof finality === 'string') {
+      const confirmedBlock = await provider.getBlock(finality);
+      if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number)
+        return SourceTransactionOutcome.Pending;
+    }
+    return receipt.status === 0
+      ? SourceTransactionOutcome.Failed
+      : SourceTransactionOutcome.Succeeded;
+  }
+
+  private async reconcileFailedSource(
+    action: RebalanceAction,
+  ): Promise<boolean> {
+    if (!action.txHash) return false;
+    try {
+      if (
+        (await this.getSourceTransactionOutcome(
+          action.origin,
+          action.txHash,
+        )) !== SourceTransactionOutcome.Failed
+      )
+        return false;
+      await this.failReconciledAction(action);
+      this.logger.info(
+        { actionId: action.id, txHash: action.txHash },
+        'Finalized source failure released the action',
+      );
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        { actionId: action.id, txHash: action.txHash, error },
+        'Source reconciliation failed; action remains reserved',
+      );
+      return false;
+    }
+  }
+
+  private async failReconciledAction(action: RebalanceAction): Promise<void> {
+    await this.failRebalanceAction(action.id);
+    // Inventory keeps its partial intent so already delivered amounts are not repeated.
+    if (action.type === 'rebalance_message') {
+      const actions = await this.getActionsForIntent(action.intentId);
+      if (actions.every((candidate) => candidate.status === 'failed')) {
+        await this.failRebalanceIntent(action.intentId);
+      }
+    }
+  }
+
   // === Debug Helpers ===
 
   /**
@@ -858,6 +975,25 @@ export class ActionTracker implements IActionTracker {
 
     // Log each action separately
     for (const a of inProgressActions) {
+      const ageMs = Date.now() - a.createdAt;
+      if (ageMs > this.config.intentTTL) {
+        this.logger.warn(
+          {
+            actionId: a.id,
+            intentId: a.intentId,
+            origin: a.origin,
+            destination: a.destination,
+            ageMs,
+            txHash: a.txHash,
+            pendingApproval: a.pendingApproval,
+            submissionState: a.submissionState,
+            externalBridgeId: a.externalBridgeId,
+            externalBridgeTransferId: a.externalBridgeTransferId,
+            lastBridgeStatus: a.lastBridgeStatus,
+          },
+          'Action blocked beyond intentTTL; reconcile before retry or restart',
+        );
+      }
       this.logger.info(
         {
           type: 'action',
@@ -924,12 +1060,72 @@ export class ActionTracker implements IActionTracker {
     }
   }
 
-  private async recoverAction(msg: ExplorerMessage): Promise<void> {
-    // Check if action already exists
-    const existing = await this.rebalanceActionStore.get(msg.msg_id);
+  /** Index once per Explorer batch, including identities discovered in that batch. */
+  private async recoverActions(messages: ExplorerMessage[]): Promise<number> {
+    if (messages.length === 0) return 0;
+    const byMessage = new Map<string, RebalanceAction>();
+    const byTransaction = new Map<string, RebalanceAction>();
+    const key = (origin: number, destination: number, identity: string) =>
+      `${origin}:${destination}:${identity.startsWith('0x') ? identity.toLowerCase() : identity}`;
+    const index = (action: RebalanceAction) => {
+      byMessage.set(
+        key(action.origin, action.destination, action.messageId ?? action.id),
+        action,
+      );
+      if (action.txHash) {
+        byTransaction.set(
+          key(action.origin, action.destination, action.txHash),
+          action,
+        );
+      }
+    };
+    for (const action of await this.rebalanceActionStore.getAll())
+      index(action);
+
+    let discovered = 0;
+    for (const msg of messages) {
+      const messageKey = key(
+        msg.origin_domain_id,
+        msg.destination_domain_id,
+        msg.msg_id,
+      );
+      let existing = byMessage.get(messageKey);
+      if (!existing) {
+        const byHash = byTransaction.get(
+          key(
+            msg.origin_domain_id,
+            msg.destination_domain_id,
+            msg.origin_tx_hash,
+          ),
+        );
+        // A transaction can dispatch multiple messages. Link only an unclassified source submission.
+        if (byHash && !byHash.messageId) existing = byHash;
+      }
+      const action = await this.recoverAction(msg, existing);
+      if (action) {
+        index(action);
+        if (!existing) discovered++;
+      }
+    }
+    return discovered;
+  }
+
+  private async recoverAction(
+    msg: ExplorerMessage,
+    existing?: RebalanceAction,
+  ): Promise<RebalanceAction | undefined> {
     if (existing) {
-      this.logger.debug({ id: msg.msg_id }, 'Action already exists, skipping');
-      return;
+      if (!existing.messageId || !existing.txHash) {
+        await this.updateRebalanceActionExecution(existing.id, {
+          messageId: msg.msg_id,
+          txHash: msg.origin_tx_hash,
+        });
+      }
+      this.logger.debug(
+        { id: existing.id, messageId: msg.msg_id },
+        'Action already exists, linked recovered execution identity',
+      );
+      return { ...existing, messageId: msg.msg_id, txHash: msg.origin_tx_hash };
     }
 
     this.logger.debug(
@@ -997,6 +1193,7 @@ export class ActionTracker implements IActionTracker {
         { id: action.id, intentId: action.intentId, amount: amount.toString() },
         'Recovered RebalanceAction',
       );
+      return action;
     } catch (error) {
       this.logger.warn(
         {
@@ -1010,6 +1207,7 @@ export class ActionTracker implements IActionTracker {
         },
         'Failed to parse message body during recovery, skipping action',
       );
+      return undefined;
     }
   }
 }
