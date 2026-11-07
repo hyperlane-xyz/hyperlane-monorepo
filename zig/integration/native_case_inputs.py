@@ -21,6 +21,7 @@ import stat
 import struct
 import subprocess
 import sys
+import types
 
 ROOT = Path(__file__).resolve().parents[2]
 GIB = 1024 ** 3
@@ -268,7 +269,7 @@ def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT
     receipt = producer_receipt(request_path, request, receipt_pin, execution)
     producer = request['producer_source_commit']
     architecture, machine = ARCHITECTURES[platform.machine()]
-    require(request['postgres']['architecture'] == architecture, 'PG policy platform differs from actual consumer')
+    require(architecture=='amd64'if request['scenario']=='sealevel-composite'else request['postgres']['architecture']==architecture,'Fixture platform differs from actual consumer')
     cpu_module = load_module('case_consumer_cpu', 'zig/tools/build_cpu.py')
     flags = cpu_module.cpu_flags(Path('/proc/cpuinfo').read_text(), intersection=True)
     helper_flags = cpu_module.cpu_flags(helper_cpu_input(receipt).read_text())
@@ -282,7 +283,15 @@ def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT
     scopes = {family: cohort(repo, producer, execution, family, git_evidence) for family in SCOPES}
     locks = decoded_locks(repo, git_evidence)
     unhydrated_tools = read_json(relative_file(inputs['tools'], 'manifest.json'))
-    copied_bytes = sum(row['bytes'] for _, row in sdk_records.values()) + sum(row['bytes'] for _, row in helper_records.values()) + sum(row['bytes'] for _, (_, row) in writers.values()) + sum(row['bytes'] for row in unhydrated_tools['tools'].values())
+    radix_reference = None
+    if request['scenario']=='radix':
+        radix_reference=load_module('hydrate_radix_case','zig/bench/native_radix_case.py').inspect_reference(receipt,request,repo,machine,flags,types.SimpleNamespace(relative_file=relative_file,checksum=checksum,read_json=read_json,artifact=artifact))
+    svm = None
+    if request['scenario']in{'sealevel','sealevel-composite'}:
+        require(architecture=='amd64','SVM requires actual x86_64 publisher assets')
+        svm=load_module('hydrate_svm_case','zig/bench/native_svm_case.py').inspect_receipt(receipt,request,repo)
+    copied_bytes = (0 if radix_reference is None else radix_reference['product']['bytes']) + sum(row['bytes'] for _, row in sdk_records.values()) + sum(row['bytes'] for _, row in helper_records.values()) + sum(row['bytes'] for _, (_, row) in writers.values()) + sum(row['bytes'] for row in unhydrated_tools['tools'].values())
+    if svm: copied_bytes += sum(v['bytes']for v in svm['inspected']['files'].values()) + sum(v['bytes']for v in svm['environment'].values())
     require(copied_bytes <= request['limits']['maximum_case_allocated_bytes'], 'Owned case product copies exceed reviewed disk cap')
     require(shutil.disk_usage(output.parent).free >= request['limits']['minimum_host_free_bytes'] + copied_bytes, 'Hydration must preserve reviewed free disk floor')
     require(re.fullmatch(r'/tmp/znc-[A-Za-z0-9-]{1,45}', str(output)) and output.parent.resolve() == output.parent and not output.exists() and not output.is_symlink(), 'Exclusive short owned /tmp/znc-* root required')
@@ -325,6 +334,8 @@ def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT
     closure_path = output / 'compiled-input-closure.json'
     closure_path.write_text(json.dumps(closure, indent=2) + '\n')
     context = {'schema': 1, 'phase': 'HYDRATED_NOT_EXECUTION_APPROVAL', 'request': artifact(request_path), 'producer_receipt': receipt_pin, 'runtime_source_commit': producer, 'execution_source_commit': execution, 'scenario': request['scenario'], 'mode': request['mode'], 'task_root': str(output), 'runtime_artifacts': runtime, 'harness': helper_copies, 'tools': tools, 'tool_manifest': artifact(tool_manifest), 'writers': writer_copies, 'compiled_input_closure': artifact(closure_path), 'consumer_cpu': {'architecture': architecture, 'flags': flags, 'helper_tools_conservative_flags': helper_flags}, 'nodes_started': False, 'native_case_acceptance': False, 'storage_interoperability_acceptance': False}
+    if svm:context['svm_prerequisites']=svm
+    if radix_reference is not None:context['radix_reference']=radix_reference
     require(artifact(request_path)['sha256'] == request_sha and checked(receipt_pin), 'Hydration inputs changed')
     path = output / 'hydrated-inputs.json'
     path.write_text(json.dumps(context, indent=2) + '\n')
@@ -372,6 +383,7 @@ def accept_interop(context_path, context_sha, raw_results, repo=ROOT):
 
 
 def public_profile(scenario):
+    if scenario in{'sealevel','sealevel-composite'}:return load_module('svm_public_profile','zig/bench/native_svm_case.py').profile(scenario)
     if scenario == 'evm':
         chains = ['test1', 'test2', 'test3']
         return {'schema': 1, 'scenario': scenario, 'chain_names': chains,
@@ -394,6 +406,8 @@ def public_profile(scenario):
                      'error_type': 'ConnectionRefusedError', 'phase': 'upstream_connect'}
                     for name, domain, port in [(chains[0], 99990, 26603), (chains[1], 99991, 26613)]]},
                 'native_limits': {c: {'maximum_fee': str(2**128-1), 'maximum_gas': str(2**64-1)} for c in chains}}
+    if scenario=='tron':
+        names=['anvil1','anvil2'];return {'schema':1,'scenario':'tron','chain_names':names,'domain_names':dict(zip(('1212538670','1212538671'),names)),'initial_corpus':{'dispatches':4,'deliveries':4,'zero_insertions':0,'failed_body':0,'double_insertions':0},'payments_supported':True,'additional_refused_dispatches':0,'validator_addresses':dict.fromkeys(names,'0xc8599111f29c1e1e061265b4af93ea1f274ad78a'),'relayer_addresses':dict.fromkeys(names,'TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH')}
     if scenario == 'starknet':
         chains=['starknettest23448593','starknettest23448594']
         return {'schema':1,'scenario':scenario,'chain_names':chains,
@@ -417,13 +431,16 @@ def validate_stage(stage, context, request):
     keys = {'schema', 'passed', 'execution_source_commit', 'scenario', 'source_before', 'source_after', 'checks', 'tools', 'contract_artifacts', 'hpack', 'registry', 'explicit_environment'}
     if context['scenario'] == 'cosmwasm': keys |= {'wasm_bundle', 'static_cli'}
     if context['scenario'] == 'starknet': keys |= {'starknet_assets'}
+    if context['scenario']in{'sealevel','sealevel-composite'}: keys |= {'svm_assets'}
+    if context['scenario'] == 'radix': keys |= {'radix_assets'}
+    if context['scenario']=='tron':keys|={'tron_assets'}
     require(set(stage) == keys and stage['schema'] == 1 and stage['passed'] is True, 'Exact successful local-stage receipt required')
     require(stage['execution_source_commit'] == context['execution_source_commit'] and stage['scenario'] == context['scenario'], 'Stage belongs to another source/scenario')
     require(stage['source_before'] and stage['source_before'] == stage['source_after'], 'Stage changed tracked inputs')
     require(stage['checks'] and all(type(c['exit_code']) is int and c['exit_code'] == 0 and c['actual_parent_wait'] is True for c in stage['checks']), 'Actual local setup/check waits required')
     for row in stage['checks']: checked(row['log'])
     require(stage['tools'] and isinstance(stage['contract_artifacts'], dict) and len(stage['contract_artifacts']) <= 25000, 'Actual local tools/typed contract artifact map required')
-    require(bool(stage['contract_artifacts']) if context['scenario'] in {'evm', 'cosmwasm', 'starknet'} else stage['contract_artifacts'] == {}, 'EVM needs actual contract outputs; native Cosmos uses built-in hypd modules')
+    require(bool(stage['contract_artifacts']) if context['scenario'] in {'evm', 'cosmwasm', 'starknet', 'tron'} else stage['contract_artifacts'] == {}, 'EVM needs actual contract outputs; native Cosmos uses built-in hypd modules')
     elf_admission = load_module('case_local_tool_elf', 'zig/bench/native_case_tools.py')
     machine = ARCHITECTURES[platform.machine()][1]
     for name, row in stage['tools'].items():
@@ -439,7 +456,7 @@ def validate_stage(stage, context, request):
             elf_admission.validate_elf(path, machine)
     for row in stage['contract_artifacts'].values(): checked(row)
     required = {'cast', 'docker', 'psql', 'ps', 'lsof'}
-    required |= {'anvil', 'node', 'pnpm_launcher', 'pnpm_native', 'sh', 'esbuild'} if context['scenario'] == 'evm' else {'native_cli'}
+    required |= {'anvil', 'node', 'pnpm_launcher', 'pnpm_native', 'sh', 'esbuild'} if context['scenario'] == 'evm' else {'node','pnpm_launcher','pnpm_native','sh'}if context['scenario']=='tron'else (set() if context['scenario']in{'radix','sealevel','sealevel-composite'} else {'native_cli'})
     require(set(stage['tools']) == required, 'Exact scenario tools required')
     if context['scenario'] == 'evm':
         require(set(stage['registry']) == {'path', 'commit'} and stage['registry']['commit'] == request['prerequisites']['registry_commit'], 'Reviewed registry commit differs')
@@ -470,7 +487,7 @@ def validate_stage(stage, context, request):
     checked(dependency['wheel']); checked(dependency['interpreter'], executable=True); checked(dependency['venv_configuration']); checked(dependency['source_metadata'])
     require(len(dependency['files']) == 14 and len({f['path'] for f in dependency['files']}) == 14, 'Exact fourteen Hpack files required')
     for row in dependency['files']: checked(row)
-    if context['scenario'] != 'evm':
+    if context['scenario'] not in {'evm','tron','radix','sealevel','sealevel-composite'}:
         cli = request['prerequisites']['native_cli']
         row = stage['tools']['native_cli']
         require(row['bytes'] == cli['bytes'] and row['sha256'] == cli['sha256'] and cli['name'] == ({'cosmwasm':'osmosisd','cosmosnative':'hypd','starknet':'starkli'}[context['scenario']]) and cli['architecture'] == context['consumer_cpu']['architecture'], 'Reviewed native CLI bytes/platform differ')
@@ -500,6 +517,21 @@ def validate_stage(stage, context, request):
         versions=[c for c in stage['checks'] if c['name']=='native-cli-version-readonly']
         require(len(versions)==1,'Exactly one actual bounded Source0.4.1 version probe required')
         assets.parse_cli_version(checked(versions[0]['log']).read_bytes())
+    if context['scenario']in{'sealevel','sealevel-composite'}:
+        require(stage['svm_assets']==context['svm_prerequisites'],'Stage SVM dataset differs from actual hydrated artifact')
+        load_module('validate_svm_case','zig/bench/native_svm_case.py').check_inspection(stage['svm_assets'],request,ROOT)
+    if context['scenario']=='radix':
+        load_module('validate_radix_stage','zig/bench/native_radix_case.py').validate_stage(stage['radix_assets'],request,types.SimpleNamespace(checked=checked,read_json=read_json))
+    if context['scenario']=='tron':
+        assets=load_module('validate_tron_assets','zig/bench/native_tron_assets.py');recipe=load_module('validate_tron_setup','zig/bench/native_tron_setup.py');assets.validate_policy(request['prerequisites'],context['consumer_cpu']['architecture'])
+        value=stage['tron_assets'];require(set(value)=={'schema','passed','graph','static_import_audit','compiler_outputs','image_readback','SDK_or_CLI_evaluated','native_case_acceptance','pnpm_archive'}and value['schema']==1 and value['passed']is True and value['SDK_or_CLI_evaluated']is False and value['native_case_acceptance']is False,'Actual closed Linux CLI prerequisite receipt required')
+        graph=assets.read_graph(value['graph']);require(graph['architecture']==context['consumer_cpu']['architecture'],'Tron package graph platform differs');assets.cli_source(Path(graph['root']))
+        audit=read_json(checked(value['static_import_audit']));require(audit['passed']is True and audit['missing']==[]and audit['opaque']==[]and audit['tronDynamic']is True and audit['actualTVMFactories']is True,'Actual full original CLI static import resolution required')
+        require(recipe.compiler_outputs(Path(graph['root']))==value['compiler_outputs'],'Actual EVM0.8.33/TVM0.8.24 metadata changed')
+        image=read_json(checked(value['image_readback']));assets.image_inspect(image['actual_image_rows'],request['prerequisites']['tron_tre']);require(image['passed']is True and image['no_container_or_node_started']is True and image['all_actual_parent_waits']is True and image['same_host_filesystem']is True,'Actual TRE immutable image and same-daemon-filesystem admission required')
+        policy=recipe.PNPM_RELEASE[context['consumer_cpu']['architecture']];manager=stage['tools']['pnpm_native'];require(manager==stage['tools']['pnpm_launcher']and manager['bytes']==policy['bytes']and manager['sha256']==policy['sha256'],'Exact official Linux native pnpm12.3.0 required');recipe.pnpm_member(checked(value['pnpm_archive']).read_bytes(),context['consumer_cpu']['architecture'])
+        for name,version in [('node-version','v26.12.1'),('pnpm-version','12.3.0')]:
+            rows=[r for r in stage['checks']if r['name']==name];require(len(rows)==1 and checked(rows[0]['log']).read_text().strip()==version,'Actual Node/pnpm version probe required')
     return dependency
 
 
@@ -534,9 +566,20 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     stage = read_json(checked(stage_pin)); dependency = validate_stage(stage, context, request)
     process = load_module('case_process', 'zig/integration/multivm_process.py')
     verifier = load_module('case_evidence', 'zig/integration/multivm_evidence.py')
-    scenario = context['scenario']; profile = public_profile(scenario)
-    profile['postgres'] = {**request['postgres'], 'run_token': secrets.token_hex(16)}
-    profile['local_docker'] = {'host': 'unix:///var/run/docker.sock', 'config_dir': str(root / 'docker-config')}
+    scenario = context['scenario'];radix_required=[];radix_acceptance=None
+    if scenario=='radix':
+        case_api=types.SimpleNamespace(checked=checked,copy_verified=copy_verified,read_json=read_json,artifact=artifact)
+        reference,radix_acceptance,radix_required=load_module('prepare_radix_case','zig/bench/native_radix_case.py').materialize_reference(context['radix_reference'],root,case_api)
+        assets=load_module('prepare_radix_assets','zig/bench/native_radix_assets.py');profile=assets.public_profile(reference)
+        profile['radix_localnet']=load_module('prepare_radix_configuration','zig/bench/native_radix_case.py').fixture_configuration(secrets.token_hex(16))
+        daemon=load_module('prepare_radix_daemon','zig/bench/native_radix_case.py').validate_stage(stage['radix_assets'],request,types.SimpleNamespace(checked=checked,read_json=read_json))
+        require(daemon[2]==root.stat().st_dev,'Radix Docker data must share actual case filesystem for volume accounting')
+        profile['radix_daemon']={'ID':daemon[0],'DockerRootDir':daemon[1],'filesystem_device':daemon[2]}
+        profile['fixture_contracts']=assets.materialize_contracts(artifact(repo/'zig/integration/fixtures/radix-release-v1.0.0.json.gz'),stage['radix_assets']['bundle']['files'],root/'radix-contracts')
+    else:profile = public_profile(scenario)
+    if scenario!='sealevel-composite':
+        profile['postgres'] = {**request['postgres'], 'run_token': secrets.token_hex(16)}
+        profile['local_docker'] = {'host': 'unix:///var/run/docker.sock', 'config_dir': str(root / 'docker-config')}
     profile['node_ownership_tools'] = {'lsof': stage['tools']['lsof']}
     fixture = {k: stage['tools'][k] for k in ['anvil', 'node', 'pnpm_launcher', 'pnpm_native', 'sh', 'esbuild']} if scenario == 'evm' else None
     if fixture: profile['fixture_tools'] = fixture
@@ -549,7 +592,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     environment.update({k: stage['explicit_environment'][k] for k in ('HYPERLANE_CURL_LIBRARY', 'HYPERLANE_CLOUD_CURL_LIBRARY', 'HYPERLANE_LIBCRYPTO_LIBRARY')})
     environment['HYPERLANE_ZIG_DEFAULTS'] = str(repo / 'rust/main/config')
     overrides = {}
-    if scenario != 'evm':
+    if scenario not in {'evm','tron','radix','sealevel','sealevel-composite'}:
         cli = stage['tools']['native_cli']
         require(shutil.disk_usage(root).free >= request['limits']['minimum_host_free_bytes'] + cli['bytes'], 'Native CLI copy must preserve free disk floor')
         cli_name = {'cosmwasm':'osmosisd','cosmosnative':'hypd','starknet':'starkli'}[scenario]
@@ -568,6 +611,15 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
             profile['starknet_devnet']={**request['prerequisites']['starknet_devnet'],'run_token':secrets.token_hex(16)}
             profile['expected_starknet_unavailable_endpoints']={'schema':1,'scenario':'starknet','endpoints':verifier.starknet_unavailable_peers()}
             profile['evidence_nodes']={name:{'effective_field':'rpcurls','configured_ordinal':2,'original_url':f'http://127.0.0.1:{port}','connect_url':f'http://127.0.0.1:{port}','rewrite':'identity','source_container_suffix':f'starknet-{port}','host_port':port,'container_port':5050,'source_image':sn.SOURCE_IMAGE,'image_id':profile['starknet_devnet']['image_id'],'command':sn.COMMAND} for name,port in zip(profile['chain_names'],(5050,5070))}
+    svm_required=[]
+    if scenario in{'sealevel','sealevel-composite'}:
+        svm_case=load_module('prepare_svm_case','zig/bench/native_svm_case.py')
+        profile['svm_assets'],svm_required=svm_case.materialize(stage['svm_assets'],request,repo,root,context['request'],context['producer_receipt'])
+    if scenario=='tron':
+        assets=load_module('prepare_tron_assets','zig/bench/native_tron_assets.py');census=load_module('prepare_tron_census','zig/bench/native_harness_census.py');graph=assets.read_graph(stage['tron_assets']['graph']);copied=assets.materialize(graph,root/'tron-cli',census.functional_allocated(root))
+        copied_path=root/'tron-cli-copy.json'
+        with copied_path.open('x')as stream:json.dump(copied,stream,sort_keys=True);stream.write('\n')
+        profile['tron_cli']=artifact(copied_path);profile['tron_tre']={**{k:v for k,v in request['prerequisites']['tron_tre'].items()if k!='schema'},'run_token':secrets.token_hex(16),'cli_directory':str(root/'tron-cli'),'cli_entrypoint':copied['entrypoint'],'pnpm':stage['tools']['pnpm_native']}
     manifest = {'schema': 3, 'implementation': 'zig', 'scenario': scenario, 'runtime_source_commit': context['runtime_source_commit'], 'mode': context['mode'], 'task_root': str(root), 'artifacts': artifacts, 'environment': environment, 'verifier': {'python': python, 'script': artifact(repo / 'zig/integration/multivm_process.py'), 'evidence_root': str(root / 'evidence')}, 'execution_approval': {}, 'case_inputs': {}, 'verifier_tools': tools, 'harness_deadline_seconds': LIMITS['maximum_wall_seconds'], 'tool_overrides': overrides}
     # These four owned files are created only after all actual product/source/setup
     # and independent storage gates above. No node or lifecycle success is inferred.
@@ -590,22 +642,30 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     write_new(producer_gate_path, {'source_commit': context['runtime_source_commit'], 'source_unchanged': tool_gate['source_before'] == tool_gate['source_after'], 'checks': [{'name': 'actual producer build/tests/lock/input fences accepted by strict tool manifest loader', 'exit_code': 0, 'log': artifact(root / 'tools/source-gate.json')}], 'method': 'Derived from actual unchanged before/after producer maps; original producer receipt is retained unchanged.'})
     build_path = root / 'evidence/accepted-runtime-products.json'
     write_new(build_path, {'source_commit': context['runtime_source_commit'], 'mode': context['mode'], 'passed': True, 'source_unchanged': True, 'runtime_artifacts': artifacts, 'source_identity_scope': 'Actual producer SDK native/runtime receipts and baked CPU product hashes; actual consumer tracked-tree equality and clean working locks. No unrecorded producer pre/post Source fence inferred.', 'producer_receipt': context['producer_receipt'], 'compiled_input_closure': context['compiled_input_closure'], 'native_case_acceptance': False})
-    approval = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'mode': context['mode'], 'runtime_artifacts': artifacts, 'verifier_tools': tools, 'verifier_python': python, 'case_inputs': case_pin, 'python_modules': {n: artifact(repo / 'zig/integration' / n) for n in verifier.import_module_closure(scenario)}, 'python_dependencies': {'hpack': stage['hpack']}, 'accepted_runtime_build': artifact(build_path), 'harness': harness, 'native_reader_interoperability': interop_pin, 'source_gates': [artifact(producer_gate_path), artifact(gate_path)], 'compiled_input_closure': context['compiled_input_closure'], 'capacity': {'reviewed': True, **request['limits'], 'minimum_free_bytes': request['limits']['minimum_host_free_bytes']}, 'confirm_seconds': 600, 'finality_grace_seconds': 30, 'family_tools': {}, 'evidence_nodes': {}, 'local_docker': profile['local_docker'], 'node_ownership_tools': profile['node_ownership_tools'], 'source_PG14_tag': request['postgres']['image'], 'canonical_PG14_image_id': request['postgres']['image_id'], 'postgres_run_token': profile['postgres']['run_token'], 'reviewed_policy': context['request'], 'local_stage': stage_pin, 'native_case_acceptance': False}
+    approval = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'mode': context['mode'], 'runtime_artifacts': artifacts, 'verifier_tools': tools, 'verifier_python': python, 'case_inputs': case_pin, 'python_modules': {n: artifact(repo / 'zig/integration' / n) for n in verifier.import_module_closure(scenario)}, 'python_dependencies': {'hpack': stage['hpack']}, 'accepted_runtime_build': artifact(build_path), 'harness': harness, 'native_reader_interoperability': interop_pin, 'source_gates': [artifact(producer_gate_path), artifact(gate_path)], 'compiled_input_closure': context['compiled_input_closure'], 'capacity': {'reviewed': True, **request['limits'], 'minimum_free_bytes': request['limits']['minimum_host_free_bytes']}, 'confirm_seconds': 600, 'finality_grace_seconds': 30, 'family_tools': {}, 'evidence_nodes': {}, **({'local_docker':profile['local_docker'],'source_PG14_tag':request['postgres']['image'],'canonical_PG14_image_id':request['postgres']['image_id'],'postgres_run_token':profile['postgres']['run_token']}if scenario!='sealevel-composite'else{}),'node_ownership_tools':profile['node_ownership_tools'], 'reviewed_policy': context['request'], 'local_stage': stage_pin, 'native_case_acceptance': False}
+    if scenario=='radix':approval.update(radix_localnet=profile['radix_localnet'],radix_daemon=profile['radix_daemon'],fixture_contracts=profile['fixture_contracts'],family_tools=profile['family_tools'],family_tool_acceptance={'radix_reference':radix_acceptance})
     if fixture: approval['fixture_tools'] = fixture
+    if scenario in{'sealevel','sealevel-composite'}:approval['svm_assets']=profile['svm_assets']
+    if scenario=='tron':approval.update(tron_tre=profile['tron_tre'],tron_cli=profile['tron_cli'])
     if scenario == 'starknet':approval.update(starknet_devnet=profile['starknet_devnet'],evidence_nodes=profile['evidence_nodes'],expected_starknet_unavailable_endpoints=profile['expected_starknet_unavailable_endpoints'])
     if scenario == 'cosmwasm': approval['expected_unavailable_endpoints'] = profile['expected_unavailable_endpoints']
     write_new(paths['execution-approval'], approval)
     manifest.update(case_inputs=case_pin, execution_approval=artifact(paths['execution-approval']))
     process.validate_manifest(manifest)
     write_new(paths['manifest'], manifest)
-    env = {**stage['explicit_environment'], **environment, 'CI': 'true', 'E2E_CI_MODE': 'true', 'E2E_EXTERNAL_AGENT_MANIFEST': str(paths['manifest']), 'HOME': str(root / 'home'), 'TMPDIR': str(root / 'tmp'), 'DOCKER_HOST': profile['local_docker']['host'], 'DOCKER_CONFIG': profile['local_docker']['config_dir'], 'PYTHONNOUSERSITE': '1', 'PYTHONDONTWRITEBYTECODE': '1', 'RUST_BACKTRACE': 'full'}
+    env = {**stage['explicit_environment'], **environment, 'CI': 'true', 'E2E_CI_MODE': 'true', 'E2E_EXTERNAL_AGENT_MANIFEST': str(paths['manifest']), 'HOME': str(root / 'home'), 'TMPDIR': str(root / 'tmp'), **({'DOCKER_HOST':profile['local_docker']['host'],'DOCKER_CONFIG':profile['local_docker']['config_dir']}if scenario!='sealevel-composite'else{}), 'PYTHONNOUSERSITE': '1', 'PYTHONDONTWRITEBYTECODE': '1', 'RUST_BACKTRACE': 'full'}
     env.update({key: row['path'] for key, row in overrides.items()})
+    if scenario=='tron':env.update(NPM_CONFIG_USERCONFIG='/dev/null',NPM_CONFIG_GLOBALCONFIG='/dev/null',npm_config_userconfig='/dev/null',npm_config_globalconfig='/dev/null',PNPM_DISABLE_SELF_UPDATE_CHECK='1',NO_UPDATE_NOTIFIER='1')
     argv = [harness['path']]
     if scenario != 'evm': argv += ['--exact', process.SCENARIOS[scenario]['test'], '--nocapture', '--test-threads=1']
     required = list(artifacts.values()) + list(tools.values()) + list(approval['python_modules'].values()) + list(stage['contract_artifacts'].values()) + list(stage['tools'].values())
     required += [context['request'], context['producer_receipt'], context['compiled_input_closure'], interop_pin, stage_pin, stage['hpack'], artifact(gate_path), artifact(producer_gate_path), artifact(build_path), artifact(repo / 'zig/bench/native_case_owner.py'), artifact(repo / 'zig/bench/cold_matrix_owner.py')]
     required += dependency['files'] + [dependency['wheel'], dependency['venv_configuration'], dependency['source_metadata'], python]
     required += list(overrides.values())
+    if scenario in{'sealevel','sealevel-composite'}:required += svm_required + [artifact(repo/'zig/bench/native_svm_case.py'),artifact(repo/'zig/bench/native_svm_assets.py')]
+    if scenario=='radix':
+        required += radix_required + [profile['fixture_contracts']['release_metadata'],*profile['fixture_contracts']['files'].values(),artifact(repo/'zig/bench/native_radix_case.py'),artifact(repo/'zig/bench/native_radix_assets.py'),artifact(repo/'zig/bench/native_radix_custody.py'),artifact(repo/'zig/bench/native_radix_volume.py'),artifact(repo/'zig/bench/native_radix_reference.py'),artifact(repo/'zig/bench/native_starknet_custody.py')]
+        required += list(stage['radix_assets']['images'].values())
     required += [check['log'] for check in stage['checks']]
     required += list(diagnostic_rust_sources.values())
     if scenario == 'cosmwasm':
@@ -613,8 +673,12 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     if scenario == 'starknet':
         value=stage['starknet_assets'];bundle=profile['fixture_contracts'];graph=read_json(checked(value['cli_elf']))
         required += [bundle['archive'],bundle['publisher_checksum'],*bundle['files'].values(),value['cli_archive'],value['cli_elf'],value['image_readback'],*([graph['interpreter']] if graph['interpreter'] is not None else []),*graph['files'].values(),artifact(repo/'zig/bench/native_starknet_assets.py'),artifact(repo/'zig/bench/native_starknet_custody.py')]
+    if scenario=='tron':
+        value=stage['tron_assets'];required += [profile['tron_cli'],value['graph'],value['static_import_audit'],value['image_readback'],value['pnpm_archive'],artifact(repo/'zig/bench/native_tron_assets.py'),artifact(repo/'zig/bench/native_tron_setup.py'),artifact(repo/'zig/bench/native_tron_custody.py'),artifact(repo/'zig/bench/native_tron_cli_audit.mjs'),*copied['immutable_files']]
+        required += [{'path':str(Path(copied['workspace']['root'])/name),'bytes':row['bytes'],'sha256':row['sha256']}for name,row in copied['workspace']['entries'].items()if row['kind']=='file']
+        required += [r for compiler in value['compiler_outputs'].values()for r in compiler['actual_build_info']]
     required += list(read_json(checked(next(c['log'] for c in stage['checks'] if c['name'] == 'system-libraries'))).values())
-    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / 'rust/main/utils/run-locally'), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources}
+    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / 'rust/main/utils/run-locally'), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 1 if scenario in{'sealevel-composite','radix'}else 2 if scenario in{'sealevel','tron'}else 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources}
     write_new(paths['launch-plan'], plan)
     return paths
 

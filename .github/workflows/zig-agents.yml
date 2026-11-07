@@ -34,6 +34,10 @@ on:
         description: Run only the Linux SVM prerequisite job
         type: boolean
         default: false
+      radix_reference:
+        description: Add the independent Linux Radix reference to this full producer cohort
+        type: boolean
+        default: false
       cold_full_feature:
         description: Run the three full-feature cold trials
         type: boolean
@@ -600,7 +604,7 @@ jobs:
   native-harness-controls:
     if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))))) }}
     runs-on: depot-ubuntu-24.04-8
-    timeout-minutes: 280
+    timeout-minutes: ${{ ((github.event_name == 'workflow_dispatch' && inputs.radix_reference) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[zig-radix-reference]'))) && 400 || 280 }}
     env:
       CARGO_BUILD_JOBS: 2
       CARGO_INCREMENTAL: 0
@@ -638,6 +642,10 @@ jobs:
           done
           { rustc +1.98.0 -vV; cargo +1.98.0 -V; node --version; python3 --version; uname -a; lscpu; df -B1 "$NATIVE_HARNESS_ROOT"; } > "$NATIVE_HARNESS_ROOT/evidence/setup/tools-platform.txt"
           git diff --exit-code
+      - name: Stage optional locked Radix reference dependencies in owned working copy
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.radix_reference) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[zig-radix-reference]')) }}
+        timeout-minutes: 25
+        run: python3 zig/bench/native_radix_reference.py --root "$NATIVE_HARNESS_ROOT" --git-sha "$GITHUB_SHA" --minutes 20 --stage-only
       - name: Check portable tool ELF and explicit admission guards
         run: python3 zig/bench/native_case_tools_test.py -v
       - name: Compile, test and lint only the native helper controls
@@ -650,6 +658,19 @@ jobs:
         with:
           name: zig-native-case-tools-${{ github.sha }}
           path: ${{ env.NATIVE_HARNESS_ROOT }}/evidence/native-case-tools/
+          if-no-files-found: error
+      - name: Check optional Radix reference producer admission guards
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.radix_reference) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[zig-radix-reference]')) }}
+        run: python3 -W error zig/bench/native_radix_reference_test.py -v
+      - name: Build, test and lint the optional independent Radix reference offline
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.radix_reference) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[zig-radix-reference]')) }}
+        timeout-minutes: 65
+        run: python3 zig/bench/native_radix_reference.py --root "$NATIVE_HARNESS_ROOT" --git-sha "$GITHUB_SHA" --minutes 60 --execute
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.radix_reference) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[zig-radix-reference]')) }}
+        with:
+          name: zig-native-radix-reference-${{ github.sha }}
+          path: ${{ env.NATIVE_HARNESS_ROOT }}/evidence/native-radix-reference/
           if-no-files-found: error
       - name: Preserve helper Source, filtered results, products and failure evidence
         if: always()
@@ -746,10 +767,21 @@ jobs:
         if: steps.request.outputs.enabled == 'true'
         run: |
           python3 -I -B zig/bench/native_starknet_test.py -v
+          python3 -I -B zig/bench/native_radix_assets_test.py -v
+          python3 -I -B zig/bench/native_radix_custody_test.py -v
+          python3 -I -B zig/bench/native_radix_volume_test.py -v
+          python3 -I -B zig/bench/native_radix_case_test.py -v
+          python3 -I -B zig/integration/multivm_radix_observations_test.py -v
+          python3 -I -B -W error zig/bench/native_tron_test.py -v
+          python3 -I -B -W error zig/bench/native_tron_integration_test.py -v
+          python3 -I -B -W error zig/bench/native_tron_composition_test.py -v
+          python3 -I -B -W error zig/integration/multivm_tron_clock_test.py -v
           python3 -I -B -W error zig/integration/multivm_starknet_peers_test.py -v
           python3 -I -B zig/bench/native_cw_assets_test.py -v
           python3 -I -B zig/bench/native_cw_inputs_test.py -v
           python3 -I -B zig/bench/native_case_setup_test.py -v
+          python3 -I -B zig/bench/native_svm_assets_test.py -v
+          python3 -I -B zig/bench/native_svm_case_test.py -v
           python3 -I -B zig/bench/native_case_run_test.py -v
           python3 -I -B zig/bench/native_case_owner_test.py -v
           python3 -I -B zig/integration/multivm_restart_test.py -v

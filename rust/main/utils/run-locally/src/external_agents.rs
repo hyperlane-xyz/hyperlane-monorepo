@@ -1,4 +1,5 @@
 //! Explicit test-harness runtime substitution. Never changes production agents.
+mod radix_contracts;
 #[cfg(feature = "radix")]
 pub mod radix_fixture;
 use crate::utils::TaskHandle;
@@ -441,6 +442,19 @@ fn validate_contract_inputs(manifest: &Manifest) -> Result<Option<PathBuf>> {
         .as_object()
         .ok_or_else(|| eyre::eyre!("case inputs must be a JSON object"))?;
     let contracts = object.get("fixture_contracts");
+    if manifest.scenario == "radix" {
+        ensure!(
+            value["schema"] == 1 && value["scenario"] == "radix",
+            "Radix contract case family/schema differs"
+        );
+        return radix_contracts::validate(
+            manifest,
+            contracts.ok_or_else(|| {
+                eyre::eyre!("external Radix contract pair required before CLI/node")
+            })?,
+        )
+        .map(Some);
+    }
     let Some(release) = contract_release(&manifest.scenario) else {
         ensure!(
             contracts.is_none(),
@@ -478,6 +492,17 @@ pub fn contract_bundle(expected_scenario: &str, expected_release: &str) -> Optio
     {
         Ok(path) => path,
         Err(error) => panic!("external contract preflight: {error:#}"),
+    }
+}
+
+fn radix_contract_paths_with(runtime: Option<&Manifest>) -> Result<Option<(PathBuf, PathBuf)>> {
+    runtime.map(radix_contracts::paths).transpose()
+}
+/// Only the exact approved Source Radix release pair; no download fallback.
+pub fn radix_contract_paths() -> Option<(PathBuf, PathBuf)> {
+    match get().and_then(radix_contract_paths_with) {
+        Ok(paths) => paths,
+        Err(error) => panic!("external Radix contract preflight: {error:#}"),
     }
 }
 
@@ -3953,14 +3978,22 @@ pub fn intentional_role_stop(child: &mut TrackedChild, purpose: &str) -> Result<
 }
 fn wait_for_actual_checker(stage: &str, expected: u32, seconds: u64) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(seconds);
+    wait_for_checker_until(stage, deadline, || checker(stage, expected))
+}
+fn wait_for_checker_until(
+    stage: &str,
+    deadline: Instant,
+    mut check: impl FnMut() -> Result<bool>,
+) -> Result<()> {
     loop {
-        if checker(stage, expected)? {
-            return Ok(());
-        }
+        let ready = check()?;
         ensure!(
             Instant::now() < deadline,
             "actual external evidence stage timed out: {stage}"
         );
+        if ready {
+            return Ok(());
+        }
         thread::sleep(Duration::from_millis(500));
     }
 }
@@ -4311,10 +4344,151 @@ const SVM_PROGRAM_NAMES: &[&str] = &[
     "spl_associated_token_account.so",
     "spl_noop.so",
 ];
+// Exact Linux v3.0.14 publisher runtime: C11 member manifest 31af5a9b.
+// Separate from the unchanged schema-1 Darwin67 release; no optional perf drops.
+const SVM_LINUX_AGAVE_FILES: &[(&str, u64)] = &[
+    (".crates.toml", 99),
+    (".crates2.json", 471),
+    ("bin/agave-install", 12_025_736),
+    ("bin/agave-install-init", 11_309_200),
+    ("bin/agave-ledger-tool", 57_743_824),
+    ("bin/cargo-build-sbf", 19_231_584),
+    ("bin/cargo-test-sbf", 4_074_488),
+    ("bin/perf-libs/.version", 10),
+    ("bin/perf-libs/cuda-10.0/cuda-version.txt", 22),
+    ("bin/perf-libs/cuda-10.0/libcl-crypt.so", 413_408),
+    ("bin/perf-libs/cuda-10.0/libcuda-crypt.so", 32_116_896),
+    ("bin/perf-libs/cuda-10.1/cuda-version.txt", 22),
+    ("bin/perf-libs/cuda-10.1/libcl-crypt.so", 413_408),
+    ("bin/perf-libs/cuda-10.1/libcuda-crypt.so", 31_995_184),
+    ("bin/perf-libs/cuda-10.2/cuda-version.txt", 21),
+    ("bin/perf-libs/cuda-10.2/libcl-crypt.so", 413_408),
+    ("bin/perf-libs/cuda-10.2/libcuda-crypt.so", 33_169_456),
+    ("bin/perf-libs/libpoh-simd.so", 344_448),
+    ("bin/perf-libs/libsigning.so", 32_048),
+    ("bin/perf-libs/signing.signed.so", 1_034_552),
+    ("bin/perf-libs/signing.so", 1_034_552),
+    ("bin/perf-libs/signing_public.h", 2_678),
+    ("bin/perf-libs/signing_test", 76_288),
+    ("bin/perf-libs/solana-perf-HEAD.txt", 41),
+    ("bin/perf-libs/solana-perf.tgz", 64_391_893),
+    ("bin/platform-tools-sdk/sbf/c/README.md", 1_030),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/deserialize_deprecated.h",
+        39,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/alt_bn128.h", 1_625),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/alt_bn128_compression.h",
+        2_056,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/assert.h", 1_299),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/big_mod_exp.h", 857),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/blake3.h", 921),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/compute_units.h", 901),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/constants.h", 801),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/cpi.h", 3_841),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/deserialize.h", 4_137),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/deserialize_deprecated.h",
+        3_420,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/entrypoint.h", 1_663),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/alt_bn128.inc",
+        1_032,
+    ),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/alt_bn128_compression.inc",
+        1_316,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/inc/assert.inc", 828),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/big_mod_exp.inc",
+        390,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/inc/blake3.inc", 455),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/compute_units.inc",
+        432,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/inc/cpi.inc", 3_193),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/inc/keccak.inc", 452),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/last_restart_slot.inc",
+        261,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/inc/log.inc", 2_590),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/poseidon.inc",
+        1_229,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/inc/pubkey.inc", 2_336),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/return_data.inc",
+        875,
+    ),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/inc/secp256k1.inc",
+        1_205,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/inc/sha.inc", 446),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/keccak.h", 925),
+    (
+        "bin/platform-tools-sdk/sbf/c/inc/sol/last_restart_slot.h",
+        750,
+    ),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/log.h", 4_308),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/poseidon.h", 1_916),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/pubkey.h", 4_021),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/return_data.h", 1_863),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/secp256k1.h", 1_781),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/sha.h", 897),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/string.h", 2_069),
+    ("bin/platform-tools-sdk/sbf/c/inc/sol/types.h", 3_883),
+    ("bin/platform-tools-sdk/sbf/c/inc/solana_sdk.h", 515),
+    ("bin/platform-tools-sdk/sbf/c/inc/stdio.h", 81),
+    ("bin/platform-tools-sdk/sbf/c/inc/stdlib.h", 37),
+    ("bin/platform-tools-sdk/sbf/c/inc/string.h", 116),
+    ("bin/platform-tools-sdk/sbf/c/inc/sys/param.h", 13),
+    ("bin/platform-tools-sdk/sbf/c/inc/wchar.h", 13),
+    ("bin/platform-tools-sdk/sbf/c/sbf.ld", 452),
+    ("bin/platform-tools-sdk/sbf/c/sbf.mk", 9_411),
+    ("bin/platform-tools-sdk/sbf/env.sh", 499),
+    ("bin/platform-tools-sdk/sbf/scripts/dump.sh", 1_016),
+    ("bin/platform-tools-sdk/sbf/scripts/install.sh", 3_477),
+    ("bin/platform-tools-sdk/sbf/scripts/objcopy.sh", 209),
+    ("bin/platform-tools-sdk/sbf/scripts/package.sh", 354),
+    ("bin/platform-tools-sdk/sbf/scripts/strip.sh", 510),
+    ("bin/platform-tools-sdk/sbf/syscalls.txt", 0),
+    ("bin/solana", 28_313_504),
+    ("bin/solana-keygen", 2_809_272),
+    ("bin/solana-stake-accounts", 9_074_304),
+    ("bin/solana-test-validator", 73_928_168),
+    ("bin/solana-tokens", 9_888_008),
+    ("bin/spl-token", 23_104_904),
+    ("version.yml", 99),
+];
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+enum SvmPlatform {
+    #[default]
+    #[serde(skip)]
+    LegacyDarwin,
+    #[serde(rename = "linux-x86_64")]
+    LinuxX8664,
+}
+impl SvmPlatform {
+    fn is_legacy(&self) -> bool {
+        *self == Self::LegacyDarwin
+    }
+}
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct SvmBundle {
     schema: u32,
+    // Absent for every legacy schema-1 bundle, including its serialized gate.
+    #[serde(default, skip_serializing_if = "SvmPlatform::is_legacy")]
+    platform: SvmPlatform,
     agave_version: String,
     platform_tools_version: String,
     spl_release: String,
@@ -4393,7 +4567,8 @@ fn svm_closed_members(root: &Path, expected: &BTreeMap<String, Artifact>) -> Res
 }
 fn svm_bundle_shape(bundle: &SvmBundle) -> Result<()> {
     ensure!(
-        bundle.schema == 1
+        ((bundle.schema == 1 && bundle.platform == SvmPlatform::LegacyDarwin)
+            || (bundle.schema == 2 && bundle.platform == SvmPlatform::LinuxX8664))
             && bundle.agave_version == "3.0.14"
             && bundle.platform_tools_version == "v1.51"
             && bundle.spl_release == "2024-08-23"
@@ -4411,16 +4586,32 @@ fn svm_bundle_shape(bundle: &SvmBundle) -> Result<()> {
                 .collect::<std::collections::BTreeSet<_>>()),
         "missing/extra SVM program"
     );
-    // These exact lists are generated in the proposal from accepted Agave67 and
-    // Source25 public fixture files, not a prefix/extension or recursive tool grant.
-    ensure!(
-        bundle
-            .agave_files
-            .keys()
-            .map(String::as_str)
-            .eq(SVM_AGAVE_FILES.iter().copied()),
-        "Agave member set differs"
-    );
+    // Exact publisher lists, never a prefix/extension or recursive tool grant.
+    if bundle.platform == SvmPlatform::LinuxX8664 {
+        ensure!(
+            bundle
+                .agave_files
+                .keys()
+                .map(String::as_str)
+                .eq(SVM_LINUX_AGAVE_FILES.iter().map(|(name, _)| *name)),
+            "Linux Agave member set differs"
+        );
+        for (name, bytes) in SVM_LINUX_AGAVE_FILES {
+            ensure!(
+                bundle.agave_files[*name].bytes == *bytes,
+                "Linux Agave member byte count differs: {name}"
+            );
+        }
+    } else {
+        ensure!(
+            bundle
+                .agave_files
+                .keys()
+                .map(String::as_str)
+                .eq(SVM_AGAVE_FILES.iter().copied()),
+            "Agave member set differs"
+        );
+    }
     ensure!(
         bundle
             .environment_inputs
@@ -4429,6 +4620,40 @@ fn svm_bundle_shape(bundle: &SvmBundle) -> Result<()> {
             .eq(SVM_ENVIRONMENT_FILES.iter().copied()),
         "Source environment member set differs"
     );
+    Ok(())
+}
+// This is a format admission check, not proof that Agave accepts or executes
+// the program. Both SBF encodings match the exact Agave-locked sbpf 0.12.2 loader.
+fn svm_linux_elf_header(header: &[u8], program: bool) -> Result<u16> {
+    ensure!(
+        header.len() >= 64
+            && &header[..4] == b"\x7fELF"
+            && header[4] == 2
+            && header[5] == 1
+            && header[6] == 1
+            && if program {
+                header[7] == 0
+            } else {
+                matches!(header[7], 0 | 3)
+            },
+        "Linux SVM ELF64 little-endian System-V/GNU native header required"
+    );
+    let kind = u16::from_le_bytes([header[16], header[17]]);
+    let machine = u16::from_le_bytes([header[18], header[19]]);
+    ensure!(
+        if program {
+            kind == 3 && matches!(machine, 247 | 263)
+        } else {
+            matches!(kind, 2 | 3) && machine == 62
+        },
+        "Linux SVM native/SBF ELF type or machine differs"
+    );
+    Ok(machine)
+}
+fn svm_linux_elf(artifact: &Artifact, program: bool) -> Result<()> {
+    let mut header = [0u8; 64];
+    fs::File::open(&artifact.path)?.read_exact(&mut header)?;
+    svm_linux_elf_header(&header, program)?;
     Ok(())
 }
 fn svm_assets_at(manifest: &Manifest) -> Result<Option<SvmAssets>> {
@@ -4471,16 +4696,29 @@ fn svm_assets_at(manifest: &Manifest) -> Result<Option<SvmAssets>> {
             matches!(name.as_str(), "bin/solana" | "bin/solana-test-validator"),
         )?;
     }
+    let linux = bundle.platform == SvmPlatform::LinuxX8664;
     ensure!(
-        total == 205_592_731,
+        !linux || (cfg!(target_os = "linux") && cfg!(target_arch = "x86_64")),
+        "Linux SVM bundle requires an actual Linux x86_64 helper"
+    );
+    ensure!(
+        total == if linux { 417_020_742 } else { 205_592_731 },
         "Agave closed release byte count differs"
     );
+    if linux {
+        for name in ["bin/solana", "bin/solana-test-validator"] {
+            svm_linux_elf(&bundle.agave_files[name], false)?;
+        }
+    }
     for (name, artifact) in &bundle.programs {
         ensure!(
             artifact.bytes > 0 && artifact.bytes <= 32 * 1024 * 1024,
             "SVM program bound"
         );
         svm_file(&root, &format!("programs/{name}"), artifact, false)?;
+        if linux {
+            svm_linux_elf(artifact, true)?;
+        }
     }
     for (name, artifact) in &bundle.environment_inputs {
         ensure!(artifact.bytes <= 1024 * 1024, "public SVM input size bound");
@@ -4502,6 +4740,10 @@ fn svm_assets_at(manifest: &Manifest) -> Result<Option<SvmAssets>> {
     )?;
     let home = checked_owned_path(&manifest.task_root, Path::new("home"))?;
     svm_file(&home, ".cargo/bin/spl-token", &bundle.spl_token, true)?;
+    if linux {
+        svm_linux_elf(&bundle.client, false)?;
+        svm_linux_elf(&bundle.spl_token, false)?;
+    }
     let gate = svm_json(&bundle.component_gate)?;
     let mut accepted = serde_json::to_value(&bundle)?;
     accepted
@@ -4964,6 +5206,7 @@ mod tests {
         };
         SvmBundle {
             schema: 1,
+            platform: SvmPlatform::LegacyDarwin,
             agave_version: "3.0.14".into(),
             platform_tools_version: "v1.51".into(),
             spl_release: "2024-08-23".into(),
@@ -5000,6 +5243,74 @@ mod tests {
             svm_assets_at(&manifest).is_err(),
             "shape-only must not admit fake assets"
         );
+    }
+    #[test]
+    fn svm_linux_exact_platform_map_preserves_legacy_gate_serialization() {
+        let legacy = svm_shape_only_bundle();
+        assert!(serde_json::to_value(&legacy)
+            .unwrap()
+            .get("platform")
+            .is_none());
+        let mut linux = legacy.clone();
+        linux.schema = 2;
+        linux.platform = SvmPlatform::LinuxX8664;
+        linux.agave_files = SVM_LINUX_AGAVE_FILES
+            .iter()
+            .map(|(name, bytes)| {
+                let mut artifact = legacy.client.clone();
+                artifact.bytes = *bytes;
+                ((*name).to_owned(), artifact)
+            })
+            .collect();
+        svm_bundle_shape(&linux).unwrap();
+        assert_eq!(linux.agave_files.len(), 85);
+        assert_eq!(
+            linux.agave_files.values().map(|a| a.bytes).sum::<u64>(),
+            417_020_742
+        );
+        let mut wrong = linux.clone();
+        wrong.schema = 1;
+        assert!(svm_bundle_shape(&wrong).is_err());
+        wrong = linux.clone();
+        wrong.platform = SvmPlatform::LegacyDarwin;
+        assert!(svm_bundle_shape(&wrong).is_err());
+        wrong = linux.clone();
+        wrong.agave_files.values_mut().next().unwrap().bytes += 1;
+        assert!(svm_bundle_shape(&wrong).is_err());
+        wrong = linux.clone();
+        wrong.agave_files.remove("bin/perf-libs/libsigning.so");
+        assert!(svm_bundle_shape(&wrong).is_err());
+        let mut value = serde_json::to_value(&linux).unwrap();
+        value["platform"] = "darwin-aarch64".into();
+        assert!(serde_json::from_value::<SvmBundle>(value).is_err());
+        let mut legacy_null = serde_json::to_value(&legacy).unwrap();
+        legacy_null["platform"] = serde_json::Value::Null;
+        assert!(serde_json::from_value::<SvmBundle>(legacy_null).is_err());
+    }
+    #[test]
+    fn svm_linux_native_and_sbf_formats_are_not_interchangeable() {
+        let mut header = [0u8; 64];
+        header[..8].copy_from_slice(b"\x7fELF\x02\x01\x01\x00");
+        header[16..18].copy_from_slice(&3u16.to_le_bytes());
+        for machine in [247u16, 263] {
+            header[18..20].copy_from_slice(&machine.to_le_bytes());
+            assert_eq!(svm_linux_elf_header(&header, true).unwrap(), machine);
+            assert!(svm_linux_elf_header(&header, false).is_err());
+        }
+        header[18..20].copy_from_slice(&62u16.to_le_bytes());
+        assert!(svm_linux_elf_header(&header, false).is_ok());
+        assert!(svm_linux_elf_header(&header, true).is_err());
+        let mut gnu_native = header;
+        gnu_native[7] = 3; // Actual pinned solana-test-validator publisher ELF.
+        assert!(svm_linux_elf_header(&gnu_native, false).is_ok());
+        gnu_native[18..20].copy_from_slice(&263u16.to_le_bytes());
+        assert!(svm_linux_elf_header(&gnu_native, true).is_err());
+        for (offset, value) in [(4, 1), (5, 2), (6, 0), (7, 255), (16, 1)] {
+            let mut wrong = header;
+            wrong[offset] = value;
+            assert!(svm_linux_elf_header(&wrong, false).is_err());
+        }
+        assert!(svm_linux_elf_header(&header[..63], false).is_err());
     }
     #[test]
     fn svm_shape_all_version_fields_and_schema_are_exact() {
@@ -7545,5 +7856,65 @@ setInterval(()=>{{}},1000);"#,
         assert_eq!(proof["already_exited"], true);
         assert_eq!(proof["success"], false);
         assert_eq!(proof["parent_wait_completed"], true);
+    }
+
+    #[test]
+    fn checker_deadline_accepts_timely_positive() {
+        let mut calls = 0;
+        let result = wait_for_checker_until(
+            "controlled",
+            Instant::now() + Duration::from_secs(60),
+            || {
+                calls += 1;
+                Ok(true)
+            },
+        );
+        assert!(result.is_ok());
+        assert_eq!(calls, 1);
+    }
+    #[test]
+    fn checker_deadline_rejects_late_positive_after_callback() {
+        let mut calls = 0;
+        let deadline = Instant::now() + Duration::from_millis(2);
+        let result = wait_for_checker_until("controlled", deadline, || {
+            calls += 1;
+            thread::sleep(Duration::from_millis(8));
+            Ok(true)
+        });
+        assert!(result.is_err());
+        assert_eq!(calls, 1);
+    }
+    #[test]
+    fn checker_deadline_rejects_late_pending_without_retry() {
+        let mut calls = 0;
+        let deadline = Instant::now() + Duration::from_millis(2);
+        let result = wait_for_checker_until("controlled", deadline, || {
+            calls += 1;
+            thread::sleep(Duration::from_millis(8));
+            Ok(false)
+        });
+        assert!(result.is_err());
+        assert_eq!(calls, 1);
+    }
+    #[test]
+    fn checker_deadline_does_not_renew_after_pending_poll() {
+        let mut calls = 0;
+        let deadline = Instant::now() + Duration::from_millis(25);
+        let result = wait_for_checker_until("controlled", deadline, || {
+            calls += 1;
+            Ok(calls == 2)
+        });
+        assert!(result.is_err());
+        assert_eq!(calls, 2);
+    }
+    #[test]
+    fn checker_deadline_preserves_original_callback_error() {
+        let result = wait_for_checker_until("controlled", Instant::now(), || {
+            Err(eyre::eyre!("controlled checker failure"))
+        });
+        assert_eq!(
+            result.expect_err("callback error").to_string(),
+            "controlled checker failure"
+        );
     }
 }

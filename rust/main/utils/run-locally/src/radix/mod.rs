@@ -90,6 +90,9 @@ impl Drop for RadixStack {
 
 #[allow(dead_code)]
 pub fn download_radix_contracts() -> (PathBuf, PathBuf) {
+    if let Some(paths) = crate::external_agents::radix_contract_paths() {
+        return paths;
+    }
     let dir_path = tempdir()
         .expect("Failed to create temporary directory")
         .keep();

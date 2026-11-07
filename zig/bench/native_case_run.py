@@ -47,7 +47,7 @@ def main():
     args=parser.parse_args();dispatch=load('run_request','zig/bench/native_case_ci.py')
     for name in ['request','producer_receipt','tools']:require(pin(getattr(args,name))['sha256']==getattr(args,name+'_sha256'),'Composition input changed: '+name)
     request=dispatch.validate_request(dispatch.read_request(args.request))
-    require(request['scenario'] in {'evm','cosmosnative','cosmwasm','starknet'},'Unsupported native composition family')
+    require(request['scenario'] in {'evm','cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite','radix','tron'},'Unsupported native composition family')
     require(args.repo.resolve(strict=True)==args.repo and args.output.is_absolute() and not args.output.is_relative_to(args.repo) and not args.output.exists() and not args.output.is_symlink(),'Fresh composition root outside checkout required')
     require(str(args.case_root).startswith('/tmp/znc-') and args.case_root.parent==Path('/tmp') and not args.case_root.exists() and not args.case_root.is_symlink(),'Fresh short case root required')
     receipt=json.loads(args.producer_receipt.read_text());require(receipt['passed'] is True and receipt['all_owned_jobs_joined'] is True and receipt['execution_source_commit']==args.execution_source_commit and receipt['producer_source_commit']==request['producer_source_commit'],'Actual producer download cohort differs')
@@ -77,7 +77,7 @@ def main():
             old={sig:signal.signal(sig,signal.SIG_IGN) for sig in [signal.SIGTERM,signal.SIGINT,signal.SIGHUP]}
             try:
                 if child is not None:
-                    try:cleanup=owner.stop_owned(child,known,groups,grace_seconds=150 if request['scenario']=='starknet' and name=='owned-native-case' else 100,kill_seconds=3)
+                    try:cleanup=owner.stop_owned(child,known,groups,grace_seconds=240 if request['scenario']=='radix' and name=='owned-native-case' else 150 if request['scenario']=='starknet' and name=='owned-native-case' else 100,kill_seconds=3)
                     except BaseException as cleanup_error:
                         cleanup={'clean':False,'actual_parent_wait':False,'error':{'type':type(cleanup_error).__name__,'message':str(cleanup_error)}}
                         if error is None:error=cleanup_error
@@ -94,7 +94,7 @@ def main():
         run('hydrate-verified-source-cohort',[sys.executable,'-I','-B',str(builder),'hydrate','--reviewed-policy',str(args.request),'--reviewed-policy-sha256',args.request_sha256,'--producer-receipt',str(args.producer_receipt),'--producer-receipt-sha256',args.producer_receipt_sha256,'--expected-source-commit',args.execution_source_commit,'--output',str(args.case_root)],180,args.case_root)
         context_path=args.case_root/'hydrated-inputs.json';context=json.loads(context_path.read_text());context_pin=pin(context_path)
         require(context['phase']=='HYDRATED_NOT_EXECUTION_APPROVAL' and context['nodes_started'] is False and context['native_case_acceptance'] is False,'Only nonexecuting hydration may precede setup')
-        run('explicit-prerequisites',[sys.executable,'-I','-B',str(args.repo/'zig/bench/native_case_setup.py'),'--execute','--request',str(args.request),'--request-sha256',args.request_sha256,'--execution-source-commit',args.execution_source_commit,'--repo',str(args.repo),'--output',str(args.output/'setup'),'--tools',str(args.tools),'--tools-sha256',args.tools_sha256],2760,args.output/'setup')
+        run('explicit-prerequisites',[sys.executable,'-I','-B',str(args.repo/'zig/bench/native_case_setup.py'),'--execute','--request',str(args.request),'--request-sha256',args.request_sha256,'--execution-source-commit',args.execution_source_commit,'--repo',str(args.repo),'--output',str(args.output/'setup'),'--tools',str(args.tools),'--tools-sha256',args.tools_sha256,*(['--hydrated-inputs',str(context_path),'--hydrated-inputs-sha256',context_pin['sha256']] if request['scenario']in{'sealevel','sealevel-composite'} else [])],2760,args.output/'setup')
         raw={}
         for mode,key in [('ReleaseSafe','safe'),('ReleaseFast','fast')]:
             output=args.output/('actual-interop-'+mode+'.json');run('actual-interop-'+mode,interop_command(args.repo,context,mode,output),300,args.output);raw[key]=pin(output)
@@ -102,7 +102,7 @@ def main():
         interop=pin(args.case_root/'accepted-native-rows-interop.json');stage=pin(args.output/'setup/local-stage.json')
         run('prepare-reviewed-profile',[sys.executable,'-I','-B',str(builder),'prepare','--hydrated-inputs',str(context_path),'--hydrated-inputs-sha256',context_pin['sha256'],'--interoperability',interop['path'],'--interoperability-sha256',interop['sha256'],'--local-stage',stage['path'],'--local-stage-sha256',stage['sha256']],180,args.output)
         launch=pin(args.case_root/'launch-plan.json')
-        run('owned-native-case',[sys.executable,'-I','-B',str(args.repo/'zig/bench/native_case_owner.py'),'--plan',launch['path'],'--plan-sha256',launch['sha256'],'--output',str(args.case_root/'ci-supervision')],3780 if request['scenario']=='starknet' else 3720,args.case_root)
+        run('owned-native-case',[sys.executable,'-I','-B',str(args.repo/'zig/bench/native_case_owner.py'),'--plan',launch['path'],'--plan-sha256',launch['sha256'],'--output',str(args.case_root/'ci-supervision')],4050 if request['scenario']=='radix'else 3780 if request['scenario']=='starknet' else 3720,args.case_root)
         final=pin(args.case_root/'ci-supervision/result.json');accepted=json.loads(Path(final['path']).read_text())
         require(accepted['kind']=='owned-linux-native-case-result' and accepted['passed'] is True and accepted['native_case_acceptance'] is True and accepted['runtime_source_commit']==request['producer_source_commit'] and accepted['execution_source_commit']==args.execution_source_commit and accepted['scenario']==request['scenario'] and accepted['mode']==request['mode'] and accepted['accepted_inputs_unchanged_after'] is True,'Actual full owned case result missing/mismatched')
         result.update(passed=True,native_case_acceptance=True,actual_case_result=final,actual_interoperability=interop,actual_stage=stage)

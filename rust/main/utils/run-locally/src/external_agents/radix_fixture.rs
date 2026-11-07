@@ -80,13 +80,45 @@ fn validate(configuration: &Configuration) -> Result<()> {
     Ok(())
 }
 
-/// A bounded direct Docker client, with actual Child wait on every path. Use
-/// files instead of pipes so a full output pipe cannot deadlock a timeout.
+#[cfg(target_os = "linux")]
+fn client_start_identity(pid: u32) -> Result<Option<String>> {
+    let mut wire = String::new();
+    fs::File::open(format!("/proc/{pid}/stat"))?
+        .take(65537)
+        .read_to_string(&mut wire)?;
+    ensure!(wire.len() <= 65536, "bounded actual child stat required");
+    let (prefix, fields) = wire
+        .rsplit_once(") ")
+        .ok_or_else(|| eyre::eyre!("actual child stat shape"))?;
+    ensure!(
+        prefix.split_once('(').is_some_and(|(actual, _)| actual
+            .trim()
+            .parse::<u32>()
+            .is_ok_and(|actual| actual == pid)),
+        "actual child stat PID differs"
+    );
+    let fields: Vec<_> = fields.split_whitespace().collect();
+    ensure!(
+        fields.len() > 19 && fields[1].parse::<u32>()? == std::process::id(),
+        "actual Docker client parent differs"
+    );
+    let start = fields[19].parse::<u64>()?;
+    ensure!(start > 0, "actual Docker child start tick missing");
+    Ok(Some(format!("linux-ticks:{start}")))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn client_start_identity(_: u32) -> Result<Option<String>> {
+    // No Linux identity is manufactured by host-only controls.
+    Ok(None)
+}
+
+/// Bounded direct Docker client; every actual wait is retained, including errors.
 fn docker(manifest: &Manifest, tool: &Artifact, args: &[String], seconds: u64) -> Result<Vec<u8>> {
     tool.verify()?;
     let (host, config) = fixture_docker_environment(manifest)?;
     let mut output = tempfile::tempfile()?;
-    use std::os::unix::process::CommandExt;
+    use std::os::unix::process::{CommandExt, ExitStatusExt};
     let mut child = Command::new(&tool.path)
         .args(args)
         .env_clear()
@@ -99,8 +131,12 @@ fn docker(manifest: &Manifest, tool: &Artifact, args: &[String], seconds: u64) -
         .stderr(output.try_clone()?)
         .process_group(0)
         .spawn()?;
-    let deadline = Instant::now() + Duration::from_secs(seconds);
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(seconds);
+    let mut identity = None;
     let outcome = (|| -> Result<std::process::ExitStatus> {
+        // The direct child remains unreaped, so its PID cannot be reused here.
+        identity = client_start_identity(child.id())?;
         loop {
             ensure!(
                 output.metadata()?.len() <= 4 * 1024 * 1024 && Instant::now() < deadline,
@@ -112,24 +148,50 @@ fn docker(manifest: &Manifest, tool: &Artifact, args: &[String], seconds: u64) -
             thread::sleep(Duration::from_millis(20));
         }
     })();
-    let status = match outcome {
-        Ok(status) => status,
+    let (status, mut primary, forced) = match outcome {
+        Ok(status) => (status, None, false),
         Err(error) => {
-            // Child is deliberately unreaped here, anchoring its new group.
+            // The unreaped direct child anchors its original process group.
             let _ = nix::sys::signal::killpg(
                 nix::unistd::Pid::from_raw(child.id() as i32),
                 nix::sys::signal::Signal::SIGKILL,
             );
             let _ = child.kill();
-            let _ = child.wait();
-            return Err(error);
+            (child.wait()?, Some(error), true)
         }
     };
-    ensure!(status.success(), "Radix Docker command failed ({status})");
-    output.seek(SeekFrom::Start(0))?;
+    let mut length = None;
     let mut bytes = Vec::new();
-    output.take(4 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
-    ensure!(bytes.len() <= 4 * 1024 * 1024, "Radix Docker output bound");
+    let readback = (|| -> Result<()> {
+        let size = output.metadata()?.len();
+        length = Some(size);
+        ensure!(size <= 4 * 1024 * 1024, "Radix Docker output bound");
+        if primary.is_none() && status.success() {
+            output.seek(SeekFrom::Start(0))?;
+            output.take(4 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
+            ensure!(bytes.len() <= 4 * 1024 * 1024, "Radix Docker output bound");
+        }
+        Ok(())
+    })();
+    primary = primary.or_else(|| readback.err());
+    use sha2::{Digest, Sha256};
+    let receipt = json!({
+        "schema":1,"purpose":"radix-fixture-docker-client",
+        "runtime_source_commit":manifest.runtime_source_commit,"mode":manifest.mode,
+        "pid":child.id(),"parent_pid":std::process::id(),"os":std::env::consts::OS,
+        "os_start_token":identity,"executable":tool,"arguments":args,
+        "parent_wait_completed":true,"exit_code":status.code(),"signal":status.signal(),
+        "forced_cleanup":forced,"elapsed_monotonic_ns":u64::try_from(started.elapsed().as_nanos())?,
+        "output_bytes":length,"output_sha256":if length == Some(bytes.len() as u64) {Some(hex::encode(Sha256::digest(&bytes)))}else{None},
+        "success":primary.is_none() && status.success(),
+        "error":primary.as_ref().map(ToString::to_string),
+        "scope":"Actual direct Docker client Child wait only. Daemon-managed container processes are not claimed as child waits."
+    });
+    super::append_fixture_observation(manifest, "radix-client-parent-waits.jsonl", &receipt)?;
+    if let Some(error) = primary {
+        return Err(error);
+    }
+    ensure!(status.success(), "Radix Docker command failed ({status})");
     Ok(bytes)
 }
 
@@ -193,6 +255,19 @@ fn local_status(agent: &ureq::Agent, endpoint: &str) -> Result<Value> {
         "Radix readiness response bound"
     );
     Ok(serde_json::from_slice(&wire)?)
+}
+
+fn publish_stop_intent(path: &std::path::Path, wire: &[u8]) -> Result<()> {
+    use std::io::Write;
+    let directory = path
+        .parent()
+        .ok_or_else(|| eyre::eyre!("Radix stop intent directory missing"))?;
+    let mut pending = tempfile::NamedTempFile::new_in(directory)?;
+    pending.write_all(wire)?;
+    pending.as_file().sync_all()?;
+    pending.persist_noclobber(path)?;
+    fs::File::open(directory)?.sync_all()?;
+    Ok(())
 }
 
 pub struct Localnet {
@@ -445,6 +520,41 @@ impl Localnet {
         // Cleanup authorizes exact ownership/CID, independent of a resource
         // acceptance failure which may be why startup is unwinding.
         let before = self.inspect(false)?;
+        // Bind the planned disappearance to actual authenticated CIDs before
+        // Compose starts removing them. Containers are daemon objects, not
+        // direct children; the independent owner retains client wait receipts.
+        let intent_path = self.override_file.with_file_name("stopping.json");
+        let intent = serde_json::to_vec(&json!({
+            "project":self.project,"parent_pid":std::process::id(),"containers":before
+        }))?;
+        if intent_path.exists() {
+            ensure!(
+                fs::symlink_metadata(&intent_path)?.file_type().is_file()
+                    && fs::metadata(&intent_path)?.len() <= 16 * 1024,
+                "Radix Source stop intent is not bounded regular data"
+            );
+            let prior: Value = serde_json::from_slice(&fs::read(&intent_path)?)?;
+            ensure!(
+                prior.as_object().is_some_and(|row| row.len() == 3)
+                    && prior["project"] == self.project
+                    && prior["parent_pid"] == std::process::id(),
+                "Radix Source stop intent authority changed"
+            );
+            let original: BTreeMap<String, String> =
+                serde_json::from_value(prior["containers"].clone())?;
+            ensure!(
+                before
+                    .iter()
+                    .all(|(service, cid)| original.get(service) == Some(cid)),
+                "Radix Source stop retry added or replaced a container"
+            );
+            // A failed first down may have removed some services. Preserve its
+            // first durable authority and retry only the remaining exact CIDs.
+        } else {
+            // Readers may observe this live marker while cleanup begins. Only
+            // publish the complete fsynced bytes, preserving any first intent.
+            publish_stop_intent(&intent_path, &intent)?;
+        }
         self.compose(&["down", "--timeout", "15", "--volumes"], 60)?;
         ensure!(
             self.inspect(false)?.is_empty(),
@@ -495,6 +605,19 @@ mod tests {
     fn exact_source_images_and_native_platform_are_required() {
         let mut c = configuration();
         validate(&c).unwrap();
+        // Exact Python fixture_configuration wire shape. Nested Source config
+        // has three fields; the outer case already carries its schema version.
+        let wire = json!({
+            "token":c.token,"architecture":"amd64",
+            "images":c.images.iter().map(|(name, image)|
+                (name.clone(), json!({"source":image.source,"id":image.id}))
+            ).collect::<BTreeMap<String, Value>>()
+        });
+        let decoded: Configuration = serde_json::from_value(wire.clone()).unwrap();
+        validate(&decoded).unwrap();
+        let mut redundant_version = wire;
+        redundant_version["schema"] = json!(1);
+        assert!(serde_json::from_value::<Configuration>(redundant_version).is_err());
         for &(name, _, _, _) in &SERVICES {
             let old = c.images[name].clone();
             c.images.get_mut(name).unwrap().source = "foreign/image:latest".into();
@@ -703,6 +826,34 @@ printf '%s:%s' "$1" "$2"
             b"public-control"
         );
         assert!(docker(&manifest, &sh, &["-c".into(), "exit 7".into()], 2).is_err());
+        let waits: Vec<Value> =
+            fs::read_to_string(dir.path().join("radix-client-parent-waits.jsonl"))
+                .unwrap()
+                .lines()
+                .map(|line| serde_json::from_str(line).unwrap())
+                .collect();
+        assert_eq!(waits.len(), 2);
+        assert_ne!(waits[0]["pid"], waits[1]["pid"]);
+        for row in &waits {
+            assert_eq!(row["parent_pid"], std::process::id());
+            assert_eq!(row["executable"], serde_json::to_value(&sh).unwrap());
+            assert_eq!(row["parent_wait_completed"], true);
+            assert_eq!(row["forced_cleanup"], false);
+            assert!(row["elapsed_monotonic_ns"].as_u64().unwrap() > 0);
+            if cfg!(target_os = "linux") {
+                assert!(row["os_start_token"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("linux-ticks:"));
+            } else {
+                assert!(row["os_start_token"].is_null());
+            }
+        }
+        assert_eq!(waits[0]["success"], true);
+        assert_eq!(waits[0]["exit_code"], 0);
+        assert_eq!(waits[0]["output_bytes"], 14);
+        assert_eq!(waits[1]["success"], false);
+        assert_eq!(waits[1]["exit_code"], 7);
     }
     #[test]
     fn bounded_client_kills_and_waits_its_original_process() {
@@ -799,12 +950,55 @@ printf '%s:%s' "$1" "$2"
         value.stop().unwrap();
         assert!(directory.path().join("removed").exists());
         assert!(directory.path().join("stopped.json").exists());
+        let intent_path = directory.path().join("stopping.json");
+        let complete = fs::read(&intent_path).unwrap();
+        let published: Value = serde_json::from_slice(&complete).unwrap();
+        assert_eq!(
+            published,
+            json!({"project":"private-fixture","parent_pid":std::process::id(),
+                "containers":{"fullnode":"ab".repeat(32)}})
+        );
+        let names = || {
+            let mut names: Vec<_> = fs::read_dir(directory.path())
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect();
+            names.sort();
+            names
+        };
+        let before_names = names();
+        assert!(publish_stop_intent(&intent_path, b"replacement must not publish").is_err());
+        assert_eq!(fs::read(&intent_path).unwrap(), complete);
+        assert_eq!(names(), before_names);
+        // A previous down removed the gateway, leaving the same fullnode.
+        let retry = tempfile::tempdir().unwrap();
+        let mut value = fake_localnet(retry.path(), false, false);
+        let first = json!({"project":"private-fixture","parent_pid":std::process::id(),
+            "containers":{"fullnode":"ab".repeat(32),"gateway_api_image":"ef".repeat(32)}});
+        let intent = serde_json::to_vec(&first).unwrap();
+        fs::write(retry.path().join("stopping.json"), &intent).unwrap();
+        value.stop().unwrap();
+        assert_eq!(
+            fs::read(retry.path().join("stopping.json")).unwrap(),
+            intent
+        );
+        assert!(retry.path().join("removed").exists());
     }
     #[test]
     fn cleanup_preserves_foreign_or_replaced_container() {
         for (foreign, changed) in [(true, false), (false, true)] {
             let directory = tempfile::tempdir().unwrap();
             let mut value = fake_localnet(directory.path(), foreign, changed);
+            assert!(value.stop().is_err());
+            assert!(!directory.path().join("removed").exists());
+            value.creation_armed = false;
+        }
+        for containers in [json!({}), json!({"fullnode":"cd".repeat(32)})] {
+            let directory = tempfile::tempdir().unwrap();
+            let mut value = fake_localnet(directory.path(), false, false);
+            fs::write(directory.path().join("stopping.json"), serde_json::to_vec(&json!({
+                "project":"private-fixture","parent_pid":std::process::id(),"containers":containers
+            })).unwrap()).unwrap();
             assert!(value.stop().is_err());
             assert!(!directory.path().join("removed").exists());
             value.creation_armed = false;

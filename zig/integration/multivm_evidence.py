@@ -276,6 +276,13 @@ def validate_docker_approval(manifest, case, approval):
     return docker
 
 
+def validate_tron_chain_authorities(chain):
+    expected={'rpcurls':'http://127.0.0.1:9090/jsonrpc','walleturls':'http://127.0.0.1:9090/wallet','walletsolidityurls':'http://127.0.0.1:9090/walletsolidity'}
+    require(set(chain)&ENDPOINT_FIELDS==set(expected),'Source TRE must have exactly JSONRPC/wallet/walletsolidity fields')
+    for field,endpoint in expected.items():require(urls(chain[field])==[endpoint],'Source TRE9090 authority/path/fallback differs')
+    require(str(chain.get('chainid'))=='3360022319'and str(chain.get('domainid'))in{'1212538670','1212538671'},'Source TRE native chain/domain differs')
+
+
 def validate_evidence_nodes(manifest, case):
     docker = validate_local_docker(manifest, case)
     nodes = case.get("evidence_nodes", {})
@@ -560,6 +567,7 @@ def effective_config(request, manifest):
         require("rpcurls" in chain, "required actual JSONRPC config absent")
         if manifest["scenario"] == "tron":
             require({"walleturls", "walletsolidityurls"} <= chain.keys(), "actual TRE wallet endpoints absent")
+            validate_tron_chain_authorities(chain)
         # Selected signers may contain the public fixture key. No key material
         # is needed in endpoint/receipt evidence, even when it is disposable.
         for field in ("signer", "identity", "ccssigner"):

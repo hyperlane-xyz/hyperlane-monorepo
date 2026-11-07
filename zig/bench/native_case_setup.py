@@ -23,7 +23,7 @@ ROOT=Path(__file__).resolve().parents[2]
 GIB=1024**3
 LIMITS={'maximum_setup_seconds':2700,'maximum_setup_RAM_bytes':8*GIB,'maximum_setup_host_growth_bytes':8*GIB,'minimum_host_free_bytes':6*GIB,'maximum_log_bytes':64*1024**2}
 PACKAGES=('typescript/tsconfig','typescript/utils','solhint-plugin','solidity','typescript/provider-sdk','typescript/aleo-sdk','typescript/cosmos-types','typescript/cosmos-sdk','typescript/radix-sdk','typescript/forking-sdk','typescript/svm-sdk','starknet','typescript/starknet-sdk','typescript/tron-sdk','typescript/deploy-sdk','typescript/sdk','typescript/http-registry-server','typescript/metrics','typescript/keyfunder','typescript/relayer','typescript/rebalancer','typescript/infra')
-SOURCE_SCOPES=(*PACKAGES,'scripts','vectors','patches','package.json','pnpm-lock.yaml','pnpm-workspace.yaml','turbo.json','.nvmrc','.registryrc','.npmrc','.pnpmfile.cjs','zig/integration','zig/bench','zig/tools')
+SOURCE_SCOPES=(*PACKAGES,'typescript/cli','scripts','vectors','patches','package.json','pnpm-lock.yaml','pnpm-workspace.yaml','turbo.json','.nvmrc','.registryrc','.npmrc','.pnpmfile.cjs','zig/integration','zig/bench','zig/tools')
 TOOL_NAMES={'anvil','cast','forge','docker','psql','ps','lsof','node','pnpm','sh','git','ldconfig','curl','jq'}
 PREDICATE_COMMIT='28b3d3222173392d274a0d0e7aef51bcc96c6a38'
 
@@ -210,14 +210,18 @@ def validate_pg_image(row, policy):
 
 def prepare_pg_image():
     import tempfile
-    parser=argparse.ArgumentParser();parser.add_argument('--prepare-pg-image',action='store_true');parser.add_argument('--prepare-starknet-image',action='store_true');parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--docker',type=Path,required=True);parser.add_argument('--docker-sha256',required=True);parser.add_argument('--config',type=Path,required=True);parser.add_argument('--deadline-ns',type=int,required=True);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--prepare-pg-image',action='store_true');parser.add_argument('--prepare-starknet-image',action='store_true');parser.add_argument('--prepare-tron-image',action='store_true');parser.add_argument('--prepare-radix-image',action='store_true');parser.add_argument('--radix-service');parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--docker',type=Path,required=True);parser.add_argument('--docker-sha256',required=True);parser.add_argument('--config',type=Path,required=True);parser.add_argument('--deadline-ns',type=int,required=True);args=parser.parse_args()
     require(pin(args.request)['sha256']==args.request_sha256 and pin(args.docker)['sha256']==args.docker_sha256,'PG setup policy/tool changed')
-    dispatch=module('pg_case_request','zig/bench/native_case_ci.py');request=dispatch.validate_request(dispatch.read_request(args.request));is_stark=args.prepare_starknet_image
+    dispatch=module('pg_case_request','zig/bench/native_case_ci.py');request=dispatch.validate_request(dispatch.read_request(args.request));is_stark=args.prepare_starknet_image;is_radix=args.prepare_radix_image;is_tron=args.prepare_tron_image
     require(not is_stark or request['scenario']=='starknet','Starknet image worker on wrong family')
-    policy=request['prerequisites']['starknet_devnet'] if is_stark else request['postgres']
-    source_tag=policy['source_image'] if is_stark else policy['image']
+    require(not is_radix or request['scenario']=='radix' and args.radix_service in request['prerequisites']['radix_images'],'Radix image worker requires one approved service')
+    require(sum([is_stark,is_radix,is_tron])<=1 and(not is_tron or request['scenario']=='tron'),'Exactly one approved image family required')
+    policy={**request['prerequisites']['radix_images'][args.radix_service],'architecture':'amd64'} if is_radix else request['prerequisites']['tron_tre']if is_tron else request['prerequisites']['starknet_devnet'] if is_stark else request['postgres']
+    source_tag=policy['source_image'] if is_stark or is_radix or is_tron else policy['image']
     def validate(row):
-        if is_stark:module('setup_starknet_assets','zig/bench/native_starknet_assets.py').image_inspect([row,row],policy)
+        if is_tron:module('setup_tron_assets','zig/bench/native_tron_assets.py').image_inspect([row,row],policy)
+        elif is_stark:module('setup_starknet_assets','zig/bench/native_starknet_assets.py').image_inspect([row,row],policy)
+        elif is_radix:module('setup_radix_assets','zig/bench/native_radix_assets.py').inspect_image([row,row],args.radix_service,request['prerequisites']['radix_images'][args.radix_service])
         else:validate_pg_image(row,policy)
     require(args.config.is_absolute() and not args.config.exists() and not args.config.is_symlink(),'Exclusive PG setup Docker config required')
     args.config.mkdir(mode=0o700);(args.config/'config.json').write_text('{}\n');calls=[]
@@ -259,7 +263,7 @@ def prepare_pg_image():
             else:validate(existing)
         final=inspect(source_tag);validate(final)
         record['actual_image']={key:final[key] for key in ('Id','Os','Architecture','RepoDigests')}
-        if is_stark:
+        if is_stark or is_radix or is_tron:
             identity=inspect(policy['image_id']);validate(identity)
             info=json.loads(call(['info','--format','{{json .}}']))
             directory=Path(info['DockerRootDir']).resolve(strict=True)
@@ -316,23 +320,33 @@ def prepare_starknet_assets():
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--execution-source-commit',required=True);parser.add_argument('--repo',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--tools',type=Path,required=True);parser.add_argument('--tools-sha256',required=True);parser.add_argument('--execute',action='store_true')
+    parser.add_argument('--hydrated-inputs',type=Path);parser.add_argument('--hydrated-inputs-sha256')
     args=parser.parse_args()
     dispatch=module('case_dispatch','zig/bench/native_case_ci.py')
     require(pin(args.request)['sha256']==args.request_sha256,'Reviewed setup request changed')
     request=dispatch.validate_request(dispatch.read_request(args.request))
-    require(request['scenario'] in {'evm','cosmosnative','cosmwasm','starknet'},'Unimplemented native setup family')
-    is_evm=request['scenario']=='evm';is_cw=request['scenario']=='cosmwasm';is_stark=request['scenario']=='starknet'
+    require(request['scenario'] in {'evm','cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite','radix','tron'},'Unimplemented native setup family')
+    is_evm=request['scenario']=='evm';is_cw=request['scenario']=='cosmwasm';is_stark=request['scenario']=='starknet';is_svm=request['scenario']in{'sealevel','sealevel-composite'};is_radix=request['scenario']=='radix';is_tron=request['scenario']=='tron'
     cw_assets=module('setup_cw_assets','zig/bench/native_cw_assets.py') if is_cw else None
     if is_cw:cw_assets.validate_policy(request['prerequisites'],request['postgres']['architecture'])
     sn_assets=module('setup_starknet_assets','zig/bench/native_starknet_assets.py') if is_stark else None
     if is_stark:sn_assets.validate_policy(request['prerequisites'],request['postgres']['architecture'])
+    rx_assets=module('setup_radix_assets','zig/bench/native_radix_assets.py') if is_radix else None
+    if is_radix:rx_assets.validate_policy(request['prerequisites'],request['postgres']['architecture'])
+    tr_assets=module('setup_tron_assets','zig/bench/native_tron_assets.py')if is_tron else None
+    tr_setup=module('setup_tron_recipe','zig/bench/native_tron_setup.py')if is_tron else None
+    if is_tron:tr_assets.validate_policy(request['prerequisites'],request['postgres']['architecture']);tr_assets.cli_source(args.repo)
     require(args.repo.is_absolute() and args.repo.resolve(strict=True)==args.repo and args.output.is_absolute() and not args.output.exists() and not args.output.is_symlink() and not args.output.is_relative_to(args.repo),'Exclusive CI setup outside canonical checkout required')
     require(pin(args.tools)['sha256']==args.tools_sha256,'Explicit setup tool receipt changed')
     tool_rows=json.loads(args.tools.read_text());require(set(tool_rows)==TOOL_NAMES,'Closed preinstalled CI tool set required')
     tools={name:Path(row['path']) for name,row in tool_rows.items()}
     for name,path in tools.items():require(pin(path)==tool_rows[name] and path.is_absolute() and os.access(path,os.X_OK),'Preinstalled tool changed/nonexecutable: '+name)
-    if is_evm:version_constants(args.repo)
-    plan={'schema':1,'root_approved_for_setup_only':True,'execution_source_commit':args.execution_source_commit,'scenario':request['scenario'],'limits':LIMITS,'commands':build_commands(args.repo,tools,args.output) if is_evm else [],'native_case_acceptance':False,'SDK_or_helper_rebuild':False}
+    if is_evm or is_tron:version_constants(args.repo)
+    original_tools=dict(tools)
+    planned_tools={**tools,'pnpm':args.output/'pnpm-native'}if is_tron else tools
+    commands=build_commands(args.repo,planned_tools,args.output)if is_evm or is_tron else []
+    if is_tron:commands=tr_setup.build_commands(args.repo,planned_tools,args.output,{'packages':PACKAGES,'commands':commands})
+    plan={'schema':1,'root_approved_for_setup_only':True,'execution_source_commit':args.execution_source_commit,'scenario':request['scenario'],'limits':LIMITS,'commands':commands,'native_case_acceptance':False,'SDK_or_helper_rebuild':False}
     if not args.execute:
         print(json.dumps(plan,indent=2));return
     require(sys.platform=='linux' and os.environ.get('GITHUB_ACTIONS')=='true' and args.repo==ROOT,'Actual setup uses this CI checkout only; no local or cross-checkout package/build execution')
@@ -342,9 +356,10 @@ def main():
     for name in ('home','tmp','cache','logs'): (args.output/name).mkdir()
     create_tool_aliases(args.output,tools)
     (args.output/'plan.json').write_text(json.dumps(plan,indent=2)+'\n')
-    before=snapshot(args.repo,tools['git']);expected_deps=soldeer_expected(args.repo) if is_evm else {}
+    before=snapshot(args.repo,tools['git']);expected_deps=soldeer_expected(args.repo)if is_evm or is_tron else {}
     env=clean_environment(args.output,tools);owner=module('case_owner','zig/bench/cold_matrix_owner.py');owner.enable_subreaper()
     deadline=time.monotonic()+LIMITS['maximum_setup_seconds'];initial_free=shutil.disk_usage(args.output).free
+    if is_tron:env.update(NPM_CONFIG_USERCONFIG='/dev/null',NPM_CONFIG_GLOBALCONFIG='/dev/null',npm_config_userconfig='/dev/null',npm_config_globalconfig='/dev/null')
     checks=[];failure=None;hpack=None;contracts={};registry={};final_tools={};samples=[]
     result={'schema':1,'passed':False,'execution_source_commit':args.execution_source_commit,'scenario':request['scenario'],'source_before':before,'source_after':{},'checks':checks,'tools':final_tools,'contract_artifacts':contracts,'hpack':None,'registry':registry,'explicit_environment':{}}
     def guard():
@@ -383,11 +398,24 @@ def main():
     try:
         head=run('execution-head',[str(tools['git']),'rev-parse','HEAD'])
         require(head.read_text().strip()==args.execution_source_commit,'Execution checkout commit differs')
-        for name,argv,expected in ([('node-version',[str(tools['node']),'--version'],'v26.12.1'),('pnpm-version',[str(tools['pnpm']),'--version'],'12.3.0')] if is_evm else []):require(run(name,argv).read_text().strip()==expected,'Pinned version differs: '+name)
-        for name in (('forge','anvil','cast') if is_evm else ('cast',)):require(re.search(r'(?<!\d)1\.5\.0(?!\d)',run(name+'-version',[str(tools[name]),'--version']).read_text()),'Pinned Foundryv1.5.0 differs')
-        run('approved-pg-image-prerequisite',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-pg-image','--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/'docker-config'),'--deadline-ns',str(int(deadline*1e9))])
+        if is_tron:
+            policy=tr_setup.PNPM_RELEASE[request['postgres']['architecture']]
+            archive=args.output/'pnpm-native.tgz'
+            run('download-exact-native-pnpm',[str(tools['curl']),'--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--max-time',str(max(1,int(deadline-time.monotonic()))),'--max-filesize',str(policy['archive_bytes']),'--output',str(archive),policy['source_url']])
+            run('admit-exact-native-pnpm',[sys.executable,'-I','-B',str(args.repo/'zig/bench/native_tron_setup.py'),'--admit-pnpm','--archive',str(archive),'--architecture',request['postgres']['architecture'],'--output',str(args.output/'pnpm-native')])
+            require(pin(args.output/'pnpm-native')['sha256']==policy['sha256'],'Admitted Linux pnpm identity differs')
+            tools['pnpm']=args.output/'pnpm-native';alias=args.output/'bin/pnpm';require(alias.is_symlink()and alias.resolve()==original_tools['pnpm'],'Original owned manager alias changed');alias.unlink();alias.symlink_to(tools['pnpm']);verify_tool_aliases(args.output,tools)
+        for name,argv,expected in ([('node-version',[str(tools['node']),'--version'],'v26.12.1'),('pnpm-version',[str(tools['pnpm']),'--version'],'12.3.0')] if is_evm or is_tron else []):require(run(name,argv).read_text().strip()==expected,'Pinned version differs: '+name)
+        for name in (('forge','anvil','cast') if is_evm or is_tron else ('cast',)):require(re.search(r'(?<!\d)1\.5\.0(?!\d)',run(name+'-version',[str(tools[name]),'--version']).read_text()),'Pinned Foundryv1.5.0 differs')
+        if request['scenario']!='sealevel-composite':
+            run('approved-pg-image-prerequisite',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-pg-image','--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/'docker-config'),'--deadline-ns',str(int(deadline*1e9))])
         image_log=None
         if is_stark:image_log=run('approved-starknet-image-prerequisite',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-starknet-image','--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/'starknet-docker-config'),'--deadline-ns',str(int(deadline*1e9))])
+        radix_image_logs={}
+        if is_radix:
+            for service in sorted(rx_assets.SERVICES):
+                radix_image_logs[service]=run('approved-radix-image-'+service,[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-radix-image','--radix-service',service,'--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/('radix-docker-config-'+service)),'--deadline-ns',str(int(deadline*1e9))])
+        if is_tron:image_log=run('approved-tron-image-prerequisite',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-tron-image','--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/'tron-docker-config'),'--deadline-ns',str(int(deadline*1e9))])
         for row in plan['commands']:
             run(row['name'],row['argv'],Path(row['cwd']),row['extra_environment'])
             if row['name']=='locked-soldeer':
@@ -405,6 +433,31 @@ def main():
             esbuild=Path(run('resolve-esbuild-only',[str(tools['node']),'-e',resolver]).read_text().strip()).resolve(strict=True)
             final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof','anvil','node','sh')});final_tools.update({'pnpm_launcher':pin(tools['pnpm']),'pnpm_native':pin(tools['pnpm']),'esbuild':pin(esbuild)})
             contracts.update(output_files(args.repo))
+        elif is_svm:
+            require(args.hydrated_inputs is not None and pin(args.hydrated_inputs)['sha256']==args.hydrated_inputs_sha256,'Exact hydrated SVM context required')
+            context=json.loads(args.hydrated_inputs.read_text());require(context['scenario']==request['scenario']and context['execution_source_commit']==args.execution_source_commit and context['request']==pin(args.request),'SVM context/source/request differs')
+            value=context['svm_prerequisites'];module('setup_svm_case','zig/bench/native_svm_case.py').check_inspection(value,request,args.repo)
+            result['svm_assets']=value;final_tools.update({name:pin(tools[name])for name in ('cast','docker','psql','ps','lsof')});registry.update({'path':None,'commit':None})
+        elif is_radix:
+            files={}
+            for name,expected in rx_assets.CONTRACTS.items():
+                path=args.output/name
+                run('download-radix-'+name,[str(tools['curl']),'--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--tlsv1.2','--location','--fail','--silent','--show-error','--max-time','60','--max-filesize',str(expected['bytes']),'--output',str(path),rx_assets.DOWNLOAD+name])
+                require({k:pin(path)[k] for k in ('bytes','sha256')}==expected,'Radix public contract download differs')
+                files[name]=pin(path)
+            metadata=args.repo/'zig/integration/fixtures/radix-release-v1.0.0.json.gz'
+            result['radix_assets']={'bundle':rx_assets.materialize_contracts(pin(metadata),files,args.output/'radix-contracts'),'images':{name:pin(path) for name,path in radix_image_logs.items()}}
+            final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof')});registry.update({'path':None,'commit':None})
+        elif is_tron:
+            # Compiler parser/export resolution only; never evaluate CLI/SDK modules.
+            resolver="const{createRequire}=require('node:module');const{resolve}=require('node:path');console.log(createRequire(resolve('typescript/cli/package.json')).resolve('typescript'));"
+            parser=Path(run('resolve-CLI-compiler-parser',[str(tools['node']),'-e',resolver]).read_text().strip()).resolve(strict=True)
+            audit=args.output/'tron-static-imports.json'
+            run('tron-full-static-import-resolution',[str(tools['node']),'--experimental-import-meta-resolve',str(args.repo/'zig/bench/native_tron_cli_audit.mjs'),str(args.repo),str(parser),str(audit)])
+            log=run('tron-full-package-graph',[sys.executable,'-I','-B',str(args.repo/'zig/bench/native_tron_setup.py'),'--publish-graph','--architecture',request['postgres']['architecture'],'--repo',str(args.repo),'--audit',str(audit),'--image-readback',str(image_log),'--output',str(args.output/'tron-package-graph.json')])
+            result['tron_assets']=json.loads(log.read_text());result['tron_assets']['pnpm_archive']=pin(args.output/'pnpm-native.tgz')
+            contracts.update(output_files(args.repo));registry.update({'path':None,'commit':None})
+            final_tools.update({name:pin(tools[name])for name in('cast','docker','psql','ps','lsof','node','sh')});final_tools.update(pnpm_launcher=pin(tools['pnpm']),pnpm_native=pin(tools['pnpm']))
         elif is_stark:
             policy=request['prerequisites']['native_cli']
             for name,url,size in [('starkli.tar.gz',policy['source_url'],policy['archive']['bytes']),(sn_assets.CONTRACT_NAME,sn_assets.CONTRACT_URL,sn_assets.CONTRACT_BYTES),(sn_assets.CHECKSUM_NAME,sn_assets.CHECKSUM_URL,96)]:
@@ -446,7 +499,7 @@ def main():
         run('system-library-versions',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--probe-system-libraries','--ldconfig',str(tools['ldconfig']),'--ldconfig-sha256',pin(tools['ldconfig'])['sha256'],'--versions'])
         run('hpack-exact-wheel',[sys.executable,'-I','-B',str(args.repo/'zig/tools/h2_dependency.py'),'--destination',str(args.output/'hpack'),'--download'])
         hpack=pin(args.output/'hpack/evidence/descriptor.json');result['hpack']=hpack
-        result['explicit_environment']={'PATH':env['PATH'],**({'REGISTRY_URI':str(registry_path)} if is_evm else ({'E2E_OSMOSIS_CLI_PATH':str(args.output/'osmosisd')} if is_cw else ({'E2E_STARKLI_CLI_PATH':str(args.output/'starknet-assets/starkli')} if is_stark else {'E2E_HYPD_PATH':str(args.output/'hypd')}))),**{key:row['path'] for key,row in system_libraries.items()}}
+        result['explicit_environment']={'PATH':env['PATH'],**({'REGISTRY_URI':str(registry_path)} if is_evm else ({'E2E_OSMOSIS_CLI_PATH':str(args.output/'osmosisd')} if is_cw else ({'E2E_STARKLI_CLI_PATH':str(args.output/'starknet-assets/starkli')} if is_stark else ({} if is_svm or is_radix or is_tron else {'E2E_HYPD_PATH':str(args.output/'hypd')})))),**{key:row['path'] for key,row in system_libraries.items()}}
         result['source_after']=snapshot(args.repo,tools['git']);require(result['source_after']==before,'Final prerequisite Source changed')
         require(pin(args.request)['sha256']==args.request_sha256 and pin(args.tools)['sha256']==args.tools_sha256,'Setup policy/tools changed');guard();result['passed']=True
     except BaseException as error:failure=error
@@ -454,7 +507,8 @@ def main():
         try:
             result['source_after']=snapshot(args.repo,tools['git'])
             require(result['source_after']==before,'Postflight tracked prerequisite source changed')
-            for name,path in tools.items():require(pin(path)==tool_rows[name],'Postflight setup tool changed: '+name)
+            for name,path in original_tools.items():require(pin(path)==tool_rows[name],'Postflight setup tool changed: '+name)
+            if is_tron:require(pin(tools['pnpm'])['sha256']==tr_setup.PNPM_RELEASE[request['postgres']['architecture']]['sha256'],'Postflight native manager changed')
             verify_tool_aliases(args.output,tools)
             guard()
         except BaseException as postflight_error:
@@ -470,7 +524,7 @@ if __name__=='__main__':
     def interrupted(sig,frame):raise RuntimeError('Prerequisite setup interrupted: '+str(sig))
     for sig in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):signal.signal(sig,interrupted)
     if '--probe-system-libraries' in sys.argv:library_probe()
-    elif '--prepare-pg-image' in sys.argv or '--prepare-starknet-image' in sys.argv:prepare_pg_image()
+    elif '--prepare-pg-image' in sys.argv or '--prepare-starknet-image' in sys.argv or '--prepare-tron-image' in sys.argv or '--prepare-radix-image' in sys.argv:prepare_pg_image()
     elif '--prepare-starknet-assets' in sys.argv:prepare_starknet_assets()
     elif '--prepare-cw-assets' in sys.argv:prepare_cw_assets()
     else:main()

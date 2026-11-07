@@ -70,6 +70,46 @@ def tron_transaction_id(value):
     return "0x" + hashlib.sha256(raw_data).hexdigest()
 
 
+def successful_radix_rest_exchange(field,endpoint,request,response):
+    from multivm_radix_observations import successful_rest_exchange
+    return successful_rest_exchange(field,endpoint,request,response)
+
+def successful_tron_rest_exchange(field,endpoint,request,response):
+    """Only typed actual read-only TRE wallet/solidity replies advance clocks.
+
+    An empty lookup, uppercase Error, failed contract, mutation/broadcast or
+    unknown REST shape contributes no success; the native verifier stays strict.
+    """
+    roots={'walleturls':'http://127.0.0.1:9090/wallet','walletsolidityurls':'http://127.0.0.1:9090/walletsolidity'}
+    if field not in roots or endpoint!=roots[field]or not isinstance(request,dict)or not isinstance(response,dict)or not response:return False
+    if any(key.lower()=='error'or key in{'code','message'}for key in response):return False
+    line=request.get('start','').split(' ')
+    if len(line)!=3 or line[0]!='POST':return False
+    prefix='/wallet/'if field=='walleturls'else'/walletsolidity/'
+    path=line[1]
+    if not path.startswith(prefix)or '/'in path[len(prefix):]or '?'in path or '#'in path:return False
+    method=path[len(prefix):];body=request.get('json')
+    if not isinstance(body,dict):return False
+    def hex_value(value,size=None):return isinstance(value,str)and bool(value)and len(value)%2==0 and re.fullmatch('[0-9a-fA-F]+',value)is not None and(size is None or len(value)==size)
+    def integer(value):return type(value)is int and 0<=value<2**63
+    if method in{'getnowblock','getblockbynum'}:
+        raw=response.get('block_header',{}).get('raw_data',{})if isinstance(response.get('block_header'),dict)else{}
+        if not isinstance(raw,dict)or not hex_value(response.get('blockID'),64)or not integer(raw.get('number'))or not integer(raw.get('timestamp')):return False
+        return body=={}if method=='getnowblock'else integer(body.get('num'))and body['num']==raw['number']
+    if method=='triggerconstantcontract':
+        result=response.get('result');values=response.get('constant_result')
+        if result is not None and(not isinstance(result,dict)or any(key in result for key in('code','message','Error','error'))or result.get('result',True)is not True):return False
+        return body.get('visible')is False and hex_value(body.get('owner_address'),42)and body['owner_address'].startswith('41')and hex_value(body.get('contract_address'),42)and body['contract_address'].startswith('41')and hex_value(body.get('data'))and isinstance(values,list)and bool(values)and all(hex_value(v)for v in values)
+    if method=='gettransactioninfobyid':
+        receipt=response.get('receipt')
+        return hex_value(body.get('value'),64)and isinstance(response.get('id'),str)and response['id'].lower()==body['value'].lower()and integer(response.get('blockNumber'))and integer(response.get('fee'))and isinstance(receipt,dict)and bool(set(receipt)&{'result','energy_usage_total','energy_usage','origin_energy_usage','energy_fee','net_fee','net_usage'})and all(integer(v)for k,v in receipt.items()if k in{'energy_usage_total','energy_usage','origin_energy_usage','energy_fee','net_fee','net_usage'})and receipt.get('result','SUCCESS')=='SUCCESS'and response.get('result','SUCESS')=='SUCESS'
+    if method=='gettransactionbyid':
+        wire=response.get('raw_data_hex');signatures=response.get('signature');returns=response.get('ret')
+        return hex_value(body.get('value'),64)and isinstance(response.get('txID'),str)and response['txID'].lower()==body['value'].lower()and hex_value(wire)and len(wire)<=4*1024**2 and hashlib.sha256(bytes.fromhex(wire)).hexdigest()==body['value'].lower()and isinstance(signatures,list)and len(signatures)==1 and hex_value(signatures[0],130)and isinstance(returns,list)and bool(returns)and all(isinstance(r,dict)and r.get('contractRet')=='SUCCESS'for r in returns)
+    if method=='getaccount':return body.get('visible',False)is False and hex_value(body.get('address'),42)and body['address'].startswith('41')and isinstance(response.get('address'),str)and response['address'].lower()==body['address'].lower()and integer(response.get('balance'))
+    return False
+
+
 def successful_json_rpc_exchange(request, response):
     """A successful response must belong to this exact physical request set."""
     batch = isinstance(request, list)
@@ -795,7 +835,7 @@ class Session:
             # all-error, foreign-ID and malformed responses are never credit.
             scenario = self.manifest.get('scenario')
             json_rpc = scenario in {'evm','cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite'} or isinstance(request['json'], list) or isinstance(request['json'], dict) and ('jsonrpc' in request['json'] or 'method' in request['json'])
-            success = status == 200 and (successful_json_rpc_exchange(request['json'], result) if json_rpc else scenario in {'radix','aleo','tron'} and (not isinstance(result, dict) or 'error' not in result))
+            success = status == 200 and (successful_json_rpc_exchange(request['json'],result)if json_rpc else successful_tron_rest_exchange(field,endpoint,request,result)if scenario=='tron'else successful_radix_rest_exchange(field,endpoint,request,result)if scenario=='radix'else scenario=='aleo'and(not isinstance(result,dict)or'error'not in result))
             if success:
                 start = request['requested_monotonic_ns']
                 require(type(start) is int and type(now_ns) is int and 0 < start <= now_ns, 'invalid actual proxy request/response clocks')

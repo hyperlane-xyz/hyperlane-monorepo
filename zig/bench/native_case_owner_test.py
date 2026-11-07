@@ -248,7 +248,7 @@ class CaseOwnerTests(unittest.TestCase):
                   'postgres':[{'id':identity,'verified':{'canonical_dispatch_rows':1,'canonical_delivery_rows':1,'payment_rows':1,'payment':2,'gas_amount':3,'leaf_indices':[0]},'raw_sql':'DO-NOT-EXPORT-SQL'}],
                   'family_native_row_proofs':[{'id':identity,'native_identity':tx,'independently_verified_signature':True,'retained_intent_fingerprint_verified':True,'signature':'DO-NOT-EXPORT-SIGNATURE'}],
                   'checkpoint_proofs':[{'metadata':{'git_sha':'a'*40,'allows_public_rpcs':False,'key':'DO-NOT-EXPORT-CHECKPOINT-KEY'},'verified_checkpoint_objects':[{'index':0,'root':'0x'+'99'*32,'message_id':identity,'signer':'0x'+'aa'*20,'signature':'DO-NOT-EXPORT-CHECKPOINT-SIGNATURE'}],'published_bytes':[]}],
-                  'parent_wait_receipts':[{'role':'relayer','pid':1,'parent_pid':9,'os_start_token':'linux-ticks:1','purpose':'final','parent_wait_completed':True,'already_exited':False,'forced_kill':False,'success':True,'exit_code':0,'signal':None,'env':'DO-NOT-EXPORT-PARENT-ENV'}],
+                  'parent_wait_receipts':[{'role':'relayer','pid':99,'parent_pid':98,'os_start_token':'linux-ticks:123','purpose':'final','parent_wait_completed':True,'already_exited':False,'forced_kill':False,'success':True,'exit_code':0,'signal':None,'planned_exit':False,'executable':{'path':'/public-role','bytes':1,'sha256':'77'*32,'env':'DO-NOT-EXPORT-CHILD-ENV'},'env':'DO-NOT-EXPORT-PARENT-ENV'}],
                   'observer_policy':{'maximum_successful_domain_sample_gap_ns':10*10**9,'private_env':'DO-NOT-EXPORT-POLICY-ENV'},
                   'same_db_restart_observation':restart}
         restart.update(schema=2,clock_scope=api.RESTART_CLOCK_SCOPE,checker_deadline_scope=api.RESTART_DEADLINE_SCOPE,full_baseline_completed_monotonic_ns=start-50,checker_first_entry_monotonic_ns=start-10**9,checker_deadline_monotonic_ns=start+119*10**9,checker_result_monotonic_ns=start+30*10**9+10,full_baseline_phases={name:{'started_monotonic_ns':start-100+i*10,'finished_monotonic_ns':start-95+i*10}for i,name in enumerate(['restart_approval','restart_canonical','restart_identity','restart_checkpoints'])},readiness_targets=[{'role':'relayer','port':10001,'chains':['test2']},{'role':'validator','port':10002,'chains':['test1']}])
@@ -276,6 +276,28 @@ class CaseOwnerTests(unittest.TestCase):
         self.assertEqual(value['postgres'][0]['verified']['canonical_delivery_rows'],1)
         self.assertEqual(value['checkpoint_proofs'][0]['verified_checkpoint_objects'][0]['signer'],'0x'+'aa'*20)
         self.assertEqual(value['same_db_restart_observation']['elapsed_live_ns'],30*10**9)
+        expected={k:v for k,v in raw['parent_wait_receipts'][0].items()if k not in {'env','executable'}}
+        expected['executable']={k:raw['parent_wait_receipts'][0]['executable'][k]for k in ('path','bytes','sha256')}
+        self.assertEqual(value['parent_wait_receipts'],[expected])
+
+    def test_public_parent_wait_projection_rejects_nested_or_unbounded_values(self):
+        for key,value in [('role',{'raw':'PRIVATE'}),('pid',True),('parent_pid',0),('os_start_token',{'env':'PRIVATE'}),('os_start_token','x'*4097),('purpose',['PRIVATE']),('success',{'raw':'PRIVATE'}),('exit_code',{'env':'PRIVATE'}),('signal',True),('planned_exit',{'wire':'PRIVATE'}),('executable',{'path':{'env':'PRIVATE'},'bytes':1,'sha256':'ab'*32})]:
+            raw=self.public_snapshot_fixture();raw['parent_wait_receipts'][0][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):api.public_native_snapshot(raw)
+
+    def test_public_acceptor_rejects_missing_bad_or_crossed_actual_role_waits(self):
+        for change in ['missing','forced','not_waited','failed','foreign_child','duplicate']:
+            case,manifest,plan=self.public_record_files();path=case/'evidence/verified-final-native.jsonl';raw=json.loads(path.read_text());wait=raw['parent_wait_receipts'][0]
+            if change=='missing':raw.pop('parent_wait_receipts')
+            elif change=='forced':wait['forced_kill']=True
+            elif change=='not_waited':wait['parent_wait_completed']=False
+            elif change=='failed':wait.update(success=False,exit_code=1)
+            elif change=='foreign_child':wait['pid']=100
+            else:raw['parent_wait_receipts'].append(copy.deepcopy(wait))
+            path.write_text(json.dumps(raw)+'\n')
+            with self.subTest(change=change),self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,self.root/(change+'.json'),api.pin(path))
+            import shutil
+            shutil.rmtree(case)
 
     def test_hash_matched_public_proof_is_deterministic_and_no_implicit_acceptance(self):
         case,manifest,plan=self.public_record_files();final=api.pin(case/'evidence/verified-final-native.jsonl')

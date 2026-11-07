@@ -26,7 +26,7 @@ LABEL_ROOT = 'io.hyperlane.ziggy.case-root'
 LABEL_PID = 'io.hyperlane.ziggy.harness-pid'
 LABEL_TOKEN = 'io.hyperlane.ziggy.run-token'
 GENERATED = ('typescript/infra/config/environments/test/ism/addresses.json', 'typescript/infra/config/environments/test/ism/verification.json', 'typescript/infra/config/environments/test/core/addresses.json', 'typescript/infra/config/environments/test/core/verification.json', 'rust/main/config/testnet_config.json', 'rust/main/app-contexts/testnet_config.json')
-FILTERS = {'evm': [], 'cosmosnative': ['--exact', 'cosmosnative::test::test_run', '--nocapture', '--test-threads=1'], 'cosmwasm': ['--exact', 'cosmos::test::test_run', '--nocapture', '--test-threads=1'], 'starknet': ['--exact', 'starknet::test::test_run', '--nocapture', '--test-threads=1']}
+FILTERS = {'tron':['--exact','tron::test::test_run','--nocapture','--test-threads=1'],'radix':['--exact','radix::test::test_run','--nocapture','--test-threads=1'],'sealevel-composite':['--exact','sealevel::warp_route_composite_ism::test::test_warp_route_custom_composite_ism_process','--nocapture','--test-threads=1'],'sealevel':['--exact','sealevel::test::test_run','--nocapture','--test-threads=1'],'evm': [], 'cosmosnative': ['--exact', 'cosmosnative::test::test_run', '--nocapture', '--test-threads=1'], 'cosmwasm': ['--exact', 'cosmos::test::test_run', '--nocapture', '--test-threads=1'], 'starknet': ['--exact', 'starknet::test::test_run', '--nocapture', '--test-threads=1']}
 
 
 def require(value, message):
@@ -50,7 +50,7 @@ def load_plan(path, expected_sha):
     require(pin(path)['sha256'] == expected_sha, 'Approved launch plan changed')
     plan = json.loads(path.read_text())
     require(type(plan.get('schema')) is int and plan['schema'] == 1 and plan.get('root_approved') is True and plan.get('scenario') in FILTERS, 'Approved initial native family plan required')
-    require(all(type(plan.get(k)) is int and plan[k] == v for k,v in {'maximum_owned_RAM_bytes':8*GIB,'maximum_case_allocated_bytes':4*GIB,'minimum_host_free_bytes':6*GIB,'maximum_wall_seconds':3600,'confirm_seconds':600,'grace_seconds':30,'clean_fixture_parent_waits_required':3}.items()), 'Native lifecycle/resource policy changed')
+    require(all(type(plan.get(k)) is int and plan[k] == v for k,v in {'maximum_owned_RAM_bytes':8*GIB,'maximum_case_allocated_bytes':4*GIB,'minimum_host_free_bytes':6*GIB,'maximum_wall_seconds':3600,'confirm_seconds':600,'grace_seconds':30,'clean_fixture_parent_waits_required':1 if plan['scenario']in{'sealevel-composite','radix'}else 2 if plan['scenario']in{'sealevel','tron'}else 3}.items()), 'Native lifecycle/resource policy changed')
     manifest_path = checked(plan['manifestArtifact'])
     manifest = json.loads(manifest_path.read_text())
     require(manifest['scenario'] == plan['scenario'] and manifest['implementation'] == 'zig', 'Wrong native scenario/runtime')
@@ -65,17 +65,35 @@ def load_plan(path, expected_sha):
     checked(plan['lsofArtifact'], True)
     require(isinstance(plan['required_inputs'], list) and plan['required_inputs'], 'Pinned execution closure required')
     for row in plan['required_inputs']: checked(row)
-    for code in [Path(__file__).resolve(),Path(owner.__file__).resolve(),*([Path(__file__).with_name('native_starknet_custody.py').resolve()] if plan['scenario']=='starknet' else [])]:
+    for code in [Path(__file__).resolve(),Path(owner.__file__).resolve(),*([Path(__file__).with_name('native_starknet_custody.py').resolve()] if plan['scenario']in{'starknet','radix'} else []),*([Path(__file__).with_name(n).resolve() for n in ['native_radix_custody.py','native_radix_volume.py','native_radix_assets.py','native_radix_case.py','native_radix_reference.py']]if plan['scenario']=='radix'else[]),*([Path(__file__).with_name(n).resolve()for n in ['native_svm_case.py','native_svm_assets.py']]if plan['scenario']in{'sealevel','sealevel-composite'}else[]),*([Path(__file__).with_name(n).resolve()for n in ['native_tron_custody.py','native_tron_assets.py']]if plan['scenario']=='tron'else[])]:
         require(pin(code) in plan['required_inputs'],'Exact owner/shared ownership Source closure missing')
     for row in approval['python_modules'].values(): checked(row)
     env = plan['explicit_environment']
     require(isinstance(env, dict) and all(isinstance(k,str) and isinstance(v,str) for k,v in env.items()) and not any(k in env for k in ['GH_TOKEN','GITHUB_TOKEN','ACTIONS_RUNTIME_TOKEN','DOCKER_CONTEXT','DOCKER_AUTH_CONFIG','PYTHONPATH','PYTHONHOME']), 'Ambient credentials/context cannot enter case environment')
-    require(inputs['local_docker'] == approval['local_docker'] and env.get('DOCKER_HOST') == inputs['local_docker']['host'] and env.get('DOCKER_CONFIG') == str(case/'docker-config') and inputs['local_docker']['config_dir'] == str(case/'docker-config'), 'Exact independent Docker capability required')
+    if plan['scenario']=='sealevel-composite':require(all(k not in inputs and k not in approval for k in ['postgres','local_docker'])and all(k not in env for k in ['DOCKER_HOST','DOCKER_CONFIG']),'Composite Source has no PG/scraper/Docker authority')
+    else:
+        require(inputs['local_docker'] == approval['local_docker'] and env.get('DOCKER_HOST') == inputs['local_docker']['host'] and env.get('DOCKER_CONFIG') == str(case/'docker-config') and inputs['local_docker']['config_dir'] == str(case/'docker-config'), 'Exact independent Docker capability required')
+    if plan['scenario']=='tron':
+        require(approval.get('tron_tre')==inputs.get('tron_tre')and approval.get('tron_cli')==inputs.get('tron_cli'),'Exact approved owned TRE/CLI custody required')
+        copied=tron_module('native_tron_assets').read_materialized(inputs['tron_cli']);require(copied['root']==str(case/'tron-cli')and copied['entrypoint']==inputs['tron_tre']['cli_entrypoint'],'Approved CLI copy/entrypoint differs')
+        pnpm=tron_module('native_tron_setup').PNPM_RELEASE[inputs['tron_tre']['architecture']];require(inputs['tron_tre']['pnpm']['sha256']==pnpm['sha256']and inputs['tron_tre']['pnpm']['bytes']==pnpm['bytes'],'Only exact official native Linux pnpm allowed');checked(inputs['tron_tre']['pnpm'],True)
     return plan, manifest, inputs, approval
+
+
+def svm_case():
+    spec=importlib.util.spec_from_file_location('owned_svm_case',Path(__file__).with_name('native_svm_case.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+def tron_module(name):
+    spec=importlib.util.spec_from_file_location(name,Path(__file__).with_name(name+'.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 
 def starknet_custody():
     spec=importlib.util.spec_from_file_location('native_starknet_custody',Path(__file__).with_name('native_starknet_custody.py'))
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+
+def radix_custody():
+    spec=importlib.util.spec_from_file_location('native_radix_custody',Path(__file__).with_name('native_radix_custody.py'))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 
@@ -149,11 +167,17 @@ def kernel_tmpfs(text):
 
 def fixture_waits(path, scenario, parent):
     rows = [json.loads(line) for line in checked(pin(path)).read_text().splitlines()]
+    if scenario=='tron':
+        require(len(rows)==2 and len({r.get('pid')for r in rows})==2 and all(type(r.get('pid'))is int and r['pid']>0 and r.get('role')=='fixture-docker'and r.get('parent_pid')==parent and r.get('parent_wait_completed')is True and r.get('forced_kill')is False and r.get('purpose')=='fixture_teardown'and r.get('already_exited')is False and r.get('success')is True and type(r.get('exit_code'))is int and r['exit_code']==0 and r.get('signal')is None for r in rows),'TRE+PG require two actual clean foreground Child waits; no Kathy/anvil credit')
+        require({r.get('planned_container_stop',{}).get('kind')for r in rows}=={'tron','postgres'},'Separate TRE and PG stop receipts required');return rows
     roles = ['fixture-anvil','fixture-kathy','fixture-postgres'] if scenario=='evm' else ['fixture-docker', 'fixture-hypd' if scenario=='cosmosnative' else 'fixture-osmosisd', 'fixture-hypd' if scenario=='cosmosnative' else 'fixture-osmosisd']
+    if scenario=='radix':roles=['fixture-docker']
+    if scenario=='sealevel':roles=['fixture-docker','fixture-svm-SOL']
+    if scenario=='sealevel-composite':roles=['fixture-svm-SOL']
     if scenario=='starknet':
         roles=['fixture-docker']*3
         require(all(r.get('success') is True and r.get('exit_code')==0 and r.get('signal') is None for r in rows),'All three Source container Child waits must be actual clean success')
-    require(len(rows)==3 and all(type(r.get('pid')) is int and r['pid']>0 for r in rows) and len({r['pid'] for r in rows})==3 and sorted(r['role'] for r in rows)==sorted(roles), 'Actual fixture child wait set differs')
+    require(len(rows)==len(roles) and all(type(r.get('pid')) is int and r['pid']>0 for r in rows) and len({r['pid'] for r in rows})==len(roles) and sorted(r['role'] for r in rows)==sorted(roles), 'Actual fixture child wait set differs')
     require(all(r['parent_pid']==parent and r['parent_wait_completed'] is True and r['forced_kill'] is False and r['purpose']=='fixture_teardown' and (r['already_exited'] is False or scenario=='evm' and r['role']=='fixture-kathy') for r in rows), 'Missing/forced/early fixture child wait')
     return rows
 
@@ -200,6 +224,7 @@ class GeneratedSlots:
 
 
 def native_listener_proof(scenario, manifest, case_inputs, case, lsof, observations):
+    if scenario in{'sealevel','sealevel-composite'}:return svm_case().listener_proof(manifest,case_inputs,case,lsof,observations,owner,subprocess)
     expected = {'evm': [{8545}], 'cosmosnative': [{26659,26660},{26665,26666}], 'cosmwasm': [{26602,26603},{26612,26613}]}[scenario]
     artifact = case_inputs['fixture_tools']['anvil'] if scenario=='evm' else manifest['tool_overrides']['E2E_HYPD_PATH' if scenario=='cosmosnative' else 'E2E_OSMOSIS_CLI_PATH']
     executable = checked(artifact,True)
@@ -257,7 +282,7 @@ def public_restart_admin(rows):
 
 def public_native_snapshot(snapshot):
     """Explicit public evidence projection; never serialize arbitrary nested DTOs."""
-    require(isinstance(snapshot,dict) and snapshot.get('scenario') in {'evm','cosmosnative','cosmwasm','starknet'}, 'Public projection family not implemented')
+    require(isinstance(snapshot,dict) and snapshot.get('scenario') in {'evm','cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite','radix','tron'}, 'Public projection family not implemented')
     def fields(value,names):
         require(isinstance(value,dict),'Public proof object required')
         return {k:value[k] for k in names if k in value}
@@ -300,7 +325,14 @@ def public_native_snapshot(snapshot):
             if 'batch' in quote:row['starknet']['batch']=None
             if quote.get('batch') is not None:
                 row['starknet']['batch']={'version':quote['batch']['version'],'members':[fields(v,('operation_id','origin','origin_hook','generation','source_intent_digest','gas_limit','estimated_cost')) for v in quote['batch']['members']]}
-        native.append({'id':value['id'],'operation':row})
+        projected={'id':value['id'],'operation':row}
+        if snapshot['scenario']=='tron':
+            proof=value['actual_native_crypto'];crypto=fields(proof,('identity','signer','target','actual_native_fee_sun','recorded_gas_used','recorded_tokens_used','context','expected_context_checked'))
+            require(set(crypto)=={'identity','signer','target','actual_native_fee_sun','recorded_gas_used','recorded_tokens_used','context','expected_context_checked'}and re.fullmatch(r'0x[0-9a-f]{64}',crypto['identity'])and all(re.fullmatch(r'0x[0-9a-f]{40}',crypto[k])for k in('signer','target'))and re.fullmatch(r'(?:0x)?[0-9a-f]{64}',crypto['context'])and type(crypto['expected_context_checked'])is bool,'Closed public native Tron signature/authority DTO required')
+            require(all(type(crypto[k])is int and 0<crypto[k]<2**256 for k in ('actual_native_fee_sun','recorded_gas_used','recorded_tokens_used')),'Actual TRE fee/energy expenditure required')
+            crypto['sdk_signed_wire_fingerprint']=fingerprint(proof['actual_sdk_signed_wire']);crypto['configuration_authority_independently_recomputed']=False
+            projected['actual_Tron_native_crypto']=crypto
+        native.append(projected)
     canonical=[]
     for value in snapshot.get('stopped_canonical_Rust_readback',[]):
         verified=[]
@@ -310,7 +342,7 @@ def public_native_snapshot(snapshot):
         canonical.append({'origin':value['origin'],'reader':raw['reader'],'origin_domain':raw['origin_domain'],'origin_nonce_count':raw['origin_nonce_count'],'verified_canonical_messages':verified,'actual_Rust_output_canonical_JSON_sha256':hashlib.sha256(json.dumps(raw,sort_keys=True,separators=(',',':')).encode()).hexdigest()})
     sql=[]
     for value in snapshot.get('postgres',[]):
-        row=fields(value,('id','origin','destination','payments_supported'))
+        row=fields(value,('id','origin','destination','payments_supported','dispatch_rows','separate_payment_rows','delivery_rows'))
         for key in ('verified','proof'):
             if isinstance(value.get(key),dict):row[key]=fields(value[key],('canonical_dispatch_rows','canonical_delivery_rows','payment_rows','payment','gas_amount','leaf_indices'))
             elif type(value.get(key)) is bool:row[key]=value[key]
@@ -330,7 +362,9 @@ def public_native_snapshot(snapshot):
         sql.append(row)
     crypto=[]
     for value in snapshot.get('family_native_row_proofs',[]):
-        row=fields(value,('id','native_identity','independently_verified_signature','independent_Ed25519_verified','signer','sequence','account_number','signed_upfront_fee','retained_intent_fingerprint_verified','identity','account','public_key','account_nonce','allocated_fee','whole_fee','rounding_dust','context','expected_context_checked','configuration_authority_verified'))
+        row=fields(value,('id','native_identity','independently_verified_signature','independent_Ed25519_verified','signer','sequence','account_number','signed_upfront_fee','retained_intent_fingerprint_verified','identity','account','public_key','account_nonce','canonical_slot','fee','compute_units','initial_context','allocated_fee','whole_fee','rounding_dust','context','expected_context_checked','configuration_authority_verified'))
+        if 'actual_composite'in value:
+            proof=value['actual_composite'];row['actual_composite']=None if proof is None else fields(proof,('aggregation_threshold','branches','rate_limit_capacity','fallback'))
         if 'configured_price_expenditure' in value:row['configured_price_expenditure']=money(value['configured_price_expenditure'])
         if value.get('native_signed_wire') is not None:row['native_signed_wire_fingerprint']=fingerprint(value['native_signed_wire'])
         crypto.append(row)
@@ -353,19 +387,41 @@ def public_native_snapshot(snapshot):
         if 'actual_native_heads' in value:
             heads=value['actual_native_heads'];require(isinstance(heads,dict) and all(isinstance(k,str) and re.fullmatch('[A-Za-z0-9_-]+',k) and type(v)is int and v>0 for k,v in heads.items()),'Actual public native heads required')
             readiness['actual_native_heads']=dict(heads)
+        if snapshot.get('scenario')in{'sealevel','sealevel-composite'} and 'actual_native_readiness'in value:
+            require(isinstance(value['actual_native_readiness'],list),'Actual SVM finalized readiness list required')
+            readiness['actual_native_readiness']=[]
+            for head in value['actual_native_readiness']:
+                require(set(head)=={'chain','finalized_slot'}and isinstance(head['chain'],str)and re.fullmatch('[A-Za-z0-9_-]+',head['chain'])and type(head['finalized_slot'])is int and head['finalized_slot']>0,'Actual SVM finalized slot required')
+                readiness['actual_native_readiness'].append(dict(head))
         for key in ('actual_publications','actual_validator_publications'):
             if key in value:readiness[key]=checkpoint_rows(value[key])
     transactions=[]
     for value in snapshot['native_delivery_transactions']:
-        proof=value['proof'];row=fields(value,('chain','transaction_hash'));row['canonical']=fields(proof,('identity','block_hash','height','index','gas_used','gas_price','tokens_used','fee','units','slot','transaction_index','message_ids','chain_id','actual_fee','fee_unit'))
+        proof=value['proof'];row=fields(value,('chain','transaction_hash'));row['canonical']=fields(proof,('identity','block_hash','height','index','gas_used','gas_price','tokens_used','fee','units','slot','transaction_index','message_ids','chain_id','actual_fee','fee_unit','wire_sha256','wire_bytes'))
         if isinstance(proof.get('receipt'),dict):row['canonical']['receipt']=fields(proof['receipt'],('transactionHash','blockHash','blockNumber','transactionIndex','status','gasUsed','effectiveGasPrice','transaction_hash','block_hash','block_number','execution_status','finality_status'))
         if isinstance(proof.get('transaction'),dict):row['canonical']['sender']=fields(proof['transaction'],('from','sender_address','chainId','nonce'))
         if proof.get('signed') is not None:row['canonical']['signed']=fingerprint(proof['signed'])
+        if snapshot['scenario']=='tron':
+            require(type(proof.get('native_fee_sun'))is int and proof['native_fee_sun']>0,'Actual native wallet/solidity fee required');row['canonical']['native_fee_sun']=proof['native_fee_sun']
+            for key in ('native_wallet_receipt','native_solidity_receipt'):
+                info=proof[key];safe=fields(info,('id','blockNumber','fee','result'));require(safe['id'].lower()==value['transaction_hash'].removeprefix('0x').lower()and type(safe['blockNumber'])is int and type(safe['fee'])is int and safe['fee']==proof['native_fee_sun']and safe.get('result','SUCESS')=='SUCESS','Native wallet/solidity public identity/fee differs')
+                safe['receipt']=fields(info['receipt'],('result','energy_usage_total','energy_usage','origin_energy_usage','net_usage','net_fee','energy_fee'));require(safe['receipt'].get('result','SUCCESS')=='SUCCESS'and all(type(v)is int and 0<=v<2**256 for k,v in safe['receipt'].items()if k!='result'),'Closed public native receipt counters required');row['canonical'][key]=safe
+            block=proof['native_solidity_block'];require(isinstance(block['blockID'],str)and re.fullmatch(r'[0-9a-fA-F]{64}',block['blockID'])and type(block['block_header']['raw_data']['number'])is int and block['block_header']['raw_data']['number']>=0,'Closed native solidity block identity required')
+            block=proof['native_solidity_block'];row['canonical']['native_solidity_block']={'blockID':block['blockID'],'number':block['block_header']['raw_data']['number'],'exact_transaction_membership':sum(v.get('txID','').lower()==value['transaction_hash'].removeprefix('0x').lower()for v in block['transactions'])};require(row['canonical']['native_solidity_block']['exact_transaction_membership']==1,'Native solidity transaction membership differs')
         transactions.append(row)
     waits=[]
-    for value in snapshot.get('parent_wait_receipts',[]):
+    actual_waits=snapshot.get('parent_wait_receipts',[])
+    require(isinstance(actual_waits,list) and len(actual_waits)<=4096,'Bounded actual role parent waits required')
+    for value in actual_waits:
+        require(isinstance(value,dict),'Actual role parent wait object required')
         row=fields(value,('role','pid','parent_pid','os_start_token','purpose','parent_wait_completed','already_exited','forced_kill','success','exit_code','signal','planned_exit'))
         if 'executable' in value:row['executable']=fields(value['executable'],('path','bytes','sha256'))
+        require(isinstance(row.get('role'),str) and isinstance(row.get('purpose'),str) and row['role'] in {'relayer','validator','scraper'} and row['purpose'] in {'final','same_db_restart','intentional_reorg','intentional_restart'},'Known actual role/wait purpose required')
+        require(all(type(row.get(k))is int and 0<row[k]<2**31 for k in ('pid','parent_pid')) and isinstance(row.get('os_start_token'),str) and 0<len(row['os_start_token'])<=4096 and all(32<=ord(c)<127 for c in row['os_start_token']),'Bounded actual parent/child identity required')
+        require(all(type(row.get(k))is bool for k in ('parent_wait_completed','already_exited','forced_kill','success')) and ('planned_exit'not in row or type(row['planned_exit'])is bool),'Typed actual wait flags required')
+        require((row.get('exit_code')is None or type(row['exit_code'])is int and 0<=row['exit_code']<=255) and (row.get('signal')is None or type(row['signal'])is int and 0<row['signal']<=127),'Typed actual child exit required')
+        if 'executable'in row:
+            executable=row['executable'];require(isinstance(executable.get('path'),str) and executable['path'].startswith('/') and len(executable['path'])<=4096 and all(32<=ord(c)<127 for c in executable['path']) and type(executable.get('bytes'))is int and 0<executable['bytes']<=2**31 and isinstance(executable.get('sha256'),str) and re.fullmatch('[0-9a-f]{64}',executable['sha256']),'Bounded actual child executable required')
         waits.append(row)
     accounting=[]
     for value in snapshot.get('actual_EVM_accounting',[]):
@@ -379,7 +435,7 @@ def public_native_snapshot(snapshot):
     out=fields(snapshot,('runtime_source_commit','scenario','capture_count','relayer_capture_ordinal','verified'))
     out['observer_policy']=fields(snapshot.get('observer_policy',{}),('version','maximum_successful_domain_sample_gap_ns','maximum_GET_timeout_seconds','maximum_GET_attempts_per_domain','retirement_observed_age_seconds'))
     broadcasts=[fields(value,('chain','transaction_hash','monotonic_ns','requested_monotonic_ns','raw_transaction_sha256','message_ids')) for value in snapshot.get('broadcasts',[])]
-    out.update(messages=messages,deliverable_ids=delivered,per_id_lifecycle=life,native_delivery_transactions=transactions,broadcasts=broadcasts,native_operations=native,stopped_canonical_Rust_readback=canonical,postgres=sql,family_native_row_proofs=crypto,checkpoint_proofs=checkpoints,actual_EVM_accounting=accounting)
+    out.update(parent_wait_receipts=waits,messages=messages,deliverable_ids=delivered,per_id_lifecycle=life,native_delivery_transactions=transactions,broadcasts=broadcasts,native_operations=native,stopped_canonical_Rust_readback=canonical,postgres=sql,family_native_row_proofs=crypto,checkpoint_proofs=checkpoints,actual_EVM_accounting=accounting)
     if readiness is not None:out['same_db_restart_readiness']=readiness
     if 'same_db_restart_observation' in snapshot:
         value=snapshot['same_db_restart_observation']
@@ -423,6 +479,11 @@ def public_native_snapshot(snapshot):
             if key=='full_final_proof_completed_monotonic_ns':require(type(value)is int and value>=0,'Public final completion must be a nonnegative monotonic integer')
             else:require(isinstance(value,str) and value==RESTART_FINAL_SCOPE,'Public final scope must be the fixed Source proof scope')
             out[key]=value
+    if snapshot['scenario']=='radix':
+        path=Path(__file__).resolve().parents[1]/'integration/multivm_radix_observations.py'
+        spec=importlib.util.spec_from_file_location('native_radix_public_projection',path)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        return module.extend_public_snapshot(snapshot,out)
     return out
 
 
@@ -444,6 +505,16 @@ def write_public_native_proof(plan,manifest,case,output,expected_final):
     require(raw['final']==expected_final and phases['final'].get('verified') is True,'Hash-matched actual verified final required')
     restart=phases['after_restart'].get('same_db_restart_observation');require(isinstance(restart,dict) and restart.get('minimum_live_ns')==30_000_000_000,'Actual timed30 restart proof missing; legacy SameDB is not30 credit')
     require(phases['final'].get('same_db_restart_observation')==restart,'Final/after-restart actual witness differs')
+    waits=phases['final']['parent_wait_receipts']
+    require(waits and all(row['parent_wait_completed']is True and row['already_exited']is False and row['forced_kill']is False for row in waits),'Actual clean role parent wait receipts missing')
+    identities=[(row['pid'],row['parent_pid'],row['os_start_token'])for row in waits]
+    require(len(identities)==len(set(identities)),'Duplicate actual role parent wait')
+    for row in waits:
+        if row['purpose']in {'final','same_db_restart'}:require(row['success']is True and type(row['exit_code'])is int and row['exit_code']==0 and row['signal']is None,'Actual final/restart role shutdown not clean')
+        else:require(row.get('planned_exit')is True and row['success']is False and row['exit_code']is None and row['signal']==9,'Actual intentional role shutdown not planned')
+    actual_final={(row['role'],row['pid'],row['parent_pid'],row['os_start_token'])for row in waits if row['purpose']=='final'}
+    restarted={(row['role'],row['pid'],row['parent_pid'],row['os_start_token'])for row in restart['new_child_identities']}
+    require(actual_final==restarted and actual_final,'Actual final parent waits do not cover the restarted children')
     require(restart.get('schema')==2,'Legacy full-callback restart scope is historical; schema2 continuous proof required')
     require(restart['clock_scope']==RESTART_CLOCK_SCOPE and restart['checker_deadline_scope']==RESTART_DEADLINE_SCOPE,'Exact schema2 baseline/continuous/full-final clock scope required')
     entered=restart['checker_first_entry_monotonic_ns'];baseline=restart['full_baseline_completed_monotonic_ns'];deadline=restart['checker_deadline_monotonic_ns'];published=restart['checker_result_monotonic_ns']
@@ -529,16 +600,27 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     return pin(path)
 
 
+def container_reservation(scenario):
+    return (0,0)if scenario=='sealevel-composite'else((4864*1024**2 if scenario=='radix'else(5 if scenario=='starknet'else 4 if scenario=='tron'else 1)*GIB),2*GIB)
+
+
+def container_observation_ok(scenario,result):
+    if scenario=='sealevel-composite':
+        return result.get('owned_container_absent')is None and result.get('container_fixture_configured')is False and result.get('docker_calls')==[]
+    return result.get('owned_container_absent')is True
+
+
 def worker(args, plan, manifest, inputs, approval):
     case=Path(manifest['task_root']);out=args.output;out.mkdir(mode=0o700);worker_started_ns=time.monotonic_ns()
-    env=plan['explicit_environment'];pg=inputs['postgres'];docker=checked(manifest['verifier_tools']['docker'],True)
+    env=plan['explicit_environment'];pg=inputs.get('postgres');docker=checked(manifest['verifier_tools']['docker'],True)if pg is not None else None
     for name in ('controller.json','controller.sock'):require(not (case/'evidence'/name).exists(), 'Preserve existing controller')
-    controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={};devnets=None
+    controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={};devnets=None;radix=None
     result={'schema':1,'kind':'native-case-worker-observation','passed':False,'native_case_acceptance':False,'docker_calls':[],'direct_waits':[]}
     deadline=args.original_deadline_ns/1e9
-    cleanup_deadline=deadline+45
-    docker_env={'PATH':'/usr/bin:/bin','HOME':str(case/'home'),'DOCKER_HOST':inputs['local_docker']['host'],'DOCKER_CONFIG':inputs['local_docker']['config_dir']}
+    cleanup_deadline=deadline+(180 if plan['scenario']=='radix'else 45)
+    docker_env={'PATH':'/usr/bin:/bin','HOME':str(case/'home'),'DOCKER_HOST':inputs['local_docker']['host'],'DOCKER_CONFIG':inputs['local_docker']['config_dir']}if pg is not None else {}
     def docker_call(arguments, missing=False, cleaning=False):
+        require(pg is not None,'Composite fixture cannot acquire Docker authority')
         process=None;code=None
         active=cleanup_deadline if cleaning else deadline
         require(time.monotonic()<active, 'Original Docker/case deadline expired')
@@ -554,12 +636,12 @@ def worker(args, plan, manifest, inputs, approval):
                     result['docker_calls'].append({'arguments':arguments,'pid':process.pid,'actual_parent_wait':True,'exit_code':code})
             require(os.fstat(stdout.fileno()).st_size<=2*1024**2 and os.fstat(stderr.fileno()).st_size<=65536, 'Bounded Docker observation output')
             stdout.seek(0);stderr.seek(0);wire=stdout.read();detail=stderr.read()
-        if missing and missing_container(code,detail,arguments[-1]):return None
+        if missing and (missing_container(code,detail,arguments[-1]) or plan['scenario']=='radix' and radix_custody().missing_object(code,detail,arguments[-1],arguments[0])):return None
         require(code==0,'Owned Docker command failed')
         return wire.decode()
     def inspect(cleaning=False):
         nonlocal cid,kernel
-        if harness is None:return
+        if harness is None or pg is None:return
         raw=docker_call(['container','inspect',cid or pg_name],missing=True,cleaning=cleaning)
         if raw is None:return None
         rows=json.loads(raw);require(isinstance(rows,list) and len(rows)==1,'Exact one PG container required')
@@ -585,6 +667,7 @@ def worker(args, plan, manifest, inputs, approval):
         require(not result['passed'] or role!='observer' or code==0,'Observer failed during actual final close')
     repo=Path(__file__).resolve().parents[2]
     transaction=GeneratedSlots(repo,out/'generated-slots',plan['scenario']=='evm')
+    if plan['scenario']=='tron':tron_module('native_tron_assets').read_materialized(inputs['tron_cli'])
     try:
         with (out/'observer.log').open('xb') as observer_log,(out/'harness.log').open('xb') as harness_log:
             controller=subprocess.Popen([str(checked(manifest['verifier']['python'],True)),'-s','-B',str(checked(manifest['verifier']['script'])),'serve','--manifest',str(checked(plan['manifestArtifact']))],cwd=repo,env=env,stdout=observer_log,stderr=subprocess.STDOUT,start_new_session=True)
@@ -601,6 +684,15 @@ def worker(args, plan, manifest, inputs, approval):
             if plan['scenario']=='starknet':
                 devnets=starknet_custody().Custody(case,harness.pid,helper_row['start'],inputs['starknet_devnet'],out,docker_call)
                 devnets.arm()
+            if plan['scenario']=='radix':
+                require(inputs['radix_daemon']==approval['radix_daemon'],'Radix daemon approval differs')
+                info=json.loads(docker_call(['info','--format','{{json .}}']));daemon=inputs['radix_daemon'];directory=Path(info['DockerRootDir']).resolve(strict=True)
+                require(info.get('OSType')=='linux' and info['ID']==daemon['ID'] and str(directory)==daemon['DockerRootDir'] and directory.stat().st_dev==daemon['filesystem_device']==case.stat().st_dev,'Actual Radix daemon/filesystem differs before GO')
+                volume_spec=importlib.util.spec_from_file_location('native_radix_volume',Path(__file__).with_name('native_radix_volume.py'))
+                volume=importlib.util.module_from_spec(volume_spec);volume_spec.loader.exec_module(volume)
+                radix=radix_custody().Custody(case,harness.pid,helper_row['start'],inputs['radix_localnet'],out,docker_call,volume_sample=lambda name:volume.sample_volume(name,args.original_deadline_ns));radix.arm()
+            if plan['scenario']=='tron':
+                devnets=tron_module('native_tron_custody').Custody(case,harness.pid,helper_row['start'],inputs['tron_tre'],out,docker_call);devnets.arm()
             require(harness.stdin is not None,'Owned helper bootstrap pipe missing')
             harness.stdin.write(b'GO\n');harness.stdin.flush();harness.stdin.close()
             pg_name='ziggy-e2e-'+hashlib.sha256(os.fsencode(case)).hexdigest()[:10]+'-'+str(harness.pid)+'-scraper-testnet-postgres'
@@ -609,7 +701,8 @@ def worker(args, plan, manifest, inputs, approval):
                 require(time.monotonic()<deadline and controller.poll() is None,'Case deadline/observer failed')
                 if time.monotonic()>=next_inspect:
                     inspect()
-                    if devnets is not None:devnets.observe()
+                    if radix is not None:radix.observe()
+                    elif devnets is not None:devnets.observe()
                     else:native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs)
                     next_inspect=time.monotonic()+1
                 time.sleep(.1)
@@ -617,7 +710,20 @@ def worker(args, plan, manifest, inputs, approval):
             final=case/'evidence/verified-final-native.jsonl';lines=checked(pin(final)).read_text().splitlines()
             require(lines and json.loads(lines[-1]).get('verified') is True,'Actual final native verification absent')
             waits=fixture_waits(case/'evidence/fixture-parent-waits.jsonl',plan['scenario'],harness.pid)
-            if devnets is not None:
+            if plan['scenario']=='sealevel':
+                pg_waits=[r for r in waits if r['role']=='fixture-docker']
+                require(len(pg_waits)==1,'Actual Source SVM PG parent wait absent')
+                stop=pg_waits[0].get('planned_container_stop',{})
+                require(stop.get('kind')=='postgres'and stop.get('container_id')==cid and stop.get('exact_owned_CID_absent')is True and pg_waits[0].get('success')is True and pg_waits[0].get('exit_code')==0 and pg_waits[0].get('signal')is None,'Actual SVM PG wait/immutable CID differs')
+            if radix is not None:
+                require(set(radix.ready)==set(radix_custody().SERVICES),'All five immutable Radix services must have passed readiness')
+                pg_wait=waits[0];stop=pg_wait.get('planned_container_stop',{})
+                require(pg_wait.get('success')is True and pg_wait.get('exit_code')==0 and pg_wait.get('signal')is None and stop.get('kind')=='postgres' and stop.get('container_id')==cid and stop.get('exact_owned_CID_absent')is True,'Actual foreground agent PG wait/CID binding missing')
+                closed=radix_custody().shared().read_record(case/'radix-localnet/stopped.json')
+                require(closed.get('project')==radix.project and closed.get('removed')==radix.seen and closed.get('all_owned_containers_absent')is True and closed.get('actual_client_waits')is True and closed.get('runtime_source_commit')==manifest['runtime_source_commit'],'Source Radix stop receipt differs from captured CIDs')
+                clients=radix_custody().client_waits(case/'evidence/radix-client-parent-waits.jsonl',harness.pid,manifest['verifier_tools']['docker'],manifest['runtime_source_commit'],manifest['mode'])
+                result['native_container_proofs']={'captured_CIDs':radix.seen,'maximum_writable_layer_bytes':radix.maximum_writable_bytes,'maximum_gateway_volume_bytes':radix.maximum_volume_bytes,'latest_gateway_volume_observation':radix.last_volume_observation,'actual_Docker_client_parent_waits':clients,'daemon_containers_are_not_parent_waits':True,'source_stopped':closed}
+            elif plan['scenario']=='starknet':
                 require(set(devnets.ready)=={5050,5070},'Both actual immutable devnets must have passed readiness')
                 pg_waits=[r for r in waits if r.get('planned_container_stop',{}).get('kind')=='postgres']
                 require(len(pg_waits)==1 and pg_waits[0]['planned_container_stop'].get('container_id')==cid and pg_waits[0]['planned_container_stop'].get('exact_owned_CID_absent') is True,'Actual PG Child wait must bind the captured PG CID')
@@ -627,16 +733,23 @@ def worker(args, plan, manifest, inputs, approval):
                     stop=row['planned_container_stop'];require(stop['container_id']==devnets.ready[stop['port']] and stop.get('exact_owned_CID_absent') is True and stop.get('completed_before_original_deadline') is True and stop.get('acceptance_failed_before_cleanup') is False and stop.get('pre_stop_live_identity') and row.get('success') is True and row.get('exit_code')==0 and row.get('signal') is None,'Starknet planned stop/actual wait differs from captured immutable CID')
                 require(all(devnets.inspect(port,cleaning=True) is None for port in (5050,5070)),'Source helper left an owned devnet')
                 result['native_container_proofs']={'captured_CIDs':devnets.ready,'maximum_writable_layer_bytes':devnets.maximum_writable_bytes,'actual_foreground_parent_waits':planned}
+            elif plan['scenario']=='tron':
+                require(devnets is not None and set(devnets.ready)=={9090},'Actual owned TRE9090 readiness required');pg_wait=next(r for r in waits if r['planned_container_stop']['kind']=='postgres');tre_wait=next(r for r in waits if r['planned_container_stop']['kind']=='tron')
+                require(pg_wait['planned_container_stop']['container_id']==cid and pg_wait['planned_container_stop'].get('exact_owned_CID_absent')is True,'Actual PG wait must bind captured PG CID')
+                stop=tre_wait['planned_container_stop'];require(stop.get('port')==9090 and stop.get('container_id')==devnets.ready[9090]and stop.get('exact_owned_CID_absent')is True and stop.get('completed_before_original_deadline')is True and stop.get('acceptance_failed_before_cleanup')is False and stop.get('pre_stop_live_identity'),'Actual TRE foreground wait must bind captured live CID/epoch')
+                require(devnets.inspect(9090,cleaning=True)is None,'Source helper left TRE');tron_module('native_tron_assets').read_materialized(inputs['tron_cli']);result['native_container_proofs']={'captured_CIDs':devnets.ready,'maximum_writable_layer_bytes':devnets.maximum_writable_bytes,'actual_foreground_parent_waits':[tre_wait],'synchronous_CLI_wait_scope':'Frozen Source Program::run_full real Child::wait plus successful helper and four actual dispatch/delivery receipts; not a fabricated fixture wait'}
             else:
-                require(len(node_proofs)==(1 if plan['scenario']=='evm' else 2),'Actual native loopback listener proof missing')
-                node_roles={'fixture-anvil'} if plan['scenario']=='evm' else {'fixture-hypd' if plan['scenario']=='cosmosnative' else 'fixture-osmosisd'}
+                require(len(node_proofs)==(1 if plan['scenario']in{'evm','sealevel','sealevel-composite'} else 2),'Actual native loopback listener proof missing')
+                node_roles={'fixture-svm-SOL'} if plan['scenario']in{'sealevel','sealevel-composite'}else {'fixture-anvil'} if plan['scenario']=='evm' else {'fixture-hypd' if plan['scenario']=='cosmosnative' else 'fixture-osmosisd'}
                 require({r['pid'] for r in waits if r['role'] in node_roles}=={r['pid'] for r in node_proofs.values()},'Native readiness identity differs from actual child waits')
                 result['native_listener_proofs']=node_proofs
             if plan['scenario']=='evm':
                 stops=[json.loads(line) for line in (case/'evidence/fixture-descendant-stops.jsonl').read_text().splitlines()]
                 require(len(stops)==3 and {r['fixture'] for r in stops}=={'anvil','postgres','kathy'} and {r['direct_child_pid'] for r in stops}=={r['pid'] for r in waits} and all(r['parent_wait_completed'] is False and r['unknown_group_members_never_signalled'] is True for r in stops),'Source fixture descendant/parent cleanup binding missing')
-            require(cid is not None and kernel,'Actual PG identity/kernel evidence missing')
-            require(inspect(cleaning=True) is None,'Source fixture did not remove owned PG')
+            if pg is not None:
+                require(cid is not None and kernel,'Actual PG identity/kernel evidence missing')
+                require(inspect(cleaning=True) is None,'Source fixture did not remove owned PG')
+            else:require(plan['scenario']=='sealevel-composite'and not result['docker_calls'],'NoPG Source composite must make zero Docker calls')
             public_proof=write_public_native_proof(plan,manifest,case,out/'public-final-proof.json',pin(final))
             result.update({'actual_fixture_parent_waits':waits,'actual_final_evidence':pin(final),'public_final_proof':public_proof,'passed':True,'native_case_acceptance':True})
     except BaseException as failure:
@@ -649,6 +762,9 @@ def worker(args, plan, manifest, inputs, approval):
                 except Exception as diagnostic_error:result['public_diagnostic_before_stop_error']={'type':type(diagnostic_error).__name__}
             stop_direct(harness,'harness-cleanup',15)
             stop_direct(controller,'observer',20)
+            if radix is not None:
+                recovered=radix.cleanup();result['radix_cleanup']=recovered
+                if not recovered['passed'] or recovered['recovery_needed']:result['passed']=False;result['native_case_acceptance']=False
             if devnets is not None:
                 recovered=devnets.cleanup();result['devnet_cleanup']=recovered
                 if not recovered['container_absent'] or any(r['container_id'] is not None for r in recovered['containers']):result['passed']=False;result['native_case_acceptance']=False
@@ -663,7 +779,8 @@ def worker(args, plan, manifest, inputs, approval):
             else:result['generated_restore_deferred_until_outer_descendants_absent']=True
             for row in [*plan['required_inputs'],*approval['python_modules'].values(),*manifest['artifacts'].values(),manifest['execution_approval'],manifest['case_inputs']]:checked(row)
             require(not forced,'Forced fixture cleanup cannot pass native acceptance')
-            result['inputs_unchanged_after']=True;result['owned_container_absent']=True
+            if plan['scenario']=='tron':tron_module('native_tron_assets').read_materialized(inputs['tron_cli'])
+            result['inputs_unchanged_after']=True;result['container_fixture_configured']=pg is not None;result['owned_container_absent']=True if pg is not None else None
         except BaseException as failure:
             result['cleanup_error']={'type':type(failure).__name__,'message':str(failure)};result['passed']=False;result['native_case_acceptance']=False
         finally:
@@ -770,6 +887,70 @@ def recover_owned_starknet(case, manifest, inputs, worker_output, output):
     return receipt
 
 
+def recover_owned_radix(case, manifest, inputs, worker_output, output):
+    calls=[];deadline=time.monotonic()+180
+    receipt={'container_absent':False,'containers':[],'calls':calls,'native_parent_wait_credit':False,'whole_cleanup_budget_seconds':180,'scope':'Recovery only; cannot repair primary failure or invent Rust Child waits.'}
+    try:
+        context=worker_output/'helper-launch.json';armed=worker_output/'radix-armed.json'
+        if not context.exists() or not armed.exists():
+            require(not context.is_symlink() and not armed.is_symlink(),'Custody context became symlink')
+            receipt.update(container_absent=True,creation_not_released=True);return receipt
+        row=json.loads(checked(pin(context)).read_text());docker=checked(manifest['verifier_tools']['docker'],True)
+        env={'PATH':'/usr/bin:/bin','HOME':str(case/'home'),'DOCKER_HOST':inputs['local_docker']['host'],'DOCKER_CONFIG':inputs['local_docker']['config_dir']}
+        def call(arguments,missing=False,cleaning=False):
+            require(time.monotonic()<deadline,'Fixed Radix recovery deadline expired');child=None;status=None
+            with tempfile_files(output) as files:
+                stdout,stderr=files
+                try:
+                    child=subprocess.Popen([str(docker),'--host',inputs['local_docker']['host'],'--config',inputs['local_docker']['config_dir'],*arguments],env=env,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr)
+                    child.wait(timeout=min(12,max(.01,deadline-time.monotonic())))
+                finally:
+                    if child is not None:
+                        if child.returncode is None:child.kill()
+                        status=child.wait(timeout=3);calls.append({'arguments':arguments,'pid':child.pid,'exit_code':status,'actual_parent_wait':True})
+                require(os.fstat(stdout.fileno()).st_size<=2*1024**2 and os.fstat(stderr.fileno()).st_size<=65536,'Bounded Radix recovery output')
+                stdout.seek(0);stderr.seek(0);wire=stdout.read();detail=stderr.read()
+            if missing and (missing_container(status,detail,arguments[-1]) or radix_custody().missing_object(status,detail,arguments[-1],arguments[0])):return None
+            require(status==0,'Exact Radix recovery command failed');return wire.decode()
+        custody=radix_custody().Custody(case,row['helper_pid'],row['helper_start'],inputs['radix_localnet'],worker_output,call)
+        receipt.update(custody.cleanup())
+    except BaseException as error:receipt['error']={'type':type(error).__name__,'message':str(error)}
+    finally:(output/'Radix-recovery.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return receipt
+
+
+def recover_owned_tron(case, manifest, inputs, worker_output, output):
+    calls=[];deadline=time.monotonic()+20
+    receipt={'container_absent':False,'containers':[],'calls':calls,'native_parent_wait_credit':False,'whole_cleanup_budget_seconds':20,'scope':'Recovery only; cannot repair primary failure or invent Rust Child waits.'}
+    try:
+        context=worker_output/'helper-launch.json';armed=worker_output/'tron-armed.json'
+        if not context.exists() or not armed.exists():
+            require(not context.is_symlink() and not armed.is_symlink(),'Custody context became symlink')
+            receipt.update(container_absent=True,creation_not_released=True);return receipt
+        row=json.loads(checked(pin(context)).read_text());docker=checked(manifest['verifier_tools']['docker'],True)
+        env={'PATH':'/usr/bin:/bin','HOME':str(case/'home'),'DOCKER_HOST':inputs['local_docker']['host'],'DOCKER_CONFIG':inputs['local_docker']['config_dir']}
+        def call(arguments,missing=False,cleaning=False):
+            require(time.monotonic()<deadline,'Fixed devnet recovery deadline expired');child=None;status=None
+            with tempfile_files(output) as files:
+                stdout,stderr=files
+                try:
+                    child=subprocess.Popen([str(docker),'--host',inputs['local_docker']['host'],'--config',inputs['local_docker']['config_dir'],*arguments],env=env,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr)
+                    child.wait(timeout=min(12,max(.01,deadline-time.monotonic())))
+                finally:
+                    if child is not None:
+                        if child.returncode is None:child.kill()
+                        status=child.wait(timeout=3);calls.append({'arguments':arguments,'pid':child.pid,'exit_code':status,'actual_parent_wait':True})
+                require(os.fstat(stdout.fileno()).st_size<=2*1024**2 and os.fstat(stderr.fileno()).st_size<=65536,'Bounded devnet recovery output')
+                stdout.seek(0);stderr.seek(0);wire=stdout.read();detail=stderr.read()
+            if missing and missing_container(status,detail,arguments[-1]):return None
+            require(status==0,'Exact devnet recovery command failed');return wire.decode()
+        custody=tron_module('native_tron_custody').Custody(case,row['helper_pid'],row['helper_start'],inputs['tron_tre'],worker_output,call)
+        receipt.update(custody.cleanup())
+    except BaseException as error:receipt['error']={'type':type(error).__name__,'message':str(error)}
+    finally:(output/'Tron-recovery.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return receipt
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan',type=Path,required=True);parser.add_argument('--plan-sha256',required=True);parser.add_argument('--output',type=Path,required=True)
@@ -788,6 +969,8 @@ def main():
     deadline_ns=time.monotonic_ns()+3600*10**9
     initial_free=shutil.disk_usage(case).free
     sn_resources=starknet_custody() if plan['scenario']=='starknet' else None
+    rx_resources=radix_custody() if plan['scenario']=='radix' else None
+    tr_resources=tron_module('native_tron_custody')if plan['scenario']=='tron'else None
     owner.enable_subreaper();known={};groups={};child=None;cleanup=None;failure=None;samples=[]
     args.output.mkdir(mode=0o700);worker_output=case/(args.output.name+'-worker');require(not worker_output.exists(),'Preserve earlier worker')
     result={'schema':1,'kind':'owned-linux-native-case-result','scenario':plan['scenario'],'mode':manifest['mode'],'runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':approval.get('execution_source_commit',manifest['runtime_source_commit']),'passed':False,'native_case_acceptance':False,'plan':pin(args.plan),'samples':samples,'scope':'Correctness only. Original case deadline/per-ID600..630 unchanged; actual continuous30s restarted-role observations required and retained. Nonchild cleanup never invents Source parent waits.'}
@@ -797,17 +980,28 @@ def main():
             groups[child.pid]=child.pid
             while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is None:
                 rows=owner.processes();owned=owner.owned_processes(rows,child.pid,known,groups,True)
-                ram=sum(row['rss_bytes'] for row in owned.values())+(5 if plan['scenario']=='starknet' else 1)*GIB
-                disk=owner.allocated(case)+2*GIB
+                container_ram,container_disk=container_reservation(plan['scenario'])
+                ram=sum(row['rss_bytes'] for row in owned.values())+container_ram
+                disk=owner.allocated(case)+container_disk
                 free=shutil.disk_usage(case).free
                 if sn_resources is not None:
                     writable=0;record=worker_output/'starknet-writable.json'
                     if record.exists():
                         value=sn_resources.read_record(record);require(value['case_root']==str(case) and value['image_id']==inputs['starknet_devnet']['image_id'] and value['run_token']==inputs['starknet_devnet']['run_token'],'Resource record belongs to another devnet fixture');writable=value['maximum_writable_bytes']
                     ram,disk=sn_resources.resource_charge(sum(row['rss_bytes'] for row in owned.values()),disk-2*GIB,initial_free,free,writable)
+                if rx_resources is not None:
+                    writable=volume_bytes=0;record=worker_output/'radix-writable.json'
+                    if record.exists():
+                        value=rx_resources.shared().read_record(record);require(value['case_root']==str(case) and value['fixture']==inputs['radix_localnet'],'Resource record belongs to another Radix fixture');writable=value['maximum_writable_bytes'];volume_bytes=value['maximum_volume_bytes']
+                    ram,disk=rx_resources.resource_charge(sum(row['rss_bytes'] for row in owned.values()),disk-2*GIB,initial_free,free,writable,volume_bytes)
+                if tr_resources is not None:
+                    writable=0;record=worker_output/'tron-writable.json'
+                    if record.exists():
+                        value=tr_resources.read_record(record);require(value['case_root']==str(case)and value['image_id']==inputs['tron_tre']['image_id']and value['run_token']==inputs['tron_tre']['run_token'],'Tron resource record identity differs');writable=value['maximum_writable_bytes']
+                    ram,disk=tr_resources.resource_charge(sum(row['rss_bytes']for row in owned.values()),disk-2*GIB,initial_free,free,writable)
                 require(time.monotonic_ns()<deadline_ns and ram<=8*GIB and disk<=4*GIB and free>=6*GIB,'Original native case deadline/resource guard')
                 require((args.output/'owner-worker.log').stat().st_size<=32*1024**2,'Bounded owner log')
-                samples.append({'monotonic_ns':time.monotonic_ns(),'owned_host_RAM_plus_PG_cap_bytes':ram,'case_allocated_plus_PG_tmpfs_cap_bytes':disk,'host_free_bytes':free,'owned_process_count':len(owned),**({'container_memory_reservation_bytes':5*GIB,'disk_scope':'max(case allocation, host filesystem free drop)+2GiB PG tmpfs; initial image acquisition excluded, ongoing6GiB floor'} if plan['scenario']=='starknet' else {})})
+                samples.append({'monotonic_ns':time.monotonic_ns(),'owned_host_RAM_plus_PG_cap_bytes':ram,'case_allocated_plus_PG_tmpfs_cap_bytes':disk,'host_free_bytes':free,'owned_process_count':len(owned),**({'container_memory_reservation_bytes':5*GIB,'disk_scope':'max(case allocation, host filesystem free drop)+2GiB PG tmpfs; initial image acquisition excluded, ongoing6GiB floor'} if plan['scenario']=='starknet'else{'container_memory_reservation_bytes':4*GIB,'disk_scope':'max(case allocation plus TRE writable, host filesystem free drop)+2GiB PG tmpfs; original4GiB cap/6GiB floor'}if plan['scenario']=='tron'else{})})
                 time.sleep(.2)
     except BaseException as error:
         failure=error;result['error']={'type':type(error).__name__,'message':str(error)}
@@ -815,18 +1009,21 @@ def main():
         old={s:signal.signal(s,signal.SIG_IGN) for s in [signal.SIGTERM,signal.SIGINT,signal.SIGHUP]}
         try:
             if child is not None:
-                if plan['scenario']=='starknet':
-                    try:cleanup=owner.stop_owned(child,known,groups,grace_seconds=60,kill_seconds=3)
+                if plan['scenario']in{'starknet','radix','tron'}:
+                    try:cleanup=owner.stop_owned(child,known,groups,grace_seconds=180 if plan['scenario']=='radix'else 60,kill_seconds=3)
                     except BaseException as cleanup_error:result['process_cleanup_error']={'type':type(cleanup_error).__name__,'message':str(cleanup_error)}
-                else:cleanup=owner.stop_owned(child,known,groups,grace_seconds=60,kill_seconds=3)
+                else:cleanup=owner.stop_owned(child,known,groups,grace_seconds=180 if plan['scenario']=='radix'else 60,kill_seconds=3)
             result['cleanup']=cleanup
             if plan['scenario']=='starknet':result['devnet_cleanup']=recover_owned_starknet(case,manifest,inputs,worker_output,args.output)
-            result['PG_cleanup']=recover_owned_pg(case,manifest,inputs,worker_output,args.output)
-            if plan['scenario']=='starknet':require(result['devnet_cleanup'].get('container_absent') is True and not any(r.get('container_id') is not None for r in result['devnet_cleanup'].get('containers',[])),'Devnet recovery needed/unproven; primary case cannot pass')
-            require(result['PG_cleanup'].get('container_absent') is True and result['PG_cleanup'].get('container_id') is None,'PG needed recovery or creation context missing; case remains failed')
+            if plan['scenario']=='tron':result['devnet_cleanup']=recover_owned_tron(case,manifest,inputs,worker_output,args.output)
+            if plan['scenario']=='radix':result['radix_cleanup']=recover_owned_radix(case,manifest,inputs,worker_output,args.output)
+            result['PG_cleanup']=recover_owned_pg(case,manifest,inputs,worker_output,args.output)if plan['scenario']!='sealevel-composite'else {'configured':False,'cleanup_attempted':False,'scope':'Source composite has no PG/scraper'}
+            if plan['scenario']in{'starknet','tron'}:require(result['devnet_cleanup'].get('container_absent') is True and not any(r.get('container_id') is not None for r in result['devnet_cleanup'].get('containers',[])),'Devnet recovery needed/unproven; primary case cannot pass')
+            if plan['scenario']=='radix':require(result['radix_cleanup'].get('passed')is True and result['radix_cleanup'].get('container_absent')is True and result['radix_cleanup'].get('recovery_needed')is False,'Radix recovery needed/unproven; primary case remains failed')
+            require(plan['scenario']=='sealevel-composite'and result['PG_cleanup']=={'configured':False,'cleanup_attempted':False,'scope':'Source composite has no PG/scraper'}or result['PG_cleanup'].get('container_absent') is True and result['PG_cleanup'].get('container_id') is None,'PG needed recovery or creation context missing; case remains failed')
             require(cleanup and cleanup['clean'] and cleanup['actual_parent_wait'] and child.returncode==0 and not cleanup['signals'],'Owner cleanup/actual worker wait failed or required residual signals')
             worker_result=json.loads(checked(pin(worker_output/'worker-result.json')).read_text())
-            require(worker_result.get('passed') is True and worker_result.get('native_case_acceptance') is True and worker_result.get('owned_container_absent') is True and worker_result.get('inputs_unchanged_after') is True,'Actual worker acceptance missing')
+            require(worker_result.get('passed') is True and worker_result.get('native_case_acceptance') is True and container_observation_ok(plan['scenario'],worker_result)and worker_result.get('inputs_unchanged_after') is True,'Actual worker acceptance missing')
             require(failure is None,'Primary case failure remains failed')
             result['worker_result']=pin(worker_output/'worker-result.json');result['passed']=True;result['native_case_acceptance']=True
         except BaseException as error:

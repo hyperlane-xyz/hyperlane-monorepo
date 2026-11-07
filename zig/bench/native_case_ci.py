@@ -80,26 +80,28 @@ def checked(row):
 
 
 def artifact_names(request):
-    return {'sdk': 'zig-native-runtime-payload-' + request['mode'], 'helper': 'zig-native-harness-controls', 'tools': 'zig-native-case-tools-' + request['producer_source_commit'], 'writer_safe': 'zig-native-interop-writer-ReleaseSafe', 'writer_fast': 'zig-native-interop-writer-ReleaseFast'}
+    return {'sdk': 'zig-native-runtime-payload-' + request['mode'], 'helper': 'zig-native-harness-controls', 'tools': 'zig-native-case-tools-' + request['producer_source_commit'], 'writer_safe': 'zig-native-interop-writer-ReleaseSafe', 'writer_fast': 'zig-native-interop-writer-ReleaseFast', **({'svm':f"svm-linux-prerequisites-{request['producer_run_id']}-{request['producer_run_attempt']}"} if request['scenario']in{'sealevel','sealevel-composite'} else {}), **({'radix_reference':'zig-native-radix-reference-'+request['producer_source_commit']} if request['scenario']=='radix' else {})}
 
 
 def validate_request(request, require_approved=True):
     fields = {'schema', 'root_approved', 'scenario', 'mode', 'producer_source_commit', 'producer_run_id', 'producer_run_attempt', 'limits', 'artifact_pins', 'postgres', 'prerequisites'}
     require(isinstance(request, dict) and set(request) == fields and type(request['schema']) is int and request['schema'] == 1, 'Unknown/missing native request fields')
     require(type(request['root_approved']) is bool and (request['root_approved'] or not require_approved), 'Reviewed native request approval absent')
-    require(request['scenario'] in {'evm', 'cosmosnative', 'cosmwasm', 'starknet'} and request['mode'] in {'ReleaseSafe', 'ReleaseFast'}, 'Initial native family/mode not implemented')
+    require(request['scenario'] in {'evm', 'cosmosnative', 'cosmwasm', 'starknet', 'sealevel','sealevel-composite','radix','tron'} and request['mode'] in {'ReleaseSafe', 'ReleaseFast'}, 'Initial native family/mode not implemented')
     require(isinstance(request['producer_source_commit'], str) and re.fullmatch('[0-9a-f]{40}', request['producer_source_commit']), 'Exact compiled producer Source required')
     require(type(request['producer_run_id']) is int and request['producer_run_id'] > 0 and type(request['producer_run_attempt']) is int and request['producer_run_attempt'] > 0, 'Exact producer run and attempt required')
     require(request['limits'] == LIMITS and all(type(value) is int for value in request['limits'].values()), 'Native resource/lifecycle policy changed')
     pg = request['postgres']
-    require(isinstance(pg, dict) and set(pg) == {'schema', 'architecture', 'image', 'image_id', 'canonical_digest'} and type(pg['schema']) is int and pg['schema'] == 2 and pg['architecture'] in {'amd64', 'arm64'} and pg['image'] == 'postgres:14', 'Exact portable Source PG14 policy required')
-    require(isinstance(pg['image_id'], str) and re.fullmatch('sha256:[0-9a-f]{64}', pg['image_id']) and isinstance(pg['canonical_digest'], str) and re.fullmatch('postgres@sha256:[0-9a-f]{64}', pg['canonical_digest']), 'Independent PG config ID and RepoDigest required')
+    if request['scenario']=='sealevel-composite':require(pg is None,'Source SVM composite has no PG fixture policy')
+    else:
+        require(isinstance(pg, dict) and set(pg) == {'schema', 'architecture', 'image', 'image_id', 'canonical_digest'} and type(pg['schema']) is int and pg['schema'] == 2 and pg['architecture'] in {'amd64', 'arm64'} and pg['image'] == 'postgres:14', 'Exact portable Source PG14 policy required')
+        require(isinstance(pg['image_id'], str) and re.fullmatch('sha256:[0-9a-f]{64}', pg['image_id']) and isinstance(pg['canonical_digest'], str) and re.fullmatch('postgres@sha256:[0-9a-f]{64}', pg['canonical_digest']), 'Independent PG config ID and RepoDigest required')
     prerequisites = request['prerequisites']
-    keys = {'local_checkout_build', 'hpack', 'registry_commit'} | ({'native_cli'} if request['scenario'] != 'evm' else set()) | ({'wasm_bundle'} if request['scenario'] == 'cosmwasm' else set()) | ({'starknet_devnet','starknet_contracts'} if request['scenario']=='starknet' else set())
+    keys = {'local_checkout_build', 'hpack', 'registry_commit'} | ({'native_cli'} if request['scenario'] not in {'evm','tron','radix','sealevel','sealevel-composite'} else set()) | ({'radix_images','radix_contracts','radix_reference'} if request['scenario']=='radix' else set()) | ({'tron_cli','tron_tre'}if request['scenario']=='tron'else set()) | ({'svm_offline'} if request['scenario']in{'sealevel','sealevel-composite'} else set()) | ({'wasm_bundle'} if request['scenario'] == 'cosmwasm' else set()) | ({'starknet_devnet','starknet_contracts'} if request['scenario']=='starknet' else set())
     require(isinstance(prerequisites, dict) and set(prerequisites) == keys and prerequisites['local_checkout_build'] is True, 'Reviewed prerequisite source policy required')
     require(isinstance(prerequisites['registry_commit'], str) and re.fullmatch('[0-9a-f]{40}', prerequisites['registry_commit']) if request['scenario'] == 'evm' else prerequisites['registry_commit'] is None, 'Registry policy must match actual family consumption')
     require(prerequisites['hpack'] == {'version': '4.2.0', 'wheel_sha256': '858ac0b02280fa582b5080d68db0899c6' + '2a80375e0e5413a74970c5e518b6986', 'wheel_bytes': 34246}, 'Exact passive H2 wheel policy required')
-    if request['scenario'] not in {'evm','starknet'}:
+    if request['scenario'] not in {'evm','starknet','tron','radix','sealevel','sealevel-composite'}:
         cli = prerequisites['native_cli']
         require(isinstance(cli, dict) and set(cli) == {'name', 'architecture', 'source_url', 'bytes', 'sha256'} and cli['name'] == ('hypd' if request['scenario'] == 'cosmosnative' else 'osmosisd') and cli['architecture'] == pg['architecture'] and isinstance(cli['source_url'], str) and cli['source_url'].startswith('https://') and type(cli['bytes']) is int and 0 < cli['bytes'] <= 256 * 1024 ** 2 and re.fullmatch('[0-9a-f]{64}', cli['sha256']), 'Exact native CLI acquisition policy required')
     if request['scenario'] == 'cosmwasm':
@@ -109,10 +111,18 @@ def validate_request(request, require_approved=True):
     if request['scenario']=='starknet':
         spec=importlib.util.spec_from_file_location('request_starknet_assets',Path(__file__).with_name('native_starknet_assets.py'))
         assets=importlib.util.module_from_spec(spec);spec.loader.exec_module(assets);assets.validate_policy(prerequisites,pg['architecture'])
+    if request['scenario']in{'sealevel','sealevel-composite'}:
+        spec=importlib.util.spec_from_file_location('request_svm_case',Path(__file__).with_name('native_svm_case.py'))
+        svm=importlib.util.module_from_spec(spec);spec.loader.exec_module(svm);svm.validate_policy(request)
+    if request['scenario']=='radix':
+        spec=importlib.util.spec_from_file_location('request_radix_case',Path(__file__).with_name('native_radix_case.py'))
+        radix=importlib.util.module_from_spec(spec);spec.loader.exec_module(radix);radix.validate_policy(request)
+    if request['scenario']=='tron':
+        spec=importlib.util.spec_from_file_location('request_tron_assets',Path(__file__).with_name('native_tron_assets.py'));assets=importlib.util.module_from_spec(spec);spec.loader.exec_module(assets);assets.validate_policy(prerequisites,pg['architecture'])
     pins = request['artifact_pins']
     names = artifact_names(request)
-    require(isinstance(pins, dict) and set(pins) == set(names), 'Exact five producer artifacts required')
-    require(len({row.get('id') for row in pins.values() if isinstance(row, dict)}) == 5, 'Repeated/invalid producer artifact ID')
+    require(isinstance(pins, dict) and set(pins) == set(names), 'Exact family producer artifact set required')
+    require(len({row.get('id') for row in pins.values() if isinstance(row, dict)}) == len(names), 'Repeated/invalid producer artifact ID')
     for key, expected_name in names.items():
         row = pins[key]
         require(isinstance(row, dict) and set(row) == {'id', 'name', 'sha256', 'size_in_bytes'}, 'Artifact descriptor fields differ')
@@ -127,9 +137,9 @@ def validate_remote(request, run, jobs, artifacts):
     require(run.get('status') in {'completed', 'in_progress'}, 'Producer workflow run not started/invalid')
     # Unrelated unit/SVM failures do not relabel successful producer jobs; require
     # the exact artifact-producing mode and native helper jobs themselves green.
-    required_jobs = {'full-sdk-native (ReleaseSafe)', 'full-sdk-native (ReleaseFast)', 'native-harness-controls'}
+    required_jobs = {'full-sdk-native (ReleaseSafe)', 'full-sdk-native (ReleaseFast)', 'native-harness-controls'} | ({'svm-prerequisites'} if request['scenario']in{'sealevel','sealevel-composite'} else set())
     selected = [row for row in jobs if row.get('name') in required_jobs]
-    require(len(selected) == 3 and {row['name'] for row in selected} == required_jobs and all(row.get('status') == 'completed' and row.get('conclusion') == 'success' and row.get('run_id') == request['producer_run_id'] for row in selected), 'Actual successful matching producer jobs missing/duplicated')
+    require(len(selected) == len(required_jobs) and {row['name'] for row in selected} == required_jobs and all(row.get('status') == 'completed' and row.get('conclusion') == 'success' and row.get('run_id') == request['producer_run_id'] for row in selected), 'Actual successful matching producer jobs missing/duplicated')
     output = {}
     for key, expected in request['artifact_pins'].items():
         rows = [row for row in artifacts if row.get('id') == expected['id']]
