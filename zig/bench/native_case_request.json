@@ -2,7 +2,7 @@
   "schema": 1,
   "root_approved": true,
   "scenario": "cosmwasm",
-  "mode": "ReleaseSafe",
+  "mode": "ReleaseFast",
   "producer_source_commit": "8eabae59eecb5cba3d8b76fca46447802f231a92",
   "producer_run_id": 42420239263,
   "producer_run_attempt": 1,
@@ -79,15 +79,15 @@
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13594350257,
-      "name": "zig-native-runtime-payload-ReleaseSafe",
+      "id": 13593774630,
+      "name": "zig-native-runtime-payload-ReleaseFast",
       "sha256": {
         "sha256_hex_chunks": [
-          "17a9cac90a5d702cd17cadc2299a53be",
-          "fef81750987b977bab81906c7b8cb537"
+          "526a092b1af7ae4232abb7413a2398c5",
+          "b1e06c6f4634bb4d2e904be538dba5ca"
         ]
       },
-      "size_in_bytes": 52478163
+      "size_in_bytes": 55146713
     },
     "helper": {
       "id": 13592994441,
