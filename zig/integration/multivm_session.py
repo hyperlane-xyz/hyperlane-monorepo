@@ -17,7 +17,7 @@ import socket
 import threading
 import time
 
-from multivm_evidence import ENDPOINT_FIELDS, RawTcpProxy, TransparentProxy, checked_artifact, direct_endpoint, direct_request, effective_config, endpoint_replacements, hex_bytes, process_identity, read_approval, require, rpc as direct_rpc, run_tool, urls, run_artifact, validate_evidence_nodes, selected_evidence_node, source_connect_url, verified_harness_identity, owned_devnet_name, verify_devnet_inspect
+from multivm_evidence import starknet_unavailable_peers, checked_starknet_peer_context, ENDPOINT_FIELDS, RawTcpProxy, TransparentProxy, checked_artifact, direct_endpoint, direct_request, effective_config, endpoint_replacements, hex_bytes, process_identity, read_approval, require, rpc as direct_rpc, run_tool, urls, run_artifact, validate_evidence_nodes, selected_evidence_node, source_connect_url, verified_harness_identity, owned_devnet_name, verify_devnet_inspect
 from multivm_evm import EvmEvidence, address, quantity, sql_delivery_query, sql_message_query, verify_canonical_rocks, verify_checkpoint_objects, verify_evm_accounting, verify_sql_message, log_metadata, validate_expenditure_expectations
 from multivm_sql import sql_event_query
 from multivm_tron import TronEvidence, tron_address
@@ -62,6 +62,93 @@ def tron_transaction_id(value):
             require(size == 65, "Tron signature width differs")
     require(raw_data is not None, "Tron raw_data absent")
     return "0x" + hashlib.sha256(raw_data).hexdigest()
+
+
+def successful_json_rpc_exchange(request, response):
+    """A successful response must belong to this exact physical request set."""
+    batch = isinstance(request, list)
+    requests = request if batch else [request]
+    replies = response if batch and isinstance(response, list) else [response]
+    if not requests or len(requests) > 1024 or len(replies) != len(requests) or batch != isinstance(response, list):
+        return False
+    def identity(value):
+        return (type(value).__name__, value) if type(value) in (str, int) else None
+    expected = []
+    for row in requests:
+        if not isinstance(row, dict) or row.get('jsonrpc') != '2.0' or not isinstance(row.get('method'), str) or identity(row.get('id')) is None:
+            return False
+        expected.append(identity(row['id']))
+    if len(set(expected)) != len(expected):
+        return False
+    actual, success = [], False
+    for row in replies:
+        if not isinstance(row, dict) or row.get('jsonrpc') != '2.0' or identity(row.get('id')) is None or ('result' in row) == ('error' in row):
+            return False
+        actual.append(identity(row['id']))
+        if 'error' in row:
+            error = row['error']
+            if not isinstance(error, dict) or type(error.get('code')) is not int or not isinstance(error.get('message'), str):
+                return False
+        else:
+            success = True
+    return len(set(actual)) == len(actual) and set(actual) == set(expected) and success
+
+
+class RestartWindow:
+    """Actual valid restarted-role observations, never a sleep or model credit."""
+    minimum_ns = 30_000_000_000
+
+    def __init__(self):
+        self.epoch = None
+        self.samples = []
+        self.failed = False
+
+    def invalidate(self):
+        # Startup has no earned interval: retry ordinary incomplete readiness
+        # within the caller's original120s budget. Once anchored, never reset.
+        if self.samples:
+            self.failed = True
+
+    def observe(self, now_ns, epoch, activity, request_started):
+        try:
+            require(not self.failed, "restart observation window already failed")
+            require(type(now_ns) is int and now_ns >= 0 and isinstance(epoch, str)
+                    and re.fullmatch('[0-9a-f]{64}', epoch), "invalid restart clock/identity")
+            require(isinstance(activity, dict) and activity and all(isinstance(k, str)
+                    and type(v) is int and 0 < v <= now_ns for k, v in activity.items()),
+                    "invalid actual restarted-role RPC clocks")
+            require(isinstance(request_started, dict) and set(request_started) == set(activity)
+                    and all(type(request_started[k]) is int and 0 < request_started[k] <= activity[k] for k in activity),
+                    "actual paired successful request-start clocks required")
+            if self.epoch is None:
+                self.epoch = epoch
+            require(self.epoch == epoch, "restarted child/config identity changed during30s")
+            if self.samples:
+                previous = self.samples[-1]
+                require(now_ns >= previous['observed_monotonic_ns'], "restart clock rollback")
+                require(set(activity) == set(previous['role_rpc_activity']), "restarted role/chain set changed")
+                require(now_ns - previous['observed_monotonic_ns'] <= OBSERVER_POLICY['maximum_successful_domain_sample_gap_ns'],
+                        "restarted live observation gap exceeds10s")
+                require(all(activity[k] >= previous['role_rpc_activity'][k] for k in activity),
+                        "restarted RPC activity clock rollback")
+                if not all(activity[k] > previous['role_rpc_activity'][k] and request_started[k] > previous['role_rpc_activity'][k] for k in activity):
+                    return False # No fresh call from every role; no new clock credit.
+            require(len(self.samples) < 2048, "bounded restart observation count")
+            self.samples.append({'observed_monotonic_ns': now_ns, 'role_rpc_activity': dict(activity), 'role_rpc_request_started_ns': dict(request_started)})
+            return now_ns - self.samples[0]['observed_monotonic_ns'] >= self.minimum_ns
+        except Exception:
+            self.failed = True
+            raise
+
+    def evidence(self):
+        require(not self.failed and self.samples
+                and self.samples[-1]['observed_monotonic_ns'] - self.samples[0]['observed_monotonic_ns'] >= self.minimum_ns,
+                "actual continuous30s restarted-role proof incomplete")
+        return {'schema': 1, 'minimum_live_ns': self.minimum_ns, 'epoch_sha256': self.epoch,
+                'maximum_successful_sample_gap_ns': OBSERVER_POLICY['maximum_successful_domain_sample_gap_ns'],
+                'samples': [dict(row, role_rpc_activity=dict(row['role_rpc_activity']), role_rpc_request_started_ns=dict(row['role_rpc_request_started_ns'])) for row in self.samples],
+                'elapsed_live_ns': self.samples[-1]['observed_monotonic_ns'] - self.samples[0]['observed_monotonic_ns'],
+                'clock_scope': 'Actual observer monotonic clock AFTER each complete canonical/new-child/config/no-resubmission/readiness check; every accepted sample requires fresh RPC from every configured restarted role+chain.'}
 
 
 class Lifecycle:
@@ -355,6 +442,31 @@ def cw_expected_peer_context(definitions, manifest, chain_name, chain, role, fie
 
 
 
+def starknet_expected_unavailable_definitions(manifest,case,approval):
+    key="expected_starknet_unavailable_endpoints";definition=case.get(key)
+    if definition is None:
+        require(key not in approval,"unexpected Starknet unavailable peer approval");return ()
+    require(manifest["scenario"]==case.get("scenario")=="starknet" and approval.get("root_approved") is True,"Starknet-only approved unavailable peers required")
+    require(case.get("chain_names")==["starknettest23448593","starknettest23448594"] and case.get("domain_names")=={"23448593":"starknettest23448593","23448594":"starknettest23448594"},"Source Starknet domains differ")
+    expected={"schema":1,"scenario":"starknet","endpoints":starknet_unavailable_peers()}
+    require(definition==expected and type(definition.get("schema")) is int and all(type(row.get("domain")) is int and type(row.get("ordinal")) is int for row in definition["endpoints"]),"exact Source Starknet fallback endpoints required")
+    require(approval.get(key)==definition,"Starknet unavailable peer approval differs")
+    return tuple(dict(row) for row in expected["endpoints"])
+
+
+def starknet_expected_peer_context(definitions,manifest,name,chain,role,field,ordinal,endpoint):
+    if not definitions or field!="rpcurls":return None
+    require(manifest["scenario"]=="starknet" and role in {"validator","relayer","scraper"},"crossed Starknet fallback consumer")
+    rows=[row for row in definitions if row["chain"]==name]
+    require(len(rows)==3 and int(chain["domainid"])==rows[0]["domain"] and "customrpcurls" not in chain,"Source Starknet domain/field differs")
+    expected=["http://127.0.0.1:1337","http://127.0.0.1:1338",rows[0]["healthy_fallback"],"http://127.0.0.1:1347"]
+    require(urls(chain[field])==expected,"Source Starknet fallback order/authority changed")
+    selected=[row for row in rows if row["ordinal"]==ordinal]
+    if not selected:return None
+    require(len(selected)==1 and endpoint==selected[0]["upstream"],"selected Starknet unavailable endpoint differs")
+    return checked_starknet_peer_context(dict(selected[0],scenario="starknet",role=role,case_inputs_sha256=manifest["case_inputs"]["sha256"]),endpoint)
+
+
 class Session:
     def __init__(self, manifest, owned_path, create_directory, adapter=None):
         self.manifest = manifest
@@ -363,6 +475,9 @@ class Session:
         self.case = json.loads(checked_artifact(manifest["case_inputs"]).read_text())
         self.expected_unavailable_definitions = cw_expected_unavailable_definitions(manifest, self.case, self.approval)
         self.expected_unavailable_notices = []
+        self.starknet_unavailable_definitions=starknet_expected_unavailable_definitions(manifest,self.case,self.approval)
+        self.starknet_unavailable_notices=[]
+        self.starknet_healthy_rpc_fallbacks={}
         self.cw_healthy_grpc_fallbacks = {}
         require(self.case.get("schema") == 1 and self.case.get("scenario") == manifest["scenario"], "case scenario differs")
         require(adapter is not None or manifest["scenario"] in {"evm", "tron"}, "actual observer family unsupported")
@@ -388,6 +503,7 @@ class Session:
         self.failures = []
         self.transport_notices = []
         self.activity = {}
+        self.successful_activity = {}
         self.broadcasts = []
         self.estimates = []
         self.self_transactions = set()
@@ -399,6 +515,7 @@ class Session:
         self.restart = None
         self.before_restart = None
         self.after_restart = None
+        self.restart_window = RestartWindow()
         self.sampling_finished = False
         self.stop = threading.Event()
         crypto = EvmEvidence(manifest, "unused")
@@ -517,6 +634,13 @@ class Session:
                 self.transport_notices.append(error)
                 self.append("native-peer-disconnects.jsonl", error)
                 return
+            if isinstance(error,dict) and error.get("kind")=="expected_starknet_rpc_endpoint_unavailable":
+                context=error.get("context")
+                require(isinstance(context,dict),"malformed Starknet unavailable peer notice")
+                checked_starknet_peer_context(context,context.get("upstream"))
+                require(self.manifest["scenario"]=="starknet" and context["case_inputs_sha256"]==self.manifest["case_inputs"]["sha256"] and error.get("positive_receipt_credit") is False and error.get("error_type")=="ConnectionRefusedError" and type(error.get("monotonic_ns")) is int and error["monotonic_ns"]>0 and any(context==dict(row,scenario="starknet",role=context["role"],case_inputs_sha256=self.manifest["case_inputs"]["sha256"]) for row in self.starknet_unavailable_definitions),"unapproved Starknet unavailable peer notice")
+                self.starknet_unavailable_notices.append(error);self.transport_notices.append(error)
+                self.append("native-starknet-unavailable-endpoints.jsonl",error);return
             if isinstance(error, dict) and error.get("kind") == "expected_source_endpoint_unavailable":
                 context = error.get("context")
                 require(isinstance(context, dict) and error.get("positive_receipt_credit") is False
@@ -576,7 +700,11 @@ class Session:
                                         expected_unavailable=expected_unavailable)
                                 else:
                                     connect = source_connect_url(endpoint, self.evidence_nodes.get(name))
-                                    proxy = (RawTcpProxy if transport == "tcp" else TransparentProxy)(endpoint, observe, self.failure, connect_upstream=connect if connect != endpoint else None)
+                                    if self.manifest["scenario"]=="starknet" and transport!="tcp":
+                                        context=starknet_expected_peer_context(self.starknet_unavailable_definitions,self.manifest,name,chain,request["role"],field,ordinal,endpoint)
+                                        proxy=TransparentProxy(endpoint,observe,self.failure,connect_upstream=connect if connect!=endpoint else None,expected_starknet_unavailable=context)
+                                    else:
+                                        proxy = (RawTcpProxy if transport == "tcp" else TransparentProxy)(endpoint, observe, self.failure, connect_upstream=connect if connect != endpoint else None)
                                 self.proxy_cache[key] = proxy
                                 proxies.append(proxy)
                         replacements[(name, field)].append(proxy.endpoint)
@@ -600,10 +728,24 @@ class Session:
         with self.lock:
             record = {"chain": chain, "role": role, "endpoint_field": field, "upstream": endpoint, "status": status, "requested_monotonic_ns": request["requested_monotonic_ns"], "received_monotonic_ns": now_ns, "request_wire_sha256": hashlib.sha256(request["wire"]).hexdigest(), "response_wire_sha256": hashlib.sha256(response["wire"]).hexdigest(), "request": request["json"], "response": result, "path": request["start"].split(" ")[1]}
             self.append("native-rpc-observations.jsonl", record)
-            if status == 200 and (not isinstance(result, dict) or "error" not in result):
+            # Current JSON-RPC families require matched IDs and at least one
+            # genuine result. Mixed valid success/error batches are activity;
+            # all-error, foreign-ID and malformed responses are never credit.
+            scenario = self.manifest.get('scenario')
+            json_rpc = scenario in {'evm','cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite'} or isinstance(request['json'], list) or isinstance(request['json'], dict) and ('jsonrpc' in request['json'] or 'method' in request['json'])
+            success = status == 200 and (successful_json_rpc_exchange(request['json'], result) if json_rpc else scenario in {'radix','aleo','tron'} and (not isinstance(result, dict) or 'error' not in result))
+            if success:
+                start = request['requested_monotonic_ns']
+                require(type(start) is int and type(now_ns) is int and 0 < start <= now_ns, 'invalid actual proxy request/response clocks')
                 self.activity[(role, chain)] = now_ns
+                if not hasattr(self, 'successful_activity'):
+                    self.successful_activity = {}
+                old = self.successful_activity.get((role, chain))
+                if old is None or (start, now_ns) > (old['request_started_monotonic_ns'], old['response_received_monotonic_ns']):
+                    self.successful_activity[(role, chain)] = {'request_started_monotonic_ns': start, 'response_received_monotonic_ns': now_ns}
             if self.family is not None:
                 self.family.observe(self, record)
+                self.record_starknet_rpc_recovery(record)
                 return
             if status != 200:
                 return
@@ -717,6 +859,29 @@ class Session:
         with self.lock:
             self.cw_healthy_grpc_fallbacks[key] = max(received, self.cw_healthy_grpc_fallbacks.get(key, 0))
 
+    def record_starknet_rpc_recovery(self,record):
+        definitions=getattr(self,"starknet_unavailable_definitions",())
+        if not definitions or record.get("status")!=200:return
+        if not any(record.get("chain")==row["chain"] and record.get("endpoint_field")==row["field"] and record.get("upstream")==row["healthy_fallback"] for row in definitions):return
+        # Called AFTER the unchanged family observer accepts the parsed wire.
+        request,response=record.get("request"),record.get("response")
+        if not isinstance(request,dict) or not isinstance(response,dict) or response.get("jsonrpc")!="2.0" or request.get("jsonrpc")!="2.0" or "error" in response or "result" not in response:return
+        if type(request.get("id")) not in (int,str) or type(response.get("id")) is not type(request["id"]) or response["id"]!=request["id"] or not isinstance(request.get("method"),str) or not request["method"].startswith("starknet_"):return
+        received=record["received_monotonic_ns"];require(type(received) is int and received>0,"actual Starknet healthy fallback receive clock required")
+        key=(record["role"],record["chain"],record["endpoint_field"],record["upstream"])
+        self.starknet_healthy_rpc_fallbacks[key]=max(received,self.starknet_healthy_rpc_fallbacks.get(key,0))
+
+    def require_starknet_peer_recovery(self):
+        with self.lock:
+            for notice in getattr(self,"starknet_unavailable_notices",()):
+                row=notice["context"]
+                captures=[capture for capture in self.captures if capture["original"]["role"]==row["role"] and row["chain"] in capture["original"]["role_chain_names"] and row["chain"] in capture["original"]["chains"]]
+                require(captures,"Source Starknet unavailable peer has no selected consumer capture")
+                captured=max(capture["captured_monotonic_ns"] for capture in captures)
+                require(type(captured) is int and captured>0,"actual Starknet consumer capture clock required")
+                received=self.starknet_healthy_rpc_fallbacks.get((row["role"],row["chain"],row["field"],row["healthy_fallback"]))
+                require(type(received) is int and received>=max(captured,notice["monotonic_ns"]),"Source Starknet unavailable peer has no fresh actual healthy fallback")
+
     def require_expected_peer_recovery(self):
         # Proxy URLs/cache keys intentionally survive restart. Recovery may not
         # reuse a success predating the latest selected role+chain capture.
@@ -737,6 +902,7 @@ class Session:
     def canonical_snapshot(self, expected, *, initial, phase=None):
         if self.family is not None:
             self.require_expected_peer_recovery()
+            self.require_starknet_peer_recovery()
             snapshot = self.family.collect(self, expected, phase or ("initial" if initial else "final"))
             require(isinstance(snapshot, dict) and isinstance(snapshot.get("messages"), list) and isinstance(snapshot.get("deliverable_messages"), list) and isinstance(snapshot.get("native_delivery_transactions"), list), "actual native family snapshot missing")
             messages = {row["id"]: row for row in snapshot["messages"]}
@@ -763,6 +929,7 @@ class Session:
             relayers = [row for row in self.captures if row["original"]["role"] == "relayer"]
             snapshot.update({"runtime_source_commit": self.manifest["runtime_source_commit"], "scenario": self.manifest["scenario"], "per_id_lifecycle": lifecycle, "observer_policy": dict(OBSERVER_POLICY), "broadcasts": list(self.broadcasts), "capture_count": len(self.captures), "relayer_capture_ordinal": relayers[-1]["capture_ordinal"]})
             self.require_expected_peer_recovery()
+            self.require_starknet_peer_recovery()
             require(not self.failures, "native observer failed during family canonical verification")
             return snapshot
         with self.lock:
@@ -1079,7 +1246,12 @@ class Session:
         return result
 
     def verify(self, stage, expected, harness_parent=None):
-        read_approval(self.manifest)
+        try:
+            read_approval(self.manifest)
+        except Exception:
+            if stage == 'after_restart':
+                self.restart_window.invalidate()
+            raise
         require(not self.failures, "actual observer failed")
         if stage == "preflight":
             if self.evidence_nodes:
@@ -1106,31 +1278,64 @@ class Session:
             self.append("verified-before-restart.jsonl", snapshot)
             return {"verified": True, "stage": stage}
         if stage == "after_restart":
-            require(self.before_restart is not None, "actual stopped baseline missing")
-            snapshot = self.canonical_snapshot(expected, initial=True, phase="after_restart")
-            require(self.broadcasts == self.initial["broadcasts"], "sameDB restart submitted an extra transaction")
-            # Every actually configured role must have a new capture with the
-            # same original effective config and the same stable proxy URLs.
-            from collections import Counter
-            cutoff = self.initial["capture_count"]
-            def binding(row):
-                return json.dumps({"original": row["original"], "proxied": row["proxied"]}, sort_keys=True, separators=(",", ":"))
-            before = Counter(binding(row) for row in self.captures[:cutoff])
-            after = Counter(binding(row) for row in self.captures[cutoff:])
-            require(before == after, "every configured role must restart with identical original/effective config and endpoint fallback set")
-            launches = [json.loads(line) for line in self.owned_path(self.evidence_relative / "owned-children.jsonl").read_text().splitlines()]
-            self.role_launch_epochs(launches)
-            for row in launches[cutoff:]:
-                process_identity(self.manifest, row)
-            for capture in self.captures[cutoff:]:
-                for chain in capture["original"]["role_chain_names"]:
-                    require(self.activity.get((capture["original"]["role"], chain), 0) > capture["captured_monotonic_ns"], "restarted actual role has not produced fresh native RPC activity")
-            if self.family is not None:
-                self.family.readiness(self, self.captures[:cutoff], self.captures[cutoff:])
-            snapshot["checkpoint_proofs"] = self.checkpoint_publications(snapshot, self.checkpoint_proofs(snapshot))
-            self.after_restart = snapshot
-            self.append("verified-after-restart.jsonl", snapshot)
-            return {"verified": True, "stage": stage}
+            try:
+                require(self.before_restart is not None, "actual stopped baseline missing")
+                snapshot = self.canonical_snapshot(expected, initial=True, phase="after_restart")
+                require(self.broadcasts == self.initial["broadcasts"], "sameDB restart submitted an extra transaction")
+                # Every actually configured role must have a new capture with the
+                # same original effective config and the same stable proxy URLs.
+                from collections import Counter
+                cutoff = self.initial["capture_count"]
+                def binding(row):
+                    return json.dumps({"original": row["original"], "proxied": row["proxied"]}, sort_keys=True, separators=(",", ":"))
+                before = Counter(binding(row) for row in self.captures[:cutoff])
+                after = Counter(binding(row) for row in self.captures[cutoff:])
+                require(before == after, "every configured role must restart with identical original/effective config and endpoint fallback set")
+                launches = [json.loads(line) for line in self.owned_path(self.evidence_relative / "owned-children.jsonl").read_text().splitlines()]
+                self.role_launch_epochs(launches)
+                for row in launches[cutoff:]:
+                    process_identity(self.manifest, row)
+                for capture in self.captures[cutoff:]:
+                    for chain in capture["original"]["role_chain_names"]:
+                        pair = self.successful_activity.get((capture["original"]["role"], chain))
+                        require(pair is not None and pair['request_started_monotonic_ns'] > capture['captured_monotonic_ns'] and pair['response_received_monotonic_ns'] > capture['captured_monotonic_ns'], "restarted actual role has no successful request started in its new capture epoch")
+                if self.family is not None:
+                    snapshot['same_db_restart_readiness'] = self.family.readiness(self, self.captures[:cutoff], self.captures[cutoff:])
+                snapshot["checkpoint_proofs"] = self.checkpoint_publications(snapshot, self.checkpoint_proofs(snapshot))
+                # All native callbacks above run without Session.lock. Only freeze
+                # their actual successful identity/activity state under the lock.
+                with self.lock:
+                    restarted = self.captures[cutoff:]
+                    required = {(capture['original']['role'], chain) for capture in restarted
+                                for chain in capture['original']['role_chain_names']}
+                    activity = {role + ':' + chain: self.successful_activity[(role, chain)]['response_received_monotonic_ns']
+                                for role, chain in sorted(required)}
+                    request_started = {role + ':' + chain: self.successful_activity[(role, chain)]['request_started_monotonic_ns']
+                                       for role, chain in sorted(required)}
+                    epoch = hashlib.sha256(json.dumps({'bindings': sorted(binding(row) for row in restarted),
+                        'children': launches[cutoff:]}, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                    now_ns = time.monotonic_ns()
+                    ready = self.restart_window.observe(now_ns, epoch, activity, request_started)
+                    proof = self.restart_window.evidence() if ready else None
+                if not ready:
+                    return {'verified': False, 'stage': stage}
+                proof['before_effective_config_sha256'] = hashlib.sha256(json.dumps(sorted(binding(row) for row in self.captures[:cutoff]), separators=(',', ':')).encode()).hexdigest()
+                proof['after_effective_config_sha256'] = hashlib.sha256(json.dumps(sorted(binding(row) for row in restarted), separators=(',', ':')).encode()).hexdigest()
+                proof['new_capture_last_monotonic_ns'] = max(capture['captured_monotonic_ns'] for capture in restarted)
+                capture_clocks = {}
+                for capture in restarted:
+                    for chain in capture['original']['role_chain_names']:
+                        key = capture['original']['role'] + ':' + chain
+                        capture_clocks[key] = max(capture_clocks.get(key, 0), capture['captured_monotonic_ns'])
+                proof['new_capture_monotonic_ns_by_role_chain'] = capture_clocks
+                proof['new_child_identities'] = [{key: row[key] for key in ('role', 'pid', 'parent_pid', 'os_start_token', 'executable')} for row in launches[cutoff:]]
+                snapshot['same_db_restart_observation'] = proof
+                self.after_restart = snapshot
+                self.append("verified-after-restart.jsonl", snapshot)
+                return {"verified": True, "stage": stage}
+            except Exception:
+                self.restart_window.invalidate()
+                raise
         if stage == "restart":
             require(self.initial is not None, "actual initial correctness evidence missing")
             relayers = [row for row in self.captures if row["original"]["role"] == "relayer"]
@@ -1165,6 +1370,9 @@ class Session:
         snapshot["postgres"] = self.postgres_proofs(snapshot)
         if self.family is not None or self.manifest["scenario"] == "tron":
             snapshot["native_operations"] = self.native_operation_proofs(snapshot, baseline=self.before_restart["native_operations"])
+        self.restart_window.evidence() # Reject a later poisoned/incomplete window.
+        snapshot['same_db_restart_observation'] = self.after_restart['same_db_restart_observation']
+        snapshot['same_db_restart_readiness'] = self.after_restart.get('same_db_restart_readiness')
         snapshot["verified"] = True
         self.append("verified-final-native.jsonl", snapshot)
         return {"verified": True, "stage": stage}

@@ -210,9 +210,15 @@ def validate_pg_image(row, policy):
 
 def prepare_pg_image():
     import tempfile
-    parser=argparse.ArgumentParser();parser.add_argument('--prepare-pg-image',action='store_true');parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--docker',type=Path,required=True);parser.add_argument('--docker-sha256',required=True);parser.add_argument('--config',type=Path,required=True);parser.add_argument('--deadline-ns',type=int,required=True);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--prepare-pg-image',action='store_true');parser.add_argument('--prepare-starknet-image',action='store_true');parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--docker',type=Path,required=True);parser.add_argument('--docker-sha256',required=True);parser.add_argument('--config',type=Path,required=True);parser.add_argument('--deadline-ns',type=int,required=True);args=parser.parse_args()
     require(pin(args.request)['sha256']==args.request_sha256 and pin(args.docker)['sha256']==args.docker_sha256,'PG setup policy/tool changed')
-    dispatch=module('pg_case_request','zig/bench/native_case_ci.py');request=dispatch.validate_request(dispatch.read_request(args.request));policy=request['postgres']
+    dispatch=module('pg_case_request','zig/bench/native_case_ci.py');request=dispatch.validate_request(dispatch.read_request(args.request));is_stark=args.prepare_starknet_image
+    require(not is_stark or request['scenario']=='starknet','Starknet image worker on wrong family')
+    policy=request['prerequisites']['starknet_devnet'] if is_stark else request['postgres']
+    source_tag=policy['source_image'] if is_stark else policy['image']
+    def validate(row):
+        if is_stark:module('setup_starknet_assets','zig/bench/native_starknet_assets.py').image_inspect([row,row],policy)
+        else:validate_pg_image(row,policy)
     require(args.config.is_absolute() and not args.config.exists() and not args.config.is_symlink(),'Exclusive PG setup Docker config required')
     args.config.mkdir(mode=0o700);(args.config/'config.json').write_text('{}\n');calls=[]
     env={'PATH':'/usr/bin:/bin','HOME':str(args.config),'LC_ALL':'C'}
@@ -240,19 +246,25 @@ def prepare_pg_image():
         rows=json.loads(wire);require(isinstance(rows,list) and len(rows)==1,'One actual PG image required');return rows[0]
     record={'schema':1,'passed':False,'image_policy':policy,'calls':calls,'tag_created':False,'no_container_or_node_started':True,'native_case_acceptance':False}
     try:
-        tag=inspect(policy['image'],True)
-        if tag is not None:validate_pg_image(tag,policy)
+        tag=inspect(source_tag,True)
+        if tag is not None:validate(tag)
         else:
             immutable=inspect(policy['canonical_digest'],True)
             if immutable is None:
                 call(['pull','--platform','linux/'+policy['architecture'],policy['canonical_digest']]);immutable=inspect(policy['canonical_digest'])
-            validate_pg_image(immutable,policy)
+            validate(immutable)
             # Never replace a foreign tag, including a tag created during pull.
-            existing=inspect(policy['image'],True)
-            if existing is None:call(['image','tag',policy['image_id'],policy['image']]);record['tag_created']=True
-            else:validate_pg_image(existing,policy)
-        final=inspect(policy['image']);validate_pg_image(final,policy)
+            existing=inspect(source_tag,True)
+            if existing is None:call(['image','tag',policy['image_id'],source_tag]);record['tag_created']=True
+            else:validate(existing)
+        final=inspect(source_tag);validate(final)
         record['actual_image']={key:final[key] for key in ('Id','Os','Architecture','RepoDigests')}
+        if is_stark:
+            identity=inspect(policy['image_id']);validate(identity)
+            info=json.loads(call(['info','--format','{{json .}}']))
+            directory=Path(info['DockerRootDir']).resolve(strict=True)
+            require(info.get('OSType')=='linux' and directory.is_dir() and directory.stat().st_dev==args.config.stat().st_dev,'Same-host Linux daemon filesystem required for conservative host-free accounting')
+            record.update(actual_image_rows=[identity,final],all_actual_parent_waits=all(c['actual_parent_wait'] for c in calls),same_host_filesystem=True,daemon={'ID':info['ID'],'DockerRootDir':str(directory),'filesystem_device':directory.stat().st_dev})
         require(time.monotonic_ns()<args.deadline_ns,'PG preparation exceeded original setup deadline');record['passed']=True
     finally:
         print(json.dumps(record,sort_keys=True))
@@ -273,6 +285,34 @@ def prepare_cw_assets():
     print(json.dumps({'schema':1,'passed':True,'wasm_bundle':bundle,'static_cli':admitted,'wasm_zip':pin(args.wasm_zip),'native_code_executed':False},sort_keys=True))
 
 
+def prepare_starknet_assets():
+    parser=argparse.ArgumentParser();parser.add_argument('--prepare-starknet-assets',action='store_true')
+    for name in ('request','cli-archive','contract-zip','contract-checksum','ldconfig','image-readback','output'):parser.add_argument('--'+name,type=Path,required=True)
+    parser.add_argument('--request-sha256',required=True);parser.add_argument('--ldconfig-sha256',required=True);args=parser.parse_args()
+    require(pin(args.request)['sha256']==args.request_sha256 and pin(args.ldconfig)['sha256']==args.ldconfig_sha256,'Starknet policy/tool changed')
+    dispatch=module('assets_starknet_request','zig/bench/native_case_ci.py');request=dispatch.validate_request(dispatch.read_request(args.request))
+    require(request['scenario']=='starknet','Starknet assets worker on another family')
+    assets=module('assets_starknet','zig/bench/native_starknet_assets.py')
+    architecture=request['postgres']['architecture'];assets.validate_policy(request['prerequisites'],architecture)
+    require(args.output.is_absolute() and not args.output.exists() and not args.output.is_symlink(),'New owned Starknet assets root required');args.output.mkdir(mode=0o700)
+    body=assets.cli_member(args.cli_archive.read_bytes(),request['prerequisites']['native_cli']);cli=args.output/'starkli'
+    with cli.open('xb') as stream:stream.write(body)
+    cli.chmod(0o755);module('starknet_cli_elf','zig/bench/native_case_tools.py').validate_elf(cli,{'amd64':62,'arm64':183}[architecture])
+    lookup=subprocess.run([str(args.ldconfig),'-p'],env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},capture_output=True,timeout=3,check=False)
+    require(lookup.returncode==0 and len(lookup.stdout)<=2*1024**2 and len(lookup.stderr)<=65536,'Bounded actual system loader index required')
+    entries={}
+    for line in lookup.stdout.decode().splitlines():
+        if ' => ' not in line:continue
+        left,right=line.split(' => ',1);name=left.strip().split()[0];path=Path(right.strip())
+        if path.is_absolute() and path.exists():entries.setdefault(name,set()).add(path.resolve(strict=True))
+    def resolve(name):
+        paths=entries.get(name,set());require(len(paths)==1,'Ambiguous/missing native system DSO: '+name);return next(iter(paths))
+    graph=assets.cli_loader(cli,architecture,assets.elf_dynamic,resolve);assets.validate_cli_loader(graph,cli,architecture,assets.elf_dynamic)
+    graph_path=args.output/'cli-elf.json';graph_path.write_text(json.dumps(graph,sort_keys=True)+'\n')
+    bundle=assets.materialize_contracts(pin(args.contract_zip),pin(args.contract_checksum),args.output/'contracts-release');assets.read_contracts(bundle)
+    print(json.dumps({'schema':1,'passed':True,'bundle':bundle,'cli_archive':pin(args.cli_archive),'cli_elf':pin(graph_path),'image_readback':pin(args.image_readback),'native_code_executed':False},sort_keys=True))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--execution-source-commit',required=True);parser.add_argument('--repo',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--tools',type=Path,required=True);parser.add_argument('--tools-sha256',required=True);parser.add_argument('--execute',action='store_true')
@@ -280,10 +320,12 @@ def main():
     dispatch=module('case_dispatch','zig/bench/native_case_ci.py')
     require(pin(args.request)['sha256']==args.request_sha256,'Reviewed setup request changed')
     request=dispatch.validate_request(dispatch.read_request(args.request))
-    require(request['scenario'] in {'evm','cosmosnative','cosmwasm'},'Unimplemented native setup family')
-    is_evm=request['scenario']=='evm';is_cw=request['scenario']=='cosmwasm'
+    require(request['scenario'] in {'evm','cosmosnative','cosmwasm','starknet'},'Unimplemented native setup family')
+    is_evm=request['scenario']=='evm';is_cw=request['scenario']=='cosmwasm';is_stark=request['scenario']=='starknet'
     cw_assets=module('setup_cw_assets','zig/bench/native_cw_assets.py') if is_cw else None
     if is_cw:cw_assets.validate_policy(request['prerequisites'],request['postgres']['architecture'])
+    sn_assets=module('setup_starknet_assets','zig/bench/native_starknet_assets.py') if is_stark else None
+    if is_stark:sn_assets.validate_policy(request['prerequisites'],request['postgres']['architecture'])
     require(args.repo.is_absolute() and args.repo.resolve(strict=True)==args.repo and args.output.is_absolute() and not args.output.exists() and not args.output.is_symlink() and not args.output.is_relative_to(args.repo),'Exclusive CI setup outside canonical checkout required')
     require(pin(args.tools)['sha256']==args.tools_sha256,'Explicit setup tool receipt changed')
     tool_rows=json.loads(args.tools.read_text());require(set(tool_rows)==TOOL_NAMES,'Closed preinstalled CI tool set required')
@@ -344,6 +386,8 @@ def main():
         for name,argv,expected in ([('node-version',[str(tools['node']),'--version'],'v26.12.1'),('pnpm-version',[str(tools['pnpm']),'--version'],'12.3.0')] if is_evm else []):require(run(name,argv).read_text().strip()==expected,'Pinned version differs: '+name)
         for name in (('forge','anvil','cast') if is_evm else ('cast',)):require(re.search(r'(?<!\d)1\.5\.0(?!\d)',run(name+'-version',[str(tools[name]),'--version']).read_text()),'Pinned Foundryv1.5.0 differs')
         run('approved-pg-image-prerequisite',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-pg-image','--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/'docker-config'),'--deadline-ns',str(int(deadline*1e9))])
+        image_log=None
+        if is_stark:image_log=run('approved-starknet-image-prerequisite',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-starknet-image','--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/'starknet-docker-config'),'--deadline-ns',str(int(deadline*1e9))])
         for row in plan['commands']:
             run(row['name'],row['argv'],Path(row['cwd']),row['extra_environment'])
             if row['name']=='locked-soldeer':
@@ -361,6 +405,17 @@ def main():
             esbuild=Path(run('resolve-esbuild-only',[str(tools['node']),'-e',resolver]).read_text().strip()).resolve(strict=True)
             final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof','anvil','node','sh')});final_tools.update({'pnpm_launcher':pin(tools['pnpm']),'pnpm_native':pin(tools['pnpm']),'esbuild':pin(esbuild)})
             contracts.update(output_files(args.repo))
+        elif is_stark:
+            policy=request['prerequisites']['native_cli']
+            for name,url,size in [('starkli.tar.gz',policy['source_url'],policy['archive']['bytes']),(sn_assets.CONTRACT_NAME,sn_assets.CONTRACT_URL,sn_assets.CONTRACT_BYTES),(sn_assets.CHECKSUM_NAME,sn_assets.CHECKSUM_URL,96)]:
+                run('download-exact-'+name,[str(tools['curl']),'--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--max-time',str(max(1,int(deadline-time.monotonic()))),'--max-filesize',str(size),'--output',str(args.output/name),url])
+            asset_log=run('starknet-data-and-cli-ELF',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-starknet-assets','--request',str(args.request),'--request-sha256',args.request_sha256,'--cli-archive',str(args.output/'starkli.tar.gz'),'--contract-zip',str(args.output/sn_assets.CONTRACT_NAME),'--contract-checksum',str(args.output/sn_assets.CHECKSUM_NAME),'--ldconfig',str(tools['ldconfig']),'--ldconfig-sha256',pin(tools['ldconfig'])['sha256'],'--image-readback',str(image_log),'--output',str(args.output/'starknet-assets')])
+            value=json.loads(asset_log.read_text());require(value['passed'] is True and value['native_code_executed'] is False,'Actual static Starknet asset inspection missing')
+            cli=args.output/'starknet-assets/starkli'
+            version=run('native-cli-version-readonly',[str(cli),'--version']).read_bytes()
+            sn_assets.parse_cli_version(version)
+            result['starknet_assets']=value;contracts.update(value['bundle']['files'])
+            final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof')});final_tools['native_cli']=pin(cli);registry.update({'path':None,'commit':None})
         else:
             import platform
             cli_policy=request['prerequisites']['native_cli']
@@ -391,7 +446,7 @@ def main():
         run('system-library-versions',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--probe-system-libraries','--ldconfig',str(tools['ldconfig']),'--ldconfig-sha256',pin(tools['ldconfig'])['sha256'],'--versions'])
         run('hpack-exact-wheel',[sys.executable,'-I','-B',str(args.repo/'zig/tools/h2_dependency.py'),'--destination',str(args.output/'hpack'),'--download'])
         hpack=pin(args.output/'hpack/evidence/descriptor.json');result['hpack']=hpack
-        result['explicit_environment']={'PATH':env['PATH'],**({'REGISTRY_URI':str(registry_path)} if is_evm else ({'E2E_OSMOSIS_CLI_PATH':str(args.output/'osmosisd')} if is_cw else {'E2E_HYPD_PATH':str(args.output/'hypd')})),**{key:row['path'] for key,row in system_libraries.items()}}
+        result['explicit_environment']={'PATH':env['PATH'],**({'REGISTRY_URI':str(registry_path)} if is_evm else ({'E2E_OSMOSIS_CLI_PATH':str(args.output/'osmosisd')} if is_cw else ({'E2E_STARKLI_CLI_PATH':str(args.output/'starknet-assets/starkli')} if is_stark else {'E2E_HYPD_PATH':str(args.output/'hypd')}))),**{key:row['path'] for key,row in system_libraries.items()}}
         result['source_after']=snapshot(args.repo,tools['git']);require(result['source_after']==before,'Final prerequisite Source changed')
         require(pin(args.request)['sha256']==args.request_sha256 and pin(args.tools)['sha256']==args.tools_sha256,'Setup policy/tools changed');guard();result['passed']=True
     except BaseException as error:failure=error
@@ -415,6 +470,7 @@ if __name__=='__main__':
     def interrupted(sig,frame):raise RuntimeError('Prerequisite setup interrupted: '+str(sig))
     for sig in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):signal.signal(sig,interrupted)
     if '--probe-system-libraries' in sys.argv:library_probe()
-    elif '--prepare-pg-image' in sys.argv:prepare_pg_image()
+    elif '--prepare-pg-image' in sys.argv or '--prepare-starknet-image' in sys.argv:prepare_pg_image()
+    elif '--prepare-starknet-assets' in sys.argv:prepare_starknet_assets()
     elif '--prepare-cw-assets' in sys.argv:prepare_cw_assets()
     else:main()

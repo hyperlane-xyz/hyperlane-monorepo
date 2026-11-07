@@ -87,7 +87,7 @@ def validate_request(request, require_approved=True):
     fields = {'schema', 'root_approved', 'scenario', 'mode', 'producer_source_commit', 'producer_run_id', 'producer_run_attempt', 'limits', 'artifact_pins', 'postgres', 'prerequisites'}
     require(isinstance(request, dict) and set(request) == fields and type(request['schema']) is int and request['schema'] == 1, 'Unknown/missing native request fields')
     require(type(request['root_approved']) is bool and (request['root_approved'] or not require_approved), 'Reviewed native request approval absent')
-    require(request['scenario'] in {'evm', 'cosmosnative', 'cosmwasm'} and request['mode'] in {'ReleaseSafe', 'ReleaseFast'}, 'Initial native family/mode not implemented')
+    require(request['scenario'] in {'evm', 'cosmosnative', 'cosmwasm', 'starknet'} and request['mode'] in {'ReleaseSafe', 'ReleaseFast'}, 'Initial native family/mode not implemented')
     require(isinstance(request['producer_source_commit'], str) and re.fullmatch('[0-9a-f]{40}', request['producer_source_commit']), 'Exact compiled producer Source required')
     require(type(request['producer_run_id']) is int and request['producer_run_id'] > 0 and type(request['producer_run_attempt']) is int and request['producer_run_attempt'] > 0, 'Exact producer run and attempt required')
     require(request['limits'] == LIMITS and all(type(value) is int for value in request['limits'].values()), 'Native resource/lifecycle policy changed')
@@ -95,17 +95,20 @@ def validate_request(request, require_approved=True):
     require(isinstance(pg, dict) and set(pg) == {'schema', 'architecture', 'image', 'image_id', 'canonical_digest'} and type(pg['schema']) is int and pg['schema'] == 2 and pg['architecture'] in {'amd64', 'arm64'} and pg['image'] == 'postgres:14', 'Exact portable Source PG14 policy required')
     require(isinstance(pg['image_id'], str) and re.fullmatch('sha256:[0-9a-f]{64}', pg['image_id']) and isinstance(pg['canonical_digest'], str) and re.fullmatch('postgres@sha256:[0-9a-f]{64}', pg['canonical_digest']), 'Independent PG config ID and RepoDigest required')
     prerequisites = request['prerequisites']
-    keys = {'local_checkout_build', 'hpack', 'registry_commit'} | ({'native_cli'} if request['scenario'] != 'evm' else set()) | ({'wasm_bundle'} if request['scenario'] == 'cosmwasm' else set())
+    keys = {'local_checkout_build', 'hpack', 'registry_commit'} | ({'native_cli'} if request['scenario'] != 'evm' else set()) | ({'wasm_bundle'} if request['scenario'] == 'cosmwasm' else set()) | ({'starknet_devnet','starknet_contracts'} if request['scenario']=='starknet' else set())
     require(isinstance(prerequisites, dict) and set(prerequisites) == keys and prerequisites['local_checkout_build'] is True, 'Reviewed prerequisite source policy required')
     require(isinstance(prerequisites['registry_commit'], str) and re.fullmatch('[0-9a-f]{40}', prerequisites['registry_commit']) if request['scenario'] == 'evm' else prerequisites['registry_commit'] is None, 'Registry policy must match actual family consumption')
     require(prerequisites['hpack'] == {'version': '4.2.0', 'wheel_sha256': '858ac0b02280fa582b5080d68db0899c6' + '2a80375e0e5413a74970c5e518b6986', 'wheel_bytes': 34246}, 'Exact passive H2 wheel policy required')
-    if request['scenario'] != 'evm':
+    if request['scenario'] not in {'evm','starknet'}:
         cli = prerequisites['native_cli']
         require(isinstance(cli, dict) and set(cli) == {'name', 'architecture', 'source_url', 'bytes', 'sha256'} and cli['name'] == ('hypd' if request['scenario'] == 'cosmosnative' else 'osmosisd') and cli['architecture'] == pg['architecture'] and isinstance(cli['source_url'], str) and cli['source_url'].startswith('https://') and type(cli['bytes']) is int and 0 < cli['bytes'] <= 256 * 1024 ** 2 and re.fullmatch('[0-9a-f]{64}', cli['sha256']), 'Exact native CLI acquisition policy required')
     if request['scenario'] == 'cosmwasm':
         spec = importlib.util.spec_from_file_location('request_cw_assets', Path(__file__).with_name('native_cw_assets.py'))
         assets = importlib.util.module_from_spec(spec); spec.loader.exec_module(assets)
         assets.validate_policy(prerequisites, pg['architecture'])
+    if request['scenario']=='starknet':
+        spec=importlib.util.spec_from_file_location('request_starknet_assets',Path(__file__).with_name('native_starknet_assets.py'))
+        assets=importlib.util.module_from_spec(spec);spec.loader.exec_module(assets);assets.validate_policy(prerequisites,pg['architecture'])
     pins = request['artifact_pins']
     names = artifact_names(request)
     require(isinstance(pins, dict) and set(pins) == set(names), 'Exact five producer artifacts required')

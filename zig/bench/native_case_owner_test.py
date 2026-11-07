@@ -219,4 +219,126 @@ class CaseOwnerTests(unittest.TestCase):
         self.assertEqual(observed,{})
 
 
+    def public_snapshot_fixture(self):
+        identity='0x'+'11'*32;tx='0x'+'22'*32;first=1_000_000_000_000
+        life={'id':identity,'chain':'test2','transaction_hash':tx,'first_positive_monotonic_ns':first,
+              'early_active_samples':1200,'confirm_by_self_samples':1100,'retired_monotonic_ns':first+601*10**9,
+              'observed_message_sha256':'33'*32,'last_present_request_started_ns':first+599*10**9-1,
+              'last_present_response_received_ns':first+599*10**9,'maximum_observed_sample_gap_ns':2*10**9,
+              'first_absent_request_started_ns':first+601*10**9-1,'first_absent_response_received_ns':first+601*10**9}
+        message={'id':identity,'nonce':0,'origin':1,'destination':2,'origin_chain':'test1','delivery_chain':'test2','delivery_transaction':tx,'insertions':[0],
+                 'wire':'DO-NOT-EXPORT-SIGNED-OR-MESSAGE-WIRE','body':'DO-NOT-EXPORT-PRIVATE','signature':'DO-NOT-EXPORT-SIGNATURE'}
+        signed={'bytes':100,'sha256':'0x'+'44'*32}
+        operation={'context':'0x'+'55'*32,'generation':1,'identity':{'kind':'hash256','hex':tx},'stored_canonical_intent':signed,'signed':signed,
+                   'row':signed,'nonce':0,'origin':1,'destination':2,'kind':'process','stage':'delivered','retries':0,'confirmation_started':True,
+                   'deadline':{'unix_ms':1,'delay_ms':600000},'authorization':'DO-NOT-EXPORT-AUTHORIZATION','signed_hex':'DO-NOT-EXPORT-SIGNED-WIRE'}
+        start=2_000_000_000_000
+        restart={'schema':1,'minimum_live_ns':30*10**9,'epoch_sha256':'66'*32,'maximum_successful_sample_gap_ns':10*10**9,
+                 'elapsed_live_ns':30*10**9,'new_capture_last_monotonic_ns':start-100,'new_capture_monotonic_ns_by_role_chain':{'relayer:test2':start-100,'validator:test1':start-100},'before_effective_config_sha256':'ab'*32,'after_effective_config_sha256':'ab'*32,
+                 'samples':[{'observed_monotonic_ns':start+i*5*10**9,'role_rpc_activity':{'relayer:test2':start+i*5*10**9-1,'validator:test1':start+i*5*10**9-2},'role_rpc_request_started_ns':{'relayer:test2':start+i*5*10**9-10,'validator:test1':start+i*5*10**9-20}}for i in range(7)],
+                 'new_child_identities':[{'role':'relayer','pid':99,'parent_pid':98,'os_start_token':'linux-ticks:123','executable':{'path':'/public-role','bytes':1,'sha256':'77'*32}}],
+                 'private_env':'DO-NOT-EXPORT-ENVIRONMENT'}
+        snapshot={'runtime_source_commit':'a'*40,'scenario':'cosmosnative','capture_count':6,'relayer_capture_ordinal':4,'verified':True,
+                  'messages':[message],'deliverable_messages':[message],'per_id_lifecycle':[life],
+                  'native_delivery_transactions':[{'chain':'test2','transaction_hash':tx,'proof':{'message_ids':[identity],'height':7,'signed':signed,'raw':'DO-NOT-EXPORT-RAW'}}],
+                  'broadcasts':[{'chain':'test2','transaction_hash':tx,'monotonic_ns':first-1,'raw_transaction_sha256':'88'*32,'wire':'DO-NOT-EXPORT-BROADCAST'}],
+                  'native_operations':[{'id':identity,'operation':operation}],
+                  'stopped_canonical_Rust_readback':[{'origin':'test1','actual_Rust_output':{'reader':'actual production','origin_domain':1,'origin_nonce_count':1,'private':'DO-NOT-EXPORT-RAW-ORACLE'},
+                    'verified_canonical_messages':[{'id':identity,'nonce':0,'processed':True,'payment':{'payment':'2','gas_amount':'3'},'spent':{'gas_used':'1','tokens_used':'2'},'gas_expenditure_record_present':True}]}],
+                  'postgres':[{'id':identity,'verified':{'canonical_dispatch_rows':1,'canonical_delivery_rows':1,'payment_rows':1,'payment':2,'gas_amount':3,'leaf_indices':[0]},'raw_sql':'DO-NOT-EXPORT-SQL'}],
+                  'family_native_row_proofs':[{'id':identity,'native_identity':tx,'independently_verified_signature':True,'retained_intent_fingerprint_verified':True,'signature':'DO-NOT-EXPORT-SIGNATURE'}],
+                  'checkpoint_proofs':[{'metadata':{'git_sha':'a'*40,'allows_public_rpcs':False,'key':'DO-NOT-EXPORT-CHECKPOINT-KEY'},'verified_checkpoint_objects':[{'index':0,'root':'0x'+'99'*32,'message_id':identity,'signer':'0x'+'aa'*20,'signature':'DO-NOT-EXPORT-CHECKPOINT-SIGNATURE'}],'published_bytes':[]}],
+                  'parent_wait_receipts':[{'role':'relayer','pid':1,'parent_pid':9,'os_start_token':'linux-ticks:1','purpose':'final','parent_wait_completed':True,'already_exited':False,'forced_kill':False,'success':True,'exit_code':0,'signal':None,'env':'DO-NOT-EXPORT-PARENT-ENV'}],
+                  'observer_policy':{'maximum_successful_domain_sample_gap_ns':10*10**9,'private_env':'DO-NOT-EXPORT-POLICY-ENV'},
+                  'same_db_restart_observation':restart}
+        return snapshot
+
+    def public_record_files(self):
+        case=self.root/'public-case';(case/'evidence').mkdir(parents=True);snapshot=self.public_snapshot_fixture()
+        for name in ['initial','before-restart','after-restart','final-native']:
+            # Native verifier's actual file naming has initial-native too.
+            file={'initial':'verified-initial-native.jsonl','before-restart':'verified-before-restart.jsonl','after-restart':'verified-after-restart.jsonl','final-native':'verified-final-native.jsonl'}[name]
+            (case/'evidence'/file).write_text(json.dumps(snapshot)+'\n')
+        manifest={'runtime_source_commit':'a'*40,'scenario':'cosmosnative','mode':'ReleaseSafe','artifacts':{'relayer':{'path':'/public','bytes':1,'sha256':'bb'*32}}}
+        plan={'execution_source_commit':'c'*40,'manifestArtifact':{'path':'/manifest-public','bytes':1,'sha256':'dd'*32},'harnessArtifact':{'path':'/helper-public','bytes':1,'sha256':'ee'*32}}
+        return case,manifest,plan
+
+    def test_public_projection_preserves_actual_clocks_and_excludes_private_fields(self):
+        raw=self.public_snapshot_fixture();value=api.public_native_snapshot(raw);wire=json.dumps(value)
+        self.assertNotIn('DO-NOT-EXPORT',wire)
+        self.assertEqual(value['per_id_lifecycle'],raw['per_id_lifecycle'])
+        self.assertEqual(value['family_native_row_proofs'][0]['independently_verified_signature'],True)
+        self.assertEqual(value['postgres'][0]['verified']['canonical_delivery_rows'],1)
+        self.assertEqual(value['checkpoint_proofs'][0]['verified_checkpoint_objects'][0]['signer'],'0x'+'aa'*20)
+        self.assertEqual(value['same_db_restart_observation']['elapsed_live_ns'],30*10**9)
+
+    def test_hash_matched_public_proof_is_deterministic_and_no_implicit_acceptance(self):
+        case,manifest,plan=self.public_record_files();final=api.pin(case/'evidence/verified-final-native.jsonl')
+        a=api.write_public_native_proof(plan,manifest,case,self.root/'public-a.json',final)
+        b=api.write_public_native_proof(plan,manifest,case,self.root/'public-b.json',final)
+        self.assertEqual(a['sha256'],b['sha256']);value=json.loads(Path(a['path']).read_text())
+        self.assertEqual(value['raw_records']['final'],final)
+        self.assertEqual(value['actual_timed_restart_ns'],30*10**9)
+        self.assertFalse(value['native_or_performance_credit_from_projection_alone'])
+        self.assertNotIn('DO-NOT-EXPORT',Path(a['path']).read_text())
+        with self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,self.root/'public-a.json',final)
+
+    def test_public_proof_rejects_early_retirement_stale_restart_or_changed_signed_identity(self):
+        for change in ['retirement','stale','signed','legacy']:
+            case,manifest,plan=self.public_record_files();path=case/'evidence/verified-final-native.jsonl';value=json.loads(path.read_text())
+            if change=='retirement':value['per_id_lifecycle'][0]['retired_monotonic_ns']=value['per_id_lifecycle'][0]['first_positive_monotonic_ns']+599*10**9
+            if change=='signed':value['native_operations'][0]['operation']['signed']['sha256']='0x'+'ff'*32
+            path.write_text(json.dumps(value)+'\n')
+            if change in ['stale','legacy']:
+                target=case/'evidence/verified-after-restart.jsonl';after=json.loads(target.read_text())
+                if change=='legacy':after.pop('same_db_restart_observation')
+                else:after['same_db_restart_observation']['samples'][1]['role_rpc_activity']=after['same_db_restart_observation']['samples'][0]['role_rpc_activity']
+                target.write_text(json.dumps(after)+'\n')
+            with self.subTest(change=change),self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,self.root/(change+'.json'),api.pin(path))
+            import shutil
+            shutil.rmtree(case)
+
+    def test_public_proof_rejects_changed_raw_final_hash(self):
+        case,manifest,plan=self.public_record_files();path=case/'evidence/verified-final-native.jsonl';expected=api.pin(path);path.write_text(path.read_text()+'\n')
+        with self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,self.root/'no.json',expected)
+
+    def test_stark_public_fingerprints_do_not_publish_invoke_signature_or_calldata(self):
+        raw=self.public_snapshot_fixture();raw['scenario']='starknet'
+        raw['family_native_row_proofs']=[{'id':raw['messages'][0]['id'],'identity':raw['messages'][0]['delivery_transaction'],
+            'account':'0x1','public_key':'0x2','account_nonce':'0x3','allocated_fee':7,'whole_fee':9,'rounding_dust':2,
+            'context':'0x'+'ab'*32,'expected_context_checked':True,'configuration_authority_verified':False,
+            'native_signed_wire':{'bytes':150,'sha256':'0x'+'ac'*32},'signature':['DO-NOT-EXPORT-SIGNATURE'],'calldata':['DO-NOT-EXPORT-CALLDATA']}]
+        value=api.public_native_snapshot(raw);wire=json.dumps(value)
+        self.assertNotIn('DO-NOT-EXPORT',wire)
+        row=value['family_native_row_proofs'][0]
+        self.assertFalse(row['configuration_authority_verified'])
+        self.assertEqual(row['native_signed_wire_fingerprint']['bytes'],150)
+        self.assertEqual(row['allocated_fee'],7)
+
+
+    def test_actual_evm_cosmos_and_stark_SQL_DTO_shapes_preserve_verdicts_and_coordinates(self):
+        metadata={'chain':'test1','domain':1,'transaction_hash':'0x'+'22'*32,'block_hash':'0x'+'33'*32,'block_number':7,'transaction_index':0,'log_index':1,'emitter':'0x'+'44'*32,'private':'DO-NOT-EXPORT-EVENT'}
+        counts={'canonical_dispatch_rows':1,'canonical_delivery_rows':1,'payment_rows':0,'payment':0,'gas_amount':0,'leaf_indices':[0]}
+        for family in ['evm','cosmosnative','cosmwasm','starknet']:
+            raw=self.public_snapshot_fixture();raw['scenario']=family;identity=raw['messages'][0]['id']
+            if family=='evm':row={'id':identity,'verified':dict(counts,canonical_event_coordinates=[{'kind':'dispatch','metadata':metadata}])}
+            elif family=='starknet':row={'id':identity,'proof':counts,'canonical_event_rows':[{'kind':'dispatch','metadata':metadata,'exact_rows':1}],'payments_supported':False}
+            else:row={'id':identity,'verified':counts,'canonical_event_coordinates':{'dispatch':[metadata]}}
+            raw['postgres']=[row];projected=api.public_native_snapshot(raw)['postgres'][0]
+            self.assertEqual(projected['proof'if family=='starknet'else'verified'],counts)
+            self.assertEqual(projected['canonical_event_rows'][0]['metadata']['block_number'],7)
+            self.assertNotIn('DO-NOT-EXPORT',json.dumps(projected))
+            if family=='starknet':self.assertEqual(projected['canonical_event_rows'][0]['exact_rows'],1);self.assertFalse(projected['payments_supported'])
+
+    def test_actual_native_family_readiness_public_fields_are_retained(self):
+        for family in ['cosmosnative','starknet']:
+            raw=self.public_snapshot_fixture();raw['scenario']=family
+            if family=='starknet':readiness={'actual_native_dispatches':10,'actual_native_deliveries':10,'actual_publications':raw['checkpoint_proofs'],'production600_policy_unchanged':True}
+            else:readiness={'actual_native_heads':{'test1':9,'test2':10},'actual_validator_publications':raw['checkpoint_proofs']}
+            readiness['config']={'private_key':'DO-NOT-EXPORT-READINESS'};raw['same_db_restart_readiness']=readiness
+            value=api.public_native_snapshot(raw)['same_db_restart_readiness'];self.assertNotIn('DO-NOT-EXPORT',json.dumps(value))
+            if family=='starknet':self.assertEqual(value['actual_native_deliveries'],10);self.assertEqual(value['actual_publications'][0]['verified_checkpoint_objects'][0]['index'],0)
+            else:self.assertEqual(value['actual_native_heads'],{'test1':9,'test2':10});self.assertEqual(len(value['actual_validator_publications']),1)
+
+
 if __name__=='__main__':unittest.main()

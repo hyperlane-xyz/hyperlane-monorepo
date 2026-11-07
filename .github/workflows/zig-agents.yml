@@ -741,11 +741,14 @@ jobs:
       - name: Check setup and composition controls before any package acquisition
         if: steps.request.outputs.enabled == 'true'
         run: |
+          python3 -I -B zig/bench/native_starknet_test.py -v
+          python3 -I -B -W error zig/integration/multivm_starknet_peers_test.py -v
           python3 -I -B zig/bench/native_cw_assets_test.py -v
           python3 -I -B zig/bench/native_cw_inputs_test.py -v
           python3 -I -B zig/bench/native_case_setup_test.py -v
           python3 -I -B zig/bench/native_case_run_test.py -v
           python3 -I -B zig/bench/native_case_owner_test.py -v
+          python3 -I -B zig/integration/multivm_restart_test.py -v
       - name: Pin preinstalled tools; no CLI/SDK or chain main invoked
         if: steps.request.outputs.enabled == 'true'
         shell: bash
@@ -816,6 +819,7 @@ jobs:
             ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/actual-interop-ReleaseFast.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/result.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/worker-result.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-final-proof.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/PG-recovery.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/hydrated-inputs.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/compiled-input-closure.json

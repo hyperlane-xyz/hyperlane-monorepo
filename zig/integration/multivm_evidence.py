@@ -741,9 +741,32 @@ def checked_cw_peer_context(context, upstream):
     return dict(context)
 
 
+def starknet_unavailable_peers():
+    # Exact Source starknet/types.rs fallback list; healthy index2 is never a
+    # notice peer. No errno-wide exception and no response is fabricated.
+    return [{"chain":name,"domain":domain,"field":"rpcurls","ordinal":ordinal,
+             "upstream":f"http://127.0.0.1:{dead}","healthy_fallback":f"http://127.0.0.1:{port}",
+             "error_type":"ConnectionRefusedError","phase":"upstream_connect"}
+            for name,domain,port in [("starknettest23448593",23448593,5050),("starknettest23448594",23448594,5070)]
+            for ordinal,dead in [(0,1337),(1,1338),(3,1347)]]
+
+
+def checked_starknet_peer_context(context,upstream):
+    if context is None:return None
+    keys={"scenario","chain","domain","field","ordinal","upstream","healthy_fallback","error_type","phase","role","case_inputs_sha256"}
+    require(isinstance(context,dict) and set(context)==keys and context["scenario"]=="starknet"
+            and context["role"] in {"validator","relayer","scraper"} and type(context["domain"]) is int and type(context["ordinal"]) is int
+            and context["upstream"]==upstream and isinstance(context["case_inputs_sha256"],str) and re.fullmatch("[0-9a-f]{64}",context["case_inputs_sha256"]),"unapproved Starknet unavailable peer context")
+    row={key:context[key] for key in keys-{"scenario","role","case_inputs_sha256"}}
+    require(row in starknet_unavailable_peers(),"only Source-declared Starknet dead HTTP peers may produce a notice")
+    return dict(context)
+
+
 class TransparentProxy:
     """Owned node proxy. Callback completes BEFORE original response is sent."""
-    def __init__(self, upstream, observe, failure, *, connect_upstream=None):
+    def __init__(self, upstream, observe, failure, *, connect_upstream=None, expected_starknet_unavailable=None):
+        self.expected_starknet_unavailable=checked_starknet_peer_context(expected_starknet_unavailable,upstream)
+        require(expected_starknet_unavailable is None or connect_upstream is None,"Starknet notice cannot normalize Source authority")
         if connect_upstream is not None:
             original = urllib.parse.urlsplit(upstream)
             connected = direct_endpoint(connect_upstream)
@@ -790,10 +813,22 @@ class TransparentProxy:
         else:
             self.failure(type(error).__name__ + ": " + str(error))
 
+    def _open_upstream(self):
+        try:
+            return socket.create_connection(("127.0.0.1" if self.upstream.hostname=="localhost" else self.upstream.hostname,self.upstream.port),timeout=20)
+        except ConnectionRefusedError as error:
+            context=getattr(self,"expected_starknet_unavailable",None)
+            if context is None:raise
+            self.failure({"kind":"expected_starknet_rpc_endpoint_unavailable","context":dict(context),
+                          "error_type":type(error).__name__,"error":str(error),
+                          "monotonic_ns":time.monotonic_ns(),"positive_receipt_credit":False})
+            return None
+
     def _connection(self, client):
         upstream = None
         try:
-            upstream = socket.create_connection(("127.0.0.1" if self.upstream.hostname == "localhost" else self.upstream.hostname, self.upstream.port), timeout=20)
+            upstream = self._open_upstream()
+            if upstream is None:return
             # Normal keep-alive idle periods are not RPC failures. The agent
             # retains its own physical/owner deadlines; owned shutdown closes
             # both sockets to drain these blocking relay threads.

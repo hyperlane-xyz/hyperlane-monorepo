@@ -22,7 +22,7 @@ LABEL_ROOT = 'io.hyperlane.ziggy.case-root'
 LABEL_PID = 'io.hyperlane.ziggy.harness-pid'
 LABEL_TOKEN = 'io.hyperlane.ziggy.run-token'
 GENERATED = ('typescript/infra/config/environments/test/ism/addresses.json', 'typescript/infra/config/environments/test/ism/verification.json', 'typescript/infra/config/environments/test/core/addresses.json', 'typescript/infra/config/environments/test/core/verification.json', 'rust/main/config/testnet_config.json', 'rust/main/app-contexts/testnet_config.json')
-FILTERS = {'evm': [], 'cosmosnative': ['--exact', 'cosmosnative::test::test_run', '--nocapture', '--test-threads=1'], 'cosmwasm': ['--exact', 'cosmos::test::test_run', '--nocapture', '--test-threads=1']}
+FILTERS = {'evm': [], 'cosmosnative': ['--exact', 'cosmosnative::test::test_run', '--nocapture', '--test-threads=1'], 'cosmwasm': ['--exact', 'cosmos::test::test_run', '--nocapture', '--test-threads=1'], 'starknet': ['--exact', 'starknet::test::test_run', '--nocapture', '--test-threads=1']}
 
 
 def require(value, message):
@@ -61,13 +61,18 @@ def load_plan(path, expected_sha):
     checked(plan['lsofArtifact'], True)
     require(isinstance(plan['required_inputs'], list) and plan['required_inputs'], 'Pinned execution closure required')
     for row in plan['required_inputs']: checked(row)
-    for code in [Path(__file__).resolve(),Path(owner.__file__).resolve()]:
+    for code in [Path(__file__).resolve(),Path(owner.__file__).resolve(),*([Path(__file__).with_name('native_starknet_custody.py').resolve()] if plan['scenario']=='starknet' else [])]:
         require(pin(code) in plan['required_inputs'],'Exact owner/shared ownership Source closure missing')
     for row in approval['python_modules'].values(): checked(row)
     env = plan['explicit_environment']
     require(isinstance(env, dict) and all(isinstance(k,str) and isinstance(v,str) for k,v in env.items()) and not any(k in env for k in ['GH_TOKEN','GITHUB_TOKEN','ACTIONS_RUNTIME_TOKEN','DOCKER_CONTEXT','DOCKER_AUTH_CONFIG','PYTHONPATH','PYTHONHOME']), 'Ambient credentials/context cannot enter case environment')
     require(inputs['local_docker'] == approval['local_docker'] and env.get('DOCKER_HOST') == inputs['local_docker']['host'] and env.get('DOCKER_CONFIG') == str(case/'docker-config') and inputs['local_docker']['config_dir'] == str(case/'docker-config'), 'Exact independent Docker capability required')
     return plan, manifest, inputs, approval
+
+
+def starknet_custody():
+    spec=importlib.util.spec_from_file_location('native_starknet_custody',Path(__file__).with_name('native_starknet_custody.py'))
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 
 def missing_container(status, stderr, target):
@@ -141,6 +146,9 @@ def kernel_tmpfs(text):
 def fixture_waits(path, scenario, parent):
     rows = [json.loads(line) for line in checked(pin(path)).read_text().splitlines()]
     roles = ['fixture-anvil','fixture-kathy','fixture-postgres'] if scenario=='evm' else ['fixture-docker', 'fixture-hypd' if scenario=='cosmosnative' else 'fixture-osmosisd', 'fixture-hypd' if scenario=='cosmosnative' else 'fixture-osmosisd']
+    if scenario=='starknet':
+        roles=['fixture-docker']*3
+        require(all(r.get('success') is True and r.get('exit_code')==0 and r.get('signal') is None for r in rows),'All three Source container Child waits must be actual clean success')
     require(len(rows)==3 and all(type(r.get('pid')) is int and r['pid']>0 for r in rows) and len({r['pid'] for r in rows})==3 and sorted(r['role'] for r in rows)==sorted(roles), 'Actual fixture child wait set differs')
     require(all(r['parent_pid']==parent and r['parent_wait_completed'] is True and r['forced_kill'] is False and r['purpose']=='fixture_teardown' and (r['already_exited'] is False or scenario=='evm' and r['role']=='fixture-kathy') for r in rows), 'Missing/forced/early fixture child wait')
     return rows
@@ -224,11 +232,196 @@ def native_listener_proof(scenario, manifest, case_inputs, case, lsof, observati
     return expected
 
 
+def public_native_snapshot(snapshot):
+    """Explicit public evidence projection; never serialize arbitrary nested DTOs."""
+    require(isinstance(snapshot,dict) and snapshot.get('scenario') in {'evm','cosmosnative','cosmwasm','starknet'}, 'Public projection family not implemented')
+    def fields(value,names):
+        require(isinstance(value,dict),'Public proof object required')
+        return {k:value[k] for k in names if k in value}
+    def money(value):
+        if value is None:return None
+        row=fields(value,('gas_used','tokens_used','payment','gas_amount'))
+        require(all((type(v)is int or isinstance(v,str) and re.fullmatch(r'0|[1-9][0-9]*',v)) and 0<=int(v)<2**256 for v in row.values()),'Public expenditure must be exact uint256 values')
+        return row
+    def fingerprint(value):
+        row=fields(value,('bytes','sha256'))
+        require(set(row)=={'bytes','sha256'} and type(row['bytes']) is int and row['bytes']>=0 and isinstance(row['sha256'],str) and re.fullmatch(r'(?:0x)?[0-9a-f]{64}',row['sha256']),'Public byte fingerprint required')
+        return row
+    life=[]
+    required=('id','chain','transaction_hash','first_positive_monotonic_ns','early_active_samples','confirm_by_self_samples','retired_monotonic_ns','observed_message_sha256','last_present_request_started_ns','last_present_response_received_ns','maximum_observed_sample_gap_ns','first_absent_request_started_ns','first_absent_response_received_ns')
+    for value in snapshot['per_id_lifecycle']:
+        row=fields(value,required);require(set(row)==set(required),'Complete actual per-ID clock witness required')
+        for key in required:
+            if key not in {'id','chain','transaction_hash','observed_message_sha256'}:require(type(row[key]) is int and row[key]>=0,'Actual nonnegative lifecycle clock/counter required')
+        age=row['retired_monotonic_ns']-row['first_positive_monotonic_ns']
+        require(600_000_000_000<=age<=630_000_000_000 and row['early_active_samples']>0 and row['confirm_by_self_samples']>0 and row['maximum_observed_sample_gap_ns']<=10_000_000_000,'Strict per-ID600..630 witness failed')
+        require(row['retired_monotonic_ns']==row['first_absent_response_received_ns'] and row['last_present_request_started_ns']<=row['last_present_response_received_ns']<=row['retired_monotonic_ns'] and row['first_absent_request_started_ns']<=row['first_absent_response_received_ns'],'Per-ID observed clock order differs')
+        life.append(row)
+    require(life and len({(v['chain'],v['id']) for v in life})==len(life),'Duplicate/empty lifecycle identities')
+    messages=[fields(v,('id','nonce','origin','destination','origin_chain','delivery_chain','delivery_transaction','insertions')) for v in snapshot['messages']]
+    delivered=[v['id'] for v in snapshot['deliverable_messages']]
+    require(len(delivered)==len(set(delivered)) and {(v['chain'],v['id']) for v in life}=={(v['delivery_chain'],v['id']) for v in messages if v['id'] in delivered},'Actual message/lifecycle coverage differs')
+    native=[]
+    for value in snapshot.get('native_operations',[]):
+        operation=value['operation'];row=fields(operation,('version','context','expected_context_checked','nonce','origin','destination','kind','target','stage','generation','retries','confirmation_started','deadline','identity'))
+        # Deadline/identity are closed scalar public DTOs, never the intent body.
+        if row.get('deadline') is not None:row['deadline']=fields(row['deadline'],('unix_ms','delay_ms'))
+        if row.get('identity') is not None:row['identity']=fields(row['identity'],('kind','hex'))
+        for key in ('row','stored_canonical_intent','signed'):
+            if operation.get(key) is not None:row[key]=fingerprint(operation[key])
+        if operation.get('expenditure') is not None:
+            expenditure=operation['expenditure'];row['expenditure']=fields(expenditure,('present','gas_used_hex','tokens_used_hex'))
+            if expenditure.get('marker') is not None:row['expenditure']['marker']=fingerprint(expenditure['marker'])
+        if operation.get('starknet') is not None:
+            quote=operation['starknet'];row['starknet']=fields(quote,('gas_limit','estimated_cost'))
+            if 'batch' in quote:row['starknet']['batch']=None
+            if quote.get('batch') is not None:
+                row['starknet']['batch']={'version':quote['batch']['version'],'members':[fields(v,('operation_id','origin','origin_hook','generation','source_intent_digest','gas_limit','estimated_cost')) for v in quote['batch']['members']]}
+        native.append({'id':value['id'],'operation':row})
+    canonical=[]
+    for value in snapshot.get('stopped_canonical_Rust_readback',[]):
+        verified=[]
+        for item in value['verified_canonical_messages']:
+            row=fields(item,('id','nonce','processed','gas_expenditure_record_present'));row['payment']=money(item.get('payment'));row['spent']=money(item.get('spent'));verified.append(row)
+        raw=value['actual_Rust_output']
+        canonical.append({'origin':value['origin'],'reader':raw['reader'],'origin_domain':raw['origin_domain'],'origin_nonce_count':raw['origin_nonce_count'],'verified_canonical_messages':verified,'actual_Rust_output_canonical_JSON_sha256':hashlib.sha256(json.dumps(raw,sort_keys=True,separators=(',',':')).encode()).hexdigest()})
+    sql=[]
+    for value in snapshot.get('postgres',[]):
+        row=fields(value,('id','origin','destination','payments_supported'))
+        for key in ('verified','proof'):
+            if isinstance(value.get(key),dict):row[key]=fields(value[key],('canonical_dispatch_rows','canonical_delivery_rows','payment_rows','payment','gas_amount','leaf_indices'))
+            elif type(value.get(key)) is bool:row[key]=value[key]
+        if value.get('scraper_configured_by_Source') is False:row['scraper_configured_by_Source']=False
+        # Actual three DTOs: EVM nests a list in verified, Cosmos uses a
+        # top-level kind->metadata[] map, Stark has a top-level exact_rows list.
+        events=value.get('canonical_event_rows',value.get('canonical_event_coordinates'))
+        if events is None and isinstance(value.get('verified'),dict):events=value['verified'].get('canonical_event_coordinates')
+        if events is not None:
+            if isinstance(events,dict):events=[{'kind':kind,'metadata':metadata}for kind,items in events.items()for metadata in items]
+            require(isinstance(events,list),'Actual canonical SQL event rows required')
+            row['canonical_event_rows']=[]
+            for event in events:
+                require(event['kind'] in {'dispatch','insertion','payment','delivery'},'Unknown canonical SQL event kind')
+                item=fields(event,('kind','exact_rows'));item['metadata']=fields(event['metadata'],('chain','domain','transaction_hash','block_hash','block_number','transaction_index','log_index','emitter'))
+                row['canonical_event_rows'].append(item)
+        sql.append(row)
+    crypto=[]
+    for value in snapshot.get('family_native_row_proofs',[]):
+        row=fields(value,('id','native_identity','independently_verified_signature','independent_Ed25519_verified','signer','sequence','account_number','signed_upfront_fee','retained_intent_fingerprint_verified','identity','account','public_key','account_nonce','allocated_fee','whole_fee','rounding_dust','context','expected_context_checked','configuration_authority_verified'))
+        if 'configured_price_expenditure' in value:row['configured_price_expenditure']=money(value['configured_price_expenditure'])
+        if value.get('native_signed_wire') is not None:row['native_signed_wire_fingerprint']=fingerprint(value['native_signed_wire'])
+        crypto.append(row)
+    def checkpoint_rows(values):
+        output=[]
+        for value in values:
+            row=fields(value,('chain','zero_leaf_origin_no_signature_credit','canonical_origin_message_count','canonical_origin_leaf_count'))
+            if value.get('metadata_bytes') is not None:row['metadata_bytes']=fields(value['metadata_bytes'],('path','bytes','sha256'))
+            row['metadata']=fields(value.get('metadata',{}),('git_sha','allows_public_rpcs'))
+            row['metadata']['rpcs']=[fields(v,('url_hash','host_hash')) for v in value.get('metadata',{}).get('rpcs',[])]
+            row['verified_checkpoint_objects']=[fields(v,('path','bytes','sha256','index','root','message_id','signer')) for v in value.get('verified_checkpoint_objects',[])]
+            row['published_bytes']=[fields(v,('path','bytes','sha256')) for v in value.get('published_bytes',[])]
+            output.append(row)
+        return output
+    checkpoints=checkpoint_rows(snapshot.get('checkpoint_proofs',[]))
+    readiness=None
+    if isinstance(snapshot.get('same_db_restart_readiness'),dict):
+        value=snapshot['same_db_restart_readiness']
+        readiness=fields(value,('actual_native_dispatches','actual_native_deliveries','production600_policy_unchanged','shared_restart_PID_and_no_resubmission_checks_required','shared_parent_pid_config_admin_and_no_resubmission_checks_required'))
+        if 'actual_native_heads' in value:
+            heads=value['actual_native_heads'];require(isinstance(heads,dict) and all(isinstance(k,str) and re.fullmatch('[A-Za-z0-9_-]+',k) and type(v)is int and v>0 for k,v in heads.items()),'Actual public native heads required')
+            readiness['actual_native_heads']=dict(heads)
+        for key in ('actual_publications','actual_validator_publications'):
+            if key in value:readiness[key]=checkpoint_rows(value[key])
+    transactions=[]
+    for value in snapshot['native_delivery_transactions']:
+        proof=value['proof'];row=fields(value,('chain','transaction_hash'));row['canonical']=fields(proof,('identity','block_hash','height','index','gas_used','gas_price','tokens_used','fee','units','slot','transaction_index','message_ids','chain_id','actual_fee','fee_unit'))
+        if isinstance(proof.get('receipt'),dict):row['canonical']['receipt']=fields(proof['receipt'],('transactionHash','blockHash','blockNumber','transactionIndex','status','gasUsed','effectiveGasPrice','transaction_hash','block_hash','block_number','execution_status','finality_status'))
+        if isinstance(proof.get('transaction'),dict):row['canonical']['sender']=fields(proof['transaction'],('from','sender_address','chainId','nonce'))
+        if proof.get('signed') is not None:row['canonical']['signed']=fingerprint(proof['signed'])
+        transactions.append(row)
+    waits=[]
+    for value in snapshot.get('parent_wait_receipts',[]):
+        row=fields(value,('role','pid','parent_pid','os_start_token','purpose','parent_wait_completed','already_exited','forced_kill','success','exit_code','signal','planned_exit'))
+        if 'executable' in value:row['executable']=fields(value['executable'],('path','bytes','sha256'))
+        waits.append(row)
+    accounting=[]
+    for value in snapshot.get('actual_EVM_accounting',[]):
+        row=fields(value,('chain','transaction_hash','receipt_gas_used','effective_gas_price','unallocated_floor_dust'))
+        row['members']=[]
+        for member in value['members']:
+            item=fields(member,('id','nonce','weight','estimated_gas','uuid'));item['spent']=money(member.get('spent'))
+            item['original_prepare_reads']=[dict(fields(read,('chain','requested_monotonic_ns','received_monotonic_ns','result')), request_parameters_canonical_JSON_sha256=hashlib.sha256(json.dumps(read.get('params'),sort_keys=True,separators=(',',':')).encode()).hexdigest()) for read in member.get('original_prepare_reads',[])]
+            row['members'].append(item)
+        accounting.append(row)
+    out=fields(snapshot,('runtime_source_commit','scenario','capture_count','relayer_capture_ordinal','verified'))
+    out['observer_policy']=fields(snapshot.get('observer_policy',{}),('version','maximum_successful_domain_sample_gap_ns','maximum_GET_timeout_seconds','maximum_GET_attempts_per_domain','retirement_observed_age_seconds'))
+    broadcasts=[fields(value,('chain','transaction_hash','monotonic_ns','requested_monotonic_ns','raw_transaction_sha256','message_ids')) for value in snapshot.get('broadcasts',[])]
+    out.update(messages=messages,deliverable_ids=delivered,per_id_lifecycle=life,native_delivery_transactions=transactions,broadcasts=broadcasts,native_operations=native,stopped_canonical_Rust_readback=canonical,postgres=sql,family_native_row_proofs=crypto,checkpoint_proofs=checkpoints,actual_EVM_accounting=accounting)
+    if readiness is not None:out['same_db_restart_readiness']=readiness
+    if 'same_db_restart_observation' in snapshot:
+        value=snapshot['same_db_restart_observation']
+        restart=fields(value,('schema','minimum_live_ns','epoch_sha256','maximum_successful_sample_gap_ns','elapsed_live_ns','new_capture_last_monotonic_ns','before_effective_config_sha256','after_effective_config_sha256'))
+        restart['new_capture_monotonic_ns_by_role_chain']=dict(value['new_capture_monotonic_ns_by_role_chain'])
+        restart['samples']=[]
+        for sample in value['samples']:
+            activity=sample['role_rpc_activity']
+            require(isinstance(activity,dict) and all(re.fullmatch(r'(?:relayer|validator|scraper):[A-Za-z0-9_-]+',k) and type(v)is int for k,v in activity.items()),'Public restarted-role clock map required')
+            restart['samples'].append({'observed_monotonic_ns':sample['observed_monotonic_ns'],'role_rpc_activity':dict(activity),'role_rpc_request_started_ns':dict(sample['role_rpc_request_started_ns'])})
+        restart['new_child_identities']=[]
+        for child in value['new_child_identities']:
+            row=fields(child,('role','pid','parent_pid','os_start_token'))
+            row['executable']=fields(child['executable'],('path','bytes','sha256'))
+            restart['new_child_identities'].append(row)
+        out['same_db_restart_observation']=restart
+    return out
+
+
+def write_public_native_proof(plan,manifest,case,output,expected_final):
+    """Hash-match the real records, publish only explicit public evidence fields."""
+    def read(relative):
+        path=case/'evidence'/relative
+        before=pin(path);require(before['bytes']<=8*1024**2,'Bounded actual native proof record required')
+        def unique(pairs):
+            row={}
+            for key,value in pairs:require(key not in row,'Duplicate native proof key');row[key]=value
+            return row
+        rows=[json.loads(line,object_pairs_hook=unique) for line in path.read_text().splitlines()]
+        require(rows and pin(path)==before,'Actual native proof changed while projecting')
+        return rows[-1],before
+    phases={};raw={}
+    for name,relative in [('initial','verified-initial-native.jsonl'),('before_restart','verified-before-restart.jsonl'),('after_restart','verified-after-restart.jsonl'),('final','verified-final-native.jsonl')]:
+        value,raw[name]=read(relative);phases[name]=public_native_snapshot(value)
+    require(raw['final']==expected_final and phases['final'].get('verified') is True,'Hash-matched actual verified final required')
+    restart=phases['after_restart'].get('same_db_restart_observation');require(isinstance(restart,dict) and restart.get('minimum_live_ns')==30_000_000_000,'Actual timed30 restart proof missing; legacy SameDB is not30 credit')
+    require(phases['final'].get('same_db_restart_observation')==restart,'Final/after-restart actual witness differs')
+    samples=restart['samples'];require(isinstance(samples,list) and len(samples)>=4,'Actual restarted live samples missing')
+    previous=None
+    for row in samples:
+        now=row['observed_monotonic_ns'];activity=row['role_rpc_activity'];starts=row['role_rpc_request_started_ns']
+        require(type(now)is int and isinstance(activity,dict) and activity and isinstance(starts,dict) and set(starts)==set(activity) and all(type(activity[k])is int and type(starts[k])is int and 0<starts[k]<=activity[k]<=now and k in restart['new_capture_monotonic_ns_by_role_chain'] and type(restart['new_capture_monotonic_ns_by_role_chain'][k])is int and starts[k]>restart['new_capture_monotonic_ns_by_role_chain'][k] for k in activity),'Invalid actual restarted request/response sample')
+        if previous:
+            require(0<now-previous['observed_monotonic_ns']<=10_000_000_000 and set(activity)==set(previous['role_rpc_activity']) and all(activity[k]>previous['role_rpc_activity'][k] and starts[k]>previous['role_rpc_activity'][k] for k in activity),'Stale/gapped actual restarted role observations')
+        previous=row
+    elapsed=samples[-1]['observed_monotonic_ns']-samples[0]['observed_monotonic_ns'];require(elapsed>=30_000_000_000 and elapsed==restart['elapsed_live_ns'],'Actual restart30 duration differs')
+    require(restart['new_capture_last_monotonic_ns']<samples[0]['observed_monotonic_ns'],'Restart observation predates new captures')
+    require(restart['before_effective_config_sha256']==restart['after_effective_config_sha256'] and re.fullmatch('[0-9a-f]{64}',restart['before_effective_config_sha256']),'SameDB effective config hashes differ')
+    require(phases['initial']['broadcasts']==phases['after_restart']['broadcasts'],'Restart submitted extra transactions')
+    before={row['id']:row['operation'] for row in phases['before_restart']['native_operations']};after={row['id']:row['operation'] for row in phases['final']['native_operations']}
+    if before:
+        require(set(before)==set(after),'Native sameDB operation coverage differs')
+        for identity in before:
+            for key in ('context','generation','identity','stored_canonical_intent','signed'):require(before[identity].get(key)==after[identity].get(key),'Native sameDB frozen signed operation changed')
+    record={'schema':1,'kind':'public-actual-native-proof-v1','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'raw_records':raw,'phase_evidence':phases,'actual_timed_restart_ns':elapsed,'source_and_products':{'manifest':plan['manifestArtifact'],'harness':plan['harnessArtifact'],'runtime_artifacts':manifest['artifacts']},'qualification':'Projection of hash-matched actual verifier records only. Raw signed wire, message bodies, keys, authorization and captured environment/config are never serialized. Canonical/signature/SQL verdicts are retained as actual Source verifier outputs, not independently reconstructed from this projection. Observed retirement is not an exact deletion timestamp.','native_or_performance_credit_from_projection_alone':False}
+    require(not output.exists() and not output.is_symlink(),'Preserve existing public proof')
+    with output.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
+    return pin(output)
+
+
 def worker(args, plan, manifest, inputs, approval):
     case=Path(manifest['task_root']);out=args.output;out.mkdir(mode=0o700)
     env=plan['explicit_environment'];pg=inputs['postgres'];docker=checked(manifest['verifier_tools']['docker'],True)
     for name in ('controller.json','controller.sock'):require(not (case/'evidence'/name).exists(), 'Preserve existing controller')
-    controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={}
+    controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={};devnets=None
     result={'schema':1,'kind':'native-case-worker-observation','passed':False,'native_case_acceptance':False,'docker_calls':[],'direct_waits':[]}
     deadline=args.original_deadline_ns/1e9
     cleanup_deadline=deadline+45
@@ -293,6 +486,9 @@ def worker(args, plan, manifest, inputs, approval):
             require(helper_row is not None,'Actual helper identity missing')
             with (out/'helper-launch.json').open('x') as context:
                 context.write(json.dumps({'helper_pid':harness.pid,'helper_start':helper_row['start']})+'\n');context.flush();os.fsync(context.fileno())
+            if plan['scenario']=='starknet':
+                devnets=starknet_custody().Custody(case,harness.pid,helper_row['start'],inputs['starknet_devnet'],out,docker_call)
+                devnets.arm()
             require(harness.stdin is not None,'Owned helper bootstrap pipe missing')
             harness.stdin.write(b'GO\n');harness.stdin.flush();harness.stdin.close()
             pg_name='ziggy-e2e-'+hashlib.sha256(os.fsencode(case)).hexdigest()[:10]+'-'+str(harness.pid)+'-scraper-testnet-postgres'
@@ -300,22 +496,37 @@ def worker(args, plan, manifest, inputs, approval):
             while harness.poll() is None:
                 require(time.monotonic()<deadline and controller.poll() is None,'Case deadline/observer failed')
                 if time.monotonic()>=next_inspect:
-                    inspect();native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs);next_inspect=time.monotonic()+1
+                    inspect()
+                    if devnets is not None:devnets.observe()
+                    else:native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs)
+                    next_inspect=time.monotonic()+1
                 time.sleep(.1)
             code=harness.wait();result['direct_waits'].append({'role':'harness','pid':harness.pid,'actual_parent_wait':True,'exit_code':code});require(code==0,'Actual native Rust/verifier failed')
             final=case/'evidence/verified-final-native.jsonl';lines=checked(pin(final)).read_text().splitlines()
             require(lines and json.loads(lines[-1]).get('verified') is True,'Actual final native verification absent')
             waits=fixture_waits(case/'evidence/fixture-parent-waits.jsonl',plan['scenario'],harness.pid)
-            require(len(node_proofs)==(1 if plan['scenario']=='evm' else 2),'Actual native loopback listener proof missing')
-            node_roles={'fixture-anvil'} if plan['scenario']=='evm' else {'fixture-hypd' if plan['scenario']=='cosmosnative' else 'fixture-osmosisd'}
-            require({r['pid'] for r in waits if r['role'] in node_roles}=={r['pid'] for r in node_proofs.values()},'Native readiness identity differs from actual child waits')
-            result['native_listener_proofs']=node_proofs
+            if devnets is not None:
+                require(set(devnets.ready)=={5050,5070},'Both actual immutable devnets must have passed readiness')
+                pg_waits=[r for r in waits if r.get('planned_container_stop',{}).get('kind')=='postgres']
+                require(len(pg_waits)==1 and pg_waits[0]['planned_container_stop'].get('container_id')==cid and pg_waits[0]['planned_container_stop'].get('exact_owned_CID_absent') is True,'Actual PG Child wait must bind the captured PG CID')
+                planned=[r for r in waits if r.get('planned_container_stop',{}).get('kind')=='starknet']
+                require(len(planned)==2 and {r['planned_container_stop'].get('port') for r in planned}=={5050,5070},'Actual two Starknet foreground Child waits required')
+                for row in planned:
+                    stop=row['planned_container_stop'];require(stop['container_id']==devnets.ready[stop['port']] and stop.get('exact_owned_CID_absent') is True and stop.get('completed_before_original_deadline') is True and stop.get('acceptance_failed_before_cleanup') is False and stop.get('pre_stop_live_identity') and row.get('success') is True and row.get('exit_code')==0 and row.get('signal') is None,'Starknet planned stop/actual wait differs from captured immutable CID')
+                require(all(devnets.inspect(port,cleaning=True) is None for port in (5050,5070)),'Source helper left an owned devnet')
+                result['native_container_proofs']={'captured_CIDs':devnets.ready,'maximum_writable_layer_bytes':devnets.maximum_writable_bytes,'actual_foreground_parent_waits':planned}
+            else:
+                require(len(node_proofs)==(1 if plan['scenario']=='evm' else 2),'Actual native loopback listener proof missing')
+                node_roles={'fixture-anvil'} if plan['scenario']=='evm' else {'fixture-hypd' if plan['scenario']=='cosmosnative' else 'fixture-osmosisd'}
+                require({r['pid'] for r in waits if r['role'] in node_roles}=={r['pid'] for r in node_proofs.values()},'Native readiness identity differs from actual child waits')
+                result['native_listener_proofs']=node_proofs
             if plan['scenario']=='evm':
                 stops=[json.loads(line) for line in (case/'evidence/fixture-descendant-stops.jsonl').read_text().splitlines()]
                 require(len(stops)==3 and {r['fixture'] for r in stops}=={'anvil','postgres','kathy'} and {r['direct_child_pid'] for r in stops}=={r['pid'] for r in waits} and all(r['parent_wait_completed'] is False and r['unknown_group_members_never_signalled'] is True for r in stops),'Source fixture descendant/parent cleanup binding missing')
             require(cid is not None and kernel,'Actual PG identity/kernel evidence missing')
             require(inspect(cleaning=True) is None,'Source fixture did not remove owned PG')
-            result.update({'actual_fixture_parent_waits':waits,'actual_final_evidence':pin(final),'passed':True,'native_case_acceptance':True})
+            public_proof=write_public_native_proof(plan,manifest,case,out/'public-final-proof.json',pin(final))
+            result.update({'actual_fixture_parent_waits':waits,'actual_final_evidence':pin(final),'public_final_proof':public_proof,'passed':True,'native_case_acceptance':True})
     except BaseException as failure:
         error=failure;result['error']={'type':type(failure).__name__,'message':str(failure)}
     finally:
@@ -323,6 +534,9 @@ def worker(args, plan, manifest, inputs, approval):
         try:
             stop_direct(harness,'harness-cleanup',15)
             stop_direct(controller,'observer',20)
+            if devnets is not None:
+                recovered=devnets.cleanup();result['devnet_cleanup']=recovered
+                if not recovered['container_absent'] or any(r['container_id'] is not None for r in recovered['containers']):result['passed']=False;result['native_case_acceptance']=False
             if harness is not None:
                 row=inspect(cleaning=True)
                 if row is not None:
@@ -406,6 +620,38 @@ def recover_owned_pg(case, manifest, inputs, worker_output, output):
     return receipt
 
 
+def recover_owned_starknet(case, manifest, inputs, worker_output, output):
+    calls=[];deadline=time.monotonic()+45
+    receipt={'container_absent':False,'containers':[],'calls':calls,'native_parent_wait_credit':False,'whole_cleanup_budget_seconds':45,'scope':'Recovery only; cannot repair primary failure or invent Rust Child waits.'}
+    try:
+        context=worker_output/'helper-launch.json';armed=worker_output/'starknet-armed.json'
+        if not context.exists() or not armed.exists():
+            require(not context.is_symlink() and not armed.is_symlink(),'Custody context became symlink')
+            receipt.update(container_absent=True,creation_not_released=True);return receipt
+        row=json.loads(checked(pin(context)).read_text());docker=checked(manifest['verifier_tools']['docker'],True)
+        env={'PATH':'/usr/bin:/bin','HOME':str(case/'home'),'DOCKER_HOST':inputs['local_docker']['host'],'DOCKER_CONFIG':inputs['local_docker']['config_dir']}
+        def call(arguments,missing=False,cleaning=False):
+            require(time.monotonic()<deadline,'Fixed devnet recovery deadline expired');child=None;status=None
+            with tempfile_files(output) as files:
+                stdout,stderr=files
+                try:
+                    child=subprocess.Popen([str(docker),'--host',inputs['local_docker']['host'],'--config',inputs['local_docker']['config_dir'],*arguments],env=env,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr)
+                    child.wait(timeout=min(12,max(.01,deadline-time.monotonic())))
+                finally:
+                    if child is not None:
+                        if child.returncode is None:child.kill()
+                        status=child.wait(timeout=3);calls.append({'arguments':arguments,'pid':child.pid,'exit_code':status,'actual_parent_wait':True})
+                require(os.fstat(stdout.fileno()).st_size<=2*1024**2 and os.fstat(stderr.fileno()).st_size<=65536,'Bounded devnet recovery output')
+                stdout.seek(0);stderr.seek(0);wire=stdout.read();detail=stderr.read()
+            if missing and missing_container(status,detail,arguments[-1]):return None
+            require(status==0,'Exact devnet recovery command failed');return wire.decode()
+        custody=starknet_custody().Custody(case,row['helper_pid'],row['helper_start'],inputs['starknet_devnet'],worker_output,call)
+        receipt.update(custody.cleanup())
+    except BaseException as error:receipt['error']={'type':type(error).__name__,'message':str(error)}
+    finally:(output/'Starknet-recovery.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return receipt
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan',type=Path,required=True);parser.add_argument('--plan-sha256',required=True);parser.add_argument('--output',type=Path,required=True)
@@ -422,30 +668,43 @@ def main():
         worker(args,plan,manifest,inputs,approval);return
     require(shutil.disk_usage(case).free>=6*GIB,'6GiB case floor')
     deadline_ns=time.monotonic_ns()+3600*10**9
+    initial_free=shutil.disk_usage(case).free
+    sn_resources=starknet_custody() if plan['scenario']=='starknet' else None
     owner.enable_subreaper();known={};groups={};child=None;cleanup=None;failure=None;samples=[]
     args.output.mkdir(mode=0o700);worker_output=case/(args.output.name+'-worker');require(not worker_output.exists(),'Preserve earlier worker')
-    result={'schema':1,'kind':'owned-linux-native-case-result','scenario':plan['scenario'],'mode':manifest['mode'],'runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':approval.get('execution_source_commit',manifest['runtime_source_commit']),'passed':False,'native_case_acceptance':False,'plan':pin(args.plan),'samples':samples,'scope':'Correctness only. Original case deadline/600..630/restart30 unchanged. Nonchild cleanup never invents Source parent waits.'}
+    result={'schema':1,'kind':'owned-linux-native-case-result','scenario':plan['scenario'],'mode':manifest['mode'],'runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':approval.get('execution_source_commit',manifest['runtime_source_commit']),'passed':False,'native_case_acceptance':False,'plan':pin(args.plan),'samples':samples,'scope':'Correctness only. Original case deadline/per-ID600..630 unchanged; actual continuous30s restarted-role observations required and retained. Nonchild cleanup never invents Source parent waits.'}
     try:
         with (args.output/'owner-worker.log').open('xb') as stream:
             child=subprocess.Popen([sys.executable,'-I','-B',str(Path(__file__).resolve()),'--worker','--plan',str(args.plan),'--plan-sha256',args.plan_sha256,'--output',str(worker_output),'--original-deadline-ns',str(deadline_ns)],env={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8'},stdin=subprocess.DEVNULL,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
             groups[child.pid]=child.pid
             while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is None:
                 rows=owner.processes();owned=owner.owned_processes(rows,child.pid,known,groups,True)
-                ram=sum(row['rss_bytes'] for row in owned.values())+GIB
+                ram=sum(row['rss_bytes'] for row in owned.values())+(5 if plan['scenario']=='starknet' else 1)*GIB
                 disk=owner.allocated(case)+2*GIB
                 free=shutil.disk_usage(case).free
+                if sn_resources is not None:
+                    writable=0;record=worker_output/'starknet-writable.json'
+                    if record.exists():
+                        value=sn_resources.read_record(record);require(value['case_root']==str(case) and value['image_id']==inputs['starknet_devnet']['image_id'] and value['run_token']==inputs['starknet_devnet']['run_token'],'Resource record belongs to another devnet fixture');writable=value['maximum_writable_bytes']
+                    ram,disk=sn_resources.resource_charge(sum(row['rss_bytes'] for row in owned.values()),disk-2*GIB,initial_free,free,writable)
                 require(time.monotonic_ns()<deadline_ns and ram<=8*GIB and disk<=4*GIB and free>=6*GIB,'Original native case deadline/resource guard')
                 require((args.output/'owner-worker.log').stat().st_size<=32*1024**2,'Bounded owner log')
-                samples.append({'monotonic_ns':time.monotonic_ns(),'owned_host_RAM_plus_PG_cap_bytes':ram,'case_allocated_plus_PG_tmpfs_cap_bytes':disk,'host_free_bytes':free,'owned_process_count':len(owned)})
+                samples.append({'monotonic_ns':time.monotonic_ns(),'owned_host_RAM_plus_PG_cap_bytes':ram,'case_allocated_plus_PG_tmpfs_cap_bytes':disk,'host_free_bytes':free,'owned_process_count':len(owned),**({'container_memory_reservation_bytes':5*GIB,'disk_scope':'max(case allocation, host filesystem free drop)+2GiB PG tmpfs; initial image acquisition excluded, ongoing6GiB floor'} if plan['scenario']=='starknet' else {})})
                 time.sleep(.2)
     except BaseException as error:
         failure=error;result['error']={'type':type(error).__name__,'message':str(error)}
     finally:
         old={s:signal.signal(s,signal.SIG_IGN) for s in [signal.SIGTERM,signal.SIGINT,signal.SIGHUP]}
         try:
-            if child is not None:cleanup=owner.stop_owned(child,known,groups,grace_seconds=60,kill_seconds=3)
+            if child is not None:
+                if plan['scenario']=='starknet':
+                    try:cleanup=owner.stop_owned(child,known,groups,grace_seconds=60,kill_seconds=3)
+                    except BaseException as cleanup_error:result['process_cleanup_error']={'type':type(cleanup_error).__name__,'message':str(cleanup_error)}
+                else:cleanup=owner.stop_owned(child,known,groups,grace_seconds=60,kill_seconds=3)
             result['cleanup']=cleanup
+            if plan['scenario']=='starknet':result['devnet_cleanup']=recover_owned_starknet(case,manifest,inputs,worker_output,args.output)
             result['PG_cleanup']=recover_owned_pg(case,manifest,inputs,worker_output,args.output)
+            if plan['scenario']=='starknet':require(result['devnet_cleanup'].get('container_absent') is True and not any(r.get('container_id') is not None for r in result['devnet_cleanup'].get('containers',[])),'Devnet recovery needed/unproven; primary case cannot pass')
             require(result['PG_cleanup'].get('container_absent') is True and result['PG_cleanup'].get('container_id') is None,'PG needed recovery or creation context missing; case remains failed')
             require(cleanup and cleanup['clean'] and cleanup['actual_parent_wait'] and child.returncode==0 and not cleanup['signals'],'Owner cleanup/actual worker wait failed or required residual signals')
             worker_result=json.loads(checked(pin(worker_output/'worker-result.json')).read_text())
