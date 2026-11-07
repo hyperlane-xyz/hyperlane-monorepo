@@ -52,6 +52,35 @@ def identity():
     if path.is_symlink()or(path.suffix not in inventory.SOURCE|inventory.DATA and name!='Dockerfile'):continue
     h.update(str(path.relative_to(ROOT)).encode()+b'\0'+''.join(inventory.digest(path)).encode()+b'\n')
  return chunk(h.hexdigest())
+def remember_terminal_children(owned,direct_pid,witnesses,elapsed):
+ # Caller has just proved with waitid(WNOWAIT) that the direct parent has NOT
+ # completed after this measured snapshot. Cleanup never calls this function.
+ for pid,row in owned.items():
+  if pid!=direct_pid and row['state']=='Z':
+   witnesses.setdefault((pid,row['start']),{**row,'observed_elapsed_seconds':elapsed,'parent_running_probe':'waitid_no_exit_after_snapshot'})
+
+def phase_accounting(usage,cleanup,known,witnesses,elapsed):
+ direct=None if usage is None else ownership.rusage_record(usage)
+ reasons=[];accepted=[]
+ if not cleanup or not cleanup.get('clean')or cleanup.get('owned_present_before_stop'):reasons.append('cleanup failed or descendants present at cleanup')
+ expected={(row['pid'],row['start'])for row in known.values()if row.get('observed_as_adopted_child')}
+ waits=[]if not cleanup else cleanup.get('actual_adopted_child_waits',[])
+ identities=[(row['pid'],row['start'])for row in waits]
+ if len(set(identities))!=len(identities)or set(identities)!=expected:reasons.append('adopted wait coverage/uniqueness differs')
+ for receipt in waits:
+  key=(receipt['pid'],receipt['start']);witness=witnesses.get(key)
+  if not witness or witness.get('pid')!=receipt['pid']or witness.get('start')!=receipt['start']or witness.get('state')!='Z'or witness.get('parent_running_probe')!='waitid_no_exit_after_snapshot'or not 0<=witness.get('observed_elapsed_seconds',-1)<=elapsed:
+   reasons.append('adopted child not terminal before parent completion');continue
+  try:
+   status=receipt['status']
+   if receipt.get('waited_pid')!=receipt['pid']or isinstance(status,bool)or not isinstance(status,int)or not(os.WIFEXITED(status)or os.WIFSIGNALED(status))or receipt.get('actual_wait4_usage_available')is not True:raise ValueError('adopted wait4 identity/status/usage unavailable')
+   recorded=receipt['rusage'];checked=ownership.checked_rusage(recorded['raw'])
+   if recorded!=checked:raise ValueError('adopted normalized usage differs from raw wait4')
+  except (KeyError,TypeError,ValueError,OverflowError)as error:reasons.append(str(error));continue
+  accepted.append({'pid':receipt['pid'],'start':receipt['start'],'status':status,'rusage':checked})
+ quiescent=not reasons;complete=quiescent and direct is not None
+ return {'phase_owned_quiescent':quiescent,'phase_quiescence_rejections':reasons,'terminal_descendants_before_parent_completion':list(witnesses.values()),'direct_wait4_rusage':direct,'adopted_wait4_rusage':accepted,'phase_rusage_complete':complete,'cpu_user_seconds':None if not complete else direct['cpu_user_seconds']+sum(row['rusage']['cpu_user_seconds']for row in accepted),'cpu_system_seconds':None if not complete else direct['cpu_system_seconds']+sum(row['rusage']['cpu_system_seconds']for row in accepted),'maximum_child_RSS_bytes':None if not complete else max([direct['maximum_child_RSS_bytes']]+[row['rusage']['maximum_child_RSS_bytes']for row in accepted]),'rusage_scope':'Actual direct wait4 includes descendants reaped by that parent; independently adopted terminal orphans are waited by this owner and added once. Maximum child RSS is max across those disjoint wait4 trees, not concurrent tree RSS. Rejected phases retain components without complete CPU/RSS credit.'}
+
 def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_timeout_seconds=7200):
  if platform.system()=='Linux':ownership.enable_subreaper()
  before=identity();bindings_before=generated_binding_identity()
@@ -59,7 +88,7 @@ def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_ti
  if shutil.disk_usage(output).free<runtime_floor_bytes:raise RuntimeError('Runtime free-disk floor before phase')
  log=output/(phase['name']+'.log');env=dict(base_env);env.update(phase['environment'])
  start=time.monotonic();load_before=os.getloadavg();free_before=shutil.disk_usage(output).free
- tree_peak=0;samples=0;disk_guard=False;known={};groups={};process=None;usage=None;error=None;cleanup=None;pidfd=None;elapsed=None
+ tree_peak=0;samples=0;disk_guard=False;known={};groups={};terminal_before_parent={};process=None;usage=None;error=None;cleanup=None;pidfd=None;elapsed=None
  watched=[signal.SIGTERM,signal.SIGINT,signal.SIGHUP];previous={sig:signal.getsignal(sig)for sig in watched}
  def interrupted(sig,frame):raise InterruptedError('Phase received signal '+str(sig))
  for sig in watched:signal.signal(sig,interrupted)
@@ -79,6 +108,9 @@ def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_ti
     if pid:
      process.returncode=os.waitstatus_to_exitcode(status);usage=child_usage;elapsed=time.monotonic()-start;break
     current=ownership.processes();owned=ownership.owned_processes(current,process.pid,known,groups,True)
+    if platform.system()=='Linux':
+     parent_exit=os.waitid(os.P_PID,process.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
+     if parent_exit is None:remember_terminal_children(owned,process.pid,terminal_before_parent,time.monotonic()-start)
     tree_peak=max(tree_peak,sum(row['rss_bytes']for row in owned.values()));samples+=1
     if shutil.disk_usage(output).free<runtime_floor_bytes:
      disk_guard=True;raise RuntimeError('Phase runtime free-disk floor breached')
@@ -99,9 +131,10 @@ def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_ti
   finally:
    if pidfd is not None:os.close(pidfd)
    for sig,handler in previous.items():signal.signal(sig,handler)
- after=identity();bindings_after=generated_binding_identity();rss=None if usage is None else usage.ru_maxrss if platform.system()=='Darwin'else usage.ru_maxrss*1024
- quiescent=bool(cleanup and cleanup.get('clean')and not cleanup.get('owned_present_before_stop')and not any(row.get('observed_as_adopted_child')for row in known.values()))
- row={**phase,'exit_code':None if process is None else process.returncode,'wall_seconds':elapsed,'cpu_user_seconds':None if usage is None else usage.ru_utime,'cpu_system_seconds':None if usage is None else usage.ru_stime,'maximum_child_RSS_bytes':rss,'sampled_process_tree_RSS_peak_bytes':tree_peak,'RSS_samples':samples,'RSS_sample_interval_ms':200,'actual_wait4_usage_available':usage is not None,'exit_wait_method':'pidfd_poll'if platform.system()=='Linux'else'wait4_10ms_poll','disk_guard_triggered':disk_guard,'phase_error':error,'phase_owned_quiescent':quiescent,'phase_cleanup':cleanup,'source_before_sha256_chunks':before,'source_after_sha256_chunks':after,'source_unchanged':before==after,'generated_bindings_before_sha256_chunks':bindings_before,'generated_bindings_after_sha256_chunks':bindings_after,'generated_bindings_unchanged':bindings_before==bindings_after,'load_before':load_before,'load_after':os.getloadavg(),'free_disk_bytes_before':free_before,'free_disk_bytes_after':shutil.disk_usage(output).free,'log':log.name,'artifacts':[]}
+ after=identity();bindings_after=generated_binding_identity()
+ accounting=phase_accounting(usage,cleanup,known,terminal_before_parent,elapsed)
+ row={**phase,'exit_code':None if process is None else process.returncode,'wall_seconds':elapsed,'sampled_process_tree_RSS_peak_bytes':tree_peak,'RSS_samples':samples,'RSS_sample_interval_ms':200,'actual_wait4_usage_available':usage is not None,'exit_wait_method':'pidfd_poll'if platform.system()=='Linux'else'wait4_10ms_poll','disk_guard_triggered':disk_guard,'phase_error':error,'phase_cleanup':cleanup,'source_before_sha256_chunks':before,'source_after_sha256_chunks':after,'source_unchanged':before==after,'generated_bindings_before_sha256_chunks':bindings_before,'generated_bindings_after_sha256_chunks':bindings_after,'generated_bindings_unchanged':bindings_before==bindings_after,'load_before':load_before,'load_after':os.getloadavg(),'free_disk_bytes_before':free_before,'free_disk_bytes_after':shutil.disk_usage(output).free,'log':log.name,'artifacts':[]}
+ row.update(accounting)
  for artifact in phase.get('artifacts',[]):
   path=pathlib.Path(artifact)
   if path.exists():row['artifacts'].append({'path':str(path),'bytes':path.stat().st_size,'sha256_chunks':inventory.digest(path)})
@@ -111,6 +144,7 @@ def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_ti
 def validate_phase(row,phase,expected_source):
  if row['exit_code']!=0:raise SystemExit(row['exit_code']or 1)
  if row.get('phase_error')or not row.get('phase_owned_quiescent',False):raise RuntimeError('Owned phase failed or left work running: '+phase['name'])
+ if not row.get('phase_rusage_complete',False):raise RuntimeError('Complete disjoint wait4 usage unavailable: '+phase['name'])
  if not row['source_unchanged'] or row['source_after_sha256_chunks']!=expected_source:raise RuntimeError('Source changed during phase '+phase['name'])
  if phase['name']!='rust-three-agent-cold'and not row['generated_bindings_unchanged']:raise RuntimeError('Generated bindings changed outside Rust cold phase '+phase['name'])
  if row['disk_guard_triggered']:raise RuntimeError('Runtime disk floor breached during phase '+phase['name'])

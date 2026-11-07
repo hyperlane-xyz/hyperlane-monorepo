@@ -4,6 +4,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -168,6 +169,21 @@ def signal_known(observed, sig):
     return sent, errors
 
 
+def rusage_record(usage):
+    raw = {name: getattr(usage, name) for name in dir(usage) if name.startswith('ru_')}
+    return checked_rusage(raw)
+
+
+def checked_rusage(raw):
+    # ru_maxrss is a maximum, not a sum or an aggregate simultaneous RSS.
+    for name in ('ru_utime', 'ru_stime', 'ru_maxrss'):
+        value = raw.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            raise ValueError('Invalid actual wait4 usage: ' + name)
+    scale = 1 if sys.platform == 'darwin' else 1024
+    return {'raw': raw, 'cpu_user_seconds': raw['ru_utime'], 'cpu_system_seconds': raw['ru_stime'], 'maximum_child_RSS_bytes': raw['ru_maxrss'] * scale, 'raw_maxrss_unit': 'bytes' if scale == 1 else 'KiB'}
+
+
 def stop_owned(child, known, groups, grace_seconds=10, kill_seconds=3):
     # Only this function reaps the direct child. Preserve its reserved PID/PGID
     # through the escalation decision, even if process snapshots all fail.
@@ -180,13 +196,21 @@ def stop_owned(child, known, groups, grace_seconds=10, kill_seconds=3):
             for pid, row in list(live.items()):
                 if pid != child.pid and row['ppid'] == os.getpid() and row['state'] == 'Z':
                     try:
-                        waited, status = os.waitpid(pid, os.WNOHANG)
+                        waited, status, usage = os.wait4(pid, os.WNOHANG)
                         if waited:
-                            report['actual_adopted_child_waits'].append({'pid': pid, 'start': row['start'], 'status': status})
+                            receipt = {'pid': pid, 'start': row['start'], 'waited_pid': waited, 'status': status, 'actual_wait4_usage_available': False}
+                            report['actual_adopted_child_waits'].append(receipt)
+                            try:
+                                if waited != pid or not (os.WIFEXITED(status) or os.WIFSIGNALED(status)):
+                                    raise ValueError('Adopted wait4 identity/status differs')
+                                receipt['rusage'] = rusage_record(usage)
+                                receipt['actual_wait4_usage_available'] = True
+                            except Exception as error:
+                                report['errors'].append({'stage': 'adopted_wait4_usage', 'pid': pid, 'start': row['start'], 'type': type(error).__name__, 'message': str(error)})
                             live.pop(pid)
                             rows.pop(pid)
-                    except ChildProcessError:
-                        pass
+                    except (ChildProcessError, OSError) as error:
+                        report['errors'].append({'stage': 'adopted_wait4', 'pid': pid, 'start': row['start'], 'type': type(error).__name__, 'message': str(error)})
         return rows, live
     def direct_exited_without_reap():
         nonlocal direct_unreaped
