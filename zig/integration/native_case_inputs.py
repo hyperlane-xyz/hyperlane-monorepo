@@ -380,7 +380,21 @@ def public_profile(scenario):
                 'payments_supported': True, 'additional_refused_dispatches': 1, 'reorg_origin_chain': 'test1',
                 'validator_addresses': dict(zip(chains, ('0x15d34aaf54267db7d7c367839aaf71a00a2c6a65', '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc', '0x976ea74026e726554db657fa54763abd0c3a0aa9'))),
                 'relayer_addresses': dict(zip(chains, ('0xa0ee7a142d267c1f36714e4a8f75612f20a79720', '0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f', '0x14dc79964da2c08b23698b3d3cc7ca32193d9955')))}
-    require(scenario == 'cosmosnative', 'CosmWasm staging remains unavailable until exact Wasm bundle admission is implemented')
+    if scenario == 'cosmwasm':
+        chains = ['cosmostest99990', 'cosmostest99991']
+        return {'schema': 1, 'scenario': scenario, 'chain_names': chains,
+                'domain_names': dict(zip(('99990', '99991'), chains)),
+                'initial_corpus': {'dispatches': 4, 'deliveries': 4, 'zero_insertions': 0, 'failed_body': 0, 'double_insertions': 0},
+                'payments_supported': True,
+                'validator_addresses': dict.fromkeys(chains, '0x01d7525e91dfc3f594fd366aad70f956b398de9e'),
+                'relayer_addresses': dict.fromkeys(chains, 'osmo1l83956lgpak5sun7ggupls7rk7p5cr95499jdf'),
+                'expected_unavailable_endpoints': {'schema': 1, 'scenario': 'cosmwasm', 'endpoints': [
+                    {'chain': name, 'domain': domain, 'field': 'grpcurls', 'ordinal': 0,
+                     'upstream': 'http://localhost:1337', 'healthy_fallback': f'http://127.0.0.1:{port}',
+                     'error_type': 'ConnectionRefusedError', 'phase': 'upstream_connect'}
+                    for name, domain, port in [(chains[0], 99990, 26603), (chains[1], 99991, 26613)]]},
+                'native_limits': {c: {'maximum_fee': str(2**128-1), 'maximum_gas': str(2**64-1)} for c in chains}}
+    require(scenario == 'cosmosnative', 'Unsupported native profile family')
     chains = ['cosmostestnative1', 'cosmostestnative2']
     return {'schema': 1, 'scenario': scenario, 'chain_names': chains,
             'domain_names': dict(zip(('75898670', '75898671'), chains)),
@@ -393,13 +407,14 @@ def public_profile(scenario):
 
 def validate_stage(stage, context, request):
     keys = {'schema', 'passed', 'execution_source_commit', 'scenario', 'source_before', 'source_after', 'checks', 'tools', 'contract_artifacts', 'hpack', 'registry', 'explicit_environment'}
+    if context['scenario'] == 'cosmwasm': keys |= {'wasm_bundle', 'static_cli'}
     require(set(stage) == keys and stage['schema'] == 1 and stage['passed'] is True, 'Exact successful local-stage receipt required')
     require(stage['execution_source_commit'] == context['execution_source_commit'] and stage['scenario'] == context['scenario'], 'Stage belongs to another source/scenario')
     require(stage['source_before'] and stage['source_before'] == stage['source_after'], 'Stage changed tracked inputs')
     require(stage['checks'] and all(type(c['exit_code']) is int and c['exit_code'] == 0 and c['actual_parent_wait'] is True for c in stage['checks']), 'Actual local setup/check waits required')
     for row in stage['checks']: checked(row['log'])
     require(stage['tools'] and isinstance(stage['contract_artifacts'], dict) and len(stage['contract_artifacts']) <= 25000, 'Actual local tools/typed contract artifact map required')
-    require(bool(stage['contract_artifacts']) if context['scenario'] == 'evm' else stage['contract_artifacts'] == {}, 'EVM needs actual contract outputs; native Cosmos uses built-in hypd modules')
+    require(bool(stage['contract_artifacts']) if context['scenario'] in {'evm', 'cosmwasm'} else stage['contract_artifacts'] == {}, 'EVM needs actual contract outputs; native Cosmos uses built-in hypd modules')
     elf_admission = load_module('case_local_tool_elf', 'zig/bench/native_case_tools.py')
     machine = ARCHITECTURES[platform.machine()][1]
     for name, row in stage['tools'].items():
@@ -424,7 +439,7 @@ def validate_stage(stage, context, request):
     else:
         require(stage['registry'] == {'path': None, 'commit': None}, 'Native Cosmos does not consume a TypeScript registry')
         registry = None
-    require(isinstance(stage['explicit_environment'], dict) and set(stage['explicit_environment']) <= {'PATH', 'REGISTRY_URI', 'LD_LIBRARY_PATH', 'E2E_HYPD_PATH', 'E2E_OSMOSIS_CLI_PATH', 'HYPERLANE_CURL_LIBRARY', 'HYPERLANE_CLOUD_CURL_LIBRARY', 'HYPERLANE_LIBCRYPTO_LIBRARY'}, 'Unexpected ambient setup environment')
+    require(isinstance(stage['explicit_environment'], dict) and set(stage['explicit_environment']) <= {'PATH', 'REGISTRY_URI', 'E2E_HYPD_PATH', 'E2E_OSMOSIS_CLI_PATH', 'HYPERLANE_CURL_LIBRARY', 'HYPERLANE_CLOUD_CURL_LIBRARY', 'HYPERLANE_LIBCRYPTO_LIBRARY'}, 'Unexpected ambient setup environment')
     require(stage['explicit_environment'].get('PATH'), 'Explicit public tool PATH required')
     require(stage['explicit_environment'].get('REGISTRY_URI') == str(registry) if registry is not None else 'REGISTRY_URI' not in stage['explicit_environment'], 'Registry environment must match actual family consumption')
     for key, value in stage['explicit_environment'].items():
@@ -449,7 +464,15 @@ def validate_stage(stage, context, request):
     if context['scenario'] != 'evm':
         cli = request['prerequisites']['native_cli']
         row = stage['tools']['native_cli']
-        require(row['bytes'] == cli['bytes'] and row['sha256'] == cli['sha256'] and cli['name'] == 'hypd' and cli['architecture'] == context['consumer_cpu']['architecture'], 'Reviewed native CLI bytes/platform differ')
+        require(row['bytes'] == cli['bytes'] and row['sha256'] == cli['sha256'] and cli['name'] == ('osmosisd' if context['scenario'] == 'cosmwasm' else 'hypd') and cli['architecture'] == context['consumer_cpu']['architecture'], 'Reviewed native CLI bytes/platform differ')
+    if context['scenario'] == 'cosmwasm':
+        cw = load_module('case_closed_cw_assets', 'zig/bench/native_cw_assets.py')
+        architecture = context['consumer_cpu']['architecture']
+        cw.validate_policy(request['prerequisites'], architecture)
+        cw.read_wasm_bundle(stage['wasm_bundle'])
+        require(stage['static_cli'] == cw.static_cli(Path(stage['tools']['native_cli']['path']), architecture), 'Actual exact static CLI admission differs')
+        require(stage['contract_artifacts'] == stage['wasm_bundle']['files'], 'CW contract map must be the exact closed Source members')
+        require(stage['explicit_environment'].get('E2E_OSMOSIS_CLI_PATH') == stage['tools']['native_cli']['path'] and 'E2E_HYPD_PATH' not in stage['explicit_environment'], 'Crossed Cosmos CLI environment')
     return dependency
 
 
@@ -502,8 +525,15 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     if scenario != 'evm':
         cli = stage['tools']['native_cli']
         require(shutil.disk_usage(root).free >= request['limits']['minimum_host_free_bytes'] + cli['bytes'], 'Native CLI copy must preserve free disk floor')
-        owned_cli = copy_verified(Path(cli['path']), cli, root / 'fixture-tools/hypd', 0o755)
-        overrides = {'E2E_HYPD_PATH': owned_cli}
+        cli_name = 'osmosisd' if scenario == 'cosmwasm' else 'hypd'
+        cli_key = 'E2E_OSMOSIS_CLI_PATH' if scenario == 'cosmwasm' else 'E2E_HYPD_PATH'
+        owned_cli = copy_verified(Path(cli['path']), cli, root / 'fixture-tools' / cli_name, 0o755)
+        overrides = {cli_key: owned_cli}
+        if scenario == 'cosmwasm':
+            cw = load_module('prepare_closed_cw_assets', 'zig/bench/native_cw_assets.py')
+            bundle = cw.materialize_wasm(cw.read_wasm_bundle(stage['wasm_bundle']), root / 'cw-assets')
+            profile['fixture_contracts'] = bundle
+            cw.static_cli(Path(owned_cli['path']), context['consumer_cpu']['architecture'])
     manifest = {'schema': 3, 'implementation': 'zig', 'scenario': scenario, 'runtime_source_commit': context['runtime_source_commit'], 'mode': context['mode'], 'task_root': str(root), 'artifacts': artifacts, 'environment': environment, 'verifier': {'python': python, 'script': artifact(repo / 'zig/integration/multivm_process.py'), 'evidence_root': str(root / 'evidence')}, 'execution_approval': {}, 'case_inputs': {}, 'verifier_tools': tools, 'harness_deadline_seconds': LIMITS['maximum_wall_seconds'], 'tool_overrides': overrides}
     # These four owned files are created only after all actual product/source/setup
     # and independent storage gates above. No node or lifecycle success is inferred.
@@ -522,6 +552,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     write_new(build_path, {'source_commit': context['runtime_source_commit'], 'mode': context['mode'], 'passed': True, 'source_unchanged': True, 'runtime_artifacts': artifacts, 'source_identity_scope': 'Actual producer SDK native/runtime receipts and baked CPU product hashes; actual consumer tracked-tree equality and clean working locks. No unrecorded producer pre/post Source fence inferred.', 'producer_receipt': context['producer_receipt'], 'compiled_input_closure': context['compiled_input_closure'], 'native_case_acceptance': False})
     approval = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'mode': context['mode'], 'runtime_artifacts': artifacts, 'verifier_tools': tools, 'verifier_python': python, 'case_inputs': case_pin, 'python_modules': {n: artifact(repo / 'zig/integration' / n) for n in verifier.import_module_closure(scenario)}, 'python_dependencies': {'hpack': stage['hpack']}, 'accepted_runtime_build': artifact(build_path), 'harness': harness, 'native_reader_interoperability': interop_pin, 'source_gates': [artifact(producer_gate_path), artifact(gate_path)], 'compiled_input_closure': context['compiled_input_closure'], 'capacity': {'reviewed': True, **request['limits'], 'minimum_free_bytes': request['limits']['minimum_host_free_bytes']}, 'confirm_seconds': 600, 'finality_grace_seconds': 30, 'family_tools': {}, 'evidence_nodes': {}, 'local_docker': profile['local_docker'], 'node_ownership_tools': profile['node_ownership_tools'], 'source_PG14_tag': request['postgres']['image'], 'canonical_PG14_image_id': request['postgres']['image_id'], 'postgres_run_token': profile['postgres']['run_token'], 'reviewed_policy': context['request'], 'local_stage': stage_pin, 'native_case_acceptance': False}
     if fixture: approval['fixture_tools'] = fixture
+    if scenario == 'cosmwasm': approval['expected_unavailable_endpoints'] = profile['expected_unavailable_endpoints']
     write_new(paths['execution-approval'], approval)
     manifest.update(case_inputs=case_pin, execution_approval=artifact(paths['execution-approval']))
     process.validate_manifest(manifest)
@@ -535,6 +566,8 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     required += dependency['files'] + [dependency['wheel'], dependency['venv_configuration'], dependency['source_metadata'], python]
     required += list(overrides.values())
     required += [check['log'] for check in stage['checks']]
+    if scenario == 'cosmwasm':
+        required += [bundle['archive'], *bundle['files'].values(), artifact(repo / 'zig/bench/native_cw_assets.py')]
     required += list(read_json(checked(next(c['log'] for c in stage['checks'] if c['name'] == 'system-libraries'))).values())
     plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / 'rust/main/utils/run-locally'), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False}
     write_new(paths['launch-plan'], plan)

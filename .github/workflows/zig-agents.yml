@@ -739,6 +739,8 @@ jobs:
       - name: Check setup and composition controls before any package acquisition
         if: steps.request.outputs.enabled == 'true'
         run: |
+          python3 -I -B zig/bench/native_cw_assets_test.py -v
+          python3 -I -B zig/bench/native_cw_inputs_test.py -v
           python3 -I -B zig/bench/native_case_setup_test.py -v
           python3 -I -B zig/bench/native_case_run_test.py -v
           python3 -I -B zig/bench/native_case_owner_test.py -v

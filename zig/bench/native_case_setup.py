@@ -258,6 +258,21 @@ def prepare_pg_image():
         print(json.dumps(record,sort_keys=True))
     require(record['passed'],'PG image prerequisite failed')
 
+
+def prepare_cw_assets():
+    parser=argparse.ArgumentParser();parser.add_argument('--prepare-cw-assets',action='store_true')
+    for name in ['request','cli','wasm-zip','output']:parser.add_argument('--'+name,type=Path,required=True)
+    parser.add_argument('--request-sha256',required=True)
+    args=parser.parse_args();require(pin(args.request)['sha256']==args.request_sha256,'CW policy changed')
+    request=module('cw_request','zig/bench/native_case_ci.py').validate_request(json.loads(args.request.read_text()))
+    require(request['scenario']=='cosmwasm','CW asset worker on another family')
+    cw=module('cw_closed_assets','zig/bench/native_cw_assets.py');arch=request['postgres']['architecture'];cw.validate_policy(request['prerequisites'],arch)
+    admitted=cw.static_cli(args.cli,arch);wasm_wire=args.wasm_zip.read_bytes();cw.wasm_members(wasm_wire)
+    require(args.output.is_absolute() and not args.output.exists() and not args.output.is_symlink(),'New closed CW asset root required');args.output.mkdir(mode=0o700)
+    bundle=cw.materialize_wasm(wasm_wire,args.output/'wasm');cw.read_wasm_bundle(bundle)
+    print(json.dumps({'schema':1,'passed':True,'wasm_bundle':bundle,'static_cli':admitted,'wasm_zip':pin(args.wasm_zip),'native_code_executed':False},sort_keys=True))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--execution-source-commit',required=True);parser.add_argument('--repo',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--tools',type=Path,required=True);parser.add_argument('--tools-sha256',required=True);parser.add_argument('--execute',action='store_true')
@@ -265,8 +280,10 @@ def main():
     dispatch=module('case_dispatch','zig/bench/native_case_ci.py')
     require(pin(args.request)['sha256']==args.request_sha256,'Reviewed setup request changed')
     request=dispatch.validate_request(json.loads(args.request.read_text()))
-    require(request['scenario'] in {'evm','cosmosnative'},'CW blocked until exact Wasm/library bundle composition is implemented')
-    is_evm=request['scenario']=='evm'
+    require(request['scenario'] in {'evm','cosmosnative','cosmwasm'},'Unimplemented native setup family')
+    is_evm=request['scenario']=='evm';is_cw=request['scenario']=='cosmwasm'
+    cw_assets=module('setup_cw_assets','zig/bench/native_cw_assets.py') if is_cw else None
+    if is_cw:cw_assets.validate_policy(request['prerequisites'],request['postgres']['architecture'])
     require(args.repo.is_absolute() and args.repo.resolve(strict=True)==args.repo and args.output.is_absolute() and not args.output.exists() and not args.output.is_symlink() and not args.output.is_relative_to(args.repo),'Exclusive CI setup outside canonical checkout required')
     require(pin(args.tools)['sha256']==args.tools_sha256,'Explicit setup tool receipt changed')
     tool_rows=json.loads(args.tools.read_text());require(set(tool_rows)==TOOL_NAMES,'Closed preinstalled CI tool set required')
@@ -347,16 +364,26 @@ def main():
         else:
             import platform
             cli_policy=request['prerequisites']['native_cli']
-            source=validate_hypd_policy(cli_policy,{'x86_64':'amd64','aarch64':'arm64'}[platform.machine()])
-            cli=args.output/'hypd'
+            architecture={'x86_64':'amd64','aarch64':'arm64'}[platform.machine()]
+            source=cw_assets.validate_cli_policy(cli_policy,architecture) if is_cw else validate_hypd_policy(cli_policy,architecture)
+            cli=args.output/('osmosisd' if is_cw else 'hypd')
             run('download-exact-native-cli',[str(tools['curl']),'--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--max-time',str(max(1,int(deadline-time.monotonic()))),'--max-filesize',str(cli_policy['bytes']),'--output',str(cli),source])
             actual=pin(cli);require(actual['bytes']==cli_policy['bytes'] and actual['sha256']==cli_policy['sha256'],'Native CLI differs from exact reviewed asset')
             with cli.open('rb') as stream:header=stream.read(24)
             machine={'amd64':62,'arm64':183}[cli_policy['architecture']]
             require(header[:6]==b'\x7fELF\x02\x01' and int.from_bytes(header[18:20],'little')==machine and int.from_bytes(header[16:18],'little') in {2,3},'Native CLI ELF/header/platform differs')
+            if is_cw:cw_assets.static_cli(cli,architecture) # exact bytes/ELF before executable mode or any call
             cli.chmod(0o755)
             module('case_cli_elf','zig/bench/native_case_tools.py').validate_elf(cli,machine)
-            run('native-cli-version-readonly',[str(cli),'version','--long'])
+            if is_cw:
+                run('download-wasm_codes.zip',[str(tools['curl']),'--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--max-time',str(max(1,int(deadline-time.monotonic()))),'--max-filesize',str(cw_assets.WASM_BYTES),'--output',str(args.output/'wasm_codes.zip'),cw_assets.WASM_URL])
+                cw_log=run('cw-static-cli-and-assets',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-cw-assets','--request',str(args.request),'--request-sha256',args.request_sha256,'--cli',str(cli),'--wasm-zip',str(args.output/'wasm_codes.zip'),'--output',str(args.output/'cw-assets')])
+                cw=json.loads(cw_log.read_text());require(cw['passed'] is True and cw['native_code_executed'] is False,'Actual closed static CW asset readback required')
+                result['wasm_bundle']=cw['wasm_bundle'];result['static_cli']=cw['static_cli'];contracts.update(cw['wasm_bundle']['files'])
+                run('native-cli-version-readonly',[str(cli),'version','--long'])
+                compat=run('native-cli-tendermint-version-readonly',[str(cli),'tendermint','version']).read_text()
+                require(compat.splitlines()==['tendermint: 0.34.24','abci: 0.17.0','blockprotocol: 11','p2pprotocol: 8'],'Source CW requires actual 0.34 compatibility; never relabel another daemon')
+            else:run('native-cli-version-readonly',[str(cli),'version','--long'])
             final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof')});final_tools['native_cli']=pin(cli)
             registry.update({'path':None,'commit':None})
         library_log=run('system-libraries',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--probe-system-libraries','--ldconfig',str(tools['ldconfig']),'--ldconfig-sha256',pin(tools['ldconfig'])['sha256']])
@@ -364,7 +391,7 @@ def main():
         run('system-library-versions',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--probe-system-libraries','--ldconfig',str(tools['ldconfig']),'--ldconfig-sha256',pin(tools['ldconfig'])['sha256'],'--versions'])
         run('hpack-exact-wheel',[sys.executable,'-I','-B',str(args.repo/'zig/tools/h2_dependency.py'),'--destination',str(args.output/'hpack'),'--download'])
         hpack=pin(args.output/'hpack/evidence/descriptor.json');result['hpack']=hpack
-        result['explicit_environment']={'PATH':env['PATH'],**({'REGISTRY_URI':str(registry_path)} if is_evm else {'E2E_HYPD_PATH':str(args.output/'hypd')}),**{key:row['path'] for key,row in system_libraries.items()}}
+        result['explicit_environment']={'PATH':env['PATH'],**({'REGISTRY_URI':str(registry_path)} if is_evm else ({'E2E_OSMOSIS_CLI_PATH':str(args.output/'osmosisd')} if is_cw else {'E2E_HYPD_PATH':str(args.output/'hypd')})),**{key:row['path'] for key,row in system_libraries.items()}}
         result['source_after']=snapshot(args.repo,tools['git']);require(result['source_after']==before,'Final prerequisite Source changed')
         require(pin(args.request)['sha256']==args.request_sha256 and pin(args.tools)['sha256']==args.tools_sha256,'Setup policy/tools changed');guard();result['passed']=True
     except BaseException as error:failure=error
@@ -389,4 +416,5 @@ if __name__=='__main__':
     for sig in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):signal.signal(sig,interrupted)
     if '--probe-system-libraries' in sys.argv:library_probe()
     elif '--prepare-pg-image' in sys.argv:prepare_pg_image()
+    elif '--prepare-cw-assets' in sys.argv:prepare_cw_assets()
     else:main()

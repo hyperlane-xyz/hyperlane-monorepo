@@ -47,7 +47,7 @@ def main():
     args=parser.parse_args();dispatch=load('run_request','zig/bench/native_case_ci.py')
     for name in ['request','producer_receipt','tools']:require(pin(getattr(args,name))['sha256']==getattr(args,name+'_sha256'),'Composition input changed: '+name)
     request=dispatch.validate_request(json.loads(args.request.read_text()))
-    require(request['scenario'] in {'evm','cosmosnative'},'CW remains blocked pending exact bundle profile')
+    require(request['scenario'] in {'evm','cosmosnative','cosmwasm'},'Unsupported native composition family')
     require(args.repo.resolve(strict=True)==args.repo and args.output.is_absolute() and not args.output.is_relative_to(args.repo) and not args.output.exists() and not args.output.is_symlink(),'Fresh composition root outside checkout required')
     require(str(args.case_root).startswith('/tmp/znc-') and args.case_root.parent==Path('/tmp') and not args.case_root.exists() and not args.case_root.is_symlink(),'Fresh short case root required')
     receipt=json.loads(args.producer_receipt.read_text());require(receipt['passed'] is True and receipt['all_owned_jobs_joined'] is True and receipt['execution_source_commit']==args.execution_source_commit and receipt['producer_source_commit']==request['producer_source_commit'],'Actual producer download cohort differs')
