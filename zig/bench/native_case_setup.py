@@ -212,7 +212,7 @@ def prepare_pg_image():
     import tempfile
     parser=argparse.ArgumentParser();parser.add_argument('--prepare-pg-image',action='store_true');parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--docker',type=Path,required=True);parser.add_argument('--docker-sha256',required=True);parser.add_argument('--config',type=Path,required=True);parser.add_argument('--deadline-ns',type=int,required=True);args=parser.parse_args()
     require(pin(args.request)['sha256']==args.request_sha256 and pin(args.docker)['sha256']==args.docker_sha256,'PG setup policy/tool changed')
-    request=module('pg_case_request','zig/bench/native_case_ci.py').validate_request(json.loads(args.request.read_text()));policy=request['postgres']
+    dispatch=module('pg_case_request','zig/bench/native_case_ci.py');request=dispatch.validate_request(dispatch.read_request(args.request));policy=request['postgres']
     require(args.config.is_absolute() and not args.config.exists() and not args.config.is_symlink(),'Exclusive PG setup Docker config required')
     args.config.mkdir(mode=0o700);(args.config/'config.json').write_text('{}\n');calls=[]
     env={'PATH':'/usr/bin:/bin','HOME':str(args.config),'LC_ALL':'C'}
@@ -264,7 +264,7 @@ def prepare_cw_assets():
     for name in ['request','cli','wasm-zip','output']:parser.add_argument('--'+name,type=Path,required=True)
     parser.add_argument('--request-sha256',required=True)
     args=parser.parse_args();require(pin(args.request)['sha256']==args.request_sha256,'CW policy changed')
-    request=module('cw_request','zig/bench/native_case_ci.py').validate_request(json.loads(args.request.read_text()))
+    dispatch=module('cw_request','zig/bench/native_case_ci.py');request=dispatch.validate_request(dispatch.read_request(args.request))
     require(request['scenario']=='cosmwasm','CW asset worker on another family')
     cw=module('cw_closed_assets','zig/bench/native_cw_assets.py');arch=request['postgres']['architecture'];cw.validate_policy(request['prerequisites'],arch)
     admitted=cw.static_cli(args.cli,arch);wasm_wire=args.wasm_zip.read_bytes();cw.wasm_members(wasm_wire)
@@ -279,7 +279,7 @@ def main():
     args=parser.parse_args()
     dispatch=module('case_dispatch','zig/bench/native_case_ci.py')
     require(pin(args.request)['sha256']==args.request_sha256,'Reviewed setup request changed')
-    request=dispatch.validate_request(json.loads(args.request.read_text()))
+    request=dispatch.validate_request(dispatch.read_request(args.request))
     require(request['scenario'] in {'evm','cosmosnative','cosmwasm'},'Unimplemented native setup family')
     is_evm=request['scenario']=='evm';is_cw=request['scenario']=='cosmwasm'
     cw_assets=module('setup_cw_assets','zig/bench/native_cw_assets.py') if is_cw else None

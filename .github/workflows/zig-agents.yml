@@ -88,6 +88,8 @@ jobs:
         if: always()
         with:
           name: svm-linux-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}
+          # Exact Linux85 Agave closure includes three public hidden metadata files.
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
           path: |
@@ -693,7 +695,7 @@ jobs:
           spec=importlib.util.spec_from_file_location('native_case_ci',Path('zig/bench/native_case_ci.py'))
           module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
           path=Path('zig/bench/native_case_request.json').resolve()
-          request=json.loads(path.read_text())
+          request=module.read_request(path)
           assert type(request.get('schema')) is int and request['schema']==1 and type(request.get('root_approved')) is bool
           enabled=request['root_approved']
           if enabled: module.validate_request(request)

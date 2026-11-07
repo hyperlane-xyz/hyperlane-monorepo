@@ -263,7 +263,7 @@ def writer_inputs(directory, producer, mode, architecture, available_flags):
 
 def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT):
     require(sys.platform == 'linux' and platform.machine() in ARCHITECTURES, 'Native Linux hydration only')
-    request = read_json(request_path)
+    request = load_module('case_reviewed_request_wire', 'zig/bench/native_case_ci.py').read_request(request_path)
     require(checksum(request_path) == request_sha, 'Reviewed selector bytes changed')
     receipt = producer_receipt(request_path, request, receipt_pin, execution)
     producer = request['producer_source_commit']
@@ -483,7 +483,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     require(context['phase'] == 'HYDRATED_NOT_EXECUTION_APPROVAL' and context['nodes_started'] is False and context['native_case_acceptance'] is False, 'Expected nonexecuting hydration receipt')
     root = Path(context['task_root'])
     require(root.is_absolute() and root.resolve() == root and context_path == root / 'hydrated-inputs.json', 'Hydrated owned root differs')
-    request_path = checked(context['request']); request = read_json(request_path)
+    request_path = checked(context['request']); request = load_module('case_reviewed_request_wire', 'zig/bench/native_case_ci.py').read_request(request_path)
     receipt = producer_receipt(request_path, request, context['producer_receipt'], context['execution_source_commit'])
     for category in ['runtime_artifacts', 'tools', 'writers', 'harness']:
         for row in context[category].values(): checked(row, executable=category != 'runtime_artifacts')

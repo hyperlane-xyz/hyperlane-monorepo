@@ -1,6 +1,7 @@
 """No GitHub/network/build/native execution: request/provenance/ZIP controls."""
 import copy
 import importlib.util
+import json
 from pathlib import Path
 import stat
 import tempfile
@@ -145,6 +146,48 @@ class DispatchTests(unittest.TestCase):
         out = self.root / 'out'
         with self.assertRaises(ValueError): ci.extract_closed(archive, out, maximum_bytes=4)
         self.assertFalse(out.exists())
+
+
+class PublicDigestRequestTests(unittest.TestCase):
+    def read(self, value=None, raw=None):
+        with tempfile.TemporaryDirectory(prefix='ziggy-public-digest-control-') as directory:
+            path = Path(directory) / 'request.json'
+            path.write_text(json.dumps(value) if raw is None else raw)
+            return ci.read_request(path)
+
+    def test_literal_policy_preserved(self):
+        value = {'schema': 1, 'root_approved': False, 'artifact_pins': None}
+        self.assertEqual(self.read(value), value)
+
+    def test_nested_public_hash_and_image_identity_decode_exactly(self):
+        for prefix in ('', 'sha256:', 'postgres@sha256:', 'ghcr.io/owner/image@sha256:'):
+            wire = {'sha256_hex_chunks': ['a' * 32, 'b' * 32], 'prefix': prefix}
+            self.assertEqual(self.read({'list': [wire]})['list'][0], prefix + 'a' * 32 + 'b' * 32)
+
+    def test_wrong_count_type_length_case_or_character_rejected(self):
+        for parts in ([], ['a' * 32], ['a' * 32] * 3, 'a' * 32, [True, 'a' * 32], ['a' * 31, 'b' * 32], ['A' * 32, 'b' * 32], ['g' * 32, 'b' * 32]):
+            with self.subTest(parts=parts), self.assertRaises(ValueError):
+                self.read({'sha256_hex_chunks': parts})
+
+    def test_extra_fields_and_wrong_prefix_rejected(self):
+        wire = {'sha256_hex_chunks': ['a' * 32, 'b' * 32]}
+        for delta in ({'extra': True}, {'prefix': True}, {'prefix': 'https://foreign/'}, {'prefix': 'postgres@sha1:'}):
+            with self.subTest(delta=delta), self.assertRaises(ValueError):
+                self.read({**wire, **delta})
+
+    def test_duplicate_policy_keys_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'Duplicate request key'):
+            self.read(raw='{"root_approved": false, "root_approved": true}')
+
+    def test_policy_depth_and_node_bounds_rejected(self):
+        value = None
+        for _ in range(18): value = [value]
+        with self.assertRaisesRegex(ValueError, 'structure bound'): self.read(value)
+        with self.assertRaisesRegex(ValueError, 'structure bound'): self.read([None] * 4096)
+
+    def test_selector_still_needs_original_closed_schema_and_approval(self):
+        decoded = self.read({'root_approved': True, 'artifact_pins': {'sha256': {'sha256_hex_chunks': ['a' * 32, 'b' * 32]}}})
+        with self.assertRaises(ValueError): ci.validate_request(decoded)
 
 
 if __name__ == '__main__': unittest.main()

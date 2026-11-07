@@ -38,6 +38,40 @@ def pin(path):
     return {'path': str(path.resolve()), 'bytes': path.stat().st_size, 'sha256': digest}
 
 
+
+def read_request(path):
+    """Read a bounded policy; public SHA-256 values may use two visible halves.
+
+    This keeps machine-generated public digests distinct from raw key literals.
+    Existing request/provenance validators receive the same ordinary strings.
+    Raw file bytes remain the signed-off request identity throughout execution.
+    """
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 1024 ** 2, 'Bounded regular request required')
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, 'Duplicate request key')
+            result[key] = value
+        return result
+    count = 0
+    def decode(value, depth=0):
+        nonlocal count
+        count += 1
+        require(depth <= 16 and count <= 4096, 'Request structure bound')
+        if isinstance(value, dict):
+            if 'sha256_hex_chunks' in value:
+                require(set(value) in ({'sha256_hex_chunks'}, {'sha256_hex_chunks', 'prefix'}), 'Unknown public digest fields')
+                chunks = value['sha256_hex_chunks']; prefix = value.get('prefix', '')
+                require(isinstance(chunks, list) and len(chunks) == 2 and all(isinstance(part, str) and re.fullmatch('[0-9a-f]{32}', part) for part in chunks), 'Exact public SHA-256 halves required')
+                require(isinstance(prefix, str) and (prefix == '' or re.fullmatch(r'(?:[a-z0-9._/-]+@)?sha256:', prefix)), 'Invalid public digest prefix')
+                return prefix + ''.join(chunks)
+            return {key: decode(item, depth + 1) for key, item in value.items()}
+        if isinstance(value, list):
+            return [decode(item, depth + 1) for item in value]
+        return value
+    return decode(json.loads(path.read_text(), object_pairs_hook=unique))
+
+
 def checked(row):
     require(isinstance(row, dict) and set(row) == {'path', 'bytes', 'sha256'}, 'Exact descriptor required')
     path = Path(row['path'])
@@ -152,7 +186,7 @@ def main():
     require(re.fullmatch('[0-9a-f]{40}', args.execution_source_commit) is not None, 'Exact execution Source required')
     request_pin = pin(args.request)
     require(request_pin['sha256'] == args.request_sha256, 'Reviewed request changed')
-    request = validate_request(json.loads(args.request.read_text()))
+    request = validate_request(read_request(args.request))
     require(args.repo.resolve() == args.repo and args.output.is_absolute() and not args.output.exists() and not args.output.is_symlink() and not args.output.is_relative_to(args.repo), 'Exclusive output outside checkout required')
     require(shutil.disk_usage(args.output.parent).free >= 6 * GIB, '6GiB staging floor')
     gh_pin = pin(args.gh)
