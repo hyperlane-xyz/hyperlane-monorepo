@@ -188,6 +188,31 @@ class SdkPrerequisiteControls(unittest.TestCase):
   self.assertEqual(m.ASSETS['criterion']['url'],'https://github.com/Snaipe/Criterion/releases/download/v2.3.3/criterion-v2.3.3-linux-x86_64.tar.bz2')
   self.assertFalse(m.ASSETS['criterion']['publisher_digest'])
 
+class TypedSbfElfControls(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.path=pathlib.Path(self.tmp.name)/'program.so'
+ def wire(self,machine):
+  header=bytearray(64);header[:8]=b'\x7fELF\x02\x01\x01\x00';struct.pack_into('<HHI',header,16,3,machine,1);self.path.write_bytes(header);return header
+ def test_bpf_and_sbpf_observed_formats_are_recorded_without_alias(self):
+  for machine in [247,263]:
+   self.wire(machine);result=m.sbf_elf(self.path);self.assertEqual(result['elf_machine'],machine);self.assertEqual(result['elf_class'],64)
+ def test_native_ELF_not_SBF_and_native_CLI_guard_stays_exact62(self):
+  self.wire(62)
+  with self.assertRaisesRegex(ValueError,'wrong SBF ELF machine'):m.sbf_elf(self.path)
+  self.assertEqual(m.elf(self.path,62)['elf_machine'],62)
+  self.wire(263)
+  with self.assertRaisesRegex(ValueError,'machine=263 expected=62'):m.elf(self.path,62)
+ def test_invalid_sbf_class_endian_OSABI_and_type_reject(self):
+  for field,value in [(4,1),(5,2),(7,3),(16,2)]:
+   with self.subTest(field=field):
+    header=self.wire(263);header[field]=value;self.path.write_bytes(header)
+    with self.assertRaises(ValueError):m.sbf_elf(self.path)
+ def test_short_header_and_unknown_machine_reject(self):
+  self.path.write_bytes(b'\x7fELF')
+  with self.assertRaises(ValueError):m.sbf_elf(self.path)
+  self.wire(264)
+  with self.assertRaises(ValueError):m.sbf_elf(self.path)
+
 class PublisherLinkControls(unittest.TestCase):
  archive=Controls.archive
  def extract_publisher(self,a,d,links):

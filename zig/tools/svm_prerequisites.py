@@ -131,6 +131,18 @@ def elf(path,machine):
  need(len(b)==64 and b[:6]==b'\x7fELF\x02\x01'and observed==machine,'wrong ELF class/endian/machine: bytes='+str(len(b))+' class='+str(b[4]if len(b)>4 else None)+' endian='+str(b[5]if len(b)>5 else None)+' machine='+str(observed)+' expected='+str(machine))
  return dict(pin(path),elf_class=64,elf_machine=machine)
 
+def sbf_elf(path):
+ # Agave3.0.14 locks solana-sbpf0.12.2: its loader accepts EM_BPF and EM_SBPF.
+ # Format classification is not native VM verification or execution credit.
+ with P(path).open('rb')as stream:header=stream.read(64)
+ need(len(header)==64,'SBF ELF header must be64 bytes')
+ machine=struct.unpack_from('<H',header,18)[0]
+ need(machine in {247,263},'wrong SBF ELF machine: '+str(machine))
+ result=elf(path,machine)
+ need(header[7]==0,'wrong SBF ELF OSABI')
+ need(struct.unpack_from('<H',header,16)[0]==3,'SBF ELF must be ET_DYN')
+ return result
+
 class OfficialRedirect(urllib.request.HTTPRedirectHandler):
  def redirect_request(self,req,fp,code,msg,headers,newurl):
   need(newurl.startswith(('https://github.com/','https://release-assets.githubusercontent.com/','https://objects.githubusercontent.com/','https://api.github.com/')),'nonofficial redirect')
@@ -348,13 +360,13 @@ def execute(a):
    argv=[agave/'bin/cargo-build-sbf','--sbf-sdk',sdk,'--sbf-out-dir',outdir,'--tools-version','v1.51','--skip-tools-install','--no-rustup-override','--offline','--jobs','2','--','--frozen','--target-dir',root/'targets/sbf']
    o.run('compile.sbf-'+str(index),compile_command(a.bwrap,root,repo,argv,cwd),cwd,sbf_env)
    with (outdir/expected[-1]).open('rb')as stream:header=stream.read(64)
-   write(root/'published'/('sbf-header-'+str(index)+'.json'),{'program':expected[-1],'public_ELF_header_bytes':list(header),'observed_machine':struct.unpack_from('<H',header,18)[0]if len(header)>=20 else None,'expected_machine':247,'native_VM_acceptance':False})
-   elf(outdir/expected[-1],247)
+   write(root/'published'/('sbf-header-'+str(index)+'.json'),{'program':expected[-1],'public_ELF_header_bytes':list(header),'observed_machine':struct.unpack_from('<H',header,18)[0]if len(header)>=20 else None,'expected_machine_values':[247,263],'native_VM_acceptance':False})
+   sbf_elf(outdir/expected[-1])
   for name in SPL:shutil.copyfile(unique(root/'assets/spl',name),outdir/name);(outdir/name).chmod(0o600)
   need({p.name for p in outdir.glob('*.so')}==set(expected+SPL),'closed13 SO membership differs')
   export=root/'published/programs';export.mkdir()
   for name in expected+SPL:shutil.copyfile(outdir/name,export/name);(export/name).chmod(0o600)
-  products={'programs':{p.name:elf(p,247)for p in export.iterdir()}}
+  products={'programs':{p.name:sbf_elf(p)for p in export.iterdir()}}
   for name,version,manifest,package,binary,profile in [('client','1.86.0',repo/'rust/sealevel/Cargo.toml','hyperlane-sealevel-client','hyperlane-sealevel-client','debug'),('spl','1.76.0',spl_manifest,'spl-token-cli','spl-token','release')]:
    target=root/'targets'/name;argv=[tool[version],'build','--frozen','--offline','--manifest-path',manifest,'--package',package,'--bin',binary,'--target-dir',target,'-j','2','--message-format=json-render-diagnostics']
    if profile=='release':argv.append('--release')
