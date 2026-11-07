@@ -102,6 +102,10 @@ pub const Registry = struct {
     checked: bool = false,
     active: ?*Active = null,
     mutex: std.Thread.Mutex = .{},
+    /// One retained provider/replay context is shared by every discovery frame.
+    /// Keep ownership through Active.release: cancellation cleanup can reset the
+    /// journal after advance returns. This lock never waits on another caller.
+    progress: std.Thread.Mutex = .{},
 
     pub fn init(allocator: Allocator, client: *evm.RpcClient, native: *Curl.Client, owner: *engine.Engine, options: Options) !Registry {
         if (options.max_cache_entries == 0 or options.max_cache_bytes == 0 or options.discovery_timeout_ms == 0 or client.options.native_transport == null) return error.InvalidAnnouncementRegistry;
@@ -159,6 +163,20 @@ pub const Registry = struct {
         if (!self.mutex.tryLock()) return error.PendingReadIo;
     }
 
+    fn enterProgress(self: *Registry, cancel: ?*const std.atomic.Value(bool)) !void {
+        if (self.progress.tryLock()) return;
+        if (cancel) |flag| if (flag.load(.acquire)) {
+            // The progression owner alone detaches/releases the frame and
+            // resets its provider. A cancelled contender can still interrupt
+            // native I/O immediately through the frame's stable atomic token.
+            self.mutex.lock();
+            if (self.active) |active| active.cancel.store(true, .release);
+            self.mutex.unlock();
+            return error.RequestCancelled;
+        };
+        return error.PendingReadIo;
+    }
+
     fn startOrAcquire(self: *Registry, validators: []const Address) !?*Active {
         try self.lock();
         defer self.mutex.unlock();
@@ -201,18 +219,25 @@ pub const Registry = struct {
         if (owned) active.release();
     }
 
-    fn advance(self: *Registry, active: *Active, cancel: ?*const std.atomic.Value(bool)) !bool {
-        if (cancel) |flag| if (flag.load(.acquire)) {
-            active.cancel.store(true, .release);
-            self.clearActive(active);
-            return error.RequestCancelled;
-        };
+    fn checkProgressControl(self: *Registry, active: *Active, cancel: ?*const std.atomic.Value(bool)) !void {
+        // The caller token is borrowed for this pass only. Fence a flag that
+        // flips during the callback; never retain its pointer in the frame.
+        if (cancel) |flag| if (flag.load(.acquire)) active.cancel.store(true, .release);
+        if (active.cancel.load(.acquire)) return error.RequestCancelled;
+        // Reuse the original absolute discovery deadline at result boundaries;
+        // a delayed callback cannot install after its read attempt has expired.
         const elapsed = (try std.time.Instant.now()).since(active.started) / std.time.ns_per_ms;
         if (elapsed >= self.options.discovery_timeout_ms) {
             active.cancel.store(true, .release);
-            self.clearActive(active);
             return error.RequestDeadlineExceeded;
         }
+    }
+
+    fn advance(self: *Registry, active: *Active, cancel: ?*const std.atomic.Value(bool)) !bool {
+        self.checkProgressControl(active, cancel) catch |err| {
+            self.clearActive(active);
+            return err;
+        };
         if (self.client) |client| {
             if (!self.checked) {
                 client.options.cancel = &active.cancel;
@@ -239,7 +264,13 @@ pub const Registry = struct {
                 active.needs_reset = failure != null and failure.? == error.PendingReadIo;
                 if (provider.end_pass_fn) |end| end(provider.context, failure);
                 if (failure) |err| {
-                    if (err == error.PendingReadIo) return false;
+                    if (err == error.PendingReadIo) {
+                        self.checkProgressControl(active, cancel) catch |control| {
+                            self.clearActive(active);
+                            return control;
+                        };
+                        return false;
+                    }
                     self.clearActive(active);
                     return err;
                 }
@@ -256,6 +287,10 @@ pub const Registry = struct {
                 active.fetched = fetched;
             }
         }
+        self.checkProgressControl(active, cancel) catch |err| {
+            self.clearActive(active);
+            return err;
+        };
         const fetched = &active.fetched.?;
         if (fetched.values.len != active.missing.len) {
             self.clearActive(active);
@@ -267,6 +302,11 @@ pub const Registry = struct {
             self.mutex.unlock();
             return true;
         }
+        self.checkProgressControl(active, cancel) catch |err| {
+            self.mutex.unlock();
+            self.clearActive(active);
+            return err;
+        };
         for (active.missing, fetched.values) |validator, locations| self.insert(validator, locations, inserted_at) catch |err| {
             self.mutex.unlock();
             self.clearActive(active);
@@ -293,6 +333,8 @@ pub const Registry = struct {
 
     pub fn ensureValidators(self: *Registry, validators: []const Address, cancel: ?*const std.atomic.Value(bool)) !void {
         if (validators.len > 256) return error.InvalidValidatorCount;
+        try self.enterProgress(cancel);
+        defer self.progress.unlock();
         if (cancel) |flag| if (flag.load(.acquire)) {
             self.mutex.lock();
             if (self.active) |active| {
@@ -310,6 +352,8 @@ pub const Registry = struct {
 
     /// OriginTask calls between index cycles. Never starts new discovery.
     pub fn maintain(self: *Registry, cancel: ?*const std.atomic.Value(bool)) !void {
+        try self.enterProgress(cancel);
+        defer self.progress.unlock();
         try self.lock();
         const active = self.active orelse {
             self.mutex.unlock();

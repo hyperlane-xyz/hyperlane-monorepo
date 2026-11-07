@@ -83,3 +83,8 @@ test {
     _ = @import("svm_scraper_log_index_tests.zig");
     _ = @import("cosmos_compat_default_tests.zig");
 }
+
+// Shared announcement replay ownership must be covered by native-db-test.
+test {
+    _ = @import("announcement_replay_owner_tests.zig");
+}
