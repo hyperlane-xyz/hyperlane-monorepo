@@ -279,7 +279,7 @@ def retirement_poll(operations,confirmed,messages,now_monotonic_seconds,historic
  for message in messages:
   if now_monotonic_seconds<message['included_monotonic']+SOURCE_CONFIRM_SECONDS and message['id'].lower()not in active_ids:raise AssertionError(f'tracked operation disappeared before its own600s bound: {message["id"]}')
  return not operations and confirmed is not None and confirmed==historical_confirmed_offset+len(messages)and retirement_lower_bound(messages,now_monotonic_seconds)
-def wait_for_retirement(metrics_port,process,messages,destination_domain=DESTINATION,historical_confirmed_offset=0,historical_offset_reason='no older operations in this process'):
+def wait_for_retirement(metrics_port,process,messages,destination_domain=DESTINATION,historical_confirmed_offset=0,historical_offset_reason='no older operations in this process',operation_normalizer=None):
     deadline = retirement_deadline(messages)
     first_completion = None
     first_counter = None
@@ -306,6 +306,8 @@ def wait_for_retirement(metrics_port,process,messages,destination_domain=DESTINA
             return False
         admin_received = time.monotonic()
         operations = json.loads(admin_body)
+        if operation_normalizer is not None:
+            operations = operation_normalizer(operations)
         assert admin_started<=admin_received<=deadline,'admin observation after actual600+30 deadline or clock rollback'
         # Decoded admin evidence is authoritative even if metrics later times out.
         # An absent counter can never complete this pure check.
@@ -453,11 +455,13 @@ def early_included_snapshot(body, operations, origin, latest_nonce, messages, no
         assert all(sample['present'] and sample['value'] > 0 for sample in mandatory.values()), 'missing positive Confirm/submission metrics'
     return {'messages_processed':processed,'last_processed_nonce':last,'operations_confirmed':confirmed,'metric_observations':samples,'mandatory_metric_observations':mandatory,'nonce_observed_without_processed':last is not None and processed is None,'self_submitted':submissions,'confirm_queue':confirm_queue,'latest_included_nonce':latest_nonce,'aggregate_checked':aggregate,'per_id_active_confirm_witnesses':witnesses,'ready':ready,'early_not_retired':ready,'metrics_sha256_chunks':chunks(hashlib.sha256(body).hexdigest())}
 
-def early_included_guard(metrics_port,origin,latest_nonce,messages,initial=False,aggregate=True):
+def early_included_guard(metrics_port,origin,latest_nonce,messages,initial=False,aggregate=True,operation_normalizer=None):
     deadline = time.monotonic()+5
     while True:
         with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/list_operations?destination_domain={DESTINATION}',timeout=3) as response:
             operations = json.loads(response.read())
+        if operation_normalizer is not None:
+            operations = operation_normalizer(operations)
         with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3) as response:
             body = response.read()
         result = early_included_snapshot(body,operations,origin,latest_nonce,messages,time.monotonic(),initial,aggregate)

@@ -50,7 +50,7 @@ env:
 
 jobs:
   svm-prerequisites:
-    if: (github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites]'))
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites]'))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 200
     permissions:
@@ -96,7 +96,7 @@ jobs:
             ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/observations.jsonl
 
   unit:
-    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
     strategy:
       fail-fast: false
       matrix:
@@ -129,7 +129,7 @@ jobs:
         run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all
 
   evm:
-    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -157,7 +157,7 @@ jobs:
           if-no-files-found: ignore
 
   native-http:
-    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -185,7 +185,7 @@ jobs:
           if-no-files-found: ignore
 
   native-linux:
-    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
     env:
@@ -285,7 +285,7 @@ jobs:
           if-no-files-found: warn
 
   container:
-    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
     needs: native-linux
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
@@ -315,7 +315,7 @@ jobs:
           if-no-files-found: warn
 
   vm-images:
-    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
     strategy:
       fail-fast: false
       matrix:
@@ -344,7 +344,7 @@ jobs:
   # Explicit, resource-qualified SDK correctness. Not an eight-family native gate.
   # Feature-branch push or manual dispatch; capacity checked before SDK build.
   full-sdk-native:
-    if: (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))) }}
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -443,7 +443,7 @@ jobs:
 
   # Separate fresh VM per trial. Compiler-pair positions rotate; prerequisites remain fixed first.
   cold-full-feature:
-    if: github.event_name == 'workflow_dispatch' && inputs.cold_full_feature && !inputs.svm_prerequisites
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name == 'workflow_dispatch' && inputs.cold_full_feature && !inputs.svm_prerequisites) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 300
     env:
@@ -566,7 +566,7 @@ jobs:
 
   # Compilation and filtered native fixture controls only; never native cases.
   native-harness-controls:
-    if: (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 280
     env:
@@ -639,3 +639,66 @@ jobs:
           name: zig-native-harness-controls
           path: ${{ env.NATIVE_HARNESS_ROOT }}/evidence/
           if-no-files-found: error
+
+  native-case-producer-inputs:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') }}
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 18
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          submodules: recursive
+      - name: Check producer provenance and closed-artifact controls
+        run: python3 -I -B zig/bench/native_case_ci_test.py -v
+      - name: Read exact checked-in native selector without granting case acceptance
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/native-case-selection"
+          python3 - <<'PYTHON'
+          import importlib.util, json, os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('native_case_ci',Path('zig/bench/native_case_ci.py'))
+          module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+          path=Path('zig/bench/native_case_request.json').resolve()
+          request=json.loads(path.read_text())
+          assert type(request.get('schema')) is int and request['schema']==1 and type(request.get('root_approved')) is bool
+          enabled=request['root_approved']
+          if enabled: module.validate_request(request)
+          receipt={'schema':1,'reviewed_request':module.pin(path),'execution_source_commit':os.environ['GITHUB_SHA'],'producer_download_authorized':enabled,'native_case_acceptance':False,'scope':'Producer-input staging only; actual case requires separate hydration/interop/setup/owned-run evidence.'}
+          (Path(os.environ['RUNNER_TEMP'])/'native-case-selection'/'selection.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:output.write('enabled='+str(enabled).lower()+'\n');output.write('sha256='+module.pin(path)['sha256']+'\n')
+          PYTHON
+      - name: Fetch only the exact completed artifact-producing jobs
+        if: steps.request.outputs.enabled == 'true'
+        timeout-minutes: 12
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_SHA256: ${{ steps.request.outputs.sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B zig/bench/native_case_ci.py \
+            --request "$GITHUB_WORKSPACE/zig/bench/native_case_request.json" \
+            --request-sha256 "$REQUEST_SHA256" \
+            --execution-source-commit "$GITHUB_SHA" --repo "$GITHUB_WORKSPACE" \
+            --gh "$(command -v gh)" \
+            --output "$RUNNER_TEMP/native-case-producer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: native-case-producer-provenance-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/native-case-selection/selection.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/producer-receipt.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/run.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/jobs-*.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/artifacts-*.json

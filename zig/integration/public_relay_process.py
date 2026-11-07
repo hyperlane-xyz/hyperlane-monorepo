@@ -7,6 +7,8 @@ separate admin telemetry, and stopped-RocksDB evidence. Not a production rollout
 from __future__ import annotations
 
 import argparse
+import copy
+import re
 import hashlib
 import http.server
 import json
@@ -33,6 +35,78 @@ def chunks(value):
 
 def sha(path):
     return chunks(hashlib.sha256(path.read_bytes()).hexdigest())
+
+
+class PublicAdminReferences:
+    """Observe public/canonical references; normalize only exact approved overlap.
+
+    Counters, per-ID600s eligibility and all submission/restart assertions stay
+    with the original strict observers. Every raw admin response is retained.
+    """
+    def __init__(self, messages, admitted_message, evidence_path=None):
+        assert messages and len({message['id'].lower() for message in messages}) == len(messages), 'duplicate tracked public ID'
+        self.expected = {}
+        for message in messages:
+            identity = message['id'].lower()
+            assert re.fullmatch(r'0x[0-9a-f]{64}', identity), 'malformed tracked public ID'
+            wire = bytes.fromhex(message['wire'])
+            assert len(wire) >= 77, 'truncated tracked public wire'
+            expected = {'version': wire[0], 'nonce': int.from_bytes(wire[1:5], 'big'), 'origin': int.from_bytes(wire[5:9], 'big'), 'sender': '0x'+wire[9:41].hex(), 'destination': int.from_bytes(wire[41:45], 'big'), 'recipient': '0x'+wire[45:77].hex(), 'body': list(wire[77:])}
+            assert expected['origin'] == ORIGIN and expected['destination'] == DESTINATION, 'tracked public domain differs'
+            self.expected[identity] = expected
+        self.admitted_id = None if admitted_message is None else admitted_message['id'].lower()
+        assert self.admitted_id is None or self.admitted_id in self.expected, 'untracked public overlap approval'
+        self.observations = []
+        self.evidence_path = evidence_path
+        if evidence_path is not None:
+            with evidence_path.open('x'):
+                pass
+
+    def normalize(self, operations):
+        assert len(self.observations) < 20000, 'public observation bound exceeded'
+        before = copy.deepcopy(operations)
+        references = {}
+        if isinstance(operations, list):
+            for row in operations:
+                if isinstance(row, dict) and isinstance(row.get('id'), str):
+                    identity = row['id'].lower()
+                    references[identity] = references.get(identity, 0)+1
+        observed = {'observed_monotonic': time.monotonic(), 'raw_row_count': len(before) if isinstance(before, list) else None, 'unique_id_count': len(references), 'id_reference_counts': references, 'raw_operations': before}
+        self.observations.append(observed)
+        # Persist before validation so a rejected row or a later counter failure
+        # cannot erase the original admin response in the retained fixture.
+        if self.evidence_path is not None:
+            with self.evidence_path.open('a') as stream:
+                json.dump(observed, stream, separators=(',', ':'))
+                stream.write('\n')
+        assert isinstance(operations, list) and len(operations) <= len(self.expected)+int(self.admitted_id is not None), 'unexpected public reference count'
+        by_id, counts = {}, {}
+        for row in operations:
+            assert isinstance(row, dict) and set(row) == {'id', 'operation'}, 'corrupt public admin row'
+            identity = row['id']
+            assert isinstance(identity, str) and re.fullmatch(r'0x[0-9a-fA-F]{64}', identity), 'malformed public admin ID'
+            identity = identity.lower()
+            assert identity in self.expected, 'foreign public admin ID'
+            operation = row['operation']
+            assert isinstance(operation, dict) and set(operation) == {'type', 'message', 'status', 'app_context', 'submitted', 'num_retries'}, 'corrupt public operation schema'
+            assert operation['type'] == 'PendingMessage', 'corrupt public operation type'
+            message = operation['message']
+            expected = self.expected[identity]
+            assert isinstance(message, dict) and set(message) == set(expected), 'corrupt public message schema'
+            assert all(type(message[key]) is int for key in ['version', 'nonce', 'origin', 'destination']), 'corrupt public numeric field'
+            assert isinstance(message['body'], list) and all(type(value) is int and 0 <= value <= 255 for value in message['body']), 'corrupt public body'
+            assert message == expected, 'public admin message differs from exact tracked wire'
+            assert type(operation['submitted']) is bool and type(operation['num_retries']) is int and operation['num_retries'] >= 0, 'corrupt public operation state'
+            assert operation['app_context'] is None or isinstance(operation['app_context'], str), 'corrupt public app context'
+            status = operation['status']
+            assert (status == {'Confirm': 'SubmittedBySelf'} and operation['submitted']) or (status in ('FirstPrepareAttempt', 'ReadyToSubmit') and not operation['submitted']), 'unexpected public operation status'
+            counts[identity] = counts.get(identity, 0)+1
+            if identity in by_id:
+                assert identity == self.admitted_id and counts[identity] == 2, 'unapproved public duplicate ID'
+                assert row == by_id[identity], 'differing public duplicate row'
+            else:
+                by_id[identity] = row
+        return list(by_id.values())
 
 
 def compile_contracts():
@@ -257,8 +331,10 @@ def run_case(binary, oracle, contracts, filtered, temporary, output, mode):
                 assert destination_rpc.methods["eth_sendRawTransaction"] > 0, dict(destination_rpc.methods)
                 if filtered:
                     assert not delivered(chain, domains["test2"]["mailbox"], messages[1]["id"])
-                early_included = relayer_process.early_included_guard(admin_port, "test1", 0 if filtered else len(messages) - 1, included, initial=True)
-                settlement = relayer_process.wait_for_retirement(admin_port, running, included, historical_confirmed_offset=0, historical_offset_reason="all current-process canonical and admitted public IDs tracked")
+                references = PublicAdminReferences(included, None if filtered else messages[0], temporary / "public-admin-references.jsonl")
+                early_included = relayer_process.early_included_guard(admin_port, "test1", 0 if filtered else len(messages) - 1, included, initial=True, operation_normalizer=references.normalize)
+                settlement = relayer_process.wait_for_retirement(admin_port, running, included, historical_confirmed_offset=0, historical_offset_reason="all current-process canonical and admitted public IDs tracked", operation_normalizer=references.normalize)
+                settlement["public_admin_reference_observations"] = references.observations
                 relayer_process.persist_progress(output, "public-"+mode+"-retired", {"destination":destination_rpc}, settlement=settlement, early_included=early_included)
                 metrics_status, metrics_body, _ = request(f"http://127.0.0.1:{admin_port}/metrics")
                 assert metrics_status == 200 and admin_port != public_port

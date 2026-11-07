@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "root_approved": false,
+  "scenario": "evm",
+  "mode": "ReleaseSafe",
+  "producer_source_commit": "b55d756f2e871374fdd047b42bc42cfe63805941",
+  "producer_run_id": 42381958336,
+  "producer_run_attempt": 1,
+  "limits": {
+    "maximum_owned_RAM_bytes": 8589934592,
+    "maximum_case_allocated_bytes": 4294967296,
+    "minimum_host_free_bytes": 6442450944,
+    "maximum_wall_seconds": 3600
+  },
+  "artifact_pins": null,
+  "postgres": null,
+  "prerequisites": null
+}

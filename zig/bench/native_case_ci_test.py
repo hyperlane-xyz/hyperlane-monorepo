@@ -1,0 +1,106 @@
+"""No GitHub/network/build/native execution: request/provenance/ZIP controls."""
+import copy
+import importlib.util
+from pathlib import Path
+import stat
+import tempfile
+import unittest
+import zipfile
+
+spec = importlib.util.spec_from_file_location('native_case_ci', Path(__file__).with_name('native_case_ci.py'))
+ci = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ci)
+
+
+class DispatchTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='ziggy-native-dispatch-control-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.request = {'schema': 1, 'root_approved': True, 'scenario': 'evm', 'mode': 'ReleaseSafe', 'producer_source_commit': 'a' * 40, 'producer_run_id': 42, 'producer_run_attempt': 1, 'limits': dict(ci.LIMITS), 'artifact_pins': {}}
+        self.request['postgres'] = {'schema': 2, 'architecture': 'amd64', 'image': 'postgres:14', 'image_id': 'sha256:' + 'd' * 64, 'canonical_digest': 'postgres@sha256:' + 'e' * 64}
+        self.request['prerequisites'] = {'local_checkout_build': True, 'registry_commit': 'f' * 40, 'hpack': {'version': '4.2.0', 'wheel_sha256': '858ac0b02280fa582b5080d68db0899c6' + '2a80375e0e5413a74970c5e518b6986', 'wheel_bytes': 34246}}
+        self.request['artifact_pins'] = {key: {'id': index, 'name': name, 'sha256': 'b' * 64, 'size_in_bytes': 1024} for index, (key, name) in enumerate(ci.artifact_names(self.request).items(), 1)}
+        self.run = {'id': 42, 'run_attempt': 1, 'head_sha': 'a' * 40, 'repository': {'full_name': ci.REPOSITORY}, 'head_repository': {'full_name': ci.REPOSITORY}, 'head_branch': ci.BRANCH, 'event': 'push', 'path': '.github/workflows/zig-agents.yml', 'status': 'completed', 'conclusion': 'failure'}
+        self.jobs = [{'id': index, 'name': name, 'run_id': 42, 'status': 'completed', 'conclusion': 'success'} for index, name in enumerate(['full-sdk-native (ReleaseSafe)', 'full-sdk-native (ReleaseFast)', 'native-harness-controls'])]
+        self.artifacts = [dict(row, expired=False, digest='sha256:' + row['sha256'], workflow_run={'id': 42, 'head_sha': 'a' * 40, 'head_branch': ci.BRANCH}) for row in self.request['artifact_pins'].values()]
+
+    def test_explicit_request_and_actual_completed_producer_jobs(self):
+        ci.validate_request(self.request)
+        selected = ci.validate_remote(self.request, self.run, self.jobs, self.artifacts)
+        self.assertEqual(set(selected['artifacts']), set(self.request['artifact_pins']))
+        self.assertEqual(selected['unrelated_workflow_conclusion'], 'failure')
+        running = dict(self.run, status='in_progress', conclusion=None)
+        self.assertEqual(len(ci.validate_remote(self.request, running, self.jobs, self.artifacts)['required_jobs']), 3)
+
+    def test_false_approval_unknown_fields_and_increased_caps_reject(self):
+        for key, value in [('root_approved', False), ('scenario', 'foreign'), ('mode', 'ReleaseSmall'), ('producer_run_id', True), ('execution_source_commit', 'c' * 40)]:
+            changed = copy.deepcopy(self.request); changed[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError): ci.validate_request(changed)
+        changed = copy.deepcopy(self.request); changed['limits']['maximum_wall_seconds'] += 1
+        with self.assertRaises(ValueError): ci.validate_request(changed)
+
+    def test_cross_mode_and_missing_or_repeated_artifact_reject(self):
+        for change in [lambda row: row['artifact_pins'].pop('writer_fast'), lambda row: row['artifact_pins']['sdk'].update(name='zig-native-runtime-payload-ReleaseFast'), lambda row: row['artifact_pins']['sdk'].update(id=row['artifact_pins']['helper']['id'])]:
+            changed = copy.deepcopy(self.request); change(changed)
+            with self.assertRaises(ValueError): ci.validate_request(changed)
+
+    def test_foreign_source_run_attempt_repo_branch_or_event_reject(self):
+        for key, value in [('head_sha', 'd' * 40), ('run_attempt', 2), ('status', 'queued'), ('head_repository', {'full_name': 'foreign/repo'}), ('head_branch', 'main'), ('event', 'pull_request')]:
+            changed = copy.deepcopy(self.run); changed[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError): ci.validate_remote(self.request, changed, self.jobs, self.artifacts)
+
+    def test_missing_duplicate_failed_or_wrong_mode_job_reject(self):
+        for jobs in [self.jobs[:2], self.jobs + [self.jobs[0]], [dict(self.jobs[0], conclusion='failure'), *self.jobs[1:]], [self.jobs[0], dict(self.jobs[1], conclusion='failure'), self.jobs[2]], [self.jobs[0], self.jobs[2]], [self.jobs[0], self.jobs[1], self.jobs[1], self.jobs[2]], [dict(self.jobs[0], name='full-sdk-native (ReleaseSmall)'), *self.jobs[1:]]]:
+            with self.assertRaises(ValueError): ci.validate_remote(self.request, self.run, jobs, self.artifacts)
+
+    def test_expired_retagged_digest_or_artifact_run_reject(self):
+        for key, value in [('expired', True), ('digest', 'sha256:' + 'e' * 64), ('name', 'other'), ('workflow_run', {'id': 43, 'head_sha': 'a' * 40, 'head_branch': ci.BRANCH})]:
+            changed = copy.deepcopy(self.artifacts); changed[0][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError): ci.validate_remote(self.request, self.run, self.jobs, changed)
+
+    def zip(self, rows):
+        path = self.root / 'input.zip'
+        with zipfile.ZipFile(path, 'w') as archive:
+            for name, data, mode in rows:
+                info = zipfile.ZipInfo(name); info.external_attr = mode << 16
+                archive.writestr(info, data)
+        return path
+
+    def test_safe_extraction_never_grants_executable_mode(self):
+        archive = self.zip([('bin/tool', b'public fixture', stat.S_IFREG | 0o755)])
+        out = self.root / 'out'; rows = ci.extract_closed(archive, out)
+        self.assertEqual(rows[0]['relative_path'], 'bin/tool')
+        self.assertEqual((out / 'bin/tool').read_bytes(), b'public fixture')
+        self.assertFalse((out / 'bin/tool').stat().st_mode & 0o111)
+
+    def test_zip_traversal_symlink_and_file_parent_fail_before_creation(self):
+        for rows in [[('../escape', b'x', stat.S_IFREG)], [('/escape', b'x', stat.S_IFREG)], [('link', b'/tmp/foreign', stat.S_IFLNK | 0o777)], [('parent', b'x', stat.S_IFREG), ('parent/child', b'x', stat.S_IFREG)]]:
+            archive = self.zip(rows); out = self.root / 'out'
+            with self.subTest(rows=rows), self.assertRaises(ValueError): ci.extract_closed(archive, out)
+            self.assertFalse(out.exists())
+
+    def test_case_marker_skips_every_regular_sdk_svm_helper_and_cold_job(self):
+        workflow = Path(__file__).resolve().parents[2] / '.github/workflows/zig-agents.yml'
+        conditions, current, in_jobs = {}, None, False
+        for line in workflow.read_text().splitlines():
+            if line == 'jobs:': in_jobs = True
+            if not in_jobs: continue
+            if line.startswith('  ') and not line.startswith('   ') and line.endswith(':'): current = line.strip()[:-1]
+            if line.startswith('    if: '): conditions[current] = line[8:]
+        ordinary = {'svm-prerequisites', 'unit', 'evm', 'native-http', 'native-linux', 'container', 'vm-images', 'full-sdk-native', 'cold-full-feature', 'native-harness-controls'}
+        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs'})
+        guard = "!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]'))"
+        for name in ordinary:
+            self.assertTrue(conditions[name].startswith('${{ ' + guard + ' && ('), name)
+        self.assertIn("contains(github.event.head_commit.message, '[zig-native-case]')", conditions['native-case-producer-inputs'])
+        self.assertNotIn('!(', conditions['native-case-producer-inputs'])
+
+    def test_zip_expansion_bound_is_preflight(self):
+        archive = self.zip([('large', b'12345', stat.S_IFREG)])
+        out = self.root / 'out'
+        with self.assertRaises(ValueError): ci.extract_closed(archive, out, maximum_bytes=4)
+        self.assertFalse(out.exists())
+
+
+if __name__ == '__main__': unittest.main()

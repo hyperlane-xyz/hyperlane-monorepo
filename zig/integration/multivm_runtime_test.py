@@ -209,17 +209,35 @@ class RuntimeTests(unittest.TestCase):
             path = self.root / name
             path.write_text(json.dumps(record))
             return descriptor(path)
-        value["case_inputs"] = write("case-inputs.json", {"schema": 1, "scenario": "evm", "chain_names": ["test1"]})
+        docker = {"host": "unix:///public-fixture/docker.sock", "config_dir": str(self.root / "docker-config")}
+        value["case_inputs"] = write("case-inputs.json", {"schema": 1, "scenario": "evm", "chain_names": ["test1"], "local_docker": docker})
         modules = {name: descriptor(HERE / name) for name in evidence.import_module_closure(value["scenario"])}
         value["verifier"]["script"] = modules["multivm_process.py"]
         build = write("actual-build-summary-fixture.json", {"source_commit": value["runtime_source_commit"], "mode": value["mode"], "passed": True, "source_unchanged": True, "runtime_artifacts": value["artifacts"]})
         gate = write("actual-gate-summary-fixture.json", {"source_commit": value["runtime_source_commit"], "source_unchanged": True, "checks": [{"exit_code": 0}]})
         interop = write("actual-native-reader-interop-fixture.json", {"accepted_component_source_and_actual_Zig_storage_interop": True, "family_chain_SDK_finality_delivery_elapsed600_acceptance": False, "reader": value["verifier_tools"]["native_rows"], "modes": {name: {"actual_writer_parent_wait_exit": 0, "actual_db_files_rehashed": 10} for name in ("safe", "fast")}, "source_sha256": {str(self.root / "relayer"): evidence.sha(self.root / "relayer")}})
         approval = {"schema": 1, "root_approved": True, "scenario": value["scenario"], "runtime_source_commit": value["runtime_source_commit"], "mode": value["mode"], "runtime_artifacts": value["artifacts"], "verifier_tools": value["verifier_tools"], "verifier_python": value["verifier"]["python"], "case_inputs": value["case_inputs"], "python_modules": modules, "accepted_runtime_build": build, "harness": value["artifacts"]["init-db"], "native_reader_interoperability": interop, "source_gates": [gate], "capacity": {"reviewed": True, "minimum_free_bytes": 1}, "confirm_seconds": 600, "finality_grace_seconds": 30}
+        approval["local_docker"] = docker
         def check(record):
             value["execution_approval"] = write("approval-fixture.json", record)
-            return evidence.read_approval(value)
+            with mock.patch.dict(evidence.os.environ, {"DOCKER_HOST": docker["host"], "DOCKER_CONFIG": docker["config_dir"]}, clear=True):
+                return evidence.read_approval(value)
         self.assertIs(check(approval)["root_approved"], True)
+        # A consumer-only commit must not relabel the tested runtime as rebuilt.
+        execution_commit = "c" * 40
+        comparison = self.root / "compiled-comparison.log"
+        comparison.write_text("public tracked input comparison completed\n")
+        closure = {"schema": 1, "runtime_source_commit": value["runtime_source_commit"], "helper_source_commit": value["runtime_source_commit"], "tools_source_commit": value["runtime_source_commit"], "execution_source_commit": execution_commit, "source_unchanged": True, "native_case_acceptance": False, "scopes": {category: [{"path": name, "producer_tree": None if name.endswith(".zon") else "d" * 40, "current_tree": None if name.endswith(".zon") else "d" * 40, "worktree_unchanged": True} for name in names] for category, names in evidence.COMPILED_INPUT_SCOPES.items()}, "checks": [{"exit_code": 0, "log": descriptor(comparison)}]}
+        cross_source = copy.deepcopy(approval)
+        cross_source["execution_source_commit"] = execution_commit
+        cross_source["compiled_input_closure"] = write("compiled-input-closure.json", closure)
+        with self.assertRaisesRegex(ValueError, "execution source gate missing"):
+            check(cross_source)
+        cross_source["source_gates"] = [gate, write("actual-consumer-gate.json", {"source_commit": execution_commit, "source_unchanged": True, "checks": [{"exit_code": 0}]})]
+        self.assertEqual(check(cross_source)["runtime_source_commit"], value["runtime_source_commit"])
+        cross_source.pop("compiled_input_closure")
+        with self.assertRaisesRegex(ValueError, "requires compiled input closure"):
+            check(cross_source)
         for name in evidence.MODULE_NAMES:
             changed = copy.deepcopy(approval)
             changed["python_modules"].pop(name)

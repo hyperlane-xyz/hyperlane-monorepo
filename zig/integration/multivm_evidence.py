@@ -73,6 +73,46 @@ def import_module_closure(scenario):
     return found
 
 
+COMPILED_INPUT_SCOPES = {
+    "runtime": ("zig/src", "zig/native", "zig/build.zig", "zig/build.zig.zon"),
+    "helper": ("rust/main", "rust/sealevel"),
+    "tools": ("rust/main", "rust/sealevel", "zig/reference"),
+}
+
+
+def validate_compiled_input_closure(manifest, approval):
+    """Pin the pre-node producer/execution tree comparison; no runtime rewrite.
+
+    The builder compares Git objects and clean working inputs BEFORE any node or
+    generated fixture writes. Reopening this receipt never reruns cleanliness
+    against the EVM fixture's six legitimate generated slots.
+    """
+    runtime = manifest["runtime_source_commit"]
+    execution = approval.get("execution_source_commit", runtime)
+    require(isinstance(execution, str) and re.fullmatch("[0-9a-f]{40}", execution), "exact execution source commit required")
+    descriptor = approval.get("compiled_input_closure")
+    if descriptor is None:
+        require(execution == runtime, "different execution source requires compiled input closure")
+        return execution
+    receipt = json.loads(checked_artifact(descriptor).read_text())
+    require(type(receipt.get("schema")) is int and receipt["schema"] == 1 and receipt.get("source_unchanged") is True and receipt.get("native_case_acceptance") is False, "compiled input closure not verified")
+    require(receipt.get("runtime_source_commit") == runtime and receipt.get("helper_source_commit") == runtime and receipt.get("tools_source_commit") == runtime and receipt.get("execution_source_commit") == execution, "compiled producer/execution cohort differs")
+    scopes = receipt.get("scopes")
+    require(isinstance(scopes, dict) and set(scopes) == set(COMPILED_INPUT_SCOPES), "compiled scope categories differ")
+    for category, expected in COMPILED_INPUT_SCOPES.items():
+        rows = scopes[category]
+        require(isinstance(rows, list) and len(rows) == len(expected) and {row.get("path") for row in rows if isinstance(row, dict)} == set(expected), "compiled scope closure differs")
+        for row in rows:
+            require(isinstance(row, dict) and set(row) == {"path", "producer_tree", "current_tree", "worktree_unchanged"} and row["worktree_unchanged"] is True and row["producer_tree"] == row["current_tree"], "compiled input changed since producer")
+            tree = row["producer_tree"]
+            require(isinstance(tree, str) and re.fullmatch("[0-9a-f]{40}", tree) or tree is None and row["path"] == "zig/build.zig.zon", "compiled tracked object missing/invalid")
+    checks = receipt.get("checks")
+    require(isinstance(checks, list) and checks and all(isinstance(check, dict) and type(check.get("exit_code")) is int and check["exit_code"] == 0 for check in checks), "compiled input checks failed")
+    for check in checks:
+        checked_artifact(check["log"])
+    return execution
+
+
 def read_approval(manifest):
     """Verify exact reviewed module/runtime/tool closure before a node may start."""
     approval = json.loads(checked_artifact(manifest["execution_approval"]).read_text())
@@ -86,10 +126,8 @@ def read_approval(manifest):
     require(approval.get("case_inputs") == manifest["case_inputs"], "execution approval corpus differs")
     case = json.loads(checked_artifact(manifest["case_inputs"]).read_text())
     nodes = validate_evidence_nodes(manifest, case)
-    require(approval.get("evidence_nodes", {}) == nodes and approval.get("local_docker") == case.get("local_docker"), "direct evidence ownership approval differs")
-    if nodes:
-        docker = case["local_docker"]
-        require(os.environ.get("DOCKER_HOST") == docker["host"] and os.environ.get("DOCKER_CONFIG") == docker["config_dir"] and not os.environ.get("DOCKER_CONTEXT"), "helper/controller must bind the exact local Docker service/config")
+    require(approval.get("evidence_nodes", {}) == nodes, "direct evidence ownership approval differs")
+    validate_docker_approval(manifest, case, approval)
     verify_family_tools(manifest, case, approval)
     checked_artifact(approval["harness"], True)
     interop = json.loads(checked_artifact(approval["native_reader_interoperability"]).read_text())
@@ -112,13 +150,17 @@ def read_approval(manifest):
     require(build.get("source_commit") == manifest["runtime_source_commit"] and build.get("mode") == manifest["mode"], "actual accepted build identity differs")
     require(build.get("passed") is True and build.get("source_unchanged") is True, "actual runtime build was not accepted")
     require(build.get("runtime_artifacts") == manifest["artifacts"], "build products do not bind declared mode/worker/libraries")
+    execution_commit = validate_compiled_input_closure(manifest, approval)
     gates = approval.get("source_gates")
     require(isinstance(gates, list) and gates, "fresh actual source gates required")
+    execution_gate_seen = False
     for row in gates:
         gate = json.loads(checked_artifact(row).read_text())
-        require(gate.get("source_unchanged") is True and gate.get("source_commit") == manifest["runtime_source_commit"], "source gate identity differs")
+        require(gate.get("source_unchanged") is True and gate.get("source_commit") in {manifest["runtime_source_commit"], execution_commit}, "source gate identity differs")
+        execution_gate_seen = execution_gate_seen or gate.get("source_commit") == execution_commit
         checks = gate.get("checks")
         require(isinstance(checks, list) and checks and all(c.get("exit_code") == 0 and type(c.get("exit_code")) is int for c in checks), "actual source gate failed")
+    require(execution_gate_seen, "fresh execution source gate missing")
     capacity = approval.get("capacity")
     require(isinstance(capacity, dict) and capacity.get("reviewed") is True, "family dependency/capacity review missing")
     minimum = capacity.get("minimum_free_bytes")
@@ -203,20 +245,45 @@ def direct_endpoint(value):
     return parsed
 
 
+DOCKER_FIXTURE_FAMILIES = frozenset({"evm", "cosmosnative", "cosmwasm", "sealevel", "starknet", "radix", "tron"})
+
+
+def validate_local_docker(manifest, case):
+    """Owned Docker capability; grants no native RPC/evidence peer override."""
+    if "local_docker" not in case:
+        return None
+    require(manifest["scenario"] in DOCKER_FIXTURE_FAMILIES, "family has no approved Docker fixture capability")
+    docker = case["local_docker"]
+    require(isinstance(docker, dict) and set(docker) == {"host", "config_dir"}, "explicit local Docker service/config required")
+    value = docker["host"]
+    require(isinstance(value, str) and value.startswith("unix:///") and not any(ord(char) < 33 or ord(char) == 127 for char in value) and "%" not in value and "\\" not in value, "literal local Docker unix service required")
+    host = urllib.parse.urlsplit(value)
+    require(host.scheme == "unix" and not host.netloc and host.path.startswith("/") and host.path != "/" and ".." not in pathlib.Path(host.path).parts and not host.query and not host.fragment, "only explicit local Docker unix service allowed")
+    require(isinstance(docker["config_dir"], str), "Docker config must be exact owned child")
+    root = pathlib.Path(manifest["task_root"])
+    config = pathlib.Path(docker["config_dir"])
+    require(root.is_absolute() and root.resolve(strict=True) == root and config == root / "docker-config" and not config.is_symlink(), "Docker config must be exact owned child")
+    require(not config.exists() or config.is_dir(), "Docker config must be an owned directory")
+    return docker
+
+
+def validate_docker_approval(manifest, case, approval):
+    docker = validate_local_docker(manifest, case)
+    require(manifest["scenario"] not in DOCKER_FIXTURE_FAMILIES or docker is not None, "approved Docker fixture capability missing")
+    require(approval.get("local_docker") == docker, "Docker service ownership approval differs")
+    if docker is not None:
+        require(os.environ.get("DOCKER_HOST") == docker["host"] and os.environ.get("DOCKER_CONFIG") == docker["config_dir"] and not any(os.environ.get(key) for key in ("DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_AUTH_CONFIG")), "helper/controller must bind the exact local Docker service/config without ambient overrides")
+    return docker
+
+
 def validate_evidence_nodes(manifest, case):
+    docker = validate_local_docker(manifest, case)
     nodes = case.get("evidence_nodes", {})
     if not nodes:
         require(manifest["scenario"] != "starknet", "Source Starknet healthy owned evidence peer must be explicit")
-        require("local_docker" not in case, "unscoped local Docker override")
         return {}
     require(manifest["scenario"] == "starknet" and isinstance(nodes, dict) and set(nodes) == set(case["chain_names"]) and len(nodes) == 2, "direct evidence override is Source Starknet-only")
-    docker = case.get("local_docker")
-    require(isinstance(docker, dict) and set(docker) == {"host", "config_dir"}, "explicit local Docker service/config required")
-    host = urllib.parse.urlsplit(docker["host"])
-    require(host.scheme == "unix" and not host.netloc and host.path.startswith("/") and ".." not in pathlib.Path(host.path).parts and not host.query and not host.fragment, "only explicit local Docker unix service allowed")
-    config = pathlib.Path(docker["config_dir"])
-    root = pathlib.Path(manifest["task_root"])
-    require(config.is_absolute() and ".." not in config.parts and config.is_relative_to(root) and config != root, "Docker config must be an owned child")
+    require(docker is not None, "explicit local Docker service/config required")
     expected_keys = {"effective_field", "configured_ordinal", "original_url", "connect_url", "rewrite", "source_container_suffix", "host_port", "container_port", "source_image", "image_id", "command"}
     command = ["--state-archive-capacity", "full", "--block-generation-on", "5", "--seed", "0"]
     for index, name in enumerate(case["chain_names"]):
