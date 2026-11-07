@@ -8,7 +8,7 @@ use std::time::Duration;
 use macro_rules_attribute::apply;
 use regex::Regex;
 use serde::Deserialize;
-use tempfile::{tempdir_in, NamedTempFile};
+use tempfile::tempdir_in;
 
 use crate::logging::log;
 use crate::program::Program;
@@ -118,6 +118,15 @@ pub fn install_solana_cli_tools(
     release_version: String,
     tools_dir: PathBuf,
 ) -> PathBuf {
+    if let Some(assets) = crate::external_agents::svm_assets().expect("SVM assets") {
+        assert_eq!(release_version, "3.0.14", "Source CLI version differs");
+        assert_eq!(
+            release_url, "github.com/anza-xyz/agave",
+            "Source CLI repository differs"
+        );
+        crate::external_agents::prepare_svm_environment().expect("owned SVM environment");
+        return assets.bin.clone();
+    }
     let tools_dir = (if crate::external_agents::enabled() {
         None
     } else {
@@ -244,6 +253,10 @@ fn install_spl_programs(out_path: &Path) {
 
 #[apply(as_task)]
 pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
+    if let Some(assets) = crate::external_agents::svm_assets().expect("SVM assets") {
+        assert_eq!(solana_cli_tools_path, assets.bin, "SVM CLI path differs");
+        return assets.programs.clone();
+    }
     let workspace_path = get_workspace_path();
     let out_path = crate::external_agents::sbf_output()
         .unwrap_or_else(|| concat_path(&workspace_path, SBF_OUT_PATH));
@@ -259,7 +272,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     let build_sbf = Program::new(bin_path.clone()).env("SBF_OUT_PATH", out_path.to_str().unwrap());
 
     let workspace_path = get_workspace_path();
-    let sealevel_path = get_sealevel_path(&workspace_path);
+    let sealevel_path = fixture_sealevel_path(&workspace_path);
     let sealevel_programs = concat_path(sealevel_path, "programs");
 
     // Pre-download platform-tools with retries before building any programs.
@@ -314,7 +327,7 @@ pub fn start_solana_test_validator(
     ledger_dir: PathBuf,
 ) -> SolanaTestValidatorResult {
     let workspace_path = get_workspace_path();
-    let sealevel_path = get_sealevel_path(&workspace_path);
+    let sealevel_path = fixture_sealevel_path(&workspace_path);
 
     let solana_deployer_account = concat_path(&sealevel_path, SOLANA_DEPLOYER_ACCOUNT);
     let solana_deployer_account_str = solana_deployer_account.to_string_lossy();
@@ -335,7 +348,9 @@ pub fn start_solana_test_validator(
     let build_so_dir = solana_programs_path.clone();
     let build_so_dir_str = build_so_dir.to_string_lossy();
     // init solana config
-    let solana_config = NamedTempFile::new().unwrap().into_temp_path();
+    let solana_config = crate::external_agents::svm_tempfile()
+        .unwrap()
+        .into_temp_path();
     let solana_config_path = solana_config.to_path_buf();
 
     Program::new(concat_path(&solana_cli_tools_path, "solana"))
@@ -364,7 +379,10 @@ pub fn start_solana_test_validator(
             concat_path(&solana_programs_path, lib).to_str().unwrap(),
         );
     }
-    let validator = args.spawn("SOL", None);
+    args = crate::external_agents::svm_node_arguments(args).expect("Source SVM node arguments");
+    let mut validator = args.spawn("SOL", None);
+    crate::external_agents::svm_node_ready(&mut validator.1, &ledger_dir)
+        .unwrap_or_else(|error| panic!("SVM node ownership readiness: {error:#}"));
     poll_until("solana validator RPC", Duration::from_secs(60), || {
         solana_slot(&solana_cli_tools_path, &solana_config_path, "confirmed").is_some()
     });
@@ -570,7 +588,7 @@ pub fn initiate_hyperlane_transfer_to_sealeveltest2(
     solana_config_path: PathBuf,
 ) -> String {
     let workspace_path = get_workspace_path();
-    let sealevel_path = get_sealevel_path(&workspace_path);
+    let sealevel_path = fixture_sealevel_path(&workspace_path);
 
     let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
@@ -613,7 +631,7 @@ pub fn initiate_hyperlane_transfer_to_sealeveltest3(
     solana_config_path: PathBuf,
 ) -> String {
     let workspace_path = get_workspace_path();
-    let sealevel_path = get_sealevel_path(&workspace_path);
+    let sealevel_path = fixture_sealevel_path(&workspace_path);
 
     let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
@@ -658,7 +676,7 @@ pub fn initiate_non_matching_igp_paying_transfer(
     solana_config_path: PathBuf,
 ) -> String {
     let workspace_path = get_workspace_path();
-    let sealevel_path = get_sealevel_path(&workspace_path);
+    let sealevel_path = fixture_sealevel_path(&workspace_path);
 
     let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
@@ -770,20 +788,30 @@ pub fn wait_for_finalized(solana_cli_tools_path: &Path, solana_config_path: &Pat
 
 pub fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
     let workspace_path = get_workspace_path();
-    let sealevel_path = get_sealevel_path(&workspace_path);
+    let sealevel_path = fixture_sealevel_path(&workspace_path);
 
     let solana_keypair = concat_path(&sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
 
-    Program::new(concat_path(
-        &sealevel_path,
-        format!("{SOLANA_AGENT_BIN_PATH}/hyperlane-sealevel-client"),
-    ))
-    .working_dir(sealevel_path.clone())
-    .env("PATH", updated_path(solana_cli_tools_path))
-    .env("RUST_BACKTRACE", "1")
-    .arg("config", solana_config_path.to_str().unwrap())
-    .arg("keypair", solana_keypair_str)
+    let executable = match crate::external_agents::svm_assets().expect("SVM assets") {
+        Some(assets) => assets.client.clone(),
+        None => concat_path(
+            &sealevel_path,
+            format!("{SOLANA_AGENT_BIN_PATH}/hyperlane-sealevel-client"),
+        ),
+    };
+    let program = Program::new(executable)
+        .working_dir(sealevel_path.clone())
+        .env("PATH", updated_path(solana_cli_tools_path))
+        .env("RUST_BACKTRACE", "1")
+        .arg("config", solana_config_path.to_str().unwrap())
+        .arg("keypair", solana_keypair_str);
+    match crate::external_agents::svm_assets().expect("SVM assets") {
+        Some(assets) => program
+            .env("HOME", assets.home.clone())
+            .env("PATH", format!("{}:/usr/bin:/bin", assets.bin.display())),
+        None => program,
+    }
 }
 
 fn updated_path(solana_cli_tools_path: &Path) -> String {
@@ -796,4 +824,11 @@ fn updated_path(solana_cli_tools_path: &Path) -> String {
             .unwrap(),
         std::env::var("PATH").unwrap_or_default(),
     )
+}
+
+fn fixture_sealevel_path(workspace: &Path) -> PathBuf {
+    match crate::external_agents::svm_assets().expect("SVM assets") {
+        Some(assets) => assets.workspace.clone(),
+        None => get_sealevel_path(workspace),
+    }
 }

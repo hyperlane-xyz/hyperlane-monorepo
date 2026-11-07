@@ -23,7 +23,8 @@ class CosmosWasmAdmission(unittest.TestCase):
                 controller.assert_called_once_with({'scenario':'cosmwasm'},'verify',{'stage':'live','expected':4,'harness_parent':{'pid':11}})
     def test_unreviewed_families_remain_blocked_before_capture_or_parent(self):
         for name in set(api.SCENARIOS)-{'cosmosnative','evm','cosmwasm'}:
-            with self.subTest(scenario=name), mock.patch.object(api,'validate_manifest'), mock.patch.object(api.multivm_evidence,'verify_harness_parent') as parent, mock.patch.object(api,'controller_request') as controller:
+            with self.subTest(scenario=name), mock.patch.object(api,'validate_manifest'), mock.patch.object(api.multivm_evidence,'verify_harness_parent') as parent, mock.patch.object(api,'controller_request') as controller, mock.patch.dict(api.FAMILY_VERIFIERS):
+                api.FAMILY_VERIFIERS.pop(name, None)
                 with self.assertRaisesRegex(ValueError,'no node may start'):api.verify_stage({'scenario':name},'preflight',0)
                 parent.assert_not_called();controller.assert_not_called()
     def test_cw_approval_failure_precedes_session_side_effect(self):

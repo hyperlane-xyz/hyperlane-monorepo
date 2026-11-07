@@ -213,6 +213,11 @@ def session_verifier(value, stage, expected):
 FAMILY_VERIFIERS["cosmosnative"] = session_verifier
 FAMILY_VERIFIERS["evm"] = session_verifier
 FAMILY_VERIFIERS["cosmwasm"] = session_verifier
+FAMILY_VERIFIERS["sealevel"] = session_verifier
+FAMILY_VERIFIERS["sealevel-composite"] = session_verifier
+FAMILY_VERIFIERS["tron"] = session_verifier
+FAMILY_VERIFIERS["starknet"] = session_verifier
+FAMILY_VERIFIERS["radix"] = session_verifier
 
 
 def controller_path(value, name):

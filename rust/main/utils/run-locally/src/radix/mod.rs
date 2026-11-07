@@ -52,7 +52,8 @@ pub struct RadixStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
     pub scraper: AgentHandles,
-    pub postgres: AgentHandles,
+    pub postgres: crate::external_agents::OwnedPostgres,
+    pub localnet: Option<crate::external_agents::radix_fixture::Localnet>,
 }
 
 // this is for clean up
@@ -61,17 +62,21 @@ impl Drop for RadixStack {
     fn drop(&mut self) {
         stop_child(&mut self.relayer.1);
         stop_child(&mut self.scraper.1);
-        stop_child(&mut self.postgres.1);
+        if let Err(error) = self.postgres.stop() {
+            log!("Owned PG stop failed: {error:#}");
+        }
 
-        Program::new("docker")
-            .working_dir("./src/radix/")
-            .cmd("compose")
-            .arg("profile", "fullnode")
-            .arg("profile", "network-gateway-image")
-            .cmd("down")
-            .filter_logs(|_| false)
-            .run()
-            .join();
+        if self.localnet.is_none() {
+            Program::new("docker")
+                .working_dir("./src/radix/")
+                .cmd("compose")
+                .arg("profile", "fullnode")
+                .arg("profile", "network-gateway-image")
+                .cmd("down")
+                .filter_logs(|_| false)
+                .run()
+                .join();
+        }
 
         self.validators
             .iter_mut()
@@ -275,8 +280,12 @@ fn launch_radix_scraper(agent_config_path: String, chains: Vec<String>) -> Agent
 pub async fn run_locally() {
     crate::external_agents::initialize_for("radix");
     log!("Staring local net");
-    start_localnet();
-    wait_for_radix_localnet();
+    let localnet = crate::external_agents::radix_fixture::Localnet::start()
+        .unwrap_or_else(|error| panic!("actual owned Radix localnet: {error:#}"));
+    if localnet.is_none() {
+        start_localnet();
+        wait_for_radix_localnet();
+    }
 
     log!("Building rust...");
     if !crate::external_agents::enabled() {
@@ -384,7 +393,10 @@ pub async fn run_locally() {
 
     log!("Config path: {:#?}", agent_config_path);
     log!("Running postgres db...");
-    let postgres = start_postgres();
+    let mut postgres = crate::external_agents::OwnedPostgres::new(start_postgres());
+    postgres
+        .ready()
+        .unwrap_or_else(|error| panic!("actual owned PG before init: {error:#}"));
 
     crate::utils::wait_for_postgres();
 
@@ -441,6 +453,7 @@ pub async fn run_locally() {
         relayer: hpl_rly.join(),
         scraper: hpl_scr.join(),
         postgres,
+        localnet,
     };
 
     // Use the standard wait_for_condition function with config
@@ -480,6 +493,17 @@ pub async fn run_locally() {
                 .map(|handle| &mut handle.1)
                 .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
         );
+        if crate::external_agents::enabled() {
+            _stack
+                .postgres
+                .stop()
+                .unwrap_or_else(|error| panic!("actual PG stop: {error:#}"));
+            if let Some(localnet) = &mut _stack.localnet {
+                localnet
+                    .stop()
+                    .unwrap_or_else(|error| panic!("actual Radix localnet stop: {error:#}"));
+            }
+        }
         log!("Radix E2E tests passed");
     }
 }

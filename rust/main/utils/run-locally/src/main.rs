@@ -168,7 +168,14 @@ impl Drop for State {
         let mut fixture_stop_failed = false;
         for (name, (mut agent, _)) in self.agents.drain() {
             log!("Stopping child {}", name);
-            match crate::external_agents::stop_evm_fixture(&mut agent) {
+            let stopped = crate::external_agents::stop_svm_fixture(&mut agent).and_then(|owned| {
+                if owned {
+                    Ok(true)
+                } else {
+                    crate::external_agents::stop_evm_fixture(&mut agent)
+                }
+            });
+            match stopped {
                 Ok(true) => {}
                 Ok(false) => stop_child(&mut agent),
                 Err(error) => {

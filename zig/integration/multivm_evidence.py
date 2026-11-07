@@ -267,13 +267,24 @@ def owned_devnet_name(task_root, pid, suffix):
     return f"ziggy-e2e-{digest}-{pid}-{suffix}"
 
 
-def verify_devnet_inspect(row, node, name, absent_wall_ns, previous=None):
+def verify_devnet_inspect(row, node, name, absent_wall_ns, previous=None, *, approved_image_id=None, approved_labels=None):
     require(isinstance(row, dict) and row.get("Name") == "/" + name and re.fullmatch(r"[0-9a-f]{64}", row.get("Id", "")) and row.get("State", {}).get("Running") is True, "actual owned devnet missing/not running")
-    require(row.get("Image") == node["image_id"] and row.get("Config", {}).get("Image") == node["source_image"] and row["Config"].get("Cmd") == node["command"], "actual devnet image/command differs")
+    allowed_images = {node["source_image"]}
+    if approved_image_id is not None:
+        require(approved_image_id == node["image_id"] and isinstance(approved_labels, dict) and set(approved_labels) == {"io.hyperlane.ziggy.case-root", "io.hyperlane.ziggy.harness-pid", "io.hyperlane.ziggy.run-token"}, "unbound external immutable image/labels")
+        allowed_images.add(approved_image_id)
+        require(all(row.get("Config", {}).get("Labels", {}).get(key) == value for key, value in approved_labels.items()), "actual devnet ownership labels differ")
+        limits = row.get("HostConfig", {})
+        require(limits.get("Memory") == limits.get("MemorySwap") == 2 * 1024**3 and limits.get("NanoCpus") == 2_000_000_000 and limits.get("PidsLimit") == 256 and limits.get("PortBindings") == {"5050/tcp": [{"HostIp": "127.0.0.1", "HostPort": str(node["host_port"])}]}, "actual external devnet caps/loopback differ")
+    else:
+        require(approved_labels is None, "labels require explicit approved image")
+    require(row.get("Image") == node["image_id"] and row.get("Config", {}).get("Image") in allowed_images and row["Config"].get("Cmd") == node["command"], "actual devnet image/command differs")
     created = datetime.datetime.fromisoformat(row["Created"].replace("Z", "+00:00"))
     require(created.tzinfo is not None and created.timestamp() * 1_000_000_000 >= absent_wall_ns, "devnet predates actual absence receipt")
     bindings = row.get("NetworkSettings", {}).get("Ports", {}).get("5050/tcp")
     require(isinstance(bindings, list) and bindings and all(binding.get("HostPort") == str(node["host_port"]) and binding.get("HostIp") in {"", "0.0.0.0", "127.0.0.1", "::", "::1"} for binding in bindings), "actual owned devnet port mapping differs")
+    if approved_image_id is not None:
+        require(bindings == [{"HostPort": str(node["host_port"]), "HostIp": "127.0.0.1"}], "external devnet must expose only exact loopback")
     if previous is not None:
         require(row["Id"] == previous["Id"] and row["Created"] == previous["Created"], "owned devnet container identity changed")
     return row

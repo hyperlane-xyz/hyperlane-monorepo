@@ -303,6 +303,10 @@ def validate_evm_case(manifest, case):
         address(value)
     require(isinstance(case.get("relayer_addresses"), dict) and set(case["relayer_addresses"]) == set(names), "reviewed public relayer signer identities required")
     if manifest["scenario"] == "tron":
+        require(names == ["anvil1", "anvil2"] and domains == {"1212538670": "anvil1", "1212538671": "anvil2"}, "Source TRE selected names/domains differ")
+        require(corpus == {"dispatches": 4, "deliveries": 4, "zero_insertions": 0, "failed_body": 0, "double_insertions": 0}, "Source TRE actual four-message corpus differs")
+        require(all(address(value) == "0xc8599111f29c1e1e061265b4af93ea1f274ad78a" for value in case["validator_addresses"].values()), "Source TRE public checkpoint signer differs")
+        require(all(tron_address(value) == "0xc8599111f29c1e1e061265b4af93ea1f274ad78a" for value in case["relayer_addresses"].values()), "Source TRE public relayer payer differs")
         require(isinstance(case.get("relayer_addresses"), dict) and set(case["relayer_addresses"]) == set(names), "reviewed native public signer identities required")
         for value in case["relayer_addresses"].values():
             tron_address(value)
@@ -440,7 +444,11 @@ class Session:
         proof = self.devnets[chain]
         rows = json.loads(self.docker(["inspect", "--type", "container", proof["name"]]))
         require(isinstance(rows, list) and len(rows) == 1, "exact owned container inspect missing")
-        row = verify_devnet_inspect(rows[0], self.evidence_nodes[chain], proof["name"], proof["absent_wall_ns"], proof["inspect"])
+        fixture = self.case["starknet_devnet"]
+        require(self.approval.get("root_approved") is True and self.approval.get("scenario") == "starknet" and self.approval.get("starknet_devnet") == fixture, "exact approved Starknet container fixture required")
+        labels = {"io.hyperlane.ziggy.case-root": hashlib.sha256(os.fsencode(pathlib.Path(self.manifest["task_root"]).resolve(strict=True))).hexdigest(), "io.hyperlane.ziggy.harness-pid": str(self.harness_parent["pid"]), "io.hyperlane.ziggy.run-token": fixture["run_token"]}
+        require(self.evidence_nodes[chain]["image_id"] == fixture["image_id"], "approved devnet image differs from evidence endpoint")
+        row = verify_devnet_inspect(rows[0], self.evidence_nodes[chain], proof["name"], proof["absent_wall_ns"], proof["inspect"], approved_image_id=fixture["image_id"], approved_labels=labels)
         if proof["inspect"] is None:
             proof["inspect"] = row
             self.append("owned-devnet-inspection.jsonl", {"chain": chain, "inspected_monotonic_ns": time.monotonic_ns(), "inspect": row})

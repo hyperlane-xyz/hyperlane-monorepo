@@ -12,7 +12,6 @@ use std::{
 };
 
 use hyperlane_core::SubmitterType;
-use tempfile::tempdir;
 
 use crate::SHUTDOWN;
 use crate::{
@@ -94,7 +93,8 @@ fn run_locally() {
 
     assert_eq!(validator_origin_chains.len(), validator_keys.len());
 
-    let rocks_db_dir = tempdir().expect("Failed to create tempdir for rocksdb");
+    let rocks_db_dir =
+        crate::external_agents::svm_tempdir().expect("Failed to create tempdir for rocksdb");
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_dbs = (0..validator_count)
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
@@ -209,7 +209,8 @@ fn run_locally() {
     };
 
     // Install once: both contract compilation and the node use this version.
-    let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
+    let solana_path_tempdir =
+        crate::external_agents::svm_tempdir().expect("Failed to create solana temp dir");
     let solana_cli_tools_path = install_solana_cli_tools(
         SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
         SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
@@ -222,23 +223,40 @@ fn run_locally() {
         build_solana_programs(solana_cli_tools_path.clone()).join();
 
     log!("Building hyperlane-sealevel-client...");
-    let build_sealevel_client = Program::new("cargo")
-        .working_dir(&sealevel_path)
-        .cmd("build")
-        .arg("bin", "hyperlane-sealevel-client")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run();
+    let build_sealevel_client = if crate::external_agents::enabled() {
+        None
+    } else {
+        Some(
+            Program::new("cargo")
+                .working_dir(&sealevel_path)
+                .cmd("build")
+                .arg("bin", "hyperlane-sealevel-client")
+                .filter_logs(|l| !l.contains("workspace-inheritance"))
+                .run(),
+        )
+    };
 
     log!("Running postgres db...");
-    let postgres = start_postgres();
-    state.push_agent(postgres);
+    let mut owned_postgres = if crate::external_agents::enabled() {
+        let mut postgres = crate::external_agents::OwnedPostgres::new(start_postgres());
+        postgres
+            .ready()
+            .unwrap_or_else(|error| panic!("actual owned SVM PG before init: {error:#}"));
+        Some(postgres)
+    } else {
+        state.push_agent(start_postgres());
+        None
+    };
 
     if let Some(build) = build_main {
         build.join();
     }
-    build_sealevel_client.join();
+    if let Some(build) = build_sealevel_client {
+        build.join();
+    }
 
-    let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
+    let solana_ledger_dir =
+        crate::external_agents::svm_tempdir().expect("Failed to create solana ledger dir");
     let (solana_config_path, sealeveltest2_alt) = {
         let start_solana_validator = start_solana_test_validator(
             solana_cli_tools_path.clone(),
@@ -357,6 +375,11 @@ fn run_locally() {
         SOL_MESSAGES_EXPECTED,
         state.agents.values_mut().map(|(child, _)| child),
     );
+    if let Some(postgres) = &mut owned_postgres {
+        postgres
+            .stop()
+            .unwrap_or_else(|error| panic!("actual owned SVM PG stop: {error:#}"));
+    }
     log!("E2E tests passed");
 }
 

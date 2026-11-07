@@ -123,6 +123,9 @@ test "Cosmos compatibility explicit selected dialect does not fall back to anoth
     };
 }
 test "Cosmos compatibility selected client preserves native commit check result hash and height guards" {
+    const a = std.testing.allocator;
+    const library = try @import("evm/pool_testing.zig").nativeLibrary(a);
+    defer a.free(library);
     for ([_]bool{ false, true }) |native| {
         var exchange: Exchange = .{ .check_code = 14 };
         try std.testing.expectError(error.CosmosCheckTxRejected, broadcast(native, null, &exchange));

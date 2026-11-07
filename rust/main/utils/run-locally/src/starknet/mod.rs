@@ -69,9 +69,23 @@ pub struct StarknetConfig {
 pub struct StarknetResp {
     pub node: AgentHandles,
     pub endpoint: StarknetEndpoint,
+    external_port: Option<u32>,
+    stop: crate::external_agents::FixtureStop,
 }
 
 impl StarknetResp {
+    fn stop(&mut self) -> eyre::Result<()> {
+        let node = &mut self.node.1;
+        let port = self.external_port;
+        self.stop.run(|| {
+            if let Some(port) = port {
+                crate::external_agents::stop_starknet_fixture(node, Some(port))
+            } else {
+                stop_child(node);
+                Ok(())
+            }
+        })
+    }
     pub fn cli(&self, bin: &Path) -> StarknetCLI {
         StarknetCLI::new(bin.to_path_buf())
     }
@@ -79,7 +93,11 @@ impl StarknetResp {
 
 impl Drop for StarknetResp {
     fn drop(&mut self) {
-        stop_child(&mut self.node.1);
+        if !self.stop.attempted() {
+            if let Err(error) = self.stop() {
+                log!("External Starknet fixture cleanup failed: {error:#}");
+            }
+        }
     }
 }
 
@@ -92,7 +110,10 @@ pub struct StarknetNetwork {
 
 impl Drop for StarknetNetwork {
     fn drop(&mut self) {
-        stop_child(&mut self.launch_resp.node.1);
+        // External Resp owns one exact Docker/container stop and parent wait.
+        if self.launch_resp.external_port.is_none() {
+            stop_child(&mut self.launch_resp.node.1);
+        }
     }
 }
 
@@ -110,7 +131,7 @@ pub struct StarknetHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
     pub scraper: AgentHandles,
-    pub postgres: AgentHandles,
+    pub postgres: crate::external_agents::OwnedPostgres,
 }
 
 impl Drop for StarknetHyperlaneStack {
@@ -120,7 +141,7 @@ impl Drop for StarknetHyperlaneStack {
         }
         stop_child(&mut self.relayer.1);
         stop_child(&mut self.scraper.1);
-        stop_child(&mut self.postgres.1);
+        // OwnedPostgres performs its own bounded final wait/Drop cleanup.
     }
 }
 
@@ -130,25 +151,46 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
         "host: {}, port: {}",
         config.node_addr_base, config.node_port_base
     );
-    let node: AgentHandles = Program::new("docker")
-        .cmd("run")
-        .arg(
-            "name",
-            crate::external_agents::resource_name(&format!("starknet-{}", config.node_port_base)),
-        )
-        .flag("rm")
-        .arg("publish", format!("{}:5050", config.node_port_base))
-        .cmd(format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"))
-        .arg("state-archive-capacity", "full")
-        .arg("block-generation-on", "5")
-        .arg("seed", "0")
-        .spawn("STAKNET", None);
+    let node: AgentHandles = if let Some(program) =
+        crate::external_agents::starknet_node_program(config.node_port_base)
+            .expect("approved devnet setup")
+    {
+        program.spawn("STAKNET", None)
+    } else {
+        Program::new("docker")
+            .cmd("run")
+            .arg(
+                "name",
+                crate::external_agents::resource_name(&format!(
+                    "starknet-{}",
+                    config.node_port_base
+                )),
+            )
+            .flag("rm")
+            .arg("publish", format!("{}:5050", config.node_port_base))
+            .cmd(format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"))
+            .arg("state-archive-capacity", "full")
+            .arg("block-generation-on", "5")
+            .arg("seed", "0")
+            .spawn("STAKNET", None)
+    };
 
     let endpoint: StarknetEndpoint = StarknetEndpoint {
         rpc_addr: format!("http://{}:{}", config.node_addr_base, config.node_port_base),
     };
 
-    StarknetResp { node, endpoint }
+    let mut response = StarknetResp {
+        node,
+        endpoint,
+        external_port: crate::external_agents::enabled().then_some(config.node_port_base),
+        stop: Default::default(),
+    };
+    // Construct Resp before the barrier so setup-unwind also runs owned cleanup.
+    if response.external_port.is_some() {
+        crate::external_agents::starknet_node_ready(&mut response.node.1, config.node_port_base)
+            .expect("owned devnet before deployment");
+    }
+    response
 }
 
 #[apply(as_task)]
@@ -331,7 +373,11 @@ fn run_locally() {
 
     let (starklid, sierra_classes) = install_starknet(None, starknet_cli_src, None, code_src);
 
-    let addr_base = "0.0.0.0";
+    let addr_base = if crate::external_agents::enabled() {
+        "127.0.0.1"
+    } else {
+        "0.0.0.0"
+    };
     let default_config = StarknetConfig {
         node_addr_base: addr_base.to_string(),
         node_port_base: 5050,
@@ -343,7 +389,9 @@ fn run_locally() {
     let node_count = 2;
 
     // Prepare once before launching both nodes, outside their readiness deadline.
-    prepare_docker_image(&format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"));
+    if !crate::external_agents::enabled() {
+        prepare_docker_image(&format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"));
+    }
 
     let nodes = (0..node_count)
         .map(|i| {
@@ -406,7 +454,7 @@ fn run_locally() {
         .collect::<Vec<_>>();
 
     // nodes with base deployments
-    let nodes = nodes
+    let mut nodes = nodes
         .into_iter()
         .map(|v| (v.0, v.1.join(), v.2, v.3, v.4))
         .map(|v| v.into())
@@ -447,7 +495,10 @@ fn run_locally() {
     .unwrap();
 
     log!("Running postgres db...");
-    let postgres = start_postgres();
+    let mut postgres = crate::external_agents::OwnedPostgres::new(start_postgres());
+    postgres
+        .ready()
+        .unwrap_or_else(|error| panic!("actual owned PG before init: {error:#}"));
 
     crate::utils::wait_for_postgres();
 
@@ -607,6 +658,19 @@ fn run_locally() {
                 .map(|handle| &mut handle.1)
                 .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
         );
+        if crate::external_agents::enabled() {
+            _stack
+                .postgres
+                .stop()
+                .unwrap_or_else(|error| panic!("actual PG fixture stop: {error:#}"));
+        }
+        if crate::external_agents::enabled() {
+            for node in &mut nodes {
+                node.launch_resp
+                    .stop()
+                    .unwrap_or_else(|error| panic!("actual Starknet fixture stop: {error:#}"));
+            }
+        }
         log!("E2E tests passed");
     }
 }

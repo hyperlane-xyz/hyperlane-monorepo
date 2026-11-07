@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'zig/**'
+      - 'rust/main/utils/run-locally/**'
       - 'rust/main/Cargo.toml'
       - 'rust/main/Cargo.lock'
       - 'rust/main/hyperlane-core/**'
@@ -15,6 +16,7 @@ on:
     branches: [main, feat/zig-agent-rewrite]
     paths:
       - 'zig/**'
+      - 'rust/main/utils/run-locally/**'
       - 'rust/main/Cargo.toml'
       - 'rust/main/Cargo.lock'
       - 'rust/main/hyperlane-core/**'
@@ -23,12 +25,22 @@ on:
       - 'docs/zig-agent-rewrite/container.md'
       - '.github/workflows/zig-agents.yml'
   workflow_dispatch:
+    inputs:
+      svm_prerequisites:
+        description: Run only the Linux SVM prerequisite job
+        type: boolean
+        default: false
+      cold_full_feature:
+        description: Run the three full-feature cold trials
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: zig-agents-${{ github.ref }}
+  group: zig-agents-${{ github.ref }}-${{ github.sha }}-${{ github.event_name }}
   cancel-in-progress: false
 
 env:
@@ -37,7 +49,54 @@ env:
   POSTGRES_DIGEST_B: d5519cd2c471214c222652f547a66a32
 
 jobs:
+  svm-prerequisites:
+    if: github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 200
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install SVM build prerequisites
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang cmake libclang-dev libssl-dev libudev-dev \
+            pkg-config protobuf-compiler bubblewrap git ca-certificates python3
+      - name: Check prerequisite owner controls
+        run: python3 -I -B zig/tools/svm_prerequisites_test.py
+      - name: Provision then compile exact SVM prerequisites
+        timeout-minutes: 182
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUSTUP_BIN="$(command -v rustup)"
+          test -x "$RUSTUP_BIN"
+          exec env -i PATH=/usr/bin:/bin LC_ALL=C.UTF-8 \
+            python3 -I -B zig/tools/svm_prerequisites.py --execute \
+            --repo "$GITHUB_WORKSPACE" \
+            --output "$RUNNER_TEMP/svm-prerequisites-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --rustup "$RUSTUP_BIN" --bwrap /usr/bin/bwrap
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: svm-linux-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/published
+            ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/logs
+            ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/result.json
+            ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/source-before.json
+            ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/observations.jsonl
+
   unit:
+    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
     strategy:
       fail-fast: false
       matrix:
@@ -70,6 +129,7 @@ jobs:
         run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all
 
   evm:
+    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -97,21 +157,35 @@ jobs:
           if-no-files-found: ignore
 
   native-http:
+    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Check native HTTP command ownership before compilation
+        env:
+          NATIVE_HTTP_CONTROL_OUTPUT: ${{ runner.temp }}/native-http-controls
+        run: python3 -W error -m unittest discover -s zig/tools -p native_http_tests_test.py -v
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: '.nvmrc'
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
       - name: Exercise actual native HTTP/2 and cancellation
-        run: python3 zig/tools/native_http_tests.py -- python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=ReleaseSafe --summary all
+        run: python3 zig/tools/native_http_tests.py --diagnostic-dir "$RUNNER_TEMP/native-http-diagnostics" -- python3 zig/tools/zig.py test src/root.zig -j"${BUILD_JOBS}" -OReleaseSafe -lc
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-native-http-diagnostics
+          path: |
+            ${{ runner.temp }}/native-http-diagnostics/
+            ${{ runner.temp }}/native-http-controls/
+          if-no-files-found: ignore
 
   native-linux:
+    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
     env:
@@ -211,6 +285,7 @@ jobs:
           if-no-files-found: warn
 
   container:
+    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
     needs: native-linux
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
@@ -240,6 +315,7 @@ jobs:
           if-no-files-found: warn
 
   vm-images:
+    if: github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites
     strategy:
       fail-fast: false
       matrix:
@@ -268,7 +344,7 @@ jobs:
   # Explicit, resource-qualified SDK correctness. Not an eight-family native gate.
   # Feature-branch push or manual dispatch; capacity checked before SDK build.
   full-sdk-native:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')
+    if: (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -320,7 +396,7 @@ jobs:
 
   # Separate fresh VM per trial. Compiler-pair positions rotate; prerequisites remain fixed first.
   cold-full-feature:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')
+    if: github.event_name == 'workflow_dispatch' && inputs.cold_full_feature && !inputs.svm_prerequisites
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 300
     env:
@@ -341,6 +417,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Check cold ownership and generated-binding regression controls
+        run: python3 -B zig/bench/build_matrix_test.py
       - name: Stage compiler and exact dependency sources outside timers
         timeout-minutes: 50
         shell: bash
@@ -437,4 +515,65 @@ jobs:
         with:
           name: zig-cold-full-feature-trial-${{ matrix.trial }}
           path: ${{ env.COLD_EVIDENCE }}/
+          if-no-files-found: error
+
+  # Compilation and filtered native fixture controls only; never native cases.
+  native-harness-controls:
+    if: (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 210
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - name: Bind private native harness root
+        run: |
+          set -euo pipefail
+          echo "NATIVE_HARNESS_ROOT=$RUNNER_TEMP/ziggy-native-harness-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: '.nvmrc'
+      - name: Stage exact Rust toolchain and helper dependency sources
+        timeout-minutes: 45
+        run: |
+          set -euo pipefail
+          test ! -e "$NATIVE_HARNESS_ROOT"
+          mkdir -p "$NATIVE_HARNESS_ROOT/evidence/setup" "$NATIVE_HARNESS_ROOT/cargo-home"
+          printf '%s\n' "$GITHUB_SHA" > "$NATIVE_HARNESS_ROOT/setup-owned"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang cmake libclang-dev libpq-dev libssl-dev libudev-dev lsof openssl pkg-config protobuf-compiler python3
+          rustup toolchain install 1.98.0 --profile minimal --component clippy
+          echo "CARGO_HOME=$NATIVE_HARNESS_ROOT/cargo-home" >> "$GITHUB_ENV"
+          echo "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" >> "$GITHUB_ENV"
+          CARGO_HOME="$NATIVE_HARNESS_ROOT/cargo-home" cargo +1.98.0 fetch --locked --manifest-path rust/main/Cargo.toml
+          { rustc +1.98.0 -vV; cargo +1.98.0 -V; node --version; python3 --version; uname -a; lscpu; df -B1 "$NATIVE_HARNESS_ROOT"; } > "$NATIVE_HARNESS_ROOT/evidence/setup/tools-platform.txt"
+          git diff --exit-code
+      - name: Compile, test and lint only the native helper controls
+        timeout-minutes: 155
+        run: python3 zig/bench/native_harness_controls.py --root "$NATIVE_HARNESS_ROOT" --git-sha "$GITHUB_SHA"
+      - name: Preserve helper Source, filtered results, products and failure evidence
+        if: always()
+        env:
+          PRIMARY_JOB_STATUS: ${{ job.status }}
+        run: |
+          export NATIVE_HARNESS_ROOT="${NATIVE_HARNESS_ROOT:-$RUNNER_TEMP/ziggy-native-harness-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}"
+          echo "NATIVE_HARNESS_ROOT=$NATIVE_HARNESS_ROOT" >> "$GITHUB_ENV"
+          mkdir -p "$NATIVE_HARNESS_ROOT/evidence/setup"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['NATIVE_HARNESS_ROOT'])/'evidence'
+          (root/'job-status.json').write_text(json.dumps({'primary_job_status':os.environ['PRIMARY_JOB_STATUS'],'native_case_acceptance':False,'timing_acceptance':False})+'\n')
+          PY
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-native-harness-controls
+          path: ${{ env.NATIVE_HARNESS_ROOT }}/evidence/
           if-no-files-found: error

@@ -1,11 +1,13 @@
 //! Explicit test-harness runtime substitution. Never changes production agents.
+#[cfg(feature = "radix")]
+pub mod radix_fixture;
 use crate::utils::TaskHandle;
 use eyre::{bail, ensure, Result};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 #[cfg(unix)]
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::{
     collections::BTreeMap,
     fs,
@@ -710,6 +712,7 @@ impl Manifest {
 struct Loaded {
     path: PathBuf,
     manifest: Manifest,
+    svm_assets: Option<SvmAssets>,
 }
 static LOADED: Lazy<std::result::Result<Option<Loaded>, String>> = Lazy::new(|| {
     let Some(path) = std::env::var_os(ENV) else {
@@ -723,7 +726,12 @@ static LOADED: Lazy<std::result::Result<Option<Loaded>, String>> = Lazy::new(|| 
             std::env::var("CI").as_deref() == Ok("true"),
             "external mode requires CI=true; never global anvil cleanup"
         );
-        Ok(Some(Loaded { path, manifest }))
+        let svm_assets = svm_assets_at(&manifest)?;
+        Ok(Some(Loaded {
+            path,
+            manifest,
+            svm_assets,
+        }))
     })()
     .map_err(|e| format!("{e:#}"))
 });
@@ -1030,6 +1038,8 @@ const POSTGRES_SOURCE_IMAGE: &str = "postgres:14";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PostgresFixture {
+    schema: u32,
+    architecture: String,
     image: String,
     image_id: String,
     canonical_digest: String,
@@ -1042,6 +1052,19 @@ fn fixture_json(artifact: &Artifact) -> Result<serde_json::Value> {
     Ok(serde_json::from_slice(&fs::read(&artifact.path)?)?)
 }
 
+// RepoDigest (manifest/index) and image Id (configuration on standard Docker)
+// are separate immutable identities. Both are bound by the exact approved case.
+fn docker_repository_digest(value: &str, repository: &str) -> bool {
+    value
+        .strip_prefix(repository)
+        .and_then(|s| s.strip_prefix("@sha256:"))
+        .is_some_and(|hash| {
+            hash.len() == 64
+                && hash
+                    .bytes()
+                    .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        })
+}
 fn postgres_fixture(manifest: &Manifest) -> Result<PostgresFixture> {
     let case = fixture_json(&manifest.case_inputs)?;
     let approval = fixture_json(&manifest.execution_approval)?;
@@ -1060,12 +1083,14 @@ fn postgres_fixture(manifest: &Manifest) -> Result<PostgresFixture> {
         bail!("invalid PostgreSQL image identity");
     };
     ensure!(
-        fixture.image == POSTGRES_SOURCE_IMAGE
+        fixture.schema == 2
+            && ["arm64", "amd64"].contains(&fixture.architecture.as_str())
+            && fixture.image == POSTGRES_SOURCE_IMAGE
             && digest.len() == 64
             && digest
                 .bytes()
                 .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-            && fixture.canonical_digest == format!("postgres@{}", fixture.image_id)
+            && docker_repository_digest(&fixture.canonical_digest, "postgres")
             && fixture.run_token.len() == 32
             && fixture
                 .run_token
@@ -1126,7 +1151,7 @@ fn verify_postgres_inspect(
     ensure!(
         image["Id"] == fixture.image_id
             && image["Os"] == "linux"
-            && image["Architecture"] == "arm64"
+            && image["Architecture"] == fixture.architecture
             && image["RepoDigests"].as_array().is_some_and(|values| values
                 .iter()
                 .any(|value| value == &fixture.canonical_digest)),
@@ -1157,6 +1182,1262 @@ pub fn postgres_program() -> Result<Option<crate::program::Program>> {
         program = program.raw_arg(argument);
     }
     Ok(Some(program))
+}
+
+// External Starknet correctness fixture only. Ordinary Rust stays in starknet/mod.rs.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StarknetDevnetFixture {
+    schema: u32,
+    architecture: String,
+    source_image: String,
+    image_id: String,
+    canonical_digest: String,
+    run_token: String,
+}
+const STARKNET_SOURCE_IMAGE: &str = "shardlabs/starknet-devnet-rs:0.4.2";
+const STARKNET_MEMORY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+fn starknet_devnet_fixture(manifest: &Manifest) -> Result<StarknetDevnetFixture> {
+    let case = fixture_json(&manifest.case_inputs)?;
+    let approval = fixture_json(&manifest.execution_approval)?;
+    ensure!(
+        manifest.scenario == "starknet"
+            && case["schema"] == 1
+            && case["scenario"] == manifest.scenario
+            && approval["root_approved"] == true
+            && approval["scenario"] == manifest.scenario
+            && approval["mode"] == manifest.mode
+            && approval["runtime_source_commit"] == manifest.runtime_source_commit
+            && approval["case_inputs"] == serde_json::to_value(&manifest.case_inputs)?
+            && approval["starknet_devnet"] == case["starknet_devnet"],
+        "exact approved Starknet fixture required"
+    );
+    let fixture: StarknetDevnetFixture = serde_json::from_value(case["starknet_devnet"].clone())?;
+    let digest = fixture.image_id.strip_prefix("sha256:").unwrap_or("");
+    ensure!(
+        fixture.schema == 2
+            && ["arm64", "amd64"].contains(&fixture.architecture.as_str())
+            && fixture.source_image == STARKNET_SOURCE_IMAGE
+            && digest.len() == 64
+            && digest
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            && docker_repository_digest(&fixture.canonical_digest, "shardlabs/starknet-devnet-rs")
+            && fixture.run_token.len() == 32
+            && fixture
+                .run_token
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+        "Starknet image/token differs"
+    );
+    Ok(fixture)
+}
+fn starknet_node_arguments(manifest: &Manifest, port: u32) -> Result<Vec<String>> {
+    ensure!(
+        [5050, 5070].contains(&port),
+        "unknown Starknet fixture port"
+    );
+    let fixture = starknet_devnet_fixture(manifest)?;
+    let pid = std::process::id();
+    let root = hex::encode(Sha256::digest(
+        manifest
+            .task_root
+            .canonicalize()?
+            .as_os_str()
+            .as_encoded_bytes(),
+    ));
+    Ok(vec![
+        "run".into(),
+        "--rm".into(),
+        "--pull=never".into(),
+        format!(
+            "--name={}",
+            resource_name_at(&format!("starknet-{port}"), &manifest.task_root, pid)?
+        ),
+        format!("--label={POSTGRES_CASE_LABEL}={root}"),
+        format!("--label={POSTGRES_HARNESS_LABEL}={pid}"),
+        format!("--label={POSTGRES_TOKEN_LABEL}={}", fixture.run_token),
+        format!("--memory={STARKNET_MEMORY_BYTES}"),
+        format!("--memory-swap={STARKNET_MEMORY_BYTES}"),
+        "--cpus=2".into(),
+        "--pids-limit=256".into(),
+        format!("--publish=127.0.0.1:{port}:5050"),
+        fixture.image_id,
+        "--state-archive-capacity".into(),
+        "full".into(),
+        "--block-generation-on".into(),
+        "5".into(),
+        "--seed".into(),
+        "0".into(),
+    ])
+}
+fn fixture_docker_environment(manifest: &Manifest) -> Result<(String, PathBuf)> {
+    let case = fixture_json(&manifest.case_inputs)?;
+    let approval = fixture_json(&manifest.execution_approval)?;
+    ensure!(
+        approval["local_docker"] == case["local_docker"],
+        "Docker service differs from exact approved case"
+    );
+    let host = case["local_docker"]["host"]
+        .as_str()
+        .ok_or_else(|| eyre::eyre!("missing local Docker service"))?;
+    let socket = host
+        .strip_prefix("unix://")
+        .ok_or_else(|| eyre::eyre!("local unix Docker service required"))?;
+    ensure!(
+        Path::new(socket).is_absolute()
+            && !socket.contains('?')
+            && !socket.contains('#')
+            && !Path::new(socket)
+                .components()
+                .any(|part| part == Component::ParentDir),
+        "invalid local Docker service"
+    );
+    let expected = checked_owned_path(&manifest.task_root, Path::new("docker-config"))?;
+    ensure!(
+        case["local_docker"]["config_dir"] == expected.to_string_lossy().as_ref(),
+        "Docker config must be exact owned child"
+    );
+    Ok((host.to_owned(), expected))
+}
+// Bounded, task-owned Docker read/control children only; no inherited auth/home.
+fn fixture_docker_output(
+    manifest: &Manifest,
+    args: &[&str],
+    deadline: Instant,
+) -> Result<(bool, String)> {
+    use std::io::{Seek, SeekFrom};
+    let docker = &manifest.verifier_tools["docker"];
+    verify_executable(docker)?;
+    let (host, config) = fixture_docker_environment(manifest)?;
+    let mut captured = tempfile::tempfile()?;
+    let mut child = Command::new(&docker.path)
+        .args(args)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", manifest.task_root.join("home"))
+        .env("DOCKER_HOST", host)
+        .env("DOCKER_CONFIG", config)
+        .stdout(captured.try_clone()?)
+        .stderr(captured.try_clone()?)
+        .spawn()?;
+    let waited = (|| -> Result<_> {
+        loop {
+            ensure!(
+                Instant::now() < deadline,
+                "Starknet Docker command deadline"
+            );
+            if let Some(status) = child.try_wait()? {
+                ensure!(
+                    Instant::now() < deadline,
+                    "Starknet Docker command completed late"
+                );
+                return Ok(status);
+            }
+            ensure!(
+                captured.metadata()?.len() <= 1024 * 1024,
+                "Starknet Docker output limit"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+    })();
+    let status = match waited {
+        Ok(status) => status,
+        Err(err) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(err);
+        }
+    };
+    captured.seek(SeekFrom::Start(0))?;
+    let mut bytes = Vec::new();
+    captured.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
+    ensure!(bytes.len() <= 1024 * 1024, "Starknet Docker output limit");
+    Ok((status.success(), String::from_utf8(bytes)?))
+}
+fn verify_starknet_image_inspect(
+    fixture: &StarknetDevnetFixture,
+    ok: bool,
+    text: &str,
+) -> Result<()> {
+    let image: serde_json::Value = serde_json::from_str(text)?;
+    ensure!(
+        ok && image["Id"] == fixture.image_id
+            && image["Os"] == "linux"
+            && image["Architecture"] == fixture.architecture
+            && image["RepoDigests"]
+                .as_array()
+                .is_some_and(|v| v.iter().any(|x| x == &fixture.canonical_digest)),
+        "exact acquired local devnet image absent; never pull"
+    );
+    Ok(())
+}
+pub fn starknet_node_program(port: u32) -> Result<Option<crate::program::Program>> {
+    let Some(manifest) = get()? else {
+        return Ok(None);
+    };
+    let fixture = starknet_devnet_fixture(manifest)?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    ensure!(
+        starknet_container(manifest, port, deadline)?.is_none(),
+        "preserve existing devnet"
+    );
+    let (ok, text) = fixture_docker_output(
+        manifest,
+        &[
+            "image",
+            "inspect",
+            STARKNET_SOURCE_IMAGE,
+            "--format",
+            "{{json .}}",
+        ],
+        deadline,
+    )?;
+    verify_starknet_image_inspect(&fixture, ok, &text)?;
+    let (host, config) = fixture_docker_environment(manifest)?;
+    let mut program = crate::program::Program::default()
+        .bin(manifest.verifier_tools["docker"].path.clone())
+        .env("DOCKER_HOST", host)
+        .env("DOCKER_CONFIG", config.to_string_lossy().into_owned());
+    for arg in starknet_node_arguments(manifest, port)? {
+        program = program.raw_arg(arg);
+    }
+    Ok(Some(program))
+}
+fn starknet_container(
+    manifest: &Manifest,
+    port: u32,
+    deadline: Instant,
+) -> Result<Option<serde_json::Value>> {
+    let _ = starknet_devnet_fixture(manifest)?;
+    let name = resource_name_at(
+        &format!("starknet-{port}"),
+        &manifest.task_root,
+        std::process::id(),
+    )?;
+    let (ok, text) = fixture_docker_output(manifest, &["container", "inspect", &name], deadline)?;
+    if !ok {
+        ensure!(
+            (text.contains("No such container") || text.contains("No such object"))
+                && text.contains(&name),
+            "devnet inspect failed"
+        );
+        return Ok(None);
+    }
+    let values: Vec<serde_json::Value> = serde_json::from_str(&text)?;
+    ensure!(values.len() == 1, "ambiguous devnet inspect");
+    let value = values
+        .into_iter()
+        .next()
+        .ok_or_else(|| eyre::eyre!("devnet absent"))?;
+    verify_starknet_ownership(manifest, port, &value)?;
+    Ok(Some(value))
+}
+fn verify_starknet_ownership(
+    manifest: &Manifest,
+    port: u32,
+    value: &serde_json::Value,
+) -> Result<()> {
+    ensure!([5050, 5070].contains(&port), "unknown devnet port");
+    let fixture = starknet_devnet_fixture(manifest)?;
+    let name = resource_name_at(
+        &format!("starknet-{port}"),
+        &manifest.task_root,
+        std::process::id(),
+    )?;
+    let root = hex::encode(Sha256::digest(
+        manifest
+            .task_root
+            .canonicalize()?
+            .as_os_str()
+            .as_encoded_bytes(),
+    ));
+    let cid = value["Id"].as_str().unwrap_or("");
+    ensure!(
+        cid.len() == 64
+            && cid
+                .bytes()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+            && value["Name"] == format!("/{name}")
+            && value["Image"] == fixture.image_id
+            && value["Config"]["Labels"][POSTGRES_CASE_LABEL] == root
+            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL] == std::process::id().to_string()
+            && value["Config"]["Labels"][POSTGRES_TOKEN_LABEL] == fixture.run_token,
+        "foreign devnet; never cleanup by name alone"
+    );
+    Ok(())
+}
+fn verify_starknet_container(
+    value: &serde_json::Value,
+    fixture: &StarknetDevnetFixture,
+    port: u32,
+) -> Result<()> {
+    ensure!(
+        value["State"]["Running"] == true
+            && value["Config"]["Image"] == fixture.image_id
+            && value["Config"]["Cmd"]
+                == serde_json::json!([
+                    "--state-archive-capacity",
+                    "full",
+                    "--block-generation-on",
+                    "5",
+                    "--seed",
+                    "0"
+                ]),
+        "devnet image/Source command differs"
+    );
+    let h = &value["HostConfig"];
+    ensure!(
+        h["Memory"] == STARKNET_MEMORY_BYTES
+            && h["MemorySwap"] == STARKNET_MEMORY_BYTES
+            && h["NanoCpus"] == 2_000_000_000u64
+            && h["PidsLimit"] == 256
+            && h["PortBindings"]
+                == serde_json::json!({"5050/tcp":[{"HostIp":"127.0.0.1","HostPort":port.to_string()}]}),
+        "devnet actual caps/loopback differ"
+    );
+    Ok(())
+}
+pub fn starknet_node_ready(child: &mut TrackedChild, port: u32) -> Result<()> {
+    let Some(manifest) = get()? else {
+        return Ok(());
+    };
+    let fixture = starknet_devnet_fixture(manifest)?;
+    let artifact = &manifest.verifier_tools["docker"];
+    let token = live_fixture_identity(child, artifact, &manifest.verifier_tools["ps"])?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        ensure!(
+            live_fixture_identity(child, artifact, &manifest.verifier_tools["ps"])? == token,
+            "devnet foreground Child epoch changed"
+        );
+        if let Some(value) = starknet_container(manifest, port, deadline)? {
+            verify_starknet_container(&value, &fixture, port)?;
+            ensure!(
+                live_fixture_identity(child, artifact, &manifest.verifier_tools["ps"])? == token,
+                "devnet Child exited during inspect"
+            );
+            ensure!(Instant::now() < deadline, "devnet readiness completed late");
+            append_fixture_observation(
+                manifest,
+                "fixture-node-readiness.jsonl",
+                &serde_json::json!({"kind":"starknet","pid":child.id(),"identity":token,"container_id":value["Id"],"port":port,"scope":"actual foreground Docker Child and exact owned-CID before native deployment, not chain acceptance"}),
+            )?;
+            return Ok(());
+        }
+        ensure!(
+            Instant::now() < deadline,
+            "owned devnet CID did not become ready"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+// This witness is captured while the actual foreground Child is still live,
+// immediately before an owned-CID stop. It is not a generic early-exit waiver.
+#[cfg(test)]
+struct StarknetContainerStop {
+    child: OwnedChild,
+    container_id: String,
+    port: u32,
+}
+#[cfg(test)]
+fn starknet_stop_receipt(
+    witness: &StarknetContainerStop,
+    status: std::process::ExitStatus,
+    forced_kill: bool,
+    completed_before_deadline: bool,
+) -> Result<serde_json::Value> {
+    use std::os::unix::process::ExitStatusExt;
+    ensure!(
+        !witness.child.os_start_token.is_empty()
+            && witness.child.parent_pid == std::process::id()
+            && witness.child.role == "fixture-docker"
+            && [5050, 5070].contains(&witness.port)
+            && witness.container_id.len() == 64
+            && witness
+                .container_id
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+        "planned devnet stop lacks actual pre-stop ownership witness"
+    );
+    let receipt = ChildExit {
+        pid: witness.child.pid,
+        role: witness.child.role.clone(),
+        executable: witness.child.executable.clone(),
+        parent_pid: witness.child.parent_pid,
+        os_start_token: witness.child.os_start_token.clone(),
+        parent_wait_completed: true,
+        // Liveness was established BEFORE the stop command, rather than after
+        // that command had intentionally caused the foreground client to exit.
+        already_exited: false,
+        forced_kill,
+        success: status.success() && !forced_kill && completed_before_deadline,
+        exit_code: status.code(),
+        signal: status.signal(),
+        purpose: "fixture_teardown".into(),
+        planned_exit: true,
+    };
+    let mut value = serde_json::to_value(receipt)?;
+    value["planned_container_stop"] = serde_json::json!({
+        "cause":"owned_docker_stop",
+        "container_id":witness.container_id,
+        "port":witness.port,
+        "pre_stop_live_identity":witness.child.os_start_token,
+        "already_exited_scope":"before_owned_container_stop",
+        "stop_command_exit_code":0,
+        "completed_before_original_deadline":completed_before_deadline
+    });
+    Ok(value)
+}
+#[cfg(test)]
+fn wait_starknet_foreground(
+    child: &mut Child,
+    witness: &StarknetContainerStop,
+    deadline: Instant,
+) -> Result<serde_json::Value> {
+    ensure!(
+        child.id() == witness.child.pid,
+        "planned stop Child differs"
+    );
+    let (status, forced_kill) = loop {
+        if let Some(status) = child.try_wait()? {
+            break (status, false);
+        }
+        if Instant::now() >= deadline {
+            child.kill()?;
+            break (child.wait()?, true);
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    starknet_stop_receipt(witness, status, forced_kill, Instant::now() < deadline)
+}
+pub fn stop_starknet_fixture(child: &mut TrackedChild, port: Option<u32>) -> Result<()> {
+    let manifest = get()?.ok_or_else(|| eyre::eyre!("external fixture manifest absent"))?;
+    ensure!(manifest.scenario == "starknet", "wrong fixture family");
+    let Some(port) = port else {
+        return stop_postgres_fixture(child);
+    };
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let outcome = (|| -> Result<()> {
+        let value = starknet_container(manifest, port, deadline)?
+            .ok_or_else(|| eyre::eyre!("owned fixed container absent before cleanup"))?;
+        let primary =
+            verify_starknet_container(&value, &starknet_devnet_fixture(manifest)?, port).err();
+        stop_fixed_container(manifest, child, "starknet", port, &value, primary, deadline)
+    })();
+    if outcome.is_err() {
+        if matches!(child.try_wait(), Ok(None)) {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    }
+    outcome
+}
+
+#[cfg(feature = "tron")]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TronTreFixture {
+    source_image: String,
+    image_id: String,
+    canonical_digest: String,
+    run_token: String,
+    architecture: String,
+    command: serde_json::Value,
+    entrypoint: serde_json::Value,
+    cli_directory: PathBuf,
+    cli_entrypoint: Artifact,
+    pnpm: Artifact,
+}
+#[cfg(feature = "tron")]
+const TRON_MEMORY_BYTES: u64 = 3 * 1024 * 1024 * 1024;
+#[cfg(feature = "tron")]
+fn tron_devnet_fixture(manifest: &Manifest) -> Result<TronTreFixture> {
+    let case = fixture_json(&manifest.case_inputs)?;
+    let approval = fixture_json(&manifest.execution_approval)?;
+    ensure!(
+        manifest.scenario == "tron"
+            && case["schema"] == 1
+            && case["scenario"] == manifest.scenario
+            && approval["root_approved"] == true
+            && approval["scenario"] == manifest.scenario
+            && approval["mode"] == manifest.mode
+            && approval["runtime_source_commit"] == manifest.runtime_source_commit
+            && approval["case_inputs"] == serde_json::to_value(&manifest.case_inputs)?
+            && approval["tron_tre"] == case["tron_tre"],
+        "exact approved Tron fixture required"
+    );
+    let fixture: TronTreFixture = serde_json::from_value(case["tron_tre"].clone())?;
+    let digest = fixture.image_id.strip_prefix("sha256:").unwrap_or("");
+    ensure!(
+        fixture.source_image == crate::tron::TRE_IMAGE
+            && ["arm64", "amd64"].contains(&fixture.architecture.as_str())
+            && (fixture.command.is_null()
+                || fixture
+                    .command
+                    .as_array()
+                    .is_some_and(|v| v.iter().all(|s| s.is_string())))
+            && (fixture.entrypoint.is_null()
+                || fixture
+                    .entrypoint
+                    .as_array()
+                    .is_some_and(|v| v.iter().all(|s| s.is_string())))
+            && digest.len() == 64
+            && digest
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            && fixture.canonical_digest == crate::tron::TRE_IMAGE
+            && fixture.run_token.len() == 32
+            && fixture
+                .run_token
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+        "Tron image/token differs"
+    );
+    ensure!(
+        fixture.cli_directory == checked_owned_path(&manifest.task_root, Path::new("tron-cli"))?
+            && fixture.cli_directory.is_dir(),
+        "TRE CLI requires exact owned copy"
+    );
+    ensure!(
+        fixture.cli_entrypoint.path
+            == checked_owned_path(&manifest.task_root, Path::new("tron-cli/dist/cli.js"))?,
+        "TRE CLI entrypoint escapes owned directory"
+    );
+    fixture.cli_entrypoint.verify()?;
+    ensure!(
+        fixture.cli_entrypoint.path == fixture.cli_directory.join("dist/cli.js"),
+        "TRE CLI entrypoint differs"
+    );
+    verify_executable(&fixture.pnpm)?;
+    Ok(fixture)
+}
+#[cfg(feature = "tron")]
+fn tron_node_arguments(manifest: &Manifest, port: u32) -> Result<Vec<String>> {
+    ensure!([9090].contains(&port), "unknown Tron fixture port");
+    let fixture = tron_devnet_fixture(manifest)?;
+    let pid = std::process::id();
+    let root = hex::encode(Sha256::digest(
+        manifest
+            .task_root
+            .canonicalize()?
+            .as_os_str()
+            .as_encoded_bytes(),
+    ));
+    Ok(vec![
+        "run".into(),
+        "--rm".into(),
+        "--pull=never".into(),
+        format!(
+            "--name={}",
+            resource_name_at("tron-e2e", &manifest.task_root, pid)?
+        ),
+        format!("--label={POSTGRES_CASE_LABEL}={root}"),
+        format!("--label={POSTGRES_HARNESS_LABEL}={pid}"),
+        format!("--label={POSTGRES_TOKEN_LABEL}={}", fixture.run_token),
+        format!("--memory={TRON_MEMORY_BYTES}"),
+        format!("--memory-swap={TRON_MEMORY_BYTES}"),
+        "--cpus=2".into(),
+        "--pids-limit=256".into(),
+        format!("--publish=127.0.0.1:{port}:9090"),
+        "--env=block=allowTvmCompatibleEvm:1".into(),
+        "--env=preapprove=allowTvmCompatibleEvm:1".into(),
+        format!("--env=mnemonic={}", crate::tron::TRE_MNEMONIC),
+        format!("--env=hdPath={}", crate::tron::TRE_HD_PATH),
+        "--env=defaultBalance=1000000".into(),
+        fixture.image_id,
+    ])
+}
+
+// Bounded, task-owned Docker read/control children only; no inherited auth/home.
+
+#[cfg(feature = "tron")]
+pub fn tron_node_program(port: u32) -> Result<Option<crate::program::Program>> {
+    let Some(manifest) = get()? else {
+        return Ok(None);
+    };
+    let fixture = tron_devnet_fixture(manifest)?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    ensure!(
+        tron_container(manifest, port, deadline)?.is_none(),
+        "preserve existing TRE container"
+    );
+    let (ok, text) = fixture_docker_output(
+        manifest,
+        &[
+            "image",
+            "inspect",
+            &fixture.image_id,
+            "--format",
+            "{{json .}}",
+        ],
+        deadline,
+    )?;
+    let image: serde_json::Value = serde_json::from_str(&text)?;
+    ensure!(
+        ok && image["Id"] == fixture.image_id
+            && image["Os"] == "linux"
+            && image["Architecture"] == fixture.architecture
+            && image["Config"]["Cmd"] == fixture.command
+            && image["Config"]["Entrypoint"] == fixture.entrypoint
+            && image["RepoDigests"]
+                .as_array()
+                .is_some_and(|v| v.iter().any(|x| x == &fixture.canonical_digest)),
+        "exact acquired local TRE image absent; never pull"
+    );
+    let (host, config) = fixture_docker_environment(manifest)?;
+    let mut program = crate::program::Program::default()
+        .bin(manifest.verifier_tools["docker"].path.clone())
+        .env("DOCKER_HOST", host)
+        .env("DOCKER_CONFIG", config.to_string_lossy().into_owned());
+    for arg in tron_node_arguments(manifest, port)? {
+        program = program.raw_arg(arg);
+    }
+    Ok(Some(program))
+}
+#[cfg(feature = "tron")]
+fn tron_container(
+    manifest: &Manifest,
+    port: u32,
+    deadline: Instant,
+) -> Result<Option<serde_json::Value>> {
+    let _ = tron_devnet_fixture(manifest)?;
+    let name = resource_name_at("tron-e2e", &manifest.task_root, std::process::id())?;
+    let (ok, text) = fixture_docker_output(manifest, &["container", "inspect", &name], deadline)?;
+    if !ok {
+        ensure!(
+            (text.contains("No such container") || text.contains("No such object"))
+                && text.contains(&name),
+            "TRE inspect failed"
+        );
+        return Ok(None);
+    }
+    let values: Vec<serde_json::Value> = serde_json::from_str(&text)?;
+    ensure!(values.len() == 1, "ambiguous TRE inspect");
+    let value = values
+        .into_iter()
+        .next()
+        .ok_or_else(|| eyre::eyre!("TRE absent"))?;
+    verify_tron_ownership(manifest, port, &value)?;
+    Ok(Some(value))
+}
+#[cfg(feature = "tron")]
+fn verify_tron_ownership(manifest: &Manifest, port: u32, value: &serde_json::Value) -> Result<()> {
+    ensure!([9090].contains(&port), "unknown TRE port");
+    let fixture = tron_devnet_fixture(manifest)?;
+    let name = resource_name_at("tron-e2e", &manifest.task_root, std::process::id())?;
+    let root = hex::encode(Sha256::digest(
+        manifest
+            .task_root
+            .canonicalize()?
+            .as_os_str()
+            .as_encoded_bytes(),
+    ));
+    let cid = value["Id"].as_str().unwrap_or("");
+    ensure!(
+        cid.len() == 64
+            && cid
+                .bytes()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+            && value["Name"] == format!("/{name}")
+            && value["Image"] == fixture.image_id
+            && value["Config"]["Labels"][POSTGRES_CASE_LABEL] == root
+            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL] == std::process::id().to_string()
+            && value["Config"]["Labels"][POSTGRES_TOKEN_LABEL] == fixture.run_token,
+        "foreign TRE; never cleanup by name alone"
+    );
+    Ok(())
+}
+#[cfg(feature = "tron")]
+fn verify_tron_container(
+    value: &serde_json::Value,
+    fixture: &TronTreFixture,
+    port: u32,
+) -> Result<()> {
+    ensure!(
+        value["State"]["Running"] == true
+            && value["Config"]["Image"] == fixture.image_id
+            && value["Config"]["Cmd"] == fixture.command
+            && value["Config"]["Entrypoint"] == fixture.entrypoint
+            && value["Config"]["Env"].as_array().is_some_and(|values| {
+                [
+                    "block=allowTvmCompatibleEvm:1".to_owned(),
+                    "preapprove=allowTvmCompatibleEvm:1".to_owned(),
+                    format!("mnemonic={}", crate::tron::TRE_MNEMONIC),
+                    format!("hdPath={}", crate::tron::TRE_HD_PATH),
+                    "defaultBalance=1000000".to_owned(),
+                ]
+                .iter()
+                .all(|expected| {
+                    let key = expected.split_once('=').map(|v| v.0).unwrap_or("");
+                    values
+                        .iter()
+                        .filter(|v| {
+                            v.as_str()
+                                .is_some_and(|s| s.split_once('=').is_some_and(|(k, _)| k == key))
+                        })
+                        .count()
+                        == 1
+                        && values.iter().any(|v| v.as_str() == Some(expected.as_str()))
+                })
+            }),
+        "TRE image/Source command differs"
+    );
+    let h = &value["HostConfig"];
+    ensure!(
+        h["Memory"] == TRON_MEMORY_BYTES
+            && h["MemorySwap"] == TRON_MEMORY_BYTES
+            && h["NanoCpus"] == 2_000_000_000u64
+            && h["PidsLimit"] == 256
+            && h["PortBindings"]
+                == serde_json::json!({"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":port.to_string()}]}),
+        "TRE actual caps/loopback differ"
+    );
+    Ok(())
+}
+#[cfg(feature = "tron")]
+pub fn tron_node_ready(child: &mut TrackedChild, port: u32) -> Result<()> {
+    let Some(manifest) = get()? else {
+        return Ok(());
+    };
+    let fixture = tron_devnet_fixture(manifest)?;
+    let artifact = &manifest.verifier_tools["docker"];
+    let token = live_fixture_identity(child, artifact, &manifest.verifier_tools["ps"])?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        ensure!(
+            live_fixture_identity(child, artifact, &manifest.verifier_tools["ps"])? == token,
+            "TRE foreground Child epoch changed"
+        );
+        if let Some(value) = tron_container(manifest, port, deadline)? {
+            verify_tron_container(&value, &fixture, port)?;
+            ensure!(
+                live_fixture_identity(child, artifact, &manifest.verifier_tools["ps"])? == token,
+                "TRE Child exited during inspect"
+            );
+            ensure!(Instant::now() < deadline, "TRE readiness completed late");
+            append_fixture_observation(
+                manifest,
+                "fixture-node-readiness.jsonl",
+                &serde_json::json!({"kind":"tron","pid":child.id(),"identity":token,"container_id":value["Id"],"port":port,"scope":"actual foreground Docker Child and exact owned-CID before native deployment, not chain acceptance"}),
+            )?;
+            return Ok(());
+        }
+        ensure!(
+            Instant::now() < deadline,
+            "owned TRE CID did not become ready"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+// This witness is captured while the actual foreground Child is still live,
+// immediately before an owned-CID stop. It is not a generic early-exit waiver.
+#[cfg(feature = "tron")]
+#[cfg(test)]
+struct TronContainerStop {
+    child: OwnedChild,
+    container_id: String,
+    port: u32,
+}
+#[cfg(feature = "tron")]
+#[cfg(test)]
+fn tron_stop_receipt(
+    witness: &TronContainerStop,
+    status: std::process::ExitStatus,
+    forced_kill: bool,
+    completed_before_deadline: bool,
+) -> Result<serde_json::Value> {
+    use std::os::unix::process::ExitStatusExt;
+    ensure!(
+        !witness.child.os_start_token.is_empty()
+            && witness.child.parent_pid == std::process::id()
+            && witness.child.role == "fixture-docker"
+            && [9090].contains(&witness.port)
+            && witness.container_id.len() == 64
+            && witness
+                .container_id
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+        "planned TRE stop lacks actual pre-stop ownership witness"
+    );
+    let receipt = ChildExit {
+        pid: witness.child.pid,
+        role: witness.child.role.clone(),
+        executable: witness.child.executable.clone(),
+        parent_pid: witness.child.parent_pid,
+        os_start_token: witness.child.os_start_token.clone(),
+        parent_wait_completed: true,
+        // Liveness was established BEFORE the stop command, rather than after
+        // that command had intentionally caused the foreground client to exit.
+        already_exited: false,
+        forced_kill,
+        success: status.success() && !forced_kill && completed_before_deadline,
+        exit_code: status.code(),
+        signal: status.signal(),
+        purpose: "fixture_teardown".into(),
+        planned_exit: true,
+    };
+    let mut value = serde_json::to_value(receipt)?;
+    value["planned_container_stop"] = serde_json::json!({
+        "cause":"owned_docker_stop",
+        "container_id":witness.container_id,
+        "port":witness.port,
+        "pre_stop_live_identity":witness.child.os_start_token,
+        "already_exited_scope":"before_owned_container_stop",
+        "stop_command_exit_code":0,
+        "completed_before_original_deadline":completed_before_deadline
+    });
+    Ok(value)
+}
+#[cfg(feature = "tron")]
+#[cfg(feature = "tron")]
+pub fn stop_tron_fixture(child: &mut TrackedChild, port: Option<u32>) -> Result<()> {
+    let manifest = get()?.ok_or_else(|| eyre::eyre!("external fixture manifest absent"))?;
+    ensure!(manifest.scenario == "tron", "wrong fixture family");
+    let Some(port) = port else {
+        return stop_postgres_fixture(child);
+    };
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let outcome = (|| -> Result<()> {
+        let value = tron_container(manifest, port, deadline)?
+            .ok_or_else(|| eyre::eyre!("owned fixed container absent before cleanup"))?;
+        let primary = verify_tron_container(&value, &tron_devnet_fixture(manifest)?, port).err();
+        stop_fixed_container(manifest, child, "tron", port, &value, primary, deadline)
+    })();
+    if outcome.is_err() {
+        if matches!(child.try_wait(), Ok(None)) {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    }
+    outcome
+}
+
+#[cfg(feature = "tron")]
+pub fn tron_cli_directory() -> Result<Option<PathBuf>> {
+    get()?
+        .map(|m| tron_devnet_fixture(m).map(|f| f.cli_directory))
+        .transpose()
+}
+#[cfg(feature = "tron")]
+pub fn tron_cli_program(directory: &Path) -> Result<crate::program::Program> {
+    let Some(manifest) = get()? else {
+        return Ok(crate::program::Program::new("pnpm").working_dir(directory));
+    };
+    let fixture = tron_devnet_fixture(manifest)?;
+    ensure!(
+        directory == fixture.cli_directory,
+        "TRE CLI working directory differs"
+    );
+    Ok(crate::program::Program::default()
+        .bin(fixture.pnpm.path)
+        .working_dir(directory))
+}
+
+// Fixed native container teardown. Callers first authorize exact case labels,
+// immutable image and CID; startup acceptance errors never revoke that custody.
+fn stop_fixed_container_with(
+    manifest: &Manifest,
+    child: &mut Child,
+    kind: &str,
+    port: u32,
+    value: &serde_json::Value,
+    mut primary: Option<eyre::Report>,
+    deadline: Instant,
+    mut docker: impl FnMut(&[&str], Instant) -> Result<(bool, String)>,
+) -> Result<()> {
+    use std::os::unix::process::ExitStatusExt;
+    ensure!(
+        [
+            ("postgres", 5432),
+            ("starknet", 5050),
+            ("starknet", 5070),
+            ("tron", 9090)
+        ]
+        .contains(&(kind, port)),
+        "unknown fixed container kind/port"
+    );
+    let cid = value["Id"]
+        .as_str()
+        .ok_or_else(|| eyre::eyre!("authorized CID missing"))?
+        .to_owned();
+    ensure!(
+        cid.len() == 64
+            && cid
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+        "invalid authorized CID"
+    );
+    let artifact = &manifest.verifier_tools["docker"];
+    let prior = child.try_wait()?;
+    let already_exited = prior.is_some();
+    let token = if already_exited {
+        if primary.is_none() {
+            primary = Some(eyre::eyre!("foreground fixture exited before owned stop"));
+        }
+        String::new()
+    } else {
+        match live_fixture_identity(child, artifact, &manifest.verifier_tools["ps"]) {
+            Ok(token) => token,
+            Err(error) => {
+                if primary.is_none() {
+                    primary = Some(error);
+                }
+                String::new()
+            }
+        }
+    };
+    let intent = serde_json::json!({"kind":kind,"port":port,"pid":child.id(),"parent_pid":std::process::id(),"container_id":cid,"pre_stop_live_identity":token,"acceptance_failed_before_cleanup":primary.is_some()});
+    if let Err(error) =
+        append_fixture_observation(manifest, "fixture-container-stop-intents.jsonl", &intent)
+    {
+        if primary.is_none() {
+            primary = Some(error);
+        }
+    }
+    // Even bad caps/unhealthy/early-exited fixtures are stopped by this already
+    // authorized CID. No name-based mutation, group signal or forced success.
+    match docker(&["stop", "--time", "5", &cid], deadline) {
+        Ok((true, _)) => {}
+        Ok((false, _)) => {
+            if primary.is_none() {
+                primary = Some(eyre::eyre!("owned container stop failed"));
+            }
+        }
+        Err(error) => {
+            if primary.is_none() {
+                primary = Some(error);
+            }
+        }
+    }
+    let mut forced = false;
+    let status = if let Some(status) = prior {
+        status
+    } else {
+        loop {
+            if let Some(status) = child.try_wait()? {
+                break status;
+            }
+            if Instant::now() >= deadline {
+                forced = true;
+                let _ = child.kill();
+                break child.wait()?;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    };
+    let mut absent = false;
+    while Instant::now() < deadline {
+        match docker(&["container", "inspect", &cid], deadline) {
+            Ok((false, text))
+                if (text.contains("No such container") || text.contains("No such object"))
+                    && text.contains(&cid) =>
+            {
+                absent = true;
+                break;
+            }
+            Ok((true, text)) => {
+                let rows: Vec<serde_json::Value> = serde_json::from_str(&text)?;
+                ensure!(
+                    rows.len() == 1 && rows[0]["Id"] == cid,
+                    "owned CID inspection changed"
+                );
+            }
+            Ok((false, _)) => {
+                if primary.is_none() {
+                    primary = Some(eyre::eyre!("exact owned CID absence not established"));
+                }
+                break;
+            }
+            Err(error) => {
+                if primary.is_none() {
+                    primary = Some(error);
+                }
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    let on_time = Instant::now() < deadline;
+    let success = primary.is_none()
+        && !already_exited
+        && !token.is_empty()
+        && !forced
+        && on_time
+        && status.success()
+        && absent;
+    let row = ChildExit {
+        pid: child.id(),
+        role: "fixture-docker".into(),
+        executable: artifact.clone(),
+        parent_pid: std::process::id(),
+        os_start_token: token.clone(),
+        parent_wait_completed: true,
+        already_exited,
+        forced_kill: forced,
+        success,
+        exit_code: status.code(),
+        signal: status.signal(),
+        purpose: "fixture_teardown".into(),
+        planned_exit: true,
+    };
+    let mut receipt = serde_json::to_value(row)?;
+    receipt["planned_container_stop"] = serde_json::json!({"cause":"owned_docker_stop","container_id":cid,"kind":kind,"port":port,"pre_stop_live_identity":token,"already_exited_scope":"before_owned_container_stop","completed_before_original_deadline":on_time,"exact_owned_CID_absent":absent,"acceptance_failed_before_cleanup":primary.is_some()});
+    let file = if success {
+        "fixture-parent-waits.jsonl"
+    } else {
+        "fixture-container-stop-failures.jsonl"
+    };
+    if let Err(error) = append_fixture_observation(manifest, file, &receipt) {
+        if primary.is_none() {
+            primary = Some(error);
+        }
+    }
+    if let Some(error) = primary {
+        return Err(error);
+    }
+    ensure!(
+        success,
+        "owned fixture cleanup was nonzero, forced, late, early-exited or not absent"
+    );
+    Ok(())
+}
+fn stop_fixed_container(
+    manifest: &Manifest,
+    child: &mut Child,
+    kind: &str,
+    port: u32,
+    value: &serde_json::Value,
+    primary: Option<eyre::Report>,
+    deadline: Instant,
+) -> Result<()> {
+    stop_fixed_container_with(
+        manifest,
+        child,
+        kind,
+        port,
+        value,
+        primary,
+        deadline,
+        |args, end| fixture_docker_output(manifest, args, end),
+    )
+}
+/// One fallible fixture stop attempt. A failed stop remains failed on later calls.
+#[derive(Default)]
+pub struct FixtureStop {
+    attempted: bool,
+    succeeded: bool,
+}
+impl FixtureStop {
+    pub fn run(&mut self, stop: impl FnOnce() -> Result<()>) -> Result<()> {
+        if self.attempted {
+            ensure!(self.succeeded, "previous owned node stop failed");
+            return Ok(());
+        }
+        self.attempted = true;
+        let result = stop();
+        self.succeeded = result.is_ok();
+        result
+    }
+    pub fn attempted(&self) -> bool {
+        self.attempted
+    }
+}
+
+// Exact pinned PG14 fixture only, reusable by native stacks before setup can fail.
+pub struct OwnedPostgres {
+    handles: crate::utils::AgentHandles,
+    stop_attempted: bool,
+    stop_succeeded: bool,
+    readiness_deadline: Instant,
+}
+impl OwnedPostgres {
+    pub fn new(handles: crate::utils::AgentHandles) -> Self {
+        Self {
+            handles,
+            stop_attempted: false,
+            stop_succeeded: false,
+            readiness_deadline: Instant::now() + Duration::from_secs(30),
+        }
+    }
+    pub fn ready(&mut self) -> Result<()> {
+        let Some(manifest) = get()? else {
+            return Ok(());
+        };
+        let artifact = &manifest.verifier_tools["docker"];
+        let token = live_fixture_identity(
+            &mut self.handles.1,
+            artifact,
+            &manifest.verifier_tools["ps"],
+        )?;
+        loop {
+            ensure!(
+                Instant::now() < self.readiness_deadline,
+                "owned PG readiness deadline"
+            );
+            ensure!(
+                live_fixture_identity(
+                    &mut self.handles.1,
+                    artifact,
+                    &manifest.verifier_tools["ps"]
+                )? == token,
+                "PG foreground Child changed before readiness"
+            );
+            if let Some(value) = postgres_container(manifest, self.readiness_deadline)? {
+                verify_postgres_container(manifest, &value)?;
+                ensure!(
+                    Instant::now() < self.readiness_deadline
+                        && live_fixture_identity(
+                            &mut self.handles.1,
+                            artifact,
+                            &manifest.verifier_tools["ps"]
+                        )? == token,
+                    "PG exited or readiness completed late"
+                );
+                append_fixture_observation(
+                    manifest,
+                    "fixture-node-readiness.jsonl",
+                    &serde_json::json!({"kind":"postgres","pid":self.handles.1.id(),"identity":token,"container_id":value["Id"],"port":5432}),
+                )?;
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+    pub fn handles_mut(&mut self) -> &mut crate::utils::AgentHandles {
+        &mut self.handles
+    }
+    pub fn stop(&mut self) -> Result<()> {
+        if self.stop_attempted {
+            ensure!(self.stop_succeeded, "previous owned PG stop failed");
+            return Ok(());
+        }
+        self.stop_attempted = true;
+        let result = if enabled() {
+            stop_postgres_fixture(&mut self.handles_mut().1)
+        } else {
+            crate::utils::stop_child(&mut self.handles_mut().1);
+            Ok(())
+        };
+        self.stop_succeeded = result.is_ok();
+        result
+    }
+}
+impl Drop for OwnedPostgres {
+    fn drop(&mut self) {
+        if let Err(error) = self.stop() {
+            eprintln!("actual owned PG fixture cleanup failed: {error:#}");
+        }
+    }
+}
+fn verify_postgres_ownership(manifest: &Manifest, value: &serde_json::Value) -> Result<()> {
+    let spec = postgres_fixture(manifest)?;
+    let name = resource_name_at(
+        "scraper-testnet-postgres",
+        &manifest.task_root,
+        std::process::id(),
+    )?;
+    let root = hex::encode(Sha256::digest(
+        manifest
+            .task_root
+            .canonicalize()?
+            .as_os_str()
+            .as_encoded_bytes(),
+    ));
+    let cid = value["Id"].as_str().unwrap_or("");
+    ensure!(
+        cid.len() == 64
+            && cid
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            && value["Name"] == format!("/{name}")
+            && value["Image"] == spec.image_id
+            && value["Config"]["Labels"][POSTGRES_CASE_LABEL] == root
+            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL] == std::process::id().to_string()
+            && value["Config"]["Labels"][POSTGRES_TOKEN_LABEL] == spec.run_token,
+        "foreign or unexpectedly stopped PG; no cleanup by name alone"
+    );
+    Ok(())
+}
+fn verify_postgres_container(manifest: &Manifest, value: &serde_json::Value) -> Result<()> {
+    verify_postgres_ownership(manifest, value)?;
+    let spec = postgres_fixture(manifest)?;
+    ensure!(
+        value["State"]["Running"] == true && value["Config"]["Image"] == spec.image_id,
+        "PG runtime/image configuration differs"
+    );
+    let h = &value["HostConfig"];
+    ensure!(
+        h["Memory"] == POSTGRES_MEMORY_BYTES
+            && h["MemorySwap"] == POSTGRES_MEMORY_BYTES
+            && h["NanoCpus"] == 2_000_000_000u64
+            && h["PidsLimit"] == POSTGRES_PIDS
+            && h["PortBindings"]
+                == serde_json::json!({"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"5432"}]})
+            && h["Tmpfs"]["/var/lib/postgresql/data"]
+                == format!("rw,nosuid,size={POSTGRES_DATA_BYTES}"),
+        "PG creation caps/datadir/loopback differ"
+    );
+    Ok(())
+}
+fn postgres_container(manifest: &Manifest, deadline: Instant) -> Result<Option<serde_json::Value>> {
+    let name = resource_name_at(
+        "scraper-testnet-postgres",
+        &manifest.task_root,
+        std::process::id(),
+    )?;
+    let (ok, text) = fixture_docker_output(manifest, &["container", "inspect", &name], deadline)?;
+    if !ok {
+        ensure!(
+            (text.contains("No such container") || text.contains("No such object"))
+                && text.contains(&name),
+            "PG inspect failed"
+        );
+        return Ok(None);
+    }
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&text)?;
+    ensure!(rows.len() == 1, "ambiguous PG inspect");
+    let row = rows
+        .into_iter()
+        .next()
+        .ok_or_else(|| eyre::eyre!("PG inspect absent"))?;
+    verify_postgres_ownership(manifest, &row)?;
+    Ok(Some(row))
+}
+
+// This witness is captured while the actual foreground Child is still live,
+// immediately before an owned-CID stop. It is not a generic early-exit waiver.
+
+pub fn stop_postgres_fixture(child: &mut TrackedChild) -> Result<()> {
+    let manifest = get()?.ok_or_else(|| eyre::eyre!("external fixture manifest absent"))?;
+    ensure!(
+        [
+            "evm",
+            "cosmwasm",
+            "cosmosnative",
+            "sealevel",
+            "sealevel-composite",
+            "starknet",
+            "radix",
+            "tron"
+        ]
+        .contains(&manifest.scenario.as_str()),
+        "wrong PG fixture family"
+    );
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let outcome = (|| -> Result<()> {
+        let value = postgres_container(manifest, deadline)?
+            .ok_or_else(|| eyre::eyre!("owned fixed container absent before cleanup"))?;
+        let primary = verify_postgres_container(manifest, &value).err();
+        stop_fixed_container(manifest, child, "postgres", 5432, &value, primary, deadline)
+    })();
+    if outcome.is_err() {
+        if matches!(child.try_wait(), Ok(None)) {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    }
+    outcome
 }
 
 // Exact external EVM fixtures only. Runtime roles keep their existing receipts.
@@ -1850,10 +3131,23 @@ fn live_fixture_identity(child: &mut Child, artifact: &Artifact, ps: &Artifact) 
 }
 
 fn node_ownership_tool(manifest: &Manifest) -> Result<Artifact> {
+    if svm_family(&manifest.scenario) {
+        ensure!(
+            svm_assets_at(manifest)?.is_some(),
+            "SVM ownership requires the accepted bundle"
+        );
+    }
     let case = fixture_json(&manifest.case_inputs)?;
     let approval = fixture_json(&manifest.execution_approval)?;
     ensure!(
-        ["cosmosnative", "cosmwasm", "evm"].contains(&manifest.scenario.as_str())
+        [
+            "cosmosnative",
+            "cosmwasm",
+            "evm",
+            "sealevel",
+            "sealevel-composite"
+        ]
+        .contains(&manifest.scenario.as_str())
             && case["schema"] == 1
             && case["scenario"] == manifest.scenario
             && approval["root_approved"] == true
@@ -2030,7 +3324,7 @@ pub fn stop_cosmos_fixture(child: &mut TrackedChild, tool: &str) -> Result<()> {
             executable: artifact.clone(),
             parent_pid: std::process::id(),
             os_start_token: token,
-            scope: "actual external Cosmos fixture Child".into(),
+            scope: "actual external fixture Child".into(),
         };
         let mut receipt = stop_owned_child_mode(
             child,
@@ -2472,6 +3766,7 @@ pub struct TrackedChild {
     receipt_completed: bool,
     restart: Option<RoleRestart>,
     fixture: Option<EvmFixtureOwnership>,
+    svm_fixture: Option<SvmFixtureOwnership>,
 }
 #[derive(Clone)]
 pub struct RoleRestart {
@@ -2504,6 +3799,7 @@ impl TrackedChild {
             receipt_completed: false,
             restart: None,
             fixture: None,
+            svm_fixture: None,
         }
     }
     pub fn try_wait(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {
@@ -2524,6 +3820,13 @@ impl TrackedChild {
         log_prefix: &'static str,
         logs_directory: Option<&Path>,
     ) {
+        if let Err(error) = attach_svm_fixture(self, &program, log_prefix) {
+            if matches!(self.child.try_wait(), Ok(None)) {
+                let _ = self.child.kill();
+            }
+            let _ = self.child.wait();
+            panic!("external SVM fixture ownership: {error:#}");
+        }
         if self.owned.is_none() && ["ETH", "SQL", "KTY"].contains(&log_prefix) {
             let outcome = (|| -> Result<()> {
                 if let Some(manifest) = get()? {
@@ -2583,6 +3886,12 @@ impl TrackedChild {
 }
 impl Drop for TrackedChild {
     fn drop(&mut self) {
+        if self.svm_fixture.is_some() {
+            if let Err(error) = stop_svm_fixture(self) {
+                eprintln!("external SVM cleanup failed: {error:#}");
+            }
+            return;
+        }
         if self.fixture.is_some() {
             if let Err(error) = stop_evm_fixture(self) {
                 eprintln!("external fixture cleanup failed: {error:#}");
@@ -2884,8 +4193,1042 @@ pub fn stop_and_wait_roles<'a>(
     Ok(())
 }
 
+const SVM_AGAVE_FILES: &[&str] = &[
+    ".crates.toml",
+    ".crates2.json",
+    "bin/agave-install",
+    "bin/agave-install-init",
+    "bin/agave-ledger-tool",
+    "bin/cargo-build-sbf",
+    "bin/cargo-test-sbf",
+    "bin/platform-tools-sdk/sbf/c/README.md",
+    "bin/platform-tools-sdk/sbf/c/inc/deserialize_deprecated.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/alt_bn128.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/alt_bn128_compression.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/assert.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/big_mod_exp.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/blake3.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/compute_units.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/constants.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/cpi.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/deserialize.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/deserialize_deprecated.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/entrypoint.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/alt_bn128.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/alt_bn128_compression.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/assert.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/big_mod_exp.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/blake3.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/compute_units.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/cpi.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/keccak.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/last_restart_slot.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/log.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/poseidon.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/pubkey.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/return_data.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/secp256k1.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/inc/sha.inc",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/keccak.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/last_restart_slot.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/log.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/poseidon.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/pubkey.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/return_data.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/secp256k1.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/sha.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/string.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sol/types.h",
+    "bin/platform-tools-sdk/sbf/c/inc/solana_sdk.h",
+    "bin/platform-tools-sdk/sbf/c/inc/stdio.h",
+    "bin/platform-tools-sdk/sbf/c/inc/stdlib.h",
+    "bin/platform-tools-sdk/sbf/c/inc/string.h",
+    "bin/platform-tools-sdk/sbf/c/inc/sys/param.h",
+    "bin/platform-tools-sdk/sbf/c/inc/wchar.h",
+    "bin/platform-tools-sdk/sbf/c/sbf.ld",
+    "bin/platform-tools-sdk/sbf/c/sbf.mk",
+    "bin/platform-tools-sdk/sbf/env.sh",
+    "bin/platform-tools-sdk/sbf/scripts/dump.sh",
+    "bin/platform-tools-sdk/sbf/scripts/install.sh",
+    "bin/platform-tools-sdk/sbf/scripts/objcopy.sh",
+    "bin/platform-tools-sdk/sbf/scripts/package.sh",
+    "bin/platform-tools-sdk/sbf/scripts/strip.sh",
+    "bin/platform-tools-sdk/sbf/syscalls.txt",
+    "bin/solana",
+    "bin/solana-keygen",
+    "bin/solana-stake-accounts",
+    "bin/solana-test-validator",
+    "bin/solana-tokens",
+    "bin/spl-token",
+    "version.yml",
+];
+const SVM_ENVIRONMENT_FILES: &[&str] = &[
+    "accounts/test_deployer-account.json",
+    "accounts/test_deployer-keypair.json",
+    "composite-ism/sealeveltest1/program-ids.json",
+    "gas-oracle-configs.json",
+    "mock-registry/chains/metadata.yaml",
+    "sealeveltest1/core/keys/hyperlane_sealevel_igp-keypair.json",
+    "sealeveltest1/core/keys/hyperlane_sealevel_mailbox-keypair.json",
+    "sealeveltest1/core/keys/hyperlane_sealevel_multisig_ism_message_id-keypair.json",
+    "sealeveltest1/core/keys/hyperlane_sealevel_validator_announce-keypair.json",
+    "sealeveltest1/core/program-ids.json",
+    "sealeveltest2/core/keys/hyperlane_sealevel_igp-keypair.json",
+    "sealeveltest2/core/keys/hyperlane_sealevel_mailbox-keypair.json",
+    "sealeveltest2/core/keys/hyperlane_sealevel_multisig_ism_message_id-keypair.json",
+    "sealeveltest2/core/keys/hyperlane_sealevel_validator_announce-keypair.json",
+    "sealeveltest2/core/program-ids.json",
+    "sealeveltest3/core/keys/hyperlane_sealevel_igp-keypair.json",
+    "sealeveltest3/core/keys/hyperlane_sealevel_mailbox-keypair.json",
+    "sealeveltest3/core/keys/hyperlane_sealevel_multisig_ism_message_id-keypair.json",
+    "sealeveltest3/core/keys/hyperlane_sealevel_validator_announce-keypair.json",
+    "sealeveltest3/core/program-ids.json",
+    "warp-routes/testwarproute/keys/hyperlane_sealevel_token-sealeveltest2-keypair.json",
+    "warp-routes/testwarproute/keys/hyperlane_sealevel_token-sealeveltest3-keypair.json",
+    "warp-routes/testwarproute/keys/hyperlane_sealevel_token_native-sealeveltest1-keypair.json",
+    "warp-routes/testwarproute/program-ids.json",
+    "warp-routes/testwarproute/token-config.json",
+];
+
+// Proposed only: exact SVM fixtures, never production agents or arbitrary tools.
+const SVM_PROGRAM_NAMES: &[&str] = &[
+    "hyperlane_sealevel_mailbox.so",
+    "hyperlane_sealevel_validator_announce.so",
+    "hyperlane_sealevel_multisig_ism_message_id.so",
+    "hyperlane_sealevel_composite_ism.so",
+    "hyperlane_sealevel_token.so",
+    "hyperlane_sealevel_token_native.so",
+    "hyperlane_sealevel_token_collateral.so",
+    "hyperlane_sealevel_token_cross_collateral.so",
+    "hyperlane_sealevel_igp.so",
+    "spl_token.so",
+    "spl_token_2022.so",
+    "spl_associated_token_account.so",
+    "spl_noop.so",
+];
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SvmBundle {
+    schema: u32,
+    agave_version: String,
+    platform_tools_version: String,
+    spl_release: String,
+    spl_token_revision: String,
+    root: PathBuf,
+    agave_files: BTreeMap<String, Artifact>,
+    programs: BTreeMap<String, Artifact>,
+    client: Artifact,
+    spl_token: Artifact,
+    environment_inputs: BTreeMap<String, Artifact>,
+    component_gate: Artifact,
+}
+#[derive(Clone, Debug)]
+pub struct SvmAssets {
+    bundle: SvmBundle,
+    pub bin: PathBuf,
+    pub programs: PathBuf,
+    pub client: PathBuf,
+    pub workspace: PathBuf,
+    pub home: PathBuf,
+}
+fn svm_family(scenario: &str) -> bool {
+    matches!(scenario, "sealevel" | "sealevel-composite")
+}
+fn svm_json(artifact: &Artifact) -> Result<serde_json::Value> {
+    let text = verified_contract_text(artifact, 1024 * 1024)?;
+    Ok(serde_json::from_str::<UniqueCaseJson>(&text)?.0)
+}
+fn svm_file(root: &Path, relative: &str, artifact: &Artifact, executable: bool) -> Result<()> {
+    let expected = checked_owned_path(root, Path::new(relative))?;
+    ensure!(
+        artifact.path == expected,
+        "SVM artifact path differs from fixed bundle layout"
+    );
+    artifact.verify()?;
+    #[cfg(unix)]
+    ensure!(
+        fs::metadata(&artifact.path)?.nlink() == 1,
+        "SVM artifact has hardlinks"
+    );
+    if executable {
+        verify_executable(artifact)?;
+    }
+    Ok(())
+}
+fn svm_closed_members(root: &Path, expected: &BTreeMap<String, Artifact>) -> Result<()> {
+    let mut pending = vec![root.to_path_buf()];
+    let mut actual = std::collections::BTreeSet::new();
+    let mut entries = 0usize;
+    while let Some(directory) = pending.pop() {
+        for item in fs::read_dir(directory)? {
+            let item = item?;
+            entries += 1;
+            ensure!(entries <= 512, "SVM member/directory bound");
+            let kind = item.file_type()?;
+            ensure!(!kind.is_symlink(), "SVM member symlink");
+            let path = item.path();
+            if kind.is_dir() {
+                pending.push(path);
+            } else {
+                ensure!(kind.is_file(), "non-regular SVM member");
+                let relative = path
+                    .strip_prefix(root)?
+                    .to_str()
+                    .ok_or_else(|| eyre::eyre!("SVM member encoding"))?
+                    .to_owned();
+                ensure!(actual.insert(relative), "duplicate SVM member");
+            }
+        }
+    }
+    ensure!(
+        actual == expected.keys().cloned().collect(),
+        "extra/missing SVM file"
+    );
+    Ok(())
+}
+fn svm_bundle_shape(bundle: &SvmBundle) -> Result<()> {
+    ensure!(
+        bundle.schema == 1
+            && bundle.agave_version == "3.0.14"
+            && bundle.platform_tools_version == "v1.51"
+            && bundle.spl_release == "2024-08-23"
+            && bundle.spl_token_revision == "e101cca",
+        "wrong Source SVM prerequisite versions"
+    );
+    ensure!(
+        bundle
+            .programs
+            .keys()
+            .map(String::as_str)
+            .eq(SVM_PROGRAM_NAMES
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()),
+        "missing/extra SVM program"
+    );
+    // These exact lists are generated in the proposal from accepted Agave67 and
+    // Source25 public fixture files, not a prefix/extension or recursive tool grant.
+    ensure!(
+        bundle
+            .agave_files
+            .keys()
+            .map(String::as_str)
+            .eq(SVM_AGAVE_FILES.iter().copied()),
+        "Agave member set differs"
+    );
+    ensure!(
+        bundle
+            .environment_inputs
+            .keys()
+            .map(String::as_str)
+            .eq(SVM_ENVIRONMENT_FILES.iter().copied()),
+        "Source environment member set differs"
+    );
+    Ok(())
+}
+fn svm_assets_at(manifest: &Manifest) -> Result<Option<SvmAssets>> {
+    let case = svm_json(&manifest.case_inputs)?;
+    if !svm_family(&manifest.scenario) {
+        ensure!(
+            case.get("svm_assets").is_none(),
+            "SVM bundle supplied to another family"
+        );
+        return Ok(None);
+    }
+    let approval = svm_json(&manifest.execution_approval)?;
+    ensure!(
+        case["schema"] == 1
+            && case["scenario"] == manifest.scenario
+            && approval["root_approved"] == true
+            && approval["scenario"] == manifest.scenario
+            && approval["mode"] == manifest.mode
+            && approval["runtime_source_commit"] == manifest.runtime_source_commit
+            && approval["case_inputs"] == serde_json::to_value(&manifest.case_inputs)?
+            && approval["svm_assets"] == case["svm_assets"],
+        "SVM bundle is not exact approved case input"
+    );
+    let bundle: SvmBundle = serde_json::from_value(case["svm_assets"].clone())?;
+    svm_bundle_shape(&bundle)?;
+    let root = checked_owned_path(&manifest.task_root, Path::new("tools/svm"))?;
+    ensure!(
+        bundle.root == root,
+        "SVM bundle must use the owned fixed tools root"
+    );
+    let mut total = 0u64;
+    for (name, artifact) in &bundle.agave_files {
+        total = total
+            .checked_add(artifact.bytes)
+            .ok_or_else(|| eyre::eyre!("SVM size overflow"))?;
+        svm_file(
+            &root,
+            &format!("agave/{name}"),
+            artifact,
+            matches!(name.as_str(), "bin/solana" | "bin/solana-test-validator"),
+        )?;
+    }
+    ensure!(
+        total == 205_592_731,
+        "Agave closed release byte count differs"
+    );
+    for (name, artifact) in &bundle.programs {
+        ensure!(
+            artifact.bytes > 0 && artifact.bytes <= 32 * 1024 * 1024,
+            "SVM program bound"
+        );
+        svm_file(&root, &format!("programs/{name}"), artifact, false)?;
+    }
+    for (name, artifact) in &bundle.environment_inputs {
+        ensure!(artifact.bytes <= 1024 * 1024, "public SVM input size bound");
+        svm_file(
+            &root,
+            &format!("environment-inputs/{name}"),
+            artifact,
+            false,
+        )?;
+    }
+    svm_closed_members(&root.join("agave"), &bundle.agave_files)?;
+    svm_closed_members(&root.join("programs"), &bundle.programs)?;
+    svm_closed_members(&root.join("environment-inputs"), &bundle.environment_inputs)?;
+    svm_file(
+        &root,
+        "client/hyperlane-sealevel-client",
+        &bundle.client,
+        true,
+    )?;
+    let home = checked_owned_path(&manifest.task_root, Path::new("home"))?;
+    svm_file(&home, ".cargo/bin/spl-token", &bundle.spl_token, true)?;
+    let gate = svm_json(&bundle.component_gate)?;
+    let mut accepted = serde_json::to_value(&bundle)?;
+    accepted
+        .as_object_mut()
+        .ok_or_else(|| eyre::eyre!("SVM bundle object"))?
+        .remove("component_gate");
+    ensure!(
+        gate["root_approved"] == true
+            && gate["accepted_svm_offline_prerequisites"] == true
+            && gate["runtime_source_commit"] == manifest.runtime_source_commit
+            && gate["accepted_assets"] == accepted,
+        "SVM prerequisite component not accepted/bound"
+    );
+    ensure!(
+        gate.get("spl_publisher_digest") == Some(&serde_json::Value::Null)
+            && gate["spl_integrity_scope"]
+                == "official_TLS_acquisition_and_computed_SHA_not_publisher_checksum",
+        "SPL provenance qualification differs"
+    );
+    Ok(Some(SvmAssets {
+        bin: root.join("agave/bin"),
+        programs: root.join("programs"),
+        client: bundle.client.path.clone(),
+        workspace: checked_owned_path(&manifest.task_root, Path::new("svm-workspace"))?,
+        home,
+        bundle,
+    }))
+}
+pub fn svm_assets() -> Result<Option<&'static SvmAssets>> {
+    match &*LOADED {
+        Ok(value) => Ok(value.as_ref().and_then(|loaded| loaded.svm_assets.as_ref())),
+        Err(error) => bail!("external SVM preflight: {error}"),
+    }
+}
+/// Called once, by install_solana_cli_tools, before any local daemon/deployment.
+pub fn prepare_svm_environment() -> Result<()> {
+    let Some(assets) = svm_assets()? else {
+        return Ok(());
+    };
+    let manifest = get()?.ok_or_else(|| eyre::eyre!("SVM manifest absent"))?;
+    create_owned_directory(
+        &manifest.task_root,
+        Path::new("svm-workspace/environments/local-e2e"),
+    )?;
+    for (relative, artifact) in &assets.bundle.environment_inputs {
+        let destination_relative = Path::new("svm-workspace/environments/local-e2e").join(relative);
+        if let Some(parent) = destination_relative.parent() {
+            create_owned_directory(&manifest.task_root, parent)?;
+        }
+        let destination = checked_owned_path(&manifest.task_root, &destination_relative)?;
+        artifact.verify()?;
+        let mut input = fs::File::open(&artifact.path)?;
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        options.mode(0o600);
+        let mut output = options.open(&destination)?;
+        ensure!(
+            std::io::copy(&mut input, &mut output)? == artifact.bytes,
+            "SVM input copy size differs"
+        );
+        output.sync_all()?;
+        let copied = Artifact {
+            path: destination,
+            bytes: artifact.bytes,
+            sha256: artifact.sha256.clone(),
+        };
+        copied.verify()?;
+    }
+    Ok(())
+}
+struct SvmFixtureOwnership {
+    owned: OwnedChild,
+    manifest: Manifest,
+}
+fn attach_svm_fixture(
+    child: &mut TrackedChild,
+    program: &crate::program::Program,
+    prefix: &str,
+) -> Result<()> {
+    let Some(manifest) = get()?.filter(|m| svm_family(&m.scenario)) else {
+        return Ok(());
+    };
+    let Some(assets) = svm_assets()? else {
+        bail!("SVM assets missing");
+    };
+    let artifact = match prefix {
+        "SOL" => assets.bundle.agave_files["bin/solana-test-validator"].clone(),
+        _ => return Ok(()),
+    };
+    ensure!(
+        child.owned.is_none() && child.svm_fixture.is_none(),
+        "duplicate/role SVM fixture owner"
+    );
+    let executable = program
+        .get_bin_path()
+        .ok_or_else(|| eyre::eyre!("SVM fixture binary absent"))??;
+    ensure!(
+        executable.canonicalize()? == artifact.path.canonicalize()?,
+        "SVM fixture executable differs"
+    );
+    verify_executable(&artifact)?;
+    let token = live_fixture_identity(&mut child.child, &artifact, &manifest.verifier_tools["ps"])?;
+    child.svm_fixture = Some(SvmFixtureOwnership {
+        owned: OwnedChild {
+            pid: child.id(),
+            role: format!("fixture-svm-{prefix}"),
+            executable: artifact,
+            parent_pid: std::process::id(),
+            os_start_token: token,
+            scope: "actual direct SVM fixture Child".into(),
+        },
+        manifest: manifest.clone(),
+    });
+    Ok(())
+}
+pub fn stop_svm_fixture(child: &mut TrackedChild) -> Result<bool> {
+    let Some(owner) = child.svm_fixture.take() else {
+        return Ok(false);
+    };
+    let outcome = (|| -> Result<()> {
+        let mut receipt = stop_owned_child_mode(
+            &mut child.child,
+            &owner.owned,
+            &owner.owned.executable,
+            &owner.manifest.verifier_tools["ps"],
+            Duration::from_secs(10),
+            false,
+        )?;
+        receipt.purpose = "fixture_teardown".into();
+        append_fixture_exit(&owner.manifest, &receipt)?;
+        ensure!(
+            !receipt.already_exited && receipt.parent_wait_completed && !receipt.forced_kill,
+            "SVM fixture early/forced exit cannot be clean acceptance"
+        );
+        Ok(())
+    })();
+    if outcome.is_err() {
+        if matches!(child.child.try_wait(), Ok(None)) {
+            let _ = child.child.kill();
+        }
+        let _ = child.child.wait();
+    }
+    outcome.map(|()| true)
+}
+fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::SocketAddr>> {
+    ensure!(output.len() <= 65536, "SVM listener output bound");
+    let mut owned = false;
+    let mut descriptor = None;
+    let mut found = Vec::new();
+    for line in output.lines() {
+        match line.as_bytes().first() {
+            Some(b'p') => {
+                ensure!(
+                    !owned && line[1..].parse::<u32>()? == pid,
+                    "foreign/duplicate SVM listener process"
+                );
+                owned = true;
+            }
+            Some(b'f') => {
+                ensure!(
+                    owned && descriptor.is_none(),
+                    "SVM fd without process or missing socket"
+                );
+                descriptor = Some(line[1..].parse::<u32>()?);
+            }
+            Some(b'n') => {
+                ensure!(
+                    owned && descriptor.take().is_some(),
+                    "SVM socket without numeric fd/process"
+                );
+                let (local, remote) = line[1..]
+                    .split_once("->")
+                    .map_or((&line[1..], None), |(a, b)| (a, Some(b)));
+                if let Some(remote) = remote {
+                    ensure!(
+                        udp && remote.parse::<std::net::SocketAddr>()?.ip().is_loopback(),
+                        "SVM remote UDP peer differs"
+                    );
+                }
+                let socket = if local == "*:9900" {
+                    "0.0.0.0:9900".parse()?
+                } else {
+                    local.parse::<std::net::SocketAddr>()?
+                };
+                if udp {
+                    ensure!(
+                        socket.ip().is_loopback()
+                            && (socket.port() == 8001 || (8002..=8033).contains(&socket.port())),
+                        "SVM auxiliary UDP socket differs"
+                    );
+                } else {
+                    ensure!(
+                        socket.ip().is_loopback()
+                            || socket == "0.0.0.0:9900".parse::<std::net::SocketAddr>()?,
+                        "unexpected wildcard/nonlocal SVM TCP listener"
+                    );
+                }
+                found.push(socket);
+            }
+            _ => bail!("unexpected SVM lsof row"),
+        }
+    }
+    ensure!(descriptor.is_none(), "SVM fd has no socket");
+    Ok(found)
+}
+/// Consumed RPC/WS ownership, before first slot/readiness/deploy. The public
+/// fixture faucet is explicitly wildcard9900 with request/time funding caps0.
+pub fn svm_node_ready(child: &mut TrackedChild, ledger: &Path) -> Result<()> {
+    let Some(manifest) = get()?.filter(|m| svm_family(&m.scenario)) else {
+        return Ok(());
+    };
+    let outcome = (|| -> Result<()> {
+        let assets = svm_assets()?.ok_or_else(|| eyre::eyre!("SVM bundle absent"))?;
+        let artifact = &assets.bundle.agave_files["bin/solana-test-validator"];
+        let lsof = node_ownership_tool(manifest)?;
+        let ps = &manifest.verifier_tools["ps"];
+        let token = live_fixture_identity(&mut child.child, artifact, ps)?;
+        let ledger = checked_owned_path(
+            &manifest.task_root,
+            ledger.strip_prefix(&manifest.task_root)?,
+        )?;
+        let ledger = ledger
+            .to_str()
+            .ok_or_else(|| eyre::eyre!("SVM ledger path encoding"))?;
+        ensure!(
+            !ledger.chars().any(char::is_whitespace),
+            "ambiguous SVM ledger"
+        );
+        let command = Command::new(&ps.path)
+            .args(["-ww", "-p", &child.id().to_string(), "-o", "command="])
+            .output()?;
+        ensure!(
+            command.status.success() && command.stdout.len() <= 65536,
+            "SVM argv lookup failed"
+        );
+        let command = String::from_utf8(command.stdout)?;
+        let args: Vec<_> = command.split_whitespace().collect();
+        for pair in [
+            ["--ledger", ledger],
+            ["--bind-address", "127.0.0.1"],
+            ["--rpc-port", "8899"],
+            ["--faucet-port", "9900"],
+            ["--gossip-port", "8001"],
+            ["--dynamic-port-range", "8002-8033"],
+            ["--faucet-per-time-sol-cap", "0"],
+            ["--faucet-per-request-sol-cap", "0"],
+        ] {
+            ensure!(
+                args.windows(2).any(|actual| actual == pair),
+                "SVM exact node argument missing"
+            );
+        }
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            ensure!(
+                live_fixture_identity(&mut child.child, artifact, ps)? == token,
+                "SVM launch identity changed"
+            );
+            let lookup = |udp: bool| -> Result<Vec<std::net::SocketAddr>> {
+                let mut command = Command::new(&lsof.path);
+                command.args([
+                    "-nP",
+                    "-a",
+                    "-p",
+                    &child.id().to_string(),
+                    if udp { "-iUDP" } else { "-iTCP" },
+                ]);
+                if !udp {
+                    command.args(["-sTCP:LISTEN"]);
+                }
+                let output = command.args(["-F", "pn"]).output()?;
+                ensure!(
+                    output.status.success() || output.status.code() == Some(1),
+                    "SVM socket lookup failed"
+                );
+                svm_listeners(child.id(), &String::from_utf8(output.stdout)?, udp)
+            };
+            let tcp = lookup(false)?;
+            let udp = lookup(true)?;
+            ensure!(
+                live_fixture_identity(&mut child.child, artifact, ps)? == token,
+                "SVM exited during socket lookup"
+            );
+            if ["127.0.0.1:8899", "127.0.0.1:8900", "0.0.0.0:9900"]
+                .into_iter()
+                .all(|socket| {
+                    socket
+                        .parse::<std::net::SocketAddr>()
+                        .is_ok_and(|socket| tcp.contains(&socket))
+                })
+                && udp.iter().any(|socket| socket.port() == 8001)
+            {
+                append_fixture_observation(
+                    manifest,
+                    "svm-node-readiness.jsonl",
+                    &serde_json::json!({
+                    "pid":child.id(),"os_start_token":token,"ledger":ledger,"tcp":tcp,"udp":udp,
+                    "public_fixture_faucet_wildcard_port":9900,"faucet_funding_caps_SOL":0,
+                    "scope":"actual owned sockets before deployment; no chain or600credit"}),
+                )?;
+                return Ok(());
+            }
+            ensure!(Instant::now() < deadline, "owned SVM listeners unavailable");
+            thread::sleep(Duration::from_millis(100));
+        }
+    })();
+    if outcome.is_err() {
+        let _ = stop_svm_fixture(child);
+    }
+    outcome
+}
+
+pub fn svm_tempdir() -> Result<tempfile::TempDir> {
+    let Some(manifest) = get()?.filter(|m| svm_family(&m.scenario)) else {
+        return Ok(tempfile::tempdir()?);
+    };
+    let root = create_owned_directory(&manifest.task_root, Path::new("tmp"))?;
+    let temp = tempfile::Builder::new().prefix("svm-").tempdir_in(root)?;
+    checked_owned_path(
+        &manifest.task_root,
+        temp.path().strip_prefix(&manifest.task_root)?,
+    )?;
+    Ok(temp)
+}
+pub fn svm_tempfile() -> Result<tempfile::NamedTempFile> {
+    let Some(manifest) = get()?.filter(|m| svm_family(&m.scenario)) else {
+        return Ok(tempfile::NamedTempFile::new()?);
+    };
+    let root = create_owned_directory(&manifest.task_root, Path::new("tmp"))?;
+    let temp = tempfile::NamedTempFile::new_in(root)?;
+    checked_owned_path(
+        &manifest.task_root,
+        temp.path().strip_prefix(&manifest.task_root)?,
+    )?;
+    Ok(temp)
+}
+pub fn svm_node_arguments(program: crate::program::Program) -> Result<crate::program::Program> {
+    let Some(_) = svm_assets()? else {
+        return Ok(program);
+    };
+    // The Source deployer is preloaded; no fixture operation requests airdrop.
+    // Cap the unavoidable public wildcard faucet; do not pretend it is loopback.
+    Ok(program
+        .arg("bind-address", "127.0.0.1")
+        .arg("rpc-port", "8899")
+        .arg("faucet-port", "9900")
+        .arg("gossip-port", "8001")
+        .arg("dynamic-port-range", "8002-8033")
+        .arg("faucet-per-request-sol-cap", "0")
+        .arg("faucet-per-time-sol-cap", "0"))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn explicit_node_stop_error_propagates_before_success() {
+        fn finish(
+            stop: &mut super::FixtureStop,
+            fail: bool,
+            passed: &mut bool,
+        ) -> eyre::Result<()> {
+            stop.run(|| {
+                if fail {
+                    eyre::bail!("injected exact-owned stop failure");
+                }
+                Ok(())
+            })?;
+            *passed = true;
+            Ok(())
+        }
+        let mut passed = false;
+        assert!(finish(&mut super::FixtureStop::default(), true, &mut passed).is_err());
+        assert!(!passed);
+        finish(&mut super::FixtureStop::default(), false, &mut passed).unwrap();
+        assert!(passed);
+    }
+    #[test]
+    fn node_setup_unwind_cleanup_does_not_repeat_success_or_panic_on_failure() {
+        struct Owner<'a> {
+            stop: super::FixtureStop,
+            attempts: &'a std::cell::Cell<usize>,
+            fail: bool,
+        }
+        impl Owner<'_> {
+            fn stop(&mut self) -> eyre::Result<()> {
+                self.stop.run(|| {
+                    self.attempts.set(self.attempts.get() + 1);
+                    if self.fail {
+                        eyre::bail!("cleanup failed during setup unwind");
+                    }
+                    Ok(())
+                })
+            }
+        }
+        impl Drop for Owner<'_> {
+            fn drop(&mut self) {
+                if !self.stop.attempted() {
+                    let _ = self.stop();
+                }
+            }
+        }
+        let attempts = std::cell::Cell::new(0);
+        {
+            let _unwinding = Owner {
+                stop: Default::default(),
+                attempts: &attempts,
+                fail: true,
+            };
+        }
+        assert_eq!(attempts.get(), 1);
+        {
+            let mut owner = Owner {
+                stop: Default::default(),
+                attempts: &attempts,
+                fail: false,
+            };
+            owner.stop().unwrap();
+        }
+        assert_eq!(attempts.get(), 2);
+    }
+    #[test]
+    fn explicit_node_stop_is_once_and_failed_stop_cannot_become_success() {
+        let mut stop = super::FixtureStop::default();
+        let mut attempts = 0;
+        stop.run(|| {
+            attempts += 1;
+            Ok(())
+        })
+        .unwrap();
+        stop.run(|| {
+            attempts += 1;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(attempts, 1);
+        assert!(stop.attempted());
+        let mut failed = super::FixtureStop::default();
+        let error = failed
+            .run(|| {
+                attempts += 1;
+                eyre::bail!("actual node stop failure")
+            })
+            .unwrap_err();
+        assert!(error.to_string().contains("actual node stop failure"));
+        assert!(failed
+            .run(|| {
+                attempts += 1;
+                Ok(())
+            })
+            .is_err());
+        assert_eq!(attempts, 2);
+    }
+
+    fn svm_shape_only_bundle() -> SvmBundle {
+        let artifact = Artifact {
+            path: "/not-an-admitted-asset".into(),
+            bytes: 1,
+            sha256: "0".repeat(64),
+        };
+        SvmBundle {
+            schema: 1,
+            agave_version: "3.0.14".into(),
+            platform_tools_version: "v1.51".into(),
+            spl_release: "2024-08-23".into(),
+            spl_token_revision: "e101cca".into(),
+            root: "/shape-only".into(),
+            agave_files: SVM_AGAVE_FILES
+                .iter()
+                .map(|name| ((*name).into(), artifact.clone()))
+                .collect(),
+            programs: SVM_PROGRAM_NAMES
+                .iter()
+                .map(|name| ((*name).into(), artifact.clone()))
+                .collect(),
+            environment_inputs: SVM_ENVIRONMENT_FILES
+                .iter()
+                .map(|name| ((*name).into(), artifact.clone()))
+                .collect(),
+            client: artifact.clone(),
+            spl_token: artifact.clone(),
+            component_gate: artifact,
+        }
+    }
+    #[test]
+    fn svm_shape_exact_members_are_not_execution_or_asset_acceptance() {
+        let bundle = svm_shape_only_bundle();
+        svm_bundle_shape(&bundle).unwrap();
+        assert_eq!(bundle.agave_files.len(), 67);
+        assert_eq!(bundle.programs.len(), 13);
+        assert_eq!(bundle.environment_inputs.len(), 25);
+        let root = tempfile::tempdir().unwrap();
+        let mut manifest = fixture(root.path());
+        manifest.scenario = "sealevel".into();
+        assert!(
+            svm_assets_at(&manifest).is_err(),
+            "shape-only must not admit fake assets"
+        );
+    }
+    #[test]
+    fn svm_shape_all_version_fields_and_schema_are_exact() {
+        for field in [
+            "schema",
+            "agave_version",
+            "platform_tools_version",
+            "spl_release",
+            "spl_token_revision",
+        ] {
+            let mut value = serde_json::to_value(svm_shape_only_bundle()).unwrap();
+            value[field] = if field == "schema" {
+                2.into()
+            } else {
+                "wrong".into()
+            };
+            let bundle: SvmBundle = serde_json::from_value(value).unwrap();
+            assert!(svm_bundle_shape(&bundle).is_err(), "{field}");
+        }
+    }
+    #[test]
+    fn svm_shape_each_member_map_rejects_missing_foreign_and_aliases() {
+        for field in ["agave_files", "programs", "environment_inputs"] {
+            for replacement in [None, Some("foreign.so"), Some("../escaped")] {
+                let mut value = serde_json::to_value(svm_shape_only_bundle()).unwrap();
+                let entries = value[field].as_object_mut().unwrap();
+                let name = entries.keys().next().unwrap().clone();
+                let member = entries.remove(&name).unwrap();
+                if let Some(other) = replacement {
+                    entries.insert(other.into(), member);
+                }
+                let bundle: SvmBundle = serde_json::from_value(value).unwrap();
+                assert!(
+                    svm_bundle_shape(&bundle).is_err(),
+                    "{field} {replacement:?}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn svm_data_file_checks_exact_path_size_hash_and_executable_requirement() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        let good = artifact(&root, "member");
+        svm_file(&root, "member", &good, true).unwrap();
+        let mut wrong = good.clone();
+        wrong.bytes += 1;
+        assert!(svm_file(&root, "member", &wrong, false).is_err());
+        wrong = good.clone();
+        wrong.sha256 = "0".repeat(64);
+        assert!(svm_file(&root, "member", &wrong, false).is_err());
+        assert!(svm_file(&root, "other", &good, false).is_err());
+        fs::set_permissions(&good.path, fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(svm_file(&root, "member", &good, true).is_err());
+        svm_file(&root, "member", &good, false).unwrap();
+    }
+    #[cfg(unix)]
+    #[test]
+    fn svm_data_hardlink_and_symlink_escape_are_not_admitted() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        let good = artifact(&root, "member");
+        let alias = root.join("hardlink");
+        fs::hard_link(&good.path, &alias).unwrap();
+        assert!(svm_file(&root, "member", &good, false).is_err());
+        fs::remove_file(alias).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let remote = artifact(outside.path(), "outside");
+        std::os::unix::fs::symlink(&remote.path, root.join("escape")).unwrap();
+        let linked = Artifact {
+            path: root.join("escape"),
+            ..remote
+        };
+        assert!(svm_file(&root, "escape", &linked, false).is_err());
+    }
+    #[test]
+    fn svm_closed_tree_rejects_extra_missing_members_and_directory_links() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        let good = artifact(&root, "member");
+        let expected = BTreeMap::from([("member".into(), good)]);
+        svm_closed_members(&root, &expected).unwrap();
+        let extra = artifact(&root, "extra");
+        assert!(svm_closed_members(&root, &expected).is_err());
+        fs::remove_file(extra.path).unwrap();
+        fs::remove_file(root.join("member")).unwrap();
+        assert!(svm_closed_members(&root, &expected).is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(temp.path(), root.join("linked-directory")).unwrap();
+            assert!(svm_closed_members(&root, &BTreeMap::new()).is_err());
+        }
+    }
+    #[test]
+    fn svm_listener_requires_numeric_fd_before_each_socket_and_rejects_duplicate_process() {
+        for raw in [
+            "p42\nn127.0.0.1:8899\n",
+            "p42\nf3\nn127.0.0.1:8899\nn127.0.0.1:8900\n",
+            "p42\np42\nf3\nn127.0.0.1:8899\n",
+            "p42\nf3\nf4\nn127.0.0.1:8899\n",
+            "p42\nf3\n",
+        ] {
+            assert!(svm_listeners(42, raw, false).is_err(), "{raw}");
+        }
+        assert_eq!(
+            svm_listeners(42, "p42\nf3\nn127.0.0.1:8899\nf4\nn127.0.0.1:8900\n", false)
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+    #[test]
+    fn svm_bundle_unconfigured_non_svm_is_unchanged_and_cross_family_bundle_rejects() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut manifest = fixture(temp.path());
+        assert!(svm_assets_at(&manifest).unwrap().is_none());
+        let bytes = serde_json::to_vec(&serde_json::json!({"svm_assets": {}})).unwrap();
+        fs::write(&manifest.case_inputs.path, &bytes).unwrap();
+        manifest.case_inputs.bytes = bytes.len() as u64;
+        manifest.case_inputs.sha256 = sha(&manifest.case_inputs.path).unwrap();
+        assert!(svm_assets_at(&manifest).is_err());
+    }
+    fn svm_tracked_test_fixture(root: &Path) -> (TrackedChild, u32) {
+        let (mut held, mut owned, _binary, ps) = owned_fixture(false);
+        let mut manifest = fixture(root);
+        manifest.scenario = "sealevel".into();
+        manifest.verifier_tools.insert("ps".into(), ps);
+        fs::create_dir(&manifest.verifier.evidence_root).unwrap();
+        let pid = held.id();
+        owned.role = "fixture-svm-SOL".into();
+        let mut tracked = TrackedChild::new(held.0.take().unwrap(), None);
+        tracked.svm_fixture = Some(SvmFixtureOwnership { owned, manifest });
+        (tracked, pid)
+    }
+    #[test]
+    fn svm_fixture_real_child_stop_wait_is_recorded_once() {
+        let root = tempfile::tempdir().unwrap();
+        let (mut tracked, pid) = svm_tracked_test_fixture(root.path());
+        assert!(stop_svm_fixture(&mut tracked).unwrap());
+        assert!(!stop_svm_fixture(&mut tracked).unwrap());
+        assert!(tracked.try_wait().unwrap().is_some());
+        let raw =
+            fs::read_to_string(root.path().join("evidence/fixture-parent-waits.jsonl")).unwrap();
+        assert_eq!(raw.lines().count(), 1);
+        let row: serde_json::Value = serde_json::from_str(raw.trim()).unwrap();
+        assert_eq!(row["pid"], pid);
+        assert_eq!(row["parent_wait_completed"], true);
+        assert_eq!(row["success"], true);
+        assert_eq!(row["forced_kill"], false);
+    }
+    #[test]
+    fn svm_fixture_setup_unwind_reaps_actual_child() {
+        let root = tempfile::tempdir().unwrap();
+        let (tracked, pid) = svm_tracked_test_fixture(root.path());
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let _held = tracked;
+            panic!("intentional SVM setup unwind");
+        }));
+        assert!(outcome.is_err());
+        let raw =
+            fs::read_to_string(root.path().join("evidence/fixture-parent-waits.jsonl")).unwrap();
+        let row: serde_json::Value = serde_json::from_str(raw.trim()).unwrap();
+        assert_eq!(row["pid"], pid);
+        assert_eq!(row["parent_wait_completed"], true);
+        assert_eq!(row["forced_kill"], false);
+    }
+    #[test]
+    fn svm_fixture_changed_artifact_fails_but_exact_child_is_cleaned() {
+        let root = tempfile::tempdir().unwrap();
+        let (mut tracked, _pid) = svm_tracked_test_fixture(root.path());
+        tracked
+            .svm_fixture
+            .as_mut()
+            .unwrap()
+            .owned
+            .executable
+            .sha256 = "0".repeat(64);
+        assert!(stop_svm_fixture(&mut tracked).is_err());
+        assert!(tracked.try_wait().unwrap().is_some());
+        assert!(!root
+            .path()
+            .join("evidence/fixture-parent-waits.jsonl")
+            .exists());
+    }
+    #[test]
+    fn svm_listener_owned_faucet_is_explicit_and_not_loopback_credit() {
+        let sockets = super::svm_listeners(
+            42,
+            "p42\nf3\nn127.0.0.1:8899\nf4\nn127.0.0.1:8900\nf5\nn*:9900\n",
+            false,
+        )
+        .unwrap();
+        assert!(sockets.contains(&"127.0.0.1:8899".parse().unwrap()));
+        assert!(sockets.contains(&"127.0.0.1:8900".parse().unwrap()));
+        assert!(sockets.contains(&"0.0.0.0:9900".parse().unwrap()));
+        assert!(super::svm_listeners(42, "p42\nf3\nn*:8899\n", false).is_err());
+        assert!(super::svm_listeners(42, "p42\nf3\nn*:9901\n", false).is_err());
+    }
+    #[test]
+    fn svm_listener_foreign_pid_fd_and_udp_escape_are_hard_errors() {
+        for raw in [
+            "p43\nf3\nn127.0.0.1:8899\n",
+            "f3\nn127.0.0.1:8899\n",
+            "p42\nfx\nn127.0.0.1:8899\n",
+        ] {
+            assert!(super::svm_listeners(42, raw, false).is_err());
+        }
+        assert!(super::svm_listeners(42, "p42\nf3\nn127.0.0.1:8001\n", true).is_ok());
+        assert!(
+            super::svm_listeners(42, "p42\nf3\nn127.0.0.1:8002->127.0.0.1:8003\n", true).is_ok()
+        );
+        for raw in [
+            "p42\nf3\nn*:8001\n",
+            "p42\nf3\nn127.0.0.1:9000\n",
+            "p42\nf3\nn127.0.0.1:8002->192.0.2.1:8003\n",
+        ] {
+            assert!(super::svm_listeners(42, raw, true).is_err());
+        }
+    }
+    #[test]
+    fn svm_bundle_raw_duplicate_and_unknown_field_reject_before_assets() {
+        assert!(serde_json::from_str::<super::UniqueCaseJson>(
+            r#"{"svm_assets":{"schema":1,"schema":2}}"#
+        )
+        .is_err());
+        let artifact =
+            serde_json::json!({"path":"/tmp/parser-shape-only","bytes":0,"sha256":"0".repeat(64)});
+        let mut shape = serde_json::json!({"schema":1,"agave_version":"3.0.14","platform_tools_version":"v1.51", "spl_release":"2024-08-23","spl_token_revision":"e101cca","root":"/tmp/parser-shape-only",
+            "agave_files":{},"programs":{},"client":artifact.clone(),"spl_token":artifact.clone(),"environment_inputs":{},"component_gate":artifact});
+        assert!(serde_json::from_value::<super::SvmBundle>(shape.clone()).is_ok());
+        shape["unexpected"] = true.into();
+        assert!(serde_json::from_value::<super::SvmBundle>(shape).is_err());
+    }
+
     use super::*;
     #[test]
     fn cosmos_node_artifact_rejects_crossed_family_keys() {
@@ -3291,7 +5634,7 @@ mod tests {
     fn postgres_test_fixture(root: &Path, token: &str) -> Manifest {
         let mut manifest = fixture(root);
         let image_id = format!("sha256:{}", "12".repeat(32));
-        let case = serde_json::json!({"schema":1,"scenario":manifest.scenario,"postgres":{"image":"postgres:14","image_id":image_id,"canonical_digest":format!("postgres@{image_id}"),"run_token":token}});
+        let case = serde_json::json!({"schema":1,"scenario":manifest.scenario,"postgres":{"schema":2,"architecture":"arm64","image":"postgres:14","image_id":image_id,"canonical_digest":format!("postgres@{image_id}"),"run_token":token}});
         fs::write(
             &manifest.case_inputs.path,
             serde_json::to_vec(&case).unwrap(),
@@ -4528,5 +6871,678 @@ setInterval(()=>{{}},1000);"#,
                 .count(),
             1
         );
+    }
+    fn starknet_fixture(root: &Path) -> (Manifest, StarknetDevnetFixture) {
+        let mut m = fixture(root);
+        m.scenario = "starknet".into();
+        let devnet = serde_json::json!({"schema":2,"architecture":"arm64","source_image": STARKNET_SOURCE_IMAGE,"image_id":format!("sha256:{}", "a".repeat(64)),"canonical_digest":format!("shardlabs/starknet-devnet-rs@sha256:{}", "a".repeat(64)),"run_token":"b".repeat(32)});
+        let case = serde_json::json!({"schema":1,"scenario":"starknet","starknet_devnet":devnet});
+        fs::write(&m.case_inputs.path, serde_json::to_vec(&case).unwrap()).unwrap();
+        m.case_inputs = actual_artifact(m.case_inputs.path.to_str().unwrap());
+        let approval = serde_json::json!({"root_approved":true,"scenario":"starknet","mode":m.mode,"runtime_source_commit":m.runtime_source_commit,"case_inputs":m.case_inputs,"starknet_devnet":case["starknet_devnet"]});
+        fs::write(
+            &m.execution_approval.path,
+            serde_json::to_vec(&approval).unwrap(),
+        )
+        .unwrap();
+        m.execution_approval = actual_artifact(m.execution_approval.path.to_str().unwrap());
+        let spec = starknet_devnet_fixture(&m).unwrap();
+        (m, spec)
+    }
+    #[test]
+    fn starknet_external_arguments_keep_source_corpus_but_bind_owned_image_and_loopback() {
+        let root = tempfile::tempdir().unwrap();
+        let (m, spec) = starknet_fixture(root.path());
+        for port in [5050, 5070] {
+            let args = starknet_node_arguments(&m, port).unwrap();
+            assert!(args.contains(&"--pull=never".into()));
+            assert!(args.contains(&format!("--publish=127.0.0.1:{port}:5050")));
+            assert!(args.contains(&format!("--memory={STARKNET_MEMORY_BYTES}")));
+            assert!(args.contains(&format!("--memory-swap={STARKNET_MEMORY_BYTES}")));
+            assert!(args.contains(&"--cpus=2".into()) && args.contains(&"--pids-limit=256".into()));
+            assert_eq!(
+                &args[args.len() - 7..],
+                &[
+                    spec.image_id.clone(),
+                    "--state-archive-capacity".into(),
+                    "full".into(),
+                    "--block-generation-on".into(),
+                    "5".into(),
+                    "--seed".into(),
+                    "0".into()
+                ]
+            );
+        }
+        assert!(starknet_node_arguments(&m, 5051).is_err());
+    }
+    #[test]
+    fn starknet_external_fixture_rejects_crossed_or_unapproved_case() {
+        for field in [
+            "root_approved",
+            "scenario",
+            "case_inputs",
+            "starknet_devnet",
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let (mut m, _) = starknet_fixture(root.path());
+            let mut a = fixture_json(&m.execution_approval).unwrap();
+            a[field] = serde_json::Value::Null;
+            fs::write(&m.execution_approval.path, serde_json::to_vec(&a).unwrap()).unwrap();
+            m.execution_approval = actual_artifact(m.execution_approval.path.to_str().unwrap());
+            assert!(starknet_devnet_fixture(&m).is_err());
+        }
+        let root = tempfile::tempdir().unwrap();
+        let (mut m, _) = starknet_fixture(root.path());
+        m.scenario = "evm".into();
+        assert!(starknet_devnet_fixture(&m).is_err());
+    }
+    #[test]
+    fn starknet_actual_container_caps_and_source_command_are_required() {
+        let root = tempfile::tempdir().unwrap();
+        let (_, spec) = starknet_fixture(root.path());
+        let row = serde_json::json!({"State":{"Running":true},"Config":{"Image":spec.image_id,"Cmd":["--state-archive-capacity","full","--block-generation-on","5","--seed","0"]},"HostConfig":{"Memory":STARKNET_MEMORY_BYTES,"MemorySwap":STARKNET_MEMORY_BYTES,"NanoCpus":2_000_000_000u64,"PidsLimit":256,"PortBindings":{"5050/tcp":[{"HostIp":"127.0.0.1","HostPort":"5050"}]}}});
+        verify_starknet_container(&row, &spec, 5050).unwrap();
+        for field in [
+            "Memory",
+            "MemorySwap",
+            "NanoCpus",
+            "PidsLimit",
+            "PortBindings",
+        ] {
+            let mut bad = row.clone();
+            bad["HostConfig"][field] = serde_json::Value::Null;
+            assert!(verify_starknet_container(&bad, &spec, 5050).is_err());
+        }
+        let mut bad = row.clone();
+        bad["Config"]["Image"] = serde_json::json!(STARKNET_SOURCE_IMAGE);
+        assert!(verify_starknet_container(&bad, &spec, 5050).is_err());
+        assert!(verify_starknet_container(&row, &spec, 5070).is_err());
+    }
+    #[test]
+    fn starknet_owned_cid_requires_exact_task_parent_token_name_and_image() {
+        let root = tempfile::tempdir().unwrap();
+        let (m, spec) = starknet_fixture(root.path());
+        let port = 5050;
+        let pid = std::process::id();
+        let name = resource_name_at("starknet-5050", root.path(), pid).unwrap();
+        let root_hash = hex::encode(Sha256::digest(
+            root.path()
+                .canonicalize()
+                .unwrap()
+                .as_os_str()
+                .as_encoded_bytes(),
+        ));
+        let row = serde_json::json!({"Id":"c".repeat(64),"Name":format!("/{name}"),"Image":spec.image_id,"Config":{"Labels":{(POSTGRES_CASE_LABEL):root_hash,(POSTGRES_HARNESS_LABEL):pid.to_string(),(POSTGRES_TOKEN_LABEL):spec.run_token}}});
+        verify_starknet_ownership(&m, port, &row).unwrap();
+        for key in ["Id", "Name", "Image"] {
+            let mut bad = row.clone();
+            bad[key] = serde_json::json!("foreign");
+            assert!(verify_starknet_ownership(&m, port, &bad).is_err());
+        }
+        for key in [
+            POSTGRES_CASE_LABEL,
+            POSTGRES_HARNESS_LABEL,
+            POSTGRES_TOKEN_LABEL,
+        ] {
+            let mut bad = row.clone();
+            bad["Config"]["Labels"][key] = serde_json::json!("foreign");
+            assert!(verify_starknet_ownership(&m, port, &bad).is_err());
+        }
+        assert!(verify_starknet_ownership(&m, 5070, &row).is_err());
+    }
+    #[test]
+    fn starknet_planned_container_stop_preserves_actual_clean_wait() {
+        use std::os::unix::process::ExitStatusExt;
+        verify_starknet_container(&value, &starknet_devnet_fixture(manifest)?, port)?;
+        let witness = StarknetContainerStop {
+            child: OwnedChild {
+                pid: 123,
+                role: "fixture-docker".into(),
+                executable: actual_artifact("/bin/echo"),
+                parent_pid: std::process::id(),
+                os_start_token: "actual-pre-stop-identity-test-vector".into(),
+                scope: "public receipt codec fixture".into(),
+            },
+            container_id: "c".repeat(64),
+            port: 5050,
+        };
+        let row =
+            starknet_stop_receipt(&witness, std::process::ExitStatus::from_raw(0), false, true)
+                .unwrap();
+        assert_eq!(row["success"], true);
+        assert_eq!(row["already_exited"], false);
+        assert_eq!(row["parent_wait_completed"], true);
+        assert_eq!(row["planned_exit"], true);
+        assert_eq!(
+            row["planned_container_stop"]["container_id"],
+            witness.container_id
+        );
+        assert_eq!(
+            row["planned_container_stop"]["pre_stop_live_identity"],
+            witness.child.os_start_token
+        );
+        assert_eq!(
+            row["planned_container_stop"]["already_exited_scope"],
+            "before_owned_container_stop"
+        );
+        for (status, forced, on_time) in [
+            (256, false, true),
+            (15, false, true),
+            (0, true, true),
+            (0, false, false),
+        ] {
+            let row = starknet_stop_receipt(
+                &witness,
+                std::process::ExitStatus::from_raw(status),
+                forced,
+                on_time,
+            )
+            .unwrap();
+            assert_eq!(row["success"], false);
+        }
+        let mut missing = witness;
+        missing.child.os_start_token.clear();
+        assert!(starknet_stop_receipt(
+            &missing,
+            std::process::ExitStatus::from_raw(0),
+            false,
+            true
+        )
+        .is_err());
+    }
+    #[test]
+    fn starknet_planned_stop_reaps_foreground_before_or_after_control_returns() {
+        let artifact = actual_artifact("/bin/cat");
+        let ps = actual_artifact("/bin/ps");
+        for exited_before_wait in [true, false] {
+            let mut child = TestChild(Some(
+                Command::new(&artifact.path)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::null())
+                    .spawn()
+                    .unwrap(),
+            ));
+            let token = live_fixture_identity(&mut child, &artifact, &ps).unwrap();
+            verify_starknet_container(&value, &starknet_devnet_fixture(manifest)?, port)?;
+            let witness = StarknetContainerStop {
+                child: OwnedChild {
+                    pid: child.id(),
+                    role: "fixture-docker".into(),
+                    executable: artifact.clone(),
+                    parent_pid: std::process::id(),
+                    os_start_token: token,
+                    scope: "public pipe-EOF control; no Docker".into(),
+                },
+                container_id: "c".repeat(64),
+                port: 5050,
+            };
+            let input = child.stdin.take().unwrap();
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let closer = if exited_before_wait {
+                drop(input);
+                while child.try_wait().unwrap().is_none() {
+                    assert!(Instant::now() < deadline);
+                    thread::sleep(Duration::from_millis(5));
+                }
+                None
+            } else {
+                Some(thread::spawn(move || {
+                    thread::sleep(Duration::from_millis(20));
+                    drop(input);
+                }))
+            };
+            let row = wait_starknet_foreground(&mut child, &witness, deadline).unwrap();
+            if let Some(closer) = closer {
+                closer.join().unwrap();
+            }
+            assert_eq!(row["success"], true);
+            assert_eq!(row["exit_code"], 0);
+            assert_eq!(row["already_exited"], false);
+            assert_eq!(row["parent_wait_completed"], true);
+        }
+    }
+    #[test]
+    fn starknet_unexpected_pre_stop_exit_is_not_a_planned_stop() {
+        // No Docker/native node is invoked: a reaped public fixture cannot mint
+        // the live identity needed by the planned-container-stop path.
+        let artifact = actual_artifact("/bin/echo");
+        let ps = actual_artifact("/bin/ps");
+        let mut child = Command::new(&artifact.path)
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        assert!(child.wait().unwrap().success());
+        assert!(live_fixture_identity(&mut child, &artifact, &ps).is_err());
+    }
+    fn repin_portable_case(m: &mut Manifest, case: &serde_json::Value) {
+        fs::write(&m.case_inputs.path, serde_json::to_vec(case).unwrap()).unwrap();
+        m.case_inputs = actual_artifact(m.case_inputs.path.to_str().unwrap());
+        let mut approval = fixture_json(&m.execution_approval).unwrap();
+        approval["case_inputs"] = serde_json::to_value(&m.case_inputs).unwrap();
+        if m.scenario == "starknet" {
+            approval["starknet_devnet"] = case["starknet_devnet"].clone();
+        }
+        fs::write(
+            &m.execution_approval.path,
+            serde_json::to_vec(&approval).unwrap(),
+        )
+        .unwrap();
+        m.execution_approval = actual_artifact(m.execution_approval.path.to_str().unwrap());
+    }
+    #[test]
+    fn approved_pg_schema2_distinguishes_config_id_manifest_digest_and_platform() {
+        for architecture in ["arm64", "amd64"] {
+            let root = tempfile::tempdir().unwrap();
+            let mut m = postgres_test_fixture(root.path(), &"a".repeat(32));
+            let mut case = fixture_json(&m.case_inputs).unwrap();
+            case["postgres"]["architecture"] = serde_json::json!(architecture);
+            case["postgres"]["canonical_digest"] =
+                serde_json::json!(format!("postgres@sha256:{}", "34".repeat(32)));
+            repin_portable_case(&mut m, &case);
+            let spec = postgres_fixture(&m).unwrap();
+            assert_ne!(spec.canonical_digest, format!("postgres@{}", spec.image_id));
+            let image = serde_json::json!({"Id":spec.image_id,"Os":"linux","Architecture":architecture,"RepoDigests":[spec.canonical_digest]});
+            verify_postgres_inspect(&spec, true, &[image.to_string()]).unwrap();
+            let args = postgres_arguments_at(Some(&m), 42).unwrap().unwrap();
+            assert_eq!(args.last(), Some(&spec.image_id));
+            let mut wrong = image.clone();
+            wrong["Architecture"] = serde_json::json!(if architecture == "arm64" {
+                "amd64"
+            } else {
+                "arm64"
+            });
+            assert!(verify_postgres_inspect(&spec, true, &[wrong.to_string()]).is_err());
+            wrong = image.clone();
+            wrong["RepoDigests"] = serde_json::json!([format!("postgres@{}", spec.image_id)]);
+            assert!(verify_postgres_inspect(&spec, true, &[wrong.to_string()]).is_err());
+        }
+    }
+    #[test]
+    fn native_image_schema2_never_guesses_legacy_architecture_or_accepts_other_repository() {
+        for field in ["schema", "architecture"] {
+            let root = tempfile::tempdir().unwrap();
+            let mut m = postgres_test_fixture(root.path(), &"a".repeat(32));
+            let mut case = fixture_json(&m.case_inputs).unwrap();
+            case["postgres"].as_object_mut().unwrap().remove(field);
+            repin_portable_case(&mut m, &case);
+            assert!(postgres_fixture(&m).is_err());
+            let root = tempfile::tempdir().unwrap();
+            let (mut m, _) = starknet_fixture(root.path());
+            let mut case = fixture_json(&m.case_inputs).unwrap();
+            case["starknet_devnet"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            repin_portable_case(&mut m, &case);
+            assert!(starknet_devnet_fixture(&m).is_err());
+        }
+        assert!(!docker_repository_digest(
+            &format!("foreign@sha256:{}", "a".repeat(64)),
+            "postgres"
+        ));
+        assert!(!docker_repository_digest(
+            &format!("postgres@sha256:{}", "A".repeat(64)),
+            "postgres"
+        ));
+        assert!(!docker_repository_digest(
+            &format!("postgres@sha256:{}", "a".repeat(63)),
+            "postgres"
+        ));
+    }
+    #[test]
+    fn approved_starknet_schema2_binds_linux_config_id_and_independent_manifest_digest() {
+        for architecture in ["arm64", "amd64"] {
+            let root = tempfile::tempdir().unwrap();
+            let (mut m, _) = starknet_fixture(root.path());
+            let mut case = fixture_json(&m.case_inputs).unwrap();
+            case["starknet_devnet"]["architecture"] = serde_json::json!(architecture);
+            case["starknet_devnet"]["canonical_digest"] = serde_json::json!(format!(
+                "shardlabs/starknet-devnet-rs@sha256:{}",
+                "cd".repeat(32)
+            ));
+            repin_portable_case(&mut m, &case);
+            let spec = starknet_devnet_fixture(&m).unwrap();
+            let image = serde_json::json!({"Id":spec.image_id,"Os":"linux","Architecture":architecture,"RepoDigests":[spec.canonical_digest]});
+            verify_starknet_image_inspect(&spec, true, &image.to_string()).unwrap();
+            assert!(starknet_node_arguments(&m, 5050)
+                .unwrap()
+                .contains(&spec.image_id));
+            for key in ["Id", "Architecture", "RepoDigests"] {
+                let mut wrong = image.clone();
+                wrong[key] = serde_json::Value::Null;
+                assert!(verify_starknet_image_inspect(&spec, true, &wrong.to_string()).is_err());
+            }
+        }
+    }
+    #[cfg(feature = "tron")]
+    fn tron_approved_fixture(root: &Path) -> (Manifest, TronTreFixture) {
+        let mut m = fixture(root);
+        m.scenario = "tron".into();
+        let cli = root.join("tron-cli");
+        fs::create_dir_all(cli.join("dist")).unwrap();
+        let entrypoint = artifact(&cli.join("dist"), "cli.js");
+        let pnpm = artifact(root, "pnpm");
+        let tre = serde_json::json!({"source_image":crate::tron::TRE_IMAGE,"image_id":format!("sha256:{}","a".repeat(64)),"canonical_digest":crate::tron::TRE_IMAGE,"run_token":"b".repeat(32),"architecture":"amd64","command":["public-source-image-command"],"entrypoint":["public-source-image-entrypoint"],"cli_directory":cli,"cli_entrypoint":entrypoint,"pnpm":pnpm});
+        let case = serde_json::json!({"schema":1,"scenario":"tron","tron_tre":tre});
+        fs::write(&m.case_inputs.path, serde_json::to_vec(&case).unwrap()).unwrap();
+        m.case_inputs = actual_artifact(m.case_inputs.path.to_str().unwrap());
+        let approval = serde_json::json!({"root_approved":true,"scenario":"tron","mode":m.mode,"runtime_source_commit":m.runtime_source_commit,"case_inputs":m.case_inputs,"tron_tre":case["tron_tre"]});
+        fs::write(
+            &m.execution_approval.path,
+            serde_json::to_vec(&approval).unwrap(),
+        )
+        .unwrap();
+        m.execution_approval = actual_artifact(m.execution_approval.path.to_str().unwrap());
+        let spec = tron_devnet_fixture(&m).unwrap();
+        (m, spec)
+    }
+    #[test]
+    #[cfg(feature = "tron")]
+    fn tron_external_arguments_bind_source_env_image_loopback_and_caps() {
+        let root = tempfile::tempdir().unwrap();
+        let (m, spec) = tron_approved_fixture(root.path());
+        let args = tron_node_arguments(&m, 9090).unwrap();
+        for expected in [
+            "--pull=never".to_owned(),
+            "--publish=127.0.0.1:9090:9090".to_owned(),
+            format!("--memory={TRON_MEMORY_BYTES}"),
+            format!("--memory-swap={TRON_MEMORY_BYTES}"),
+            "--cpus=2".to_owned(),
+            "--pids-limit=256".to_owned(),
+            "--env=block=allowTvmCompatibleEvm:1".to_owned(),
+            "--env=preapprove=allowTvmCompatibleEvm:1".to_owned(),
+            format!("--env=mnemonic={}", crate::tron::TRE_MNEMONIC),
+            format!("--env=hdPath={}", crate::tron::TRE_HD_PATH),
+            "--env=defaultBalance=1000000".to_owned(),
+        ] {
+            assert!(args.contains(&expected), "missing Source argument");
+        }
+        assert_eq!(args.last(), Some(&spec.image_id));
+        assert!(tron_node_arguments(&m, 9091).is_err());
+    }
+    #[test]
+    #[cfg(feature = "tron")]
+    fn tron_external_case_approval_cross_binding_and_owned_cli_are_required() {
+        for field in [
+            "root_approved",
+            "scenario",
+            "mode",
+            "case_inputs",
+            "tron_tre",
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let (mut m, _) = tron_approved_fixture(root.path());
+            let mut approval = fixture_json(&m.execution_approval).unwrap();
+            approval[field] = serde_json::Value::Null;
+            fs::write(
+                &m.execution_approval.path,
+                serde_json::to_vec(&approval).unwrap(),
+            )
+            .unwrap();
+            m.execution_approval = actual_artifact(m.execution_approval.path.to_str().unwrap());
+            assert!(
+                tron_devnet_fixture(&m).is_err(),
+                "accepted crossed approval"
+            );
+        }
+        let root = tempfile::tempdir().unwrap();
+        let (m, spec) = tron_approved_fixture(root.path());
+        fs::write(spec.cli_entrypoint.path, "changed accepted CLI").unwrap();
+        assert!(tron_devnet_fixture(&m).is_err());
+    }
+    #[cfg(feature = "tron")]
+    fn tron_container_value(spec: &TronTreFixture) -> serde_json::Value {
+        serde_json::json!({"State":{"Running":true},"Config":{"Image":spec.image_id,"Cmd":spec.command,"Entrypoint":spec.entrypoint,"Env":["block=allowTvmCompatibleEvm:1","preapprove=allowTvmCompatibleEvm:1",format!("mnemonic={}",crate::tron::TRE_MNEMONIC),format!("hdPath={}",crate::tron::TRE_HD_PATH),"defaultBalance=1000000"]},"HostConfig":{"Memory":TRON_MEMORY_BYTES,"MemorySwap":TRON_MEMORY_BYTES,"NanoCpus":2_000_000_000u64,"PidsLimit":256,"PortBindings":{"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":"9090"}]}}})
+    }
+    #[test]
+    #[cfg(feature = "tron")]
+    fn tron_container_requires_actual_caps_running_source_env_and_default_command() {
+        let root = tempfile::tempdir().unwrap();
+        let (_, spec) = tron_approved_fixture(root.path());
+        let value = tron_container_value(&spec);
+        verify_tron_container(&value, &spec, 9090).unwrap();
+        for (pointer, wrong) in [
+            ("/State/Running", serde_json::json!(false)),
+            ("/Config/Image", serde_json::json!("mutable-tag")),
+            ("/Config/Cmd", serde_json::json!(["foreign"])),
+            ("/Config/Env/0", serde_json::json!("block=foreign")),
+            ("/HostConfig/Memory", serde_json::json!(0)),
+            ("/HostConfig/MemorySwap", serde_json::json!(0)),
+            ("/HostConfig/PidsLimit", serde_json::json!(0)),
+            (
+                "/HostConfig/PortBindings/9090~1tcp/0/HostIp",
+                serde_json::json!("0.0.0.0"),
+            ),
+        ] {
+            let mut changed = value.clone();
+            *changed.pointer_mut(pointer).unwrap() = wrong;
+            assert!(
+                verify_tron_container(&changed, &spec, 9090).is_err(),
+                "accepted {pointer}"
+            );
+        }
+    }
+    #[test]
+    #[cfg(feature = "tron")]
+    fn tron_owned_cid_requires_task_parent_token_image_and_name() {
+        let root = tempfile::tempdir().unwrap();
+        let (m, spec) = tron_approved_fixture(root.path());
+        let name = resource_name_at("tron-e2e", &m.task_root, std::process::id()).unwrap();
+        let root_hash = hex::encode(Sha256::digest(
+            m.task_root
+                .canonicalize()
+                .unwrap()
+                .as_os_str()
+                .as_encoded_bytes(),
+        ));
+        let value = serde_json::json!({"Id":"c".repeat(64),"Name":format!("/{name}"),"Image":spec.image_id,"Config":{"Labels":{POSTGRES_CASE_LABEL:root_hash,POSTGRES_HARNESS_LABEL:std::process::id().to_string(),POSTGRES_TOKEN_LABEL:spec.run_token}}});
+        verify_tron_ownership(&m, 9090, &value).unwrap();
+        for pointer in [
+            "/Id",
+            "/Name",
+            "/Image",
+            "/Config/Labels/io.hyperlane.ziggy.case-root",
+            "/Config/Labels/io.hyperlane.ziggy.harness-pid",
+            "/Config/Labels/io.hyperlane.ziggy.run-token",
+        ] {
+            let mut wrong = value.clone();
+            *wrong.pointer_mut(pointer).unwrap() = serde_json::json!("foreign");
+            assert!(verify_tron_ownership(&m, 9090, &wrong).is_err());
+        }
+    }
+    #[test]
+    #[cfg(feature = "tron")]
+    fn tron_planned_container_stop_cannot_credit_failure_force_lateness_or_no_live_witness() {
+        use std::os::unix::process::ExitStatusExt;
+        let witness = TronContainerStop {
+            child: OwnedChild {
+                pid: 123,
+                role: "fixture-docker".into(),
+                executable: actual_artifact("/bin/echo"),
+                parent_pid: std::process::id(),
+                os_start_token: "public-pre-stop-vector".into(),
+                scope: "receipt codec only".into(),
+            },
+            container_id: "c".repeat(64),
+            port: 9090,
+        };
+        let row = tron_stop_receipt(&witness, std::process::ExitStatus::from_raw(0), false, true)
+            .unwrap();
+        assert_eq!(row["success"], true);
+        assert_eq!(row["already_exited"], false);
+        assert_eq!(row["parent_wait_completed"], true);
+        assert_eq!(
+            row["planned_container_stop"]["container_id"],
+            witness.container_id
+        );
+        for (status, forced, on_time) in [
+            (256, false, true),
+            (15, false, true),
+            (0, true, true),
+            (0, false, false),
+        ] {
+            assert_eq!(
+                tron_stop_receipt(
+                    &witness,
+                    std::process::ExitStatus::from_raw(status),
+                    forced,
+                    on_time
+                )
+                .unwrap()["success"],
+                false
+            );
+        }
+        let mut missing = witness;
+        missing.child.os_start_token.clear();
+        assert!(
+            tron_stop_receipt(&missing, std::process::ExitStatus::from_raw(0), false, true)
+                .is_err()
+        );
+    }
+    fn pg_owned_inspection(m: &Manifest) -> serde_json::Value {
+        let spec = postgres_fixture(m).unwrap();
+        let name =
+            resource_name_at("scraper-testnet-postgres", &m.task_root, std::process::id()).unwrap();
+        let root = hex::encode(Sha256::digest(
+            m.task_root
+                .canonicalize()
+                .unwrap()
+                .as_os_str()
+                .as_encoded_bytes(),
+        ));
+        serde_json::json!({"Id":"c".repeat(64),"Name":format!("/{name}"),"Image":spec.image_id,"State":{"Running":true},"Config":{"Image":spec.image_id,"Labels":{POSTGRES_CASE_LABEL:root,POSTGRES_HARNESS_LABEL:std::process::id().to_string(),POSTGRES_TOKEN_LABEL:spec.run_token}},"HostConfig":{"Memory":POSTGRES_MEMORY_BYTES,"MemorySwap":POSTGRES_MEMORY_BYTES,"NanoCpus":2_000_000_000u64,"PidsLimit":POSTGRES_PIDS,"PortBindings":{"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"5432"}]},"Tmpfs":{"/var/lib/postgresql/data":format!("rw,nosuid,size={POSTGRES_DATA_BYTES}")}}})
+    }
+    #[test]
+    fn owned_pg_bad_caps_and_unhealthy_state_fail_acceptance_but_clean_actual_child() {
+        for (pointer, wrong) in [
+            ("/HostConfig/Memory", serde_json::json!(0)),
+            ("/State/Running", serde_json::json!(false)),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let mut m = postgres_test_fixture(root.path(), &"a".repeat(32));
+            fs::create_dir_all(&m.verifier.evidence_root).unwrap();
+            m.verifier_tools
+                .insert("docker".into(), actual_artifact("/bin/cat"));
+            m.verifier_tools
+                .insert("ps".into(), actual_artifact("/bin/ps"));
+            let mut row = pg_owned_inspection(&m);
+            *row.pointer_mut(pointer).unwrap() = wrong;
+            verify_postgres_ownership(&m, &row).unwrap();
+            let primary = verify_postgres_container(&m, &row).err();
+            assert!(primary.is_some());
+            let mut child = TestChild(Some(
+                Command::new("/bin/cat")
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::null())
+                    .spawn()
+                    .unwrap(),
+            ));
+            let mut input = child.stdin.take();
+            let mut mutations = Vec::new();
+            let result = stop_fixed_container_with(
+                &m,
+                &mut child,
+                "postgres",
+                5432,
+                &row,
+                primary,
+                Instant::now() + Duration::from_secs(2),
+                |args, _| {
+                    if args[0] == "stop" {
+                        mutations.push(args[3].to_owned());
+                        drop(input.take());
+                        Ok((true, String::new()))
+                    } else {
+                        assert_eq!(args, &["container", "inspect", &"c".repeat(64)]);
+                        Ok((false, format!("No such container: {}", "c".repeat(64))))
+                    }
+                },
+            );
+            assert!(result.is_err());
+            assert_eq!(mutations, vec!["c".repeat(64)]);
+            assert!(child.wait().unwrap().success());
+            let line = fs::read_to_string(
+                m.verifier
+                    .evidence_root
+                    .join("fixture-container-stop-failures.jsonl"),
+            )
+            .unwrap();
+            let proof: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(proof["success"], false);
+            assert_eq!(proof["parent_wait_completed"], true);
+            assert_eq!(
+                proof["planned_container_stop"]["exact_owned_CID_absent"],
+                true
+            );
+            assert!(!m
+                .verifier
+                .evidence_root
+                .join("fixture-parent-waits.jsonl")
+                .exists());
+        }
+    }
+    #[test]
+    fn owned_pg_foreign_identity_never_reaches_mutation_authority() {
+        let root = tempfile::tempdir().unwrap();
+        let m = postgres_test_fixture(root.path(), &"a".repeat(32));
+        let row = pg_owned_inspection(&m);
+        for pointer in [
+            "/Id",
+            "/Name",
+            "/Image",
+            "/Config/Labels/io.hyperlane.ziggy.case-root",
+            "/Config/Labels/io.hyperlane.ziggy.harness-pid",
+            "/Config/Labels/io.hyperlane.ziggy.run-token",
+        ] {
+            let mut wrong = row.clone();
+            *wrong.pointer_mut(pointer).unwrap() = serde_json::json!("foreign");
+            assert!(verify_postgres_ownership(&m, &wrong).is_err());
+        }
+    }
+    #[test]
+    fn fixed_container_early_real_child_exit_is_cleaned_without_live_witness_credit() {
+        let root = tempfile::tempdir().unwrap();
+        let mut m = postgres_test_fixture(root.path(), &"a".repeat(32));
+        fs::create_dir_all(&m.verifier.evidence_root).unwrap();
+        m.verifier_tools
+            .insert("docker".into(), actual_artifact("/bin/echo"));
+        m.verifier_tools
+            .insert("ps".into(), actual_artifact("/bin/ps"));
+        let row = pg_owned_inspection(&m);
+        verify_postgres_ownership(&m, &row).unwrap();
+        let mut child = Command::new("/bin/echo")
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        assert!(child.wait().unwrap().success());
+        let mut stopped = false;
+        let result = stop_fixed_container_with(
+            &m,
+            &mut child,
+            "postgres",
+            5432,
+            &row,
+            None,
+            Instant::now() + Duration::from_secs(2),
+            |args, _| {
+                if args[0] == "stop" {
+                    stopped = true;
+                    Ok((true, String::new()))
+                } else {
+                    Ok((false, format!("No such container: {}", "c".repeat(64))))
+                }
+            },
+        );
+        assert!(stopped && result.is_err());
+        let line = fs::read_to_string(
+            m.verifier
+                .evidence_root
+                .join("fixture-container-stop-failures.jsonl"),
+        )
+        .unwrap();
+        let proof: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
+        assert_eq!(proof["already_exited"], true);
+        assert_eq!(proof["success"], false);
+        assert_eq!(proof["parent_wait_completed"], true);
     }
 }

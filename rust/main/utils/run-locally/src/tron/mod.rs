@@ -31,16 +31,16 @@ use crate::{
 };
 
 /// Immutable multi-platform digest for tronbox/tre 2.0.0.
-const TRE_IMAGE: &str =
+pub(crate) const TRE_IMAGE: &str =
     "tronbox/tre@sha256:f4332e11df12a9f360639a4546fd046593909630fda48af00b30410c144342f0";
 
 /// BIP-44 m/44'/195'/0'/0/0 derived from the "abandon" mnemonic.
 const TRON_PRIVATE_KEY: &str = "0xb5a4cea271ff424d7c31dc12a3e43e401df7a40d7412a15750f3f0b6b5449a28";
 
 /// Mnemonic passed to TRE to ensure deterministic accounts.
-const TRE_MNEMONIC: &str =
+pub(crate) const TRE_MNEMONIC: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-const TRE_HD_PATH: &str = "m/44'/195'/0'/0/";
+pub(crate) const TRE_HD_PATH: &str = "m/44'/195'/0'/0/";
 
 const TRON_RPC_URL: &str = "http://127.0.0.1:9090/jsonrpc";
 const TRON_WALLET_URL: &str = "http://127.0.0.1:9090/wallet";
@@ -54,8 +54,8 @@ struct TronStack {
     validators: Vec<AgentHandles>,
     relayer: AgentHandles,
     scraper: AgentHandles,
-    postgres: AgentHandles,
-    tron_container: AgentHandles,
+    postgres: crate::external_agents::OwnedPostgres,
+    tron_container: TronFixture,
 }
 
 impl Drop for TronStack {
@@ -65,8 +65,41 @@ impl Drop for TronStack {
         self.validators
             .iter_mut()
             .for_each(|v| stop_child(&mut v.1));
-        stop_child(&mut self.postgres.1);
-        stop_child(&mut self.tron_container.1);
+        // Fixture guards perform their own actual external parent waits.
+    }
+}
+
+// Own both real fixture Child handles before any readiness/deployment can fail.
+struct TronFixture {
+    handle: AgentHandles,
+    tre: bool,
+    stop: crate::external_agents::FixtureStop,
+}
+impl TronFixture {
+    fn stop(&mut self) -> eyre::Result<()> {
+        let child = &mut self.handle.1;
+        let tre = self.tre;
+        self.stop.run(|| {
+            if crate::external_agents::enabled() {
+                if tre {
+                    crate::external_agents::stop_tron_fixture(child, Some(9090))
+                } else {
+                    crate::external_agents::stop_cosmos_fixture(child, "docker")
+                }
+            } else {
+                stop_child(child);
+                Ok(())
+            }
+        })
+    }
+}
+impl Drop for TronFixture {
+    fn drop(&mut self) {
+        if !self.stop.attempted() {
+            if let Err(error) = self.stop() {
+                log!("actual TRE fixture cleanup failed: {error:#}");
+            }
+        }
     }
 }
 
@@ -128,8 +161,8 @@ fn deploy_core(cli_path: &PathBuf, chain: &str) {
         get_workspace_path(), // monorepo root
         "utils/run-locally/src/tron/core-config.yaml",
     );
-    Program::new("pnpm")
-        .working_dir(cli_path)
+    crate::external_agents::tron_cli_program(cli_path)
+        .unwrap_or_else(|error| panic!("approved TRE CLI: {error:#}"))
         .cmd("hyperlane")
         .cmd("core")
         .cmd("deploy")
@@ -148,8 +181,8 @@ fn deploy_core(cli_path: &PathBuf, chain: &str) {
 /// Generate agent config using the Hyperlane CLI.
 fn generate_agent_config(cli_path: &PathBuf, out_path: &PathBuf) {
     log!("Generating agent config...");
-    Program::new("pnpm")
-        .working_dir(cli_path)
+    crate::external_agents::tron_cli_program(cli_path)
+        .unwrap_or_else(|error| panic!("approved TRE CLI: {error:#}"))
         .cmd("hyperlane")
         .cmd("registry")
         .cmd("agent-config")
@@ -193,8 +226,8 @@ fn patch_agent_config(config_path: &PathBuf) {
 /// Dispatch test messages using `hyperlane send message`.
 fn dispatch_message(cli_path: &PathBuf, origin: &str, destination: &str) {
     log!("Dispatching message {} -> {}...", origin, destination);
-    Program::new("pnpm")
-        .working_dir(cli_path)
+    crate::external_agents::tron_cli_program(cli_path)
+        .unwrap_or_else(|error| panic!("approved TRE CLI: {error:#}"))
         .cmd("hyperlane")
         .cmd("send")
         .cmd("message")
@@ -230,7 +263,9 @@ fn with_tron_wallet_env(program: Program) -> Program {
 
 fn run_locally() {
     crate::external_agents::initialize_for("tron");
-    let cli_path = get_cli_path();
+    let cli_path = crate::external_agents::tron_cli_directory()
+        .unwrap_or_else(|error| panic!("owned TRE CLI copy: {error:#}"))
+        .unwrap_or_else(get_cli_path);
     let monorepo_root = get_monorepo_root();
 
     let workspace_path = get_workspace_path(); // rust/main
@@ -258,7 +293,7 @@ fn run_locally() {
     let pnpm_monorepo = Program::new("pnpm").working_dir(&monorepo_root);
     let config = crate::config::Config::load(); // Load the config for invariants
 
-    if !config.is_ci_env {
+    if !config.is_ci_env && !crate::external_agents::enabled() {
         // test.yaml workflow installs dependencies
         pnpm_monorepo.clone().cmd("install").run().join();
         // test.yaml workflow builds the monorepo
@@ -274,23 +309,34 @@ fn run_locally() {
     }
 
     // Keep image acquisition outside the node readiness deadline.
-    prepare_docker_image(TRE_IMAGE);
+    if !crate::external_agents::enabled() {
+        prepare_docker_image(TRE_IMAGE);
+    }
 
     // Start TRE docker container
     log!("Starting TRE docker container...");
-    let tron_container = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", crate::external_agents::resource_name("tron-e2e"))
-        .arg("publish", "9090:9090")
-        .arg("env", "block=allowTvmCompatibleEvm:1")
-        .arg("env", "preapprove=allowTvmCompatibleEvm:1")
-        .arg("env", format!("mnemonic={}", TRE_MNEMONIC))
-        .arg("env", format!("hdPath={}", TRE_HD_PATH))
-        .arg("env", "defaultBalance=1000000")
-        .cmd(TRE_IMAGE)
-        .filter_logs(|_| false)
-        .spawn("TRN", None);
+    let tron_program = crate::external_agents::tron_node_program(9090)
+        .unwrap_or_else(|error| panic!("approved TRE image and owned arguments: {error:#}"))
+        .unwrap_or_else(|| {
+            Program::new("docker")
+                .cmd("run")
+                .flag("rm")
+                .arg("name", crate::external_agents::resource_name("tron-e2e"))
+                .arg("publish", "9090:9090")
+                .arg("env", "block=allowTvmCompatibleEvm:1")
+                .arg("env", "preapprove=allowTvmCompatibleEvm:1")
+                .arg("env", format!("mnemonic={}", TRE_MNEMONIC))
+                .arg("env", format!("hdPath={}", TRE_HD_PATH))
+                .arg("env", "defaultBalance=1000000")
+                .cmd(TRE_IMAGE)
+        });
+    let mut tron_container = TronFixture {
+        handle: tron_program.filter_logs(|_| false).spawn("TRN", None),
+        tre: true,
+        stop: Default::default(),
+    };
+    crate::external_agents::tron_node_ready(&mut tron_container.handle.1, 9090)
+        .unwrap_or_else(|error| panic!("actual TRE ownership before deployment: {error:#}"));
 
     // Wait for TRE to be ready
     log!("Waiting for TRE node...");
@@ -314,13 +360,17 @@ fn run_locally() {
 
     // Generate and patch agent config
     let config_dir = tempdir().unwrap();
-    let agent_config_path = concat_path(&config_dir, "agent-config.json");
+    let config_root = crate::external_agents::create_owned_path(config_dir.path(), "tron-config");
+    let agent_config_path = concat_path(&config_root, "agent-config.json");
     generate_agent_config(&cli_path, &agent_config_path);
     patch_agent_config(&agent_config_path);
 
     // Start postgres
     log!("Starting postgres...");
-    let postgres = start_postgres();
+    let mut postgres = crate::external_agents::OwnedPostgres::new(start_postgres());
+    postgres
+        .ready()
+        .unwrap_or_else(|error| panic!("actual owned PG before init: {error:#}"));
 
     wait_for_postgres();
 
@@ -333,8 +383,14 @@ fn run_locally() {
     let config_path_str = agent_config_path.to_str().unwrap().to_string();
     let mut validators: Vec<AgentHandles> = Vec::new();
     for (i, chain) in CHAIN_NAMES.iter().enumerate() {
-        let checkpoint_dir = tempdir().unwrap().keep();
-        let db_dir = tempdir().unwrap().keep();
+        let checkpoint_dir = crate::external_agents::create_owned_path(
+            &tempdir().unwrap().keep(),
+            &format!("tron-checkpoint-{i}"),
+        );
+        let db_dir = crate::external_agents::create_owned_path(
+            &tempdir().unwrap().keep(),
+            &format!("tron-validator-db-{i}"),
+        );
         let name = format!("VL{}", i + 1);
 
         let validator = with_tron_wallet_env(Program::default())
@@ -363,7 +419,8 @@ fn run_locally() {
     }
 
     // Start relayer
-    let relayer_db = tempdir().unwrap().keep();
+    let relayer_db =
+        crate::external_agents::create_owned_path(&tempdir().unwrap().keep(), "tron-relayer-db");
     let relayer = with_tron_wallet_env(Program::default())
         .bin(concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer"))
         .working_dir("../../")
@@ -472,6 +529,18 @@ fn run_locally() {
                 .map(|handle| &mut handle.1)
                 .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
         );
+        if crate::external_agents::enabled() {
+            _stack
+                .postgres
+                .stop()
+                .unwrap_or_else(|error| panic!("actual PG fixture stop: {error:#}"));
+        }
+        if crate::external_agents::enabled() {
+            _stack
+                .tron_container
+                .stop()
+                .unwrap_or_else(|error| panic!("actual TRE fixture stop: {error:#}"));
+        }
         log!("Tron E2E tests passed");
     }
 }

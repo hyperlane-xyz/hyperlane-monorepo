@@ -12,12 +12,13 @@ spec.loader.exec_module(api)
 
 class CosmosNativeAdmission(unittest.TestCase):
     def test_only_reviewed_native_family_enters_registry(self):
-        self.assertEqual(set(api.FAMILY_VERIFIERS), {"cosmosnative", "evm", "cosmwasm"})
+        self.assertTrue({"cosmosnative", "evm", "cosmwasm"} <= set(api.FAMILY_VERIFIERS))
         self.assertIs(api.FAMILY_VERIFIERS["cosmosnative"], api.session_verifier)
 
     def test_all_other_families_reject_before_parent_or_controller(self):
         for name in set(api.SCENARIOS) - {"cosmosnative", "evm", "cosmwasm"}:
-            with self.subTest(scenario=name), mock.patch.object(api, "validate_manifest"), mock.patch.object(api.multivm_evidence, "verify_harness_parent") as parent, mock.patch.object(api, "controller_request") as controller:
+            with self.subTest(scenario=name), mock.patch.object(api, "validate_manifest"), mock.patch.object(api.multivm_evidence, "verify_harness_parent") as parent, mock.patch.object(api, "controller_request") as controller, mock.patch.dict(api.FAMILY_VERIFIERS):
+                api.FAMILY_VERIFIERS.pop(name, None)
                 with self.assertRaisesRegex(ValueError, "no node may start"):
                     api.verify_stage({"scenario": name}, "preflight", 0)
                 parent.assert_not_called()
@@ -58,7 +59,8 @@ class CosmosNativeAdmission(unittest.TestCase):
 
     def test_other_family_serve_and_capture_are_still_blocked(self):
         for name in set(api.SCENARIOS) - {"cosmosnative", "evm", "cosmwasm"}:
-            with self.subTest(scenario=name), mock.patch.object(api.multivm_evidence, "read_approval") as approval, mock.patch.object(api.multivm_evidence, "verify_harness_parent") as parent:
+            with self.subTest(scenario=name), mock.patch.object(api.multivm_evidence, "read_approval") as approval, mock.patch.object(api.multivm_evidence, "verify_harness_parent") as parent, mock.patch.dict(api.FAMILY_VERIFIERS):
+                api.FAMILY_VERIFIERS.pop(name, None)
                 with self.assertRaisesRegex(ValueError, "not enabled"):
                     api.serve({"scenario": name})
                 with self.assertRaisesRegex(ValueError, "not enabled"):

@@ -324,6 +324,22 @@ class RuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as other:
             self.assertNotEqual(name, evidence.owned_devnet_name(other, 42, node["source_container_suffix"]))
 
+    def test_external_devnet_immutable_image_requires_explicit_approved_identity(self):
+        node = self.starknet_case()["evidence_nodes"]["starknet1"]
+        name = evidence.owned_devnet_name(self.root, 42, node["source_container_suffix"])
+        labels = {"io.hyperlane.ziggy.case-root": "a" * 64, "io.hyperlane.ziggy.harness-pid": "42", "io.hyperlane.ziggy.run-token": "b" * 32}
+        row = {"Name": "/" + name, "Id": "c" * 64, "State": {"Running": True}, "Image": node["image_id"], "Config": {"Image": node["image_id"], "Labels": labels, "Cmd": node["command"]}, "Created": "2026-11-06T00:00:00Z", "NetworkSettings": {"Ports": {"5050/tcp": [{"HostPort": "5050", "HostIp": "127.0.0.1"}]}}, "HostConfig": {"Memory": 2 * 1024**3, "MemorySwap": 2 * 1024**3, "NanoCpus": 2_000_000_000, "PidsLimit": 256, "PortBindings": {"5050/tcp": [{"HostPort": "5050", "HostIp": "127.0.0.1"}]}}}
+        with self.assertRaises(ValueError):
+            evidence.verify_devnet_inspect(row, node, name, 1)
+        self.assertEqual(evidence.verify_devnet_inspect(row, node, name, 1, approved_image_id=node["image_id"], approved_labels=labels), row)
+        for mutate in [lambda value: value["Config"].update(Image="foreign"), lambda value: value["Config"]["Labels"].update({"io.hyperlane.ziggy.run-token": "c" * 32}), lambda value: value["HostConfig"].update(MemorySwap=0), lambda value: value["NetworkSettings"]["Ports"]["5050/tcp"][0].update(HostIp="0.0.0.0")]:
+            changed = copy.deepcopy(row)
+            mutate(changed)
+            with self.assertRaises(ValueError):
+                evidence.verify_devnet_inspect(changed, node, name, 1, approved_image_id=node["image_id"], approved_labels=labels)
+        with self.assertRaises(ValueError):
+            evidence.verify_devnet_inspect(row, node, name, 1, approved_image_id="sha256:" + "f" * 64, approved_labels=labels)
+
     def test_direct_session_selects_only_bound_peer_and_family_tool_has_closed_name(self):
         session = Session.__new__(Session)
         session.evidence_nodes = self.starknet_case()["evidence_nodes"]

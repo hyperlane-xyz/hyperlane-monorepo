@@ -12,7 +12,7 @@ spec.loader.exec_module(api)
 
 class EvmAdmission(unittest.TestCase):
     def test_registry_and_construction_do_not_grant_execution(self):
-        self.assertEqual(set(api.FAMILY_VERIFIERS), {"cosmosnative", "evm", "cosmwasm"})
+        self.assertTrue({"cosmosnative", "evm", "cosmwasm"} <= set(api.FAMILY_VERIFIERS))
         self.assertIs(api.FAMILY_VERIFIERS["evm"], api.session_verifier)
         with mock.patch.object(api, "validate_manifest"):
             result = api.construction_plan({"scenario": "evm", "runtime_source_commit": "a" * 40, "mode": "ReleaseSafe", "artifacts": {}, "harness_deadline_seconds": 3600}, "evm")

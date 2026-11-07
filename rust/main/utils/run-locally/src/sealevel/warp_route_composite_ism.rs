@@ -14,7 +14,6 @@ use hyperlane_sealevel_composite_ism::accounts::{derive_domain_pda, derive_proce
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
 use multisig_ism::domain_data_pda;
 use solana_sdk::pubkey::Pubkey;
-use tempfile::{tempdir, NamedTempFile};
 
 use super::{RELAYER_KEYS, SEALEVEL_VALIDATOR_KEYS};
 use crate::SHUTDOWN;
@@ -70,7 +69,8 @@ fn run_locally_warp_route_composite_ism() {
     }
     let checkpoint_dirs: Vec<DynPath> = vec![Box::new(owned_checkpoint.clone()) as DynPath];
 
-    let rocks_db_dir = tempdir().expect("Failed to create tempdir for rocksdb");
+    let rocks_db_dir =
+        crate::external_agents::svm_tempdir().expect("Failed to create tempdir for rocksdb");
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_db = concat_path(&rocks_db_dir, "validator0");
 
@@ -129,14 +129,21 @@ fn run_locally_warp_route_composite_ism() {
                 .run(),
         )
     };
-    let build_client = Program::new("cargo")
-        .working_dir(&sealevel_path)
-        .cmd("build")
-        .arg("bin", "hyperlane-sealevel-client")
-        .filter_logs(|line| !line.contains("workspace-inheritance"))
-        .run();
+    let build_client = if crate::external_agents::enabled() {
+        None
+    } else {
+        Some(
+            Program::new("cargo")
+                .working_dir(&sealevel_path)
+                .cmd("build")
+                .arg("bin", "hyperlane-sealevel-client")
+                .filter_logs(|line| !line.contains("workspace-inheritance"))
+                .run(),
+        )
+    };
 
-    let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
+    let solana_path_tempdir =
+        crate::external_agents::svm_tempdir().expect("Failed to create solana temp dir");
     let solana_cli_tools_path = install_solana_cli_tools(
         SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
         SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
@@ -149,9 +156,12 @@ fn run_locally_warp_route_composite_ism() {
     if let Some(build) = build_main {
         build.join();
     }
-    build_client.join();
+    if let Some(build) = build_client {
+        build.join();
+    }
 
-    let ledger_dir = tempdir().expect("Failed to create solana ledger dir");
+    let ledger_dir =
+        crate::external_agents::svm_tempdir().expect("Failed to create solana ledger dir");
     let validator_result = start_solana_test_validator(
         solana_cli_tools_path.clone(),
         built_programs.clone(),
@@ -255,9 +265,11 @@ fn deploy_live_shaped_composite_ism(
             }
         ]
     });
-    let mut config_file = NamedTempFile::new().expect("Failed to create temp ISM config");
+    let mut config_file =
+        crate::external_agents::svm_tempfile().expect("Failed to create temp ISM config");
     serde_json::to_writer(&mut config_file, &config).expect("Failed to write ISM config");
-    let environments_dir = tempdir().expect("Failed to create temp environments dir");
+    let environments_dir =
+        crate::external_agents::svm_tempdir().expect("Failed to create temp environments dir");
 
     sealevel_client(solana_cli_tools_path, solana_config_path)
         .arg("compute-budget", "200000")

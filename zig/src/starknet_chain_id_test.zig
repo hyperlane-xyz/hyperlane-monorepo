@@ -8,6 +8,13 @@ const http = @import("cloud/http.zig");
 const rpc = @import("net/json_rpc.zig");
 const Felt = @import("starknet/codec.zig").Felt;
 const A = std.mem.Allocator;
+
+fn cryptoLibrary(a: A) ![]u8 {
+    return std.process.getEnvVarOwned(a, "HYPERLANE_STARKNET_CRYPTO_LIBRARY") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => return error.SkipZigTest,
+        else => return err,
+    };
+}
 const Fixture = struct {
     env: std.process.EnvMap,
     resources: sources.Resources,
@@ -64,10 +71,7 @@ const Fixture = struct {
         return .{ .transport = self.resources.http.interface(), .http_owner = &self.resources.http, .amz_date = "public-fixture" };
     }
     fn open(self: *Fixture, a: A) !*factory.Factory {
-        const path = std.process.getEnvVarOwned(a, "HYPERLANE_STARKNET_CRYPTO_LIBRARY") catch |err| switch (err) {
-            error.EnvironmentVariableNotFound => return error.SkipZigTest,
-            else => return err,
-        };
+        const path = try cryptoLibrary(a);
         defer a.free(path);
         return factory.Factory.open(a, &self.resources, self.resources.chain.signer.?, self.credentials(), .{ .starknet_crypto_library = path, .origin_bindings = &.{.{ .domain = 23448593, .hook = .{0} ** 31 ++ .{3} }}, .allow_fixture_transport = true });
     }
@@ -124,6 +128,8 @@ test "Starknet missing chain ID uses configured fallback and keeps discovery con
 
 test "Starknet discovery does not mask cancellation halt true deadline PIO or malformed reply" {
     const a = std.testing.allocator;
+    const crypto_library = try cryptoLibrary(a);
+    defer a.free(crypto_library);
     var fixture: Fixture = undefined;
     try fixture.init(a, "");
     defer fixture.deinit();
@@ -216,6 +222,8 @@ test "Starknet discovery rejects foreign credential ownership before RPC" {
 
 test "Starknet Root startup scope retains same deadline across PIO and restores exact RPC owner" {
     const a = std.testing.allocator;
+    const crypto_library = try cryptoLibrary(a);
+    defer a.free(crypto_library);
     var fixture: Fixture = undefined;
     try fixture.init(a, "");
     defer fixture.deinit();
@@ -277,6 +285,8 @@ test "Starknet Root startup scope retains same deadline across PIO and restores 
 
 test "Starknet discovery rechecks control after blocked provider response before signer creation" {
     const a = std.testing.allocator;
+    const crypto_library = try cryptoLibrary(a);
+    defer a.free(crypto_library);
     var fixture: Fixture = undefined;
     try fixture.init(a, "");
     defer fixture.deinit();
@@ -307,10 +317,7 @@ const AnnouncementReply = struct {
 };
 
 fn openAnnouncement(a: A, fixture: *Fixture, database: *@import("db/rocks.zig").Database, curl_path: []const u8, startup: factory.Clock, physical_ms: u32) !*@import("agents/validator/announcement.zig").Owner {
-    const path = std.process.getEnvVarOwned(a, "HYPERLANE_STARKNET_CRYPTO_LIBRARY") catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => return error.SkipZigTest,
-        else => return err,
-    };
+    const path = try cryptoLibrary(a);
     defer a.free(path);
     return @import("agents/validator/announcement.zig").Owner.open(a, database, &fixture.resources.chain, &fixture.env, fixture.resources.chain.signer.?, fixture.credentials(), .{ .validator = @splat(9), .mailbox_address = fixture.resources.chain.contracts.mailbox, .mailbox_domain = fixture.resources.chain.domain, .storage_location = "file:///public-structural-fixture" }, .{ .initialization_clock = startup, .clients = .{ .curl_library = curl_path, .request_timeout_ms = physical_ms, .allow_insecure_loopback = true }, .destination = .{ .starknet_crypto_library = path, .allow_fixture_transport = true } });
 }
@@ -353,6 +360,8 @@ test "Starknet announcement actual native HTTP constructor discovers omitted ID 
 
 test "Starknet announcement native constructor pre late controls and physical RPC timeout fail closed without leaked owners" {
     const a = std.testing.allocator;
+    const crypto_library = try cryptoLibrary(a);
+    defer a.free(crypto_library);
     const pool_fixture = @import("evm/pool_testing.zig");
     const library = try pool_fixture.nativeLibrary(a);
     defer a.free(library);
