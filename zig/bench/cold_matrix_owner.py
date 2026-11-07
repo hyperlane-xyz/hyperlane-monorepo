@@ -414,10 +414,13 @@ def main():
                 if sha(path) != expected_sha or path.stat().st_size != item['bytes']:
                     raise RuntimeError('Final runtime product differs from measured phase descriptor')
                 products[str(path)] = {'path': str(path), 'bytes': item['bytes'], 'sha256': expected_sha}
-        from build_matrix import identity
+        from build_matrix import identity, generated_binding_identity
         record['final_source_identity'] = identity()
         if record['final_source_identity'] != rows[-1]['source_after_sha256_chunks']:
             raise RuntimeError('Source changed between final phase and owner postflight')
+        record['final_generated_binding_identity'] = generated_binding_identity()
+        if record['final_generated_binding_identity'] != rows[-1]['generated_bindings_after_sha256_chunks']:
+            raise RuntimeError('Generated bindings changed between final phase and owner postflight')
         record['final_runtime_artifacts'] = list(products.values())
         record['matrix_results_sha256'] = sha(root / 'matrix/results.json')
         record['passed'] = True
