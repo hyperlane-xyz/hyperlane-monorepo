@@ -72,13 +72,29 @@ pub const Client = struct {
         return response;
     }
     pub fn tx(self: Client, hash: Hash, prove: bool) !rpc.RpcResponse {
+        return (try self.readTx(hash, prove, false)).?;
+    }
+    /// Destination reconciliation may precede the first exact-byte broadcast.
+    /// Only CometBFT's precise hash-bound absence response is nullable; strict
+    /// indexer reads retain tx()'s ordinary remote-error behavior.
+    pub fn txIfPresent(self: Client, hash: Hash, prove: bool) !?rpc.RpcResponse {
+        return self.readTx(hash, prove, true);
+    }
+    fn readTx(self: Client, hash: Hash, prove: bool, allow_absent: bool) !?rpc.RpcResponse {
         const allocator = self.rpc_client.allocator;
         // cometbft-rs tx::Request serializes its hash as base64, unlike
         // the hexadecimal hash returned in tx::Response.
         var hash_text: [44]u8 = undefined;
         _ = std.base64.standard.Encoder.encode(&hash_text, &hash);
-        var response = try self.rpc_client.call("tx", .{ .hash = hash_text[0..], .prove = prove });
+        var response = try self.rpc_client.callEnvelope("tx", .{ .hash = hash_text[0..], .prove = prove });
         errdefer response.deinit();
+        if (response.isError()) {
+            if (allow_absent and txNotFound(response, hash)) {
+                response.deinit();
+                return null;
+            }
+            return error.RpcError;
+        }
         const returned = try types.hash(try types.string(try types.field(response.value(), "hash")));
         if (!std.mem.eql(u8, &hash, &returned)) return error.WrongCosmosTxHash;
         const bytes = try base64(allocator, try types.field(response.value(), "tx"));
@@ -165,6 +181,19 @@ pub const Client = struct {
     }
 };
 
+// The envelope already passed RpcClient's version, ID, exclusive result/error
+// and error code/message type validation. Never classify transport failures,
+// generic internal errors or a different transaction's absence as this hash.
+fn txNotFound(response: rpc.RpcResponse, hash: Hash) bool {
+    const remote = response.parsed.value.object.get("error").?.object;
+    if (remote.get("code").?.integer != -32603 or !std.mem.eql(u8, remote.get("message").?.string, "Internal error")) return false;
+    const data = response.errorData() orelse return false;
+    if (data != .string or data.string.len != 79 or !std.mem.startsWith(u8, data.string, "tx (") or !std.mem.endsWith(u8, data.string, ") not found")) return false;
+    var actual: Hash = undefined;
+    _ = std.fmt.hexToBytes(&actual, data.string[4..68]) catch return false;
+    return std.mem.eql(u8, &hash, &actual);
+}
+
 test "Tendermint concrete client declarations typecheck" {
     std.testing.refAllDecls(Client);
 }
@@ -173,8 +202,10 @@ const Fixture = struct {
     server: std.net.Server,
     method: []const u8,
     result: []const u8,
+    remote_error: bool = false,
+    tx_request_hash: []const u8 = "oShx/uIQ+4YZKR6uoZRYHL0lMeSyN1nSJfaAaSP2MiI=",
     fn serve(self: *Fixture) void {
-        self.run() catch @panic("Cosmos RPC fixture failed");
+        self.run() catch |err| std.debug.panic("Cosmos RPC fixture failed: {s}", .{@errorName(err)});
     }
     fn run(self: *Fixture) !void {
         const connection = try self.server.accept();
@@ -188,7 +219,7 @@ const Fixture = struct {
             used += count;
             if (std.mem.indexOf(u8, request[0..used], "\r\n\r\n")) |header_end| {
                 const prefix = "content-length: ";
-                const start = (std.mem.indexOf(u8, request[0..header_end], prefix) orelse return error.FixtureMissingLength) + prefix.len;
+                const start = (std.ascii.indexOfIgnoreCase(request[0..header_end], prefix) orelse return error.FixtureMissingLength) + prefix.len;
                 const end = std.mem.indexOfPos(u8, request[0..used], start, "\r\n") orelse return error.FixtureMissingLength;
                 const length = try std.fmt.parseInt(usize, request[start..end], 10);
                 if (used < header_end + 4 + length) continue;
@@ -197,7 +228,7 @@ const Fixture = struct {
                 try std.testing.expectEqualStrings(self.method, try types.string(try types.field(parsed.value, "method")));
                 if (std.mem.eql(u8, self.method, "tx")) {
                     const params = try types.field(parsed.value, "params");
-                    try std.testing.expectEqualStrings("oShx/uIQ+4YZKR6uoZRYHL0lMeSyN1nSJfaAaSP2MiI=", try types.string(try types.field(params, "hash")));
+                    try std.testing.expectEqualStrings(self.tx_request_hash, try types.string(try types.field(params, "hash")));
                 }
                 if (std.mem.eql(u8, self.method, "abci_query")) {
                     const params = try types.field(parsed.value, "params");
@@ -207,7 +238,7 @@ const Fixture = struct {
                 break;
             }
         }
-        const body = try std.fmt.allocPrint(std.testing.allocator, "{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{s}}}", .{self.result});
+        const body = try std.fmt.allocPrint(std.testing.allocator, "{{\"jsonrpc\":\"2.0\",\"id\":1,\"{s}\":{s}}}", .{ if (self.remote_error) "error" else "result", self.result });
         defer std.testing.allocator.free(body);
         var buffer: [160]u8 = undefined;
         try connection.stream.writeAll(try std.fmt.bufPrint(&buffer, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{body.len}));
@@ -261,4 +292,119 @@ test "Tendermint HTTP ABI schema height and unverified proof decoding" {
     try std.testing.expectError(error.CosmosCheckTxRejected, loopback("{\"check_tx\":{\"code\":17}}", .broadcast));
     const transaction = "{\"hash\":\"a12871fee210fb8619291eaea194581c" ++ "bd2531e4b23759d225f6806923f63222\",\"height\":\"10\",\"tx\":\"AQI=\",\"tx_result\":{\"code\":0}}";
     try std.testing.expectEqual(@as(u64, 10), try loopback(transaction, .tx));
+}
+
+const absent_hash_text = "47DF5E622ED8DC08381B905BC1876FE5" ++ "9DA2230390123DC0B1688E445736EBD5";
+const absent_error = "{\"code\":-32603,\"message\":\"Internal error\",\"data\":\"tx (" ++ absent_hash_text ++ ") not found\"}";
+const absent_envelope = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":" ++ absent_error ++ "}";
+const LookupFixture = struct {
+    bytes: []const u8 = absent_envelope,
+    failure: ?anyerror = null,
+    calls: usize = 0,
+    fn exchange(context: *anyopaque, a: std.mem.Allocator, request: []const u8, _: rpc.Options) !rpc.WireResponse {
+        const self: *LookupFixture = @ptrCast(@alignCast(context));
+        self.calls += 1;
+        if (self.failure) |err| return err;
+        var parsed = try std.json.parseFromSlice(std.json.Value, a, request, .{});
+        defer parsed.deinit();
+        try std.testing.expectEqualStrings("tx", try types.string(try types.field(parsed.value, "method")));
+        const params = try types.field(parsed.value, "params");
+        try std.testing.expectEqualStrings("R99eYi7Y3Ag4G5BbwYdv5Z2iIwOQEj3AsWiORFc269U=", try types.string(try types.field(params, "hash")));
+        try std.testing.expect(!(try types.field(params, "prove")).bool);
+        const bytes = try a.dupe(u8, self.bytes);
+        return .{ .bytes = bytes, .len = bytes.len };
+    }
+};
+fn pendingLookup(a: std.mem.Allocator, script: *LookupFixture, strict: bool) !void {
+    var client = try rpc.RpcClient.init(a, "https://fixture/rpc", .{ .protocol = .tendermint, .exchange = .{ .context = script, .fetch_fn = LookupFixture.exchange } });
+    defer client.deinit();
+    const tm: Client = .{ .rpc_client = &client, .chain_id = "fixture", .compat = .v038 };
+    const hash = try types.hash(absent_hash_text);
+    if (strict) {
+        var response = try tm.tx(hash, false);
+        defer response.deinit();
+        return error.AcceptedAbsentTransaction;
+    }
+    if (try tm.txIfPresent(hash, false)) |value| {
+        var response = value;
+        defer response.deinit();
+        return error.AcceptedAbsentTransaction;
+    }
+}
+
+test "Tendermint pending transaction absence is exact hash bound and strict reads remain errors" {
+    const a = std.testing.allocator;
+    var script: LookupFixture = .{};
+    try pendingLookup(a, &script, false);
+    try std.testing.expectEqual(@as(usize, 1), script.calls);
+    try std.testing.expectError(error.RpcError, pendingLookup(a, &script, true));
+    const cases = [_]struct { body: []const u8, failure: anyerror }{
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Internal error\",\"data\":\"tx (" ++ "00" ** 32 ++ ") not found\"}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32000,\"message\":\"Internal error\",\"data\":\"tx (" ++ absent_hash_text ++ ") not found\"}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Other error\",\"data\":\"tx (" ++ absent_hash_text ++ ") not found\"}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Internal error\"}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Internal error\",\"data\":null}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Internal error\",\"data\":{\"text\":\"not found\"}}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Internal error\",\"data\":\"tx (" ++ absent_hash_text ++ ") not found trailing\"}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Internal error\",\"data\":\"tx (GG" ++ "00" ** 31 ++ ") not found\"}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"Internal error\",\"data\":\"tx (47DF) not found\"}}", .failure = error.RpcError },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":2,\"error\":" ++ absent_error ++ "}", .failure = error.RpcIdMismatch },
+        .{ .body = "{\"jsonrpc\":\"1.0\",\"id\":1,\"error\":" ++ absent_error ++ "}", .failure = error.InvalidRpcEnvelope },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null,\"error\":" ++ absent_error ++ "}", .failure = error.InvalidRpcEnvelope },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":\"-32603\",\"message\":\"Internal error\",\"data\":\"not found\"}}", .failure = error.InvalidRpcEnvelope },
+        .{ .body = "{", .failure = error.UnexpectedEndOfInput },
+    };
+    for (cases) |case| {
+        script = .{ .bytes = case.body };
+        try std.testing.expectError(case.failure, pendingLookup(a, &script, false));
+        try std.testing.expectEqual(@as(usize, 1), script.calls);
+    }
+    // Hexadecimal casing never changes the full32-byte identity.
+    const lower = try a.dupe(u8, absent_envelope);
+    defer a.free(lower);
+    const begin = std.mem.indexOf(u8, lower, absent_hash_text).?;
+    for (lower[begin..][0..64]) |*c| c.* = std.ascii.toLower(c.*);
+    script = .{ .bytes = lower };
+    try pendingLookup(a, &script, false);
+}
+
+test "Tendermint pending transaction controls and transport failures never become absence" {
+    for ([_]anyerror{ error.PendingReadIo, error.PendingIo, error.OutOfMemory, error.RequestCancelled, error.RequestDeadlineExceeded, error.RpcResponseTooLarge, error.ConnectionRefused }) |failure| {
+        var script: LookupFixture = .{ .failure = failure };
+        try std.testing.expectError(failure, pendingLookup(std.testing.allocator, &script, false));
+        try std.testing.expectEqual(@as(usize, 1), script.calls);
+    }
+}
+fn lookupAllocationFailures(a: std.mem.Allocator) !void {
+    var script: LookupFixture = .{};
+    try pendingLookup(a, &script, false);
+}
+test "Tendermint pending transaction absence releases every allocation on failure" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, lookupAllocationFailures, .{});
+}
+fn pendingHttp(native: bool) !void {
+    const a = std.testing.allocator;
+    var fixture: Fixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .method = "tx", .result = absent_error, .remote_error = true, .tx_request_hash = "R99eYi7Y3Ag4G5BbwYdv5Z2iIwOQEj3AsWiORFc269U=" };
+    defer fixture.server.deinit();
+    const url = try std.fmt.allocPrint(a, "http://127.0.0.1:{d}/", .{fixture.server.listen_address.getPort()});
+    defer a.free(url);
+    const library = if (native) std.process.getEnvVarOwned(a, "HYPERLANE_CURL_LIBRARY") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => return error.SkipZigTest,
+        else => return err,
+    } else null;
+    defer if (library) |path| a.free(path);
+    var curl: ?@import("../net/curl.zig").Client = if (library) |path| try @import("../net/curl.zig").Client.init(a, path) else null;
+    defer if (curl) |*client| client.deinit();
+    var client = try rpc.RpcClient.init(a, url, .{ .protocol = .tendermint, .native_transport = if (curl) |*value| value else null });
+    defer client.deinit();
+    const tm: Client = .{ .rpc_client = &client, .chain_id = "fixture", .compat = .v038 };
+    const thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
+    defer thread.join();
+    try std.testing.expectEqual(@as(?rpc.RpcResponse, null), try tm.txIfPresent(try types.hash(absent_hash_text), false));
+}
+test "Tendermint pending transaction actual captured CometBFT absence over std HTTP" {
+    try pendingHttp(false);
+}
+test "Tendermint pending transaction actual captured CometBFT absence over native HTTP" {
+    try pendingHttp(true);
 }

@@ -169,8 +169,9 @@ pub const Cosmos = struct {
     }
     pub fn reconcile(self: *Cosmos, identity: types.Identity) !?types.Receipt {
         if (identity != .hash256) return error.WrongDestinationIdentity;
-        // A remote error is not proof of absence; propagate and retain identity.
-        var response = try self.transactions.rpc.tx(identity.hash256, false);
+        // Exact hash-bound CometBFT absence permits the same persisted bytes to
+        // reach their first broadcast; every other lookup failure retains identity.
+        var response = (try self.transactions.rpc.txIfPresent(identity.hash256, false)) orelse return null;
         defer response.deinit();
         const height = try json.uint(try json.field(response.value(), "height"));
         if (height == 0) return error.InvalidCosmosHeight;
@@ -326,6 +327,7 @@ const RpcFixture = struct {
     account: []const u8,
     simulation: []const u8,
     id: ?[32]u8 = null,
+    tx_not_found: bool = false,
     fn exchange(context: *anyopaque, a: std.mem.Allocator, body: []const u8, _: @import("../../evm/provider.zig").Options) !@import("../../evm/provider.zig").WireResponse {
         const self: *RpcFixture = @ptrCast(@alignCast(context));
         self.count += 1;
@@ -340,6 +342,11 @@ const RpcFixture = struct {
             defer a.free(encoded);
             _ = std.base64.standard.Encoder.encode(encoded, raw);
             break :blk try std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = id, .result = .{ .response = .{ .code = @as(u8, 0), .height = "42", .key = "", .value = encoded } } }, .{});
+        } else if (std.mem.eql(u8, method, "tx") and self.tx_not_found) blk: {
+            const digest = std.fmt.bytesToHex(self.id.?, .upper);
+            const data = try std.fmt.allocPrint(a, "tx ({s}) not found", .{digest});
+            defer a.free(data);
+            break :blk try std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = id, .@"error" = .{ .code = @as(i64, -32603), .message = "Internal error", .data = data } }, .{});
         } else if (std.mem.eql(u8, method, "broadcast_tx_commit")) blk: {
             const text = try hex.hexAlloc(a, &self.id.?);
             defer a.free(text);
@@ -389,9 +396,15 @@ test "Cosmos destination actual SDK account simulation DIRECT signature and nati
     var signed = try destination.sign(&prepared_value, journal.interface());
     defer signed.deinit();
     script.id = signed.identity.hash256;
+    // A freshly durable signed identity is legitimately absent before its first broadcast.
+    script.tx_not_found = true;
+    try std.testing.expectEqual(@as(?types.Receipt, null), try destination.reconcile(signed.identity));
+    const saved = try a.dupe(u8, signed.bytes);
+    defer a.free(saved);
     try destination.broadcast(&prepared_value, &signed, journal.interface());
     try std.testing.expectEqual(@as(usize, 2), journal.signed);
-    try std.testing.expectEqual(@as(usize, 6), script.count);
+    try std.testing.expectEqual(@as(usize, 7), script.count);
+    try std.testing.expectEqualSlices(u8, saved, signed.bytes);
     try std.testing.expectError(error.WrongDestinationIdentity, destination.reconcile(.{ .signature512 = .{0} ** 64 }));
     var wrong = context;
     wrong.destination = 201;

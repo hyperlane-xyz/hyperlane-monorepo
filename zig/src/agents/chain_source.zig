@@ -20,6 +20,15 @@ pub const HttpReplay = @import("../net/http_replay.zig");
 pub const HttpRuntime = @import("../net/http_runtime.zig");
 pub const ReadReplay = @import("../net/read_replay.zig");
 pub const RpcMetrics = @import("../ops/rpc_metrics.zig");
+// Locked cometbft-rs9382da3 CompatMode::default selects latest V0_38;
+// FromStr trims leading 'v' before matching the three supported dialects.
+fn cosmosCompat(optional: ?[]const u8) !@import("../cosmos/tendermint.zig").Compat {
+    const mode = std.mem.trimStart(u8, optional orelse return .v038, "v");
+    if (std.mem.eql(u8, mode, "0.34")) return .v034;
+    if (std.mem.eql(u8, mode, "0.37")) return .v037;
+    if (std.mem.eql(u8, mode, "0.38")) return .v038;
+    return error.InvalidCosmosCompatMode;
+}
 pub const Options = struct {
     curl_library: []const u8,
     request_timeout_ms: u32 = 20000,
@@ -234,7 +243,7 @@ pub const Resources = struct {
                 self.grpc_fallback = try GrpcFallback.Client.init(a, self.grpc_health.?, .{ .context = self, .call_fn = grpcRaw }, .{ .cooperative = options.cooperative_reads, .runtime = options.http_runtime, .budget = options.read_budget, .recorder = self.rpc_metrics, .max_attempt_ms = options.read_attempt_timeout_ms });
                 const conf: @import("../cosmos/config.zig").Config = .{ .chain_id = cc.chain_id, .bech32_prefix = cc.bech32_prefix, .canonical_asset = cc.canonical_asset, .contract_address_bytes = std.math.cast(u8, cc.contract_address_bytes) orelse return error.InvalidContractAddressBytes, .gas_price = try @import("../cosmos/config.zig").Decimal.parse(cc.gas_price.amount), .gas_multiplier = cc.gas_multiplier, .confirmations = self.chain.confirmations };
                 try conf.validate();
-                const compat: @import("../cosmos/tendermint.zig").Compat = if (cc.compat_mode) |mode| if (std.mem.eql(u8, mode, "0.34")) .v034 else if (std.mem.eql(u8, mode, "0.37")) .v037 else if (std.mem.eql(u8, mode, "0.38")) .v038 else return error.InvalidCosmosCompatMode else .v037;
+                const compat = try cosmosCompat(cc.compat_mode);
                 break :blk .{ .cosmos = .{ .tendermint = .{ .rpc_client = &self.rpc_client.?, .chain_id = cc.chain_id, .compat = compat }, .queries = .{ .allocator = a, .transport = .{ .context = self, .call_fn = grpcCall }, .config = conf, .domain = self.chain.domain, .timeout_ms = options.request_timeout_ms } } };
             },
             .radix => blk: {
