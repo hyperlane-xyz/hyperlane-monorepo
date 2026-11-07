@@ -22,6 +22,11 @@ PROPERTIES={'Delegate':'yes','DelegateSubgroup':'manager','MemoryMax':str(MEMORY
 QUERY=('Id','Description','InvocationID','User','Group','ControlGroup','DelegateControllers','LoadState','ActiveState','SubState',*PROPERTIES)
 
 
+class TaskInterrupted(RuntimeError):
+    """Cancellation must propagate through stdlib EINTR retry handlers."""
+    pass
+
+
 def atomic(path,value):
     """Exclusive fsynced public receipt: never replace a prior ownership record."""
     raw=(json.dumps(value,sort_keys=True,indent=2)+'\n').encode()
@@ -166,7 +171,10 @@ def execute(spec_pin):
         need({'memory','pids'}<=set(controllers),'host memory/pids controllers unavailable')
         version=command([tool['systemd-run'],'--version']);need(version.returncode==0,'systemd version unavailable')
         match=re.match(rb'systemd ([0-9]+)',version.stdout);need(match and int(match[1])>=254,'systemd254 DelegateSubgroup required')
-        receipt['capabilities']={'root_controllers':controllers,'systemd_version':version.stdout.decode(),'runner_cgroup':Path('/proc/self/cgroup').read_text(),'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'uid':os.getuid(),'gid':os.getgid()}
+        bwrap=str(checked(spec['bwrap']));bwrap_version=command([bwrap,'--version'])
+        need(bwrap_version.returncode==0 and len(bwrap_version.stdout)<=256 and len(bwrap_version.stderr)<=256,'bounded actual bwrap version unavailable')
+        text=bwrap_version.stdout.decode('utf-8',errors='strict');need(re.fullmatch(r'bubblewrap [0-9]+(?:\.[0-9]+){1,3}\n',text)is not None,'unexpected actual bwrap version')
+        receipt['capabilities']={'bwrap':spec['bwrap'],'bwrap_version':text.strip(),'root_controllers':controllers,'systemd_version':version.stdout.decode(),'runner_cgroup':Path('/proc/self/cgroup').read_text(),'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'uid':os.getuid(),'gid':os.getgid()}
         need(show(tool['systemctl'],unit)is None,'preserve preexisting systemd unit')
         argv=launch_argv(spec,tool,spec_pin);receipt['argv']=argv
         with(directory/'stdout.log').open('xb')as out,(directory/'stderr.log').open('xb')as err:
@@ -218,7 +226,7 @@ def main():
     need(args.spec and args.spec_sha and args.execute!=args.inside,'inert: exactly one reviewed delegate mode required')
     spec_pin=kernel_probe.pin(Path(args.spec));need(spec_pin['sha256']==args.spec_sha,'delegation spec changed')
     if args.inside:return inside(spec_pin)
-    def interrupted(number,frame):raise InterruptedError('owned delegation cancelled')
+    def interrupted(number,frame):raise TaskInterrupted('owned delegation cancelled')
     signal.signal(signal.SIGINT,interrupted);signal.signal(signal.SIGTERM,interrupted)
     return execute(spec_pin)
 

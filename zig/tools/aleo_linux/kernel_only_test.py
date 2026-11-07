@@ -170,12 +170,32 @@ class NestedNamespaceDiagnostics(unittest.TestCase):
             with self.subTest(number=number):self.assertEqual(self.invoke(0,number),'nested user namespace usable')
 
     def test_unexpected_denial_exposed_then_still_refused(self):
-        for number in (probe.errno.ENOSPC,probe.errno.EACCES,0):
+        for number in (probe.errno.EACCES,0):
             with self.subTest(number=number):self.assertEqual(self.invoke(-1,number),'nested user namespace usable')
 
     def test_expected_denials_unchanged(self):
-        for number in (probe.errno.EPERM,probe.errno.EINVAL):
+        for number in (probe.errno.EPERM,probe.errno.EINVAL,probe.errno.ENOSPC):
             with self.subTest(number=number):self.assertIsNone(self.invoke(-1,number))
+
+    def test_only_explicit_refusal_errnos_are_accepted(self):
+        allowed={probe.errno.EPERM,probe.errno.EINVAL,probe.errno.ENOSPC}
+        for number in range(256):
+            with self.subTest(number=number):
+                self.assertEqual(self.invoke(-1,number),None if number in allowed else 'nested user namespace usable')
+
+    def test_only_observed_negative_enospc_return_is_accepted(self):
+        for result in (-2,0,1,2):
+            with self.subTest(result=result):self.assertEqual(self.invoke(result,probe.errno.ENOSPC),'nested user namespace usable')
+        self.assertIsNone(self.invoke(-1,probe.errno.ENOSPC))
+
+    def test_actual_argv_gives_python_explicit_pid1_contract(self):
+        function=next(node for node in ast.parse((HERE/'kernel_probe.py').read_text()).body if isinstance(node,ast.FunctionDef)and node.name=='probe')
+        assignment=next(node for node in function.body if isinstance(node,ast.Assign)and any(isinstance(target,ast.Name)and target.id=='argv'for target in node.targets))
+        scope={'bwrap':'/pinned/bwrap','python':'/pinned/python','HERE':HERE,'code':HERE/'kernel_probe.py','sentinel':Path('/owned/sentinel'),'caps':Path('/owned/caps'),'control':Path('/owned/control'),'hidden':Path('/owned/hidden'),'original_deadline':123,'str':str,'os':N(readlink=lambda path:'owned-namespace')}
+        argv=eval(compile(ast.Expression(assignment.value),'<actual-kernel-argv>','eval'),{'__builtins__':{}},scope)
+        self.assertEqual(argv.count('--as-pid-1'),1);self.assertEqual(argv[argv.index('--unshare-pid')+1],'--as-pid-1')
+        for flag in ('--unshare-user','--unshare-net','--disable-userns','--assert-userns-disabled','--die-with-parent','--cap-drop','--remount-ro'):self.assertIn(flag,argv)
+        self.assertEqual(argv[-2:],['--deadline-python-ns','123'])
 
     def test_errno_saved_once_before_stderr_side_effects(self):
         events=[]

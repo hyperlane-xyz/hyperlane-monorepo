@@ -110,7 +110,7 @@ def check_nested_userns(libc):
     result=libc.unshare(0x10000000)
     saved_errno=ctypes.get_errno()
     print(json.dumps({'schema':1,'kind':'aleo-linux-nested-userns-diagnostic-v1','unshare_return':result,'errno':saved_errno}),file=sys.stderr,flush=True)
-    need(result!=0 and saved_errno in {errno.EPERM,errno.EINVAL},'nested user namespace usable')
+    need(result!=0 and (saved_errno in {errno.EPERM,errno.EINVAL} or (result==-1 and saved_errno==errno.ENOSPC)),'nested user namespace usable')
 
 
 def held_child(control):
@@ -185,7 +185,7 @@ def probe(spec_pin):
     bwrap=str(checked(spec['bwrap']));python=str(checked(spec['python']));code=Path(__file__).resolve()
     need(pin(code)in spec['pins'],'exact micro Source pin required')
     original_deadline=time.monotonic_ns()+120*10**9
-    argv=[bwrap,'--unshare-user','--unshare-net','--unshare-pid','--unshare-ipc','--unshare-uts','--disable-userns','--assert-userns-disabled','--die-with-parent','--new-session','--cap-drop','ALL','--clearenv','--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib','--symlink','usr/lib64','/lib64','--proc','/proc','--dev','/dev','--ro-bind',str(HERE),str(HERE),'--ro-bind',str(sentinel),str(sentinel),'--ro-bind',str(caps),str(caps),'--bind',str(control),str(control),'--remount-ro','/','--',python,'-I','-B',str(code),'--inner','--host-net',os.readlink('/proc/self/ns/net'),'--host-time',os.readlink('/proc/self/ns/time'),'--hidden',str(hidden),'--sentinel',str(sentinel),'--cap-root',str(caps),'--control-root',str(control),'--deadline-python-ns',str(original_deadline)]
+    argv=[bwrap,'--unshare-user','--unshare-net','--unshare-pid','--as-pid-1','--unshare-ipc','--unshare-uts','--disable-userns','--assert-userns-disabled','--die-with-parent','--new-session','--cap-drop','ALL','--clearenv','--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib','--symlink','usr/lib64','/lib64','--proc','/proc','--dev','/dev','--ro-bind',str(HERE),str(HERE),'--ro-bind',str(sentinel),str(sentinel),'--ro-bind',str(caps),str(caps),'--bind',str(control),str(control),'--remount-ro','/','--',python,'-I','-B',str(code),'--inner','--host-net',os.readlink('/proc/self/ns/net'),'--host-time',os.readlink('/proc/self/ns/time'),'--hidden',str(hidden),'--sentinel',str(sentinel),'--cap-root',str(caps),'--control-root',str(control),'--deadline-python-ns',str(original_deadline)]
     result={'schema':1,'passed':False,'kind':'aleo-linux-kernel-prerequisite-v1','spec':spec_pin,'finished_monotonic_ns':None,'SDK_or_native_credit':False,'MemTotal_bytes':memory,'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'kernel_release':platform.release(),'commands':[]};child=None;lease=None;waits=[];forced=False;start=time.monotonic();servers=[];dummies=[];dummy_threads=[];bridge_records=[];stop=threading.Event();slots=threading.BoundedSemaphore(32);pidfd=None
     try:
         need(memory>=32*1024**3 and os.statvfs(root).f_bavail*os.statvfs(root).f_frsize>=6*1024**3,'actual32GiB/free6 floor required')

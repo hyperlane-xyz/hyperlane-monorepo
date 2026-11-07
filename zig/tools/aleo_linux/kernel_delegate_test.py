@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import selectors
 from pathlib import Path
 import socket
 import subprocess
@@ -39,6 +40,18 @@ class Controls(unittest.TestCase):
         self.assertEqual(owner.approved(spec),spec)
         for mutant in [dict(spec,delegation={}),dict(spec,pins=spec['pins'][:-1]),dict(spec,pins=[dict(row,sha256='0'*64)if index==0 else row for index,row in enumerate(spec['pins'])])]:
             with self.assertRaises(ValueError):owner.approved(mutant)
+
+    def test_actual_handler_propagates_through_stdlib_selector(self):
+        handlers={}
+        def execute(pin):
+            selector=selectors.SelectSelector()
+            def interrupted(readers,writers,errors,timeout):return handlers[owner.signal.SIGTERM](owner.signal.SIGTERM,None)
+            selector._select=interrupted
+            selector.select(.01)
+            return 0
+        with patch.object(sys,'argv',['kernel_delegate.py','--execute','--spec','/not-read','--spec-sha','fixture']),patch.object(owner.kernel_probe,'pin',return_value={'sha256':'fixture'}),patch.object(owner.signal,'signal',side_effect=lambda number,callback:handlers.__setitem__(number,callback)),patch.object(owner,'execute',side_effect=execute):
+            with self.assertRaisesRegex(owner.TaskInterrupted,'owned delegation cancelled'):owner.main()
+        self.assertFalse(issubclass(owner.TaskInterrupted,InterruptedError))
 
     def test_root_runner_rejected(self):
         with patch.object(os,'getuid',return_value=0),self.assertRaisesRegex(ValueError,'unprivileged'):owner.identity(self.spec)
@@ -179,7 +192,7 @@ class Controls(unittest.TestCase):
 
 
     def driver_spec(self):
-        return dict(self.spec,root_approved=True,purpose='aleo-linux-kernel-probe-v1',pins=[],delegation_tools={})
+        return dict(self.spec,root_approved=True,purpose='aleo-linux-kernel-probe-v1',pins=[],delegation_tools={},bwrap={'fixture':'pinned-bwrap'})
 
     def test_unavailable_controllers_persist_failed_receipt_without_launch(self):
         with patch.object(owner,'load',return_value=self.driver_spec()),patch.object(owner,'approved',side_effect=lambda spec:spec),patch.object(owner,'tools',return_value={}),patch.object(owner.platform,'system',return_value='Linux'),patch.object(owner.platform,'machine',return_value='x86_64'),patch.object(Path,'read_text',return_value='pids'),patch.object(subprocess,'Popen',side_effect=AssertionError('must not launch')):
@@ -192,18 +205,43 @@ class Controls(unittest.TestCase):
         if str(path)=='/sys/fs/cgroup/cgroup.controllers':return 'memory pids'
         return self.fake_reads(path,*args,**kwargs)
 
+    def version_command(self,argv,timeout=5):
+        if argv==['systemd-run','--version']:return N(returncode=0,stdout=b'systemd 255\n',stderr=b'')
+        self.assertEqual(argv,['/usr/bin/bwrap','--version'])
+        return N(returncode=0,stdout=b'bubblewrap 0.9.0\n',stderr=b'')
+
+    def test_actual_bwrap_version_failure_refuses_before_service_launch(self):
+        def fail_version(argv,timeout=5):
+            if argv==['systemd-run','--version']:return self.version_command(argv,timeout)
+            return N(returncode=1,stdout=b'bubblewrap 0.9.0\n',stderr=b'version unavailable')
+        with patch.object(owner,'load',return_value=self.driver_spec()),patch.object(owner,'approved',side_effect=lambda spec:spec),patch.object(owner,'tools',return_value={'systemd-run':'systemd-run','systemctl':'systemctl'}),patch.object(owner.platform,'system',return_value='Linux'),patch.object(owner.platform,'machine',return_value='x86_64'),patch.object(Path,'read_text',lambda path,*args,**kwargs:self.driver_reads(path,*args,**kwargs)),patch.object(owner,'command',side_effect=fail_version),patch.object(owner,'checked',return_value=Path('/usr/bin/bwrap')),patch.object(owner,'show',side_effect=AssertionError('service admission before version')),patch.object(subprocess,'Popen',side_effect=AssertionError('must not launch')):
+            self.assertEqual(owner.execute({'fixture':'mock-admission'}),1)
+        receipt=json.loads((self.root/'probe.owner/owner.json').read_text());self.assertFalse(receipt['passed']);self.assertIn('bwrap version unavailable',receipt['error'])
+
+    def test_bwrap_version_output_bound_and_format_refuse_before_launch(self):
+        versions=[(b'bubblewrap '+b'9'*250+b'.0\n',b'','bounded actual bwrap version'),(b'bubblewrap 0.9.0\n',b'x'*257,'bounded actual bwrap version'),(b'other-tool 0.9.0\n',b'','unexpected actual bwrap version')]
+        for index,(stdout,stderr,error)in enumerate(versions):
+            spec=dict(self.driver_spec(),output=str(self.root/('version-'+str(index))))
+            def version(argv,timeout=5):
+                if argv==['systemd-run','--version']:return self.version_command(argv,timeout)
+                return N(returncode=0,stdout=stdout,stderr=stderr)
+            with self.subTest(index=index),patch.object(owner,'load',return_value=spec),patch.object(owner,'approved',side_effect=lambda spec:spec),patch.object(owner,'tools',return_value={'systemd-run':'systemd-run','systemctl':'systemctl'}),patch.object(owner.platform,'system',return_value='Linux'),patch.object(owner.platform,'machine',return_value='x86_64'),patch.object(Path,'read_text',lambda path,*args,**kwargs:self.driver_reads(path,*args,**kwargs)),patch.object(owner,'command',side_effect=version),patch.object(owner,'checked',return_value=Path('/usr/bin/bwrap')),patch.object(owner,'show',side_effect=AssertionError('service admission before version')),patch.object(subprocess,'Popen',side_effect=AssertionError('must not launch')):
+                self.assertEqual(owner.execute({'fixture':'mock-admission'}),1)
+            receipt=json.loads((Path(spec['output']).with_suffix('.owner')/'owner.json').read_text());self.assertFalse(receipt['passed']);self.assertIn(error,receipt['error'])
+
     def test_preexisting_unit_refuses_before_launch_and_preserves_it(self):
-        with patch.object(owner,'load',return_value=self.driver_spec()),patch.object(owner,'approved',side_effect=lambda spec:spec),patch.object(owner,'tools',return_value={'systemd-run':'systemd-run','systemctl':'systemctl'}),patch.object(owner.platform,'system',return_value='Linux'),patch.object(owner.platform,'machine',return_value='x86_64'),patch.object(Path,'read_text',lambda path,*args,**kwargs:self.driver_reads(path,*args,**kwargs)),patch.object(owner,'command',return_value=N(returncode=0,stdout=b'systemd 255\n')),patch.object(owner,'show',return_value=self.rows),patch.object(owner,'cleanup')as cleanup,patch.object(subprocess,'Popen',side_effect=AssertionError('must not launch')):
+        with patch.object(owner,'load',return_value=self.driver_spec()),patch.object(owner,'approved',side_effect=lambda spec:spec),patch.object(owner,'tools',return_value={'systemd-run':'systemd-run','systemctl':'systemctl'}),patch.object(owner.platform,'system',return_value='Linux'),patch.object(owner.platform,'machine',return_value='x86_64'),patch.object(Path,'read_text',lambda path,*args,**kwargs:self.driver_reads(path,*args,**kwargs)),patch.object(owner,'command',side_effect=self.version_command),patch.object(owner,'checked',return_value=Path('/usr/bin/bwrap')),patch.object(owner,'show',return_value=self.rows),patch.object(owner,'cleanup')as cleanup,patch.object(subprocess,'Popen',side_effect=AssertionError('must not launch')):
             self.assertEqual(owner.execute({'fixture':'mock-admission'}),1)
         cleanup.assert_not_called()
         receipt=json.loads((self.root/'probe.owner/owner.json').read_text());self.assertIn('preexisting',receipt['error']);self.assertFalse(receipt['passed'])
+        self.assertEqual(receipt['capabilities']['bwrap_version'],'bubblewrap 0.9.0');self.assertEqual(receipt['capabilities']['bwrap'],self.spec.get('bwrap',{'fixture':'pinned-bwrap'}))
 
     def test_cleanup_failure_cannot_skip_actual_client_wait_or_heal_error(self):
         child=N(pid=123,poll=lambda:1,wait=lambda **kwargs:1)
         calls=[]
         def wait(**kwargs):calls.append(kwargs);return 1
         child.wait=wait
-        with patch.object(owner,'load',return_value=self.driver_spec()),patch.object(owner,'approved',side_effect=lambda spec:spec),patch.object(owner,'tools',return_value={'systemd-run':'systemd-run','systemctl':'systemctl'}),patch.object(owner.platform,'system',return_value='Linux'),patch.object(owner.platform,'machine',return_value='x86_64'),patch.object(Path,'read_text',lambda path,*args,**kwargs:self.driver_reads(path,*args,**kwargs)),patch.object(owner,'command',return_value=N(returncode=0,stdout=b'systemd 255\n')),patch.object(owner,'show',return_value=None),patch.object(owner,'launch_argv',return_value=['explicit-mock-client']),patch.object(subprocess,'Popen',return_value=child),patch.object(owner,'cleanup',side_effect=ValueError('injected custody ambiguity')):
+        with patch.object(owner,'load',return_value=self.driver_spec()),patch.object(owner,'approved',side_effect=lambda spec:spec),patch.object(owner,'tools',return_value={'systemd-run':'systemd-run','systemctl':'systemctl'}),patch.object(owner.platform,'system',return_value='Linux'),patch.object(owner.platform,'machine',return_value='x86_64'),patch.object(Path,'read_text',lambda path,*args,**kwargs:self.driver_reads(path,*args,**kwargs)),patch.object(owner,'command',side_effect=self.version_command),patch.object(owner,'checked',return_value=Path('/usr/bin/bwrap')),patch.object(owner,'show',return_value=None),patch.object(owner,'launch_argv',return_value=['explicit-mock-client']),patch.object(subprocess,'Popen',return_value=child),patch.object(owner,'cleanup',side_effect=ValueError('injected custody ambiguity')):
             self.assertEqual(owner.execute({'fixture':'mock-admission'}),1)
         receipt=json.loads((self.root/'probe.owner/owner.json').read_text())
         self.assertEqual(calls,[{}, {'timeout':18}]);self.assertFalse(receipt['passed'])
