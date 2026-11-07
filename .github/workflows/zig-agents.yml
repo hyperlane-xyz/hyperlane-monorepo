@@ -900,9 +900,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends bubblewrap python3
       - name: Check socket-free Source controls
         timeout-minutes: 2
-        run: python3 -I -B -W error zig/tools/aleo_linux/kernel_only_test.py
+        run: |
+          python3 -I -B -W error zig/tools/aleo_linux/kernel_only_test.py
+          python3 -I -B -W error zig/tools/aleo_linux/kernel_delegate_test.py
       - name: Run bounded actual kernel capability probe
-        timeout-minutes: 3
+        timeout-minutes: 4
         run: |
           set -euo pipefail
           python3 -I -B - <<'PY'
@@ -912,17 +914,17 @@ jobs:
           root=(Path(os.environ['RUNNER_TEMP'])/('aleo-kernel-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT'])).resolve()
           def pin(path):
             raw=path.read_bytes();return {'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
-          expected={'kernel_probe.py','loopback_bridge.py','receipts.py','kernel_only_test.py'}
+          expected={'kernel_probe.py','loopback_bridge.py','receipts.py','kernel_only_test.py','kernel_delegate.py','kernel_delegate_test.py'}
           assert {path.name for path in code.iterdir()} == expected, 'unexpected Aleo code closure'
           assert all(path.is_file() and not path.is_symlink() for path in code.iterdir()), 'regular code closure required'
-          spec={'schema':1,'root_approved':True,'purpose':'aleo-linux-kernel-probe-v1','authorization':'this reviewed isolated CI capability job, no SDK/node/proof grant','output':str(root),'run_token':secrets.token_hex(16),'bwrap':pin(Path('/usr/bin/bwrap').resolve()),'python':pin(Path('/usr/bin/python3').resolve()),'pins':[pin(code/name) for name in ('kernel_probe.py','loopback_bridge.py','receipts.py')]}
+          spec={'schema':1,'root_approved':True,'purpose':'aleo-linux-kernel-probe-v1','authorization':'this reviewed isolated CI capability job, no SDK/node/proof grant','output':str(root),'run_token':secrets.token_hex(16),'bwrap':pin(Path('/usr/bin/bwrap').resolve()),'python':pin(Path('/usr/bin/python3').resolve()),'pins':[pin(code/name) for name in ('kernel_probe.py','loopback_bridge.py','receipts.py','kernel_delegate.py')],'delegation_tools':{name:pin(Path('/usr/bin')/name) for name in ('systemd-run','systemctl','sudo')}}
           path=root.with_suffix('.spec.json')
           with path.open('x')as stream:json.dump(spec,stream);stream.write('\n')
           (root.with_suffix('.spec.sha256')).write_text(hashlib.sha256(path.read_bytes()).hexdigest()+'\n')
           PY
           ROOT="$RUNNER_TEMP/aleo-kernel-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           exec env -i PATH=/usr/bin:/bin LC_ALL=C.UTF-8 \
-            python3 -I -B zig/tools/aleo_linux/kernel_probe.py --execute-probe \
+            python3 -I -B zig/tools/aleo_linux/kernel_delegate.py --execute \
             --spec "$ROOT.spec.json" --spec-sha "$(cat "$ROOT.spec.sha256")"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
@@ -937,3 +939,8 @@ jobs:
             ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}.spec.json
             ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}/negative-stdout.log
             ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}/negative-stderr.log
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}.owner/owner.json
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}.owner/delegation.json
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}.owner/stdout.log
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}.owner/stderr.log
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}.owner/delegated.spec.json

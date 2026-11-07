@@ -36,12 +36,34 @@ def process(pid):
     return row
 
 
+def delegated_parent(context, token, fsroot=Path('/sys/fs/cgroup')):
+    """Admit only this invocation's empty delegated root, never the runner service."""
+    keys={'unit','invocation','uid','gid','root','root_dev','root_ino','manager_dev','manager_ino','boot_id'}
+    need(type(context)is dict and set(context)==keys,'exact delegated context required')
+    need(all(type(context[key])is int and context[key]>=0 for key in ('root_dev','root_ino','manager_dev','manager_ino')),'typed delegated inode identity required')
+    unit='ziggy-aleo-kernel-'+token+'.service'
+    need(context['unit']==unit and len(token)==32 and all(c in '0123456789abcdef'for c in token),'exact delegated unit required')
+    need(type(context['invocation'])is str and len(context['invocation'])==32 and all(c in '0123456789abcdef'for c in context['invocation']),'actual invocation required')
+    need(type(context['uid'])is int and context['uid']==os.getuid()>0 and type(context['gid'])is int and context['gid']==os.getgid(),'unprivileged delegated identity required')
+    root=fsroot/'system.slice'/unit;manager=root/'manager'
+    need(context['root']==str(root) and root.resolve()==root and manager.resolve()==manager,'canonical exact delegated root required')
+    for name,path in [('root',root),('manager',manager)]:
+        row=path.stat();need((row.st_dev,row.st_ino)==(context[name+'_dev'],context[name+'_ino']) and row.st_uid==context['uid'],'delegated inode/UID changed')
+    need(context['boot_id']==Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'delegation boot differs')
+    need(Path('/proc/self/cgroup').read_text()=='0::/system.slice/'+unit+'/manager\n','probe outside owned manager leaf')
+    need(not (root/'cgroup.procs').read_text().split(),'delegated root contains tasks')
+    need((manager/'cgroup.procs').read_text().split()==[str(os.getpid())],'foreign manager task')
+    need({'memory','pids'}<=set((root/'cgroup.subtree_control').read_text().split()),'delegated controllers unavailable')
+    return root
+
+
 class Lease:
     """One fresh child cgroup in the current delegated job; no parent mutation."""
-    def __init__(self, token, memory, pids):
+    def __init__(self, token, memory, pids, delegation=None):
         need(platform.system()=='Linux' and len(token)==32 and all(c in '0123456789abcdef'for c in token),'Linux fresh token required')
         line=Path('/proc/self/cgroup').read_text().strip();need(line.startswith('0::/')and '\n'not in line,'unified cgroup v2 required')
         parent=Path('/sys/fs/cgroup')/line[4:];need(parent.resolve()==parent and (parent/'cgroup.controllers').is_file(),'actual delegated unified cgroup required')
+        if delegation is not None:parent=delegated_parent(delegation,token)
         self.path=parent/('ziggy-aleo-'+token);self.path.mkdir();self.identity=(self.path.stat().st_dev,self.path.stat().st_ino)
         self.line='0::/'+str(self.path.relative_to('/sys/fs/cgroup'))+'\n'
         try:
@@ -161,7 +183,7 @@ def probe(spec_pin):
     try:
         need(memory>=32*1024**3 and os.statvfs(root).f_bavail*os.statvfs(root).f_frsize>=6*1024**3,'actual32GiB/free6 floor required')
         libc=ctypes.CDLL(None,use_errno=True);need(libc.prctl(36,1,0,0,0)==0,'subreaper required')
-        lease=Lease(spec['run_token'],256*1024**2,32)
+        lease=Lease(spec['run_token'],256*1024**2,32,delegation=spec.get('delegation'))
         def peer_check(connection):
             import struct
             pid,_,_=struct.unpack('3i',connection.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12));need(process(pid)['cgroup']==lease.line,'non-owned capability peer')

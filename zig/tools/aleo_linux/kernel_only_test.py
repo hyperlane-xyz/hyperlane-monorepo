@@ -179,7 +179,7 @@ class WorkflowControls(unittest.TestCase):
     def builder(self, extras=(), symlink=False):
         temp = tempfile.TemporaryDirectory(prefix='ziggy-kernel-builder-pure-'); self.addCleanup(temp.cleanup)
         root = Path(temp.name).resolve(); code = root / 'repo/zig/tools/aleo_linux'; code.mkdir(parents=True)
-        for name in ('kernel_probe.py', 'loopback_bridge.py', 'receipts.py', 'kernel_only_test.py', *extras): (code / name).write_text('# controlled fixture\n')
+        for name in ('kernel_probe.py', 'loopback_bridge.py', 'receipts.py', 'kernel_only_test.py', 'kernel_delegate.py', 'kernel_delegate_test.py', *extras): (code / name).write_text('# controlled fixture\n')
         if symlink:
             (code / 'receipts.py').unlink(); (code / 'receipts.py').symlink_to(code / 'kernel_probe.py')
         job = self.text.split('  aleo-linux-prerequisite:', 1)[1]
@@ -193,9 +193,9 @@ class WorkflowControls(unittest.TestCase):
             exec(compile(tree, '<actual-kernel-CI-spec-builder>', 'exec'), {'pin': fake_pin})
         return json.loads((root / 'aleo-kernel-1-2.spec.json').read_text())
 
-    def test_actual_spec_builder_pins_only_three_reviewed_modules(self):
+    def test_actual_spec_builder_pins_only_reviewed_runtime_modules(self):
         spec = self.builder()
-        self.assertEqual({Path(row['path']).name for row in spec['pins']}, {'kernel_probe.py', 'loopback_bridge.py', 'receipts.py'})
+        self.assertEqual({Path(row['path']).name for row in spec['pins']}, {'kernel_probe.py', 'loopback_bridge.py', 'receipts.py', 'kernel_delegate.py'})
         self.assertEqual(spec['purpose'], 'aleo-linux-kernel-probe-v1'); self.assertIs(spec['root_approved'], True)
         self.assertEqual(len(spec['run_token']), 32)
 
@@ -209,7 +209,7 @@ class WorkflowControls(unittest.TestCase):
         job = self.text.split('  aleo-linux-prerequisite:', 1)[1]
         for forbidden in ('docker ', 'cargo ', 'pnpm ', 'sysctl ', 'apparmor', '--privileged', 'pure_test.py', 'submodules:'):
             self.assertNotIn(forbidden, job)
-        self.assertIn('timeout-minutes: 15', job); self.assertIn('timeout-minutes: 3', job)
+        self.assertIn('timeout-minutes: 15', job); self.assertIn('timeout-minutes: 4', job)
         self.assertIn('persist-credentials: false', job); self.assertNotIn('continue-on-error', job)
         self.assertIn('negative-stderr.log', job)
 
