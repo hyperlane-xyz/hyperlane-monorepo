@@ -817,3 +817,22 @@ jobs:
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/result.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/worker-result.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/PG-recovery.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/hydrated-inputs.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/compiled-input-closure.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/accepted-native-rows-interop.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/evidence/compiled-input-check.log
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/evidence/prepare-git.log
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/evidence/execution-source-gate.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/evidence/accepted-tool-source-gate.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/evidence/accepted-runtime-products.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/tools/manifest.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/tools/source-gate.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/manifest.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/receipts/runtime.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/receipts/native.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/build-cpu/native-db.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/build-cpu/url.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/build-cpu/regex.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/build-cpu/starknet.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/build-cpu/aleo.json
+            ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/helper/setup/tools-platform.txt

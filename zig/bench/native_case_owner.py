@@ -195,7 +195,12 @@ def native_listener_proof(scenario, manifest, case_inputs, case, lsof, observati
     for pid,row in rows.items():
         if row['state']=='Z':continue
         try:
-            actual=Path(os.readlink(f'/proc/{pid}/exe'))
+            # The census includes unrelated protected host PIDs (e.g. PID1).
+            # No candidate identity has matched yet; an unreadable executable
+            # contributes no readiness proof. Permission failures AFTER a match
+            # remain errors, and all required node proofs still must exist.
+            try:actual=Path(os.readlink(f'/proc/{pid}/exe'))
+            except PermissionError:continue
             if actual!=executable:continue
             argv=Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
             if scenario!='evm' and b'start' not in argv:continue

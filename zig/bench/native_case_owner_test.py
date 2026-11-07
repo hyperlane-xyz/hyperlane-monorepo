@@ -168,4 +168,55 @@ class CaseOwnerTests(unittest.TestCase):
         with self.assertRaises((ValueError,KeyError)):api.fixture_waits(path,'evm',42)
 
 
+    def listener_fixture(self):
+        executable=self.root/'hypd';executable.write_bytes(b'not-executed');executable.chmod(0o755)
+        home=self.root/'hypd-home';home.mkdir()
+        row={'pid':42,'ppid':7,'pgid':42,'sid':42,'state':'S','start':'linux-ticks:123','rss_bytes':1,'comm':'fixture'}
+        manifest={'tool_overrides':{'E2E_HYPD_PATH':api.pin(executable)}}
+        return executable,home,row,manifest
+
+    def test_unrelated_protected_executable_is_not_a_node_failure_or_proof(self):
+        executable,home,row,manifest=self.listener_fixture();observed={}
+        original=Path.read_bytes
+        def read(path):
+            return b'hypd\0start\0--home\0'+os.fsencode(home)+b'\0' if str(path)=='/proc/42/cmdline' else original(path)
+        def link(path):
+            if path=='/proc/1/exe':raise PermissionError(13,'Permission denied',path)
+            return str(executable)
+        query=subprocess.CompletedProcess([],0,b'p42\nn127.0.0.1:26659\nn127.0.0.1:26660\n',b'')
+        with mock.patch.object(api.owner,'proc_fallback',return_value={1:{'state':'S'},42:row}), mock.patch.object(api.os,'readlink',side_effect=link), mock.patch.object(Path,'read_bytes',read), mock.patch.object(api.owner,'_linux_row',return_value=row), mock.patch.object(api.subprocess,'run',return_value=query) as run:
+            expected=api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',observed)
+        self.assertEqual(expected,[{26659,26660},{26665,26666}])
+        self.assertEqual(observed['26659,26660']['pid'],42)
+        self.assertEqual(run.call_count,1) # PID1 never receives listener credit or I/O.
+
+    def test_protected_executables_alone_produce_no_readiness_credit(self):
+        _,_,_,manifest=self.listener_fixture();observed={}
+        with mock.patch.object(api.owner,'proc_fallback',return_value={1:{'state':'S'}}), mock.patch.object(api.os,'readlink',side_effect=PermissionError(13,'Permission denied')), mock.patch.object(api.subprocess,'run') as run:
+            expected=api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',observed)
+        self.assertEqual(observed,{})
+        self.assertEqual(len(expected),2)
+        run.assert_not_called()
+
+    def test_actual_matching_node_cmdline_permission_still_fails(self):
+        executable,_,row,manifest=self.listener_fixture();observed={}
+        failure=PermissionError(13,'Actual matched node cmdline denied')
+        with mock.patch.object(api.owner,'proc_fallback',return_value={42:row}), mock.patch.object(api.os,'readlink',return_value=str(executable)), mock.patch.object(Path,'read_bytes',side_effect=failure):
+            with self.assertRaises(PermissionError) as caught:api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',observed)
+        self.assertIs(caught.exception,failure)
+        self.assertEqual(observed,{})
+
+
+    def test_actual_matching_node_listener_permission_still_fails(self):
+        executable,home,row,manifest=self.listener_fixture();observed={}
+        original=Path.read_bytes
+        def read(path):
+            return b'hypd\0start\0--home\0'+os.fsencode(home)+b'\0' if str(path)=='/proc/42/cmdline' else original(path)
+        failure=PermissionError(13,'Actual matched node listener denied')
+        with mock.patch.object(api.owner,'proc_fallback',return_value={42:row}), mock.patch.object(api.os,'readlink',return_value=str(executable)), mock.patch.object(Path,'read_bytes',read), mock.patch.object(api.subprocess,'run',side_effect=failure):
+            with self.assertRaises(PermissionError) as caught:api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',observed)
+        self.assertIs(caught.exception,failure)
+        self.assertEqual(observed,{})
+
+
 if __name__=='__main__':unittest.main()
