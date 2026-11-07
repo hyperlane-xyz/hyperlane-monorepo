@@ -96,6 +96,50 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("contains(github.event.head_commit.message, '[zig-native-case]')", conditions['native-case-producer-inputs'])
         self.assertNotIn('!(', conditions['native-case-producer-inputs'])
 
+    def test_svm_only_marker_routes_only_prerequisites(self):
+        conditions = self.workflow_conditions()
+        actual = {name for name, condition in conditions.items() if self.condition(condition, 'push', '[zig-svm-prerequisites-only]')}
+        self.assertEqual(actual, {'svm-prerequisites'})
+
+    def test_svm_only_marker_preserves_case_precedence_and_regular_runs(self):
+        conditions = self.workflow_conditions()
+        actual = {name for name, condition in conditions.items() if self.condition(condition, 'push', '[zig-native-case] [zig-svm-prerequisites-only]')}
+        self.assertEqual(actual, {'native-case-producer-inputs'})
+        actual = {name for name, condition in conditions.items() if self.condition(condition, 'push', '[zig-svm-prerequisites]')}
+        self.assertIn('svm-prerequisites', actual)
+        self.assertIn('full-sdk-native', actual)
+        self.assertIn('native-harness-controls', actual)
+        self.assertNotIn('native-case-producer-inputs', actual)
+        self.assertNotIn('cold-full-feature', actual)
+
+    def test_svm_only_marker_preserves_explicit_dispatch(self):
+        conditions = self.workflow_conditions()
+        actual = {name for name, condition in conditions.items() if self.condition(condition, 'workflow_dispatch', '', svm=True)}
+        self.assertEqual(actual, {'svm-prerequisites'})
+        self.assertTrue(self.condition(conditions['cold-full-feature'], 'workflow_dispatch', '', cold=True))
+        self.assertFalse(self.condition(conditions['svm-prerequisites'], 'pull_request', '[zig-svm-prerequisites-only]'))
+        self.assertTrue(self.condition(conditions['unit'], 'pull_request', '[zig-svm-prerequisites-only]'))
+
+    @staticmethod
+    def workflow_conditions():
+        path = Path(__file__).resolve().parents[2] / '.github/workflows/zig-agents.yml'
+        values, current, in_jobs = {}, None, False
+        for line in path.read_text().splitlines():
+            if line == 'jobs:': in_jobs = True
+            if not in_jobs: continue
+            if line.startswith('  ') and not line.startswith('   ') and line.endswith(':'): current = line.strip()[:-1]
+            if line.startswith('    if: '): values[current] = line[8:]
+        return values
+
+    @staticmethod
+    def condition(value, event, message, svm=False, cold=False):
+        import re
+        from types import SimpleNamespace as N
+        code = value.removeprefix('${{ ').removesuffix(' }}')
+        code = re.sub(r'!(?!=)', ' not ', code).replace('&&', ' and ').replace('||', ' or ').strip()
+        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold), 'contains': lambda text, needle: needle in text}
+        return bool(eval(compile(code, '<actual-workflow-condition>', 'eval'), {'__builtins__': {}}, context))
+
     def test_zip_expansion_bound_is_preflight(self):
         archive = self.zip([('large', b'12345', stat.S_IFREG)])
         out = self.root / 'out'

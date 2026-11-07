@@ -137,4 +137,22 @@ class PublisherLinkControls(unittest.TestCase):
  def test_retained_link_to_omitted_link_rejected(self):
   rows,links=self.publisher_fixture();name=next(iter(links));rows.append(('llvm/retained','link',name[len('llvm/'): ]));a,d=self.archive(rows)
   with self.assertRaises(FileNotFoundError):self.extract_publisher(a,d,links)
+class FetchMediaControls(unittest.TestCase):
+ def fetch(self,accept=None):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);dest=pathlib.Path(self.tmp.name)/'response';seen=[]
+  class Response(io.BytesIO):
+   url='https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca'
+   headers={}
+  class Opener:
+   def open(self,request,timeout):seen.append((request.get_header('Accept'),timeout));return Response(b'{"sha":"public fixture"}')
+  o=m.Owner.__new__(m.Owner);o.opener=Opener();o.tick=lambda:None
+  kw={}if accept is None else{'accept':accept}
+  row=o.fetch(Response.url,dest,1024,**kw)
+  return row,seen,dest
+ def test_asset_media_default_is_unchanged_binary(self):
+  row,seen,dest=self.fetch();self.assertEqual(seen,[('application/octet-stream',30)]);self.assertEqual(row['sha256'],m.pin(dest)['sha256'])
+ def test_explicit_json_media_reaches_actual_request(self):
+  row,seen,dest=self.fetch('application/vnd.github+json');self.assertEqual(seen,[('application/vnd.github+json',30)]);self.assertEqual(json.loads(dest.read_text()),{'sha':'public fixture'})
+ def test_only_custom_spl_metadata_call_changes_media(self):
+  source=pathlib.Path(m.__file__).read_text();self.assertEqual(source.count("accept='application/vnd.github+json'"),1);self.assertIn("custom-spl-commit.json',2*1024**2,accept='application/vnd.github+json'",source)
 if __name__=='__main__':unittest.main()

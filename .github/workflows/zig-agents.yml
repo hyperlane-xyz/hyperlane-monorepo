@@ -50,7 +50,7 @@ env:
 
 jobs:
   svm-prerequisites:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites]'))) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && (contains(github.event.head_commit.message, '[zig-svm-prerequisites]') || contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 200
     permissions:
@@ -96,7 +96,7 @@ jobs:
             ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/observations.jsonl
 
   unit:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
     strategy:
       fail-fast: false
       matrix:
@@ -129,7 +129,7 @@ jobs:
         run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all
 
   evm:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -157,7 +157,7 @@ jobs:
           if-no-files-found: ignore
 
   native-http:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -185,7 +185,7 @@ jobs:
           if-no-files-found: ignore
 
   native-linux:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
     env:
@@ -292,7 +292,7 @@ jobs:
           if-no-files-found: warn
 
   container:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
     needs: native-linux
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
@@ -322,7 +322,7 @@ jobs:
           if-no-files-found: warn
 
   vm-images:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
     strategy:
       fail-fast: false
       matrix:
@@ -351,7 +351,7 @@ jobs:
   # Explicit, resource-qualified SDK correctness. Not an eight-family native gate.
   # Feature-branch push or manual dispatch; capacity checked before SDK build.
   full-sdk-native:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')))) }}
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -450,7 +450,7 @@ jobs:
 
   # Separate fresh VM per trial. Compiler-pair positions rotate; prerequisites remain fixed first.
   cold-full-feature:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (github.event_name == 'workflow_dispatch' && inputs.cold_full_feature && !inputs.svm_prerequisites) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name == 'workflow_dispatch' && inputs.cold_full_feature && !inputs.svm_prerequisites)) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 300
     env:
@@ -573,7 +573,7 @@ jobs:
 
   # Compilation and filtered native fixture controls only; never native cases.
   native-harness-controls:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))) }}
+    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 280
     env:

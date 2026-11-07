@@ -198,8 +198,8 @@ class Owner:
    finally:
     row['elapsed_seconds_diagnostic_not_benchmark']=time.monotonic()-start;row['stdout']=pin(out);row['stderr']=pin(err);self.child=None
   return out
- def fetch(self,url,dest,limit,expected=None):
-  need(url.startswith('https://'),'HTTPS required');request=urllib.request.Request(url,headers={'User-Agent':'hyperlane-svm-ci-prerequisites','Accept':'application/octet-stream'})
+ def fetch(self,url,dest,limit,expected=None,*,accept='application/octet-stream'):
+  need(url.startswith('https://'),'HTTPS required');request=urllib.request.Request(url,headers={'User-Agent':'hyperlane-svm-ci-prerequisites','Accept':accept})
   with self.opener.open(request,timeout=30)as response:
    need(response.url.startswith(('https://github.com/','https://release-assets.githubusercontent.com/','https://objects.githubusercontent.com/','https://api.github.com/')),'nonofficial redirect')
    with dest.open('xb')as f:
@@ -274,7 +274,7 @@ def execute(a):
   dependency=sdk/'dependencies/platform-tools';need(not dependency.exists()and not dependency.is_symlink(),'unexpected preexisting platform dependency');dependency.parent.mkdir(exist_ok=True);dependency.symlink_to(platform)
   cache=root/'home/.cache/solana/v1.51';cache.mkdir(parents=True);(cache/'platform-tools').symlink_to(platform)
   write(root/'published/platform-linkage.json',{'sdk':str(sdk),'target':str(platform),'links':[str(dependency),str(cache/'platform-tools')]})
-  source_meta=o.fetch('https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca',root/'published/custom-spl-commit.json',2*1024**2);commit=json.loads(P(source_meta['path']).read_text());sha=commit['sha'];tree=commit['commit']['tree']['sha'];need(len(sha)==40 and sha.startswith('e101cca')and len(tree)==40,'wrong custom SPL immutable ref')
+  source_meta=o.fetch('https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca',root/'published/custom-spl-commit.json',2*1024**2,accept='application/vnd.github+json');commit=json.loads(P(source_meta['path']).read_text());sha=commit['sha'];tree=commit['commit']['tree']['sha'];need(len(sha)==40 and sha.startswith('e101cca')and len(tree)==40,'wrong custom SPL immutable ref')
   fork=root/'spl-source';fork.mkdir();git=['/usr/bin/git','-c','credential.helper=','-c','core.hooksPath=/dev/null','-c','protocol.file.allow=never']
   for name,args in [('init',['init']),('remote',['remote','add','origin','https://github.com/hyperlane-xyz/solana-program-library']),('fetch',['fetch','--depth','1','origin',sha]),('checkout',['checkout','--detach','FETCH_HEAD'])]:o.run('provision.spl-git-'+name,git+args,fork,base)
   readtree=o.run('provision.spl-tree',git+['rev-parse','HEAD^{tree}'],fork,base).read_text().strip();need(readtree==tree,'SPL Git tree differs official metadata');write(root/'published/custom-spl-source-map.json',inventory(fork))
