@@ -311,7 +311,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 300
     env:
-      COLD_EVIDENCE: ${{ runner.temp }}/ziggy-cold-evidence
+      COLD_EVIDENCE: /tmp/ziggy-cold-evidence-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.trial }}
     strategy:
       fail-fast: false
       max-parallel: 1
