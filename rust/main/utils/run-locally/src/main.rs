@@ -19,7 +19,7 @@ use std::{
     fs::{self, File},
     io::Write,
     path::Path,
-    process::{Child, ExitCode},
+    process::ExitCode,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -51,6 +51,8 @@ use crate::{
 
 mod config;
 mod ethereum;
+mod external_agent_invariants;
+mod external_agents;
 mod invariants;
 mod logging;
 mod metrics;
@@ -77,7 +79,9 @@ mod radix;
 mod tron;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
-    let dir = Path::new("/tmp/test_logs");
+    let owned =
+        crate::external_agents::create_owned_path(Path::new("/tmp/test_logs"), "agent-logs");
+    let dir: &Path = Box::leak(owned.into_boxed_path());
     fs::create_dir_all(dir).unwrap();
     dir
 });
@@ -121,7 +125,13 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 #[derive(Default)]
 struct State {
     #[allow(clippy::type_complexity)]
-    agents: HashMap<String, (Child, Option<Arc<Mutex<File>>>)>,
+    agents: HashMap<
+        String,
+        (
+            crate::external_agents::TrackedChild,
+            Option<Arc<Mutex<File>>>,
+        ),
+    >,
     watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
     data: Vec<Box<dyn ArbitraryData>>,
 }
@@ -134,15 +144,38 @@ impl State {
         self.watchers.push(handles.3);
         self.data.push(handles.4);
     }
+    fn restart_external_roles(&mut self, expected: u32) {
+        if !crate::external_agents::enabled() {
+            return;
+        }
+        let specs = crate::external_agents::prepare_same_db_restart(
+            self.agents.values_mut().map(|(child, _)| child),
+            expected,
+        )
+        .unwrap_or_else(|error| panic!("same-DB role restart preparation: {error:#}"));
+        for spec in specs {
+            self.push_agent(spec.spawn());
+        }
+        crate::external_agents::finish_same_db_restart(expected)
+            .unwrap_or_else(|error| panic!("same-DB role restart evidence: {error:#}"));
+    }
 }
 
 impl Drop for State {
     fn drop(&mut self) {
         SHUTDOWN.store(true, Ordering::Relaxed);
         log!("Signaling children to stop...");
+        let mut fixture_stop_failed = false;
         for (name, (mut agent, _)) in self.agents.drain() {
             log!("Stopping child {}", name);
-            stop_child(&mut agent);
+            match crate::external_agents::stop_evm_fixture(&mut agent) {
+                Ok(true) => {}
+                Ok(false) => stop_child(&mut agent),
+                Err(error) => {
+                    fixture_stop_failed = true;
+                    eprintln!("external fixture stop failed: {error:#}");
+                }
+            }
         }
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
 
@@ -162,15 +195,32 @@ impl Drop for State {
         #[cfg(feature = "sealevel")]
         {
             use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
-            fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+            if !crate::external_agents::enabled() {
+                fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+            }
         }
-        fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
+        if !crate::external_agents::enabled() {
+            fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
+        }
 
         log!("Done...");
+        if fixture_stop_failed && !std::thread::panicking() {
+            panic!("external fixture parent wait/descendant cleanup failed");
+        }
+    }
+}
+
+fn validator_checkpoint_directory(index: usize) -> DynPath {
+    match crate::external_agents::evm_checkpoint_path(index)
+        .unwrap_or_else(|error| panic!("external checkpoint directory: {error:#}"))
+    {
+        Some(path) => Box::new(path),
+        None => Box::new(tempdir().unwrap()),
     }
 }
 
 fn main() -> ExitCode {
+    crate::external_agents::initialize_for("evm");
     // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
         log!("Terminating...");
@@ -187,7 +237,7 @@ fn main() -> ExitCode {
     let validator_keys = ETH_VALIDATOR_KEYS.to_vec();
     let validator_count: usize = validator_keys.len();
     let checkpoints_dirs: Vec<DynPath> = (0..validator_count)
-        .map(|_| Box::new(tempdir().unwrap()) as DynPath)
+        .map(validator_checkpoint_directory)
         .collect();
     assert_eq!(validator_origin_chains.len(), validator_keys.len());
 
@@ -265,15 +315,21 @@ fn main() -> ExitCode {
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
-    let build_main = Program::new("cargo")
-        .cmd("build")
-        .arg("features", "test-utils memory-profiling")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run();
+    let build_main = if crate::external_agents::enabled() {
+        None
+    } else {
+        Some(
+            Program::new("cargo")
+                .cmd("build")
+                .arg("features", "test-utils memory-profiling")
+                .arg("bin", "relayer")
+                .arg("bin", "validator")
+                .arg("bin", "scraper")
+                .arg("bin", "init-db")
+                .filter_logs(|l| !l.contains("workspace-inheritance"))
+                .run(),
+        )
+    };
 
     let start_anvil = start_anvil(config.clone());
 
@@ -281,7 +337,9 @@ fn main() -> ExitCode {
     let postgres = start_postgres();
     state.push_agent(postgres);
 
-    build_main.join();
+    if let Some(build) = build_main {
+        build.join();
+    }
 
     state.push_agent(start_anvil.join());
 
@@ -301,7 +359,9 @@ fn main() -> ExitCode {
         log!("Init postgres db for {}...", chain);
         Program::new("docker")
             .cmd("exec")
-            .cmd("scraper-testnet-postgres")
+            .cmd(crate::external_agents::resource_name(
+                "scraper-testnet-postgres",
+            ))
             .cmd("createdb")
             .arg("username", "postgres")
             .cmd(*chain)
@@ -422,6 +482,8 @@ fn main() -> ExitCode {
         return report_test_result(test_passed);
     }
 
+    state.restart_external_roles((config.kathy_messages / 2 * 2) as u32);
+
     // Simulate a reorg, which we'll later use
     // to ensure the relayer handles reorgs correctly.
     // Kill validator 1 to make sure it doesn't crash by detecting it posted a reorg,
@@ -469,6 +531,12 @@ fn main() -> ExitCode {
     let resp = server::send_insert_message_request().expect("Failed to insert messages");
     assert_eq!(resp.count, 2);
 
+    if test_passed {
+        crate::external_agent_invariants::finish(
+            (config.kathy_messages / 2 * 2) as u32,
+            state.agents.values_mut().map(|(child, _)| child),
+        );
+    }
     report_test_result(test_passed)
 }
 
@@ -489,7 +557,7 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
 
     let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
 
-    common_agent_env
+    let base = common_agent_env
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "relayer"))
         .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "fallback")
@@ -532,11 +600,8 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
                 "payment": "1"
             }]"#,
         )
-        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
-        .arg(
-            "chains.test1.customRpcUrls",
-            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        )
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5");
+    crate::external_agents::relayer_test_rpc_override(base, crate::external_agents::enabled())
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2])
         .arg("relayChains", "test1,test2,test3")
@@ -549,9 +614,14 @@ fn stop_validator(state: &mut State, validator_index: usize) {
         .agents
         .get_mut(&name)
         .unwrap_or_else(|| panic!("Validator {name} not found"));
-    child
-        .kill()
-        .unwrap_or_else(|_| panic!("Failed to stop validator {name}"));
+    if crate::external_agents::enabled() {
+        crate::external_agents::intentional_role_stop(child, "intentional_reorg")
+            .unwrap_or_else(|error| panic!("planned validator stop: {error:#}"));
+    } else {
+        child
+            .kill()
+            .unwrap_or_else(|_| panic!("Failed to stop validator {name}"));
+    }
     // Remove the validator from the state
     state.agents.remove(&name);
 }
@@ -573,7 +643,12 @@ fn set_validator_reorg_flag(checkpoints_dirs: &[DynPath], validator_index: usize
 fn restart_relayer(state: &mut State, rocks_db_dir: &TempDir) {
     log!("Stopping relayer...");
     let (child, _) = state.agents.get_mut("RLY").expect("No relayer agent found");
-    child.kill().expect("Failed to stop relayer");
+    if crate::external_agents::enabled() {
+        crate::external_agents::intentional_role_stop(child, "intentional_restart")
+            .unwrap_or_else(|error| panic!("planned relayer restart: {error:#}"));
+    } else {
+        child.kill().expect("Failed to stop relayer");
+    }
 
     log!("Restarting relayer...");
     let relayer_env = create_relayer(rocks_db_dir);
@@ -604,6 +679,9 @@ fn relayer_reorg_handling_invariants_met() -> eyre::Result<bool> {
 /// So far, we only check if undelivered messages' statuses
 /// are correctly retrieved from the database
 fn relayer_restart_invariants_met() -> eyre::Result<bool> {
+    if crate::external_agents::enabled() {
+        return crate::external_agent_invariants::restart(ZERO_MERKLE_INSERTION_KATHY_MESSAGES);
+    }
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
@@ -659,32 +737,6 @@ fn restored_unavailable_metadata_count(relayer_logfile: &File) -> u32 {
             .get(&metadata_refused_filters)
             .copied()
             .unwrap_or_default()
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::{Seek, SeekFrom};
-
-    use super::*;
-
-    #[test]
-    fn counts_all_restored_unavailable_metadata_states() {
-        let mut log_file = tempfile::tempfile().unwrap();
-        writeln!(
-            log_file,
-            r#"status=Retry(CouldNotFetchMetadata) {RETRIEVED_MESSAGE_LOG}"#
-        )
-        .unwrap();
-        writeln!(
-            log_file,
-            r#"status=Retry(MessageMetadataRefused) {RETRIEVED_MESSAGE_LOG}"#
-        )
-        .unwrap();
-        writeln!(log_file, "CouldNotFetchMetadata without retrieval").unwrap();
-        log_file.seek(SeekFrom::Start(0)).unwrap();
-
-        assert_eq!(restored_unavailable_metadata_count(&log_file), 2);
-    }
 }
 
 /// Check relayer reused already built metadata
@@ -784,5 +836,31 @@ pub fn report_test_result(passed: bool) -> ExitCode {
     } else {
         log!("E2E tests failed");
         ExitCode::FAILURE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Seek, SeekFrom};
+
+    use super::*;
+
+    #[test]
+    fn counts_all_restored_unavailable_metadata_states() {
+        let mut log_file = tempfile::tempfile().unwrap();
+        writeln!(
+            log_file,
+            r#"status=Retry(CouldNotFetchMetadata) {RETRIEVED_MESSAGE_LOG}"#
+        )
+        .unwrap();
+        writeln!(
+            log_file,
+            r#"status=Retry(MessageMetadataRefused) {RETRIEVED_MESSAGE_LOG}"#
+        )
+        .unwrap();
+        writeln!(log_file, "CouldNotFetchMetadata without retrieval").unwrap();
+        log_file.seek(SeekFrom::Start(0)).unwrap();
+
+        assert_eq!(restored_unavailable_metadata_count(&log_file), 2);
     }
 }

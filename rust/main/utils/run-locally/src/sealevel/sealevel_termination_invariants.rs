@@ -130,14 +130,11 @@ mod tests {
             skip_tx_id_indexing: true,
             submitter_type: SubmitterType::Lander,
         };
-        assert_eq!(
-            lander_metrics_invariants_met(
-                params,
-                &relayer_metrics_port.to_string(),
-                &filter_hashmap
-            )
-            .unwrap(),
-            true
-        );
+        assert!(lander_metrics_invariants_met(
+            params,
+            &relayer_metrics_port.to_string(),
+            &filter_hashmap
+        )
+        .unwrap());
     }
 }

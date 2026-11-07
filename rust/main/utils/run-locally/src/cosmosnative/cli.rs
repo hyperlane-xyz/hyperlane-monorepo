@@ -94,7 +94,7 @@ impl SimApp {
         let api_addr = get_next_addr();
         let pprof_addr = get_next_addr().replace("tcp://", "");
 
-        return SimApp {
+        SimApp {
             bin,
             home,
             addr,
@@ -103,7 +103,7 @@ impl SimApp {
             pprof_addr,
             grpc_addr,
             api_addr,
-        };
+        }
     }
 
     fn cli(&self) -> Program {
@@ -125,7 +125,7 @@ impl SimApp {
     }
 
     pub fn start(&mut self) -> AgentHandles {
-        let node = self
+        let mut node = self
             .cli()
             .cmd("start")
             .arg("address", &self.addr) // default is tcp://0.0.0.0:26658
@@ -138,6 +138,14 @@ impl SimApp {
             .arg("rpc.pprof_laddr", &self.pprof_addr) // default is localhost:6060
             .arg("log_level", "panic")
             .spawn("SIMAPP", None);
+        crate::external_agents::cosmos_node_ready(
+            &mut node.1,
+            std::path::Path::new(&self.bin),
+            std::path::Path::new(&self.home),
+            &self.rpc_addr,
+            &self.grpc_addr,
+        )
+        .unwrap_or_else(|error| panic!("node ownership readiness: {error:#}"));
         self.wait_for_node();
         node
     }
@@ -238,7 +246,7 @@ impl SimApp {
         panic!("Transaction {hash} was not confirmed within 30s");
     }
 
-    fn tx<'a>(&self, args: Vec<&'a str>) {
+    fn tx(&self, args: Vec<&str>) {
         let mut program = Program::new(self.bin.clone()).cmd("tx");
         for arg in args {
             program = program.cmd(arg);
@@ -269,7 +277,7 @@ impl SimApp {
             .cmd(token_id)
             .cmd(remote_domain)
             .cmd(recipient)
-            .cmd(&format!("{amount}"))
+            .cmd(format!("{amount}"))
             .arg("gas-limit", "800000")
             .arg("max-hyperlane-fee", "1000000uhyp") // this is a sdk.Coin, it needs the denom
             .arg("from", from)

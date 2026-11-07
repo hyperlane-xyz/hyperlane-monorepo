@@ -100,7 +100,7 @@ pub struct MockDispatchInner {
 pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, PathBuf> {
     let dir_path = match dir {
         Some(path) => path,
-        None => tempdir().unwrap().into_path(),
+        None => tempdir().unwrap().keep(),
     };
 
     if !local {
@@ -142,13 +142,17 @@ pub fn install_cosmos(
     codes_dir: Option<PathBuf>,
     _codes_src: Option<CodeSource>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
+    let local_codes = crate::external_agents::contract_bundle("cosmwasm", CW_HYPERLANE_VERSION);
     let osmosisd = cli_src
         .unwrap_or(CLISource::Remote {
             url: OSMOSIS_CLI_GIT.to_string(),
             version: OSMOSIS_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir, false);
+    let codes = match local_codes {
+        Some(path) => install_codes(Some(path), true),
+        None => install_codes(codes_dir, false),
+    };
 
     (osmosisd, codes)
 }
@@ -190,6 +194,15 @@ pub struct CosmosNetwork {
 
 impl Drop for CosmosNetwork {
     fn drop(&mut self) {
+        if crate::external_agents::enabled() {
+            if let Err(error) = crate::external_agents::stop_cosmos_fixture(
+                &mut self.launch_resp.node.1,
+                "osmosisd",
+            ) {
+                eprintln!("external Osmosis fixture cleanup failed: {error:#}");
+            }
+            return;
+        }
         stop_child(&mut self.launch_resp.node.1);
     }
 }
@@ -219,7 +232,15 @@ impl Drop for CosmosHyperlaneStack {
         }
         stop_child(&mut self.relayer.1);
         stop_child(&mut self.scraper.1);
-        stop_child(&mut self.postgres.1);
+        if crate::external_agents::enabled() {
+            if let Err(error) =
+                crate::external_agents::stop_cosmos_fixture(&mut self.postgres.1, "docker")
+            {
+                eprintln!("external Cosmos PG cleanup failed: {error:#}");
+            }
+        } else {
+            stop_child(&mut self.postgres.1);
+        }
     }
 }
 
@@ -227,7 +248,7 @@ impl Drop for CosmosHyperlaneStack {
 fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
     let home_path = match config.home_path {
         Some(v) => v,
-        None => tempdir().unwrap().into_path(),
+        None => tempdir().unwrap().keep(),
     };
     let cli = OsmosisCLI::new(config.cli_path, home_path.to_str().unwrap());
 
@@ -259,7 +280,7 @@ fn cosmos_validator_program(
     debug: bool,
 ) -> Program {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir().expect("Failed to create a temp dir").keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).unwrap();
@@ -359,40 +380,47 @@ const ENV_CW_HYPERLANE_PATH_KEY: &str = "E2E_CW_HYPERLANE_PATH";
 
 #[allow(dead_code)]
 fn run_locally() {
+    crate::external_agents::initialize_for("cosmwasm");
     const TIMEOUT_SECS: u64 = 60 * 10;
     let debug = false;
 
     let workspace_path = get_workspace_path();
 
     log!("Building rust...");
-    Program::new("cargo")
-        .cmd("build")
-        .working_dir(&workspace_path)
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    if !crate::external_agents::enabled() {
+        Program::new("cargo")
+            .cmd("build")
+            .working_dir(&workspace_path)
+            .arg("features", "test-utils")
+            .arg("bin", "relayer")
+            .arg("bin", "validator")
+            .arg("bin", "scraper")
+            .arg("bin", "init-db")
+            .filter_logs(|l| !l.contains("workspace-inheritance"))
+            .run()
+            .join();
+    }
 
     let cli_src = Some(
-        env::var(ENV_CLI_PATH_KEY)
+        crate::external_agents::tool(ENV_CLI_PATH_KEY)
             .as_ref()
-            .map(|v| CLISource::local(v))
+            .map(|v| CLISource::local(v.to_string_lossy().as_ref()))
             .unwrap_or_default(),
     );
 
-    let code_src = Some(
-        env::var(ENV_CW_HYPERLANE_PATH_KEY)
-            .as_ref()
-            .map(|v| CodeSource::local(v))
-            .unwrap_or_default(),
-    );
+    let code_src = if crate::external_agents::enabled() {
+        None
+    } else {
+        Some(
+            env::var(ENV_CW_HYPERLANE_PATH_KEY)
+                .as_ref()
+                .map(|v| CodeSource::local(v))
+                .unwrap_or_default(),
+        )
+    };
 
     let (osmosisd, codes) = install_cosmos(None, cli_src, None, code_src);
-    let addr_base = "tcp://0.0.0.0";
+    let addr_base = cosmos_fixture_addr_base(crate::external_agents::enabled());
     let default_config = CosmosConfig {
         cli_path: osmosisd.clone(),
         home_path: None,
@@ -547,7 +575,7 @@ fn run_locally() {
     // dispatch the second batch of messages (after agents start)
     dispatched_messages += dispatch(&osmosisd, linker, &nodes);
 
-    let _stack = CosmosHyperlaneStack {
+    let mut _stack = CosmosHyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
         scraper: hpl_scr.join(),
@@ -570,7 +598,9 @@ fn run_locally() {
         {
             // end condition reached successfully
             break;
-        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+        } else if (Instant::now() - loop_start).as_secs()
+            > crate::external_agents::deadline(TIMEOUT_SECS)
+        {
             // we ran out of time
             log!("timeout reached before message submission was confirmed");
             failure_occurred = true;
@@ -583,6 +613,22 @@ fn run_locally() {
     if failure_occurred {
         panic!("E2E tests failed");
     } else {
+        crate::external_agents::restart_role_handles(
+            _stack
+                .validators
+                .iter_mut()
+                .chain([&mut _stack.relayer, &mut _stack.scraper]),
+            dispatched_messages,
+        )
+        .unwrap_or_else(|error| panic!("same-DB actual role restart: {error:#}"));
+        crate::external_agent_invariants::finish(
+            dispatched_messages,
+            _stack
+                .validators
+                .iter_mut()
+                .map(|handle| &mut handle.1)
+                .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
+        );
         log!("E2E tests passed");
     }
 }
@@ -638,6 +684,14 @@ fn dispatch(osmosisd: &Path, linker: &str, nodes: &[CosmosNetwork]) -> u32 {
     dispatched_messages
 }
 
+fn cosmos_fixture_addr_base(external: bool) -> &'static str {
+    if external {
+        "tcp://127.0.0.1"
+    } else {
+        "tcp://0.0.0.0"
+    }
+}
+
 #[cfg(feature = "cosmos")]
 mod test {
 
@@ -652,6 +706,34 @@ mod test {
 #[cfg(test)]
 mod validator_config_tests {
     use super::*;
+    fn node_config_fixture() -> toml_edit::Document {
+        "unrelated = 'retained'\n[p2p]\npex = true\nseeds = 'source-seed'\npersistent_peers = 'source-peer'\n[consensus]\ntimeout_commit = '1s'\n".parse().unwrap()
+    }
+    #[test]
+    fn external_loopback_and_peer_isolation_preserve_other_fields() {
+        let mut value = node_config_fixture();
+        super::cli::configure_node_config(&mut value, true);
+        assert_eq!(super::cosmos_fixture_addr_base(true), "tcp://127.0.0.1");
+        assert_eq!(value["p2p"]["seeds"].as_str(), Some(""));
+        assert_eq!(value["p2p"]["persistent_peers"].as_str(), Some(""));
+        assert_eq!(value["p2p"]["pex"].as_bool(), Some(false));
+        assert_eq!(value["consensus"]["timeout_commit"].as_str(), Some("0.5s"));
+        assert_eq!(value["unrelated"].as_str(), Some("retained"));
+    }
+    #[test]
+    fn ordinary_rust_node_fields_remain_source_defaults() {
+        let mut value = node_config_fixture();
+        super::cli::configure_node_config(&mut value, false);
+        assert_eq!(super::cosmos_fixture_addr_base(false), "tcp://0.0.0.0");
+        assert_eq!(value["p2p"]["seeds"].as_str(), Some("source-seed"));
+        assert_eq!(
+            value["p2p"]["persistent_peers"].as_str(),
+            Some("source-peer")
+        );
+        assert_eq!(value["p2p"]["pex"].as_bool(), Some(false));
+        assert_eq!(value["consensus"]["timeout_commit"].as_str(), Some("0.5s"));
+        assert_eq!(value["unrelated"].as_str(), Some("retained"));
+    }
 
     #[test]
     fn validator_harness_explicitly_uses_fallback() {
@@ -659,11 +741,28 @@ mod validator_config_tests {
             "name": "fallback-test", "domainId": 1234, "metricsPort": 9999,
             "mailbox": "test", "interchainGasPaymaster": "test", "validatorAnnounce": "test", "merkleTreeHook": "test",
             "protocol": "cosmos", "rpcUrls": [], "index": {"from": 0, "chunk": 10}, "contractAddressBytes": 32,
-            "chainId": "test-1", "grpcUrls": [], "bech32Prefix": "osmo",
+            "chainId": "test-1", "grpcUrls": [], "bech32Prefix": "osmo", "compatMode": "0.34",
             "signer": {"type": "cosmosKey", "key": "test", "prefix": "osmo"},
             "gasPrice": {"denom": "uosmo", "amount": "0.01"},
             "nativeToken": {"denom": "uosmo", "symbol": "OSMO", "decimals": 6}
         })).unwrap();
+        let wire = serde_json::to_value(&config).unwrap();
+        assert_eq!(wire["compatMode"], "0.34");
+        let connection = hyperlane_cosmos::ConnectionConf::new(
+            Vec::new(),
+            Vec::new(),
+            config.chain_id.clone(),
+            config.bech32_prefix.clone(),
+            "uosmo".to_owned(),
+            config.gas_price.clone(),
+            config.contract_address_bytes,
+            Default::default(),
+            config.native_token.clone(),
+            1.35,
+            Some(&config.compat_mode),
+        )
+        .unwrap();
+        assert_eq!(connection.compat_mode.to_string(), "v0.34");
         let program = cosmos_validator_program(config, PathBuf::from("test-config.json"), false);
         let command = format!("{program:#}");
         assert!(command.contains("HYP_CHAINS_FALLBACK-TEST_RPCCONSENSUSTYPE=fallback"));

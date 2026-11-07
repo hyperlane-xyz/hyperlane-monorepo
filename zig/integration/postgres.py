@@ -34,6 +34,7 @@ def chunks(text):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", default=os.environ.get("ZIG", "zig"))
+    parser.add_argument("--mode", choices=["ReleaseSafe", "ReleaseFast"], default="ReleaseSafe")
     parser.add_argument("--sdk-root", type=Path)
     parser.add_argument("--libpq-library", type=Path, default=Path("/opt/homebrew/opt/libpq/lib/libpq.dylib"))
     parser.add_argument("--image", default="postgres:16")
@@ -56,7 +57,7 @@ def main():
     started = False
     with tempfile.TemporaryDirectory(prefix="ziggy-pg-tests-") as folder:
         binary = Path(folder) / "postgres-tests"
-        build = [args.compiler, "test", "zig/src/pg_tests.zig", "-O", "ReleaseSafe", "-lc", args.libpq_library, "--test-no-exec", f"-femit-bin={binary}"]
+        build = [args.compiler, "test", "zig/src/pg_tests.zig", "-O", args.mode, "-j2", "-lc", args.libpq_library, "--test-no-exec", f"-femit-bin={binary}"]
         if args.sdk_root:
             build += ["--sysroot", args.sdk_root, "-L/usr/lib"]
         if not args.process_only:
@@ -127,7 +128,8 @@ SELECT to_regclass('pg_temp.ziggy_fixture_sql_smoke') IS NULL;
                                "--binary", args.scraper_binary.resolve(), "--container", name,
                                "--conninfo", env["ZIGGY_PG_FIXTURE"], "--port", port,
                                "--output", output / "scraper-process.json"],
-                              env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+                              env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                                   **{name: os.environ[name] for name in ("DOCKER_HOST", "DOCKER_CONFIG") if name in os.environ}})
                 (output / "scraper-process.log").write_text(process.stdout + process.stderr)
             version = run(["docker", "exec", name, "postgres", "--version"]).stdout.strip()
             image_id = run(["docker", "inspect", "--format", "{{.Image}}", name]).stdout.strip()
@@ -140,7 +142,7 @@ SELECT to_regclass('pg_temp.ziggy_fixture_sql_smoke') IS NULL;
                 "mode": "process-only" if args.process_only else "native-and-optional-process", "native_tests": native_tests, "sql_smoke_cases": sql_cases,
                 "server": version, "client_library": str(args.libpq_library), "docker_image": args.image,
                 "docker_image_digest_chunks": chunks(image_id.removeprefix("sha256:")),
-                "production_migrations_applied": int(schemas), "zig_optimize": None if args.process_only else "ReleaseSafe",
+                "production_migrations_applied": int(schemas), "zig_optimize": None if args.process_only else args.mode,
                 "functional_cases": sql_cases if args.process_only else ["parameterized text/binary/null values and result ownership", "aborted transaction rollback and SQLSTATE",
                                      "four staged event streams and confirmed frontier views", "gas cursor publication",
                                      "atomic append failure", "reorg suffix rollback and confirmed-boundary protection",

@@ -10,7 +10,16 @@ pub fn post_startup_invariants(checkpoints_dirs: &[DynPath]) -> bool {
 }
 
 fn post_startup_validator_metadata_written(checkpoints_dirs: &[DynPath]) -> bool {
-    let expected_git_sha = env!("VERGEN_GIT_SHA");
+    let expected_runtime = match crate::external_agents::get() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            log!("External metadata preflight failed: {:#}", error);
+            return false;
+        }
+    };
+    let expected_git_sha = expected_runtime
+        .map(|m| m.runtime_source_commit.as_str())
+        .unwrap_or(env!("VERGEN_GIT_SHA"));
 
     let failed_metadata = checkpoints_dirs
         .iter()

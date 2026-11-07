@@ -245,10 +245,10 @@ pub(crate) fn to_strk_message_bytes(bytes: &[u8]) -> (u32, Vec<u128>) {
     // Create a new byte vector with the necessary padding
     let mut padded_bytes = Vec::with_capacity(total_len);
     padded_bytes.extend_from_slice(bytes);
-    padded_bytes.extend(std::iter::repeat(0).take(padding));
+    padded_bytes.extend(std::iter::repeat_n(0, padding));
 
     let mut result = Vec::with_capacity(total_len / 16);
-    for chunk in padded_bytes.chunks_exact(16) {
+    for chunk in padded_bytes.as_chunks::<16>().0 {
         // Convert each 16-byte chunk into a u128
         let mut array = [0u8; 16];
         array.copy_from_slice(chunk);

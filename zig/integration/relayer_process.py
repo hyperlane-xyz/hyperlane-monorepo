@@ -8,6 +8,8 @@ from __future__ import annotations
 import argparse,collections,contextlib,copy,hashlib,http.server,json,math,os,pathlib,re,shutil,signal,socket,subprocess,sys,tempfile,threading,time,urllib.error,urllib.request
 import evm
 ROOT=evm.ROOT
+sys.path.insert(0,str(ROOT))
+from zig.integration import validator as validator_fixture
 ORIGIN,DESTINATION=9913371,9913372
 DELIVERED_SELECTOR=evm.calldata('delivered(bytes32)','0x'+'00'*32)[:10]
 def record_first_inclusion(mapping,key,observed_monotonic_seconds,observed_unix_seconds,capacity=4096):
@@ -263,10 +265,12 @@ def retirement_lower_bound(messages,now_monotonic_seconds):
 def retirement_deadline(messages,grace=SOURCE_FINALITY_GRACE_SECONDS):
  assert messages and all('included_monotonic'in message for message in messages),'retirement requires actual observed inclusion'
  return max(message['included_monotonic']for message in messages)+SOURCE_CONFIRM_SECONDS+grace
-def retirement_poll(operations,confirmed,messages,now_monotonic_seconds,historical_confirmed_offset=0):
+def retirement_poll(operations,confirmed,messages,now_monotonic_seconds,historical_confirmed_offset=0,confirmed_observed_monotonic_seconds=None):
  assert messages and all('included_monotonic'in message for message in messages),'retirement requires first actual proxy inclusion'
  assert isinstance(operations,list)and historical_confirmed_offset>=0
- eligible=sum(now_monotonic_seconds>=message['included_monotonic']+SOURCE_CONFIRM_SECONDS for message in messages)
+ counter_now=now_monotonic_seconds if confirmed_observed_monotonic_seconds is None else confirmed_observed_monotonic_seconds
+ assert math.isfinite(now_monotonic_seconds)and math.isfinite(counter_now)and counter_now>=now_monotonic_seconds,'invalid independent observation clocks'
+ eligible=sum(counter_now>=message['included_monotonic']+SOURCE_CONFIRM_SECONDS for message in messages)
  allowed=historical_confirmed_offset+eligible
  if confirmed is not None:assert type(confirmed)in(int,float)and math.isfinite(confirmed)and confirmed>=0 and int(confirmed)==confirmed,'invalid confirmed counter'
  if confirmed is not None and confirmed>allowed:raise AssertionError(f'partial early retirement: confirmed={confirmed},historical_offset={historical_confirmed_offset},eligible_after600={eligible},now_monotonic={now_monotonic_seconds}')
@@ -276,24 +280,68 @@ def retirement_poll(operations,confirmed,messages,now_monotonic_seconds,historic
   if now_monotonic_seconds<message['included_monotonic']+SOURCE_CONFIRM_SECONDS and message['id'].lower()not in active_ids:raise AssertionError(f'tracked operation disappeared before its own600s bound: {message["id"]}')
  return not operations and confirmed is not None and confirmed==historical_confirmed_offset+len(messages)and retirement_lower_bound(messages,now_monotonic_seconds)
 def wait_for_retirement(metrics_port,process,messages,destination_domain=DESTINATION,historical_confirmed_offset=0,historical_offset_reason='no older operations in this process'):
+    deadline = retirement_deadline(messages)
     first_completion = None
     first_counter = None
     first_observation = None
     absent_samples = 0
     polls = 0
+    observations = []
+    transport_errors = []
+    last_present = {}
+    retirements = {}
     def settled():
         nonlocal first_completion, first_counter, first_observation, absent_samples, polls
+        admin_started = time.monotonic()
+        assert admin_started<deadline,'retirement request after actual600+30 deadline'
         try:
-            with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/list_operations?destination_domain={destination_domain}',timeout=3) as response:
-                operations = json.loads(response.read())
-            with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3) as response:
-                body = response.read()
-        except (OSError,ValueError):
+            with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/list_operations?destination_domain={destination_domain}',timeout=min(3,deadline-admin_started)) as response:
+                assert response.status==200,'actual retirement admin HTTP status differs'
+                admin_body = response.read()
+        except urllib.error.HTTPError as error:
+            error.close()
+            raise
+        except OSError as error:
+            transport_errors.append({'stage':'admin','request_started':admin_started,'failure_observed':time.monotonic(),'error_type':type(error).__name__,'original_retirement_deadline':deadline})
             return False
+        admin_received = time.monotonic()
+        operations = json.loads(admin_body)
+        assert admin_started<=admin_received<=deadline,'admin observation after actual600+30 deadline or clock rollback'
+        # Decoded admin evidence is authoritative even if metrics later times out.
+        # An absent counter can never complete this pure check.
+        assert not retirement_poll(operations,None,messages,admin_received,historical_confirmed_offset)
+        active_ids={operation['id'].lower()for operation in operations}
+        for message in messages:
+            identity=message['id'].lower()
+            age=admin_received-message['included_monotonic']
+            if identity in active_ids:
+                assert identity not in retirements,'retired tracked operation reappeared'
+                assert age<=SOURCE_CONFIRM_SECONDS+SOURCE_FINALITY_GRACE_SECONDS,'tracked operation active beyond its own600+30 bound'
+                last_present[identity]={'request_started':admin_started,'response_received':admin_received}
+            elif identity not in retirements:
+                assert age<=SOURCE_CONFIRM_SECONDS+SOURCE_FINALITY_GRACE_SECONDS,'first tracked retirement observed beyond its own600+30 bound'
+                retirements[identity]={'request_started':admin_started,'response_received':admin_received,'last_present':last_present.get(identity)}
+        metrics_started = time.monotonic()
+        assert metrics_started<deadline,'retirement request after actual600+30 deadline'
+        try:
+            with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=min(3,deadline-metrics_started)) as response:
+                assert response.status==200,'actual retirement metrics HTTP status differs'
+                body = response.read()
+        except urllib.error.HTTPError as error:
+            error.close()
+            raise
+        except OSError as error:
+            transport_errors.append({'stage':'metrics','request_started':metrics_started,'failure_observed':time.monotonic(),'error_type':type(error).__name__,'original_retirement_deadline':deadline})
+            return False
+        metrics_received = time.monotonic()
         base = 'agent="relayer",hyperlane_baselib_version="3.0.0"'
         observation = metric_observation(body, 'hyperlane_operations_processed_count', f'app_context="Unknown",phase="confirmed",chain="test2",{base}')
         confirmed = observation['value']
-        now = time.monotonic()
+        assert admin_started<=admin_received<=metrics_started<=metrics_received,'observation clock rollback'
+        assert metrics_received<=deadline,'metrics observation after actual600+30 deadline'
+        clocks = {'admin_request_started':admin_started,'admin_response_received':admin_received,'metrics_request_started':metrics_started,'metrics_response_received':metrics_received}
+        observations.append(clocks)
+        now = metrics_received
         polls += 1
         if first_observation is None:
             first_observation = dict(observation, monotonic=now)
@@ -303,14 +351,16 @@ def wait_for_retirement(metrics_port,process,messages,destination_domain=DESTINA
             first_counter = confirmed
         # ID disappearance/individual600s eligibility checks run even without a
         # materialized confirmed counter. Missing telemetry cannot complete.
-        complete = retirement_poll(operations, confirmed, messages, now, historical_confirmed_offset)
+        complete = retirement_poll(operations, confirmed, messages, admin_received, historical_confirmed_offset, metrics_received)
         if complete and first_completion is None:
-            first_completion = {'monotonic': now, 'unix': time.time(), 'confirmed': confirmed}
+            assert admin_received<=retirement_deadline(messages),'retirement observed after actual600+30 deadline'
+            first_completion = {'monotonic': now, 'unix': time.time(), 'confirmed': confirmed, 'observation_intervals':clocks, 'first_observed_empty_admin_monotonic':admin_received}
         return complete
     began = time.monotonic()
-    wait(settled,process,max(1,retirement_deadline(messages)-began),'live completion polling with production600s lower bound')
+    wait(settled,process,max(1,deadline-began),'live completion polling with production600s lower bound')
     assert retirement_lower_bound(messages,time.monotonic()), 'retirement observed before first actual proxy inclusion plus600'
     with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3) as response:
+        assert response.status==200,'actual retirement final metrics HTTP status differs'
         body = response.read()
     base = 'agent="relayer",hyperlane_baselib_version="3.0.0"'
     confirmed = metric_value(body,'hyperlane_operations_processed_count',f'app_context="Unknown",phase="confirmed",chain="test2",{base}')
@@ -318,7 +368,7 @@ def wait_for_retirement(metrics_port,process,messages,destination_domain=DESTINA
     assert confirmed > 0 and confirmed == historical_confirmed_offset+len(messages) and confirm_queue == 0, (confirmed,confirm_queue,historical_confirmed_offset,len(messages))
     observed = time.time()
     required = max(message['included_unix_seconds'] for message in messages)+SOURCE_CONFIRM_SECONDS
-    return {'production_confirm_seconds':SOURCE_CONFIRM_SECONDS,'bounded_grace_seconds':SOURCE_FINALITY_GRACE_SECONDS,'wait_seconds':time.monotonic()-began,'deadline_from_latest_actual_inclusion':retirement_deadline(messages),'latest_included_unix_seconds':max(message['included_unix_seconds'] for message in messages),'required_earliest_retirement_unix_seconds':required,'actual_retirement_unix_seconds':observed,'retirement_after_required_seconds':observed-required,'first_live_completion':first_completion,'historical_confirmed_offset':historical_confirmed_offset,'historical_offset_is_upper_bound_not_injected_counter':True,'first_actual_confirmed_counter':first_counter,'first_confirmed_counter_observation':first_observation,'confirmed_counter_absent_samples':absent_samples,'polls':polls,'historical_offset_reason':historical_offset_reason,'expected_tracked_messages':len(messages),'first_proxy_inclusions':[{'id_chunks':chunks(message['id']),'transaction_hash_chunks':chunks(message['included_transaction_hash']),'first_positive_receipt_or_delivered_unix_seconds':message['included_unix_seconds'],'first_positive_receipt_or_delivered_monotonic_seconds':message['included_monotonic']} for message in messages],'operations_confirmed':confirmed,'confirm_queue':confirm_queue}
+    return {'production_confirm_seconds':SOURCE_CONFIRM_SECONDS,'bounded_grace_seconds':SOURCE_FINALITY_GRACE_SECONDS,'wait_seconds':time.monotonic()-began,'deadline_from_latest_actual_inclusion':retirement_deadline(messages),'latest_included_unix_seconds':max(message['included_unix_seconds'] for message in messages),'required_earliest_retirement_unix_seconds':required,'actual_retirement_unix_seconds':observed,'retirement_after_required_seconds':observed-required,'first_live_completion':first_completion,'historical_confirmed_offset':historical_confirmed_offset,'historical_offset_is_upper_bound_not_injected_counter':True,'first_actual_confirmed_counter':first_counter,'first_confirmed_counter_observation':first_observation,'confirmed_counter_absent_samples':absent_samples,'polls':polls,'observation_intervals':observations,'transport_error_observations':transport_errors,'per_id_retirement_observations':[{'id_chunks':chunks(message['id']),'first_positive_monotonic_seconds':message['included_monotonic'],'observed_retirement':retirements[message['id'].lower()]}for message in messages],'retirement_timestamp_scope':'Actual admin receive times; exact deletion instant lies within observation uncertainty.','historical_offset_reason':historical_offset_reason,'expected_tracked_messages':len(messages),'first_proxy_inclusions':[{'id_chunks':chunks(message['id']),'transaction_hash_chunks':chunks(message['included_transaction_hash']),'first_positive_receipt_or_delivered_unix_seconds':message['included_unix_seconds'],'first_positive_receipt_or_delivered_monotonic_seconds':message['included_monotonic']} for message in messages],'operations_confirmed':confirmed,'confirm_queue':confirm_queue}
 def wait_role_ready(metrics_port,process,data_type='dispatched_messages',chain='test1'):
  launched=getattr(process,'ziggy_launch_unix_seconds',None);assert launched is not None,'missing actual process launch time'
  evidence={'data_type':data_type,'chain':chain,'launch_unix_seconds':launched,'liveness':None}
@@ -642,9 +692,10 @@ def static_contract_tests():
  receipt['logs']=original_events
  return passed
 def main():
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/relayer');parser.add_argument('--validator-binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');parser.add_argument('--oracle',type=pathlib.Path,default=IMMUTABLE_ORACLE);parser.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/relayer-process.json');parser.add_argument('--compile-only',action='store_true');parser.add_argument('--skip-expenditure-assert',action='store_true',help='Diagnostic only; result never passes expenditure acceptance');parser.add_argument('--keep-fixture',type=pathlib.Path);args=parser.parse_args()
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/relayer');parser.add_argument('--url-library',type=pathlib.Path);parser.add_argument('--validator-binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');parser.add_argument('--oracle',type=pathlib.Path,default=IMMUTABLE_ORACLE);parser.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/relayer-process.json');parser.add_argument('--compile-only',action='store_true');parser.add_argument('--skip-expenditure-assert',action='store_true',help='Diagnostic only; result never passes expenditure acceptance');parser.add_argument('--keep-fixture',type=pathlib.Path);args=parser.parse_args()
  contracts=compile_contracts()
  if args.compile_only:print(json.dumps({'compiled':list(contracts)}));return
+ url_library=validator_fixture.url_dependency(args.url_library)
  binary=pin(args.binary,'relayer');validator_binary=pin(args.validator_binary,'validator');oracle=verified_oracle(args.oracle);fault_library,fault_identity=crash_library();fault_identity['self_test']=verify_crash_library(fault_library);args.output.parent.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory(prefix='ziggy-public-relayer-process-')as directory,(evm.CACHE/'anvil.log').open('w')as anvil_log:
   temporary=pathlib.Path(directory);chain=evm.Chain(f'http://127.0.0.1:{port()}');anvil=subprocess.Popen(['anvil','--host','127.0.0.1','--port',chain.url.rsplit(':',1)[1],'--chain-id','31337','--silent'],cwd=ROOT,stdout=anvil_log,stderr=anvil_log);agents=[]
@@ -667,7 +718,7 @@ def main():
    for index,recipient in enumerate(recipients):dispatch(recipient,['null','message-id','merkle-root'][index])
    checkpoints=temporary/'checkpoints';validator_config=temporary/'validator-config';validator_config.mkdir();(validator_config/'public.json').write_text(json.dumps({'originChainName':'test1','db':str(temporary/'validator-db'),'validator':{'key':'0x'+'11'*32},'checkpointSyncer':{'type':'localStorage','path':str(checkpoints)},'interval':1,'metricsPort':port(),'chains':{'test1':domains['test1']}}))
    with (temporary/'validator.log').open('w')as log:
-    validating=launch(validator_binary,validator_config,log);agents.append(validating);wait(lambda:(checkpoints/'2_with_id.json').exists()and(checkpoints/'merkle_snapshot.json').exists(),validating,30,'complete validator checkpoint history');validator_stop=stop(validating)
+    validating=launch(validator_binary,validator_config,log,{'HYPERLANE_URL_LIBRARY':url_library['pinned_path']});agents.append(validating);wait(lambda:(checkpoints/'2_with_id.json').exists()and(checkpoints/'merkle_snapshot.json').exists(),validating,30,'complete validator checkpoint history');validator_stop=stop(validating)
    assert validator_stop['exit']==0,validator_stop
    with RpcProxy(chain)as destination_rpc:
     configured=json.loads(json.dumps(domains));configured['test2']['rpcUrls']=[{'http':destination_rpc.url}];relayer_config=temporary/'relayer-config';relayer_config.mkdir();database=temporary/'relayer-db';value={'relayChains':'test1,test2','db':str(database),'allowLocalCheckpointSyncers':True,'gasPaymentEnforcement':[{'type':'none'}],'metricsPort':port(),'chains':configured};(relayer_config/'public.json').write_text(json.dumps(value))
@@ -698,7 +749,7 @@ def main():
     multicall=deploy_multicall3(chain);batch_start=len(messages)
     for index,recipient in enumerate([recipients[0],recipients[1],recipients[2],recipients[0]]):dispatch(recipient,f'max-batch-4-{index}')
     with (temporary/'validator-batch.log').open('w')as log:
-     validating=launch(validator_binary,validator_config,log);agents.append(validating);wait(lambda:(checkpoints/f'{len(messages)-1}_with_id.json').exists(),validating,45,'batch validator checkpoint history');batch_validator_stop=stop(validating)
+     validating=launch(validator_binary,validator_config,log,{'HYPERLANE_URL_LIBRARY':url_library['pinned_path']});agents.append(validating);wait(lambda:(checkpoints/f'{len(messages)-1}_with_id.json').exists(),validating,45,'batch validator checkpoint history');batch_validator_stop=stop(validating)
     assert batch_validator_stop['exit']==0,batch_validator_stop
     batch_messages=messages[batch_start:]
     batch_config=temporary/'batch-config';batch_config.mkdir();batch_database=temporary/'batch-db';batch_value=json.loads(json.dumps(value));batch_value['db']=str(batch_database);batch_value['metricsPort']=port();batch_value['whitelist']=[{'messageId':[message['id']for message in batch_messages]}];batch_value['chains']['test2']['maxBatchSize']=4;batch_value['chains']['test2']['batchContractAddress']=multicall
@@ -744,7 +795,7 @@ def main():
      crash_result={'passed':True,'attempts':crash_attempts,'actual_pre_enqueue_rust_readback':snapshot,'recovered_rust_readback':recovered,'replayed_rust_readback':replayed_probe,'recovery_receipt_proof':recovery_receipt_proof,'replay_readiness':replay_readiness,'recovery_new_nonce_count':1,'restart_new_nonce_count':0,'early_included':recovery_early,'settlement':recovery_settlement,'recovery_stop':recovery_stop,'replay_stop':replay_stop};break
     assert crash_result is not None,crash_attempts
     expenditure=all(int(v['spent']['gas_used'])>0 and int(v['spent']['tokens_used'])>0 for v in first_probe['messages'])
-    result={'passed':expenditure,'scope':__doc__,'binaries':{'relayer_sha256_chunks':sha(binary),'validator_sha256_chunks':sha(validator_binary),'rust_oracle_sha256_chunks':sha(oracle)},'validator_stop':validator_stop,'telemetry':metrics,'delivery_ms':delivery_ms,'early_included':early_included,'settlement':settlement,'first_stop':first_stop,'restart_readiness':restart_readiness,'restart_stop':restart_stop,'stalled_stop':stalled_stop,'restart_nonce_unchanged':True,'receipt_stall_requests':destination_rpc.receipt_stalls,'origin_progress_during_receipt_stall':True,'gas_expenditure_recorded':expenditure,'first_rust_readback':first_probe,'initial_receipt_proofs':initial_receipt_proofs,'stalled_rust_readback':stalled_probe,'max_batch_4':{'config':{'maxBatchSize':4,'batchContractAddress':multicall,'whitelist_message_ids_chunks':[chunks(message['id'])for message in batch_messages]},'prepared_barrier':batch_prepared,'early_included':batch_early,'settlement':batch_settlement,'stop':batch_stop,'stopped_rust_readback':batch_probe,'actual_allocation':batch_allocation},'rpc_methods':dict(destination_rpc.methods),'messages':[{'id_chunks':chunks(v['id']),'label':v['label'],'dispatch_block':v['dispatch_block'],'gas_block':v['gas_block']}for v in messages],'preenqueue_crash':crash_result,'fault_injection':fault_identity}
+    result={'passed':expenditure,'scope':__doc__,'validator_url_library':url_library,'binaries':{'relayer_sha256_chunks':sha(binary),'validator_sha256_chunks':sha(validator_binary),'rust_oracle_sha256_chunks':sha(oracle)},'validator_stop':validator_stop,'telemetry':metrics,'delivery_ms':delivery_ms,'early_included':early_included,'settlement':settlement,'first_stop':first_stop,'restart_readiness':restart_readiness,'restart_stop':restart_stop,'stalled_stop':stalled_stop,'restart_nonce_unchanged':True,'receipt_stall_requests':destination_rpc.receipt_stalls,'origin_progress_during_receipt_stall':True,'gas_expenditure_recorded':expenditure,'first_rust_readback':first_probe,'initial_receipt_proofs':initial_receipt_proofs,'stalled_rust_readback':stalled_probe,'max_batch_4':{'config':{'maxBatchSize':4,'batchContractAddress':multicall,'whitelist_message_ids_chunks':[chunks(message['id'])for message in batch_messages]},'prepared_barrier':batch_prepared,'early_included':batch_early,'settlement':batch_settlement,'stop':batch_stop,'stopped_rust_readback':batch_probe,'actual_allocation':batch_allocation},'rpc_methods':dict(destination_rpc.methods),'messages':[{'id_chunks':chunks(v['id']),'label':v['label'],'dispatch_block':v['dispatch_block'],'gas_block':v['gas_block']}for v in messages],'preenqueue_crash':crash_result,'fault_injection':fault_identity}
     finish_result(args.output,result)
     if not expenditure and not args.skip_expenditure_assert:raise AssertionError('actual Rust readback found missing receipt gas expenditure; diagnostic artifact retained')
     print(json.dumps({'passed':result['passed'],'delivered_cases':3,'max_batch_4_calls':batch_allocation['calls'],'restart_nonce_unchanged':True,'receipt_stall_origin_progress':True}))

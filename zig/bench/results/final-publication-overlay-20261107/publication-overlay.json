@@ -1,0 +1,1106 @@
+{
+  "schema": 1,
+  "status": "Private review staging; not applied to Repo/index",
+  "new_public_evidence": [
+    {
+      "id": "01",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-d51-v12/relayer-process.json",
+      "canonical_path": "01/canonical.json.gz"
+    },
+    {
+      "id": "02",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-v3/relayer-process.json",
+      "canonical_path": "02/canonical.json.gz"
+    },
+    {
+      "id": "03",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-v4/relayer-process.json",
+      "canonical_path": "03/canonical.json.gz"
+    },
+    {
+      "id": "04",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-v5/relayer-process.json",
+      "canonical_path": "04/canonical.json.gz"
+    },
+    {
+      "id": "05",
+      "original_path": "zig/bench/results/global-fixture-acceptance-20261106T1739-safe-rollup/all-manifest.json",
+      "canonical_path": "05/canonical.json.gz"
+    },
+    {
+      "id": "06",
+      "original_path": "zig/bench/results/native-row-reader/manifest.json",
+      "canonical_path": "06/canonical.json.gz"
+    },
+    {
+      "id": "07",
+      "original_path": "zig/bench/results/relayer-final-commands.json",
+      "canonical_path": "07/canonical.json.gz"
+    },
+    {
+      "id": "08",
+      "original_path": "zig/bench/results/starknet-chain-id-discovery/manifest.json",
+      "canonical_path": "08/canonical.json.gz"
+    },
+    {
+      "id": "09",
+      "original_path": "zig/bench/results/wss-legacy-pre-subscription-diagnostic/manifest.json",
+      "canonical_path": "09/canonical.json.gz"
+    },
+    {
+      "id": "10",
+      "original_path": "zig/bench/results/wss-v3-gas-bootstrap-diagnostic-577/manifest.json",
+      "canonical_path": "10/canonical.json.gz"
+    },
+    {
+      "id": "11",
+      "original_path": "zig/bench/results/wss-v3-gas-bootstrap-diagnostic-577/verification.json",
+      "canonical_path": "11/canonical.json.gz"
+    }
+  ],
+  "private_omissions": [
+    {
+      "original": {
+        "path": "zig/bench/results/aleo-image-startup-prerequisites/ziggy-aleo-devnode-health-20261106/final-inspect.json.gz",
+        "bytes": 2214,
+        "sha256_chunks": [
+          "96f022e01c9fad84001c21303867c05f",
+          "7b7cb6980a53b61fd2b1261c877ab46d"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime container Env/argv named-secret assignment; publicprojection canomit environment"
+      ],
+      "fieldnames": [
+        "[].Config.Env[][environment-assignment]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/aleo-image-startup-prerequisites/ziggy-aleo-devnode-health-20261106/plan.json.gz",
+        "bytes": 940,
+        "sha256_chunks": [
+          "242454f4b34d5f9de5146ababbc72095",
+          "ae1dee3c569c808ad13a972e7f9ba103"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime container Env/argv named-secret assignment; publicprojection canomit environment"
+      ],
+      "fieldnames": [
+        "argv[][environment-assignment]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/canonical-admission-before-fix/22-public.json.gz",
+        "bytes": 913,
+        "sha256_chunks": [
+          "2289f2d2f95e3ed7dfb7b675311dea40",
+          "a2399d747c18f3860c5199cfa1d6bb9c"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/canonical-admission-before-fix/23-public.json.gz",
+        "bytes": 669,
+        "sha256_chunks": [
+          "3fe877c00e1a336863d0c5c7da4241e2",
+          "46ba9228a96f654a0144531961c745a2"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/canonical-admission-before-fix/24-public.json.gz",
+        "bytes": 537,
+        "sha256_chunks": [
+          "d52c60c1eb96dc354d932f4a25ca30b2",
+          "c7c2fdd76c3253aae85fe0726d784ba6"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-correctness-f665/04-attempts/functional-v2/ReleaseSafe/pg-wrapper-state/fixture.json.gz",
+        "bytes": 393,
+        "sha256_chunks": [
+          "24902a4cdf24ccb5c9c35d60ec4b3aba",
+          "7acdac67f2d5b1092d3e69223b25e721"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-correctness-f665/04-attempts/functional-v2/all-manifest.json.gz",
+        "bytes": 143173,
+        "sha256_chunks": [
+          "3f32ae2a4c19410a5f995b6eacaddaf2",
+          "97a772d97ac751f50000e71ee2a71f7c"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "checks[].samples[].owned_PG.task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-correctness-f665/04-attempts/functional-v3/ReleaseFast/pg-wrapper-state/fixture.json.gz",
+        "bytes": 690,
+        "sha256_chunks": [
+          "6970b2cc11a3c093c21d9e63d422dae7",
+          "5d1ce05d4914155fb3709b1a971ef0e4"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-correctness-f665/04-attempts/functional-v3/ReleaseSafe/pg-wrapper-state/fixture.json.gz",
+        "bytes": 689,
+        "sha256_chunks": [
+          "a4f9d6be325e61632af2cbb407f9a352",
+          "1153e8cb48c51466273191fbef461eac"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-correctness-f665/04-attempts/functional-v3/all-manifest.json.gz",
+        "bytes": 264379,
+        "sha256_chunks": [
+          "e55754d0adf79a7d20cd05b5af5a454b",
+          "589c37a75191f561390fc3fe518e68f8"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "checks[].samples[].owned_PG.task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-correctness-f665/04-attempts/functional-v4/all-manifest.json.gz",
+        "bytes": 334053,
+        "sha256_chunks": [
+          "93e2c8d64048671008361723e5054f09",
+          "021d97236e29c6598af8d8b128201b4e"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "previous_passed_checks_credited[].samples[].owned_PG.task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-functional-ac86/v6/ReleaseFast/pg-wrapper-state/fixture.json.gz",
+        "bytes": 686,
+        "sha256_chunks": [
+          "c75a003ed1a280febbb40a27911f7db5",
+          "379bf05ffd3e439e8083d4657fad6eb7"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-functional-ac86/v6/ReleaseSafe/pg-wrapper-state/fixture.json.gz",
+        "bytes": 689,
+        "sha256_chunks": [
+          "89fcb01c77768039903154225417b4bf",
+          "874fc0d45caa5f487effd3ccf0c676a1"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-functional-ac86/v6/all-manifest.json.gz",
+        "bytes": 341076,
+        "sha256_chunks": [
+          "4445eab22cc72c4e5e6c9ca44324c56c",
+          "7a8dd81827ccc43113bf4b958fcca5fe"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "checks[].samples[].owned_PG.task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-functional-d51/actual/ReleaseFast/pg-wrapper-state/fixture.json.gz",
+        "bytes": 698,
+        "sha256_chunks": [
+          "ec017a3120758b92af03a3031f7131b8",
+          "378b274333424f876c44f568fe2ccd8e"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-functional-d51/actual/ReleaseSafe/pg-wrapper-state/fixture.json.gz",
+        "bytes": 699,
+        "sha256_chunks": [
+          "e581e011d07f21bb1dd66217a386e073",
+          "8e8de3017712598134ca1f9a16d9d2e4"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/combined-production-functional-d51/actual/all-manifest.json.gz",
+        "bytes": 347976,
+        "sha256_chunks": [
+          "8d2c18d1fa20f81af2c1db072ddbf1f7",
+          "77f2e9d4738f77fb85f2518854b9d6ec"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "actual closed-PG runtime ownership token; publish whitelisted metrics/provenance only"
+      ],
+      "fieldnames": [
+        "checks[].samples[].owned_PG.task_token"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-capability-audit-20261106/interruption/config/relayer-public.json.gz",
+        "bytes": 668,
+        "sha256_chunks": [
+          "2f69fecce4772bd3ec4ca667f38cd1ff",
+          "f3e62c00ed7377b7c51765bc293032a5"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-capability-audit-20261106/interruption/config/validator-public.json.gz",
+        "bytes": 537,
+        "sha256_chunks": [
+          "e73e1a8fb73792747ed35485e85503b7",
+          "5ecc4b01acd5291f75a0e78d036b7001"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-lifetime-diagnostic/fixture/batch-config/public.json.gz",
+        "bytes": 911,
+        "sha256_chunks": [
+          "a781c07bd77cf7f50a5ee6c05bc43581",
+          "1c601a74bf29a2077595e075acbe43a0"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-lifetime-diagnostic/fixture/relayer-config/public.json.gz",
+        "bytes": 668,
+        "sha256_chunks": [
+          "505a1c6dd55dcf4db8dc721b20953ebc",
+          "bd9c1cdc9b6491573314f81e15dd1bed"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-lifetime-diagnostic/fixture/validator-config/public.json.gz",
+        "bytes": 536,
+        "sha256_chunks": [
+          "6feb4f5098ceaaa16b35c3b34e6062d2",
+          "047728164c32c5583c162656e2fded43"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-membership-diagnostic/fixture/batch-config/public.json.gz",
+        "bytes": 913,
+        "sha256_chunks": [
+          "8fc3a95be02d16bafcbbc44216453927",
+          "efed84900151e2baf9e20bd5132af0b1"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-membership-diagnostic/fixture/relayer-config/public.json.gz",
+        "bytes": 669,
+        "sha256_chunks": [
+          "0537750dc813f27c698b9b680b720985",
+          "e93444fe3427775997ed419a487c3831"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-membership-diagnostic/fixture/validator-config/public.json.gz",
+        "bytes": 537,
+        "sha256_chunks": [
+          "78417b23958234c37cd189fc22328689",
+          "40a3afd3b30fbb166816f21566d03ce6"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-estimate-identity-diagnostic/fixture/relayer-config/public.json.gz",
+        "bytes": 670,
+        "sha256_chunks": [
+          "857899f295757d3ae7ec2063c6684b57",
+          "1626952858ed62c63eb4349b82be5254"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-estimate-identity-diagnostic/fixture/validator-config/public.json.gz",
+        "bytes": 537,
+        "sha256_chunks": [
+          "475a4730a74d78fc5fe3f57578af0225",
+          "609296c89d2abb1d416a35ed20b05086"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-initial-metric-diagnostic/fixture/relayer-config/public.json.gz",
+        "bytes": 669,
+        "sha256_chunks": [
+          "e38bc7081ec1c6a1150c2cb65e821beb",
+          "1a921b834979798e3bcb50bc4baabf02"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-initial-metric-diagnostic/fixture/validator-config/public.json.gz",
+        "bytes": 537,
+        "sha256_chunks": [
+          "e8a77dbbe9e047f8470d2b3da10358a9",
+          "49ff5101ca98c4e7ebfcdd3ea97676b4"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/relayer-estimate-stage-capture/full/stopped-fixture/relayer-config/public.json.gz",
+        "bytes": 669,
+        "sha256_chunks": [
+          "c8cf374c1918a48254872e76aeee5d8b",
+          "637cf373c1eb1359fbd7bcdfbdcec5c6"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/relayer-estimate-stage-capture/full/stopped-fixture/validator-config/public.json.gz",
+        "bytes": 537,
+        "sha256_chunks": [
+          "649c220e208070cb9d4143e439ac48ff",
+          "38729587a915c9836b6f70e51bfa684b"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/relayer-estimate-stage-capture/initial/stopped-fixture/relayer-config/public.json.gz",
+        "bytes": 669,
+        "sha256_chunks": [
+          "60927964bc23754f3872dde8547dd70a",
+          "982e33ad5563758cba2dcdd94e88074d"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key",
+        "chains.test2.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/relayer-estimate-stage-capture/initial/stopped-fixture/validator-config/public.json.gz",
+        "bytes": 536,
+        "sha256_chunks": [
+          "8c42e7260d9e9255d12ff229bbe9f91b",
+          "d335bf0cc11bc08279f658ad7866b2c7"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "runtime config contains known public-fixture signer scalar; no operator-key assertion; omit even though fixedfixture"
+      ],
+      "fieldnames": [
+        "chains.test1.signer.key"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/canonical-admission-before-fix/11-relayer-process-initial-retired-rpc.json.gz",
+        "bytes": 3868,
+        "sha256_chunks": [
+          "0c1145f9177f4c3e91f13f53e10703db",
+          "346e955628106e2716ae2db3478819ec"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/canonical-admission-before-fix/12-relayer-process-initial-stopped-readback-rpc.json.gz",
+        "bytes": 3868,
+        "sha256_chunks": [
+          "0c1145f9177f4c3e91f13f53e10703db",
+          "346e955628106e2716ae2db3478819ec"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-d51-v12/relayer-process-initial-retired-rpc.json",
+        "bytes": 49992,
+        "sha256_chunks": [
+          "dba70c8cf0cdf22b29d82d46a0089d5d",
+          "700fb22027e2b55c539aa7f4789a68fb"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-d51-v12/relayer-process-initial-stopped-readback-rpc.json",
+        "bytes": 49992,
+        "sha256_chunks": [
+          "dba70c8cf0cdf22b29d82d46a0089d5d",
+          "700fb22027e2b55c539aa7f4789a68fb"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v3/relayer-process-initial-retired-rpc.json",
+        "bytes": 49987,
+        "sha256_chunks": [
+          "de071fef33879ab6267c2ccc1da6ad14",
+          "2495d8a822f5f3bcb8085f551447d1d7"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v3/relayer-process-initial-stopped-readback-rpc.json",
+        "bytes": 49987,
+        "sha256_chunks": [
+          "de071fef33879ab6267c2ccc1da6ad14",
+          "2495d8a822f5f3bcb8085f551447d1d7"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v4/relayer-process-initial-retired-rpc.json",
+        "bytes": 50008,
+        "sha256_chunks": [
+          "225affe91bf97d93249433b08ffb8c58",
+          "652c8f78d0693735facf145857e002c1"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v4/relayer-process-initial-stopped-readback-rpc.json",
+        "bytes": 50008,
+        "sha256_chunks": [
+          "225affe91bf97d93249433b08ffb8c58",
+          "652c8f78d0693735facf145857e002c1"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v5/relayer-process-batch-retired-rpc.json",
+        "bytes": 126431,
+        "sha256_chunks": [
+          "a860d809c181067db88afe5f9bdde17a",
+          "398eaf78e887e164544c04f679013498"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v5/relayer-process-batch-stopped-readback-rpc.json",
+        "bytes": 126431,
+        "sha256_chunks": [
+          "a860d809c181067db88afe5f9bdde17a",
+          "398eaf78e887e164544c04f679013498"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v5/relayer-process-initial-retired-rpc.json",
+        "bytes": 49999,
+        "sha256_chunks": [
+          "52ec6e23af0a0d6fc6ce8a7bd4372503",
+          "b021773b8936067a7e5c99b073649b10"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v5/relayer-process-initial-stopped-readback-rpc.json",
+        "bytes": 49999,
+        "sha256_chunks": [
+          "52ec6e23af0a0d6fc6ce8a7bd4372503",
+          "b021773b8936067a7e5c99b073649b10"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-lifetime-diagnostic/proof/relayer-process-initial-retired-rpc.json.gz",
+        "bytes": 3887,
+        "sha256_chunks": [
+          "821a0432d9e5a3157999e6c0823e6e45",
+          "44d73eb62d117b036f949d48108cb3f7"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-lifetime-diagnostic/proof/relayer-process-initial-stopped-readback-rpc.json.gz",
+        "bytes": 3887,
+        "sha256_chunks": [
+          "821a0432d9e5a3157999e6c0823e6e45",
+          "44d73eb62d117b036f949d48108cb3f7"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-batch-retired-rpc.json.gz",
+        "bytes": 9595,
+        "sha256_chunks": [
+          "919652a146310be7ded505ace264b3f7",
+          "9406d2c4ad82a5acf2e5f42c39e7c22c"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-batch-stopped-readback-rpc.json.gz",
+        "bytes": 9595,
+        "sha256_chunks": [
+          "919652a146310be7ded505ace264b3f7",
+          "9406d2c4ad82a5acf2e5f42c39e7c22c"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-initial-retired-rpc.json.gz",
+        "bytes": 3870,
+        "sha256_chunks": [
+          "92ee259945c13554a2aa0b5dc55f8e92",
+          "e29e54248de078b448455476bdceade4"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-initial-stopped-readback-rpc.json.gz",
+        "bytes": 3870,
+        "sha256_chunks": [
+          "92ee259945c13554a2aa0b5dc55f8e92",
+          "e29e54248de078b448455476bdceade4"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/relayer-batch-preparation-barrier/diagnostic/result.json.gz",
+        "bytes": 9510,
+        "sha256_chunks": [
+          "d9e106e7dbaaccf28b7a9a02df4914de",
+          "21fa52eafd98ed334b9efe15c5fd8b3d"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    },
+    {
+      "original": {
+        "path": "zig/bench/results/relayer-estimate-stage-capture/full/estimate-trace.json.gz",
+        "bytes": 6610,
+        "sha256_chunks": [
+          "2d6ba96d972ee884a311f11bfafe5871",
+          "e80c9d67186f2a1f52ca08ca619181d9"
+        ],
+        "protected_path": false,
+        "status": "untracked"
+      },
+      "reasons": [
+        "full raw signed RPC request body in request.params; keep private regardless publicfixture"
+      ],
+      "fieldnames": [
+        "method",
+        "request.params[]"
+      ],
+      "publication": "omitted private payload; exact original retained locally, no public replacement body"
+    }
+  ],
+  "sealed_historical_manifests_unchanged": true,
+  "historical_manifest_payload_completeness": "Older manifests may reference omitted private payloads. They remain immutable provenance, not a claim that every original body is published.",
+  "raw_originals_preserved": true,
+  "tracked_raw_command_publication": "New gzip prepared, but raw tracked relayer-final-commands.json/index/consumer cutover deferred. No git rm --cached or tracked ignore rule proposed.",
+  "no_new_native_benchmark_or_performance_acceptance": true
+}

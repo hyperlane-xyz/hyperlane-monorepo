@@ -6,9 +6,10 @@ window. It never cleans the production target/global caches or edits sources.
 Native prerequisite phases are explicit; prebuilt-SDK Zig compile timing is not
 compared to Rust's dependency-inclusive cold build as a whole-build speedup.
 """
-import argparse,datetime,hashlib,json,os,pathlib,platform,shutil,signal,subprocess,time
+import argparse,datetime,hashlib,json,os,pathlib,platform,re,select,shutil,signal,subprocess,time
 import inventory
 import cache_reclaim
+import cold_matrix_owner as ownership
 ROOT=inventory.ROOT
 
 def chunk(text):return[text[i:i+32]for i in range(0,len(text),32)]
@@ -21,40 +22,76 @@ def identity():
    children[:]=sorted(v for v in children if not inventory.pruned(v))
    for name in sorted(files):
     path=pathlib.Path(directory)/name
-    if path.is_symlink()or(path.suffix != '.gz' and pathlib.Path(str(path)+'.gz').exists())or(path.suffix not in inventory.SOURCE|inventory.DATA and name!='Dockerfile'):continue
+    if path.is_symlink()or(path.suffix not in inventory.SOURCE|inventory.DATA and name!='Dockerfile'):continue
     h.update(str(path.relative_to(ROOT)).encode()+b'\0'+''.join(inventory.digest(path)).encode()+b'\n')
  return chunk(h.hexdigest())
-def run_phase(phase,base_env,output):
- before=identity();log=output/(phase['name']+'.log');env=dict(base_env);env.update(phase['environment']);start=time.monotonic();load_before=os.getloadavg();free_before=shutil.disk_usage(output).free
- tree_peak=0;samples=0;disk_guard=False
- with log.open('w')as stream:
-  process=subprocess.Popen(phase['command'],cwd=phase['cwd'],env=env,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
-  while True:
-   pid,status,usage=os.wait4(process.pid,os.WNOHANG)
-   if pid:process.returncode=os.waitstatus_to_exitcode(status);break
-   memory=subprocess.run(['ps','-Ao','pid=,ppid=,rss='],capture_output=True,text=True)
-   if memory.returncode==0:
-    records=[tuple(map(int,line.split()))for line in memory.stdout.splitlines()if len(line.split())==3]
-    descendants={process.pid};previous=-1
-    while len(descendants)!=previous:
-     previous=len(descendants)
-     descendants.update(pid for pid,parent,_ in records if parent in descendants)
-    tree_peak=max(tree_peak,sum(rss*1024 for pid,_,rss in records if pid in descendants));samples+=1
-   if not disk_guard and shutil.disk_usage(output).free<2*1024**3:
-    disk_guard=True
-    try:os.killpg(process.pid,signal.SIGTERM)
-    except ProcessLookupError:pass
-   time.sleep(.2)
- elapsed=time.monotonic()-start;after=identity();rss=usage.ru_maxrss if platform.system()=='Darwin'else usage.ru_maxrss*1024
- row={**phase,'exit_code':process.returncode,'wall_seconds':elapsed,'cpu_user_seconds':usage.ru_utime,'cpu_system_seconds':usage.ru_stime,'maximum_child_RSS_bytes':rss,'sampled_process_tree_RSS_peak_bytes':tree_peak,'RSS_samples':samples,'RSS_sample_interval_ms':200,'disk_guard_triggered':disk_guard,'source_before_sha256_chunks':before,'source_after_sha256_chunks':after,'source_unchanged':before==after,'load_before':load_before,'load_after':os.getloadavg(),'free_disk_bytes_before':free_before,'free_disk_bytes_after':shutil.disk_usage(output).free,'log':log.name,'artifacts':[]}
+def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_timeout_seconds=7200):
+ if platform.system()=='Linux':ownership.enable_subreaper()
+ before=identity()
+ if before!=expected_source:raise RuntimeError('Source changed before phase '+phase['name'])
+ if shutil.disk_usage(output).free<runtime_floor_bytes:raise RuntimeError('Runtime free-disk floor before phase')
+ log=output/(phase['name']+'.log');env=dict(base_env);env.update(phase['environment'])
+ start=time.monotonic();load_before=os.getloadavg();free_before=shutil.disk_usage(output).free
+ tree_peak=0;samples=0;disk_guard=False;known={};groups={};process=None;usage=None;error=None;cleanup=None;pidfd=None;elapsed=None
+ watched=[signal.SIGTERM,signal.SIGINT,signal.SIGHUP];previous={sig:signal.getsignal(sig)for sig in watched}
+ def interrupted(sig,frame):raise InterruptedError('Phase received signal '+str(sig))
+ for sig in watched:signal.signal(sig,interrupted)
+ try:
+  with log.open('w')as stream:
+   old_mask=signal.pthread_sigmask(signal.SIG_BLOCK,watched)
+   try:
+    def unmask_child():signal.pthread_sigmask(signal.SIG_SETMASK,old_mask)
+    process=subprocess.Popen(phase['command'],cwd=phase['cwd'],env=env,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True,preexec_fn=unmask_child)
+    groups[process.pid]=process.pid
+   finally:signal.pthread_sigmask(signal.SIG_SETMASK,old_mask)
+   poller=None
+   if platform.system()=='Linux':
+    pidfd=os.pidfd_open(process.pid,0);poller=select.poll();poller.register(pidfd,select.POLLIN)
+   while True:
+    pid,status,child_usage=os.wait4(process.pid,os.WNOHANG)
+    if pid:
+     process.returncode=os.waitstatus_to_exitcode(status);usage=child_usage;elapsed=time.monotonic()-start;break
+    current=ownership.processes();owned=ownership.owned_processes(current,process.pid,known,groups,True)
+    tree_peak=max(tree_peak,sum(row['rss_bytes']for row in owned.values()));samples+=1
+    if shutil.disk_usage(output).free<runtime_floor_bytes:
+     disk_guard=True;raise RuntimeError('Phase runtime free-disk floor breached')
+    if time.monotonic()-start>phase_timeout_seconds:raise RuntimeError('Phase deadline exceeded')
+    if poller is not None:poller.poll(200)
+    else:time.sleep(.01)
+ except BaseException as failure:
+  error={'type':type(failure).__name__,'message':str(failure)}
+  if elapsed is None:elapsed=time.monotonic()-start
+ finally:
+  # Preserve elapsed before cleanup AND before subsequent Source/artifact hashes.
+  if elapsed is None:elapsed=time.monotonic()-start
+  for sig in watched:signal.signal(sig,signal.SIG_IGN)
+  try:
+   if process is not None:cleanup=ownership.stop_owned(process,known,groups)
+  except BaseException as failure:
+   cleanup={'clean':False,'error':{'type':type(failure).__name__,'message':str(failure)}}
+  finally:
+   if pidfd is not None:os.close(pidfd)
+   for sig,handler in previous.items():signal.signal(sig,handler)
+ after=identity();rss=None if usage is None else usage.ru_maxrss if platform.system()=='Darwin'else usage.ru_maxrss*1024
+ quiescent=bool(cleanup and cleanup.get('clean')and not cleanup.get('owned_present_before_stop')and not any(row.get('observed_as_adopted_child')for row in known.values()))
+ row={**phase,'exit_code':None if process is None else process.returncode,'wall_seconds':elapsed,'cpu_user_seconds':None if usage is None else usage.ru_utime,'cpu_system_seconds':None if usage is None else usage.ru_stime,'maximum_child_RSS_bytes':rss,'sampled_process_tree_RSS_peak_bytes':tree_peak,'RSS_samples':samples,'RSS_sample_interval_ms':200,'actual_wait4_usage_available':usage is not None,'exit_wait_method':'pidfd_poll'if platform.system()=='Linux'else'wait4_10ms_poll','disk_guard_triggered':disk_guard,'phase_error':error,'phase_owned_quiescent':quiescent,'phase_cleanup':cleanup,'source_before_sha256_chunks':before,'source_after_sha256_chunks':after,'source_unchanged':before==after,'load_before':load_before,'load_after':os.getloadavg(),'free_disk_bytes_before':free_before,'free_disk_bytes_after':shutil.disk_usage(output).free,'log':log.name,'artifacts':[]}
  for artifact in phase.get('artifacts',[]):
   path=pathlib.Path(artifact)
   if path.exists():row['artifacts'].append({'path':str(path),'bytes':path.stat().st_size,'sha256_chunks':inventory.digest(path)})
  return row
 
+
+def validate_phase(row,phase,expected_source):
+ if row['exit_code']!=0:raise SystemExit(row['exit_code']or 1)
+ if row.get('phase_error')or not row.get('phase_owned_quiescent',False):raise RuntimeError('Owned phase failed or left work running: '+phase['name'])
+ if not row['source_unchanged'] or row['source_after_sha256_chunks']!=expected_source:raise RuntimeError('Source changed during phase '+phase['name'])
+ if row['disk_guard_triggered']:raise RuntimeError('Runtime disk floor breached during phase '+phase['name'])
+ if len(row['artifacts'])!=len(phase.get('artifacts',[])):raise RuntimeError('Missing expected product after '+phase['name'])
+
 def cache_group(phase):
  name=phase['name']
  if name=='native-sdk-cold':return 'native'
+ if name=='url-cold':return 'url'
  if name.startswith('optional-'):return name.removeprefix('optional-').removesuffix('-cold')
  if name.startswith('rust-'):return 'rust'
  if name.startswith('zig-'):return 'zig-'+name.split('-')[1]
@@ -62,9 +99,9 @@ def cache_group(phase):
 
 def disk_model(phases,reclaim):
  # Conservative planning estimates, not measured build outcomes. Actual disk
- # samples and the2GiB runtime guard remain authoritative and preserve failures.
- peak={'native':2,'regex':1,'starknet':4,'aleo-crypto':4,'aleo-vm':8,'rust':28,'zig-ReleaseSafe':6,'zig-ReleaseFast':6}
- runtime={'native':.2,'regex':.05,'starknet':.1,'aleo-crypto':.1,'aleo-vm':.5,'rust':1,'zig-ReleaseSafe':.15,'zig-ReleaseFast':.15}
+ # samples and the6GiB runtime guard remain authoritative and preserve failures.
+ peak={'native':2,'url':.5,'regex':1,'starknet':4,'aleo-crypto':4,'aleo-vm':8,'rust':28,'zig-ReleaseSafe':6,'zig-ReleaseFast':6}
+ runtime={'native':.2,'url':.01,'regex':.05,'starknet':.1,'aleo-crypto':.1,'aleo-vm':.5,'rust':1,'zig-ReleaseSafe':.15,'zig-ReleaseFast':.15}
  held={};rows=[];maximum=0
  for i,phase in enumerate(phases):
   group=cache_group(phase);held[group]=peak[group];at_phase=sum(held.values());maximum=max(maximum,at_phase)
@@ -87,12 +124,19 @@ def reclaim_phase(cache,phase,all_phases,index):
  return cache_reclaim.reclaim(cache,cache/('sdk-'+group),artifacts)
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',required=True);p.add_argument('--sdk-root',type=pathlib.Path);p.add_argument('--native-db-libs-file',type=pathlib.Path,required=True);p.add_argument('--libpq-library',type=pathlib.Path,required=True);p.add_argument('--toolchain',default='1.98.0');p.add_argument('--jobs',type=int,default=2);p.add_argument('--cpu',choices=['native','production-default'],default='native');p.add_argument('--rust-features',default='');p.add_argument('--native-cold',action='store_true');p.add_argument('--optional-native-sdks',action='store_true');p.add_argument('--execute',action='store_true');p.add_argument('--reclaim-phase-caches',action='store_true',help='Outside timers, preserve runtime artifacts and reclaim generated compiler outputs after their final paired phase');p.add_argument('--min-free-GiB',type=float,default=40);p.add_argument('--cache-root',type=pathlib.Path);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/build-matrix-plan');args=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',required=True);p.add_argument('--sdk-root',type=pathlib.Path);p.add_argument('--native-db-libs-file',type=pathlib.Path,required=True);p.add_argument('--libpq-library',type=pathlib.Path,required=True);p.add_argument('--toolchain',default='1.98.0');p.add_argument('--jobs',type=int,default=2);p.add_argument('--cpu',choices=['native','production-default'],default='native');p.add_argument('--rust-features',default='');p.add_argument('--native-cold',action='store_true');p.add_argument('--optional-native-sdks',action='store_true');p.add_argument('--execute',action='store_true');p.add_argument('--reclaim-phase-caches',action='store_true',help='Outside timers, preserve runtime artifacts and reclaim generated compiler outputs after their final paired phase');p.add_argument('--min-free-GiB',type=float,default=40);p.add_argument('--runtime-free-GiB',type=float,default=6);p.add_argument('--git-sha');p.add_argument('--phase-timeout-seconds',type=float,default=7200);p.add_argument('--comparison-order',choices=['rust-safe-fast','fast-rust-safe','safe-fast-rust'],default='rust-safe-fast');p.add_argument('--cache-root',type=pathlib.Path);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/build-matrix-plan');args=p.parse_args()
  if not 1<=args.jobs<=64:p.error('jobs must be1..64')
+ if not 0<args.phase_timeout_seconds<=14400:p.error('phase timeout must be0..14400 seconds')
+ if not 0<args.runtime_free_GiB<=args.min_free_GiB:p.error('Runtime floor must be positive and no larger than initial floor')
+ if args.git_sha is not None and re.fullmatch('[0-9a-f]{40}',args.git_sha) is None:p.error('git-sha must be exact lower-case 40hex')
  output=args.output.resolve();output.mkdir(parents=True,exist_ok=True);cache=(args.cache_root or ROOT/'zig/bench/.cache'/('build-matrix-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'))).resolve();libraries=[str(pathlib.Path(v.strip()).resolve())for v in args.native_db_libs_file.read_text().replace('\n',',').split(',')if v.strip()]
  if len(libraries)!=7:p.error('seven production RocksDB/compression/ABI archives required')
  setup=[['python3',str(ROOT/'zig/tools/fixture_pack.py'),'restore-locks']]
  if args.native_cold:setup.append(['python3',str(ROOT/'zig/tools/native_deps.py'),'--restore-only'])
+ # Validator startup always uses the reference URL normalizer, including core
+ # images. Every dependency-inclusive or full-SDK trial measures it separately.
+ url_cold=args.native_cold or args.optional_native_sdks
+ if url_cold:setup.append(['python3',str(ROOT/'zig/src/net/native-url/locked.py'),'--restore-only'])
  if args.optional_native_sdks:
   setup.extend([['python3',str(ROOT/path),'--restore-only']for path in ['zig/src/starknet/testing/locked.py','zig/src/aleo/testing/locked.py','zig/src/ops/tools/locked.py']])
  phases=[];cargo=['cargo',f'+{args.toolchain}','build','--locked','--offline','--release'];rust_flags='--cfg tokio_unstable'+(' -Ctarget-cpu=native'if args.cpu=='native'else'');base_env=dict(os.environ)
@@ -112,8 +156,11 @@ def main():
  if args.native_cold:
   native_output=cache/'native-sdk';command=['python3',ROOT/'zig/tools/native_deps.py','--offline','--target-dir',cache/'native-target','--output',native_output,'--jobs',args.jobs,'--toolchain',args.toolchain,'--format','libs']
   if args.sdk_root:command+=['--sdk-root',args.sdk_root]
-  add('native-sdk-cold',command,ROOT,{},'fresh standalone native dependency target; downloads excluded', [native_output/'librocksdb.a',native_output/'libziggy_rocks_abi.a'])
+  add('native-sdk-cold',command,ROOT,{},'fresh standalone native dependency target; downloads excluded', [native_output/name for name in ['libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a']])
   libraries=[str(native_output/v)for v in['libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a']]
+ if url_cold:
+  target=cache/'sdk-url';library='libziggy_url'+('.dylib'if platform.system()=='Darwin'else'.so')
+  add('url-cold',cargo+['--manifest-path',ROOT/'zig/src/net/native-url/Cargo.toml','--target-dir',target,'-j',args.jobs],ROOT,{'RUSTFLAGS':rust_flags},'fresh required Rust URL normalization target; downloaded source cache retained',[target/'release'/library])
  if args.optional_native_sdks:
   for name,manifest in [('regex','zig/src/ops/regex-native/Cargo.toml'),('starknet','zig/src/starknet/native-crypto/Cargo.toml'),('aleo-crypto','zig/src/aleo/native-crypto/Cargo.toml'),('aleo-vm','zig/src/aleo/native-vm/Cargo.toml')]:
    target=cache/('sdk-'+name);library='lib'+{'regex':'ziggy_regex','starknet':'ziggy_starknet_crypto','aleo-crypto':'ziggy_aleo_crypto','aleo-vm':'ziggy_aleo_vm'}[name]+('.dylib'if platform.system()=='Darwin'else'.so');add('optional-'+name+'-cold',cargo+['--manifest-path',ROOT/manifest,'--target-dir',target,'-j',args.jobs],ROOT,{'RUSTFLAGS':rust_flags},'fresh optional Rust SDK target; parameter downloads/runtime proving excluded',[target/'release'/library])
@@ -128,12 +175,17 @@ def main():
   if args.sdk_root:command+=['--sdk-root',args.sdk_root]
   command+=['build','validator','relayer','scraper','-Doptimize='+mode,'-Dnative-db-libs='+','.join(libraries),'-Dlibpq-library='+str(args.libpq_library.resolve()),'--cache-dir',local,'--global-cache-dir',global_,'--prefix',prefix,'-j'+str(args.jobs)]
   if args.cpu=='native':command+=['-Dcpu=native']
+  if args.git_sha:command+=['-Dgit-sha='+args.git_sha]
   binaries=[prefix/'bin'/role for role in['relayer','validator','scraper']]
   if args.optional_native_sdks:command+=['aleo-vm-worker'];binaries.append(prefix/'bin/hyperlane-aleo-vm-worker')
   add('zig-'+mode+'-three-agent-cold',command,ROOT/'zig',{},'fresh local+global compiler cache; native SDKs '+('built in separately measured prerequisite phases'if args.native_cold else'PREBUILT/REUSED: compiler-only cold, not dependency-inclusive cold'),binaries)
   add('zig-'+mode+'-three-agent-no-change',command,ROOT/'zig',{},'same isolated compiler cache; no source changes, no-change incremental',binaries)
+ prereqs=[phase for phase in phases if not phase['name'].startswith(('rust-','zig-'))]
+ pairs={group:[phase for phase in phases if cache_group(phase)==group]for group in ['rust','zig-ReleaseSafe','zig-ReleaseFast']}
+ orders={'rust-safe-fast':['rust','zig-ReleaseSafe','zig-ReleaseFast'],'fast-rust-safe':['zig-ReleaseFast','rust','zig-ReleaseSafe'],'safe-fast-rust':['zig-ReleaseSafe','zig-ReleaseFast','rust']}
+ phases=prereqs+[phase for group in orders[args.comparison_order]for phase in pairs[group]]
  model=disk_model(phases,args.reclaim_phase_caches);required_free=max(args.min_free_GiB,model['required_estimated_GiB'])
- plan={'scope':'All three actual agent executables; native dependency and optional Rust FFI phases explicit. Correctness/feature parity required separately. No execution by default.','captured_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cache_root':str(cache),'jobs':args.jobs,'cpu_policy':args.cpu,'sdk_root':str(args.sdk_root.resolve())if args.sdk_root else None,'rust_features':args.rust_features or'default (Aleo optional feature disabled)','removed_environment_key_names':removed,'minimum_free_disk_GiB':args.min_free_GiB,'required_free_disk_GiB':required_free,'disk_model':model,'reclaim_phase_caches':args.reclaim_phase_caches,'compiler_cache_policy':compiler_cache_policy,'free_disk_bytes':shutil.disk_usage(output).free,'native_cold':args.native_cold,'optional_sdk_cold':args.optional_native_sdks,'setup_commands_before_measurement':setup,'phases':phases,'methodology':['Cold means fresh compiler/target caches, with already-downloaded source/toolchains. SDK and registry network downloads are excluded.','No-change incremental is labeled explicitly; no source-edit incremental claim.','Native Rust SDK/proving/regex dependencies are included when selected. No zero-dependency claim.','wait4 maximum-child RSS and sampled200ms aggregate process-tree RSS are separate; summed RSS double-counts shared pages and may miss shorter peaks. Binaries/bundle/disk sizes reported separately.','Run only in coordinated team compiler-idle window; capture shared-host load and preserve every row/failure.','Optional all-eight build uses Rust features relayer/aleo,validator/aleo,scraper/aleo plus --optional-native-sdks and --native-cold. Runtime Aleo parameters/proving not a compile-time operation.']}
+ plan={'source_integrity_policy':'Hash both packed and decoded Source/data siblings; LOC dedup never applies to consumed-input integrity','comparison_order':args.comparison_order,'counterbalance_scope':'compiler cold/no-change pair positions only; prerequisites fixed first; no carryover or full dependency-block counterbalance claim','phase_timeout_seconds':args.phase_timeout_seconds,'runtime_free_disk_floor_GiB':args.runtime_free_GiB,'compiled_git_sha':args.git_sha,'scope':'All three actual agent executables; native dependency and optional Rust FFI phases explicit. Correctness/feature parity required separately. No execution by default.','captured_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cache_root':str(cache),'jobs':args.jobs,'cpu_policy':args.cpu,'sdk_root':str(args.sdk_root.resolve())if args.sdk_root else None,'rust_features':args.rust_features or'default (Aleo optional feature disabled)','removed_environment_key_names':removed,'minimum_free_disk_GiB':args.min_free_GiB,'required_free_disk_GiB':required_free,'disk_model':model,'reclaim_phase_caches':args.reclaim_phase_caches,'compiler_cache_policy':compiler_cache_policy,'free_disk_bytes':shutil.disk_usage(output).free,'native_cold':args.native_cold,'optional_sdk_cold':args.optional_native_sdks,'required_url_cold':url_cold,'setup_commands_before_measurement':setup,'phases':phases,'methodology':['Cold means fresh compiler/target caches, with already-downloaded source/toolchains. SDK and registry network downloads are excluded.','No-change incremental is labeled explicitly; no source-edit incremental claim.','Required Rust URL normalization is measured whenever native-cold or optional-native-sdks is selected; the other four Rust SDK/proving/regex dependencies are measured with optional-native-sdks. Compiler-only phases reuse runtime dependencies. No zero-dependency claim.','wait4 maximum-child RSS and sampled200ms aggregate process-tree RSS are separate; summed RSS double-counts shared pages and may miss shorter peaks. Binaries/bundle/disk sizes reported separately.','Run only in coordinated team compiler-idle window; capture shared-host load and preserve every row/failure.','Full-feature build includes the required URL library and uses Rust features relayer/aleo,validator/aleo,scraper/aleo plus --optional-native-sdks and --native-cold. Runtime Aleo parameters/proving not a compile-time operation.']}
  (output/'plan.json').write_text(json.dumps(plan,indent=2)+'\n')
  if not args.execute:print(json.dumps({'executed':False,'plan':str(output/'plan.json'),'phases':len(phases),'free_GiB':plan['free_disk_bytes']/1024**3}));return
  if cache.exists()and any(cache.iterdir()):raise SystemExit('Cold cache root already contains files; choose a fresh task-owned directory (nothing deleted).')
@@ -142,11 +194,11 @@ def main():
  if cache_wrapped_compilers:raise SystemExit('Explicit C/C++ cache wrapper configured; select an uncached compiler before claiming compiler-cache-cold: '+','.join(cache_wrapped_compilers))
  for index,command in enumerate(setup):
   with(output/f'setup-{index}.log').open('w')as log:subprocess.run(command,cwd=ROOT,env=base_env,stdout=log,stderr=subprocess.STDOUT,check=True)
- cache_reclaim.mark(cache);rows=[];reclamations=[]
+ cache_reclaim.mark(cache);rows=[];reclamations=[];expected_source=identity()
  for index,phase in enumerate(phases):
-  row=run_phase(phase,base_env,output);rows.append(row);(output/'results.json').write_text(json.dumps({'plan':'plan.json','results':rows,'reclamations':reclamations},indent=2)+'\n')
+  row=run_phase(phase,base_env,output,expected_source,int(args.runtime_free_GiB*1024**3),args.phase_timeout_seconds);rows.append(row);(output/'results.json').write_text(json.dumps({'plan':'plan.json','results':rows,'reclamations':reclamations},indent=2)+'\n')
   print(json.dumps({'phase':phase['name'],'exit_code':row['exit_code'],'wall_seconds':row['wall_seconds'],'source_unchanged':row['source_unchanged']}),flush=True)
-  if row['exit_code']!=0:raise SystemExit(row['exit_code'])
+  validate_phase(row,phase,expected_source)
   if args.reclaim_phase_caches:
    try:event=reclaim_phase(cache,phase,phases,index)
    except Exception as error:

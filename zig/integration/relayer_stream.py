@@ -30,6 +30,7 @@ import urllib.request
 
 import evm
 import relayer_process
+from zig.integration import validator as validator_fixture
 import tls_fixture
 
 ROOT = evm.ROOT
@@ -99,9 +100,10 @@ def websocket_readiness_evidence(body, stream, generation, launch_unix_seconds):
     candidates = [item for item in stream.subscriptions if item["session"] == generation]
     assert len(candidates) == 1
     subscription = candidates[0]
+    assert subscription["transport_session"] == session["transport_index"]
     assert session["replayed"] and not session["closed"] and subscription["session"] == generation and subscription["mode"] == "restart" and subscription["gas_version"] == 3
     assert all("allowReplay" not in cursor for item in subscription["ack"] for cursor in item.get("cursors", []))
-    return {"mode": "current_websocket_authority_fresh_tls_generation", "launch_unix_seconds": launch_unix_seconds, "registry_scope": "current process admin registry", "chains": chains, "tls_session": generation, "subscription": subscription}
+    return {"mode": "current_websocket_authority_fresh_tls_generation", "launch_unix_seconds": launch_unix_seconds, "registry_scope": "current process admin registry", "chains": chains, "tls_session": session["transport_index"], "scenario_index": generation, "subscription": subscription}
 
 
 def wait_websocket_ready(metrics_port, process, stream, generation):
@@ -133,10 +135,10 @@ def websocket_readiness_contract_tests():
     class Stream:
         pass
     stream = Stream()
-    stream.sessions = [{"replayed": True, "closed": False}, {"replayed": True, "closed": False}]
-    stream.subscriptions = [{"session": 0, "mode": "late", "gas_version": 3, "ack": []}, {"session": 1, "mode": "restart", "gas_version": 3, "ack": []}]
+    stream.sessions = [{"replayed": True, "closed": False, "transport_index": 2}, {"replayed": True, "closed": False, "transport_index": 3}]
+    stream.subscriptions = [{"session": 0, "transport_session": 2, "mode": "late", "gas_version": 3, "ack": []}, {"session": 1, "transport_session": 3, "mode": "restart", "gas_version": 3, "ack": []}]
     evidence = websocket_readiness_evidence(body, stream, 1, 100.0)
-    assert evidence["tls_session"] == 1
+    assert evidence["tls_session"] == 3 and evidence["scenario_index"] == 1
     passed = ["current_ws_authority_fresh_tls_generation_accepted"]
     for label, mutate in [
         ("stale_tls_generation_rejected", lambda: stream.subscriptions.__setitem__(1, dict(stream.subscriptions[1], session=0))),
@@ -269,6 +271,7 @@ class StreamServer:
     def __init__(self):
         self.rows = {domain: {kind: [] for kind in EVENT_KINDS} for domain in (ORIGIN_A, ORIGIN_B, DESTINATION)}
         self.sessions = []
+        self.transports = []
         self.subscriptions = []
         self.errors = []
         self.lock = threading.RLock()
@@ -278,6 +281,45 @@ class StreamServer:
         self.late_replay_gate = threading.Event()
         self.previous_ack = None
         self.scenarios = ["legacy", "failed", "stale_ack", "malformed", "rejected", "freshness", "disconnect", "v3", "late", "restart"]
+
+    def commit_session(self, session):
+        # Caller holds self.lock. Transport retries cannot spend a scenario.
+        assert session["index"] is None and len(self.sessions) == session["candidate_index"], "stale scenario attempt"
+        session["index"] = session["candidate_index"]
+        self.sessions.append(session)
+
+    def record_subscription(self, session, message, streams, ack_streams, gas_version):
+        # Startup origin readiness may legitimately create partial subscriptions.
+        # ACK/replay those on their own transport, but reserve logical scenarios
+        # for the exact domain coverage that the fixture is about to exercise.
+        assert not session["subscribed"], "duplicate subscription"
+        assert session["index"] is None and len(self.sessions) == session["candidate_index"], "stale scenario attempt"
+        expected_kinds = EVENT_KINDS[:2] if gas_version == 2 else EVENT_KINDS
+        assert [item["eventType"] for item in streams] == list(expected_kinds), "subscription stream coverage"
+        required = {ORIGIN_A, DESTINATION} if session["candidate_index"] <= 7 else {ORIGIN_A, ORIGIN_B, DESTINATION}
+        coverage = None
+        for item in streams:
+            domains = item.get("domains")
+            cursors = item.get("cursors")
+            assert isinstance(domains, list) and isinstance(cursors, list), "subscription domain/cursor lists"
+            assert all(type(domain) is int for domain in domains) and len(domains) == len(set(domains)), "duplicate/invalid subscription domain"
+            domains = set(domains)
+            assert domains <= required, "foreign subscription domain"
+            cursor_domains = [cursor["domain"] for cursor in cursors]
+            assert all(type(domain) is int for domain in cursor_domains) and len(cursor_domains) == len(set(cursor_domains)), "duplicate/invalid subscription cursor"
+            assert set(cursor_domains) == domains, "subscription domain/cursor coverage"
+            if coverage is None:
+                coverage = domains
+            assert domains == coverage, "inconsistent subscription domain coverage"
+        complete = coverage == required
+        if complete:
+            self.commit_session(session)
+        subscription = {"session": session["index"], "transport_session": session["transport_index"], "mode": session["mode"], "gas_version": gas_version, "message": copy.deepcopy(message), "ack": copy.deepcopy(ack_streams)}
+        session["subscription"] = subscription
+        session["subscribed"] = True
+        if complete:
+            self.subscriptions.append(subscription)
+        return complete
 
     def __enter__(self):
         owner = self
@@ -290,20 +332,30 @@ class StreamServer:
                 try:
                     header = b""
                     while b"\r\n\r\n" not in header:
-                        header += connection.recv(1)
+                        part = connection.recv(1)
+                        if not part:
+                            raise ConnectionError("EOF before upgrade")
+                        header += part
                     fields = {key.strip().lower(): value.strip() for key, value in (line.split(":", 1) for line in header.decode().split("\r\n")[1:] if ":" in line)}
                     accept = base64.b64encode(hashlib.sha1((fields["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
-                    connection.sendall(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + "\r\n\r\n").encode())
                     with owner.lock:
                         index = len(owner.sessions)
                         mode = owner.scenarios[index] if index < len(owner.scenarios) else "healthy"
-                        session = {"index": index, "mode": mode, "connection": connection, "lock": threading.Lock(), "closed": False, "subscribed": False, "replayed": False, "pong": threading.Event(), "sent": {}}
-                        owner.sessions.append(session)
-                    if index == 0:
+                        # A startup reconnect before subscribe is a transport attempt,
+                        # not completion of the mandatory legacy scenario.
+                        session = {"index": None, "candidate_index": index, "subscription": None, "transport_index": len(owner.transports), "mode": mode, "connection": connection, "lock": threading.Lock(), "closed": False, "subscribed": False, "replayed": False, "pong": threading.Event(), "sent": {}}
+                        owner.transports.append(session)
+                    if mode == "legacy":
                         while not owner.ready_gate.wait(.1):
                             if owner.stop.is_set():
                                 return
+                    if owner.stop.is_set():
+                        return
+                    connection.sendall(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + "\r\n\r\n").encode())
                     if mode == "failed":
+                        # This scenario intentionally fails before subscribe.
+                        with owner.lock:
+                            owner.commit_session(session)
                         return
                     gas_version = 2 if mode == "legacy" else 3
                     owner.send(session, {"type": "ready", "streamCursorVersions": {"gas_payment": gas_version}})
@@ -330,37 +382,37 @@ class StreamServer:
                             for cursor in stream.get("cursors", []):
                                 cursor.pop("allowReplay", None)
                         with owner.lock:
-                            owner.subscriptions.append({"session": index, "mode": mode, "gas_version": gas_version, "message": copy.deepcopy(message), "ack": copy.deepcopy(ack_streams)})
-                        session["subscribed"] = True
-                        if mode == "stale_ack":
+                            committed = owner.record_subscription(session, message, streams, ack_streams, gas_version)
+                        if mode == "stale_ack" and committed:
                             assert owner.previous_ack is not None
                             owner.send(session, {"type": "subscribed", "streams": owner.previous_ack})
                             return
-                        if mode == "rejected":
+                        if mode == "rejected" and committed:
                             wrong = copy.deepcopy(ack_streams)
                             wrong[0]["cursors"][0]["afterSequence"] = "9223372036854775807"
                             owner.send(session, {"type": "subscribed", "streams": wrong})
                             return
                         owner.send(session, {"type": "subscribed", "streams": ack_streams})
-                        with owner.lock:
-                            owner.previous_ack = copy.deepcopy(ack_streams)
+                        if committed:
+                            with owner.lock:
+                                owner.previous_ack = copy.deepcopy(ack_streams)
                         session["ack"] = copy.deepcopy(ack_streams)
-                        if mode == "freshness":
+                        if mode == "freshness" and committed:
                             domain = streams[0]["cursors"][0]["domain"]
                             address = streams[0]["cursors"][0]["address"]
                             owner.send(session, {"type": "caught_up", "address": address, "domain": domain, "eventType": "dispatch", "sequence": "-1"})
                             return
-                        if mode == "late":
+                        if mode == "late" and committed:
                             owner.late_subscribed.set()
                             while not owner.late_replay_gate.wait(.1):
                                 if owner.stop.is_set():
                                     return
                         owner.replay(session)
                         session["replayed"] = True
-                        if mode == "malformed":
+                        if mode == "malformed" and committed:
                             owner.frame(session, 1, b"{not-json")
                             return
-                        if mode == "disconnect":
+                        if mode == "disconnect" and committed:
                             return
                     return
                 except (ConnectionError, OSError, TimeoutError):
@@ -430,7 +482,7 @@ class StreamServer:
         self.rows[domain][kind].append(row)
 
     def replay(self, session):
-        subscription = next(item for item in self.subscriptions if item["session"] == session["index"])
+        subscription = session["subscription"]
         for stream in subscription["message"]["streams"]:
             kind = stream["eventType"]
             cursor_field = "afterSequence" if kind != "gas_payment" else "afterStreamCursor"
@@ -455,10 +507,10 @@ class StreamServer:
 
     def publish(self, domain):
         with self.lock:
-            for session in self.sessions:
+            for session in self.transports:
                 if not session["subscribed"] or not session["replayed"] or session["closed"]:
                     continue
-                subscription = next(item for item in self.subscriptions if item["session"] == session["index"])
+                subscription = session["subscription"]
                 for stream in subscription["message"]["streams"]:
                     kind = stream["eventType"]
                     if not any(cursor["domain"] == domain for cursor in stream.get("cursors", [])):
@@ -497,7 +549,7 @@ class StreamServer:
         self.ready_gate.set()
         self.late_replay_gate.set()
         with self.lock:
-            sessions = list(self.sessions)
+            sessions = list(self.transports)
         for session in sessions:
             try:
                 session["connection"].shutdown(socket.SHUT_RDWR)
@@ -557,7 +609,7 @@ def chain_settings(name, contracts):
     return {"name": name, "domainId": DOMAINS[name], "chainId": CHAIN_IDS[name], "protocol": "ethereum", "rpcUrls": [{"http": chain.url}], "mailbox": mailbox, "merkleTreeHook": hook, "validatorAnnounce": announce, "interchainGasPaymaster": igp, "blocks": {"reorgPeriod": 0, "confirmations": 0, "estimateBlockTime": 1}, "index": {"from": 0, "interval": 1}, "signer": {"type": "hexKey", "key": "0x" + "11" * 32}}
 
 
-def validator_config(binary, name, settings, temporary, logs, agents):
+def validator_config(binary, name, settings, temporary, logs, agents, url_library):
     directory = temporary / f"validator-{name}-config"
     directory.mkdir()
     checkpoints = temporary / f"validator-{name}-checkpoints"
@@ -565,7 +617,7 @@ def validator_config(binary, name, settings, temporary, logs, agents):
     (directory / "public.json").write_text(json.dumps(value))
     log = (temporary / f"validator-{name}.log").open("w")
     logs.append(log)
-    process = relayer_process.launch(binary, directory, log)
+    process = relayer_process.launch(binary, directory, log, {"HYPERLANE_URL_LIBRARY": url_library["pinned_path"]})
     agents.append(process)
     return process, checkpoints
 
@@ -609,7 +661,7 @@ def event_addresses(settings, name):
     return [chain["mailbox"].lower(), chain["merkleTreeHook"].lower(), chain["interchainGasPaymaster"].lower()]
 
 
-def run_acceptance(binary, validator_binary, oracle, reference, contracts, temporary, output):
+def run_acceptance(binary, validator_binary, oracle, reference, contracts, temporary, output, url_library):
     anvils = {}
     agents = []
     logs = []
@@ -666,7 +718,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
             produce("test3", "rpc-backfill-b0")
             validators = {}
             for name in ("test1", "test3"):
-                process, checkpoints = validator_config(validator_binary, name, settings[name], temporary, logs, agents)
+                process, checkpoints = validator_config(validator_binary, name, settings[name], temporary, logs, agents, url_library)
                 validators[name] = {"process": process, "checkpoints": checkpoints}
                 wait(lambda: (checkpoints / "0_with_id.json").exists(), process, 45, f"{name} initial validator checkpoint")
 
@@ -792,7 +844,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
                     if stream_value["eventType"] == "gas_payment":
                         assert cursors[ORIGIN_A]["afterStreamCursor"] == str(hidden["nonce"])
                         assert cursors[ORIGIN_B]["afterStreamCursor"] == "1"
-                        assert "afterStreamCursor" not in cursors[DESTINATION]
+                        assert cursors[DESTINATION]["afterStreamCursor"] == "0"
                     else:
                         assert cursors[ORIGIN_A]["afterSequence"] == str(hidden["nonce"] - 2)
                         assert cursors[ORIGIN_B]["afterSequence"] == "-1"
@@ -874,6 +926,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
                     "passed": True,
                     "initial_rpc_backfill": {"methods": initial_rpc, "message": 0, "late_origin_chain_id_held": True},
                     "legacy_v2": {"subscription": legacy_subscription, "origin_a_event_calls_at_cutover": legacy_a_baseline, "destination_event_calls_at_cutover": legacy_d_baseline, "live_delivery": 1},
+                    "transport_attempts": [{key: session[key] for key in ("transport_index", "index", "mode", "closed", "subscribed", "replayed")} for session in stream.transports],
                     "faults": fault_cases,
                     "healthy_v3": healthy_v3,
                     "late_and_stalled_origin": {"expanded_subscription": stream.subscriptions[-2], "stalled_probe_observed": True, "healthy_neighbor_live_nonce": neighbor_record["nonce"], "socket_pong": True, "withheld_nonce_undelivered_before_restart": hidden["nonce"], "sigterm": first_stop},
@@ -914,6 +967,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=pathlib.Path, default=ROOT / "zig/zig-out/bin/relayer")
+    parser.add_argument("--url-library", type=pathlib.Path)
     parser.add_argument("--validator-binary", type=pathlib.Path, default=ROOT / "zig/zig-out/bin/validator")
     parser.add_argument("--oracle", type=pathlib.Path, default=relayer_process.IMMUTABLE_ORACLE)
     parser.add_argument("--reference", type=pathlib.Path, default=ROOT / "zig/reference/target/release/ziggy-rust-reference")
@@ -924,16 +978,17 @@ def main():
     if args.compile_only:
         print(json.dumps({"compiled": list(contracts)}))
         return
+    url_library = validator_fixture.url_dependency(args.url_library)
     binary = relayer_process.pin(args.binary, "relayer")
     validator_binary = relayer_process.pin(args.validator_binary, "validator")
     oracle = relayer_process.verified_oracle(args.oracle)
     reference = args.reference.resolve()
     inventory = ["zig/integration/relayer_stream.py", "zig/src/agents/relayer_task.zig", "zig/src/agents/origin_tasks.zig", "zig/src/agents/evm_origin.zig", "zig/src/agents/stream/relayer_bridge.zig", "zig/src/agents/stream/relayer.zig", "zig/src/agents/stream/protocol.zig", "zig/src/agents/stream/socket_owner.zig", "zig/src/agents/stream/relayer_store.zig", "zig/src/ops/metrics_schema.zig"]
-    result = {"passed": False, "scope": __doc__, "functional_not_benchmark": True, "executables": {"relayer_sha256_chunks": sha(binary), "validator_sha256_chunks": sha(validator_binary), "rocks_oracle_sha256_chunks": sha(oracle), "rust_reference_sha256_chunks": sha(reference)}, "source_inventory_sha256_chunks": {path: sha(ROOT / path) for path in inventory}, "errors": []}
+    result = {"passed": False, "scope": __doc__, "validator_url_library": url_library, "functional_not_benchmark": True, "executables": {"relayer_sha256_chunks": sha(binary), "validator_sha256_chunks": sha(validator_binary), "rocks_oracle_sha256_chunks": sha(oracle), "rust_reference_sha256_chunks": sha(reference)}, "source_inventory_sha256_chunks": {path: sha(ROOT / path) for path in inventory}, "errors": []}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     try:
         with tempfile.TemporaryDirectory(prefix="ziggy-relayer-stream-") as directory:
-            result["case"] = run_acceptance(binary, validator_binary, oracle, reference, contracts, pathlib.Path(directory), args.output)
+            result["case"] = run_acceptance(binary, validator_binary, oracle, reference, contracts, pathlib.Path(directory), args.output, url_library)
         result["passed"] = True
     except Exception as error:
         result["failed_fixture"] = str(args.output.parent / f"{args.output.stem}-failed-latest")

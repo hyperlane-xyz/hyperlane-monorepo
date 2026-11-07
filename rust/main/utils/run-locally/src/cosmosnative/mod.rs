@@ -39,6 +39,27 @@ pub struct CosmosNativeStack {
 // kills all the remaining children
 impl Drop for CosmosNativeStack {
     fn drop(&mut self) {
+        match crate::external_agents::get() {
+            Ok(Some(_)) => {
+                // Roles already have their final parent waits. Fixture children
+                // need explicit waits too; continue cleanup if one fails.
+                for node in &mut self.nodes {
+                    if let Err(error) =
+                        crate::external_agents::stop_cosmos_fixture(&mut node.handle.1, "hypd")
+                    {
+                        eprintln!("external Cosmos node cleanup failed: {error:#}");
+                    }
+                }
+                if let Err(error) =
+                    crate::external_agents::stop_cosmos_fixture(&mut self.postgres.1, "docker")
+                {
+                    eprintln!("external Cosmos PostgreSQL cleanup failed: {error:#}");
+                }
+                return;
+            }
+            Ok(None) => {}
+            Err(error) => eprintln!("external Cosmos cleanup manifest failed: {error:#}"),
+        }
         stop_child(&mut self.relayer.1);
         stop_child(&mut self.scraper.1);
         stop_child(&mut self.postgres.1);
@@ -80,7 +101,7 @@ fn dispatch(node1: &Deployment, node2: &Deployment) -> u32 {
 #[apply(as_task)]
 fn launch_cosmos_validator(agent_config: AgentConfig, agent_config_path: PathBuf) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir().expect("Failed to create a temp dir").keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).unwrap();
@@ -154,7 +175,7 @@ fn launch_cosmos_scraper(
 ) -> AgentHandles {
     let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "scraper");
 
-    let scraper = Program::default()
+    Program::default()
         .bin(bin)
         .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path)
@@ -165,9 +186,7 @@ fn launch_cosmos_scraper(
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
         .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("SCR", None);
-
-    scraper
+        .spawn("SCR", None)
 }
 
 fn make_target() -> String {
@@ -189,9 +208,14 @@ fn make_target() -> String {
 }
 
 fn install_sim_app() -> PathBuf {
+    if crate::external_agents::enabled() {
+        if let Some(path) = crate::external_agents::tool("E2E_HYPD_PATH") {
+            return path;
+        }
+    }
     let target = make_target();
 
-    let dir_path = tempdir().unwrap().into_path();
+    let dir_path = tempdir().unwrap().keep();
     let dir_path = dir_path.to_str().unwrap();
 
     let release_name = format!("{BINARY_NAME}_{target}");
@@ -227,21 +251,24 @@ fn install_sim_app() -> PathBuf {
 
 #[allow(dead_code)]
 fn run_locally() {
+    crate::external_agents::initialize_for("cosmosnative");
     // TODO: store all the created processes directly to not have lost children on crash
     let hypd = install_sim_app().as_path().to_str().unwrap().to_string();
 
     log!("Building rust...");
-    Program::new("cargo")
-        .cmd("build")
-        .working_dir("../../")
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    if !crate::external_agents::enabled() {
+        Program::new("cargo")
+            .cmd("build")
+            .working_dir("../../")
+            .arg("features", "test-utils")
+            .arg("bin", "relayer")
+            .arg("bin", "validator")
+            .arg("bin", "scraper")
+            .arg("bin", "init-db")
+            .filter_logs(|l| !l.contains("workspace-inheritance"))
+            .run()
+            .join();
+    }
 
     let metrics_port_start = 9090u32;
     let domain_start = 75898670u32;
@@ -335,7 +362,7 @@ fn run_locally() {
     // dispatch the second batch of messages (after agents start)
     dispatched_messages += dispatch(node1, node2);
 
-    let _stack = CosmosNativeStack {
+    let mut _stack = CosmosNativeStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
         scraper: hpl_scr.join(),
@@ -359,7 +386,9 @@ fn run_locally() {
         {
             // end condition reached successfully
             break;
-        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+        } else if (Instant::now() - loop_start).as_secs()
+            > crate::external_agents::deadline(TIMEOUT_SECS)
+        {
             // we ran out of time
             log!("timeout reached before message submission was confirmed");
             failure_occurred = true;
@@ -372,6 +401,22 @@ fn run_locally() {
     if failure_occurred {
         panic!("E2E tests failed");
     } else {
+        crate::external_agents::restart_role_handles(
+            _stack
+                .validators
+                .iter_mut()
+                .chain([&mut _stack.relayer, &mut _stack.scraper]),
+            dispatched_messages,
+        )
+        .unwrap_or_else(|error| panic!("same-DB actual role restart: {error:#}"));
+        crate::external_agent_invariants::finish(
+            dispatched_messages,
+            _stack
+                .validators
+                .iter_mut()
+                .map(|handle| &mut handle.1)
+                .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
+        );
         log!("E2E tests passed");
     }
 }

@@ -1,0 +1,211 @@
+{
+  "schema": 1,
+  "scope": "Exact 11 decoded public candidates; not a declaration that older archives contain no keys",
+  "public_payloads": [
+    {
+      "id": "01",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-d51-v12/relayer-process.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {
+        "$.progress[].achieved.messages[].wire": 3
+      },
+      "decoded_hex_field_occurrences": {
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.sender": 3,
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.recipient": 3,
+        "$.progress[].achieved.messages[].id": 3,
+        "$.progress[].achieved.messages[].included_transaction_hash": 3,
+        "$.progress[].achieved.initial_receipt_proofs[].process_event_proof.process_ids[]": 3
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "02",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-v3/relayer-process.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {
+        "$.progress[].achieved.messages[].wire": 3
+      },
+      "decoded_hex_field_occurrences": {
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.sender": 3,
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.recipient": 3,
+        "$.progress[].achieved.messages[].id": 3,
+        "$.progress[].achieved.messages[].included_transaction_hash": 3,
+        "$.progress[].achieved.initial_receipt_proofs[].process_event_proof.process_ids[]": 3
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "03",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-v4/relayer-process.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {
+        "$.progress[].achieved.messages[].wire": 3
+      },
+      "decoded_hex_field_occurrences": {
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.sender": 3,
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.recipient": 3,
+        "$.progress[].achieved.messages[].id": 3,
+        "$.progress[].achieved.messages[].included_transaction_hash": 3,
+        "$.progress[].achieved.initial_receipt_proofs[].process_event_proof.process_ids[]": 3
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "04",
+      "original_path": "zig/bench/results/final-native-functional-releasesafe-v5/relayer-process.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {
+        "$.progress[].achieved.messages[].wire": 3
+      },
+      "decoded_hex_field_occurrences": {
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.sender": 7,
+        "$.progress[].achieved.early_included.per_id_active_confirm_witnesses[].message.recipient": 7,
+        "$.progress[].achieved.messages[].id": 3,
+        "$.progress[].achieved.messages[].included_transaction_hash": 3,
+        "$.progress[].achieved.initial_receipt_proofs[].process_event_proof.process_ids[]": 3
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "05",
+      "original_path": "zig/bench/results/global-fixture-acceptance-20261106T1739-safe-rollup/all-manifest.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [
+        "PYTHONDONTWRITEBYTECODE",
+        "ZIG",
+        "HYPERLANE_ZIG_SDKROOT",
+        "ZIGGY_TXID_ORACLE",
+        "HYPERLANE_CURL_LIBRARY",
+        "HYPERLANE_CLOUD_CURL_LIBRARY",
+        "HYPERLANE_LIBCRYPTO_LIBRARY",
+        "HYPERLANE_STARKNET_CRYPTO_LIBRARY",
+        "HYPERLANE_ALEO_CRYPTO_LIBRARY",
+        "HYPERLANE_ALEO_VM_LIBRARY",
+        "HYPERLANE_ALEO_VM_WORKER",
+        "HYPERLANE_ALEO_PARAMETER_HOME",
+        "ZIGGY_REGEX_LIBRARY",
+        "HYPERLANE_REGEX_LIBRARY"
+      ],
+      "public_wire_fieldnames": {},
+      "decoded_hex_field_occurrences": {
+        "$.component_manifests[].sha256": 3
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "06",
+      "original_path": "zig/bench/results/native-row-reader/manifest.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {},
+      "decoded_hex_field_occurrences": {
+        "$.README_only_update.after_sha256": 1,
+        "$.README_only_update.before_sha256": 1,
+        "$.reader.sha256": 1
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "07",
+      "original_path": "zig/bench/results/relayer-final-commands.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {},
+      "decoded_hex_field_occurrences": {
+        "$.source_delta_attestation.sha256": 1
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "08",
+      "original_path": "zig/bench/results/starknet-chain-id-discovery/manifest.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {},
+      "decoded_hex_field_occurrences": {
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/native/rocks/out-final/libbz2.a.sha256": 1,
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/native/rocks/out-final/liblz4.a.sha256": 1,
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/native/rocks/out-final/librocksdb.a.sha256": 1,
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/native/rocks/out-final/libsnappy.a.sha256": 1,
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/native/rocks/out-final/libz.a.sha256": 1,
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/native/rocks/out-final/libziggy_rocks_abi.a.sha256": 1,
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/native/rocks/out-final/libzstd.a.sha256": 1,
+        "$.native_artifact_pins./Users/pbio/work/ziggy/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.dylib.sha256": 1,
+        "$.native_artifact_pins./tmp/ziggy-url-host-target-20261106/release/libziggy_url.dylib.sha256": 1
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "09",
+      "original_path": "zig/bench/results/wss-legacy-pre-subscription-diagnostic/manifest.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {},
+      "decoded_hex_field_occurrences": {
+        "$.entries[].raw_sha256": 14,
+        "$.entries[].gzip_sha256": 14
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "10",
+      "original_path": "zig/bench/results/wss-v3-gas-bootstrap-diagnostic-577/manifest.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {},
+      "decoded_hex_field_occurrences": {
+        "$.entries[].original.sha256": 16,
+        "$.entries[].decoded_sha256": 17,
+        "$.entries[].gzip.sha256": 17,
+        "$.private_original_descriptors[].sha256": 4
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    },
+    {
+      "id": "11",
+      "original_path": "zig/bench/results/wss-v3-gas-bootstrap-diagnostic-577/verification.json",
+      "sensitive_or_signed_request_fields": [],
+      "credential_URL_fields": [],
+      "build_only_environment_fieldnames": [],
+      "public_wire_fieldnames": {},
+      "decoded_hex_field_occurrences": {
+        "$.actual_Root_receipt_rehashed.sha256": 1,
+        "$.archive_manifest.sha256": 1
+      },
+      "decoded_hook_shape_scope": "public chain/message/receipt/Source/artifact identities and public message bodies; hash-shaped values are NOT a privacy clearance",
+      "forbidden_private_string_fingerprint_intersection": 0
+    }
+  ],
+  "omitted_payload_count": 53,
+  "known_public_fixture_signer_scalars_omitted": true,
+  "actual_task_PG_tokens_omitted": true,
+  "raw_signed_RPC_request_bodies_omitted": true,
+  "runtime_config_and_env_argv_omitted": true,
+  "public_Hyperlane_message_wire_retained": true,
+  "normal_commit_hooks_required": true,
+  "no_hook_bypass": true
+}

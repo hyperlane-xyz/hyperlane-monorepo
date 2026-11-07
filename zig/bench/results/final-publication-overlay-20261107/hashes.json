@@ -1,0 +1,259 @@
+{
+  "schema": 1,
+  "hash_format": "sha256 split into two ordered 32-character chunks; concatenate before verification",
+  "payloads": [
+    {
+      "id": "01",
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-d51-v12/relayer-process.json",
+        "bytes": 4083796,
+        "sha256_chunks": [
+          "f133ebdf67976dd57e8137c05a14c80a",
+          "b79911b19cadd6640c917652d2f04a86"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "01/canonical.json.gz",
+        "bytes": 392634,
+        "sha256_chunks": [
+          "405fc36c508bdd27fd002040f79c840c",
+          "48d0f8b164e446838e6290a18132d8d0"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "02",
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v3/relayer-process.json",
+        "bytes": 62470,
+        "sha256_chunks": [
+          "897a339d60a8d8a871fbcd4433792df9",
+          "fc6243f7913e01da8df440558e2fcc8d"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "02/canonical.json.gz",
+        "bytes": 6440,
+        "sha256_chunks": [
+          "69d3ea76dc7776f545b2e335132e31d1",
+          "923d91d08319490b1c7661231ac0a791"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "03",
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v4/relayer-process.json",
+        "bytes": 62454,
+        "sha256_chunks": [
+          "aa1ad14910a850aa692cfc365eba2584",
+          "b2470b442ac39cec93bdb93befd5985b"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "03/canonical.json.gz",
+        "bytes": 6413,
+        "sha256_chunks": [
+          "80295d7e3ea7c400dc49da7f0017f53e",
+          "2eab87243663877028a01b9784dd15fe"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "04",
+      "original": {
+        "path": "zig/bench/results/final-native-functional-releasesafe-v5/relayer-process.json",
+        "bytes": 90331,
+        "sha256_chunks": [
+          "f2292726891fb22a38628d56fb0a61f4",
+          "36ff608085e833e1066b08a0b48b1a2c"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "04/canonical.json.gz",
+        "bytes": 9148,
+        "sha256_chunks": [
+          "b52d838acf25799b802fd18e72db077d",
+          "ca338f1d695babada3f5ade7b936eab6"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "05",
+      "original": {
+        "path": "zig/bench/results/global-fixture-acceptance-20261106T1739-safe-rollup/all-manifest.json",
+        "bytes": 195679,
+        "sha256_chunks": [
+          "0e3f02ee9ce7e0a87e8ff1b37101eb59",
+          "ffa40dcaa5e2281a80fc87afdfe4487c"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": true
+      },
+      "canonical": {
+        "path": "05/canonical.json.gz",
+        "bytes": 69439,
+        "sha256_chunks": [
+          "2ab273dafec0d1d9c8c9a3cf15898226",
+          "e9713eff8153a3c2127cbe122b23bf4b"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "06",
+      "original": {
+        "path": "zig/bench/results/native-row-reader/manifest.json",
+        "bytes": 79868,
+        "sha256_chunks": [
+          "21d55d42193fe839f799335584293d62",
+          "078bf19f0e6ffc6c20d08fb7c12be747"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "06/canonical.json.gz",
+        "bytes": 14649,
+        "sha256_chunks": [
+          "d0a9077fb76c36f0a673d41fc5d1fc82",
+          "5cc3caff3ed047b005a536041c6609aa"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "07",
+      "original": {
+        "path": "zig/bench/results/relayer-final-commands.json",
+        "bytes": 15127,
+        "sha256_chunks": [
+          "36f5c5f47fd18e3c5c3fff12d468ea82",
+          "cc4e3de42e8a06bfdb35d068d01aea5c"
+        ],
+        "tracking": "tracked-modified",
+        "historical_plan_path_protected": true
+      },
+      "canonical": {
+        "path": "07/canonical.json.gz",
+        "bytes": 2142,
+        "sha256_chunks": [
+          "12a7514378b8af890ae8895052f8ef31",
+          "f6b87f2d4fcd9d43229e75aa7979264a"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "08",
+      "original": {
+        "path": "zig/bench/results/starknet-chain-id-discovery/manifest.json",
+        "bytes": 39679,
+        "sha256_chunks": [
+          "ee5a440c4e94ff7e1aa51f762a1aee0c",
+          "8c40f0e78de810d7cb08833979c540a4"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "08/canonical.json.gz",
+        "bytes": 8451,
+        "sha256_chunks": [
+          "98a2e469a9a0efc304dddb464546cda2",
+          "c9aa82f7e48adb3295fe9c2c6591e112"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "09",
+      "original": {
+        "path": "zig/bench/results/wss-legacy-pre-subscription-diagnostic/manifest.json",
+        "bytes": 6209,
+        "sha256_chunks": [
+          "bcf644d229a7ec152ef4b30d63a4cc81",
+          "d72e8552295c3ac61fdd2a7a7ac332ce"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "09/canonical.json.gz",
+        "bytes": 2042,
+        "sha256_chunks": [
+          "af3be5639709b40d61f494faeea8a858",
+          "d01e72ce1d6e5f7ab650c329974d9b53"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "10",
+      "original": {
+        "path": "zig/bench/results/wss-v3-gas-bootstrap-diagnostic-577/manifest.json",
+        "bytes": 13308,
+        "sha256_chunks": [
+          "737baddfd54dd1d97012ddd0387ec6e1",
+          "56cfcebd27087d09bdffde3538d3ab8b"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "10/canonical.json.gz",
+        "bytes": 3008,
+        "sha256_chunks": [
+          "b173dd72a945a4481616bc94f65da929",
+          "170e4e815f54ee3cbf3f440b74f0b855"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    },
+    {
+      "id": "11",
+      "original": {
+        "path": "zig/bench/results/wss-v3-gas-bootstrap-diagnostic-577/verification.json",
+        "bytes": 629,
+        "sha256_chunks": [
+          "cfd6e2d9f468502363690f172f516add",
+          "a730c3c126627c238471c83522acc470"
+        ],
+        "tracking": "untracked",
+        "historical_plan_path_protected": false
+      },
+      "canonical": {
+        "path": "11/canonical.json.gz",
+        "bytes": 394,
+        "sha256_chunks": [
+          "fb70d147d86610db12f7052af2e7def0",
+          "a0705e9cb427f49d0a3275f4dcebaba5"
+        ]
+      },
+      "decoded_original_byte_equal": true,
+      "scope": "Historical evidence; outcome/status unchanged, no new acceptance/performance credit"
+    }
+  ]
+}

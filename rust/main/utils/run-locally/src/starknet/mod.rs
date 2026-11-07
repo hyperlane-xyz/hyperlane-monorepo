@@ -132,7 +132,10 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
     );
     let node: AgentHandles = Program::new("docker")
         .cmd("run")
-        .arg("name", format!("starknet-{}", config.node_port_base))
+        .arg(
+            "name",
+            crate::external_agents::resource_name(&format!("starknet-{}", config.node_port_base)),
+        )
         .flag("rm")
         .arg("publish", format!("{}:5050", config.node_port_base))
         .cmd(format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"))
@@ -163,7 +166,7 @@ fn starknet_validator_program(
     debug: bool,
 ) -> Program {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir().expect("Failed to create a temp dir").keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).unwrap();
@@ -285,35 +288,46 @@ const ENV_HYPERLANE_STARKNET_PATH_KEY: &str = "E2E_HYPERLANE_STARKNET_PATH";
 
 #[allow(dead_code)]
 fn run_locally() {
+    crate::external_agents::initialize_for("starknet");
     const TIMEOUT_SECS: u64 = 60 * 10;
     let debug = true;
 
     log!("Building rust...");
-    Program::new("cargo")
-        .cmd("build")
-        .working_dir("../../")
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    if !crate::external_agents::enabled() {
+        Program::new("cargo")
+            .cmd("build")
+            .working_dir("../../")
+            .arg("features", "test-utils")
+            .arg("bin", "relayer")
+            .arg("bin", "validator")
+            .arg("bin", "scraper")
+            .arg("bin", "init-db")
+            .filter_logs(|l| !l.contains("workspace-inheritance"))
+            .run()
+            .join();
+    }
 
     let starknet_cli_src = Some(
-        env::var(ENV_STARKNET_CLI_PATH_KEY)
+        crate::external_agents::tool(ENV_STARKNET_CLI_PATH_KEY)
             .as_ref()
-            .map(|v| StarknetCLISource::local(v))
+            .map(|v| StarknetCLISource::local(v.to_string_lossy().as_ref()))
             .unwrap_or_default(),
     );
 
-    let code_src = Some(
-        env::var(ENV_HYPERLANE_STARKNET_PATH_KEY)
-            .as_ref()
-            .map(|v| CodeSource::local(v))
-            .unwrap_or_default(),
-    );
+    let code_src = if let Some(path) =
+        crate::external_agents::contract_bundle("starknet", CAIRO_HYPERLANE_VERSION)
+    {
+        Some(CodeSource::Local {
+            path: path.to_string_lossy().into_owned(),
+        })
+    } else {
+        Some(
+            env::var(ENV_HYPERLANE_STARKNET_PATH_KEY)
+                .as_ref()
+                .map(|v| CodeSource::local(v))
+                .unwrap_or_default(),
+        )
+    };
 
     let (starklid, sierra_classes) = install_starknet(None, starknet_cli_src, None, code_src);
 
@@ -540,7 +554,7 @@ fn run_locally() {
         }
     }
 
-    let _stack = StarknetHyperlaneStack {
+    let mut _stack = StarknetHyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
         scraper: hpl_scr.join(),
@@ -562,7 +576,9 @@ fn run_locally() {
         {
             // end condition reached successfully
             break;
-        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+        } else if (Instant::now() - loop_start).as_secs()
+            > crate::external_agents::deadline(TIMEOUT_SECS)
+        {
             // we ran out of time
             log!("timeout reached before message submission was confirmed");
             failure_occurred = true;
@@ -575,6 +591,22 @@ fn run_locally() {
     if failure_occurred {
         panic!("E2E tests failed");
     } else {
+        crate::external_agents::restart_role_handles(
+            _stack
+                .validators
+                .iter_mut()
+                .chain([&mut _stack.relayer, &mut _stack.scraper]),
+            dispatched_messages,
+        )
+        .unwrap_or_else(|error| panic!("same-DB actual role restart: {error:#}"));
+        crate::external_agent_invariants::finish(
+            dispatched_messages,
+            _stack
+                .validators
+                .iter_mut()
+                .map(|handle| &mut handle.1)
+                .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
+        );
         log!("E2E tests passed");
     }
 }
@@ -649,7 +681,7 @@ fn termination_invariants_met(
     Ok(true)
 }
 
-#[cfg(feature = "starknet")]
+#[cfg(all(feature = "starknet", test))]
 mod test {
     use super::*;
 

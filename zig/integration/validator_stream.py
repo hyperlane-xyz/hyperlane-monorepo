@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Disposable Anvil + verified WSS validator acceptance; public fixture key only."""
-import argparse, base64, collections, contextlib, copy, hashlib, http.server, json, pathlib, socket, socketserver, ssl, struct, subprocess, tempfile, threading, time, urllib.request
+import argparse, base64, collections, contextlib, copy, hashlib, http.server, json, pathlib, socket, socketserver, ssl, struct, subprocess, sys, tempfile, threading, time, urllib.request
 import evm
 import tls_fixture
 ROOT = evm.ROOT
+sys.path.insert(0,str(ROOT))
+from zig.integration import validator
 DOMAIN = 9913371
 
 def chunks(value):
@@ -138,9 +140,9 @@ class StreamServer:
   finally:self.resources.close()
 
 class Daemon:
- def __init__(self,binary,config,cwd,ca,log):self.binary=binary;self.config=config;self.cwd=cwd;self.ca=ca;self.log=log;self.process=None
+ def __init__(self,binary,config,cwd,ca,log,url_library):self.binary=binary;self.config=config;self.cwd=cwd;self.ca=ca;self.log=log;self.url_library=url_library;self.process=None
  def start(self):
-  self.file=self.log.open('w');self.process=subprocess.Popen([str(self.binary)],cwd=self.cwd,env={'HYPERLANE_ZIG_DEFAULTS':str(self.config),'HYPERLANE_CURL_LIBRARY':'/usr/lib/libcurl.4.dylib','SSL_CERT_FILE':str(self.ca)},stdout=self.file,stderr=self.file);return self
+  self.file=self.log.open('w');self.process=subprocess.Popen([str(self.binary)],cwd=self.cwd,env={'HYPERLANE_ZIG_DEFAULTS':str(self.config),'HYPERLANE_CURL_LIBRARY':'/usr/lib/libcurl.4.dylib','SSL_CERT_FILE':str(self.ca),'HYPERLANE_URL_LIBRARY':self.url_library['pinned_path']},stdout=self.file,stderr=self.file);return self
  def alive(self):
   if self.process.poll() is not None:raise AssertionError(f'daemon exited {self.process.returncode}: {self.log.read_text()[-4000:]}')
   return True
@@ -153,7 +155,8 @@ class Daemon:
   self.file.close();assert self.process.returncode==0,self.log.read_text()[-5000:]
 
 def main():
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--binary',required=True,type=pathlib.Path);parser.add_argument('--idle-audit',action='store_true');parser.add_argument('--handshake-retry',action='store_true');parser.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/validator-wss-process.json');args=parser.parse_args();args.binary=args.binary.resolve()
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--binary',required=True,type=pathlib.Path);parser.add_argument('--url-library',type=pathlib.Path,required=True);parser.add_argument('--idle-audit',action='store_true');parser.add_argument('--handshake-retry',action='store_true');parser.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/validator-wss-process.json');args=parser.parse_args();args.binary=args.binary.resolve()
+ url_library=validator.url_dependency(args.url_library)
  cache=ROOT/'zig/integration/.cache/validator-stream';cache.mkdir(parents=True,exist_ok=True);evm.CACHE=cache;evm.CONTRACTS={k:v for k,v in evm.CONTRACTS.items() if k in ['Mailbox','MerkleTreeHook','TestIsm','TestPostDispatchHook']};evm.CONTRACTS['ValidatorAnnounce']='solidity/contracts/isms/multisig/ValidatorAnnounce.sol';contracts=evm.compile_contracts()
  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
  chain=evm.Chain(f'http://127.0.0.1:{port}')
@@ -181,7 +184,7 @@ def main():
     for i,message in enumerate(messages):stream.append(i,evm.run(['cast','keccak','0x'+message])[2:],blocks[i])
    def until(proc,fn,label,seconds=25):wait(lambda:proc.alive() and fn(),label,seconds)
    with RpcProxy(chain.url) as proxy,StreamServer(hook) as stream:
-    populate(stream);stream.reject_first=True;stream.reject_handshakes=int(args.handshake_retry);directory,path,value,metrics=config('light',stream,proxy,True);proxy.forbid_logs=True;daemon=Daemon(args.binary,directory,tmp,stream.ca_path,cache/'light.log').start()
+    populate(stream);stream.reject_first=True;stream.reject_handshakes=int(args.handshake_retry);directory,path,value,metrics=config('light',stream,proxy,True);proxy.forbid_logs=True;daemon=Daemon(args.binary,directory,tmp,stream.ca_path,cache/'light.log',url_library).start()
     try:
      try:until(daemon,lambda:(path/'2_with_id.json').exists() and (path/'merkle_snapshot.json').exists(),'lightweight replay/reconnect',35)
      except BaseException as error:
@@ -209,7 +212,7 @@ def main():
     results['snapshot_history']={'missing_index':1,'foreground_advanced_before_history':True,'snapshot_waited_for_history':True,'history_repaired':True,'rpc_event_indexing_requests':0,'configured_socket_owner_threads':1,'configured_socket_owner_stack_bytes':1024*1024,'connections':2,'subscriptions':stream.subscriptions[before:],'sigterm_ms':daemon.stop_ms}
     assert not stream.errors,stream.errors
    with RpcProxy(chain.url) as proxy,StreamServer(hook) as stream:
-    populate(stream);directory,path,value,metrics=config('normal',stream,proxy,False);daemon=Daemon(args.binary,directory,tmp,stream.ca_path,cache/'normal.log').start()
+    populate(stream);directory,path,value,metrics=config('normal',stream,proxy,False);daemon=Daemon(args.binary,directory,tmp,stream.ca_path,cache/'normal.log',url_library).start()
     try:
      until(daemon,lambda:(path/'3_with_id.json').exists(),'normal backfill')
      def active():
@@ -226,7 +229,7 @@ def main():
      index=int(obj.name.split('_')[0]);value=json.loads(obj.read_bytes())['value'];assert value['checkpoint']['root'].removeprefix('0x')==expected[index]['root'].removeprefix('0x');assert value['message_id'].removeprefix('0x')==expected[index]['id'].removeprefix('0x')
    if args.idle_audit:
     with RpcProxy(chain.url) as proxy,StreamServer(hook) as stream:
-     populate(stream);directory,path,value,metrics=config('idle',stream,proxy,True);value['skipAnnounce']=True;(directory/'public.json').write_text(json.dumps(value));proxy.forbid_logs=True;daemon=Daemon(args.binary,directory,tmp,stream.ca_path,cache/'idle-audit.log').start()
+     populate(stream);directory,path,value,metrics=config('idle',stream,proxy,True);value['skipAnnounce']=True;(directory/'public.json').write_text(json.dumps(value));proxy.forbid_logs=True;daemon=Daemon(args.binary,directory,tmp,stream.ca_path,cache/'idle-audit.log',url_library).start()
      try:
       until(daemon,lambda:(path/'4_with_id.json').exists() and (path/'merkle_snapshot.json').exists(),'idle initial frontier')
       objects={p.name:p.read_bytes() for p in path.glob('*_with_id.json')};selector=evm.calldata('latestCheckpoint()')[:10];time.sleep(1);before=proxy.calls[selector];time.sleep(3);assert proxy.calls[selector]==before,(before,dict(proxy.calls))
@@ -238,7 +241,7 @@ def main():
      finally:
       if daemon.process.poll() is None:daemon.process.terminate();daemon.process.wait(timeout=10)
       daemon.file.close()
-   result={'passed':True,'scope':'actual native validator CLI, disposable Anvil production contracts, authenticated WSS scraper fixture, actual Rust checkpoint oracle; correctness only','binary':str(args.binary),'binary_sha256':hashlib.sha256(args.binary.read_bytes()).hexdigest(),'cases':results,'rust_checkpoint_parity':True,'messages':len(messages),'environment':'empty except explicit defaults/native curl/public fixture CA; no user credentials'};args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(chunks(result),indent=2)+'\n');print('Validator WSS process acceptance passed')
+   result={'passed':True,'scope':'actual native validator CLI, disposable Anvil production contracts, authenticated WSS scraper fixture, actual Rust checkpoint oracle; correctness only','binary':str(args.binary),'binary_sha256':hashlib.sha256(args.binary.read_bytes()).hexdigest(),'url_library':url_library,'cases':results,'rust_checkpoint_parity':True,'messages':len(messages),'environment':'empty except explicit defaults/native curl/URL/public fixture CA; no user credentials'};args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(chunks(result),indent=2)+'\n');print('Validator WSS process acceptance passed')
   finally:
    anvil.terminate();anvil.wait(timeout=5)
 if __name__=='__main__':main()

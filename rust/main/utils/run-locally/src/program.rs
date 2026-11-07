@@ -184,11 +184,11 @@ impl Program {
     }
 
     pub fn create_command(&self) -> Command {
-        let mut cmd = Command::new(
-            self.get_bin_path()
-                .expect("bin path must be specified")
-                .unwrap(),
-        );
+        let binary_path = self
+            .get_bin_path()
+            .expect("bin path must be specified")
+            .unwrap();
+        let mut cmd = Command::new(&binary_path);
         if let Some(wd) = &self.working_dir {
             if !wd.exists() {
                 panic!("Working directory does not exist: {:?}", wd.as_path());
@@ -198,7 +198,22 @@ impl Program {
         for (k, v) in self.env.iter() {
             cmd.env(k.as_str(), v.as_str());
         }
+        if let Err(error) = crate::external_agents::apply_environment(&mut cmd, &binary_path) {
+            panic!("external role environment: {error:#}");
+        }
+        if crate::external_agents::enabled() {
+            cmd.env(
+                "COMPOSE_PROJECT_NAME",
+                crate::external_agents::resource_name("radix"),
+            );
+        }
         cmd.args(self.args.iter().map(AsRef::as_ref));
+        if let Err(error) = crate::external_agents::capture_launch(&mut cmd, &binary_path) {
+            panic!("external public setup capture: {error:#}");
+        }
+        if let Err(error) = crate::external_agents::record_launch(&cmd, &binary_path) {
+            panic!("external launch evidence: {error:#}");
+        }
         cmd
     }
 
@@ -209,7 +224,8 @@ impl Program {
     /// Try to get the path to the binary
     pub fn get_bin_path(&self) -> Option<eyre::Result<PathBuf>> {
         self.bin.as_ref().map(|raw_bin_name| {
-            which::which(raw_bin_name.as_ref())
+            crate::external_agents::resolve(Path::new(raw_bin_name.as_ref()))
+                .and_then(|path| which::which(path).map_err(Into::into))
                 .with_context(|| format!("Cannot find binary: {raw_bin_name}"))
         })
     }
@@ -269,11 +285,17 @@ impl Program {
         let log_file = logs_dir.map(|logs_dir| {
             let log_file_name = format!("{log_prefix}-output.log");
             let log_file_path = logs_dir.join(log_file_name);
+            if let Err(error) = crate::external_agents::check_owned_write(&log_file_path) {
+                panic!("owned log path: {error:#}");
+            }
             let log_file = OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open(log_file_path)
+                .open(&log_file_path)
                 .expect("Failed to create a log file");
+            if let Err(error) = crate::external_agents::check_owned_write(&log_file_path) {
+                panic!("owned log leaf: {error:#}");
+            }
             Arc::new(Mutex::new(log_file))
         });
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -281,7 +303,23 @@ impl Program {
         log!("Spawning {}...", &self);
         let mut child = command
             .spawn()
-            .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &self));
+            .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", self));
+        let ownership = match crate::external_agents::record_child(
+            Path::new(command.get_program()),
+            child.id(),
+        ) {
+            Ok(ownership) => ownership,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("owned child evidence: {error:#}");
+            }
+        };
+        // These owned role pipes are closed after a real parent wait during
+        // same-DB restart. Their readers must finish before the next role starts.
+        let stop_at_eof = ownership.is_some();
+        let mut child = crate::external_agents::TrackedChild::new(child, ownership);
+        child.retain_restart(self.clone(), log_prefix, logs_dir);
         let child_stdout = child.stdout.take().unwrap();
         let filter = self.get_filter();
         let cloned_log_file = log_file.clone();
@@ -293,6 +331,7 @@ impl Program {
                 filter,
                 cloned_log_file,
                 None,
+                stop_at_eof,
             )
         });
         let child_stderr = child.stderr.take().unwrap();
@@ -304,6 +343,7 @@ impl Program {
                 filter,
                 None,
                 None,
+                stop_at_eof,
             )
         });
         (
@@ -325,7 +365,7 @@ impl Program {
         log!("{:#}", &self);
         let mut child = command
             .spawn()
-            .unwrap_or_else(|e| panic!("Failed to start command `{}` with Error: {e}", &self));
+            .unwrap_or_else(|e| panic!("Failed to start command `{}` with Error: {e}", self));
         let filter = self.get_filter();
         let running = Arc::new(AtomicBool::new(true));
         let (stdout_ch_tx, stdout_ch_rx) = capture_output.then(mpsc::channel).unzip();
@@ -333,13 +373,13 @@ impl Program {
             let stdout = child.stdout.take().unwrap();
             let name = self.get_bin_name();
             let running = running.clone();
-            spawn(move || prefix_log(stdout, &name, &running, filter, None, stdout_ch_tx))
+            spawn(move || prefix_log(stdout, &name, &running, filter, None, stdout_ch_tx, false))
         };
         let stderr = {
             let stderr = child.stderr.take().unwrap();
             let name = self.get_bin_name();
             let running = running.clone();
-            spawn(move || prefix_log(stderr, &name, &running, filter, None, None))
+            spawn(move || prefix_log(stderr, &name, &running, filter, None, None, false))
         };
 
         let status = loop {
@@ -361,7 +401,7 @@ impl Program {
         assert!(
             !assert_success || !RUN_LOG_WATCHERS.load(Ordering::Relaxed) || success,
             "Command returned non-zero exit code: {:?}",
-            &self
+            self
         );
 
         (success, stdout_ch_rx.map(|rx| rx.into_iter().collect()))
@@ -376,6 +416,7 @@ fn prefix_log(
     filter: Option<LogFilter>,
     file: Option<Arc<Mutex<File>>>,
     channel: Option<Sender<String>>,
+    stop_at_eof: bool,
 ) {
     let mut reader = BufReader::new(output).lines();
     loop {
@@ -402,7 +443,7 @@ fn prefix_log(
                 // ignore send errors
                 channel.send(line).unwrap_or(());
             }
-        } else if run_log_watcher.load(Ordering::Relaxed) {
+        } else if !stop_at_eof && run_log_watcher.load(Ordering::Relaxed) {
             sleep(Duration::from_millis(10));
         } else {
             break;
@@ -413,6 +454,75 @@ fn prefix_log(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn external_owned_role_pipe_eof_joins_without_stopping_other_watchers() {
+        let mut child = Command::new("sh")
+            .args([
+                "-c",
+                "printf 'public-role-output\\n'; printf 'public-role-error\\n' >&2",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let running = Arc::new(AtomicBool::new(true));
+        let (finished, received) = mpsc::channel();
+        let readers = [Box::new(stdout) as Box<dyn Read + Send>, Box::new(stderr)];
+        let threads: Vec<_> = readers
+            .into_iter()
+            .map(|reader| {
+                let running = running.clone();
+                let finished = finished.clone();
+                spawn(move || {
+                    prefix_log(reader, "owned-role", &running, None, None, None, true);
+                    finished.send(()).unwrap();
+                })
+            })
+            .collect();
+        assert!(child.wait().unwrap().success());
+        let first = received.recv_timeout(Duration::from_secs(2));
+        let second = received.recv_timeout(Duration::from_secs(2));
+        let flag_unchanged = running.load(Ordering::Relaxed);
+        // Also drains the old implementation on failure instead of leaking a
+        // sleeping test thread and hiding the original assertion.
+        running.store(false, Ordering::Relaxed);
+        for reader in threads {
+            reader.join().unwrap();
+        }
+        assert!(first.is_ok() && second.is_ok());
+        assert!(flag_unchanged);
+    }
+
+    #[test]
+    fn default_pipe_eof_preserves_global_watcher_wait_policy() {
+        let running = Arc::new(AtomicBool::new(true));
+        let (started, entered) = mpsc::channel();
+        let (finished, received) = mpsc::channel();
+        let reader_running = running.clone();
+        let reader = spawn(move || {
+            started.send(()).unwrap();
+            prefix_log(
+                std::io::empty(),
+                "default-role",
+                &reader_running,
+                None,
+                None,
+                None,
+                false,
+            );
+            finished.send(()).unwrap();
+        });
+        entered.recv_timeout(Duration::from_secs(2)).unwrap();
+        let early = received.recv_timeout(Duration::from_millis(50));
+        running.store(false, Ordering::Relaxed);
+        let stopped = received.recv_timeout(Duration::from_secs(2));
+        reader.join().unwrap();
+        assert!(matches!(early, Err(mpsc::RecvTimeoutError::Timeout)));
+        assert!(stopped.is_ok());
+    }
 
     #[test]
     fn captures_stdout_and_failed_exit_status() {

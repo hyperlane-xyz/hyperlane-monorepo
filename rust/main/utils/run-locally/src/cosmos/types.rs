@@ -127,6 +127,7 @@ pub struct AgentConfig {
     pub index: AgentConfigIndex,
     pub gas_price: RawCosmosAmount,
     pub contract_address_bytes: usize,
+    pub compat_mode: String,
     pub native_token: NativeToken,
 }
 
@@ -180,6 +181,7 @@ impl AgentConfig {
                 amount: "0.05".to_string(),
             },
             contract_address_bytes: 32,
+            compat_mode: "0.34".to_owned(),
             index: AgentConfigIndex { from: 1, chunk: 5 },
             native_token: NativeToken {
                 decimals: 6,

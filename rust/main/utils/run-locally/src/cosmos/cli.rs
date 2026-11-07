@@ -73,10 +73,7 @@ impl OsmosisCLI {
         let node_config_path = concat_path(&self.home, "config/config.toml");
         modify_toml(
             node_config_path,
-            Box::new(|v| {
-                v["p2p"]["pex"] = toml_edit::value(false);
-                v["consensus"]["timeout_commit"] = toml_edit::value("0.5s");
-            }),
+            Box::new(|v| configure_node_config(v, crate::external_agents::enabled())),
         );
 
         // modify app config
@@ -142,7 +139,7 @@ impl OsmosisCLI {
             grpc_addr,
         };
 
-        let node = self
+        let mut node = self
             .cli()
             .cmd("start")
             .arg("address", &endpoint.addr) // default is tcp://0.0.0.0:26658
@@ -154,6 +151,14 @@ impl OsmosisCLI {
             .arg("log_level", "panic")
             .spawn("COSMOS", None);
 
+        crate::external_agents::cosmos_node_ready(
+            &mut node.1,
+            &self.bin,
+            std::path::Path::new(&self.home),
+            &endpoint.rpc_addr,
+            &endpoint.grpc_addr,
+        )
+        .unwrap_or_else(|error| panic!("Osmosis node ownership readiness: {error:#}"));
         endpoint.wait_for_node();
 
         (node, endpoint)
@@ -432,4 +437,13 @@ impl OsmosisCLI {
 
         KeyPair { priv_key, pub_key }
     }
+}
+
+pub(super) fn configure_node_config(v: &mut toml_edit::Document, external: bool) {
+    v["p2p"]["pex"] = toml_edit::value(false);
+    if external {
+        v["p2p"]["seeds"] = toml_edit::value("");
+        v["p2p"]["persistent_peers"] = toml_edit::value("");
+    }
+    v["consensus"]["timeout_commit"] = toml_edit::value("0.5s");
 }

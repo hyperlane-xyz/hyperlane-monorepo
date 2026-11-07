@@ -6,6 +6,12 @@ __pycache__/
 /results/**/scraper-process.json
 # Rebuildable compiler inputs; their hashes/settings are in each result manifest.
 /results/**/fixture-cache/
+# Preserve stopped process DBs and local signer configs privately; publish the
+# readback evidence and hashes rather than runtime state.
+/results/**/relayer-process-fixture-stopped/
+/results/**/relayer-stream-failed-latest/
+# Current proof JSON/RPC mirrors remain private; durable reviewed gzip stays tracked.
+/results/final-native-functional-releasesafe-57710-v13c/*.json
 # Local preservation snapshots and disposable helper DB; manifests retain hashes.
 /results/disk-preparation-20261106/diagnostic-pins-*/
 /results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle
@@ -129,3 +135,75 @@ __pycache__/
 /results/source-inventory-final-20261106.json
 /results/source-inventory-admission-final-20261106.json
 /results/source-inventory-lifetime-final-20261106.json
+/results/source-inventory-fixture-final-20261106.json
+
+# Publication overlay: private raw originals retained locally; exact omissions only.
+/results/aleo-image-startup-prerequisites/ziggy-aleo-devnode-health-20261106/final-inspect.json.gz
+/results/aleo-image-startup-prerequisites/ziggy-aleo-devnode-health-20261106/plan.json.gz
+/results/canonical-admission-before-fix/22-public.json.gz
+/results/canonical-admission-before-fix/23-public.json.gz
+/results/canonical-admission-before-fix/24-public.json.gz
+/results/combined-production-correctness-f665/04-attempts/functional-v2/ReleaseSafe/pg-wrapper-state/fixture.json.gz
+/results/combined-production-correctness-f665/04-attempts/functional-v2/all-manifest.json.gz
+/results/combined-production-correctness-f665/04-attempts/functional-v3/ReleaseFast/pg-wrapper-state/fixture.json.gz
+/results/combined-production-correctness-f665/04-attempts/functional-v3/ReleaseSafe/pg-wrapper-state/fixture.json.gz
+/results/combined-production-correctness-f665/04-attempts/functional-v3/all-manifest.json.gz
+/results/combined-production-correctness-f665/04-attempts/functional-v4/all-manifest.json.gz
+/results/combined-production-functional-ac86/v6/ReleaseFast/pg-wrapper-state/fixture.json.gz
+/results/combined-production-functional-ac86/v6/ReleaseSafe/pg-wrapper-state/fixture.json.gz
+/results/combined-production-functional-ac86/v6/all-manifest.json.gz
+/results/combined-production-functional-d51/actual/ReleaseFast/pg-wrapper-state/fixture.json.gz
+/results/combined-production-functional-d51/actual/ReleaseSafe/pg-wrapper-state/fixture.json.gz
+/results/combined-production-functional-d51/actual/all-manifest.json.gz
+/results/final-capability-audit-20261106/interruption/config/relayer-public.json.gz
+/results/final-capability-audit-20261106/interruption/config/validator-public.json.gz
+/results/final-relayer-batch-lifetime-diagnostic/fixture/batch-config/public.json.gz
+/results/final-relayer-batch-lifetime-diagnostic/fixture/relayer-config/public.json.gz
+/results/final-relayer-batch-lifetime-diagnostic/fixture/validator-config/public.json.gz
+/results/final-relayer-batch-membership-diagnostic/fixture/batch-config/public.json.gz
+/results/final-relayer-batch-membership-diagnostic/fixture/relayer-config/public.json.gz
+/results/final-relayer-batch-membership-diagnostic/fixture/validator-config/public.json.gz
+/results/final-relayer-estimate-identity-diagnostic/fixture/relayer-config/public.json.gz
+/results/final-relayer-estimate-identity-diagnostic/fixture/validator-config/public.json.gz
+/results/final-relayer-initial-metric-diagnostic/fixture/relayer-config/public.json.gz
+/results/final-relayer-initial-metric-diagnostic/fixture/validator-config/public.json.gz
+/results/relayer-estimate-stage-capture/full/stopped-fixture/relayer-config/public.json.gz
+/results/relayer-estimate-stage-capture/full/stopped-fixture/validator-config/public.json.gz
+/results/relayer-estimate-stage-capture/initial/stopped-fixture/relayer-config/public.json.gz
+/results/relayer-estimate-stage-capture/initial/stopped-fixture/validator-config/public.json.gz
+/results/canonical-admission-before-fix/11-relayer-process-initial-retired-rpc.json.gz
+/results/canonical-admission-before-fix/12-relayer-process-initial-stopped-readback-rpc.json.gz
+/results/final-native-functional-releasesafe-d51-v12/relayer-process-initial-retired-rpc.json
+/results/final-native-functional-releasesafe-d51-v12/relayer-process-initial-stopped-readback-rpc.json
+/results/final-native-functional-releasesafe-v3/relayer-process-initial-retired-rpc.json
+/results/final-native-functional-releasesafe-v3/relayer-process-initial-stopped-readback-rpc.json
+/results/final-native-functional-releasesafe-v4/relayer-process-initial-retired-rpc.json
+/results/final-native-functional-releasesafe-v4/relayer-process-initial-stopped-readback-rpc.json
+/results/final-native-functional-releasesafe-v5/relayer-process-batch-retired-rpc.json
+/results/final-native-functional-releasesafe-v5/relayer-process-batch-stopped-readback-rpc.json
+/results/final-native-functional-releasesafe-v5/relayer-process-initial-retired-rpc.json
+/results/final-native-functional-releasesafe-v5/relayer-process-initial-stopped-readback-rpc.json
+/results/final-relayer-batch-lifetime-diagnostic/proof/relayer-process-initial-retired-rpc.json.gz
+/results/final-relayer-batch-lifetime-diagnostic/proof/relayer-process-initial-stopped-readback-rpc.json.gz
+/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-batch-retired-rpc.json.gz
+/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-batch-stopped-readback-rpc.json.gz
+/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-initial-retired-rpc.json.gz
+/results/final-relayer-batch-membership-diagnostic/proof/relayer-process-initial-stopped-readback-rpc.json.gz
+/results/relayer-batch-preparation-barrier/diagnostic/result.json.gz
+/results/relayer-estimate-stage-capture/full/estimate-trace.json.gz
+
+# Public raw mirrors are preserved locally and published losslessly in the overlay.
+/results/final-native-functional-releasesafe-d51-v12/relayer-process.json
+/results/final-native-functional-releasesafe-v3/relayer-process.json
+/results/final-native-functional-releasesafe-v4/relayer-process.json
+/results/final-native-functional-releasesafe-v5/relayer-process.json
+/results/global-fixture-acceptance-20261106T1739-safe-rollup/all-manifest.json
+/results/native-row-reader/manifest.json
+/results/starknet-chain-id-discovery/manifest.json
+/results/wss-legacy-pre-subscription-diagnostic/manifest.json
+/results/wss-v3-gas-bootstrap-diagnostic-577/manifest.json
+/results/wss-v3-gas-bootstrap-diagnostic-577/verification.json
+
+# Tracked command metadata cutover: keep exact raw mirrors locally.
+/results/relayer-final-commands.json
+/results/validator-final-commands.json

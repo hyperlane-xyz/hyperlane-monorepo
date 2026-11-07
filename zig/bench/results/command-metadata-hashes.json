@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "encoding": "gzip",
+  "sha256_format": "two ordered32-character chunks",
+  "files": [
+    {
+      "role": "relayer",
+      "raw": {
+        "path": "zig/bench/results/relayer-final-commands.json",
+        "bytes": 15127,
+        "sha256_chunks": [
+          "36f5c5f47fd18e3c5c3fff12d468ea82",
+          "cc4e3de42e8a06bfdb35d068d01aea5c"
+        ]
+      },
+      "gzip": {
+        "path": "zig/bench/results/relayer-final-commands.json.gz",
+        "bytes": 2142,
+        "sha256_chunks": [
+          "12a7514378b8af890ae8895052f8ef31",
+          "f6b87f2d4fcd9d43229e75aa7979264a"
+        ]
+      },
+      "decoded_bytes_equal": true
+    },
+    {
+      "role": "validator",
+      "raw": {
+        "path": "zig/bench/results/validator-final-commands.json",
+        "bytes": 6557,
+        "sha256_chunks": [
+          "aff4dfb659cf6e235b5bf809b95f8566",
+          "03b69f036b17a3a7e0023b1421573aa6"
+        ]
+      },
+      "gzip": {
+        "path": "zig/bench/results/validator-final-commands.json.gz",
+        "bytes": 1413,
+        "sha256_chunks": [
+          "0a0084a909226b75ff24828b7d58bc55",
+          "121b47ac98d60bed822341b72e2e5b1a"
+        ]
+      },
+      "decoded_bytes_equal": true
+    }
+  ],
+  "raw_originals_private_local_preserved": true,
+  "historical_commands_not_new_execution_approval": true
+}

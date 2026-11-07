@@ -12,7 +12,7 @@ on:
       - 'docs/zig-agent-rewrite/container.md'
       - '.github/workflows/zig-agents.yml'
   push:
-    branches: [main]
+    branches: [main, feat/zig-agent-rewrite]
     paths:
       - 'zig/**'
       - 'rust/main/Cargo.toml'
@@ -29,9 +29,10 @@ permissions:
 
 concurrency:
   group: zig-agents-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
+  BUILD_JOBS: 2
   POSTGRES_DIGEST_A: 933463a6c8eba2b9f5cd414138738cd8
   POSTGRES_DIGEST_B: d5519cd2c471214c222652f547a66a32
 
@@ -53,7 +54,7 @@ jobs:
       - name: Check formatting
         run: '"$ZIG" fmt --check zig/build.zig zig/src zig/bench/main.zig'
       - name: Test
-        run: python3 zig/tools/zig.py build test -Doptimize=${{ matrix.mode }} --summary all
+        run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all
 
   evm:
     runs-on: ubuntu-latest
@@ -72,7 +73,7 @@ jobs:
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
       - name: Build integration fixture
-        run: python3 zig/tools/zig.py build integration-driver -Doptimize=ReleaseSafe
+        run: python3 zig/tools/zig.py build integration-driver -j"${BUILD_JOBS}" -Doptimize=ReleaseSafe
       - name: Exercise repository Solidity contracts
         run: python3 zig/integration/evm.py --output zig/integration/.cache/result.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -95,14 +96,15 @@ jobs:
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
       - name: Exercise actual native HTTP/2 and cancellation
-        run: python3 zig/tools/native_http_tests.py
+        run: python3 zig/tools/native_http_tests.py -- python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=ReleaseSafe --summary all
 
   native-linux:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
     env:
       HYPERLANE_CURL_LIBRARY: libcurl.so.4
       HYPERLANE_LIBCRYPTO_LIBRARY: libcrypto.so.3
+      HYPERLANE_URL_LIBRARY: ${{ github.workspace }}/zig/src/net/native-url/target/release/libziggy_url.so
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -124,13 +126,15 @@ jobs:
           rustup default 1.98.0
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
+      - name: Build exact Rust URL metadata helper
+        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0
       - name: Build pinned RocksDB 10.4.2 archives
         run: |
           mkdir -p zig/bench/results/native-linux
           python3 zig/tools/fixture_pack.py restore-locks
           python3 zig/tools/native_deps.py --restore-only
           cargo +1.98.0 fetch --locked --manifest-path zig/native/rocks/Cargo.toml
-          python3 zig/tools/native_deps.py --offline --jobs 4 \
+          python3 zig/tools/native_deps.py --offline --jobs "${BUILD_JOBS}" \
             --target-dir zig/native/rocks/target-ci \
             --output zig/bench/results/native-linux/deps \
             --format json > zig/bench/results/native-linux/bootstrap.json
@@ -145,14 +149,14 @@ jobs:
       - name: Test native DB and build relayer/validator
         run: |
           python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
-            python3 zig/tools/zig.py build -j4 native-db-test relayer validator \
-            -Doptimize=ReleaseSafe "-Dnative-db-libs=$LIBS" --summary all
+            python3 zig/tools/zig.py build -j"${BUILD_JOBS}" native-db-test relayer validator \
+            -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dnative-db-libs=$LIBS" --summary all
       - name: Test durable directory fsync variants
         run: |
           IFS=',' read -r -a native_libs <<< "$LIBS"
-          python3 zig/tools/zig.py test src/durable_directory_tests.zig -O ReleaseSafe -j4 -lc -lstdc++ "${native_libs[@]}"
+          python3 zig/tools/zig.py test src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"
       - name: Build scraper
-        run: python3 zig/tools/zig.py build -j4 scraper -Doptimize=ReleaseSafe "-Dlibpq-library=$LIBPQ"
+        run: python3 zig/tools/zig.py build -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"
       - name: Compile relayer Bridge Solidity fixtures
         run: python3 zig/integration/relayer_process.py --compile-only
       - name: Test native WS and WSS transports
@@ -160,20 +164,20 @@ jobs:
           openssl version
           export HYPERLANE_CURL_LIBRARY=libcurl.so.4
           export HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3
-          python3 zig/tools/zig.py test src/socket_owner_tests.zig -O ReleaseSafe -j4 -lc
-          python3 zig/tools/zig.py test src/websocket_delegated_tests.zig -O ReleaseSafe -j4 -lc
+          python3 zig/tools/zig.py test src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
+          python3 zig/tools/zig.py test src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
       - name: Test relayer Bridge fixtures from repository root
         run: |
           mkdir -p zig/bench/results/native-linux
           IFS=',' read -r -a native_libs <<< "$LIBS"
-          python3 zig/tools/zig.py build-exe src/relayer_bridge_tests.zig -O ReleaseSafe -j4 -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"
+          python3 zig/tools/zig.py build-exe src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"
           cd "$GITHUB_WORKSPACE"
           ./zig/bench/results/native-linux/relayer_bridge_tests
       - name: Test exact Rust regex semantics
         run: |
           python3 zig/src/ops/tools/locked.py --toolchain 1.98.0
           export ZIGGY_REGEX_LIBRARY="$PWD/zig/src/ops/regex-native/target/release/libziggy_regex.so"
-          python3 zig/tools/zig.py test src/ops_tests.zig -O ReleaseSafe -lc
+          python3 zig/tools/zig.py test src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
       - name: Test PostgreSQL 16.15 and all 21 migrations
         run: |
           POSTGRES_IMAGE="postgres:16.15@sha256:${POSTGRES_DIGEST_A}${POSTGRES_DIGEST_B}"
@@ -195,7 +199,7 @@ jobs:
 
   container:
     needs: native-linux
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -211,10 +215,10 @@ jobs:
           python3 zig/tools/container_check.py static --output zig/bench/results/container/static.json
       - name: Build core and fixture-only Linux migration images
         run: |
-          docker build --build-arg BUILD_JOBS=4 --target runtime-core --tag zig-agents:ci-core -f zig/Dockerfile .
-          docker build --build-arg BUILD_JOBS=4 --target migration-image --tag zig-agents:ci-migration -f zig/Dockerfile .
+          docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg GIT_SHA="$GITHUB_SHA" --target runtime-core --tag zig-agents:ci-core -f zig/Dockerfile .
+          docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg GIT_SHA="$GITHUB_SHA" --target migration-image --tag zig-agents:ci-migration -f zig/Dockerfile .
       - name: Check image and run local SIGTERM/restart smoke
-        run: python3 zig/tools/container_check.py runtime --image zig-agents:ci-core --smoke --migration-image zig-agents:ci-migration --output zig/bench/results/container/runtime.json
+        run: python3 zig/tools/container_check.py runtime --image zig-agents:ci-core --smoke --migration-image zig-agents:ci-migration --expected-git-sha "$GITHUB_SHA" --output zig/bench/results/container/runtime.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
@@ -227,7 +231,7 @@ jobs:
       fail-fast: false
       matrix:
         variant: [starknet, aleo]
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -238,7 +242,7 @@ jobs:
           chmod +x zig/entrypoint.sh
           python3 zig/tools/container_check.py static --output zig/bench/results/container-${{ matrix.variant }}/static.json
       - name: Build qualified SDK image
-        run: docker build --build-arg BUILD_JOBS=4 --target runtime-${{ matrix.variant }} --tag zig-agents:ci-${{ matrix.variant }} -f zig/Dockerfile .
+        run: docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg GIT_SHA="$GITHUB_SHA" --target runtime-${{ matrix.variant }} --tag zig-agents:ci-${{ matrix.variant }} -f zig/Dockerfile .
       - name: Check SDK image linkage and role help
         run: python3 zig/tools/container_check.py runtime --image zig-agents:ci-${{ matrix.variant }} --output zig/bench/results/container-${{ matrix.variant }}/runtime.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -247,3 +251,177 @@ jobs:
           name: zig-container-${{ matrix.variant }}
           path: zig/bench/results/container-${{ matrix.variant }}/
           if-no-files-found: warn
+
+  # Explicit, resource-qualified SDK correctness. Not an eight-family native gate.
+  # Feature-branch push or manual dispatch; capacity checked before SDK build.
+  full-sdk-native:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        mode: [ReleaseSafe, ReleaseFast]
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Require SDK correctness capacity
+        run: |
+          python3 - <<'PY'
+          import json, os
+          v = os.statvfs('.')
+          disk = v.f_bavail * v.f_frsize
+          available = int(next(line.split()[1] for line in open('/proc/meminfo') if line.startswith('MemAvailable:'))) * 1024
+          print(json.dumps({'free_bytes': disk, 'available_memory_bytes': available}))
+          assert disk >= 32 * 1024**3, 'Need32GiB free for the separate SDK build allocation'
+          assert available >= 6 * 1024**3, 'Need6GiB available for bounded native proof fixture'
+          PY
+      - name: Build matching-mode full SDK runtime and test fixture
+        run: |
+          docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg ZIG_MODE=${{ matrix.mode }} --build-arg GIT_SHA="$GITHUB_SHA" --target runtime-full-sdk --tag zig-agents:ci-full-${{ matrix.mode }} -f zig/Dockerfile .
+          docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg ZIG_MODE=${{ matrix.mode }} --build-arg GIT_SHA="$GITHUB_SHA" --target full-sdk-fixture --tag zig-agents:ci-fixture-${{ matrix.mode }} -f zig/Dockerfile .
+      - name: Run actual full-SDK native suite after all libraries and worker exist
+        run: |
+          mkdir -p zig/bench/results/full-sdk-${{ matrix.mode }}
+          docker run --rm --network none --memory=6g --memory-swap=6g --cpus=2 --pids-limit=256 --workdir /work --mount type=bind,src="$PWD/zig/bench/results/full-sdk-${{ matrix.mode }}",dst=/evidence --entrypoint python3 zig-agents:ci-fixture-${{ matrix.mode }} zig/tools/container_check.py native-suite --mode ${{ matrix.mode }} --jobs "${BUILD_JOBS}" --output /evidence/native.json
+      - name: Read back actual runtime SDK payloads
+        run: |
+          python3 zig/tools/container_check.py runtime --image zig-agents:ci-full-${{ matrix.mode }} --output zig/bench/results/full-sdk-${{ matrix.mode }}/runtime.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          base = Path('zig/bench/results/full-sdk-${{ matrix.mode }}')
+          native = json.loads((base / 'native.json').read_text())
+          runtime = json.loads((base / 'runtime.json').read_text())
+          assert native['passed'] and runtime['passed']
+          assert native['artifact_sha256'] == runtime['artifact_sha256'], 'Tested libraries/worker/roles differ from packaged payloads'
+          PY
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-full-sdk-native-${{ matrix.mode }}
+          path: zig/bench/results/full-sdk-${{ matrix.mode }}/
+          if-no-files-found: warn
+
+  # Separate fresh VM per trial. Compiler-pair positions rotate; prerequisites remain fixed first.
+  cold-full-feature:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 300
+    env:
+      COLD_EVIDENCE: ${{ runner.temp }}/ziggy-cold-evidence
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - trial: 1
+            order: rust-safe-fast
+          - trial: 2
+            order: safe-fast-rust
+          - trial: 3
+            order: fast-rust-safe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Stage compiler and exact dependency sources outside timers
+        timeout-minutes: 50
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang cmake libclang-dev libcurl4-openssl-dev libpq-dev libssl-dev libudev-dev make pkg-config protobuf-compiler python3
+          rustup toolchain install 1.98.0 --profile minimal
+          ZIG="$(python3 zig/tools/bootstrap.py)"
+          echo "ZIG=$ZIG" >> "$GITHUB_ENV"
+          python3 zig/tools/fixture_pack.py restore-locks
+          python3 zig/tools/native_deps.py --restore-only
+          python3 zig/src/net/native-url/locked.py --restore-only
+          python3 zig/src/starknet/testing/locked.py --restore-only
+          python3 zig/src/aleo/testing/locked.py --restore-only
+          python3 zig/src/ops/tools/locked.py --restore-only
+          for manifest in rust/main/Cargo.toml zig/native/rocks/Cargo.toml zig/src/net/native-url/Cargo.toml zig/src/ops/regex-native/Cargo.toml zig/src/starknet/native-crypto/Cargo.toml zig/src/aleo/native-crypto/Cargo.toml zig/src/aleo/native-vm/Cargo.toml; do
+            cargo +1.98.0 fetch --locked --manifest-path "$manifest"
+          done
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          mkdir -p "$COLD_EVIDENCE/setup"
+          { uname -a; lscpu; df -B1 . "$RUNNER_TEMP"; free -b; rustc +1.98.0 -vV; cargo +1.98.0 -V; "$ZIG" version; clang --version; cmake --version; protoc --version; } > "$COLD_EVIDENCE/setup/platform.txt"
+          sha256sum "$ZIG" zig/bench/build_matrix.py zig/bench/cold_matrix_owner.py zig/bench/cache_reclaim.py > "$COLD_EVIDENCE/setup/runner-inputs.sha256"
+          dpkg-query -W > "$COLD_EVIDENCE/setup/system-packages.txt"
+      - name: Require forty GiB AFTER staging and record exact native runtime inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import json, os, pathlib, shutil
+          roots=[pathlib.Path.cwd(),pathlib.Path(os.environ['RUNNER_TEMP'])]
+          records=[{'path':str(p),'device':p.stat().st_dev,'free_bytes':shutil.disk_usage(p).free}for p in roots]
+          (pathlib.Path(os.environ['COLD_EVIDENCE'])/'setup/capacity.json').write_text(json.dumps(records,indent=2)+'\n')
+          assert all(r['free_bytes']>=40*1024**3 for r in records)
+          PYTHON
+          LIBPQ="$(readlink -f "$(pkg-config --variable=libdir libpq)/libpq.so.5")"
+          echo "LIBPQ=$LIBPQ" >> "$GITHUB_ENV"
+          TRIAL_ROOT="$RUNNER_TEMP/ziggy-cold-trial-${{ matrix.trial }}"
+          echo "TRIAL_ROOT=$TRIAL_ROOT" >> "$GITHUB_ENV"
+          printf '%s\n' "$TRIAL_ROOT/cache/native-sdk/libziggy_rocks_abi.a" "$TRIAL_ROOT/cache/native-sdk/librocksdb.a" "$TRIAL_ROOT/cache/native-sdk/libsnappy.a" "$TRIAL_ROOT/cache/native-sdk/liblz4.a" "$TRIAL_ROOT/cache/native-sdk/libzstd.a" "$TRIAL_ROOT/cache/native-sdk/libz.a" "$TRIAL_ROOT/cache/native-sdk/libbz2.a" > "$COLD_EVIDENCE/setup/planned-seven-archives.txt"
+          sha256sum "$LIBPQ" "$(readlink -f "$(c++ -print-file-name=libstdc++.so)")" "$(readlink -f "$(c++ -print-file-name=libgcc_s.so.1)")" > "$COLD_EVIDENCE/setup/runtime-inputs.sha256"
+      - name: Run guarded full-feature cold and no-change trial
+        timeout-minutes: 245
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 zig/bench/cold_matrix_owner.py --root "$TRIAL_ROOT" --compiler "$ZIG" --native-db-libs-file "$COLD_EVIDENCE/setup/planned-seven-archives.txt" --libpq-library "$LIBPQ" --git-sha "$GITHUB_SHA" --comparison-order '${{ matrix.order }}'
+      - name: Preserve all measurements and failed guards, excluding compiler caches
+        if: always()
+        shell: bash
+        env:
+          PRIMARY_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$COLD_EVIDENCE/setup" "$COLD_EVIDENCE/trial"
+          if [ -d "${TRIAL_ROOT:-/nonexistent}" ]; then
+            for file in owner-result.json matrix.log; do
+              if [ -f "$TRIAL_ROOT/$file" ]; then cp "$TRIAL_ROOT/$file" "$COLD_EVIDENCE/trial/"; fi
+            done
+            if [ -d "$TRIAL_ROOT/matrix" ]; then cp -a "$TRIAL_ROOT/matrix" "$COLD_EVIDENCE/trial/"; fi
+          fi
+          python3 - <<'PYTHON'
+          import hashlib, json, os, pathlib, subprocess
+          base=pathlib.Path(os.environ['COLD_EVIDENCE'])
+          rows=[]
+          for name,argv in [('head',['git','rev-parse','HEAD']),('diff',['git','diff','--quiet']),('status',['git','status','--porcelain','--untracked-files=all'])]:
+              try:
+                  result=subprocess.run(argv,capture_output=True,text=True,timeout=10)
+                  rows.append({'name':name,'argv':argv,'exit_code':result.returncode,'stdout':result.stdout,'stderr':result.stderr,'actual_parent_wait':True})
+              except (OSError,subprocess.TimeoutExpired) as error:
+                  rows.append({'name':name,'error_type':type(error).__name__})
+          clean=all(r.get('exit_code')==0 for r in rows) and not next((r.get('stdout','').strip() for r in rows if r['name']=='status'),'')
+          record={'primary_job_status_before_collection':os.environ['PRIMARY_JOB_STATUS'],'artifact_collection_completed':True,'postflight_Source_clean':clean,'readbacks':rows,'timing_acceptance':False}
+          (base/'collection-result.json').write_text(json.dumps(record,indent=2)+'\n')
+          hashes=[]
+          for path in sorted(base.rglob('*')):
+              if path.name=='evidence.sha256':
+                  continue
+              if path.is_symlink():
+                  raise RuntimeError('Unexpected artifact symlink')
+              if path.is_file():
+                  digest=hashlib.sha256()
+                  with path.open('rb') as stream:
+                      for chunk in iter(lambda:stream.read(1024*1024),b''):
+                          digest.update(chunk)
+                  hashes.append(digest.hexdigest()+'  '+str(path.relative_to(base)))
+          (base/'evidence.sha256').write_text('\n'.join(hashes)+'\n')
+          if os.environ['PRIMARY_JOB_STATUS']=='success' and not clean:
+              raise SystemExit('Final Source readback failed after evidence was preserved')
+          PYTHON
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-cold-full-feature-trial-${{ matrix.trial }}
+          path: ${{ env.COLD_EVIDENCE }}/
+          if-no-files-found: error

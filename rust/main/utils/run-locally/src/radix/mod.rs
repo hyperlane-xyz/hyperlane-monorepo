@@ -77,7 +77,9 @@ impl Drop for RadixStack {
             .iter_mut()
             .for_each(|x| stop_child(&mut x.1));
 
-        fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
+        if !crate::external_agents::enabled() {
+            fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
+        }
     }
 }
 
@@ -85,7 +87,7 @@ impl Drop for RadixStack {
 pub fn download_radix_contracts() -> (PathBuf, PathBuf) {
     let dir_path = tempdir()
         .expect("Failed to create temporary directory")
-        .into_path();
+        .keep();
     let dir_path = dir_path
         .to_str()
         .expect("Failed to convert temp directory path to string");
@@ -163,7 +165,7 @@ fn launch_radix_validator(agent_config: AgentConfig, agent_config_path: PathBuf)
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir()
         .expect("Failed to create temporary directory for validator")
-        .into_path();
+        .keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).expect("Failed to create validator database directory");
@@ -255,7 +257,7 @@ fn launch_radix_relayer(agent_config_path: String, relay_chains: Vec<String>) ->
 fn launch_radix_scraper(agent_config_path: String, chains: Vec<String>) -> AgentHandles {
     let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "scraper");
 
-    let scraper = Program::default()
+    Program::default()
         .bin(bin)
         .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path)
@@ -266,29 +268,30 @@ fn launch_radix_scraper(agent_config_path: String, chains: Vec<String>) -> Agent
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
         .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
-        .spawn("SCR", None);
-
-    scraper
+        .spawn("SCR", None)
 }
 
 #[allow(dead_code)]
 pub async fn run_locally() {
+    crate::external_agents::initialize_for("radix");
     log!("Staring local net");
     start_localnet();
     wait_for_radix_localnet();
 
     log!("Building rust...");
-    Program::new("cargo")
-        .cmd("build")
-        .working_dir("../../")
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    if !crate::external_agents::enabled() {
+        Program::new("cargo")
+            .cmd("build")
+            .working_dir("../../")
+            .arg("features", "test-utils")
+            .arg("bin", "relayer")
+            .arg("bin", "validator")
+            .arg("bin", "scraper")
+            .arg("bin", "init-db")
+            .filter_logs(|l| !l.contains("workspace-inheritance"))
+            .run()
+            .join();
+    }
 
     let core = Url::parse(CORE_API).expect("Failed to parse URL");
     let gateway = Url::parse(GATEWAY_API).expect("Failed to parse URL");
@@ -433,7 +436,7 @@ pub async fn run_locally() {
     // dispatch the second batch of messages (after agents start)
     dispatched_messages += dispatch(&deployments, dispatched_messages).await;
 
-    let _stack = RadixStack {
+    let mut _stack = RadixStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
         scraper: hpl_scr.join(),
@@ -461,6 +464,22 @@ pub async fn run_locally() {
     if !test_passed {
         panic!("Radix E2E tests failed");
     } else {
+        crate::external_agents::restart_role_handles(
+            _stack
+                .validators
+                .iter_mut()
+                .chain([&mut _stack.relayer, &mut _stack.scraper]),
+            dispatched_messages,
+        )
+        .unwrap_or_else(|error| panic!("same-DB actual role restart: {error:#}"));
+        crate::external_agent_invariants::finish(
+            dispatched_messages,
+            _stack
+                .validators
+                .iter_mut()
+                .map(|handle| &mut handle.1)
+                .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
+        );
         log!("Radix E2E tests passed");
     }
 }

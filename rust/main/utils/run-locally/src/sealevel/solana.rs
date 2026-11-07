@@ -118,9 +118,13 @@ pub fn install_solana_cli_tools(
     release_version: String,
     tools_dir: PathBuf,
 ) -> PathBuf {
-    let tools_dir = std::env::var_os(SOLANA_RELEASE_DIR_ENV)
-        .map(PathBuf::from)
-        .unwrap_or(tools_dir);
+    let tools_dir = (if crate::external_agents::enabled() {
+        None
+    } else {
+        std::env::var_os(SOLANA_RELEASE_DIR_ENV)
+    })
+    .map(PathBuf::from)
+    .unwrap_or(tools_dir);
     let bin_dir = concat_path(&tools_dir, "bin");
     let version_file = concat_path(&tools_dir, "version.yml");
     if fs::read_to_string(&version_file)
@@ -195,7 +199,12 @@ pub fn install_solana_cli_tools(
 /// Copies the SPL program shared objects into `out_path`, reusing
 /// `E2E_SPL_PROGRAMS_DIR` when it is populated and downloading otherwise.
 fn install_spl_programs(out_path: &Path) {
-    let cache_dir = std::env::var_os(SPL_PROGRAMS_DIR_ENV).map(PathBuf::from);
+    let cache_dir = (if crate::external_agents::enabled() {
+        None
+    } else {
+        std::env::var_os(SPL_PROGRAMS_DIR_ENV)
+    })
+    .map(PathBuf::from);
     if let Some(cache_dir) = &cache_dir {
         if SOLANA_PROGRAMS
             .iter()
@@ -236,8 +245,9 @@ fn install_spl_programs(out_path: &Path) {
 #[apply(as_task)]
 pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     let workspace_path = get_workspace_path();
-    let out_path = concat_path(&workspace_path, SBF_OUT_PATH);
-    if out_path.exists() {
+    let out_path = crate::external_agents::sbf_output()
+        .unwrap_or_else(|| concat_path(&workspace_path, SBF_OUT_PATH));
+    if out_path.exists() && !crate::external_agents::enabled() {
         fs::remove_dir_all(&out_path).expect("Failed to remove solana program deploy dir");
     }
     fs::create_dir_all(&out_path).expect("Failed to create solana program deploy dir");
@@ -322,7 +332,7 @@ pub fn start_solana_test_validator(
     let solana_gas_oracle_config_file = concat_path(&sealevel_path, SOLANA_GAS_ORACLE_CONFIG_FILE);
     let solana_gas_oracle_config_file_str = solana_gas_oracle_config_file.to_string_lossy();
 
-    let build_so_dir = concat_path(&workspace_path, SBF_OUT_PATH);
+    let build_so_dir = solana_programs_path.clone();
     let build_so_dir_str = build_so_dir.to_string_lossy();
     // init solana config
     let solana_config = NamedTempFile::new().unwrap().into_temp_path();

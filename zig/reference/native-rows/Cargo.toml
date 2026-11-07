@@ -1,0 +1,20 @@
+[package]
+name = "ziggy-native-rows"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license-file = "../../../LICENSE.md"
+
+[workspace]
+
+[dependencies]
+# Exact versions already selected by rust/main/Cargo.lock. No agent crates.
+rocksdb = "=0.24.0"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "preserve_order", "raw_value"] }
+sha2 = "=0.10.8"
+libc = "=0.2.189"
+
+[profile.release]
+debug = 0
+strip = true

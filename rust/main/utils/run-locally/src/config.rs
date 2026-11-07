@@ -18,9 +18,11 @@ impl Config {
         Arc::new(Self {
             ci_mode,
             is_ci_env: env::var("CI").as_deref() == Ok("true"),
-            ci_mode_timeout: env::var("E2E_CI_TIMEOUT_SEC")
-                .map(|k| k.parse::<u64>().unwrap())
-                .unwrap_or(60 * 10),
+            ci_mode_timeout: crate::external_agents::deadline(
+                env::var("E2E_CI_TIMEOUT_SEC")
+                    .map(|k| k.parse::<u64>().unwrap())
+                    .unwrap_or(60 * 10),
+            ),
             kathy_messages: {
                 let r = env::var("E2E_KATHY_MESSAGES")
                     .ok()

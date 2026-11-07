@@ -59,7 +59,7 @@ impl CodeSource {
     ) -> BTreeMap<String, PathBuf> {
         let dir_path = match dir {
             Some(path) => path,
-            None => tempdir().unwrap().into_path(),
+            None => tempdir().unwrap().keep(),
         };
         let dir_path = dir_path.to_str().unwrap();
 
@@ -135,7 +135,7 @@ impl StarknetCLISource {
 
         let dir_path = match dir {
             Some(path) => path,
-            None => tempdir().unwrap().into_path(),
+            None => tempdir().unwrap().keep(),
         };
         let dir_path = dir_path.to_str().unwrap();
 

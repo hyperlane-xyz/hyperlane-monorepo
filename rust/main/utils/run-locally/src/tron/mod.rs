@@ -217,11 +217,11 @@ fn with_tron_wallet_env(program: Program) -> Program {
         let upper = chain.to_uppercase();
         p = p
             .hyp_env(
-                &format!("CHAINS_{}_CUSTOMWALLETURLS", upper),
+                format!("CHAINS_{}_CUSTOMWALLETURLS", upper),
                 TRON_WALLET_URL,
             )
             .hyp_env(
-                &format!("CHAINS_{}_CUSTOMWALLETSOLIDITYURLS", upper),
+                format!("CHAINS_{}_CUSTOMWALLETSOLIDITYURLS", upper),
                 TRON_WALLET_SOLIDITY_URL,
             );
     }
@@ -229,6 +229,7 @@ fn with_tron_wallet_env(program: Program) -> Program {
 }
 
 fn run_locally() {
+    crate::external_agents::initialize_for("tron");
     let cli_path = get_cli_path();
     let monorepo_root = get_monorepo_root();
 
@@ -236,16 +237,22 @@ fn run_locally() {
 
     // Build rust agents
     log!("Building rust agents...");
-    let build_rust = Program::new("cargo")
-        .working_dir(&workspace_path)
-        .cmd("build")
-        .arg("features", "test-utils memory-profiling")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run();
+    let build_rust = if crate::external_agents::enabled() {
+        None
+    } else {
+        Some(
+            Program::new("cargo")
+                .working_dir(&workspace_path)
+                .cmd("build")
+                .arg("features", "test-utils memory-profiling")
+                .arg("bin", "relayer")
+                .arg("bin", "validator")
+                .arg("bin", "scraper")
+                .arg("bin", "init-db")
+                .filter_logs(|l| !l.contains("workspace-inheritance"))
+                .run(),
+        )
+    };
 
     // Build typescript
     let pnpm_monorepo = Program::new("pnpm").working_dir(&monorepo_root);
@@ -274,7 +281,7 @@ fn run_locally() {
     let tron_container = Program::new("docker")
         .cmd("run")
         .flag("rm")
-        .arg("name", "tron-e2e")
+        .arg("name", crate::external_agents::resource_name("tron-e2e"))
         .arg("publish", "9090:9090")
         .arg("env", "block=allowTvmCompatibleEvm:1")
         .arg("env", "preapprove=allowTvmCompatibleEvm:1")
@@ -290,7 +297,9 @@ fn run_locally() {
     wait_for_tron_node();
 
     // Wait for rust build to finish
-    build_rust.join();
+    if let Some(build) = build_rust {
+        build.join();
+    }
 
     // Remove stale addresses from prior runs so CLI does fresh deploys
     for chain in &CHAIN_NAMES {
@@ -324,8 +333,8 @@ fn run_locally() {
     let config_path_str = agent_config_path.to_str().unwrap().to_string();
     let mut validators: Vec<AgentHandles> = Vec::new();
     for (i, chain) in CHAIN_NAMES.iter().enumerate() {
-        let checkpoint_dir = tempdir().unwrap().into_path();
-        let db_dir = tempdir().unwrap().into_path();
+        let checkpoint_dir = tempdir().unwrap().keep();
+        let db_dir = tempdir().unwrap().keep();
         let name = format!("VL{}", i + 1);
 
         let validator = with_tron_wallet_env(Program::default())
@@ -354,7 +363,7 @@ fn run_locally() {
     }
 
     // Start relayer
-    let relayer_db = tempdir().unwrap().into_path();
+    let relayer_db = tempdir().unwrap().keep();
     let relayer = with_tron_wallet_env(Program::default())
         .bin(concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer"))
         .working_dir("../../")
@@ -412,7 +421,7 @@ fn run_locally() {
     dispatch_message(&cli_path, "anvil2", "anvil1");
     dispatched_messages += 1;
 
-    let _stack = TronStack {
+    let mut _stack = TronStack {
         validators,
         relayer,
         scraper,
@@ -447,6 +456,22 @@ fn run_locally() {
     if !test_passed {
         panic!("Tron E2E tests failed");
     } else {
+        crate::external_agents::restart_role_handles(
+            _stack
+                .validators
+                .iter_mut()
+                .chain([&mut _stack.relayer, &mut _stack.scraper]),
+            dispatched_messages,
+        )
+        .unwrap_or_else(|error| panic!("same-DB actual role restart: {error:#}"));
+        crate::external_agent_invariants::finish(
+            dispatched_messages,
+            _stack
+                .validators
+                .iter_mut()
+                .map(|handle| &mut handle.1)
+                .chain([&mut _stack.relayer.1, &mut _stack.scraper.1]),
+        );
         log!("Tron E2E tests passed");
     }
 }

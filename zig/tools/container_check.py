@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import tempfile
 import threading
@@ -80,6 +81,8 @@ def static_check(output: Path | None) -> dict:
         "curl_default": "HYPERLANE_CURL_LIBRARY=libcurl.so.4",
         "crypto_default": "HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3",
         "regex_default": "HYPERLANE_REGEX_LIBRARY=/opt/hyperlane/lib/libziggy_regex.so",
+        "url_default": "HYPERLANE_URL_LIBRARY=/opt/hyperlane/lib/libziggy_url.so",
+        "url_bundle": "COPY --from=native-url /work/zig/src/net/native-url/target/release/libziggy_url.so /opt/hyperlane/lib/libziggy_url.so",
         "migration_fixture": "FROM runtime-base AS migration-image",
     }
     for name, text in required.items():
@@ -130,7 +133,7 @@ def image_json(image: str, entrypoint: str, args: list[str] | None = None) -> st
 
 
 def runtime_check(image: str, output: Path, smoke: bool, migration_image: str | None,
-                  postgres_image: str) -> dict:
+                  postgres_image: str, expected_git_sha: str | None = None) -> dict:
     inspect = json.loads(checked(["docker", "image", "inspect", image]).stdout)[0]
     config = inspect["Config"]
     if config.get("User") != "10001:10001":
@@ -168,16 +171,23 @@ def runtime_check(image: str, output: Path, smoke: bool, migration_image: str | 
     environment = dict(item.split("=", 1) for item in config.get("Env", []) if "=" in item)
     if "HYPERLANE_REGEX_LIBRARY" not in environment:
         raise AssertionError("pinned Rust regex engine is not configured")
-    for variable in ("HYPERLANE_REGEX_LIBRARY", "HYPERLANE_STARKNET_CRYPTO_LIBRARY", "HYPERLANE_ALEO_CRYPTO_LIBRARY",
+    if environment.get("HYPERLANE_URL_LIBRARY") != "/opt/hyperlane/lib/libziggy_url.so":
+        raise AssertionError("required Rust URL normalizer is not configured")
+    for variable in ("HYPERLANE_URL_LIBRARY", "HYPERLANE_REGEX_LIBRARY", "HYPERLANE_STARKNET_CRYPTO_LIBRARY", "HYPERLANE_ALEO_CRYPTO_LIBRARY",
                      "HYPERLANE_ALEO_VM_LIBRARY", "HYPERLANE_ALEO_VM_WORKER"):
         if variable in environment:
             executable_paths.append(environment[variable])
     links = {}
+    artifact_sha256 = {}
     for path in executable_paths:
         linked = image_json(image, "/usr/bin/ldd", [path])
         if "not found" in linked:
             raise AssertionError(f"unresolved ELF dependency: {path}")
         links[path] = True
+        digest = image_json(image, "/usr/bin/sha256sum", [path]).split()[0]
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise AssertionError("invalid image artifact digest")
+        artifact_sha256[Path(path).name] = digest
     if "libpq.so.5" not in image_json(image, "/usr/bin/ldd", ["/opt/hyperlane/bin/scraper"]):
         raise AssertionError("scraper is not linked to libpq")
     image_json(image, "/usr/bin/test", ["!", "-x", "/usr/bin/curl"])
@@ -188,11 +198,13 @@ def runtime_check(image: str, output: Path, smoke: bool, migration_image: str | 
         "architecture": inspect["Architecture"], "user": config["User"], "help": help_results,
         "default_role": "relayer", "invalid_role_exit": invalid.returncode,
         "regex_library": environment["HYPERLANE_REGEX_LIBRARY"],
+        "url_library": environment["HYPERLANE_URL_LIBRARY"],
         "native_capabilities": capabilities, "rocksdb": manifest["native_runtime_probe"],
         "archive_count": len(manifest["archives"]),
         "rust_build_source_package_count": boundary["rust_build_source_package_count"],
         "rust_runtime_linked": boundary["rust_runtime_linked"],
         "rust_agent_logic_linked": boundary["rust_agent_logic_linked"],
+        "artifact_sha256": artifact_sha256,
         "elf_dependencies_resolved": links, "curl_cli_present": False,
         "aleo_parameter_home_configured": "HYPERLANE_ALEO_PARAMETER_HOME" in environment,
         "smoke": None,
@@ -201,7 +213,7 @@ def runtime_check(image: str, output: Path, smoke: bool, migration_image: str | 
         if not migration_image:
             raise ValueError("--smoke requires --migration-image")
         try:
-            result["smoke"] = smoke_test(image, migration_image, postgres_image, output.parent / "logs")
+            result["smoke"] = smoke_test(image, migration_image, postgres_image, output.parent / "logs", expected_git_sha=expected_git_sha)
         except BaseException:
             result["passed"] = False
             write(output, result)
@@ -254,8 +266,49 @@ def safe_logs(name: str, destination: Path, forbidden: list[str]) -> None:
     destination.write_text(combined)
 
 
+def validate_git_sha(value: str | None) -> str:
+    if value is None or (value != "VERGEN_IDEMPOTENT_OUTPUT" and re.fullmatch(r"[0-9a-fA-F]{40}", value) is None):
+        raise ValueError("expected Git SHA must be the compiled40hex or explicit Git-less sentinel")
+    return value
+
+
+def metadata_snapshot(path: Path, expected_git_sha: str) -> dict:
+    validate_git_sha(expected_git_sha)
+    before = path.lstat()  # Only absence is retryable at the bounded startup caller.
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > 65536:
+        raise AssertionError("validator metadata is not a bounded regular publication")
+    raw = path.read_bytes()
+    after = path.lstat()
+    if (before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns):
+        raise AssertionError("validator metadata changed during read")
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise AssertionError("duplicate validator metadata field")
+            result[key] = value
+        return result
+    value = json.loads(raw, object_pairs_hook=unique_pairs)
+    if not isinstance(value, dict) or set(value) != {"git_sha", "rpcs", "allows_public_rpcs"}:
+        raise AssertionError("validator metadata schema differs")
+    if value["git_sha"] != expected_git_sha or value["allows_public_rpcs"] is not False:
+        raise AssertionError("validator metadata identity/public-RPC flag differs")
+    rows = value["rpcs"]
+    if not isinstance(rows, list) or len(rows) != 1:
+        raise AssertionError("validator metadata must describe the one actual fixture RPC")
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {"url_hash", "host_hash"} or any(
+            not isinstance(row[key], str) or re.fullmatch(r"0x[0-9a-f]{64}", row[key]) is None
+            for key in ("url_hash", "host_hash")
+        ):
+            raise AssertionError("validator metadata contains malformed/nonhashed RPC identity")
+    return {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), "metadata": value}
+
+
 def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
-             forbidden: list[str], attempt: int) -> dict:
+             forbidden: list[str], attempt: int, expected_git_sha: str | None = None) -> dict:
+    if role == "validator":
+        validate_git_sha(expected_git_sha)
     name = f"ziggy-image-{role}-{os.getpid()}-{attempt}"
     args = ["docker", "run", "--detach", "--name", name, "--network", "host",
         "-e", "HYPERLANE_ZIG_DEFAULTS=/config", "-e", "HYPERLANE_CURL_LIBRARY=libcurl.so.4",
@@ -264,22 +317,38 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
         "--mount", f"type=bind,src={data},dst=/data", image, role]
     checked(args)
     started = time.monotonic()
+    metadata = None
     try:
-        deadline = time.monotonic() + 10
+        deadline = started + 10
         while time.monotonic() < deadline:
             state = json.loads(checked(["docker", "inspect", name]).stdout)[0]["State"]
             if not state["Running"]:
                 raise AssertionError(f"{role} exited before SIGTERM")
-            if time.monotonic() - started >= 2:
+            if role == "validator":
+                metadata = None
+                try:
+                    metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha)
+                except FileNotFoundError:
+                    pass
+            if time.monotonic() - started >= 2 and (role != "validator" or metadata is not None):
                 break
             time.sleep(.1)
+        if role == "validator" and metadata is None:
+            raise AssertionError("validator metadata startup deadline")
+        if time.monotonic() >= deadline:
+            raise AssertionError("role startup completed beyond original deadline")
         stop_started = time.monotonic()
         checked(["docker", "stop", "--time", "15", name], timeout=20)
         state = json.loads(checked(["docker", "inspect", name]).stdout)[0]["State"]
         if state["ExitCode"] != 0:
             raise AssertionError(f"{role} SIGTERM exit was {state['ExitCode']}")
+        if role == "validator":
+            stopped_metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha)
+            if stopped_metadata["sha256"] != metadata["sha256"]:
+                raise AssertionError("validator metadata changed during clean drain")
         return {"exit_code": 0, "startup_grace_ms": round((stop_started - started) * 1000),
-                "drain_ms": round((time.monotonic() - stop_started) * 1000), "reopened": attempt == 1}
+                "drain_ms": round((time.monotonic() - stop_started) * 1000), "reopened": attempt == 1,
+                "validator_metadata": metadata}
     finally:
         try:
             safe_logs(name, log_dir / f"{role}-{attempt}.log", forbidden)
@@ -287,7 +356,10 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
             command(["docker", "rm", "--force", "--volumes", name])
 
 
-def smoke_test(image: str, migration_image: str, postgres_image: str, log_dir: Path, include_roles: bool = True) -> dict:
+def smoke_test(image: str, migration_image: str, postgres_image: str, log_dir: Path, include_roles: bool = True,
+               expected_git_sha: str | None = None) -> dict:
+    if include_roles:
+        validate_git_sha(expected_git_sha)
     rpc = RpcFixture()
     pg_name = f"ziggy-image-pg-{os.getpid()}"
     pg_started = False
@@ -345,7 +417,9 @@ def smoke_test(image: str, migration_image: str, postgres_image: str, log_dir: P
                         "metricsPort": 0, "chains": {"containerfixture": chain}}
                 (config / "fixture.json").write_text(json.dumps(value))
                 forbidden = [rpc.url, "postgresql://", "0x" + "11" * 32]
-                runs = [run_role(image, role, config, data, log_dir, forbidden, attempt) for attempt in range(2)]
+                runs = [run_role(image, role, config, data, log_dir, forbidden, attempt, expected_git_sha) for attempt in range(2)]
+                if role == "validator" and runs[0]["validator_metadata"]["sha256"] != runs[1]["validator_metadata"]["sha256"]:
+                    raise AssertionError("same-DB validator metadata bytes changed after restart")
                 evidence["roles"][role] = {"runs": runs, "same_db_reopen": True, "logs_checked": True}
         return evidence
     finally:
@@ -366,9 +440,129 @@ def migration_check(migration_image: str, postgres_image: str, output: Path) -> 
     return result
 
 
+NATIVE_SKIP_REASONS = {
+    "lander.anvil_tests.test.local Anvil Multicall3 returns positional allowFailure results": "Anvil is not installed in this fixture image; separate pinned Anvil gate required",
+    "evm_prepare_delegated_tests.test.opt-in loopback prepares actual repo Solidity without delivery or nonce mutation": "Separate explicit Solidity/Anvil preparation fixture",
+    "agents.indexing.tx_id_native_test.test.transaction-ID restart rescans durable canonical dispatch and immutable Source Rust oracle decodes repaired rows": "Existing test pins a macOS oracle executable hash; portable Source-bound oracle control still required",
+}
+NATIVE_REQUIRED = (
+    "optional CCS actual Factory every allocation failure propagates and cleans optional identity",
+    "validator metadata full pretty schema matches actual immutable Rust producer including private RPC identities",
+    "configured RPC production-default Tron HTTP reaches native transport while cloud remains strict",
+    "Starknet missing chain ID uses configured fallback and keeps discovery controls",
+    "scraper Sealevel advanced metadata retains authenticated nonzero event sequences at the resolved transaction",
+    "configured Cosmos transaction absence reaches typed client through real Resources Pool",
+    "configured SVM unavailable slot permits actual sparse scraper range progress after retries",
+    "announcement replay one Registry serializes concurrent ensure callbacks through actual Factory Resources",
+    "fresh gas subscription explicitly replays zero before nonzero history and durable resume",
+    "fresh gas bootstrap keeps skipped history and unsupported v2 fail closed",
+    "Aleo actual isolated native worker authorizes fees and exports source proving wire through pipes",
+    "Aleo actual isolated local proof is bound to exact authorized execution and fee",
+    "Aleo actual proof worker OS sandbox forbids loopback network connections",
+)
+
+
+def native_test_results(text: str) -> dict:
+    rows = []
+    pending = None
+    for line in text.splitlines():
+        match = re.match(r"^(\d+)/(\d+) (.*?)\.\.\.(.*)$", line)
+        if match:
+            if pending is not None:
+                raise AssertionError("native test missing final status")
+            pending = {"ordinal": int(match[1]), "total": int(match[2]), "name": match[3]}
+            tail = match[4]
+        else:
+            tail = line
+        if pending is not None:
+            status = next((item for item in ("OK", "SKIP", "FAIL")
+                           if re.search(r"(?:^|\s)" + item + r"(?:\b|$)", tail)), None)
+            if status is not None:
+                pending["status"] = status
+                rows.append(pending)
+                pending = None
+    if pending is not None or not rows:
+        raise AssertionError("native test output incomplete")
+    total = rows[-1]["total"]
+    if len(rows) != total or [row["ordinal"] for row in rows] != list(range(1, total + 1)) or any(row["total"] != total for row in rows):
+        raise AssertionError("native test ordinals/count changed or incomplete")
+    if any(row["status"] == "FAIL" for row in rows):
+        raise AssertionError("native test failed")
+    skipped = [row["name"] for row in rows if row["status"] == "SKIP"]
+    if any(name not in NATIVE_SKIP_REASONS for name in skipped):
+        raise AssertionError("unreviewed native fixture/library skip")
+    for name in NATIVE_REQUIRED:
+        if not any(row["name"].endswith(name) and row["status"] == "OK" for row in rows):
+            raise AssertionError("required SDK/production regression absent: " + name)
+    return {"per_test": rows, "total": total,
+            "skipped": {name: NATIVE_SKIP_REASONS[name] for name in skipped}}
+
+
+def native_suite(mode: str, jobs: int, output: Path) -> None:
+    if mode not in ("ReleaseSafe", "ReleaseFast") or jobs not in range(1, 5):
+        raise ValueError("invalid native fixture mode/jobs")
+    if os.environ.get("ZIG_NATIVE_TEST_MODE") != mode:
+        raise AssertionError("test mode differs from actual worker/roles build mode")
+    variables = ("HYPERLANE_URL_LIBRARY", "HYPERLANE_REGEX_LIBRARY", "HYPERLANE_STARKNET_CRYPTO_LIBRARY",
+                 "HYPERLANE_ALEO_CRYPTO_LIBRARY", "HYPERLANE_ALEO_VM_LIBRARY", "HYPERLANE_ALEO_VM_WORKER")
+    artifacts = {}
+    for name in variables:
+        value = os.environ.get(name)
+        if not value:
+            raise AssertionError("required SDK/worker is not selected: " + name)
+        path = Path(value)
+        with path.open("rb") as stream:
+            if stream.read(4) != b"\x7fELF":
+                raise AssertionError("required SDK/worker is not a Linux ELF")
+            stream.seek(0)
+            artifacts[path.name] = hashlib.file_digest(stream, "sha256").hexdigest()
+    for role in ROLES:
+        path = ROOT / "zig/zig-out/bin" / role
+        with path.open("rb") as stream:
+            artifacts[path.name] = hashlib.file_digest(stream, "sha256").hexdigest()
+    parameters = Path("/opt/hyperlane-fixture/parameters")
+    catalog = checked(["python3", "zig/src/aleo/testing/parameters.py", "--home", parameters,
+                       "--network", "mainnet", "--max-degree", "18"], timeout=120)
+    parameter_receipt = json.loads(catalog.stdout)  # verifies all actual files, no --fetch
+    if parameter_receipt["network"] != "mainnet" or parameter_receipt["home"] != str(parameters):
+        raise AssertionError("wrong native proof parameter scope")
+    manifest = json.loads(Path("/opt/hyperlane-native/manifest.json").read_text())
+    if len(manifest["archives"]) != 7:
+        raise AssertionError("wrong native archive count")
+    unwind = checked(["c++", "-print-file-name=libgcc_s.so.1"]).stdout.strip()
+    libraries = manifest["native_db_libs"].split(",") + [str(Path(unwind).resolve(strict=True))]
+    env = dict(os.environ)
+    env["HYPERLANE_ALEO_PARAMETER_HOME"] = str(parameters)
+    env["HYPERLANE_CURL_LIBRARY"] = "libcurl.so.4"
+    env["HYPERLANE_LIBCRYPTO_LIBRARY"] = "libcrypto.so.3"
+    env["ZIGGY_REGEX_LIBRARY"] = env["HYPERLANE_REGEX_LIBRARY"]
+    argv = ["python3", "zig/tools/native_http_tests.py", "--timeout-seconds", "7200", "--",
+            "python3", "zig/tools/zig.py", "test", "src/db_tests.zig", "-O", mode,
+            "-j" + str(jobs), "-lc", "-lstdc++", *libraries]
+    result = command(argv, env=env, timeout=7250)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    log = output.with_suffix(".log")
+    log.write_text(result.stdout + result.stderr)
+    receipt = {"passed": False, "mode": mode, "argv": argv, "exit_code": result.returncode,
+               "artifact_sha256": artifacts, "parameters": parameter_receipt,
+               "log_sha256": hashlib.sha256(log.read_bytes()).hexdigest(),
+               "scope": "Full-SDK Linux native unit suite with explicit named fixture exclusions; not full native-chain/standalone600 acceptance"}
+    try:
+        if result.returncode != 0:
+            raise AssertionError("actual full-SDK native suite exited nonzero")
+        receipt["tests"] = native_test_results(log.read_text())
+        receipt["passed"] = True
+    finally:
+        write(output, receipt)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
+    native = subcommands.add_parser("native-suite")
+    native.add_argument("--mode", choices=["ReleaseSafe", "ReleaseFast"], required=True)
+    native.add_argument("--jobs", type=int, default=2)
+    native.add_argument("--output", type=Path, required=True)
     probe = subcommands.add_parser("write-probe")
     probe.add_argument("--output", type=Path, required=True)
     static = subcommands.add_parser("static")
@@ -378,12 +572,16 @@ def main() -> int:
     runtime.add_argument("--output", type=Path, required=True)
     runtime.add_argument("--smoke", action="store_true")
     runtime.add_argument("--migration-image")
+    runtime.add_argument("--expected-git-sha")
     runtime.add_argument("--postgres-image", default=POSTGRES_PIN)
     migrations = subcommands.add_parser("migrations")
     migrations.add_argument("--migration-image", required=True)
     migrations.add_argument("--postgres-image", default=POSTGRES_PIN)
     migrations.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.command == "native-suite":
+        native_suite(args.mode, args.jobs, args.output)
+        return 0
     if args.command == "write-probe":
         args.output.write_text(PROBE)
         return 0
@@ -393,7 +591,7 @@ def main() -> int:
     if args.command == "migrations":
         migration_check(args.migration_image, args.postgres_image, args.output)
         return 0
-    runtime_check(args.image, args.output, args.smoke, args.migration_image, args.postgres_image)
+    runtime_check(args.image, args.output, args.smoke, args.migration_image, args.postgres_image, args.expected_git_sha)
     return 0
 
 

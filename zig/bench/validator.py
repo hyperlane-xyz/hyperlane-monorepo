@@ -11,6 +11,8 @@ sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'integration')
 import evm
 import inventory
 ROOT=evm.ROOT
+sys.path.insert(0,str(ROOT))
+from zig.integration import validator as validator_fixture
 
 def digest(path):
  value=hashlib.sha256(path.read_bytes()).hexdigest();return [value[:32],value[32:]]
@@ -31,10 +33,15 @@ def source_inventory():
    for name in sorted(files):
     path=pathlib.Path(directory)/name
     if path.suffix in {'.zig','.rs','.toml','.lock','.json','.jsonl','.gz','.py','.h','.c'} and not (path.suffix != '.gz' and pathlib.Path(str(path)+'.gz').exists()):entries[str(path.relative_to(ROOT))]=digest(path)
- for name in ['zig/build.zig','zig/build.zig.zon','rust/main/Cargo.lock','rust/main/Cargo.toml','zig/bench/validator.py']:
+ for name in ['zig/build.zig','zig/build.zig.zon','rust/main/Cargo.lock','rust/main/Cargo.toml','zig/bench/validator.py','zig/integration/validator.py']:
   path=ROOT/name
   if path.exists():entries[name]=digest(path)
  return entries
+def daemon_environment(name, config, url_library):
+ env={'HYPERLANE_ZIG_DEFAULTS':str(config),'HYPERLANE_CURL_LIBRARY':'/usr/lib/libcurl.4.dylib'}
+ if name=='zig':env['HYPERLANE_URL_LIBRARY']=url_library['pinned_path']
+ return env
+
 class CountingProxy:
  def __init__(self,target):self.target=target;self.counts=collections.Counter();self.lock=threading.Lock()
  def snapshot(self):
@@ -103,12 +110,14 @@ def checkpoint_objects(directory,count):
  except (OSError,ValueError,KeyError):return None
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--rust',type=pathlib.Path,default=ROOT/'rust/main/target/release/validator');p.add_argument('--zig',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');p.add_argument('--zig-mode',choices=['ReleaseSafe','ReleaseFast'],default='ReleaseSafe');p.add_argument('--consensus',choices=['majority','quorum','fallback'],default='majority');p.add_argument('--samples',type=int,default=5);p.add_argument('--catchup',type=int,default=32);p.add_argument('--steady',type=int,default=8);p.add_argument('--steady-interval-ms',type=int,default=1000);p.add_argument('--deadline',type=float,default=90);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/whole-validator-initial');p.add_argument('--team-idle',action='store_true');p.add_argument('--profile',choices=['rust','zig','both']);p.add_argument('--check-metrics',action='store_true');p.add_argument('--rust-build-description',default='production cargo --release with .cargo tokio_unstable; no target-cpu override');p.add_argument('--telemetry-description',default='Rust includes tracing/Prometheus/Tokio task metrics; Zig telemetry is incomplete');args=p.parse_args();args.rust=args.rust.resolve();args.zig=args.zig.resolve();args.output=args.output.resolve();args.output.mkdir(parents=True,exist_ok=True)
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--rust',type=pathlib.Path,default=ROOT/'rust/main/target/release/validator');p.add_argument('--zig',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');p.add_argument('--url-library',type=pathlib.Path,required=True);p.add_argument('--zig-mode',choices=['ReleaseSafe','ReleaseFast'],default='ReleaseSafe');p.add_argument('--consensus',choices=['majority','quorum','fallback'],default='majority');p.add_argument('--samples',type=int,default=5);p.add_argument('--catchup',type=int,default=32);p.add_argument('--steady',type=int,default=8);p.add_argument('--steady-interval-ms',type=int,default=1000);p.add_argument('--deadline',type=float,default=90);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/whole-validator-initial');p.add_argument('--team-idle',action='store_true');p.add_argument('--profile',choices=['rust','zig','both']);p.add_argument('--check-metrics',action='store_true');p.add_argument('--rust-build-description',default='production cargo --release with .cargo tokio_unstable; no target-cpu override');p.add_argument('--telemetry-description',default='Rust includes tracing/Prometheus/Tokio task metrics; Zig telemetry is incomplete');args=p.parse_args();args.rust=args.rust.resolve();args.zig=args.zig.resolve();args.output=args.output.resolve();args.output.mkdir(parents=True,exist_ok=True)
  if args.samples<1 or args.catchup<1 or args.steady<1:raise ValueError('positive sample/trace counts required')
+ url_library=validator_fixture.url_dependency(args.url_library,ROOT/'zig/bench/.cache/validator-url')
  evm.CACHE=ROOT/'zig/integration/.cache/whole-validator';evm.CACHE.mkdir(parents=True,exist_ok=True);evm.CONTRACTS={k:v for k,v in evm.CONTRACTS.items()if k in ['Mailbox','MerkleTreeHook','TestIsm','TestPostDispatchHook']};evm.CONTRACTS['ValidatorAnnounce']='solidity/contracts/isms/multisig/ValidatorAnnounce.sol';contracts=evm.compile_contracts()
  metadata=dict(started_at_utc=datetime.now(timezone.utc).isoformat(),scope='Actual EVM validator daemons, common two-endpoint '+args.consensus+'/local hex signer/LocalStorage trace; excludes other VMs, cloud, websocket, lightweight; telemetry parity incomplete',host=platform.platform(),zig_optimize=args.zig_mode,rust_build=args.rust_build_description,load_average_before=os.getloadavg(),team_compilers_idle=args.team_idle,shared_host='Other user workloads remain; no exclusive-host claim',trace={'catchup_dispatches':args.catchup,'steady_dispatches':args.steady,'steady_pacing':'fixed elapsed-time arrival schedule independent of signing completion','steady_interval_ms':args.steady_interval_ms,'domain':9913371,'poll_interval_seconds':1,'index_interval_seconds':1,'max_sign_concurrency':50,'rpc_endpoints':2,'consensus':args.consensus},durability={'rust':'production RocksDB options; LocalStorage uses tokio::fs::write without explicit file/directory fsync or atomic rename','zig':'per-transition RocksDB WAL fsync; LocalStore atomic rename + file/directory fsync'},binaries={n:{'path':str(b.relative_to(ROOT)),'bytes':b.stat().st_size,'sha256_chunks':digest(b)}for n,b in [('rust',args.rust),('zig',args.zig)]},git_head=evm.run(['git','rev-parse','HEAD']),raw_samples=[])
+ metadata['url_library']=url_library
  metadata['feature_gaps']=[args.telemetry_description,'maxSignConcurrency50 supplied identically; Zig native-safe publication uses a bounded persistent thread pool, Rust uses async join_all; thread snapshots and RSS recorded','Zig uses stronger fsync/atomic-publication policy; Rust production LocalStorage uses direct writes','Rust default SIGTERM terminates process; Zig drains worker then exits0; shutdown latency reported separately']
- metadata['configuration_loading']={'rust':'production loader reads ./config/*.json from disposable process cwd','zig':'HYPERLANE_ZIG_DEFAULTS explicitly selects the same disposable config directory','environment':'empty except explicit Zig defaults/native curl path; no inherited credentials'}
+ metadata['configuration_loading']={'rust':'production loader reads ./config/*.json from disposable process cwd','zig':'HYPERLANE_ZIG_DEFAULTS explicitly selects the same disposable config directory','environment':'original Rust environment retained; explicit URL library added only to Zig child; no inherited credentials'}
  metadata['source_inventory_sha256_chunks']=source_inventory()
  metadata['source_inventory_scope']='files at harness start; binary hashes identify executed artifacts; source may include concurrent edits made after compilation'
  metadata['source_inventory_sha256_chunks']['zig/reference/src/main.rs']=digest(ROOT/'zig/reference/src/main.rs')
@@ -142,7 +151,7 @@ def main():
       config=temp/'config';config.mkdir();checkpoints=temp/'checkpoints';
       with socket.socket()as metrics_socket:metrics_socket.bind(('127.0.0.1',0));metrics_port=metrics_socket.getsockname()[1]
       value={'originChainName':'test1','db':str(temp/'db'),'interval':1,'maxSignConcurrency':50,'metricsPort':metrics_port if args.check_metrics else 0,'tracing':{'level':'error','fmt':'json'},'validator':{'type':'hexKey','key':'0x'+'11'*32},'checkpointSyncer':{'type':'localStorage','path':str(checkpoints)},'skipAnnounce':False,'chains':{'test1':{'name':'test1','domainId':9913371,'chainId':31337,'protocol':'ethereum','rpcUrls':[{'http':first.url},{'http':second.url}],'rpcConsensusType':args.consensus,'signer':{'type':'hexKey','key':'0x'+'11'*32},'mailbox':mailbox,'validatorAnnounce':announce,'merkleTreeHook':hook,'interchainGasPaymaster':required,'blocks':{'reorgPeriod':0,'estimateBlockTime':1},'index':{'from':0,'interval':1,'chunk':1999}}}};(config/'public.json').write_text(json.dumps(value))
-      env={'HYPERLANE_ZIG_DEFAULTS':str(config),'HYPERLANE_CURL_LIBRARY':'/usr/lib/libcurl.4.dylib'};daemon=MeasuredProcess(pinned[name],temp,env)
+      env=daemon_environment(name,config,url_library);daemon=MeasuredProcess(pinned[name],temp,env)
       profile=None
       if args.profile in [name,'both']:profile=subprocess.Popen(['/usr/bin/sample',str(daemon.p.pid),'5','1','-file',str(args.output/f'{name}-{sample}.sample.txt')],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
       def wait(count):

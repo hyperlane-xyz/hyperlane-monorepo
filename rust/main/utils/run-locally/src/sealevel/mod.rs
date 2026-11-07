@@ -56,6 +56,7 @@ type DynPath = Box<dyn AsRef<Path>>;
 
 #[allow(dead_code)]
 fn run_locally() {
+    crate::external_agents::initialize_for("sealevel");
     // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
         log!("Terminating...");
@@ -81,9 +82,15 @@ fn run_locally() {
     let validator_keys = SEALEVEL_VALIDATOR_KEYS.to_vec();
     let validator_count: usize = validator_keys.len();
 
-    let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
-    fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-    let checkpoints_dirs: Vec<DynPath> = vec![Box::new(solana_checkpoint_path) as DynPath];
+    let owned_checkpoint = crate::external_agents::create_owned_path(
+        Path::new(SOLANA_CHECKPOINT_LOCATION),
+        "sealevel-checkpoints",
+    );
+    let solana_checkpoint_path = owned_checkpoint.as_path();
+    if !crate::external_agents::enabled() {
+        fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
+    }
+    let checkpoints_dirs: Vec<DynPath> = vec![Box::new(owned_checkpoint.clone()) as DynPath];
 
     assert_eq!(validator_origin_chains.len(), validator_keys.len());
 
@@ -184,16 +191,22 @@ fn run_locally() {
 
     // Compile agents alongside SBF setup in the separate Sealevel workspace.
     log!("Building rust agents...");
-    let build_main = Program::new("cargo")
-        .cmd("build")
-        .working_dir(&workspace_path)
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run();
+    let build_main = if crate::external_agents::enabled() {
+        None
+    } else {
+        Some(
+            Program::new("cargo")
+                .cmd("build")
+                .working_dir(&workspace_path)
+                .arg("features", "test-utils")
+                .arg("bin", "relayer")
+                .arg("bin", "validator")
+                .arg("bin", "scraper")
+                .arg("bin", "init-db")
+                .filter_logs(|l| !l.contains("workspace-inheritance"))
+                .run(),
+        )
+    };
 
     // Install once: both contract compilation and the node use this version.
     let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
@@ -220,7 +233,9 @@ fn run_locally() {
     let postgres = start_postgres();
     state.push_agent(postgres);
 
-    build_main.join();
+    if let Some(build) = build_main {
+        build.join();
+    }
     build_sealevel_client.join();
 
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
@@ -337,6 +352,11 @@ fn run_locally() {
     if !test_passed {
         panic!("Failure occurred during E2E");
     }
+    state.restart_external_roles(SOL_MESSAGES_EXPECTED);
+    crate::external_agent_invariants::finish(
+        SOL_MESSAGES_EXPECTED,
+        state.agents.values_mut().map(|(child, _)| child),
+    );
     log!("E2E tests passed");
 }
 

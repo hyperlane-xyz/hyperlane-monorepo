@@ -77,88 +77,94 @@ pub fn relayer_termination_invariants_met(
         return Ok(false);
     }
 
-    let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
-    const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
-    const FOUND_LOGS_IN_INDEX_RANGE: &str = "Found log(s) in index range";
-    const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
-
-    const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
-
-    let relayer_logfile = File::open(log_file_path)?;
-
-    let storing_new_msg_line_filter = vec![STORING_NEW_MESSAGE_LOG_MESSAGE];
-    let found_logs_index_range_filter = vec![FOUND_LOGS_IN_INDEX_RANGE];
-    let gas_expenditure_line_filter = vec![GAS_EXPENDITURE_LOG_MESSAGE];
-    let hyper_incoming_body_line_filter = vec![HYPER_INCOMING_BODY_LOG_MESSAGE];
-    let tx_id_indexing_line_filter = vec![TX_ID_INDEXING_LOG_MESSAGE];
-    let invariant_logs = vec![
-        storing_new_msg_line_filter.clone(),
-        found_logs_index_range_filter.clone(),
-        gas_expenditure_line_filter.clone(),
-        hyper_incoming_body_line_filter.clone(),
-        tx_id_indexing_line_filter.clone(),
-    ];
-    let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
-
-    // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
-    // TODO: Sometimes we find more logs than expected. This may either mean that gas is deducted twice for the same message due to a bug,
-    // or that submitting the message transaction fails for some messages. Figure out which is the case and convert this check to
-    // strict equality.
-    // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
-    // (`Transaction attempting to process message either reverted or was reorged`)
-    // in which case more gas expenditure logs than messages are expected.
-    // TODO: re-enable once the MessageProcessor IGP is integrated with the dispatcher
-    // let gas_expenditure_log_count = *log_counts
-    //     .get(&gas_expenditure_line_filter)
-    //     .expect("Failed to get gas expenditure log count");
-    // assert!(
-    //     gas_expenditure_log_count >= total_messages_expected,
-    //     "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
-    //     gas_expenditure_log_count,
-    //     total_messages_expected
-    // );
-    // // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
-
-    let storing_new_msg_log_count = *log_counts
-        .get(&storing_new_msg_line_filter)
-        .expect("Failed to get storing new msg log count");
-    assert!(
-        storing_new_msg_log_count > 0,
-        "Didn't find any logs about storing messages in db"
-    );
-    let found_logs_in_index_range_count = *log_counts
-        .get(&found_logs_index_range_filter)
-        .expect("Failed to get Found log(s) in index range count");
-    assert!(
-        found_logs_in_index_range_count > 0,
-        "Didn't find any logs about looking for events in index range"
-    );
-    let total_tx_id_log_count = *log_counts
-        .get(&tx_id_indexing_line_filter)
-        .expect("Failed to get tx id indexing log count");
-
-    // Sealevel relayer does not require tx id indexing.
-    // It performs sequenced indexing, that's why we don't expect any tx_id_logs
-    let expected_tx_id_logs = if skip_tx_id_indexing {
-        0
+    if crate::external_agents::enabled() {
+        if !crate::external_agent_invariants::live(total_messages_expected)? {
+            return Ok(false);
+        }
     } else {
-        config.kathy_messages
-    };
-    // there are 3 txid-indexed events:
-    // - relayer: merkle insertion and gas payment
-    // - scraper: gas payment
-    // some logs are emitted for multiple events, so requiring there to be at least
-    // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
-    // are expected to be logged for each message.
-    assert!(
+        let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
+        const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
+        const FOUND_LOGS_IN_INDEX_RANGE: &str = "Found log(s) in index range";
+        const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
+
+        const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
+
+        let relayer_logfile = File::open(log_file_path)?;
+
+        let storing_new_msg_line_filter = vec![STORING_NEW_MESSAGE_LOG_MESSAGE];
+        let found_logs_index_range_filter = vec![FOUND_LOGS_IN_INDEX_RANGE];
+        let gas_expenditure_line_filter = vec![GAS_EXPENDITURE_LOG_MESSAGE];
+        let hyper_incoming_body_line_filter = vec![HYPER_INCOMING_BODY_LOG_MESSAGE];
+        let tx_id_indexing_line_filter = vec![TX_ID_INDEXING_LOG_MESSAGE];
+        let invariant_logs = vec![
+            storing_new_msg_line_filter.clone(),
+            found_logs_index_range_filter.clone(),
+            gas_expenditure_line_filter.clone(),
+            hyper_incoming_body_line_filter.clone(),
+            tx_id_indexing_line_filter.clone(),
+        ];
+        let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
+
+        // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
+        // TODO: Sometimes we find more logs than expected. This may either mean that gas is deducted twice for the same message due to a bug,
+        // or that submitting the message transaction fails for some messages. Figure out which is the case and convert this check to
+        // strict equality.
+        // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
+        // (`Transaction attempting to process message either reverted or was reorged`)
+        // in which case more gas expenditure logs than messages are expected.
+        // TODO: re-enable once the MessageProcessor IGP is integrated with the dispatcher
+        // let gas_expenditure_log_count = *log_counts
+        //     .get(&gas_expenditure_line_filter)
+        //     .expect("Failed to get gas expenditure log count");
+        // assert!(
+        //     gas_expenditure_log_count >= total_messages_expected,
+        //     "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
+        //     gas_expenditure_log_count,
+        //     total_messages_expected
+        // );
+        // // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
+
+        let storing_new_msg_log_count = *log_counts
+            .get(&storing_new_msg_line_filter)
+            .expect("Failed to get storing new msg log count");
+        assert!(
+            storing_new_msg_log_count > 0,
+            "Didn't find any logs about storing messages in db"
+        );
+        let found_logs_in_index_range_count = *log_counts
+            .get(&found_logs_index_range_filter)
+            .expect("Failed to get Found log(s) in index range count");
+        assert!(
+            found_logs_in_index_range_count > 0,
+            "Didn't find any logs about looking for events in index range"
+        );
+        let total_tx_id_log_count = *log_counts
+            .get(&tx_id_indexing_line_filter)
+            .expect("Failed to get tx id indexing log count");
+
+        // Sealevel relayer does not require tx id indexing.
+        // It performs sequenced indexing, that's why we don't expect any tx_id_logs
+        let expected_tx_id_logs = if skip_tx_id_indexing {
+            0
+        } else {
+            config.kathy_messages
+        };
+        // there are 3 txid-indexed events:
+        // - relayer: merkle insertion and gas payment
+        // - scraper: gas payment
+        // some logs are emitted for multiple events, so requiring there to be at least
+        // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
+        // are expected to be logged for each message.
+        assert!(
         total_tx_id_log_count as u64 >= expected_tx_id_logs,
         "Didn't find as many tx id logs as expected. Found {total_tx_id_log_count} and expected {expected_tx_id_logs}"
     );
 
-    assert!(
-        !log_counts.contains_key(&hyper_incoming_body_line_filter),
-        "Verbose logs not expected at the log level set in e2e"
-    );
+        assert!(
+            !log_counts.contains_key(&hyper_incoming_body_line_filter),
+            "Verbose logs not expected at the log level set in e2e"
+        );
+    }
 
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
@@ -291,63 +297,6 @@ pub fn scraper_termination_invariants_met(
     }
 
     Ok(true)
-}
-
-#[cfg(test)]
-mod scraper_tests {
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-    use std::thread;
-    use std::time::Duration;
-
-    use super::{scraper_termination_invariants_met, ScraperTerminationInvariantParams};
-
-    #[test]
-    fn scraper_counts_cover_single_and_multiple_processes() {
-        for counts in [vec![(2, 3, 1)], vec![(2, 3, 1), (5, 7, 4), (11, 13, 9)]] {
-            let mut ports = Vec::new();
-            let mut servers = Vec::new();
-            for &(dispatches, gas_payments, deliveries) in &counts {
-                let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-                ports.push(listener.local_addr().unwrap().port().to_string());
-                servers.push(thread::spawn(move || {
-                    let body = [
-                        ("message_dispatch", dispatches),
-                        ("raw_message_dispatch", dispatches),
-                        ("gas_payment", gas_payments),
-                        ("message_delivery", deliveries),
-                    ]
-                    .into_iter()
-                    .map(|(kind, count)| {
-                        format!("hyperlane_contract_sync_stored_events{{data_type=\"{kind}\"}} {count}\n")
-                    })
-                    .collect::<String>();
-                    for _ in 0..4 {
-                        let (mut stream, _) = listener.accept().unwrap();
-                        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-                        let mut request = [0; 1024];
-                        assert!(stream.read(&mut request).unwrap() > 0);
-                        write!(
-                            stream,
-                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                            body.len(),
-                        )
-                        .unwrap();
-                    }
-                }));
-            }
-            let params = ScraperTerminationInvariantParams {
-                total_messages_dispatched: counts.iter().map(|counts| counts.0).sum(),
-                gas_payment_events_count: counts.iter().map(|counts| counts.1).sum(),
-                delivered_messages_scraped_expected: counts.iter().map(|counts| counts.2).sum(),
-            };
-            let ports: Vec<_> = ports.iter().map(String::as_str).collect();
-            assert!(scraper_termination_invariants_met(params, &ports).unwrap());
-            for server in servers {
-                server.join().unwrap();
-            }
-        }
-    }
 }
 
 pub fn relayer_balance_check(starting_relayer_balance: f64) -> eyre::Result<bool> {
@@ -564,4 +513,61 @@ pub fn provider_metrics_invariant_met(
     }
 
     Ok(true)
+}
+
+#[cfg(test)]
+mod scraper_tests {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    use super::{scraper_termination_invariants_met, ScraperTerminationInvariantParams};
+
+    #[test]
+    fn scraper_counts_cover_single_and_multiple_processes() {
+        for counts in [vec![(2, 3, 1)], vec![(2, 3, 1), (5, 7, 4), (11, 13, 9)]] {
+            let mut ports = Vec::new();
+            let mut servers = Vec::new();
+            for &(dispatches, gas_payments, deliveries) in &counts {
+                let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+                ports.push(listener.local_addr().unwrap().port().to_string());
+                servers.push(thread::spawn(move || {
+                    let body = [
+                        ("message_dispatch", dispatches),
+                        ("raw_message_dispatch", dispatches),
+                        ("gas_payment", gas_payments),
+                        ("message_delivery", deliveries),
+                    ]
+                    .into_iter()
+                    .map(|(kind, count)| {
+                        format!("hyperlane_contract_sync_stored_events{{data_type=\"{kind}\"}} {count}\n")
+                    })
+                    .collect::<String>();
+                    for _ in 0..4 {
+                        let (mut stream, _) = listener.accept().unwrap();
+                        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                        let mut request = [0; 1024];
+                        assert!(stream.read(&mut request).unwrap() > 0);
+                        write!(
+                            stream,
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len(),
+                        )
+                        .unwrap();
+                    }
+                }));
+            }
+            let params = ScraperTerminationInvariantParams {
+                total_messages_dispatched: counts.iter().map(|counts| counts.0).sum(),
+                gas_payment_events_count: counts.iter().map(|counts| counts.1).sum(),
+                delivered_messages_scraped_expected: counts.iter().map(|counts| counts.2).sum(),
+            };
+            let ports: Vec<_> = ports.iter().map(String::as_str).collect();
+            assert!(scraper_termination_invariants_met(params, &ports).unwrap());
+            for server in servers {
+                server.join().unwrap();
+            }
+        }
+    }
 }

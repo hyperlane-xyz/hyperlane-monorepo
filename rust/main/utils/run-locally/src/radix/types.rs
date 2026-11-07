@@ -7,28 +7,6 @@ use scrypto::types::ComponentAddress;
 
 use crate::radix::{cli::RadixCli, CHAIN_ID, CORE_API, GATEWAY_API, NETWORK};
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentConfigAddrs {
-    pub mailbox: String,
-    pub interchain_gas_paymaster: String,
-    pub validator_announce: String,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct AgentConfigSigner {
-    #[serde(rename = "type")]
-    pub typ: String,
-    pub key: String,
-    pub prefix: String,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct AgentConfigIndex {
-    pub from: u32,
-    pub chunk: u32,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentUrl {
     pub http: String,

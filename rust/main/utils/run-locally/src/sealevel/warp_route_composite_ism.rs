@@ -45,6 +45,7 @@ const CHECKPOINT_LOCATION: &str =
 type DynPath = Box<dyn AsRef<Path>>;
 
 fn run_locally_warp_route_composite_ism() {
+    crate::external_agents::initialize_for("sealevel-composite");
     if let Err(error) = ctrlc::set_handler(|| {
         log!("Terminating...");
         SHUTDOWN.store(true, Ordering::Relaxed);
@@ -59,9 +60,15 @@ fn run_locally_warp_route_composite_ism() {
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
 
-    let checkpoint_path = Path::new(CHECKPOINT_LOCATION);
-    fs::remove_dir_all(checkpoint_path).unwrap_or_default();
-    let checkpoint_dirs: Vec<DynPath> = vec![Box::new(checkpoint_path) as DynPath];
+    let owned_checkpoint = crate::external_agents::create_owned_path(
+        Path::new(CHECKPOINT_LOCATION),
+        "composite-checkpoints",
+    );
+    let checkpoint_path = owned_checkpoint.as_path();
+    if !crate::external_agents::enabled() {
+        fs::remove_dir_all(checkpoint_path).unwrap_or_default();
+    }
+    let checkpoint_dirs: Vec<DynPath> = vec![Box::new(owned_checkpoint.clone()) as DynPath];
 
     let rocks_db_dir = tempdir().expect("Failed to create tempdir for rocksdb");
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
@@ -108,14 +115,20 @@ fn run_locally_warp_route_composite_ism() {
 
     let mut state = State::default();
     // Compile agents and the client alongside the Solana download and SBF build.
-    let build_main = Program::new("cargo")
-        .cmd("build")
-        .working_dir(&workspace_path)
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .filter_logs(|line| !line.contains("workspace-inheritance"))
-        .run();
+    let build_main = if crate::external_agents::enabled() {
+        None
+    } else {
+        Some(
+            Program::new("cargo")
+                .cmd("build")
+                .working_dir(&workspace_path)
+                .arg("features", "test-utils")
+                .arg("bin", "relayer")
+                .arg("bin", "validator")
+                .filter_logs(|line| !line.contains("workspace-inheritance"))
+                .run(),
+        )
+    };
     let build_client = Program::new("cargo")
         .working_dir(&sealevel_path)
         .cmd("build")
@@ -133,7 +146,9 @@ fn run_locally_warp_route_composite_ism() {
     state.data.push(Box::new(solana_path_tempdir));
 
     let built_programs = build_solana_programs(solana_cli_tools_path.clone()).join();
-    build_main.join();
+    if let Some(build) = build_main {
+        build.join();
+    }
     build_client.join();
 
     let ledger_dir = tempdir().expect("Failed to create solana ledger dir");
@@ -197,6 +212,13 @@ fn run_locally_warp_route_composite_ism() {
         || long_running_processes_exited_check(&mut state),
     );
 
+    if test_passed {
+        state.restart_external_roles(message_ids.len() as u32);
+        crate::external_agent_invariants::finish(
+            message_ids.len() as u32,
+            state.agents.values_mut().map(|(child, _)| child),
+        );
+    }
     assert!(test_passed, "Warp route composite ISM e2e test failed");
     log!("Warp route composite ISM e2e test passed");
 }

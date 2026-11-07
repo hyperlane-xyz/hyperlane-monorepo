@@ -48,9 +48,12 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     }
     log!("Launching anvil...");
     let anvil_args = Program::new("anvil").flag("silent").filter_logs(|_| false); // for now do not keep any of the anvil logs
-    let anvil = anvil_args.spawn("ETH", None);
+    let mut anvil = anvil_args.spawn("ETH", None);
 
     sleep(Duration::from_secs(10));
+
+    crate::external_agents::evm_node_ready(&mut anvil.1)
+        .unwrap_or_else(|error| panic!("actual Anvil ownership before deployment: {error:#}"));
 
     let pnpm_infra = Program::new("pnpm").working_dir(&ts_infra_path);
 

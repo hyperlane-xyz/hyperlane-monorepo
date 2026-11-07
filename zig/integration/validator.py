@@ -1,8 +1,33 @@
 #!/usr/bin/env python3
 """Actual EVM validator role on disposable Anvil; public key11 only, no env credentials."""
-import argparse,contextlib,hashlib,http.server,json,pathlib,socket,shutil,subprocess,tempfile,threading,time,urllib.error,urllib.request
+import argparse,contextlib,hashlib,http.server,json,pathlib,platform,socket,shutil,subprocess,tempfile,threading,time,urllib.error,urllib.request
 import evm
 ROOT=evm.ROOT
+
+def url_dependency(path, cache=None):
+ if path is None:raise ValueError('--url-library is required when launching a validator daemon')
+ source=pathlib.Path(path).resolve(strict=True)
+ if not source.is_file():raise ValueError('URL library must be a regular file')
+ data=source.read_bytes()
+ if len(data)<64:raise ValueError('URL library has no complete native header')
+ machine=platform.machine().lower();expected={'arm64':(0x100000c,183),'aarch64':(0x100000c,183),'x86_64':(0x1000007,62),'amd64':(0x1000007,62)}.get(machine)
+ if expected is None:raise ValueError('Unsupported URL library architecture')
+ if data[:4] in (bytes.fromhex('cffaedfe'),bytes.fromhex('feedfacf')):
+  if platform.system()!='Darwin':raise ValueError('Mach-O URL library cannot load on this host')
+  order='little' if data[:4]==bytes.fromhex('cffaedfe') else 'big'
+  if int.from_bytes(data[12:16],order)!=6 or int.from_bytes(data[4:8],order)!=expected[0]:raise ValueError('Expected native Mach-O shared URL library')
+  filename='libziggy_url.dylib';kind='Mach-O shared library'
+ elif data[:4]==b'\x7fELF' and data[4]==2 and data[5] in (1,2):
+  if platform.system()!='Linux':raise ValueError('ELF URL library cannot load on this host')
+  order='little' if data[5]==1 else 'big'
+  if int.from_bytes(data[16:18],order)!=3 or int.from_bytes(data[18:20],order)!=expected[1]:raise ValueError('Expected native ELF shared URL library')
+  filename='libziggy_url.so';kind='ELF shared library'
+ else:raise ValueError('Expected a Mach-O or ELF shared URL library')
+ digest=hashlib.sha256(data).hexdigest();target=(cache or ROOT/'zig/integration/.cache/validator-url')/digest[:32]/filename;target.parent.mkdir(parents=True,exist_ok=True)
+ if target.is_symlink():raise ValueError('Pinned URL library must not be a symlink')
+ if not target.exists():shutil.copy2(source,target)
+ if target.read_bytes()!=data or source.read_bytes()!=data:raise ValueError('URL library changed while pinning')
+ return {'path':str(source),'pinned_path':str(target.resolve()),'bytes':len(data),'sha256_chunks':[digest[:32],digest[32:]],'format':kind,'architecture':machine,'scope':'required Rust URL normalization dependency; pinned before role startup/timing'}
 
 class HangingServer:
  def __enter__(self):
@@ -41,7 +66,8 @@ class Proxy:
  def __exit__(self,*args):self.stop.set();self.server.shutdown();self.server.server_close();self.thread.join(timeout=2)
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--driver',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/zig-validator-integration');p.add_argument('--daemon',type=pathlib.Path);p.add_argument('--check-rpc-metrics',action='store_true');p.add_argument('--check-admin',action='store_true');p.add_argument('--curl-library',default='/usr/lib/libcurl.4.dylib');p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/validator-evm-integration.json');args=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--driver',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/zig-validator-integration');p.add_argument('--daemon',type=pathlib.Path);p.add_argument('--url-library',type=pathlib.Path);p.add_argument('--check-rpc-metrics',action='store_true');p.add_argument('--check-admin',action='store_true');p.add_argument('--curl-library',default='/usr/lib/libcurl.4.dylib');p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/validator-evm-integration.json');args=p.parse_args()
+ url_library=url_dependency(args.url_library) if args.daemon else None
  evm.CACHE=ROOT/'zig/integration/.cache/validator';evm.CACHE.mkdir(parents=True,exist_ok=True)
  evm.CONTRACTS={k:v for k,v in evm.CONTRACTS.items()if k in ['Mailbox','MerkleTreeHook','TestIsm','TestPostDispatchHook']};evm.CONTRACTS['ValidatorAnnounce']='solidity/contracts/isms/multisig/ValidatorAnnounce.sol';contracts=evm.compile_contracts()
  with socket.socket()as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
@@ -79,7 +105,7 @@ def main():
     with socket.socket()as metrics_socket:metrics_socket.bind(('127.0.0.1',0));daemon_metrics_port=metrics_socket.getsockname()[1]
     daemon_config=temp/'daemon-config';daemon_config.mkdir();daemon_path=temp/'daemon-checkpoints';daemon_value=json.loads(json.dumps(value));daemon_value['metricsPort']=daemon_metrics_port;daemon_value['db']=str(temp/'daemon-db');daemon_value['interval']=1;daemon_value['checkpointSyncer']['path']=str(daemon_path);daemon_value['chains']['test1']['rpcUrls']=[{'http':daemon_proxy.url+'?daemon=a'},{'http':chain.url+'?daemon=b'}];daemon_value['chains']['test1']['signer']={'type':'hexKey','key':'0x'+'11'*32};(daemon_config/'public.json').write_text(json.dumps(daemon_value))
     chain.rpc('anvil_setBalance',[evm.TEST_SIGNER,hex(100*10**18)])
-    daemon_env={'HYPERLANE_ZIG_DEFAULTS':str(daemon_config),'HYPERLANE_CURL_LIBRARY':args.curl_library}
+    daemon_env={'HYPERLANE_ZIG_DEFAULTS':str(daemon_config),'HYPERLANE_CURL_LIBRARY':args.curl_library,'HYPERLANE_URL_LIBRARY':url_library['pinned_path']}
     def launch():return subprocess.Popen([str(args.daemon.resolve())],cwd=temp,env=daemon_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
     def stop_daemon(proc):
      proc.terminate()
@@ -134,7 +160,7 @@ def main():
     finally:stop_daemon(daemon)
     assert before_nonce==chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest'])
     assert before_objects=={p.name:p.read_bytes()for p in daemon_path.glob('*_with_id.json')}
-    daemon_result={'passed':True,'actual_binary':str(args.daemon.relative_to(ROOT)if args.daemon.is_relative_to(ROOT)else args.daemon),'binary_sha256_chunks':[hashlib.sha256(args.daemon.read_bytes()).hexdigest()[i:i+32]for i in (0,32)],'credential_environment':'empty except explicit defaults and native curl path','checkpoint_objects':3,'announcement_nonce':int(before_nonce,16),'restart_objects_unchanged':True,'restart_nonce_unchanged':True,'sigterm_clean_exit':True,'checkpoint_ready_ms':daemon_ready_ms,'receipt_stall_requests':daemon_proxy.receipt_stalls,'configured_rpc_deadline_ms':20000,'checkpoint_progress_while_receipt_worker_stalled':True,'rpc_metrics':rpc_metrics,'admin':admin}
+    daemon_result={'passed':True,'actual_binary':str(args.daemon.relative_to(ROOT)if args.daemon.is_relative_to(ROOT)else args.daemon),'binary_sha256_chunks':[hashlib.sha256(args.daemon.read_bytes()).hexdigest()[i:i+32]for i in (0,32)],'url_library':url_library,'credential_environment':'empty except explicit defaults and native curl/URL paths','checkpoint_objects':3,'announcement_nonce':int(before_nonce,16),'restart_objects_unchanged':True,'restart_nonce_unchanged':True,'sigterm_clean_exit':True,'checkpoint_ready_ms':daemon_ready_ms,'receipt_stall_requests':daemon_proxy.receipt_stalls,'configured_rpc_deadline_ms':20000,'checkpoint_progress_while_receipt_worker_stalled':True,'rpc_metrics':rpc_metrics,'admin':admin}
    fallback_path=temp/'fallback-checkpoints';value['checkpointSyncer']['path']=str(fallback_path);value['chains']['test1']['rpcConsensusType']='fallback';(config/'public.json').write_text(json.dumps(value))
    started=time.monotonic();fallback_wait=run(db_path=str(temp/'fallback-db'),steps=1);fallback_ms=int((time.monotonic()-started)*1000);assert fallback_ms<5000 and fallback_wait['configured_slots']==1 and fallback_wait['announcement_pending'],fallback_wait
    chain.send(''.join(fallback_wait['announcement_calldata']),announce);fallback=run(steps=6);assert fallback['latest']==2 and fallback['checkpoint_signatures']==3 and fallback['configured_slots']==1,fallback

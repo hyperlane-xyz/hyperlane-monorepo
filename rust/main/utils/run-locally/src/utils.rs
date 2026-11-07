@@ -52,7 +52,7 @@ pub type AgentHandles = (
     // name
     String,
     // child process
-    Child,
+    crate::external_agents::TrackedChild,
     // stdout
     Box<dyn TaskHandle<Output = ()>>,
     // stderr
@@ -240,12 +240,20 @@ pub fn prepare_docker_image(image: &str) {
 
 /// Start the test Postgres container after ensuring its image is available.
 pub fn start_postgres() -> AgentHandles {
+    if let Some(program) = crate::external_agents::postgres_program()
+        .unwrap_or_else(|error| panic!("external PostgreSQL preflight: {error:#}"))
+    {
+        return program.spawn("SQL", None);
+    }
     prepare_docker_image(POSTGRES_IMAGE);
 
     Program::new("docker")
         .cmd("run")
         .flag("rm")
-        .arg("name", "scraper-testnet-postgres")
+        .arg(
+            "name",
+            crate::external_agents::resource_name("scraper-testnet-postgres"),
+        )
         .arg("env", "POSTGRES_PASSWORD=47221c18c610")
         .arg("publish", "5432:5432")
         .cmd(POSTGRES_IMAGE)
@@ -264,7 +272,7 @@ pub fn wait_for_postgres() {
         let status = Command::new("docker")
             .args([
                 "exec",
-                "scraper-testnet-postgres",
+                &crate::external_agents::resource_name("scraper-testnet-postgres"),
                 "pg_isready",
                 "-h",
                 "127.0.0.1",
