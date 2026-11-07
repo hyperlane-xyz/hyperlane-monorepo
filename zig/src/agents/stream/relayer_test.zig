@@ -520,3 +520,53 @@ test "invalid fresh baseline after append transfers body ownership through clean
     defer fixture.deinit();
     try std.testing.checkAllAllocationFailures(std.testing.allocator, invalidFreshBaselineOwnership, .{&fixture.adapter});
 }
+
+test "fresh gas subscription explicitly replays zero before nonzero history and durable resume" {
+    const fixture = try Fixture.create();
+    defer fixture.deinit();
+    try fixture.start(true);
+    const fresh = try fixture.controller.?.subscription(domain, .gas_payment);
+    try std.testing.expectEqual(@as(?u64, 0), fresh.after_stream_cursor);
+    try std.testing.expect((try fixture.adapter.gasPaymentCursor()) == null);
+    const generation = try fixture.connection();
+    const first = gas(1, 0);
+    // The same canonical payment was already indexed by RPC before WS cutover.
+    try std.testing.expect(try fixture.native_store.storePayment(first.payment, first.meta));
+    try std.testing.expectEqual(relayer.GasEventResult.accepted, try fixture.controller.?.acceptGasPayment(domain, generation, first));
+    try std.testing.expectEqual(relayer.GasEventResult.accepted, try fixture.controller.?.acceptGasPayment(domain, generation, gas(2, 1)));
+    try std.testing.expectEqual(relayer.GasEventResult.accepted, try fixture.controller.?.acceptGasCaughtUp(domain, generation, contracts.interchain_gas_paymaster, 0, 2));
+    try std.testing.expect(!try fixture.controller.?.gasAuthority(domain));
+    try fixture.emptyCaughtUp(generation);
+    const plan = (try fixture.controller.?.probePlan(domain, 0)).?;
+    try fixture.controller.?.applyProbe(plan, .{ .dispatch = 0, .merkle_tree_insertion = 0 }, 0);
+    const command = try fixture.controller.?.beginCutover(domain, generation);
+    try fixture.controller.?.markPaused(domain, command.generation);
+    try fixture.controller.?.completeCutover(domain, generation, command.generation);
+    try std.testing.expect(try fixture.controller.?.gasAuthority(domain));
+    const key = codec.GasPaymentKey{ .message_id = [_]u8{7} ** 32, .destination = destination };
+    try std.testing.expectEqual(@as(u256, 200), (try fixture.native_store.payment(key)).?.payment);
+    try std.testing.expectEqual(@as(u256, 100), (try fixture.native_store.payment(key)).?.gas_amount);
+    const persisted = (try fixture.adapter.gasPaymentCursor()).?;
+    try std.testing.expectEqual(@as(u64, 2), persisted.stream_cursor);
+    try fixture.reopen();
+    try fixture.start(true);
+    try std.testing.expectEqual(@as(?u64, 2), (try fixture.controller.?.subscription(domain, .gas_payment)).after_stream_cursor);
+    try std.testing.expectEqual(persisted, (try fixture.adapter.gasPaymentCursor()).?);
+}
+
+test "fresh gas bootstrap keeps skipped history and unsupported v2 fail closed" {
+    const fixture = try Fixture.create();
+    defer fixture.deinit();
+    try fixture.start(true);
+    const generation = try fixture.connection();
+    try std.testing.expectError(error.GasCaughtUpSkippedHistory, fixture.controller.?.acceptGasCaughtUp(domain, generation, contracts.interchain_gas_paymaster, 0, 2));
+    try std.testing.expect((try fixture.adapter.gasPaymentCursor()) == null);
+    try std.testing.expect(try fixture.controller.?.rpcRequired(domain));
+    try std.testing.expect(!try fixture.controller.?.gasAuthority(domain));
+    const next = try fixture.controller.?.beginConnection(domain);
+    try fixture.controller.?.markReady(domain, next, 2);
+    try fixture.controller.?.markSubscribed(domain, next);
+    try std.testing.expectError(error.GasCursorUnsupported, fixture.controller.?.acceptGasPayment(domain, next, gas(1, 0)));
+    try std.testing.expect(try fixture.controller.?.rpcRequired(domain));
+    try std.testing.expect(!try fixture.controller.?.gasAuthority(domain));
+}

@@ -356,7 +356,9 @@ pub const Controller = struct {
             return .{
                 .address = origin.adapter.contracts.interchain_gas_paymaster,
                 .after_sequence = null,
-                .after_stream_cursor = if (origin.gas.cursor) |cursor| cursor.stream_cursor else null,
+                // Omission means tail to the actual proxy. Rust always resumes
+                // fresh gas history from zero; keep the durable resume otherwise.
+                .after_stream_cursor = if (origin.gas.cursor) |cursor| cursor.stream_cursor else 0,
                 .stream_cursor_version = GAS_PAYMENT_STREAM_CURSOR_VERSION,
             };
         }

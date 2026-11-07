@@ -855,9 +855,9 @@ fn subscriptionPlanAllocationExercise(allocator: A, database: *@import("../../db
         }
         try std.testing.expect(found);
     }
-    for (plan.expected[2].cursors.?) |cursor| try std.testing.expect(cursor.after_stream_cursor == null);
+    for (plan.expected[2].cursors.?) |cursor| try std.testing.expectEqualStrings("0", cursor.after_stream_cursor.?);
     try std.testing.expect(std.mem.indexOf(u8, plan.bytes, "afterSequence") == null);
-    try std.testing.expect(std.mem.indexOf(u8, plan.bytes, "afterStreamCursor") == null);
+    try std.testing.expect(std.mem.indexOf(u8, plan.bytes, "\"afterStreamCursor\":\"0\"") != null);
 }
 
 pub fn runSubscriptionPlanAllocationSweep(allocator: A) !void {

@@ -690,6 +690,8 @@ const WsServer = struct {
             defer parsed.deinit();
             const streams = parsed.value.object.get("streams").?.array;
             if (index == 2) {
+                const fresh = try replayCursors(streams);
+                if (fresh.gas != 0) return error.ExpectedFreshGasReplayFromZero;
                 var expanded = streams.items.len == 3;
                 for (streams.items) |stream| {
                     const domains = stream.object.get("domains").?.array.items;
@@ -936,7 +938,8 @@ pub fn runNativeFixture() !void {
     try std.testing.expectEqual(@as(i64, 0), try metricSample(fallback_render, "hyperlane_relayer_scraper_websocket_fresh", &.{"chain=\"fixture\""}));
     try std.testing.expectEqual(@as(i64, 0), try metricSample(fallback_render, "hyperlane_relayer_scraper_websocket_caught_up", &.{"event_type=\"dispatch\""}));
     try std.testing.expectEqual(@as(i64, 0), try metricSample(fallback_render, "hyperlane_relayer_scraper_websocket_parity_pending", &.{"event_type=\"dispatch\""}));
-    try state.adapter.storeGasPaymentCursor(.{ .fingerprint = null, .legacy_max_stream_cursor = 0, .stream_cursor = 0 });
+    // Exercise fresh production bootstrap: no preseeded durable gas cursor.
+    try std.testing.expect((try state.adapter.gasPaymentCursor()) == null);
     fixture.server.resume_seed.store(true, .release);
 
     deadline = std.time.milliTimestamp() + 15000;
