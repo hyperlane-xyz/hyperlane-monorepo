@@ -13,6 +13,19 @@ import sys
 import tempfile
 
 
+def startup_error(server: subprocess.Popen[str], message: str) -> RuntimeError:
+    # Never block on a live/inherited stderr pipe or retain unbounded output.
+    detail = ""
+    if server.stderr is not None:
+        fd = server.stderr.fileno()
+        os.set_blocking(fd, False)
+        try:
+            detail = os.read(fd, 8192).decode("utf-8", errors="replace").strip()
+        except BlockingIOError:
+            pass
+    return RuntimeError(message + ("\nFixture stderr (at most8192bytes):\n" + detail if detail else ""))
+
+
 def main():
     root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description=__doc__)
@@ -30,12 +43,12 @@ def main():
         selector.register(server.stdout, selectors.EVENT_READ)
         try:
             if not selector.select(timeout=10):
-                raise RuntimeError("HTTP/2 fixture startup deadline exceeded")
+                raise startup_error(server, "HTTP/2 fixture startup deadline exceeded")
             line = server.stdout.readline()
         finally:
             selector.close()
         if not line:
-            raise RuntimeError("HTTP/2 fixture exited during startup")
+            raise startup_error(server, "HTTP/2 fixture exited during startup")
         port = int(json.loads(line)["port"])
         if port < 1 or port > 65535:
             raise RuntimeError("invalid fixture port")

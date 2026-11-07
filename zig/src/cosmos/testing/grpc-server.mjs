@@ -1,8 +1,11 @@
 // Disposable HTTP/2 fixture. No external packages, keys, or chain requests.
 import http2 from 'node:http2';
 import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 const sdk = JSON.parse(
-  readFileSync(new URL('../fixtures/sdk.json', import.meta.url), 'utf8'),
+  gunzipSync(
+    readFileSync(new URL('../fixtures/sdk.json.gz', import.meta.url)),
+  ).toString('utf8'),
 );
 const sdkMethods = new Map([
   [

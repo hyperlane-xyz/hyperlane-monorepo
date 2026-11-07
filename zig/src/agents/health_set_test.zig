@@ -228,6 +228,10 @@ test "health role set actual shared runtime observes late public wallet and drai
 }
 
 test "health role fixture failure unwinds suspended supervisor before registry and providers" {
+    // Missing optional native transport skips at the test boundary; expectError
+    // below still requires the injected failure after fixture initialization.
+    const library = try fixtures.nativeLibrary(a);
+    defer a.free(library);
     try std.testing.expectError(error.InjectedHealthFixtureFailure, sharedRuntimeFixture(true));
 }
 

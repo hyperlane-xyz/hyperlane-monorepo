@@ -41,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-15]
         mode: [ReleaseSafe, ReleaseFast]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -49,6 +49,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Select the macOS 15.4 SDK supported by pinned Zig
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEVELOPER_DIR=/Applications/Xcode_16.3.app/Contents/Developer
+          test -d "$DEVELOPER_DIR"
+          SDK="$(xcrun --sdk macosx --show-sdk-path)"
+          test -f "$SDK/usr/lib/libSystem.tbd"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+          echo "HYPERLANE_ZIG_SDKROOT=$SDK" >> "$GITHUB_ENV"
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
       - name: Check formatting
