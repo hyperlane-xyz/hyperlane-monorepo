@@ -106,6 +106,13 @@ def bootstrap(argv):
     os.execve(argv[0],argv,dict(os.environ))
 
 
+def check_nested_userns(libc):
+    result=libc.unshare(0x10000000)
+    saved_errno=ctypes.get_errno()
+    print(json.dumps({'schema':1,'kind':'aleo-linux-nested-userns-diagnostic-v1','unshare_return':result,'errno':saved_errno}),file=sys.stderr,flush=True)
+    need(result!=0 and saved_errno in {errno.EPERM,errno.EINVAL},'nested user namespace usable')
+
+
 def held_child(control):
     signal.signal(signal.SIGINT,signal.SIG_IGN);signal.signal(signal.SIGTERM,signal.SIG_IGN)
     child=os.fork()
@@ -136,7 +143,7 @@ def inner(args):
     else:raise ValueError('readonly micro sentinel writable')
     need(Path(args.sentinel).read_bytes()==before,'micro sentinel changed')
     libc=ctypes.CDLL(None,use_errno=True)
-    need(libc.unshare(0x10000000)!=0 and ctypes.get_errno()in {errno.EPERM,errno.EINVAL},'nested user namespace usable')
+    check_nested_userns(libc)
     need(os.getpid()==1,'private PID namespace/init missing')
     records=[];bridges=[];slots=threading.BoundedSemaphore(32)
     try:

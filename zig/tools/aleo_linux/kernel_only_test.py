@@ -150,6 +150,45 @@ class KernelControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'original deadline'): bridge.relay(peer, peer, 0, threading.Event())
 
 
+class NestedNamespaceDiagnostics(unittest.TestCase):
+    def invoke(self,result,number):
+        calls=[];observations=io.StringIO()
+        libc=N(unshare=lambda flags:(calls.append(flags),result)[1])
+        with patch.object(probe.ctypes,'get_errno',return_value=number)as error_read,patch.object(sys,'stderr',observations):
+            error=None
+            try:probe.check_nested_userns(libc)
+            except ValueError as failure:error=str(failure)
+        self.assertEqual(calls,[0x10000000]);error_read.assert_called_once_with()
+        lines=observations.getvalue().splitlines();self.assertEqual(len(lines),1)
+        row=json.loads(lines[0])
+        self.assertEqual(row,{'schema':1,'kind':'aleo-linux-nested-userns-diagnostic-v1','unshare_return':result,'errno':number})
+        self.assertIs(type(row['unshare_return']),int);self.assertIs(type(row['errno']),int)
+        return error
+
+    def test_successful_unshare_refused_regardless_of_stale_errno(self):
+        for number in (0,probe.errno.EPERM,probe.errno.EINVAL,probe.errno.ENOSPC):
+            with self.subTest(number=number):self.assertEqual(self.invoke(0,number),'nested user namespace usable')
+
+    def test_unexpected_denial_exposed_then_still_refused(self):
+        for number in (probe.errno.ENOSPC,probe.errno.EACCES,0):
+            with self.subTest(number=number):self.assertEqual(self.invoke(-1,number),'nested user namespace usable')
+
+    def test_expected_denials_unchanged(self):
+        for number in (probe.errno.EPERM,probe.errno.EINVAL):
+            with self.subTest(number=number):self.assertIsNone(self.invoke(-1,number))
+
+    def test_errno_saved_once_before_stderr_side_effects(self):
+        events=[]
+        libc=N(unshare=lambda flags:(events.append('unshare'),-1)[1])
+        def get_errno():events.append('errno');return probe.errno.EPERM
+        class Sink(io.StringIO):
+            def write(self,value):events.append('stderr');return super().write(value)
+        sink=Sink()
+        with patch.object(probe.ctypes,'get_errno',side_effect=get_errno)as read,patch.object(sys,'stderr',sink):probe.check_nested_userns(libc)
+        self.assertEqual(events[:2],['unshare','errno']);self.assertTrue(all(event=='stderr'for event in events[2:]));read.assert_called_once_with()
+        self.assertEqual(json.loads(sink.getvalue())['errno'],probe.errno.EPERM)
+
+
 class WorkflowControls(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
