@@ -36,12 +36,13 @@ def process(pid):
     return row
 
 
-def delegated_parent(context, token, fsroot=Path('/sys/fs/cgroup')):
+def delegated_parent(context, token, fsroot=Path('/sys/fs/cgroup'), family='kernel'):
     """Admit only this invocation's empty delegated root, never the runner service."""
     keys={'unit','invocation','uid','gid','root','root_dev','root_ino','manager_dev','manager_ino','boot_id'}
     need(type(context)is dict and set(context)==keys,'exact delegated context required')
     need(all(type(context[key])is int and context[key]>=0 for key in ('root_dev','root_ino','manager_dev','manager_ino')),'typed delegated inode identity required')
-    unit='ziggy-aleo-kernel-'+token+'.service'
+    need(family in {'kernel','sdk-packages','sdk-build'},'closed delegated family required')
+    unit='ziggy-aleo-'+family+'-'+token+'.service'
     need(context['unit']==unit and len(token)==32 and all(c in '0123456789abcdef'for c in token),'exact delegated unit required')
     need(type(context['invocation'])is str and len(context['invocation'])==32 and all(c in '0123456789abcdef'for c in context['invocation']),'actual invocation required')
     need(type(context['uid'])is int and context['uid']==os.getuid()>0 and type(context['gid'])is int and context['gid']==os.getgid(),'unprivileged delegated identity required')
@@ -59,11 +60,12 @@ def delegated_parent(context, token, fsroot=Path('/sys/fs/cgroup')):
 
 class Lease:
     """One fresh child cgroup in the current delegated job; no parent mutation."""
-    def __init__(self, token, memory, pids, delegation=None):
+    def __init__(self, token, memory, pids, delegation=None, family='kernel'):
         need(platform.system()=='Linux' and len(token)==32 and all(c in '0123456789abcdef'for c in token),'Linux fresh token required')
         line=Path('/proc/self/cgroup').read_text().strip();need(line.startswith('0::/')and '\n'not in line,'unified cgroup v2 required')
         parent=Path('/sys/fs/cgroup')/line[4:];need(parent.resolve()==parent and (parent/'cgroup.controllers').is_file(),'actual delegated unified cgroup required')
-        if delegation is not None:parent=delegated_parent(delegation,token)
+        if delegation is not None:parent=delegated_parent(delegation,token,family=family)
+        else:need(family=='kernel','SDK requires positive delegated parent')
         self.path=parent/('ziggy-aleo-'+token);self.path.mkdir();self.identity=(self.path.stat().st_dev,self.path.stat().st_ino)
         self.line='0::/'+str(self.path.relative_to('/sys/fs/cgroup'))+'\n'
         try:

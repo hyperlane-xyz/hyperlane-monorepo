@@ -53,9 +53,10 @@ def checked(pin):
     return path
 
 
-def load(pin):
+def load(pin, limit=8*1024**2):
+    need(type(limit)is int and 0<limit<=32*1024**2,'bounded metadata limit required')
     path = checked(pin)
-    value = decode(path.read_bytes())
+    value = decode(path.read_bytes(),limit)
     checked(pin)
     return value
 
@@ -84,8 +85,8 @@ def source_copies(rows, staged):
         need((row['origin']['bytes'],row['origin']['sha256'])==(row['staged']['bytes'],row['staged']['sha256']),'staged SDK Source differs from actual checked Source')
 
 
-def sdk_receipt(pin, node_pin, sdk_entry, execution_commit):
-    value = load(pin)
+def sdk_receipt(pin, node_pin, sdk_entry, execution_commit, owner_pin):
+    value = load(pin,32*1024**2)
     need(value.get('kind') == 'aleo-linux-js-sdk-build-v1' and value.get('schema') == 1 and value.get('platform') == 'linux-x86_64', 'actual Linux SDK receipt required')
     need(value.get('source_commit') == execution_commit and value.get('node') == node_pin and value.get('network_denied_for_import') is True, 'SDK cohort/Node/import sandbox differs')
     need(value.get('passed') is True and value.get('source_unchanged') is True,'actual SDK compile/import checks required')
@@ -102,6 +103,8 @@ def sdk_receipt(pin, node_pin, sdk_entry, execution_commit):
     need(all(row in value['dependency_payloads']for row in rows),'SDK Worker target outside actual dependency payload closure')
     need(catalog([row for row in rows if Path(row['path']).name=='node-polyfill.js'],[row for row in rows if Path(row['path']).name=='worker.js'])==worker,'actual SDK Worker catalog differs')
     actual_checks(value.get('checks'), {'utils_compile', 'provider_compile', 'aleo_compile', 'driver_typecheck', 'isolated_import'})
+    from sdk_provision import service_receipt
+    service_receipt(pin,owner_pin,'build')
     need(value.get('SDK_proof_or_node_credit') is False, 'build/import is not a proof')
     return value
 
