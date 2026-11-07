@@ -24,6 +24,10 @@ from multivm_evm import EvmEvidence, address, quantity, sql_delivery_query, sql_
 from multivm_sql import sql_event_query
 from multivm_tron import TronEvidence, tron_address
 
+RESTART_CLOCK_SCOPE = 'One complete canonical/SDK/checkpoint/readiness proof BEFORE the first live anchor; then continuous actual child/config/authority/admin/no-resubmission and paired role-RPC checks; full canonical/SDK/SQL/checkpoint and stopped-reader proof again at final acceptance. No heavy proof is claimed per live sample.'
+RESTART_DEADLINE_SCOPE = 'Python first after_restart entry+120s; not the earlier Rust caller Instant.'
+RESTART_FINAL_SCOPE = 'Fresh final canonical/SDK/checkpoint/SQL and stopped-reader verification after live window and clean actual parent waits.'
+
 OBSERVER_POLICY = {
     "version": "native-admin-observation-v2",
     "maximum_successful_domain_sample_gap_ns": 10_000_000_000,
@@ -154,7 +158,7 @@ class RestartWindow:
                 'maximum_successful_sample_gap_ns': OBSERVER_POLICY['maximum_successful_domain_sample_gap_ns'],
                 'samples': [dict(row, role_rpc_activity=dict(row['role_rpc_activity']), role_rpc_request_started_ns=dict(row['role_rpc_request_started_ns'])) for row in self.samples],
                 'elapsed_live_ns': self.samples[-1]['observed_monotonic_ns'] - self.samples[0]['observed_monotonic_ns'],
-                'clock_scope': 'Actual observer monotonic clock AFTER each complete canonical/new-child/config/no-resubmission/readiness check; every accepted sample requires fresh RPC from every configured restarted role+chain.'}
+                'clock_scope': 'Actual monotonic live samples; complete proof boundaries are explicit in schema2 Session evidence. Every accepted sample requires fresh physical RPC from each restarted role+chain.'}
 
 
 class Lifecycle:
@@ -473,6 +477,52 @@ def starknet_expected_peer_context(definitions,manifest,name,chain,role,field,or
     return checked_starknet_peer_context(dict(selected[0],scenario="starknet",role=role,case_inputs_sha256=manifest["case_inputs"]["sha256"]),endpoint)
 
 
+def restart_metrics_sample(port, deadline_ns, stopped):
+    """One actual local GET with a whole deadline, including header trickle."""
+    require(type(port) is int and 0 < port <= 65535, 'invalid restarted metrics port')
+    abort = threading.Event()
+    gate = threading.Lock()
+    streams = set()
+    def shutdown():
+        with gate:
+            for stream in streams:
+                try: stream.shutdown(socket.SHUT_RDWR)
+                except OSError as error:
+                    if error.errno not in {errno.EBADF, errno.ENOTCONN, errno.EINVAL}: raise
+    def read():
+        started = time.monotonic_ns()
+        remaining = (deadline_ns-started)/1_000_000_000
+        require(remaining > 0 and not stopped(), 'restart metrics sample stopped/deadline')
+        connection = http.client.HTTPConnection('127.0.0.1', port, timeout=min(1, remaining))
+        try:
+            connection.connect()
+            with gate:
+                if connection.sock is not None: streams.add(connection.sock)
+                require(not abort.is_set() and not stopped(), 'restart metrics sample cancelled')
+            connection.request('GET', '/metrics')
+            response = connection.getresponse()
+            body = response.read(8*1024*1024+1)
+            ended = time.monotonic_ns()
+            require(not abort.is_set() and not stopped() and started <= ended < deadline_ns, 'restart metrics sample exceeded original deadline')
+            require(response.status == 200 and 0 < len(body) <= 8*1024*1024, 'restarted role metrics readiness failed')
+            return {'port': port, 'request_started_monotonic_ns': started, 'response_received_monotonic_ns': ended,
+                    'response_bytes': len(body), 'response_sha256': hashlib.sha256(body).hexdigest()}
+        finally:
+            connection.close()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='restart-metrics-read') as pool:
+        future = pool.submit(read)
+        try:
+            while not future.done():
+                require(not stopped() and time.monotonic_ns() < deadline_ns, 'restart metrics sample stopped/original deadline')
+                concurrent.futures.wait([future], timeout=.05)
+            require(not stopped() and time.monotonic_ns() < deadline_ns, 'restart metrics completion missed original whole deadline')
+            return future.result()
+        finally:
+            abort.set()
+            shutdown()
+            future.cancel()
+
+
 class Session:
     def __init__(self, manifest, owned_path, create_directory, adapter=None):
         self.manifest = manifest
@@ -525,6 +575,7 @@ class Session:
         self.before_restart = None
         self.after_restart = None
         self.restart_window = RestartWindow()
+        self._init_restart_sampler()
         self.sampling_finished = False
         self.stop = threading.Event()
         crypto = EvmEvidence(manifest, "unused")
@@ -1277,6 +1328,11 @@ class Session:
         return None
 
     def verify(self, stage, expected, harness_parent=None):
+        if stage == 'after_restart':
+            with self.restart_gate:
+                if self.restart_deadline_ns is None:
+                    self.restart_first_entry_ns = time.monotonic_ns()
+                    self.restart_deadline_ns = self.restart_first_entry_ns + 120_000_000_000
         token=self.diagnostic(stage)
         try:
             result=self._verify(stage,expected,harness_parent)
@@ -1286,7 +1342,238 @@ class Session:
         if token is not None:self.diagnostic(stage,token,'completed'if isinstance(result,dict)and result.get('verified')is True else'pending')
         return result
 
+    def _init_restart_sampler(self):
+        self.restart_gate = threading.Lock()
+        self.restart_sample_gate = threading.RLock()
+        self.restart_live_stop = threading.Event()
+        self.restart_live_thread = None
+        self.restart_baseline = None
+        self.restart_deadline_ns = None
+        self.restart_first_entry_ns = None
+        self.restart_live_error = None
+        self.restart_live_ready = False
+        self.restart_published = False
+        self.restart_phases = {}
+
+    def _restart_phase(self, name, callback):
+        started = time.monotonic_ns()
+        token = self.diagnostic(name)
+        try:
+            result = callback()
+        except Exception as error:
+            if token is not None: self.diagnostic(name, token, 'exception', error)
+            raise
+        else:
+            if token is not None: self.diagnostic(name, token, 'completed')
+            return result
+        finally:
+            ended = time.monotonic_ns()
+            require(started <= ended, 'restart proof phase clock rollback')
+            self.restart_phases[name] = {'started_monotonic_ns': started, 'finished_monotonic_ns': ended}
+
+    def _restart_context(self):
+        from collections import Counter
+        with self.lock:
+            cutoff = self.initial['capture_count']
+            captures = json.loads(json.dumps(self.captures))
+            require(not self.failures and not self.lifecycle.errors, 'actual observer/lifecycle failed during restart')
+            require(self.broadcasts == self.initial['broadcasts'], 'sameDB restart submitted an extra transaction')
+        require(len(captures) > cutoff, 'restarted captures pending')
+        def binding(row):
+            return json.dumps({'original': row['original'], 'proxied': row['proxied']}, sort_keys=True, separators=(',', ':'))
+        before = sorted(binding(row) for row in captures[:cutoff])
+        after = sorted(binding(row) for row in captures[cutoff:])
+        require(Counter(before) == Counter(after), 'restarted effective config/endpoint bindings differ')
+        path = self.owned_path(self.evidence_relative / 'owned-children.jsonl')
+        require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 1024*1024, 'bounded actual role launch journal required')
+        launches = [json.loads(line) for line in path.read_text().splitlines()]
+        # Existing coverage validator reads captures; recheck their bytes before
+        # and after all external checks so another capture cannot cross a sample.
+        self.role_launch_epochs(launches)
+        children = launches[cutoff:]
+        restarted = captures[cutoff:]
+        clocks = {}
+        for capture in restarted:
+            for chain in capture['original']['role_chain_names']:
+                key = capture['original']['role'] + ':' + chain
+                clocks[key] = max(clocks.get(key, 0), capture['captured_monotonic_ns'])
+        epoch = hashlib.sha256(json.dumps({'bindings': after, 'children': children}, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        return {'captures': captures, 'restarted': restarted, 'children': children, 'epoch': epoch,
+                'capture_clocks': clocks, 'before_hash': hashlib.sha256(json.dumps(before, separators=(',', ':')).encode()).hexdigest(),
+                'after_hash': hashlib.sha256(json.dumps(after, separators=(',', ':')).encode()).hexdigest()}
+
+    def _restart_control_artifacts(self):
+        # Full source/cohort/dependency validation runs before the baseline and
+        # at final acceptance. Continuous samples rehash their exact authority
+        # and executed module bytes, without replaying expensive build gates.
+        checked_artifact(self.manifest['execution_approval'])
+        checked_artifact(self.manifest['case_inputs'])
+        for row in self.approval['python_modules'].values(): checked_artifact(row)
+
+    def _restart_admin(self, context, deadline_ns):
+        snapshot = self.restart_baseline['snapshot']
+        delivered = {message['id'].lower() for message in snapshot['deliverable_messages']}
+        known = {message['id'].lower(): message for message in snapshot['messages']}
+        results = []
+        for capture in context['restarted']:
+            role = capture['original']['role']
+            original = capture['original']
+            if role == 'relayer':
+                operations, observations = collect_admin_sample(original['metrics_port'], original['chains'], deadline_ns, lambda row: self.append('restart-admin-timings.jsonl', row), self.stop.is_set)
+                for name in original['role_chain_names']:
+                    values = operations[name]
+                    started = observations[name]['request_started_monotonic_ns']
+                    seen = set()
+                    for value in values:
+                        identity = value.get('id', '').lower()
+                        require(identity in known and identity not in delivered and identity not in seen and known[identity]['destination'] == int(original['chains'][name]['domainid']), 'foreign/cross-domain/duplicate/restored-delivered restart admin operation')
+                        seen.add(identity)
+                        operation = value.get('operation', {})
+                        message = operation.get('message')
+                        require(operation.get('type') == 'PendingMessage' and isinstance(message, dict)
+                                and hashlib.sha256(json.dumps(message, sort_keys=True, separators=(',', ':')).encode()).hexdigest() == admin_message_hash(known[identity]['wire']), 'restart admin message differs from canonical corpus')
+                        status = json.dumps(operation.get('status'), sort_keys=True)
+                        require(operation.get('submitted') is False and ('CouldNotFetchMetadata' in status or 'MessageMetadataRefused' in status), 'restart refused admin operation became submitted')
+                    results.append({'role': role, 'chain': name, 'port': original['metrics_port'], 'request_started_monotonic_ns': started,
+                                    'response_received_monotonic_ns': observations[name]['response_received_monotonic_ns'], 'operation_count': len(values)})
+            else:
+                row = restart_metrics_sample(original['metrics_port'], deadline_ns, self.stop.is_set)
+                results.append({'role': role, 'chain': None, **row})
+        return results
+
+    def _restart_sample_once(self, *, background=False):
+        # Serializes the sampler with the final publication check, never with
+        # capture/transport callbacks. No Session.lock spans external I/O.
+        with self.restart_sample_gate:
+            if background and self.restart_live_stop.is_set(): return False
+            with self.lock:
+                deadline_ns = min(self.restart_deadline_ns, self.restart_window.samples[-1]['observed_monotonic_ns'] + OBSERVER_POLICY['maximum_successful_domain_sample_gap_ns'] + 1) if self.restart_window.samples else self.restart_deadline_ns
+            require(time.monotonic_ns() < deadline_ns, 'original restart live sample deadline expired')
+            self._restart_control_artifacts()
+            context = self._restart_context()
+            require(context == self.restart_baseline['context'], 'restarted capture/child/config epoch changed')
+            for child in context['children']:
+                remaining = (deadline_ns-time.monotonic_ns())/1_000_000_000
+                require(remaining > 0, 'restart child-check deadline expired')
+                require(not self.stop.is_set(), 'restart child-check cancelled')
+                process_identity(self.manifest, child, timeout=min(1, remaining))
+            admin = self._restart_admin(context, deadline_ns)
+            require(self._restart_context() == context, 'restart epoch changed during actual readiness checks')
+            with self.lock:
+                require(self.captures == context['captures'] and self.broadcasts == self.initial['broadcasts'], 'restart capture/broadcast changed at sample commit')
+                require(not self.stop.is_set() and not self.failures and not self.lifecycle.errors, 'actual observer/lifecycle failed/cancelled during restart sample')
+                now = time.monotonic_ns()
+                require(now >= self.restart_baseline['completed_monotonic_ns'], 'restart clock predates successful full baseline')
+                require(now < deadline_ns, 'original whole live sample deadline expired')
+                activity, starts = {}, {}
+                for key, capture in context['capture_clocks'].items():
+                    role, chain = key.split(':', 1)
+                    pair = self.successful_activity.get((role, chain))
+                    require(pair is not None and pair['request_started_monotonic_ns'] > capture and pair['response_received_monotonic_ns'] > capture, 'restarted role has no successful new-epoch physical exchange')
+                    activity[key], starts[key] = pair['response_received_monotonic_ns'], pair['request_started_monotonic_ns']
+                count = len(self.restart_window.samples)
+                ready = self.restart_window.observe(now, context['epoch'], activity, starts)
+                self.restart_live_ready = self.restart_live_ready or ready
+                self.restart_last_live_check = {'observed_monotonic_ns': now, 'epoch_sha256': context['epoch'], 'actual_admin_readiness': admin, 'role_rpc_activity': dict(activity), 'role_rpc_request_started_ns': dict(starts)}
+                if len(self.restart_window.samples) > count:
+                    self.restart_window.samples[-1]['actual_admin_readiness'] = admin
+                return self.restart_live_ready
+
+    def _restart_sample_loop(self):
+        while not self.restart_live_stop.is_set():
+            token = self.diagnostic('restart_continuous')
+            try:
+                self._restart_sample_once(background=True)
+            except Exception as error:
+                with self.lock:
+                    self.restart_window.invalidate()
+                    if self.restart_window.failed or time.monotonic_ns() >= self.restart_deadline_ns:
+                        self.restart_live_error = error
+                if token is not None: self.diagnostic('restart_continuous', token, 'exception', error)
+                if self.restart_live_error is not None: return
+            else:
+                if token is not None: self.diagnostic('restart_continuous', token, 'completed')
+            self.restart_live_stop.wait(.5)
+
+    def _restart_stop_sampler(self):
+        self.restart_live_stop.set()
+        if self.restart_live_thread is not None:
+            self.restart_live_thread.join(timeout=5)
+            require(not self.restart_live_thread.is_alive(), 'owned restart sampler did not drain')
+
+    def _verify_restart(self, expected):
+        with self.restart_gate:
+            require(type(expected) is int and expected == self.case['initial_corpus']['deliveries'], 'restart expected corpus changed')
+            if self.restart_deadline_ns is None:
+                self.restart_first_entry_ns = time.monotonic_ns()
+                self.restart_deadline_ns = self.restart_first_entry_ns + 120_000_000_000
+            try:
+                require(time.monotonic_ns() < self.restart_deadline_ns, 'Python first-entry120s restart deadline expired')
+                if self.restart_published:
+                    return {'verified': True, 'stage': 'after_restart'}
+                require(self.restart_live_error is None and not self.restart_window.failed, 'restart continuous observer already failed')
+                if self.restart_baseline is None:
+                    require(self.before_restart is not None, 'actual stopped baseline missing')
+                    self.approval = self._restart_phase('restart_approval', lambda: read_approval(self.manifest))
+                    snapshot = self._restart_phase('restart_canonical', lambda: self.canonical_snapshot(expected, initial=True, phase='after_restart'))
+                    def full_identity():
+                        value = self._restart_context()
+                        for child in value['children']:
+                            remaining = (self.restart_deadline_ns-time.monotonic_ns())/1_000_000_000
+                            require(remaining > 0, 'full identity proof reached original restart deadline')
+                            process_identity(self.manifest, child, timeout=min(30, remaining))
+                        return value
+                    context = self._restart_phase('restart_identity', full_identity)
+                    if self.family is not None:
+                        snapshot['same_db_restart_readiness'] = self._restart_phase('restart_readiness', lambda: self.family.readiness(self, context['captures'][:self.initial['capture_count']], context['restarted']))
+                    snapshot['checkpoint_proofs'] = self._restart_phase('restart_checkpoints', lambda: self.checkpoint_publications(snapshot, self.checkpoint_proofs(snapshot)))
+                    require(self._restart_context() == context, 'restart epoch changed during full proof')
+                    completed = time.monotonic_ns()
+                    require(completed < self.restart_deadline_ns, 'full restart baseline exceeded Python first-entry120s deadline')
+                    self.restart_baseline = {'snapshot': snapshot, 'context': context, 'completed_monotonic_ns': completed}
+                    self.restart_live_thread = threading.Thread(target=self._restart_sample_loop, name='owned-restart-live-observer', daemon=True)
+                    self.restart_live_thread.start()
+                with self.lock:
+                    ready = self.restart_live_ready
+                if not ready: return {'verified': False, 'stage': 'after_restart'}
+                # The worker keeps checking until the publishing caller arrives.
+                # Recheck once under the same sample gate, then join BEFORE Rust
+                # may begin its intentional final role teardown.
+                with self.restart_sample_gate:
+                    self.restart_live_stop.set()
+                    self._restart_sample_once()
+                self._restart_stop_sampler()
+                with self.lock:
+                    require(self.captures == self.restart_baseline['context']['captures'] and self.broadcasts == self.initial['broadcasts'], 'restart epoch/broadcast changed before publication')
+                    require(self.restart_live_error is None and not self.failures and not self.lifecycle.errors, 'restart observer failed before publication')
+                    proof = self.restart_window.evidence()
+                now = time.monotonic_ns()
+                require(now < self.restart_deadline_ns, 'late restart result cannot pass Python first-entry120s deadline')
+                context = self.restart_baseline['context']
+                proof.update(schema=2, clock_scope=RESTART_CLOCK_SCOPE,
+                    full_baseline_completed_monotonic_ns=self.restart_baseline['completed_monotonic_ns'],
+                    readiness_targets=[{'role':v['original']['role'],'port':v['original']['metrics_port'],'chains':list(v['original']['role_chain_names'])} for v in context['restarted']],
+                    checker_first_entry_monotonic_ns=self.restart_first_entry_ns, checker_deadline_monotonic_ns=self.restart_deadline_ns,
+                    checker_result_monotonic_ns=now, publication_live_check=dict(self.restart_last_live_check), checker_deadline_scope=RESTART_DEADLINE_SCOPE, full_baseline_phases=dict(self.restart_phases),
+                    before_effective_config_sha256=context['before_hash'], after_effective_config_sha256=context['after_hash'],
+                    new_capture_last_monotonic_ns=max(context['capture_clocks'].values()), new_capture_monotonic_ns_by_role_chain=dict(context['capture_clocks']),
+                    new_child_identities=[{key: child[key] for key in ('role','pid','parent_pid','os_start_token','executable')} for child in context['children']])
+                snapshot = self.restart_baseline['snapshot']
+                snapshot['same_db_restart_observation'] = proof
+                self.append('verified-after-restart.jsonl', snapshot)
+                with self.lock:
+                    require(self.captures == context['captures'] and self.broadcasts == self.initial['broadcasts'] and not self.failures and not self.lifecycle.errors and time.monotonic_ns() < self.restart_deadline_ns, 'restart changed/expired while publishing immutable evidence')
+                    self.after_restart = snapshot
+                    self.restart_published = True
+                return {'verified': True, 'stage': 'after_restart'}
+            except Exception:
+                with self.lock: self.restart_window.invalidate()
+                raise
+
+
     def _verify(self, stage, expected, harness_parent=None):
+        if stage == "after_restart":
+            return self._verify_restart(expected)
         try:
             read_approval(self.manifest)
         except Exception:
@@ -1318,65 +1605,6 @@ class Session:
             self.before_restart = snapshot
             self.append("verified-before-restart.jsonl", snapshot)
             return {"verified": True, "stage": stage}
-        if stage == "after_restart":
-            try:
-                require(self.before_restart is not None, "actual stopped baseline missing")
-                snapshot = self.canonical_snapshot(expected, initial=True, phase="after_restart")
-                require(self.broadcasts == self.initial["broadcasts"], "sameDB restart submitted an extra transaction")
-                # Every actually configured role must have a new capture with the
-                # same original effective config and the same stable proxy URLs.
-                from collections import Counter
-                cutoff = self.initial["capture_count"]
-                def binding(row):
-                    return json.dumps({"original": row["original"], "proxied": row["proxied"]}, sort_keys=True, separators=(",", ":"))
-                before = Counter(binding(row) for row in self.captures[:cutoff])
-                after = Counter(binding(row) for row in self.captures[cutoff:])
-                require(before == after, "every configured role must restart with identical original/effective config and endpoint fallback set")
-                launches = [json.loads(line) for line in self.owned_path(self.evidence_relative / "owned-children.jsonl").read_text().splitlines()]
-                self.role_launch_epochs(launches)
-                for row in launches[cutoff:]:
-                    process_identity(self.manifest, row)
-                for capture in self.captures[cutoff:]:
-                    for chain in capture["original"]["role_chain_names"]:
-                        pair = self.successful_activity.get((capture["original"]["role"], chain))
-                        require(pair is not None and pair['request_started_monotonic_ns'] > capture['captured_monotonic_ns'] and pair['response_received_monotonic_ns'] > capture['captured_monotonic_ns'], "restarted actual role has no successful request started in its new capture epoch")
-                if self.family is not None:
-                    snapshot['same_db_restart_readiness'] = self.family.readiness(self, self.captures[:cutoff], self.captures[cutoff:])
-                snapshot["checkpoint_proofs"] = self.checkpoint_publications(snapshot, self.checkpoint_proofs(snapshot))
-                # All native callbacks above run without Session.lock. Only freeze
-                # their actual successful identity/activity state under the lock.
-                with self.lock:
-                    restarted = self.captures[cutoff:]
-                    required = {(capture['original']['role'], chain) for capture in restarted
-                                for chain in capture['original']['role_chain_names']}
-                    activity = {role + ':' + chain: self.successful_activity[(role, chain)]['response_received_monotonic_ns']
-                                for role, chain in sorted(required)}
-                    request_started = {role + ':' + chain: self.successful_activity[(role, chain)]['request_started_monotonic_ns']
-                                       for role, chain in sorted(required)}
-                    epoch = hashlib.sha256(json.dumps({'bindings': sorted(binding(row) for row in restarted),
-                        'children': launches[cutoff:]}, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-                    now_ns = time.monotonic_ns()
-                    ready = self.restart_window.observe(now_ns, epoch, activity, request_started)
-                    proof = self.restart_window.evidence() if ready else None
-                if not ready:
-                    return {'verified': False, 'stage': stage}
-                proof['before_effective_config_sha256'] = hashlib.sha256(json.dumps(sorted(binding(row) for row in self.captures[:cutoff]), separators=(',', ':')).encode()).hexdigest()
-                proof['after_effective_config_sha256'] = hashlib.sha256(json.dumps(sorted(binding(row) for row in restarted), separators=(',', ':')).encode()).hexdigest()
-                proof['new_capture_last_monotonic_ns'] = max(capture['captured_monotonic_ns'] for capture in restarted)
-                capture_clocks = {}
-                for capture in restarted:
-                    for chain in capture['original']['role_chain_names']:
-                        key = capture['original']['role'] + ':' + chain
-                        capture_clocks[key] = max(capture_clocks.get(key, 0), capture['captured_monotonic_ns'])
-                proof['new_capture_monotonic_ns_by_role_chain'] = capture_clocks
-                proof['new_child_identities'] = [{key: row[key] for key in ('role', 'pid', 'parent_pid', 'os_start_token', 'executable')} for row in launches[cutoff:]]
-                snapshot['same_db_restart_observation'] = proof
-                self.after_restart = snapshot
-                self.append("verified-after-restart.jsonl", snapshot)
-                return {"verified": True, "stage": stage}
-            except Exception:
-                self.restart_window.invalidate()
-                raise
         if stage == "restart":
             require(self.initial is not None, "actual initial correctness evidence missing")
             relayers = [row for row in self.captures if row["original"]["role"] == "relayer"]
@@ -1400,6 +1628,7 @@ class Session:
             return {"verified": True, "stage": stage}
         require(stage == "final", "unknown actual evidence stage")
         require(self.initial is not None and self.after_restart is not None and (self.manifest["scenario"] != "evm" or self.restart is not None), "actual live/restart gates have not completed")
+        require(self.broadcasts == self.initial['broadcasts'], 'sameDB final proof observed an extra submission')
         waits = self.parent_wait_proofs()
         snapshot = self.canonical_snapshot(expected, initial=self.manifest["scenario"] != "evm", phase="final")
         for proof in self.initial["checkpoint_proofs"]:
@@ -1408,18 +1637,22 @@ class Session:
                 require(path.is_file() and not path.is_symlink() and path.stat().st_size == row["bytes"] and hashlib.sha256(path.read_bytes()).hexdigest() == row["sha256"], "restart mutated prior signed checkpoint object")
         snapshot["parent_wait_receipts"] = waits
         snapshot["stopped_canonical_Rust_readback"] = self.stopped_store_proofs(snapshot)
+        snapshot["checkpoint_proofs"] = self.checkpoint_publications(snapshot, self.checkpoint_proofs(snapshot))
         snapshot["postgres"] = self.postgres_proofs(snapshot)
         if self.family is not None or self.manifest["scenario"] == "tron":
             snapshot["native_operations"] = self.native_operation_proofs(snapshot, baseline=self.before_restart["native_operations"])
         self.restart_window.evidence() # Reject a later poisoned/incomplete window.
         snapshot['same_db_restart_observation'] = self.after_restart['same_db_restart_observation']
         snapshot['same_db_restart_readiness'] = self.after_restart.get('same_db_restart_readiness')
+        snapshot['full_final_proof_completed_monotonic_ns'] = time.monotonic_ns()
+        snapshot['full_final_proof_scope'] = RESTART_FINAL_SCOPE
         snapshot["verified"] = True
         self.append("verified-final-native.jsonl", snapshot)
         return {"verified": True, "stage": stage}
 
     def close(self):
         self.stop.set()
+        self._restart_stop_sampler()
         self.sampler.join(timeout=5)
         require(not self.sampler.is_alive(), "owned lifecycle sampler did not drain")
         for proxy in self.proxies:

@@ -58,20 +58,20 @@ class RestartWindowTests(unittest.TestCase):
 class ActualSessionBranchTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
-        session=Session.__new__(Session);self.session=session;session.lock=threading.RLock();session.failures=[];session.before_restart={};session.after_restart=None;session.restart_window=RestartWindow()
+        session=Session.__new__(Session);self.session=session;session.lock=threading.RLock();session.failures=[];session.before_restart={};session.after_restart=None;session.restart_window=RestartWindow();session._init_restart_sampler();session.stop=threading.Event();session.lifecycle=type('LifecycleState',(),{'errors':[]})()
         session.manifest={'scenario':'cosmosnative','artifacts':{role:{'path':'/not-executed/'+role,'bytes':1,'sha256':'0'*64} for role in ['relayer','validator','scraper']}}
         session.case={'initial_corpus':{'deliveries':1}};session.evidence_relative=Path('evidence');session.initial={'capture_count':3,'broadcasts':[]};session.broadcasts=[]
         captures=[];launches=[]
         for epoch in range(2):
             for i,role in enumerate(['relayer','validator','scraper']):
-                original={'role':role,'role_chain_names':['test1'],'config':{'private_key':'never-output'}}
+                original={'role':role,'role_chain_names':['test1'],'metrics_port':10000+i,'config':{'private_key':'never-output'}}
                 captures.append({'original':original,'proxied':copy.deepcopy(original),'captured_monotonic_ns':100+epoch})
                 launches.append({'role':role,'pid':10+epoch*3+i,'parent_pid':9,'os_start_token':'linux-ticks:'+str(epoch*3+i),'executable':session.manifest['artifacts'][role]})
         session.captures=captures;session.activity={(role,'test1'):1000 for role in ['relayer','validator','scraper']};session.successful_activity={(role,'test1'):{'request_started_monotonic_ns':999,'response_received_monotonic_ns':1000} for role in ['relayer','validator','scraper']};(self.root/'evidence').mkdir();(self.root/'evidence/owned-children.jsonl').write_text(''.join(json.dumps(v)+'\n'for v in launches))
         session.owned_path=lambda relative:self.root/relative
         def snapshot(*a,**kw):
             self.assertFalse(session.lock._is_owned());return {'broadcasts':[],'capture_count':6}
-        session.canonical_snapshot=snapshot
+        session.canonical_snapshot=lambda *a,**kw:{**snapshot(*a,**kw),'messages':[],'deliverable_messages':[]};session._restart_control_artifacts=mock.Mock();session._restart_admin=mock.Mock(return_value=[])
         session.checkpoint_proofs=lambda value:[];session.checkpoint_publications=lambda value,proofs:proofs;session.append=mock.Mock()
         class Family:
             def readiness(family,*args):
@@ -81,8 +81,16 @@ class ActualSessionBranchTests(unittest.TestCase):
         if fresh:
             self.session.activity={(role,'test1'):ns-i-1 for i,role in enumerate(['relayer','validator','scraper'])}
             self.session.successful_activity={(role,'test1'):{'request_started_monotonic_ns':ns-i-100,'response_received_monotonic_ns':ns-i-1} for i,role in enumerate(['relayer','validator','scraper'])}
-        with mock.patch.object(api,'read_approval',side_effect=approval_error),mock.patch.object(api,'process_identity'),mock.patch.object(api.time,'monotonic_ns',return_value=ns),mock.patch.object(api.time,'sleep',side_effect=AssertionError('No in-verifier sleeping')):
-            return self.session.verify('after_restart',1)
+        with mock.patch.object(api,'read_approval',side_effect=approval_error),mock.patch.object(api,'process_identity'),mock.patch.object(api.time,'monotonic_ns',return_value=ns),mock.patch.object(api.time,'sleep',side_effect=AssertionError('No in-verifier sleeping')),mock.patch.object(api.threading.Thread,'start'),mock.patch.object(api.threading.Thread,'join'),mock.patch.object(api.threading.Thread,'is_alive',return_value=False):
+            if approval_error is not None:self.session._restart_control_artifacts.side_effect=approval_error
+            else:self.session._restart_control_artifacts.side_effect=None
+            result=self.session.verify('after_restart',1)
+            if self.session.restart_baseline is not None and not self.session.restart_published:
+                self.session.restart_live_stop.clear()
+                with mock.patch.object(self.session.restart_live_stop,'wait',side_effect=lambda _:self.session.restart_live_stop.set()):self.session._restart_sample_loop()
+                self.session.restart_live_stop.clear()
+                result=self.session.verify('after_restart',1)
+            return result
     def test_actual_branch_pending_startup_then_30s_new_epoch(self):
         old=self.session.family.readiness;self.session.family.readiness=mock.Mock(side_effect=ValueError('startup pending'))
         with self.assertRaises(ValueError):self.tick(100*10**9)
@@ -92,10 +100,10 @@ class ActualSessionBranchTests(unittest.TestCase):
         self.assertEqual(proof['elapsed_live_ns'],30*10**9);self.assertEqual(len(proof['new_child_identities']),3)
         self.assertEqual(self.session.append.call_args[0][0],'verified-after-restart.jsonl')
     def test_actual_branch_midwindow_callback_error_latches(self):
-        self.tick(100*10**9);self.session.family.readiness=mock.Mock(side_effect=ValueError('actual check failed'))
+        self.tick(100*10**9);self.session._restart_admin.side_effect=ValueError('actual check failed')
         with self.assertRaises(ValueError):self.tick(105*10**9)
         self.assertTrue(self.session.restart_window.failed)
-        self.session.family.readiness=lambda *args:{}
+        self.session._restart_admin.side_effect=None
         with self.assertRaises(ValueError):self.tick(135*10**9)
     def test_actual_branch_fresh_canonical_queries_do_not_advance_stale_roles(self):
         self.tick(100*10**9);self.assertFalse(self.tick(105*10**9,fresh=False)['verified'])
@@ -117,7 +125,7 @@ class ActualSessionBranchTests(unittest.TestCase):
         # Received time is newer, but the request predates restarted capture101.
         self.session.activity={(role,'test1'):100*10**9 for role in ['relayer','validator','scraper']}
         self.session.successful_activity={(role,'test1'):{'request_started_monotonic_ns':100,'response_received_monotonic_ns':100*10**9}for role in ['relayer','validator','scraper']}
-        with self.assertRaises(ValueError):self.tick(100*10**9,fresh=False)
+        self.assertFalse(self.tick(100*10**9,fresh=False)['verified'])
         self.assertEqual(self.session.restart_window.samples,[])
         self.assertFalse(self.session.restart_window.failed)
         self.assertFalse(self.tick(101*10**9)['verified'])

@@ -7,7 +7,7 @@ import os
 import re
 import threading
 
-STAGES={'preflight','live','before_restart','after_restart','restart','final','sampler','transport'}
+STAGES={'preflight','live','before_restart','after_restart','restart','final','sampler','transport','restart_approval','restart_canonical','restart_identity','restart_readiness','restart_checkpoints','restart_continuous'}
 LIMIT=256*1024
 
 

@@ -17,6 +17,10 @@ import time
 spec = importlib.util.spec_from_file_location('cold_matrix_owner', Path(__file__).with_name('cold_matrix_owner.py'))
 owner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(owner)
+RESTART_CLOCK_SCOPE = 'One complete canonical/SDK/checkpoint/readiness proof BEFORE the first live anchor; then continuous actual child/config/authority/admin/no-resubmission and paired role-RPC checks; full canonical/SDK/SQL/checkpoint and stopped-reader proof again at final acceptance. No heavy proof is claimed per live sample.'
+RESTART_DEADLINE_SCOPE = 'Python first after_restart entry+120s; not the earlier Rust caller Instant.'
+RESTART_FINAL_SCOPE = 'Fresh final canonical/SDK/checkpoint/SQL and stopped-reader verification after live window and clean actual parent waits.'
+
 GIB = 1024 ** 3
 LABEL_ROOT = 'io.hyperlane.ziggy.case-root'
 LABEL_PID = 'io.hyperlane.ziggy.harness-pid'
@@ -232,6 +236,25 @@ def native_listener_proof(scenario, manifest, case_inputs, case, lsof, observati
     return expected
 
 
+def public_restart_clock_map(value):
+    require(isinstance(value,dict) and 0<len(value)<=16 and all(isinstance(key,str) and re.fullmatch(r'(?:relayer|validator|scraper):[A-Za-z0-9_-]{1,64}',key) and type(number)is int and number>0 for key,number in value.items()),'Closed scalar restarted role/chain clock map required')
+    return dict(value)
+
+
+def public_restart_admin(rows):
+    require(isinstance(rows,list) and 0 < len(rows) <= 32,'Bounded actual restart readiness samples required')
+    result=[]
+    for value in rows:
+        base={'role','chain','port','request_started_monotonic_ns','response_received_monotonic_ns'}
+        extra={'operation_count'} if value.get('role')=='relayer' else {'response_bytes','response_sha256'}
+        require(isinstance(value,dict) and set(value)==base|extra and value['role'] in {'relayer','validator','scraper'},'Closed public restart admin DTO required')
+        require(type(value['port']) is int and 0<value['port']<65536 and type(value['request_started_monotonic_ns']) is int and type(value['response_received_monotonic_ns']) is int and 0<value['request_started_monotonic_ns']<=value['response_received_monotonic_ns'],'Actual restart admin clocks/port required')
+        if value['role']=='relayer':require(isinstance(value['chain'],str) and re.fullmatch('[A-Za-z0-9_-]{1,64}',value['chain']) and type(value['operation_count']) is int and 0<=value['operation_count']<=100000,'Actual relayer readiness domain/count required')
+        else:require(value['chain'] is None and type(value['response_bytes']) is int and 0<value['response_bytes']<=8*1024**2 and re.fullmatch('[0-9a-f]{64}',value['response_sha256']),'Metrics fingerprint/count only; no response payload')
+        result.append(dict(value))
+    return result
+
+
 def public_native_snapshot(snapshot):
     """Explicit public evidence projection; never serialize arbitrary nested DTOs."""
     require(isinstance(snapshot,dict) and snapshot.get('scenario') in {'evm','cosmosnative','cosmwasm','starknet'}, 'Public projection family not implemented')
@@ -361,18 +384,45 @@ def public_native_snapshot(snapshot):
     if 'same_db_restart_observation' in snapshot:
         value=snapshot['same_db_restart_observation']
         restart=fields(value,('schema','minimum_live_ns','epoch_sha256','maximum_successful_sample_gap_ns','elapsed_live_ns','new_capture_last_monotonic_ns','before_effective_config_sha256','after_effective_config_sha256'))
-        restart['new_capture_monotonic_ns_by_role_chain']=dict(value['new_capture_monotonic_ns_by_role_chain'])
+        restart['new_capture_monotonic_ns_by_role_chain']=public_restart_clock_map(value['new_capture_monotonic_ns_by_role_chain'])
+        restart['clock_scope']=value.get('clock_scope','Historical schema1 callback proof; no schema2 live-sampler claim.')
+        require(isinstance(restart['clock_scope'],str) and len(restart['clock_scope'])<=1024,'Bounded explicit restart scope required')
+        if value.get('schema')==2:
+            for key in ('clock_scope','checker_deadline_scope','full_baseline_completed_monotonic_ns','checker_first_entry_monotonic_ns','checker_deadline_monotonic_ns','checker_result_monotonic_ns'):
+                restart[key]=value[key]
+            require(all(type(restart[k]) is int for k in ('full_baseline_completed_monotonic_ns','checker_first_entry_monotonic_ns','checker_deadline_monotonic_ns','checker_result_monotonic_ns')) and isinstance(restart['clock_scope'],str) and len(restart['clock_scope'])<=1024 and isinstance(restart['checker_deadline_scope'],str) and len(restart['checker_deadline_scope'])<=256,'Closed restart boundary clocks/scopes required')
+            require(restart['clock_scope']==RESTART_CLOCK_SCOPE and restart['checker_deadline_scope']==RESTART_DEADLINE_SCOPE,'Fixed public schema2 proof/deadline scopes required')
+            phases=value['full_baseline_phases'];require(isinstance(phases,dict) and set(phases) in ({'restart_approval','restart_canonical','restart_identity','restart_checkpoints'},{'restart_approval','restart_canonical','restart_identity','restart_readiness','restart_checkpoints'}),'Actual full baseline subphases required')
+            for row in phases.values():require(isinstance(row,dict) and set(row)=={'started_monotonic_ns','finished_monotonic_ns'} and all(type(v)is int and v>=0 for v in row.values()),'Closed scalar full baseline subphase clocks required')
+            restart['full_baseline_phases']={name:dict(row) for name,row in phases.items()}
+            targets=value['readiness_targets'];require(isinstance(targets,list) and 0<len(targets)<=16,'Bounded restarted admin targets required')
+            restart['readiness_targets']=[]
+            for target in targets:
+                require(set(target)=={'role','port','chains'} and target['role'] in {'relayer','validator','scraper'} and type(target['port']) is int and 0<target['port']<65536 and isinstance(target['chains'],list) and target['chains'] and all(isinstance(v,str) and re.fullmatch('[A-Za-z0-9_-]{1,64}',v) for v in target['chains']),'Closed role readiness target required')
+                restart['readiness_targets'].append(dict(target,chains=list(target['chains'])))
+            check=value['publication_live_check'];require(set(check)=={'observed_monotonic_ns','epoch_sha256','actual_admin_readiness','role_rpc_activity','role_rpc_request_started_ns'},'Closed final live publication check required')
+            require(type(check['observed_monotonic_ns'])is int and check['observed_monotonic_ns']>=0 and isinstance(check['epoch_sha256'],str) and re.fullmatch('[0-9a-f]{64}',check['epoch_sha256']),'Closed scalar live publication identity/clock required')
+            restart['publication_live_check']={**fields(check,('observed_monotonic_ns','epoch_sha256')),'actual_admin_readiness':public_restart_admin(check['actual_admin_readiness']),'role_rpc_activity':public_restart_clock_map(check['role_rpc_activity']),'role_rpc_request_started_ns':public_restart_clock_map(check['role_rpc_request_started_ns'])}
+
         restart['samples']=[]
         for sample in value['samples']:
+            require(type(sample['observed_monotonic_ns'])is int and sample['observed_monotonic_ns']>=0,'Public restart observed clock must be a nonnegative monotonic integer')
             activity=sample['role_rpc_activity']
             require(isinstance(activity,dict) and all(re.fullmatch(r'(?:relayer|validator|scraper):[A-Za-z0-9_-]+',k) and type(v)is int for k,v in activity.items()),'Public restarted-role clock map required')
-            restart['samples'].append({'observed_monotonic_ns':sample['observed_monotonic_ns'],'role_rpc_activity':dict(activity),'role_rpc_request_started_ns':dict(sample['role_rpc_request_started_ns'])})
+            restart['samples'].append({'observed_monotonic_ns':sample['observed_monotonic_ns'],'role_rpc_activity':public_restart_clock_map(activity),'role_rpc_request_started_ns':public_restart_clock_map(sample['role_rpc_request_started_ns'])})
+            if value.get('schema')==2:restart['samples'][-1]['actual_admin_readiness']=public_restart_admin(sample['actual_admin_readiness'])
         restart['new_child_identities']=[]
         for child in value['new_child_identities']:
             row=fields(child,('role','pid','parent_pid','os_start_token'))
             row['executable']=fields(child['executable'],('path','bytes','sha256'))
             restart['new_child_identities'].append(row)
         out['same_db_restart_observation']=restart
+    for key in ('full_final_proof_completed_monotonic_ns','full_final_proof_scope'):
+        if key in snapshot:
+            value=snapshot[key]
+            if key=='full_final_proof_completed_monotonic_ns':require(type(value)is int and value>=0,'Public final completion must be a nonnegative monotonic integer')
+            else:require(isinstance(value,str) and value==RESTART_FINAL_SCOPE,'Public final scope must be the fixed Source proof scope')
+            out[key]=value
     return out
 
 
@@ -394,16 +444,42 @@ def write_public_native_proof(plan,manifest,case,output,expected_final):
     require(raw['final']==expected_final and phases['final'].get('verified') is True,'Hash-matched actual verified final required')
     restart=phases['after_restart'].get('same_db_restart_observation');require(isinstance(restart,dict) and restart.get('minimum_live_ns')==30_000_000_000,'Actual timed30 restart proof missing; legacy SameDB is not30 credit')
     require(phases['final'].get('same_db_restart_observation')==restart,'Final/after-restart actual witness differs')
+    require(restart.get('schema')==2,'Legacy full-callback restart scope is historical; schema2 continuous proof required')
+    require(restart['clock_scope']==RESTART_CLOCK_SCOPE and restart['checker_deadline_scope']==RESTART_DEADLINE_SCOPE,'Exact schema2 baseline/continuous/full-final clock scope required')
+    entered=restart['checker_first_entry_monotonic_ns'];baseline=restart['full_baseline_completed_monotonic_ns'];deadline=restart['checker_deadline_monotonic_ns'];published=restart['checker_result_monotonic_ns']
+    require(0<entered<=baseline<=published<deadline and deadline-entered==120_000_000_000,'Actual Python first-entry deadline/baseline/publication ordering differs')
+    for row in restart['full_baseline_phases'].values():require(set(row)=={'started_monotonic_ns','finished_monotonic_ns'} and type(row['started_monotonic_ns'])is int and type(row['finished_monotonic_ns'])is int and entered<=row['started_monotonic_ns']<=row['finished_monotonic_ns']<=baseline,'Actual full proof phase order invalid')
+    previous_phase_end=entered
+    for name in ('restart_approval','restart_canonical','restart_identity','restart_readiness','restart_checkpoints'):
+        if name not in restart['full_baseline_phases']:continue
+        phase=restart['full_baseline_phases'][name];require(phase['started_monotonic_ns']>=previous_phase_end,'Full baseline proof phases overlap or reorder');previous_phase_end=phase['finished_monotonic_ns']
+    targets=restart['readiness_targets'];expected_admin=[]
+    for target in targets:
+        expected_admin.extend([(target['role'],target['port'],chain)for chain in target['chains']]if target['role']=='relayer'else[(target['role'],target['port'],None)])
+    require(len(expected_admin)==len(set(expected_admin)),'Duplicate actual readiness targets')
+    require({target['role']+':'+chain for target in targets for chain in target['chains']}==set(restart['new_capture_monotonic_ns_by_role_chain']),'Readiness targets and actual restarted role/chain keys differ')
+    def admin_checked(rows,now):
+        require(len(rows)==len(expected_admin) and {(row['role'],row['port'],row['chain'])for row in rows}==set(expected_admin),'Actual admin target coverage differs')
+        for row in rows:require(baseline<=row['request_started_monotonic_ns']<=row['response_received_monotonic_ns']<=now and now-row['response_received_monotonic_ns']<=10_000_000_000,'Stale/misattributed actual admin readiness')
     samples=restart['samples'];require(isinstance(samples,list) and len(samples)>=4,'Actual restarted live samples missing')
     previous=None
     for row in samples:
         now=row['observed_monotonic_ns'];activity=row['role_rpc_activity'];starts=row['role_rpc_request_started_ns']
         require(type(now)is int and isinstance(activity,dict) and activity and isinstance(starts,dict) and set(starts)==set(activity) and all(type(activity[k])is int and type(starts[k])is int and 0<starts[k]<=activity[k]<=now and now-activity[k]<=10_000_000_000 and k in restart['new_capture_monotonic_ns_by_role_chain'] and type(restart['new_capture_monotonic_ns_by_role_chain'][k])is int and starts[k]>restart['new_capture_monotonic_ns_by_role_chain'][k] for k in activity),'Invalid actual restarted request/response sample')
+        require(set(activity)==set(restart['new_capture_monotonic_ns_by_role_chain']) and baseline<=now<published,'Actual full role coverage/live boundary differs')
+        admin_checked(row['actual_admin_readiness'],now)
         if previous:
             require(0<now-previous['observed_monotonic_ns']<=10_000_000_000 and set(activity)==set(previous['role_rpc_activity']) and all(activity[k]>previous['role_rpc_activity'][k] and starts[k]>previous['role_rpc_activity'][k] for k in activity),'Stale/gapped actual restarted role observations')
         previous=row
     elapsed=samples[-1]['observed_monotonic_ns']-samples[0]['observed_monotonic_ns'];require(elapsed>=30_000_000_000 and elapsed==restart['elapsed_live_ns'],'Actual restart30 duration differs')
     require(restart['new_capture_last_monotonic_ns']<samples[0]['observed_monotonic_ns'],'Restart observation predates new captures')
+    check=restart['publication_live_check'];now=check['observed_monotonic_ns']
+    require(check['epoch_sha256']==restart['epoch_sha256'] and samples[-1]['observed_monotonic_ns']<=now<=published and set(check['role_rpc_activity'])==set(samples[-1]['role_rpc_activity'])==set(check['role_rpc_request_started_ns']),'Final live publication epoch/coverage differs')
+    for key,value in check['role_rpc_activity'].items():require(type(value)is int and type(check['role_rpc_request_started_ns'][key])is int and 0<check['role_rpc_request_started_ns'][key]<=value<=now and now-value<=10_000_000_000 and value>=samples[-1]['role_rpc_activity'][key] and check['role_rpc_request_started_ns'][key]>restart['new_capture_monotonic_ns_by_role_chain'][key],'Final publication role freshness differs')
+    require(now-samples[-1]['observed_monotonic_ns']<=10_000_000_000,'Live publication gap exceeds10s')
+    admin_checked(check['actual_admin_readiness'],now)
+    completed=phases['final'].get('full_final_proof_completed_monotonic_ns');require(type(completed)is int and completed>=published and phases['final'].get('full_final_proof_scope')==RESTART_FINAL_SCOPE,'Actual fresh full final proof completion missing')
+
     require(restart['before_effective_config_sha256']==restart['after_effective_config_sha256'] and re.fullmatch('[0-9a-f]{64}',restart['before_effective_config_sha256']),'SameDB effective config hashes differ')
     require(phases['initial']['broadcasts']==phases['after_restart']['broadcasts'],'Restart submitted extra transactions')
     before={row['id']:row['operation'] for row in phases['before_restart']['native_operations']};after={row['id']:row['operation'] for row in phases['final']['native_operations']}

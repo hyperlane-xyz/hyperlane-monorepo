@@ -623,10 +623,10 @@ def message_wire(value, keccak):
     return {"id": keccak(value).lower(), "wire": value.lower(), "nonce": int.from_bytes(raw[1:5], "big"), "origin": int.from_bytes(raw[5:9], "big"), "sender": "0x" + raw[9:41].hex(), "destination": int.from_bytes(raw[41:45], "big"), "recipient": "0x" + raw[45:77].hex(), "body": "0x" + raw[77:].hex()}
 
 
-def process_identity(manifest, row):
+def process_identity(manifest, row, *, timeout=30):
     require(row["executable"] == manifest["artifacts"][row["role"]], "child binary differs")
     checked_artifact(row["executable"], True)
-    token = run_tool(manifest, "ps", ["-ww", "-p", str(row["pid"]), "-o", "pid=,ppid=,lstart=,comm="])
+    token = run_tool(manifest, "ps", ["-ww", "-p", str(row["pid"]), "-o", "pid=,ppid=,lstart=,comm="], timeout=timeout)
     require(token == row["os_start_token"], "owned child PID/start token changed")
     columns = token.split(maxsplit=7)
     require(len(columns) == 8 and int(columns[0]) == row["pid"] and int(columns[1]) == row["parent_pid"], "owned child parent identity differs")

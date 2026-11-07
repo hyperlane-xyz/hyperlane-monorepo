@@ -251,6 +251,11 @@ class CaseOwnerTests(unittest.TestCase):
                   'parent_wait_receipts':[{'role':'relayer','pid':1,'parent_pid':9,'os_start_token':'linux-ticks:1','purpose':'final','parent_wait_completed':True,'already_exited':False,'forced_kill':False,'success':True,'exit_code':0,'signal':None,'env':'DO-NOT-EXPORT-PARENT-ENV'}],
                   'observer_policy':{'maximum_successful_domain_sample_gap_ns':10*10**9,'private_env':'DO-NOT-EXPORT-POLICY-ENV'},
                   'same_db_restart_observation':restart}
+        restart.update(schema=2,clock_scope=api.RESTART_CLOCK_SCOPE,checker_deadline_scope=api.RESTART_DEADLINE_SCOPE,full_baseline_completed_monotonic_ns=start-50,checker_first_entry_monotonic_ns=start-10**9,checker_deadline_monotonic_ns=start+119*10**9,checker_result_monotonic_ns=start+30*10**9+10,full_baseline_phases={name:{'started_monotonic_ns':start-100+i*10,'finished_monotonic_ns':start-95+i*10}for i,name in enumerate(['restart_approval','restart_canonical','restart_identity','restart_checkpoints'])},readiness_targets=[{'role':'relayer','port':10001,'chains':['test2']},{'role':'validator','port':10002,'chains':['test1']}])
+        for sample in restart['samples']:
+            ns=sample['observed_monotonic_ns'];sample['actual_admin_readiness']=[{'role':'relayer','chain':'test2','port':10001,'request_started_monotonic_ns':ns-30,'response_received_monotonic_ns':ns-1,'operation_count':0},{'role':'validator','chain':None,'port':10002,'request_started_monotonic_ns':ns-30,'response_received_monotonic_ns':ns-1,'response_bytes':10,'response_sha256':'ac'*32}]
+        restart['publication_live_check']={'observed_monotonic_ns':start+30*10**9,'epoch_sha256':restart['epoch_sha256'],'actual_admin_readiness':restart['samples'][-1]['actual_admin_readiness'],'role_rpc_activity':restart['samples'][-1]['role_rpc_activity'],'role_rpc_request_started_ns':restart['samples'][-1]['role_rpc_request_started_ns']}
+        snapshot['full_final_proof_completed_monotonic_ns']=start+31*10**9;snapshot['full_final_proof_scope']=api.RESTART_FINAL_SCOPE
         return snapshot
 
     def public_record_files(self):
@@ -349,6 +354,64 @@ class CaseOwnerTests(unittest.TestCase):
             first['role_rpc_activity']={k:now-11*10**9 for k in first['role_rpc_activity']};first['role_rpc_request_started_ns']={k:now-11*10**9-1 for k in first['role_rpc_activity']};path.write_text(json.dumps(raw)+'\n')
         with self.assertRaisesRegex(ValueError,'Invalid actual restarted'):api.write_public_native_proof(plan,manifest,case,case/'public.json',api.pin(case/'evidence/verified-final-native.jsonl'))
         self.assertFalse((case/'public.json').exists())
+
+    def test_schema2_public_scope_boundaries_and_each_actual_role_are_mandatory(self):
+        changes=['legacy','dropped_role','old_publication_request','publication_gap','baseline_after_anchor','wrong_admin_target','private_admin','phase_after_baseline','missing_final_proof']
+        for change in changes:
+            case,manifest,plan=self.public_record_files()
+            for name in ['verified-after-restart.jsonl','verified-final-native.jsonl']:
+                path=case/'evidence'/name;raw=json.loads(path.read_text());proof=raw['same_db_restart_observation']
+                if change=='legacy':proof['schema']=1
+                elif change=='dropped_role':
+                    for row in proof['samples']:
+                        row['role_rpc_activity'].pop('validator:test1');row['role_rpc_request_started_ns'].pop('validator:test1')
+                elif change=='old_publication_request':proof['publication_live_check']['role_rpc_request_started_ns']['validator:test1']=1
+                elif change=='publication_gap':
+                    now=proof['samples'][-1]['observed_monotonic_ns']+11*10**9;check=proof['publication_live_check'];check['observed_monotonic_ns']=now;proof['checker_result_monotonic_ns']=now+1
+                    check['role_rpc_activity']={k:now-1 for k in check['role_rpc_activity']};check['role_rpc_request_started_ns']={k:now-2 for k in check['role_rpc_request_started_ns']}
+                    for row in check['actual_admin_readiness']:row.update(request_started_monotonic_ns=now-2,response_received_monotonic_ns=now-1)
+                    raw['full_final_proof_completed_monotonic_ns']=now+2
+                elif change=='baseline_after_anchor':proof['full_baseline_completed_monotonic_ns']=proof['samples'][0]['observed_monotonic_ns']+1
+                elif change=='wrong_admin_target':proof['samples'][0]['actual_admin_readiness'][0]['port']=1
+                elif change=='private_admin':proof['samples'][0]['actual_admin_readiness'][0]['raw_config']='DO-NOT-EXPORT'
+                elif change=='phase_after_baseline':proof['full_baseline_phases']['restart_canonical']['finished_monotonic_ns']=proof['full_baseline_completed_monotonic_ns']+1
+                elif change=='missing_final_proof':raw.pop('full_final_proof_completed_monotonic_ns')
+                path.write_text(json.dumps(raw)+'\n')
+            target=self.root/(change+'-rejected.json')
+            with self.subTest(change=change),self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,target,api.pin(case/'evidence/verified-final-native.jsonl'))
+            self.assertFalse(target.exists())
+            import shutil
+            shutil.rmtree(case)
+
+    def test_initial_phase_cannot_smuggle_nested_final_clock_or_scope(self):
+        for key in ['full_final_proof_completed_monotonic_ns','full_final_proof_scope']:
+            case,manifest,plan=self.public_record_files();path=case/'evidence/verified-initial-native.jsonl';raw=json.loads(path.read_text());raw[key]={'raw_signed_wire':'DO-NOT-EXPORT-PRIVATE'};path.write_text(json.dumps(raw)+'\n');output=self.root/(key+'-rejected.json')
+            with self.subTest(key=key),self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,output,api.pin(case/'evidence/verified-final-native.jsonl'))
+            self.assertFalse(output.exists())
+            import shutil
+            shutil.rmtree(case)
+
+    def test_initial_schema2_nested_subphase_or_publication_clocks_never_export(self):
+        for kind in ['subphase','publication_clock','publication_epoch','publication_rpc','sample_request']:
+            case,manifest,plan=self.public_record_files();path=case/'evidence/verified-initial-native.jsonl';raw=json.loads(path.read_text());proof=raw['same_db_restart_observation'];private={'raw_signed_wire':'DO-NOT-EXPORT-PRIVATE'}
+            if kind=='subphase':proof['full_baseline_phases']['restart_canonical']['started_monotonic_ns']=private
+            elif kind=='publication_clock':proof['publication_live_check']['observed_monotonic_ns']=private
+            elif kind=='publication_epoch':proof['publication_live_check']['epoch_sha256']=private
+            elif kind=='publication_rpc':proof['publication_live_check']['role_rpc_activity']['validator:test1']=private
+            elif kind=='sample_request':proof['samples'][0]['role_rpc_request_started_ns']['validator:test1']=private
+            path.write_text(json.dumps(raw)+'\n');output=self.root/(kind+'-rejected.json')
+            with self.subTest(kind=kind),self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,output,api.pin(case/'evidence/verified-final-native.jsonl'))
+            self.assertFalse(output.exists())
+            import shutil
+            shutil.rmtree(case)
+
+    def test_initial_observed_clock_never_exports_nested_values_in_any_schema(self):
+        for schema in [1,2]:
+            case,manifest,plan=self.public_record_files();path=case/'evidence/verified-initial-native.jsonl';raw=json.loads(path.read_text());raw['same_db_restart_observation']['schema']=schema;raw['same_db_restart_observation']['samples'][0]['observed_monotonic_ns']={'raw_signed_wire':'DO-NOT-EXPORT-PRIVATE'};path.write_text(json.dumps(raw)+'\n');output=self.root/('observed-'+str(schema)+'-rejected.json')
+            with self.subTest(schema=schema),self.assertRaisesRegex(ValueError,'observed clock'):api.write_public_native_proof(plan,manifest,case,output,api.pin(case/'evidence/verified-final-native.jsonl'))
+            self.assertFalse(output.exists())
+            import shutil
+            shutil.rmtree(case)
 
     def public_diagnostic_fixture(self):
         spec=importlib.util.spec_from_file_location('public_diag_fixture',Path(__file__).resolve().parents[1]/'integration/multivm_diagnostics.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)

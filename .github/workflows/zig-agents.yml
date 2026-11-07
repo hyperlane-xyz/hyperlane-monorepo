@@ -749,6 +749,7 @@ jobs:
           python3 -I -B zig/bench/native_case_run_test.py -v
           python3 -I -B zig/bench/native_case_owner_test.py -v
           python3 -I -B zig/integration/multivm_restart_test.py -v
+          python3 -I -B -W error zig/integration/multivm_restart_live_test.py -v
           python3 -I -B zig/integration/multivm_diagnostics_test.py -v
       - name: Pin preinstalled tools; no CLI/SDK or chain main invoked
         if: steps.request.outputs.enabled == 'true'
