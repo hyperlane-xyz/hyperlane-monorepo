@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "radix",
-  "mode": "ReleaseFast",
+  "scenario": "sealevel",
+  "mode": "ReleaseSafe",
   "producer_source_commit": "8eabae59eecb5cba3d8b76fca46447802f231a92",
   "producer_run_id": 42420239263,
   "producer_run_attempt": 1,
@@ -44,140 +44,30 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "radix_images": {
-      "data_aggregator_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "de7f1efe19f219530da50b9cd6478f78",
-            "2858affd76a6b520b79eba2e1649b05d"
-          ],
-          "prefix": "radixdlt/babylon-ng-data-aggregator@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "eb23d60cb95fa1400f4b9aa430de39b9",
-            "babdc41c3119fd7f4293a354c7f69de2"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-data-aggregator:v1.10.3"
-      },
-      "database_migrations_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "f0bc2f9fbf8ca59a5c221128d3e0c879",
-            "714957a3753fb0ab21e393562196da1c"
-          ],
-          "prefix": "radixdlt/babylon-ng-database-migrations@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "4ec55f7eb0680512f65d3c6844dae05c",
-            "bf5972d8171e0e0944302d60fa2ab50f"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-database-migrations:v1.10.3"
-      },
-      "fullnode": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "4acd3afcb28376c560409fca46b36397",
-            "054b151b62aa2a38cb91fbd48ffbb602"
-          ],
-          "prefix": "radixdlt/babylon-node@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "f04273c2411d89b502aed11552fe83d0",
-            "cb5660d1996ee196adfc7c7a7805955f"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-node:v1.3.0.1"
-      },
-      "gateway_api_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "ef7aa39651897ebfbb6b39bbfea2a75c",
-            "a4e04d5ff802a62b8ee4247ca1638676"
-          ],
-          "prefix": "radixdlt/babylon-ng-gateway-api@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "8053a0fa3c5b1c42be1cb3f837b6a55c",
-            "8e92d0618d406bd64b26b8a0365ece65"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-gateway-api:v1.10.3"
-      },
-      "postgres_db": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "07ec36ad2d5ab9250f38c8ef749239b6",
-            "62cf15d03c9ddb7167422edbbdf71156"
-          ],
-          "prefix": "postgres@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "ddc12ac7fa27279bfcc41deaccd13682",
-            "91ab7d71ca7cee0420b41f9974e9a468"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "postgres:15.2-alpine"
-      }
-    },
-    "radix_contracts": {
-      "release": "1.0.0",
-      "files": {
-        "hyperlane_radix.rpd": {
-          "bytes": 19071,
-          "sha256": {
-            "sha256_hex_chunks": [
-              "274871ffb45c9db2d78fd0fc5bff7ec8",
-              "9a21907870118303fe35a65bbce5be88"
-            ]
-          }
-        },
-        "hyperlane_radix.wasm": {
-          "bytes": 438167,
-          "sha256": {
-            "sha256_hex_chunks": [
-              "f3dd959d32a2a123dda7744ca9963fd6",
-              "42376e4d60128d24d458474183309336"
-            ]
-          }
-        }
-      },
-      "metadata_bytes": 7865,
-      "metadata_sha256": {
-        "sha256_hex_chunks": [
-          "a90945c1008b267040c4d6eb17c32a9e",
-          "2da0dd414804ca963dfb9bf7d270d7b2"
-        ]
-      }
-    },
-    "radix_reference": {
-      "same_producer_source": true,
-      "actual_sdk_tests": 5,
-      "locked_offline": true
+    "svm_offline": {
+      "schema": 2,
+      "platform": "linux-x86_64",
+      "agave_version": "3.0.14",
+      "platform_tools_version": "v1.51",
+      "spl_release": "2024-08-23",
+      "spl_token_revision": "e101cca",
+      "programs": 13,
+      "agave_files": 85,
+      "source_environment_files": 25,
+      "require_same_producer_source": true
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13593774630,
-      "name": "zig-native-runtime-payload-ReleaseFast",
+      "id": 13594350257,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
       "sha256": {
         "sha256_hex_chunks": [
-          "526a092b1af7ae4232abb7413a2398c5",
-          "b1e06c6f4634bb4d2e904be538dba5ca"
+          "17a9cac90a5d702cd17cadc2299a53be",
+          "fef81750987b977bab81906c7b8cb537"
         ]
       },
-      "size_in_bytes": 55146713
+      "size_in_bytes": 52478163
     },
     "helper": {
       "id": 13592994441,
@@ -223,16 +113,16 @@
       },
       "size_in_bytes": 4863045
     },
-    "radix_reference": {
-      "id": 13594051175,
-      "name": "zig-native-radix-reference-8eabae59eecb5cba3d8b76fca46447802f231a92",
+    "svm": {
+      "id": 13593477055,
+      "name": "svm-linux-prerequisites-42420239263-1",
       "sha256": {
         "sha256_hex_chunks": [
-          "84c123813e02e7564248f72aff513f9f",
-          "247b19025a74e45cb442614111f3fedd"
+          "7376a86bc83da92135769c815b1e981b",
+          "f29d142ad49732ef35281dddd64b6fd4"
         ]
       },
-      "size_in_bytes": 3177954
+      "size_in_bytes": 327974070
     }
   }
 }
