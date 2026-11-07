@@ -7,6 +7,8 @@ import hashlib
 import json
 import pathlib
 import struct
+import socket
+import time
 import threading
 import types
 import unittest
@@ -21,7 +23,7 @@ CONSTANTS = [node for node in TREE.body if isinstance(node, ast.Assign) and any(
     (isinstance(target, ast.Tuple) and [item.id for item in target.elts] == ['ORIGIN_A', 'ORIGIN_B', 'DESTINATION'])
     for target in node.targets)]
 API = {'threading': threading, 'copy': copy, 'json': json, 'hashlib': hashlib,
-       'base64': base64, 'struct': struct, 'socketserver': types.SimpleNamespace(BaseRequestHandler=object)}
+       'base64': base64, 'struct': struct, 'socket': socket, 'time': time, 'socketserver': types.SimpleNamespace(BaseRequestHandler=object)}
 exec(compile(ast.Module(body=CONSTANTS + [SERVER], type_ignores=[]), str(SOURCE), 'exec'), API)
 A, B, D = API['ORIGIN_A'], API['ORIGIN_B'], API['DESTINATION']
 KINDS = API['EVENT_KINDS']
@@ -299,6 +301,95 @@ class RestartProofContractTests(unittest.TestCase):
                 with self.assertRaises((AssertionError, KeyError)):
                     self.assert_cursors(rows)
 
+
+
+class HeartbeatTests(unittest.TestCase):
+    def open_transport(self, server):
+        connection = types.SimpleNamespace(shutdown=lambda how: None)
+        session = {"transport_index": 0, "index": 9, "mode": "restart", "connection": connection,
+                   "closed": False, "upgraded": True, "subscribed": True, "replayed": True, "heartbeat_alive": True,
+                   "sent": {"unchanged": 7}, "pong": threading.Event()}
+        server.transports.append(session)
+        return session
+
+    def test_actual_legacy_wait_before_http_upgrade_never_receives_heartbeat(self):
+        server = server_at(0)
+        class HeldGate:
+            def wait(self, seconds):
+                server.heartbeat_once('held-before-upgrade')
+                server.stop.set()
+                return False
+        server.ready_gate = HeldGate()
+        attempt, connection = drive(server)
+        self.assertFalse(attempt['upgraded'])
+        self.assertEqual(connection.upgrades, [])
+        self.assertEqual(server.frames, [])
+        self.assertEqual(server.sent_messages, [])
+        self.assertEqual(server.sessions, [])
+        self.assertIsNone(attempt['index'])
+        self.assertEqual(server.errors, [])
+
+    def test_source_ping_and_heartbeat_pair_does_not_grant_progress(self):
+        server = server_at(9)
+        session = self.open_transport(server)
+        before = (copy.deepcopy(session['sent']), len(server.sessions), len(server.subscriptions))
+        server.heartbeat_once('public-time')
+        self.assertEqual(server.frames, [(9, b'')])
+        self.assertEqual(server.sent_messages, [(0, {'serverTime': 'public-time', 'type': 'heartbeat'})])
+        self.assertFalse(session['heartbeat_alive'])
+        self.assertEqual((session['sent'], len(server.sessions), len(server.subscriptions)), before)
+
+    def test_missing_pong_closes_only_its_transport_before_next_heartbeat(self):
+        server = server_at(9)
+        missing = self.open_transport(server)
+        healthy = self.open_transport(server)
+        closed = []
+        missing['connection'] = types.SimpleNamespace(shutdown=lambda how: closed.append(how))
+        server.heartbeat_once('first')
+        healthy['heartbeat_alive'] = True
+        server.heartbeat_once('second')
+        self.assertTrue(missing['closed'])
+        self.assertFalse(healthy['closed'])
+        self.assertEqual(closed, [socket.SHUT_RDWR])
+        self.assertEqual(len(server.frames), 3)
+
+    def test_actual_handler_pong_rearms_heartbeat_without_changing_scenario(self):
+        server = server_at(9)
+        namespace = dict(API, owner=server)
+        exec(compile(ast.Module(body=[HANDLER], type_ignores=[]), str(SOURCE), 'exec'), namespace)
+        connection = Connection([subscription((A, B, D))], None)
+        connection.frames.append((10, b''))
+        def first_tick():server.heartbeat_once('before-pong')
+        connection.before_receive = first_tick
+        handler = namespace['Handler']();handler.request = connection;handler.handle()
+        self.assertTrue(server.sessions[9]['heartbeat_alive'])
+        self.assertTrue(server.sessions[9]['pong'].is_set())
+        self.assertEqual(server.sessions[9]['mode'], 'restart')
+        self.assertEqual(len(server.sessions), 10)
+
+    def test_heartbeat_skips_closed_failed_transport_and_preserves_all_fault_modes(self):
+        server = server_at(9)
+        session = self.open_transport(server);session['closed'] = True
+        server.heartbeat_once('public-time')
+        self.assertEqual(server.frames, [])
+        self.assertEqual(server.sent_messages, [])
+        self.assertEqual(server.scenarios[1:7], ['failed','stale_ack','malformed','rejected','freshness','disconnect'])
+
+    def test_idle630_synthetic_seconds_remain_live_with_pongs_not_cursor_credit(self):
+        server = server_at(9);session = self.open_transport(server)
+        for seconds in range(30, 631, 30):
+            server.heartbeat_once(str(seconds));session['heartbeat_alive'] = True
+        self.assertFalse(session['closed'])
+        self.assertEqual(len(server.frames), 21)
+        self.assertEqual(session['sent'], {'unchanged': 7})
+        self.assertEqual(len(server.subscriptions), 0)
+        # Synthetic scheduling is not an elapsed600s/native transport proof.
+
+    def test_stopped_loop_exits_without_another_tick_or_sleep(self):
+        server = server_at(9);self.open_transport(server);server.stop.set()
+        server.heartbeat_loop()
+        self.assertEqual(server.frames, [])
+        self.assertEqual(server.sent_messages, [])
 
 if __name__ == '__main__':
     unittest.main()

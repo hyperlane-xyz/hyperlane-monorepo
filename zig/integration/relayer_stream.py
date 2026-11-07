@@ -343,7 +343,7 @@ class StreamServer:
                         mode = owner.scenarios[index] if index < len(owner.scenarios) else "healthy"
                         # A startup reconnect before subscribe is a transport attempt,
                         # not completion of the mandatory legacy scenario.
-                        session = {"index": None, "candidate_index": index, "subscription": None, "transport_index": len(owner.transports), "mode": mode, "connection": connection, "lock": threading.Lock(), "closed": False, "subscribed": False, "replayed": False, "pong": threading.Event(), "sent": {}}
+                        session = {"index": None, "candidate_index": index, "subscription": None, "transport_index": len(owner.transports), "mode": mode, "connection": connection, "lock": threading.Lock(), "closed": False, "upgraded": False, "subscribed": False, "replayed": False, "pong": threading.Event(), "heartbeat_alive": True, "sent": {}}
                         owner.transports.append(session)
                     if mode == "legacy":
                         while not owner.ready_gate.wait(.1):
@@ -352,6 +352,8 @@ class StreamServer:
                     if owner.stop.is_set():
                         return
                     connection.sendall(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + "\r\n\r\n").encode())
+                    with owner.lock:
+                        session["upgraded"] = True
                     if mode == "failed":
                         # This scenario intentionally fails before subscribe.
                         with owner.lock:
@@ -370,7 +372,9 @@ class StreamServer:
                             owner.frame(session, 10, data)
                             continue
                         if opcode == 10:
-                            session["pong"].set()
+                            with owner.lock:
+                                session["heartbeat_alive"] = True
+                                session["pong"].set()
                             continue
                         if opcode != 1:
                             continue
@@ -438,8 +442,46 @@ class StreamServer:
             self.thread = threading.Thread(target=lambda: self.server.serve_forever(poll_interval=.02), daemon=True)
             self.thread.start()
             self.url = f"wss://localhost:{self.server.server_address[1]}/events"
+            self.heartbeat_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
+            try:
+                self.heartbeat_thread.start()
+            except BaseException:
+                self.stop.set()
+                self.server.shutdown()
+                self.thread.join(timeout=3)
+                raise
             self.resources = resources.pop_all()
         return self
+
+    def heartbeat_once(self, server_time):
+        # Match scraper-proxy event-websocket.ts heartbeatClients: a WebSocket
+        # ping plus application heartbeat every30s, terminate an unresponsive peer.
+        # This keeps transport reads live; it grants no stream cursor/authority.
+        with self.lock:
+            for session in self.transports:
+                if session["closed"] or not session["upgraded"]:
+                    continue
+                if not session["heartbeat_alive"]:
+                    session["closed"] = True
+                    try:
+                        session["connection"].shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+                    continue
+                session["heartbeat_alive"] = False
+                try:
+                    self.frame(session, 9, b"")
+                    self.send(session, {"serverTime": server_time, "type": "heartbeat"})
+                except (ConnectionError, OSError):
+                    session["closed"] = True
+
+    def heartbeat_loop(self):
+        try:
+            while not self.stop.wait(30):
+                self.heartbeat_once(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        except BaseException as error:
+            with self.lock:
+                self.errors.append({"session": None, "type": "Heartbeat" + type(error).__name__})
 
     @staticmethod
     def exact(connection, count):
@@ -558,6 +600,8 @@ class StreamServer:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=3)
+        self.heartbeat_thread.join(timeout=3)
+        assert not self.heartbeat_thread.is_alive(), "fixture heartbeat did not stop"
         self.resources.close()
 
 
