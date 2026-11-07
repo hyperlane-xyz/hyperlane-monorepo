@@ -244,6 +244,13 @@ def compile_command(bwrap,root,repo,argv,cwd,offline=True):
  cmd+=['--ro-bind',str(repo),str(repo),'--tmpfs','/tmp','--proc','/proc','--dev','/dev','--chdir',str(cwd),'--',*map(str,argv)]
  return cmd
 
+def sbf_environments(base,platform):
+ # Provision with the same actual platform Cargo/Rust/PATH/cache authority used
+ # by SBF metadata/build. Only the later compile is offline and network-isolated.
+ shared={**base,'RUSTC':str(platform/'rust/bin/rustc'),'RUSTDOC':str(platform/'rust/bin/rustdoc'),'PATH':str(platform/'rust/bin')+':/usr/bin:/bin'}
+ shared.pop('CARGO_NET_OFFLINE',None)
+ return shared,{**shared,'CARGO_NET_OFFLINE':'true'}
+
 def cargo_binary(log,package,name,expected):
  found=[]
  for line in log.read_text().splitlines():
@@ -314,10 +321,12 @@ def execute(a):
   need(len(crates)==1,'exact spl-token-cli package required');spl_manifest=crates[0];spl_toml=tomllib.loads(spl_manifest.read_text());need(any(b['name']=='spl-token'for b in spl_toml.get('bin',[])),'Source custom SPL bin absent')
   locks=[repo/'rust/sealevel/Cargo.lock',fork/'Cargo.lock'];lockpins=[pin(p)for p in locks];write(root/'published/locks-before.json',lockpins)
   for name,version,manifest in [('sealevel','1.86.0',repo/'rust/sealevel/Cargo.toml'),('spl','1.76.0',spl_manifest)]:o.run('provision.fetch-'+name,[tool[version],'fetch','--locked','--manifest-path',manifest],manifest.parent,{**base,'RUSTUP_TOOLCHAIN':version,'PATH':str(tool[version].parent)+':/usr/bin:/bin'})
+  sbf_provision_env,sbf_env=sbf_environments(base,platform)
+  o.run('provision.fetch-sbf',[platform/'rust/bin/cargo','fetch','--locked','--manifest-path',repo/'rust/sealevel/Cargo.toml'],repo/'rust/sealevel',sbf_provision_env)
   need([pin(p)for p in locks]==lockpins,'provision changed committed lock');compiler_inputs={n:inventory(root/n,owned_sdk_platform=platform if n=='build-sdk'else None)for n in ['assets','spl-source','rustup','build-sdk']};write(root/'published/compiler-inputs-before.json',compiler_inputs)
   for version,cargo in tool.items():o.run('provision.compiler-version-'+version,[cargo.parent/'rustc','--version','--verbose'],root,base)
   version_log=o.run('provision.platform-rust-version',[platform/'rust/bin/rustc','--version','--verbose'],root,base);need(version_log.read_text().startswith('rustc 1.84.1'),'pinned platform Rust version differs')
-  outdir=root/'targets/programs';outdir.mkdir();expected=[];sbf_env={**base,'CARGO_NET_OFFLINE':'true','RUSTC':str(platform/'rust/bin/rustc'),'RUSTDOC':str(platform/'rust/bin/rustdoc'),'PATH':str(platform/'rust/bin')+':/usr/bin:/bin'}
+  outdir=root/'targets/programs';outdir.mkdir();expected=[]
   for index,name in enumerate(PROGRAMS):
    cwd=repo/'rust/sealevel/programs'/name;obj=tomllib.loads((cwd/'Cargo.toml').read_text());library=obj.get('lib',{}).get('name',obj['package']['name'].replace('-','_'));expected.append(library+'.so')
    argv=[agave/'bin/cargo-build-sbf','--sbf-sdk',sdk,'--sbf-out-dir',outdir,'--tools-version','v1.51','--skip-tools-install','--no-rustup-override','--offline','--jobs','2','--','--frozen','--target-dir',root/'targets/sbf']

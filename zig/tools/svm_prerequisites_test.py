@@ -126,6 +126,34 @@ class OwnedSdkLinkControls(unittest.TestCase):
   before=m.inventory(self.root/'assets');(self.platform/'compiler').write_bytes(b'changed compiler')
   self.assertNotEqual(before,m.inventory(self.root/'assets'))
 
+class MatchingCargoControls(unittest.TestCase):
+ def test_actual_sbf_provision_and_compile_share_all_authority_except_offline(self):
+  base={'CARGO_HOME':'/owned/cargo','RUSTUP_HOME':'/owned/rustup','HOME':'/owned/home','TMPDIR':'/owned/tmp','PATH':'/usr/bin:/bin','CARGO_NET_GIT_FETCH_WITH_CLI':'true'}
+  provision,compile=m.sbf_environments(base,pathlib.Path('/owned/assets/platform'))
+  self.assertEqual({k:v for k,v in compile.items()if k!='CARGO_NET_OFFLINE'},provision)
+  self.assertEqual(compile['CARGO_NET_OFFLINE'],'true');self.assertNotIn('CARGO_NET_OFFLINE',provision)
+  for name in ['CARGO_HOME','RUSTUP_HOME','HOME','TMPDIR']:self.assertEqual(provision[name],base[name])
+  self.assertEqual(provision['RUSTC'],'/owned/assets/platform/rust/bin/rustc');self.assertEqual(provision['RUSTDOC'],'/owned/assets/platform/rust/bin/rustdoc');self.assertEqual(provision['PATH'],'/owned/assets/platform/rust/bin:/usr/bin:/bin')
+  self.assertNotIn('RUSTUP_TOOLCHAIN',provision)
+ def test_matching_prefetch_is_locked_and_precedes_compiler_input_freeze(self):
+  import ast
+  source=pathlib.Path(m.__file__).read_text();tree=ast.parse(source)
+  calls=[n for n in ast.walk(tree)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and n.func.attr=='run'and n.args and isinstance(n.args[0],ast.Constant)and n.args[0].value=='provision.fetch-sbf']
+  self.assertEqual(len(calls),1);call=calls[0];args=call.args[1]
+  self.assertIsInstance(args,ast.List);self.assertEqual([n.value for n in args.elts if isinstance(n,ast.Constant)],['fetch','--locked','--manifest-path'])
+  self.assertEqual(ast.unparse(args.elts[0]),"platform / 'rust/bin/cargo'")
+  self.assertEqual(ast.unparse(call.args[3]),'sbf_provision_env')
+  freeze=source.index('compiler_inputs={');self.assertLess(source.index("o.run('provision.fetch-sbf'"),freeze)
+  self.assertIn("need([pin(p)for p in locks]==lockpins,'provision changed committed lock')",source)
+ def test_offline_compile_sandbox_is_unchanged(self):
+  provision,compile=m.sbf_environments({'CARGO_HOME':'/owned/cargo'},pathlib.Path('/owned/assets/platform'))
+  with tempfile.TemporaryDirectory()as tmp:
+   root=pathlib.Path(tmp);cache=root/'cargo/git';cache.mkdir(parents=True)
+   argv=m.compile_command('/usr/bin/bwrap',root,pathlib.Path('/checkout'),['cargo','--offline'],pathlib.Path('/checkout'))
+   self.assertIn('--unshare-net',argv)
+   index=argv.index(str(cache));self.assertEqual(argv[index-1:index+2],['--ro-bind',str(cache),str(cache)])
+  self.assertEqual(compile['CARGO_NET_OFFLINE'],'true')
+
 class PublisherLinkControls(unittest.TestCase):
  archive=Controls.archive
  def extract_publisher(self,a,d,links):
