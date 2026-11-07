@@ -69,7 +69,9 @@ jobs:
             build-essential clang cmake libclang-dev libssl-dev libudev-dev \
             pkg-config protobuf-compiler bubblewrap git ca-certificates python3
       - name: Check prerequisite owner controls
-        run: python3 -I -B zig/tools/svm_prerequisites_test.py
+        run: |
+          python3 -I -B zig/tools/svm_prerequisites_test.py
+          python3 -I -B zig/tools/svm_spl_lock_test.py
       - name: Provision then compile exact SVM prerequisites
         timeout-minutes: 182
         shell: bash

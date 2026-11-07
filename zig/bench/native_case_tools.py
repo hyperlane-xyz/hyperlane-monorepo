@@ -8,6 +8,7 @@ ELF products. Compiling tools is neither storage nor chain/finality acceptance.
 import argparse
 import gzip
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -21,7 +22,10 @@ import subprocess
 import sys
 import time
 
-from native_harness_controls import functional_allocated
+_census_spec = importlib.util.spec_from_file_location('functional_allocation_census', Path(__file__).with_name('native_harness_census.py'))
+_census_module = importlib.util.module_from_spec(_census_spec)
+_census_spec.loader.exec_module(_census_module)
+functional_allocated = _census_module.functional_allocated
 
 ROOT = Path(__file__).resolve().parents[2]
 GIB = 1024 ** 3
@@ -123,7 +127,7 @@ def verify_locks(repo):
 
 
 def source(repo):
-    names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust/main', 'rust/sealevel', 'zig/reference', 'zig/bench/native_case_tools.py', 'zig/bench/native_case_tools_test.py', 'zig/bench/native_harness_controls.py', 'zig/bench/cold_matrix_owner.py', 'zig/integration/native_rows_interop.py'], cwd=repo, timeout=10).decode().split('\0')
+    names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust/main', 'rust/sealevel', 'zig/reference', 'zig/bench/native_case_tools.py', 'zig/bench/native_case_tools_test.py', 'zig/bench/native_harness_census.py', 'zig/bench/cold_matrix_owner.py', 'zig/integration/native_rows_interop.py'], cwd=repo, timeout=10).decode().split('\0')
     return {n: descriptor(regular(repo / n)) for n in names if n and not n.endswith('Cargo.lock')}
 
 

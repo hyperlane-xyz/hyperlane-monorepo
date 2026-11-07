@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Linux-only SVM prerequisite production. No chain, fixture or agent execution."""
-import argparse,ctypes,hashlib,json,os,pathlib,posixpath,re,shutil,signal,stat,struct,subprocess,sys,tarfile,time,tomllib,urllib.request
+import argparse,ctypes,gzip,hashlib,json,os,pathlib,posixpath,re,shutil,signal,stat,struct,subprocess,sys,tarfile,time,tomllib,urllib.request
 P=pathlib.Path
 GIB=1024**3
 PROGRAMS=['mailbox','validator-announce','ism/multisig-ism-message-id','ism/composite-ism','hyperlane-sealevel-token','hyperlane-sealevel-token-native','hyperlane-sealevel-token-collateral','hyperlane-sealevel-token-cross-collateral','hyperlane-sealevel-igp']
@@ -94,6 +94,25 @@ def extract(archive,dest,tick,*,platform_asset=None):
  for name,mode in sorted(directory_modes.items(),key=lambda row:row[0].count('/'),reverse=True):(dest/name).chmod(mode)
  result=inventory(dest);need(all((dest/n).resolve(strict=True).is_relative_to(dest.resolve())for n,r in result.items()if r['type']=='symlink'),'dangling/escaping symlink')
  return result
+
+# This exact fork manifest declares two fixture CLI dependencies omitted upstream.
+SPL_COMMIT='e101ccabbd1e86ee72ea2d0b1320e93fd1a54729'
+SPL_TREE='abeca9b7f4857767a6e06c099371bf91d64f3c40'
+SPL_CLI_SHA256=('7a63e7fdcf4450c89b6c36891db4c7cd' '83acf605b247d7b04260acbcd27786e5')
+SPL_UPSTREAM_LOCK_SHA256=('bc1bcef9b1b94b096132e807b881cd54' '189f4f0ea685cf0d1b7881f68bc48230')
+SPL_CANDIDATE_LOCK_SHA256=('84fb2da5707050dbc18c4291951892e8' '0a5ec53b4f95c7d5dac42b94339052d4')
+
+def apply_spl_lock_overlay(fork,canonical,commit,tree,original_output):
+ need(commit==SPL_COMMIT and tree==SPL_TREE,'SPL lock overlay requires exact approved source commit/tree')
+ original=pin(fork/'Cargo.lock');cli=pin(fork/'token/cli/Cargo.toml')
+ need(original['sha256']==SPL_UPSTREAM_LOCK_SHA256 and cli['sha256']==SPL_CLI_SHA256,'SPL original lock/CLI source pair differs')
+ canonical_pin=pin(canonical)
+ with gzip.open(canonical,'rb')as stream:wire=stream.read(1024*1024+1)
+ need(len(wire)<=1024*1024 and hashlib.sha256(wire).hexdigest()==SPL_CANDIDATE_LOCK_SHA256,'SPL canonical lock asset differs')
+ with original_output.open('xb')as stream:stream.write(gzip.compress((fork/'Cargo.lock').read_bytes(),mtime=0))
+ (fork/'Cargo.lock').write_bytes(wire)
+ return {'schema':1,'source_commit':commit,'original_git_tree':tree,'cli_manifest':cli,'upstream_lock_before_overlay':{'original_path':original['path'],'bytes':original['bytes'],'sha256':original['sha256']},'upstream_lock_lossless_gzip':pin(original_output),'working_lock':pin(fork/'Cargo.lock'),'canonical_lock_asset':canonical_pin,'working_tree_diff':['Cargo.lock'],'publisher_source_byte_identical':False,'reason':'Exact source CLI manifest declares zerofrom=0.1.5 and litemap=0.7.4; upstream lock omitted both. Only two new packages and two CLI dependency edges; all existing package versions/sources/checksums retained.','lock_resolved_during_CI':False,'native_profile_admitted':False}
+
 
 def proc(pid):
  try:
@@ -277,7 +296,12 @@ def execute(a):
   source_meta=o.fetch('https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca',root/'published/custom-spl-commit.json',2*1024**2,accept='application/vnd.github+json');commit=json.loads(P(source_meta['path']).read_text());sha=commit['sha'];tree=commit['commit']['tree']['sha'];need(len(sha)==40 and sha.startswith('e101cca')and len(tree)==40,'wrong custom SPL immutable ref')
   fork=root/'spl-source';fork.mkdir();git=['/usr/bin/git','-c','credential.helper=','-c','core.hooksPath=/dev/null','-c','protocol.file.allow=never']
   for name,args in [('init',['init']),('remote',['remote','add','origin','https://github.com/hyperlane-xyz/solana-program-library']),('fetch',['fetch','--depth','1','origin',sha]),('checkout',['checkout','--detach','FETCH_HEAD'])]:o.run('provision.spl-git-'+name,git+args,fork,base)
-  readtree=o.run('provision.spl-tree',git+['rev-parse','HEAD^{tree}'],fork,base).read_text().strip();need(readtree==tree,'SPL Git tree differs official metadata');write(root/'published/custom-spl-source-map.json',inventory(fork))
+  readtree=o.run('provision.spl-tree',git+['rev-parse','HEAD^{tree}'],fork,base).read_text().strip();need(readtree==tree,'SPL Git tree differs official metadata')
+  write(root/'published/custom-spl-upstream-source-map.json',inventory(fork))
+  overlay=apply_spl_lock_overlay(fork,repo/'zig/tools/fixtures/spl-token-e101cca.Cargo.lock.gz',sha,tree,root/'published/custom-spl-upstream.Cargo.lock.gz')
+  dirty=o.run('provision.spl-approved-lock-diff',git+['diff','--name-only'],fork,base).read_text().splitlines();need(dirty==['Cargo.lock'],'SPL overlay changed unapproved Source')
+  status['custom_spl_lock_overlay']=overlay;write(root/'published/custom-spl-lock-overlay.json',overlay)
+  write(root/'published/custom-spl-source-map.json',inventory(fork))
   crates=[]
   for p in fork.rglob('Cargo.toml'):
    obj=tomllib.loads(p.read_text())
@@ -305,7 +329,7 @@ def execute(a):
    log=o.run('compile.'+name,compile_command(a.bwrap,root,repo,argv,manifest.parent),manifest.parent,env);actual=target/profile/binary;artifact=cargo_binary(log,package,binary,actual);dest=root/'published'/binary;shutil.copyfile(actual,dest);dest.chmod(0o700);products[name]=elf(dest,62);write(root/'published'/(name+'-cargo-artifact.json'),artifact)
   need([pin(p)for p in locks]==lockpins,'compiler changed lock');need({n:inventory(root/n)for n in compiler_inputs}==compiler_inputs,'compiler changed asset/tool/source input')
   shutil.copytree(agave,root/'published/agave',symlinks=True);write(root/'published/agave-linux-runtime-members.json',inventory(root/'published/agave'))
-  write(root/'published/linux-profile.CANDIDATE.json',{'schema':1,'platform':'linux-x86_64','Root_approved':False,'native_case_admitted':False,'Darwin_profile_not_reused':True,'agave_archive':status['agave_archive'],'platform_archive':status['platform_archive'],'spl_archive':status['spl_archive'],'agave_member_manifest':pin(root/'published/agave-linux-runtime-members.json'),'agave_file_count':sum(row['type']=='file'for row in inventory(root/'published/agave').values()),'platform_member_manifest':pin(root/'published/platform-publisher-members.json'),'platform_debugger_link_omissions':pin(root/'published/platform-debugger-link-omissions.json'),'custom_spl_commit':sha,'custom_spl_tree':tree,'program_count':13,'products':products})
+  write(root/'published/linux-profile.CANDIDATE.json',{'schema':1,'platform':'linux-x86_64','Root_approved':False,'native_case_admitted':False,'Darwin_profile_not_reused':True,'agave_archive':status['agave_archive'],'platform_archive':status['platform_archive'],'spl_archive':status['spl_archive'],'agave_member_manifest':pin(root/'published/agave-linux-runtime-members.json'),'agave_file_count':sum(row['type']=='file'for row in inventory(root/'published/agave').values()),'platform_member_manifest':pin(root/'published/platform-publisher-members.json'),'platform_debugger_link_omissions':pin(root/'published/platform-debugger-link-omissions.json'),'custom_spl_commit':sha,'custom_spl_tree':tree,'custom_spl_lock_overlay':pin(root/'published/custom-spl-lock-overlay.json'),'program_count':13,'products':products})
   o.tick(True)
   write(root/'published/products.json',products);status.update(passed=True,products=products,linux_profile_admitted=False,linux_profile_review_required=True,custom_spl_commit=sha,custom_spl_tree=tree)
  except BaseException as exc:error=type(exc).__name__+': '+str(exc)

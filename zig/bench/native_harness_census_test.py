@@ -5,7 +5,9 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
-import native_harness_controls as h
+import native_harness_census as h
+import subprocess
+import sys
 import cold_matrix_owner as cold
 
 class CensusControls(unittest.TestCase):
@@ -64,6 +66,16 @@ class CensusControls(unittest.TestCase):
     def test_limits_cannot_exceed_explicit_functional_budget(self):
         for options in [{'maximum_seconds':16},{'maximum_seconds':0},{'maximum_entries':250001},{'maximum_entries':True}]:
             with self.subTest(options=options),self.assertRaises(ValueError):h.functional_allocated(self.root,{},**options)
+    def test_tool_loader_remains_usable_under_isolated_python(self):
+        tool = Path(__file__).with_name('native_case_tools.py')
+        code = "import importlib.util,pathlib; p=pathlib.Path("+repr(str(tool))+ "); s=importlib.util.spec_from_file_location('isolated_tools',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);assert m.functional_allocated(pathlib.Path("+repr(str(self.root))+"))==0;print('isolated-explicit-loader-ok')"
+        result=subprocess.run([sys.executable,'-I','-B','-c',code],capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout.strip(),'isolated-explicit-loader-ok')
+    def test_actual_interop_admission_loader_under_isolated_python(self):
+        tests = Path(__file__).with_name('native_case_tools_test.py')
+        code = "import importlib.util,unittest; p="+repr(str(tests))+";s=importlib.util.spec_from_file_location('isolated_interop_tests',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);r=unittest.TextTestRunner().run(unittest.TestSuite([m.Controls('test_linux_interop_exact_authority_reaches_only_fixture_boundary')]));raise SystemExit(0 if r.wasSuccessful() else 1)"
+        result=subprocess.run([sys.executable,'-I','-B','-c',code],capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr);self.assertIn('Ran 1 test',result.stderr)
     def test_diagnostic_aggregate_preserves_maximum_counts(self):
         record={};self.files(3);h.functional_allocated(self.root,record);(self.root/'2').unlink();h.functional_allocated(self.root,record)
         self.assertEqual(record['calls'],2);self.assertEqual(record['maximum_files_seen'],3);self.assertEqual(record['last']['files_seen'],2)

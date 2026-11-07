@@ -87,7 +87,7 @@ def main():
  root=pathlib.Path(tempfile.mkdtemp(prefix='ziggy-native-rows-interop-v2-',dir='/tmp'));root.chmod(0o700)
  with(root/'fixture.marker').open('xb')as marker:marker.write(b'ziggy-native-rows-interop-v2\n')
  source_names=['zig/src/native_rows_interop_fixture.zig','zig/integration/native_rows_interop.py']
- if args.tool_manifest is not None:source_names.append('zig/bench/native_case_tools.py')
+ if args.tool_manifest is not None:source_names.extend(['zig/bench/native_case_tools.py','zig/bench/native_harness_census.py'])
  source_before={name:sha(ROOT/name)for name in source_names}
  writer=None;stderr=(root/'writer.stderr').open('w');result={'passed':False,'scope':__doc__,'fixture_root':str(root),'artifacts':records,'source_before':source_before,'tool_producer_authority':producer_authority,'errors':[],'actual_chain_or_SDK_signature_acceptance':False,'elapsed_confirmation_hold_credit_ms':0}
  try:
