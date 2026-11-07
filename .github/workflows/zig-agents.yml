@@ -669,7 +669,7 @@ jobs:
   native-case-producer-inputs:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') }}
     runs-on: depot-ubuntu-24.04-8
-    timeout-minutes: 18
+    timeout-minutes: 190
     permissions:
       contents: read
       actions: read
@@ -716,6 +716,72 @@ jobs:
             --execution-source-commit "$GITHUB_SHA" --repo "$GITHUB_WORKSPACE" \
             --gh "$(command -v gh)" \
             --output "$RUNNER_TEMP/native-case-producer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: steps.request.outputs.enabled == 'true'
+        with:
+          node-version-file: '.nvmrc'
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        if: steps.request.outputs.enabled == 'true'
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
+        if: steps.request.outputs.enabled == 'true'
+        with:
+          version: v1.5.0
+      - name: Install explicit native-case host prerequisites (no node/service starts)
+        if: steps.request.outputs.enabled == 'true'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates curl git jq lsof libpq5 postgresql-client-16 \
+            libcurl4t64 libssl3t64 python3-venv
+      - name: Check setup and composition controls before any package acquisition
+        if: steps.request.outputs.enabled == 'true'
+        run: |
+          python3 -I -B zig/bench/native_case_setup_test.py -v
+          python3 -I -B zig/bench/native_case_run_test.py -v
+          python3 -I -B zig/bench/native_case_owner_test.py -v
+      - name: Pin preinstalled tools; no CLI/SDK or chain main invoked
+        if: steps.request.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/native-case-selection"
+          python3 - <<'PYTHON'
+          import hashlib,json,os,shutil
+          from pathlib import Path
+          names=['anvil','cast','forge','docker','ps','lsof','node','pnpm','sh','git','ldconfig','curl','jq']
+          paths={name:Path(shutil.which(name) or '/absent').resolve(strict=True) for name in names}
+          paths['psql']=Path('/usr/lib/postgresql/16/bin/psql').resolve(strict=True)
+          rows={}
+          for name,path in paths.items():
+              assert path.is_file() and not path.is_symlink() and os.access(path,os.X_OK),name
+              with path.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+              rows[name]={'path':str(path),'bytes':path.stat().st_size,'sha256':digest}
+          target=Path(os.environ['RUNNER_TEMP'])/'native-case-selection'/'preinstalled-tools.json'
+          with target.open('x') as stream:json.dump(rows,stream,indent=2);stream.write('\n')
+          PYTHON
+      - name: Hydrate, stage prerequisites, prove interoperability, then run one owned native case
+        if: steps.request.outputs.enabled == 'true'
+        timeout-minutes: 142
+        env:
+          REQUEST_SHA256: ${{ steps.request.outputs.sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRODUCER="$RUNNER_TEMP/native-case-producer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/producer-receipt.json"
+          TOOLS="$RUNNER_TEMP/native-case-selection/preinstalled-tools.json"
+          PRODUCER_SHA="$(python3 -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$PRODUCER")"
+          TOOLS_SHA="$(python3 -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$TOOLS")"
+          exec env -i PATH=/usr/local/bin:/usr/bin:/bin LC_ALL=C.UTF-8 GITHUB_ACTIONS=true \
+            python3 -I -B zig/bench/native_case_run.py --execute \
+            --request "$GITHUB_WORKSPACE/zig/bench/native_case_request.json" --request-sha256 "$REQUEST_SHA256" \
+            --producer-receipt "$PRODUCER" --producer-receipt-sha256 "$PRODUCER_SHA" \
+            --tools "$TOOLS" --tools-sha256 "$TOOLS_SHA" \
+            --execution-source-commit "$GITHUB_SHA" --repo "$GITHUB_WORKSPACE" \
+            --output "$RUNNER_TEMP/native-case-composition-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --case-root "/tmp/znc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
@@ -728,3 +794,22 @@ jobs:
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/run.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/jobs-*.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/artifacts-*.json
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: native-case-public-results-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/result.json
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/plan.json
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/setup/local-stage.json
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/setup/setup-owner-result.json
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/setup/logs/
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/logs/
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/actual-interop-ReleaseSafe.json
+            ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/actual-interop-ReleaseFast.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/result.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/worker-result.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/PG-recovery.json

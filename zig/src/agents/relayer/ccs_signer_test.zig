@@ -643,7 +643,10 @@ fn allocationSweep(a: A) !void {
 }
 
 test "CCS owner scope and refreshed identity survive allocation failure sweep" {
-    std.testing.checkAllAllocationFailures(std.testing.allocator, allocationSweep, .{}) catch |err| {
+    // Match the credential Manager sweep: force growth allocations so Linux
+    // arena remapping cannot change injected failure indices between runs.
+    var backing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .resize_fail_index = 0 });
+    std.testing.checkAllAllocationFailures(backing.allocator(), allocationSweep, .{}) catch |err| {
         std.debug.print("CCS allocation sweep failed: {s}\n", .{@errorName(err)});
         return err;
     };

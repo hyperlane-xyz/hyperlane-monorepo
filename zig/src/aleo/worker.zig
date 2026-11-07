@@ -221,10 +221,17 @@ test "Aleo worker exec acknowledgement excludes inherited parent RSS" {
     args[1] = path;
     const filler = "x" ** 256;
     @memset(args[2..], filler);
-    for (0..20) |_| {
-        var session = try Session.spawn(std.testing.allocator, args, .{ .timeout_ms = 5000, .memory_bytes = 48 * 1024 * 1024 });
+    for (0..20) |iteration| {
+        var elapsed = try std.time.Timer.start();
+        var session = Session.spawn(std.testing.allocator, args, .{ .timeout_ms = 5000, .memory_bytes = 48 * 1024 * 1024 }) catch |err| {
+            std.debug.print("ALEO_WORKER_EXEC_FIXTURE phase=spawn iteration={d} error={s} elapsed_ms={d}\n", .{ iteration, @errorName(err), elapsed.read() / std.time.ns_per_ms });
+            return err;
+        };
         defer session.deinit();
-        const output = try session.exchange(.program_info, "echo");
+        const output = session.exchange(.program_info, "echo") catch |err| {
+            std.debug.print("ALEO_WORKER_EXEC_FIXTURE phase=exchange iteration={d} error={s} elapsed_ms={d}\n", .{ iteration, @errorName(err), session.timer.read() / std.time.ns_per_ms });
+            return err;
+        };
         defer std.testing.allocator.free(output);
         try std.testing.expectEqualStrings("echo", output);
     }

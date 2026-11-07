@@ -129,11 +129,11 @@ class OwnedSdkLinkControls(unittest.TestCase):
 class MatchingCargoControls(unittest.TestCase):
  def test_actual_sbf_provision_and_compile_share_all_authority_except_offline(self):
   base={'CARGO_HOME':'/owned/cargo','RUSTUP_HOME':'/owned/rustup','HOME':'/owned/home','TMPDIR':'/owned/tmp','PATH':'/usr/bin:/bin','CARGO_NET_GIT_FETCH_WITH_CLI':'true'}
-  provision,compile=m.sbf_environments(base,pathlib.Path('/owned/assets/platform'))
+  provision,compile=m.sbf_environments(base,pathlib.Path('/owned/assets/platform'),pathlib.Path('/owned/rustup/toolchains/1.86.0/bin/cargo'))
   self.assertEqual({k:v for k,v in compile.items()if k!='CARGO_NET_OFFLINE'},provision)
   self.assertEqual(compile['CARGO_NET_OFFLINE'],'true');self.assertNotIn('CARGO_NET_OFFLINE',provision)
   for name in ['CARGO_HOME','RUSTUP_HOME','HOME','TMPDIR']:self.assertEqual(provision[name],base[name])
-  self.assertEqual(provision['RUSTC'],'/owned/assets/platform/rust/bin/rustc');self.assertEqual(provision['RUSTDOC'],'/owned/assets/platform/rust/bin/rustdoc');self.assertEqual(provision['PATH'],'/owned/assets/platform/rust/bin:/usr/bin:/bin')
+  self.assertEqual(provision['RUSTC'],'/owned/assets/platform/rust/bin/rustc');self.assertEqual(provision['RUSTDOC'],'/owned/assets/platform/rust/bin/rustdoc');self.assertEqual(provision['PATH'],'/owned/rustup/toolchains/1.86.0/bin:/usr/bin:/bin');self.assertEqual(provision['CARGO'],'/owned/rustup/toolchains/1.86.0/bin/cargo')
   self.assertNotIn('RUSTUP_TOOLCHAIN',provision)
  def test_matching_prefetch_is_locked_and_precedes_compiler_input_freeze(self):
   import ast
@@ -141,12 +141,19 @@ class MatchingCargoControls(unittest.TestCase):
   calls=[n for n in ast.walk(tree)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and n.func.attr=='run'and n.args and isinstance(n.args[0],ast.Constant)and n.args[0].value=='provision.fetch-sbf']
   self.assertEqual(len(calls),1);call=calls[0];args=call.args[1]
   self.assertIsInstance(args,ast.List);self.assertEqual([n.value for n in args.elts if isinstance(n,ast.Constant)],['fetch','--locked','--manifest-path'])
-  self.assertEqual(ast.unparse(args.elts[0]),"platform / 'rust/bin/cargo'")
+  self.assertEqual(ast.unparse(args.elts[0]),"tool['1.86.0']")
   self.assertEqual(ast.unparse(call.args[3]),'sbf_provision_env')
   freeze=source.index('compiler_inputs={');self.assertLess(source.index("o.run('provision.fetch-sbf'"),freeze)
   self.assertIn("need([pin(p)for p in locks]==lockpins,'provision changed committed lock')",source)
+ def test_host_cargo_never_substitutes_platform_codegen(self):
+  host=pathlib.Path('/owned/rustup/toolchains/1.86.0/bin/cargo');platform=pathlib.Path('/owned/assets/platform')
+  provision,compile=m.sbf_environments({},platform,host)
+  self.assertEqual(pathlib.Path(provision['CARGO']),host)
+  self.assertEqual(pathlib.Path(provision['RUSTC']),platform/'rust/bin/rustc')
+  self.assertNotEqual(pathlib.Path(provision['RUSTC']).parent,host.parent)
+  source=pathlib.Path(m.__file__).read_text();self.assertIn("'--no-rustup-override'",source)
  def test_offline_compile_sandbox_is_unchanged(self):
-  provision,compile=m.sbf_environments({'CARGO_HOME':'/owned/cargo'},pathlib.Path('/owned/assets/platform'))
+  provision,compile=m.sbf_environments({'CARGO_HOME':'/owned/cargo'},pathlib.Path('/owned/assets/platform'),pathlib.Path('/owned/rustup/toolchains/1.86.0/bin/cargo'))
   with tempfile.TemporaryDirectory()as tmp:
    root=pathlib.Path(tmp);cache=root/'cargo/git';cache.mkdir(parents=True)
    argv=m.compile_command('/usr/bin/bwrap',root,pathlib.Path('/checkout'),['cargo','--offline'],pathlib.Path('/checkout'))
