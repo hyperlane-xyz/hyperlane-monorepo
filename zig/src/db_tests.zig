@@ -77,6 +77,8 @@ test {
     _ = @import("url_host_tests.zig");
     _ = @import("configured_rpc_transport_tests.zig");
     _ = @import("configured_rpc_producer_tests.zig");
+    _ = @import("configured_cosmos_absence_tests.zig");
+    _ = @import("configured_svm_unavailable_tests.zig");
     _ = @import("starknet_chain_id_tests.zig");
     _ = @import("svm_scraper_log_index_tests.zig");
     _ = @import("cosmos_compat_default_tests.zig");

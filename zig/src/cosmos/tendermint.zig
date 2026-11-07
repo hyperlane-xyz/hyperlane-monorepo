@@ -185,13 +185,7 @@ pub const Client = struct {
 // and error code/message type validation. Never classify transport failures,
 // generic internal errors or a different transaction's absence as this hash.
 fn txNotFound(response: rpc.RpcResponse, hash: Hash) bool {
-    const remote = response.parsed.value.object.get("error").?.object;
-    if (remote.get("code").?.integer != -32603 or !std.mem.eql(u8, remote.get("message").?.string, "Internal error")) return false;
-    const data = response.errorData() orelse return false;
-    if (data != .string or data.string.len != 79 or !std.mem.startsWith(u8, data.string, "tx (") or !std.mem.endsWith(u8, data.string, ") not found")) return false;
-    var actual: Hash = undefined;
-    _ = std.fmt.hexToBytes(&actual, data.string[4..68]) catch return false;
-    return std.mem.eql(u8, &hash, &actual);
+    return @import("tx_absence.zig").matches(hash, response.parsed.value.object.get("error").?);
 }
 
 test "Tendermint concrete client declarations typecheck" {

@@ -254,6 +254,14 @@ pub const Adapter = struct {
     };
 };
 
+// Tests keep the actual configured Resources/Pool fixture outside production
+// while exercising this private advanced-metadata fallback. Empty in binaries.
+pub const NativeTests = if (@import("builtin").is_test) struct {
+    pub fn resolve(adapter: *Adapter, event: src.Event, pda: [32]u8, program: [32]u8, kind: meta.Kind) !src.Event {
+        return adapter.resolve(event, pda, program, kind);
+    }
+} else struct {};
+
 test "scraper Sealevel concrete sequence factory requires finalized clients before indexing" {
     var client: p.Client = undefined;
     client.commitment = .confirmed;

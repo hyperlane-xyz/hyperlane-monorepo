@@ -250,6 +250,10 @@ const ParsedResponse = struct {
 };
 
 const Outcome = struct {
+    // An expected business error remains an RPC-error diagnostic, but cannot
+    // penalize a reachable provider or trip its transport circuit.
+    expected_absence: bool = false,
+    svm_unresolvable: bool = false,
     classification: Classification,
     failure: ?anyerror = null,
     response: ?ParsedResponse = null,
@@ -329,6 +333,10 @@ const Session = struct {
     started_ms: u64,
     started_at: ?std.time.Instant = null,
     terminal_rpc_error: bool = false,
+    // One quota-charged original error, never a synthetic skipped-slot result.
+    // Sticky false after any unknown/transport/health failure in this session.
+    all_svm_failures_unresolvable: bool = true,
+    svm_unresolvable_response: ?ParsedResponse = null,
     phase_started_ms: u64,
     deadline_ms: u64,
     connect_timeout_ms: u32,
@@ -360,6 +368,7 @@ const Session = struct {
     fn deinit(self: *Session) void {
         const allocator = self.allocator;
         for (self.peers) |*peer| if (peer.response) |*response| response.deinit(allocator);
+        if (self.svm_unresolvable_response) |*response| response.deinit(allocator);
         if (self.current) |*current| current.deinit(allocator);
         self.original.deinit(allocator);
         if (self.pinned_tag) |tag| allocator.free(tag);
@@ -578,6 +587,7 @@ pub const Pool = struct {
 
     fn destroySession(self: *Pool, session: *Session) void {
         for (session.peers) |*peer| if (peer.response) |*response| self.releaseResponse(response);
+        if (session.svm_unresolvable_response) |*response| self.releaseResponse(response);
         session.deinit();
     }
 
@@ -863,7 +873,11 @@ pub const Pool = struct {
                             }
                             return;
                         };
-                        const classification = classify(session.wire().method, &parsed);
+                        // A configured CometBFT destination must inspect this
+                        // exact business absence before its first broadcast.
+                        // Quorum keeps its existing error/vote behavior.
+                        const expected_absence = self.config.height_protocol == .tendermint and session.strategy != .quorum and std.mem.eql(u8, session.wire().method, "tx") and if (parsed.rpc_error) |remote| @import("../cosmos/tx_absence.zig").matchesRequest(session.wire().params, remote) else false;
+                        const classification = if (expected_absence) Classification.non_retryable else classify(session.wire().method, &parsed);
                         if (classification == .success and self.config.height_protocol == .ethereum) @import("header.zig").validateResult(session.wire().method, session.wire().params, parsed.result.?) catch |err| {
                             self.reportUpstream(session, index, false, false);
                             parsed.deinit(self.allocator);
@@ -880,12 +894,20 @@ pub const Pool = struct {
                             return;
                         }
                         self.reportUpstream(session, index, parsed.rpc_error == null, false);
-                        var outcome: Outcome = .{ .classification = classification };
+                        const svm_unresolvable = classification == .retryable and self.config.height_protocol == .sealevel and session.strategy != .quorum and std.mem.eql(u8, session.wire().method, "getBlock") and if (parsed.rpc_error) |remote| svmUnresolvable(remote) else false;
+                        var outcome: Outcome = .{ .classification = classification, .expected_absence = expected_absence, .svm_unresolvable = svm_unresolvable };
                         if (classification == .success or classification == .non_retryable) {
                             outcome.response = parsed;
                         } else {
                             outcome.failure = if (classification == .rate_limited) error.RpcRateLimited else error.RpcRemoteError;
-                            parsed.deinit(self.allocator);
+                            if (svm_unresolvable and session.all_svm_failures_unresolvable and session.svm_unresolvable_response == null) {
+                                self.retainResponse(&parsed) catch |err| {
+                                    parsed.deinit(self.allocator);
+                                    self.finish(session, err);
+                                    return;
+                                };
+                                session.svm_unresolvable_response = parsed;
+                            } else parsed.deinit(self.allocator);
                         }
                         self.dispatchOutcome(session, index, &outcome, now_ms);
                     },
@@ -936,7 +958,8 @@ pub const Pool = struct {
     }
 
     fn handleOutcome(self: *Pool, session: *Session, index: usize, outcome: *Outcome, now_ms: u64) void {
-        self.recordOutcomeFailure(session, index, outcome.classification, now_ms);
+        if (outcome.classification != .success and !outcome.svm_unresolvable) session.all_svm_failures_unresolvable = false;
+        if (!outcome.expected_absence) self.recordOutcomeFailure(session, index, outcome.classification, now_ms);
         switch (outcome.classification) {
             .success => {
                 var response = outcome.response orelse {
@@ -1195,6 +1218,9 @@ pub const Pool = struct {
                 height = fetched_height orelse endpoint_.last_block_height;
             },
         }
+        if (!probe_success) if (probe.session) |session| {
+            session.all_svm_failures_unresolvable = false;
+        };
         if (probe.submitted and probe.observer != null) emitObserved(probe.observer.?, .{ .kind = .upstream_completed, .method = self.probeMethod(), .success = probe_success, .cancelled = probe.cancelled or switch (result) {
             .failure => |err| err == error.RequestCancelled,
             .response => false,
@@ -1235,7 +1261,7 @@ pub const Pool = struct {
         switch (session.strategy) {
             .single => |single| {
                 if (session.peers[index].attempts >= single.max_attempts) {
-                    self.finish(session, error.RpcPoolRetriesExhausted);
+                    self.finishRetryExhaustion(session, error.RpcPoolRetriesExhausted);
                 } else {
                     session.peers[index].done = false;
                     session.peers[index].failed = false;
@@ -1715,7 +1741,7 @@ pub const Pool = struct {
 
     fn finishFallbackRound(self: *Pool, session: *Session, now_ms: u64) void {
         if (session.retry_errors > 3) {
-            self.finish(session, error.AllRpcProvidersFailed);
+            self.finishRetryExhaustion(session, error.AllRpcProvidersFailed);
             return;
         }
         var eligible = false;
@@ -1769,6 +1795,25 @@ pub const Pool = struct {
             session.deferred_winner = null;
             self.finishBytes(session, bytes);
         } else self.finish(session, error.NoQuorumReached);
+    }
+
+    /// Solana's Source returns an unresolvable block only after the complete
+    /// provider/retry policy has failed exclusively with these known errors.
+    /// This never runs for quorum, cancellation or an owner/physical deadline.
+    fn finishRetryExhaustion(self: *Pool, session: *Session, failure: anyerror) void {
+        if (self.config.height_protocol == .sealevel and session.strategy != .quorum and session.all_svm_failures_unresolvable and std.mem.eql(u8, session.wire().method, "getBlock")) if (session.svm_unresolvable_response) |saved| {
+            for (session.peers) |peer| if (peer.attempts == 0) {
+                self.finish(session, failure);
+                return;
+            };
+            var response = saved;
+            session.svm_unresolvable_response = null;
+            self.releaseResponse(&response);
+            session.terminal_rpc_error = true;
+            self.finishBytes(session, response.takeBytes(self.allocator));
+            return;
+        };
+        self.finish(session, failure);
     }
 
     fn finishBytes(self: *Pool, session: *Session, bytes: []u8) void {
@@ -1879,6 +1924,14 @@ fn normalizedContains(message: []const u8, needle: []const u8) bool {
         if (matches) return true;
     }
     return false;
+}
+
+fn svmUnresolvable(remote: Value) bool {
+    if (remote != .object) return false;
+    const value = remote.object.get("code") orelse return false;
+    if (value != .number_string) return false;
+    const code = std.fmt.parseInt(i64, value.number_string, 10) catch return false;
+    return code == -32001 or code == -32004 or code == -32007 or code == -32009;
 }
 
 pub fn classify(method: []const u8, response: *const ParsedResponse) Classification {
