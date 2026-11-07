@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "cosmosnative",
-  "mode": "ReleaseFast",
+  "scenario": "cosmwasm",
+  "mode": "ReleaseSafe",
   "producer_source_commit": "8eabae59eecb5cba3d8b76fca46447802f231a92",
   "producer_run_id": 42420239263,
   "producer_run_attempt": 1,
@@ -45,29 +45,49 @@
     },
     "registry_commit": null,
     "native_cli": {
-      "name": "hypd",
+      "name": "osmosisd",
       "architecture": "amd64",
-      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
-      "bytes": 69488792,
+      "source_url": "https://github.com/osmosis-labs/osmosis/releases/download/v20.5.0/osmosisd-20.5.0-linux-amd64",
+      "bytes": 72612632,
       "sha256": {
         "sha256_hex_chunks": [
-          "90a33bb46f87836675a2f0871d7d122c",
-          "1ecaa8c39014d6c7eae7815fb2e6706e"
+          "f9ff6176e32499f22b20288c71dbc802",
+          "556eb5399baef23de164fe6158a55a69"
         ]
       }
+    },
+    "wasm_bundle": {
+      "schema": 1,
+      "source_release": "v0.0.6",
+      "source_url": "https://github.com/hyperlane-xyz/cosmwasm/releases/download/v0.0.6/wasm_codes.zip",
+      "bytes": 1640623,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "5b0b3b76ef5daf8a69cbc4ee1e9762d3",
+          "c9108127842343bd59cd68862ed0aa9c"
+        ]
+      },
+      "member_count": 21,
+      "member_digest": {
+        "sha256_hex_chunks": [
+          "df340d9c357fea6e44a402a68e061ba3",
+          "484db11e00e19b11ebb282a8b698b7a7"
+        ]
+      },
+      "publisher_checksum": null
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13593774630,
-      "name": "zig-native-runtime-payload-ReleaseFast",
+      "id": 13594350257,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
       "sha256": {
         "sha256_hex_chunks": [
-          "526a092b1af7ae4232abb7413a2398c5",
-          "b1e06c6f4634bb4d2e904be538dba5ca"
+          "17a9cac90a5d702cd17cadc2299a53be",
+          "fef81750987b977bab81906c7b8cb537"
         ]
       },
-      "size_in_bytes": 55146713
+      "size_in_bytes": 52478163
     },
     "helper": {
       "id": 13592994441,
