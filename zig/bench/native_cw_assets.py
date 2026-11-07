@@ -87,6 +87,15 @@ def static_cli(path,architecture):
     return {'schema':1,'architecture':architecture,'artifact':row,'ELF':{'class':64,'endianness':'little','machine':machine,'type':kind,'entry':entry,'program_headers':count,'load_segments':len(loads),'PT_DYNAMIC_count':0,'PT_INTERP_count':0},'native_code_executed':False}
 
 
+
+def tendermint_version(raw):
+    # Exact official pinned Linux20.5 CLI stdout observed in both actual CI modes.
+    # Cobra emits one additional terminal newline; version fields stay exact.
+    expected=b'tendermint: 0.34.24\nabci: 0.17.0\nblockprotocol: 11\np2pprotocol: 8\n\n'
+    require(type(raw)is bytes and raw==expected,'Source CW requires exact actual0.34 compatibility stdout; never relabel another daemon')
+    return {'tendermint':'0.34.24','abci':'0.17.0','blockprotocol':11,'p2pprotocol':8}
+
+
 def validate_cli_policy(policy,architecture):
     expected=CLI_RELEASE[architecture]
     require(set(policy)=={'name','architecture','source_url','bytes','sha256'} and policy['name']=='osmosisd' and policy['architecture']==architecture and policy['source_url']==expected['source_url'] and policy['bytes']==expected['bytes'] and policy['sha256']==expected['sha256'],'Exact reviewed official Source20.5.0 raw CLI required')

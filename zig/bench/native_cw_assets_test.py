@@ -50,6 +50,12 @@ class CwStaticAssetsTests(unittest.TestCase):
     def policy(self,architecture='amd64'):
         return {'local_checkout_build':True,'hpack':{'version':'4.2.0','wheel_sha256':'858ac0b02280fa582b5080d68db0899c6'+'2a80375e0e5413a74970c5e518b6986','wheel_bytes':34246},'registry_commit':None,'native_cli':{'name':'osmosisd','architecture':architecture,**a.CLI_RELEASE[architecture]},'wasm_bundle':{'schema':1,'source_release':'v0.0.6','source_url':a.WASM_URL,'bytes':a.WASM_BYTES,'sha256':a.WASM_SHA,'member_count':21,'member_digest':a.WASM_MEMBER_SHA,'publisher_checksum':None}}
 
+    def test_exact_observed_tendermint_stdout_has_two_terminal_newlines(self):
+        raw=b'tendermint: 0.34.24\nabci: 0.17.0\nblockprotocol: 11\np2pprotocol: 8\n\n'
+        self.assertEqual(a.tendermint_version(raw)['tendermint'],'0.34.24')
+        for changed in [raw[:-1],raw+b'\n',raw.replace(b'0.34.24',b'0.37.0'),raw+b'extra\n',raw.decode(),raw.replace(b'\n',b'\r\n')]:
+            with self.subTest(changed=changed),self.assertRaises(ValueError):a.tendermint_version(changed)
+
     def test_static_native_file_is_admitted_as_data_without_executable_mode(self):
         for architecture,machine in [('amd64',62),('arm64',183)]:
             path=static_elf(self.root/architecture,machine);path.chmod(0o600)

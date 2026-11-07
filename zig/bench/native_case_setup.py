@@ -54,7 +54,7 @@ def build_commands(repo,tools,stage):
     pnpm,node,forge,sh=(str(tools[name]) for name in ('pnpm','node','forge','sh'))
     rows=[]
     def add(name,cwd,argv,environment=None):rows.append({'name':name,'cwd':str(cwd),'argv':argv,'extra_environment':environment or {}})
-    add('locked-ignore-scripts-install',repo,[pnpm,'--filter','@hyperlane-xyz/infra...','install','--frozen-lockfile','--ignore-scripts','--ignore-pnpmfile','--package-import-method=copy','--store-dir',str(stage/'store'),'--cache-dir',str(stage/'cache')])
+    add('locked-ignore-scripts-install',repo,[pnpm,'--filter','@hyperlane-xyz/infra...','install','--frozen-lockfile','--ignore-scripts','--prefer-offline','--config.ignore-pnpmfile=true','--config.manage-package-manager-versions=false','--config.verify-store-integrity=true','--config.package-import-method=copy','--config.fetch-retries=0','--config.registry=https://registry.npmjs.org/','--config.store-dir='+str(stage/'store'),'--config.cache-dir='+str(stage/'cache')])
     add('locked-soldeer',repo/'solidity',[forge,'soldeer','install','--config-location','foundry','--threads','1'])
     for path in PACKAGES:
         cwd=repo/path
@@ -489,8 +489,8 @@ def main():
                 cw=json.loads(cw_log.read_text());require(cw['passed'] is True and cw['native_code_executed'] is False,'Actual closed static CW asset readback required')
                 result['wasm_bundle']=cw['wasm_bundle'];result['static_cli']=cw['static_cli'];contracts.update(cw['wasm_bundle']['files'])
                 run('native-cli-version-readonly',[str(cli),'version','--long'])
-                compat=run('native-cli-tendermint-version-readonly',[str(cli),'tendermint','version']).read_text()
-                require(compat.splitlines()==['tendermint: 0.34.24','abci: 0.17.0','blockprotocol: 11','p2pprotocol: 8'],'Source CW requires actual 0.34 compatibility; never relabel another daemon')
+                compat=run('native-cli-tendermint-version-readonly',[str(cli),'tendermint','version']).read_bytes()
+                cw_assets.tendermint_version(compat)
             else:run('native-cli-version-readonly',[str(cli),'version','--long'])
             final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof')});final_tools['native_cli']=pin(cli)
             registry.update({'path':None,'commit':None})

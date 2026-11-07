@@ -33,7 +33,7 @@ class CwProfileTests(unittest.TestCase):
         self.assertNotIn('wasmvm-module.zip',setup);self.assertNotIn('module-zip',setup)
         self.assertNotIn('LD_LIBRARY_PATH',setup);self.assertNotIn('LD_LIBRARY_PATH',inputs)
         self.assertIn('static_cli',setup);self.assertIn("keys |= {'wasm_bundle', 'static_cli'}",inputs)
-        self.assertIn("['tendermint: 0.34.24','abci: 0.17.0','blockprotocol: 11','p2pprotocol: 8']",setup)
+        self.assertIn("cw_assets.tendermint_version(compat)",setup)
 
     def test_cw_missing_static_cli_or_bundle_is_not_native_cosmos_empty_stage(self):
         keys={'schema':1,'passed':True,'execution_source_commit':'a'*40,'scenario':'cosmwasm','source_before':{'synthetic':'same'},'source_after':{'synthetic':'same'},'checks':[],'tools':{},'contract_artifacts':{},'hpack':{},'registry':{'path':None,'commit':None},'explicit_environment':{}}

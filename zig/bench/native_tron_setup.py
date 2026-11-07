@@ -30,8 +30,8 @@ def pnpm_member(archive,architecture):
 def build_commands(repo,tools,stage,original):
     a=assets();a.cli_source(repo);require(tuple(a.PACKAGE_ROOTS[:-1])==tuple(original['packages']),'Existing22-package build order changed')
     rows=[dict(row,argv=list(row['argv']),extra_environment=dict(row['extra_environment']))for row in original['commands']];require(rows[0]['name']=='locked-ignore-scripts-install','Original package install command required')
-    # Replace the original two-token spelling using actual12.3.0 help evidence.
-    original_argv=rows[0]['argv'];i=original_argv.index('--cache-dir');require(original_argv[i+1]==str(stage/'cache'),'Original scoped cache differs');argv=original_argv[:i]+['--config.cache-dir='+str(stage/'cache')]+original_argv[i+2:];argv[argv.index('--filter')+1]='@hyperlane-xyz/cli...';argv+=['--config.fetch-retries=0','--fetch-timeout=30000','--registry=https://registry.npmjs.org','--child-concurrency=1','--network-concurrency=1'];rows[0]['argv']=argv
+    # Keep the normal frozen/config spelling actually exercised by the SDK job.
+    argv=rows[0]['argv'];require(argv.count('--config.cache-dir='+str(stage/'cache'))==1,'Original scoped cache differs');i=argv.index('install');argv[i:i]=['--filter','@hyperlane-xyz/cli...'];argv+=['--config.fetch-timeout=30000','--config.child-concurrency=1','--config.network-concurrency=1'];rows[0]['argv']=argv
     rows.append({'name':'tron-full-cli-original-tsconfig','cwd':str(repo/'typescript/cli'),'argv':[str(tools['pnpm']),'exec','tsc','--project','tsconfig.json'],'extra_environment':{}})
     return rows
 

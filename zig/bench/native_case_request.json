@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "tron",
-  "mode": "ReleaseFast",
+  "scenario": "cosmwasm",
+  "mode": "ReleaseSafe",
   "producer_source_commit": "8eabae59eecb5cba3d8b76fca46447802f231a92",
   "producer_run_id": 42420239263,
   "producer_run_attempt": 1,
@@ -44,56 +44,50 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "tron_cli": {
-      "schema": 1,
-      "name": "hyperlane",
-      "version": "45.1.0",
-      "node_version": "26.12.1",
-      "pnpm_version": "12.3.0",
-      "full_original_tsconfig": true,
-      "EVM_solc": "0.8.33",
-      "TVM_solc": "0.8.24",
-      "owned_full_package_graph": true
-    },
-    "tron_tre": {
-      "schema": 2,
+    "native_cli": {
+      "name": "osmosisd",
       "architecture": "amd64",
-      "source_image": {
+      "source_url": "https://github.com/osmosis-labs/osmosis/releases/download/v20.5.0/osmosisd-20.5.0-linux-amd64",
+      "bytes": 72612632,
+      "sha256": {
         "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "canonical_digest": {
+          "f9ff6176e32499f22b20288c71dbc802",
+          "556eb5399baef23de164fe6158a55a69"
+        ]
+      }
+    },
+    "wasm_bundle": {
+      "schema": 1,
+      "source_release": "v0.0.6",
+      "source_url": "https://github.com/hyperlane-xyz/cosmwasm/releases/download/v0.0.6/wasm_codes.zip",
+      "bytes": 1640623,
+      "sha256": {
         "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
+          "5b0b3b76ef5daf8a69cbc4ee1e9762d3",
+          "c9108127842343bd59cd68862ed0aa9c"
+        ]
       },
-      "image_id": {
+      "member_count": 21,
+      "member_digest": {
         "sha256_hex_chunks": [
-          "bf3a2b631ff2a1834530f69fcb90508c",
-          "40970203aa1240b692223308cc90cae0"
-        ],
-        "prefix": "sha256:"
+          "df340d9c357fea6e44a402a68e061ba3",
+          "484db11e00e19b11ebb282a8b698b7a7"
+        ]
       },
-      "command": ["./quickstart", "v2.0.0"],
-      "entrypoint": null
+      "publisher_checksum": null
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13593774630,
-      "name": "zig-native-runtime-payload-ReleaseFast",
+      "id": 13594350257,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
       "sha256": {
         "sha256_hex_chunks": [
-          "526a092b1af7ae4232abb7413a2398c5",
-          "b1e06c6f4634bb4d2e904be538dba5ca"
+          "17a9cac90a5d702cd17cadc2299a53be",
+          "fef81750987b977bab81906c7b8cb537"
         ]
       },
-      "size_in_bytes": 55146713
+      "size_in_bytes": 52478163
     },
     "helper": {
       "id": 13592994441,

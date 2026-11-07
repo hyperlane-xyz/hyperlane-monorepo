@@ -22,7 +22,10 @@ class SetupTests(unittest.TestCase):
     def test_exact_install_and_direct_build_graph_excludes_hooks_and_mains(self):
         rows=api.build_commands(self.root,self.tools,self.root/'stage')
         install=rows[0]['argv']
-        for flag in ['--frozen-lockfile','--ignore-scripts','--ignore-pnpmfile','--package-import-method=copy']:self.assertIn(flag,install)
+        for flag in ['--frozen-lockfile','--ignore-scripts','--config.ignore-pnpmfile=true','--config.verify-store-integrity=true','--config.package-import-method=copy']:self.assertIn(flag,install)
+        self.assertEqual(install[:5],['/public/pnpm','--filter','@hyperlane-xyz/infra...','install','--frozen-lockfile'])
+        self.assertIn('--config.cache-dir='+str(self.root/'stage/cache'),install)
+        self.assertNotIn('--cache-dir',install)
         forbidden={'turbo','prebuild','fetch-contracts','generate-artifacts','deploy-core','deploy-ism','kathy','version:update','cargo','zig'}
         self.assertFalse(any(argument in forbidden for row in rows for argument in row['argv']))
         names=[row['name'] for row in rows]
