@@ -22,10 +22,10 @@ TARGET = 'zig/src/metadata_parallel_delegated_tests.zig'
 PAYLOAD = 'zig/tools/fixtures/native_http_312_diagnostic.zig.gz'
 BEFORE_SHA = ('c0b144c8319586990d9b8b722a745e64'
               '8cb1a01574c0fcbef1f8932627ede0e0')
-AFTER_SHA = ('ac869b4689f94887a76b372379be1d76'
-              '0c09e88b9d15cbaa9069248256337b72')
-PAYLOAD_SHA = ('38804b78b87c1697322e5508e9a7488d'
-              'b26108b5f1aac2fd001c48c34f1cb27a')
+AFTER_SHA = ('2b2a47d04f5c440f85f9ff56faaad2eb'
+              '47ac4b54937038e837617afb1ed0640f')
+PAYLOAD_SHA = ('9cc72cc24d37aadd80e82ba63962d1aa'
+              '0d357df7efcfc64f8588e19e24f080c8')
 FILTER = 'native Pool yields eight stalled peers and verifies healthy EVM children three times'
 MARKER = '[zig-native-http-diagnostic]'
 REF = 'refs/heads/feat/zig-agent-rewrite'

@@ -495,8 +495,7 @@ mod tests {
     fn exact_source_images_and_native_platform_are_required() {
         let mut c = configuration();
         validate(&c).unwrap();
-        for index in 0..SERVICES.len() {
-            let name = SERVICES[index].0;
+        for &(name, _, _, _) in &SERVICES {
             let old = c.images[name].clone();
             c.images.get_mut(name).unwrap().source = "foreign/image:latest".into();
             assert!(validate(&c).is_err());
@@ -521,7 +520,7 @@ mod tests {
         let mut different_tag = row.clone();
         different_tag["Id"] = json!(format!("sha256:{}", "ff".repeat(32)));
         assert!(validate_cached_image(&[row.clone(), different_tag], image, "arm64").is_err());
-        assert!(validate_cached_image(&[row.clone()], image, "arm64").is_err());
+        assert!(validate_cached_image(std::slice::from_ref(&row), image, "arm64").is_err());
         assert!(
             validate_cached_image(&[row.clone(), row.clone(), row.clone()], image, "arm64")
                 .is_err()

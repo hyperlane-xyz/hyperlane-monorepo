@@ -97,6 +97,35 @@ class Controls(unittest.TestCase):
   with self.assertRaises(ValueError):m.OfficialRedirect().redirect_request(None,None,302,'',{},'https://evil.invalid/asset')
  def test_fixed_asset_and_source_counts(self):
   self.assertEqual(len(m.PROGRAMS),9);self.assertEqual(len(m.SPL),4);self.assertFalse(m.ASSETS['spl']['publisher_digest']);self.assertEqual(m.ASSETS['platform']['bytes'],542447828)
+class OwnedSdkLinkControls(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+  self.root=pathlib.Path(self.tmp.name).resolve();self.sdk=self.root/'build-sdk';(self.sdk/'dependencies').mkdir(parents=True)
+  self.platform=self.root/'assets/platform';self.platform.mkdir(parents=True);(self.platform/'compiler').write_bytes(b'compiler fixture')
+  self.link=self.sdk/'dependencies/platform-tools';self.link.symlink_to(self.platform)
+ def test_default_inventory_still_rejects_absolute_link(self):
+  with self.assertRaisesRegex(ValueError,'unsafe symlink'):m.inventory(self.sdk)
+ def test_only_exact_owned_sdk_binding_is_admitted_and_recorded(self):
+  before=m.inventory(self.sdk,owned_sdk_platform=self.platform)
+  self.assertEqual(before['dependencies/platform-tools']['target'],str(self.platform))
+  self.assertEqual(before,m.inventory(self.sdk,owned_sdk_platform=self.platform))
+  self.assertNotIn('dependencies/platform-tools/compiler',before)
+  self.assertIn('platform/compiler',m.inventory(self.root/'assets'))
+ def test_changed_binding_rejected(self):
+  self.link.unlink();self.link.symlink_to('/usr/bin')
+  with self.assertRaisesRegex(ValueError,'link changed'):m.inventory(self.sdk,owned_sdk_platform=self.platform)
+ def test_additional_absolute_link_not_admitted(self):
+  (self.sdk/'another').symlink_to(self.platform)
+  with self.assertRaisesRegex(ValueError,'unsafe symlink'):m.inventory(self.sdk,owned_sdk_platform=self.platform)
+ def test_symlink_platform_root_is_not_authority(self):
+  real=self.root/'real';self.platform.rename(real);self.platform.symlink_to(real)
+  with self.assertRaisesRegex(ValueError,'wrong owned SDK platform'):m.inventory(self.sdk,owned_sdk_platform=self.platform)
+ def test_wrong_approved_platform_path_not_admitted(self):
+  with self.assertRaisesRegex(ValueError,'wrong owned SDK platform'):m.inventory(self.sdk,owned_sdk_platform=self.root/'assets')
+ def test_platform_target_bytes_remain_in_separate_asset_fence(self):
+  before=m.inventory(self.root/'assets');(self.platform/'compiler').write_bytes(b'changed compiler')
+  self.assertNotEqual(before,m.inventory(self.root/'assets'))
+
 class PublisherLinkControls(unittest.TestCase):
  archive=Controls.archive
  def extract_publisher(self,a,d,links):

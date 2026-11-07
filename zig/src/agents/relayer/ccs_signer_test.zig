@@ -643,5 +643,8 @@ fn allocationSweep(a: A) !void {
 }
 
 test "CCS owner scope and refreshed identity survive allocation failure sweep" {
-    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationSweep, .{});
+    std.testing.checkAllAllocationFailures(std.testing.allocator, allocationSweep, .{}) catch |err| {
+        std.debug.print("CCS allocation sweep failed: {s}\n", .{@errorName(err)});
+        return err;
+    };
 }

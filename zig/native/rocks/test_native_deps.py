@@ -83,6 +83,24 @@ class Integrity(unittest.TestCase):
                 kill.assert_called_once_with(123456, helper.signal.SIGTERM)
                 self.assertTrue(start.call_args.kwargs['start_new_session'])
 
+    def test_atomic_copy_publishes_readable_nonexecutable_archives_with_restrictive_umask(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, dest = root / 'source.a', root / 'published.a'
+            payload = b'!<arch>\n' + bytes(range(256))
+            source.write_bytes(payload)
+            source.chmod(0o600)
+            previous_umask = helper.os.umask(0o077)
+            try:
+                helper.atomic_copy(source, dest)
+            finally:
+                helper.os.umask(previous_umask)
+            self.assertEqual(dest.read_bytes(), payload)
+            self.assertEqual(dest.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(source.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(helper.digest(source), helper.digest(dest))
+            self.assertFalse(list(root.glob('.native-copy-*')))
+
     def test_atomic_copy_preserves_existing_on_success(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

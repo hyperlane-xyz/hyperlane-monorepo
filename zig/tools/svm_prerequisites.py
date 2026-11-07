@@ -34,7 +34,7 @@ def safe_name(name):
 def safe_link(name,target):
  need(target and not target.startswith('/')and '\\'not in target and '\x00'not in target,'unsafe symlink')
  joined=posixpath.normpath(posixpath.join(posixpath.dirname(name),target));need(joined!='..'and not joined.startswith('../'),'escaped symlink');return joined
-def inventory(root,hashes=True):
+def inventory(root,hashes=True,*,owned_sdk_platform=None):
  root=P(root);rows={};stack=[root];started=time.monotonic()
  while stack:
   parent=stack.pop()
@@ -43,7 +43,12 @@ def inventory(root,hashes=True):
    except FileNotFoundError:continue
    name=p.relative_to(root).as_posix();row={'mode':stat.S_IMODE(s.st_mode)}
    if stat.S_ISLNK(s.st_mode):
-    target=os.readlink(p);safe_link(name,target);need(p.resolve().is_relative_to(root.resolve()),'external symlink');row.update(type='symlink',target=target)
+    target=os.readlink(p)
+    if owned_sdk_platform is not None and name=='dependencies/platform-tools':
+     expected=P(owned_sdk_platform);need(root.name=='build-sdk'and expected==root.parent/'assets/platform'and expected.is_dir()and not expected.is_symlink()and expected.resolve()==expected,'wrong owned SDK platform root')
+     need(target==str(expected)and p.resolve(strict=True)==expected,'owned SDK platform link changed')
+    else:safe_link(name,target);need(p.resolve().is_relative_to(root.resolve()),'external symlink')
+    row.update(type='symlink',target=target)
    elif stat.S_ISDIR(s.st_mode):row['type']='directory';stack.append(p)
    else:
     need(stat.S_ISREG(s.st_mode)and s.st_nlink==1,'special/hardlinked input');row.update(type='file',bytes=s.st_size)
@@ -309,7 +314,7 @@ def execute(a):
   need(len(crates)==1,'exact spl-token-cli package required');spl_manifest=crates[0];spl_toml=tomllib.loads(spl_manifest.read_text());need(any(b['name']=='spl-token'for b in spl_toml.get('bin',[])),'Source custom SPL bin absent')
   locks=[repo/'rust/sealevel/Cargo.lock',fork/'Cargo.lock'];lockpins=[pin(p)for p in locks];write(root/'published/locks-before.json',lockpins)
   for name,version,manifest in [('sealevel','1.86.0',repo/'rust/sealevel/Cargo.toml'),('spl','1.76.0',spl_manifest)]:o.run('provision.fetch-'+name,[tool[version],'fetch','--locked','--manifest-path',manifest],manifest.parent,{**base,'RUSTUP_TOOLCHAIN':version,'PATH':str(tool[version].parent)+':/usr/bin:/bin'})
-  need([pin(p)for p in locks]==lockpins,'provision changed committed lock');compiler_inputs={n:inventory(root/n)for n in ['assets','spl-source','rustup','build-sdk']};write(root/'published/compiler-inputs-before.json',compiler_inputs)
+  need([pin(p)for p in locks]==lockpins,'provision changed committed lock');compiler_inputs={n:inventory(root/n,owned_sdk_platform=platform if n=='build-sdk'else None)for n in ['assets','spl-source','rustup','build-sdk']};write(root/'published/compiler-inputs-before.json',compiler_inputs)
   for version,cargo in tool.items():o.run('provision.compiler-version-'+version,[cargo.parent/'rustc','--version','--verbose'],root,base)
   version_log=o.run('provision.platform-rust-version',[platform/'rust/bin/rustc','--version','--verbose'],root,base);need(version_log.read_text().startswith('rustc 1.84.1'),'pinned platform Rust version differs')
   outdir=root/'targets/programs';outdir.mkdir();expected=[];sbf_env={**base,'CARGO_NET_OFFLINE':'true','RUSTC':str(platform/'rust/bin/rustc'),'RUSTDOC':str(platform/'rust/bin/rustdoc'),'PATH':str(platform/'rust/bin')+':/usr/bin:/bin'}
@@ -327,7 +332,7 @@ def execute(a):
    if profile=='release':argv.append('--release')
    env={**base,'CARGO_NET_OFFLINE':'true','PATH':str(tool[version].parent)+':/usr/bin:/bin','RUSTUP_TOOLCHAIN':version}
    log=o.run('compile.'+name,compile_command(a.bwrap,root,repo,argv,manifest.parent),manifest.parent,env);actual=target/profile/binary;artifact=cargo_binary(log,package,binary,actual);dest=root/'published'/binary;shutil.copyfile(actual,dest);dest.chmod(0o700);products[name]=elf(dest,62);write(root/'published'/(name+'-cargo-artifact.json'),artifact)
-  need([pin(p)for p in locks]==lockpins,'compiler changed lock');need({n:inventory(root/n)for n in compiler_inputs}==compiler_inputs,'compiler changed asset/tool/source input')
+  need([pin(p)for p in locks]==lockpins,'compiler changed lock');need({n:inventory(root/n,owned_sdk_platform=platform if n=='build-sdk'else None)for n in compiler_inputs}==compiler_inputs,'compiler changed asset/tool/source input')
   shutil.copytree(agave,root/'published/agave',symlinks=True);write(root/'published/agave-linux-runtime-members.json',inventory(root/'published/agave'))
   write(root/'published/linux-profile.CANDIDATE.json',{'schema':1,'platform':'linux-x86_64','Root_approved':False,'native_case_admitted':False,'Darwin_profile_not_reused':True,'agave_archive':status['agave_archive'],'platform_archive':status['platform_archive'],'spl_archive':status['spl_archive'],'agave_member_manifest':pin(root/'published/agave-linux-runtime-members.json'),'agave_file_count':sum(row['type']=='file'for row in inventory(root/'published/agave').values()),'platform_member_manifest':pin(root/'published/platform-publisher-members.json'),'platform_debugger_link_omissions':pin(root/'published/platform-debugger-link-omissions.json'),'custom_spl_commit':sha,'custom_spl_tree':tree,'custom_spl_lock_overlay':pin(root/'published/custom-spl-lock-overlay.json'),'program_count':13,'products':products})
   o.tick(True)

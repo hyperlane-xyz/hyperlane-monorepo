@@ -2,7 +2,7 @@
 
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -155,7 +155,7 @@ fn wait_for_tron_node() {
 }
 
 /// Deploy core contracts to a single chain using the Hyperlane CLI.
-fn deploy_core(cli_path: &PathBuf, chain: &str) {
+fn deploy_core(cli_path: &Path, chain: &str) {
     log!("Deploying core contracts to {}...", chain);
     let config = concat_path(
         get_workspace_path(), // monorepo root
@@ -179,7 +179,7 @@ fn deploy_core(cli_path: &PathBuf, chain: &str) {
 }
 
 /// Generate agent config using the Hyperlane CLI.
-fn generate_agent_config(cli_path: &PathBuf, out_path: &PathBuf) {
+fn generate_agent_config(cli_path: &Path, out_path: &PathBuf) {
     log!("Generating agent config...");
     crate::external_agents::tron_cli_program(cli_path)
         .unwrap_or_else(|error| panic!("approved TRE CLI: {error:#}"))
@@ -224,7 +224,7 @@ fn patch_agent_config(config_path: &PathBuf) {
 }
 
 /// Dispatch test messages using `hyperlane send message`.
-fn dispatch_message(cli_path: &PathBuf, origin: &str, destination: &str) {
+fn dispatch_message(cli_path: &Path, origin: &str, destination: &str) {
     log!("Dispatching message {} -> {}...", origin, destination);
     crate::external_agents::tron_cli_program(cli_path)
         .unwrap_or_else(|error| panic!("approved TRE CLI: {error:#}"))

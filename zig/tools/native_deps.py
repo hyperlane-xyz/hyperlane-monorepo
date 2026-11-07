@@ -224,6 +224,8 @@ def atomic_copy(source: Path, destination: Path) -> None:
         temporary = Path(stream.name)
     try:
         shutil.copyfile(source, temporary)
+        # Public build archives must remain readable by the nonroot fixture compiler.
+        temporary.chmod(0o644)
         temporary.replace(destination)
     finally:
         temporary.unlink(missing_ok=True)

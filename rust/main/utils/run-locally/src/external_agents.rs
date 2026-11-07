@@ -1438,6 +1438,7 @@ fn verify_starknet_ownership(
     port: u32,
     value: &serde_json::Value,
 ) -> Result<()> {
+    let owner_pid = std::process::id().to_string();
     ensure!([5050, 5070].contains(&port), "unknown devnet port");
     let fixture = starknet_devnet_fixture(manifest)?;
     let name = resource_name_at(
@@ -1461,7 +1462,8 @@ fn verify_starknet_ownership(
             && value["Name"] == format!("/{name}")
             && value["Image"] == fixture.image_id
             && value["Config"]["Labels"][POSTGRES_CASE_LABEL] == root
-            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL] == std::process::id().to_string()
+            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL].as_str()
+                == Some(owner_pid.as_str())
             && value["Config"]["Labels"][POSTGRES_TOKEN_LABEL] == fixture.run_token,
         "foreign devnet; never cleanup by name alone"
     );
@@ -1823,6 +1825,7 @@ fn tron_container(
 }
 #[cfg(feature = "tron")]
 fn verify_tron_ownership(manifest: &Manifest, port: u32, value: &serde_json::Value) -> Result<()> {
+    let owner_pid = std::process::id().to_string();
     ensure!([9090].contains(&port), "unknown TRE port");
     let fixture = tron_devnet_fixture(manifest)?;
     let name = resource_name_at("tron-e2e", &manifest.task_root, std::process::id())?;
@@ -1842,7 +1845,8 @@ fn verify_tron_ownership(manifest: &Manifest, port: u32, value: &serde_json::Val
             && value["Name"] == format!("/{name}")
             && value["Image"] == fixture.image_id
             && value["Config"]["Labels"][POSTGRES_CASE_LABEL] == root
-            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL] == std::process::id().to_string()
+            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL].as_str()
+                == Some(owner_pid.as_str())
             && value["Config"]["Labels"][POSTGRES_TOKEN_LABEL] == fixture.run_token,
         "foreign TRE; never cleanup by name alone"
     );
@@ -2039,14 +2043,14 @@ pub fn tron_cli_program(directory: &Path) -> Result<crate::program::Program> {
 fn stop_fixed_container_with(
     manifest: &Manifest,
     child: &mut Child,
-    kind: &str,
-    port: u32,
+    fixture: (&str, u32),
     value: &serde_json::Value,
     mut primary: Option<eyre::Report>,
     deadline: Instant,
     mut docker: impl FnMut(&[&str], Instant) -> Result<(bool, String)>,
 ) -> Result<()> {
     use std::os::unix::process::ExitStatusExt;
+    let (kind, port) = fixture;
     ensure!(
         [
             ("postgres", 5432),
@@ -2214,8 +2218,7 @@ fn stop_fixed_container(
     stop_fixed_container_with(
         manifest,
         child,
-        kind,
-        port,
+        (kind, port),
         value,
         primary,
         deadline,
@@ -2331,6 +2334,7 @@ impl Drop for OwnedPostgres {
     }
 }
 fn verify_postgres_ownership(manifest: &Manifest, value: &serde_json::Value) -> Result<()> {
+    let owner_pid = std::process::id().to_string();
     let spec = postgres_fixture(manifest)?;
     let name = resource_name_at(
         "scraper-testnet-postgres",
@@ -2353,7 +2357,8 @@ fn verify_postgres_ownership(manifest: &Manifest, value: &serde_json::Value) -> 
             && value["Name"] == format!("/{name}")
             && value["Image"] == spec.image_id
             && value["Config"]["Labels"][POSTGRES_CASE_LABEL] == root
-            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL] == std::process::id().to_string()
+            && value["Config"]["Labels"][POSTGRES_HARNESS_LABEL].as_str()
+                == Some(owner_pid.as_str())
             && value["Config"]["Labels"][POSTGRES_TOKEN_LABEL] == spec.run_token,
         "foreign or unexpectedly stopped PG; no cleanup by name alone"
     );
@@ -7440,8 +7445,7 @@ setInterval(()=>{{}},1000);"#,
             let result = stop_fixed_container_with(
                 &m,
                 &mut child,
-                "postgres",
-                5432,
+                ("postgres", 5432),
                 &row,
                 primary,
                 Instant::now() + Duration::from_secs(2),
@@ -7517,8 +7521,7 @@ setInterval(()=>{{}},1000);"#,
         let result = stop_fixed_container_with(
             &m,
             &mut child,
-            "postgres",
-            5432,
+            ("postgres", 5432),
             &row,
             None,
             Instant::now() + Duration::from_secs(2),
