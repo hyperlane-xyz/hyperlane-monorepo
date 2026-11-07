@@ -577,6 +577,12 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     write_new(paths['case-inputs'], profile); case_pin = artifact(paths['case-inputs'])
     gate_path = root / 'evidence/execution-source-gate.json'
     git_log = root / 'evidence/prepare-git.log'
+    diagnostic_rust_sources={}
+    for name in git(repo,'ls-files','-z','--','rust/main/utils/run-locally/src',evidence=evidence).split('\0'):
+        if not name or not name.endswith('.rs'):continue
+        require(len(diagnostic_rust_sources)<256,'Bounded diagnostic Rust source set')
+        row=artifact(relative_file(repo,name));require(row['bytes']<=1024**2,'Bounded diagnostic Rust source file');diagnostic_rust_sources[name]=row
+    require(sum(row['bytes']for row in diagnostic_rust_sources.values())<=4*1024**2,'Bounded diagnostic Rust source bytes')
     write_new(git_log, {'actual_waited_git_calls': evidence, 'decoded_locks': locks})
     write_new(gate_path, {'source_commit': context['execution_source_commit'], 'source_unchanged': True, 'checks': [{'name': 'actual tracked cohort and restored lock recheck before nodes', 'exit_code': 0, 'log': artifact(git_log)}]})
     tool_gate = read_json(root / 'tools/source-gate.json')
@@ -601,13 +607,14 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     required += dependency['files'] + [dependency['wheel'], dependency['venv_configuration'], dependency['source_metadata'], python]
     required += list(overrides.values())
     required += [check['log'] for check in stage['checks']]
+    required += list(diagnostic_rust_sources.values())
     if scenario == 'cosmwasm':
         required += [bundle['archive'], *bundle['files'].values(), artifact(repo / 'zig/bench/native_cw_assets.py')]
     if scenario == 'starknet':
         value=stage['starknet_assets'];bundle=profile['fixture_contracts'];graph=read_json(checked(value['cli_elf']))
         required += [bundle['archive'],bundle['publisher_checksum'],*bundle['files'].values(),value['cli_archive'],value['cli_elf'],value['image_readback'],*([graph['interpreter']] if graph['interpreter'] is not None else []),*graph['files'].values(),artifact(repo/'zig/bench/native_starknet_assets.py'),artifact(repo/'zig/bench/native_starknet_custody.py')]
     required += list(read_json(checked(next(c['log'] for c in stage['checks'] if c['name'] == 'system-libraries'))).values())
-    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / 'rust/main/utils/run-locally'), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False}
+    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / 'rust/main/utils/run-locally'), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources}
     write_new(paths['launch-plan'], plan)
     return paths
 

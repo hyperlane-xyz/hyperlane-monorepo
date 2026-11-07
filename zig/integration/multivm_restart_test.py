@@ -154,4 +154,30 @@ class MatchedActivityTests(unittest.TestCase):
         self.assertEqual(len(window.samples),1)
 
 
+class ResponseAgeTests(unittest.TestCase):
+    def test_old_postcapture_response_never_anchors_or_sets_epoch(self):
+        window=RestartWindow();now=1000*10**9
+        self.assertFalse(window.observe(now,'a'*64,{'validator:test1':now-100*10**9},{'validator:test1':now-100*10**9-1}))
+        self.assertEqual(window.samples,[]);self.assertIsNone(window.epoch);self.assertFalse(window.failed)
+    def test_stale_startup_then_fresh_window_borrows_no_elapsed(self):
+        window=RestartWindow();now=1000*10**9
+        self.assertFalse(window.observe(now,'a'*64,{'validator:test1':now-100*10**9},{'validator:test1':now-100*10**9-1}))
+        start=now+20*10**9
+        for seconds in range(0,30,5):
+            stamp=start+seconds*10**9
+            self.assertFalse(window.observe(stamp,'b'*64,{'validator:test1':stamp-1},{'validator:test1':stamp-2}))
+        stamp=start+30*10**9;self.assertTrue(window.observe(stamp,'b'*64,{'validator:test1':stamp-1},{'validator:test1':stamp-2}));self.assertEqual(window.evidence()['elapsed_live_ns'],30*10**9);self.assertEqual(window.samples[0]['observed_monotonic_ns'],start)
+    def test_progressing_but_old_responses_poison_anchored_window(self):
+        window=RestartWindow();now=1000*10**9;received=now-9*10**9
+        self.assertFalse(window.observe(now,'a'*64,{'validator:test1':received},{'validator:test1':received-1}))
+        with self.assertRaisesRegex(ValueError,'older than10s'):window.observe(now+5*10**9,'a'*64,{'validator:test1':received+2},{'validator:test1':received+1})
+        self.assertTrue(window.failed)
+        with self.assertRaises(ValueError):window.observe(now+6*10**9,'a'*64,{'validator:test1':now+6*10**9-1},{'validator:test1':now+6*10**9-2})
+    def test_exact10s_age_allowed_but_one_ns_older_stays_pending(self):
+        now=1000*10**9
+        for excess in [0,1]:
+            window=RestartWindow();received=now-10*10**9-excess
+            self.assertFalse(window.observe(now,'a'*64,{'validator:test1':received},{'validator:test1':received-1}))
+            self.assertEqual(len(window.samples),0 if excess else 1)
+
 if __name__=='__main__':unittest.main()

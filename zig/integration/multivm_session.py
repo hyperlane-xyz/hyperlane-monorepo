@@ -16,6 +16,8 @@ import re
 import socket
 import threading
 import time
+import sys
+import multivm_diagnostics
 
 from multivm_evidence import starknet_unavailable_peers, checked_starknet_peer_context, ENDPOINT_FIELDS, RawTcpProxy, TransparentProxy, checked_artifact, direct_endpoint, direct_request, effective_config, endpoint_replacements, hex_bytes, process_identity, read_approval, require, rpc as direct_rpc, run_tool, urls, run_artifact, validate_evidence_nodes, selected_evidence_node, source_connect_url, verified_harness_identity, owned_devnet_name, verify_devnet_inspect
 from multivm_evm import EvmEvidence, address, quantity, sql_delivery_query, sql_message_query, verify_canonical_rocks, verify_checkpoint_objects, verify_evm_accounting, verify_sql_message, log_metadata, validate_expenditure_expectations
@@ -120,6 +122,10 @@ class RestartWindow:
             require(isinstance(request_started, dict) and set(request_started) == set(activity)
                     and all(type(request_started[k]) is int and 0 < request_started[k] <= activity[k] for k in activity),
                     "actual paired successful request-start clocks required")
+            fresh=all(now_ns-value<=OBSERVER_POLICY['maximum_successful_domain_sample_gap_ns']for value in activity.values())
+            if not self.samples and not fresh:
+                return False # Stale startup earns no anchor/elapsed time.
+            require(fresh,'restarted successful RPC response older than10s')
             if self.epoch is None:
                 self.epoch = epoch
             require(self.epoch == epoch, "restarted child/config identity changed during30s")
@@ -504,6 +510,9 @@ class Session:
         self.transport_notices = []
         self.activity = {}
         self.successful_activity = {}
+        self.diagnostic_first_activity = {}
+        self.diagnostic_lock = threading.Lock()
+        self.public_diagnostic_recorder = None
         self.broadcasts = []
         self.estimates = []
         self.self_transactions = set()
@@ -656,6 +665,8 @@ class Session:
                 return
             self.failures.append(error)
             self.append("observer-errors.jsonl", {"monotonic_ns": time.monotonic_ns(), "error": error})
+        token=self.diagnostic('transport')
+        if token is not None:self.diagnostic('transport',token,'exception',sys.exc_info()[1])
 
     def capture(self, request):
         read_approval(self.manifest)
@@ -743,6 +754,7 @@ class Session:
                 old = self.successful_activity.get((role, chain))
                 if old is None or (start, now_ns) > (old['request_started_monotonic_ns'], old['response_received_monotonic_ns']):
                     self.successful_activity[(role, chain)] = {'request_started_monotonic_ns': start, 'response_received_monotonic_ns': now_ns}
+                multivm_diagnostics.note_success(self,role,chain,start,now_ns)
             if self.family is not None:
                 self.family.observe(self, record)
                 self.record_starknet_rpc_recovery(record)
@@ -833,6 +845,8 @@ class Session:
                     self.append("active-operation-samples.jsonl", {"monotonic_ns": now, "operations": operations, "domain_observations": observed, "observer_policy": OBSERVER_POLICY})
             except Exception as error:
                 if not self.stop.is_set():
+                    token=self.diagnostic('sampler')
+                    if token is not None:self.diagnostic('sampler',token,'exception',error)
                     self.failure(type(error).__name__ + ": " + str(error))
                 return # A hard coverage/schema failure is latched; no later re-credit.
 
@@ -1245,7 +1259,34 @@ class Session:
             result.append({"id": message["id"], "origin": message["origin_chain"], "destination": names[message["destination"]], "verified": proof})
         return result
 
+    def diagnostic(self,stage,token=None,status=None,error=None):
+        # Diagnostics never alter the actual verifier return/retry/exception.
+        try:
+            lock=getattr(self,'diagnostic_lock',None)
+            if lock is None:return None
+            with lock:
+                if self.public_diagnostic_recorder is None:
+                    path=self.owned_path(self.evidence_relative/'public-observer-diagnostics.json')
+                    self.public_diagnostic_recorder=multivm_diagnostics.Recorder(path,self.approval['python_modules'],pathlib.Path(__file__).resolve().parent)
+                recorder=self.public_diagnostic_recorder
+            state=multivm_diagnostics.snapshot(self,time.monotonic_ns())
+            if token is None:return recorder.enter(stage,state)
+            recorder.finish(token,state,status,error)
+        except Exception:
+            self.public_diagnostic_write_failed=True
+        return None
+
     def verify(self, stage, expected, harness_parent=None):
+        token=self.diagnostic(stage)
+        try:
+            result=self._verify(stage,expected,harness_parent)
+        except Exception as error:
+            if token is not None:self.diagnostic(stage,token,'exception',error)
+            raise
+        if token is not None:self.diagnostic(stage,token,'completed'if isinstance(result,dict)and result.get('verified')is True else'pending')
+        return result
+
+    def _verify(self, stage, expected, harness_parent=None):
         try:
             read_approval(self.manifest)
         except Exception:

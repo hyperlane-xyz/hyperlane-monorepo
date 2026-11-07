@@ -398,7 +398,7 @@ def write_public_native_proof(plan,manifest,case,output,expected_final):
     previous=None
     for row in samples:
         now=row['observed_monotonic_ns'];activity=row['role_rpc_activity'];starts=row['role_rpc_request_started_ns']
-        require(type(now)is int and isinstance(activity,dict) and activity and isinstance(starts,dict) and set(starts)==set(activity) and all(type(activity[k])is int and type(starts[k])is int and 0<starts[k]<=activity[k]<=now and k in restart['new_capture_monotonic_ns_by_role_chain'] and type(restart['new_capture_monotonic_ns_by_role_chain'][k])is int and starts[k]>restart['new_capture_monotonic_ns_by_role_chain'][k] for k in activity),'Invalid actual restarted request/response sample')
+        require(type(now)is int and isinstance(activity,dict) and activity and isinstance(starts,dict) and set(starts)==set(activity) and all(type(activity[k])is int and type(starts[k])is int and 0<starts[k]<=activity[k]<=now and now-activity[k]<=10_000_000_000 and k in restart['new_capture_monotonic_ns_by_role_chain'] and type(restart['new_capture_monotonic_ns_by_role_chain'][k])is int and starts[k]>restart['new_capture_monotonic_ns_by_role_chain'][k] for k in activity),'Invalid actual restarted request/response sample')
         if previous:
             require(0<now-previous['observed_monotonic_ns']<=10_000_000_000 and set(activity)==set(previous['role_rpc_activity']) and all(activity[k]>previous['role_rpc_activity'][k] and starts[k]>previous['role_rpc_activity'][k] for k in activity),'Stale/gapped actual restarted role observations')
         previous=row
@@ -417,8 +417,44 @@ def write_public_native_proof(plan,manifest,case,output,expected_final):
     return pin(output)
 
 
+def diagnostic_module(approval):
+    path=checked(approval['python_modules']['multivm_diagnostics.py'])
+    spec=importlib.util.spec_from_file_location('owned_public_diagnostics',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+
+def snapshot_public_diagnostics(case,approval,out,name):
+    source=case/'evidence/public-observer-diagnostics.json'
+    if not source.exists():return None
+    before=pin(source);require(before['bytes']<=256*1024,'Public observer diagnostic bound')
+    def unique(pairs):
+        value={}
+        for key,item in pairs:require(key not in value,'Duplicate public diagnostic key');value[key]=item
+        return value
+    value=json.loads(source.read_text(),object_pairs_hook=unique)
+    require(pin(source)==before,'Observer diagnostic changed during snapshot')
+    diagnostic_module(approval).validate_record(value,approval['python_modules'])
+    path=out/name;require(not path.exists()and not path.is_symlink(),'Preserve public diagnostic snapshot')
+    with path.open('x')as stream:json.dump(value,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
+    return {'artifact':pin(path),'actual_observer_record':before}
+
+
+def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns):
+    observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
+    value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
+    # Rust locations explain failures outside the recorded observer boundary;
+    # an observer exception retains its own approved Python source frames.
+    rust=[];log=out/'harness.log'
+    if log.exists()and(value is None or not value['failures']):
+        rust=diagnostic_module(approval).rust_panic_sites(log,plan.get('diagnostic_rust_sources',{}),Path(__file__).resolve().parents[2])
+    record={'schema':1,'kind':'public-native-failure-observation','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'worker_started_monotonic_ns':started_ns,'observed_after_owned_waits_monotonic_ns':time.monotonic_ns(),'observer_before_stop':result.get('public_diagnostic_before_stop'),'observer_after_stop':observed,'rust_panic_source_locations':rust,'rust_location_scope':'Only canonical panic-header locations matched to exact pinned Source; no message, thread, payload or inferred execution credit. Unknown/ambiguous paths omitted.','harness_log_fingerprint':pin(log)if log.exists()else None,'actual_direct_parent_waits':[{k:row[k]for k in ['role','pid','actual_parent_wait','exit_code','observed_monotonic_ns']if k in row}for row in result['direct_waits']],'native_or_timing_credit':False}
+    path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
+    with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
+    require(path.stat().st_size<=512*1024,'Public failure record bound')
+    return pin(path)
+
+
 def worker(args, plan, manifest, inputs, approval):
-    case=Path(manifest['task_root']);out=args.output;out.mkdir(mode=0o700)
+    case=Path(manifest['task_root']);out=args.output;out.mkdir(mode=0o700);worker_started_ns=time.monotonic_ns()
     env=plan['explicit_environment'];pg=inputs['postgres'];docker=checked(manifest['verifier_tools']['docker'],True)
     for name in ('controller.json','controller.sock'):require(not (case/'evidence'/name).exists(), 'Preserve existing controller')
     controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={};devnets=None
@@ -469,7 +505,7 @@ def worker(args, plan, manifest, inputs, approval):
             try:child.wait(timeout=seconds)
             except subprocess.TimeoutExpired:child.kill();child.wait(timeout=3);forced=True
         code=child.wait(timeout=3)
-        result['direct_waits'].append({'role':role,'pid':child.pid,'actual_parent_wait':True,'exit_code':code})
+        result['direct_waits'].append({'role':role,'pid':child.pid,'actual_parent_wait':True,'exit_code':code,'observed_monotonic_ns':time.monotonic_ns()})
         require(not result['passed'] or role!='observer' or code==0,'Observer failed during actual final close')
     repo=Path(__file__).resolve().parents[2]
     transaction=GeneratedSlots(repo,out/'generated-slots',plan['scenario']=='evm')
@@ -501,7 +537,7 @@ def worker(args, plan, manifest, inputs, approval):
                     else:native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs)
                     next_inspect=time.monotonic()+1
                 time.sleep(.1)
-            code=harness.wait();result['direct_waits'].append({'role':'harness','pid':harness.pid,'actual_parent_wait':True,'exit_code':code});require(code==0,'Actual native Rust/verifier failed')
+            code=harness.wait();result['direct_waits'].append({'role':'harness','pid':harness.pid,'actual_parent_wait':True,'exit_code':code,'observed_monotonic_ns':time.monotonic_ns()});require(code==0,'Actual native Rust/verifier failed')
             final=case/'evidence/verified-final-native.jsonl';lines=checked(pin(final)).read_text().splitlines()
             require(lines and json.loads(lines[-1]).get('verified') is True,'Actual final native verification absent')
             waits=fixture_waits(case/'evidence/fixture-parent-waits.jsonl',plan['scenario'],harness.pid)
@@ -532,6 +568,9 @@ def worker(args, plan, manifest, inputs, approval):
     finally:
         old={s:signal.signal(s,signal.SIG_IGN) for s in [signal.SIGTERM,signal.SIGINT,signal.SIGHUP]}
         try:
+            if not result['passed']:
+                try:result['public_diagnostic_before_stop']=snapshot_public_diagnostics(case,approval,out,'public-observer-before-stop.json')
+                except Exception as diagnostic_error:result['public_diagnostic_before_stop_error']={'type':type(diagnostic_error).__name__}
             stop_direct(harness,'harness-cleanup',15)
             stop_direct(controller,'observer',20)
             if devnets is not None:
@@ -554,6 +593,9 @@ def worker(args, plan, manifest, inputs, approval):
         finally:
             for signum,handler in old.items():signal.signal(signum,handler)
             result['forced_cleanup']=forced
+            if not result['passed']:
+                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns)
+                except Exception as diagnostic_error:result['public_diagnostic_write_error']={'type':type(diagnostic_error).__name__}
             (out/'worker-result.json').write_text(json.dumps(result,indent=2)+'\n')
     require(result['passed'],'Native worker failed; retain original result')
 
@@ -731,6 +773,8 @@ def main():
                 result['accepted_inputs_unchanged_after']=True
             except BaseException as pin_error:
                 result['input_error']={'type':type(pin_error).__name__,'message':str(pin_error)};result['passed']=False;result['native_case_acceptance']=False
+            worker_record=worker_output/'worker-result.json'
+            if worker_record.exists()and not worker_record.is_symlink():result['worker_result']=pin(worker_record)
             for signum,handler in old.items():signal.signal(signum,handler)
             result['observed_owned_identities']=list(known.values());(args.output/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     require(result['passed'],'Owned native case failed')

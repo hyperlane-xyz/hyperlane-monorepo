@@ -749,6 +749,7 @@ jobs:
           python3 -I -B zig/bench/native_case_run_test.py -v
           python3 -I -B zig/bench/native_case_owner_test.py -v
           python3 -I -B zig/integration/multivm_restart_test.py -v
+          python3 -I -B zig/integration/multivm_diagnostics_test.py -v
       - name: Pin preinstalled tools; no CLI/SDK or chain main invoked
         if: steps.request.outputs.enabled == 'true'
         shell: bash
@@ -820,6 +821,9 @@ jobs:
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/result.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/worker-result.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-final-proof.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-failure-diagnostics.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-observer-before-stop.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-observer-diagnostics.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/PG-recovery.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/hydrated-inputs.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/compiled-input-closure.json

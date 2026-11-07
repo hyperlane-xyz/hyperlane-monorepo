@@ -341,4 +341,34 @@ class CaseOwnerTests(unittest.TestCase):
             else:self.assertEqual(value['actual_native_heads'],{'test1':9,'test2':10});self.assertEqual(len(value['actual_validator_publications']),1)
 
 
+    def test_public_proof_rejects_old_response_even_after_new_capture(self):
+        case,manifest,plan=self.public_record_files()
+        for name in ['verified-after-restart.jsonl','verified-final-native.jsonl']:
+            path=case/'evidence'/name;raw=json.loads(path.read_text());restart=raw['same_db_restart_observation'];first=restart['samples'][0];now=first['observed_monotonic_ns']
+            restart['new_capture_last_monotonic_ns']=now-20*10**9;restart['new_capture_monotonic_ns_by_role_chain']={k:now-20*10**9 for k in first['role_rpc_activity']}
+            first['role_rpc_activity']={k:now-11*10**9 for k in first['role_rpc_activity']};first['role_rpc_request_started_ns']={k:now-11*10**9-1 for k in first['role_rpc_activity']};path.write_text(json.dumps(raw)+'\n')
+        with self.assertRaisesRegex(ValueError,'Invalid actual restarted'):api.write_public_native_proof(plan,manifest,case,case/'public.json',api.pin(case/'evidence/verified-final-native.jsonl'))
+        self.assertFalse((case/'public.json').exists())
+
+    def public_diagnostic_fixture(self):
+        spec=importlib.util.spec_from_file_location('public_diag_fixture',Path(__file__).resolve().parents[1]/'integration/multivm_diagnostics.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        case=self.root/'diagnostic-case';(case/'evidence').mkdir(parents=True);out=self.root/'diagnostic-output';out.mkdir();source=Path(module.__file__);approval={'python_modules':{'multivm_diagnostics.py':api.pin(source)}}
+        recorder=module.Recorder(case/'evidence/public-observer-diagnostics.json',approval['python_modules'],source.parent)
+        state={'observed_monotonic_ns':100,'restart_sample_count':0,'restart_failed':False,'restart_first_observed_ns':None,'restart_last_observed_ns':None,'role_activity':[],'observer_failure_count':0,'lifecycle_error_count':0}
+        token=recorder.enter('after_restart',state)
+        return case,out,approval,module,recorder,token,state
+    def test_public_inflight_snapshot_retains_no_raw_message_and_final_state_separately(self):
+        case,out,approval,module,recorder,token,state=self.public_diagnostic_fixture();before=api.snapshot_public_diagnostics(case,approval,out,'before.json');self.assertEqual(json.loads(Path(before['artifact']['path']).read_text())['last_stage']['status'],'inflight')
+        recorder.finish(token,dict(state,observed_monotonic_ns=120),'exception',ValueError('DO-NOT-EXPORT-RAW-WIRE'))
+        after=api.snapshot_public_diagnostics(case,approval,out,'after.json');self.assertEqual(json.loads(Path(after['artifact']['path']).read_text())['last_stage']['status'],'exception');self.assertNotIn('DO-NOT-EXPORT',Path(after['artifact']['path']).read_text());self.assertEqual(json.loads(Path(before['artifact']['path']).read_text())['last_stage']['status'],'inflight')
+    def test_unknown_or_duplicate_public_diagnostic_fields_never_copied(self):
+        case,out,approval,*_=self.public_diagnostic_fixture();path=case/'evidence/public-observer-diagnostics.json';wire=path.read_text();path.write_text('{"scope":"PRIVATE-EARLIER-VALUE",'+wire[1:])
+        with self.assertRaisesRegex(ValueError,'Duplicate'):api.snapshot_public_diagnostics(case,approval,out,'duplicate.json')
+        self.assertFalse((out/'duplicate.json').exists());value=json.loads(wire);value['private_wire']='PRIVATE';path.write_text(json.dumps(value))
+        with self.assertRaises(ValueError):api.snapshot_public_diagnostics(case,approval,out,'unknown.json')
+        self.assertFalse((out/'unknown.json').exists())
+    def test_public_failure_retention_has_only_phase_pins_waits_and_no_credit(self):
+        case,out,approval,module,recorder,token,state=self.public_diagnostic_fixture();(out/'harness.log').write_text('PRIVATE-HARNESS-BODY\n');result={'direct_waits':[{'role':'harness','pid':10,'actual_parent_wait':True,'exit_code':101,'observed_monotonic_ns':150,'raw':'PRIVATE'}]};manifest={'runtime_source_commit':'a'*40,'scenario':'cosmosnative','mode':'ReleaseSafe'};plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}}
+        observed=api.write_public_failure_diagnostics(plan,manifest,approval,case,out,result,90);value=json.loads(Path(observed['path']).read_text());self.assertFalse(value['native_or_timing_credit']);self.assertEqual(value['actual_direct_parent_waits'][0]['exit_code'],101);self.assertEqual(value['worker_started_monotonic_ns'],90);self.assertEqual(value['rust_panic_source_locations'],[]);self.assertNotIn('PRIVATE',json.dumps(value));self.assertTrue((out/'public-observer-diagnostics.json').is_file())
+
 if __name__=='__main__':unittest.main()
