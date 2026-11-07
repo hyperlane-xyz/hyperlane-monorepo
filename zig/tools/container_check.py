@@ -498,6 +498,18 @@ def native_test_results(text: str) -> dict:
             "skipped": {name: NATIVE_SKIP_REASONS[name] for name in skipped}}
 
 
+def native_suite_command(mode: str, jobs: int, libraries: list[str], root: Path, machine: str) -> list[str]:
+    """Use the compiler already verified/installed while building this fixture."""
+    if mode not in ("ReleaseSafe", "ReleaseFast") or jobs not in range(1, 5) or machine not in {"x86_64", "aarch64"}:
+        raise ValueError("invalid native fixture mode/jobs/platform")
+    compiler = root / "zig/.toolchain" / ("zig-" + machine + "-linux-0.15.2") / "zig"
+    if compiler.is_symlink() or not compiler.is_file() or not os.access(compiler, os.X_OK):
+        raise ValueError("existing pinned fixture compiler required; no bootstrap/download")
+    return ["python3", "zig/tools/native_http_tests.py", "--timeout-seconds", "7200", "--",
+            "python3", "zig/tools/zig.py", "--compiler", str(compiler), "test", "src/db_tests.zig", "-O", mode,
+            "-j" + str(jobs), "-lc", "-lstdc++", *libraries]
+
+
 def native_suite(mode: str, jobs: int, output: Path) -> None:
     if mode not in ("ReleaseSafe", "ReleaseFast") or jobs not in range(1, 5):
         raise ValueError("invalid native fixture mode/jobs")
@@ -536,9 +548,7 @@ def native_suite(mode: str, jobs: int, output: Path) -> None:
     env["HYPERLANE_CURL_LIBRARY"] = "libcurl.so.4"
     env["HYPERLANE_LIBCRYPTO_LIBRARY"] = "libcrypto.so.3"
     env["ZIGGY_REGEX_LIBRARY"] = env["HYPERLANE_REGEX_LIBRARY"]
-    argv = ["python3", "zig/tools/native_http_tests.py", "--timeout-seconds", "7200", "--",
-            "python3", "zig/tools/zig.py", "test", "src/db_tests.zig", "-O", mode,
-            "-j" + str(jobs), "-lc", "-lstdc++", *libraries]
+    argv = native_suite_command(mode, jobs, libraries, ROOT, os.uname().machine)
     result = command(argv, env=env, timeout=7250)
     output.parent.mkdir(parents=True, exist_ok=True)
     log = output.with_suffix(".log")

@@ -159,7 +159,7 @@ jobs:
   native-http:
     if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -175,6 +175,15 @@ jobs:
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
       - name: Exercise actual native HTTP/2 and cancellation
         run: python3 zig/tools/native_http_tests.py --timeout-seconds 1200 --diagnostic-dir "$RUNNER_TEMP/native-http-diagnostics" -- python3 zig/tools/zig.py test src/root.zig -j"${BUILD_JOBS}" -OReleaseSafe -lc
+      - name: Diagnose native HTTP test312
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]') }}
+        continue-on-error: true
+        timeout-minutes: 7
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B zig/tools/native_http_312_diagnostic_test.py
+          python3 -I -B zig/tools/native_http_312_diagnostic.py --output "$RUNNER_TEMP/native-http-312-diagnostic"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
@@ -182,6 +191,14 @@ jobs:
           path: |
             ${{ runner.temp }}/native-http-diagnostics/
             ${{ runner.temp }}/native-http-controls/
+            ${{ runner.temp }}/native-http-312-diagnostic/context.json
+            ${{ runner.temp }}/native-http-312-diagnostic/summary.json
+            ${{ runner.temp }}/native-http-312-diagnostic/diagnostic.log
+            ${{ runner.temp }}/native-http-312-diagnostic/source-original.json
+            ${{ runner.temp }}/native-http-312-diagnostic/source-compiled.json
+            ${{ runner.temp }}/native-http-312-diagnostic/source-restored.json
+            ${{ runner.temp }}/native-http-312-diagnostic/outer-owner/
+            ${{ runner.temp }}/native-http-312-diagnostic/inner-owner/
           if-no-files-found: ignore
 
   native-linux:

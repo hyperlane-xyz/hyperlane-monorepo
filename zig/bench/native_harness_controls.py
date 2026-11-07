@@ -32,6 +32,54 @@ def source():
 def generated():
     return {str(p.relative_to(ROOT)):pin(p)for name in GENERATED for p in sorted((ROOT/name).glob('*.rs'))}
 
+class FunctionalCensusIncomplete(RuntimeError):
+    def __init__(self, observation):
+        self.observation = dict(observation)
+        super().__init__('Functional owned-allocation census incomplete: ' + json.dumps(observation, sort_keys=True))
+
+
+def functional_allocated(root, observations=None, *, maximum_seconds=15, maximum_entries=250000):
+    """Untimed helper/tool guard. Cold runner's 1s/250k census is unchanged."""
+    if not (0 < maximum_seconds <= 15 and type(maximum_entries) is int and 0 < maximum_entries <= 250000):
+        raise ValueError('Functional census limits must remain bounded by15s/250k')
+    started = time.monotonic()
+    report = {'complete': False, 'maximum_seconds': maximum_seconds, 'maximum_entries': maximum_entries, 'files_seen': 0, 'unique_inodes': 0, 'allocated_file_bytes': 0, 'elapsed_seconds_diagnostic': 0, 'reason': None}
+    inodes = set()
+    def check():
+        report['elapsed_seconds_diagnostic'] = time.monotonic() - started
+        if report['files_seen'] > maximum_entries: report['reason'] = 'entry_limit'
+        elif report['elapsed_seconds_diagnostic'] > maximum_seconds: report['reason'] = 'time_limit'
+        if report['reason'] is not None: raise FunctionalCensusIncomplete(report)
+    def walk_error(error):
+        if not isinstance(error, FileNotFoundError): raise error
+    try:
+        for directory, children, files in os.walk(root, followlinks=False, onerror=walk_error):
+            check()
+            children[:] = [name for name in children if not (Path(directory) / name).is_symlink()]
+            for name in files:
+                report['files_seen'] += 1
+                check()
+                try: row = (Path(directory) / name).lstat()
+                except FileNotFoundError: continue
+                key = row.st_dev, row.st_ino
+                if key not in inodes:
+                    inodes.add(key); report['allocated_file_bytes'] += row.st_blocks * 512
+        check()
+        report['complete'] = True
+        return report['allocated_file_bytes']
+    except BaseException as error:
+        if report['reason'] is None: report['reason'] = 'exception:' + type(error).__name__
+        raise
+    finally:
+        report['unique_inodes'] = len(inodes)
+        report['elapsed_seconds_diagnostic'] = time.monotonic() - started
+        if observations is not None:
+            observations['calls'] = observations.get('calls', 0) + 1
+            observations['maximum_files_seen'] = max(observations.get('maximum_files_seen', 0), report['files_seen'])
+            observations['maximum_elapsed_seconds_diagnostic'] = max(observations.get('maximum_elapsed_seconds_diagnostic', 0), report['elapsed_seconds_diagnostic'])
+            observations['last'] = report
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--root',type=Path,required=True);parser.add_argument('--git-sha',required=True);args=parser.parse_args()
     root=args.root.resolve(strict=True)
@@ -40,7 +88,7 @@ def main():
     assert re.fullmatch('[0-9a-f]{40}',args.git_sha)and subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True,timeout=10).strip()==args.git_sha
     assert shutil.disk_usage(root).free>=40*GIB
     target=root/'target';target.mkdir();output=root/'evidence';output.mkdir(exist_ok=True)
-    baseline_alloc=ownership.allocated(root);before=source();old_generated=generated();ownership.enable_subreaper()
+    census={};baseline_alloc=functional_allocated(root,census);before=source();old_generated=generated();ownership.enable_subreaper()
     env={k:os.environ[k]for k in ['PATH','CARGO_HOME','RUSTUP_HOME']if k in os.environ}
     (root/'home').mkdir(exist_ok=True);(root/'tmp').mkdir(exist_ok=True)
     env.update(HOME=str(root/'home'),TMPDIR=str(root/'tmp'),CARGO_TARGET_DIR=str(target),CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_TEST_DEBUG='0',CARGO_BUILD_JOBS='2',CARGO_TERM_COLOR='never')
@@ -54,7 +102,7 @@ def main():
     try:
         for name,argv in phases:
             assert source()==before,'authoritative tracked Source changed'
-            assert shutil.disk_usage(root).free>=6*GIB and ownership.allocated(root)-baseline_alloc<=30*GIB
+            assert shutil.disk_usage(root).free>=6*GIB and functional_allocated(root,census)-baseline_alloc<=30*GIB
             child=None;known={};groups={};cleanup=None;error=None;peak=0;log=output/(name+'.log');start=time.monotonic()
             try:
                 with log.open('wb')as stream:
@@ -65,7 +113,7 @@ def main():
                         peak=max(peak,sum(row['rss_bytes']for row in owned.values()))
                         assert peak<=16*GIB,'helper tree RSS cap'
                         assert shutil.disk_usage(root).free>=6*GIB,'helper free floor'
-                        assert ownership.allocated(root)-baseline_alloc<=30*GIB,'helper task-growth cap'
+                        assert functional_allocated(root,census)-baseline_alloc<=30*GIB,'helper task-growth cap'
                         assert log.stat().st_size<=64*1024**2,'helper log cap'
                         assert time.monotonic()<deadline,'original helper deadline'
                         event=os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
@@ -113,9 +161,9 @@ def main():
                     shutil.copyfile(path,destination);destination.chmod(path.stat().st_mode&0o777)
                     original=pin(path);copied=pin(destination);assert original['sha256']==copied['sha256']
                     products[kind]={'producer':original,'published':copied,'artifact_relative_path':'products/'+kind}
-        if primary is None and (shutil.disk_usage(root).free<6*GIB or ownership.allocated(root)-baseline_alloc>30*GIB):
+        if primary is None and (shutil.disk_usage(root).free<6*GIB or functional_allocated(root,census)-baseline_alloc>30*GIB):
             primary={'type':'ResourceError','message':'post-publication resource bound failed'}
-        result={'schema':1,'passed':primary is None,'source_commit':args.git_sha,'scope':'Compiled filtered native harness fixtures only; no native-chain/role/SDK-main/600 or timing acceptance','source_unchanged':source()==before,'Source_scope':'Git-tracked authoritative Rust main/sealevel inputs; build.rs-generated ignored ABI outputs recorded separately, preserved after creation','checks':rows,'all_owned_jobs_joined':all(r['actual_parent_wait'] and r['cleanup']['clean'] for r in rows),'products':products,'error':primary,'timing_acceptance':False,'native_case_acceptance':False}
+        result={'schema':1,'passed':primary is None,'source_commit':args.git_sha,'scope':'Compiled filtered native harness fixtures only; no native-chain/role/SDK-main/600 or timing acceptance','source_unchanged':source()==before,'Source_scope':'Git-tracked authoritative Rust main/sealevel inputs; build.rs-generated ignored ABI outputs recorded separately, preserved after creation','checks':rows,'all_owned_jobs_joined':all(r['actual_parent_wait'] and r['cleanup']['clean'] for r in rows),'products':products,'error':primary,'functional_allocation_census':census,'timing_acceptance':False,'native_case_acceptance':False}
         if primary is None and len(products)!=2:
             result['passed']=False;result['error']={'type':'ArtifactError','message':'both actual Cargo-emitted helper products required'};primary=result['error']
         (output/'result.json').write_text(json.dumps(result,indent=2)+'\n')

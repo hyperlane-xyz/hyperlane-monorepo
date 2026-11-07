@@ -21,6 +21,8 @@ import subprocess
 import sys
 import time
 
+from native_harness_controls import functional_allocated
+
 ROOT = Path(__file__).resolve().parents[2]
 GIB = 1024 ** 3
 MACHINES = {'x86_64': 62, 'aarch64': 183, 'arm64': 183}
@@ -121,7 +123,7 @@ def verify_locks(repo):
 
 
 def source(repo):
-    names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust/main', 'rust/sealevel', 'zig/reference', 'zig/bench/native_case_tools.py', 'zig/bench/native_case_tools_test.py', 'zig/bench/cold_matrix_owner.py', 'zig/integration/native_rows_interop.py'], cwd=repo, timeout=10).decode().split('\0')
+    names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust/main', 'rust/sealevel', 'zig/reference', 'zig/bench/native_case_tools.py', 'zig/bench/native_case_tools_test.py', 'zig/bench/native_harness_controls.py', 'zig/bench/cold_matrix_owner.py', 'zig/integration/native_rows_interop.py'], cwd=repo, timeout=10).decode().split('\0')
     return {n: descriptor(regular(repo / n)) for n in names if n and not n.endswith('Cargo.lock')}
 
 
@@ -137,7 +139,7 @@ def make_plan(root, repo, git_sha):
     return {'schema': 1, 'compiled_source_commit': git_sha, 'cargo_profile': 'dev, debug=0; same target/flags as successful harness controls; matching fingerprints reused, not guaranteed all dependencies identical', 'target': str(target), 'cwd': str(repo / 'rust/main'), 'phases': phases, 'minimum_free_bytes': 6 * GIB, 'maximum_task_growth_bytes': 30 * GIB, 'native_case_acceptance': False, 'storage_interoperability_acceptance': False, 'timing_acceptance': False}
 
 
-def run_owned(phase, repo, env, root, output, deadline, owner, source_before, baseline):
+def run_owned(phase, repo, env, root, output, deadline, owner, source_before, baseline, census=None):
     require(source(repo) == source_before, 'Source changed before tool phase')
     log = output / (phase['name'] + '.log')
     child, cleanup, error = None, None, None
@@ -151,7 +153,7 @@ def run_owned(phase, repo, env, root, output, deadline, owner, source_before, ba
                 owned = owner.owned_processes(current, child.pid, known, groups, True)
                 require(sum(r['rss_bytes'] for r in owned.values()) <= 16 * GIB, 'Tool RSS cap')
                 require(shutil.disk_usage(root).free >= 6 * GIB, 'Tool6GiB free floor')
-                require(owner.allocated(root) - baseline <= 30 * GIB, 'Tool30GiB task growth cap')
+                require(functional_allocated(root, census) - baseline <= 30 * GIB, 'Tool30GiB task growth cap')
                 require(log.stat().st_size <= 64 * 1024 ** 2 and time.monotonic() < deadline, 'Tool log/deadline cap')
                 if os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None:
                     break
@@ -212,12 +214,13 @@ def execute(root, repo, git_sha, minutes):
     owner.enable_subreaper()
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, interrupted)
-    baseline = owner.allocated(root)
+    census = {}
+    baseline = functional_allocated(root, census)
     deadline = time.monotonic() + minutes * 60
     rows, products, failure = [], {}, None
     try:
         for phase in plan['phases']:
-            row = run_owned(phase, repo, env, root, output, deadline, owner, before, baseline)
+            row = run_owned(phase, repo, env, root, output, deadline, owner, before, baseline, census)
             rows.append(row)
             (output / 'partial.json').write_text(json.dumps(rows, indent=2) + '\n')
             require(row['passed'], 'Tool phase failed; actual receipt retained')
@@ -245,7 +248,7 @@ def execute(root, repo, git_sha, minutes):
         require(set(products) == set(TOOLS), 'Four exact tools required')
     except BaseException as error:
         failure = {'type': type(error).__name__, 'message': str(error)}
-    gate = {'schema': 1, 'passed': failure is None, 'source_commit': git_sha, 'source_before': before, 'source_after': source(repo), 'canonical_compatibility_source': canonical, 'locks': locks, 'checks': rows, 'error': failure, 'actual_all_parent_waits': all(r['actual_parent_wait'] for r in rows), 'native_chain_acceptance': False, 'storage_interoperability_acceptance': False, 'elapsed600_acceptance': False, 'timing_acceptance': False}
+    gate = {'schema': 1, 'passed': failure is None, 'source_commit': git_sha, 'source_before': before, 'source_after': source(repo), 'canonical_compatibility_source': canonical, 'locks': locks, 'checks': rows, 'error': failure, 'actual_all_parent_waits': all(r['actual_parent_wait'] for r in rows), 'functional_allocation_census': census, 'native_chain_acceptance': False, 'storage_interoperability_acceptance': False, 'elapsed600_acceptance': False, 'timing_acceptance': False}
     gate_path = output / 'source-gate.json'
     gate_path.write_text(json.dumps(gate, indent=2) + '\n')
     if failure is not None:

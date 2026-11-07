@@ -101,5 +101,36 @@ class Controls(unittest.TestCase):
             called.assert_not_called()
 
 
+class ExistingCompilerTests(unittest.TestCase):
+    def test_actual_fixture_path_is_explicit_in_both_modes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for machine in ("x86_64", "aarch64"):
+                compiler = root / "zig/.toolchain" / ("zig-" + machine + "-linux-0.15.2") / "zig"
+                compiler.parent.mkdir(parents=True); compiler.write_bytes(b"compiler path fixture, never executed"); compiler.chmod(0o755)
+                for mode in ("ReleaseSafe", "ReleaseFast"):
+                    libraries = ["/native/librocksdb.a", "/native/libgcc_s.so.1"]
+                    argv = c.native_suite_command(mode, 2, libraries, root, machine)
+                    self.assertEqual(argv[argv.index("--compiler") + 1], str(compiler))
+                    self.assertIn(mode, argv); self.assertIn("src/db_tests.zig", argv)
+                    self.assertEqual(argv[-2:], libraries)
+                    self.assertEqual(argv[argv.index("--timeout-seconds") + 1], "7200")
+                    self.assertFalse(any("bootstrap" in word for word in argv))
+    def test_missing_compiler_fails_without_fetch_or_ambient_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "existing pinned fixture compiler"):
+                c.native_suite_command("ReleaseSafe", 2, [], Path(tmp), "x86_64")
+    def test_symlink_or_nonexecutable_compiler_rejects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); compiler = root / "zig/.toolchain/zig-x86_64-linux-0.15.2/zig"; compiler.parent.mkdir(parents=True)
+            compiler.symlink_to("/bin/sh")
+            with self.assertRaises(ValueError): c.native_suite_command("ReleaseSafe", 2, [], root, "x86_64")
+            compiler.unlink(); compiler.write_text("not executable"); compiler.chmod(0o644)
+            with self.assertRaises(ValueError): c.native_suite_command("ReleaseSafe", 2, [], root, "x86_64")
+    def test_wrong_platform_mode_or_jobs_rejects(self):
+        for mode,jobs,machine in [("Debug",2,"x86_64"),("ReleaseSafe",8,"x86_64"),("ReleaseSafe",2,"arm64")]:
+            with self.subTest(mode=mode,jobs=jobs,machine=machine), self.assertRaises(ValueError):
+                c.native_suite_command(mode,jobs,[],Path("/work"),machine)
+
 if __name__ == '__main__':
     unittest.main()
