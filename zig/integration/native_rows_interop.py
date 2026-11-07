@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Actual Zig operation persistence -> two independent Rust readers. No chain/600s acceptance."""
-import argparse,copy,hashlib,json,pathlib,selectors,struct,subprocess,tempfile,time
+import argparse,copy,hashlib,json,pathlib,selectors,struct,subprocess,tempfile,time,importlib.util,platform,sys
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 OLD_SHA='8e295002b44b4248d00d6627aaa47a21'+'2315f6f837f3a2d652f2e7f6ada69fd9'
 REFERENCE_SHA='de1a7ce2afa16e1c527fe875082bff280'+'868bfadaaa5c3088aeef277e5b5c52e'
@@ -70,13 +70,26 @@ def verify_native(expected,value):
  assert sum(int(row['tokens_used_hex'],16)for row in expected['rows'][2:4])+1==(1<<240)+17
 
 def main():
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--writer',type=pathlib.Path,required=True);parser.add_argument('--reader',type=pathlib.Path,required=True);parser.add_argument('--reader-sha256',required=True);parser.add_argument('--old-oracle',type=pathlib.Path,default=ROOT/'zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle');parser.add_argument('--message-reference',type=pathlib.Path,default=ROOT/'zig/reference/target/release/ziggy-rust-reference');parser.add_argument('--output',type=pathlib.Path,required=True);args=parser.parse_args()
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--writer',type=pathlib.Path,required=True);parser.add_argument('--reader',type=pathlib.Path,required=True);parser.add_argument('--reader-sha256',required=True);parser.add_argument('--old-oracle',type=pathlib.Path);parser.add_argument('--message-reference',type=pathlib.Path);parser.add_argument('--tool-manifest',type=pathlib.Path);parser.add_argument('--tool-manifest-sha256');parser.add_argument('--tool-source-commit');parser.add_argument('--writer-sha256');parser.add_argument('--output',type=pathlib.Path,required=True);args=parser.parse_args()
  assert len(args.reader_sha256)==64 and all(c in'0123456789abcdef'for c in args.reader_sha256)
- records={'writer':artifact(args.writer),'native_reader':artifact(args.reader,args.reader_sha256),'old_canonical_oracle':artifact(args.old_oracle,OLD_SHA),'rust_message_reference':artifact(args.message_reference,REFERENCE_SHA)}
+ producer_authority=None
+ if args.tool_manifest is not None:
+  if sys.platform!='linux' or args.old_oracle is not None or args.message_reference is not None or not args.tool_manifest_sha256 or not args.tool_source_commit or not args.writer_sha256:raise ValueError('ExplicitLinuxProducerAuthorityRequired')
+  spec=importlib.util.spec_from_file_location('native_case_tools',ROOT/'zig/bench/native_case_tools.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  tools=module.load_manifest(args.tool_manifest,args.tool_manifest_sha256,args.tool_source_commit,module.MACHINES[platform.machine()])
+  records={'writer':artifact(args.writer,args.writer_sha256),'native_reader':artifact(args.reader,args.reader_sha256),'old_canonical_oracle':tools['ziggy-rocks-oracle'],'rust_message_reference':tools['ziggy-rust-reference']}
+  if records['native_reader']!=tools['ziggy-native-rows']:raise ValueError('NativeReaderProducerDescriptorMismatch')
+  module.validate_elf(args.writer,module.MACHINES[platform.machine()])
+  producer_authority={'manifest':artifact(args.tool_manifest,args.tool_manifest_sha256),'source_commit':args.tool_source_commit,'scope':'Actual source-built Linux tools; immutable canonical Source/lock, new architecture-specific binary hashes; no implicit build or native acceptance'}
+ else:
+  if any(value is not None for value in [args.tool_manifest_sha256,args.tool_source_commit,args.writer_sha256]):raise ValueError('ProducerManifestRequired')
+  records={'writer':artifact(args.writer),'native_reader':artifact(args.reader,args.reader_sha256),'old_canonical_oracle':artifact(args.old_oracle or ROOT/'zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle',OLD_SHA),'rust_message_reference':artifact(args.message_reference or ROOT/'zig/reference/target/release/ziggy-rust-reference',REFERENCE_SHA)}
  root=pathlib.Path(tempfile.mkdtemp(prefix='ziggy-native-rows-interop-v2-',dir='/tmp'));root.chmod(0o700)
  with(root/'fixture.marker').open('xb')as marker:marker.write(b'ziggy-native-rows-interop-v2\n')
- source_before={name:sha(ROOT/name)for name in ['zig/src/native_rows_interop_fixture.zig','zig/integration/native_rows_interop.py']}
- writer=None;stderr=(root/'writer.stderr').open('w');result={'passed':False,'scope':__doc__,'fixture_root':str(root),'artifacts':records,'source_before':source_before,'errors':[],'actual_chain_or_SDK_signature_acceptance':False,'elapsed_confirmation_hold_credit_ms':0}
+ source_names=['zig/src/native_rows_interop_fixture.zig','zig/integration/native_rows_interop.py']
+ if args.tool_manifest is not None:source_names.append('zig/bench/native_case_tools.py')
+ source_before={name:sha(ROOT/name)for name in source_names}
+ writer=None;stderr=(root/'writer.stderr').open('w');result={'passed':False,'scope':__doc__,'fixture_root':str(root),'artifacts':records,'source_before':source_before,'tool_producer_authority':producer_authority,'errors':[],'actual_chain_or_SDK_signature_acceptance':False,'elapsed_confirmation_hold_credit_ms':0}
  try:
   assert not(root/'db').exists()
   command=[records['writer']['path'],'write-hold',str(root)];writer=subprocess.Popen(command,cwd=ROOT,env={},stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=stderr,text=True)
@@ -129,6 +142,7 @@ def main():
   if not stderr.closed:stderr.close()
   result['source_after']={name:sha(ROOT/name)for name in source_before};result['source_unchanged']=result['source_after']==source_before
   if not result['source_unchanged']:result['passed']=False;result['errors'].append({'type':'SourceChanged','detail':'fixture source changed during execution'})
+  if producer_authority is not None and artifact(args.tool_manifest)!=producer_authority['manifest']:result['passed']=False;result['errors'].append({'type':'ToolManifestChanged','detail':'producer descriptor changed during execution'})
   result['owned_process_cleanup']={'writer_reaped':writer is None or writer.poll()is not None,'no_nodes_or_agent_roles_launched':True,'fixture_retained_for_evidence':True};args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2)+'\n')
  if not result['passed']:raise AssertionError('InteropSourceChanged')
  print(json.dumps({'passed':True,'structural_storage_interop_only':True,'elapsed_confirmation_hold_credit_ms':0,'fixture_root':str(root)}))

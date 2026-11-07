@@ -26,7 +26,7 @@ RUN printf 'deb http://deb.debian.org/debian bookworm-backports main\n' > /etc/a
     && apt-get install -y --no-install-recommends \
         build-essential clang cmake libclang-dev "libcurl4=${CURL_DEBIAN_VERSION}" \
         "libcurl4-openssl-dev=${CURL_DEBIAN_VERSION}" libpq-dev \
-        libssl-dev openssl make nodejs pkg-config python3 \
+        libssl-dev openssl make nodejs pkg-config procps python3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /work
 COPY . /work
@@ -38,7 +38,10 @@ RUN rustc +1.98.0 --version \
     && cargo +1.98.0 fetch --locked --manifest-path zig/native/rocks/Cargo.toml
 
 FROM build-base AS native-url
-RUN python3 zig/src/net/native-url/locked.py --toolchain 1.98.0
+RUN python3 zig/src/net/native-url/locked.py --toolchain 1.98.0 \
+    && python3 zig/tools/build_cpu.py --scope url --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+        --artifact libziggy_url.so=/work/zig/src/net/native-url/target/release/libziggy_url.so \
+        --output /opt/hyperlane-build-cpu/url.json
 
 FROM build-base AS native-db
 COPY --from=native-url /work/zig/src/net/native-url/target/release/libziggy_url.so /opt/hyperlane-url/libziggy_url.so
@@ -60,7 +63,12 @@ RUN python3 zig/tools/native_deps.py --offline --jobs "${BUILD_JOBS}" \
         -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dlibpq-library=${LIBPQ}" \
     && python3 zig/tools/container_check.py write-probe --output /tmp/native-runtime-probe.c \
     && cc -O2 -Wall -Wextra -Werror /tmp/native-runtime-probe.c \
-        -I/usr/include/postgresql -lcurl -lpq -lcrypto -o /opt/hyperlane-native-runtime-probe
+        -I/usr/include/postgresql -lcurl -lpq -lcrypto -o /opt/hyperlane-native-runtime-probe \
+    && python3 zig/tools/build_cpu.py --scope native-db --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+        --artifact relayer=/work/zig/zig-out/bin/relayer \
+        --artifact validator=/work/zig/zig-out/bin/validator \
+        --artifact scraper=/work/zig/zig-out/bin/scraper \
+        --output /opt/hyperlane-build-cpu/native-db.json
 
 FROM native-db AS native-starknet
 RUN python3 zig/src/starknet/testing/locked.py --toolchain 1.98.0 \
@@ -73,15 +81,26 @@ RUN python3 zig/src/starknet/testing/locked.py --toolchain 1.98.0 \
     && python3 zig/tools/zig.py --compiler "${ZIG}" test src/starknet_batch_tests.zig -O "${ZIG_MODE}" -j"${BUILD_JOBS}" -lc --test-filter Starknet \
     && python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
         python3 zig/tools/zig.py --compiler "${ZIG}" build -j"${BUILD_JOBS}" native-db-test \
-        -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" --summary all
+        -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" --summary all \
+    && python3 zig/tools/build_cpu.py --scope starknet --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+        --artifact libziggy_starknet_crypto.so=/work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so \
+        --output /opt/hyperlane-build-cpu/starknet.json
 
 FROM native-db AS native-aleo
 RUN python3 zig/src/aleo/testing/locked.py --toolchain 1.98.0 \
     && ZIG="$(python3 zig/tools/bootstrap.py)" \
-    && python3 zig/tools/zig.py --compiler "${ZIG}" build -j"${BUILD_JOBS}" aleo-vm-worker -Doptimize="${ZIG_MODE}"
+    && python3 zig/tools/zig.py --compiler "${ZIG}" build -j"${BUILD_JOBS}" aleo-vm-worker -Doptimize="${ZIG_MODE}" \
+    && python3 zig/tools/build_cpu.py --scope aleo --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+        --artifact libziggy_aleo_crypto.so=/work/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.so \
+        --artifact libziggy_aleo_vm.so=/work/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.so \
+        --artifact hyperlane-aleo-vm-worker=/work/zig/zig-out/bin/hyperlane-aleo-vm-worker \
+        --output /opt/hyperlane-build-cpu/aleo.json
 
 FROM native-db AS native-regex
-RUN python3 zig/src/ops/tools/locked.py --toolchain 1.98.0
+RUN python3 zig/src/ops/tools/locked.py --toolchain 1.98.0 \
+    && python3 zig/tools/build_cpu.py --scope regex --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+        --artifact libziggy_regex.so=/work/zig/src/ops/regex-native/target/release/libziggy_regex.so \
+        --output /opt/hyperlane-build-cpu/regex.json
 
 # Explicit correctness fixture only: never inherited by a runtime target.
 # Public mainnet degree18 parameters are fetched/verified before --network=none tests.
@@ -116,6 +135,9 @@ RUN printf 'deb http://deb.debian.org/debian bookworm-backports main\n' > /etc/a
     && chown -R hyperlane:hyperlane /etc/hyperlane /var/lib/hyperlane /opt/hyperlane
 
 FROM runtime-base AS runtime-core
+COPY --from=native-db /opt/hyperlane-build-cpu/native-db.json /opt/hyperlane/share/build-cpu/native-db.json
+COPY --from=native-url /opt/hyperlane-build-cpu/url.json /opt/hyperlane/share/build-cpu/url.json
+COPY --from=native-regex /opt/hyperlane-build-cpu/regex.json /opt/hyperlane/share/build-cpu/regex.json
 COPY --from=native-db /work/zig/zig-out/bin/relayer /opt/hyperlane/bin/relayer
 COPY --from=native-db /work/zig/zig-out/bin/validator /opt/hyperlane/bin/validator
 COPY --from=native-db /work/zig/zig-out/bin/scraper /opt/hyperlane/bin/scraper
@@ -147,11 +169,13 @@ USER 10001:10001
 COPY --from=migration /work/rust/main/target/release/init-db /opt/hyperlane/libexec/init-db
 
 FROM runtime-core AS runtime-starknet
+COPY --from=native-starknet /opt/hyperlane-build-cpu/starknet.json /opt/hyperlane/share/build-cpu/starknet.json
 COPY --from=native-starknet /work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so /opt/hyperlane/lib/libziggy_starknet_crypto.so
 ENV HYPERLANE_STARKNET_CRYPTO_LIBRARY=/opt/hyperlane/lib/libziggy_starknet_crypto.so
 LABEL org.opencontainers.image.title="Hyperlane Zig agents (alpha, core + Starknet SDK)"
 
 FROM runtime-core AS runtime-aleo
+COPY --from=native-aleo /opt/hyperlane-build-cpu/aleo.json /opt/hyperlane/share/build-cpu/aleo.json
 COPY --from=native-aleo /work/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.so /opt/hyperlane/lib/libziggy_aleo_crypto.so
 COPY --from=native-aleo /work/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.so /opt/hyperlane/lib/libziggy_aleo_vm.so
 COPY --from=native-aleo /work/zig/zig-out/bin/hyperlane-aleo-vm-worker /opt/hyperlane/bin/hyperlane-aleo-vm-worker
@@ -161,6 +185,7 @@ ENV HYPERLANE_ALEO_CRYPTO_LIBRARY=/opt/hyperlane/lib/libziggy_aleo_crypto.so \
 LABEL org.opencontainers.image.title="Hyperlane Zig agents (alpha, core + Aleo SDK; external proving parameters required)"
 
 FROM runtime-aleo AS runtime-full-sdk
+COPY --from=native-starknet /opt/hyperlane-build-cpu/starknet.json /opt/hyperlane/share/build-cpu/starknet.json
 COPY --from=native-starknet /work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so /opt/hyperlane/lib/libziggy_starknet_crypto.so
 ENV HYPERLANE_STARKNET_CRYPTO_LIBRARY=/opt/hyperlane/lib/libziggy_starknet_crypto.so
 LABEL org.opencontainers.image.title="Hyperlane Zig agents (alpha, core + Aleo + Starknet SDK; external proving parameters required)"

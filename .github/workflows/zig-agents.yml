@@ -367,6 +367,8 @@ jobs:
           assert disk >= 32 * 1024**3, 'Need32GiB free for the separate SDK build allocation'
           assert available >= 6 * 1024**3, 'Need6GiB available for bounded native proof fixture'
           PY
+      - name: Check exact SDK payload publication contract
+        run: python3 -W error -m unittest discover -s zig/bench -p native_payload_export_test.py -v
       - name: Build matching-mode full SDK runtime and test fixture
         run: |
           docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg ZIG_MODE=${{ matrix.mode }} --build-arg GIT_SHA="$GITHUB_SHA" --target runtime-full-sdk --tag zig-agents:ci-full-${{ matrix.mode }} -f zig/Dockerfile .
@@ -387,6 +389,51 @@ jobs:
           assert native['passed'] and runtime['passed']
           assert native['artifact_sha256'] == runtime['artifact_sha256'], 'Tested libraries/worker/roles differ from packaged payloads'
           PY
+      - name: Export exact nine tested Linux runtime payloads without starting the image
+        run: |
+          python3 zig/bench/native_payload_export.py \
+            --image zig-agents:ci-full-${{ matrix.mode }} --mode ${{ matrix.mode }} \
+            --git-sha "$GITHUB_SHA" --docker "$(command -v docker)" \
+            --native zig/bench/results/full-sdk-${{ matrix.mode }}/native.json \
+            --runtime zig/bench/results/full-sdk-${{ matrix.mode }}/runtime.json \
+            --output "$RUNNER_TEMP/native-runtime-payload-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-${{ matrix.mode }}"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-native-runtime-payload-${{ matrix.mode }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/native-runtime-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.mode }}/payload/
+            ${{ runner.temp }}/native-runtime-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.mode }}/receipts/
+            ${{ runner.temp }}/native-runtime-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.mode }}/build-cpu/
+            ${{ runner.temp }}/native-runtime-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.mode }}/manifest.json
+      - name: Compile matching-mode native-row interoperability writer (never execute it)
+        run: |
+          set -euo pipefail
+          WRITER_PARENT="$RUNNER_TEMP/native-interop-writer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-${{ matrix.mode }}"
+          mkdir -m 700 "$WRITER_PARENT"
+          mkdir -m 777 "$WRITER_PARENT/output"
+          FIXTURE_ID="$(docker image inspect --format '{{.Id}}' zig-agents:ci-fixture-${{ matrix.mode }})"
+          docker run --rm --pull=never --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --user 10001:10001 \
+            --memory=6g --memory-swap=6g --cpus=2 --pids-limit=256 \
+            --ulimit fsize=1073741824:1073741824 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=2g --workdir /work \
+            --env HOME=/tmp --env TMPDIR=/tmp --env PYTHONDONTWRITEBYTECODE=1 \
+            --mount type=bind,src="$WRITER_PARENT/output",dst=/evidence \
+            --entrypoint python3 "$FIXTURE_ID" zig/bench/native_interop_writer_export.py \
+            --mode ${{ matrix.mode }} --jobs "${BUILD_JOBS}" --git-sha "$GITHUB_SHA" --output /evidence
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-native-interop-writer-${{ matrix.mode }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/native-interop-writer-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.mode }}/output/bin/native-rows-writer-${{ matrix.mode }}
+            ${{ runner.temp }}/native-interop-writer-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.mode }}/output/manifest.json
+            ${{ runner.temp }}/native-interop-writer-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.mode }}/output/diagnostics/
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
@@ -521,7 +568,7 @@ jobs:
   native-harness-controls:
     if: (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))
     runs-on: depot-ubuntu-24.04-8
-    timeout-minutes: 210
+    timeout-minutes: 280
     env:
       CARGO_BUILD_JOBS: 2
       CARGO_INCREMENTAL: 0
@@ -552,11 +599,26 @@ jobs:
           echo "CARGO_HOME=$NATIVE_HARNESS_ROOT/cargo-home" >> "$GITHUB_ENV"
           echo "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" >> "$GITHUB_ENV"
           CARGO_HOME="$NATIVE_HARNESS_ROOT/cargo-home" cargo +1.98.0 fetch --locked --manifest-path rust/main/Cargo.toml
+          python3 zig/tools/fixture_pack.py restore-locks
+          python3 zig/reference/native-rows/locked.py --restore-only
+          for manifest in zig/reference/rocks/Cargo.toml zig/reference/native-rows/Cargo.toml zig/reference/Cargo.toml; do
+            CARGO_HOME="$NATIVE_HARNESS_ROOT/cargo-home" cargo +1.98.0 fetch --locked --manifest-path "$manifest"
+          done
           { rustc +1.98.0 -vV; cargo +1.98.0 -V; node --version; python3 --version; uname -a; lscpu; df -B1 "$NATIVE_HARNESS_ROOT"; } > "$NATIVE_HARNESS_ROOT/evidence/setup/tools-platform.txt"
           git diff --exit-code
+      - name: Check portable tool ELF and explicit admission guards
+        run: python3 zig/bench/native_case_tools_test.py -v
       - name: Compile, test and lint only the native helper controls
         timeout-minutes: 155
         run: python3 zig/bench/native_harness_controls.py --root "$NATIVE_HARNESS_ROOT" --git-sha "$GITHUB_SHA"
+      - name: Build Source-pinned native case verifier tools in the same target
+        timeout-minutes: 65
+        run: python3 zig/bench/native_case_tools.py --root "$NATIVE_HARNESS_ROOT" --git-sha "$GITHUB_SHA" --minutes 60 --execute
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: zig-native-case-tools-${{ github.sha }}
+          path: ${{ env.NATIVE_HARNESS_ROOT }}/evidence/native-case-tools/
+          if-no-files-found: error
       - name: Preserve helper Source, filtered results, products and failure evidence
         if: always()
         env:
