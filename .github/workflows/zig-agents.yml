@@ -26,6 +26,10 @@ on:
       - '.github/workflows/zig-agents.yml'
   workflow_dispatch:
     inputs:
+      aleo_linux_prerequisite:
+        description: Run only the bounded Linux kernel capability probe (no SDK or node)
+        type: boolean
+        default: false
       svm_prerequisites:
         description: Run only the Linux SVM prerequisite job
         type: boolean
@@ -50,7 +54,7 @@ env:
 
 jobs:
   svm-prerequisites:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && (contains(github.event.head_commit.message, '[zig-svm-prerequisites]') || contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')))) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && ((github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && (contains(github.event.head_commit.message, '[zig-svm-prerequisites]') || contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]'))))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 200
     permissions:
@@ -100,7 +104,7 @@ jobs:
             ${{ runner.temp }}/svm-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/observations.jsonl
 
   unit:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites))) }}
     strategy:
       fail-fast: false
       matrix:
@@ -133,7 +137,7 @@ jobs:
         run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all
 
   evm:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -161,7 +165,7 @@ jobs:
           if-no-files-found: ignore
 
   native-http:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -206,7 +210,7 @@ jobs:
           if-no-files-found: ignore
 
   native-linux:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
     env:
@@ -313,7 +317,7 @@ jobs:
           if-no-files-found: warn
 
   container:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites))) }}
     needs: native-linux
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
@@ -343,7 +347,7 @@ jobs:
           if-no-files-found: warn
 
   vm-images:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites)) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites))) }}
     strategy:
       fail-fast: false
       matrix:
@@ -372,7 +376,7 @@ jobs:
   # Explicit, resource-qualified SDK correctness. Not an eight-family native gate.
   # Feature-branch push or manual dispatch; capacity checked before SDK build.
   full-sdk-native:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')))) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))))) }}
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -471,7 +475,7 @@ jobs:
 
   # Separate fresh VM per trial. Compiler-pair positions rotate; prerequisites remain fixed first.
   cold-full-feature:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name == 'workflow_dispatch' && inputs.cold_full_feature && !inputs.svm_prerequisites)) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name == 'workflow_dispatch' && inputs.cold_full_feature && !inputs.svm_prerequisites))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 300
     env:
@@ -594,7 +598,7 @@ jobs:
 
   # Compilation and filtered native fixture controls only; never native cases.
   native-harness-controls:
-    if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite')))) }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && ((github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'))))) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 280
     env:
@@ -669,7 +673,7 @@ jobs:
           if-no-files-found: error
 
   native-case-producer-inputs:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 190
     permissions:
@@ -845,3 +849,59 @@ jobs:
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/build-cpu/starknet.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/sdk/build-cpu/aleo.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/helper/setup/tools-platform.txt
+
+  aleo-linux-prerequisite:
+    if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) }}
+    runs-on: depot-ubuntu-24.04-16
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Provision only sandbox prerequisites outside measurements
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap python3
+      - name: Check socket-free Source controls
+        timeout-minutes: 2
+        run: python3 -I -B -W error zig/tools/aleo_linux/kernel_only_test.py
+      - name: Run bounded actual kernel capability probe
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import hashlib,json,os,secrets
+          from pathlib import Path
+          code=(Path(os.environ['GITHUB_WORKSPACE'])/'zig/tools/aleo_linux').resolve()
+          root=(Path(os.environ['RUNNER_TEMP'])/('aleo-kernel-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT'])).resolve()
+          def pin(path):
+            raw=path.read_bytes();return {'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+          expected={'kernel_probe.py','loopback_bridge.py','receipts.py','kernel_only_test.py'}
+          assert {path.name for path in code.iterdir()} == expected, 'unexpected Aleo code closure'
+          assert all(path.is_file() and not path.is_symlink() for path in code.iterdir()), 'regular code closure required'
+          spec={'schema':1,'root_approved':True,'purpose':'aleo-linux-kernel-probe-v1','authorization':'this reviewed isolated CI capability job, no SDK/node/proof grant','output':str(root),'run_token':secrets.token_hex(16),'bwrap':pin(Path('/usr/bin/bwrap').resolve()),'python':pin(Path('/usr/bin/python3').resolve()),'pins':[pin(code/name) for name in ('kernel_probe.py','loopback_bridge.py','receipts.py')]}
+          path=root.with_suffix('.spec.json')
+          with path.open('x')as stream:json.dump(spec,stream);stream.write('\n')
+          (root.with_suffix('.spec.sha256')).write_text(hashlib.sha256(path.read_bytes()).hexdigest()+'\n')
+          PY
+          ROOT="$RUNNER_TEMP/aleo-kernel-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          exec env -i PATH=/usr/bin:/bin LC_ALL=C.UTF-8 \
+            python3 -I -B zig/tools/aleo_linux/kernel_probe.py --execute-probe \
+            --spec "$ROOT.spec.json" --spec-sha "$(cat "$ROOT.spec.sha256")"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: aleo-linux-kernel-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}/result.json
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}/stdout.log
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}/stderr.log
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}.spec.json
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}/negative-stdout.log
+            ${{ runner.temp }}/aleo-kernel-${{ github.run_id }}-${{ github.run_attempt }}/negative-stderr.log

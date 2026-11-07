@@ -90,7 +90,12 @@ class DispatchTests(unittest.TestCase):
             if line.startswith('  ') and not line.startswith('   ') and line.endswith(':'): current = line.strip()[:-1]
             if line.startswith('    if: '): conditions[current] = line[8:]
         ordinary = {'svm-prerequisites', 'unit', 'evm', 'native-http', 'native-linux', 'container', 'vm-images', 'full-sdk-native', 'cold-full-feature', 'native-harness-controls'}
-        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs'})
+        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs', 'aleo-linux-prerequisite'})
+        kernel = "!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite))"
+        for name, condition in conditions.items():
+            if name != 'aleo-linux-prerequisite':
+                self.assertTrue(condition.startswith('${{ ' + kernel + ' && ('), name)
+        conditions = {name: '${{ ' + condition.removeprefix('${{ ' + kernel + ' && (').removesuffix(') }}') + ' }}' for name, condition in conditions.items() if name != 'aleo-linux-prerequisite'}
         guard = "!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]'))"
         for name in ordinary:
             self.assertTrue(conditions[name].startswith('${{ ' + guard + ' && ('), name)
@@ -133,12 +138,12 @@ class DispatchTests(unittest.TestCase):
         return values
 
     @staticmethod
-    def condition(value, event, message, svm=False, cold=False):
+    def condition(value, event, message, svm=False, cold=False, aleo=False):
         import re
         from types import SimpleNamespace as N
         code = value.removeprefix('${{ ').removesuffix(' }}')
         code = re.sub(r'!(?!=)', ' not ', code).replace('&&', ' and ').replace('||', ' or ').strip()
-        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold), 'contains': lambda text, needle: needle in text}
+        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo), 'contains': lambda text, needle: needle in text}
         return bool(eval(compile(code, '<actual-workflow-condition>', 'eval'), {'__builtins__': {}}, context))
 
     def test_zip_expansion_bound_is_preflight(self):
