@@ -374,7 +374,8 @@ class StreamServer:
                         if opcode == 10:
                             with owner.lock:
                                 session["heartbeat_alive"] = True
-                                session["pong"].set()
+                                if data == b"fixture-health":
+                                    session["pong"].set()
                             continue
                         if opcode != 1:
                             continue

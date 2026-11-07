@@ -363,9 +363,50 @@ class HeartbeatTests(unittest.TestCase):
         connection.before_receive = first_tick
         handler = namespace['Handler']();handler.request = connection;handler.handle()
         self.assertTrue(server.sessions[9]['heartbeat_alive'])
-        self.assertTrue(server.sessions[9]['pong'].is_set())
+        self.assertFalse(server.sessions[9]['pong'].is_set())
         self.assertEqual(server.sessions[9]['mode'], 'restart')
         self.assertEqual(len(server.sessions), 10)
+
+    def test_actual_handler_only_exact_manual_pong_satisfies_progress_probe(self):
+        for payload in (b'', b'other-ping', b'fixture-health', b'fixture-health-extra'):
+            with self.subTest(payload=payload):
+                server = server_at(9)
+                namespace = dict(API, owner=server)
+                exec(compile(ast.Module(body=[HANDLER], type_ignores=[]), str(SOURCE), 'exec'), namespace)
+                connection = Connection([subscription((A, B, D))], None)
+                connection.frames.append((10, payload))
+                connection.before_receive = lambda: server.heartbeat_once('before-pong')
+                handler = namespace['Handler']()
+                handler.request = connection
+                handler.handle()
+                session = server.sessions[9]
+                self.assertTrue(session['heartbeat_alive'])
+                self.assertEqual(session['pong'].is_set(), payload == b'fixture-health')
+                self.assertEqual(session['mode'], 'restart')
+                self.assertEqual(len(server.sessions), 10)
+                self.assertEqual(server.errors, [])
+
+    def test_actual_handler_empty_pong_cannot_complete_pending_manual_probe(self):
+        server = server_at(9)
+        namespace = dict(API, owner=server)
+        exec(compile(ast.Module(body=[HANDLER], type_ignores=[]), str(SOURCE), 'exec'), namespace)
+        connection = Connection([subscription((A, B, D))], None)
+        connection.frames.extend([(10, b''), (10, b'fixture-health')])
+        observations = []
+        def receive(unused_connection):
+            if connection.reads == 2:
+                # The real Handler has processed the empty heartbeat pong.
+                session = server.sessions[9]
+                observations.append((session['heartbeat_alive'], session['pong'].is_set()))
+            return connection.next_frame()
+        server.receive = receive
+        connection.before_receive = lambda: server.heartbeat_once('before-pong')
+        handler = namespace['Handler']()
+        handler.request = connection
+        handler.handle()
+        self.assertEqual(observations, [(True, False)])
+        self.assertTrue(server.sessions[9]['pong'].is_set())
+        self.assertEqual(server.errors, [])
 
     def test_heartbeat_skips_closed_failed_transport_and_preserves_all_fault_modes(self):
         server = server_at(9)
