@@ -13,6 +13,10 @@ import subprocess
 import sys
 import time
 
+class TaskInterrupted(RuntimeError):
+    """Cancellation must not be swallowed by subprocess EINTR retry loops."""
+
+
 _SUBREAPER_ENABLED = False
 GIB = 1024**3
 COMPILERS = {'cargo', 'rustc', 'zig', 'clang', 'clang++', 'gcc', 'g++', 'cc1', 'cc1plus', 'cmake', 'make', 'anvil', 'validator', 'relayer', 'scraper', 'hyperlane-aleo-vm-worker', 'hypd', 'osmosisd', 'solana-test-validator', 'starknet-devnet'}
@@ -367,7 +371,7 @@ def main():
     watched = [signal.SIGTERM, signal.SIGINT, signal.SIGHUP]
     previous_handlers = {sig: signal.getsignal(sig) for sig in watched}
     def interrupted(sig, frame):
-        raise InterruptedError('Owner received signal ' + str(sig))
+        raise TaskInterrupted('Owner received signal ' + str(sig))
     for sig in watched:
         signal.signal(sig, interrupted)
     try:

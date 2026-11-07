@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import types
 import unittest
@@ -78,6 +79,35 @@ class Accounting(unittest.TestCase):
   self.assertFalse(report['clean']);self.assertTrue(any(r['stage']=='adopted_wait4'for r in report['errors']))
 @unittest.skipUnless(sys.platform=='linux','actual Linux subreaper semantics required')
 class LinuxActual(unittest.TestCase):
+ def test_cancellation_escapes_subprocess_retry_and_waits_owned_child(self):
+  with tempfile.TemporaryDirectory()as directory:
+   ready=pathlib.Path(directory)/'collector-ready'
+   original=owner.processes
+   first=True
+   def collector():
+    nonlocal first
+    if first:
+     first=False
+     code='import pathlib,time;pathlib.Path('+repr(str(ready))+').touch();time.sleep(2)'
+     subprocess.run([sys.executable,'-c',code],check=True)
+    return original()
+   def cancel_when_collecting():
+    end=time.monotonic()+3
+    while not ready.exists()and time.monotonic()<end:time.sleep(.01)
+    if ready.exists():os.kill(os.getpid(),signal.SIGTERM)
+   sender=threading.Thread(target=cancel_when_collecting)
+   phase=dict(name='cancellation-control',command=[sys.executable,'-c','import time;time.sleep(20)'],cwd=directory,environment={},artifacts=[])
+   sender.start()
+   try:
+    with mock.patch.object(matrix,'identity',return_value=['same']),mock.patch.object(matrix,'generated_binding_identity',return_value=['outputs']),mock.patch.object(owner,'processes',side_effect=collector):
+     result=matrix.run_phase(phase,dict(os.environ),pathlib.Path(directory),['same'],0,phase_timeout_seconds=5)
+   finally:sender.join(timeout=4)
+   self.assertFalse(sender.is_alive())
+   self.assertIsNotNone(result['phase_error'])
+   self.assertEqual(result['phase_error']['type'],'TaskInterrupted')
+   self.assertTrue(result['phase_cleanup']['actual_parent_wait'])
+   self.assertTrue(result['phase_cleanup']['cleanup_confirmed_absent'])
+   self.assertTrue(result['phase_cleanup']['clean'])
  def run_case(self,terminal):
   # Parent retains its own unreaped terminal child for >sampling interval, then
   # exits. Only terminal=True is eligible; live child is actually killed/reaped.

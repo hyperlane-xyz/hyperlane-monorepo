@@ -90,7 +90,7 @@ def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_ti
  start=time.monotonic();load_before=os.getloadavg();free_before=shutil.disk_usage(output).free
  tree_peak=0;samples=0;disk_guard=False;known={};groups={};terminal_before_parent={};process=None;usage=None;error=None;cleanup=None;pidfd=None;elapsed=None
  watched=[signal.SIGTERM,signal.SIGINT,signal.SIGHUP];previous={sig:signal.getsignal(sig)for sig in watched}
- def interrupted(sig,frame):raise InterruptedError('Phase received signal '+str(sig))
+ def interrupted(sig,frame):raise ownership.TaskInterrupted('Phase received signal '+str(sig))
  for sig in watched:signal.signal(sig,interrupted)
  try:
   with log.open('w')as stream:

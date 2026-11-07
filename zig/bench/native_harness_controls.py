@@ -49,7 +49,7 @@ def main():
     phases +=[(scope.removesuffix('::').replace('::','-'),cargo+['test',*base,scope,'--','--test-threads=1'])for scope in FILTERS]
     phases +=[('compile-normal',cargo+['build',*base,'--message-format=json-render-diagnostics']),('clippy',cargo+['clippy','--no-deps',*base,'--tests','--','-D','warnings'])]
     rows=[];deadline=time.monotonic()+150*60;primary=None
-    def interrupted(sig,frame):raise InterruptedError('helper controls signal '+str(sig))
+    def interrupted(sig,frame):raise ownership.TaskInterrupted('helper controls signal '+str(sig))
     for sig in [signal.SIGINT,signal.SIGTERM,signal.SIGHUP]:signal.signal(sig,interrupted)
     try:
         for name,argv in phases:
