@@ -95,7 +95,7 @@ impl Drop for StarknetResp {
     fn drop(&mut self) {
         if !self.stop.attempted() {
             if let Err(error) = self.stop() {
-                log!("External Starknet fixture cleanup failed: {error:#}");
+                log!("External Starknet fixture cleanup failed: {:#}", error);
             }
         }
     }

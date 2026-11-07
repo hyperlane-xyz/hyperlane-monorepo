@@ -5,6 +5,13 @@ P=pathlib.Path
 GIB=1024**3
 PROGRAMS=['mailbox','validator-announce','ism/multisig-ism-message-id','ism/composite-ism','hyperlane-sealevel-token','hyperlane-sealevel-token-native','hyperlane-sealevel-token-collateral','hyperlane-sealevel-token-cross-collateral','hyperlane-sealevel-igp']
 SPL=['spl_token.so','spl_token_2022.so','spl_associated_token_account.so','spl_noop.so']
+# Pinned Linux v1.51 publisher defects: optional LLDB Python helpers point outside
+# the published llvm/ subtree to absent root lib/ and bin/. Keep every compiler
+# input unchanged; omit only these exact unusable debugger links, with a receipt.
+PLATFORM_UNUSED_DANGLING_LINKS={
+ 'llvm/lib/python3.10/dist-packages/lldb/_lldb.cpython-310-x86_64-linux-gnu.so':'../../../../../lib/liblldb.so',
+ 'llvm/lib/python3.10/dist-packages/lldb/lldb-argdumper':'../../../../../bin/lldb-argdumper',
+}
 ASSETS={
  'agave':{'url':'https://github.com/anza-xyz/agave/releases/download/v3.0.14/solana-release-x86_64-unknown-linux-gnu.tar.bz2','asset_id':338693012,'bytes':214232615,'sha256':('65614325423316a48f57f1ceeaa91ca7' '8f4516e165e305b38c01873cf8c6b8b4'),'publisher_digest':True},
  'platform':{'url':'https://github.com/anza-xyz/platform-tools/releases/download/v1.51/platform-tools-linux-x86_64.tar.bz2','asset_id':279991627,'bytes':542447828,'sha256':('0933e05dd964826e8e2db5c58c34ae25' '5e3baf0ce1711568552dca81b5407a6b'),'publisher_digest':True},
@@ -55,13 +62,22 @@ def allocated(root):
    if stat.S_ISDIR(s.st_mode):stack.append(p)
    need(count<=500000 and time.monotonic()-started<3,'allocated census exceeded3s/500k')
  return total
-def extract(archive,dest,tick):
+def extract(archive,dest,tick,*,platform_asset=None):
+ omitted_symlinks={}
+ if platform_asset is not None:
+  need(platform_asset==ASSETS['platform'],'wrong pinned Linux platform asset')
+  tick();actual=pin(archive);tick()
+  need(actual['bytes']==platform_asset['bytes']and actual['sha256']==platform_asset['sha256'],'wrong pinned Linux platform archive bytes/digest')
+  omitted_symlinks=PLATFORM_UNUSED_DANGLING_LINKS
+ omitted=set()
  dest=P(dest);dest.mkdir();seen=set();expanded=0;directory_modes={}
  with tarfile.open(archive,'r:*')as t:
   for m in t:
    name=safe_name(m.name)
    if name=='.':need(m.isdir(),'invalid archive root');continue
    need(name not in seen,'duplicate archive member');need(m.mode&0o7000==0,'special permission bits');seen.add(name);need(len(seen)<=25000,'archive entry cap')
+   if name in omitted_symlinks:
+    need(m.issym()and m.linkname==omitted_symlinks[name],'omitted debugger link identity differs');safe_link(name,m.linkname);omitted.add(name);tick();continue
    out=dest/name
    need(not any(p.is_symlink()for p in [out,*out.parents]if p.is_relative_to(dest)),'symlink archive parent')
    out.parent.mkdir(parents=True,exist_ok=True)
@@ -74,6 +90,7 @@ def extract(archive,dest,tick):
      while chunk:=source.read(1024*1024):f.write(chunk);tick()
     need(out.stat().st_size==m.size,'truncated member');out.chmod(m.mode&0o777)
    tick()
+ need(omitted==set(omitted_symlinks),'expected omitted debugger link missing')
  for name,mode in sorted(directory_modes.items(),key=lambda row:row[0].count('/'),reverse=True):(dest/name).chmod(mode)
  result=inventory(dest);need(all((dest/n).resolve(strict=True).is_relative_to(dest.resolve())for n,r in result.items()if r['type']=='symlink'),'dangling/escaping symlink')
  return result
@@ -245,7 +262,12 @@ def execute(a):
   for version in ['1.86.0','1.76.0']:
    out=o.run('provision.cargo-path-'+version,[rustup,'which','--toolchain',version,'cargo'],root,base);path=P(out.read_text().strip());need(path.is_relative_to(root/'rustup')and path.is_file(),'toolchain escaped');tool[version]=path;status['cargo_'+version]=pin(path)
   for name,asset in ASSETS.items():
-   archive=root/'assets'/(name+'.tar');status[name+'_archive']=dict(o.fetch(asset['url'],archive,asset['bytes'],asset),**{k:asset[k]for k in ['url','asset_id','publisher_digest']});dest=root/'assets'/name;members=extract(archive,dest,o.tick);write(root/'published'/(name+'-publisher-members.json'),members)
+   archive=root/'assets'/(name+'.tar');status[name+'_archive']=dict(o.fetch(asset['url'],archive,asset['bytes'],asset),**{k:asset[k]for k in ['url','asset_id','publisher_digest']});dest=root/'assets'/name
+   omissions=PLATFORM_UNUSED_DANGLING_LINKS if name=='platform'else{}
+   members=extract(archive,dest,o.tick,platform_asset=asset if name=='platform'else None);write(root/'published'/(name+'-publisher-members.json'),members)
+   if omissions:
+    status['platform_debugger_link_omissions']={'archive_sha256':asset['sha256'],'publisher_byte_equivalent_extraction':False,'omitted_symlinks':omissions,'reason':'Two exact unused publisher LLDB Python links are dangling; retained extraction remains closed.'}
+    write(root/'published/platform-debugger-link-omissions.json',status['platform_debugger_link_omissions'])
   def unique(parent,suffix):
    matches=[p for p in parent.rglob(P(suffix).name)if p.is_file()and str(p).endswith('/'+suffix)];need(len(matches)==1,'ambiguous/missing '+suffix);return matches[0]
   agave=unique(root/'assets/agave','bin/cargo-build-sbf').parent.parent;platform=unique(root/'assets/platform','rust/bin/rustc').parent.parent.parent;original_sdk=agave/'bin/platform-tools-sdk/sbf';need(original_sdk.is_dir(),'Agave SBF SDK absent');sdk=root/'build-sdk';shutil.copytree(original_sdk,sdk,symlinks=True)
@@ -283,7 +305,7 @@ def execute(a):
    log=o.run('compile.'+name,compile_command(a.bwrap,root,repo,argv,manifest.parent),manifest.parent,env);actual=target/profile/binary;artifact=cargo_binary(log,package,binary,actual);dest=root/'published'/binary;shutil.copyfile(actual,dest);dest.chmod(0o700);products[name]=elf(dest,62);write(root/'published'/(name+'-cargo-artifact.json'),artifact)
   need([pin(p)for p in locks]==lockpins,'compiler changed lock');need({n:inventory(root/n)for n in compiler_inputs}==compiler_inputs,'compiler changed asset/tool/source input')
   shutil.copytree(agave,root/'published/agave',symlinks=True);write(root/'published/agave-linux-runtime-members.json',inventory(root/'published/agave'))
-  write(root/'published/linux-profile.CANDIDATE.json',{'schema':1,'platform':'linux-x86_64','Root_approved':False,'native_case_admitted':False,'Darwin_profile_not_reused':True,'agave_archive':status['agave_archive'],'platform_archive':status['platform_archive'],'spl_archive':status['spl_archive'],'agave_member_manifest':pin(root/'published/agave-linux-runtime-members.json'),'agave_file_count':sum(row['type']=='file'for row in inventory(root/'published/agave').values()),'platform_member_manifest':pin(root/'published/platform-publisher-members.json'),'custom_spl_commit':sha,'custom_spl_tree':tree,'program_count':13,'products':products})
+  write(root/'published/linux-profile.CANDIDATE.json',{'schema':1,'platform':'linux-x86_64','Root_approved':False,'native_case_admitted':False,'Darwin_profile_not_reused':True,'agave_archive':status['agave_archive'],'platform_archive':status['platform_archive'],'spl_archive':status['spl_archive'],'agave_member_manifest':pin(root/'published/agave-linux-runtime-members.json'),'agave_file_count':sum(row['type']=='file'for row in inventory(root/'published/agave').values()),'platform_member_manifest':pin(root/'published/platform-publisher-members.json'),'platform_debugger_link_omissions':pin(root/'published/platform-debugger-link-omissions.json'),'custom_spl_commit':sha,'custom_spl_tree':tree,'program_count':13,'products':products})
   o.tick(True)
   write(root/'published/products.json',products);status.update(passed=True,products=products,linux_profile_admitted=False,linux_profile_review_required=True,custom_spl_commit=sha,custom_spl_tree=tree)
  except BaseException as exc:error=type(exc).__name__+': '+str(exc)

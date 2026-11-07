@@ -1,5 +1,6 @@
 """Socket/process/compiler-free controls for the actual prerequisite owner helpers."""
-import importlib.util,io,json,pathlib,struct,tarfile,tempfile,unittest
+import importlib.util,io,json,pathlib,struct,tarfile,tempfile,unittest,hashlib
+from unittest import mock
 spec=importlib.util.spec_from_file_location('svm_prerequisites',pathlib.Path(__file__).with_name('svm_prerequisites.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class Controls(unittest.TestCase):
  def test_system_hardlink_hash_is_distinct_from_asset_requirement(self):
@@ -96,4 +97,44 @@ class Controls(unittest.TestCase):
   with self.assertRaises(ValueError):m.OfficialRedirect().redirect_request(None,None,302,'',{},'https://evil.invalid/asset')
  def test_fixed_asset_and_source_counts(self):
   self.assertEqual(len(m.PROGRAMS),9);self.assertEqual(len(m.SPL),4);self.assertFalse(m.ASSETS['spl']['publisher_digest']);self.assertEqual(m.ASSETS['platform']['bytes'],542447828)
+class PublisherLinkControls(unittest.TestCase):
+ archive=Controls.archive
+ def extract_publisher(self,a,d,links):
+  actual=m.pin(a);asset={**m.ASSETS['platform'],'bytes':actual['bytes'],'sha256':actual['sha256']}
+  with mock.patch.dict(m.ASSETS,{'platform':asset}):return m.extract(a,d,lambda:None,platform_asset=asset)
+ def publisher_fixture(self,changes=None):
+  links=dict(m.PLATFORM_UNUSED_DANGLING_LINKS)
+  rows=[('rust/bin/rustc','file',b'compiler unchanged'),('llvm/lib/liblldb.so','file',b'debug library unchanged')]
+  rows += [(n,'link',v)for n,v in links.items()]
+  return rows,links
+ def test_exact_unused_publisher_links_omitted_with_closed_retained_tree(self):
+  rows,links=self.publisher_fixture();a,d=self.archive(rows);result=self.extract_publisher(a,d,links)
+  self.assertEqual((d/'rust/bin/rustc').read_bytes(),b'compiler unchanged');self.assertTrue(all(n not in result and not(d/n).is_symlink()for n in links));self.assertEqual((d/'llvm/lib/liblldb.so').read_bytes(),b'debug library unchanged')
+ def test_same_publisher_links_still_rejected_by_default(self):
+  rows,_=self.publisher_fixture();a,d=self.archive(rows)
+  with self.assertRaises(FileNotFoundError):m.extract(a,d,lambda:None)
+ def test_expected_omission_cannot_be_missing(self):
+  rows,links=self.publisher_fixture();a,d=self.archive(rows[:-1])
+  with self.assertRaisesRegex(ValueError,'expected omitted'):self.extract_publisher(a,d,links)
+ def test_expected_omission_cannot_be_regular_file(self):
+  rows,links=self.publisher_fixture();rows[-1]=(rows[-1][0],'file',b'changed');a,d=self.archive(rows)
+  with self.assertRaisesRegex(ValueError,'identity differs'):self.extract_publisher(a,d,links)
+ def test_expected_omission_cannot_change_link_target(self):
+  rows,links=self.publisher_fixture();rows[-1]=(rows[-1][0],'link','../../../../bin/changed');a,d=self.archive(rows)
+  with self.assertRaisesRegex(ValueError,'identity differs'):self.extract_publisher(a,d,links)
+ def test_unlisted_dangling_link_still_rejected(self):
+  rows,links=self.publisher_fixture();rows.append(('other','link','missing'));a,d=self.archive(rows)
+  with self.assertRaises(FileNotFoundError):self.extract_publisher(a,d,links)
+ def test_wrong_asset_rejected_before_omission(self):
+  rows,links=self.publisher_fixture();a,d=self.archive(rows)
+  with self.assertRaisesRegex(ValueError,'wrong pinned Linux platform asset'):m.extract(a,d,lambda:None,platform_asset=m.ASSETS['agave'])
+ def test_wrong_archive_digest_rejected_before_omission(self):
+  rows,links=self.publisher_fixture();a,d=self.archive(rows)
+  with self.assertRaisesRegex(ValueError,'bytes/digest'):m.extract(a,d,lambda:None,platform_asset=m.ASSETS['platform'])
+ def test_wrong_platform_url_rejected(self):
+  rows,links=self.publisher_fixture();a,d=self.archive(rows);asset={**m.ASSETS['platform'],'url':'https://github.com/anza-xyz/platform-tools/releases/download/v1.51/platform-tools-osx-aarch64.tar.bz2'}
+  with self.assertRaisesRegex(ValueError,'wrong pinned Linux platform asset'):m.extract(a,d,lambda:None,platform_asset=asset)
+ def test_retained_link_to_omitted_link_rejected(self):
+  rows,links=self.publisher_fixture();name=next(iter(links));rows.append(('llvm/retained','link',name[len('llvm/'): ]));a,d=self.archive(rows)
+  with self.assertRaises(FileNotFoundError):self.extract_publisher(a,d,links)
 if __name__=='__main__':unittest.main()

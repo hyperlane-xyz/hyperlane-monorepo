@@ -97,7 +97,7 @@ impl Drop for TronFixture {
     fn drop(&mut self) {
         if !self.stop.attempted() {
             if let Err(error) = self.stop() {
-                log!("actual TRE fixture cleanup failed: {error:#}");
+                log!("actual TRE fixture cleanup failed: {:#}", error);
             }
         }
     }

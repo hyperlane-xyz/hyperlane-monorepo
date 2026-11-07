@@ -63,7 +63,7 @@ impl Drop for RadixStack {
         stop_child(&mut self.relayer.1);
         stop_child(&mut self.scraper.1);
         if let Err(error) = self.postgres.stop() {
-            log!("Owned PG stop failed: {error:#}");
+            log!("Owned PG stop failed: {:#}", error);
         }
 
         if self.localnet.is_none() {

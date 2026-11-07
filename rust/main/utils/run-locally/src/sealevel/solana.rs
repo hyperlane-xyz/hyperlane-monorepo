@@ -808,7 +808,7 @@ pub fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) 
         .arg("keypair", solana_keypair_str);
     match crate::external_agents::svm_assets().expect("SVM assets") {
         Some(assets) => program
-            .env("HOME", assets.home.clone())
+            .env("HOME", assets.home.to_string_lossy().into_owned())
             .env("PATH", format!("{}:/usr/bin:/bin", assets.bin.display())),
         None => program,
     }

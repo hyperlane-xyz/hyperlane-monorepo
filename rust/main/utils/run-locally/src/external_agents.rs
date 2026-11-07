@@ -6993,7 +6993,6 @@ setInterval(()=>{{}},1000);"#,
     #[test]
     fn starknet_planned_container_stop_preserves_actual_clean_wait() {
         use std::os::unix::process::ExitStatusExt;
-        verify_starknet_container(&value, &starknet_devnet_fixture(manifest)?, port)?;
         let witness = StarknetContainerStop {
             child: OwnedChild {
                 pid: 123,
@@ -7063,7 +7062,6 @@ setInterval(()=>{{}},1000);"#,
                     .unwrap(),
             ));
             let token = live_fixture_identity(&mut child, &artifact, &ps).unwrap();
-            verify_starknet_container(&value, &starknet_devnet_fixture(manifest)?, port)?;
             let witness = StarknetContainerStop {
                 child: OwnedChild {
                     pid: child.id(),

@@ -114,7 +114,8 @@ ENV ZIG_NATIVE_TEST_MODE=${ZIG_MODE} \
     HYPERLANE_ALEO_VM_WORKER=/work/zig/zig-out/bin/hyperlane-aleo-vm-worker \
     HYPERLANE_REGEX_LIBRARY=/opt/hyperlane-fixture/lib/libziggy_regex.so \
     ZIGGY_REGEX_LIBRARY=/opt/hyperlane-fixture/lib/libziggy_regex.so
-RUN mkdir -p /opt/hyperlane-fixture \
+RUN cargo +1.98.0 fetch --locked --manifest-path zig/src/aleo/native-vm/Cargo.toml \
+    && mkdir -p /opt/hyperlane-fixture \
     && python3 zig/src/aleo/testing/parameters.py --home /opt/hyperlane-fixture/parameters \
         --network mainnet --max-degree 18 --fetch > /opt/hyperlane-fixture/parameters.json
 
