@@ -136,7 +136,7 @@ def rust_panic_sites(log,sources,repo):
             # differ; only an exact pinned repository module may become output.
             text=line.decode('utf-8','replace')
             text=re.sub(r'\x1b\[[0-9;]*m','',text)
-            if re.match(r"^thread '[^'\r\n]{1,128}' panicked at ",text)is None:continue
+            if re.match(r"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ",text)is None:continue
             for match in re.finditer(r'((?:rust/main/)?utils/run-locally/src/[A-Za-z0-9_./-]+\.rs):(\d{1,7}):(\d{1,5})(?=[:\s])',text):
                 name,line_,column=match.groups();name=name if name.startswith('rust/main/')else'rust/main/'+name;identity=(name,int(line_),int(column))
                 if name not in approved or identity in seen:continue
