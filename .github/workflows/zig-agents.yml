@@ -50,7 +50,7 @@ env:
 
 jobs:
   svm-prerequisites:
-    if: github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites
+    if: (github.event_name == 'workflow_dispatch' && inputs.svm_prerequisites) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites]'))
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 200
     permissions:
