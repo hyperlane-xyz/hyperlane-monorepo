@@ -16,6 +16,7 @@ ASSETS={
  'agave':{'url':'https://github.com/anza-xyz/agave/releases/download/v3.0.14/solana-release-x86_64-unknown-linux-gnu.tar.bz2','asset_id':338693012,'bytes':214232615,'sha256':('65614325423316a48f57f1ceeaa91ca7' '8f4516e165e305b38c01873cf8c6b8b4'),'publisher_digest':True},
  'platform':{'url':'https://github.com/anza-xyz/platform-tools/releases/download/v1.51/platform-tools-linux-x86_64.tar.bz2','asset_id':279991627,'bytes':542447828,'sha256':('0933e05dd964826e8e2db5c58c34ae25' '5e3baf0ce1711568552dca81b5407a6b'),'publisher_digest':True},
  'spl':{'url':'https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz','asset_id':187913462,'bytes':245817,'sha256':('5a0862a76357316707a2056d810729ab' '563aded8b6c094a90fa204ef0fa2c415'),'publisher_digest':False}}
+ASSETS['criterion']={'url':'https://github.com/Snaipe/Criterion/releases/download/v2.3.3/criterion-v2.3.3-linux-x86_64.tar.bz2','asset_id':9581569,'bytes':677858,'sha256':('ee7f92d7268563848aa3ae90bbf5df86' '604b8d0fb0e4942b0ecfbf6201596550'),'publisher_digest':False}
 def need(ok,msg):
  if not ok:raise ValueError(msg)
 def write(p,value):
@@ -126,7 +127,8 @@ def proc(pid):
 
 def elf(path,machine):
  with P(path).open('rb')as f:b=f.read(64)
- need(len(b)==64 and b[:6]==b'\x7fELF\x02\x01'and struct.unpack_from('<H',b,18)[0]==machine,'wrong ELF class/endian/machine')
+ observed=struct.unpack_from('<H',b,18)[0]if len(b)>=20 else None
+ need(len(b)==64 and b[:6]==b'\x7fELF\x02\x01'and observed==machine,'wrong ELF class/endian/machine: bytes='+str(len(b))+' class='+str(b[4]if len(b)>4 else None)+' endian='+str(b[5]if len(b)>5 else None)+' machine='+str(observed)+' expected='+str(machine))
  return dict(pin(path),elf_class=64,elf_machine=machine)
 
 class OfficialRedirect(urllib.request.HTTPRedirectHandler):
@@ -244,6 +246,17 @@ def compile_command(bwrap,root,repo,argv,cwd,offline=True):
  cmd+=['--ro-bind',str(repo),str(repo),'--tmpfs','/tmp','--proc','/proc','--dev','/dev','--chdir',str(cwd),'--',*map(str,argv)]
  return cmd
 
+def stage_sdk_dependencies(sdk,criterion):
+ # The pinned SDK strip.sh sources install.sh even with --skip-tools-install.
+ # Supply its exact declared trees/markers before the read-only offline phase.
+ dependency=sdk/'dependencies/criterion';need(not dependency.exists()and not dependency.is_symlink(),'unexpected preexisting Criterion dependency')
+ marker_paths=[sdk/'dependencies'/name for name in ['criterion-v2.3.3.md','platform-tools-v1.51.md']]
+ for marker in marker_paths:need(not marker.exists()and not marker.is_symlink(),'unexpected SDK dependency marker')
+ shutil.copytree(criterion,dependency,symlinks=True)
+ markers=[]
+ for marker in marker_paths:marker.write_bytes(b'');markers.append(pin(marker))
+ return {'criterion_members':inventory(dependency),'markers':markers,'original_sdk_scripts_modified':False,'criterion_native_library_executed':False}
+
 def sbf_environments(base,platform,host_cargo):
  # Agave --no-rustup-override explicitly supports an RUSTC-selected SBF compiler.
  # Host Cargo1.86 parses the committed workspace; platform Rust still emits SBF.
@@ -303,6 +316,8 @@ def execute(a):
    matches=[p for p in parent.rglob(P(suffix).name)if p.is_file()and str(p).endswith('/'+suffix)];need(len(matches)==1,'ambiguous/missing '+suffix);return matches[0]
   agave=unique(root/'assets/agave','bin/cargo-build-sbf').parent.parent;platform=unique(root/'assets/platform','rust/bin/rustc').parent.parent.parent;original_sdk=agave/'bin/platform-tools-sdk/sbf';need(original_sdk.is_dir(),'Agave SBF SDK absent');sdk=root/'build-sdk';shutil.copytree(original_sdk,sdk,symlinks=True)
   dependency=sdk/'dependencies/platform-tools';need(not dependency.exists()and not dependency.is_symlink(),'unexpected preexisting platform dependency');dependency.parent.mkdir(exist_ok=True);dependency.symlink_to(platform)
+  criterion=root/'assets/criterion/criterion-v2.3.3';need(criterion.is_dir()and not criterion.is_symlink(),'exact Criterion archive root absent')
+  write(root/'published/sdk-dependency-stage.json',stage_sdk_dependencies(sdk,criterion))
   cache=root/'home/.cache/solana/v1.51';cache.mkdir(parents=True);(cache/'platform-tools').symlink_to(platform)
   write(root/'published/platform-linkage.json',{'sdk':str(sdk),'target':str(platform),'links':[str(dependency),str(cache/'platform-tools')]})
   source_meta=o.fetch('https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca',root/'published/custom-spl-commit.json',2*1024**2,accept='application/vnd.github+json');commit=json.loads(P(source_meta['path']).read_text());sha=commit['sha'];tree=commit['commit']['tree']['sha'];need(len(sha)==40 and sha.startswith('e101cca')and len(tree)==40,'wrong custom SPL immutable ref')
@@ -331,7 +346,10 @@ def execute(a):
   for index,name in enumerate(PROGRAMS):
    cwd=repo/'rust/sealevel/programs'/name;obj=tomllib.loads((cwd/'Cargo.toml').read_text());library=obj.get('lib',{}).get('name',obj['package']['name'].replace('-','_'));expected.append(library+'.so')
    argv=[agave/'bin/cargo-build-sbf','--sbf-sdk',sdk,'--sbf-out-dir',outdir,'--tools-version','v1.51','--skip-tools-install','--no-rustup-override','--offline','--jobs','2','--','--frozen','--target-dir',root/'targets/sbf']
-   o.run('compile.sbf-'+str(index),compile_command(a.bwrap,root,repo,argv,cwd),cwd,sbf_env);elf(outdir/expected[-1],247)
+   o.run('compile.sbf-'+str(index),compile_command(a.bwrap,root,repo,argv,cwd),cwd,sbf_env)
+   with (outdir/expected[-1]).open('rb')as stream:header=stream.read(64)
+   write(root/'published'/('sbf-header-'+str(index)+'.json'),{'program':expected[-1],'public_ELF_header_bytes':list(header),'observed_machine':struct.unpack_from('<H',header,18)[0]if len(header)>=20 else None,'expected_machine':247,'native_VM_acceptance':False})
+   elf(outdir/expected[-1],247)
   for name in SPL:shutil.copyfile(unique(root/'assets/spl',name),outdir/name);(outdir/name).chmod(0o600)
   need({p.name for p in outdir.glob('*.so')}==set(expected+SPL),'closed13 SO membership differs')
   export=root/'published/programs';export.mkdir()

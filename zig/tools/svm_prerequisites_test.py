@@ -161,6 +161,33 @@ class MatchingCargoControls(unittest.TestCase):
    index=argv.index(str(cache));self.assertEqual(argv[index-1:index+2],['--ro-bind',str(cache),str(cache)])
   self.assertEqual(compile['CARGO_NET_OFFLINE'],'true')
 
+class SdkPrerequisiteControls(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name).resolve()
+  self.sdk=self.root/'build-sdk';(self.sdk/'dependencies').mkdir(parents=True)
+  self.criterion=self.root/'criterion-v2.3.3';(self.criterion/'lib').mkdir(parents=True)
+  (self.criterion/'lib/libcriterion.so.3.1.0').write_bytes(b'public library bytes');(self.criterion/'lib/libcriterion.so').symlink_to('libcriterion.so.3.1.0')
+ def test_full_criterion_tree_and_source_version_markers_precede_freeze(self):
+  result=m.stage_sdk_dependencies(self.sdk,self.criterion)
+  self.assertFalse(result['original_sdk_scripts_modified']);self.assertFalse(result['criterion_native_library_executed'])
+  target=self.sdk/'dependencies/criterion';self.assertEqual(m.inventory(target),m.inventory(self.criterion))
+  for name in ['criterion-v2.3.3.md','platform-tools-v1.51.md']:self.assertEqual((self.sdk/'dependencies'/name).read_bytes(),b'')
+ def test_existing_marker_rejects_before_copy(self):
+  (self.sdk/'dependencies/platform-tools-v1.51.md').write_bytes(b'existing')
+  with self.assertRaisesRegex(ValueError,'unexpected SDK dependency marker'):m.stage_sdk_dependencies(self.sdk,self.criterion)
+  self.assertFalse((self.sdk/'dependencies/criterion').exists())
+ def test_existing_criterion_never_overwritten(self):
+  (self.sdk/'dependencies/criterion').mkdir()
+  with self.assertRaisesRegex(ValueError,'unexpected preexisting Criterion'):m.stage_sdk_dependencies(self.sdk,self.criterion)
+ def test_numeric_elf_rejection_retains_strict_machine_guard(self):
+  p=self.root/'program.so';wire=bytearray(64);wire[:6]=b'\x7fELF\x02\x01';struct.pack_into('<H',wire,18,263);p.write_bytes(wire)
+  with self.assertRaisesRegex(ValueError,'class=2 endian=1 machine=263 expected=247'):m.elf(p,247)
+  struct.pack_into('<H',wire,18,247);p.write_bytes(wire);self.assertEqual(m.elf(p,247)['elf_machine'],247)
+ def test_criterion_exact_asset_pin(self):
+  self.assertEqual(m.ASSETS['criterion']['asset_id'],9581569);self.assertEqual(m.ASSETS['criterion']['bytes'],677858)
+  self.assertEqual(m.ASSETS['criterion']['url'],'https://github.com/Snaipe/Criterion/releases/download/v2.3.3/criterion-v2.3.3-linux-x86_64.tar.bz2')
+  self.assertFalse(m.ASSETS['criterion']['publisher_digest'])
+
 class PublisherLinkControls(unittest.TestCase):
  archive=Controls.archive
  def extract_publisher(self,a,d,links):
