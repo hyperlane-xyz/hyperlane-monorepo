@@ -7,7 +7,7 @@ from pathlib import Path,PurePosixPath
 GIB=1024**3
 REPOSITORY='hyperlane-xyz/hyperlane-monorepo'
 BRANCH='feat/zig-agent-rewrite'
-PRODUCER='e745fdaae1f8320ac2b67bea9157396db560c848'  # Real producer; policy remains disabled pending all eight artifact pins.
+PRODUCER='06e263fe7950e6051502a771646bbcc6d0453369'  # Real producer; policy remains disabled pending all eight artifact pins.
 REQUIRED_JOBS=('full-sdk-native (ReleaseSafe)','full-sdk-native (ReleaseFast)','native-harness-controls','svm-prerequisites')
 PRODUCT_KEYS=('sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference')
 LIMITS={'wall_seconds':1800,'cleanup_seconds':60,'inspector_RAM_bytes':GIB,'child_RAM_bytes':512*1024**2,'owned_disk_bytes':8*GIB,'host_free_bytes':6*GIB,'maximum_archive_bytes':4*GIB,'compressed_total_bytes':16*GIB,'streamed_total_bytes':24*GIB,'member_count':100000,'central_directory_bytes':32*1024**2,'metadata_bytes':64*1024**2,'report_bytes':2*1024**2}
@@ -268,7 +268,16 @@ def clean_wait(row):
     cleanup=row.get('cleanup');need(isinstance(cleanup,dict)and cleanup.get('clean')is True and not cleanup.get('signals'),'PRODUCER_CLEANUP')
     need(not[v for v in cleanup.get('owned_present_before_stop',[])if v.get('pid')!=row.get('pid')],'PRODUCER_RESIDUE')
 
-def suite_counts(native):
+def native_required_tests(git_source):
+    # Producer-Git data only: never import the container checker or its helpers.
+    tree=ast.parse(git_source.bytes('zig/tools/container_check.py'))
+    bindings=[n for n in tree.body if isinstance(n,(ast.Assign,ast.AnnAssign,ast.AugAssign))and any(isinstance(t,ast.Name)and t.id=='NATIVE_REQUIRED'for t in (n.targets if isinstance(n,ast.Assign)else[n.target]))]
+    need(len(bindings)==1 and isinstance(bindings[0],ast.Assign)and len(bindings[0].targets)==1 and isinstance(bindings[0].value,(ast.Tuple,ast.List))and all(isinstance(n,ast.Constant)and isinstance(n.value,str)for n in bindings[0].value.elts),'NATIVE_REQUIRED_CATALOG')
+    required=ast.literal_eval(bindings[0].value)
+    need(isinstance(required,(tuple,list))and 0<len(required)<=512 and all(isinstance(n,str)and re.fullmatch('[A-Za-z0-9][A-Za-z0-9 ._(),:/+-]{0,511}',n)is not None and n.strip()==n for n in required)and len(set(required))==len(required),'NATIVE_REQUIRED_CATALOG')
+    return required
+
+def suite_counts(native,producer_required=()):
     tests=native.get('tests');need(isinstance(tests,dict)and integer(tests.get('total'),1),'NATIVE_SUITE')
     rows=tests.get('per_test');need(isinstance(rows,list)and len(rows)==tests['total'],'NATIVE_SUITE_ROWS')
     counts={'OK':0,'SKIP':0,'FAIL':0};names=set()
@@ -278,7 +287,10 @@ def suite_counts(native):
     need(counts['FAIL']==0 and counts['OK']>0 and isinstance(tests.get('skipped'),dict)and len(tests['skipped'])==counts['SKIP'],'NATIVE_SUITE_OUTCOME')
     required=('readonly signed recovery allocation failure on every read path leaves Manual signed accounting and canonical bytes unchanged','readonly signed recovery every grouped allocation failure preserves journal nonce current owner member and signed rows','native group guards committed creation followed by load OOM remains durably owned and recoverable')
     need(all(any(r['name'].endswith(name)and r['status']=='OK'for r in rows)for name in required),'RECOVERY_ALLOCATION_TESTS')
-    return {'total':tests['total'],'status_counts':counts,'skip_catalog_sha256':sha(canonical(tests['skipped'])),'three_recovery_allocation_tests_observed_OK':True}
+    for name in producer_required:
+        matches=[r for r in rows if r['name'].endswith('.test.'+name)]
+        need(len(matches)==1 and matches[0]['status']=='OK','PRODUCER_NATIVE_REQUIRED_TESTS')
+    return {'total':tests['total'],'status_counts':counts,'skip_catalog_sha256':sha(canonical(tests['skipped'])),'three_recovery_allocation_tests_observed_OK':True,'producer_native_required_count':len(producer_required)}
 
 def validate_sdk(archive,mode,git_source):
     manifest=archive.data('manifest.json')
@@ -308,7 +320,7 @@ def validate_sdk(archive,mode,git_source):
         for key,pin in value['artifacts'].items():need(pin=={'bytes':manifest['artifacts'][key]['bytes'],'sha256':expected[key]},'SDK_CPU_BYTES')
         cpu.append({'scope':scope,'flag_count':len(flags),'flags_sha256':sha(canonical(flags)),'receipt_sha256':archive.pin(path)['sha256']})
     need(archive.files()==closed,'SDK_CLOSED_MEMBERS')
-    return {'mode':mode,'source_commit':PRODUCER,'products':product_rows,'native_suite':suite_counts(native),'CPU_receipts':cpu,'export_actual_waits':len(calls),'export_created_CID_removed':True,'actual_consumer_CPU_superset_checked':False,'SDK_or_native_product_executed_by_reader':False}
+    return {'mode':mode,'source_commit':PRODUCER,'products':product_rows,'native_suite':suite_counts(native,native_required_tests(git_source)),'CPU_receipts':cpu,'export_actual_waits':len(calls),'export_created_CID_removed':True,'actual_consumer_CPU_superset_checked':False,'SDK_or_native_product_executed_by_reader':False}
 
 def validate_helper(archive,git_source):
     result=archive.data('result.json');need(result.get('passed')is True and result.get('source_commit')==PRODUCER and result.get('source_unchanged')is True and result.get('all_owned_jobs_joined')is True and result.get('error')is None and result.get('native_case_acceptance')is False,'HELPER_GATE')
@@ -652,7 +664,7 @@ def remote_inventory(runner,policy):
         need(len(collected)==expected,'API_INVENTORY_INCOMPLETE');collections[kind]=collected
     return validate_remote(policy,run,collections['jobs'],collections['artifacts'])
 
-PUBLIC_FACT_KEYS=set(('mode source_commit products native_suite CPU_receipts export_actual_waits export_created_CID_removed actual_consumer_CPU_superset_checked SDK_or_native_product_executed_by_reader Source_origin actual_phase_waits actual_test_counts required_census_names_observed five_strict_deadline_tests_observed product_execution product ELF_machine ELF_type unchanged_declared_compiler_input_count declared_compiler_input_catalog_sha256 compiler_archive_inputs_independently_present_or_executed_by_reader CPU_flags_sha256 writer_executed_by_reader canonical_lock_origin canonical_compatibility_Source_exact actual_five_named_SDK_tests producer_CPU_rows producer_CPU_flags_sha256 actual_direct_waits actual_adopted_waits no_owner_signals_or_forced_cleanup closed_Agave_files closed_Agave_bytes SBF_machine_counts nine_actual_header_rows_verified official_acquisition_receipts nonfatal_stack_offset_warning_count native_VM_acceptance count catalog_sha256 all_declared_rows_match_producer_Git bytes sha256 total status_counts skip_catalog_sha256 three_recovery_allocation_tests_observed_OK scope flag_count flags_sha256 receipt_sha256 asset publisher_digest original_acquisition_receipt_matches_pinned_source compressed_original_independently_present_in_readback files expanded_bytes archive catalog actual_calls actual_parent_waits all_calls_actually_waited failure_count wait_catalog_sha256 tool_pins raw_argv_stderr_environment_exported path producer_tree execution_tree worktree_clean_in_scope source_rows_checked policy_map_sha256 all_policy_Git_blobs_match inspector_peak_RSS_bytes actual_streamed_bytes elapsed_seconds own_downloads_removed actual_remote_inventory_verified compiled_cohort core607 command_waits inspection_resources remote run_id run_attempt required_jobs artifacts id name size_in_bytes status conclusion whole_workflow_success_claim reader_sources committed_execution_sources_unchanged').split())|SDK_NAMES|set(TOOLS)|set(PRODUCT_KEYS)|set(REQUIRED_JOBS)|set(HELPER_PHASES)|{'embedded_tools_catalog_sha256','embedded_radix_catalog_sha256','embedded_duplicate_catalogs_match_separate_artifacts','symlink_count','normal','construction','OK','SKIP','FAIL','247','263','gh','git','runtime','helper','tools'}
+PUBLIC_FACT_KEYS=set(('mode source_commit products native_suite CPU_receipts export_actual_waits export_created_CID_removed actual_consumer_CPU_superset_checked SDK_or_native_product_executed_by_reader Source_origin actual_phase_waits actual_test_counts required_census_names_observed five_strict_deadline_tests_observed product_execution product ELF_machine ELF_type unchanged_declared_compiler_input_count declared_compiler_input_catalog_sha256 compiler_archive_inputs_independently_present_or_executed_by_reader CPU_flags_sha256 writer_executed_by_reader canonical_lock_origin canonical_compatibility_Source_exact actual_five_named_SDK_tests producer_CPU_rows producer_CPU_flags_sha256 actual_direct_waits actual_adopted_waits no_owner_signals_or_forced_cleanup closed_Agave_files closed_Agave_bytes SBF_machine_counts nine_actual_header_rows_verified official_acquisition_receipts nonfatal_stack_offset_warning_count native_VM_acceptance count catalog_sha256 all_declared_rows_match_producer_Git bytes sha256 total status_counts skip_catalog_sha256 three_recovery_allocation_tests_observed_OK scope flag_count flags_sha256 receipt_sha256 asset publisher_digest original_acquisition_receipt_matches_pinned_source compressed_original_independently_present_in_readback files expanded_bytes archive catalog actual_calls actual_parent_waits all_calls_actually_waited failure_count wait_catalog_sha256 tool_pins raw_argv_stderr_environment_exported path producer_tree execution_tree worktree_clean_in_scope source_rows_checked policy_map_sha256 all_policy_Git_blobs_match inspector_peak_RSS_bytes actual_streamed_bytes elapsed_seconds own_downloads_removed actual_remote_inventory_verified compiled_cohort core607 command_waits inspection_resources remote run_id run_attempt required_jobs artifacts id name size_in_bytes status conclusion whole_workflow_success_claim reader_sources committed_execution_sources_unchanged').split())|SDK_NAMES|set(TOOLS)|set(PRODUCT_KEYS)|set(REQUIRED_JOBS)|set(HELPER_PHASES)|{'producer_native_required_count','embedded_tools_catalog_sha256','embedded_radix_catalog_sha256','embedded_duplicate_catalogs_match_separate_artifacts','symlink_count','normal','construction','OK','SKIP','FAIL','247','263','gh','git','runtime','helper','tools'}
 PUBLIC_FACT_KEYS|={'gh_startup_diagnostics','probes','AS512','INHERITED_AS1G','token_supplied','API_original_AS512_unchanged','API_inherited_hard_AS1GiB','last_failed_command','kind','actual_parent_wait','exit_code','signal','error_class','peak_child_RSS_bytes','forced_signal','cleanup_error_count'}
 PUBLIC_STRINGS=set(CPU_SCOPES)|{'ReleaseSafe','ReleaseFast','agave','platform','spl','criterion','completed','success'}|set(REQUIRED_JOBS)|set(artifact_names(0,0).values())|set(n for names in COMPILED_SCOPES.values()for n in names)
 

@@ -40,7 +40,8 @@ def sdk_fixture(mode='ReleaseSafe'):
         path='payload/'+('lib/'if name.startswith('lib')else'bin/')+name;body=elf_bytes(kind=3,library=True)if name.startswith('lib')else elf_bytes()
         files[path]=body;digests[name]=hashlib.sha256(body).hexdigest();artifacts[name]={'path':path,'bytes':len(body),'sha256':digests[name]}
     required=['readonly signed recovery allocation failure on every read path leaves Manual signed accounting and canonical bytes unchanged','readonly signed recovery every grouped allocation failure preserves journal nonce current owner member and signed rows','native group guards committed creation followed by load OOM remains durably owned and recoverable']
-    tests={'total':3,'per_test':[{'ordinal':i,'total':3,'name':'synthetic.test.'+name,'status':'OK'}for i,name in enumerate(required,1)],'skipped':{}}
+    required+=list(actual_native_required())
+    tests={'total':len(required),'per_test':[{'ordinal':i,'total':len(required),'name':'synthetic.test.'+name,'status':'OK'}for i,name in enumerate(required,1)],'skipped':{}}
     native=add_json('receipts/native.json',{'passed':True,'mode':mode,'exit_code':0,'artifact_sha256':digests,'tests':tests});runtime=add_json('receipts/runtime.json',{'passed':True,'artifact_sha256':digests})
     cpu={}
     for scope,names in api.CPU_SCOPES.items():cpu[scope]=add_json('build-cpu/'+scope+'.json',{'schema':1,'scope':scope,'mode':mode,'source_commit':api.PRODUCER,'architecture':'amd64','flags':['sse2'],'artifacts':{name:{'bytes':artifacts[name]['bytes'],'sha256':digests[name]}for name in names}})
@@ -52,6 +53,14 @@ class SyntheticGit:
     def bytes(self,name):return self.rows[name]
     def digest(self,name):
         body=self.rows[name];return {'bytes':len(body),'sha256':api.sha(body)}
+
+def actual_native_required():
+    tree=ast.parse((HERE.parent/'tools/container_check.py').read_bytes())
+    row=next(n for n in tree.body if isinstance(n,ast.Assign)and len(n.targets)==1 and isinstance(n.targets[0],ast.Name)and n.targets[0].id=='NATIVE_REQUIRED')
+    return ast.literal_eval(row.value)
+
+def sdk_source(required=None):
+    source=SyntheticGit();source.rows['zig/tools/container_check.py']=('NATIVE_REQUIRED = '+repr(actual_native_required()if required is None else required)).encode();return source
 
 def family_fixture(family):
     # Deliberately small SYNTHETIC producer records. Actual C43 archives remain
@@ -157,11 +166,16 @@ class Controls(unittest.TestCase):
         result=json.loads(files['result.json']);row=next(x for x in result['checks']if x['name']=='starknet-cli-tests');row['actual_tests_passed']=None;row['required_new_tests_observed']=[];wrong=dict(files);wrong['result.json']=json.dumps(result).encode()
         with self.assertRaises(api.Refused):inspect(wrong)
 
-    def test_actual_e745_census_includes_later_Stark_and_Radix_additions(self):
+    def test_actual_current_census_includes_fresh_temporary_and_Stark_Radix_additions(self):
         # Actual committed exporter Source; never import or execute its main.
         raw=(HERE/'native_harness_controls.py').read_bytes()
-        self.assertEqual(api.sha(raw),'0a2075d0162dc24a9dbe41224ac667db2e'+'518fc2fecff45cb2268a5d4650c453')
+        self.assertEqual(api.sha(raw),'89d788374a505d0ed645401f521aaa265'+'8962203b0191c27e9191a78edd330f7')
         required=api.literal_constants(raw.decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
+        self.assertEqual(sum(map(len,required.values())),76)
+        fresh={'svm_fresh_temporary_objects_do_not_walk_live_ledger_siblings','svm_fresh_temporary_objects_reject_root_or_parent_symlinks','svm_fresh_temporary_objects_reject_non_directory_parent','svm_temporary_objects_are_distinct_fresh_leaves'}
+        self.assertTrue({'external_agents::tests::'+n for n in fresh}<=set(required['external_agents::tests::']))
+        self.assertEqual(len(required['external_agents::tests::']),54)
+        self.assertEqual(len(required['external_agents::radix_fixture::tests::']),14)
         self.assertEqual(len(required['starknet::cli::tests::']),2)
         self.assertEqual(len(required['external_agents::radix_contracts::tests::']),6)
         self.assertIn('starknet::cli::tests::invoke_and_send_tx_reject_failed_cli_status',required['starknet::cli::tests::'])
@@ -291,7 +305,7 @@ class Controls(unittest.TestCase):
             with self.assertRaisesRegex(api.Refused,'HELPER_CLOSED_MEMBERS'):self.zip(list(changed.items()),lambda a,m,p:api.validate_helper(a,git))
     def test_fast_SDK_and_writer_dispatch_match_mode_and_exact_product(self):
         files=sdk_fixture('ReleaseFast')
-        self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.inspect_archive('sdk_fast',a,None)['mode'],'ReleaseFast'))
+        self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.inspect_archive('sdk_fast',a,sdk_source())['mode'],'ReleaseFast'))
         files,git=family_fixture('writer');manifest=json.loads(files['manifest.json']);manifest['mode']='ReleaseFast';manifest['writer']['path']='bin/native-rows-writer-ReleaseFast';files[manifest['writer']['path']]=files.pop('bin/native-rows-writer-ReleaseSafe');files['manifest.json']=json.dumps(manifest).encode()
         self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.inspect_archive('writer_fast',a,git)['mode'],'ReleaseFast'))
     def test_real_private_policy_disabled_but_complete_pins_validate_when_explicitly_enabled_in_memory(self):
@@ -365,24 +379,56 @@ class Controls(unittest.TestCase):
     def test_sbf_header_machine_is_explicit(self):
         self.zip([('p',elf_bytes(machine=263,kind=3,library=True))],lambda a,m,p:self.assertEqual(api.elf(a,'p',263,kind='program')['machine'],263))
     def test_synthetic_nine_payload_semantic_contract_includes_accepted_absence_exit1(self):
-        # Synthetic3-row test suite verifies parser relationships only. It is
+        # Synthetic Source-derived required rows verify parser relationships only. It is
         # explicitly not an actual C43 native suite or product inspection.
-        files=sdk_fixture();self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.validate_sdk(a,'ReleaseSafe',None)['export_actual_waits'],2))
+        files=sdk_fixture();self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.validate_sdk(a,'ReleaseSafe',sdk_source())['export_actual_waits'],2))
     def test_sdk_receipt_corruption_wrong_mode_missing_CPU_and_payload_mismatch_refuse(self):
         def change_json(files,name,edit):
             row=json.loads(files[name]);edit(row);files[name]=json.dumps(row,sort_keys=True).encode()
         for modify in [lambda f:change_json(f,'manifest.json',lambda r:r.__setitem__('mode','ReleaseFast')),lambda f:change_json(f,'manifest.json',lambda r:r['build_provenance'].pop('aleo')),lambda f:f.__setitem__('payload/bin/relayer',b'corrupt'),lambda f:change_json(f,'manifest.json',lambda r:r.__setitem__('required_cpu_flags',['other']))]:
             files=sdk_fixture();modify(files)
-            self.zip(list(files.items()),lambda a,m,p:self.assertRaises(api.Refused,api.validate_sdk,a,'ReleaseSafe',None))
+            self.zip(list(files.items()),lambda a,m,p:self.assertRaises(api.Refused,api.validate_sdk,a,'ReleaseSafe',sdk_source()))
     def test_literal_source_catalog_is_data_only_and_rejects_missing_required_names(self):
         source="REFERENCE='x'\nSCOPES=[REFERENCE,'y']\nASSETS={'a':{'bytes':1}}\nASSETS['b']={'bytes':2}\nraise AssertionError('must never execute')\n"
         result=api.literal_constants(source,{'SCOPES','ASSETS'});self.assertEqual(result['SCOPES'],['x','y']);self.assertEqual(result['ASSETS']['b']['bytes'],2)
         with self.assertRaises(api.Refused):api.literal_constants('X=unknown()\n',{'X'})
     def test_native_suite_failure_duplicate_rows_or_missing_recovery_controls_refuse(self):
-        files=sdk_fixture();native=json.loads(files['receipts/native.json']);self.assertEqual(api.suite_counts(native)['total'],3)
+        files=sdk_fixture();native=json.loads(files['receipts/native.json']);self.assertEqual(api.suite_counts(native)['total'],25)
         for mutate in [lambda r:r['tests']['per_test'][0].__setitem__('status','FAIL'),lambda r:r['tests']['per_test'][0].__setitem__('ordinal',True),lambda r:r['tests']['per_test'][0].__setitem__('name','other')]:
             changed=copy.deepcopy(native);mutate(changed)
             with self.assertRaises(api.Refused):api.suite_counts(changed)
+    def test_producer_required_native_catalog_and_closed_count(self):
+        required=actual_native_required();self.assertEqual(len(required),22)
+        files=sdk_fixture()
+        result=self.zip(list(files.items()),lambda a,*_:api.validate_sdk(a,'ReleaseSafe',sdk_source()))
+        self.assertEqual(result['native_suite']['producer_native_required_count'],22)
+        self.assertEqual(api.public_facts(result)['native_suite']['producer_native_required_count'],22)
+        for case in ('missing','duplicate','empty','invalid','nonliteral','wrong_type','duplicate_binding','later_nonliteral','annotated','later_annotated','later_augmented'):
+            source=sdk_source()
+            source.rows['zig/tools/container_check.py']={'missing':b'OTHER=()', 'duplicate':('NATIVE_REQUIRED = '+repr(required+(required[0],))).encode(),'empty':b'NATIVE_REQUIRED=()', 'invalid':b'NATIVE_REQUIRED=("bad\\nname",)', 'nonliteral':b'NATIVE_REQUIRED=runtime_call()', 'wrong_type':b'NATIVE_REQUIRED={"test":1}', 'duplicate_binding':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED=("second",)', 'later_nonliteral':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED=runtime_call()', 'annotated':b'NATIVE_REQUIRED:tuple=("first",)', 'later_annotated':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED:tuple=("second",)', 'later_augmented':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED+=("second",)'}[case]
+            with self.subTest(catalog=case),self.assertRaises(api.Refused):
+                self.zip(list(files.items()),lambda a,*_:api.validate_sdk(a,'ReleaseSafe',source))
+    def test_each_producer_native_required_test_missing_or_nonOK_refuses(self):
+        required=actual_native_required()
+        for name in required:
+            for status in ('missing','SKIP','FAIL'):
+                files=sdk_fixture();native=json.loads(files['receipts/native.json']);rows=native['tests']['per_test'];target=next(r for r in rows if r['name']=='synthetic.test.'+name)
+                if status=='missing':rows.remove(target)
+                else:target['status']=status
+                total=len(rows);native['tests']['total']=total
+                for ordinal,row in enumerate(rows,1):row.update(ordinal=ordinal,total=total)
+                if status=='SKIP':native['tests']['skipped']={target['name']:'synthetic reviewed skip'}
+                wire=json.dumps(native,sort_keys=True).encode();files['receipts/native.json']=wire;manifest=json.loads(files['manifest.json']);manifest['inputs']['native'].update(bytes=len(wire),sha256=api.sha(wire));files['manifest.json']=json.dumps(manifest,sort_keys=True).encode()
+                with self.subTest(required=name,status=status),self.assertRaises(api.Refused):
+                    self.zip(list(files.items()),lambda a,*_:api.validate_sdk(a,'ReleaseSafe',sdk_source()))
+    def test_required_native_suffix_cannot_borrow_ambiguous_or_lookalike_OK(self):
+        native=json.loads(sdk_fixture()['receipts/native.json']);required=actual_native_required()
+        native['tests']['per_test'].append({'name':'other.test.'+required[0],'status':'OK'})
+        total=len(native['tests']['per_test']);native['tests']['total']=total
+        for i,row in enumerate(native['tests']['per_test'],1):row.update(ordinal=i,total=total)
+        with self.assertRaisesRegex(api.Refused,'PRODUCER_NATIVE_REQUIRED_TESTS'):api.suite_counts(native,required)
+        native=json.loads(sdk_fixture()['receipts/native.json']);next(r for r in native['tests']['per_test']if r['name'].endswith(required[0]))['name']='synthetic.test.prefix'+required[0]
+        with self.assertRaisesRegex(api.Refused,'PRODUCER_NATIVE_REQUIRED_TESTS'):api.suite_counts(native,required)
     def test_null_cleanup_and_false_wait_cannot_be_producer_success(self):
         row={'actual_parent_wait':True,'exit_code':0,'error':None,'pid':1,'cleanup':{'clean':True,'signals':[],'owned_present_before_stop':[]}}
         api.clean_wait(row)
