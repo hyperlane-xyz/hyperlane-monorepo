@@ -739,6 +739,7 @@ class TronCLIAdmittedProjectionControls(unittest.TestCase):
         self.utils=self.root/'dist/src/deploy/utils.js';self.utils.write_bytes(b"throw new Error('Empty chain selection'); throw new Error('signer is invalid'); throw new Error('Deployment cancelled'); log('Running pre-flight checks for chains...');\n")
         self.js=self.root/'dist/src/public-frame.js';self.js.write_text('export const first = 1;\nconst face = "😀x";\n')
         self.tool=self.case/'pnpm-native';self.tool.write_bytes(b'PUBLIC_TOOL_ONLY');receipt=self.case/'tron-cli-materialized.json';receipt.write_bytes(b'{}')
+        join_name='rust/main/utils/run-locally/src/utils.rs';self.join=self.f.repo/join_name;self.join.write_bytes((Path(__file__).resolve().parents[2]/join_name).read_bytes());self.f.sources[join_name]=api.pin(self.join)
         tre={'pnpm':api.pin(self.tool),'cli_directory':str(self.root),'cli_entrypoint':api.pin(self.entry)};self.inputs={'tron_tre':tre,'tron_cli':api.pin(receipt)};self.f.approval={'tron_tre':copy.deepcopy(tre),'tron_cli':api.pin(receipt)};self.required=[api.pin(p)for p in [receipt,self.tool,self.entry,self.utils,self.js]]
     def line(self,text,prefix='pnpm-native'):return '<'+prefix+'> '+text+'\n'
     def stack(self,path=None,line=2,column=4):return self.line('    at SECRET_FUNCTION (file://'+str(path or self.js)+':'+str(line)+':'+str(column)+')')
@@ -832,5 +833,67 @@ class TronCLIAdmittedProjectionControls(unittest.TestCase):
 
     def test_CLI_pipe_read_error_flag_has_no_underlying_text(self):
         result=self.observe(self.log('<E2E> Error reading from output for pnpm-native: PRIVATE_UTF8_OR_OTHER\n'))['CLI_failure'];self.assertTrue(result['CLI_pipe_read_error_observed']);self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def cascade(self,inline=False,path='rust/main/utils/run-locally/src/utils.rs',line=82,column=23,message='Task thread panicked!: Any { .. }'):
+        return "thread 'PRIVATE_THREAD' (45) panicked at /build/"+path+':'+str(line)+':'+str(column)+':'+(' '+message+'\n'if inline else'\n'+message+'\n')
+
+    def test_exact_Source_known_join_cascade_preserves_only_first_window(self):
+        for inline in [False,True]:
+            original=self.observe(self.log(self.line('Error: PRIVATE_KEY')+self.stack()))['CLI_failure']
+            result=self.observe(self.log(self.line('Error: PRIVATE_KEY')+self.stack())+self.cascade(inline)+self.line('Error: PRIVATE_AFTER')+self.stack(line=1))['CLI_failure']
+            self.assertEqual(result['collection_status'],'observed');self.assertEqual(result['known_join_cascade_count'],1);self.assertEqual(result['frontier'],'QUALIFIED_PRIMARY_WITH_JOIN_CASCADE')
+            for field in ['window','error_header_fingerprints','emitted_JS_coordinates']:self.assertEqual(result[field],original[field])
+            self.assertEqual(result['known_join_Source'],{'module':'rust/main/utils/run-locally/src/utils.rs','line':82,'column':23,'source_bytes':self.join.stat().st_size,'source_sha256':api.pin(self.join)['sha256']})
+            for secret in ['PRIVATE_KEY','PRIVATE_THREAD','PRIVATE_AFTER',str(self.case),'/build/','Any {']:self.assertNotIn(secret,json.dumps(result))
+
+    def test_unknown_duplicate_or_inexact_second_panic_remains_unavailable(self):
+        for suffix in [self.panic(),self.cascade(path='outside/utils.rs'),self.cascade(line=81),self.cascade(column=24),self.cascade(message='Task thread panicked!: PRIVATE_ERROR'),self.cascade()+self.cascade(),self.cascade()+self.panic(),self.cascade(message='UNKNOWN')]:
+            result=self.observe(self.log(self.stack())+suffix)['CLI_failure'];self.assertEqual(result['collection_status'],'unavailable');self.assertIn(result['discard_reason'],{'LATER_PANIC_AMBIGUITY','JOIN_CASCADE_MESSAGE_REJECTED'});self.assertNotIn('PRIVATE',json.dumps(result))
+        result=self.observe(self.log(self.stack(),panic=False)+self.f.header(self.f.program,self.f.pline)+'UNKNOWN_PRIMARY\n'+self.cascade())['CLI_failure'];self.assertEqual(result['collection_status'],'unavailable')
+
+    def test_join_cascade_requires_admitted_unchanged_exact_Source(self):
+        name='rust/main/utils/run-locally/src/utils.rs';original=self.join.read_bytes();row=self.f.sources[name]
+        for mode in ['missing_pin','changed','wrong_statement','wrong_line']:
+            self.join.write_bytes(original);self.f.sources[name]=row
+            if mode=='missing_pin':self.f.sources.pop(name)
+            elif mode=='changed':self.join.write_bytes(original+b'\n')
+            elif mode=='wrong_statement':self.join.write_bytes(original.replace(b'Task thread panicked!',b'OTHER SOURCE MESSAGE'));self.f.sources[name]=api.pin(self.join)
+            else:self.join.write_bytes(b'\n'+original);self.f.sources[name]=api.pin(self.join)
+            result=self.observe(self.log(self.stack())+self.cascade())['CLI_failure'];self.assertEqual(result['collection_status'],'unavailable');self.assertEqual(result['join_source_status'],'UNAVAILABLE');self.assertEqual(result['source_capture_failures'],1)
+        self.join.write_bytes(original);self.f.sources[name]=row
+
+    def test_finite_constructor_capture_contract_and_collector_frontiers(self):
+        saved=self.required;self.required=[r for r in saved if r!=self.inputs['tron_cli']]
+        result=self.observe(self.log())['CLI_failure'];self.assertEqual((result['discard_reason'],result['frontier']),('CONSTRUCTOR_CONTEXT_REJECTED','CONSTRUCTOR'))
+        self.required=saved;self.entry.write_bytes(self.entry.read_bytes()+b' changed')
+        result=self.observe(self.log())['CLI_failure'];self.assertEqual(result['discard_reason'],'ENTRY_SOURCE_CAPTURE_REJECTED')
+        self.entry.write_bytes(b'// missing catch\n');self.required=[api.pin(self.entry)if r['path']==str(self.entry)else r for r in saved];self.inputs['tron_tre']['cli_entrypoint']=api.pin(self.entry);self.f.approval['tron_tre']=copy.deepcopy(self.inputs['tron_tre'])
+        self.assertEqual(self.observe(self.log())['CLI_failure']['discard_reason'],'ENTRY_SOURCE_CONTRACT_REJECTED')
+        self.entry.write_bytes(b"errorRed('Error: ' + error.message); process.exit(1);\n");self.required=[api.pin(self.entry)if r['path']==str(self.entry)else r for r in saved];self.inputs['tron_tre']['cli_entrypoint']=api.pin(self.entry);self.f.approval['tron_tre']=copy.deepcopy(self.inputs['tron_tre'])
+        with mock.patch.object(api.TronCLIProjection,'feed',side_effect=ValueError('PRIVATE_REASON https://PRIVATE_URL')):result=self.observe(self.log())['CLI_failure']
+        self.assertEqual((result['discard_reason'],result['frontier']),('COLLECTOR_FAILED','WINDOW_SCAN'));self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def test_unqualified_window_closed_and_duplicate_frontiers(self):
+        for wire,reason in [(self.line('Error: PRIVATE'), 'NO_QUALIFIED_WINDOW'),(self.log(panic=False)+'<E2E> Deployed core contracts to anvil1\n'+self.panic(),'DEPLOY_WINDOW_CLOSED'),(self.log(panic=False)+'<E2E> Deploying core contracts to anvil1...\n'+self.panic(),'DUPLICATE_FIRST_DEPLOY'),(self.log(panic=False)+self.f.header(self.f.program,self.f.pline)+'UNKNOWN_PRIMARY\n','PRIMARY_PANIC_UNQUALIFIED')]:
+            result=self.observe(wire)['CLI_failure'];self.assertEqual(result['collection_status'],'unavailable');self.assertEqual(result['discard_reason'],reason);self.assertFalse(result['native_or_timing_or_cleanup_authority']);self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def test_pending_cascade_does_not_grant_unfinished_or_blank_unbounded_messages(self):
+        header=self.cascade().splitlines()[0]+'\n'
+        for tail in ['', '\n\nTask thread panicked!: Any { .. }\n','<pnpm-native> Error: PRIVATE\n']:
+            result=self.observe(self.log(self.stack())+header+tail)['CLI_failure'];self.assertEqual(result['collection_status'],'unavailable');self.assertIn(result['discard_reason'],{'JOIN_CASCADE_MESSAGE_UNQUALIFIED','JOIN_CASCADE_MESSAGE_REJECTED'});self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def test_join_Source_rechecked_at_publication_and_single_harness_capture(self):
+        original=api.TronCLIProjection.public
+        def changed(state):self.join.write_bytes(self.join.read_bytes()+b'\n');return original(state)
+        with mock.patch.object(api.TronCLIProjection,'public',changed):result=self.observe(self.log(self.stack())+self.cascade())['CLI_failure']
+        self.assertEqual(result['collection_status'],'unavailable');self.assertEqual((result['discard_reason'],result['frontier']),('PUBLIC_SOURCE_RECHECK_FAILED','PUBLICATION'))
+        self.f.sources['rust/main/utils/run-locally/src/utils.rs']=api.pin(self.join);original_capture=api.captured_failure_bytes;reads=[]
+        def capture(path,maximum):reads.append(Path(path));return original_capture(path,maximum)
+        with mock.patch.object(api,'captured_failure_bytes',side_effect=capture):self.observe(self.log(self.stack()))
+        self.assertEqual(reads.count(self.f.log),1);self.assertEqual(reads.count(self.join),1)
+
+    def test_unavailable_public_enum_guard_never_copies_exception_attributes(self):
+        result=api.tron_cli_unavailable('PRIVATE_REASON https://PRIVATE_URL','PRIVATE_FRONTIER')
+        self.assertEqual(result['discard_reason'],'COLLECTOR_FAILED');self.assertEqual(result['frontier'],'WINDOW_SCAN');self.assertNotIn('PRIVATE',json.dumps(result));self.assertFalse(result['native_or_timing_or_cleanup_authority'])
 
 if __name__=='__main__':unittest.main()

@@ -415,10 +415,11 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
         guards={literal:category for literal,category in literals.items()if b'"'+literal+b'"'in bodies[fixture]}
         if len(guards)!=len(literals)or b'"Radix Docker command failed ({status})"'not in bodies[fixture]:raise ValueError('Radix static guard Source changed')
     result={'schema':1,'kind':'public-fixed-fixture-failure-observation','scenario':scenario,'writer_sources':checked_sources,'harness_log_fingerprint':log_pin,'last_seen_stage':None,'panic_observations':[],'client_waits':None,'native_or_timing_or_cleanup_authority':False,'scope':'Source marker and finite panic-category observations only. Last seen is not stage success. No arbitrary error/command text, numeric Program status, root-cause, direct container wait or proof claim.'}
-    cli=None
+    cli=None;cli_reason='CONTEXT_NOT_SUPPLIED';cli_frontier='CONSTRUCTOR'
     if scenario=='tron'and case_inputs is not None:
-        try:cli=TronCLIProjection(case,case_inputs,approval,required_inputs,bodies)
-        except Exception:pass
+        try:cli=TronCLIProjection(case,case_inputs,approval,required_inputs,bodies,sources,repo)
+        except TronCLIProjectionError as error:cli_reason=error.reason
+        except Exception:cli_reason='CONSTRUCTOR_CONTEXT_REJECTED'
     pending=None;observations=[];seen=set();lines_scanned=0
     def classify(body,context):
         if context=='radix':
@@ -445,13 +446,13 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
         lines_scanned+=1
         if len(raw)>65536:
             pending=None
-            if cli is not None:cli.state='ambiguous';cli.qualified=False
+            if cli is not None:cli.state='ambiguous';cli.qualified=False;cli.reason='LOG_LINE_BOUND';cli.frontier='WINDOW_SCAN'
             continue
         clean=re.sub(rb'\x1b\[[0-9;]*m',b'',raw).strip()
         if clean in markers:result['last_seen_stage']={'category':markers[clean],'log_line':lines_scanned,'observed_only':True}
         if cli is not None:
             try:cli.feed(clean,lines_scanned,markers.get(clean))
-            except Exception:cli=None
+            except Exception:cli=None;cli_reason='COLLECTOR_FAILED';cli_frontier='WINDOW_SCAN'
         header=re.match(rb"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ([^:\r\n]{1,4096}):([0-9]{1,7}):([0-9]{1,5}):\s*(.*)$",clean)
         if header is not None:
             pending=None;path,line,column,tail=header.groups();line,column=int(line),int(column)
@@ -463,13 +464,13 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
             if required not in snippet or(scenario=='tron'and source_lines[line-1].strip()!=b'assert!(')or(scenario=='radix'and required not in source_lines[line-1]):continue
             if cli is not None:
                 try:cli.source_header(lines_scanned)
-                except Exception:cli=None
+                except Exception:cli=None;cli_reason='COLLECTOR_FAILED';cli_frontier='PRIMARY_PANIC'
             pending={'context':scenario,'remaining':16,'source':target,'line':line,'column':column}
             if tail:
                 item=classify(tail,pending['context'])
                 if cli is not None:
                     try:cli.classify(item)
-                    except Exception:cli=None
+                    except Exception:cli=None;cli_reason='COLLECTOR_FAILED';cli_frontier='PRIMARY_PANIC'
                 if item is not None:
                     key=(item['category'],target,line,column)
                     if key not in seen and len(observations)<16:seen.add(key);observations.append({**item,'source':target,'line':line,'column':column})
@@ -483,14 +484,14 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
         item=classify(clean,context['context'])
         if cli is not None:
             try:cli.classify(item)
-            except Exception:cli=None
+            except Exception:cli=None;cli_reason='COLLECTOR_FAILED';cli_frontier='PRIMARY_PANIC'
         if item is not None:
             key=(item['category'],context['source'],context['line'],context['column'])
             if key not in seen and len(observations)<16:seen.add(key);observations.append({**item,'source':context['source'],'line':context['line'],'column':context['column']})
     result['panic_observations']=observations
     if scenario=='tron':
-        try:result['CLI_failure']=cli.public()if cli is not None else{'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
-        except Exception:result['CLI_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        try:result['CLI_failure']=cli.public()if cli is not None else tron_cli_unavailable(cli_reason,cli_frontier)
+        except Exception:result['CLI_failure']=tron_cli_unavailable('PUBLIC_SOURCE_RECHECK_FAILED','PUBLICATION')
     if scenario=='radix':
         journal=Path(case)/'evidence/radix-client-parent-waits.jsonl'
         if journal.exists():
@@ -1099,9 +1100,19 @@ def radix_transport_http(service,route,target,deadline_ns,cancelled,clock):
 
 
 
+class TronCLIProjectionError(ValueError):
+    def __init__(self,reason):self.reason=reason;super().__init__(reason)
+
+
+def tron_cli_unavailable(reason,frontier):
+    if reason not in{'CONTEXT_NOT_SUPPLIED','CONSTRUCTOR_CONTEXT_REJECTED','ENTRY_SOURCE_CAPTURE_REJECTED','ENTRY_SOURCE_CONTRACT_REJECTED','COLLECTOR_FAILED','PUBLIC_SOURCE_RECHECK_FAILED','NO_QUALIFIED_WINDOW','LOG_LINE_BOUND','JOIN_CASCADE_MESSAGE_REJECTED','JOIN_CASCADE_MESSAGE_UNQUALIFIED','LATER_PANIC_AMBIGUITY','DUPLICATE_FIRST_DEPLOY','DEPLOY_WINDOW_CLOSED','PRIMARY_PANIC_UNQUALIFIED'}:reason='COLLECTOR_FAILED'
+    if frontier not in{'CONSTRUCTOR','WINDOW_SCAN','WINDOW_OPEN','PRIMARY_PANIC','LATER_PANIC','PUBLICATION'}:frontier='WINDOW_SCAN'
+    return {'collection_status':'unavailable','discard_reason':reason,'frontier':frontier,'native_or_timing_or_cleanup_authority':False,'scope':'Finite collector frontier only; no retained CLI cause, raw error or execution authority.'}
+
+
 class TronCLIProjection:
     """One existing harness scan. Text/Source coordinates are not execution proof."""
-    def __init__(self,case,inputs,approval,required_inputs,bodies):
+    def __init__(self,case,inputs,approval,required_inputs,bodies,sources,repo):
         root=Path(case)/'tron-cli';fixture=inputs['tron_tre'];receipt=inputs['tron_cli']
         if fixture!=approval['tron_tre']or receipt!=approval['tron_cli']or receipt not in required_inputs or fixture['cli_directory']!=str(root)or root.is_symlink()or root.resolve()!=root or not isinstance(required_inputs,list)or len(required_inputs)>250000:raise ValueError('Already admitted owned CLI context required')
         tool=fixture['pnpm'];entry=fixture['cli_entrypoint']
@@ -1109,8 +1120,17 @@ class TronCLIProjection:
         program=bodies['rust/main/utils/run-locally/src/program.rs'];external=bodies['rust/main/utils/run-locally/src/external_agents.rs']
         if not all(n in program for n in [b'pub fn get_bin_name(',b'.file_name()',b'let name = self.get_bin_name()',b'println!("<{prefix}> {line}")',b'Error reading from output for {}: {}'])or b'.bin(fixture.pnpm.path)'not in external:raise ValueError('Exact CLI log prefix Source required')
         self.root=root;self.prefix=b'<'+Path(tool['path']).name.encode()+b'> ';self.rows=required_inputs;self.files={};self.fixed_sources={};self.total=0;self.state='not_started';self.starts=0;self.source_panic=False;self.qualified=False;self.headers=[];self.frames=[];self.seen=set();self.unadmitted=0;self.last_header=None;self.start_line=None;self.end_line=None;self.pipe_error=False;self.frame_attempts=0;self.frame_attempts_truncated=False
-        wire=self.capture(entry['path'])
-        if not all(n in wire for n in [b'error.message',b"'Error: '",b'process.exit(1)']):raise ValueError('CLI catch Source differs')
+        self.reason='NO_QUALIFIED_WINDOW';self.frontier='WINDOW_SCAN';self.join_source=None;self.join_identity=None;self.join_count=0;self.join_pending=0;self.source_capture_failures=0
+        try:wire=self.capture(entry['path'])
+        except Exception as error:raise TronCLIProjectionError('ENTRY_SOURCE_CAPTURE_REJECTED')from error
+        if not all(n in wire for n in [b'error.message',b"'Error: '",b'process.exit(1)']):raise TronCLIProjectionError('ENTRY_SOURCE_CONTRACT_REJECTED')
+        # Already preadmitted Rust Source; missing/changed Source never grants a cascade.
+        name='rust/main/utils/run-locally/src/utils.rs';path=Path(repo)/name
+        try:
+            raw,pin=captured_failure_bytes(path,1024**2)
+            if sources[name]!={'path':str(path),**pin}or raw.splitlines()[81]!=b'        self.0.join().expect("Task thread panicked!")'or b'impl<T> TaskHandle for SimpleTaskHandle<T> {\n    type Output = T;\n\n    fn join(self) -> Self::Output {\n        self.0.join().expect("Task thread panicked!")\n    }'not in raw:raise ValueError('Exact helper join Source required')
+            self.join_source={'module':name,'source':sources[name],'line':82,'column':23};self.join_identity=RelayerStartup.identity(path)
+        except Exception:self.source_capture_failures=1
 
     def capture(self,path):
         if path in self.files:return self.files[path]['wire']
@@ -1124,15 +1144,30 @@ class TronCLIProjection:
         self.total+=len(wire);self.files[path]={'wire':wire,'fingerprint':pin,'identity':RelayerStartup.identity(candidate)};return wire
 
     def feed(self,clean,line,marker):
-        if self.state=='frozen'and clean.startswith(b"thread '")and b' panicked at 'in clean:self.state='ambiguous';self.qualified=False;return
+        panic=clean.startswith(b"thread '")and b' panicked at 'in clean
+        if self.state=='join_pending':
+            self.join_pending-=1
+            if not panic and (clean==b'Task thread panicked!: Any { .. }'or not clean and self.join_pending>0):
+                if clean:self.state='frozen';self.join_count=1;self.frontier='QUALIFIED_PRIMARY_WITH_JOIN_CASCADE';self.reason=None
+                return
+            self.state='ambiguous';self.qualified=False;self.reason='JOIN_CASCADE_MESSAGE_REJECTED';self.frontier='LATER_PANIC';return
+        if self.state=='frozen'and panic:
+            match=re.fullmatch(rb"thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ([^:\r\n]{1,4096}):([0-9]{1,7}):([0-9]{1,5}):[ \t]*(.*)",clean)
+            if self.qualified and self.join_count==0 and self.join_source is not None and match is not None:
+                path,row,column,tail=match.groups();relative=b'utils/run-locally/src/utils.rs';full=b'rust/main/'+relative
+                if (path in{relative,full}or path.endswith(b'/'+full)or path.endswith(b'/'+relative))and int(row)==82 and int(column)==23:
+                    self.frontier='LATER_PANIC';self.reason='JOIN_CASCADE_MESSAGE_UNQUALIFIED'
+                    if tail==b'Task thread panicked!: Any { .. }':self.join_count=1;self.frontier='QUALIFIED_PRIMARY_WITH_JOIN_CASCADE';self.reason=None;return
+                    if not tail:self.state='join_pending';self.join_pending=2;return
+            self.state='ambiguous';self.qualified=False;self.reason='LATER_PANIC_AMBIGUITY';self.frontier='LATER_PANIC';return
         if marker is not None:
             if marker=='CORE_DEPLOY_FIRST_ENTERED':
                 self.starts+=1
-                if self.starts==1:self.state='open';self.start_line=line
-                else:self.state='ambiguous';self.qualified=False
-            elif self.state=='open':self.state='closed'
+                if self.starts==1:self.state='open';self.start_line=line;self.frontier='WINDOW_OPEN'
+                else:self.state='ambiguous';self.qualified=False;self.reason='DUPLICATE_FIRST_DEPLOY';self.frontier='WINDOW_SCAN'
+            elif self.state=='open':self.state='closed';self.reason='DEPLOY_WINDOW_CLOSED';self.frontier='WINDOW_SCAN'
         if self.state!='open':return
-        if clean.startswith(b"thread '")and b' panicked at 'in clean:self.state='frozen';self.end_line=line;return
+        if panic:self.state='frozen';self.end_line=line;self.reason='PRIMARY_PANIC_UNQUALIFIED';self.frontier='PRIMARY_PANIC';return
         pipe=b'<E2E> Error reading from output for '+self.prefix[1:-2]+b': '
         if clean.startswith(pipe):self.pipe_error=True;return
         if not clean.startswith(self.prefix):return
@@ -1159,7 +1194,7 @@ class TronCLIProjection:
             relative,call,needle,label=fixed[message]
             if relative not in self.fixed_sources:
                 try:self.fixed_sources[relative]=self.capture(str(self.root/relative))
-                except Exception:self.fixed_sources[relative]=b''
+                except Exception:self.fixed_sources[relative]=b'';self.source_capture_failures=min(32,self.source_capture_failures+1)
             if any(re.search(rb'(?<![A-Za-z0-9_$])'+re.escape(call+b'('+quote+needle+quote+b')'),self.fixed_sources[relative])is not None for quote in(b"'",b'"',b'`')):self.last_header={'enum':label,'log_line':line,'observed_only':True}
         error_header=message.startswith('Error: ')or re.match(r'^Error \[[A-Z][A-Z_0-9]{1,63}\]:',message)is not None
         if error_header and len(self.headers)<8:
@@ -1181,15 +1216,16 @@ class TronCLIProjection:
             relative=Path(path).relative_to(self.root).as_posix();key=(relative,row,column)
             if key not in self.seen:
                 self.seen.add(key);pin=self.files[path]['fingerprint'];self.frames.append({'source':relative,'line':row,'column':column,'source_bytes':pin['bytes'],'source_sha256':pin['sha256']})
-        except Exception:self.unadmitted=min(2**32-1,self.unadmitted+1)
+        except Exception:self.unadmitted=min(2**32-1,self.unadmitted+1);self.source_capture_failures=min(32,self.source_capture_failures+1)
 
     def source_header(self,line):
         if self.state=='frozen'and self.starts==1 and line==self.end_line:self.source_panic=True
 
     def classify(self,item):
-        if self.state=='frozen'and self.source_panic and self.starts==1 and item is not None and item.get('category')=='HYPERLANE_CORE_DEPLOY':self.qualified=True
+        if self.state=='frozen'and self.source_panic and self.starts==1 and item is not None and item.get('category')=='HYPERLANE_CORE_DEPLOY':self.qualified=True;self.reason=None;self.frontier='QUALIFIED_PRIMARY'
 
     def public(self):
-        if not self.qualified:return {'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False,'scope':'No unique first-deploy/Source Program panic window with admitted CLI context.'}
+        if not self.qualified or self.state!='frozen':return {**tron_cli_unavailable(self.reason or'NO_QUALIFIED_WINDOW',self.frontier),'join_source_status':'MATCHED'if self.join_source is not None else'UNAVAILABLE','source_capture_failures':self.source_capture_failures}
         if any(RelayerStartup.identity(Path(path))!=row['identity']for path,row in self.files.items()):raise ValueError('Emitted Source identity changed before publication')
-        return {'schema':1,'kind':'public-Tron-CLI-failure-text-observation','collection_status':'observed','window':{'stage':'CORE_DEPLOY_FIRST_ENTERED','start_log_line':self.start_line,'end_log_line':self.end_line,'matched_Source_panic_category':'HYPERLANE_CORE_DEPLOY'},'prefix_kind':'admitted_pnpm_native_basename','last_seen_header':self.last_header,'error_header_fingerprints':self.headers,'emitted_JS_coordinates':self.frames,'unadmitted_coordinates_omitted':self.unadmitted,'frame_candidates_truncated':self.frame_attempts_truncated,'CLI_pipe_read_error_observed':self.pipe_error,'CLI_numeric_status':None,'native_or_timing_or_cleanup_authority':False,'scope':'Exact prefixed text within one Source first-deploy/panic window only. Source bytes/UTF16 coordinates matched existing admitted JS descriptors, not unique execution/PIDepoch/typed exception or parent wait. CLI catch prints message only; absent stack/unknown text stays unknown. No TS/sourcemap claim, function/address/rawpath/key/URL/argv/env/body/error text.'}
+        if self.join_count and RelayerStartup.identity(Path(self.join_source['source']['path']))!=self.join_identity:raise ValueError('Helper join Source changed before publication')
+        return {'schema':1,'kind':'public-Tron-CLI-failure-text-observation','frontier':self.frontier,'source_capture_failures':self.source_capture_failures,'known_join_cascade_count':self.join_count,'known_join_Source':{'module':self.join_source['module'],'line':82,'column':23,'source_bytes':self.join_source['source']['bytes'],'source_sha256':self.join_source['source']['sha256']}if self.join_count else None,'collection_status':'observed','window':{'stage':'CORE_DEPLOY_FIRST_ENTERED','start_log_line':self.start_line,'end_log_line':self.end_line,'matched_Source_panic_category':'HYPERLANE_CORE_DEPLOY'},'prefix_kind':'admitted_pnpm_native_basename','last_seen_header':self.last_header,'error_header_fingerprints':self.headers,'emitted_JS_coordinates':self.frames,'unadmitted_coordinates_omitted':self.unadmitted,'frame_candidates_truncated':self.frame_attempts_truncated,'CLI_pipe_read_error_observed':self.pipe_error,'CLI_numeric_status':None,'native_or_timing_or_cleanup_authority':False,'scope':'Exact prefixed text within one Source first-deploy/panic window only. Source bytes/UTF16 coordinates matched existing admitted JS descriptors, not unique execution/PIDepoch/typed exception or parent wait. CLI catch prints message only; absent stack/unknown text stays unknown. No TS/sourcemap claim, function/address/rawpath/key/URL/argv/env/body/error text.'}
