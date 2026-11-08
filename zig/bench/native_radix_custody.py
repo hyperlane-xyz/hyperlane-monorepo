@@ -438,7 +438,12 @@ class Custody:
             if row is None:
                 try:self.missing_inspection_observation=self.missing_inspection(cid)
                 except Exception:self.missing_inspection_observation={'stage':'listed_CID_missing_on_inspect','collection_status':'unavailable','native_or_cleanup_authority':False}
-            require(row is not None, 'Radix object vanished during inspection')
+                bound_stopping = False
+                if cid in self.seen.values():
+                    try:bound_stopping = self.stopping() is True
+                    except Exception:bound_stopping = False
+                require(bound_stopping, 'Radix object vanished during inspection')
+                continue
             service = row['Config']['Labels'][SERVICE_LABEL]
             require(service not in found, 'Duplicate Radix Compose service')
             found[service] = cid

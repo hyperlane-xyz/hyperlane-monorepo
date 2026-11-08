@@ -469,11 +469,12 @@ class Controls(unittest.TestCase):
         self.assertGreaterEqual(report['completed_monotonic_ns'],report['observed_monotonic_ns'])
         report['captured_CIDs'].clear();self.assertEqual(len(self.custody.public_observation()['missing_inspection']['captured_CIDs']),5)
 
-    def test_exact_stop_intent_is_observed_but_never_waives_missing_inspect_guard(self):
-        self.vanish_on_inspect();self.stop_marker()
-        with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
-        self.assertEqual(self.custody.public_observation()['missing_inspection']['Source_stop_intent'],{'status':'present_and_exactly_bound','binding_matches':True})
-        self.assertFalse(self.docker.mutations())
+    def test_authenticated_list_inspect_disappearance_with_fresh_exact_stop_intent_completes_observation_only(self):
+        self.vanish_on_inspect();self.stop_marker();maximum=self.custody.maximum_writable_bytes
+        self.custody.observe()
+        report=self.custody.public_observation()['missing_inspection']
+        self.assertEqual(report['Source_stop_intent'],{'status':'present_and_exactly_bound','binding_matches':True});self.assertFalse(report['native_or_cleanup_authority'])
+        self.assertEqual(self.custody.maximum_writable_bytes,maximum);self.assertEqual(set(self.custody.ready),set(m.SERVICES));self.assertFalse(self.docker.mutations())
 
     def test_unbound_or_private_stop_record_never_exports_body_or_masks_missing_guard(self):
         self.vanish_on_inspect('fullnode');self.stop_marker();path=self.case/'radix-localnet/stopping.json';value=json.loads(path.read_bytes());value['PRIVATE_SENTINEL']='authorization secret';path.write_text(json.dumps(value))
@@ -494,6 +495,40 @@ class Controls(unittest.TestCase):
         self.custody.inspect_container=lambda cid,*a,**k:None if cid==unknown else old_inspect(cid,*a,**k)
         with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
         report=self.custody.public_observation()['missing_inspection'];self.assertEqual(report['listed_container_id'],unknown);self.assertEqual(report['previously_captured_services'],[]);self.assertEqual(self.custody.public_observation()['last_inspected_service'],'fullnode')
+
+
+    def test_unknown_listed_CID_remains_refused_even_with_exact_bound_stop_marker(self):
+        self.launch(['fullnode']);self.custody.observe();self.stop_marker();unknown='f'*64
+        self.custody.ids=lambda kind,*a,**k:[unknown]if kind=='container'else[]
+        self.custody.inspect_container=lambda *a,**k:None
+        with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+        report=self.custody.public_observation()['missing_inspection'];self.assertEqual(report['Source_stop_intent']['binding_matches'],True);self.assertEqual(report['previously_captured_services'],[]);self.assertFalse(self.docker.mutations())
+
+    def test_missing_inspect_requires_fresh_marker_not_the_diagnostic_cached_true(self):
+        self.vanish_on_inspect('fullnode')
+        from unittest import mock
+        with mock.patch.object(self.custody,'stopping',side_effect=[True]+[False]*8)as stopping:
+            with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+            self.assertEqual(stopping.call_count,2)
+        self.assertTrue(self.custody.public_observation()['missing_inspection']['Source_stop_intent']['binding_matches'])
+
+    def test_fresh_stop_validation_error_preserves_missing_guard_and_never_acts_on_Docker(self):
+        self.vanish_on_inspect('fullnode')
+        from unittest import mock
+        with mock.patch.object(self.custody,'stopping',side_effect=[True,ValueError('PRIVATE_MARKER_REPLACED')]):
+            with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+        self.assertFalse(self.docker.mutations());self.assertNotIn('PRIVATE_MARKER_REPLACED',json.dumps(self.custody.public_observation()))
+
+    def test_allowed_inspect_disappearance_still_executes_existing_network_guard(self):
+        self.vanish_on_inspect();self.stop_marker();next(iter(self.docker.networks.values()))['Internal']=False
+        with self.assertRaisesRegex(ValueError,'Foreign or external Radix network'):self.custody.observe()
+        self.assertFalse(self.docker.mutations())
+
+    def test_actual_pinned_Rust_stop_intent_is_published_before_compose_teardown(self):
+        source=Path(__file__).resolve().parents[2]/'rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';body=source.read_text();stop=body[body.index('    pub fn stop(&mut self) -> Result<()> {'):body.index('impl Drop for Localnet')]
+        self.assertIn('"project":self.project,"parent_pid":std::process::id(),"containers":before',stop)
+        self.assertLess(stop.index('publish_stop_intent(&intent_path, &intent)?'),stop.index('self.compose(&["down", "--timeout", "15", "--volumes"], 60)?'))
+        self.assertLess(stop.index('self.compose(&["down"'),stop.index('self.require_no_networks_or_volumes()?'))
 
 
 class ResourceFailureDiagnostics(unittest.TestCase):
