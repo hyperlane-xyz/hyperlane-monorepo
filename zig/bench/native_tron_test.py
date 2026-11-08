@@ -5,6 +5,8 @@ spec=importlib.util.spec_from_file_location('native_tron_assets',pathlib.Path(__
 class Assets(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name).resolve()
+  # Pure small-copy fixtures model ample capacity; production6GiB checks stay real.
+  usage=__import__('shutil').disk_usage(self.root);capacity=mock.patch.object(a.shutil,'disk_usage',return_value=type(usage)(usage.total,usage.used,8*a.GIB));capacity.start();self.addCleanup(capacity.stop)
  def policy(self,arch='amd64'):
   return {'tron_cli':dict(a.CLI_POLICY),'tron_tre':{'schema':2,'architecture':arch,'source_image':a.SOURCE_IMAGE,'canonical_digest':a.SOURCE_IMAGE,'image_id':a.IMAGE_IDS[arch],'command':a.COMMAND,'entrypoint':None}}
  def image(self,arch='amd64'):
@@ -94,6 +96,57 @@ class Assets(unittest.TestCase):
  def test_changed_copied_SDK_or_new_root_dist_rejects(self):
   v=self.graph();out=a.materialize(v,self.root/'tron-cli',0);(self.root/'tron-cli/dist/injected.js').write_text('new')
   with self.assertRaises(ValueError):a.verify_materialized(out)
+ def actual_SBF(self):
+  source=pathlib.Path(__file__).resolve().parents[2]/'typescript/svm-sdk/src/testing/fixtures/spl_token_2022_v10.so';return source.read_bytes()
+ def test_exact_tracked_SBF_fixture_remains_data_and_closed_graph_member(self):
+  r=self.workspace();relative=next(iter(a.SOURCE_SBF_DATA));p=r/relative;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(self.actual_SBF());p.chmod(0o644);value=a.graph(r,list(a.PACKAGE_ROOTS),'amd64');self.assertTrue(value['entries'][relative]['Source_SBF_data_only']);self.assertEqual(value['entries'][relative]['mode'],0o644);a.verify_graph(value)
+ def test_Source_SBF_exception_cannot_authorize_host_otherpath_bytes_or_mode(self):
+  raw=self.actual_SBF();r=self.workspace()
+  for changed,mode,path in [(raw+b'changed',0o644,next(iter(a.SOURCE_SBF_DATA))),(raw,0o755,next(iter(a.SOURCE_SBF_DATA))),(raw,0o644,'node_modules/foreign.so')]:
+   p=r/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(changed);p.chmod(mode)
+   with self.subTest(path=path,mode=mode),self.assertRaises(ValueError):a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
+   p.unlink()
+ def test_source_data_classification_never_waives_exact_header(self):
+  relative=next(iter(a.SOURCE_SBF_DATA));policy=a.SOURCE_SBF_DATA[relative];row={'bytes':policy['bytes'],'sha256':policy['sha256']};raw=self.actual_SBF()[:20]
+  for offset,value in [(4,1),(5,2),(7,3),(16,2),(18,247)]:
+   header=bytearray(raw);header[offset]=value
+   with self.subTest(offset=offset),self.assertRaises(ValueError):a.source_SBF_data(relative,row,0o100644,header)
+ def test_foreign_payload_diagnostic_retains_exact_public_path_header_and_hash(self):
+  r=self.workspace();header=bytearray(24);header[:6]=b'\x7fELF\x02\x01';struct.pack_into('<H',header,18,183);p=r/'node_modules/bad.node';p.write_bytes(header)
+  with self.assertRaisesRegex(ValueError,'Foreign native dependency payload')as caught:a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
+  value=json.loads(str(caught.exception).split(': ',1)[1]);self.assertEqual(value['path'],'node_modules/bad.node');self.assertEqual(value['ELF_machine'],183);self.assertEqual(value['header20_hex'],header[:20].hex());self.assertEqual(value['sha256'],a.pin(p)['sha256'])
+ def prebuild_fixture(self,platform='darwin',payload=b'\xcf\xfa\xed\xfe'+b'0'*20):
+  import hashlib
+  r=self.workspace();base='node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil';relative=base+'/prebuilds/'+platform+'-x64/fixture.node';p=r/relative;p.parent.mkdir(parents=True);p.write_bytes(payload);p.chmod(0o644);files={}
+  for name,body in [('package.json',b'public package fixture'),('index.js',b'public selector fixture')]:
+   q=r/base/name;q.write_bytes(body);row=a.pin(q);files[name]={'bytes':row['bytes'],'sha256':row['sha256']}
+  row=a.pin(p);policy={'package':'bufferutil@4.1.0','platform':platform,'architectures':['x64'],'bytes':row['bytes'],'sha256':row['sha256'],'header20_hex':payload[:20].hex(),'mode':0o644};loaders={'bufferutil@4.1.0':{'root':base,'files':files}};return r,relative,policy,loaders
+ def test_exact_unselected_platform_prebuild_is_pinned_data_not_native_authority(self):
+  r,relative,policy,loaders=self.prebuild_fixture()
+  with mock.patch.dict(a.NPM_PREBUILD_DATA,{relative:policy},clear=True),mock.patch.dict(a.NPM_PREBUILD_LOADERS,loaders,clear=True):
+   value=a.graph(r,list(a.PACKAGE_ROOTS),'amd64');self.assertTrue(value['entries'][relative]['unselected_Source_locked_platform_data']);a.verify_graph(value)
+   (r/relative).write_bytes((r/relative).read_bytes()+b'changed')
+   with self.assertRaises(ValueError):a.verify_graph(value)
+ def test_platform_data_requires_exact_path_payload_mode_and_pinned_selector(self):
+  r,relative,policy,loaders=self.prebuild_fixture();p=r/relative
+  with mock.patch.dict(a.NPM_PREBUILD_DATA,{relative:policy},clear=True),mock.patch.dict(a.NPM_PREBUILD_LOADERS,loaders,clear=True):
+   p.chmod(0o755)
+   with self.assertRaises(ValueError):a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
+   p.chmod(0o644);selector=r/loaders['bufferutil@4.1.0']['root']/'index.js';selector.write_bytes(b'changed loader')
+   with self.assertRaises(ValueError):a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
+  moved=p.with_name('unknown.node');p.rename(moved)
+  with self.assertRaises(ValueError):a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
+ def test_current_host_platform_prebuild_never_bypasses_native_ELF_guard(self):
+  header=bytearray(24);header[:6]=b'\x7fELF\x02\x01';struct.pack_into('<H',header,18,183);r,relative,policy,loaders=self.prebuild_fixture('linux',bytes(header))
+  with mock.patch.dict(a.NPM_PREBUILD_DATA,{relative:policy},clear=True),mock.patch.dict(a.NPM_PREBUILD_LOADERS,loaders,clear=True),self.assertRaisesRegex(ValueError,'Foreign native'):a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
+ def test_current_host_valid_prebuild_is_native_and_never_marked_foreign_data(self):
+  header=bytearray(24);header[:6]=b'\x7fELF\x02\x01';struct.pack_into('<H',header,18,62);r,relative,policy,loaders=self.prebuild_fixture('linux',bytes(header))
+  with mock.patch.dict(a.NPM_PREBUILD_DATA,{relative:policy},clear=True),mock.patch.dict(a.NPM_PREBUILD_LOADERS,loaders,clear=True):
+   value=a.graph(r,list(a.PACKAGE_ROOTS),'amd64');self.assertNotIn('unselected_Source_locked_platform_data',value['entries'][relative]);a.verify_graph(value)
+ def test_actual_materializer_still_rejects_below_sixGiB_before_copy(self):
+  v=self.graph();destination=self.root/'floor-rejected';usage=__import__('shutil').disk_usage(self.root)
+  with mock.patch.object(a.shutil,'disk_usage',return_value=type(usage)(usage.total,usage.used,5*a.GIB)),self.assertRaisesRegex(ValueError,'preserve6GiB'):a.materialize(v,destination,0)
+  self.assertFalse(destination.exists())
 class Custody(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.case=pathlib.Path(self.tmp.name).resolve();self.out=self.case/'output';self.out.mkdir()

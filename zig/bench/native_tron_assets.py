@@ -16,6 +16,185 @@ MUTABLE_REGISTRY=('test-configs/tron/chains/anvil1/addresses.yaml','test-configs
 PACKAGE_ROOTS=('typescript/tsconfig', 'typescript/utils', 'solhint-plugin', 'solidity', 'typescript/provider-sdk', 'typescript/aleo-sdk', 'typescript/cosmos-types', 'typescript/cosmos-sdk', 'typescript/radix-sdk', 'typescript/forking-sdk', 'typescript/svm-sdk', 'starknet', 'typescript/starknet-sdk', 'typescript/tron-sdk', 'typescript/deploy-sdk', 'typescript/sdk', 'typescript/http-registry-server', 'typescript/metrics', 'typescript/keyfunder', 'typescript/relayer', 'typescript/rebalancer', 'typescript/infra', 'typescript/cli')
 ROOT_PAYLOADS=('vectors','scripts','patches','package.json','pnpm-lock.yaml','pnpm-workspace.yaml','.nvmrc','turbo.json','.registryrc')
 OPTIONAL_ROOT_PAYLOADS=('.npmrc','.pnpmfile.cjs')
+SOURCE_SBF_DATA={'typescript/svm-sdk/src/testing/fixtures/spl_token_2022_v10.so':{'bytes':506896,'sha256':('a794161408080f690dac00832f45b3c3e' '2b71f1339586667ad1f979cf91d5b68'),'machine':263}}
+NPM_PREBUILD_DATA={
+    'node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil/prebuilds/darwin-arm64/bufferutil.node': {
+        'package': 'bufferutil@4.1.0',
+        'platform': 'darwin',
+        'architectures': ['arm64'],
+        'bytes': 34064,
+        'sha256': ('688f957f5a989f6406e5caa26382e213' 'c8b7316eb600303307dc95be60c287c0'),
+        'header20_hex': 'cffaedfe0c00000100000000080000000e000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil/prebuilds/darwin-x64/bufferutil.node': {
+        'package': 'bufferutil@4.1.0',
+        'platform': 'darwin',
+        'architectures': ['x64'],
+        'bytes': 9072,
+        'sha256': ('f1c90f748d9149cc42f6a00fa846add1' '4c056403d2e67fc8179c1a53a4f22b1b'),
+        'header20_hex': 'cffaedfe0700000103000000080000000c000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil/prebuilds/linux-x64/bufferutil.node': {
+        'package': 'bufferutil@4.1.0',
+        'platform': 'linux',
+        'architectures': ['x64'],
+        'bytes': 14584,
+        'sha256': ('9d0bce137193c8630da7679759674236' '8798f72d1564d43be0d716ac74312bda'),
+        'header20_hex': '7f454c4602010100000000000000000003003e00',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil/prebuilds/win32-ia32/bufferutil.node': {
+        'package': 'bufferutil@4.1.0',
+        'platform': 'win32',
+        'architectures': ['ia32'],
+        'bytes': 129024,
+        'sha256': ('d3cc72764c09f4b2a7f885f5167811fd' '22dd3728b59bb1a18fa5a6f504317689'),
+        'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil/prebuilds/win32-x64/bufferutil.node': {
+        'package': 'bufferutil@4.1.0',
+        'platform': 'win32',
+        'architectures': ['x64'],
+        'bytes': 155136,
+        'sha256': ('9bf6ec4d84b75403a50f22d9bdba2cfb' '287f12472374c9d5eb736c963a997ee9'),
+        'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@5.0.10/node_modules/utf-8-validate/prebuilds/darwin-x64+arm64/node.napi.node': {
+        'package': 'utf-8-validate@5.0.10',
+        'platform': 'darwin',
+        'architectures': ['x64', 'arm64'],
+        'bytes': 116000,
+        'sha256': ('0ed3fef7154849143b7b064d33e32b33' '9b86590c0f5719cee8b46b150e83a3e5'),
+        'header20_hex': 'cafebabe00000002010000070000000300004000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@5.0.10/node_modules/utf-8-validate/prebuilds/linux-x64/node.napi.node': {
+        'package': 'utf-8-validate@5.0.10',
+        'platform': 'linux',
+        'architectures': ['x64'],
+        'bytes': 6232,
+        'sha256': ('08c0737834fb5c2ca38efe64e274c107' '2d7edd18415275f9e0573df5bcdd0e27'),
+        'header20_hex': '7f454c4602010100000000000000000003003e00',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@5.0.10/node_modules/utf-8-validate/prebuilds/win32-ia32/node.napi.node': {
+        'package': 'utf-8-validate@5.0.10',
+        'platform': 'win32',
+        'architectures': ['ia32'],
+        'bytes': 121856,
+        'sha256': ('0808ab542c43b9df85b668a02f070552' '9b7bb9ac79e26b0776682657c6005352'),
+        'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@5.0.10/node_modules/utf-8-validate/prebuilds/win32-x64/node.napi.node': {
+        'package': 'utf-8-validate@5.0.10',
+        'platform': 'win32',
+        'architectures': ['x64'],
+        'bytes': 150528,
+        'sha256': ('48b7275f47cd44a05d349eb4fdb6cfc4' '51ccbf609a4a56fa34452bcf231c1208'),
+        'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@6.0.6/node_modules/utf-8-validate/prebuilds/linux-x64/utf-8-validate.musl.node': {
+        'package': 'utf-8-validate@6.0.6',
+        'platform': 'linux',
+        'architectures': ['x64'],
+        'bytes': 34656,
+        'sha256': ('2c52b81a656cda0a9f874f8ce163f2cc' 'ad60707391a50ff23738e48d657287ee'),
+        'header20_hex': '7f454c4602010100000000000000000003003e00',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@6.0.6/node_modules/utf-8-validate/prebuilds/darwin-arm64/utf-8-validate.node': {
+        'package': 'utf-8-validate@6.0.6',
+        'platform': 'darwin',
+        'architectures': ['arm64'],
+        'bytes': 36256,
+        'sha256': ('3aa78e7e2eda10bb968a98f96d713981' 'fa6e9316efce0c750af1b3e8fe50170f'),
+        'header20_hex': 'cffaedfe0c00000100000000080000000e000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@6.0.6/node_modules/utf-8-validate/prebuilds/darwin-x64/utf-8-validate.node': {
+        'package': 'utf-8-validate@6.0.6',
+        'platform': 'darwin',
+        'architectures': ['x64'],
+        'bytes': 20216,
+        'sha256': ('84d42dc1e7d811271d803d2374aeb1d2' '439d02a2a2b9cfd59b190d9acd73cac4'),
+        'header20_hex': 'cffaedfe0700000103000000080000000c000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@6.0.6/node_modules/utf-8-validate/prebuilds/linux-x64/utf-8-validate.node': {
+        'package': 'utf-8-validate@6.0.6',
+        'platform': 'linux',
+        'architectures': ['x64'],
+        'bytes': 31200,
+        'sha256': ('428fa0b3a3c52ddf28cce7d4ad95a680' '23200f9514328d2d0e4a11f0633d3610'),
+        'header20_hex': '7f454c4602010100000000000000000003003e00',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@6.0.6/node_modules/utf-8-validate/prebuilds/win32-ia32/utf-8-validate.node': {
+        'package': 'utf-8-validate@6.0.6',
+        'platform': 'win32',
+        'architectures': ['ia32'],
+        'bytes': 139264,
+        'sha256': ('0fc404bf0e45866c66c99d5fce490446' 'e8b0703af57f10c7e5292db28ac98ecd'),
+        'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
+        'mode': 420,
+    },
+    'node_modules/.pnpm/utf-8-validate@6.0.6/node_modules/utf-8-validate/prebuilds/win32-x64/utf-8-validate.node': {
+        'package': 'utf-8-validate@6.0.6',
+        'platform': 'win32',
+        'architectures': ['x64'],
+        'bytes': 174592,
+        'sha256': ('563ad0209336017a68e14d40fa8964f0' '9021ed33cccc6b26414e1331b4fead99'),
+        'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
+        'mode': 420,
+    },
+}
+NPM_PREBUILD_LOADERS={
+    'bufferutil@4.1.0': {
+        'root': 'node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil',
+        'files': {
+            'index.js': {
+                'bytes': 136,
+                'sha256': ('70846a43c2bd3b1077461563194e4d24' '07b18e7d767d6fd8785ea9b7d6ddd044'),
+            },
+            'package.json': {
+                'bytes': 815,
+                'sha256': ('73f8333d4bf76ac969c65581b8017f56' 'ec579a0346d6beef1d0bcc88d5174474'),
+            },
+        },
+    },
+    'utf-8-validate@5.0.10': {
+        'root': 'node_modules/.pnpm/utf-8-validate@5.0.10/node_modules/utf-8-validate',
+        'files': {
+            'index.js': {
+                'bytes': 136,
+                'sha256': ('70846a43c2bd3b1077461563194e4d24' '07b18e7d767d6fd8785ea9b7d6ddd044'),
+            },
+            'package.json': {
+                'bytes': 947,
+                'sha256': ('4638f6a95ec1fca2a158f8a5989bc90a' '898f4e267588f3c13d7ca052b9b94b94'),
+            },
+        },
+    },
+    'utf-8-validate@6.0.6': {
+        'root': 'node_modules/.pnpm/utf-8-validate@6.0.6/node_modules/utf-8-validate',
+        'files': {
+            'index.js': {
+                'bytes': 136,
+                'sha256': ('70846a43c2bd3b1077461563194e4d24' '07b18e7d767d6fd8785ea9b7d6ddd044'),
+            },
+            'package.json': {
+                'bytes': 1199,
+                'sha256': ('75c6c1c5441fcc22114f12ddd202de79' '7f606c1dc056f6c5181ed0abd4cda329'),
+            },
+        },
+    },
+}
 MAX_FILES=200000
 MAX_BYTES=4*GIB
 
@@ -61,6 +240,33 @@ def cli_source(repo):
     return package
 
 
+
+def source_SBF_data(relative,row,mode,header):
+    policy=SOURCE_SBF_DATA.get(relative)
+    if policy is None:return False
+    require(row['bytes']==policy['bytes']and row['sha256']==policy['sha256']and stat.S_IMODE(mode)==0o644,'Exact immutable nonexecutable Source SBF fixture required')
+    require(header[:8]==b'\x7fELF\x02\x01\x01\x00'and int.from_bytes(header[16:18],'little')==3 and int.from_bytes(header[18:20],'little')==policy['machine'],'Exact Source SBF data header required')
+    return True
+
+
+
+def unselected_prebuild_data(repo,relative,row,mode,header,architecture):
+    policy=NPM_PREBUILD_DATA.get(relative)
+    if policy is None:return False
+    require(row['bytes']==policy['bytes']and row['sha256']==policy['sha256']and stat.S_IMODE(mode)==policy['mode']and header[:20].hex()==policy['header20_hex'],'Exact Source-locked prebuild payload required')
+    loader=NPM_PREBUILD_LOADERS[policy['package']]
+    for name,expected in loader['files'].items():
+        value=pin(repo/loader['root']/name)
+        require(value['bytes']==expected['bytes']and value['sha256']==expected['sha256'],'Source-locked platform-selecting package loader changed')
+    # Current Linux host addons stay subject to all existing native ELF checks.
+    return policy['platform']!='linux'or{'amd64':'x64','arm64':'arm64'}[architecture]not in policy['architectures']
+
+
+def payload_diagnostic(relative,row,header):
+    require(len(relative)<=4096,'Bounded package payload name required')
+    return json.dumps({'path':relative,'bytes':row['bytes'],'sha256':row['sha256'],'header20_hex':header[:20].hex(),'ELF_class':header[4]if len(header)>4 else None,'ELF_endian':header[5]if len(header)>5 else None,'ELF_machine':int.from_bytes(header[18:20],'little')if len(header)>=20 else None},sort_keys=True,separators=(',',':'))
+
+
 def graph(repo,package_roots,architecture):
     """Pin every installed payload/link, internal package and compiled CLI output.
 
@@ -89,10 +295,12 @@ def graph(repo,package_roots,architecture):
             require(stat.S_ISREG(mode),'Special package payload rejected')
             row=pin(path);total+=row['bytes'];require(total<=MAX_BYTES,'Full Linux CLI copies exceed original4GiB case cap')
             with path.open('rb')as source:header=source.read(20)
-            require(header[:4]not in {b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca'},'Mac executable payload cannot be a Linux package product')
-            if header[:4]==b'\x7fELF':require(header[4:6]==b'\x02\x01'and int.from_bytes(header[18:20],'little')=={'amd64':62,'arm64':183}[architecture],'Foreign native dependency payload')
-            if path.suffix=='.node':require(header[:4]==b'\x7fELF','Native addon must be actual Linux ELF')
-            entries[relative]={'kind':'file','bytes':row['bytes'],'sha256':row['sha256'],'mode':stat.S_IMODE(mode)}
+            guest_data=source_SBF_data(relative,row,mode,header);foreign_data=unselected_prebuild_data(repo,relative,row,mode,header,architecture);data_only=guest_data or foreign_data
+            if not data_only:
+                require(header[:4]not in {b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca'},'Mac executable payload cannot be a Linux package product: '+payload_diagnostic(relative,row,header))
+                if header[:4]==b'\x7fELF':require(header[4:6]==b'\x02\x01'and int.from_bytes(header[18:20],'little')=={'amd64':62,'arm64':183}[architecture],'Foreign native dependency payload: '+payload_diagnostic(relative,row,header))
+                if path.suffix=='.node':require(header[:4]==b'\x7fELF','Native addon must be actual Linux ELF: '+payload_diagnostic(relative,row,header))
+            entries[relative]={'kind':'file','bytes':row['bytes'],'sha256':row['sha256'],'mode':stat.S_IMODE(mode),**({'Source_SBF_data_only':True}if guest_data else {}),**({'unselected_Source_locked_platform_data':True}if foreign_data else {})}
     require('typescript/cli/dist/cli.js'in entries and any(n.startswith('solidity/dist/tron/typechain/factories/')for n in entries)and 'solidity/dist/buildArtifact.json'in entries,'Actual CLI/core EVM/TVM artifacts required')
     for row in entries.values():
         if row['kind']=='symlink':require(row['resolved']in entries,'Symlink target missing from complete admitted graph')
