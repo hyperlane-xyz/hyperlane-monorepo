@@ -124,6 +124,32 @@ class PolicyPins(unittest.TestCase):
    self.assertIn(str(self.root/required),paths)
   self.assertIn(str(self.root/'zig/tools/aleo_linux/receipts.py'),paths)
 
+class InteropCommandContract(unittest.TestCase):
+ def test_both_manifest_commands_satisfy_actual_Linux_reader_API(self):
+  import argparse
+  producer_tree=ast.parse((HERE/'ci_fullcase.py').read_text())
+  execute=next(n for n in producer_tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute')
+  calls=[n for n in ast.walk(execute)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='run'and n.args and isinstance(n.args[0],ast.BinOp)and isinstance(n.args[0].left,ast.Constant)and n.args[0].left.value=='interop-']
+  self.assertEqual(len(calls),1)
+  reader_tree=ast.parse((REPO/'zig/integration/native_rows_interop.py').read_text())
+  main=next(n for n in reader_tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+  parser_nodes=[]
+  for node in main.body:
+   if isinstance(node,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='args'for t in node.targets):break
+   parser_nodes.append(node)
+  ns={'argparse':argparse,'pathlib':pathlib,'__doc__':'actual reader argument contract'}
+  exec(compile(ast.Module(body=parser_nodes,type_ignores=[]),'actual reader argparse','exec'),ns)
+  manifest=next(n for n in main.body if isinstance(n,ast.If)and isinstance(n.test,ast.Compare)and isinstance(n.test.left,ast.Attribute)and n.test.left.attr=='tool_manifest')
+  refusal=next(n.test for n in manifest.body if isinstance(n,ast.If))
+  for mode in m.MODES:
+   writer={'path':'/owned/'+mode,'sha256':'a'*64};tools={name:{'path':'/owned/'+name,'sha256':'b'*64}for name in ['ziggy-native-rows','ziggy-rocks-oracle','ziggy-rust-reference']}
+   values={'python':pathlib.Path('/usr/bin/python3.12'),'repo':REPO,'writer':writer,'tools':tools,'manifest':{'path':'/owned/manifest.json','sha256':'c'*64},'authority':{'runtime_source_commit':'d'*40},'output':pathlib.Path('/owned/interop-'+mode+'.json')}
+   command=eval(compile(ast.Expression(calls[0].args[1]),'actual fullcase interop argv','eval'),values)
+   args=ns['parser'].parse_args([str(x)for x in command[4:]])
+   self.assertFalse(eval(compile(ast.Expression(refusal),'actual Linux reader admission','eval'),{'args':args,'sys':N(platform='linux')}))
+   # The former override combination really is refused by the pinned reader API.
+   args.old_oracle=pathlib.Path('/owned/forbidden-override')
+   self.assertTrue(eval(compile(ast.Expression(refusal),'actual Linux reader admission','eval'),{'args':args,'sys':N(platform='linux')}))
 class Budget(unittest.TestCase):
  def observation(self,**changes):
   now=datetime.datetime(2026,11,8,12,0,0,tzinfo=datetime.timezone.utc);self.now=int(now.timestamp()*10**9)

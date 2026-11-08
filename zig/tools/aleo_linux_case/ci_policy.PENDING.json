@@ -288,11 +288,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-      "bytes": 28621,
+      "bytes": 28510,
       "sha256": {
         "sha256_hex_chunks": [
-          "ec052687fd1bce3b8c8df66ce07f2353",
-          "f59e7b140e4a1fa4cc82e1c07d146c4d"
+          "a25702ade5d0216595a3a7b801fbcce2",
+          "e2ceacb01b3358e135aa7813f7c10e03"
         ]
       }
     },
