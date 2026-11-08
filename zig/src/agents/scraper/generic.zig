@@ -121,7 +121,11 @@ pub const Adapter = struct {
                 3 => self.contracts.hook,
                 else => unreachable,
             };
-            if (index == 3 and self.derive_insertions) event.data = .{ .insertion = .{ .message_id = event.data.dispatch.id(), .index = event.data.dispatch.nonce } };
+            if (index == 3 and self.derive_insertions) {
+                const message_id = event.data.dispatch.id();
+                const nonce = event.data.dispatch.nonce;
+                event.data = .{ .insertion = .{ .message_id = message_id, .index = nonce } };
+            }
         }
         return batch;
     }

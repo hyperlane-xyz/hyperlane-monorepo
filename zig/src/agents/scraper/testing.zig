@@ -424,6 +424,61 @@ const GenericStream = struct {
         return .{ .context = self, .tip_fn = getTip, .fetch_fn = fetch };
     }
 };
+test "scraper generic raw sequence snapshots dispatch before derived insertion union write" {
+    const generic = @import("generic.zig");
+    var provider: GenericProvider = .{};
+    var messages = [_]src.Event{ fixtureEvents()[0], fixtureEvents()[0] };
+    const bodies = [_][]const u8{ "first nonempty dispatch body", "different second dispatch body" };
+    for (&messages, 0..) |*event, index| {
+        event.data.dispatch.nonce = @intCast(17 + index);
+        event.data.dispatch.body = bodies[index];
+        event.sequence = @intCast(17 + index);
+        event.block_number = 2 + index;
+        event.block_hash = chainHash(event.block_number, 3);
+        event.address = .{9} ** 32;
+        event.tx_hash = .{@as(u8, @intCast(11 + index))} ** 64;
+        event.tx_index = 4 + index;
+        event.log_index = 7 + index;
+    }
+    const ids = [_]src.Hash{ messages[0].data.dispatch.id(), messages[1].data.dispatch.id() };
+    try std.testing.expect(!std.mem.eql(u8, &ids[0], &ids[1]));
+    var dispatch: GenericStream = .{ .tip = .{ .count = 19, .tip = 5 }, .items = &messages };
+    var delivery: GenericStream = .{ .tip = .{ .count = 0, .tip = 5 } };
+    var gas: GenericStream = .{ .tip = .{ .count = 0, .tip = 5 } };
+    const contracts: src.Contracts = .{ .mailbox = .{1} ** 32, .hook = .{2} ** 32, .paymaster = .{3} ** 32 };
+    var adapter: generic.Adapter = .{ .allocator = std.testing.allocator, .provider = .{ .context = &provider, .latest_fn = GenericProvider.latest, .header_fn = GenericProvider.header, .unavailable_fn = GenericProvider.unavailable }, .streams = .{ dispatch.interface(), delivery.interface(), gas.interface(), null }, .contracts = contracts, .sequence_mode = true, .derive_insertions = true, .chunk = 1 };
+    defer adapter.deinit();
+    const source = try adapter.interface();
+    var insertions = try source.rawSequence(std.testing.allocator, 3, 17, 18);
+    defer insertions.deinit();
+    try std.testing.expectEqual(@as(u64, 18), insertions.through);
+    try std.testing.expectEqual(@as(usize, 2), insertions.events.len);
+    for (insertions.events, 0..) |event, index| {
+        try std.testing.expect(std.meta.activeTag(event.data) == .insertion);
+        try std.testing.expectEqual(ids[index], event.data.insertion.message_id);
+        try std.testing.expectEqual(@as(u32, @intCast(17 + index)), event.data.insertion.index);
+        try std.testing.expectEqual(contracts.hook, event.address);
+        try std.testing.expectEqual(messages[index].sequence, event.sequence);
+        try std.testing.expectEqual(messages[index].block_number, event.block_number);
+        try std.testing.expectEqual(messages[index].block_hash, event.block_hash);
+        try std.testing.expectEqual(messages[index].tx_hash, event.tx_hash);
+        try std.testing.expectEqual(messages[index].tx_index, event.tx_index);
+        try std.testing.expectEqual(messages[index].log_index, event.log_index);
+        try std.testing.expect(std.meta.activeTag(messages[index].data) == .dispatch);
+    }
+    var original = try source.rawSequence(std.testing.allocator, 0, 17, 18);
+    defer original.deinit();
+    try std.testing.expectEqual(@as(usize, 2), original.events.len);
+    for (original.events, 0..) |event, index| {
+        try std.testing.expect(std.meta.activeTag(event.data) == .dispatch);
+        try std.testing.expectEqual(ids[index], event.data.dispatch.id());
+        try std.testing.expectEqual(@as(u32, @intCast(17 + index)), event.data.dispatch.nonce);
+        try std.testing.expectEqualStrings(bodies[index], event.data.dispatch.body);
+        try std.testing.expectEqual(contracts.mailbox, event.address);
+        try std.testing.expectEqual(messages[index].sequence, event.sequence);
+    }
+}
+
 test "scraper generic source pages complete blocks derives insertions and caches cycle tips" {
     const generic = @import("generic.zig");
     var provider: GenericProvider = .{};
