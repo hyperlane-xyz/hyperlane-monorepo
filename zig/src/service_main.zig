@@ -89,6 +89,7 @@ fn run() !void {
     const library = environment.get("HYPERLANE_CURL_LIBRARY") orelse if (builtin.os.tag == .macos) "/usr/lib/libcurl.4.dylib" else "libcurl.so.4";
     const telemetry = try metrics.Registry.init(a, comptime std.meta.stringToEnum(metrics.Role, options.role).?, .{ .base_version = metric_schema.baselib_version });
     defer telemetry.deinit();
+    try telemetry.registerNoTokioAgentRuntime();
     try chain_metrics.configure(telemetry, &configured);
     var endpoints: routes.Routes = .{ .registry = telemetry };
     const server = try http.Server.start(a, .{ .address = try std.net.Address.parseIp4("0.0.0.0", configured.metrics_port) }, endpoints.handler());

@@ -47,6 +47,15 @@ pub const Registry = struct {
         }
         return self;
     }
+    /// This agent has no Tokio scheduler/current Handle or TaskMonitor. Keep
+    /// legacy runtime series explicit without claiming process-wide/FFI absence
+    /// or mapping native worker lifecycle/health onto Tokio task-drop semantics.
+    /// Call at daemon startup; Registry.init remains lazy for other consumers.
+    pub fn registerNoTokioAgentRuntime(self: *Registry) !void {
+        try self.update("hyperlane_tokio_dropped_tasks", &.{}, .{ .add_int = 0 });
+        try self.update("hyperlane_tokio_blocking_threads", &.{}, .{ .set_int = 0 });
+        try self.update("hyperlane_tokio_idle_blocking_threads", &.{}, .{ .set_int = 0 });
+    }
     /// Stop/join HTTP and metric writers before destroying the registry.
     pub fn deinit(self: *Registry) void {
         for (self.series.items) |*series| series.arena.deinit();
@@ -372,4 +381,58 @@ test "registry cursor raises are atomic with other writers and preserve metric s
     try std.testing.expectError(error.UnknownMetric, registry.raiseInt("unknown", &.{}, 1));
     try std.testing.expectError(error.InvalidMetricUpdate, registry.raiseInt("hyperlane_request_count", &.{}, 1));
     try std.testing.expectError(error.MetricLabelCount, registry.raiseInt(name, &.{"origin"}, 1));
+}
+
+test "explicit agent Tokio runtime zero families preserve role labels help types and laziness" {
+    const a = std.testing.allocator;
+    inline for (.{ Role.relayer, Role.validator, Role.scraper }) |role| {
+        const registry = try Registry.init(a, role, .{ .base_version = "fixture", .max_render_bytes = 4096 });
+        defer registry.deinit();
+        const empty = try registry.render(a);
+        defer a.free(empty);
+        try std.testing.expectEqualStrings("", empty);
+        try std.testing.expectEqual(@as(usize, 0), registry.series.items.len);
+        try registry.registerNoTokioAgentRuntime();
+        const first = try registry.render(a);
+        defer a.free(first);
+        inline for (.{
+            .{ "hyperlane_tokio_dropped_tasks", "The number of tasks dropped", "counter" },
+            .{ "hyperlane_tokio_blocking_threads", "The number of Tokio blocking pool threads, including idle threads", "gauge" },
+            .{ "hyperlane_tokio_idle_blocking_threads", "The number of idle Tokio blocking pool threads", "gauge" },
+        }) |family| {
+            const expected = "# HELP " ++ family[0] ++ " " ++ family[1] ++ "\n# TYPE " ++ family[0] ++ " " ++ family[2] ++ "\n" ++ family[0] ++ "{agent=\"" ++ @tagName(role) ++ "\",hyperlane_baselib_version=\"fixture\"} 0\n";
+            try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, first, expected));
+        }
+        try std.testing.expectEqual(@as(usize, 3), registry.series.items.len);
+        const bytes = registry.bytes;
+        try registry.registerNoTokioAgentRuntime();
+        const again = try registry.render(a);
+        defer a.free(again);
+        try std.testing.expectEqualStrings(first, again);
+        try std.testing.expectEqual(bytes, registry.bytes);
+        try std.testing.expectEqual(@as(usize, 3), registry.series.items.len);
+        try registry.update("hyperlane_tokio_dropped_tasks", &.{}, .{ .add_int = 7 });
+        try registry.registerNoTokioAgentRuntime();
+        const updated = try registry.render(a);
+        defer a.free(updated);
+        try std.testing.expect(std.mem.indexOf(u8, updated, "hyperlane_tokio_dropped_tasks{agent=\"" ++ @tagName(role) ++ "\",hyperlane_baselib_version=\"fixture\"} 7\n") != null);
+    }
+}
+
+fn failingRuntimeStartup(a: A) !void {
+    const registry = try Registry.init(a, .relayer, .{ .base_version = "fixture", .max_render_bytes = 4096 });
+    defer registry.deinit();
+    try registry.registerNoTokioAgentRuntime();
+    const rendered = try registry.render(a);
+    a.free(rendered);
+}
+
+test "explicit agent Tokio startup allocation failures propagate without leaks and constructor stays bounded lazy" {
+    const a = std.testing.allocator;
+    const registry = try Registry.init(a, .relayer, .{ .base_version = "fixture", .max_series = 1, .max_render_bytes = 4096 });
+    defer registry.deinit();
+    try std.testing.expectEqual(@as(usize, 0), registry.series.items.len);
+    try std.testing.expectError(error.MetricSeriesLimit, registry.registerNoTokioAgentRuntime());
+    try std.testing.expectEqual(@as(usize, 1), registry.series.items.len);
+    try std.testing.checkAllAllocationFailures(a, failingRuntimeStartup, .{});
 }
