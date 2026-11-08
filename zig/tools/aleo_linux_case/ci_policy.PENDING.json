@@ -188,11 +188,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/bootstrap.mjs",
-      "bytes": 16836,
+      "bytes": 17026,
       "sha256": {
         "sha256_hex_chunks": [
-          "77c7959d13e7a394e09dd8262aa6642e",
-          "af7a3f764df958e7c877548085eebdf6"
+          "1609c96bb03ecd4bf67ff0ab82f46091",
+          "2ac33470969623ce7908dae9b1587bfe"
         ]
       }
     },

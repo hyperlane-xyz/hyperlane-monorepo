@@ -140,7 +140,12 @@ export function install(policyPath, expectedSha) {
     return nativeConnect.apply(this,args);
   };
   tls.connect = () => deny('raw TLS forbidden');
-  for (const key of ['lookup','resolve','resolve4','resolve6']) dns[key] = () => deny('DNS escape');
+  const nativeLookup = dns.lookup;
+  dns.lookup = function(hostname, ...args) {
+    check();if (hostname !== '127.0.0.1') deny('DNS escape');
+    return nativeLookup.call(dns,hostname,...args);
+  };
+  for (const key of ['resolve','resolve4','resolve6']) dns[key] = () => deny('DNS escape');
   requireValue(Number.isInteger(policy.max_threads_total) && policy.max_threads_total>0 && policy.max_threads_total<=8 && Number.isInteger(policy.max_threads_per_parent) && policy.max_threads_per_parent>0 && policy.max_threads_per_parent<=8 && policy.max_old_space_mb>0 && policy.max_old_space_mb<=3072,'finite Worker caps required');
   const OriginalWorker = threads.Worker;
   const allowedFiles = new Map(policy.allowed_worker_files.map(p => [p.path,p]));
