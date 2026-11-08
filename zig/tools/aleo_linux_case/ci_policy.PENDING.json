@@ -529,11 +529,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_sdk/sdk_provision.py",
-      "bytes": 32151,
+      "bytes": 36071,
       "sha256": {
         "sha256_hex_chunks": [
-          "fdc5cf3339aafb570094c725a0502496",
-          "245ca556387f7c13a96613f2e62b0723"
+          "ae4094ecf8cf701d80d30ed827593397",
+          "ad426f000f2f396c30fa245431b848af"
         ]
       }
     },

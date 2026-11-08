@@ -269,7 +269,7 @@ class Tests(unittest.TestCase):
         child=mock.Mock(pid=100);child.poll.return_value=None;child.wait.return_value=-9
         lease=mock.Mock();lease.populated.return_value=False
         value={'error':'original-attach-failure','signals':[],'commands':[],'source_unchanged':False,'owned_absent':False}
-        ns={'lease':lease,'child':child,'pidfd':42,'waits':[],'value':value,'reap_terminal':mock.Mock(),'need':p.need,'signal':p.signal,'os':p.os,'time':time,'spec':{'source_files':[],'pins':[]},'checked':mock.Mock(),'source_copies':mock.Mock(),'final_pass':p.final_pass,'write':mock.Mock(),'root':self.root,'cleanup_owned':p.cleanup_owned,'stage_deadline':p.stage_deadline}
+        ns={'current_command':None,'pid_before':None,'lease':lease,'child':child,'pidfd':42,'waits':[],'value':value,'reap_terminal':mock.Mock(),'need':p.need,'signal':p.signal,'os':p.os,'time':time,'spec':{'source_files':[],'pins':[]},'checked':mock.Mock(),'source_copies':mock.Mock(),'final_pass':p.final_pass,'write':mock.Mock(),'root':self.root,'cleanup_owned':p.cleanup_owned,'stage_deadline':p.stage_deadline}
         with mock.patch.object(p.signal,'pidfd_send_signal',create=True)as kill,mock.patch.object(p.os,'close')as close,mock.patch.object(p,'reap_terminal'),mock.patch.object(p,'leaf_caps',return_value={}):
             exec(compile(ast.Module(body=final,type_ignores=[]),'actual-provision-finally','exec'),ns)
         kill.assert_called_once_with(42,p.signal.SIGKILL);close.assert_called_once_with(42);child.wait.assert_called_once_with(timeout=10)
@@ -492,6 +492,66 @@ class ResourceGuardFailureTests(unittest.TestCase):
         with mock.patch.object(p,'owner_rss',return_value=1),mock.patch.object(p,'resource_guard_failure',side_effect=RuntimeError('PRIVATE_PROJECTION')):
             with self.assertRaisesRegex(ValueError,'^acquisition memory/log cap$'):p.check_resource_guard(value,self.root,lease,'locked_install','poll')
         self.assertFalse(value['resource_guard_failure']['available']);self.assertNotIn('PRIVATE',json.dumps(value))
+
+class BoundedConcurrencyAndPIDTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve()
+        self.lease=N(path=self.root,verify=mock.Mock())
+    def leaves(self,current=b'17\n',maximum=b'128\n',events=b'max 3\n'):
+        for name,body in [('pids.current',current),('pids.max',maximum),('pids.events',events)]:(self.root/name).write_bytes(body)
+    def snapshot(self):
+        with mock.patch.object(p.resource,'getrlimit',return_value=(91,p.resource.RLIM_INFINITY)),mock.patch.object(p.time,'monotonic_ns',return_value=10):return p.pid_pressure_snapshot(self.lease)
+    def test_exact_clean_concurrency_environment_and_supported_child_flag(self):
+        with mock.patch.dict(p.os.environ,{'RAYON_NUM_THREADS':'999','TOKIO_WORKER_THREADS':'999','PNPM_CONFIG_NETWORK_CONCURRENCY':'999','PRIVATE_TOKEN':'PRIVATE'},clear=True):env=p.environment(self.root,Path('/tools/node'),Path('/tools/pnpm'))
+        self.assertEqual({k:env[k]for k in ['RAYON_NUM_THREADS','TOKIO_WORKER_THREADS','PNPM_CONFIG_NETWORK_CONCURRENCY']},{'RAYON_NUM_THREADS':'4','TOKIO_WORKER_THREADS':'2','PNPM_CONFIG_NETWORK_CONCURRENCY':'2'})
+        self.assertNotIn('PRIVATE_TOKEN',env);self.assertNotIn('999',env.values());self.assertNotIn('TOKIO_MAX_BLOCKING_THREADS',env)
+        argv=p.install_argv(Path('/tools/pnpm'),self.root);self.assertEqual(argv.count('--config.child-concurrency=1'),1)
+        self.assertIn('--frozen-lockfile',argv);self.assertIn('--ignore-scripts',argv);self.assertIn('--config.ignore-pnpmfile=true',argv);self.assertIn('--config.package-import-method=copy',argv);self.assertNotIn('--config.network-concurrency=2',argv)
+    def test_actual_namespace_receipt_requires_fixed_worker_settings(self):
+        tools={k:{'path':'/tools/'+k}for k in ['node','pnpm','python','bwrap']};spec={**tools,'readonly_roots':['/usr','/tools']}
+        with mock.patch.object(p,'checked',side_effect=lambda row:Path(row['path'])):argv=p.namespace_argv(spec,self.root,self.root/'workspace',['/tools/pnpm','--version'],False)
+        sets={argv[i+1]:argv[i+2]for i,n in enumerate(argv)if n=='--setenv'};self.assertEqual(sets['RAYON_NUM_THREADS'],'4');self.assertEqual(sets['TOKIO_WORKER_THREADS'],'2');self.assertEqual(sets['PNPM_CONFIG_NETWORK_CONCURRENCY'],'2');self.assertIn('--clearenv',argv)
+    def test_actual_leaf_numbers_owner_limits_and_no_default_substitution(self):
+        self.leaves();row=self.snapshot();self.assertEqual((row['pids_current'],row['pids_max'],row['pids_events_max']),(17,128,3));self.assertEqual((row['owner_inherited_RLIMIT_NPROC_soft'],row['owner_inherited_RLIMIT_NPROC_hard']),(91,'UNLIMITED'));self.assertEqual(row['observed_monotonic_ns'],10);self.assertEqual(self.lease.verify.call_count,6)
+        (self.root/'pids.max').unlink();row=self.snapshot();self.assertIsNone(row['pids_max']);self.assertEqual(row['pids_current'],17)
+    def test_bounded_malformed_duplicate_and_foreign_event_data_never_exported(self):
+        for body in [b'PRIVATE',b'-1',b'true',b'9223372036854775808',b'1'*2049,b'17'+b' '*2047]:
+            self.leaves(current=body,maximum=body,events=body);row=self.snapshot();self.assertIsNone(row['pids_current']);self.assertIsNone(row['pids_max']);self.assertIsNone(row['pids_events_max']);self.assertNotIn('PRIVATE',json.dumps(row))
+        for events in [b'max 1\nmax 2\n',b'max 1\nPRIVATE 3\n',b'PRIVATE 4\n',b'max -1\n',b'max 9223372036854775808\n']:
+            self.leaves(events=events);self.assertIsNone(self.snapshot()['pids_events_max'])
+    def test_exact_nofollow_bound_and_identity_errors_become_NULL(self):
+        self.leaves();(self.root/'pids.max').unlink();(self.root/'private').write_text('128');(self.root/'pids.max').symlink_to(self.root/'private');self.assertIsNone(self.snapshot()['pids_max'])
+        self.lease.verify.side_effect=ValueError('PRIVATE_AUTH');row=self.snapshot();self.assertIsNone(row['pids_current']);self.assertIsNone(row['pids_max']);self.assertIsNone(row['pids_events_max']);self.assertNotIn('PRIVATE',json.dumps(row))
+        with mock.patch.object(p.os,'open',side_effect=OSError('PRIVATE')),mock.patch.object(p.resource,'getrlimit',side_effect=OSError('PRIVATE_LIMIT')),mock.patch.object(p.time,'monotonic_ns',side_effect=ValueError('PRIVATE_CLOCK')):row=p.pid_pressure_snapshot(self.lease)
+        self.assertTrue(all(n is None for n in row.values()))
+    def test_failure_delta_and_limit_scope_are_closed_not_causal_verdicts(self):
+        before={'pids_events_max':3,'observed_monotonic_ns':10,'pids_max':128,'pids_current':127};after={**before,'pids_events_max':4,'observed_monotonic_ns':12,'pids_current':2};value={'error':'ORIGINAL'}
+        with mock.patch.object(p,'pid_pressure_snapshot',return_value=after):p.record_pid_pressure_failure(value,self.lease,'locked_install',before)
+        row=value['pid_pressure_failure'];self.assertEqual(value['error'],'ORIGINAL');self.assertEqual(row['pids_events_max_delta_since_command_baseline'],1);self.assertTrue(row['owner_RLIMIT_is_not_failed_child_measurement']);self.assertTrue(row['current_counts_are_not_peak_or_exclusive_cause']);self.assertFalse(row['native_or_SDK_acceptance'])
+        for after in [{**after,'pids_events_max':2},{**after,'observed_monotonic_ns':9},{**after,'pids_events_max':None}]:
+            with mock.patch.object(p,'pid_pressure_snapshot',return_value=after):p.record_pid_pressure_failure(value,self.lease,'locked_install',before)
+            self.assertIsNone(value['pid_pressure_failure']['pids_events_max_delta_since_command_baseline'])
+    def test_unknown_projection_fields_and_failures_cannot_replace_primary(self):
+        private={'pids_current':True,'pids_max':'PRIVATE','pids_events_max':-1,'owner_inherited_RLIMIT_NPROC_soft':{'PRIVATE':'secret'},'PRIVATE':'secret'};value={'error':'ORIGINAL'}
+        with mock.patch.object(p,'pid_pressure_snapshot',return_value=private):p.record_pid_pressure_failure(value,self.lease,'PRIVATE_COMMAND',private)
+        row=value['pid_pressure_failure'];self.assertEqual(row['command'],'UNKNOWN');self.assertNotIn('PRIVATE',json.dumps(row));self.assertTrue(all(n is None for n in row['before_command'].values()))
+        with mock.patch.object(p,'pid_pressure_snapshot',side_effect=RuntimeError('PRIVATE')):p.record_pid_pressure_failure(value,self.lease,'locked_install',private)
+        self.assertFalse(value['pid_pressure_failure']['available']);self.assertEqual(value['error'],'ORIGINAL');self.assertNotIn('PRIVATE',json.dumps(value['pid_pressure_failure']))
+    def test_actual_failure_finally_diagnostic_is_before_original_cleanup_and_success_silent(self):
+        tree=ast.parse((HERE/'sdk_provision.py').read_bytes());run=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');outer=next(n for n in run.body if isinstance(n,ast.Try));first=outer.finalbody[0];self.assertIsInstance(first,ast.If)
+        self.assertIn('record_pid_pressure_failure',ast.unparse(first));self.assertIn('cleanup_owned',ast.unparse(outer.finalbody[1]));calls=[n for n in ast.walk(run)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='pid_pressure_snapshot'];self.assertEqual(len(calls),1)
+        for value in [{},{'error':'ORIGINAL'}]:
+            order=[];context={'value':value,'lease':self.lease,'current_command':'locked_install','pid_before':{},'record_pid_pressure_failure':lambda *args:order.append('diagnostic'),'cleanup_owned':lambda *args:order.append('cleanup')or{},'child':None,'pidfd':None,'waits':[]};value['signals']=[]
+            exec(compile(ast.Module(body=outer.finalbody[:2],type_ignores=[]),'actual-failure-finally','exec'),context);self.assertEqual(order,['diagnostic','cleanup']if value.get('error')else['cleanup'])
+    def test_actual_finally_injected_diagnostic_failure_still_cleans(self):
+        tree=ast.parse((HERE/'sdk_provision.py').read_bytes());run=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');outer=next(n for n in run.body if isinstance(n,ast.Try));value={'error':'ORIGINAL','signals':[]};order=[]
+        def diagnostic(*args):order.append('diagnostic');raise RuntimeError('PRIVATE')
+        context={'value':value,'lease':self.lease,'current_command':'locked_install','pid_before':{},'record_pid_pressure_failure':diagnostic,'cleanup_owned':lambda *args:order.append('cleanup')or{},'child':None,'pidfd':None,'waits':[]}
+        exec(compile(ast.Module(body=outer.finalbody[:2],type_ignores=[]),'actual-isolated-failure-finally','exec'),context);self.assertEqual(order,['diagnostic','cleanup']);self.assertEqual(value['error'],'ORIGINAL');self.assertFalse(value['pid_pressure_failure']['available']);self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_observed_build_thread_pool_code_is_finite_unknown_still_private(self):
+        root=self.root;stderr=root/'locked_install.stderr';stdout=root/'locked_install.stdout';stdout.write_bytes(b'');stderr.write_bytes(b'ERR_PNPM_BUILD_THREAD_POOL PRIVATE ERR_PNPM_PRIVATE_SUFFIX')
+        command={'name':'locked_install','pid':7,'actual_parent_wait':True,'exit_code':1,'stdout':pin(stdout),'stderr':pin(stderr)}
+        row=p.locked_install_failure_diagnostic(root,command,1,1800*10**9+1);self.assertEqual(row['files']['stderr']['codes'],['ERR_PNPM_BUILD_THREAD_POOL']);self.assertTrue(row['files']['stderr']['unknown_ERR_PNPM_token_present']);self.assertNotIn('PRIVATE',json.dumps(row))
 
 if __name__=='__main__':
     with mock.patch('subprocess.Popen',side_effect=AssertionError('no actual package/compiler/SDK process')):unittest.main()

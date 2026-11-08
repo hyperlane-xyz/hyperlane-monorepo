@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import resource
 import signal
 import stat
 import shutil
@@ -89,11 +90,11 @@ def stage_sources(repo,stage,expected):
 
 def environment(root,node,pnpm):
     # Entire explicit environment, never merge ambient credentials/proxies.
-    return {'PATH':os.pathsep.join([str(node.parent),str(pnpm.parent),'/usr/bin','/bin']),'HOME':str(root/'home'),'TMPDIR':str(root/'tmp'),'LC_ALL':'C.UTF-8','PYTHONNOUSERSITE':'1','PYTHONDONTWRITEBYTECODE':'1','NODE_OPTIONS':'--max-old-space-size=3072','npm_config_userconfig':str(root/'empty-user.npmrc'),'npm_config_globalconfig':str(root/'empty-global.npmrc'),'COREPACK_ENABLE_NETWORK':'0','COREPACK_ENABLE_PROJECT_SPEC':'0','CI':'true'}
+    return {'PATH':os.pathsep.join([str(node.parent),str(pnpm.parent),'/usr/bin','/bin']),'HOME':str(root/'home'),'TMPDIR':str(root/'tmp'),'LC_ALL':'C.UTF-8','PYTHONNOUSERSITE':'1','PYTHONDONTWRITEBYTECODE':'1','NODE_OPTIONS':'--max-old-space-size=3072','npm_config_userconfig':str(root/'empty-user.npmrc'),'npm_config_globalconfig':str(root/'empty-global.npmrc'),'COREPACK_ENABLE_NETWORK':'0','COREPACK_ENABLE_PROJECT_SPEC':'0','CI':'true','RAYON_NUM_THREADS':'4','TOKIO_WORKER_THREADS':'2','PNPM_CONFIG_NETWORK_CONCURRENCY':'2'}
 
 
 def install_argv(pnpm,root):
-    return [str(pnpm),'--filter','@hyperlane-xyz/aleo-sdk...','install','--frozen-lockfile','--ignore-scripts','--prefer-offline','--config.ignore-pnpmfile=true','--config.manage-package-manager-versions=false','--config.verify-store-integrity=true','--config.package-import-method=copy','--config.fetch-retries=0','--config.registry=https://registry.npmjs.org/','--config.store-dir='+str(root/'store'),'--config.cache-dir='+str(root/'cache')]
+    return [str(pnpm),'--filter','@hyperlane-xyz/aleo-sdk...','install','--frozen-lockfile','--ignore-scripts','--prefer-offline','--config.ignore-pnpmfile=true','--config.manage-package-manager-versions=false','--config.verify-store-integrity=true','--config.package-import-method=copy','--config.fetch-retries=0','--config.child-concurrency=1','--config.registry=https://registry.npmjs.org/','--config.store-dir='+str(root/'store'),'--config.cache-dir='+str(root/'cache')]
 
 
 def namespace_argv(spec,root,stage,command,network):
@@ -254,7 +255,7 @@ def admitted(receipt_pin,owner_pin):
 
 
 # Finite public codes only. Never emit a matched arbitrary ERR_PNPM suffix.
-PNPM_DIAGNOSTIC_CODES=frozenset({'ERR_PNPM_OUTDATED_LOCKFILE','ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE','ERR_PNPM_NO_LOCKFILE','ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY','ERR_PNPM_LOCKFILE_CONFIG_MISMATCH','ERR_PNPM_BROKEN_LOCKFILE','ERR_PNPM_BAD_PM_VERSION','ERR_PNPM_BAD_PACKAGE_MANAGER','ERR_PNPM_UNSUPPORTED_ENGINE','ERR_PNPM_UNSUPPORTED_PLATFORM','ERR_PNPM_TARBALL_INTEGRITY','ERR_PNPM_UNEXPECTED_STORE','ERR_PNPM_NO_MATCHING_VERSION','ERR_PNPM_WORKSPACE_PKG_NOT_FOUND','ERR_PNPM_MISSING_WORKSPACE_PACKAGE','ERR_PNPM_PEER_DEP_ISSUES','ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY','ERR_PNPM_META_FETCH_FAIL','ERR_PNPM_FETCH_BAD_RESPONSE','ERR_PNPM_FETCH_400','ERR_PNPM_FETCH_401','ERR_PNPM_FETCH_403','ERR_PNPM_FETCH_404','ERR_PNPM_FETCH_429','ERR_PNPM_FETCH_500','ERR_PNPM_FETCH_502','ERR_PNPM_FETCH_503','ERR_PNPM_FETCH_504'})
+PNPM_DIAGNOSTIC_CODES=frozenset({'ERR_PNPM_BUILD_THREAD_POOL','ERR_PNPM_OUTDATED_LOCKFILE','ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE','ERR_PNPM_NO_LOCKFILE','ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY','ERR_PNPM_LOCKFILE_CONFIG_MISMATCH','ERR_PNPM_BROKEN_LOCKFILE','ERR_PNPM_BAD_PM_VERSION','ERR_PNPM_BAD_PACKAGE_MANAGER','ERR_PNPM_UNSUPPORTED_ENGINE','ERR_PNPM_UNSUPPORTED_PLATFORM','ERR_PNPM_TARBALL_INTEGRITY','ERR_PNPM_UNEXPECTED_STORE','ERR_PNPM_NO_MATCHING_VERSION','ERR_PNPM_WORKSPACE_PKG_NOT_FOUND','ERR_PNPM_MISSING_WORKSPACE_PACKAGE','ERR_PNPM_PEER_DEP_ISSUES','ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY','ERR_PNPM_META_FETCH_FAIL','ERR_PNPM_FETCH_BAD_RESPONSE','ERR_PNPM_FETCH_400','ERR_PNPM_FETCH_401','ERR_PNPM_FETCH_403','ERR_PNPM_FETCH_404','ERR_PNPM_FETCH_429','ERR_PNPM_FETCH_500','ERR_PNPM_FETCH_502','ERR_PNPM_FETCH_503','ERR_PNPM_FETCH_504'})
 SYSTEM_DIAGNOSTIC_CODES=frozenset({'EAI_AGAIN','ENOTFOUND','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','EACCES','EPERM','ENOSPC','EROFS','EMFILE','ENFILE','ENOENT','EEXIST','EINVAL','ENOMEM','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN'})
 FAILURE_PREDICATES={'frozen_lockfile_not_up_to_date':(b'Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date',b'Cannot install with frozen-lockfile because pnpm-lock.yaml is not up to date'),'package_manager_version_incompatible':(b'Your pnpm version is incompatible with',b'This project is configured to use'),'engine_environment_unsupported':(b'Unsupported environment',b'Your Node version is incompatible with'),'lockfile_dependency_missing':(b'no entry for',b'is not found in the lockfile'),'integrity_verification_failed':(b'Integrity verification failed',)}
 
@@ -334,6 +335,49 @@ def check_resource_guard(value,root,lease,name,phase):
     need(valid,'acquisition memory/log cap'if phase=='poll'else'acquisition final log cap')
 
 
+def pid_pressure_snapshot(lease):
+    """Optional public numbers from the authenticated leaf and this owner only."""
+    def number(raw):
+        if not isinstance(raw,bytes)or re.fullmatch(rb'[0-9]{1,19}',raw.strip())is None:return None
+        value=int(raw.strip());return value if value<2**63 else None
+    def read(name):
+        fd=None
+        try:
+            lease.verify();fd=os.open(lease.path/name,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC);raw=os.read(fd,2049)
+            lease.verify();return raw if len(raw)<=2048 else None
+        except BaseException:return None
+        finally:
+            if fd is not None:
+                try:os.close(fd)
+                except BaseException:pass
+    current=number(read('pids.current'));maximum=number(read('pids.max'));events=read('pids.events');event_max=None
+    if events is not None:
+        rows=events.splitlines()
+        if len(rows)==1 and len(rows[0].split())==2 and rows[0].split()[0]==b'max':event_max=number(rows[0].split()[1])
+    try:
+        soft,hard=resource.getrlimit(resource.RLIMIT_NPROC)
+        limit=lambda n:'UNLIMITED'if type(n)is int and n==resource.RLIM_INFINITY else n if type(n)is int and 0<=n<2**63 else None
+        soft,hard=limit(soft),limit(hard)
+    except BaseException:soft=hard=None
+    try:clock=time.monotonic_ns();clock=clock if type(clock)is int and 0<=clock<2**63 else None
+    except BaseException:clock=None
+    return {'observed_monotonic_ns':clock,'pids_current':current,'pids_max':maximum,'pids_events_max':event_max,'owner_inherited_RLIMIT_NPROC_soft':soft,'owner_inherited_RLIMIT_NPROC_hard':hard}
+
+
+def record_pid_pressure_failure(value,lease,name,before):
+    """Failure-only diagnostic; cannot replace the original error or cleanup."""
+    try:
+        def closed(sample):
+            sample=sample if isinstance(sample,dict)else{};result={}
+            for key in ['observed_monotonic_ns','pids_current','pids_max','pids_events_max','owner_inherited_RLIMIT_NPROC_soft','owner_inherited_RLIMIT_NPROC_hard']:
+                n=sample.get(key);result[key]='UNLIMITED'if key.startswith('owner_')and n=='UNLIMITED'else n if type(n)is int and 0<=n<2**63 else None
+            return result
+        before=closed(before);after=closed(pid_pressure_snapshot(lease));old=before['pids_events_max'];new=after['pids_events_max'];start=before['observed_monotonic_ns'];end=after['observed_monotonic_ns']
+        delta=new-old if all(type(n)is int for n in [old,new,start,end])and 0<=old<=new and start<=end else None
+        value['pid_pressure_failure']={'schema':1,'kind':'aleo-acquisition-PID-pressure-failure-v1','command':name if name in{'node_version','pnpm_version','locked_install'}else'UNKNOWN','before_command':before,'after_original_failure':after,'pids_events_max_delta_since_command_baseline':delta,'window_may_include_postcommand_stage_work':True,'owner_RLIMIT_is_not_failed_child_measurement':True,'current_counts_are_not_peak_or_exclusive_cause':True,'raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
+    except BaseException:value['pid_pressure_failure']={'schema':1,'kind':'aleo-acquisition-PID-pressure-failure-v1','available':False,'raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
+
+
 def execute(spec_pin):
     spec=load(spec_pin)
     need(spec.get('root_approved')is True and spec.get('purpose')=='aleo-linux-locked-packages-v1'and spec.get('caps')==CAPS,'explicit bounded acquisition authorization required')
@@ -347,7 +391,7 @@ def execute(spec_pin):
     need(free(root.parent)>=6*GIB,'free6GiB floor');root.mkdir(mode=0o700)
     for name in ('home','tmp','store','cache'):(root/name).mkdir(mode=0o700)
     for name in ('empty-user.npmrc','empty-global.npmrc'):(root/name).write_bytes(b'')
-    stage=root/'workspace';lease=None;child=None;pidfd=None;waits=[]
+    stage=root/'workspace';lease=None;child=None;pidfd=None;waits=[];current_command=None;pid_before=None
     value={'kind':'aleo-linux-locked-packages-v1','schema':1,'platform':'linux-x86_64','passed':False,'source_commit':spec['execution_source_commit'],'spec':spec_pin,'tools':{k:spec[k]for k in ('node','pnpm','python','bwrap')},'source_unchanged':False,'owned_absent':False,'commands':[],'adopted_waits':waits,'signals':[],'network_scope':'ordinary pinned pnpm acquisition only','SDK_build_or_import_or_proof':False}
     started=time.monotonic_ns();deadline=started+1800*10**9
     value['original_started_ns']=started;value['original_deadline_ns']=deadline
@@ -355,7 +399,7 @@ def execute(spec_pin):
         origins=stage_sources(repo,stage,spec['source_files']);value['source_origins']=origins
         need(ctypes.CDLL(None,use_errno=True).prctl(36,1,0,0,0)==0,'actual subreaper required');lease=delegated_lease(spec,'packages');value['actual_leaf_caps_before']=leaf_caps(lease)
         for name,command,network,expected in [('node_version',[spec['node']['path'],'--version'],False,b'v26.12.1\n'),('pnpm_version',[spec['pnpm']['path'],'--version'],False,b'12.3.0\n'),('locked_install',install_argv(Path(spec['pnpm']['path']),root),True,None)]:
-            argv=namespace_argv(spec,root,stage,command,network)
+            argv=namespace_argv(spec,root,stage,command,network);current_command=name;pid_before=pid_pressure_snapshot(lease)
             with (root/(name+'.stdout')).open('xb')as out,(root/(name+'.stderr')).open('xb')as err:
                 child=subprocess.Popen([spec['python']['path'],'-I','-B',str(Path(__file__).resolve()),'--bootstrap',json.dumps(argv)],stdin=subprocess.PIPE,stdout=out,stderr=err,env={'PATH':'/usr/bin:/bin','HOME':str(root/'home'),'TMPDIR':str(root/'tmp'),'LC_ALL':'C.UTF-8'},start_new_session=True)
                 pidfd=os.pidfd_open(child.pid)
@@ -378,6 +422,9 @@ def execute(spec_pin):
             try:value['locked_install_failure_diagnostic']=locked_install_failure_diagnostic(root,value['commands'][-1],started,deadline)
             except BaseException:value['locked_install_failure_diagnostic']={'schema':1,'kind':'aleo-locked-install-failure-diagnostic-v1','available':False,'refusal':'DIAGNOSTIC_CONTEXT_REFUSED','raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
     finally:
+        if value.get('error')and lease is not None and current_command is not None:
+            try:record_pid_pressure_failure(value,lease,current_command,pid_before)
+            except BaseException:value['pid_pressure_failure']={'schema':1,'kind':'aleo-acquisition-PID-pressure-failure-v1','available':False,'raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
         value.update(cleanup_owned(lease,child,pidfd,waits,value['signals']))
         pidfd=None
         try:
