@@ -7,14 +7,14 @@ from pathlib import Path,PurePosixPath
 GIB=1024**3
 REPOSITORY='hyperlane-xyz/hyperlane-monorepo'
 BRANCH='feat/zig-agent-rewrite'
-PRODUCER='982d45c6e6f363872ed75eae0a584714dd8f0bf3'
+PRODUCER='e745fdaae1f8320ac2b67bea9157396db560c848'  # Real producer; policy remains disabled pending all eight artifact pins.
 REQUIRED_JOBS=('full-sdk-native (ReleaseSafe)','full-sdk-native (ReleaseFast)','native-harness-controls','svm-prerequisites')
 PRODUCT_KEYS=('sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference')
 LIMITS={'wall_seconds':1800,'cleanup_seconds':60,'inspector_RAM_bytes':GIB,'child_RAM_bytes':512*1024**2,'owned_disk_bytes':8*GIB,'host_free_bytes':6*GIB,'maximum_archive_bytes':4*GIB,'compressed_total_bytes':16*GIB,'streamed_total_bytes':24*GIB,'member_count':100000,'central_directory_bytes':32*1024**2,'metadata_bytes':64*1024**2,'report_bytes':2*1024**2}
 SDK_NAMES={'relayer','validator','scraper','hyperlane-aleo-vm-worker','libziggy_url.so','libziggy_regex.so','libziggy_starknet_crypto.so','libziggy_aleo_crypto.so','libziggy_aleo_vm.so'}
 CPU_SCOPES={'native-db':{'relayer','validator','scraper'},'url':{'libziggy_url.so'},'regex':{'libziggy_regex.so'},'starknet':{'libziggy_starknet_crypto.so'},'aleo':{'libziggy_aleo_crypto.so','libziggy_aleo_vm.so','hyperlane-aleo-vm-worker'}}
 TOOLS=('init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference')
-HELPER_PHASES=('compile-construction','external_agents-tests','external_agents-radix_fixture-tests','external_agents-radix_contracts-tests','program-tests','cosmos-validator_config_tests','compile-normal','clippy')
+HELPER_PHASES=('compile-construction','external_agents-tests','external_agents-radix_fixture-tests','external_agents-radix_contracts-tests','program-tests','cosmos-validator_config_tests','starknet-cli-tests','compile-normal','clippy')
 COMPILED_SCOPES={'runtime':('zig/src','zig/native','zig/build.zig','zig/build.zig.zon'),'helper':('rust/main','rust/sealevel'),'tools':('rust/main','rust/sealevel','zig/reference')}
 
 class Refused(RuntimeError):
@@ -76,10 +76,11 @@ def artifact_names(run,attempt):
 
 def validate_policy(policy):
     need(isinstance(policy,dict)and set(policy)=={'schema','root_approved','scope','producer','jobs','artifacts','core607','limits'},'POLICY_KEYS')
-    need(type(policy['schema'])is int and policy['schema']==1 and type(policy['root_approved'])is bool and policy['scope']=='c43-eight-product-data-inspection','POLICY_IDENTITY')
+    need(type(policy['schema'])is int and policy['schema']==1 and type(policy['root_approved'])is bool and policy['scope']=='fresh-eight-product-data-inspection','POLICY_IDENTITY')
     need(policy['limits']==LIMITS and all(type(v)is int for v in policy['limits'].values()),'POLICY_LIMITS')
     need(isinstance(policy['jobs'],dict)and isinstance(policy['artifacts'],dict)and set(policy['jobs'])==set(REQUIRED_JOBS)and set(policy['artifacts'])==set(PRODUCT_KEYS),'POLICY_CLOSURE')
     if not policy['root_approved']:return False
+    need(isinstance(PRODUCER,str)and re.fullmatch('[0-9a-f]{40}',PRODUCER)is not None,'FRESH_PRODUCER_NOT_BOUND')
     producer=policy['producer']
     need(isinstance(producer,dict)and set(producer)=={'source_commit','run_id','run_attempt'}and producer['source_commit']==PRODUCER and integer(producer['run_id'],1)and integer(producer['run_attempt'],1),'POLICY_PRODUCER')
     need(all(integer(v,1)for v in policy['jobs'].values())and len(set(policy['jobs'].values()))==4,'POLICY_JOBS')
@@ -326,6 +327,10 @@ def validate_helper(archive,git_source):
             testcounts[row['name']]=count
     need(all(set(names)<=observed for names in required.values()),'HELPER_REQUIRED_CENSUS')
     need(len([name for name in observed if 'checker_deadline_'in name])==5,'HELPER_STRICT_CALLER_DEADLINES')
+    stark_names={'starknet::cli::tests::invoke_and_send_tx_reject_failed_cli_status','starknet::cli::tests::invoke_and_send_tx_accept_successful_cli_status'}
+    need(set(required.get('starknet::cli::tests::',[]))==stark_names,'HELPER_STARK_CLI_SOURCE_CENSUS')
+    stark_row=next(row for row in rows if row['name']=='starknet-cli-tests')
+    need(set(stark_row.get('required_new_tests_observed',[]))==stark_names and integer(stark_row.get('actual_tests_passed'),2),'HELPER_STARK_CLI_ACTUAL_TESTS')
     products=result.get('products');need(isinstance(products,dict)and set(products)=={'normal','construction'},'HELPER_PRODUCTS');out={}
     for name,row in products.items():
         need(row['artifact_relative_path']=='products/'+name,'HELPER_PRODUCT_PATH')

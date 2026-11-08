@@ -68,11 +68,12 @@ def family_fixture(family):
         row=body(name,elf_bytes());observed={'class':64,'endianness':'little','machine':62,'type':2,'interpreter':'/lib64/ld-linux-x86-64.so.2'}
         return {**row,'relative_path':name,'elf':observed,'producer':dict(row)}
     if family=='helper':
-        required={'synthetic':['fixture.checker_deadline_'+str(i)for i in range(5)]}
+        required={'synthetic':['fixture.checker_deadline_'+str(i)for i in range(5)],'starknet::cli::tests::':['starknet::cli::tests::invoke_and_send_tx_reject_failed_cli_status','starknet::cli::tests::invoke_and_send_tx_accept_successful_cli_status']}
         source('zig/bench/native_harness_controls.py',('REQUIRED_TESTS = '+repr(required)).encode())
         origin={'rust/main/fixture.rs':source('rust/main/fixture.rs')};data('authoritative-source.json',origin);data('job-status.json',{'primary_job_status':'success'})
         checks=[clean(name)for name in api.HELPER_PHASES]
         names=required['synthetic'];checks[1]['actual_tests_passed']=5;checks[1]['required_new_tests_observed']=names;checks[1]['log']=body(checks[1]['name']+'.log',('\n'.join('test '+n+' ... ok'for n in names)+'\ntest result: ok. 5 passed; 0 failed; 0 ignored;').encode())
+        stark=next(row for row in checks if row['name']=='starknet-cli-tests');names=required['starknet::cli::tests::'];stark['actual_tests_passed']=2;stark['required_new_tests_observed']=names;stark['log']=body(stark['name']+'.log',('\n'.join('test '+n+' ... ok'for n in names)+'\ntest result: ok. 2 passed; 0 failed; 0 ignored;').encode())
         products={}
         for name in ['normal','construction']:
             row=executable('products/'+name);products[name]={'published':{k:row[k]for k in ['bytes','sha256']},'artifact_relative_path':'products/'+name,'producer':{k:row[k]for k in ['bytes','sha256']}}
@@ -137,7 +138,35 @@ def family_fixture(family):
 
 class Controls(unittest.TestCase):
     def setUp(self):
-        self.policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes());self.policy['root_approved']=False
+        self.policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes());self.policy['root_approved']=False;self.policy['scope']='fresh-eight-product-data-inspection'
+        # Synthetic controls only; runtime module stays unbound/inert.
+        binding=mock.patch.object(api,'PRODUCER',self.policy['producer']['source_commit']);binding.start();self.addCleanup(binding.stop)
+    def test_unbound_fresh_reader_cannot_enable_or_reuse_old_identity(self):
+        self.policy['root_approved']=True
+        with mock.patch.object(api,'PRODUCER',None),self.assertRaisesRegex(api.Refused,'FRESH_PRODUCER_NOT_BOUND'):api.validate_policy(self.policy)
+        self.policy['root_approved']=False
+        with mock.patch.object(api,'PRODUCER',None):self.assertFalse(api.validate_policy(self.policy))
+
+    def test_new_helper_namespace_is_required_before_actual_test_credit(self):
+        files,source=family_fixture('helper')
+        def inspect(rows):
+            return self.zip(list(rows.items()),lambda archive,*_:api.validate_helper(archive,source))
+        self.assertEqual(inspect(files)['actual_test_counts']['starknet-cli-tests'],2)
+        result=json.loads(files['result.json']);result['checks']=[row for row in result['checks']if row['name']!='starknet-cli-tests'];missing=dict(files);missing['result.json']=json.dumps(result).encode()
+        with self.assertRaisesRegex(api.Refused,'HELPER_PHASES'):inspect(missing)
+        result=json.loads(files['result.json']);row=next(x for x in result['checks']if x['name']=='starknet-cli-tests');row['actual_tests_passed']=None;row['required_new_tests_observed']=[];wrong=dict(files);wrong['result.json']=json.dumps(result).encode()
+        with self.assertRaises(api.Refused):inspect(wrong)
+
+    def test_actual_e745_census_includes_later_Stark_and_Radix_additions(self):
+        # Actual committed exporter Source; never import or execute its main.
+        raw=(HERE/'native_harness_controls.py').read_bytes()
+        self.assertEqual(api.sha(raw),'0a2075d0162dc24a9dbe41224ac667db2e'+'518fc2fecff45cb2268a5d4650c453')
+        required=api.literal_constants(raw.decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
+        self.assertEqual(len(required['starknet::cli::tests::']),2)
+        self.assertEqual(len(required['external_agents::radix_contracts::tests::']),6)
+        self.assertIn('starknet::cli::tests::invoke_and_send_tx_reject_failed_cli_status',required['starknet::cli::tests::'])
+        self.assertIn('external_agents::radix_contracts::tests::approved_pair_is_owned_data_and_default_path_remains_none',required['external_agents::radix_contracts::tests::'])
+
     def remote(self):
         p=self.policy['producer'];run={'id':p['run_id'],'run_attempt':p['run_attempt'],'head_sha':api.PRODUCER,'repository':{'full_name':api.REPOSITORY},'head_repository':{'full_name':api.REPOSITORY},'head_branch':api.BRANCH,'event':'push','path':'.github/workflows/zig-agents.yml','status':'completed','conclusion':'success'}
         jobs=[{'id':v,'name':k,'run_id':p['run_id'],'status':'completed','conclusion':'success'}for k,v in self.policy['jobs'].items()]
@@ -157,11 +186,11 @@ class Controls(unittest.TestCase):
             if not started:continue
             if line.startswith('  ')and not line.startswith('   ')and line.endswith(':'):name=line.strip()[:-1]
             if line.startswith('    if: '):rows[name]=line[8:]
-        self.assertEqual(len(rows),15);return rows
+        self.assertEqual(set(rows),{'unit','vm-images','native-linux','native-http','svm-prerequisites','full-sdk-native','native-harness-controls','evm','container','aleo-linux-prerequisite','aleo-linux-sdk-prerequisite','aleo-native-docker-prerequisite','native-case-producer-inputs','aleo-full-case','cold-full-feature','paired-linux-inputs','paired-linux-functional','paired-linux-runtime'});return rows
     def evaluate(self,expression,message,event='push',ref='refs/heads/feat/zig-agent-rewrite',**flags):
         expression=expression.removeprefix('${{ ').removesuffix(' }}')
         expression=re.sub(r'!(?!=)',' not ',expression).replace('&&',' and ').replace('||',' or ').strip()
-        scope={'github':N(event_name=event,ref=ref,event=N(head_commit=N(message=message))),'inputs':N(**{name:flags.get(name,False)for name in ['svm_prerequisites','cold_full_feature','aleo_linux_prerequisite','aleo_linux_sdk_prerequisite','aleo_native_docker_prerequisite','aleo_full_case']}),'contains':lambda text,needle:needle in text,'always':lambda:True}
+        scope={'github':N(event_name=event,ref=ref,event=N(head_commit=N(message=message))),'inputs':N(**{name:flags.get(name,False)for name in ['svm_prerequisites','cold_full_feature','aleo_linux_prerequisite','aleo_linux_sdk_prerequisite','aleo_native_docker_prerequisite','aleo_full_case','paired_linux']}),'contains':lambda text,needle:needle in text,'always':lambda:True}
         return bool(eval(compile(expression,'<actual-workflow-condition>','eval'),{'__builtins__':{}},scope))
     def test_actual_workflow_both_markers_route_only_existing_native_case_job(self):
         rows=self.conditions();message='[zig-native-case] [zig-cohort-readback]'
@@ -267,7 +296,7 @@ class Controls(unittest.TestCase):
         self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.inspect_archive('writer_fast',a,git)['mode'],'ReleaseFast'))
     def test_real_private_policy_disabled_but_complete_pins_validate_when_explicitly_enabled_in_memory(self):
         self.assertFalse(api.validate_policy(self.policy));enabled=copy.deepcopy(self.policy);enabled['root_approved']=True
-        self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),525211534)
+        self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),sum(r['size_in_bytes']for r in api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())['artifacts'].values()))
     def test_missing_future_or_malformed_policy_never_authorizes(self):
         self.policy['root_approved']=True
         for mutate in [lambda p:p['producer'].__setitem__('source_commit','0'*40),lambda p:p['artifacts']['helper'].__setitem__('id',None),lambda p:p.__setitem__('root_approved',1),lambda p:p['limits'].__setitem__('host_free_bytes',0)]:
