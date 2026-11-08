@@ -51,12 +51,12 @@ class Tests(unittest.TestCase):
    self.assertFalse(value['passed']);gate.cleanup.assert_called_once();self.assertTrue(value['container_cleanup']['passed']);self.assertIn('gate_server:ValueError',value['cleanup_errors'])
  def test_actual_consensus_table_is_source_full17_not_synthetic_two(self):
   self.assertIn('CONSENSUS_VERSION_HEIGHTS='+','.join(map(str,range(17))),api.PUBLIC_ENV);self.assertNotIn('CONSENSUS_VERSION_HEIGHTS=0,1',api.PUBLIC_ENV)
- def test_rootless_PG_exact_User_tmpfs_and_Leo_templates_unchanged(self):
+ def test_rootless_PG_exact_User_tmpfs_and_Leo_full_labels(self):
   import hashlib
   gs={'manifest':{'taskRoot':'/tmp/public-control','domains':[{'name':'aleo_a','port':23030},{'name':'aleo_b','port':23031}],**api.IMAGES},'run_token':'a'*32,'internal_network':'b'*64,'postgres_command':['postgres'],'public_node_env':api.PUBLIC_ENV}
   after=api.container_templates(gs,1)
-  # Original Gate40eb61fb, exact fixed public fixture above; no private before tree.
-  expected=('e5b6a99fbee29b6e93ea5aa98a653bfa' '5cb669a8976a9a2914016600a2637e76')
+  # Intentional full-label Source successor, exact fixed public fixture; no private before tree.
+  expected=('8e5f627f4430ee536fc4eed1878fccba' '4a49df7d175c70f3371f9e43e654857a')
   self.assertEqual(hashlib.sha256(json.dumps(after[:2],sort_keys=True,separators=(',',':')).encode()).hexdigest(),expected);pg=after[2];self.assertEqual(pg['create_body']['User'],'999:999');self.assertEqual(pg['create_body']['HostConfig']['Tmpfs'],{'/var/lib/postgresql/data':'rw,noexec,nosuid,size=2147483648,uid=999,gid=999'})
   gate=api.Gate.__new__(api.Gate);row={'Config':{'User':'999:999'},'HostConfig':copy.deepcopy(pg['create_body']['HostConfig'])};gate.caps(row,pg)
   for value in ['0','postgres','1000:999','999:1000',None]:
@@ -142,4 +142,57 @@ class Tests(unittest.TestCase):
    with tempfile.TemporaryDirectory()as temp:
     here=pathlib.Path(temp).resolve()/'aleo_linux_docker';here.mkdir();(here/'__pycache__').mkdir();(here/'__pycache__/sibling_imports.cpython-public.pyc').write_bytes(b'public stale cache')
     with self.subTest(entry=name),self.assertRaisesRegex(ValueError,'cached local bytecode'):exec(compile(ast.Module(body=[guard],type_ignores=[]),name,'exec'),{'HERE':here})
+ def label_fixture(self):
+  gs={'manifest':{'taskRoot':'/tmp/public-label-control','domains':[{'name':'aleo_a','port':23030},{'name':'aleo_b','port':23031}],**api.IMAGES},'run_token':'a'*32,'internal_network':'b'*64,'postgres_command':['postgres'],'public_node_env':api.PUBLIC_ENV}
+  selected=api.container_templates(gs,1)[0];return gs,selected
+ def test_exact_pinned_image_labels_are_full_create_and_owned_labels(self):
+  import docker_gate
+  gs,selected=self.label_fixture();self.assertEqual(selected['labels']['org.opencontainers.image.version'],'22.04');self.assertEqual(selected['create_body']['Labels'],selected['labels'])
+  image={'Id':selected['image'],'Config':{'Labels':{'org.opencontainers.image.version':'22.04'}}};docker_gate.verify_inherited_image_labels(image,selected)
+  for labels in [{},{'org.opencontainers.image.version':'24.04'},{'org.opencontainers.image.version':'22.04','foreign':'extra'}]:
+   with self.subTest(labels=labels),self.assertRaises(ValueError):docker_gate.verify_inherited_image_labels({'Id':selected['image'],'Config':{'Labels':labels}},selected)
+  with self.assertRaises(ValueError):docker_gate.inherited_image_labels('sha256:'+'c'*64)
+ def test_full_inherited_labels_cleanup_created_container_without_subset_waiver(self):
+  import time
+  gs,selected=self.label_fixture();cid='c'*64;row={'Id':cid,'Name':'/'+selected['name'],'Image':selected['image'],'Config':{'Labels':dict(selected['labels'])},'State':{'Running':False}};calls=[]
+  class Daemon:
+   deadline_ns=time.monotonic_ns()+10**9
+   removed=False
+   def call(self,method,path,body=None,maximum=None):
+    calls.append((method,path))
+    if method=='GET':return (404,b'')if self.removed else(200,json.dumps(row).encode())
+    if method=='DELETE':self.removed=True;return 204,b''
+    raise AssertionError('unapproved model call')
+  daemon=Daemon();gate=api.Gate(gs,daemon,None);gate.containers[cid]=selected;gate.failed='earlier actual health failure';result=gate.cleanup();self.assertTrue(result['passed']);self.assertTrue(result['rows'][0]['stopped_removed_absent']);self.assertEqual([m for m,p in calls],['GET','DELETE','GET'])
+ def test_changed_or_extra_full_label_foreign_container_is_never_removed(self):
+  import time
+  gs,selected=self.label_fixture();cid='c'*64
+  for change in [lambda r:r['Config']['Labels'].update(extra='foreign'),lambda r:r['Config']['Labels'].pop('org.opencontainers.image.version'),lambda r:r.update(Image='sha256:'+'d'*64),lambda r:r.update(Name='/foreign'),lambda r:r.update(Id='e'*64)]:
+   row={'Id':cid,'Name':'/'+selected['name'],'Image':selected['image'],'Config':{'Labels':dict(selected['labels'])},'State':{'Running':False}};change(row);calls=[]
+   class Daemon:
+    deadline_ns=time.monotonic_ns()+10**9
+    def call(self,method,path,body=None,maximum=None):calls.append(method);return 200,json.dumps(row).encode()
+   gate=api.Gate(gs,Daemon(),None);gate.containers[cid]=selected;value=gate.cleanup();self.assertFalse(value['passed']);self.assertEqual(calls,['GET']);self.assertFalse(value['rows'][0]['stopped_removed_absent'])
+ def test_actual_create_branch_rejects_unproven_image_label_map_before_create(self):
+  import time
+  gs,selected=self.label_fixture();gs['original_deadline_ns']=time.monotonic_ns()+10**9;calls=[]
+  class Daemon:
+   def call(self,method,path,body=None,maximum=None):
+    calls.append((method,path))
+    if path.startswith('/containers/'):return 404,b''
+    if path.startswith('/images/'):return 200,json.dumps({'Id':selected['image'],'RepoDigests':[selected['reference']],'Os':'linux','Architecture':'amd64','Config':{'Labels':{},'Volumes':None}}).encode()
+    raise AssertionError('create must not happen with unproven labels')
+  gate=api.Gate(gs,Daemon(),lambda pid:{'namespace_pids':[1]})
+  with self.assertRaisesRegex(ValueError,'Exact immutable image inherited labels'):gate._dispatch('POST','/containers/create?name='+selected['name'],json.dumps(selected['create_body']).encode(),1)
+  self.assertEqual(gate.attempted,{});self.assertTrue(all(method=='GET'for method,path in calls))
+ def test_lost_create_recovery_uses_exact_full_inherited_labels(self):
+  import time
+  gs,selected=self.label_fixture();cid='c'*64;row={'Id':cid,'Name':'/'+selected['name'],'Image':selected['image'],'Config':{'Labels':dict(selected['labels'])},'State':{'Running':False}}
+  class Daemon:
+   deadline_ns=time.monotonic_ns()+10**9
+   removed=False
+   def call(self,method,path,body=None,maximum=None):
+    if method=='DELETE':self.removed=True;return 204,b''
+    return (404,b'')if self.removed else(200,json.dumps(row).encode())
+  gate=api.Gate(gs,Daemon(),None);gate.attempted[selected['name']]=selected;value=gate.cleanup();self.assertTrue(value['passed']);self.assertEqual(list(gate.containers),[cid]);self.assertTrue(value['rows'][0]['stopped_removed_absent'])
 if __name__=='__main__':unittest.main()

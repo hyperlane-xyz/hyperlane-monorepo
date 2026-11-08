@@ -19,6 +19,19 @@ from receipts import checked, decode, need
 GIB = 1024**3
 LIMIT = 16*1024**2
 EXECS = (('df','-Pk','/'), ('pg_isready','-U','ziggy','-d','ziggy'))
+# Exact publisher config objects, not a subset-label cleanup waiver.
+IMAGE_INHERITED_LABELS={
+    'sha256:'+('af2bdda6ccb9461b6ba7f69320f8e355b' '07b0442bb500afc3e7c3a434a233068'):{'org.opencontainers.image.version':'22.04'},
+    'sha256:'+('47b95c5ad45838febbc39cae4194b6f9' 'c3f6c3d7409b20043e8cea4a5bd70fec'): {},
+}
+
+def inherited_image_labels(image_id):
+    need(image_id in IMAGE_INHERITED_LABELS,'Unreviewed immutable image label policy')
+    return dict(IMAGE_INHERITED_LABELS[image_id])
+
+def verify_inherited_image_labels(image,selected):
+    need(image['Id']==selected['image']and(image['Config'].get('Labels')or{})==inherited_image_labels(selected['image']),'Exact immutable image inherited labels differ')
+
 
 
 def proc_identity(pid):
@@ -61,7 +74,7 @@ def container_templates(spec, node_namespace_pid):
         need(re.fullmatch('sha256:[0-9a-f]{64}',selected['id']) and '@sha256:'in selected['reference'],'actual immutable image required')
         internal='5432/tcp'if pg else'3030/tcp';port=25432 if pg else domains[index]['port']
         memory=GIB//2 if pg else 3*GIB
-        labels={'ziggy.aleo.owner':prefix,'ziggy.aleo.run-token':spec['run_token']}
+        labels={**inherited_image_labels(selected['id']),'ziggy.aleo.owner':prefix,'ziggy.aleo.run-token':spec['run_token']}
         config={'Memory':memory,'MemorySwap':memory,'NanoCpus':10**9 if pg else 2*10**9,'PidsLimit':128 if pg else 256,'CapDrop':['ALL'],'SecurityOpt':['no-new-privileges:true'],'NetworkMode':spec['internal_network'],'PortBindings':{internal:[{'HostIp':'127.0.0.1','HostPort':str(port)}]},'Binds':[]}
         if pg:config['Tmpfs']={'/var/lib/postgresql/data':'rw,noexec,nosuid,size=2147483648,uid=999,gid=999'}
         need(spec['postgres_command']==['postgres'],'admitted Source PG default command required')
@@ -287,6 +300,7 @@ class Gate:
                     need(status == 404, 'container name existed before creation')
                     image = self.json_call('GET','/images/'+selected['reference']+'/json')
                     need(image['Id'] == selected['image'] and selected['reference'] in image['RepoDigests']and image['Os']=='linux'and image['Architecture']=='amd64', 'native image changed before create')
+                    verify_inherited_image_labels(image,selected)
                     if selected['kind']=='postgres':
                         need(image['Config']['Cmd']==self.spec['postgres_command']and image['Config'].get('Volumes')=={'/var/lib/postgresql/data':{}},'PG default command/data-volume closure changed')
                     else:need(not image['Config'].get('Volumes'),'unknown node image volumes escape disk accounting')

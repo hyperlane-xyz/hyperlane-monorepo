@@ -8,7 +8,7 @@ sys.path.insert(0,str(HERE))
 from sibling_imports import load_shared,SHARED,SDK,CLI_SHA
 load_shared()
 from receipts import checked,decode,load,need
-from docker_gate import Daemon,Gate,NamespacePeer,NetworkLease,Server,container_templates,proc_identity
+from docker_gate import Daemon,Gate,NamespacePeer,NetworkLease,Server,container_templates,proc_identity,inherited_image_labels
 from loopback_bridge import FixedServer
 GIB=1024**3;MIB=1024**2
 PURPOSE='aleo-linux-native-docker-probe-v1'
@@ -115,6 +115,7 @@ class RecordingGate(Gate):
   v=super().kernel_caps(cid);row=self.owned(cid);networks=row['NetworkSettings']['Networks']
   need(networks and all(n['NetworkID']==self.spec['internal_network']for n in networks.values()),'foreign container network')
   actual=row['HostConfig'];need(actual.get('CapDrop')==['ALL']and actual.get('SecurityOpt')==['no-new-privileges:true']and actual.get('Binds')in(None,[])and actual.get('Privileged')is False,'actual closed safe HostConfig differs')
+  v['actual_container_labels']=dict(row['Config']['Labels']);v['expected_inherited_image_labels']=inherited_image_labels(self.containers[cid]['image'])
   v['actual_HostConfig']={k:actual.get(k)for k in ('Memory','MemorySwap','NanoCpus','PidsLimit','NetworkMode','PortBindings','Tmpfs','CapDrop','SecurityOpt','Binds','Privileged')}
   if self.containers[cid]['kind']=='postgres':
    rows=[r.split()for r in Path('/proc',str(v['pid']),'mountinfo').read_text().splitlines()];found=[r for r in rows if len(r)>6 and r[4]=='/var/lib/postgresql/data'];need(len(found)==1,'exact actual PG data mount required');mount=found[0];index=mount.index('-');options=set(mount[5].split(','))|set(mount[index+3].split(','));size=[o for o in options if o.startswith('size=')]
