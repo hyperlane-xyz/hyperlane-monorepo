@@ -17,6 +17,7 @@ SDK_KEYS={'relayer':'relayer','validator':'validator','scraper':'scraper','hyper
 TOOLS={'init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference'}
 CODE={'.nvmrc','package.json','zig/bench/paired_linux_inputs.py','zig/bench/native_case_ci.py','zig/bench/native_payload_export.py','zig/bench/native_case_tools.py','zig/bench/native_harness_census.py','zig/bench/cold_matrix_owner.py','zig/tools/build_cpu.py','zig/integration/native_case_inputs.py','zig/integration/evm.py','zig/integration/relayer_process.py','zig/integration/public_relay_process.py','zig/integration/validator.py','zig/bench/validator.py','zig/bench/scraper.py'}
 FIELDS={'schema','kind','root_approved','inputs_enabled','functional_enabled','runtime_enabled','producer_source_commit','qualified_cohort','transport_requests','baseline_source_commit','baseline_profile','required_source','prepared_inputs','accepted_six','runtime_authority'}
+PUBLIC_ERROR_NAMES={'Refused','TaskInterrupted','ValueError','AssertionError','FileNotFoundError','FileExistsError','PermissionError','OSError','TypeError','KeyError','RuntimeError','AttributeError','NameError','ImportError','ModuleNotFoundError','TimeoutExpired','CalledProcessError'}
 class Refused(RuntimeError):pass
 class TaskInterrupted(RuntimeError):pass
 
@@ -230,6 +231,38 @@ def source_authority_recheck(authority):
  checked(authority['request'])
  for row in authority['metadata']:checked(row)
 
+def failure_observation(error,repo,authority):
+ """Closed Source coordinates and literal guards; never exception text/logs."""
+ if error is None:return None
+ result={'type':type(error).__name__ if type(error).__name__ in PUBLIC_ERROR_NAMES else 'OtherError','errno':getattr(error,'errno',None),'Source_guard':None,'Source_frames':[]}
+ if type(result['errno'])is not int or not 0<=result['errno']<=255:result['errno']=None
+ literals=set();frame=error.__traceback__
+ while frame is not None and len(result['Source_frames'])<16:
+  path=Path(frame.tb_frame.f_code.co_filename)
+  if path.is_absolute()and path.is_relative_to(repo):
+   relative=str(path.relative_to(repo));expected=authority['source'].get(relative)
+   if expected is not None:
+    try:
+     checked(expected);wire=path.read_bytes();need(hashlib.sha256(wire).hexdigest()==expected['sha256']and len(wire)==expected['bytes'],'diagnostic Source differs')
+     function=frame.tb_frame.f_code.co_name
+     if re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,127}|<module>',function):result['Source_frames'].append({'source':relative,'sha256':expected['sha256'],'line':frame.tb_lineno,'function':function})
+     for call in ast.walk(ast.parse(wire)):
+      if isinstance(call,ast.Call)and isinstance(call.func,ast.Name)and call.func.id in {'need','require'}and len(call.args)>1 and isinstance(call.args[1],ast.Constant)and type(call.args[1].value)is str:literals.add(call.args[1].value)
+    except (OSError,Refused,SyntaxError):pass
+  frame=frame.tb_next
+ if type(error)in {Refused,ValueError,AssertionError}and len(error.args)==1 and type(error.args[0])is str and error.args[0]in literals:result['Source_guard']=error.args[0]
+ return result
+
+def public_preparation_result(result,error,repo,authority):
+ rows=[]
+ for row in result['actual_command_waits']:
+  name=row.get('name');need(type(name)is str and re.fullmatch('[A-Za-z0-9_-]{1,96}',name),'closed diagnostic phase name')
+  exit_code=row.get('exit_code');need(exit_code is None or type(exit_code)is int and -255<=exit_code<=255,'closed diagnostic exit status')
+  error_type=row.get('error_type');need(error_type is None or type(error_type)is str,'closed diagnostic error class')
+  error_type=error_type if error_type is None or error_type in PUBLIC_ERROR_NAMES else 'OtherError'
+  rows.append({'name':name,'actual_parent_wait':row.get('actual_parent_wait')is True,'exit_code':exit_code,'owned_absent':row.get('owned_absent')is True,'signal_count':len(row.get('signals',[])),'error_type':error_type,'completed_within_original_deadline':row.get('completed_within_original_deadline')is True})
+ return {'schema':1,'kind':'paired-linux-input-diagnostic','passed':result['passed'],'error_observation':failure_observation(error,repo,authority),'actual_phase_waits':rows,'source_policy':result['source_policy'],'limits':result['limits'],'started_monotonic_ns':result['started_monotonic_ns'],'completed_monotonic_ns':result['completed_monotonic_ns'],'whole_deadline_observed':result['whole_deadline_observed'],'native_or_timing_acceptance':False,'raw_exception_argv_environment_or_logs_exported':False}
+
 def read_phase_json(row):
  p=checked(row['stdout']);need(p.stat().st_size<=16*1024**2,'metadata stdout bound');return decode(p.read_bytes())
 
@@ -260,7 +293,7 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
  for name in ['home','tmp','cargo-home','logs','published']:(root/name).mkdir(mode=0o700)
  published=root/'published';
  for name in ['empty-user.npmrc','empty-global.npmrc']:(root/'home'/name).write_bytes(b'')
- started=time.monotonic();deadline=started+LIMITS['maximum_wall_seconds'];failure=None;manifest=None;prep=None
+ started=time.monotonic();deadline=started+LIMITS['maximum_wall_seconds'];failure=None;failure_error=None;manifest=None;prep=None
  try:
   api=load_source(repo,'zig/integration/native_case_inputs.py','paired_verified_hydrator',authority)
   tools=load_source(repo,'zig/bench/native_case_tools.py','paired_tool_elf',authority)
@@ -340,12 +373,13 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
   need(manifest['source_unchanged']and manifest['all_actual_parent_waits']and manifest['owned_absent'],'input final custody gate failed');prep.guard();manifest['passed']=True;write(published/'input-manifest.json',manifest)
   prep.guard();source_fence(api,tools,repo,before,locks);source_authority_recheck(authority)
   for row in fixture_sources:checked(row,repo)
- except BaseException as error:failure=type(error).__name__
+ except BaseException as error:failure=type(error).__name__;failure_error=error
  finally:
   result={'schema':1,'kind':'paired-linux-input-preparation-result','passed':failure is None and manifest is not None and manifest.get('passed')is True,'error_type':failure,'actual_command_waits':[]if prep is None else prep.rows,'source_policy':authority['request'],'limits':LIMITS,'started_monotonic_ns':int(started*10**9),'completed_monotonic_ns':time.monotonic_ns(),'whole_deadline_observed':time.monotonic()<deadline,'native_or_timing_acceptance':False}
   result['passed']=result['passed']and result['whole_deadline_observed']and bool(prep)and all(final_phase(x)for x in prep.rows)
   if not result['passed']:revoke_publication(published)
   publish_final_result(root,published,result,deadline)
+  write(root/'input-diagnostic.json',public_preparation_result(result,failure_error,repo,authority))
  need(result['passed'],'input preparation failed; actual failure evidence retained');return result
 
 TOOL_NAMES=('cargo','rustc','rustup','cc','clang','cmake','pkg-config','protoc','git','ps','ldd','ldconfig','node','pnpm','anvil','cast','forge','docker','psql','lsof','sh','openssl')

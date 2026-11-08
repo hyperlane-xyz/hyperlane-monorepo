@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 110576,
+      "bytes": 111080,
       "sha256": {
         "sha256_hex_chunks": [
-          "4f12f5527ac05aa06e987c368e8ea82e",
-          "0dcd779b4b834c32aa33f7d701f0832f"
+          "9f68232b1225044c4ef8a7403ed25131",
+          "81d9bee00dd415353cb17414c9ebc52a"
         ]
       }
     },
@@ -153,11 +153,11 @@
     },
     {
       "path": "zig/bench/paired_linux_inputs.py",
-      "bytes": 45335,
+      "bytes": 48855,
       "sha256": {
         "sha256_hex_chunks": [
-          "217328ac7a7081e62ac4b32b6a9bd8d2",
-          "440a206e7566ca2260021f5851f144e4"
+          "f04f2f4f18e09f72d68eccb482d89db2",
+          "0b59fa9ab7e735eb4fee374cdf7a47b3"
         ]
       }
     },

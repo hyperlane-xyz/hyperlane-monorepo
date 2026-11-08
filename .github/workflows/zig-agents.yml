@@ -1358,6 +1358,14 @@ jobs:
         run: |
           set -euo pipefail
           echo "sha256=$(sha256sum "$RUNNER_TEMP/paired-linux-inputs-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/published/input-manifest.json" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Retain closed input-preparation diagnostics
+        if: always() && steps.authority.outputs.inputs_enabled == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: paired-linux-input-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/paired-linux-inputs-${{ github.run_id }}-${{ github.run_attempt }}/input-diagnostic.json
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: steps.manifest.outcome == 'success'
         with:

@@ -4,6 +4,21 @@ from unittest import mock
 P=pathlib.Path(__file__).with_name('paired_linux_inputs.py');S=importlib.util.spec_from_file_location('paired_linux_inputs_under_test',P);m=importlib.util.module_from_spec(S);S.loader.exec_module(m)
 REPO=pathlib.Path(__file__).resolve().parents[2]
 class Controls(unittest.TestCase):
+ def test_failure_projection_retains_actual_Source_guard_and_coordinates_only(self):
+  source=P.resolve();repo=REPO.resolve();authority={'source':{'zig/bench/paired_linux_inputs.py':m.pin(source)}}
+  try:m.need(False,'six-GiB preparation floor')
+  except m.Refused as error:observed=m.failure_observation(error,repo,authority)
+  self.assertEqual(observed['Source_guard'],'six-GiB preparation floor');self.assertEqual(observed['type'],'Refused');self.assertTrue(observed['Source_frames']);self.assertTrue(all(row['source']=='zig/bench/paired_linux_inputs.py'and row['sha256']==m.digest(source)for row in observed['Source_frames']))
+ def test_public_failure_projection_drops_private_text_commands_paths_and_logs(self):
+  sentinel='private-authorization-and-error-sentinel';result={'passed':False,'actual_command_waits':[{'name':'fetch-ReleaseSafe','actual_parent_wait':True,'exit_code':1,'owned_absent':True,'signals':[],'error_type':None,'completed_within_original_deadline':True,'command':[sentinel],'cwd':sentinel,'stdout':sentinel,'stderr':sentinel}],'source_policy':{'path':'reviewed-request.json','bytes':1,'sha256':'a'*64},'limits':m.LIMITS,'started_monotonic_ns':1,'completed_monotonic_ns':2,'whole_deadline_observed':True}
+  observed=m.public_preparation_result(result,ValueError(sentinel),self.repo,{'source':{}});self.assertNotIn(sentinel,json.dumps(observed));self.assertIsNone(observed['error_observation']['Source_guard']);self.assertEqual(observed['actual_phase_waits'][0]['exit_code'],1);self.assertFalse(observed['native_or_timing_acceptance'])
+  result['actual_command_waits'][0]['error_type']=sentinel;self.assertNotIn(sentinel,json.dumps(m.public_preparation_result(result,None,self.repo,{'source':{}})))
+  for key,value in [('exit_code',{'private':sentinel}),('exit_code',True),('exit_code',256),('error_type',{'private':sentinel})]:
+   changed=copy.deepcopy(result);changed['actual_command_waits'][0][key]=value
+   with self.subTest(key=key,value=value),self.assertRaises(m.Refused):m.public_preparation_result(changed,None,self.repo,{'source':{}})
+ def test_workflow_always_retains_only_the_fixed_closed_diagnostic(self):
+  text=(REPO/'.github/workflows/zig-agents.yml').read_text();step=text.split('      - name: Retain closed input-preparation diagnostics\n',1)[1].split('      - uses:',1)[0]
+  self.assertIn("if: always() && steps.authority.outputs.inputs_enabled == 'true'",step);self.assertIn('/input-diagnostic.json',step);self.assertNotIn('/logs',step);self.assertNotIn('/result.json',step)
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
  def file(self,name,data=b'fixture'):
