@@ -239,6 +239,7 @@ describe('EvmHookReader', () => {
     const remoteRouter = randomAddress();
     sandbox.stub(IPostDispatchHook__factory, 'connect').returns({
       hookType: sandbox.stub().resolves(OnchainHookType.WORMHOLE),
+      // CAST: partial contract test double; the reader only calls hookType().
     } as unknown as IPostDispatchHook);
     sandbox
       .stub(EvmWormholeHookIsmReader.prototype, 'deriveWormholeConfig')

@@ -353,7 +353,7 @@ describe('EvmWormholeHookIsmModule', () => {
       return {
         type: TokenType.synthetic,
         name: 'Wormhole nested',
-        symbol: 'WHN',
+        symbol: 'WNEST',
         decimals: 18,
         mailbox: mailboxes[chain],
         owner: signerAddress,
