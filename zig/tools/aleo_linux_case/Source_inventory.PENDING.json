@@ -2,7 +2,7 @@
   "schema": 1,
   "kind": "private-fullAleo-strict-Source-inventory",
   "root_approved": true,
-  "observed_planning_head": "b86b2a8a25bc153020f58f737c2eb385531f6e60",
+  "observed_planning_head": "9b6936eb3c272b93dae0e7e590ecbeaeb96a0c9c",
   "final_execution_source_commit": null,
   "source_policy_paths_function": {
     "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
@@ -557,5 +557,5 @@
     }
   ],
   "current_cohort_or_native_or_timing_authority": false,
-  "approval_scope": "Private active-candidate exact Source54 bytes; Root final review/application/posthook precede launch"
+  "approval_scope": "Private Root-authorized fresh e745 candidate with exact current Source54; Root application/hooks/posthook precede launch"
 }
