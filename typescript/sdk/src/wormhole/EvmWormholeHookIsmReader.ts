@@ -17,7 +17,7 @@ import {
   WormholeRemoteRouterConfig,
 } from './types.js';
 import {
-  WormholeConsistencyLevelSchema,
+  WormholeVaaConsistencyLevelSchema,
   consistencyLevelConfigFromOnchain,
 } from './consistency.js';
 
@@ -74,7 +74,7 @@ export class EvmWormholeHookIsmReader {
         return {
           router: bytes32ToAddress(routerAddress),
           wormholeChainId: config.remoteWormholeChainId,
-          expectedConsistencyLevel: WormholeConsistencyLevelSchema.parse(
+          expectedConsistencyLevel: WormholeVaaConsistencyLevelSchema.parse(
             config.expectedLevel.consistencyLevel,
           ),
           expectedCustomBaseConsistencyLevel:

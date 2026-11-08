@@ -5,14 +5,18 @@ import { ZHash } from '../metadata/customZodTypes.js';
 
 /** Wormhole EVM watcher wire values; kept internal to config encoding. */
 export const WormholeConsistencyLevel = {
+  /** Documented finalized value; distinct on the wire from `Finalized`. */
+  ZeroFinalized: 0,
   Instant: 200,
   Safe: 201,
+  /** Guardian sentinel for the finalized block. */
   Finalized: 202,
   Custom: 203,
 } as const;
 export type WormholeConsistencyLevel =
   (typeof WormholeConsistencyLevel)[keyof typeof WormholeConsistencyLevel];
 export const WormholeConsistencyLevelSchema = z.union([
+  z.literal(WormholeConsistencyLevel.ZeroFinalized),
   z.literal(WormholeConsistencyLevel.Instant),
   z.literal(WormholeConsistencyLevel.Safe),
   z.literal(WormholeConsistencyLevel.Finalized),
@@ -20,6 +24,7 @@ export const WormholeConsistencyLevelSchema = z.union([
 ]);
 
 export const WormholeConsistencyType = {
+  ZeroFinalized: 'zeroFinalized',
   Instant: 'instant',
   Safe: 'safe',
   Finalized: 'finalized',
@@ -27,6 +32,33 @@ export const WormholeConsistencyType = {
 } as const;
 export type WormholeConsistencyType =
   (typeof WormholeConsistencyType)[keyof typeof WormholeConsistencyType];
+
+/**
+ * Consistency levels a VAA from an enrolled remote router may carry: every EVM
+ * publication level plus the Solana VAA values.
+ */
+export const WormholeVaaConsistencyLevel = {
+  ZeroFinalized: WormholeConsistencyLevel.ZeroFinalized,
+  Instant: WormholeConsistencyLevel.Instant,
+  Safe: WormholeConsistencyLevel.Safe,
+  Finalized: WormholeConsistencyLevel.Finalized,
+  Custom: WormholeConsistencyLevel.Custom,
+  SolanaVaaConfirmed: 1,
+  SolanaVaaFinalized: 32,
+} as const;
+
+export type WormholeVaaConsistencyLevel =
+  (typeof WormholeVaaConsistencyLevel)[keyof typeof WormholeVaaConsistencyLevel];
+
+export const WormholeVaaConsistencyLevelSchema = z.union([
+  z.literal(WormholeVaaConsistencyLevel.ZeroFinalized),
+  z.literal(WormholeVaaConsistencyLevel.Instant),
+  z.literal(WormholeVaaConsistencyLevel.Safe),
+  z.literal(WormholeVaaConsistencyLevel.Finalized),
+  z.literal(WormholeVaaConsistencyLevel.Custom),
+  z.literal(WormholeVaaConsistencyLevel.SolanaVaaConfirmed),
+  z.literal(WormholeVaaConsistencyLevel.SolanaVaaFinalized),
+]);
 
 export const WormholeStandardConsistencyTypeSchema = z.union([
   z.literal(WormholeConsistencyType.Instant),
@@ -45,6 +77,7 @@ export type WormholeStandardConsistencyType = z.infer<
 export const WormholeConsistencyLevelConfigSchema = z.discriminatedUnion(
   'type',
   [
+    z.object({ type: z.literal(WormholeConsistencyType.ZeroFinalized) }),
     z.object({ type: z.literal(WormholeConsistencyType.Instant) }),
     z.object({ type: z.literal(WormholeConsistencyType.Safe) }),
     z.object({ type: z.literal(WormholeConsistencyType.Finalized) }),
@@ -71,6 +104,8 @@ export function consistencyLevelForConfig(
   config: WormholeConsistencyLevelConfig,
 ): WormholeConsistencyLevel {
   switch (config.type) {
+    case WormholeConsistencyType.ZeroFinalized:
+      return WormholeConsistencyLevel.ZeroFinalized;
     case WormholeConsistencyType.Instant:
       return WormholeConsistencyLevel.Instant;
     case WormholeConsistencyType.Safe:
@@ -133,6 +168,9 @@ export function consistencyLevelConfigFromOnchain(
     additionalBlocks: number;
   },
 ): WormholeConsistencyLevelConfig {
+  if (consistencyLevel === WormholeConsistencyLevel.ZeroFinalized) {
+    return { type: WormholeConsistencyType.ZeroFinalized };
+  }
   if (consistencyLevel !== WormholeConsistencyLevel.Custom) {
     return { type: standardConsistencyType(consistencyLevel) };
   }

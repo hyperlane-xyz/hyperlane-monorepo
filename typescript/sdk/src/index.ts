@@ -1208,6 +1208,8 @@ export {
   WormholeConsistencyLevelSchema,
   WormholeConsistencyType,
   WormholeStandardConsistencyTypeSchema,
+  WormholeVaaConsistencyLevel,
+  WormholeVaaConsistencyLevelSchema,
   consistencyLevelConfigFromOnchain,
   consistencyLevelForConfig,
   standardConsistencyType,

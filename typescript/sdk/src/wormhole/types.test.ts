@@ -6,6 +6,8 @@ import {
   WormholeHookIsmConfig,
   WormholeHookIsmSchema,
   WormholeMeshConfig,
+  WormholeRemoteRouterSchema,
+  WormholeVaaConsistencyLevel,
   findAsymmetricWormholeRoutes,
 } from './types.js';
 
@@ -86,6 +88,41 @@ describe('WormholeHookIsmSchema', () => {
         }),
       ),
     ).to.throw(/additionalBlocks/);
+  });
+
+  const remoteExpectedLevels: WormholeVaaConsistencyLevel[] = [0, 1, 32];
+  for (const expectedConsistencyLevel of remoteExpectedLevels) {
+    it(`accepts a remote router expected at consistency ${expectedConsistencyLevel}`, () => {
+      const config = WormholeHookIsmSchema.parse(
+        directVaaConfig({
+          remoteRouters: {
+            base: {
+              router: ROUTER_B,
+              wormholeChainId: 30,
+              expectedConsistencyLevel,
+              expectedCustomBaseConsistencyLevel: 0,
+              expectedAdditionalBlocks: 0,
+            },
+          },
+        }),
+      );
+
+      expect(config.remoteRouters.base.expectedConsistencyLevel).to.equal(
+        expectedConsistencyLevel,
+      );
+    });
+  }
+
+  it('rejects a remote router expected at an unsupported consistency', () => {
+    expect(() =>
+      WormholeRemoteRouterSchema.parse({
+        router: ROUTER_B,
+        wormholeChainId: 30,
+        expectedConsistencyLevel: 2,
+        expectedCustomBaseConsistencyLevel: 0,
+        expectedAdditionalBlocks: 0,
+      }),
+    ).to.throw(/expectedConsistencyLevel/);
   });
 
   it('requires urls', () => {
@@ -170,6 +207,27 @@ describe('findAsymmetricWormholeRoutes', () => {
 
     expect(findAsymmetricWormholeRoutes(mismatched)).to.deep.equal([
       'ethereum expects consistency 201 from base, which publishes at 202',
+    ]);
+  });
+
+  it('accepts a peer that publishes at zero finalized when expected at 0', () => {
+    const zeroFinalized = mesh();
+    zeroFinalized.base.consistencyLevel = {
+      type: WormholeConsistencyType.ZeroFinalized,
+    };
+    zeroFinalized.ethereum.remoteRouters.base.expectedConsistencyLevel = 0;
+
+    expect(findAsymmetricWormholeRoutes(zeroFinalized)).to.deep.equal([]);
+  });
+
+  it('reports a guardian-finalized expectation from a zero-finalized peer', () => {
+    const mismatched = mesh();
+    mismatched.base.consistencyLevel = {
+      type: WormholeConsistencyType.ZeroFinalized,
+    };
+
+    expect(findAsymmetricWormholeRoutes(mismatched)).to.deep.equal([
+      'ethereum expects consistency 202 from base, which publishes at 0',
     ]);
   });
 

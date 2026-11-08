@@ -27,6 +27,7 @@ import {
 } from '../token/types.js';
 
 import { EvmWormholeHookIsmModule } from './EvmWormholeHookIsmModule.js';
+import { EvmWormholeHookIsmReader } from './EvmWormholeHookIsmReader.js';
 import {
   WormholeWarpChainConfig,
   buildWormholeMeshConfig,
@@ -176,6 +177,99 @@ describe('EvmWormholeHookIsmModule', () => {
       );
       expect(expectedLevel.additionalBlocks).to.equal(2);
     }
+  });
+
+  it('deploys, reads back, and reuses a zero-finalized mesh', async () => {
+    const input = routeConfig({ type: WormholeConsistencyType.ZeroFinalized });
+    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+
+    const addresses = await EvmWormholeHookIsmModule.deployMesh(
+      multiProvider,
+      mesh,
+    );
+
+    const derived = await EvmWormholeHookIsmModule.readMesh(
+      multiProvider,
+      addresses,
+    );
+    for (const chain of chains) {
+      const remote = chains.find((candidate) => candidate !== chain);
+      assert(remote, `Missing remote chain for ${chain}`);
+      const router = WormholeVaaHookIsm__factory.connect(
+        addresses[chain],
+        multiProvider.getProvider(chain),
+      );
+      expect(await router.consistencyLevel()).to.equal(0);
+      const { expectedLevel } = await router.remoteRouterConfigs(
+        multiProvider.getDomainId(remote),
+      );
+      expect(expectedLevel.consistencyLevel).to.equal(0);
+
+      expect(derived[chain].consistencyLevel).to.deep.equal({
+        type: 'zeroFinalized',
+      });
+      expect(derived[chain].consistencyLevel).to.deep.equal(
+        mesh[chain].consistencyLevel,
+      );
+      const derivedRemote = derived[chain].remoteRouters[remote];
+      const expectedRemote = mesh[chain].remoteRouters[remote];
+      expect(expectedRemote.expectedConsistencyLevel).to.equal(0);
+      expect(derivedRemote.expectedConsistencyLevel).to.equal(0);
+      expect(derivedRemote.expectedCustomBaseConsistencyLevel).to.equal(
+        expectedRemote.expectedCustomBaseConsistencyLevel,
+      );
+      expect(derivedRemote.expectedAdditionalBlocks).to.equal(
+        expectedRemote.expectedAdditionalBlocks,
+      );
+    }
+
+    const reconciled = await EvmWormholeHookIsmModule.reconcileMesh(
+      multiProvider,
+      mesh,
+      addresses,
+    );
+    expect(reconciled.addresses).to.deep.equal(addresses);
+    expect(Object.values(reconciled.transactions).flat()).to.deep.equal([]);
+  });
+
+  it('reads back a remote router expected at Solana finalized', async () => {
+    const [chain] = chains;
+    const input = routeConfig();
+    const addresses = await EvmWormholeHookIsmModule.deployMesh(
+      multiProvider,
+      buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+    );
+    const router = WormholeVaaHookIsm__factory.connect(
+      addresses[chain],
+      multiProvider.getSigner(chain),
+    );
+
+    await multiProvider.handleTx(
+      chain,
+      router[
+        'enrollRemoteRouters((uint32,bytes32,uint16,uint8,uint8,uint16)[])'
+      ]([
+        {
+          domainId: 10_003,
+          domainIsm: addressToBytes32(randomAddress()),
+          wormholeChainId: 1,
+          expectedConsistencyLevel: 32,
+          expectedCustomBaseConsistencyLevel: 0,
+          expectedAdditionalBlocks: 0,
+        },
+      ]),
+    );
+
+    const derived = await new EvmWormholeHookIsmReader(
+      multiProvider,
+      chain,
+    ).deriveWormholeConfig(addresses[chain]);
+    expect(derived.remoteRouters['10003']).to.include({
+      wormholeChainId: 1,
+      expectedConsistencyLevel: 32,
+      expectedCustomBaseConsistencyLevel: 0,
+      expectedAdditionalBlocks: 0,
+    });
   });
 
   it('deploys, enrolls, materializes, and reuses a mesh', async () => {

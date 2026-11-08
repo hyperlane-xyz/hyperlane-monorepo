@@ -7,7 +7,7 @@ import { ChainMap, OwnableSchema } from '../types.js';
 
 import {
   WormholeConsistencyLevelFields,
-  WormholeConsistencyLevelSchema,
+  WormholeVaaConsistencyLevelSchema,
   consistencyLevelConfigToOnchain,
 } from './consistency.js';
 
@@ -17,6 +17,8 @@ export {
   WormholeConsistencyLevelSchema,
   WormholeConsistencyType,
   WormholeStandardConsistencyTypeSchema,
+  WormholeVaaConsistencyLevel,
+  WormholeVaaConsistencyLevelSchema,
   consistencyLevelConfigFromOnchain,
   consistencyLevelForConfig,
   standardConsistencyType,
@@ -39,7 +41,7 @@ export const WormholeRemoteRouterSchema = z.object({
   /** Enrolled remote router address on that chain. */
   router: ZHash,
   wormholeChainId: z.number().int().positive().max(65_535),
-  expectedConsistencyLevel: WormholeConsistencyLevelSchema,
+  expectedConsistencyLevel: WormholeVaaConsistencyLevelSchema,
   /** Custom base consistency level the remote router publishes with. */
   expectedCustomBaseConsistencyLevel: z.number().int().min(0).max(255),
   /** Additional blocks the remote router publishes with. */
