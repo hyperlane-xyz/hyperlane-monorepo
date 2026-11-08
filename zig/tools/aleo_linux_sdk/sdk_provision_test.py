@@ -440,5 +440,58 @@ class LockedInstallDiagnosticTests(unittest.TestCase):
         self.assertTrue(p.final_pass(good));self.assertFalse(p.final_pass({**good,'error':'original failure','locked_install_failure_diagnostic':{'available':True}}))
 
 
+class ResourceGuardFailureTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve()
+    def logs(self,name,stdout=0,stderr=0):
+        for side,size in [('stdout',stdout),('stderr',stderr)]:
+            with (self.root/(name+'.'+side)).open('wb')as stream:stream.truncate(size)
+    def check(self,name='locked_install',phase='poll',memory=None,rss=None,stdout=0,stderr=0):
+        self.logs(name,stdout,stderr);value={};lease=mock.Mock();lease.read.return_value=str(4*p.GIB if memory is None else memory)
+        with mock.patch.object(p,'owner_rss',return_value=p.GIB//2 if rss is None else rss),mock.patch.object(p.time,'monotonic_ns',return_value=123456789):
+            try:p.check_resource_guard(value,self.root,lease,name,phase)
+            except ValueError as error:self.assertEqual(str(error),'acquisition memory/log cap'if phase=='poll'else'acquisition final log cap')
+        return value,lease
+    def test_actual_poll_each_conjunct_exact_boundary_and_simultaneous_operands(self):
+        for memory,rss,stdout,stderr,failed in [(4*p.GIB+1,p.GIB//2,0,0,['leaf_memory_current_bytes']),(4*p.GIB,p.GIB//2+1,0,0,['owner_current_RSS_bytes']),(4*p.GIB,p.GIB//2,1,p.CAPS['log_bytes'],['combined_log_bytes']),(4*p.GIB+1,p.GIB//2+1,p.CAPS['log_bytes'],1,['leaf_memory_current_bytes','owner_current_RSS_bytes','combined_log_bytes'])]:
+            with self.subTest(failed=failed):
+                value,lease=self.check(memory=memory,rss=rss,stdout=stdout,stderr=stderr);self.assertIn('resource_guard_failure',value);row=value['resource_guard_failure'];self.assertEqual(row['failed_guard_conjuncts'],failed);self.assertEqual((row['leaf_memory_current_bytes'],row['owner_current_RSS_bytes'],row['stdout_bytes'],row['stderr_bytes']),(memory,rss,stdout,stderr));self.assertEqual(row['observed_monotonic_ns'],123456789);lease.read.assert_called_once_with('memory.current')
+        value,_=self.check(stdout=4*1024**2,stderr=4*1024**2);self.assertEqual(value,{})
+    def test_current_closed_command_enum_and_success_shape_unchanged(self):
+        for name in ['node_version','pnpm_version','locked_install']:
+            value,_=self.check(name=name,memory=4*p.GIB+1);self.assertEqual(value['resource_guard_failure']['command'],name)
+            value,_=self.check(name=name);self.assertEqual(value,{})
+    def test_final_guard_is_logs_only_optional_current_memory_RSS_cannot_mask(self):
+        value,lease=self.check(phase='final',memory=4*p.GIB+1,rss=p.GIB//2+1,stdout=p.CAPS['log_bytes']+1);row=value['resource_guard_failure'];self.assertEqual(row['failed_guard_conjuncts'],['combined_log_bytes']);self.assertEqual(len(row['sampled_limits_exceeded']),3);self.assertEqual(row['phase'],'final')
+        self.logs('locked_install',p.CAPS['log_bytes']+1);value={};lease.read.side_effect=ValueError('PRIVATE_LEAF')
+        with mock.patch.object(p,'owner_rss',side_effect=ValueError('PRIVATE_RSS')):
+            with self.assertRaisesRegex(ValueError,'^acquisition final log cap$'):p.check_resource_guard(value,self.root,lease,'locked_install','final')
+        row=value['resource_guard_failure'];self.assertIsNone(row['leaf_memory_current_bytes']);self.assertIsNone(row['owner_current_RSS_bytes']);self.assertEqual(row['failed_guard_conjuncts'],['combined_log_bytes']);self.assertNotIn('PRIVATE',json.dumps(row))
+        value,lease=self.check(phase='final',memory=4*p.GIB+1,rss=p.GIB//2+1);self.assertEqual(value,{});lease.read.assert_not_called()
+    def test_unknown_nonnumeric_operands_are_NULL_and_never_text_or_false_numbers(self):
+        for unknown in [True,False,None,-1,2**63,'PRIVATE_TOKEN https://PRIVATE_URL',float('nan'),float('inf'),{},[]]:
+            with mock.patch.object(p.time,'monotonic_ns',return_value=unknown):row=p.resource_guard_failure('PRIVATE_COMMAND','PRIVATE_PHASE',unknown,unknown,unknown,unknown)
+            for key in ['observed_monotonic_ns','leaf_memory_current_bytes','owner_current_RSS_bytes','stdout_bytes','stderr_bytes','combined_log_bytes']:self.assertIsNone(row[key])
+            self.assertEqual(row['command'],'UNKNOWN');self.assertEqual(row['phase'],'UNKNOWN');self.assertEqual(row['failed_guard_conjuncts'],[]);self.assertNotIn('PRIVATE',json.dumps(row));self.assertFalse(row['native_or_SDK_acceptance'])
+    def test_actual_execute_guard_calls_and_limits_source_bound_without_new_effects(self):
+        tree=ast.parse((HERE/'sdk_provision.py').read_bytes());execute=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');calls=[n for n in ast.walk(execute)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='check_resource_guard']
+        self.assertEqual({ast.literal_eval(n.args[4])for n in calls},{'poll','final'});self.assertEqual(len(calls),2)
+        for call in calls:self.assertEqual([ast.unparse(n)for n in call.args[:4]],['value','root','lease','name'])
+        row=p.resource_guard_failure('locked_install','poll',4*p.GIB,p.GIB//2,p.CAPS['log_bytes'],0);self.assertEqual(row['limits'],{'leaf_memory_current_bytes':4*p.GIB,'owner_current_RSS_bytes':p.GIB//2,'combined_log_bytes':8*1024**2})
+    def test_failed_poll_additional_sampling_errors_preserve_original_shortcircuit_error(self):
+        value={};lease=mock.Mock();lease.read.return_value=str(4*p.GIB+1)
+        with mock.patch.object(p,'owner_rss',side_effect=ValueError('PRIVATE_RSS')):
+            with self.assertRaisesRegex(ValueError,'^acquisition memory/log cap$'):p.check_resource_guard(value,self.root,lease,'locked_install','poll')
+        row=value['resource_guard_failure'];self.assertEqual(row['failed_guard_conjuncts'],['leaf_memory_current_bytes']);self.assertIsNone(row['stdout_bytes']);self.assertNotIn('PRIVATE',json.dumps(row))
+        lease.read.return_value=str(4*p.GIB);value={};primary=OSError('PRIVATE_ORIGINAL')
+        with mock.patch.object(p,'owner_rss',side_effect=primary):
+            with self.assertRaises(OSError)as raised:p.check_resource_guard(value,self.root,lease,'locked_install','poll')
+        self.assertIs(raised.exception,primary);self.assertEqual(value,{})
+    def test_projection_failure_does_not_mask_original_guard(self):
+        self.logs('locked_install');value={};lease=mock.Mock();lease.read.return_value=str(4*p.GIB+1)
+        with mock.patch.object(p,'owner_rss',return_value=1),mock.patch.object(p,'resource_guard_failure',side_effect=RuntimeError('PRIVATE_PROJECTION')):
+            with self.assertRaisesRegex(ValueError,'^acquisition memory/log cap$'):p.check_resource_guard(value,self.root,lease,'locked_install','poll')
+        self.assertFalse(value['resource_guard_failure']['available']);self.assertNotIn('PRIVATE',json.dumps(value))
+
 if __name__=='__main__':
     with mock.patch('subprocess.Popen',side_effect=AssertionError('no actual package/compiler/SDK process')):unittest.main()

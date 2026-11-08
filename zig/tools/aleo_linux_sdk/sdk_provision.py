@@ -301,6 +301,39 @@ def locked_install_failure_diagnostic(root,command,started_ns,deadline_ns):
     return result
 
 
+def resource_guard_failure(name,phase,memory,rss,stdout,stderr):
+    """Failure-only numeric projection of captured operands; never raw data."""
+    numeric=lambda value:value if type(value)is int and 0<=value<2**63 else None
+    values={key:numeric(value)for key,value in [('leaf_memory_current_bytes',memory),('owner_current_RSS_bytes',rss),('stdout_bytes',stdout),('stderr_bytes',stderr)]}
+    logs=None if values['stdout_bytes']is None or values['stderr_bytes']is None else values['stdout_bytes']+values['stderr_bytes']
+    limits={'leaf_memory_current_bytes':4*GIB,'owner_current_RSS_bytes':GIB//2,'combined_log_bytes':CAPS['log_bytes']}
+    sampled={**values,'combined_log_bytes':logs};exceeded=[key for key,limit in limits.items()if sampled[key]is not None and sampled[key]>limit]
+    return {'schema':1,'kind':'aleo-acquisition-resource-guard-failure-v1','command':name if name in{'node_version','pnpm_version','locked_install'}else'UNKNOWN','phase':phase if phase in{'poll','final'}else'UNKNOWN','observed_monotonic_ns':numeric(time.monotonic_ns()),**sampled,'limits':limits,'sampled_limits_exceeded':exceeded,'failed_guard_conjuncts':[key for key in exceeded if phase=='poll'or phase=='final'and key=='combined_log_bytes'],'unknown_fields':[key for key,value in sampled.items()if value is None],'raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
+
+
+def check_resource_guard(value,root,lease,name,phase):
+    need(phase in{'poll','final'}and name in{'node_version','pnpm_version','locked_install'},'fixed acquisition guard context')
+    def read_operand(read,required):
+        try:return read()
+        except BaseException:
+            if required:raise
+            return None
+    memory=rss=None
+    if phase=='poll':memory=int(lease.read('memory.current'));rss=read_operand(owner_rss,memory<=4*GIB)
+    required=phase=='final'or memory<=4*GIB and rss<=GIB//2
+    stdout=read_operand(lambda:(root/(name+'.stdout')).stat().st_size,required);stderr=read_operand(lambda:(root/(name+'.stderr')).stat().st_size,required)
+    valid=memory<=4*GIB and rss<=GIB//2 and stdout+stderr<=CAPS['log_bytes']if phase=='poll'else stdout+stderr<=CAPS['log_bytes']
+    if not valid:
+        if phase=='final':
+            try:memory=int(lease.read('memory.current'))
+            except BaseException:pass
+            try:rss=owner_rss()
+            except BaseException:pass
+        try:value['resource_guard_failure']=resource_guard_failure(name,phase,memory,rss,stdout,stderr)
+        except BaseException:value['resource_guard_failure']={'schema':1,'kind':'aleo-acquisition-resource-guard-failure-v1','available':False,'raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
+    need(valid,'acquisition memory/log cap'if phase=='poll'else'acquisition final log cap')
+
+
 def execute(spec_pin):
     spec=load(spec_pin)
     need(spec.get('root_approved')is True and spec.get('purpose')=='aleo-linux-locked-packages-v1'and spec.get('caps')==CAPS,'explicit bounded acquisition authorization required')
@@ -329,8 +362,8 @@ def execute(spec_pin):
                 lease.attach(child.pid);birth=process(child.pid);child.stdin.write(b'GO\n');child.stdin.flush();child.stdin.close()
                 while child.poll()is None:
                     need(time.monotonic_ns()<deadline and allocated(root)<=4*GIB and free(root)>=6*GIB,'acquisition time/disk/floor exceeded')
-                    need(int(lease.read('memory.current'))<=4*GIB and owner_rss()<=GIB//2 and (root/(name+'.stdout')).stat().st_size+(root/(name+'.stderr')).stat().st_size<=CAPS['log_bytes'],'acquisition memory/log cap');time.sleep(.2)
-                status=child.wait();need((root/(name+'.stdout')).stat().st_size+(root/(name+'.stderr')).stat().st_size<=CAPS['log_bytes'],'acquisition final log cap');value['commands'].append({'name':name,'pid':birth['pid'],'start':birth['start'],'group':birth['group'],'argv':argv,'actual_parent_wait':True,'exit_code':status,'stdout':pin(root/(name+'.stdout')),'stderr':pin(root/(name+'.stderr'))})
+                    check_resource_guard(value,root,lease,name,'poll');time.sleep(.2)
+                status=child.wait();check_resource_guard(value,root,lease,name,'final');value['commands'].append({'name':name,'pid':birth['pid'],'start':birth['start'],'group':birth['group'],'argv':argv,'actual_parent_wait':True,'exit_code':status,'stdout':pin(root/(name+'.stdout')),'stderr':pin(root/(name+'.stderr'))})
             os.close(pidfd);pidfd=None
             reap_terminal(lease,waits);need(not lease.populated(),'acquisition live descendants remain')
             need(status==0 and time.monotonic_ns()<deadline,'ordinary locked package command failed/late')
