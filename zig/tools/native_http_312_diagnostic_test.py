@@ -351,7 +351,8 @@ class FullSuiteModeControls(unittest.TestCase):
         tree=ast.parse(Path(api.__file__).read_bytes());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
         env=next(n.value for n in ast.walk(main)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='env'for t in n.targets))
         values={name:'public-'+name for name in expected};values.update(GH_TOKEN='PRIVATE_TOKEN',AWS_SECRET_ACCESS_KEY='PRIVATE_AWS')
-        scope={'os':N(environ=values),'CHILD_ENV_KEYS':api.CHILD_ENV_KEYS}
+        self.assertEqual(ast.unparse(env),'child_environment(profile, os.environ)')
+        scope={'os':N(environ=values),'child_environment':api.child_environment,'profile':'ordered-full-suite'}
         captured=eval(compile(ast.Expression(env),'actual-clean-child-env','eval'),scope)
         self.assertEqual(set(captured),set(expected));self.assertNotIn('PRIVATE',json.dumps(captured))
 
@@ -385,6 +386,105 @@ class FullSuiteModeControls(unittest.TestCase):
         self.assertEqual(evaluate(conditions(text),message=self.full()),{'native-http','paired-linux-inputs'})
         self.assertNotIn('[zig-native-http-full-suite]',inverse(text))
         self.assertIn('timeout-minutes: 40',text.split('\n  native-http:',1)[1].split('\n  native-linux:',1)[0])
+
+
+class InheritedEnvironmentControls(unittest.TestCase):
+    def full(self):return api.ONLY_MARKER+' [zig-paired-linux] '+api.FULL_MARKER+' '+api.ENV_MARKER
+    def event(self,message):return {'head_commit':{'message':message}}
+
+    def test_exact_four_markers_required_before_legacy_fallback_or_effects(self):
+        message=self.full()
+        self.assertEqual(api.selected_profile('push',api.REF,self.event(message)),'ordered-full-suite-inherited-env')
+        self.assertEqual(api.selected_profile('push',api.REF,self.event(message+' '+api.MARKER)),'ordered-full-suite-inherited-env')
+        invalid=[message.replace(token,'')for token in [api.ONLY_MARKER,'[zig-paired-linux]',api.FULL_MARKER]]
+        invalid += [api.ENV_MARKER,api.ENV_MARKER+' '+api.MARKER,message+' [zig-native-case]',message+' [zig-svm-prerequisites-only]']
+        contexts=[('push',api.REF,text)for text in invalid+ [text+' '+api.MARKER for text in invalid]]
+        contexts += [('workflow_dispatch',api.REF,message),('pull_request',api.REF,message),('push','refs/heads/main',message)]
+        with mock.patch.object(api,'payload',side_effect=AssertionError('payload effect'))as payload,mock.patch.object(api,'public_context',side_effect=AssertionError('native effect'))as native,mock.patch.object(api.Path,'mkdir',side_effect=AssertionError('output effect'))as mkdir:
+            for name,ref,text in contexts:
+                with self.subTest(name=name,ref=ref,message=text):
+                    self.assertFalse(api.authorized(name,ref,self.event(text)))
+                    with self.assertRaisesRegex(ValueError,'Explicit feature push'):api.selected_profile(name,ref,self.event(text))
+            payload.assert_not_called();native.assert_not_called();mkdir.assert_not_called()
+
+    def test_inherited_copy_matches_actual_ordinary_wrapper_policy_and_is_private(self):
+        values={'PATH':'public path','PRIVATE_ENV_NAME':'PRIVATE_ENV_VALUE','GH_TOKEN':'PRIVATE_TOKEN_VALUE'}
+        inherited=api.child_environment('ordered-full-suite-inherited-env',values)
+        self.assertEqual(inherited,values);self.assertIsNot(inherited,values)
+        inherited['PATH']='changed';self.assertEqual(values['PATH'],'public path')
+        for profile in ['filtered','ordered-full-suite']:
+            self.assertEqual(api.child_environment(profile,values),{'PATH':'public path'})
+        for profile in ['custom',None,True]:
+            with self.assertRaises(ValueError):api.child_environment(profile,values)
+            with self.assertRaises(ValueError):api.environment_policy(profile)
+        repo=Path(__file__).resolve().parents[2];tree=ast.parse((repo/'zig/tools/native_http_tests.py').read_bytes())
+        main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+        env=next(n.value for n in ast.walk(main)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='env'for t in n.targets))
+        self.assertEqual(ast.unparse(env),'os.environ.copy()')
+        fields=[n.targets[0].slice.value for n in ast.walk(main)if isinstance(n,ast.Assign)and isinstance(n.targets[0],ast.Subscript)and isinstance(n.targets[0].value,ast.Name)and n.targets[0].value.id=='env']
+        self.assertEqual(fields,['HYPERLANE_COSMOS_GRPC_TEST_URL','HYPERLANE_CURL_LIBRARY','HYPERLANE_CLOUD_CURL_LIBRARY','HYPERLANE_TEST_RSA_FIXTURE_DIR','HYPERLANE_LIBCRYPTO_LIBRARY'])
+        policy=api.environment_policy('ordered-full-suite-inherited-env')
+        self.assertEqual(policy,{'kind':'inherited-copy','ordinary_wrapper_policy_match':True,'actual_cross_run_environment_equivalence':False})
+        with mock.patch.dict(api.os.environ,values,clear=True):
+            wire=json.dumps(api.environment_policy('ordered-full-suite-inherited-env'),sort_keys=True)
+        for secret in ['PRIVATE_ENV_NAME','PRIVATE_ENV_VALUE','GH_TOKEN','PRIVATE_TOKEN_VALUE']:self.assertNotIn(secret,wire)
+        self.assertNotIn('allowed_keys',policy);self.assertNotIn('count',policy)
+
+    def test_actual_public_context_for_inherited_profile_never_lists_ambient_keys(self):
+        from types import SimpleNamespace as N
+        with tempfile.TemporaryDirectory()as directory:
+            root=Path(directory).resolve();compiler=root/'zig';compiler.write_bytes(b'public fake compiler bytes')
+            library=N(curl_version=mock.Mock(return_value=b'public curl component fixture'))
+            with mock.patch.dict(api.os.environ,{'ZIG':str(compiler),'PRIVATE_ENV_NAME':'PRIVATE_ENV_VALUE','GH_TOKEN':'PRIVATE_TOKEN_VALUE'},clear=True),mock.patch.object(api.subprocess,'run',return_value=N(stdout=b'0.15.2\n',stderr=b'')),mock.patch.object(api.ctypes,'CDLL',return_value=library),mock.patch.object(api.os,'sched_getaffinity',return_value={1,2},create=True):
+                value=api.public_context(root,'ordered-full-suite-inherited-env')
+            self.assertEqual(value['child_environment_policy'],{'kind':'inherited-copy','ordinary_wrapper_policy_match':True,'actual_cross_run_environment_equivalence':False})
+            self.assertEqual(value['command_timeouts_seconds'],{'inner':1200,'outer':1240})
+            wire=json.dumps(value,sort_keys=True)
+            for secret in ['PRIVATE_ENV_NAME','PRIVATE_ENV_VALUE','GH_TOKEN','PRIVATE_TOKEN_VALUE']:self.assertNotIn(secret,wire)
+
+    def test_inherited_profile_has_same_exact_full_command_and_closed_clocks(self):
+        repo=Path('/actual/source');output=Path('/actual/output')
+        self.assertEqual(api.profile_command(repo,output,'ordered-full-suite-inherited-env'),api.profile_command(repo,output,'ordered-full-suite'))
+        self.assertEqual(api.profile_limits('ordered-full-suite-inherited-env'),{'inner':1200,'outer':1240})
+        self.assertEqual(api.profile_limits('filtered'),{'inner':300,'outer':340})
+        self.assertNotIn('--test-filter',api.profile_command(repo,output,'ordered-full-suite-inherited-env'))
+        text,conditions,evaluate,_=DecisiveSourceAndRouteControls.workflow_api(self)
+        self.assertEqual(evaluate(conditions(text),message=self.full()),{'native-http','paired-linux-inputs'})
+        self.assertNotIn(api.ENV_MARKER,text)
+        self.assertIn("&& 23 || 7 }}",text)
+
+    def test_main_passes_exact_private_copy_to_existing_owner_and_publishes_only_policy(self):
+        from types import SimpleNamespace as N
+        import contextlib,io
+        with tempfile.TemporaryDirectory()as directory:
+            root=Path(directory).resolve();event=root/'event.json';output=root/'result';head='a'*40
+            event.write_text(json.dumps({'after':head,'head_commit':{'id':head,'message':self.full()}}))
+            values={'PATH':'public path','GITHUB_EVENT_PATH':str(event),'GITHUB_EVENT_NAME':'push','GITHUB_REF':api.REF,'GITHUB_SHA':head,'RUNNER_TEMP':str(root),'PRIVATE_ENV_NAME':'PRIVATE_ENV_VALUE','GH_TOKEN':'PRIVATE_TOKEN_VALUE'}
+            actual=[]
+            def run(command,repo,env,seconds,owner):
+                self.assertEqual(env,values);self.assertIsNot(env,api.os.environ)
+                self.assertEqual(command,api.profile_command(repo,output,'ordered-full-suite-inherited-env'))
+                self.assertEqual(seconds,1240);self.assertEqual(owner,output/'outer-owner');actual.append(True);return 0
+            owned=N(run_command=run);loader=N(exec_module=lambda module:None)
+            class Log:
+                retained=0;overflow=False;failure=None
+                def __init__(self,path):pass
+                def __enter__(self):return self
+                def __exit__(self,*args):pass
+            def diagnose(repo,destination,replacement,execute,inventory):
+                self.assertEqual(replacement,b'public synthetic Source');self.assertEqual(execute(),0)
+                return {'diagnostic_only':True,'command_exit_code':0,'source_restored':True,'owned_consumers_absent':True,'runtime_acceptance':False}
+            captured=io.StringIO()
+            with mock.patch.dict(api.os.environ,values,clear=True),mock.patch.object(api.sys,'argv',['runner','--output',str(output)]),mock.patch.object(api.sys,'platform','linux'),mock.patch.object(api.platform,'machine',return_value='x86_64'),mock.patch.object(api.subprocess,'run',return_value=N(stdout=(head+'\n').encode())),mock.patch.object(api,'payload',return_value=b'public synthetic Source'),mock.patch.object(api.importlib.util,'spec_from_file_location',return_value=N(loader=loader)),mock.patch.object(api.importlib.util,'module_from_spec',return_value=owned),mock.patch.object(api,'public_context',side_effect=lambda repo,profile:{'execution_profile':profile,'child_environment_policy':api.environment_policy(profile)}),mock.patch.object(api,'BoundedLog',Log),mock.patch.object(api,'diagnostic',side_effect=diagnose),mock.patch.object(api.signal,'signal'),contextlib.redirect_stdout(captured):
+                self.assertEqual(api.main(),0)
+            self.assertEqual(actual,[True])
+            public=captured.getvalue()+''.join(path.read_text()for path in output.iterdir())
+            for secret in ['PRIVATE_ENV_NAME','PRIVATE_ENV_VALUE','GH_TOKEN','PRIVATE_TOKEN_VALUE']:self.assertNotIn(secret,public)
+            summary=json.loads((output/'summary.json').read_text())
+            self.assertEqual(summary['execution_profile'],'ordered-full-suite-inherited-env');self.assertIsNone(summary['target_filter'])
+            self.assertEqual(summary['child_environment_policy'],api.environment_policy('ordered-full-suite-inherited-env'))
+            self.assertFalse(summary['full_suite_or_fix_acceptance']);self.assertFalse(summary['runtime_acceptance'])
+            self.assertIn('cause remains unknown',summary['interpretation']);self.assertIn('restoration and ownership require their separate qualified fields',summary['interpretation'])
 
 
 if __name__ == '__main__':

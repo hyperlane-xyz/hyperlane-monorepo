@@ -30,6 +30,7 @@ FILTER = 'native Pool yields eight stalled peers and verifies healthy EVM childr
 MARKER = '[zig-native-http-diagnostic]'
 ONLY_MARKER = '[zig-native-http-diagnostic-only]'
 FULL_MARKER = '[zig-native-http-full-suite]'
+ENV_MARKER = '[zig-native-http-ordinary-env]'
 CHILD_ENV_KEYS = ('PATH', 'HOME', 'RUNNER_TEMP', 'ZIG', 'LC_ALL', 'HYPERLANE_ZIG_SDKROOT')
 REF = 'refs/heads/feat/zig-agent-rewrite'
 LOG_LIMIT = 8 * 1024 * 1024
@@ -55,6 +56,9 @@ def authorized(name, ref, event):
             and '[zig-native-case]' not in message and '[zig-svm-prerequisites-only]' not in message):
         return False
     dual = ONLY_MARKER in message and '[zig-paired-linux]' in message
+    # An inherited request cannot fall back through any older marker.
+    if ENV_MARKER in message:
+        return FULL_MARKER in message and dual
     # A malformed full-suite request cannot fall back to the old filtered route.
     if FULL_MARKER in message:
         return dual
@@ -63,14 +67,33 @@ def authorized(name, ref, event):
 
 def selected_profile(name, ref, event):
     require(authorized(name, ref, event), 'Explicit feature push diagnostic marker required')
-    return 'ordered-full-suite' if FULL_MARKER in event['head_commit']['message'] else 'filtered'
+    message = event['head_commit']['message']
+    if ENV_MARKER in message:
+        return 'ordered-full-suite-inherited-env'
+    return 'ordered-full-suite' if FULL_MARKER in message else 'filtered'
 
 
 def profile_limits(profile):
     if profile == 'filtered':
         return {'inner': 300, 'outer': 340}
-    require(profile == 'ordered-full-suite', 'One fixed diagnostic profile required')
+    require(profile in ('ordered-full-suite', 'ordered-full-suite-inherited-env'), 'One fixed diagnostic profile required')
     return {'inner': 1200, 'outer': 1240}
+
+
+def child_environment(profile, environ):
+    profile_limits(profile)
+    if profile == 'ordered-full-suite-inherited-env':
+        return dict(environ)
+    return {key: environ[key] for key in CHILD_ENV_KEYS if key in environ}
+
+
+def environment_policy(profile):
+    profile_limits(profile)
+    if profile == 'ordered-full-suite-inherited-env':
+        return {'kind': 'inherited-copy', 'ordinary_wrapper_policy_match': True,
+                'actual_cross_run_environment_equivalence': False}
+    return {'kind': 'explicit-allowlist', 'allowed_keys': list(CHILD_ENV_KEYS),
+            'ambient_equivalence_to_ordinary_suite': False}
 
 
 def profile_command(repo, output, profile):
@@ -290,8 +313,7 @@ def public_context(repo, profile):
             'compiler_sha256': compiler_sha, 'compiler_version': '0.15.2', 'curl_version': curl_version.decode('ascii'),
             'command_timeouts_seconds': profile_limits(profile), 'original_suite_unchanged': True,
             'execution_profile': profile,
-            'child_environment_policy': {'kind': 'explicit-allowlist', 'allowed_keys': list(CHILD_ENV_KEYS),
-                                         'ambient_equivalence_to_ordinary_suite': False}}
+            'child_environment_policy': environment_policy(profile)}
 
 
 def main():
@@ -318,7 +340,7 @@ def main():
     specification.loader.exec_module(owner)
     limits = profile_limits(profile)
     command = profile_command(repo, output, profile)
-    env = {key: os.environ[key] for key in CHILD_ENV_KEYS if key in os.environ}
+    env = child_environment(profile, os.environ)
     context = public_context(repo, profile)
     (output / 'context.json').write_text(json.dumps(context, indent=2) + '\n')
     log = BoundedLog(output / 'diagnostic.log')
@@ -336,7 +358,7 @@ def main():
     result.update({'git_commit': sha, 'compiled_inputs_scope': 'Recorded zig/src, vectors and named compiler/owner inputs with only pinned test312 overlay; no SDK/native input claim.', 'target_filter': FILTER if profile == 'filtered' else None, 'execution_profile': profile,
                    'command_timeouts_seconds': limits, 'full_suite_or_fix_acceptance': False,
                    'child_environment_policy': context['child_environment_policy'], 'log_bytes': log.retained, 'log_overflow': log.overflow, 'log_error': log.failure, 'runtime_acceptance': False})
-    if profile == 'ordered-full-suite':
+    if profile != 'filtered':
         result['interpretation'] = ('Ordered full-suite command exited zero under the Source overlay; cause remains unknown; restoration and ownership require their separate qualified fields.'
                                     if result['command_exit_code'] == 0 else 'Ordered full-suite diagnostic failed; classify retained bounded observations before proposing a fix.')
     (output / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')
