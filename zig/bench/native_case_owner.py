@@ -618,6 +618,132 @@ def container_observation_ok(scenario,result):
     return result.get('owned_container_absent')is True
 
 
+class StarknetProgress:
+    """Observations only: fixed Source markers, never raw log lines or verdicts."""
+    ROOT = 'rust/main/utils/run-locally/src/'
+    SOURCE_NEEDLES = {
+        'starknet/mod.rs': ('Building rust...', 'Running postgres db...', 'Init postgres db...', 'DISPATCHING MAILBOX: {} -> {:?}', 'Relayer confirmed {} submitted messages, expected {}', 'Scraper has scraped {} dispatched messages, expected {}', 'Scraper has scraped {} delivered messages, expected {}', 'Termination invariants have been met', 'timeout reached before message submission was confirmed', 'E2E tests passed'),
+        'starknet/cli.rs': ('send-tx result: {:?}', 'declare result: {:?}', 'deploy result: {:?}', 'invoke result: {:?}', '.cmd(function_name)', '.run_with_output()'),
+        'program.rs': ('({wd})$ ', 'log!("{:#}", &self)', 'self.run_full(false, true)', 'child.try_wait()', 'stdout.join()', 'stderr.join()'),
+        'logging.rs': ('concat!("<E2E> ", $arg)',),
+    }
+    EXACT = {
+        b'<E2E> Building rust...': 'fixture_entry_marker',
+        b'<E2E> Running postgres db...': 'postgres_start_requested',
+        b'<E2E> Init postgres db...': 'postgres_init_requested',
+        b'DISPATCHING MAILBOX: 23448593 -> [23448594]': 'dispatch_batch_entered',
+        b'<E2E> Termination invariants have been met': 'termination_invariants_marker',
+        b'<E2E> timeout reached before message submission was confirmed': 'fixture_timeout_marker',
+        b'<E2E> E2E tests passed': 'fixture_pass_marker',
+    }
+    RETURNS = {b'send-tx result: [': 'dispatch_command_returned', b'declare result: [': 'declare_command_returned', b'deploy result: [': 'deploy_command_returned', b'invoke result: [': 'invoke_command_returned'}
+    METRICS = {
+        rb'<E2E> Relayer confirmed [0-9]+ submitted messages, expected [0-9]+': 'confirmed_metric_observed',
+        rb'<E2E> Scraper has scraped [0-9]+ dispatched messages, expected [0-9]+': 'dispatch_metric_observed',
+        rb'<E2E> Scraper has scraped [0-9]+ delivered messages, expected [0-9]+': 'delivery_metric_observed',
+    }
+    KINDS = {'starkli', 'relayer', 'validator', 'scraper', 'docker', 'init-db', 'cargo', 'rustc'}
+    MAX_SCAN = 32 * 1024**2
+    READ_BYTES = 512 * 1024
+    LINE_BYTES = 64 * 1024
+
+    def __init__(self, plan, manifest, repo):
+        self.runtime_source_commit = manifest['runtime_source_commit']; self.execution_source_commit = plan['execution_source_commit']; self.mode = manifest['mode']
+        require(all(isinstance(value, str) and re.fullmatch('[0-9a-f]{40}', value) for value in [self.runtime_source_commit, self.execution_source_commit]) and self.mode in {'ReleaseSafe', 'ReleaseFast'}, 'Stark progress provenance differs')
+        self.sources = {}
+        for suffix, needles in self.SOURCE_NEEDLES.items():
+            name = self.ROOT + suffix
+            row = plan['diagnostic_rust_sources'][name]
+            require(checked(row) == repo / name, 'Stark progress Source path differs')
+            text = (repo / name).read_text()
+            require(all(needle in text for needle in needles), 'Stark progress Source marker changed')
+            self.sources[name] = row
+        cli = checked(manifest['tool_overrides']['E2E_STARKLI_CLI_PATH'], True)
+        self.cli = manifest['tool_overrides']['E2E_STARKLI_CLI_PATH']
+        self.attempt_prefix = b'<E2E> (../../)$ ' + os.fsencode(cli) + b' invoke '
+        self.offset = 0; self.identity = None; self.digest = hashlib.sha256()
+        self.pending = bytearray(); self.discard_line = False; self.events = {}
+        self.last_marker = None; self.last_clock = None; self.last_window = None
+        self.overlong_lines = 0; self.scans = 0; self.disabled = False
+
+    def _line(self, wire, start, end, now):
+        marker = self.EXACT.get(wire)
+        if marker is None:
+            for prefix, name in self.RETURNS.items():
+                if wire.startswith(prefix) and wire.endswith(b']'): marker = name; break
+        if marker is None:
+            for pattern, name in self.METRICS.items():
+                if re.fullmatch(pattern, wire): marker = name; break
+        if marker is None and wire.startswith(self.attempt_prefix):
+            if re.match(rb'0x[0-9a-fA-F]+ dispatch [^\r\n]+$', wire[len(self.attempt_prefix):]):
+                marker = 'dispatch_command_attempt'
+        if marker is None: return
+        event = self.events.setdefault(marker, {'count': 0, 'first': None, 'latest': None})
+        observation = {'observed_monotonic_ns': now, 'line_start_offset': start, 'line_end_offset': end}
+        event['count'] += 1
+        if event['first'] is None: event['first'] = observation
+        event['latest'] = observation; self.last_marker = marker
+
+    def observe(self, log, now, owned, output):
+        require(type(now) is int and now > 0 and (self.last_clock is None or now >= self.last_clock), 'Stark observation clock regressed')
+        self.last_clock = now
+        if not log.exists():
+            require(self.identity is None, 'Observed harness log disappeared')
+            status = 'log_not_created'
+        else:
+            fd = os.open(log, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                before = os.fstat(fd); require(stat.S_ISREG(before.st_mode), 'Harness diagnostic requires regular file')
+                identity = (before.st_dev, before.st_ino)
+                require(self.identity is None or self.identity == identity, 'Harness diagnostic log replaced')
+                self.identity = identity; require(before.st_size >= self.offset, 'Harness diagnostic log truncated')
+                os.lseek(fd, self.offset, os.SEEK_SET)
+                wire = os.read(fd, min(self.READ_BYTES, self.MAX_SCAN - self.offset))
+                after = os.fstat(fd)
+                require((after.st_dev, after.st_ino) == identity and after.st_size >= before.st_size, 'Harness diagnostic changed while reading')
+            finally: os.close(fd)
+            chunk_start = self.offset
+            self.digest.update(wire)
+            if wire: self.last_window = {'offset': chunk_start, 'bytes': len(wire), 'sha256': hashlib.sha256(wire).hexdigest()}
+            # Newline framing is byte based. Long or unterminated data never becomes
+            # a second artificial line, and incomplete final markers earn no count.
+            for byte in wire:
+                self.offset += 1
+                if byte == 10:
+                    if not self.discard_line:
+                        self._line(bytes(self.pending), self.offset - len(self.pending) - 1, self.offset, now)
+                    self.pending.clear(); self.discard_line = False
+                elif not self.discard_line:
+                    self.pending.append(byte)
+                    if len(self.pending) > self.LINE_BYTES:
+                        self.overlong_lines += 1; self.pending.clear(); self.discard_line = True
+            status = 'scan_cap_reached' if self.offset == self.MAX_SCAN else 'backlog' if after.st_size > self.offset else 'caught_up'
+        self.scans += 1
+        processes = []
+        for pid, row in sorted(owned.items())[:64]:
+            require(type(pid) is int and pid > 0 and row['pid'] == pid and type(row['ppid']) is int and row['ppid'] >= 0 and re.fullmatch(r'linux-ticks:[0-9]{1,24}', row['start']) is not None and row['state'] in {'R','S','D','Z','T','t','X','I','W','P'}, 'Malformed owned process observation')
+            processes.append({'pid': pid, 'parent_pid': row['ppid'], 'start_token': row['start'], 'state': row['state'], 'executable_kind': row['comm'] if row['comm'] in self.KINDS else 'other'})
+        record = {'schema': 1, 'kind': 'public-starknet-source-progress', 'runtime_source_commit': self.runtime_source_commit, 'execution_source_commit': self.execution_source_commit, 'mode': self.mode, 'observed_monotonic_ns': now, 'scan_status': status, 'scans': self.scans, 'sources': self.sources, 'approved_starkli': self.cli, 'events': self.events, 'last_observed_marker': self.last_marker, 'dispatch_attempt_marker_count': self.events.get('dispatch_command_attempt', {}).get('count', 0), 'dispatch_return_marker_count': self.events.get('dispatch_command_returned', {}).get('count', 0), 'scanned_bytes': self.offset, 'scanned_prefix_sha256': self.digest.hexdigest(), 'latest_window': self.last_window, 'overlong_lines_discarded': self.overlong_lines, 'pending_line_bytes': len(self.pending), 'owned_census': processes, 'owned_census_total': len(owned), 'owned_census_truncated': len(owned) > 64, 'scope': 'Parent-observed fixed Source markers and existing owned census only; clocks are observation times, offsets are into the private log. Commands may print before spawn; returned calls do not prove exit0, transaction success or delivery. Census kinds are basename observations, never executable admission. No raw lines, suffixes, argv, environment or bodies. No stage completion, lifecycle, native or timing credit.'}
+        import tempfile
+        pending = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=output.parent, prefix='.stark-progress-', delete=False) as stream:
+                pending = Path(stream.name); stream.write((json.dumps(record, sort_keys=True) + '\n').encode()); stream.flush()
+            os.replace(pending, output)
+        finally:
+            if pending is not None and pending.exists(): pending.unlink()
+        return record
+
+
+def observe_stark_progress(progress, log, owned, output, result):
+    """Diagnostics cannot repair a primary failure or become a native verdict."""
+    if progress is None or progress.disabled: return
+    try: progress.observe(log, time.monotonic_ns(), owned, output)
+    except Exception:
+        progress.disabled = True
+        result['stark_progress_diagnostic_status'] = 'observation_refused_or_unavailable'
+
+
 def worker(args, plan, manifest, inputs, approval):
     case=Path(manifest['task_root']);out=args.output;out.mkdir(mode=0o700);worker_started_ns=time.monotonic_ns()
     env=plan['explicit_environment'];pg=inputs.get('postgres');docker=checked(manifest['verifier_tools']['docker'],True)if pg is not None else None
@@ -982,12 +1108,18 @@ def main():
     owner.enable_subreaper();known={};groups={};child=None;cleanup=None;failure=None;samples=[]
     args.output.mkdir(mode=0o700);worker_output=case/(args.output.name+'-worker');require(not worker_output.exists(),'Preserve earlier worker')
     result={'schema':1,'kind':'owned-linux-native-case-result','scenario':plan['scenario'],'mode':manifest['mode'],'runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':approval.get('execution_source_commit',manifest['runtime_source_commit']),'passed':False,'native_case_acceptance':False,'plan':pin(args.plan),'samples':samples,'scope':'Correctness only. Original case deadline/per-ID600..630 unchanged; actual continuous30s restarted-role observations required and retained. Nonchild cleanup never invents Source parent waits.'}
+    stark_progress = None
+    if plan['scenario'] == 'starknet':
+        try: stark_progress = StarknetProgress(plan, manifest, Path(__file__).resolve().parents[2])
+        except Exception: result['stark_progress_diagnostic_status'] = 'source_or_tool_binding_unavailable'
     try:
         with (args.output/'owner-worker.log').open('xb') as stream:
             child=subprocess.Popen([sys.executable,'-I','-B',str(Path(__file__).resolve()),'--worker','--plan',str(args.plan),'--plan-sha256',args.plan_sha256,'--output',str(worker_output),'--original-deadline-ns',str(deadline_ns)],env={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8'},stdin=subprocess.DEVNULL,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
             groups[child.pid]=child.pid
             while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is None:
                 rows=owner.processes();owned=owner.owned_processes(rows,child.pid,known,groups,True)
+                if stark_progress is not None and (stark_progress.last_clock is None or time.monotonic_ns()-stark_progress.last_clock >= 1_000_000_000):
+                    observe_stark_progress(stark_progress, worker_output/'harness.log', owned, args.output/'public-starknet-progress.json', result)
                 container_ram,container_disk=container_reservation(plan['scenario'])
                 ram=sum(row['rss_bytes'] for row in owned.values())+container_ram
                 disk=owner.allocated(case)+container_disk

@@ -469,4 +469,123 @@ class CaseOwnerTests(unittest.TestCase):
                 row=api.write_public_failure_diagnostics(plan,manifest,approval,case,out,{'direct_waits':waits},90)
             self.assertIsNone(json.loads(Path(row['path']).read_text())['observer_startup_source_traceback'])
 
+class StarknetProgressTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='stark-progress-pure-')
+        self.addCleanup(self.temp.cleanup); self.root = Path(self.temp.name)
+        self.plan = {'diagnostic_rust_sources': {}, 'execution_source_commit': 'a'*40}
+        for suffix, needles in api.StarknetProgress.SOURCE_NEEDLES.items():
+            name = api.StarknetProgress.ROOT + suffix
+            path = self.root/name; path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('\n'.join(needles)); self.plan['diagnostic_rust_sources'][name] = api.pin(path)
+        self.cli = self.root/'fixture-tools/starkli'; self.cli.parent.mkdir(); self.cli.write_bytes(b'public-fake-not-executed'); self.cli.chmod(0o700)
+        self.manifest = {'tool_overrides': {'E2E_STARKLI_CLI_PATH': api.pin(self.cli)}, 'runtime_source_commit': 'b'*40, 'mode': 'ReleaseSafe'}
+        self.progress = api.StarknetProgress(self.plan, self.manifest, self.root)
+        self.log = self.root/'harness.log'; self.output = self.root/'public.json'
+        self.owned = {42: {'pid': 42, 'ppid': 30, 'start': 'linux-ticks:999', 'state': 'S', 'comm': 'starkli', 'argv': 'PRIVATE-KEY', 'env': {'PRIVATE': 'SECRET'}}}
+        self.now = 100
+
+    def observe(self, wire=None):
+        if wire is not None:
+            with self.log.open('ab') as stream: stream.write(wire)
+        self.now += 10
+        return self.progress.observe(self.log, self.now, self.owned, self.output)
+
+    def test_source_and_tool_pins_are_checked_not_merely_claimed(self):
+        self.cli.write_bytes(b'changed')
+        with self.assertRaises(ValueError): api.StarknetProgress(self.plan, self.manifest, self.root)
+
+    def test_source_marker_policy_refuses_changed_current_source(self):
+        path=self.root/api.StarknetProgress.ROOT/'logging.rs'; path.write_text('wrong source')
+        self.plan['diagnostic_rust_sources'][api.StarknetProgress.ROOT+'logging.rs']=api.pin(path)
+        with self.assertRaisesRegex(ValueError,'marker changed'): api.StarknetProgress(self.plan,self.manifest,self.root)
+
+    def test_wrong_source_path_is_rejected_even_when_same_bytes(self):
+        name=next(iter(self.plan['diagnostic_rust_sources'])); duplicate=self.root/'wrong.rs';duplicate.write_bytes(Path(self.plan['diagnostic_rust_sources'][name]['path']).read_bytes());self.plan['diagnostic_rust_sources'][name]=api.pin(duplicate)
+        with self.assertRaisesRegex(ValueError,'path differs'):api.StarknetProgress(self.plan,self.manifest,self.root)
+
+    def test_attempt_and_return_are_separate_and_do_not_publish_arguments(self):
+        wire=self.progress.attempt_prefix+b'0xabc dispatch PRIVATE-BODY --private-key PRIVATE-KEY\n'
+        row=self.observe(wire)
+        self.assertEqual(row['dispatch_attempt_marker_count'],1);self.assertEqual(row['dispatch_return_marker_count'],0)
+        row=self.observe(b'send-tx result: ["PRIVATE-TX-HASH", "ERROR: SECRET"]\n')
+        self.assertEqual(row['dispatch_return_marker_count'],1)
+        self.assertNotIn('PRIVATE',self.output.read_text());self.assertNotIn('SECRET',self.output.read_text());self.assertNotIn('exit_code',row['events']['dispatch_command_returned'])
+
+    def test_wrong_tool_function_cwd_and_child_prefixed_marker_reject(self):
+        prefix=self.progress.attempt_prefix
+        for wire in [prefix.replace(b'(../../)',b'(/foreign)')+b'0xabc dispatch x\n',prefix.replace(bytes(self.cli),b'/foreign/starkli')+b'0xabc dispatch x\n',prefix+b'0xabc other x\n',b'<starkli> send-tx result: []\n',b'<relayer> <E2E> E2E tests passed\n',b' x<E2E> Init postgres db...\n']:
+            row=self.observe(wire);self.assertEqual(row['events'],{})
+
+    def test_dispatch_batch_is_exact_fixed_source_direction(self):
+        self.assertEqual(self.observe(b'DISPATCHING MAILBOX: 23448594 -> [23448593]\n')['events'],{})
+        row=self.observe(b'DISPATCHING MAILBOX: 23448593 -> [23448594]\n')
+        self.assertEqual(row['events']['dispatch_batch_entered']['count'],1)
+
+    def test_chunk_boundaries_and_offsets_never_double_count(self):
+        first=b'<E2E> Init postgres db...\n';self.progress.READ_BYTES=5
+        self.log.write_bytes(first)
+        for _ in range(20):row=self.observe()
+        self.assertEqual(row['events']['postgres_init_requested']['count'],1)
+        self.assertEqual(row['events']['postgres_init_requested']['latest']['line_start_offset'],0)
+        self.assertEqual(row['events']['postgres_init_requested']['latest']['line_end_offset'],len(first))
+        self.assertEqual(row['scanned_prefix_sha256'],hashlib.sha256(first).hexdigest())
+
+    def test_incomplete_line_is_pending_not_observed_until_newline(self):
+        row=self.observe(b'<E2E> Init postgres db...');self.assertEqual(row['events'],{})
+        row=self.observe(b'\n');self.assertEqual(row['events']['postgres_init_requested']['count'],1)
+
+    def test_overlong_line_cannot_forge_its_suffix_as_new_marker(self):
+        self.progress.LINE_BYTES=32
+        row=self.observe(b'x'*33+b'<E2E> Init postgres db...\n<E2E> Init postgres db...\n')
+        self.assertEqual(row['overlong_lines_discarded'],1);self.assertEqual(row['events']['postgres_init_requested']['count'],1)
+
+    def test_scanning_has_per_read_and_whole_lifetime_caps(self):
+        self.progress.READ_BYTES=8;self.progress.MAX_SCAN=16
+        self.log.write_bytes(b'x'*100)
+        row=self.observe();self.assertEqual(row['scanned_bytes'],8);self.assertEqual(row['scan_status'],'backlog')
+        row=self.observe();self.assertEqual(row['scanned_bytes'],16);self.assertEqual(row['scan_status'],'scan_cap_reached')
+        row=self.observe();self.assertEqual(row['scanned_bytes'],16)
+
+    def test_old_log_cannot_be_replaced_truncated_or_symlinked(self):
+        self.observe(b'<E2E> Init postgres db...\n');self.log.rename(self.root/'old-inode');self.log.write_bytes(b'x'*50)
+        with self.assertRaisesRegex(ValueError,'replaced'):self.observe()
+
+    def test_truncated_log_refuses_without_resetting_counts(self):
+        self.observe(b'<E2E> Init postgres db...\n');self.log.write_bytes(b'')
+        with self.assertRaisesRegex(ValueError,'truncated'):self.observe()
+        self.assertEqual(self.progress.events['postgres_init_requested']['count'],1)
+
+    def test_symlink_is_never_followed(self):
+        other=self.root/'raw';other.write_bytes(b'PRIVATE');self.log.symlink_to(other)
+        with self.assertRaises(OSError):self.observe()
+        self.assertFalse(self.output.exists())
+
+    def test_initial_missing_log_and_monotonic_observation_clock(self):
+        row=self.observe();self.assertEqual(row['scan_status'],'log_not_created')
+        with self.assertRaisesRegex(ValueError,'clock'):self.progress.observe(self.log,self.now-1,self.owned,self.output)
+
+    def test_public_owned_census_is_typed_bounded_and_never_claims_authority(self):
+        self.owned={k:{**self.owned[42],'pid':k,'comm':'PRIVATE_EXECUTABLE'}for k in range(1,71)}
+        row=self.observe();self.assertEqual(len(row['owned_census']),64);self.assertEqual(row['owned_census_total'],70);self.assertTrue(row['owned_census_truncated'])
+        self.assertTrue(all(r['executable_kind']=='other'for r in row['owned_census']));self.assertNotIn('PRIVATE',self.output.read_text());self.assertNotIn('env',row['owned_census'][0])
+
+    def test_diagnostic_error_is_closed_and_cannot_change_business_verdict(self):
+        result={'passed':False,'native_case_acceptance':False}
+        with mock.patch.object(self.progress,'observe',side_effect=ValueError('PRIVATE-WIRE')):
+            api.observe_stark_progress(self.progress,self.log,self.owned,self.output,result)
+        self.assertTrue(self.progress.disabled);self.assertFalse(result['passed']);self.assertNotIn('PRIVATE',json.dumps(result))
+        with mock.patch.object(self.progress,'observe',side_effect=AssertionError('must stay disabled')):
+            api.observe_stark_progress(self.progress,self.log,self.owned,self.output,result)
+
+    def test_stage_markers_and_metrics_are_not_inferred_from_child_census(self):
+        row=self.observe(b'<E2E> Relayer confirmed 0 submitted messages, expected 10\n<E2E> Scraper has scraped 9 dispatched messages, expected 10\n<E2E> Scraper has scraped 0 delivered messages, expected 10\n')
+        self.assertEqual(set(row['events']),{'confirmed_metric_observed','dispatch_metric_observed','delivery_metric_observed'})
+        self.assertNotIn('dispatch_command_returned',row['events']);self.assertNotIn('passed',row)
+
+    def test_first_latest_observations_offsets_are_not_invented_emission_times(self):
+        wire=b'<E2E> Init postgres db...\n';first=self.observe(wire);start=first['events']['postgres_init_requested']['first'].copy();row=self.observe(wire)
+        event=row['events']['postgres_init_requested'];self.assertEqual(event['count'],2);self.assertEqual(event['first'],start);self.assertGreater(event['latest']['observed_monotonic_ns'],start['observed_monotonic_ns']);self.assertEqual(event['latest']['line_start_offset'],len(wire))
+
+
 if __name__=='__main__':unittest.main()

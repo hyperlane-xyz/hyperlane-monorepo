@@ -203,7 +203,7 @@ class Tests(unittest.TestCase):
   import docker_gate
   with mock.patch.object(docker_gate.time,'monotonic_ns',return_value=10**9):
    route='/containers/'+'c'*64+'/stop?t=10'
-   self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,'POST',route),11*10**9)
+   self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,'POST',route),13*10**9)
    self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,'POST',route,100*10**9),13*10**9)
    self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,'POST',route,2*10**9),2*10**9)
    for method,path in [('GET',route),('POST',route.replace('t=10','t=11')),('DELETE','/containers/'+'c'*64+'?v=1')]:self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,method,path,100*10**9),11*10**9)
@@ -228,7 +228,7 @@ class Tests(unittest.TestCase):
   for end in [100*10**9,130*10**9]:
    daemon=Transport(end);gate=api.Gate({'original_deadline_ns':10*10**9},daemon,None);route='/containers/'+'c'*64+'/stop?t=10'
    with mock.patch.object(docker_gate.time,'monotonic_ns',return_value=20*10**9):
-    gate.bounded_call('POST',route);self.assertEqual(daemon.observed[-1],30*10**9)
+    gate.bounded_call('POST',route);self.assertEqual(daemon.observed[-1],32*10**9)
     gate.cleaning=True;gate.bounded_call('POST',route);self.assertEqual(daemon.observed[-1],32*10**9)
     gate.bounded_call('GET',route);self.assertEqual(daemon.observed[-1],30*10**9)
     daemon.deadline_ns=21*10**9;gate.bounded_call('POST',route);self.assertEqual(daemon.observed[-1],21*10**9)
@@ -479,5 +479,161 @@ class NamespacePGPortControls(unittest.TestCase):
    with self.assertRaises(ValueError):self.call(command)
   self.assertEqual(self.calls,[])
 
+
+class ExactStopReplyMarginTests(unittest.TestCase):
+ def setUp(self):
+  import docker_gate
+  self.gate=docker_gate;self.route='/containers/'+'c'*64+'/stop?t=10';self.clock=[1_000_000_000]
+  patch=mock.patch.object(docker_gate.time,'monotonic_ns',side_effect=lambda:self.clock[0]);patch.start();self.addCleanup(patch.stop)
+ def budget(self):
+  import threading
+  value=self.gate.WholeSocket.__new__(self.gate.WholeSocket);value.deadline_ns=11*10**9;value.socket=mock.Mock();value.expired=threading.Event();value.timer=mock.Mock();value.timer.is_alive.return_value=False;return value
+ def test_exact_stop_margin_only_and_original_case_clamp(self):
+  for method,path,body in [('GET',self.route,None),('POST',self.route+'x',None),('POST',self.route.replace('t=10','t=11'),None),('POST','/containers/foreign/stop?t=10',None),('POST',self.route,b'null'),('POST',self.route,b'{}'),('POST',self.route,b' '),('POST','/info',None)]:
+   self.assertEqual(self.gate.request_reply_deadline(100*10**9,1*10**9,method,path,body),11*10**9)
+  self.assertEqual(self.gate.request_reply_deadline(100*10**9,1*10**9,'POST',self.route,b''),13*10**9)
+  self.assertEqual(self.gate.daemon_request_deadline(100*10**9,'POST',self.route,body=b'{}'),11*10**9)
+  self.assertEqual(self.gate.request_reply_deadline(12*10**9,1*10**9,'POST',self.route),12*10**9)
+  self.assertEqual(self.gate.request_reply_deadline(10*10**9,1*10**9,'POST',self.route),10*10**9)
+ def test_same_socket_handoff_cancels_joins_then_rearms_never_reopens(self):
+  value=self.budget();old=value.timer;order=[];old.cancel.side_effect=lambda:order.append('cancel');old.join.side_effect=lambda n:order.append('join');replacement=mock.Mock();replacement.start.side_effect=lambda:order.append('start')
+  self.clock[0]=10*10**9
+  with mock.patch.object(self.gate.threading,'Timer',return_value=replacement)as timers:value.exact_stop_reply_margin(13*10**9)
+  self.assertEqual(order,['cancel','join','start']);self.assertEqual(value.deadline_ns,13*10**9);self.assertIs(value.timer,replacement);value.socket.close.assert_not_called();value.socket.shutdown.assert_not_called();self.assertEqual(timers.call_args.args[0],3)
+ def test_expired_old_timer_cannot_be_reset_or_socket_reopened(self):
+  value=self.budget();old=value.timer;old.join.side_effect=lambda n:value.expired.set()
+  with mock.patch.object(self.gate.threading,'Timer')as timers:
+   with self.assertRaisesRegex(ValueError,'deadline expired'):value.exact_stop_reply_margin(13*10**9)
+  timers.assert_not_called();value.socket.close.assert_called_once();self.assertTrue(value.expired.is_set());self.assertEqual(value.deadline_ns,11*10**9)
+ def test_timer_cancel_race_crossing_original_ingress10_is_not_response_credit(self):
+  value=self.budget();value.timer.join.side_effect=lambda n:self.clock.__setitem__(0,11*10**9)
+  with mock.patch.object(self.gate.threading,'Timer')as timers:
+   with self.assertRaisesRegex(ValueError,'deadline expired'):value.exact_stop_reply_margin(13*10**9)
+  timers.assert_not_called();value.socket.close.assert_called_once()
+ def test_unjoined_old_timer_never_rearms(self):
+  value=self.budget();value.timer.is_alive.return_value=True
+  with mock.patch.object(self.gate.threading,'Timer')as timers:
+   with self.assertRaisesRegex(ValueError,'did not join'):value.exact_stop_reply_margin(13*10**9)
+  timers.assert_not_called();value.socket.close.assert_called_once()
+ def test_late_header_or_body_cannot_borrow_reply_margin(self):
+  for now in [11*10**9,12*10**9,13*10**9]:
+   value=self.budget();self.clock[0]=now
+   with mock.patch.object(self.gate.threading,'Timer')as timers:
+    with self.assertRaisesRegex(ValueError,'deadline expired'):value.exact_stop_reply_margin(13*10**9)
+   timers.assert_not_called()
+ def test_handoff_cannot_add_more_than2_or_remove_original_case_fence(self):
+  for end in [14*10**9,10*10**9,True]:
+   value=self.budget()
+   with self.assertRaises(ValueError):value.exact_stop_reply_margin(end)
+   value.timer.cancel.assert_not_called()
+ def test_handoff_same_case_clamped_deadline_does_not_restart_timer(self):
+  value=self.budget();value.exact_stop_reply_margin(11*10**9);value.timer.cancel.assert_not_called();self.assertEqual(value.deadline_ns,11*10**9)
+ def test_same_request_cannot_repeat_handoff_to_gain_another2seconds(self):
+  value=self.budget();value.exact_stop_reply_margin(11*10**9)
+  with self.assertRaisesRegex(ValueError,'only one'):
+   value.exact_stop_reply_margin(13*10**9)
+  self.assertEqual(value.deadline_ns,11*10**9);value.timer.cancel.assert_not_called()
+ def test_Handler_uses_original_entry_not_late_framing_time(self):
+  import io,struct,types
+  seen=[];route=self.route;clock=self.clock;g=self.gate
+  class Request:
+   def getsockopt(self,*args):return struct.pack('3i',42,1001,117)
+   def makefile(self,*args):
+    clock[0]=9*10**9
+    return io.BytesIO(('POST '+route+' HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n').encode())
+   def sendall(self,wire):seen.append(('reply',wire[:12]))
+  class Budget:
+   def __init__(self,end,request):self.deadline_ns=end;seen.append(('ingress',end))
+   def __enter__(self):return self
+   def __exit__(self,*a):pass
+   def check(self):g.need(clock[0]<self.deadline_ns,'whole socket deadline expired')
+   def exact_stop_reply_margin(self,end):self.check();seen.append(('handoff',end));self.deadline_ns=end
+  gate=mock.Mock(spec=['spec','dispatch','failed']);gate.spec={'original_deadline_ns':100*10**9};gate.failed=None
+  def dispatch(method,path,body,pid,end):seen.append(('dispatch',end));clock[0]=12*10**9;return 204,b''
+  gate.dispatch.side_effect=dispatch
+  with mock.patch.object(g,'WholeSocket',Budget),mock.patch.object(g.socket,'SO_PEERCRED',17,create=True):g.Handler.handle(types.SimpleNamespace(server=types.SimpleNamespace(gate=gate),request=Request()))
+  self.assertEqual(seen[:3],[('ingress',11*10**9),('handoff',13*10**9),('dispatch',13*10**9)]);self.assertEqual(seen[-1][0],'reply');self.assertIsNone(gate.failed)
+ def test_actual_Handler_trickle_past_ingress_deadline_never_dispatches(self):
+  import io,struct,types
+  clock=self.clock;g=self.gate;route=self.route
+  class Stream(io.BytesIO):
+   def read(self,n=-1):clock[0]+=10**9;return super().read(n)
+  request=mock.Mock();request.getsockopt.return_value=struct.pack('3i',42,1001,117);request.makefile.return_value=Stream(('POST '+route+' HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n').encode())
+  class Budget:
+   def __init__(self,end,*a):self.deadline_ns=end
+   def __enter__(self):return self
+   def __exit__(self,*a):pass
+   def check(self):g.need(clock[0]<self.deadline_ns,'whole socket deadline expired')
+   def exact_stop_reply_margin(self,end):raise AssertionError('late ingress must not rearm')
+  gate=mock.Mock(spec=['spec','dispatch','failed']);gate.spec={'original_deadline_ns':1000*10**9};gate.failed=None
+  with mock.patch.object(g,'WholeSocket',Budget),mock.patch.object(g.socket,'SO_PEERCRED',17,create=True):g.Handler.handle(types.SimpleNamespace(server=types.SimpleNamespace(gate=gate),request=request))
+  gate.dispatch.assert_not_called();request.sendall.assert_not_called();self.assertIn('deadline expired',gate.failed)
+ def test_actual_Gate_keeps_Handler_absolute_fence_instead_of_hop_reset(self):
+  from contextlib import contextmanager
+  import threading
+  observed=[]
+  class Daemon:
+   @contextmanager
+   def operation(self,end):observed.append(end);yield
+  value=self.gate.Gate({'original_deadline_ns':100*10**9},Daemon(),None);value._dispatch=mock.Mock(return_value=(204,b''));self.clock[0]=2*10**9
+  self.assertEqual(value.dispatch('POST',self.route,b'',42,13*10**9),(204,b''));self.assertEqual(observed,[13*10**9])
+  self.clock[0]=14*10**9
+  with self.assertRaisesRegex(ValueError,'gate lock deadline'):value.dispatch('POST',self.route,b'',42,13*10**9)
+ def test_actual_Daemon_call_clamps_stop12_to_threadlocal_Handler_fence(self):
+  import stat,types
+  g=self.gate;daemon=g.Daemon('/fixed/socket',[1,2],'1.48',100*10**9);captured=[]
+  class Budget:
+   def __init__(self,end,*a):captured.append(end);self.socket=mock.Mock()
+   def __enter__(self):return self
+   def __exit__(self,*args):pass
+   def check(self):pass
+  reply=mock.Mock();reply.status=204;reply.read.return_value=b''
+  self.clock[0]=2*10**9
+  class Connection:
+   def __init__(self,*args,**kwargs):pass
+   def request(self,*a,**kw):self.connect()
+   def getresponse(self):return reply
+   def close(self):pass
+  with mock.patch.object(g.os,'stat',return_value=types.SimpleNamespace(st_mode=stat.S_IFSOCK,st_dev=1,st_ino=2)),mock.patch.object(g,'WholeSocket',Budget),mock.patch.object(g.http.client,'HTTPConnection',Connection),daemon.operation(13*10**9):
+   self.assertEqual(daemon.call('POST',self.route),(204,b''))
+  self.assertEqual(captured,[13*10**9])
+ def test_actual_CLI_call_uses_earlier_start12_and_rejects_late_positive(self):
+  import ast,types
+  path=P.parent/'aleo_linux_sdk/docker_cli.py';tree=ast.parse(path.read_text());function=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='call');clock=self.clock;captured=[];g=self.gate;finish=[12*10**9]
+  class Budget:
+   def __init__(self,end,*a):captured.append(end);self.deadline_ns=end;self.socket=mock.Mock()
+   def __enter__(self):return self
+   def __exit__(self,*a):pass
+   def check(self):g.need(clock[0]<self.deadline_ns,'whole socket deadline expired')
+  class Reply:
+   status=204
+   def read(self,*a):clock[0]=finish[0];return b''
+   def close(self):pass
+  class Connection:
+   def __init__(self,*args,**kwargs):pass
+   def putrequest(self,*a,**kw):self.connect()
+   def putheader(self,*a):pass
+   def endheaders(self,*a):pass
+   def getresponse(self):return Reply()
+   def close(self):pass
+  ns={'WholeSocket':Budget,'request_reply_deadline':g.request_reply_deadline,'time':g.time,'http':types.SimpleNamespace(client=types.SimpleNamespace(HTTPConnection=Connection)),'need':g.need,'json':json}
+  exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),ns)
+  policy={'original_deadline_ns':100*10**9,'gate_socket':'/owned/fake'}
+  self.assertEqual(ns['call'](policy,'POST',self.route),b'');self.assertEqual(captured,[13*10**9])
+  self.clock[0]=1*10**9;finish[0]=13*10**9
+  with self.assertRaisesRegex(ValueError,'deadline expired'):ns['call'](policy,'POST',self.route)
+  self.clock[0]=1*10**9;finish[0]=11*10**9
+  with self.assertRaisesRegex(ValueError,'deadline expired'):ns['call'](policy,'GET','/info')
+  self.assertEqual(captured[-1],11*10**9)
+
+ def test_unknown_CID_remains_rejected_before_any_daemon_stop(self):
+  from contextlib import contextmanager
+  class Daemon:
+   @contextmanager
+   def operation(self,end):yield
+   def call(self,*args,**kwargs):raise AssertionError('unknown CID reached daemon')
+  value=self.gate.Gate({'original_deadline_ns':100*10**9},Daemon(),lambda _: {'pid':1});value.node_identity={'pid':1};value.spec['containers']=[]
+  with self.assertRaisesRegex(ValueError,'unowned CID'):value.dispatch('POST',self.route,b'',42,13*10**9)
+  self.assertIn('unowned CID',value.failed)
 
 if __name__=='__main__':unittest.main()

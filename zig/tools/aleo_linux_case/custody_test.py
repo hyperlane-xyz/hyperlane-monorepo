@@ -75,7 +75,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(self.daemon.cleanup_deadlines);self.assertTrue(all(row[2]==deadline for row in self.daemon.cleanup_deadlines))
         with patch.object(docker_gate.time,'monotonic_ns',return_value=now):
             self.assertEqual(docker_gate.daemon_request_deadline(deadline,'POST','/containers/'+cid+'/stop?t=10',deadline),now+12*10**9)
-            self.assertEqual(docker_gate.daemon_request_deadline(deadline,'POST','/containers/'+cid+'/stop?t=10'),now+10*10**9)
+            self.assertEqual(docker_gate.daemon_request_deadline(deadline,'POST','/containers/'+cid+'/stop?t=10'),now+12*10**9)
+            self.assertEqual(docker_gate.daemon_request_deadline(deadline,'GET','/info'),now+10*10**9)
+            self.assertEqual(docker_gate.daemon_request_deadline(now+5*10**9,'POST','/containers/'+cid+'/stop?t=10'),now+5*10**9)
             self.assertEqual(docker_gate.daemon_request_deadline(now+5*10**9,'POST','/containers/'+cid+'/stop?t=10',now+5*10**9),now+5*10**9)
 
     def test_map_fsync_precedes_visible_assignment_and_is_noclobber(self):

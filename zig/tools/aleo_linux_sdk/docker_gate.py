@@ -130,6 +130,32 @@ class WholeSocket:
     def check(self):
         need(not self.expired.is_set() and time.monotonic_ns() < self.deadline_ns, 'whole socket deadline expired')
 
+    def exact_stop_reply_margin(self, deadline_ns):
+        """One framed request: drain ingress timer before a bounded reply handoff."""
+        need(type(deadline_ns) is int and self.deadline_ns <= deadline_ns <= self.deadline_ns+2*10**9, 'exact stop reply margin exceeds2s')
+        need(not getattr(self, 'stop_reply_handoff', False), 'only one exact stop reply handoff')
+        self.check()
+        if deadline_ns == self.deadline_ns:
+            self.stop_reply_handoff = True
+            return
+        old = self.timer
+        old.cancel();old.join(1)
+        try:
+            need(not old.is_alive(), 'ingress timer did not join')
+            # Never clear expired or recreate/reopen the socket. A timer which
+            # entered expire while cancelling, or late framing, stays failed.
+            self.check()
+            self.deadline_ns = deadline_ns
+            self.socket.settimeout(max(.001,(deadline_ns-time.monotonic_ns())/10**9))
+            replacement = threading.Timer(max(0,(deadline_ns-time.monotonic_ns())/10**9),self.expire)
+            replacement.daemon = True
+            replacement.start();self.timer = replacement
+            self.stop_reply_handoff = True
+            self.check()
+        except BaseException:
+            self.close_socket()
+            raise
+
     def __exit__(self, kind, value, traceback):
         self.timer.cancel()
         self.close_socket()
@@ -144,8 +170,18 @@ def operation_deadline(original_deadline_ns):
     return min(original_deadline_ns, time.monotonic_ns()+10*10**9)
 
 
-def daemon_request_deadline(transport_deadline_ns,method,path,cleanup_deadline_ns=None):
-    if cleanup_deadline_ns is None:return operation_deadline(transport_deadline_ns)
+
+def exact_stop_request(method,path,body=None):
+    return method == 'POST' and isinstance(path,str) and re.fullmatch(r'/containers/[0-9a-f]{64}/stop\?t=10',path) is not None and (body is None or body == b'')
+
+
+def request_reply_deadline(original_deadline_ns,started_ns,method,path,body=None):
+    need(type(original_deadline_ns)is int and type(started_ns)is int and started_ns>0, 'original request clock required')
+    return min(original_deadline_ns,started_ns+(12 if exact_stop_request(method,path,body)else 10)*10**9)
+
+
+def daemon_request_deadline(transport_deadline_ns,method,path,cleanup_deadline_ns=None,body=None):
+    if cleanup_deadline_ns is None:return request_reply_deadline(transport_deadline_ns,time.monotonic_ns(),method,path,body)
     now=time.monotonic_ns()
     need(type(cleanup_deadline_ns)is int and now<cleanup_deadline_ns<=transport_deadline_ns,'Explicit remaining cleanup budget required')
     # Stop grants a fixed10s grace before Engine kills; transport needs a small
@@ -168,7 +204,7 @@ class Daemon:
         finally:self.local.deadline_ns = previous
 
     def call(self, method, path, body=None, maximum=LIMIT, cleanup_deadline_ns=None):
-        deadline = daemon_request_deadline(self.deadline_ns,method,path,cleanup_deadline_ns)
+        deadline = daemon_request_deadline(self.deadline_ns,method,path,cleanup_deadline_ns,body)
         if getattr(self.local, 'deadline_ns', None) is not None:
             deadline = min(deadline, self.local.deadline_ns)
         info = os.stat(self.path, follow_symlinks=False)
@@ -276,7 +312,8 @@ class Gate:
         finally:self.lock.release()
 
     def dispatch(self, method, path, raw, peer_pid, deadline_ns=None):
-        deadline_ns=min(operation_deadline(self.spec['original_deadline_ns']), deadline_ns) if deadline_ns is not None else operation_deadline(self.spec['original_deadline_ns'])
+        local_deadline=request_reply_deadline(self.spec['original_deadline_ns'],time.monotonic_ns(),method,path,raw)
+        deadline_ns=min(local_deadline,deadline_ns) if deadline_ns is not None else local_deadline
         with self.locked(deadline_ns), self.daemon.operation(deadline_ns):
             return self._dispatch(method,path,raw,peer_pid)
 
@@ -578,7 +615,8 @@ class Server(socketserver.UnixStreamServer):
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
-        deadline=operation_deadline(self.server.gate.spec['original_deadline_ns'])
+        entered_ns=time.monotonic_ns()
+        deadline=min(self.server.gate.spec['original_deadline_ns'],entered_ns+10*10**9)
         try:
             with WholeSocket(deadline,self.request) as budget:
                 pid,_,_=struct.unpack('3i',self.request.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12))
@@ -588,7 +626,10 @@ class Handler(socketserver.BaseRequestHandler):
                     while not header.endswith(b'\r\n\r\n'):
                         byte=stream.read(1);need(byte and len(header)<16384,'incomplete/oversized Docker header');header+=byte
                     method,path,length=request_frame(header);body=stream.read(length);need(len(body)==length,'truncated body')
-                    status,raw=self.server.gate.dispatch(method,path,body,pid,deadline)
+                    budget.check()
+                    if exact_stop_request(method,path,body):
+                        budget.exact_stop_reply_margin(request_reply_deadline(self.server.gate.spec['original_deadline_ns'],entered_ns,method,path,body))
+                    status,raw=self.server.gate.dispatch(method,path,body,pid,budget.deadline_ns)
                     budget.check()
                     self.request.sendall(('HTTP/1.1 '+str(status)+' Reply\r\nConnection: close\r\nContent-Length: '+str(len(raw))+'\r\n\r\n').encode()+raw)
                 finally:stream.close()

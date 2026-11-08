@@ -25,13 +25,13 @@ def _reviewed_module(name,path,digest):
     except BaseException:sys.modules.pop(name,None);raise
     return module
 _reviewed_module('receipts',KERNEL/'receipts.py',('a0dbe1ce96080a0f614605673994727a' '85fa946b49632f27e70223a0afe917a6'))
-_reviewed_module('docker_gate',HERE/'docker_gate.py',('238b4a20c461dcf60844bd11832729e9' 'c049fb67495d6d36ef72393ff4bf2878'))
+_reviewed_module('docker_gate',HERE/'docker_gate.py',('a3a14dbd57dbaefdbc57a1b3af2f3124' '7824e973ce08d09efe8affc37b800a91'))
 from receipts import decode, need
-from docker_gate import container_templates, WholeSocket, operation_deadline
+from docker_gate import container_templates, WholeSocket, request_reply_deadline
 
 
 def call(policy, method, path, body=None):
-    deadline=operation_deadline(policy['original_deadline_ns'])
+    deadline=request_reply_deadline(policy['original_deadline_ns'],time.monotonic_ns(),method,path,body)
     with WholeSocket(deadline) as budget:
         class Connection(http.client.HTTPConnection):
             def connect(self):

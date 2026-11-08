@@ -883,6 +883,7 @@ jobs:
             ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/actual-interop-ReleaseSafe.json
             ${{ runner.temp }}/native-case-composition-${{ github.run_id }}-${{ github.run_attempt }}/actual-interop-ReleaseFast.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/result.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/public-starknet-progress.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/worker-result.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-final-proof.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-failure-diagnostics.json
