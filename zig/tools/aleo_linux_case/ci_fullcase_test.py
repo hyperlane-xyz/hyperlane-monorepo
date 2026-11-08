@@ -90,7 +90,7 @@ class Policy(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve();self.value=json.loads((HERE/'ci_policy.PENDING.json').read_text())
   # Negative fixtures stay inert even when the real checked-in case policy is activated.
-  self.value.update(root_approved=False,runtime_source_commit=None,requests={mode:None for mode in m.MODES},qualified_cohort=None,qualified_docker=None,required_source=None)
+  self.value.update(root_approved=False,selected_mode=None,runtime_source_commit=None,requests={mode:None for mode in m.MODES},qualified_cohort=None,qualified_docker=None,required_source=None)
  def descriptor(self,value):
   p=self.root/'policy.json';p.write_text(json.dumps(value));return m.pin(p)
  def test_false_policy_is_inert_for_both_modes_before_any_effect(self):
@@ -104,7 +104,7 @@ class Policy(unittest.TestCase):
    bad={**self.value,key:value};row=self.descriptor(bad)
    with self.subTest(key=key),self.assertRaises(ValueError):m.policy(row['path'],row['sha256'],'ReleaseSafe',self.root)
  def test_approved_missing_qualification_never_becomes_execution(self):
-  self.value.update(root_approved=True,runtime_source_commit='a'*40);row=self.descriptor(self.value)
+  self.value.update(root_approved=True,selected_mode='ReleaseSafe',runtime_source_commit='a'*40);row=self.descriptor(self.value)
   with self.assertRaises(ValueError):m.policy(row['path'],row['sha256'],'ReleaseSafe',self.root)
  def test_duplicate_json_keys_reject(self):
   with self.assertRaisesRegex(ValueError,'duplicate'):m.decode('{"root_approved":false,"root_approved":true}')
@@ -113,15 +113,86 @@ class Policy(unittest.TestCase):
   out=m.fixed_environment(env);self.assertNotIn('private-marker',json.dumps(out));self.assertNotIn('HOME',out)
 class ActivatedPolicyFixture(unittest.TestCase):
  def test_real_activation_cannot_turn_negative_policy_fixture_into_authority(self):
-  active={**m.FIXED,'root_approved':True,'runtime_source_commit':'a'*40,'requests':{mode:{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}for mode in m.MODES},'qualified_cohort':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'qualified_docker':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'required_source':[{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}]}
+  active={**m.FIXED,'root_approved':True,'selected_mode':'ReleaseSafe','runtime_source_commit':'a'*40,'requests':{mode:{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}for mode in m.MODES},'qualified_cohort':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'qualified_docker':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'required_source':[{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}]}
   case=Policy('test_false_policy_is_inert_for_both_modes_before_any_effect')
   try:
    with mock.patch.object(pathlib.Path,'read_text',return_value=json.dumps(active)):case.setUp()
    self.assertIs(case.value['root_approved'],False)
-   for key in ['runtime_source_commit','qualified_cohort','qualified_docker','required_source']:self.assertIsNone(case.value[key])
+   for key in ['selected_mode','runtime_source_commit','qualified_cohort','qualified_docker','required_source']:self.assertIsNone(case.value[key])
    self.assertEqual(case.value['requests'],{mode:None for mode in m.MODES})
    case.test_false_policy_is_inert_for_both_modes_before_any_effect()
   finally:case.doCleanups()
+
+class SelectedMode(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve()
+ def descriptor(self,value):
+  p=self.root/'policy.json';p.write_text(json.dumps(value));return m.pin(p)
+ def inert(self):
+  return {**m.FIXED,'root_approved':False,'selected_mode':None,'runtime_source_commit':None,'requests':dict.fromkeys(m.MODES),'qualified_cohort':None,'qualified_docker':None,'required_source':None}
+ def relative(self,path):
+  return {**m.pin(path),'path':path.relative_to(self.root).as_posix()}
+ def approved(self,selected):
+  # Source-only synthetic policy fixture; no prerequisite or native acceptance.
+  sources=[]
+  for source in sorted(m.source_policy_paths(REPO)):
+   source=pathlib.Path(source);relative=source.relative_to(REPO);target=self.root/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(source.read_bytes());sources.append(self.relative(target))
+  value=self.inert();value.update(root_approved=True,selected_mode=selected,runtime_source_commit='a'*40,required_source=sources)
+  for key,body in [('qualified_cohort',{'synthetic_parser_fixture':True}),('qualified_docker',{'passed':True,'synthetic_parser_fixture':True})]:
+   p=self.root/(key+'.json');p.write_text(json.dumps(body));value[key]=self.relative(p)
+  for mode in m.MODES:
+   p=self.root/('transport-'+mode+'.json');p.write_text(json.dumps({'root_approved':True,'scenario':'cosmosnative','mode':mode,'producer_source_commit':value['runtime_source_commit']}));value['requests'][mode]=self.relative(p)
+  return value
+ def select(self,row,mode):
+  # Execute the actual --select branch AST; no subprocess or custom selector.
+  tree=ast.parse(pathlib.Path(m.__file__).read_bytes());entry=next(n for n in tree.body if isinstance(n,ast.If)and isinstance(n.test,ast.Compare)and ast.unparse(n.test)=="__name__ == '__main__'")
+  branch=next(n for n in entry.body if isinstance(n,ast.If)and ast.unparse(n.test)=='args.select');printed=[];output=self.root/'GITHUB_OUTPUT'
+  scope={**m.__dict__,'args':N(policy=row['path'],policy_sha=row['sha256'],mode=mode),'os':N(environ={'GITHUB_WORKSPACE':str(self.root),'GITHUB_OUTPUT':str(output)}),'print':printed.append}
+  exec(compile(ast.Module(body=branch.body,type_ignores=[]),'actual-fullcase-select-branch','exec'),scope)
+  return json.loads(printed[-1]),output.read_text().splitlines()[-1]
+ def test_false_null_is_inert_and_missing_or_nonnull_selection_refuses(self):
+  value=self.inert();row=self.descriptor(value)
+  for mode in m.MODES:self.assertEqual(m.policy(row['path'],row['sha256'],mode,self.root),(value,None))
+  for selected in [False,0,'ReleaseSafe','ReleaseFast','',[],{}]:
+   row=self.descriptor({**value,'selected_mode':selected})
+   with self.subTest(selected=selected),self.assertRaisesRegex(ValueError,'selected'):m.policy(row['path'],row['sha256'],'ReleaseSafe',self.root)
+  value.pop('selected_mode');row=self.descriptor(value)
+  with self.assertRaisesRegex(ValueError,'fixed full-case policy'):m.policy(row['path'],row['sha256'],'ReleaseSafe',self.root)
+ def test_approved_selection_requires_exact_enum_before_authority_reads(self):
+  for selected in [None,False,0,'','safe','releasesafe','ReleaseSafe ',[],{}]:
+   value={**self.inert(),'root_approved':True,'selected_mode':selected};row=self.descriptor(value)
+   with self.subTest(selected=selected),mock.patch.object(m,'policy_pin',side_effect=AssertionError('authority read before selection validation')),self.assertRaisesRegex(ValueError,'selected'):m.policy(row['path'],row['sha256'],'ReleaseSafe',self.root)
+ def test_selected_both_modes_validate_full54_and_both_transports(self):
+  for mode in m.MODES:
+   value=self.approved(mode);row=self.descriptor(value);out,authority=m.policy(row['path'],row['sha256'],mode,self.root)
+   self.assertEqual(authority,row);self.assertEqual(out['selected_mode'],mode);self.assertEqual(len(out['required_source']),54);self.assertEqual(set(out['requests']),set(m.MODES));self.assertTrue(all(out[k]==v for k,v in m.FIXED.items()))
+   result,line=self.select(row,mode);self.assertEqual(result,{'enabled':True,'native_case_acceptance':False});self.assertEqual(line,'enabled=true')
+   other=next(name for name in m.MODES if name!=mode);self.assertIsNone(m.policy(row['path'],row['sha256'],other,self.root)[1]);result,line=self.select(row,other);self.assertEqual(result,{'enabled':False,'native_case_acceptance':False});self.assertEqual(line,'enabled=false')
+ def test_unselected_select_and_execute_are_inert_despite_stale_selected_authority(self):
+  for selected in m.MODES:
+   requested=next(mode for mode in m.MODES if mode!=selected);value={**self.inert(),'root_approved':True,'selected_mode':selected};row=self.descriptor(value)
+   with mock.patch.object(m,'policy_pin',side_effect=AssertionError('unselected authority read')),mock.patch.object(m,'module',side_effect=AssertionError('unselected import')),mock.patch.object(m,'job_observation',side_effect=AssertionError('unselected API')),mock.patch.object(m.subprocess,'Popen',side_effect=AssertionError('unselected child')):
+    self.assertEqual(m.policy(row['path'],row['sha256'],requested,self.root),(value,None));result,line=self.select(row,requested);self.assertEqual(result,{'enabled':False,'native_case_acceptance':False});self.assertEqual(line,'enabled=false');self.assertEqual(m.execute(row['path'],row['sha256'],requested,{'GITHUB_WORKSPACE':str(self.root)}),{'enabled':False,'native_case_acceptance':False})
+   self.assertEqual({p.name for p in self.root.iterdir()},{'policy.json','GITHUB_OUTPUT'})
+ def test_selected_stale_Source_or_header_refuses_for_both_modes(self):
+  for mode,kind in itertools.product(m.MODES,['source','cohort','docker']):
+   value=self.approved(mode);path=self.root/(value['required_source'][0]['path']if kind=='source'else value['qualified_'+kind]['path']);path.write_bytes(path.read_bytes()+b' ');row=self.descriptor(value)
+   with self.subTest(mode=mode,kind=kind),self.assertRaisesRegex(ValueError,'artifact changed'):m.policy(row['path'],row['sha256'],mode,self.root)
+ def test_selected_needs_unselected_transport_and_complete_Source_membership(self):
+  for mode,kind in itertools.product(m.MODES,['transport','source_missing','source_duplicate','docker_not_passed']):
+   value=self.approved(mode)
+   if kind=='transport':
+    other=next(name for name in m.MODES if name!=mode);p=self.root/value['requests'][other]['path'];request=json.loads(p.read_text());request['root_approved']=False;p.write_text(json.dumps(request));value['requests'][other]=self.relative(p)
+   elif kind=='source_missing':value['required_source'].pop()
+   elif kind=='source_duplicate':value['required_source'].append(copy.deepcopy(value['required_source'][0]))
+   else:
+    p=self.root/value['qualified_docker']['path'];p.write_text('{"passed":false}');value['qualified_docker']=self.relative(p)
+   row=self.descriptor(value)
+   with self.subTest(mode=mode,kind=kind),self.assertRaises(ValueError):m.policy(row['path'],row['sha256'],mode,self.root)
+ def test_requested_mode_remains_validated_even_when_unselected(self):
+  value={**self.inert(),'root_approved':True,'selected_mode':'ReleaseSafe'};row=self.descriptor(value)
+  for requested in [None,False,'','safe','ReleaseOther']:
+   with self.subTest(requested=requested),self.assertRaisesRegex(ValueError,'both mode request'):m.policy(row['path'],row['sha256'],requested,self.root)
 
 class PolicyPins(unittest.TestCase):
  def setUp(self):

@@ -8,7 +8,7 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent
 MODES=('ReleaseSafe','ReleaseFast')
 FIXED={'schema':1,'kind':'aleo-linux-fullcase-ci-policy-v1','confirm_seconds':600,'restart_seconds':30,'proof_seconds':10800,'service_seconds':11160,'stop_seconds':240,'job_minutes':330,'minimum_remaining_minutes':195}
-FIELDS=set(FIXED)|{'root_approved','runtime_source_commit','requests','qualified_cohort','qualified_docker','required_source'}
+FIELDS=set(FIXED)|{'root_approved','selected_mode','runtime_source_commit','requests','qualified_cohort','qualified_docker','required_source'}
 def need(value,message):
  if not value:raise ValueError(message)
 def decode(raw):
@@ -250,7 +250,9 @@ def policy(path,sha,mode,repo):
  row=pin(path);need(row['sha256']==sha,'policy SHA differs');value=load(row,65536)
  need(set(value)==FIELDS and all(type(value[k])is type(v)and value[k]==v for k,v in FIXED.items())and type(value['root_approved'])is bool,'fixed full-case policy required')
  need(mode in MODES and type(value['requests'])is dict and set(value['requests'])==set(MODES),'both mode request fields required')
- if not value['root_approved']:return value,None
+ selected=value['selected_mode']
+ need(selected is None if not value['root_approved']else type(selected)is str and selected in MODES,'exact selected full-case mode required')
+ if not value['root_approved']or mode!=selected:return value,None
  need(re.fullmatch('[0-9a-f]{40}',value['runtime_source_commit']or''),'qualified runtime Source required')
  for name in ('qualified_cohort','qualified_docker'):
   value[name]=policy_pin(value[name],repo)
