@@ -73,11 +73,11 @@
     },
     {
       "path": "zig/bench/cohort_readback.py",
-      "bytes": 77493,
+      "bytes": 77502,
       "sha256": {
         "sha256_hex_chunks": [
-          "1ed207164cf9c698d4c6c9fb2ec71e34",
-          "f582fdeec3b5e789a2e01fae6c6c20a7"
+          "43b2f9b8a337a1b2398a94d501aeaded",
+          "25a722bab64cd746f1983c9cf5a2ced4"
         ]
       }
     },

@@ -145,11 +145,21 @@ def family_fixture(family):
     else:raise AssertionError(family)
     return files,git
 
+def synthetic_policy():
+    """Parser-only fake inventory; never an activation or publisher receipt."""
+    names=api.artifact_names(1,1)
+    return {'schema':1,'root_approved':False,'scope':'fresh-eight-product-data-inspection',
+            'producer':{'source_commit':api.PRODUCER,'run_id':1,'run_attempt':1},
+            'jobs':{name:i for i,name in enumerate(api.REQUIRED_JOBS,1)},
+            'artifacts':{key:{'id':i,'name':name,'size_in_bytes':2,'sha256':api.sha(b'SYNTHETIC parser-only payload')}for i,(key,name)in enumerate(names.items(),101)},
+            'core607':{'zig/src/synthetic-parser-only-'+str(i)+'.zig':{'bytes':0,'sha256':api.sha(b'')}for i in range(607)},
+            'limits':dict(api.LIMITS)}
+
 class Controls(unittest.TestCase):
     def setUp(self):
-        self.policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes());self.policy['root_approved']=False;self.policy['scope']='fresh-eight-product-data-inspection'
-        # Synthetic controls only; runtime module stays unbound/inert.
-        binding=mock.patch.object(api,'PRODUCER',self.policy['producer']['source_commit']);binding.start();self.addCleanup(binding.stop)
+        # Entirely SYNTHETIC metadata: no actual job/artifact IDs, acquired bytes,
+        # Git catalog, publisher evidence or acceptance. Never patch PRODUCER.
+        self.policy=synthetic_policy()
     def test_unbound_fresh_reader_cannot_enable_or_reuse_old_identity(self):
         self.policy['root_approved']=True
         with mock.patch.object(api,'PRODUCER',None),self.assertRaisesRegex(api.Refused,'FRESH_PRODUCER_NOT_BOUND'):api.validate_policy(self.policy)
@@ -308,9 +318,22 @@ class Controls(unittest.TestCase):
         self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.inspect_archive('sdk_fast',a,sdk_source())['mode'],'ReleaseFast'))
         files,git=family_fixture('writer');manifest=json.loads(files['manifest.json']);manifest['mode']='ReleaseFast';manifest['writer']['path']='bin/native-rows-writer-ReleaseFast';files[manifest['writer']['path']]=files.pop('bin/native-rows-writer-ReleaseSafe');files['manifest.json']=json.dumps(manifest).encode()
         self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.inspect_archive('writer_fast',a,git)['mode'],'ReleaseFast'))
-    def test_real_private_policy_disabled_but_complete_pins_validate_when_explicitly_enabled_in_memory(self):
+    def test_synthetic_policy_is_disabled_and_complete_parser_pins_validate_only_in_memory(self):
         self.assertFalse(api.validate_policy(self.policy));enabled=copy.deepcopy(self.policy);enabled['root_approved']=True
-        self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),sum(r['size_in_bytes']for r in api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())['artifacts'].values()))
+        self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
+    def test_current_policy_binding_and_synthetic_unbound_future_pins_refuse(self):
+        policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
+        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42519960947,'run_attempt':1})
+        # Parse either a reviewed complete READONLY policy or its inert precursor;
+        # this test grants no approval and does not require live activation.
+        self.assertIs(api.validate_policy(policy),policy['root_approved'])
+        unbound=copy.deepcopy(self.policy);unbound['jobs']=dict.fromkeys(api.REQUIRED_JOBS);unbound['artifacts']=dict.fromkeys(api.PRODUCT_KEYS);unbound['core607']=None
+        self.assertFalse(api.validate_policy(unbound));unbound['root_approved']=True
+        with self.assertRaisesRegex(api.Refused,'POLICY_JOBS'):api.validate_policy(unbound)
+    def test_reader_is_bound_to_bcd_and_historical06_policy_cannot_authorize(self):
+        self.assertEqual(api.PRODUCER,'bcd97e71ce727edb4527d07757f6a2d4230c4378')
+        historical=copy.deepcopy(self.policy);historical['root_approved']=True;historical['producer']['source_commit']='06e263fe7950e6051502a771646bbcc6d0453369'
+        with self.assertRaisesRegex(api.Refused,'POLICY_PRODUCER'):api.validate_policy(historical)
     def test_missing_future_or_malformed_policy_never_authorizes(self):
         self.policy['root_approved']=True
         for mutate in [lambda p:p['producer'].__setitem__('source_commit','0'*40),lambda p:p['artifacts']['helper'].__setitem__('id',None),lambda p:p.__setitem__('root_approved',1),lambda p:p['limits'].__setitem__('host_free_bytes',0)]:
@@ -393,16 +416,18 @@ class Controls(unittest.TestCase):
         result=api.literal_constants(source,{'SCOPES','ASSETS'});self.assertEqual(result['SCOPES'],['x','y']);self.assertEqual(result['ASSETS']['b']['bytes'],2)
         with self.assertRaises(api.Refused):api.literal_constants('X=unknown()\n',{'X'})
     def test_native_suite_failure_duplicate_rows_or_missing_recovery_controls_refuse(self):
-        files=sdk_fixture();native=json.loads(files['receipts/native.json']);self.assertEqual(api.suite_counts(native)['total'],25)
+        files=sdk_fixture();native=json.loads(files['receipts/native.json']);self.assertEqual(api.suite_counts(native)['total'],3+len(actual_native_required()))
         for mutate in [lambda r:r['tests']['per_test'][0].__setitem__('status','FAIL'),lambda r:r['tests']['per_test'][0].__setitem__('ordinal',True),lambda r:r['tests']['per_test'][0].__setitem__('name','other')]:
             changed=copy.deepcopy(native);mutate(changed)
             with self.assertRaises(api.Refused):api.suite_counts(changed)
     def test_producer_required_native_catalog_and_closed_count(self):
-        required=actual_native_required();self.assertEqual(len(required),22)
+        required=actual_native_required();self.assertEqual(len(required),24)
+        self.assertIn('scraper generic raw sequence snapshots dispatch before derived insertion union write',required)
+        self.assertIn('Aleo worker forwards explicit public consensus override into actual clean child and preserves absence',required)
         files=sdk_fixture()
         result=self.zip(list(files.items()),lambda a,*_:api.validate_sdk(a,'ReleaseSafe',sdk_source()))
-        self.assertEqual(result['native_suite']['producer_native_required_count'],22)
-        self.assertEqual(api.public_facts(result)['native_suite']['producer_native_required_count'],22)
+        self.assertEqual(result['native_suite']['producer_native_required_count'],len(required))
+        self.assertEqual(api.public_facts(result)['native_suite']['producer_native_required_count'],len(required))
         for case in ('missing','duplicate','empty','invalid','nonliteral','wrong_type','duplicate_binding','later_nonliteral','annotated','later_annotated','later_augmented'):
             source=sdk_source()
             source.rows['zig/tools/container_check.py']={'missing':b'OTHER=()', 'duplicate':('NATIVE_REQUIRED = '+repr(required+(required[0],))).encode(),'empty':b'NATIVE_REQUIRED=()', 'invalid':b'NATIVE_REQUIRED=("bad\\nname",)', 'nonliteral':b'NATIVE_REQUIRED=runtime_call()', 'wrong_type':b'NATIVE_REQUIRED={"test":1}', 'duplicate_binding':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED=("second",)', 'later_nonliteral':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED=runtime_call()', 'annotated':b'NATIVE_REQUIRED:tuple=("first",)', 'later_annotated':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED:tuple=("second",)', 'later_augmented':b'NATIVE_REQUIRED=("first",)\nNATIVE_REQUIRED+=("second",)'}[case]
