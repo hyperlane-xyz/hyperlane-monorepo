@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "root_approved": true,
-  "scenario": "sealevel-composite",
+  "root_approved": false,
+  "scenario": "tron",
   "mode": "ReleaseSafe",
-  "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
-  "producer_run_id": 42451611648,
+  "producer_source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",
+  "producer_run_id": 42435923739,
   "producer_run_attempt": 1,
   "limits": {
     "maximum_owned_RAM_bytes": 8589934592,
@@ -12,7 +12,25 @@
     "minimum_host_free_bytes": 6442450944,
     "maximum_wall_seconds": 3600
   },
-  "postgres": null,
+  "postgres": {
+    "schema": 2,
+    "architecture": "amd64",
+    "image": "postgres:14",
+    "image_id": {
+      "sha256_hex_chunks": [
+        "47b95c5ad45838febbc39cae4194b6f9",
+        "c3f6c3d7409b20043e8cea4a5bd70fec"
+      ],
+      "prefix": "sha256:"
+    },
+    "canonical_digest": {
+      "sha256_hex_chunks": [
+        "834a046089d76edd1d2e81c4741f3ad5",
+        "d1853646ededc86c2708936aad31c1ed"
+      ],
+      "prefix": "postgres@sha256:"
+    }
+  },
   "prerequisites": {
     "local_checkout_build": true,
     "hpack": {
@@ -26,85 +44,100 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "svm_offline": {
+    "tron_cli": {
+      "schema": 1,
+      "name": "hyperlane",
+      "version": "45.1.0",
+      "node_version": "26.12.1",
+      "pnpm_version": "12.3.0",
+      "full_original_tsconfig": true,
+      "EVM_solc": "0.8.33",
+      "TVM_solc": "0.8.24",
+      "owned_full_package_graph": true
+    },
+    "tron_tre": {
       "schema": 2,
-      "platform": "linux-x86_64",
-      "agave_version": "3.0.14",
-      "platform_tools_version": "v1.51",
-      "spl_release": "2024-08-23",
-      "spl_token_revision": "e101cca",
-      "programs": 13,
-      "agave_files": 85,
-      "source_environment_files": 25,
-      "require_same_producer_source": true
+      "architecture": "amd64",
+      "source_image": {
+        "sha256_hex_chunks": [
+          "f4332e11df12a9f360639a4546fd0465",
+          "93909630fda48af00b30410c144342f0"
+        ],
+        "prefix": "tronbox/tre@sha256:"
+      },
+      "canonical_digest": {
+        "sha256_hex_chunks": [
+          "f4332e11df12a9f360639a4546fd0465",
+          "93909630fda48af00b30410c144342f0"
+        ],
+        "prefix": "tronbox/tre@sha256:"
+      },
+      "image_id": {
+        "sha256_hex_chunks": [
+          "bf3a2b631ff2a1834530f69fcb90508c",
+          "40970203aa1240b692223308cc90cae0"
+        ],
+        "prefix": "sha256:"
+      },
+      "command": ["./quickstart", "v2.0.0"],
+      "entrypoint": null
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13606194323,
+      "id": 13599673473,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52478175,
       "sha256": {
         "sha256_hex_chunks": [
-          "8975f1a1f5ef9ab5dd03845c4f5cfd20",
-          "37c2d2eee2ef0589d40155eba9a042a2"
+          "5714a11a3d37dc2537f79f94bdad72a5",
+          "571c62f78e54f4e4ad729cfe2c6438a6"
         ]
-      }
+      },
+      "size_in_bytes": 52478141
     },
     "helper": {
-      "id": 13606680784,
+      "id": 13600052943,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56436058,
       "sha256": {
         "sha256_hex_chunks": [
-          "ab83a8f55b6479380e49253843521f4d",
-          "13339bbd19f14864f19bb34279e44481"
+          "d2281c9efbd1eb50a44d170ceed74847",
+          "5fc190376c88b756b9fb5675b79b6fac"
         ]
-      }
+      },
+      "size_in_bytes": 56301411
     },
     "tools": {
-      "id": 13606129411,
-      "name": "zig-native-case-tools-e745fdaae1f8320ac2b67bea9157396db560c848",
-      "size_in_bytes": 20092129,
+      "id": 13600331646,
+      "name": "zig-native-case-tools-982d45c6e6f363872ed75eae0a584714dd8f0bf3",
       "sha256": {
         "sha256_hex_chunks": [
-          "a864800b83ffd809e3f7ed0d0f822aad",
-          "b811e214488e50f0c35dfc645ad21f67"
+          "b497deed9bf68dfbe336d3b900e11b52",
+          "45a000b8d6b0b7d003897f690342f56d"
         ]
-      }
+      },
+      "size_in_bytes": 20092258
     },
     "writer_safe": {
-      "id": 13606820795,
+      "id": 13599907595,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171534,
       "sha256": {
         "sha256_hex_chunks": [
-          "cfcf2c3edb750d321b7d508c95d05aba",
-          "2e18cb4ba528d4792337a55cf74b7649"
+          "2b970a033f11afd72414eba9c094f759",
+          "da950b8f5bfd063c67b472e7d2239696"
         ]
-      }
+      },
+      "size_in_bytes": 5171513
     },
     "writer_fast": {
-      "id": 13606508529,
+      "id": 13601151434,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4863041,
       "sha256": {
         "sha256_hex_chunks": [
-          "6540bcb179de4910aa90a5bf791c0b1e",
-          "d3cf44b63f49ccc97a31d8df99d4a4e5"
+          "b4eabb579d94ee289c560a78e9fa50f9",
+          "1fe022d0403c334cae37abb062ab81f9"
         ]
-      }
-    },
-    "svm": {
-      "id": 13605619403,
-      "name": "svm-linux-prerequisites-42451611648-1",
-      "size_in_bytes": 327978116,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "d0802427a2f84cc54fbb7c0867f9b074",
-          "f347375d5dfa36c0a00bed754339e458"
-        ]
-      }
+      },
+      "size_in_bytes": 4863023
     }
   }
 }
