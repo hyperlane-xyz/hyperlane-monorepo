@@ -1,41 +1,41 @@
 {
   "schema": 1,
   "kind": "paired-linux-ci-v1",
-  "root_approved": false,
-  "inputs_enabled": false,
-  "functional_enabled": false,
+  "root_approved": true,
+  "inputs_enabled": true,
+  "functional_enabled": true,
   "runtime_enabled": false,
-  "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
+  "producer_source_commit": "06e263fe7950e6051502a771646bbcc6d0453369",
   "baseline_source_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
   "baseline_profile": "locked-c520224-production-three-agent-linux-v1",
   "qualified_cohort": {
     "path": "zig/bench/paired_linux_cohort.PENDING.json",
-    "bytes": 10421,
+    "bytes": 16464,
     "sha256": {
       "sha256_hex_chunks": [
-        "f31aebe68b0c0c872ed10b2fface7a31",
-        "6eb914e1a444efbb85fab9c5c3db3186"
+        "58ea80c35edc30d5980051977c885144",
+        "75d30fbc77aeed57d74d90b5c994f6c8"
       ]
     }
   },
   "transport_requests": {
     "ReleaseSafe": {
       "path": "zig/bench/paired_linux_transport-ReleaseSafe.PENDING.json",
-      "bytes": 3106,
+      "bytes": 3105,
       "sha256": {
         "sha256_hex_chunks": [
-          "20b8fa666794260e7590932ae0607afc",
-          "71ff537251aba7cedad80aee66680813"
+          "306f2f037feb949f1c82bf10536a2e1d",
+          "0076b8ff8de461056b26eab25fc26a74"
         ]
       }
     },
     "ReleaseFast": {
       "path": "zig/bench/paired_linux_transport-ReleaseFast.PENDING.json",
-      "bytes": 3106,
+      "bytes": 3105,
       "sha256": {
         "sha256_hex_chunks": [
-          "4f2360d35424a74f6a99e9c2f6aee1d1",
-          "c8d6c0f49fb3113c88021b4eee3ddb82"
+          "1bc7dee80c1a547779663131a7486c2b",
+          "e06dddc5ac685a16a42a3684a21b0567"
         ]
       }
     }
