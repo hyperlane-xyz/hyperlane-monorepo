@@ -702,6 +702,230 @@ export async function verifySdkBuildClosure(
   return outputs;
 }
 
+/** Actual Linux CI interop DTO. Separate from the Mac owner/Clippy receipt. */
+export async function verifyLinuxNativeReaderAcceptance(
+  value: unknown,
+  readerTool: ArtifactPin,
+  canonicalTool: ArtifactPin,
+  repository: string,
+): Promise<void> {
+  const accepted = object(value, 'Linux interop summary');
+  fields(
+    accepted,
+    [
+      'accepted_component_source_and_actual_Zig_storage_interop',
+      'family_chain_SDK_finality_delivery_elapsed600_acceptance',
+      'reader',
+      'modes',
+      'source_sha256',
+    ],
+    'Linux interop summary',
+  );
+  requireValue(
+    accepted.accepted_component_source_and_actual_Zig_storage_interop ===
+      true &&
+      accepted.family_chain_SDK_finality_delivery_elapsed600_acceptance ===
+        false,
+    'Linux storage component cannot supply native family acceptance',
+  );
+  requireValue(
+    sameProduct(await checkedRecordedArtifact(accepted.reader), readerTool),
+    'Linux reader differs',
+  );
+  const sources = object(accepted.source_sha256, 'Linux reader Source');
+  fields(
+    sources,
+    [
+      'zig/src/native_rows_interop_fixture.zig',
+      'zig/integration/native_rows_interop.py',
+      'zig/bench/native_case_tools.py',
+      'zig/bench/native_harness_census.py',
+    ],
+    'actual interop Source closure',
+  );
+  const sourceRoot = await realpath(repository);
+  for (const [relative, sha256] of Object.entries(sources)) {
+    const path = join(sourceRoot, relative);
+    await checkArtifact(pin({ path, bytes: (await lstat(path)).size, sha256 }));
+  }
+  const modes = object(accepted.modes, 'Linux storage modes');
+  fields(modes, ['safe', 'fast'], 'Linux storage modes');
+  for (const label of ['safe', 'fast']) {
+    const mode = object(modes[label], 'Linux storage mode');
+    fields(
+      mode,
+      [
+        'writer',
+        'actual_writer_parent_wait_exit',
+        'actual_db_files_rehashed',
+        'raw_result',
+        'old_canonical_command',
+        'native_reader_command',
+      ],
+      'Linux mode receipt',
+    );
+    requireValue(
+      mode.actual_writer_parent_wait_exit === 0,
+      'Linux writer wait failed',
+    );
+    const writer = await checkedRecordedArtifact(mode.writer);
+    const resultPin = await checkedRecordedArtifact(mode.raw_result);
+    const result = object(
+      await readJson(resultPin.path),
+      'Linux actual interop result',
+    );
+    const products = object(result.artifacts, 'Linux interop products');
+    requireValue(
+      sameProduct(await checkedRecordedArtifact(products.writer), writer) &&
+        sameProduct(
+          await checkedRecordedArtifact(products.native_reader),
+          readerTool,
+        ) &&
+        sameProduct(
+          await checkedRecordedArtifact(products.old_canonical_oracle),
+          canonicalTool,
+        ),
+      'Linux actual interop product differs',
+    );
+    await checkedRecordedArtifact(products.rust_message_reference);
+    const wait = object(result.writer_wait_receipt, 'Linux actual writer wait');
+    const cleanup = object(
+      result.owned_process_cleanup,
+      'Linux writer cleanup',
+    );
+    requireValue(
+      result.passed === true &&
+        Array.isArray(result.errors) &&
+        result.errors.length === 0 &&
+        result.source_unchanged === true &&
+        result.actual_chain_or_SDK_signature_acceptance === false &&
+        result.elapsed_confirmation_hold_credit_ms === 0 &&
+        wait.wait_returned === true &&
+        wait.exit_code === 0 &&
+        cleanup.writer_reaped === true &&
+        result.old_and_new_oracles_sequential === true &&
+        result.all_database_files_unchanged_by_readers_or_readonly_reopen ===
+          true &&
+        result.reopened_signed_bytes_identical === true &&
+        result.aleo_process_row_null_target_with_prepared_resolved_target ===
+          true &&
+        result.wrong_resolved_recipient_family_control === true,
+      'Linux actual interop verdict/authority failed',
+    );
+    for (const key of ['source_before', 'source_after']) {
+      const actual = object(result[key], 'Linux actual Source');
+      fields(actual, Object.keys(sources), 'Linux actual Source');
+      for (const [relative, digest] of Object.entries(sources))
+        requireValue(
+          actual[relative] === digest,
+          'Linux actual Source changed',
+        );
+    }
+    const fixture = absolute(result.fixture_root, 'Linux stopped fixture');
+    const oldPin = await checkedRecordedArtifact(mode.old_canonical_command);
+    const nativePin = await checkedRecordedArtifact(mode.native_reader_command);
+    requireValue(
+      oldPin.path === join(fixture, 'old-canonical-first-command.json') &&
+        nativePin.path === join(fixture, 'native-reader-command.json'),
+      'Linux command receipt path differs',
+    );
+    const old = object(await readJson(oldPin.path), 'old actual command');
+    const native = object(
+      await readJson(nativePin.path),
+      'native actual command',
+    );
+    const ended = wait.ended_monotonic;
+    const oldStart = old.started_monotonic;
+    const oldEnd = old.ended_monotonic;
+    const nativeStart = native.started_monotonic;
+    requireValue(
+      typeof ended === 'number' &&
+        Number.isFinite(ended) &&
+        ended > 0 &&
+        typeof oldStart === 'number' &&
+        Number.isFinite(oldStart) &&
+        typeof oldEnd === 'number' &&
+        Number.isFinite(oldEnd) &&
+        typeof nativeStart === 'number' &&
+        Number.isFinite(nativeStart) &&
+        ended <= oldStart &&
+        oldStart <= oldEnd &&
+        oldEnd <= nativeStart &&
+        old.exit_code === 0 &&
+        native.exit_code === 0 &&
+        Array.isArray(old.argv) &&
+        old.argv[0] === canonicalTool.path &&
+        old.argv[1] === 'relayer-probe-all' &&
+        Array.isArray(native.argv) &&
+        native.argv[0] === readerTool.path,
+      'Linux readers were not actually waited old first',
+    );
+    const database = object(
+      result.database_file_hashes_after_old_oracle,
+      'Linux stopped DB hashes',
+    );
+    requireValue(
+      Object.keys(database).length ===
+        integer(
+          mode.actual_db_files_rehashed,
+          1,
+          Number.MAX_SAFE_INTEGER,
+          'Linux DB file count',
+        ),
+      'Linux stopped DB hash count differs',
+    );
+    const actualFiles: string[] = [];
+    async function visit(directory: string, prefix: string): Promise<void> {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        requireValue(!entry.isSymbolicLink(), 'Linux stopped DB symlink');
+        const relative = prefix + entry.name;
+        if (entry.isDirectory())
+          await visit(join(directory, entry.name), relative + '/');
+        else {
+          requireValue(entry.isFile(), 'Linux stopped DB special file');
+          actualFiles.push(relative);
+        }
+      }
+    }
+    await visit(join(fixture, 'db'), '');
+    requireValue(
+      actualFiles.sort().join('\0') === Object.keys(database).sort().join('\0'),
+      'Linux stopped DB membership changed',
+    );
+    for (const relative of actualFiles) {
+      const recorded = object(database[relative], 'Linux stopped DB file');
+      fields(recorded, ['bytes', 'sha256'], 'Linux stopped DB file');
+      await checkArtifact(
+        pin({ path: join(fixture, 'db', relative), ...recorded }, 0),
+      );
+    }
+    const readback = object(result.native_readback, 'Linux native readback');
+    requireValue(
+      readback.readonly === true &&
+        readback.complete === true &&
+        Array.isArray(readback.rows) &&
+        readback.rows.some((value) => {
+          const row = object(value, 'Linux interop operation');
+          if (row.present !== true) return false;
+          const operation = object(row.operation, 'Linux interop operation');
+          const authority = object(
+            operation.authority,
+            'Linux interop authority',
+          );
+          return (
+            authority.protocol === 'aleo' &&
+            operation.kind === 'process' &&
+            operation.target === null &&
+            typeof authority.target === 'string' &&
+            /^0x[0-9a-f]{64}$/.test(authority.target) &&
+            authority.operation_id === row.id
+          );
+        }),
+      'Linux actual Aleo null-row/resolved-target proof missing',
+    );
+  }
+}
+
 /** Actual accepted component schema, not a previous reader's status aliases. */
 export async function verifyNativeReaderAcceptance(
   value: unknown,
@@ -958,11 +1182,20 @@ export async function preflightAleo(manifest: AleoManifest): Promise<void> {
     await readJson(manifest.nativeRowsAcceptance.path),
     'actual native reader acceptance',
   );
-  await verifyNativeReaderAcceptance(
-    reader,
-    manifest.tools.nativeRows,
-    manifest.tools.rocksOracle,
-  );
+  if (process.platform === 'linux') {
+    await verifyLinuxNativeReaderAcceptance(
+      reader,
+      manifest.tools.nativeRows,
+      manifest.tools.rocksOracle,
+      fileURLToPath(new URL('../../', import.meta.url)),
+    );
+  } else {
+    await verifyNativeReaderAcceptance(
+      reader,
+      manifest.tools.nativeRows,
+      manifest.tools.rocksOracle,
+    );
+  }
   const sdk = object(
     await readJson(manifest.sdkBuild.path),
     'accepted SDK build',
@@ -3986,6 +4219,8 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
       'same-DB restart broadcast during final interval',
     );
     await save('restart-observation-intervals', {
+      startedMonotonicMs: restartedAt,
+      completedMonotonicMs: monotonicMs(),
       policy: ALEO_OBSERVER_POLICY,
       attempts: observerAttempts,
       domainLastReceived: Object.fromEntries(restartObservations),

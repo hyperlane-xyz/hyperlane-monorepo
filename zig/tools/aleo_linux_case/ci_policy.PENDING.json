@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "kind": "aleo-linux-fullcase-ci-policy-v1",
+  "root_approved": false,
+  "runtime_source_commit": null,
+  "requests": { "ReleaseSafe": null, "ReleaseFast": null },
+  "qualified_cohort": null,
+  "qualified_docker": null,
+  "required_source": null,
+  "confirm_seconds": 600,
+  "restart_seconds": 30,
+  "proof_seconds": 10800,
+  "service_seconds": 11160,
+  "stop_seconds": 240,
+  "job_minutes": 330,
+  "minimum_remaining_minutes": 195
+}

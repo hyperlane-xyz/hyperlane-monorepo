@@ -32,6 +32,7 @@ class Tests(unittest.TestCase):
         self.repo=self.root/'repo';self.repo.mkdir()
         system_tools=mock.patch.object(sdk_delegate.base,'tools',return_value={});system_tools.start();self.addCleanup(system_tools.stop)
         for n,data in {'package.json':json.dumps({'packageManager':p.MANAGER}),'pnpm-lock.yaml':'exact frozen fixture','pnpm-workspace.yaml':'packages: [typescript/*]','.nvmrc':'v26.12.1\n','zig/integration/aleo_process.ts':'export const fixture = true;','zig/integration/aleo_process_test.ts':'import test from "node:test";'}.items():self.put(self.repo/n,data)
+        for name in ('zig/src/native_rows_interop_fixture.zig','zig/integration/native_rows_interop.py','zig/bench/native_case_tools.py','zig/bench/native_harness_census.py'):self.put(self.repo/name,'public interop Source fixture: '+name)
         for name in p.PACKAGES:
             for file,data in {'package.json':json.dumps({'name':'@hyperlane-xyz/'+name}),'tsconfig.json':'{}'}.items():self.put(self.repo/'typescript'/name/file,data)
             if name!='tsconfig':self.put(self.repo/'typescript'/name/'src/index.ts','export {};')
@@ -74,6 +75,8 @@ class Tests(unittest.TestCase):
         origins=self.stage();self.assertTrue(origins);self.assertEqual(len(origins),len(p.source_paths(self.repo)))
         for row in origins:self.assertEqual(row['origin']['sha256'],row['staged']['sha256']);self.assertEqual(Path(row['staged']['path']).stat().st_nlink,1)
         self.assertTrue((self.root/'stage/zig/integration/aleo_process_test.ts').exists())
+        for name in ('zig/src/native_rows_interop_fixture.zig','zig/integration/native_rows_interop.py','zig/bench/native_case_tools.py','zig/bench/native_harness_census.py'):
+            self.assertEqual((self.root/'stage'/name).read_bytes(),(self.repo/name).read_bytes())
     def test_changed_source_pin_rejects_before_workspace_write(self):
         rows=[pin(x)for x in p.source_paths(self.repo)];self.put(self.repo/'typescript/utils/src/index.ts','changed')
         with self.assertRaisesRegex(ValueError,'membership'):p.stage_sources(self.repo,self.root/'stage',rows)
@@ -336,7 +339,7 @@ class Tests(unittest.TestCase):
         text=(HERE.parents[2]/'.github/workflows/zig-agents.yml').read_text()
         return text,ns['conditions'](text),ns['selected'],ns['conditions']
     def test_actual_sdk_route_isolated_and_both_kernel_requests_fail_closed(self):
-        text,rows,selected,_=self.routes();self.assertEqual(len(rows),14)
+        text,rows,selected,_=self.routes();self.assertEqual(len(rows),15)
         for suffix in ['', ' [zig-native-case]', ' [zig-svm-prerequisites-only]', ' [zig-native-http-diagnostic]']:
             self.assertEqual(selected(rows,message='[zig-aleo-sdk-only]'+suffix),{'aleo-linux-sdk-prerequisite'})
         for suffix in ['', ' [zig-native-case] [zig-svm-prerequisites-only]']:

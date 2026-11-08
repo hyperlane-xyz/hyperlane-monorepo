@@ -52,6 +52,7 @@ import {
   requireAcceptedBuild,
   requireConsensusAtHeight,
   verifyNativeReaderAcceptance,
+  verifyLinuxNativeReaderAcceptance,
   verifySdkBuildClosure,
   roleEnvironment,
   withDeploymentEnvironment,
@@ -2117,4 +2118,208 @@ void test('Aleo startup404 requires zero raw bytes and never applies to metrics'
       );
     },
   );
+});
+
+async function linuxReaderAcceptanceFixture(root: string) {
+  const original = await readerAcceptanceFixture(root);
+  const names = [
+    'zig/src/native_rows_interop_fixture.zig',
+    'zig/integration/native_rows_interop.py',
+    'zig/bench/native_case_tools.py',
+    'zig/bench/native_harness_census.py',
+  ];
+  const sourceHashes: Record<string, string> = {};
+  for (const name of names) {
+    await mkdir(join(root, name, '..'), { recursive: true });
+    sourceHashes[name] = (
+      await filePin(join(root, name), 'public mock Source')
+    ).sha256;
+  }
+  const reference = await filePin(
+    join(root, 'reference'),
+    'public mock reference',
+  );
+  const modes: Record<
+    string,
+    {
+      writer: { path: string; bytes: number; sha256: string };
+      actual_writer_parent_wait_exit: number;
+      actual_db_files_rehashed: number;
+      raw_result: { path: string; bytes: number; sha256: string };
+      old_canonical_command: { path: string; bytes: number; sha256: string };
+      native_reader_command: { path: string; bytes: number; sha256: string };
+    }
+  > = {};
+  for (const label of ['safe', 'fast']) {
+    const fixture = join(root, label);
+    await mkdir(join(fixture, 'db'), { recursive: true });
+    const database = await filePin(
+      join(fixture, 'db/CURRENT'),
+      'public mock DB',
+    );
+    const writer = await filePin(
+      join(fixture, 'writer'),
+      'public mock writer ' + label,
+    );
+    const old = await filePin(
+      join(fixture, 'old-canonical-first-command.json'),
+      JSON.stringify({
+        argv: [original.canonical.path, 'relayer-probe-all'],
+        exit_code: 0,
+        started_monotonic: 2,
+        ended_monotonic: 3,
+      }),
+    );
+    const native = await filePin(
+      join(fixture, 'native-reader-command.json'),
+      JSON.stringify({
+        argv: [original.reader.path],
+        exit_code: 0,
+        started_monotonic: 4,
+        ended_monotonic: 5,
+      }),
+    );
+    const raw = await filePin(
+      join(fixture, 'result.json'),
+      JSON.stringify({
+        ...original.resultValue,
+        artifacts: {
+          ...original.resultValue.artifacts,
+          writer,
+          rust_message_reference: reference,
+        },
+        fixture_root: fixture,
+        actual_chain_or_SDK_signature_acceptance: false,
+        elapsed_confirmation_hold_credit_ms: 0,
+        writer_wait_receipt: {
+          wait_returned: true,
+          exit_code: 0,
+          ended_monotonic: 1,
+        },
+        owned_process_cleanup: { writer_reaped: true },
+        reopened_signed_bytes_identical: true,
+        source_before: sourceHashes,
+        source_after: sourceHashes,
+        database_file_hashes_after_old_oracle: {
+          CURRENT: { bytes: database.bytes, sha256: database.sha256 },
+        },
+      }),
+    );
+    modes[label] = {
+      writer,
+      actual_writer_parent_wait_exit: 0,
+      actual_db_files_rehashed: 1,
+      raw_result: raw,
+      old_canonical_command: old,
+      native_reader_command: native,
+    };
+  }
+  return {
+    reader: original.reader,
+    canonical: original.canonical,
+    accepted: {
+      accepted_component_source_and_actual_Zig_storage_interop: true,
+      family_chain_SDK_finality_delivery_elapsed600_acceptance: false,
+      reader: original.reader,
+      modes,
+      source_sha256: sourceHashes,
+    },
+  };
+}
+
+void test('Linux actual storage DTO keeps both mode products, actual waits and current DB byte checks', async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), 'aleo-linux-storage-')),
+  );
+  try {
+    const fixture = await linuxReaderAcceptanceFixture(root);
+    await verifyLinuxNativeReaderAcceptance(
+      fixture.accepted,
+      fixture.reader,
+      fixture.canonical,
+      root,
+    );
+    await writeFile(join(root, 'safe/db/CURRENT'), 'changed database');
+    await assert.rejects(
+      verifyLinuxNativeReaderAcceptance(
+        fixture.accepted,
+        fixture.reader,
+        fixture.canonical,
+        root,
+      ),
+    );
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+void test('Linux storage rejects the unrelated Mac owner/Clippy status schema', async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), 'aleo-linux-old-schema-')),
+  );
+  try {
+    const fixture = await readerAcceptanceFixture(root);
+    await assert.rejects(
+      verifyLinuxNativeReaderAcceptance(
+        fixture.acceptance,
+        fixture.reader,
+        fixture.canonical,
+        root,
+      ),
+    );
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+void test('Linux storage revalidates old-first real command timing rather than caller flags', async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), 'aleo-linux-order-')),
+  );
+  try {
+    const fixture = await linuxReaderAcceptanceFixture(root);
+    const mode = fixture.accepted.modes.safe;
+    assert.ok(mode);
+    mode.old_canonical_command = await filePin(
+      mode.old_canonical_command.path,
+      JSON.stringify({
+        argv: [fixture.canonical.path, 'relayer-probe-all'],
+        exit_code: 0,
+        started_monotonic: 2,
+        ended_monotonic: 6,
+      }),
+    );
+    await assert.rejects(
+      verifyLinuxNativeReaderAcceptance(
+        fixture.accepted,
+        fixture.reader,
+        fixture.canonical,
+        root,
+      ),
+      /old first/,
+    );
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+void test('Linux stopped DB closed membership rejects an extra file', async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), 'aleo-linux-membership-')),
+  );
+  try {
+    const fixture = await linuxReaderAcceptanceFixture(root);
+    await writeFile(join(root, 'fast/db/EXTRA'), 'unexpected');
+    await assert.rejects(
+      verifyLinuxNativeReaderAcceptance(
+        fixture.accepted,
+        fixture.reader,
+        fixture.canonical,
+        root,
+      ),
+      /membership/,
+    );
+  } finally {
+    await rm(root, { recursive: true });
+  }
 });

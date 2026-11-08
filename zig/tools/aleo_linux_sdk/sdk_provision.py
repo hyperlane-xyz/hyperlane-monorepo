@@ -56,7 +56,7 @@ def allocated(root):
 
 def source_paths(repo):
     """Original manifests plus exact compilation Source; no generated packages."""
-    fixed=['package.json','pnpm-lock.yaml','pnpm-workspace.yaml','.nvmrc','zig/integration/aleo_process.ts','zig/integration/aleo_process_test.ts']
+    fixed=['package.json','pnpm-lock.yaml','pnpm-workspace.yaml','.nvmrc','zig/integration/aleo_process.ts','zig/integration/aleo_process_test.ts','zig/src/native_rows_interop_fixture.zig','zig/integration/native_rows_interop.py','zig/bench/native_case_tools.py','zig/bench/native_harness_census.py']
     result={repo/p for p in fixed}
     for path in [repo/'solidity/package.json',repo/'solhint-plugin/package.json',repo/'starknet/package.json',*sorted((repo/'typescript').glob('*/package.json'))]:
         if path.is_file():result.add(path)

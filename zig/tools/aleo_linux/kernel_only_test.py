@@ -39,7 +39,7 @@ def conditions(text):
 
 
 def selected(rows, event='push', message='', ref='refs/heads/feat/zig-agent-rewrite', **inputs):
-    scope = {'github': N(event_name=event, ref=ref, event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=inputs.get('svm', False), cold_full_feature=inputs.get('cold', False), aleo_linux_prerequisite=inputs.get('aleo', False), aleo_linux_sdk_prerequisite=inputs.get('sdk', False), aleo_native_docker_prerequisite=inputs.get('docker', False)), 'contains': lambda text, needle: needle in text}
+    scope = {'github': N(event_name=event, ref=ref, event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=inputs.get('svm', False), cold_full_feature=inputs.get('cold', False), aleo_linux_prerequisite=inputs.get('aleo', False), aleo_linux_sdk_prerequisite=inputs.get('sdk', False), aleo_native_docker_prerequisite=inputs.get('docker', False), aleo_full_case=inputs.get('full', False)), 'contains': lambda text, needle: needle in text}
     def evaluate(value):
         value = value.removeprefix('${{ ').removesuffix(' }}')
         value = re.sub(r'!(?!=)', ' not ', value).replace('&&', ' and ').replace('||', ' or ').strip()
@@ -265,7 +265,7 @@ class WorkflowControls(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, 'regular code closure'): self.builder(symlink=True)
 
     def test_job_has_no_sdk_build_or_privileged_fallback(self):
-        job = self.text.split('  aleo-linux-prerequisite:', 1)[1]
+        job = re.split(r'\n  [A-Za-z0-9_-]+:\n', self.text.split('  aleo-linux-prerequisite:', 1)[1], maxsplit=1)[0]
         for forbidden in ('docker ', 'cargo ', 'pnpm ', 'sysctl ', 'apparmor', '--privileged', 'pure_test.py', 'submodules:'):
             self.assertNotIn(forbidden, job)
         self.assertIn('timeout-minutes: 15', job); self.assertIn('timeout-minutes: 4', job)

@@ -39,7 +39,7 @@ class Tests(unittest.TestCase):
   import ast,re
   from types import SimpleNamespace as N
   kernel=P.parent/'aleo_linux/kernel_only_test.py';source=ast.parse(kernel.read_text());functions=[n for n in source.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}];ns={'re':re,'N':N};exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-existing-route-reader','exec'),ns)
-  rows=ns['conditions']((P.parents[2]/'.github/workflows/zig-agents.yml').read_text());selected=ns['selected'];self.assertEqual(len(rows),14)
+  rows=ns['conditions']((P.parents[2]/'.github/workflows/zig-agents.yml').read_text());selected=ns['selected'];self.assertEqual(len(rows),15)
   for suffix in ['', ' [zig-native-case] [zig-svm-prerequisites-only]']:
    self.assertEqual(selected(rows,message='[zig-aleo-docker-only]'+suffix),{'aleo-native-docker-prerequisite'})
    self.assertEqual(selected(rows,message='[zig-aleo-docker-only] [zig-aleo-sdk-only]'+suffix),set())

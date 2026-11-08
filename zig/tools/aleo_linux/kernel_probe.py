@@ -41,7 +41,7 @@ def delegated_parent(context, token, fsroot=Path('/sys/fs/cgroup'), family='kern
     keys={'unit','invocation','uid','gid','root','root_dev','root_ino','manager_dev','manager_ino','boot_id'}
     need(type(context)is dict and set(context)==keys,'exact delegated context required')
     need(all(type(context[key])is int and context[key]>=0 for key in ('root_dev','root_ino','manager_dev','manager_ino')),'typed delegated inode identity required')
-    need(family in {'kernel','sdk-packages','sdk-build'},'closed delegated family required')
+    need(family in {'kernel','sdk-packages','sdk-build','case'},'closed delegated family required')
     unit='ziggy-aleo-'+family+'-'+token+'.service'
     need(context['unit']==unit and len(token)==32 and all(c in '0123456789abcdef'for c in token),'exact delegated unit required')
     need(type(context['invocation'])is str and len(context['invocation'])==32 and all(c in '0123456789abcdef'for c in context['invocation']),'actual invocation required')
@@ -65,7 +65,7 @@ class Lease:
         line=Path('/proc/self/cgroup').read_text().strip();need(line.startswith('0::/')and '\n'not in line,'unified cgroup v2 required')
         parent=Path('/sys/fs/cgroup')/line[4:];need(parent.resolve()==parent and (parent/'cgroup.controllers').is_file(),'actual delegated unified cgroup required')
         if delegation is not None:parent=delegated_parent(delegation,token,family=family)
-        else:need(family=='kernel','SDK requires positive delegated parent')
+        else:need(family=='kernel','SDK/case requires positive delegated parent')
         self.path=parent/('ziggy-aleo-'+token);self.path.mkdir();self.identity=(self.path.stat().st_dev,self.path.stat().st_ino)
         self.line='0::/'+str(self.path.relative_to('/sys/fs/cgroup'))+'\n'
         try:
