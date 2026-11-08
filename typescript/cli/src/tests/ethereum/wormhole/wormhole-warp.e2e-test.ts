@@ -5,6 +5,7 @@ import {
   DefaultHook__factory,
   ERC20__factory,
   MailboxClient__factory,
+  ProxyAdmin__factory,
   StaticAggregationHook__factory,
   StaticAggregationIsm__factory,
   WormholeVaaHookIsm__factory,
@@ -20,6 +21,7 @@ import {
   WormholeConsistencyLevel,
   WormholeConsistencyType,
   type WormholeIsmConfig,
+  proxyAdmin,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert, type Address } from '@hyperlane-xyz/utils';
 
@@ -46,6 +48,7 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  E2E_TEST_BURN_ADDRESS,
   REGISTRY_PATH,
   TEMP_PATH,
   getCombinedWarpRoutePath,
@@ -67,6 +70,8 @@ import {
 
 const VAA_SERVICE_PORT = 3802;
 const VAA_SERVICE_URL = `http://127.0.0.1:${VAA_SERVICE_PORT}/wormhole/getWormholeVaa`;
+// Anvil account #1: distinct from both the deployer and the warp route owner.
+const WORMHOLE_ROUTER_OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
 describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
   this.timeout(10 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -514,6 +519,76 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
       expect(apply.stdout).to.include(
         'Warp config is the same as target. No updates needed.',
       );
+    });
+
+    it('hands the route and Wormhole routers to non-deployer owners on deploy', async () => {
+      const ownerSymbol = `${symbol}O`;
+      const ownerConfigPath = `${TEMP_PATH}/wormhole-vaa-owner-warp.yaml`;
+      const ownerRouteId = getWarpRouteId(ownerSymbol, chains);
+      const ownerWarpCorePath = getCombinedWarpRoutePath(ownerSymbol, chains);
+      const meshConfig = configFor(ownerSymbol, undefined, (ism) => ({
+        type: ism.type,
+        owner: WORMHOLE_ROUTER_OWNER,
+        core: ism.core,
+        wormholeChainId: ism.wormholeChainId,
+        consistencyLevel: ism.consistencyLevel,
+        urls: ism.urls,
+      }));
+      const ownerConfig: WarpRouteDeployConfigMailboxRequired =
+        Object.fromEntries(
+          Object.entries(meshConfig).map(([chain, chainConfig]) => [
+            chain,
+            { ...chainConfig, owner: E2E_TEST_BURN_ADDRESS },
+          ]),
+        );
+      writeYamlOrJson(ownerConfigPath, ownerConfig);
+
+      const deployResult = await hyperlaneWarpDeploy(
+        ownerConfigPath,
+        ownerRouteId,
+      );
+      expect(deployResult.exitCode).to.equal(0);
+
+      const multiProvider = await getMultiProvider();
+      const routers = await installedWormholeRouters(ownerWarpCorePath, chains);
+      for (const chain of chains) {
+        const provider = multiProvider.getProvider(chain);
+        const warpRouter = getDeployedWarpAddress(chain, ownerWarpCorePath);
+        const client = MailboxClient__factory.connect(warpRouter, provider);
+        expect(await client.owner()).to.equal(E2E_TEST_BURN_ADDRESS);
+        expect(
+          await ProxyAdmin__factory.connect(
+            await proxyAdmin(provider, warpRouter),
+            provider,
+          ).owner(),
+        ).to.equal(E2E_TEST_BURN_ADDRESS);
+
+        expect(
+          await WormholeVaaHookIsm__factory.connect(
+            routers[chain],
+            provider,
+          ).owner(),
+        ).to.equal(WORMHOLE_ROUTER_OWNER);
+        const childHooks = await StaticAggregationHook__factory.connect(
+          await client.hook(),
+          provider,
+        ).hooks('0x');
+        expect(childHooks).to.have.length(2);
+        expect(childHooks).to.include(routers[chain]);
+
+        const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+        const derived = await new EvmWormholeHookIsmReader(
+          multiProvider,
+          chain,
+        ).deriveWormholeConfig(routers[chain]);
+        expect(Object.keys(derived.remoteRouters)).to.have.members([remote]);
+        expect(derived.remoteRouters[remote].router.toLowerCase()).to.equal(
+          routers[remote].toLowerCase(),
+        );
+      }
+
+      const check = await hyperlaneWarpCheck(ownerRouteId);
+      expect(check.exitCode, check.stdout).to.equal(0);
     });
 
     it('delivers a warp transfer over Wormhole through the lookup service', async () => {
