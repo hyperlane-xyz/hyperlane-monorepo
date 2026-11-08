@@ -153,11 +153,11 @@
     },
     {
       "path": "zig/bench/paired_linux_inputs.py",
-      "bytes": 49574,
+      "bytes": 50739,
       "sha256": {
         "sha256_hex_chunks": [
-          "478df89bce7f96227c3a81d246a3bd5f",
-          "c343e8c516767b60c6310f640b5c163c"
+          "031cc1ef7f3da2605173be77d3294c16",
+          "c58c5ce43cd966c6a45a52a840adb3c0"
         ]
       }
     },

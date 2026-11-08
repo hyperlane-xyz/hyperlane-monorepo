@@ -25,6 +25,21 @@ class Controls(unittest.TestCase):
   result['actual_command_waits'][0]['name']='private/path';m.publish_input_diagnostic(self.root,result,ValueError('private sentinel'),self.repo,{'source':{}});value=json.loads((self.root/'input-diagnostic.json').read_text());self.assertEqual(value['primary_error_type'],'ValueError');self.assertEqual(value['diagnostic_error_type'],'Refused');self.assertNotIn('private',json.dumps(value));self.assertFalse(value['passed'])
   with mock.patch.object(m,'write',side_effect=OSError('private write detail')),mock.patch.object(m.sys,'stderr')as stderr:m.publish_input_diagnostic(self.root,result,ValueError('private sentinel'),self.repo,{'source':{}})
   self.assertNotIn('private',str(stderr.write.call_args_list))
+  with mock.patch.object(m,'write',side_effect=OSError('private write detail')),mock.patch.object(m.sys,'stderr')as stderr:
+   stderr.write.side_effect=OSError('private stderr detail');m.publish_input_diagnostic(self.root,result,ValueError('private sentinel'),self.repo,{'source':{}})
+ def test_only_successfully_waited_Cargo_metadata_uses_larger_bounded_structure_budget(self):
+  raw=b'['+b'0,'*250000+b'0]';path=self.file('cargo.json',raw);row={'name':'runtime-cargo-metadata','stdout':m.pin(path),'error_type':None,'actual_parent_wait':True,'exit_code':0,'signals':[],'owned_absent':True,'completed_within_original_deadline':True}
+  with self.assertRaisesRegex(m.Refused,'metadata structure bound'):m.decode(raw)
+  value=m.read_phase_json(row);self.assertEqual(len(value),250001);self.assertEqual(row['metadata_shape'],{'bytes':len(raw),'nodes':250002,'maximum_nodes':2000000,'deepest_depth':1,'maximum_depth':32})
+  for changed in [dict(row,exit_code=1),dict(row,actual_parent_wait=False)]:
+   with self.assertRaisesRegex(m.Refused,'actual waited Cargo metadata phase'):m.read_phase_json(changed)
+  with self.assertRaisesRegex(m.Refused,'metadata structure bound'):m.read_phase_json(dict(row,name='postgres16-image-metadata'))
+  small=self.file('postgres-image.json',b'{"id":"public-image","architecture":"amd64"}');pg={'name':'postgres16-image-metadata','stdout':m.pin(small)}
+  self.assertEqual(m.read_phase_json(pg),{'id':'public-image','architecture':'amd64'});self.assertNotIn('metadata_shape',pg)
+  for budget in [True,0,3000000]:
+   with self.assertRaises(m.Refused):m.decode(b'{}',maximum_nodes=budget)
+  for budget in [250000,2000000]:
+   with self.assertRaisesRegex(m.Refused,'metadata structure bound'):m.decode(b'['*33+b'0'+b']'*33,maximum_nodes=budget)
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
  def file(self,name,data=b'fixture'):

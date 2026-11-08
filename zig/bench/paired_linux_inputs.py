@@ -27,17 +27,18 @@ def digest(path):
  with Path(path).open('rb')as source:return hashlib.file_digest(source,'sha256').hexdigest()
 def pin(path):
  path=Path(path);need(path.is_absolute()and path.resolve(strict=True)==path and path.is_file()and not path.is_symlink(),'regular canonical input required');before=path.stat();hashed=digest(path);after=path.stat();need((before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)==(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns),'input changed while hashing');return {'path':str(path),'bytes':after.st_size,'sha256':hashed}
-def decode(raw):
+def decode(raw,*,maximum_nodes=250000,observation=None):
  need(len(raw)<=16*1024**2,'bounded metadata required')
+ need(type(maximum_nodes)is int and maximum_nodes in {250000,2000000}and(observation is None or type(observation)is dict),'explicit metadata structure budget')
  def pairs(items):
   value={}
   for key,item in items:need(key not in value,'duplicate JSON key');value[key]=item
   return value
  def bad(value):raise Refused('nonfinite JSON')
- value=json.loads(raw,object_pairs_hook=pairs,parse_constant=bad);count=0
+ value=json.loads(raw,object_pairs_hook=pairs,parse_constant=bad);count=0;deepest=0
  def walk(item,depth=0):
-  nonlocal count
-  count+=1;need(count<=250000 and depth<=32,'metadata structure bound')
+  nonlocal count,deepest
+  count+=1;deepest=max(deepest,depth);need(count<=maximum_nodes and depth<=32,'metadata structure bound')
   if type(item)is dict:
    if set(item)=={'sha256_hex_chunks'}:
     parts=item['sha256_hex_chunks'];need(type(parts)is list and len(parts)==2 and all(type(v)is str and re.fullmatch('[0-9a-f]{32}',v)for v in parts),'public SHA halves');return ''.join(parts)
@@ -45,7 +46,9 @@ def decode(raw):
   if type(item)is list:return[walk(v,depth+1)for v in item]
   if type(item)is float:need(math.isfinite(item),'nonfinite JSON')
   return item
- return walk(value)
+ try:return walk(value)
+ finally:
+  if observation is not None:observation.update(bytes=len(raw),nodes=count,maximum_nodes=maximum_nodes,deepest_depth=deepest,maximum_depth=32)
 def write(path,value):
  wire=(json.dumps(value,sort_keys=True,indent=2,allow_nan=False)+'\n').encode();need(len(wire)<=16*1024**2,'output metadata bound')
  with Path(path).open('xb')as stream:stream.write(wire);stream.flush();os.fsync(stream.fileno())
@@ -260,7 +263,10 @@ def public_preparation_result(result,error,repo,authority):
   exit_code=row.get('exit_code');need(exit_code is None or type(exit_code)is int and -255<=exit_code<=255,'closed diagnostic exit status')
   error_type=row.get('error_type');need(error_type is None or type(error_type)is str,'closed diagnostic error class')
   error_type=error_type if error_type is None or error_type in PUBLIC_ERROR_NAMES else 'OtherError'
-  rows.append({'name':name,'actual_parent_wait':row.get('actual_parent_wait')is True,'exit_code':exit_code,'owned_absent':row.get('owned_absent')is True,'signal_count':len(row.get('signals',[])),'error_type':error_type,'completed_within_original_deadline':row.get('completed_within_original_deadline')is True})
+  public={'name':name,'actual_parent_wait':row.get('actual_parent_wait')is True,'exit_code':exit_code,'owned_absent':row.get('owned_absent')is True,'signal_count':len(row.get('signals',[])),'error_type':error_type,'completed_within_original_deadline':row.get('completed_within_original_deadline')is True}
+  if 'metadata_shape'in row:
+   shape=row['metadata_shape'];need(name=='runtime-cargo-metadata'and type(shape)is dict and set(shape)=={'bytes','nodes','maximum_nodes','deepest_depth','maximum_depth'}and all(type(v)is int for v in shape.values())and shape['maximum_nodes']==2000000 and shape['maximum_depth']==32 and 0<=shape['bytes']<=16*1024**2 and 0<=shape['nodes']<=2000001 and 0<=shape['deepest_depth']<=33,'closed Cargo metadata shape');public['metadata_shape']=dict(shape)
+  rows.append(public)
  return {'schema':1,'kind':'paired-linux-input-diagnostic','passed':result['passed'],'error_observation':failure_observation(error,repo,authority),'actual_phase_waits':rows,'source_policy':result['source_policy'],'limits':result['limits'],'started_monotonic_ns':result['started_monotonic_ns'],'completed_monotonic_ns':result['completed_monotonic_ns'],'whole_deadline_observed':result['whole_deadline_observed'],'native_or_timing_acceptance':False,'raw_exception_argv_environment_or_logs_exported':False}
 
 def publish_input_diagnostic(root,result,error,repo,authority):
@@ -269,10 +275,16 @@ def publish_input_diagnostic(root,result,error,repo,authority):
   primary=type(error).__name__ if error is not None else None
   record={'schema':1,'kind':'paired-linux-input-diagnostic','passed':False,'primary_error_type':primary if primary is None or primary in PUBLIC_ERROR_NAMES else 'OtherError','diagnostic_error_type':type(diagnostic_error).__name__ if type(diagnostic_error).__name__ in PUBLIC_ERROR_NAMES else 'OtherError','native_or_timing_acceptance':False,'raw_exception_argv_environment_or_logs_exported':False}
  try:write(root/'input-diagnostic.json',record)
- except OSError:print('INPUT_DIAGNOSTIC_WRITE_FAILED',file=sys.stderr)
+ except OSError:
+  try:print('INPUT_DIAGNOSTIC_WRITE_FAILED',file=sys.stderr)
+  except OSError:pass
 
 def read_phase_json(row):
- p=checked(row['stdout']);need(p.stat().st_size<=16*1024**2,'metadata stdout bound');return decode(p.read_bytes())
+ p=checked(row['stdout']);need(p.stat().st_size<=16*1024**2,'metadata stdout bound')
+ if row.get('name')=='runtime-cargo-metadata':
+  need(final_phase(row),'actual waited Cargo metadata phase required');row['metadata_shape']={}
+  return decode(p.read_bytes(),maximum_nodes=2000000,observation=row['metadata_shape'])
+ return decode(p.read_bytes())
 
 def revoke_publication(published):
  path=published/'input-manifest.json'
