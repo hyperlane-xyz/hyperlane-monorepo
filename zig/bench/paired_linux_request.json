@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "kind": "paired-linux-ci-v1",
-  "root_approved": true,
-  "inputs_enabled": true,
-  "functional_enabled": true,
+  "root_approved": false,
+  "inputs_enabled": false,
+  "functional_enabled": false,
   "runtime_enabled": false,
   "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
   "baseline_source_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
@@ -21,21 +21,21 @@
   "transport_requests": {
     "ReleaseSafe": {
       "path": "zig/bench/paired_linux_transport-ReleaseSafe.PENDING.json",
-      "bytes": 3105,
+      "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "34fbfb5c48b2e7cc2232eebe86b3f9a3",
-          "71255d50e6b60ee08cd42552fdc8d7aa"
+          "20b8fa666794260e7590932ae0607afc",
+          "71ff537251aba7cedad80aee66680813"
         ]
       }
     },
     "ReleaseFast": {
       "path": "zig/bench/paired_linux_transport-ReleaseFast.PENDING.json",
-      "bytes": 3105,
+      "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "34c7f53ba5972e9398bb80f545fa7a64",
-          "27907146acf01717748107658403928a"
+          "4f2360d35424a74f6a99e9c2f6aee1d1",
+          "c8d6c0f49fb3113c88021b4eee3ddb82"
         ]
       }
     }
@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 115671,
+      "bytes": 115762,
       "sha256": {
         "sha256_hex_chunks": [
-          "056a6295e904093c936ecf344cbd1970",
-          "0e29db20259d4100769ff49398a8f7e0"
+          "9c43263e3a68da3cc6207efb623c0131",
+          "7c7ba5c0264a0374d499ca7a6dd7838a"
         ]
       }
     },
@@ -106,8 +106,8 @@
       "bytes": 22338,
       "sha256": {
         "sha256_hex_chunks": [
-          "753f90a64b4b31dfc5137b33f780a785",
-          "b6d514bb957954aa9daf1bfd5627efe0"
+          "fe64f3c35bf9a516124be6d5f6a58c33",
+          "05bae211dd9c11ca51ce9abfe2814f8b"
         ]
       }
     },
@@ -153,11 +153,11 @@
     },
     {
       "path": "zig/bench/paired_linux_inputs.py",
-      "bytes": 50739,
+      "bytes": 51073,
       "sha256": {
         "sha256_hex_chunks": [
-          "031cc1ef7f3da2605173be77d3294c16",
-          "c58c5ce43cd966c6a45a52a840adb3c0"
+          "eaa2cb84041ecd427ab18fc14b123d39",
+          "63fe70fda326170c95e4f203cff7ed82"
         ]
       }
     },
@@ -263,11 +263,11 @@
     },
     {
       "path": "zig/integration/native_case_inputs.py",
-      "bytes": 67322,
+      "bytes": 67372,
       "sha256": {
         "sha256_hex_chunks": [
-          "afafedf4d5e12678d3eadc8c9f9fc418",
-          "818efab267b55ba543503a3f5dc02166"
+          "20b5a50ac8b56f101e2c11db23385b38",
+          "3ece285c645cac0f547ed2ae875aa840"
         ]
       }
     },

@@ -1,4 +1,5 @@
 """No GitHub/network/build/native execution: request/provenance/ZIP controls."""
+import ast
 import copy
 import importlib.util
 import json
@@ -40,6 +41,13 @@ class DispatchTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError): ci.validate_request(changed)
         changed = copy.deepcopy(self.request); changed['limits']['maximum_wall_seconds'] += 1
         with self.assertRaises(ValueError): ci.validate_request(changed)
+
+    def test_exact_native8GiB_policy_rejects_old_or_unknown_caps(self):
+        ci.validate_request(self.request)
+        self.assertEqual(ci.LIMITS, {'maximum_owned_RAM_bytes':8*ci.GIB,'maximum_case_allocated_bytes':8*ci.GIB,'minimum_host_free_bytes':6*ci.GIB,'maximum_wall_seconds':3600})
+        for cap in [4*ci.GIB, 9*ci.GIB, True, float(8*ci.GIB)]:
+            row=copy.deepcopy(self.request);row['limits']['maximum_case_allocated_bytes']=cap
+            with self.subTest(cap=cap),self.assertRaises(ValueError):ci.validate_request(row)
 
     def test_cross_mode_and_missing_or_repeated_artifact_reject(self):
         for change in [lambda row: row['artifact_pins'].pop('writer_fast'), lambda row: row['artifact_pins']['sdk'].update(name='zig-native-runtime-payload-ReleaseFast'), lambda row: row['artifact_pins']['sdk'].update(id=row['artifact_pins']['helper']['id'])]:
@@ -269,5 +277,18 @@ class PublicDigestRequestTests(unittest.TestCase):
         decoded = self.read({'root_approved': True, 'artifact_pins': {'sha256': {'sha256_hex_chunks': ['a' * 32, 'b' * 32]}}})
         with self.assertRaises(ValueError): ci.validate_request(decoded)
 
+
+class Policy(unittest.TestCase):
+ def test_dispatch_hydrator_and_owner_share_exact_native_policy(self):
+  root=Path(__file__).resolve().parents[2];expected={'maximum_owned_RAM_bytes':8*1024**3,'maximum_case_allocated_bytes':8*1024**3,'minimum_host_free_bytes':6*1024**3,'maximum_wall_seconds':3600}
+  for name in ['zig/bench/native_case_ci.py','zig/integration/native_case_inputs.py']:
+   tree=ast.parse((root/name).read_text());node=next(n.value for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='LIMITS'for t in n.targets));self.assertEqual(eval(compile(ast.Expression(node),name,'eval'),{'GIB':1024**3}),expected)
+  tree=ast.parse((root/'zig/bench/native_case_owner.py').read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='load_plan');policies=[n for n in ast.walk(fn)if isinstance(n,ast.Dict)and any(isinstance(k,ast.Constant)and k.value=='maximum_case_allocated_bytes'for k in n.keys)];self.assertEqual(len(policies),1)
+  policy=policies[0];n=next(v for k,v in zip(policy.keys,policy.values)if isinstance(k,ast.Constant)and k.value=='maximum_case_allocated_bytes');self.assertEqual(eval(compile(ast.Expression(n),'owner-policy','eval'),{'GIB':1024**3}),8*1024**3)
+ def test_prepare_passes_reviewed_case_cap_not_graph_catalog_cap(self):
+  root=Path(__file__).resolve().parents[2];tree=ast.parse((root/'zig/integration/native_case_inputs.py').read_text());calls=[n for n in ast.walk(tree)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and isinstance(n.func.value,ast.Name)and n.func.value.id=='assets'and n.func.attr=='materialize'];self.assertEqual(len(calls),1);self.assertEqual(ast.unparse(calls[0].args[-1]),"request['limits']['maximum_case_allocated_bytes']")
+ def test_graph_catalog_and_archive_extraction_caps_remain_four(self):
+  root=Path(__file__).resolve().parents[2];tree=ast.parse((root/'zig/bench/native_tron_assets.py').read_text());node=next(n.value for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='MAX_BYTES'for t in n.targets));self.assertEqual(eval(compile(ast.Expression(node),'graph-catalog','eval'),{'GIB':1024**3}),4*1024**3)
+  tree=ast.parse((root/'zig/bench/native_case_ci.py').read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='extract_closed');self.assertEqual(eval(compile(ast.Expression(fn.args.defaults[0]),'archive-bound','eval'),{'GIB':1024**3}),4*1024**3)
 
 if __name__ == '__main__': unittest.main()

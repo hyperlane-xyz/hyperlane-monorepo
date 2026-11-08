@@ -107,7 +107,7 @@ def admit(authority,authority_sha,reuse,reuse_sha,repo,index):
         for item in joined['proofs'][mode].values():checked(item)
     for item in manifest['files']:checked(item,root)
     for name,row in manifest['external']['tools'].items():
-        actual=Path(sys.executable).resolve(strict=True)if name=='python3'else Path(shutil.which(name)or'/nonexistent').resolve(strict=True)
+        actual=Path(sys.executable).resolve(strict=True)if name=='python3'else Path('/usr/lib/postgresql/16/bin/psql').resolve(strict=True)if name=='psql'else Path(shutil.which(name)or'/nonexistent').resolve(strict=True)
         need(pin(actual)==row,'Runtime system tool differs from admitted input: '+name)
     for group in ['runtime_libraries','libraries']:
         for row in manifest['external'][group].values():checked(row)

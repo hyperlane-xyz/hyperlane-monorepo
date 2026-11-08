@@ -17,11 +17,11 @@
   "source_inventory": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 115671,
+      "bytes": 115762,
       "sha256": {
         "sha256_hex_chunks": [
-          "056a6295e904093c936ecf344cbd1970",
-          "0e29db20259d4100769ff49398a8f7e0"
+          "9c43263e3a68da3cc6207efb623c0131",
+          "7c7ba5c0264a0374d499ca7a6dd7838a"
         ]
       }
     },
@@ -40,8 +40,8 @@
       "bytes": 22338,
       "sha256": {
         "sha256_hex_chunks": [
-          "753f90a64b4b31dfc5137b33f780a785",
-          "b6d514bb957954aa9daf1bfd5627efe0"
+          "fe64f3c35bf9a516124be6d5f6a58c33",
+          "05bae211dd9c11ca51ce9abfe2814f8b"
         ]
       }
     },
@@ -97,11 +97,11 @@
     },
     {
       "path": "zig/integration/native_case_inputs.py",
-      "bytes": 67322,
+      "bytes": 67372,
       "sha256": {
         "sha256_hex_chunks": [
-          "afafedf4d5e12678d3eadc8c9f9fc418",
-          "818efab267b55ba543503a3f5dc02166"
+          "20b5a50ac8b56f101e2c11db23385b38",
+          "3ece285c645cac0f547ed2ae875aa840"
         ]
       }
     },
@@ -237,11 +237,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/case_supervisor.py",
-      "bytes": 26416,
+      "bytes": 26425,
       "sha256": {
         "sha256_hex_chunks": [
-          "948aba20615c7f632747d5fb7e492f32",
-          "175962e6369d1d796ea09bc2f31d44d1"
+          "df47a2e1323d70fa074d948f6ea58bfe",
+          "ec8a1a9dfedcb11672b045049f6a47aa"
         ]
       }
     },

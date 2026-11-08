@@ -23,7 +23,7 @@ import zipfile
 GIB = 1024 ** 3
 REPOSITORY = 'hyperlane-xyz/hyperlane-monorepo'
 BRANCH = 'feat/zig-agent-rewrite'
-LIMITS = {'maximum_owned_RAM_bytes': 8 * GIB, 'maximum_case_allocated_bytes': 4 * GIB, 'minimum_host_free_bytes': 6 * GIB, 'maximum_wall_seconds': 3600}
+LIMITS = {'maximum_owned_RAM_bytes': 8 * GIB, 'maximum_case_allocated_bytes': 8 * GIB, 'minimum_host_free_bytes': 6 * GIB, 'maximum_wall_seconds': 3600}
 
 
 def require(value, message):

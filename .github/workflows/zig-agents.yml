@@ -672,7 +672,9 @@ jobs:
         timeout-minutes: 25
         run: python3 zig/bench/native_radix_reference.py --root "$NATIVE_HARNESS_ROOT" --git-sha "$GITHUB_SHA" --minutes 20 --stage-only
       - name: Check portable tool ELF and explicit admission guards
-        run: python3 zig/bench/native_case_tools_test.py -v
+        run: |
+          python3 zig/bench/native_case_tools_test.py -v
+          python3 -I -B -W error zig/integration/native_case_inputs_test.py -v
       - name: Compile, test and lint only the native helper controls
         timeout-minutes: 155
         run: python3 zig/bench/native_harness_controls.py --root "$NATIVE_HARNESS_ROOT" --git-sha "$GITHUB_SHA"

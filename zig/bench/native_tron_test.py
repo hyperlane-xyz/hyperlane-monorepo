@@ -119,40 +119,51 @@ class Assets(unittest.TestCase):
   r=self.workspace();os.mkfifo(r/'node_modules/pipe')
   with self.assertRaises(ValueError):a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
  def test_owned_copy_never_aliases_source_and_only_two_registry_slots_mutate(self):
-  v=self.graph();dest=self.root/'case';dest.mkdir();out=a.materialize(v,dest/'tron-cli',0);path=pathlib.Path(out['mutable_registry_slots'][0]);path.write_text('deployed addresses');a.verify_materialized(out);self.assertEqual((pathlib.Path(v['root'])/'typescript/cli'/a.MUTABLE_REGISTRY[0]).read_text(),'original registry');self.assertFalse((dest/'tron-cli/dist').is_symlink())
+  v=self.graph();dest=self.root/'case';dest.mkdir();out=a.materialize(v,dest/'tron-cli',0,8*a.GIB);path=pathlib.Path(out['mutable_registry_slots'][0]);path.write_text('deployed addresses');a.verify_materialized(out);self.assertEqual((pathlib.Path(v['root'])/'typescript/cli'/a.MUTABLE_REGISTRY[0]).read_text(),'original registry');self.assertFalse((dest/'tron-cli/dist').is_symlink())
  def test_copy_collision_preserves_old_bytes(self):
   v=self.graph();d=self.root/'existing';d.mkdir();(d/'marker').write_text('preserve')
-  with self.assertRaises(ValueError):a.materialize(v,d,0)
+  with self.assertRaises(ValueError):a.materialize(v,d,0,8*a.GIB)
   self.assertEqual((d/'marker').read_text(),'preserve')
  def test_copy_charge_formula_unchanged_and_public_breakdown_scalar_only(self):
   value={'entries':{'private-package-path':{'kind':'file','bytes':4097},'directory':{'kind':'directory'},'link':{'kind':'symlink'},'typescript/cli/dist/cli.js':{'kind':'file','bytes':0},'typescript/cli/test-configs/tron/data':{'kind':'file','bytes':7},'typescript/cli/package.json':{'kind':'file','bytes':8193}}}
   for fragment in [1,4096,65536]:
-   charge=a.copy_charge(value,fragment);note=a.copy_allocation_note(value,fragment,123,charge,8*a.GIB);self.assertTrue(note.startswith('PUBLIC_TRON_COPY_ALLOCATION '));self.assertLessEqual(len(note.encode()),4096);self.assertNotIn('private-package-path',note)
-   d=json.loads(note.split(' ',1)[1]);self.assertTrue(all(type(v)is int for v in d.values()));self.assertEqual(d['graph_payload_charge_bytes']+d['duplicate_entrypoint_charge_bytes']+d['root_directory_charge_bytes']+d['metadata_reserve_bytes'],charge);self.assertEqual(d['root_directory_charge_bytes'],32*fragment);self.assertEqual(d['metadata_reserve_bytes'],256*1024**2);self.assertEqual(d['PG_reservation_bytes'],2*a.GIB);self.assertEqual(d['final_required_bytes'],123+charge+2*a.GIB);self.assertEqual(d['original_case_cap_bytes'],4*a.GIB)
+   charge=a.copy_charge(value,fragment);note=a.copy_allocation_note(value,fragment,123,charge,8*a.GIB,8*a.GIB);self.assertTrue(note.startswith('PUBLIC_TRON_COPY_ALLOCATION '));self.assertLessEqual(len(note.encode()),4096);self.assertNotIn('private-package-path',note)
+   d=json.loads(note.split(' ',1)[1]);self.assertTrue(all(type(v)is int for v in d.values()));self.assertEqual(d['graph_payload_charge_bytes']+d['duplicate_entrypoint_charge_bytes']+d['root_directory_charge_bytes']+d['metadata_reserve_bytes'],charge);self.assertEqual(d['root_directory_charge_bytes'],32*fragment);self.assertEqual(d['metadata_reserve_bytes'],256*1024**2);self.assertEqual(d['PG_reservation_bytes'],2*a.GIB);self.assertEqual(d['final_required_bytes'],123+charge+2*a.GIB);self.assertEqual(d['original_case_cap_bytes'],8*a.GIB)
  def test_actual_precopy_guard_preserves_message_and_adds_existing_numeric_note(self):
   value=self.graph();destination=self.root/'oversized-numeric';fragment=os.statvfs(self.root).f_frsize;charge=a.copy_charge(value,fragment)
-  with self.assertRaises(ValueError)as caught:a.materialize(value,destination,4*a.GIB)
-  self.assertEqual(str(caught.exception),'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds original4GiB cap');self.assertFalse(destination.exists());self.assertEqual(len(caught.exception.__notes__),1)
-  d=json.loads(caught.exception.__notes__[0].split(' ',1)[1]);self.assertEqual(d['filesystem_fragment_bytes'],fragment);self.assertEqual(d['existing_case_allocated_bytes'],4*a.GIB);self.assertEqual(d['copy_charge_bytes'],charge);self.assertEqual(d['observed_host_free_bytes'],8*a.GIB)
+  with self.assertRaises(ValueError)as caught:a.materialize(value,destination,8*a.GIB,8*a.GIB)
+  self.assertEqual(str(caught.exception),'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds reviewed native case cap');self.assertFalse(destination.exists());self.assertEqual(len(caught.exception.__notes__),1)
+  d=json.loads(caught.exception.__notes__[0].split(' ',1)[1]);self.assertEqual(d['filesystem_fragment_bytes'],fragment);self.assertEqual(d['existing_case_allocated_bytes'],8*a.GIB);self.assertEqual(d['copy_charge_bytes'],charge);self.assertEqual(d['observed_host_free_bytes'],8*a.GIB)
  def test_copy_note_failure_cannot_replace_or_heal_original_guard(self):
   value=self.graph();destination=self.root/'note-failure'
-  with mock.patch.object(a,'copy_allocation_note',side_effect=RuntimeError('synthetic-diagnostic-failure')),self.assertRaises(ValueError)as caught:a.materialize(value,destination,4*a.GIB)
-  self.assertEqual(str(caught.exception),'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds original4GiB cap');self.assertFalse(hasattr(caught.exception,'__notes__'));self.assertFalse(destination.exists())
+  with mock.patch.object(a,'copy_allocation_note',side_effect=RuntimeError('synthetic-diagnostic-failure')),self.assertRaises(ValueError)as caught:a.materialize(value,destination,8*a.GIB,8*a.GIB)
+  self.assertEqual(str(caught.exception),'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds reviewed native case cap');self.assertFalse(hasattr(caught.exception,'__notes__'));self.assertFalse(destination.exists())
  def test_actual_success_has_no_note_or_extra_filesystem_observation(self):
   value=self.graph();destination=self.root/'successful-copy';statvfs=os.statvfs;observed=[]
   def counted(path):observed.append(path);return statvfs(path)
-  with mock.patch.object(a,'copy_allocation_note',side_effect=AssertionError('success diagnostics reached')),mock.patch.object(a.os,'statvfs',side_effect=counted),mock.patch.object(a.shutil,'disk_usage',return_value=type('Usage',(),{'free':8*a.GIB})())as usage:a.materialize(value,destination,0)
+  with mock.patch.object(a,'copy_allocation_note',side_effect=AssertionError('success diagnostics reached')),mock.patch.object(a.os,'statvfs',side_effect=counted),mock.patch.object(a.shutil,'disk_usage',return_value=type('Usage',(),{'free':8*a.GIB})())as usage:a.materialize(value,destination,0,8*a.GIB)
   self.assertEqual(observed,[destination.parent]);usage.assert_called_once_with(destination.parent)
  def test_floor_refusal_note_uses_same_single_observed_capacity(self):
   value=self.graph();destination=self.root/'low-free';usage=type('Usage',(),{'free':5*a.GIB})()
-  with mock.patch.object(a.shutil,'disk_usage',return_value=usage)as observed,self.assertRaises(ValueError)as caught:a.materialize(value,destination,0)
+  with mock.patch.object(a.shutil,'disk_usage',return_value=usage)as observed,self.assertRaises(ValueError)as caught:a.materialize(value,destination,0,8*a.GIB)
   self.assertEqual(str(caught.exception),'Full owned CLI copies must preserve6GiB floor');d=json.loads(caught.exception.__notes__[0].split(' ',1)[1]);self.assertEqual(d['observed_host_free_bytes'],5*a.GIB);self.assertEqual(d['host_free_floor_bytes'],6*a.GIB);self.assertFalse(destination.exists());observed.assert_called_once_with(destination.parent)
  def test_conservative_existing_case_charge_fails_before_copy(self):
   v=self.graph();d=self.root/'oversized'
-  with self.assertRaises(ValueError):a.materialize(v,d,4*a.GIB)
+  with self.assertRaises(ValueError):a.materialize(v,d,8*a.GIB,8*a.GIB)
   self.assertFalse(d.exists())
+ def test_explicit_native_case8_allows_complete_small_graph_above_old4(self):
+  value=self.graph();destination=self.root/'above-old-cap';existing=4*a.GIB
+  charge=a.copy_charge(value,os.statvfs(self.root).f_frsize);self.assertGreater(existing+charge+2*a.GIB,4*a.GIB);self.assertLess(existing+charge+2*a.GIB,8*a.GIB)
+  copied=a.materialize(value,destination,existing,8*a.GIB);a.verify_materialized(copied);self.assertEqual(a.MAX_BYTES,4*a.GIB)
+ def test_exact_native_cap_boundary_and_unknown_policy_fail_closed(self):
+  value=self.graph();charge=a.copy_charge(value,os.statvfs(self.root).f_frsize)
+  a.materialize(value,self.root/'exact-cap',8*a.GIB-2*a.GIB-charge,8*a.GIB)
+  with self.assertRaisesRegex(ValueError,'exceeds reviewed'):a.materialize(value,self.root/'cap-plus1',8*a.GIB-2*a.GIB-charge+1,8*a.GIB)
+  for cap in [4*a.GIB,9*a.GIB,True,float(8*a.GIB)]:
+   with mock.patch.object(a,'verify_graph',side_effect=AssertionError('invalid policy reached graph')),self.assertRaisesRegex(ValueError,'Exact reviewed8GiB'):a.materialize(value,self.root/'unknown-cap',0,cap)
+
  def test_changed_copied_SDK_or_new_root_dist_rejects(self):
-  v=self.graph();out=a.materialize(v,self.root/'tron-cli',0);(self.root/'tron-cli/dist/injected.js').write_text('new')
+  v=self.graph();out=a.materialize(v,self.root/'tron-cli',0,8*a.GIB);(self.root/'tron-cli/dist/injected.js').write_text('new')
   with self.assertRaises(ValueError):a.verify_materialized(out)
  def actual_SBF(self):
   source=pathlib.Path(__file__).resolve().parents[2]/'typescript/svm-sdk/src/testing/fixtures/spl_token_2022_v10.so';return source.read_bytes()
@@ -186,7 +197,7 @@ class Assets(unittest.TestCase):
   self.assertNotIn('not exported body',json.dumps(report))
  def test_inventory_does_not_waive_materialization_or_admission(self):
   repo=self.workspace();(repo/'node_modules/guest.node').write_bytes(b'MZ'+b'\0'*30);dest=self.root/'must-not-materialize'
-  with self.assertRaises(ValueError):a.materialize(a.graph(repo,list(a.PACKAGE_ROOTS),'amd64'),dest,0)
+  with self.assertRaises(ValueError):a.materialize(a.graph(repo,list(a.PACKAGE_ROOTS),'amd64'),dest,0,8*a.GIB)
   self.assertFalse(dest.exists())
  def test_inventory_preserves_unsafe_link_immediate_failure(self):
   repo=self.workspace();(repo/'node_modules/a.node').write_bytes(b'not ELF');(repo/'node_modules/z-link').symlink_to('/foreign')
@@ -229,7 +240,7 @@ class Assets(unittest.TestCase):
    value=a.graph(r,list(a.PACKAGE_ROOTS),'amd64');self.assertNotIn('unselected_Source_locked_platform_data',value['entries'][relative]);a.verify_graph(value)
  def test_actual_materializer_still_rejects_below_sixGiB_before_copy(self):
   v=self.graph();destination=self.root/'floor-rejected';usage=__import__('shutil').disk_usage(self.root)
-  with mock.patch.object(a.shutil,'disk_usage',return_value=type(usage)(usage.total,usage.used,5*a.GIB)),self.assertRaisesRegex(ValueError,'preserve6GiB'):a.materialize(v,destination,0)
+  with mock.patch.object(a.shutil,'disk_usage',return_value=type(usage)(usage.total,usage.used,5*a.GIB)),self.assertRaisesRegex(ValueError,'preserve6GiB'):a.materialize(v,destination,0,8*a.GIB)
   self.assertFalse(destination.exists())
  def bigint_rows(self):
   return {name:row for name,row in a.NPM_PREBUILD_DATA.items()if row['package']=='@trufflesuite/bigint-buffer@1.1.9'}

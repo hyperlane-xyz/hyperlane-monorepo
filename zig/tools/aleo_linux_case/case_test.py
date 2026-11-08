@@ -186,6 +186,7 @@ class Inputs(unittest.TestCase):
         spec=__import__('importlib.util',fromlist=['spec_from_file_location']).spec_from_file_location('actual_canonical_dispatch',dispatch_path)
         dispatch=__import__('importlib.util',fromlist=['module_from_spec']).module_from_spec(spec);spec.loader.exec_module(dispatch)
         payload=json.loads((HERE/'transport-ReleaseSafe.PENDING.json').read_text())
+        payload['root_approved']=True  # Positive control is independent of live activation.
         self.assertIsInstance(payload['postgres']['image_id'],dict)
         self.assertIsInstance(payload['postgres']['canonical_digest'],dict)
         self.assertIsInstance(next(iter(payload['artifact_pins'].values()))['sha256'],dict)
@@ -312,6 +313,20 @@ class NamespacePins(unittest.TestCase):
 
 
 class MetadataShape(unittest.TestCase):
+    def actual_supervisor_node_guard(self,manifest,node,python='/usr/bin/python3.12'):
+        tree=ast.parse((HERE/'case_supervisor.py').read_text())
+        run=next(row for row in tree.body if isinstance(row,ast.FunctionDef)and row.name=='run')
+        guard=next(row for row in run.body if isinstance(row,ast.Expr)and isinstance(row.value,ast.Call)and any(isinstance(arg,ast.Constant)and arg.value=='exact Ubuntu Python and admitted Node required'for arg in row.value.args))
+        exec(compile(ast.Module(body=[guard],type_ignores=[]),'actual-supervisor-node-admission','exec'),{'manifest':manifest,'node':node,'python':python,'need':supervisor.need})
+
+    def test_actual_node_guard_rejects_wrong_python_or_tool_and_no_top_level_fallback(self):
+        canonical={'tools':{'node':{'path':'/fixed/node'}}}
+        self.actual_supervisor_node_guard(canonical,'/fixed/node')
+        with self.assertRaises(ValueError):self.actual_supervisor_node_guard(canonical,'/other/node')
+        with self.assertRaises(ValueError):self.actual_supervisor_node_guard(canonical,'/fixed/node','/other/python')
+        with self.assertRaises(ValueError):self.actual_supervisor_node_guard({'node':{'path':'/fixed/node'},'tools':{'node':{'path':'/other/node'}}},'/fixed/node')
+        with self.assertRaises(KeyError):self.actual_supervisor_node_guard({'node':{'path':'/fixed/node'}},'/fixed/node')
+
     def test_actual_SDK_spec_stage_and_hydrated_tool_names_flow_to_pending_only(self):
         # Synthetic boundary stubs model only field composition. They grant no
         # SDK/cohort/Docker/kernel acceptance and invoke no main or external tool.
@@ -348,6 +363,9 @@ class MetadataShape(unittest.TestCase):
             self.assertEqual(value['driver'],driver);self.assertEqual(value['sdk_entry'],entry)
             self.assertEqual(manifest['tools']['rocksOracle'],context['tools']['ziggy-rocks-oracle']);self.assertEqual(manifest['tools']['nativeRows'],context['tools']['ziggy-native-rows'])
             self.assertEqual(manifest['artifacts'],products);self.assertEqual(manifest['deadlineSeconds'],10800)
+            self.assertNotIn('node',manifest);self.assertEqual(manifest['tools']['node'],tools['node'])
+            try:self.actual_supervisor_node_guard(manifest,tools['node']['path'])
+            except Exception as error:self.fail('Actual producer manifest rejected by actual supervisor: '+type(error).__name__)
 
 
 class ControllerRSS(unittest.TestCase):

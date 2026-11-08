@@ -138,7 +138,7 @@ def run(spec_pin):
     policy_module=checked(spec['namespace_policy']);module_spec=importlib.util.spec_from_file_location('fixed_aleo_namespace_policy',policy_module);policy_code=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(policy_code)
     python=str(checked(spec['python']));node=str(checked(spec['node']));bwrap=str(checked(spec['bwrap']))
     need(checked(spec['case_launcher']).with_name('bootstrap.mjs')==checked(spec['bootstrap']),'actual immutable launcher must import the admitted sibling bootstrap')
-    need(python=='/usr/bin/python3.12'and manifest['node']['path']==node,'exact Ubuntu Python and admitted Node required')
+    need(python=='/usr/bin/python3.12'and manifest['tools']['node']['path']==node,'exact Ubuntu Python and admitted Node required')
     need(min(free(root.parent),free(spec['docker_filesystem']))>=CAPS['free_floor_bytes']+CAPS['new_disk_bytes'],'case growth headroom plus free6GiB floor required')
     memory={line.split(':',1)[0]:int(line.split()[1])*1024 for line in Path('/proc/meminfo').read_text().splitlines()if line.startswith(('MemTotal:','MemAvailable:'))}
     need(memory['MemTotal']>=32*GIB and memory['MemAvailable']>=CAPS['combined_memory_bytes'],'actual combined20.5GiB memory reservation unavailable')

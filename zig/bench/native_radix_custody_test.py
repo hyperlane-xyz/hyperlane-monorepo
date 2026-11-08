@@ -452,7 +452,7 @@ class Controls(unittest.TestCase):
 
 class ResourceFailureDiagnostics(unittest.TestCase):
     def failure(self, **changed):
-        values={'host_ram':123,'case_bytes':500000000,'initial_free':100*m.GIB,'current_free':99*m.GIB,'writable_bytes':600000000,'volume_bytes':1100000000,'observed_ns':100,'deadline_ns':200}
+        values={'host_ram':123,'case_bytes':5*m.GIB,'initial_free':100*m.GIB,'current_free':99*m.GIB,'writable_bytes':600000000,'volume_bytes':1100000000,'observed_ns':100,'deadline_ns':200}
         values.update(changed);values['charged_ram'],values['charged_disk']=m.resource_charge(*[values[k]for k in ['host_ram','case_bytes','initial_free','current_free','writable_bytes','volume_bytes']]);return values
     def test_actual_formula_components_and_four_independent_failed_conjuncts(self):
         for changes,key in [({},'disk_within_limit'),({'case_bytes':0,'writable_bytes':0,'volume_bytes':0,'host_ram':4*m.GIB},'RAM_within_limit'),({'case_bytes':0,'writable_bytes':0,'volume_bytes':0,'observed_ns':200},'before_original_deadline'),({'case_bytes':0,'writable_bytes':0,'volume_bytes':0,'initial_free':5*m.GIB,'current_free':5*m.GIB},'host_free_above_floor')]:
@@ -467,7 +467,7 @@ class ResourceFailureDiagnostics(unittest.TestCase):
         import ast
         from types import SimpleNamespace as N
         owner=Path(__file__).with_name('native_case_owner.py');tree=ast.parse(owner.read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main');loop=next(n for n in ast.walk(fn)if isinstance(n,ast.While));start=next(i for i,n in enumerate(loop.body)if isinstance(n,ast.Assign)and any(isinstance(v,ast.Name)and v.id=='resource_observed_ns'for v in n.targets));nodes=loop.body[start:start+4];self.assertEqual(len(nodes),4)
-        ns={'time':N(monotonic_ns=lambda:values['observed_ns']),'deadline_ns':values['deadline_ns'],'ram':values['charged_ram'],'disk':values['charged_disk'],'free':values['current_free'],'GIB':m.GIB,'rx_resources':N(public_resource_failure=diagnostic or m.public_resource_failure),'owned':{1:{'rss_bytes':values['host_ram']}},'radix_case_allocated':values['case_bytes'],'initial_free':values['initial_free'],'writable':values['writable_bytes'],'volume_bytes':values['volume_bytes'],'result':{},'require':m.require}
+        ns={'time':N(monotonic_ns=lambda:values['observed_ns']),'deadline_ns':values['deadline_ns'],'plan':{'maximum_case_allocated_bytes':8*m.GIB},'ram':values['charged_ram'],'disk':values['charged_disk'],'free':values['current_free'],'GIB':m.GIB,'rx_resources':N(public_resource_failure=diagnostic or m.public_resource_failure),'owned':{1:{'rss_bytes':values['host_ram']}},'radix_case_allocated':values['case_bytes'],'initial_free':values['initial_free'],'writable':values['writable_bytes'],'volume_bytes':values['volume_bytes'],'result':{},'require':m.require}
         return ns,compile(ast.Module(body=nodes,type_ignores=[]),str(owner),'exec')
     def test_actual_owner_retains_failing_iteration_before_raise_not_last_success(self):
         values=self.failure();ns,code=self.guard(values)
@@ -481,6 +481,15 @@ class ResourceFailureDiagnostics(unittest.TestCase):
         ns,code=self.guard(self.failure(),lambda *args:(_ for _ in()).throw(RuntimeError('private sentinel not copied')))
         with self.assertRaisesRegex(ValueError,'Original native case deadline/resource guard'):exec(code,ns)
         self.assertEqual(ns['result'],{'radix_resource_diagnostic_error':{'type':'RuntimeError'}})
+    def test_native8_disk_boundary_retains_RAM_free_and_original_deadline(self):
+        good=self.failure(case_bytes=6*m.GIB,writable_bytes=0,volume_bytes=0)
+        ns,code=self.guard(good);exec(code,ns);self.assertEqual(ns['result'],{})
+        for changes,key in [({'case_bytes':6*m.GIB+1},'disk_within_limit'),({'host_ram':8*m.GIB},'RAM_within_limit'),({'current_free':6*m.GIB-1,'initial_free':6*m.GIB-1},'host_free_above_floor'),({'observed_ns':200},'before_original_deadline')]:
+            values=self.failure(case_bytes=6*m.GIB,writable_bytes=0,volume_bytes=0,**changes) if 'case_bytes' not in changes else self.failure(writable_bytes=0,volume_bytes=0,**changes)
+            ns,code=self.guard(values)
+            with self.subTest(key=key),self.assertRaisesRegex(ValueError,'Original native'):exec(code,ns)
+            self.assertFalse(ns['result']['radix_resource_limit_failure']['conjuncts'][key]);self.assertEqual(ns['result']['radix_resource_limit_failure']['limits']['disk_bytes'],8*m.GIB)
+
     def test_closed_public_values_privacy_and_record_bound(self):
         row=m.public_resource_failure(**self.failure());wire=json.dumps(row);self.assertLessEqual(len(wire.encode()),4096)
         def walk(value):

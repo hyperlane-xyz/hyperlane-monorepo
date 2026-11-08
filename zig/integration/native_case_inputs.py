@@ -38,7 +38,7 @@ SDK_NAMES = {
     'libziggy_regex.so': 'regex', 'libziggy_starknet_crypto.so': 'starknet',
     'libziggy_aleo_crypto.so': 'aleo-crypto', 'libziggy_aleo_vm.so': 'aleo-vm',
 }
-LIMITS = {'maximum_owned_RAM_bytes': 8 * GIB, 'maximum_case_allocated_bytes': 4 * GIB,
+LIMITS = {'maximum_owned_RAM_bytes': 8 * GIB, 'maximum_case_allocated_bytes': 8 * GIB,
           'minimum_host_free_bytes': 6 * GIB, 'maximum_wall_seconds': 3600}
 
 
@@ -615,7 +615,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         svm_case=load_module('prepare_svm_case','zig/bench/native_svm_case.py')
         profile['svm_assets'],svm_required=svm_case.materialize(stage['svm_assets'],request,repo,root,context['request'],context['producer_receipt'])
     if scenario=='tron':
-        assets=load_module('prepare_tron_assets','zig/bench/native_tron_assets.py');census=load_module('prepare_tron_census','zig/bench/native_harness_census.py');graph=assets.read_graph(stage['tron_assets']['graph']);copied=assets.materialize(graph,root/'tron-cli',census.functional_allocated(root))
+        assets=load_module('prepare_tron_assets','zig/bench/native_tron_assets.py');census=load_module('prepare_tron_census','zig/bench/native_harness_census.py');graph=assets.read_graph(stage['tron_assets']['graph']);copied=assets.materialize(graph,root/'tron-cli',census.functional_allocated(root),request['limits']['maximum_case_allocated_bytes'])
         copied_path=root/'tron-cli-copy.json'
         with copied_path.open('x')as stream:json.dump(copied,stream,sort_keys=True);stream.write('\n')
         profile['tron_cli']=artifact(copied_path);profile['tron_tre']={**{k:v for k,v in request['prerequisites']['tron_tre'].items()if k!='schema'},'run_token':secrets.token_hex(16),'cli_directory':str(root/'tron-cli'),'cli_entrypoint':copied['entrypoint'],'pnpm':stage['tools']['pnpm_native']}

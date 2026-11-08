@@ -50,7 +50,7 @@ def load_plan(path, expected_sha):
     require(pin(path)['sha256'] == expected_sha, 'Approved launch plan changed')
     plan = json.loads(path.read_text())
     require(type(plan.get('schema')) is int and plan['schema'] == 1 and plan.get('root_approved') is True and plan.get('scenario') in FILTERS, 'Approved initial native family plan required')
-    require(all(type(plan.get(k)) is int and plan[k] == v for k,v in {'maximum_owned_RAM_bytes':8*GIB,'maximum_case_allocated_bytes':4*GIB,'minimum_host_free_bytes':6*GIB,'maximum_wall_seconds':3600,'confirm_seconds':600,'grace_seconds':30,'clean_fixture_parent_waits_required':1 if plan['scenario']in{'sealevel-composite','radix'}else 2 if plan['scenario']in{'sealevel','tron'}else 3}.items()), 'Native lifecycle/resource policy changed')
+    require(all(type(plan.get(k)) is int and plan[k] == v for k,v in {'maximum_owned_RAM_bytes':8*GIB,'maximum_case_allocated_bytes':8*GIB,'minimum_host_free_bytes':6*GIB,'maximum_wall_seconds':3600,'confirm_seconds':600,'grace_seconds':30,'clean_fixture_parent_waits_required':1 if plan['scenario']in{'sealevel-composite','radix'}else 2 if plan['scenario']in{'sealevel','tron'}else 3}.items()), 'Native lifecycle/resource policy changed')
     manifest_path = checked(plan['manifestArtifact'])
     manifest = json.loads(manifest_path.read_text())
     require(manifest['scenario'] == plan['scenario'] and manifest['implementation'] == 'zig', 'Wrong native scenario/runtime')
@@ -622,7 +622,7 @@ class StarknetProgress:
     """Observations only: fixed Source markers, never raw log lines or verdicts."""
     ROOT = 'rust/main/utils/run-locally/src/'
     SOURCE_NEEDLES = {
-        'starknet/mod.rs': ('Building rust...', 'Running postgres db...', 'Init postgres db...', 'DISPATCHING MAILBOX: {} -> {:?}', 'Relayer confirmed {} submitted messages, expected {}', 'Scraper has scraped {} dispatched messages, expected {}', 'Scraper has scraped {} delivered messages, expected {}', 'Termination invariants have been met', 'timeout reached before message submission was confirmed', 'E2E tests passed'),
+        'starknet/mod.rs': ('Relayer confirmed series {} samples, sum {}, expected {}', 'Building rust...', 'Running postgres db...', 'Init postgres db...', 'DISPATCHING MAILBOX: {} -> {:?}', 'Relayer confirmed {} submitted messages, expected {}', 'Scraper has scraped {} dispatched messages, expected {}', 'Scraper has scraped {} delivered messages, expected {}', 'Termination invariants have been met', 'timeout reached before message submission was confirmed', 'E2E tests passed'),
         'starknet/cli.rs': ('send-tx result: {:?}', 'declare result: {:?}', 'deploy result: {:?}', 'invoke result: {:?}', '.cmd(function_name)', '.run_with_output()', '.run_with_status_and_output()', 'assert!(success, "Starknet invoke failed")', 'assert!(success, "Starknet send transaction failed")'),
         'program.rs': ('({wd})$ ', 'log!("{:#}", &self)', 'self.run_full(false, true)', 'child.try_wait()', 'stdout.join()', 'stderr.join()'),
         'logging.rs': ('concat!("<E2E> ", $arg)',),
@@ -638,6 +638,7 @@ class StarknetProgress:
     }
     RETURNS = {b'send-tx result: [': 'dispatch_command_returned', b'declare result: [': 'declare_command_returned', b'deploy result: [': 'deploy_command_returned', b'invoke result: [': 'invoke_command_returned'}
     METRICS = {
+        rb'<E2E> Relayer confirmed series [0-9]+ samples, sum [0-9]+, expected [0-9]+': 'confirmed_metric_series_observed',
         rb'<E2E> Relayer confirmed [0-9]+ submitted messages, expected [0-9]+': 'confirmed_metric_observed',
         rb'<E2E> Scraper has scraped [0-9]+ dispatched messages, expected [0-9]+': 'dispatch_metric_observed',
         rb'<E2E> Scraper has scraped [0-9]+ delivered messages, expected [0-9]+': 'delivery_metric_observed',
@@ -680,6 +681,12 @@ class StarknetProgress:
         if marker is None: return
         event = self.events.setdefault(marker, {'count': 0, 'first': None, 'latest': None})
         observation = {'observed_monotonic_ns': now, 'line_start_offset': start, 'line_end_offset': end}
+        if marker == 'confirmed_metric_series_observed':
+            values = re.fullmatch(rb'<E2E> Relayer confirmed series ([0-9]{1,10}) samples, sum ([0-9]{1,10}), expected ([0-9]{1,10})', wire)
+            if values is not None and all(int(value) <= 0xffffffff for value in values.groups()):
+                observation.update({'series_count': int(values[1]), 'confirmed_count': int(values[2]), 'expected_count': int(values[3]), 'metric_values_status': 'observed_u32'})
+            else:
+                observation['metric_values_status'] = 'outside_u32'
         if marker == 'confirmed_metric_observed':
             values = re.fullmatch(rb'<E2E> Relayer confirmed ([0-9]{1,10}) submitted messages, expected ([0-9]{1,10})', wire)
             if values is not None and all(int(value) <= 0xffffffff for value in values.groups()):
@@ -1156,7 +1163,7 @@ def main():
                         value=tr_resources.read_record(record);require(value['case_root']==str(case)and value['image_id']==inputs['tron_tre']['image_id']and value['run_token']==inputs['tron_tre']['run_token'],'Tron resource record identity differs');writable=value['maximum_writable_bytes']
                     ram,disk=tr_resources.resource_charge(sum(row['rss_bytes']for row in owned.values()),disk-2*GIB,initial_free,free,writable)
                 resource_observed_ns = time.monotonic_ns()
-                resource_guard_passed = resource_observed_ns<deadline_ns and ram<=8*GIB and disk<=4*GIB and free>=6*GIB
+                resource_guard_passed = resource_observed_ns<deadline_ns and ram<=8*GIB and disk<=plan['maximum_case_allocated_bytes'] and free>=6*GIB
                 if rx_resources is not None and not resource_guard_passed:
                     try:
                         result['radix_resource_limit_failure'] = rx_resources.public_resource_failure(sum(row['rss_bytes'] for row in owned.values()),radix_case_allocated,initial_free,free,writable,volume_bytes,ram,disk,resource_observed_ns,deadline_ns)
@@ -1164,7 +1171,7 @@ def main():
                         result['radix_resource_diagnostic_error'] = {'type':type(diagnostic_error).__name__}
                 require(resource_guard_passed,'Original native case deadline/resource guard')
                 require((args.output/'owner-worker.log').stat().st_size<=32*1024**2,'Bounded owner log')
-                samples.append({'monotonic_ns':time.monotonic_ns(),'owned_host_RAM_plus_PG_cap_bytes':ram,'case_allocated_plus_PG_tmpfs_cap_bytes':disk,'host_free_bytes':free,'owned_process_count':len(owned),**({'container_memory_reservation_bytes':5*GIB,'disk_scope':'max(case allocation, host filesystem free drop)+2GiB PG tmpfs; initial image acquisition excluded, ongoing6GiB floor'} if plan['scenario']=='starknet'else{'container_memory_reservation_bytes':4*GIB,'disk_scope':'max(case allocation plus TRE writable, host filesystem free drop)+2GiB PG tmpfs; original4GiB cap/6GiB floor'}if plan['scenario']=='tron'else{})})
+                samples.append({'monotonic_ns':time.monotonic_ns(),'owned_host_RAM_plus_PG_cap_bytes':ram,'case_allocated_plus_PG_tmpfs_cap_bytes':disk,'host_free_bytes':free,'owned_process_count':len(owned),**({'container_memory_reservation_bytes':5*GIB,'disk_scope':'max(case allocation, host filesystem free drop)+2GiB PG tmpfs; initial image acquisition excluded, ongoing6GiB floor'} if plan['scenario']=='starknet'else{'container_memory_reservation_bytes':4*GIB,'disk_scope':'max(case allocation plus TRE writable, host filesystem free drop)+2GiB PG tmpfs; reviewed8GiB native case cap/6GiB floor'}if plan['scenario']=='tron'else{})})
                 time.sleep(.2)
     except BaseException as error:
         failure=error;result['error']={'type':type(error).__name__,'message':str(error)}

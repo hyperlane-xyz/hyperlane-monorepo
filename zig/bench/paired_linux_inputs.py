@@ -353,7 +353,7 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
     tools_manifest=published/'tools/manifest.json';accepted=tools.load_manifest(tools_manifest,digest(tools_manifest),value['producer_source_commit'],62)
     artifacts['tools']={name:relative_pin(Path(row['path']),published)for name,row in accepted.items()};artifacts['tool_manifest']=relative_pin(tools_manifest,published)
    source_fence(api,tools,repo,before,locks);source_authority_recheck(authority)
-  system_paths,versions=staged_tools(prep,plain,env,repo)
+  system_paths,versions=staged_tools(prep,plain,env,repo,tools)
   plans=compile_plan(repo,root)
   for phase in plans:
    row=prep.run(phase['name'],phase['command'],env,cwd=Path(phase.get('cwd',repo)))
@@ -386,7 +386,7 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
    for stream in ['stdout','stderr']:
     dest=provenance/'commands'/(row['name']+'.'+stream);copy_owned(checked(row[stream]),dest,row[stream],prep.guard,0o644);copied[stream]=relative_pin(dest,published)
    command_records.append(copied)
-  build_gate=write(provenance/'build-receipt.json',{'schema':1,'passed':all(final_phase(x)for x in prep.rows),'fixed_profile':PROFILE,'system_tool_resolution':{name:{'invocation_path':shutil.which(name,path=plain['PATH']),'actual_resolved_pin':system_paths[name]}for name in TOOL_NAMES},'actual_commands':command_records,'peak_observed_tree_RAM_bytes':prep.peak,'consumer_CPU_flags':available,'compile_CPU_flags':host_flags,'SDK_baked_CPU':sdk_provenance,'download_receipts':transport_exports,'tool_versions':versions,'native_or_timing_acceptance':False})
+  build_gate=write(provenance/'build-receipt.json',{'schema':1,'passed':all(final_phase(x)for x in prep.rows),'fixed_profile':PROFILE,'system_tool_resolution':{name:{'invocation_path':system_paths[name]['path']if name=='psql'else shutil.which(name,path=plain['PATH']),'actual_resolved_pin':system_paths[name]}for name in TOOL_NAMES},'actual_commands':command_records,'peak_observed_tree_RAM_bytes':prep.peak,'consumer_CPU_flags':available,'compile_CPU_flags':host_flags,'SDK_baked_CPU':sdk_provenance,'download_receipts':transport_exports,'tool_versions':versions,'native_or_timing_acceptance':False})
   manifest={'schema':1,'kind':'paired-linux-inputs-v1','platform':'linux-x86_64','passed':False,'source_unchanged':True,'all_actual_parent_waits':all(final_phase(x)for x in prep.rows),'owned_absent':all(x['owned_absent']for x in prep.rows),'producer_source_commit':value['producer_source_commit'],'baseline_source_commit':BASELINE,'execution_source_commit':execution,'request_sha256':request_sha,'baseline_profile':PROFILE,'artifacts':artifacts,'required_cpu_flags':sorted(required),'source_gate':relative_pin(Path(source_gate['path']),published),'build_receipt':relative_pin(Path(build_gate['path']),published),'SDK_manifests':sdk_manifests,'repository_source_files':fixture_sources,'repository_fixture_files':fixtures,'fixture_tools':{},'external':external,'native_or_timing_acceptance':False,'files':[]}
   manifest['files']=[relative_pin(p,published)for p in sorted(published.rglob('*'))if p.is_file()];need(sum(x['bytes']for x in manifest['files'])<=LIMITS['maximum_published_bytes'],'bounded published product closure')
   need(set(artifacts['rust'])=={'relayer','validator','scraper'}and set(artifacts['zig'])==set(MODES)and all(set(v)==set(SDK_KEYS.values())for v in artifacts['zig'].values())and set(artifacts['tools'])==TOOLS and artifacts['evm_oracle']and artifacts['tool_manifest'],'all actual input products required')
@@ -405,15 +405,20 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
 TOOL_NAMES=('cargo','rustc','rustup','cc','clang','cmake','pkg-config','protoc','git','ps','ldd','ldconfig','node','pnpm','anvil','cast','forge','docker','psql','lsof','sh','openssl')
 PG16='postgres@sha256:'+'43f9275df91e012c3da3d86bea5d7bb5'+'e67a473296cc906c5f9e80b8176b1a37'
 
-def staged_tools(prep,plain,compile_env,repo):
- paths={name:pin(Path(shutil.which(name,path=plain['PATH'])or'/nonexistent').resolve(strict=True))for name in TOOL_NAMES}
+def native_psql16(tools):
+ # Ubuntu's client-common psql is a wrapper; inventory the installed v16 ELF.
+ path=Path('/usr/lib/postgresql/16/bin/psql');tools.validate_elf(path,62)
+ return pin(path)
+
+def staged_tools(prep,plain,compile_env,repo,tools):
+ paths={name:native_psql16(tools)if name=='psql'else pin(Path(shutil.which(name,path=plain['PATH'])or'/nonexistent').resolve(strict=True))for name in TOOL_NAMES}
  paths['python3']=pin(Path(sys.executable).resolve(strict=True))
  need(paths['clang']['path']==str(Path('/usr/bin/clang').resolve(strict=True)),'fixed crash compiler differs from recorded bare clang')
  versions={};toolchain={}
  for name in ['cargo','rustc']:
   row=prep.run('resolve-1.98.0-'+name,['rustup','which','--toolchain','1.98.0',name],compile_env,seconds=10);text=checked(row['stdout']).read_text().strip();need('\n'not in text and Path(text).is_absolute(),'single actual selected toolchain path');toolchain[name]=pin(Path(text).resolve(strict=True))
  for name,args in [('cargo',['+1.98.0','-V']),('rustc',['+1.98.0','-vV']),('node',['--version']),('pnpm',['--version']),('clang',['--version']),('anvil',['--version']),('cast',['--version']),('psql',['--version']),('openssl',['version'])]:
-  row=prep.run('version-'+name,[name,*args],compile_env if name in{'cargo','rustc'}else plain,seconds=10);wire=checked(row['stdout']).read_text();need(len(wire)<=32768,'bounded tool version');versions[name]={'stdout':row['stdout'],'text':wire.strip()}
+  row=prep.run('version-'+name,[paths[name]['path']if name=='psql'else name,*args],compile_env if name in{'cargo','rustc'}else plain,seconds=10);wire=checked(row['stdout']).read_text();need(len(wire)<=32768,'bounded tool version');versions[name]={'stdout':row['stdout'],'text':wire.strip()}
  need(versions['cargo']['text'].startswith('cargo 1.98.0 ')and versions['rustc']['text'].startswith('rustc 1.98.0 '),'exact staged Rust1.98.0 required')
  need(versions['node']['text']==(repo/'.nvmrc').read_text().strip(),'exact repository Node version')
  manager=decode((repo/'package.json').read_bytes())['packageManager'];need(re.fullmatch(r'pnpm@12\.3\.0\+sha512\.[0-9a-f]+',manager)and versions['pnpm']['text']=='12.3.0','exact pinned pnpm12.3.0 required')

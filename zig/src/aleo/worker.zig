@@ -221,9 +221,10 @@ test "Aleo worker exec acknowledgement excludes inherited parent RSS" {
     args[1] = path;
     const filler = "x" ** 256;
     @memset(args[2..], filler);
+    // Python fixture headroom; the touched 256 MiB parent still exceeds this cap.
     for (0..20) |iteration| {
         var elapsed = try std.time.Timer.start();
-        var session = Session.spawn(std.testing.allocator, args, .{ .timeout_ms = 5000, .memory_bytes = 48 * 1024 * 1024 }) catch |err| {
+        var session = Session.spawn(std.testing.allocator, args, .{ .timeout_ms = 5000, .memory_bytes = 128 * 1024 * 1024 }) catch |err| {
             std.debug.print("ALEO_WORKER_EXEC_FIXTURE phase=spawn iteration={d} error={s} elapsed_ms={d}\n", .{ iteration, @errorName(err), elapsed.read() / std.time.ns_per_ms });
             return err;
         };

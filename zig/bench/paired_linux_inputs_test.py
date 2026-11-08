@@ -210,8 +210,51 @@ class FixtureExecutableClosure(unittest.TestCase):
  def test_fixed_crash_compiler_must_match_the_recorded_bare_command(self):
   tree=ast.parse((REPO/'zig/integration/relayer_process.py').read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='fault_compile');fixed=ast.literal_eval(next(n for n in fn.body if isinstance(n,ast.Return)).value.elts[0])
   fn=next(n for n in ast.parse(P.read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='staged_tools');end=next(i for i,n in enumerate(fn.body)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='versions'for t in n.targets));code=compile(ast.Module(body=fn.body[:end],type_ignores=[]),'actual-tool-resolution-prefix','exec')
-  def namespace(clang):return {'Path':pathlib.Path,'pin':lambda p:{'path':str(p)},'TOOL_NAMES':m.TOOL_NAMES,'sys':m.sys,'need':m.need,'plain':{'PATH':'fixture-only'},'shutil':types.SimpleNamespace(which=lambda name,path=None:clang if name=='clang'else'/bin/sh')}
+  def namespace(clang):return {'Path':pathlib.Path,'pin':lambda p:{'path':str(p)},'TOOL_NAMES':m.TOOL_NAMES,'native_psql16':lambda tools:{'path':'/fixture-native/psql'},'tools':None,'sys':m.sys,'need':m.need,'plain':{'PATH':'fixture-only'},'shutil':types.SimpleNamespace(which=lambda name,path=None:clang if name=='clang'else'/bin/sh')}
   good=namespace(fixed);exec(code,good);self.assertEqual(good['paths']['clang']['path'],str(pathlib.Path(fixed).resolve(strict=True)))
   with self.assertRaisesRegex(m.Refused,'fixed crash compiler'):exec(code,namespace('/bin/sh'))
+
+class NativePsql16(unittest.TestCase):
+ setUp=Controls.setUp
+ file=Controls.file
+ def tools(self):
+  import sys
+  old=sys.path[:];sys.path.insert(0,str(P.parent))
+  try:
+   spec=importlib.util.spec_from_file_location('psql_actual_ELF_admission',P.with_name('native_case_tools.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+  finally:sys.path[:]=old
+ def elf(self,machine=62):
+  import struct
+  wire=bytearray(1024);wire[:8]=b'\x7fELF\x02\x01\x01\x00';struct.pack_into('<HHIQQ',wire,16,3,machine,1,0x400100,64);struct.pack_into('<HHH',wire,52,64,56,2);struct.pack_into('<IIQQQQQQ',wire,64,1,5,0,0x400000,0,len(wire),len(wire),4096);name=b'/lib64/ld-linux-x86-64.so.2\0';struct.pack_into('<IIQQQQQQ',wire,120,3,4,512,0,0,len(name),len(name),1);wire[512:512+len(name)]=name;return wire
+ def fixed_path(self,target):
+  return mock.patch.object(m,'Path',side_effect=lambda raw:target if str(raw)=='/usr/lib/postgresql/16/bin/psql'else pathlib.Path(raw))
+ def test_exact_installed16_native_ELF_is_selected_without_PATH_wrapper(self):
+  path=self.file('16/bin/psql',self.elf());path.chmod(0o755)
+  with self.fixed_path(path)as selected,mock.patch.object(m.shutil,'which',side_effect=AssertionError('PATH wrapper selected')):row=m.native_psql16(self.tools())
+  self.assertEqual(row,m.pin(path));selected.assert_any_call('/usr/lib/postgresql/16/bin/psql')
+ def test_script_missing_nonexec_wrong_arch_and_foreign_family_refuse(self):
+  path=self.file('16/bin/psql',self.elf());path.chmod(0o755);tools=self.tools()
+  for data,mode in [(b'#!/usr/bin/perl\n'+b'#wrapper\n'*20,0o755),(self.elf(183),0o755),(self.elf(),0o644)]:
+   path.write_bytes(data);path.chmod(mode)
+   with self.subTest(mode=mode),self.fixed_path(path),self.assertRaises(ValueError):m.native_psql16(tools)
+  path.unlink()
+  with self.fixed_path(path),self.assertRaises(ValueError):m.native_psql16(tools)
+  foreign=self.file('17/bin/psql',self.elf());foreign.chmod(0o755);path.symlink_to(foreign)
+  with self.fixed_path(path),self.assertRaises(ValueError):m.native_psql16(tools)
+ def staged(self,pg_version='psql (PostgreSQL) 16.15'):
+  path=self.file('16/bin/psql',self.elf());path.chmod(0o755);self.file('.nvmrc',b'v26.12.1\n');self.file('package.json',json.dumps({'packageManager':'pnpm@12.3.0+sha512.'+'a'*128}).encode());calls=[]
+  versions={'cargo':'cargo 1.98.0 fixture','rustc':'rustc 1.98.0 fixture','node':'v26.12.1','pnpm':'12.3.0','psql':pg_version}
+  def run(name,command,env,seconds):
+   calls.append((name,command,seconds));text='/bin/sh'if name.startswith('resolve-')else versions.get(name.removeprefix('version-'),'fixture tool version');out=self.file('version-results/'+name,text.encode());return {'stdout':m.pin(out)}
+  which=lambda name,path=None:'/usr/bin/clang'if name=='clang'else'/bin/sh'
+  with self.fixed_path(path),mock.patch.object(m.shutil,'which',side_effect=which):values=m.staged_tools(types.SimpleNamespace(run=run),{'PATH':'fixture-only'},{'PATH':'fixture-compile'},self.repo,self.tools())
+  return path,values,calls
+ def test_public_inventory_records_selected_psql_invocation_and_preserves_other_resolution(self):
+  fn=next(n for n in ast.parse(P.read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='producer_main');row=next(n for n in ast.walk(fn)if isinstance(n,ast.Dict)and {getattr(k,'value',None)for k in n.keys}=={'invocation_path','actual_resolved_pin'})
+  ns={'name':'psql','plain':{'PATH':'fixture-only'},'system_paths':{'psql':{'path':'/selected-native/psql'},'clang':{'path':'/recorded/clang'}},'shutil':types.SimpleNamespace(which=lambda name,path:'/bare-wrapper/'+name)}
+  code=compile(ast.Expression(row),'actual-public-tool-resolution','eval');self.assertEqual(eval(code,ns),{'invocation_path':'/selected-native/psql','actual_resolved_pin':ns['system_paths']['psql']});ns['name']='clang';self.assertEqual(eval(code,ns)['invocation_path'],'/bare-wrapper/clang')
+ def test_actual_staged_version_uses_same_native_pin_and_rejects_other_major(self):
+  path,(paths,versions),calls=self.staged();self.assertEqual(paths['psql'],m.pin(path));self.assertEqual(next(row for row in calls if row[0]=='version-psql'),('version-psql',[str(path),'--version'],10));self.assertIn('PostgreSQL) 16.',versions['psql']['text'])
+  with self.assertRaisesRegex(m.Refused,'PostgreSQL16 client'):self.staged('psql (PostgreSQL) 17.0')
 
 if __name__=='__main__':unittest.main(verbosity=2)

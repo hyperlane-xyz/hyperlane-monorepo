@@ -127,13 +127,13 @@ class CaseOwnerTests(unittest.TestCase):
         approval=self.root/'approval.json';approval.write_text(json.dumps({'root_approved':True,'scenario':'evm','runtime_source_commit':'a'*40,'harness':api.pin(script),'python_modules':{},'local_docker':docker}))
         inputs=self.root/'inputs.json';inputs.write_text(json.dumps({'local_docker':docker}))
         manifest=self.root/'manifest.json';manifest.write_text(json.dumps({'scenario':'evm','implementation':'zig','runtime_source_commit':'a'*40,'task_root':str(self.root),'execution_approval':api.pin(approval),'case_inputs':api.pin(inputs)}))
-        plan={'schema':1,'root_approved':True,'scenario':'evm','manifestArtifact':api.pin(manifest),'harnessArtifact':api.pin(script),'harness_argv':[str(script)],'harness_cwd':str(self.root),'lsofArtifact':api.pin(script),'required_inputs':[api.pin(script),api.pin(Path(api.__file__).resolve()),api.pin(Path(api.owner.__file__).resolve())],'explicit_environment':{'PATH':'/usr/bin:/bin','DOCKER_HOST':docker['host'],'DOCKER_CONFIG':docker['config_dir'],'NATIVE_TEST_MARKER':str(self.root/'marker.json')},'maximum_owned_RAM_bytes':8*api.GIB,'maximum_case_allocated_bytes':4*api.GIB,'minimum_host_free_bytes':6*api.GIB,'maximum_wall_seconds':3600,'confirm_seconds':600,'grace_seconds':30,'clean_fixture_parent_waits_required':3}
+        plan={'schema':1,'root_approved':True,'scenario':'evm','manifestArtifact':api.pin(manifest),'harnessArtifact':api.pin(script),'harness_argv':[str(script)],'harness_cwd':str(self.root),'lsofArtifact':api.pin(script),'required_inputs':[api.pin(script),api.pin(Path(api.__file__).resolve()),api.pin(Path(api.owner.__file__).resolve())],'explicit_environment':{'PATH':'/usr/bin:/bin','DOCKER_HOST':docker['host'],'DOCKER_CONFIG':docker['config_dir'],'NATIVE_TEST_MARKER':str(self.root/'marker.json')},'maximum_owned_RAM_bytes':8*api.GIB,'maximum_case_allocated_bytes':8*api.GIB,'minimum_host_free_bytes':6*api.GIB,'maximum_wall_seconds':3600,'confirm_seconds':600,'grace_seconds':30,'clean_fixture_parent_waits_required':3}
         path=self.root/'plan.json';path.write_text(json.dumps(plan));return path
 
     def test_closed_plan_requires_approved_bounds_exact_invocation_and_code_pins(self):
         path=self.bootstrap_plan();original=json.loads(path.read_text())
         self.assertEqual(api.load_plan(path,api.pin(path)['sha256'])[0]['scenario'],'evm')
-        for mutate in [lambda p:p.update(root_approved=False),lambda p:p.update(maximum_wall_seconds=3601),lambda p:p.update(harness_argv=[p['harness_argv'][0],'arbitrary']),lambda p:p['required_inputs'].pop(),lambda p:p['explicit_environment'].update(GH_TOKEN='not-a-real-token')]:
+        for mutate in [lambda p:p.update(root_approved=False),lambda p:p.update(maximum_wall_seconds=3601),lambda p:p.update(maximum_case_allocated_bytes=4*api.GIB),lambda p:p.update(maximum_case_allocated_bytes=9*api.GIB),lambda p:p.update(harness_argv=[p['harness_argv'][0],'arbitrary']),lambda p:p['required_inputs'].pop(),lambda p:p['explicit_environment'].update(GH_TOKEN='not-a-real-token')]:
             changed=copy.deepcopy(original);mutate(changed);path.write_text(json.dumps(changed))
             with self.assertRaises(ValueError):api.load_plan(path,api.pin(path)['sha256'])
 
@@ -613,6 +613,12 @@ class StarknetProgressTests(unittest.TestCase):
         self.assertEqual(set(row['events']),{'confirmed_metric_observed','dispatch_metric_observed','delivery_metric_observed'})
         self.assertNotIn('dispatch_command_returned',row['events']);self.assertNotIn('passed',row)
 
+    def test_confirmed_series_presence_separates_empty_from_present_zero_without_raw_metrics(self):
+        row=self.observe(b'<E2E> Relayer confirmed series 0 samples, sum 0, expected 10\n');empty=row['events']['confirmed_metric_series_observed']['latest'];self.assertEqual((empty['series_count'],empty['confirmed_count'],empty['expected_count']),(0,0,10))
+        row=self.observe(b'<E2E> Relayer confirmed series 2 samples, sum 0, expected 10\n');present=row['events']['confirmed_metric_series_observed']['latest'];self.assertEqual((present['series_count'],present['confirmed_count']),(2,0));self.assertEqual(present['metric_values_status'],'observed_u32');self.assertNotIn('PRIVATE',json.dumps(row))
+    def test_confirmed_series_numeric_overflow_suffix_and_wrong_header_do_not_export_values(self):
+        row=self.observe(b'PRIVATE <E2E> Relayer confirmed series 1 samples, sum 10, expected 10\n<E2E> Relayer confirmed series 1 samples, sum 10, expected 10 PRIVATE\n');self.assertNotIn('confirmed_metric_series_observed',row['events'])
+        value=self.observe(b'<E2E> Relayer confirmed series 4294967296 samples, sum 0, expected 10\n')['events']['confirmed_metric_series_observed']['latest'];self.assertEqual(value['metric_values_status'],'outside_u32');self.assertNotIn('series_count',value)
     def test_confirmed_metric_values_are_actual_bounded_integers(self):
         row=self.observe(b'<E2E> Relayer confirmed 0 submitted messages, expected 10\n')
         first=row['events']['confirmed_metric_observed']['first']

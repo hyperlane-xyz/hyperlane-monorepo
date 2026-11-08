@@ -127,6 +127,40 @@ class MethodControls(Fixture):
         context=self.context();context['method']['argv'].append('@foreign')
         with self.assertRaises(api.Refused):api.argv_for(context,self.root,self.root/'raw',self.root/'baseline')
 
+class NativePsql16RuntimeControls(Fixture):
+    enabled_record=AuthorityControls.enabled_record
+    def native_fixture(self):
+        import struct
+        path,row,reuse,reuse_pin,authority=self.enabled_record();wire=bytearray(1024);wire[:8]=b'\x7fELF\x02\x01\x01\x00';struct.pack_into('<HHIQQ',wire,16,3,62,1,0x400100,64);struct.pack_into('<HHH',wire,52,64,56,2);struct.pack_into('<IIQQQQQQ',wire,64,1,5,0,0x400000,0,len(wire),len(wire),4096);loader=b'/lib64/ld-linux-x86-64.so.2\0';struct.pack_into('<IIQQQQQQ',wire,120,3,4,512,0,0,len(loader),len(loader),1);wire[512:512+len(loader)]=loader
+        native=self.root/'usr/lib/postgresql/16/bin/psql';native_pin=self.file(native,wire);native.chmod(0o755);wrapper=self.root/'usr/share/postgresql-common/pg_wrapper';self.file(wrapper,b'#!/usr/bin/perl\n# public fixture, never executed\n');bare=self.root/'usr/bin/psql';bare.parent.mkdir(parents=True);bare.symlink_to(wrapper);cast=self.root/'cast';cast_pin=self.file(cast,b'public cast fixture, never executed')
+        joined=api.read(reuse);manifest=api.read(joined['input_manifest']['path']);manifest['external']['tools']={'psql':native_pin,'cast':cast_pin,'python3':api.pin(Path(sys.executable).resolve(strict=True))};joined['input_manifest']=self.file(self.inputs/'input-manifest.json',json.dumps(manifest).encode());reuse_pin=self.file(reuse,json.dumps(joined).encode());return path,row,reuse,reuse_pin,native,cast,bare
+    def admit_native_fixture(self,fixture,cast_override=None):
+        path,row,reuse,reuse_pin,native,cast,bare=fixture;lookups=[]
+        def which(name):lookups.append(name);return str(bare if name=='psql'else cast_override or cast)
+        def actual_path(value):return native if str(value)=='/usr/lib/postgresql/16/bin/psql'else Path(value)
+        with mock.patch.object(api,'Path',side_effect=actual_path),mock.patch.object(api.shutil,'which',side_effect=which),mock.patch.object(api.sys,'platform','linux'),mock.patch.object(api.os,'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(api,'current_head',return_value='a'*40):context=api.admit(path,row['sha256'],reuse,reuse_pin['sha256'],self.repo,0)
+        return context,lookups
+    def test_actual_admit_uses_fixed_native16_while_PATH_wrapper_is_different(self):
+        fixture=self.native_fixture()
+        try:context,lookups=self.admit_native_fixture(fixture)
+        except (api.Refused,FileNotFoundError)as error:self.fail('Actual native16 consumer admission refused: '+type(error).__name__)
+        self.assertEqual(context['manifest']['external']['tools']['psql'],api.pin(fixture[4]));self.assertEqual(lookups,['cast']);self.assertNotEqual(api.pin(fixture[6].resolve(strict=True)),api.pin(fixture[4]))
+    def test_missing_or_changed_native16_refuses_without_wrapper_fallback(self):
+        fixture=self.native_fixture();native=fixture[4];original=native.read_bytes();native.unlink()
+        with self.assertRaises(FileNotFoundError):self.admit_native_fixture(fixture)
+        native.write_bytes(b'#!/usr/bin/perl\n# changed native-path content, never executed\n')
+        with self.assertRaisesRegex(api.Refused,'Runtime system tool differs from admitted input: psql'):self.admit_native_fixture(fixture)
+        native.write_bytes(original);self.assertEqual(self.admit_native_fixture(fixture)[1],['cast'])
+    def test_foreign_native_major_symlink_does_not_borrow_original_native16_pin(self):
+        fixture=self.native_fixture();native=fixture[4];foreign=self.root/'usr/lib/postgresql/17/bin/psql';self.file(foreign,native.read_bytes());native.unlink();native.symlink_to(foreign)
+        with self.assertRaisesRegex(api.Refused,'Runtime system tool differs from admitted input: psql'):self.admit_native_fixture(fixture)
+    def test_producer_and_consumer_fixed_native16_paths_agree(self):
+        producer=ast.parse((HERE/'paired_linux_inputs.py').read_text());function=next(n for n in producer.body if isinstance(n,ast.FunctionDef)and n.name=='native_psql16');paths=[n.args[0].value for n in ast.walk(function)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='Path'and n.args and isinstance(n.args[0],ast.Constant)]
+        consumer=ast.parse((HERE/'paired_linux_runtime.py').read_text());function=next(n for n in consumer.body if isinstance(n,ast.FunctionDef)and n.name=='admit');selected=[n.args[0].value for n in ast.walk(function)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='Path'and n.args and isinstance(n.args[0],ast.Constant)and str(n.args[0].value).startswith('/usr/lib/postgresql/')];self.assertEqual(paths,selected);self.assertEqual(selected,['/usr/lib/postgresql/16/bin/psql'])
+    def test_all_other_bare_tool_and_python_rules_remain_strict(self):
+        fixture=self.native_fixture();context,lookups=self.admit_native_fixture(fixture);self.assertEqual(lookups,['cast']);self.assertEqual(context['manifest']['external']['tools']['python3'],api.pin(Path(sys.executable).resolve(strict=True)));foreign=self.root/'foreign-cast';self.file(foreign,fixture[5].read_bytes())
+        with self.assertRaisesRegex(api.Refused,'Runtime system tool differs from admitted input: cast'):self.admit_native_fixture(fixture,foreign)
+
 class Factories(Fixture):
     def test_Rust_environment_exact_and_Zig_SDK_only_constructor_injection(self):
         context=self.context();launch=api.Launches(context);records=[]

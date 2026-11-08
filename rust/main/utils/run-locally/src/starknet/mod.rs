@@ -681,13 +681,20 @@ fn termination_invariants_met(
     messages_expected: u32,
     starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
-    let delivered_messages_count = fetch_metric(
+    let confirmed_series: Vec<u32> = fetch_metric(
         &relayer_metrics_port.to_string(),
         "hyperlane_operations_processed_count",
         &hashmap! {"phase" => "confirmed"},
-    )?
-    .iter()
-    .sum::<u32>();
+    )?;
+    let delivered_messages_count = confirmed_series.iter().sum::<u32>();
+    if crate::external_agents::enabled() {
+        log!(
+            "Relayer confirmed series {} samples, sum {}, expected {}",
+            confirmed_series.len(),
+            delivered_messages_count,
+            messages_expected
+        );
+    }
     if delivered_messages_count != messages_expected {
         log!(
             "Relayer confirmed {} submitted messages, expected {}",

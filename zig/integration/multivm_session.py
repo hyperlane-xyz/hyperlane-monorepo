@@ -1701,6 +1701,16 @@ class Session:
         return {"verified": True, "stage": stage}
 
     def close(self):
+        token=self.diagnostic('shutdown')
+        try:
+            result=self._close()
+        except Exception as error:
+            if token is not None:self.diagnostic('shutdown',token,'exception',error)
+            raise
+        if token is not None:self.diagnostic('shutdown',token,'completed')
+        return result
+
+    def _close(self):
         self.stop.set()
         self._restart_stop_sampler()
         self.sampler.join(timeout=5)

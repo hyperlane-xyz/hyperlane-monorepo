@@ -1456,7 +1456,7 @@ def graph(repo,package_roots,architecture):
                 if child.name!='.git':stack.append(child)
         else:
             require(stat.S_ISREG(mode),'Special package payload rejected')
-            row=pin(path);total+=row['bytes'];require(total<=MAX_BYTES,'Full Linux CLI copies exceed original4GiB case cap')
+            row=pin(path);total+=row['bytes'];require(total<=MAX_BYTES,'Full Linux CLI graph exceeds separate4GiB catalog cap')
             with path.open('rb')as source:header=source.read(20)
             guest_data=source_SBF_data(relative,row,mode,header);foreign_data=unselected_prebuild_data(repo,relative,row,mode,header,architecture)or unselected_EDR_data(repo,relative,row,mode,header,architecture);data_only=guest_data or foreign_data
             if not data_only:
@@ -1502,7 +1502,7 @@ def copy_charge(value,fragment):
     return total+32*fragment+256*1024**2
 
 
-def copy_allocation_note(value,fragment,existing_case_allocated,copy_bytes,host_free):
+def copy_allocation_note(value,fragment,existing_case_allocated,copy_bytes,host_free,case_cap):
     # Failure-only scalar decomposition; copy_charge remains the decision authority.
     def charge(row):
         if row['kind']=='file':return max(fragment,((row['bytes']+fragment-1)//fragment)*fragment)
@@ -1512,22 +1512,23 @@ def copy_allocation_note(value,fragment,existing_case_allocated,copy_bytes,host_
     duplicate_bytes=sum(charge(row)for name,row in value['entries'].items()if name.startswith(prefixes)or name=='typescript/cli/package.json')
     directories=32*fragment;metadata=256*1024**2
     require(graph_bytes+duplicate_bytes+directories+metadata==copy_bytes,'Diagnostic copy decomposition differs')
-    fields={'schema':1,'filesystem_fragment_bytes':fragment,'existing_case_allocated_bytes':existing_case_allocated,'graph_payload_charge_bytes':graph_bytes,'duplicate_entrypoint_charge_bytes':duplicate_bytes,'root_directory_charge_bytes':directories,'metadata_reserve_bytes':metadata,'copy_charge_bytes':copy_bytes,'PG_reservation_bytes':2*GIB,'final_required_bytes':existing_case_allocated+copy_bytes+2*GIB,'original_case_cap_bytes':MAX_BYTES,'observed_host_free_bytes':host_free,'host_free_floor_bytes':6*GIB,'required_host_free_bytes':6*GIB+copy_bytes}
+    fields={'schema':1,'filesystem_fragment_bytes':fragment,'existing_case_allocated_bytes':existing_case_allocated,'graph_payload_charge_bytes':graph_bytes,'duplicate_entrypoint_charge_bytes':duplicate_bytes,'root_directory_charge_bytes':directories,'metadata_reserve_bytes':metadata,'copy_charge_bytes':copy_bytes,'PG_reservation_bytes':2*GIB,'final_required_bytes':existing_case_allocated+copy_bytes+2*GIB,'original_case_cap_bytes':case_cap,'observed_host_free_bytes':host_free,'host_free_floor_bytes':6*GIB,'required_host_free_bytes':6*GIB+copy_bytes}
     require(all(type(v)is int and 0<=v<2**63 for v in fields.values()),'Closed diagnostic allocation scalars required')
     note='PUBLIC_TRON_COPY_ALLOCATION '+json.dumps(fields,sort_keys=True,separators=(',',':'))
     require(len(note.encode())<=4096,'Bounded public copy allocation note required')
     return note
 
 
-def materialize(value,destination,existing_case_allocated):
+def materialize(value,destination,existing_case_allocated,case_cap):
+    require(type(case_cap)is int and case_cap==8*GIB,'Exact reviewed8GiB native case copy budget required')
     verify_graph(value);source=Path(value['root']);require(destination.is_absolute()and not destination.exists()and not destination.is_symlink(),'Fresh owned case/tron-cli copy required')
     fragment=os.statvfs(destination.parent).f_frsize;charge=copy_charge(value,fragment)
     host_free=shutil.disk_usage(destination.parent).free
     try:
         require(host_free>=6*GIB+charge,'Full owned CLI copies must preserve6GiB floor')
-        require(type(existing_case_allocated)is int and existing_case_allocated>=0 and existing_case_allocated+charge+2*GIB<=MAX_BYTES,'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds original4GiB cap')
+        require(type(existing_case_allocated)is int and existing_case_allocated>=0 and existing_case_allocated+charge+2*GIB<=case_cap,'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds reviewed native case cap')
     except ValueError as error:
-        try:error.add_note(copy_allocation_note(value,fragment,existing_case_allocated,charge,host_free))
+        try:error.add_note(copy_allocation_note(value,fragment,existing_case_allocated,charge,host_free,case_cap))
         except Exception:pass  # Diagnostic failure cannot mask or heal the original refusal.
         raise
     destination.mkdir(mode=0o700);workspace=destination/'.workspace';workspace.mkdir()

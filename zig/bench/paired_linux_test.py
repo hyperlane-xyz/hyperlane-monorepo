@@ -35,7 +35,7 @@ class Controls(unittest.TestCase):
   cohort=p.decode((ROOT/'zig/tools/aleo_linux_case/cohort-qualification.PENDING.json').read_bytes());cohort['source_commit']=producer;cohort['eight_artifacts']['tools']['name']='zig-native-case-tools-'+producer;cohort['eight_artifacts']['radix_reference']['name']='zig-native-radix-reference-'+producer
   cohort_path=self.repo/'qualified.json';cohort_path.write_text(json.dumps(cohort));value=self.inert_request();value.update(root_approved=True,inputs_enabled=True,functional_enabled=True,producer_source_commit=producer,required_source=[{**p.pin(self.repo/name),'path':name}for name in sorted(p.SOURCE_PATHS)],qualified_cohort={**p.pin(cohort_path),'path':'qualified.json'})
   for mode in p.MODES:
-   raw=json.loads((ROOT/f'zig/tools/aleo_linux_case/transport-{mode}.PENDING.json').read_text());raw['producer_source_commit']=producer;raw['artifact_pins']['tools']['name']='zig-native-case-tools-'+producer;path=self.repo/(mode+'.json');path.write_text(json.dumps(raw));value['transport_requests'][mode]={**p.pin(path),'path':path.name}
+   raw=json.loads((ROOT/f'zig/tools/aleo_linux_case/transport-{mode}.PENDING.json').read_text());raw['root_approved']=True;raw['producer_source_commit']=producer;raw['artifact_pins']['tools']['name']='zig-native-case-tools-'+producer;path=self.repo/(mode+'.json');path.write_text(json.dumps(raw));value['transport_requests'][mode]={**p.pin(path),'path':path.name}
   path=self.repo/'request.json';path.write_text(json.dumps(value));return path,value
  def test_actual_approved_request_loads_four_argument_dispatcher_and_future_cohort(self):
   path,value=self.approved();result,row=p.request(path,p.pin(path)['sha256'],self.repo);self.assertTrue(result['root_approved']);self.assertTrue(result['functional_enabled']);self.assertEqual(result['producer_source_commit'],'b'*40);self.assertEqual(row,p.pin(path))
@@ -244,7 +244,7 @@ class Workflow(unittest.TestCase):
    lines.append(line)
   self.assertEqual(count,15);return ''.join(lines)
  def test_actual18jobs_exact_old15_byte_inverse(self):
-  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'0b16d88b378d9073ad056e8e7e65087d'+'da795bb72007139f5c83f4000e079364')
+  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'451ef96a98e0114f28ef0ca4a277f7c4'+'95a820c5e886ec4b170254415dbf6d9a')
  def test_old_routes_preserved_across_all_existing_contexts(self):
   old={k:v for k,v in self.rows.items()if not k.startswith('paired-linux-')};pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))";prefix='${{ !'+pd+' && (';old={k:'${{ '+v[len(prefix):-4]+' }}'for k,v in old.items()}
   count=0

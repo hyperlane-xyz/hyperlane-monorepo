@@ -5328,29 +5328,48 @@ pub fn svm_node_ready(child: &mut TrackedChild, ledger: &Path) -> Result<()> {
     outcome
 }
 
+/// Admit only the shared temporary parent, not previously allocated children.
+/// Live Agave ledgers may contain legitimate links; new allocations neither
+/// reopen nor write those siblings. Generic retained-tree guards stay strict.
+fn svm_temporary_parent(root: &Path) -> Result<PathBuf> {
+    let relative = Path::new("tmp");
+    let parent = checked_owned_path(root, relative)?;
+    match fs::create_dir(&parent) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error.into()),
+    }
+    let parent = checked_owned_path(root, relative)?;
+    ensure!(parent.is_dir(), "SVM temporary parent is not a directory");
+    Ok(parent)
+}
+fn svm_tempdir_at(root: &Path) -> Result<tempfile::TempDir> {
+    let root = checked_owned_path(root, Path::new(""))?;
+    let parent = svm_temporary_parent(&root)?;
+    // tempfile uses exclusive directory creation for a fresh random leaf.
+    let temp = tempfile::Builder::new().prefix("svm-").tempdir_in(parent)?;
+    checked_owned_path(&root, temp.path().strip_prefix(&root)?)?;
+    Ok(temp)
+}
+fn svm_tempfile_at(root: &Path) -> Result<tempfile::NamedTempFile> {
+    let root = checked_owned_path(root, Path::new(""))?;
+    let parent = svm_temporary_parent(&root)?;
+    // NamedTempFile uses create_new/O_EXCL; no existing leaf is reopened.
+    let temp = tempfile::NamedTempFile::new_in(parent)?;
+    checked_owned_path(&root, temp.path().strip_prefix(&root)?)?;
+    Ok(temp)
+}
 pub fn svm_tempdir() -> Result<tempfile::TempDir> {
     let Some(manifest) = get()?.filter(|m| svm_family(&m.scenario)) else {
         return Ok(tempfile::tempdir()?);
     };
-    let root = create_owned_directory(&manifest.task_root, Path::new("tmp"))?;
-    let temp = tempfile::Builder::new().prefix("svm-").tempdir_in(root)?;
-    checked_owned_path(
-        &manifest.task_root,
-        temp.path().strip_prefix(&manifest.task_root)?,
-    )?;
-    Ok(temp)
+    svm_tempdir_at(&manifest.task_root)
 }
 pub fn svm_tempfile() -> Result<tempfile::NamedTempFile> {
     let Some(manifest) = get()?.filter(|m| svm_family(&m.scenario)) else {
         return Ok(tempfile::NamedTempFile::new()?);
     };
-    let root = create_owned_directory(&manifest.task_root, Path::new("tmp"))?;
-    let temp = tempfile::NamedTempFile::new_in(root)?;
-    checked_owned_path(
-        &manifest.task_root,
-        temp.path().strip_prefix(&manifest.task_root)?,
-    )?;
-    Ok(temp)
+    svm_tempfile_at(&manifest.task_root)
 }
 pub fn svm_node_arguments(program: crate::program::Program) -> Result<crate::program::Program> {
     let Some(_) = svm_assets()? else {
@@ -6774,6 +6793,85 @@ mod tests {
             create_owned_directory(root.path(), Path::new("databases/retained")).unwrap()
         );
         assert_eq!(fs::read(path.join("marker")).unwrap(), b"durable fixture");
+    }
+    #[cfg(unix)]
+    #[test]
+    fn svm_fresh_temporary_objects_do_not_walk_live_ledger_siblings() {
+        use std::os::unix::fs::symlink;
+        let owned = tempfile::tempdir().unwrap();
+        let root = owned.path().canonicalize().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("sentinel"), b"unchanged").unwrap();
+        let ledger = svm_tempdir_at(&root).unwrap();
+        fs::create_dir(ledger.path().join("accounts")).unwrap();
+        symlink(outside.path(), ledger.path().join("accounts/live-link")).unwrap();
+        // The generic retained-tree API remains strict for callers that reopen
+        // an existing tree. Only fresh SVM sibling allocation has changed.
+        assert!(create_owned_directory(&root, Path::new("tmp")).is_err());
+        let mut config = svm_tempfile_at(&root).unwrap();
+        std::io::Write::write_all(&mut config, b"fresh config").unwrap();
+        let environments = svm_tempdir_at(&root).unwrap();
+        assert!(environments.path().starts_with(root.join("tmp")));
+        assert_eq!(fs::read_dir(environments.path()).unwrap().count(), 0);
+        assert!(
+            fs::symlink_metadata(ledger.path().join("accounts/live-link"))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(
+            fs::read(outside.path().join("sentinel")).unwrap(),
+            b"unchanged"
+        );
+        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 1);
+        assert!(create_owned_directory(&root, Path::new("tmp")).is_err());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn svm_fresh_temporary_objects_reject_root_or_parent_symlinks() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let alias = root.path().join("root-link");
+        symlink(outside.path(), &alias).unwrap();
+        assert!(svm_tempfile_at(&alias).is_err());
+        assert!(svm_tempdir_at(&alias).is_err());
+        symlink(outside.path(), root.path().join("tmp")).unwrap();
+        assert!(svm_tempfile_at(root.path()).is_err());
+        assert!(svm_tempdir_at(root.path()).is_err());
+        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
+    }
+    #[test]
+    fn svm_fresh_temporary_objects_reject_non_directory_parent() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("tmp"), b"retained").unwrap();
+        assert!(svm_tempfile_at(root.path()).is_err());
+        assert!(svm_tempdir_at(root.path()).is_err());
+        assert_eq!(fs::read(root.path().join("tmp")).unwrap(), b"retained");
+    }
+    #[test]
+    fn svm_temporary_objects_are_distinct_fresh_leaves() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().canonicalize().unwrap().join("tmp");
+        let first = svm_tempfile_at(root.path()).unwrap();
+        fs::write(first.path(), b"retained").unwrap();
+        let second = svm_tempfile_at(root.path()).unwrap();
+        let a = svm_tempdir_at(root.path()).unwrap();
+        let b = svm_tempdir_at(root.path()).unwrap();
+        for path in [first.path(), second.path(), a.path(), b.path()] {
+            assert_eq!(path.parent(), Some(parent.as_path()));
+            checked_owned_path(
+                root.path(),
+                path.strip_prefix(parent.parent().unwrap()).unwrap(),
+            )
+            .unwrap();
+        }
+        assert_ne!(first.path(), second.path());
+        assert_ne!(a.path(), b.path());
+        assert_eq!(fs::read(first.path()).unwrap(), b"retained");
+        assert_eq!(fs::metadata(second.path()).unwrap().len(), 0);
+        assert_eq!(fs::read_dir(a.path()).unwrap().count(), 0);
+        assert_eq!(fs::read_dir(b.path()).unwrap().count(), 0);
     }
     #[test]
     fn resource_identity_distinguishes_task_roots_for_reused_pid() {
