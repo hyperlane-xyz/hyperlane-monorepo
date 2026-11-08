@@ -46,6 +46,30 @@ class Controls(unittest.TestCase):
         s._verify=callback
         with mock.patch.object(api.Recorder,'enter',side_effect=OSError('diagnostic')),self.assertRaises(ValueError)as caught:s.verify('live',8)
         self.assertIs(caught.exception,error);self.assertTrue(s.public_diagnostic_write_failed)
+    def test_capture_entry_records_inflight_and_preserves_exact_success_reply(self):
+        s=self.session();request=object();reply={'schema':1,'environment':{'private':'PRIVATE-REPLY'}};path=self.root/'evidence/public-observer-diagnostics.json'
+        def callback(actual):
+            self.assertIs(actual,request);value=json.loads(path.read_text());self.assertEqual(value['stages']['capture']['latest']['status'],'inflight');return reply
+        s._capture=callback;self.assertIs(s.capture(request),reply);value=json.loads(path.read_text());self.assertEqual(value['stages']['capture']['latest']['status'],'completed');self.assertNotIn('PRIVATE',json.dumps(value));api.validate_record(value,self.modules)
+    def test_capture_original_approval_failure_has_exact_source_frame_no_request_or_message(self):
+        s=self.session();request={'private':'PRIVATE-REQUEST'};error=ValueError('PRIVATE-CONFIG-ARGV-KEY')
+        with mock.patch.object(sessions,'read_approval',side_effect=error),self.assertRaises(ValueError)as caught:s.capture(request)
+        self.assertIs(caught.exception,error);value=json.loads((self.root/'evidence/public-observer-diagnostics.json').read_text());row=value['stages']['capture']['latest'];self.assertEqual(row['exception_type'],'ValueError');self.assertEqual(row['status'],'exception');self.assertTrue(any(v['function']=='_capture' and v['source']==self.modules['multivm_session.py']for v in row['frames']));self.assertNotIn('PRIVATE',json.dumps(value));api.validate_record(value,self.modules)
+    def test_capture_exception_identity_preserved_when_diagnostic_entry_or_finish_fails(self):
+        for method in ['enter','finish']:
+            with self.subTest(method=method):
+                s=self.session();error=ValueError('PRIVATE-PRIMARY')
+                def callback(request):raise error
+                s._capture=callback
+                with mock.patch.object(api.Recorder,method,side_effect=OSError('PRIVATE-DIAGNOSTIC')),self.assertRaises(ValueError)as caught:s.capture(object())
+                self.assertIs(caught.exception,error);self.assertTrue(s.public_diagnostic_write_failed)
+                # Separate owned output for each independent case.
+                import shutil
+                shutil.rmtree(self.root/'evidence')
+    def test_capture_success_not_replaced_when_diagnostic_finish_fails(self):
+        s=self.session();reply=object();s._capture=lambda request:reply
+        with mock.patch.object(api.Recorder,'finish',side_effect=OSError('PRIVATE-DIAGNOSTIC')):self.assertIs(s.capture(object()),reply)
+        self.assertTrue(s.public_diagnostic_write_failed)
     def test_first_new_capture_and_latest_real_request_response_clocks_only(self):
         s=self.session();api.note_success(s,'validator','public1',11,12);api.note_success(s,'validator','public1',14,15);s.successful_activity[('validator','public1')]={'request_started_monotonic_ns':14,'response_received_monotonic_ns':15};value=api.snapshot(s,20);row=value['role_activity'][0];self.assertEqual(row['first_successful_new_capture_exchange']['request_started_monotonic_ns'],11);self.assertEqual(row['latest_successful_exchange']['response_age_ns'],5)
         s.captures.append({'captured_monotonic_ns':30,'original':{'role':'validator','role_chain_names':['public1']}});api.note_success(s,'validator','public1',21,35);self.assertIsNone(api.snapshot(s,36)['role_activity'][0]['first_successful_new_capture_exchange']);api.note_success(s,'validator','public1',31,34);self.assertEqual(api.snapshot(s,36)['role_activity'][0]['first_successful_new_capture_exchange']['response_age_ns'],2)

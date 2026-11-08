@@ -760,6 +760,16 @@ class Session:
         if token is not None:self.diagnostic('transport',token,'exception',sys.exc_info()[1])
 
     def capture(self, request):
+        token=self.diagnostic('capture')
+        try:
+            result=self._capture(request)
+        except Exception as error:
+            if token is not None:self.diagnostic('capture',token,'exception',error)
+            raise
+        if token is not None:self.diagnostic('capture',token,'completed')
+        return result
+
+    def _capture(self, request):
         read_approval(self.manifest)
         capture = effective_config(request, self.manifest)
         if self.evidence_nodes:
