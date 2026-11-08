@@ -205,13 +205,17 @@ test "readonly signed recovery allocation failure on every read path leaves Manu
         try std.testing.expect(try actor.recordExpenditure(.{ .identity = actor.signed.?.identity, .block_hash = @splat(8), .height = 20, .success = true, .finalized = true, .expenditure = .{ .gas_used = 19, .tokens_used = 23 } }));
     }
     try f.manual();
-    var counter = std.testing.FailingAllocator.init(a, .{});
+    // Force arena growth allocations so resize/remap cannot change fault indices.
+    var backing = std.testing.FailingAllocator.init(a, .{ .resize_fail_index = 0 });
+    var counter = std.testing.FailingAllocator.init(backing.allocator(), .{});
     try std.testing.expect(try f.peek(counter.allocator()));
     try std.testing.expect(counter.alloc_index > 0);
     const before = try diskDigest(&f.database, false);
     for (0..counter.alloc_index) |index| {
-        var failing = std.testing.FailingAllocator.init(a, .{ .fail_index = index });
+        var failing = std.testing.FailingAllocator.init(backing.allocator(), .{ .fail_index = index });
         try std.testing.expectError(error.OutOfMemory, f.peek(failing.allocator()));
+        try std.testing.expect(failing.has_induced_failure);
+        try std.testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);
         try std.testing.expectEqual(before, try diskDigest(&f.database, false));
     }
     try std.testing.expect(try f.peek(a));
@@ -426,12 +430,19 @@ test "readonly signed recovery every grouped allocation failure preserves journa
     try reopenGroupDatabase(f);
     var options = f.options[0];
     options.group_store = journal.store;
-    var counter = std.testing.FailingAllocator.init(a, .{});
+    // Force arena growth allocations so resize/remap cannot change fault indices.
+    var backing = std.testing.FailingAllocator.init(a, .{ .resize_fail_index = 0 });
+    var counter = std.testing.FailingAllocator.init(backing.allocator(), .{});
     try std.testing.expect(try op.Operation.hasSignedRecovery(counter.allocator(), &f.stores[0], options, later));
+    try std.testing.expect(counter.alloc_index > 0);
     const before = try diskDigest(&f.database, false);
     for (0..counter.alloc_index) |index| {
-        var failing = std.testing.FailingAllocator.init(a, .{ .fail_index = index });
+        var failing = std.testing.FailingAllocator.init(backing.allocator(), .{ .fail_index = index });
         try std.testing.expectError(error.OutOfMemory, op.Operation.hasSignedRecovery(failing.allocator(), &f.stores[0], options, later));
+        try std.testing.expect(failing.has_induced_failure);
+        try std.testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);
         try std.testing.expectEqual(before, try diskDigest(&f.database, false));
     }
+    try std.testing.expect(try op.Operation.hasSignedRecovery(a, &f.stores[0], options, later));
+    try std.testing.expectEqual(before, try diskDigest(&f.database, false));
 }

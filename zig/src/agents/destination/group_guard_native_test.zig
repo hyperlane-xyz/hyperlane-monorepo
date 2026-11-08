@@ -202,8 +202,10 @@ test "native group guards preserve confirmation monotonic bound under wall rollb
 }
 
 test "native group guards committed creation followed by load OOM remains durably owned and recoverable" {
-    var create_counter = std.testing.FailingAllocator.init(a, .{});
-    var load_counter = std.testing.FailingAllocator.init(a, .{});
+    // Match creation and reload growth paths before deriving the commit/load cutpoint.
+    var backing = std.testing.FailingAllocator.init(a, .{ .resize_fail_index = 0 });
+    var create_counter = std.testing.FailingAllocator.init(backing.allocator(), .{});
+    var load_counter = std.testing.FailingAllocator.init(backing.allocator(), .{});
     {
         const f = try Fixture.init(a);
         defer f.deinit();
@@ -212,12 +214,15 @@ test "native group guards committed creation followed by load OOM remains durabl
         var loaded = (try groups.Journal.load(load_counter.allocator(), journal.store, journal.id)).?;
         loaded.deinit();
     }
+    try std.testing.expect(load_counter.alloc_index > 0);
     try std.testing.expect(create_counter.alloc_index > load_counter.alloc_index);
     const load_first_allocation = create_counter.alloc_index - load_counter.alloc_index;
     const f = try Fixture.init(a);
     defer f.deinit();
-    var failing = std.testing.FailingAllocator.init(a, .{ .fail_index = load_first_allocation });
+    var failing = std.testing.FailingAllocator.init(backing.allocator(), .{ .fail_index = load_first_allocation });
     try std.testing.expectError(error.OutOfMemory, scalarJournal(f, failing.allocator()));
+    try std.testing.expect(failing.has_induced_failure);
+    try std.testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);
     const link = (try f.stores[0].typed.get(a, op.group_link_prefix, &f.options[0].id)) orelse return error.CommittedGroupLinkMissing;
     defer a.free(link);
     try std.testing.expectEqual(@as(usize, 32), link.len);
