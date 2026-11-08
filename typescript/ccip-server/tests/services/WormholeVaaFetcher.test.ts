@@ -41,7 +41,6 @@ function config(
     urls: ['https://example.test'],
     timeoutMs: 1_000,
     maxResponseBytes: 65_536,
-    maxCacheEntries: 2,
     maxAttempts: 1,
     baseRetryDelayMs: 1,
     ...overrides,
@@ -53,21 +52,26 @@ describe('WormholeVaaFetcher', () => {
 
   afterEach(() => sinon.restore());
 
-  it('evicts the least recently used VAA when the cache is full', async () => {
+  it('skips an endpoint whose VAA locator does not match the request', async () => {
     const fetchStub = sinon.stub(globalThis, 'fetch');
-    fetchStub.onCall(0).resolves(responseFor(1));
-    fetchStub.onCall(1).resolves(responseFor(2));
-    fetchStub.onCall(2).resolves(responseFor(3));
-
+    fetchStub.onCall(0).resolves(responseFor(2));
+    fetchStub.onCall(1).resolves(responseFor(1));
     const fetcher = new WormholeVaaFetcher(
       'wormhole-test',
-      config({ maxCacheEntries: 1 }),
+      config({ urls: ['https://a.example.test', 'https://b.example.test'] }),
     );
-    await fetcher.fetchVaa(3, emitterAddress, '1', logger);
-    await fetcher.fetchVaa(3, emitterAddress, '2', logger);
-    await fetcher.fetchVaa(3, emitterAddress, '1', logger);
 
-    expect(fetchStub.callCount).to.equal(3);
+    const result = await fetcher.fetchVaa(3, emitterAddress, '1', logger);
+
+    expect(result.encodedVaa).to.equal(encodeVaa(1));
+    expect(result.vaa.sequence).to.equal('1');
+    expect(fetchStub.callCount).to.equal(2);
+    expect(fetchStub.firstCall.args[0]).to.equal(
+      `https://a.example.test/api/v1/vaas/3/${'11'.repeat(32)}/1`,
+    );
+    expect(fetchStub.secondCall.args[0]).to.equal(
+      `https://b.example.test/api/v1/vaas/3/${'11'.repeat(32)}/1`,
+    );
   });
 
   it('rejects a chunked response as soon as it exceeds the byte limit', async () => {

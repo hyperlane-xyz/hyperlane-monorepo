@@ -15,14 +15,8 @@ export interface WormholeVaaFetcherConfig {
   urls: Array<string>;
   timeoutMs: number;
   maxResponseBytes: number;
-  maxCacheEntries: number;
   maxAttempts: number;
   baseRetryDelayMs: number;
-}
-
-interface CacheEntry {
-  encodedVaa: string;
-  guardianSetIndex: number;
 }
 
 /** Signals that Guardians have not signed yet; the relayer should retry later. */
@@ -37,22 +31,14 @@ export class VaaPendingError extends Error {
  * Fetches signed VAAs from redundant public endpoints.
  *
  * The upstream is untrusted: only the decoded VAA bytes are used, never the
- * surrounding response metadata. A VAA ID is immutable once signed, so
- * successful results are held in a bounded LRU cache alongside the
- * Guardian-set index they were signed under.
+ * surrounding response metadata.
  */
 export class WormholeVaaFetcher {
-  private readonly cache = new Map<string, CacheEntry>();
-
   constructor(
     private readonly serviceName: string,
     private readonly config: WormholeVaaFetcherConfig,
   ) {
     assert(config.urls.length > 0, 'At least one VAA endpoint is required');
-    assert(
-      config.maxCacheEntries > 0,
-      'VAA cache must allow at least one entry',
-    );
   }
 
   async fetchVaa(
@@ -63,29 +49,21 @@ export class WormholeVaaFetcher {
   ): Promise<{ encodedVaa: string; vaa: ParsedVaa }> {
     const vaaId = formatVaaId(emitterChainId, emitterAddress, sequence);
 
-    const cached = this.cache.get(vaaId);
-    if (cached) {
-      // Map preserves insertion order. Reinsert to mark this entry as newest.
-      this.cache.delete(vaaId);
-      this.cache.set(vaaId, cached);
-      logger.info({ vaaId }, 'Serving VAA from immutable cache');
-      return {
-        encodedVaa: cached.encodedVaa,
-        vaa: parseVaa(cached.encodedVaa),
-      };
-    }
-
     let lastPending: VaaPendingError | undefined;
     for (let attempt = 0; attempt < this.config.maxAttempts; attempt++) {
       for (const url of this.config.urls) {
         try {
           const encodedVaa = await this.fetchOnce(url, vaaId, logger);
           const vaa = parseVaa(encodedVaa);
-          this.cache.set(vaaId, {
-            encodedVaa,
-            guardianSetIndex: vaa.guardianSetIndex,
-          });
-          this.evictOldestCacheEntries();
+          const servedVaaId = formatVaaId(
+            vaa.emitterChainId,
+            vaa.emitterAddress,
+            vaa.sequence,
+          );
+          assert(
+            servedVaaId === vaaId,
+            `Endpoint served VAA ${servedVaaId} instead of ${vaaId}`,
+          );
           logger.info(
             { vaaId, guardianSetIndex: vaa.guardianSetIndex, attempt },
             'Fetched signed VAA',
@@ -121,14 +99,6 @@ export class WormholeVaaFetcher {
   private backoffMs(attempt: number): number {
     const base = this.config.baseRetryDelayMs * 2 ** attempt;
     return base + Math.floor(Math.random() * this.config.baseRetryDelayMs);
-  }
-
-  private evictOldestCacheEntries(): void {
-    while (this.cache.size > this.config.maxCacheEntries) {
-      const oldest = this.cache.keys().next().value;
-      assert(oldest !== undefined, 'Non-empty cache must have an oldest entry');
-      this.cache.delete(oldest);
-    }
   }
 
   private async fetchOnce(

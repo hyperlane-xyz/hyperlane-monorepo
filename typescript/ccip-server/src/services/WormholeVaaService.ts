@@ -89,11 +89,6 @@ const EnvSchema = z.object({
     .pipe(WormholeRoutesSchema),
   WORMHOLE_VAA_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   WORMHOLE_VAA_MAX_BYTES: z.coerce.number().int().positive().default(65_536),
-  WORMHOLE_VAA_CACHE_ENTRIES: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10_000),
   WORMHOLE_VAA_MAX_ATTEMPTS: z.coerce.number().int().positive().default(4),
   WORMHOLE_VAA_RETRY_DELAY_MS: z.coerce
     .number()
@@ -143,7 +138,6 @@ export class WormholeVaaService extends BaseService {
         urls: env.WORMHOLE_VAA_URLS,
         timeoutMs: env.WORMHOLE_VAA_TIMEOUT_MS,
         maxResponseBytes: env.WORMHOLE_VAA_MAX_BYTES,
-        maxCacheEntries: env.WORMHOLE_VAA_CACHE_ENTRIES,
         maxAttempts: env.WORMHOLE_VAA_MAX_ATTEMPTS,
         baseRetryDelayMs: env.WORMHOLE_VAA_RETRY_DELAY_MS,
       }),

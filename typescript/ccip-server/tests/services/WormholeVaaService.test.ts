@@ -7,9 +7,11 @@ import sinon from 'sinon';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
+import { WormholeVaaFetcher } from '../../src/services/WormholeVaaFetcher.js';
 import {
   WormholeChainConfigSchema,
   WormholeVaaService,
+  type WormholeVaaServiceConfig,
 } from '../../src/services/WormholeVaaService.js';
 import { initializeMetrics } from '../../src/utils/prometheus.js';
 import {
@@ -181,17 +183,20 @@ function toReceipt(
   };
 }
 
-interface Harness {
+interface ServiceHarness {
   service: WormholeVaaService;
   getTransactionReceipt: sinon.SinonStub;
-  fetchVaa: sinon.SinonStub;
   explorerLookup: sinon.SinonStub;
 }
 
-function harness(
+interface Harness extends ServiceHarness {
+  fetchVaa: sinon.SinonStub;
+}
+
+function buildService(
   entries: Array<{ address: string; topics: Array<string>; data: string }>,
-  vaa: string,
-): Harness {
+  vaaFetcher: WormholeVaaServiceConfig['vaaFetcher'],
+): ServiceHarness {
   const provider = new ethers.providers.JsonRpcProvider('http://127.0.0.1:1');
   const getTransactionReceipt = sinon
     .stub(provider, 'getTransactionReceipt')
@@ -207,22 +212,41 @@ function harness(
         : null,
   );
 
-  const fetchVaa = sinon.stub();
-  fetchVaa.resolves({ encodedVaa: vaa, vaa: parseVaa(vaa) });
-
   const explorerLookup = sinon.stub().resolves(TX_HASH);
 
   const service = new WormholeVaaService({
     serviceName: 'wormhole',
     multiProvider,
     routes: ROUTES,
-    vaaFetcher: { fetchVaa },
+    vaaFetcher,
     hyperlaneService: {
       getOriginTransactionHashByMessageId: explorerLookup,
     },
   });
 
+  return { service, getTransactionReceipt, explorerLookup };
+}
+
+function harness(
+  entries: Array<{ address: string; topics: Array<string>; data: string }>,
+  vaa: string,
+): Harness {
+  const fetchVaa = sinon.stub();
+  fetchVaa.resolves({ encodedVaa: vaa, vaa: parseVaa(vaa) });
+
+  const { service, getTransactionReceipt, explorerLookup } = buildService(
+    entries,
+    { fetchVaa },
+  );
+
   return { service, getTransactionReceipt, fetchVaa, explorerLookup };
+}
+
+function vaaResponse(encodedVaa: string): Response {
+  return new Response(JSON.stringify({ data: { vaa: encodedVaa } }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 const logger = pino({ level: 'silent' });
@@ -387,6 +411,36 @@ describe('WormholeVaaService', () => {
       service.getWormholeVaa(message, TX_HASH, logger),
       'VAA payload does not match',
     );
+  });
+
+  it('queries the endpoint again after rejecting a mismatched VAA', async () => {
+    const message = buildMessage();
+    const payload = buildPayload(ethers.utils.keccak256(message));
+    const vaa = encodeVaa(payload);
+    const tampered = encodeVaa(buildPayload(ethers.utils.id('tampered')));
+    const fetchStub = sinon.stub(globalThis, 'fetch');
+    fetchStub.onCall(0).resolves(vaaResponse(tampered));
+    fetchStub.onCall(1).resolves(vaaResponse(vaa));
+    const vaaFetcher = new WormholeVaaFetcher('wormhole', {
+      urls: ['https://example.test'],
+      timeoutMs: 1_000,
+      maxResponseBytes: 65_536,
+      maxAttempts: 1,
+      baseRetryDelayMs: 1,
+    });
+    const { service } = buildService([publicationLog(payload)], vaaFetcher);
+    const vaaUrl = `https://example.test/api/v1/vaas/2/${'00'.repeat(12)}${'11'.repeat(20)}/11`;
+
+    await expectRejection(
+      service.getWormholeVaa(message, TX_HASH, logger),
+      'VAA payload does not match',
+    );
+    const result = await service.getWormholeVaa(message, TX_HASH, logger);
+
+    expect(result).to.equal(vaa);
+    expect(fetchStub.callCount).to.equal(2);
+    expect(fetchStub.firstCall.args[0]).to.equal(vaaUrl);
+    expect(fetchStub.secondCall.args[0]).to.equal(vaaUrl);
   });
 
   it('rejects an upstream VAA from another emitter chain', async () => {
