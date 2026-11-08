@@ -88,7 +88,8 @@ def listener_proof(manifest,case_inputs,case,lsof,observations,owner,subprocess)
                 live=owner._linux_row(pid);require(live is not None and owner.same_process(row,live),'SVM PID changed during observation')
                 observed[kind]=api.listener_rows(pid,call.stdout.decode(),udp=kind=='udp')
             ports={port for _,port in observed['tcp']}
-            api.required_listener_rows(observed['tcp'],observed['udp'])
+            if not api.required_listener_rows(observed['tcp'],observed['udp'],allow_pending='8899,8900'not in observations):
+                continue # No readiness proof until this same owned PID has every exact socket.
             observations['8899,8900']={'pid':pid,'start':row['start'],'executable':str(executable),'owned_tcp_ports':sorted(ports),'owned_loopback_tcp_ports':sorted({port for host,port in observed['tcp'] if ipaddress.ip_address(host).is_loopback}),'source_tcp_wildcard_ports':sorted({port for host,port in observed['tcp'] if host=='0.0.0.0'}),'source_tcp_wildcard_roles':{'rpc':8899,'pubsub':8900,'faucet':9900},'client_endpoint_scope':'localhost','ledger':ledger,'tcp':observed['tcp'],'udp':observed['udp'],'faucet_wildcard_exception':'Source9900/caps0only','scope':'owned canonical Source IPv4 wildcard RPC/PubSub/faucet; localhost clients; no loopback-only RPC claim'}
         except(FileNotFoundError,ProcessLookupError):continue
     return [{8899,8900}]

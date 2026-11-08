@@ -891,6 +891,9 @@ def worker(args, plan, manifest, inputs, approval):
     finally:
         old={s:signal.signal(s,signal.SIG_IGN) for s in [signal.SIGTERM,signal.SIGINT,signal.SIGHUP]}
         try:
+            if radix is not None:
+                try:result['radix_service_observation']=radix.public_observation()
+                except Exception:result['radix_service_observation']={'schema':1,'collection_status':'unavailable'}
             if not result['passed']:
                 try:result['public_diagnostic_before_stop']=snapshot_public_diagnostics(case,approval,out,'public-observer-before-stop.json')
                 except Exception as diagnostic_error:result['public_diagnostic_before_stop_error']={'type':type(diagnostic_error).__name__}

@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import time
 
 GIB = 1024 ** 3
 MIB = 1024 ** 2
@@ -88,6 +89,33 @@ def ownership(row, project, fixture, previous=None):
     return service, cid
 
 
+def public_service_state(row, service, observed_ns):
+    """Closed diagnostics from an already authenticated CID; never raw inspect."""
+    state = row.get('State')
+    out = {'service': service, 'container_id': row['Id'], 'image_id': row['Image'],
+           'observed_monotonic_ns': observed_ns, 'state': {}, 'invalid_fields': []}
+    if not isinstance(state, dict):
+        out['invalid_fields'].append('State')
+        return out
+    for key in ('Running', 'OOMKilled', 'Dead', 'Restarting', 'Paused'):
+        if key in state:
+            if type(state[key]) is bool: out['state'][key] = state[key]
+            else: out['invalid_fields'].append(key)
+    for key in ('Pid', 'ExitCode'):
+        if key in state:
+            value = state[key]
+            if type(value) is int and (0 <= value <= 2147483647 if key == 'Pid' else -255 <= value <= 255): out['state'][key] = value
+            else: out['invalid_fields'].append(key)
+    if 'Status' in state:
+        if state['Status'] in ('created', 'running', 'paused', 'restarting', 'removing', 'exited', 'dead'): out['state']['Status'] = state['Status']
+        else: out['invalid_fields'].append('Status')
+    for key in ('StartedAt', 'FinishedAt'):
+        if key in state:
+            if isinstance(state[key], str) and re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})', state[key]): out['state'][key] = state[key]
+            else: out['invalid_fields'].append(key)
+    return out
+
+
 def readiness(row, service, fixture, network):
     memory, pids, ports = SERVICES[service]
     host, config = row.get('HostConfig', {}), row.get('Config', {})
@@ -132,6 +160,15 @@ class Custody:
         self.maximum_volume_bytes = 0
         self.volume_sample = volume_sample
         self.last_volume_observation = None
+        self.service_states = {}
+        self.last_inspected_service = None
+        self.service_observation_unavailable = False
+
+    def public_observation(self):
+        return {'schema': 1, 'collection_status': 'unavailable' if self.service_observation_unavailable else 'available', 'scope': 'Owned service State before readiness checks; no log bodies or native acceptance credit.',
+                'last_inspected_service': self.last_inspected_service,
+                'readiness_passed_services': sorted(self.ready),
+                'services': [dict(self.service_states[name], state=dict(self.service_states[name]['state']), invalid_fields=list(self.service_states[name]['invalid_fields'])) for name in SERVICES if name in self.service_states]}
 
     def context(self):
         return {'case_root': str(self.case), 'helper_pid': self.pid, 'helper_start': self.start, 'project': self.project, 'fixture': self.fixture}
@@ -223,6 +260,12 @@ class Custody:
             service = row['Config']['Labels'][SERVICE_LABEL]
             require(service not in found, 'Duplicate Radix Compose service')
             found[service] = cid
+            if not self.service_observation_unavailable:
+                try:
+                    self.service_states[service] = public_service_state(row, service, time.monotonic_ns())
+                    self.last_inspected_service = service
+                except Exception:
+                    self.service_observation_unavailable = True
             if not self.stopping():
                 if readiness(row, service, self.fixture, self.network):
                     self.ready[service] = cid

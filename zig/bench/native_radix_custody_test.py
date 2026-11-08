@@ -90,6 +90,65 @@ class Controls(unittest.TestCase):
         except ValueError:return None
         self.assertIs(result['passed'],False);self.assertIs(result['container_absent'],False);self.assertTrue(result['errors'])
         return result
+    def test_projection_exception_disables_bookkeeping_but_preserves_readiness_and_cleanup(self):
+        self.launch(['fullnode']);old=m.public_service_state;calls=[]
+        def unavailable(*args):calls.append(True);raise RuntimeError('PRIVATE_SENTINEL')
+        m.public_service_state=unavailable
+        try:
+            self.custody.observe();self.custody.observe()
+            self.assertEqual(calls,[True]);self.assertIn('fullnode',self.custody.ready)
+            report=self.custody.public_observation();self.assertEqual(report['collection_status'],'unavailable')
+            self.assertNotIn('PRIVATE_SENTINEL',json.dumps(report))
+            self.row('fullnode')['State'].update(Status='exited',Running=False,ExitCode=23)
+            with self.assertRaisesRegex(ValueError,'service failed or stopped'):self.custody.observe()
+            self.assertTrue(self.custody.cleanup()['passed']);self.assertFalse(self.docker.containers)
+        finally:m.public_service_state=old
+    def test_worker_actual_finally_projection_failure_continues_to_next_child_stop(self):
+        import ast
+        source=ast.parse(Path(__file__).with_name('native_case_owner.py').read_bytes())
+        worker=next(n for n in source.body if isinstance(n,ast.FunctionDef)and n.name=='worker')
+        primary=next(n for n in worker.body if isinstance(n,ast.Try)and n.finalbody)
+        cleanup=next(n for n in primary.finalbody if isinstance(n,ast.Try))
+        observation=next(n for n in cleanup.body if isinstance(n,ast.If)and ast.unparse(n.test)=='radix is not None')
+        stop=next(n for n in cleanup.body if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and isinstance(n.value.func,ast.Name)and n.value.func.id=='stop_direct')
+        self.assertLess(cleanup.body.index(observation),cleanup.body.index(stop))
+        events=[]
+        class Projection:
+            def public_observation(self):events.append('projection');raise RuntimeError('PRIVATE_SENTINEL')
+        result={'passed':False};context={'radix':Projection(),'result':result,'harness':object(),'stop_direct':lambda *args:events.append('child-stop')}
+        exec(compile(ast.Module(body=[observation,stop],type_ignores=[]),'actual-worker-finally-fragment','exec'),context)
+        self.assertEqual(events,['projection','child-stop']);self.assertIs(result['passed'],False)
+        self.assertEqual(result['radix_service_observation'],{'schema':1,'collection_status':'unavailable'})
+        self.assertNotIn('PRIVATE_SENTINEL',json.dumps(result))
+    def test_failed_fullnode_state_is_retained_before_original_readiness_error(self):
+        self.launch();row=self.row('fullnode');row['State'].update(Status='exited',Running=False,ExitCode=23,OOMKilled=False,Pid=0,Dead=False)
+        with self.assertRaisesRegex(ValueError,'service failed or stopped'):self.custody.observe()
+        report=self.custody.public_observation();self.assertEqual(report['last_inspected_service'],'fullnode')
+        found=next(v for v in report['services']if v['service']=='fullnode')
+        self.assertEqual(found['container_id'],row['Id']);self.assertEqual(found['state']['ExitCode'],23)
+        self.assertEqual(found['state']['Status'],'exited');self.assertGreater(found['observed_monotonic_ns'],0)
+        self.assertNotIn('fullnode',report['readiness_passed_services'])
+        before=copy.deepcopy(report);self.custody.cleanup();self.assertEqual(self.custody.public_observation(),before)
+    def test_running_oom_retains_actual_state_without_changing_failure(self):
+        self.launch(['fullnode']);self.row('fullnode')['State']['OOMKilled']=True
+        with self.assertRaisesRegex(ValueError,'service failed or stopped'):self.custody.observe()
+        self.assertIs(self.custody.public_observation()['services'][0]['state']['OOMKilled'],True)
+    def test_foreign_inspect_gets_no_diagnostic_cid_authority(self):
+        self.launch(['fullnode']);self.row('fullnode')['Config']['Labels'][m.TOKEN_LABEL]='cd'*16
+        with self.assertRaisesRegex(ValueError,'Foreign'):self.custody.observe()
+        self.assertEqual(self.custody.public_observation()['services'],[])
+        self.assertIsNone(self.custody.public_observation()['last_inspected_service'])
+    def test_public_state_drops_raw_nested_values_and_unknown_fields(self):
+        self.launch(['fullnode']);row=copy.deepcopy(self.row('fullnode'))
+        row['Config']['Env']=['PRIVATE_SENTINEL'];row['State'].update(Error='PRIVATE_SENTINEL',Health={'Log':['PRIVATE_SENTINEL']},Status={'private':'PRIVATE_SENTINEL'},Pid=True,ExitCode={'private':'PRIVATE_SENTINEL'},StartedAt={'private':'PRIVATE_SENTINEL'},FinishedAt='2026-11-08T00:00:00.123456789Z')
+        found=m.public_service_state(row,'fullnode',123)
+        self.assertNotIn('PRIVATE_SENTINEL',json.dumps(found));self.assertEqual(found['state']['FinishedAt'],'2026-11-08T00:00:00.123456789Z')
+        self.assertEqual(set(found['invalid_fields']),{'Status','Pid','ExitCode','StartedAt'})
+        row['State']=[];self.assertEqual(m.public_service_state(row,'fullnode',123)['invalid_fields'],['State'])
+    def test_observation_returns_independent_closed_copy(self):
+        self.launch(['fullnode']);self.custody.observe();a=self.custody.public_observation()
+        a['services'][0]['state']['Status']='foreign';a['services'][0]['invalid_fields'].append('foreign');a['readiness_passed_services'].clear()
+        b=self.custody.public_observation();self.assertEqual(b['services'][0]['state']['Status'],'running');self.assertEqual(b['services'][0]['invalid_fields'],[]);self.assertEqual(b['readiness_passed_services'],['fullnode'])
     def test_realistic_five_services_exit0_migration_network_and_anonymous_pg15_cleanup(self):
         self.launch();self.assertGreater(self.custody.observe(),0)
         self.assertEqual(set(self.custody.ready),set(m.SERVICES))

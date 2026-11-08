@@ -153,6 +153,9 @@ NPM_PREBUILD_DATA={
         'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
         'mode': 420,
     },
+    'node_modules/.pnpm/@trufflesuite+bigint-buffer@1.1.9/node_modules/@trufflesuite/bigint-buffer/prebuilds/darwin-x64/node.napi.node': {'package': '@trufflesuite/bigint-buffer@1.1.9', 'platform': 'darwin', 'architectures': ['x64'], 'bytes': 34088, 'sha256': ('fce720ccc5a4217e05c283a61b925074' '420ca66d8a7ce5dedf63f2cc0e54ce3d'), 'header20_hex': 'cffaedfe0700000103000000080000000d000000', 'mode': 420},
+    'node_modules/.pnpm/@trufflesuite+bigint-buffer@1.1.9/node_modules/@trufflesuite/bigint-buffer/prebuilds/linux-x64/node.napi.node': {'package': '@trufflesuite/bigint-buffer@1.1.9', 'platform': 'linux', 'architectures': ['x64'], 'bytes': 14640, 'sha256': ('e39405c5e0712cff82bd5e8f5709e077' '3b315c784003f1560d9ee6743dd1b950'), 'header20_hex': '7f454c4602010100000000000000000003003e00', 'mode': 420},
+    'node_modules/.pnpm/@trufflesuite+bigint-buffer@1.1.9/node_modules/@trufflesuite/bigint-buffer/prebuilds/win32-x64/node.napi.node': {'package': '@trufflesuite/bigint-buffer@1.1.9', 'platform': 'win32', 'architectures': ['x64'], 'bytes': 150528, 'sha256': ('8f73d12ef98aef14b1f4f4f67f73166a' 'b6d9124b15a90f5e460337f1487cf877'), 'header20_hex': '4d5a90000300000004000000ffff0000b8000000', 'mode': 420},
 }
 NPM_PREBUILD_LOADERS={
     'bufferutil@4.1.0': {
@@ -194,6 +197,7 @@ NPM_PREBUILD_LOADERS={
             },
         },
     },
+    '@trufflesuite/bigint-buffer@1.1.9': {'root': 'node_modules/.pnpm', 'files': {'@trufflesuite+bigint-buffer@1.1.9/node_modules/@trufflesuite/bigint-buffer/package.json': {'bytes': 2875, 'sha256': ('bf66841b3059cbc1f2dd872b205abe0e' 'fd543de288224b3343cdb5d7e0b360c6')}, '@trufflesuite+bigint-buffer@1.1.9/node_modules/@trufflesuite/bigint-buffer/dist/node.js': {'bytes': 2579, 'sha256': ('c0e8dc3bf640856cbbe2b1bc16fd6a24' '2eda429c74abd7daebb43128a697036d')}, '@trufflesuite+bigint-buffer@1.1.9/node_modules/node-gyp-build/package.json': {'bytes': 772, 'sha256': ('7c4e373dd5c75c2c25edbaafdef7ef5d' 'bda6f1e80c0319f46ec27f8c20b28654')}, '@trufflesuite+bigint-buffer@1.1.9/node_modules/node-gyp-build/index.js': {'bytes': 5859, 'sha256': ('ede0167b54af835e768c2bc81ca7deaa' 'c035b8766620f6a34fb840cee0f1fecf')}}},
 }
 NPM_EDR_DATA={'node_modules/.pnpm/@nomicfoundation+edr-darwin-arm64@0.12.0-next.23/node_modules/@nomicfoundation/edr-darwin-arm64/edr.darwin-arm64.node': {'platform': 'darwin',
                                                                                                                                               'architecture': 'arm64',

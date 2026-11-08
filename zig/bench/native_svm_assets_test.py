@@ -197,6 +197,17 @@ class Controls(unittest.TestCase):
                     'p42\nf1\nn127.0.0.1:8899->127.0.0.1:8899\n']:
             with self.subTest(raw=raw),self.assertRaises(ValueError):m.listener_rows(42,raw)
 
+    def test_only_missing_startup_sockets_are_pending_and_never_readiness(self):
+        full=[('0.0.0.0',p)for p in (8899,8900,9900)];gossip=[('127.0.0.1',8001)]
+        for tcp,udp in [([],[]),(full[:1],gossip),(full,[]),(full,[('127.0.0.1',8002)])]:
+            self.assertIs(m.required_listener_rows(tcp,udp,allow_pending=True),False)
+            with self.assertRaises(ValueError):m.required_listener_rows(tcp,udp)
+        self.assertIs(m.required_listener_rows(full,gossip,allow_pending=True),True)
+        for port in (8899,8900,9900):
+            bad=[v for v in full if v[1]!=port]+[('127.0.0.1',port)]
+            with self.assertRaises(ValueError):m.required_listener_rows(bad,gossip,allow_pending=True)
+        with self.assertRaises(ValueError):m.required_listener_rows([],[],allow_pending=1)
+
     def test_udp_svm_gossip_range_and_remote_loopback(self):
         self.assertEqual(m.listener_rows(42,'p42\nf3\nn127.0.0.1:8001\n',True),[('127.0.0.1',8001)])
         self.assertEqual(m.listener_rows(42,'p42\nf3\nn127.0.0.1:8002->127.0.0.1:8003\n',True),[('127.0.0.1',8002)])

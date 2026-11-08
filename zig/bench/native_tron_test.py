@@ -182,6 +182,42 @@ class Assets(unittest.TestCase):
   v=self.graph();destination=self.root/'floor-rejected';usage=__import__('shutil').disk_usage(self.root)
   with mock.patch.object(a.shutil,'disk_usage',return_value=type(usage)(usage.total,usage.used,5*a.GIB)),self.assertRaisesRegex(ValueError,'preserve6GiB'):a.materialize(v,destination,0)
   self.assertFalse(destination.exists())
+ def bigint_rows(self):
+  return {name:row for name,row in a.NPM_PREBUILD_DATA.items()if row['package']=='@trufflesuite/bigint-buffer@1.1.9'}
+ def bigint_loader_pins(self):
+  repo=pathlib.Path('/OWNED/closed-workspace');loader=a.NPM_PREBUILD_LOADERS['@trufflesuite/bigint-buffer@1.1.9'];pins={repo/loader['root']/name:dict(row)for name,row in loader['files'].items()}
+  return repo,pins
+ def test_bigint_all_published_prebuilds_have_finite_platform_selection(self):
+  rows=self.bigint_rows();self.assertEqual(len(rows),3);self.assertEqual({p.split('/prebuilds/')[1]for p in rows},{'darwin-x64/node.napi.node','linux-x64/node.napi.node','win32-x64/node.napi.node'})
+  self.assertEqual({row['platform']for row in rows.values()},{'darwin','linux','win32'})
+  self.assertTrue(all(row['architectures']==['x64']and row['mode']==0o644 for row in rows.values()))
+ def test_bigint_exact_rows_bind_actual_both_package_and_selector_sources(self):
+  repo,pins=self.bigint_loader_pins();self.assertEqual(len(pins),4)
+  self.assertTrue(any('@trufflesuite+bigint-buffer@1.1.9/node_modules/node-gyp-build' in str(p)and p.name=='index.js'for p in pins));self.assertTrue(any(p.name=='node.js'for p in pins))
+  for relative,policy in self.bigint_rows().items():
+   with self.subTest(platform=policy['platform']),mock.patch.object(a,'pin',side_effect=lambda p:dict(pins[p]))as check:
+    self.assertEqual(a.unselected_prebuild_data(repo,relative,policy,0o100644,bytes.fromhex(policy['header20_hex']),'amd64'),policy['platform']!='linux');self.assertEqual({call.args[0]for call in check.call_args_list},set(pins))
+ def test_bigint_linux_x64_is_data_only_on_other_architecture(self):
+  repo,pins=self.bigint_loader_pins();relative,policy=next((p,r)for p,r in self.bigint_rows().items()if r['platform']=='linux')
+  with mock.patch.object(a,'pin',side_effect=lambda p:dict(pins[p])):
+   self.assertFalse(a.unselected_prebuild_data(repo,relative,policy,0o644,bytes.fromhex(policy['header20_hex']),'amd64'))
+   self.assertTrue(a.unselected_prebuild_data(repo,relative,policy,0o644,bytes.fromhex(policy['header20_hex']),'arm64'))
+ def test_bigint_every_payload_pin_mode_and_header_is_mandatory(self):
+  repo,pins=self.bigint_loader_pins()
+  for relative,policy in self.bigint_rows().items():
+   header=bytes.fromhex(policy['header20_hex'])
+   for row,mode,raw in [(dict(policy,bytes=policy['bytes']+1),0o644,header),(dict(policy,sha256='0'*64),0o644,header),(policy,0o664,header),(policy,0o755,header),(policy,0o644,bytes([header[0]^1])+header[1:])]:
+    with self.subTest(platform=policy['platform'],mode=mode),mock.patch.object(a,'pin',side_effect=lambda p:dict(pins[p])),self.assertRaisesRegex(ValueError,'Exact Source-locked prebuild'):a.unselected_prebuild_data(repo,relative,row,mode,raw,'amd64')
+ def test_bigint_each_of_four_loader_source_pins_is_mandatory(self):
+  repo,pins=self.bigint_loader_pins();relative,policy=next((p,r)for p,r in self.bigint_rows().items()if r['platform']=='darwin')
+  for target in pins:
+   for field,value in [('bytes',pins[target]['bytes']+1),('sha256','0'*64)]:
+    changed=copy.deepcopy(pins);changed[target][field]=value
+    with self.subTest(target=str(target),field=field),mock.patch.object(a,'pin',side_effect=lambda p:dict(changed[p])),self.assertRaisesRegex(ValueError,'platform-selecting package loader changed'):a.unselected_prebuild_data(repo,relative,policy,0o644,bytes.fromhex(policy['header20_hex']),'amd64')
+ def test_bigint_unknown_path_has_no_data_authority(self):
+  repo,pins=self.bigint_loader_pins();relative,policy=next(iter(self.bigint_rows().items()))
+  for name in [relative+'extra',relative.replace('@1.1.9/','@1.1.10/'),relative.replace('darwin-x64','darwin-arm64')]:
+   with mock.patch.object(a,'pin',side_effect=AssertionError('Unknown path must not inspect borrowed loaders')):self.assertFalse(a.unselected_prebuild_data(repo,name,policy,0o644,bytes.fromhex(policy['header20_hex']),'amd64'))
 class Custody(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.case=pathlib.Path(self.tmp.name).resolve();self.out=self.case/'output';self.out.mkdir()

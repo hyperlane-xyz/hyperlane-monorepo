@@ -3,6 +3,7 @@ from pathlib import Path
 import copy
 import importlib.util
 import json
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -79,7 +80,14 @@ class Controls(unittest.TestCase):
             product=source/'products.json';product.write_text(json.dumps({'programs':{'test.so':files['programs/test.so']},'client':files['client/hyperlane-sealevel-client'],'spl':files['home/.cargo/bin/spl-token']}))
             env=source/'public.json';env.write_text('{}');inspected={'platform':data.PLATFORM,'source_commit':'a'*40,'native_case_acceptance':False,'files':files,'product_manifest':data.pin(product),'producer_result':data.pin(product)}
             value={'inspected':inspected,'environment':{'public.json':data.pin(env)},'source_before':data.pin(product)}
-            with mock.patch.object(api,'assets',return_value=data),mock.patch.object(api,'check_inspection',return_value=value):bundle,pins=api.materialize(value,self.request(),source,case,{'selector':'actual-pin'},{'producer':'actual-pin'})
+            with mock.patch.object(api,'assets',return_value=data),mock.patch.object(api,'check_inspection',return_value=value):
+                # This four-byte copy is a unit fixture; actual case free-space admission stays real.
+                for available in (6*1024**3-1,6*1024**3):
+                    with mock.patch.object(shutil,'disk_usage',return_value=mock.Mock(free=available)),self.assertRaisesRegex(ValueError,'preserve6GiB floor'):
+                        api.materialize(value,self.request(),source,case,{'selector':'actual-pin'},{'producer':'actual-pin'})
+                    self.assertFalse((case/'tools').exists())
+                with mock.patch.object(shutil,'disk_usage',return_value=mock.Mock(free=8*1024**3)):
+                    bundle,pins=api.materialize(value,self.request(),source,case,{'selector':'actual-pin'},{'producer':'actual-pin'})
             gate=json.loads(Path(bundle['component_gate']['path']).read_text());self.assertEqual(gate['accepted_assets'],{k:v for k,v in bundle.items()if k!='component_gate'});self.assertTrue(gate['root_approved']);self.assertFalse(gate['native_VM_acceptance']);self.assertIsNone(gate['spl_publisher_digest']);self.assertEqual(gate['reviewed_policy'],{'selector':'actual-pin'});self.assertTrue((case/'svm-workspace').is_dir());self.assertEqual((case/'tools/svm/programs/test.so').read_bytes(),body)
 
     def test_actual_stage_validator_accepts_no_CosmosCLI_and_rejects_dataset_swap(self):
@@ -120,6 +128,13 @@ class Controls(unittest.TestCase):
                 return str(node)
             tcp=b'p42\nf1\nn*:8899\nf2\nn0.0.0.0:8900\nf3\nn*:9900\n';udp=b'p42\nf4\nn127.0.0.1:8001\n'
             def run(command,**kwargs):return subprocess.CompletedProcess(command,0,udp if '-iUDP'in command else tcp,b'')
+            full_tcp,full_udp=tcp,udp
+            for tcp,udp in [(b'',b''),(b'p42\nf1\nn*:8899\n',full_udp),(full_tcp,b'')]:
+                pending={}
+                with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run):
+                    expected=api.listener_proof({},inputs,root,root/'unused-lsof',pending,owner,subprocess)
+                self.assertEqual(expected,[{8899,8900}]);self.assertEqual(pending,{})
+            tcp,udp=full_tcp,full_udp
             with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run):
                 expected=api.listener_proof({},inputs,root,root/'unused-lsof',observed,owner,subprocess)
             self.assertEqual(expected,[{8899,8900}]);self.assertEqual(observed['8899,8900']['pid'],42);self.assertEqual(observed['8899,8900']['ledger'],str(ledger))
@@ -136,10 +151,24 @@ class Controls(unittest.TestCase):
                         import re
                         tcp=re.sub(rb'f[123]\nn(?:\*|0\.0\.0\.0):'+str(port).encode()+rb'\n',
                                    b'f8\n'+replacement if replacement else b'',original_tcp)
-                        failed={}
+                        failed={'8899,8900':dict(proof)}
                         with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run),self.assertRaisesRegex(ValueError,'Source wildcard'):
                             api.listener_proof({},inputs,root,root/'unused-lsof',failed,owner,subprocess)
-                        self.assertEqual(failed,{})
+                        self.assertEqual(failed,{'8899,8900':proof})
+            tcp=b'p42\nf1\nn127.0.0.1:8899\n'
+            with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run),self.assertRaisesRegex(ValueError,'Source wildcard'):
+                api.listener_proof({},inputs,root,root/'unused-lsof',{},owner,subprocess)
+            tcp=b'p42\nf1\nn*:8898\n'
+            with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run),self.assertRaisesRegex(ValueError,'escaped fixed local authority'):
+                api.listener_proof({},inputs,root,root/'unused-lsof',{},owner,subprocess)
+            tcp=b''
+            bad_argv=argv[:];bad_argv[bad_argv.index('--bind-address')+1]='0.0.0.0'
+            good_argv=argv;argv=bad_argv
+            with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run),self.assertRaisesRegex(ValueError,'argument differs'):
+                api.listener_proof({},inputs,root,root/'unused-lsof',{},owner,subprocess)
+            argv=good_argv
+            with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run),mock.patch.object(owner,'_linux_row',return_value={'state':'S','start':'linux-ticks:124'}),self.assertRaisesRegex(ValueError,'PID changed'):
+                api.listener_proof({},inputs,root,root/'unused-lsof',{},owner,subprocess)
             tcp=original_tcp
             with mock.patch.object(Path,'read_bytes',side_effect=PermissionError('matched node denied')),mock.patch.object(api.os,'readlink',side_effect=link),self.assertRaises(PermissionError):api.listener_proof({},inputs,root,root/'unused-lsof',{},owner,subprocess)
 

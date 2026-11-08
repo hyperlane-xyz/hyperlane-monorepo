@@ -500,10 +500,16 @@ def listener_rows(pid, raw, udp=False):
     return sockets
 
 
-def required_listener_rows(tcp, udp):
-    """Require canonical Source wildcards, not interchangeable loopback-only ports."""
-    require({('0.0.0.0', port) for port in (8899, 8900, 9900)} <= set(tcp),
-            'Actual SVM Source wildcard RPC/WS/faucet endpoints absent')
+def required_listener_rows(tcp, udp, *, allow_pending=False):
+    """Only absent startup sockets may be pending; wrong bindings remain errors."""
     import ipaddress
-    require(any(port == 8001 and ipaddress.ip_address(host).is_loopback for host, port in udp),
-            'Actual SVM loopback gossip endpoint absent')
+    require(type(allow_pending) is bool, 'Literal startup-pending scope required')
+    require(all(host == '0.0.0.0' for host, port in tcp if port in (8899, 8900, 9900)),
+            'Actual SVM Source wildcard RPC/WS/faucet endpoints absent')
+    tcp_ready = {('0.0.0.0', port) for port in (8899, 8900, 9900)} <= set(tcp)
+    udp_ready = any(port == 8001 and ipaddress.ip_address(host).is_loopback for host, port in udp)
+    if allow_pending and not (tcp_ready and udp_ready):
+        return False
+    require(tcp_ready, 'Actual SVM Source wildcard RPC/WS/faucet endpoints absent')
+    require(udp_ready, 'Actual SVM loopback gossip endpoint absent')
+    return True

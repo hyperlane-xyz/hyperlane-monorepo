@@ -7,8 +7,9 @@ spec=importlib.util.spec_from_file_location('actual_ci_fullcase',HERE/'ci_fullca
 REPO=HERE.parents[2]
 FULL="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case))"
 INPUT="      aleo_full_case:\n        description: Run only reviewed dedicated Aleo Safe/Fast full cases (requires actual same-job prerequisites)\n        type: boolean\n        default: false\n"
-# Exact pre-successor14job workflow. Added Source changes must be reviewed, not hidden.
-BASE_SHA=('bf1eb6e7ecab960dd693b9a8e20ff098' '87570a6246669e1fd85cbdc28813f24a')
+# Exact current14-job inverse, including reviewed C45 progress/C46 cold/C47 readback hunks.
+# Further workflow-body changes still require explicit review and a new baseline.
+BASE_SHA=('e5907c15c98fde981fec43b356786ce34' '44c5c237a2ab790c3bed6172b86f401')
 def evaluator():
  tree=ast.parse((REPO/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N}
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
@@ -57,6 +58,8 @@ class Routes(unittest.TestCase):
 class Policy(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve();self.value=json.loads((HERE/'ci_policy.PENDING.json').read_text())
+  # Negative fixtures stay inert even when the real checked-in case policy is activated.
+  self.value.update(root_approved=False,runtime_source_commit=None,requests={mode:None for mode in m.MODES},qualified_cohort=None,qualified_docker=None,required_source=None)
  def descriptor(self,value):
   p=self.root/'policy.json';p.write_text(json.dumps(value));return m.pin(p)
  def test_false_policy_is_inert_for_both_modes_before_any_effect(self):
@@ -77,6 +80,18 @@ class Policy(unittest.TestCase):
  def test_fixed_child_environment_excludes_auth_proxy_fault_aliases(self):
   env={k:'fixture'for k in ['PATH','GITHUB_WORKSPACE','RUNNER_TEMP','GITHUB_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_REPOSITORY']};env.update(GH_TOKEN='private-marker',HTTPS_PROXY='private-marker',NODE_OPTIONS='private-marker',CONFIG_FILES='private-marker')
   out=m.fixed_environment(env);self.assertNotIn('private-marker',json.dumps(out));self.assertNotIn('HOME',out)
+class ActivatedPolicyFixture(unittest.TestCase):
+ def test_real_activation_cannot_turn_negative_policy_fixture_into_authority(self):
+  active={**m.FIXED,'root_approved':True,'runtime_source_commit':'a'*40,'requests':{mode:{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}for mode in m.MODES},'qualified_cohort':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'qualified_docker':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'required_source':[{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}]}
+  case=Policy('test_false_policy_is_inert_for_both_modes_before_any_effect')
+  try:
+   with mock.patch.object(pathlib.Path,'read_text',return_value=json.dumps(active)):case.setUp()
+   self.assertIs(case.value['root_approved'],False)
+   for key in ['runtime_source_commit','qualified_cohort','qualified_docker','required_source']:self.assertIsNone(case.value[key])
+   self.assertEqual(case.value['requests'],{mode:None for mode in m.MODES})
+   case.test_false_policy_is_inert_for_both_modes_before_any_effect()
+  finally:case.doCleanups()
+
 class PolicyPins(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve()

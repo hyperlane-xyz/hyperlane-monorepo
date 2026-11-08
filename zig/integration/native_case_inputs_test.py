@@ -227,4 +227,29 @@ class PreparationControls(unittest.TestCase):
   self.assertEqual(set(paths),{'manifest','execution-approval','case-inputs','launch-plan'})
   self.assertFalse(plan['native_case_acceptance'])
 
+
+class HarnessWorkingDirectoryControls(unittest.TestCase):
+ def planned_cwd(self,repo,scenario):
+  import ast
+  tree=ast.parse(pathlib.Path(m.__file__).read_text())
+  prepare=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='prepare')
+  plan=next(n.value for n in prepare.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='plan'for t in n.targets))
+  value=plan.values[next(i for i,key in enumerate(plan.keys)if isinstance(key,ast.Constant)and key.value=='harness_cwd')]
+  return pathlib.Path(eval(compile(ast.Expression(value),'actual plan harness_cwd','eval'),{'str':str,'repo':repo,'scenario':scenario}))
+ def test_evm_relative_agent_slots_match_baked_Rust_workspace(self):
+  # Exercise the actual plan expression against the Rust caller/resolver contract.
+  # No helper/agent/compiler is executed to validate this path relationship.
+  import re
+  source=m.ROOT/'rust/main/utils/run-locally/src'
+  self.assertRegex((source/'main.rs').read_text(),r'const AGENT_BIN_PATH: &str = "target/debug";')
+  self.assertIn('workspace.join("target/debug").join(role)',(source/'external_agents.rs').read_text())
+  repo=pathlib.Path('/owned/checkout');workspace=repo/'rust/main';cwd=self.planned_cwd(repo,'evm')
+  for role in ['relayer','validator','scraper','init-db']:
+   self.assertEqual(cwd/'target/debug'/role,workspace/'target/debug'/role)
+   self.assertNotEqual(repo/'rust/main/utils/run-locally/target/debug'/role,workspace/'target/debug'/role)
+ def test_all_seven_altvm_fixture_working_directories_preserved(self):
+  repo=pathlib.Path('/owned/checkout')
+  for scenario in ['cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite','radix','tron']:
+   with self.subTest(scenario=scenario):self.assertEqual(self.planned_cwd(repo,scenario),repo/'rust/main/utils/run-locally')
+
 if __name__=='__main__':unittest.main(verbosity=2)
