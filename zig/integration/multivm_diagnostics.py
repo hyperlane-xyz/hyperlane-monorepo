@@ -241,7 +241,46 @@ def captured_failure_bytes(path, maximum):
     return wire,{'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
 
 
-def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
+def zig_role_source_frames(raw,prefixes,catalog,repo):
+    """Relative coordinates from Source-prefixed text, never execution evidence."""
+    if not isinstance(catalog,dict)or len(catalog)>768:raise ValueError('Bounded Zig frame catalog required')
+    total=0
+    for name,row in catalog.items():
+        if not isinstance(name,str)or re.fullmatch(r'zig/src/[A-Za-z0-9_./-]+\.zig',name)is None or str(Path(name))!=name or'..'in Path(name).parts or not isinstance(row,dict)or set(row)!={'path','bytes','sha256'}or row['path']!=str(Path(repo)/name)or type(row['bytes'])is not int or not 0<row['bytes']<=1024**2 or not isinstance(row['sha256'],str)or re.fullmatch('[0-9a-f]{64}',row['sha256'])is None:raise ValueError('Exact admitted Zig frame catalog required')
+        total+=row['bytes']
+    if total>16*1024**2:raise ValueError('Bounded Zig frame Source bytes required')
+    allowed={p for p in prefixes if p in {'RLY','VL1','VL2','VL3'}};result={p:[]for p in allowed};seen=set();cache={};count=0;captured=0
+    for line in io.BytesIO(raw):
+        if len(line)>65536:continue
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',line).strip();prefix=re.match(rb'^<(RLY|VL1|VL2|VL3)> ',clean)
+        if prefix is None:continue
+        role=prefix[1].decode()
+        if role not in allowed:continue
+        body=clean[prefix.end():].lstrip()
+        match=re.match(rb'^((?:/[^:\r\n]{1,4096}/)?zig/src/[A-Za-z0-9_./-]+\.zig|src/[A-Za-z0-9_./-]+\.zig):([0-9]{1,7}):([0-9]{1,7})(?=[:\s]|$)',body)
+        if match is None:continue
+        printed=match[1].decode();name=printed[printed.rfind('/zig/src/')+1:]if '/zig/src/'in printed else'zig/'+printed if printed.startswith('src/')else printed;row=catalog.get(name)
+        if row is None:continue
+        if name not in cache:
+            cache[name]=None
+            try:
+                path=Path(repo)/name
+                if any(p.is_symlink()for p in [path,*[p for p in path.parents if p.is_relative_to(repo)]]):continue
+                source,fingerprint=captured_failure_bytes(path,1024**2);captured+=len(source)
+                if captured>16*1024**2:break
+                if row=={'path':str(path),**fingerprint}:cache[name]=source.splitlines()
+            except Exception:continue
+        source_lines=cache[name];line_number,column=int(match[2]),int(match[3])
+        if source_lines is None or not 0<line_number<=len(source_lines)or not 0<column<=len(source_lines[line_number-1])+1:continue
+        key=(role,name,line_number,column)
+        if key in seen:continue
+        seen.add(key);result[role].append({'source':name,'line':line_number,'column':column});count+=1
+        if count==8:break
+    return result
+
+
+
+def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,zig_sources):
     """Existing Source parent receipts and finite role-log flags, no new probe."""
     if manifest['scenario']not in {'sealevel','sealevel-composite'}or type(parent_pid)is not int or parent_pid<=0:raise ValueError('Actual SVM harness identity required')
     case=Path(case)
@@ -337,8 +376,9 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
     except Exception:
         logs.extend({'role':role,'fixed_log':'harness.log prefix '+prefix,'status':'unavailable','exact_pid_or_epoch_attribution':False}for prefix,role in harness_prefixes.items())
     else:
-        logs.extend({'role':role,'fixed_log':'harness.log prefix '+prefix,'status':'captured',**fingerprint,'finite_observed_flags':flags(raw,prefix.encode()),'stream_scope':'merged_prefixed_stdout_and_stderr','exact_pid_or_epoch_attribution':False}for prefix,role in harness_prefixes.items())
-    return {'schema':1,'kind':'public-SVM-role-failure-observation','writer_sources':writer_sources,'owned_child_journal':owned_pin,'parent_exit_journal':exit_pin,'roles':public,'fixed_role_logs':logs,'scope':'Actual existing parent wait records joined to admitted owned-child epochs/products. Fixed role files contain stdout only; harness prefixes merge stdout and stderr. Finite flags only, not Zig Sourceframes, stderr-only or original metrics HTTP/error attribution. Logs may contain multiple role epochs.','native_or_timing_or_cleanup_authority':False}
+        source_frames=zig_role_source_frames(raw,harness_prefixes,zig_sources,repo)
+        logs.extend({'role':role,'fixed_log':'harness.log prefix '+prefix,'status':'captured',**fingerprint,'finite_observed_flags':flags(raw,prefix.encode()),'stream_scope':'merged_prefixed_stdout_and_stderr','Source_frames':source_frames.get(prefix,[]),'exact_pid_or_epoch_attribution':False}for prefix,role in harness_prefixes.items())
+    return {'schema':1,'kind':'public-SVM-role-failure-observation','writer_sources':writer_sources,'owned_child_journal':owned_pin,'parent_exit_journal':exit_pin,'roles':public,'fixed_role_logs':logs,'scope':'Actual existing parent wait records joined to admitted owned-child epochs/products. Fixed role files contain stdout only; harness prefixes merge stdout and stderr. Finite flags and bounded admitted Zig coordinates; no std/foreign frames, stderr-only or original metrics HTTP/error attribution. Logs may contain multiple role epochs. Zig relative coordinates are matched to admitted captured Source; no function/address/rawpath/message or unforgeable execution claim.','native_or_timing_or_cleanup_authority':False}
 
 
 

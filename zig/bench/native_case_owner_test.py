@@ -507,10 +507,10 @@ class CaseOwnerTests(unittest.TestCase):
             result={'error':primary,'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101,'observed_monotonic_ns':100},{'role':'harness-cleanup','pid':42,'actual_parent_wait':True,'exit_code':101,'observed_monotonic_ns':101}]}
             projected={'schema':1,'roles':[],'native_or_timing_or_cleanup_authority':False}
             module=SimpleNamespace(role_failure_observation=mock.Mock(side_effect=RuntimeError('PRIVATE_DIAGNOSTIC')if fail else None,return_value=projected))
-            manifest={'scenario':'sealevel','mode':'ReleaseSafe','runtime_source_commit':'a'*40};plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}}
+            manifest={'scenario':'sealevel','mode':'ReleaseSafe','runtime_source_commit':'a'*40};plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':{},'diagnostic_zig_sources':{'zig/src/fake.zig':{'path':'/data-only/fake.zig','bytes':1,'sha256':'d'*64}}}
             with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):
                 row=api.write_public_failure_diagnostics(plan,manifest,{},case,out,result,90)
-            public=json.loads(Path(row['path']).read_bytes());module.role_failure_observation.assert_called_once();self.assertEqual(module.role_failure_observation.call_args.args[2],42)
+            public=json.loads(Path(row['path']).read_bytes());module.role_failure_observation.assert_called_once();self.assertEqual(module.role_failure_observation.call_args.args[2],42);self.assertEqual(module.role_failure_observation.call_args.args[6],plan['diagnostic_zig_sources'])
             self.assertEqual(public['SVM_role_failure'],{'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}if fail else projected)
             self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'][0]['exit_code'],101);self.assertNotIn('PRIVATE',json.dumps(public));self.assertFalse(public['native_or_timing_credit'])
 
@@ -539,6 +539,21 @@ class CaseOwnerTests(unittest.TestCase):
         result={'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101},{'role':'harness-cleanup','pid':43,'actual_parent_wait':True,'exit_code':101}]}
         with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'radix','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},case,out,result,90)
         module.fixture_failure_observation.assert_not_called();self.assertEqual(json.loads(Path(row['path']).read_bytes())['fixture_failure']['collection_status'],'unavailable')
+
+
+    def test_Zig_catalog_requires_exact_rooted_required_pin_and_nonempty_bounded_map(self):
+        path=self.root/'zig/src/role.zig';path.parent.mkdir(parents=True);path.write_bytes(b'pub fn role() void {}\n');row=api.pin(path);catalog={'zig/src/role.zig':row};plan={'diagnostic_zig_sources':catalog,'required_inputs':[row]};self.assertEqual(api.admitted_zig_diagnostic_catalog(plan,self.root),catalog)
+        variants=[dict(plan,required_inputs=[]),dict(plan,diagnostic_zig_sources={}),dict(plan,diagnostic_zig_sources={'../role.zig':row}),dict(plan,diagnostic_zig_sources={'zig/src/role.zig':dict(row,path='/FOREIGN/role.zig')}),dict(plan,diagnostic_zig_sources={'zig/src/role.zig':dict(row,bytes=True)})]
+        for changed in variants:
+            with self.assertRaises(ValueError):api.admitted_zig_diagnostic_catalog(changed,self.root)
+        import ast
+        fn=next(n for n in ast.parse(Path(api.__file__).read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='load_plan');calls=[n for n in ast.walk(fn)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='admitted_zig_diagnostic_catalog'];self.assertEqual(len(calls),1);self.assertEqual(ast.unparse(calls[0].args[0]),'plan')
+
+    def test_missing_Zig_catalog_cannot_fall_back_to_unbound_role_Source_frames(self):
+        from types import SimpleNamespace
+        case=self.root/'missing-catalog-case';case.mkdir();out=case/'worker';out.mkdir();primary={'type':'RuntimeError','message':'PRIVATE_PRIMARY'};result={'error':primary,'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]};module=SimpleNamespace(role_failure_observation=mock.Mock(side_effect=AssertionError('No Source map fallback')))
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'sealevel','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},case,out,result,90)
+        module.role_failure_observation.assert_not_called();self.assertEqual(json.loads(Path(row['path']).read_bytes())['SVM_role_failure']['collection_status'],'unavailable');self.assertIs(result['error'],primary)
 
 
 class StarknetProgressTests(unittest.TestCase):

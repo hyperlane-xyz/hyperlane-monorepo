@@ -46,6 +46,19 @@ def checked(row, executable=False):
     return path
 
 
+def admitted_zig_diagnostic_catalog(plan,repo):
+    catalog=plan['diagnostic_zig_sources']
+    require(isinstance(catalog,dict)and 0<len(catalog)<=768,'Bounded admitted Zig diagnostic Source catalog required')
+    total=0
+    for name,row in catalog.items():
+        require(isinstance(name,str)and re.fullmatch(r'zig/src/[A-Za-z0-9_./-]+\.zig',name)and str(Path(name))==name and'..'not in Path(name).parts,'Canonical admitted Zig Source name required')
+        require(isinstance(row,dict)and set(row)=={'path','bytes','sha256'}and row['path']==str(repo/name)and type(row['bytes'])is int and 0<row['bytes']<=1024**2 and isinstance(row['sha256'],str)and re.fullmatch('[0-9a-f]{64}',row['sha256'])and row in plan['required_inputs'],'Zig diagnostic Source must be exact required input')
+        total+=row['bytes']
+    require(total<=16*1024**2,'Bounded Zig diagnostic Source bytes required')
+    return catalog
+
+
+
 def load_plan(path, expected_sha):
     require(pin(path)['sha256'] == expected_sha, 'Approved launch plan changed')
     plan = json.loads(path.read_text())
@@ -65,6 +78,7 @@ def load_plan(path, expected_sha):
     checked(plan['lsofArtifact'], True)
     require(isinstance(plan['required_inputs'], list) and plan['required_inputs'], 'Pinned execution closure required')
     for row in plan['required_inputs']: checked(row)
+    if plan['scenario']in{'sealevel','sealevel-composite'}:admitted_zig_diagnostic_catalog(plan,Path(__file__).resolve().parents[2])
     for code in [Path(__file__).resolve(),Path(owner.__file__).resolve(),*([Path(__file__).with_name('native_starknet_custody.py').resolve()] if plan['scenario']in{'starknet','radix'} else []),*([Path(__file__).with_name(n).resolve() for n in ['native_radix_custody.py','native_radix_volume.py','native_radix_assets.py','native_radix_case.py','native_radix_reference.py']]if plan['scenario']=='radix'else[]),*([Path(__file__).with_name(n).resolve()for n in ['native_svm_case.py','native_svm_assets.py']]if plan['scenario']in{'sealevel','sealevel-composite'}else[]),*([Path(__file__).with_name(n).resolve()for n in ['native_tron_custody.py','native_tron_assets.py']]if plan['scenario']=='tron'else[])]:
         require(pin(code) in plan['required_inputs'],'Exact owner/shared ownership Source closure missing')
     for row in approval['python_modules'].values(): checked(row)
@@ -627,7 +641,7 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
         try:
             helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
             require(len(helper_pids)==1,'One actual SVM helper parent required for failure projection')
-            record['SVM_role_failure']=diagnostic_module(approval).role_failure_observation(case,manifest,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log)
+            record['SVM_role_failure']=diagnostic_module(approval).role_failure_observation(case,manifest,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log,plan['diagnostic_zig_sources'])
         except Exception:record['SVM_role_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     if manifest['scenario']in{'tron','radix'}:
         try:

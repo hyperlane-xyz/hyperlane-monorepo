@@ -534,6 +534,40 @@ def validate_stage(stage, context, request):
     return dependency
 
 
+def diagnostic_zig_source_catalog(repo,producer,execution,runtime_scope,evidence):
+    """Exact tracked producer bytes; no package, compiler or native execution."""
+    require(cohort(repo,producer,execution,'runtime',evidence)==runtime_scope,'Zig diagnostic Source cohort differs')
+    tracked=git(repo,'ls-files','-z','--','zig/src',evidence=evidence).split('\0')
+    names=sorted(n for n in tracked if n.endswith('.zig'))
+    require(0<len(names)<=768 and len(names)==len(set(names)),'Bounded unique tracked Zig diagnostic Source set required')
+    tree=git(repo,'ls-tree','-r','-z',producer,'--','zig/src',evidence=evidence);blobs={}
+    for entry in tree.split('\0'):
+        if not entry:continue
+        metadata,name=entry.split('\t',1)
+        if not name.endswith('.zig'):continue
+        fields=metadata.split(' ')
+        require(len(fields)==3 and fields[0]in{'100644','100755'}and fields[1]=='blob'and re.fullmatch('[0-9a-f]{40}',fields[2])and name not in blobs,'Tracked regular Zig Source blob required')
+        blobs[name]=fields[2]
+    require(set(blobs)==set(names),'Tracked Zig diagnostic Source index/tree mismatch')
+    result={};total=0
+    for name in names:
+        require(re.fullmatch(r'zig/src/[A-Za-z0-9_./-]+\.zig',name)and'..'not in PurePosixPath(name).parts,'Canonical Zig diagnostic Source path required')
+        path=relative_file(repo,name);before=path.lstat()
+        require(stat.S_ISREG(before.st_mode)and before.st_nlink==1 and 0<before.st_size<=1024**2 and total+before.st_size<=16*1024**2,'Bounded regular Zig diagnostic Source required')
+        fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+        try:
+            identity=lambda row:(row.st_dev,row.st_ino,row.st_size,row.st_mtime_ns,row.st_nlink)
+            require(identity(os.fstat(fd))==identity(before),'Zig diagnostic Source changed before capture')
+            with os.fdopen(fd,'rb',closefd=False)as stream:wire=stream.read(before.st_size+1)
+            require(len(wire)==before.st_size and identity(os.fstat(fd))==identity(before)==identity(path.lstat()),'Zig diagnostic Source changed during capture')
+        finally:os.close(fd)
+        require(hashlib.sha1(b'blob '+str(len(wire)).encode()+b'\0'+wire).hexdigest()==blobs[name],'Captured Zig Source differs from exact producer blob')
+        total+=len(wire);result[name]={'path':str(path),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
+    require(cohort(repo,producer,execution,'runtime',evidence)==runtime_scope,'Zig diagnostic Source cohort changed after capture')
+    return result
+
+
+
 def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     require(sys.platform == 'linux', 'Linux native preparation only')
     require(checksum(context_path) == context_sha, 'Hydrated context changed')
@@ -634,6 +668,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         require(len(diagnostic_rust_sources)<256,'Bounded diagnostic Rust source set')
         row=artifact(relative_file(repo,name));require(row['bytes']<=1024**2,'Bounded diagnostic Rust source file');diagnostic_rust_sources[name]=row
     require(sum(row['bytes']for row in diagnostic_rust_sources.values())<=4*1024**2,'Bounded diagnostic Rust source bytes')
+    diagnostic_zig_sources=diagnostic_zig_source_catalog(repo,context['runtime_source_commit'],context['execution_source_commit'],closure['scopes']['runtime'],evidence)if scenario in{'sealevel','sealevel-composite'}else{}
     write_new(git_log, {'actual_waited_git_calls': evidence, 'decoded_locks': locks})
     write_new(gate_path, {'source_commit': context['execution_source_commit'], 'source_unchanged': True, 'checks': [{'name': 'actual tracked cohort and restored lock recheck before nodes', 'exit_code': 0, 'log': artifact(git_log)}]})
     tool_gate = read_json(root / 'tools/source-gate.json')
@@ -667,7 +702,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         required += radix_required + [profile['fixture_contracts']['release_metadata'],*profile['fixture_contracts']['files'].values(),artifact(repo/'zig/bench/native_radix_case.py'),artifact(repo/'zig/bench/native_radix_assets.py'),artifact(repo/'zig/bench/native_radix_custody.py'),artifact(repo/'zig/bench/native_radix_volume.py'),artifact(repo/'zig/bench/native_radix_reference.py'),artifact(repo/'zig/bench/native_starknet_custody.py')]
         required += list(stage['radix_assets']['images'].values())
     required += [check['log'] for check in stage['checks']]
-    required += list(diagnostic_rust_sources.values())
+    required += list(diagnostic_rust_sources.values()) + list(diagnostic_zig_sources.values())
     if scenario == 'cosmwasm':
         required += [bundle['archive'], *bundle['files'].values(), artifact(repo / 'zig/bench/native_cw_assets.py')]
     if scenario == 'starknet':
@@ -678,7 +713,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         required += [{'path':str(Path(copied['workspace']['root'])/name),'bytes':row['bytes'],'sha256':row['sha256']}for name,row in copied['workspace']['entries'].items()if row['kind']=='file']
         required += [r for compiler in value['compiler_outputs'].values()for r in compiler['actual_build_info']]
     required += list(read_json(checked(next(c['log'] for c in stage['checks'] if c['name'] == 'system-libraries'))).values())
-    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / ('rust/main' if scenario == 'evm' else 'rust/main/utils/run-locally')), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 1 if scenario in{'sealevel-composite','radix'}else 2 if scenario in{'sealevel','tron'}else 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources}
+    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / ('rust/main' if scenario == 'evm' else 'rust/main/utils/run-locally')), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 1 if scenario in{'sealevel-composite','radix'}else 2 if scenario in{'sealevel','tron'}else 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources,'diagnostic_zig_sources':diagnostic_zig_sources}
     write_new(paths['launch-plan'], plan)
     return paths
 

@@ -273,4 +273,64 @@ class EvmKathyConfigurationControls(unittest.TestCase):
    with self.subTest(scenario=scenario):
     expected=self.planned_environment(scenario,include_override=False);actual=self.planned_environment(scenario);self.assertEqual(actual,expected);self.assertNotIn('E2E_KATHY_MESSAGES',actual)
 
+
+class ZigDiagnosticCatalogControls(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory(prefix='znc-zig-source-control-');self.addCleanup(self.tmp.cleanup);self.repo=pathlib.Path(self.tmp.name).resolve()
+  self.git('init','-q');self.git('config','user.name','Fixture');self.git('config','user.email','fixture@example.invalid');self.git('config','core.hooksPath','/dev/null');self.git('config','commit.gpgSign','false')
+  for name in ['zig/src/root.zig','zig/native/Cargo.toml','zig/build.zig','rust/main/Cargo.toml','rust/sealevel/Cargo.toml','zig/reference/Cargo.toml']:
+   path=self.repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('pub const public_value = 1;\n'if name.endswith('.zig')else'fixture\n')
+  self.git('add','.');self.git('commit','-qm','pure Source fixture');self.commit=self.git('rev-parse','HEAD');self.runtime=m.cohort(self.repo,self.commit,self.commit,'runtime');self.evidence=[]
+ def git(self,*args):return subprocess.check_output(['git',*args],cwd=self.repo,text=True,stderr=subprocess.PIPE).strip()
+ def collect(self):return m.diagnostic_zig_source_catalog(self.repo,self.commit,self.commit,self.runtime,self.evidence)
+ def test_actual_Git_blob_join_produces_exact_catalog_and_serialized_consumer_frames(self):
+  import ast
+  fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='prepare');assignment=next(n for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_zig_sources'for t in n.targets));addition=next(n for n in fn.body if isinstance(n,ast.AugAssign)and isinstance(n.target,ast.Name)and n.target.id=='required'and 'diagnostic_rust_sources'in ast.unparse(n));plan_literal=next(n.value for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='plan'for t in n.targets));plan_value=next(v for k,v in zip(plan_literal.keys,plan_literal.values)if isinstance(k,ast.Constant)and k.value=='diagnostic_zig_sources')
+  env=dict(m.__dict__,repo=self.repo,context={'runtime_source_commit':self.commit,'execution_source_commit':self.commit},closure={'scopes':{'runtime':self.runtime}},scenario='sealevel',evidence=self.evidence,diagnostic_rust_sources={},required=[]);exec(compile(ast.fix_missing_locations(ast.Module(body=[assignment,addition],type_ignores=[])),str(m.__file__),'exec'),env);catalog=eval(compile(ast.Expression(body=plan_value),str(m.__file__),'eval'),env)
+  self.assertEqual(set(catalog),{'zig/src/root.zig'});row=catalog['zig/src/root.zig'];self.assertEqual(row,m.artifact(self.repo/'zig/src/root.zig'));self.assertIn(row,env['required']);self.assertTrue(any('ls-tree'in r['argv']for r in self.evidence));self.assertTrue(all(r['actual_parent_wait']for r in self.evidence))
+  path=self.repo/'catalog.json';path.write_text(json.dumps({'diagnostic_zig_sources':catalog,'required_inputs':env['required']}));decoded_plan=json.loads(path.read_text());decoded=decoded_plan['diagnostic_zig_sources'];base=pathlib.Path(__file__).resolve().parents[1]
+  spec=importlib.util.spec_from_file_location('catalog_consumer_diag',base/'integration/multivm_diagnostics.py');diag=importlib.util.module_from_spec(spec);spec.loader.exec_module(diag)
+  spec=importlib.util.spec_from_file_location('catalog_consumer_owner',base/'bench/native_case_owner.py');owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+  self.assertEqual(owner.admitted_zig_diagnostic_catalog(decoded_plan,self.repo),decoded)
+  frames=diag.zig_role_source_frames(b'<RLY> /PRIVATE_BUILD/zig/src/root.zig:1:5: 0x123 in PRIVATE_FUNCTION (role)\n',{'RLY':'relayer'},decoded,self.repo);self.assertEqual(frames,{'RLY':[{'source':'zig/src/root.zig','line':1,'column':5}]});self.assertNotIn('PRIVATE',json.dumps(frames))
+ def test_wrong_blob_or_index_tree_mismatch_refuses_even_when_other_cohort_is_valid(self):
+  real=m.git
+  def wrong_blob(repo,*args,**kwargs):
+   value=real(repo,*args,**kwargs)
+   if args[0]=='ls-tree':
+    records=[]
+    for record in value.split('\0'):
+     if record and record.endswith('zig/src/root.zig'):record='100644 blob '+'0'*40+'\tzig/src/root.zig'
+     records.append(record)
+    return '\0'.join(records)
+   return value
+  with mock.patch.object(m,'git',side_effect=wrong_blob),self.assertRaisesRegex(ValueError,'producer blob'):self.collect()
+  def wrong_index(repo,*args,**kwargs):return 'zig/src/foreign.zig\0'if args[0]=='ls-files'else real(repo,*args,**kwargs)
+  with mock.patch.object(m,'git',side_effect=wrong_index),self.assertRaisesRegex(ValueError,'index/tree'):self.collect()
+ def test_actual_dirty_Source_refuses_without_catalog_or_runtime_admission(self):
+  (self.repo/'zig/src/root.zig').write_text('dirty\n')
+  with self.assertRaisesRegex(ValueError,'Dirty compiled'):self.collect()
+ def test_links_oversize_and_midcapture_change_refuse_at_real_file_boundary(self):
+  path=self.repo/'zig/src/root.zig';original=path.read_bytes();other=self.repo/'private-data';other.write_bytes(b'SECRET');path.unlink();path.symlink_to(other)
+  with mock.patch.object(m,'cohort',return_value=self.runtime),self.assertRaisesRegex(ValueError,'Symlink'):self.collect()
+  path.unlink()
+  with path.open('wb')as stream:stream.truncate(1024**2+1)
+  with mock.patch.object(m,'cohort',return_value=self.runtime),mock.patch.object(m.os,'open',side_effect=AssertionError('oversize must not open')),self.assertRaisesRegex(ValueError,'Bounded regular'):self.collect()
+  path.write_bytes(original);real=m.os.fstat;calls=[]
+  def changed(fd):
+   row=real(fd);calls.append(fd)
+   if len(calls)==2:
+    from types import SimpleNamespace
+    return SimpleNamespace(st_dev=row.st_dev,st_ino=row.st_ino,st_size=row.st_size,st_mtime_ns=row.st_mtime_ns+1,st_nlink=row.st_nlink)
+   return row
+  with mock.patch.object(m.os,'fstat',side_effect=changed),self.assertRaisesRegex(ValueError,'during capture'):self.collect()
+ def test_catalog_bounds_and_actual_prepare_required_input_binding(self):
+  real=m.git
+  def many(repo,*args,**kwargs):return '\0'.join('zig/src/f'+str(i)+'.zig'for i in range(769))if args[0]=='ls-files'else real(repo,*args,**kwargs)
+  with mock.patch.object(m,'git',side_effect=many),self.assertRaisesRegex(ValueError,'Bounded unique'):self.collect()
+  import ast
+  tree=ast.parse(pathlib.Path(m.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='prepare');calls=[n for n in ast.walk(fn)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='diagnostic_zig_source_catalog'];self.assertEqual(len(calls),1)
+  assigned=next(n for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_zig_sources'for t in n.targets));self.assertIsInstance(assigned.value,ast.IfExp);self.assertEqual(ast.literal_eval(assigned.value.test.comparators[0]),{'sealevel','sealevel-composite'})
+  updates=[n for n in fn.body if isinstance(n,ast.AugAssign)and isinstance(n.target,ast.Name)and n.target.id=='required'];self.assertTrue(any('list(diagnostic_zig_sources.values())'in ast.unparse(n)for n in updates));plan=next(n.value for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='plan'for t in n.targets));self.assertIn('diagnostic_zig_sources',[k.value for k in plan.keys if isinstance(k,ast.Constant)])
+
 if __name__=='__main__':unittest.main(verbosity=2)

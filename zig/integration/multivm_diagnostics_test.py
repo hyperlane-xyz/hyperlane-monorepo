@@ -247,7 +247,7 @@ class RoleFailureProjectionControls(unittest.TestCase):
         for i,role in enumerate(self.products,10):
             row={'pid':i,'parent_pid':42,'role':role,'executable':self.products[role],'os_start_token':'PRIVATE_START_'+str(i),'scope':'PRIVATE_SCOPE'};self.owned.append(row)
             self.exits.append({**row,'parent_wait_completed':True,'already_exited':role=='relayer','forced_kill':False,'success':False,'exit_code':None,'signal':6 if role=='relayer'else 15,'purpose':'unwind_or_early_drop','planned_exit':False})
-        self.log=self.case/'harness.log';self.log.write_bytes(b'<SCR> error: PrivateFailureName\nDO-NOT-EXPORT-AUTHORIZATION\n')
+        self.zig_sources={};self.log=self.case/'harness.log';self.log.write_bytes(b'<SCR> error: PrivateFailureName\nDO-NOT-EXPORT-AUTHORIZATION\n')
         (self.case/'agent-logs/RLY-output.log').write_bytes(b'thread 100 panic: integer overflow\nPRIVATE_KEYS_AND_CONFIG\n')
         self.save()
 
@@ -255,7 +255,7 @@ class RoleFailureProjectionControls(unittest.TestCase):
         for name,rows in [('owned-children.jsonl',self.owned),('parent-child-exits.jsonl',self.exits)]:
             (self.case/'evidence'/name).write_text(''.join(json.dumps(row)+'\n'for row in rows))
 
-    def observe(self):return api.role_failure_observation(self.case,self.manifest,42,self.sources,self.repo,self.log)
+    def observe(self):return api.role_failure_observation(self.case,self.manifest,42,self.sources,self.repo,self.log,self.zig_sources)
 
     def test_actual_signal_parent_receipt_join_and_finite_panic_flags_never_publish_private_fields(self):
         value=self.observe();relayer=next(r for r in value['roles']if r['role']=='relayer')
@@ -363,6 +363,15 @@ class RoleFailureProjectionControls(unittest.TestCase):
         path=self.repo/self.names[-1];path.write_bytes(path.read_bytes()+b' changed logging macro')
         with self.assertRaises(ValueError):self.observe()
 
+
+    def test_actual_role_projection_consumes_catalog_and_retains_only_Source_coordinates(self):
+        path=self.repo/'zig/src/role.zig';path.parent.mkdir(parents=True);path.write_bytes(b'pub fn public_role() void {}\n');self.zig_sources={'zig/src/role.zig':api.pin(path)}
+        self.log.write_bytes(b'<RLY> /PRIVATE_BUILD/zig/src/role.zig:1:5: 0xPRIVATE in SECRET_FUNCTION\n<VL1> zig/src/role.zig:1:3: PRIVATE_TEXT\n<SCR> zig/src/role.zig:1:1: PRIVATE_TEXT\n')
+        value=self.observe();rows={r['fixed_log']:r for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')}
+        self.assertEqual(rows['harness.log prefix RLY']['Source_frames'],[{'source':'zig/src/role.zig','line':1,'column':5}]);self.assertEqual(rows['harness.log prefix VL1']['Source_frames'],[{'source':'zig/src/role.zig','line':1,'column':3}]);self.assertEqual(rows['harness.log prefix SCR']['Source_frames'],[]);self.assertFalse(rows['harness.log prefix RLY']['exact_pid_or_epoch_attribution']);self.assertFalse(value['native_or_timing_or_cleanup_authority'])
+        wire=json.dumps(value)
+        for secret in ['PRIVATE_BUILD','0xPRIVATE','SECRET_FUNCTION','PRIVATE_TEXT']:self.assertNotIn(secret,wire)
+
 class FixtureFailureDiscriminatorControls(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.case=Path(self.temp.name).resolve();(self.case/'evidence').mkdir();self.repo=self.case/'repo';self.repo.mkdir();self.sources={}
@@ -429,5 +438,32 @@ class FixtureFailureDiscriminatorControls(unittest.TestCase):
             self.log.write_text(header+'actual owned Radix localnet: PRIVATE_UNKNOWN_ERROR\nowned Radix Core/Gateway startup deadline\n')
             value=self.observe();self.assertEqual(value['panic_observations'],[]);self.assertNotIn('PRIVATE_UNKNOWN_ERROR',json.dumps(value))
         self.manifest['scenario']='tron';self.log.write_text(self.header(self.program,self.pline)+'PRIVATE_UNKNOWN_ERROR\n'+self.program_body(['hyperlane','core','deploy']));self.assertEqual(self.observe()['panic_observations'],[])
+
+
+class ZigRoleSourceFrameControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.repo=Path(self.tmp.name).resolve();self.name='zig/src/agents/public.zig';self.path=self.repo/self.name;self.path.parent.mkdir(parents=True);self.path.write_bytes(b'pub fn first() void {}\npub fn second() void {}\n'+b'const public_a = 1;\n'*20);self.catalog={self.name:api.pin(self.path)}
+    def frames(self,raw,prefixes=None,catalog=None):return api.zig_role_source_frames(raw,{'RLY':'relayer','VL1':'validator'}if prefixes is None else prefixes,self.catalog if catalog is None else catalog,self.repo)
+    def test_real_relative_and_absolute_prefixed_frames_export_only_three_coordinate_fields(self):
+        raw=b'<RLY> /PRIVATE_BUILD/zig/src/agents/public.zig:1:5: 0xSECRET in PRIVATE_FUNCTION (PRIVATE_BINARY)\n<VL1> zig/src/agents/public.zig:2:3: PRIVATE_CONTENT\n<RLY> src/agents/public.zig:2:7: PRIVATE_CWD_FUNCTION\n';value=self.frames(raw)
+        self.assertEqual(value,{'RLY':[{'source':self.name,'line':1,'column':5},{'source':self.name,'line':2,'column':7}],'VL1':[{'source':self.name,'line':2,'column':3}]});self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn('SECRET',json.dumps(value));self.assertTrue(all(set(row)=={'source','line','column'}for rows in value.values()for row in rows))
+    def test_unknown_std_foreign_unowned_scraper_later_path_and_bad_coordinates_omit(self):
+        raw=b'<RLY> /lib/std/debug.zig:1:1: PRIVATE\n<RLY> /FOREIGN/src/agents/public.zig:1:1: PRIVATE\n<RLY> zig/src/unadmitted.zig:1:1: PRIVATE\n<UNKNOWN> zig/src/agents/public.zig:1:1: PRIVATE\n<SCR> zig/src/agents/public.zig:1:1: PRIVATE\n<RLY> PRIVATE zig/src/agents/public.zig:1:1\n<RLY> zig/src/agents/public.zig:999:1\n<RLY> zig/src/agents/public.zig:1:0\n<RLY> zig/src/agents/public.zig:1:9999\n'
+        self.assertEqual(self.frames(raw),{'RLY':[],'VL1':[]})
+    def test_changed_same_size_Source_and_linked_leaf_never_grant_frames(self):
+        raw=b'<RLY> zig/src/agents/public.zig:1:1: PRIVATE\n';original=self.path.read_bytes();self.path.write_bytes(original.replace(b'first',b'other'));self.assertEqual(self.frames(raw)['RLY'],[])
+        self.path.unlink();foreign=self.repo/'PRIVATE';foreign.write_bytes(original);self.path.symlink_to(foreign)
+        with mock.patch.object(api.os,'open',side_effect=AssertionError('linked Source must not open')):self.assertEqual(self.frames(raw)['RLY'],[])
+    def test_total_eight_deduplicated_frames_across_all_admitted_prefixes(self):
+        raw=b''.join(b'<'+prefix+b'> zig/src/agents/public.zig:'+str(i).encode()+b':1: PRIVATE\n'for i in range(1,11)for prefix in [b'RLY',b'VL1']);value=self.frames(raw);self.assertEqual(sum(map(len,value.values())),8);self.assertEqual(value['RLY'][0],{'source':self.name,'line':1,'column':1});self.assertNotIn('PRIVATE',json.dumps(value))
+        duplicate=b'<RLY> zig/src/agents/public.zig:1:1\n'*20;self.assertEqual(len(self.frames(duplicate)['RLY']),1)
+    def test_descriptor_path_bytes_count_and_catalog_total_are_closed_before_read(self):
+        raw=b'<RLY> zig/src/agents/public.zig:1:1\n'
+        for key,value in [('path','/FOREIGN/file'),('bytes',True),('bytes',1024**2+1),('sha256','not-a-hash')]:
+            catalog={self.name:dict(self.catalog[self.name],**{key:value})}
+            with self.subTest(key=key,value=value),mock.patch.object(api.os,'open',side_effect=AssertionError('bad descriptor must not open')),self.assertRaises(ValueError):self.frames(raw,catalog=catalog)
+        catalog={'zig/src/f'+str(i)+'.zig':{'path':str(self.repo/('zig/src/f'+str(i)+'.zig')),'bytes':1024**2,'sha256':'a'*64}for i in range(17)}
+        with mock.patch.object(api.os,'open',side_effect=AssertionError('over total must not open')),self.assertRaises(ValueError):self.frames(raw,catalog=catalog)
+        with self.assertRaises(ValueError):self.frames(raw,catalog={str(i):{}for i in range(769)})
 
 if __name__=='__main__':unittest.main()
