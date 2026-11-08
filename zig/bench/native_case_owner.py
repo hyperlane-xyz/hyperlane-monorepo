@@ -702,6 +702,56 @@ def observe_radix_transport(context,custody,harness,controller,helper_row,deadli
     try:context['state'].observe(custody,owner._linux_row,check,time.monotonic_ns,cancelled,deadline_ns,context['module'].radix_transport_http)
     except Exception:return
 
+def svm_fixture_wait_observation(case, manifest, plan, case_inputs, parent, approval):
+    """Failure-only closed projection of existing Source ChildExit records.
+
+    Does not replace fixture_waits, independently replay kernel identity, grant
+    parent-wait acceptance or change the worker's original harness0 barrier.
+    """
+    require(manifest['scenario'] in {'sealevel', 'sealevel-composite'} and type(parent) is int and 0 < parent < 2**31, 'Actual SVM fixture helper parent required')
+    module = diagnostic_module(approval)
+    name = 'rust/main/utils/run-locally/src/external_agents.rs'
+    source = Path(__file__).resolve().parents[2] / name
+    descriptor = plan['diagnostic_rust_sources'][name]
+    require(descriptor in plan['required_inputs'], 'Fixture journal writer must be an existing admitted Source input')
+    body, fingerprint = module.captured_failure_bytes(source, 1024**2)
+    require(descriptor == {'path':str(source), **fingerprint}, 'Fixture journal writer Source changed')
+    needles = [b'fn append_fixture_exit(manifest: &Manifest, receipt: &ChildExit)', b'.join("fixture-parent-waits.jsonl")', b'parent_pid: std::process::id(),', b'receipt.purpose = "fixture_teardown".into();', b'role: format!("fixture-svm-{prefix}")', b'"SOL" => assets.bundle.agave_files["bin/solana-test-validator"].clone()']
+    require(all(needle in body for needle in needles), 'Exact SVM fixture parent journal contract missing')
+    require(isinstance(case_inputs, dict), 'Existing SVM inputs required')
+    tools = {'fixture-svm-SOL':case_inputs['svm_assets']['agave_files']['bin/solana-test-validator']}
+    if manifest['scenario'] == 'sealevel':tools['fixture-docker'] = manifest['verifier_tools']['docker']
+    for tool in tools.values():
+        require(type(tool) is dict and set(tool) == {'path','bytes','sha256'} and type(tool['bytes']) is int and 0 < tool['bytes'] < 2**40 and isinstance(tool['sha256'], str) and re.fullmatch('[0-9a-f]{64}', tool['sha256']) and tool in plan['required_inputs'], 'Existing exact fixture executable input required')
+    case = Path(case)
+    require(case.is_absolute() and not case.is_symlink() and case.resolve(strict=True) == case and not (case/'evidence').is_symlink(), 'Canonical fixed journal root required')
+    wire, journal = module.captured_failure_bytes(case/'evidence/fixture-parent-waits.jsonl', 1024**2)
+    lines = wire.splitlines()
+    require(0 < len(lines) <= 256 and all(0 < len(line) <= 16384 for line in lines), 'Bounded nonempty fixture parent journal required')
+    def unique(pairs):
+        value = {}
+        for key,item in pairs:
+            require(key not in value, 'Duplicate fixture journal key')
+            value[key] = item
+        return value
+    def nonfinite(value):raise ValueError('Nonfinite fixture journal value')
+    fields = {'pid','role','executable','parent_pid','os_start_token','parent_wait_completed','already_exited','forced_kill','success','exit_code','signal','purpose','planned_exit'}
+    rows, identities = [], set()
+    for line in lines:
+        row = json.loads(line, object_pairs_hook=unique, parse_constant=nonfinite)
+        require(type(row) is dict and set(row) in (fields, fields|{'planned_container_stop'}), 'Closed Source fixture parent row required')
+        role = row['role'];pid = row['pid'];token = row['os_start_token']
+        require(type(role) is str and role in tools and row['executable'] == tools[role] and type(pid) is int and 0 < pid < 2**31 and type(row['parent_pid']) is int and row['parent_pid'] == parent, 'Fixture executable/role/actual helper parent differs')
+        require(type(token) is str and 0 < len(token) <= 4096 and (pid,token) not in identities, 'Bounded unique fixture child identity required')
+        identities.add((pid,token))
+        require(all(type(row[field]) is bool for field in ['parent_wait_completed','already_exited','forced_kill','success','planned_exit']) and row['parent_wait_completed'] is True and row['purpose'] == 'fixture_teardown', 'Typed actual Source fixture teardown wait required')
+        code, signum = row['exit_code'], row['signal']
+        require((code is None or type(code) is int and 0 <= code <= 255) and (signum is None or type(signum) is int and 1 <= signum <= 64) and (code is None) != (signum is None), 'Typed fixture exit/signal required')
+        require(not row['success'] or code == 0 and not row['already_exited'] and not row['forced_kill'], 'Successful Source fixture status inconsistent')
+        rows.append({'role':role,'pid':pid,'parent_pid':parent,'os_start_token_sha256':hashlib.sha256(token.encode()).hexdigest(),'executable_bytes':tools[role]['bytes'],'executable_sha256':tools[role]['sha256'], **{field:row[field] for field in ['parent_wait_completed','already_exited','forced_kill','success','exit_code','signal','purpose','planned_exit']}})
+    return {'schema':1,'kind':'public-SVM-fixture-parent-wait-observation','collection_status':'observed','writer_Source':{'relative_path':name,**fingerprint},'journal':journal,'rows':rows,'native_or_timing_or_cleanup_authority':False,'scope':'Existing Source ChildExit journal observed after owned waits, including failed helper; exact admitted executable and helper parent join only, no independent kernel replay, child success or native acceptance claim.'}
+
+
 def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None,case_inputs=None):
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
     value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
@@ -725,6 +775,11 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
             require(len(helper_pids)==1,'One actual SVM helper parent required for failure projection')
             record['SVM_role_failure']=diagnostic_module(approval).role_failure_observation(case,manifest,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log,plan['diagnostic_zig_sources'])
         except Exception:record['SVM_role_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        try:
+            helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
+            require(len(helper_pids)==1,'One actual SVM fixture helper parent required')
+            record['SVM_fixture_parent_waits']=svm_fixture_wait_observation(case,manifest,plan,case_inputs,next(iter(helper_pids)),approval)
+        except Exception:record['SVM_fixture_parent_waits']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     if manifest['scenario']in{'tron','radix'}:
         try:
             helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}

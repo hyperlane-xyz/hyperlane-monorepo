@@ -991,4 +991,97 @@ class RadixPublisherOwnerControls(unittest.TestCase):
             self.assertNotIn('PRIVATE',json.dumps({k:v for k,v in result.items()if k!='error'}))
 
 
+class SvmFixtureJournalControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix='svm-fixture-journal-');self.addCleanup(self.temp.cleanup);self.case=Path(self.temp.name).resolve();(self.case/'evidence').mkdir();self.out=self.case/'worker';self.out.mkdir()
+        self.repo=Path(api.__file__).resolve().parents[2]
+        spec=importlib.util.spec_from_file_location('svm_fixture_journal_diagnostics',self.repo/'zig/integration/multivm_diagnostics.py');self.module=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.module)
+        self.source_name='rust/main/utils/run-locally/src/external_agents.rs';self.source=api.pin(self.repo/self.source_name)
+        self.sol={'path':'/admitted/SOL','bytes':123,'sha256':'a'*64};self.docker={'path':'/admitted/docker','bytes':456,'sha256':'b'*64}
+        self.inputs={'svm_assets':{'agave_files':{'bin/solana-test-validator':self.sol}}};self.manifest={'scenario':'sealevel-composite','mode':'ReleaseSafe','runtime_source_commit':'c'*40,'verifier_tools':{'docker':self.docker}}
+        self.plan={'execution_source_commit':'d'*40,'required_inputs':[self.source,self.sol,self.docker],'diagnostic_rust_sources':{self.source_name:self.source}}
+        self.path=self.case/'evidence/fixture-parent-waits.jsonl'
+        self.row={'pid':77,'role':'fixture-svm-SOL','executable':self.sol,'parent_pid':42,'os_start_token':'77 42 PRIVATE_NODE_START_AND_PATH','parent_wait_completed':True,'already_exited':True,'forced_kill':False,'success':False,'exit_code':0,'signal':None,'purpose':'fixture_teardown','planned_exit':False}
+
+    def write(self, rows=None):
+        self.path.write_text(''.join(json.dumps(row)+'\n'for row in (rows if rows is not None else [self.row])))
+
+    def observe(self):
+        with mock.patch.object(api,'diagnostic_module',return_value=self.module):return api.svm_fixture_wait_observation(self.case,self.manifest,self.plan,self.inputs,42,{})
+
+    def publish(self, result=None):
+        if result is None:result={'error':{'type':'ValueError','message':'PRIMARY_PRIVATE'},'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101},{'role':'harness-cleanup','pid':42,'actual_parent_wait':True,'exit_code':101}]}
+        original=copy.deepcopy(result)
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=self.module):descriptor=api.write_public_failure_diagnostics(self.plan,self.manifest,{},self.case,self.out,result,1,case_inputs=self.inputs)
+        self.assertEqual(result,original)
+        value=json.loads(Path(descriptor['path']).read_bytes());self.assertNotIn('PRIVATE',json.dumps(value));self.assertIs(value['native_or_timing_credit'],False)
+        return value
+
+    def test_actual_failed_harness_publication_retains_preexisting_fixture_status_without_acceptance(self):
+        self.write();value=self.publish();observed=value['SVM_fixture_parent_waits'];self.assertEqual(observed['collection_status'],'observed')
+        row=observed['rows'][0];self.assertEqual(row['role'],'fixture-svm-SOL');self.assertEqual(row['exit_code'],0);self.assertIs(row['already_exited'],True);self.assertIs(row['success'],False);self.assertIs(row['forced_kill'],False)
+        self.assertEqual(row['parent_pid'],42);self.assertEqual(row['executable_sha256'],self.sol['sha256']);self.assertNotIn('executable',row);self.assertNotIn('os_start_token',row);self.assertIs(observed['native_or_timing_or_cleanup_authority'],False)
+        self.assertEqual(observed['journal'],{'bytes':self.path.stat().st_size,'sha256':hashlib.sha256(self.path.read_bytes()).hexdigest()})
+        self.assertEqual([r['exit_code']for r in value['actual_direct_parent_waits']],[101,101]);self.assertNotIn('/admitted',json.dumps(observed))
+
+    def test_signal_forced_and_standalone_pg_rows_remain_typed_observations(self):
+        self.manifest['scenario']='sealevel';self.row.update(exit_code=None,signal=9,forced_kill=True)
+        pg={**self.row,'pid':78,'role':'fixture-docker','executable':self.docker,'os_start_token':'78 42 PRIVATE_PG_TOKEN','exit_code':0,'signal':None,'forced_kill':False,'already_exited':False,'success':True,'planned_exit':True,'planned_container_stop':{'kind':'postgres','private_payload':'PRIVATE_NEVER_EXPORT'}}
+        self.write([self.row,pg]);value=self.observe();self.assertEqual(len(value['rows']),2);self.assertEqual(value['rows'][0]['signal'],9);self.assertIs(value['rows'][0]['forced_kill'],True);self.assertIs(value['rows'][1]['success'],True);self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn('planned_container_stop',json.dumps(value))
+
+    def test_uncertain_parent_wrong_role_executable_unbound_source_or_tool_refuses(self):
+        original=copy.deepcopy(self.row)
+        for field,value in [('parent_pid',43),('parent_pid',True),('pid',True),('role','relayer'),('role','fixture-docker'),('executable',{**self.sol,'sha256':'f'*64}),('parent_wait_completed',False),('purpose','final'),('signal',True),('exit_code',True),('forced_kill',0),('os_start_token','')]:
+            self.row=copy.deepcopy(original);self.row[field]=value;self.write()
+            with self.subTest(field=field,value=value),self.assertRaises(ValueError):self.observe()
+        self.row=original;self.write()
+        for missing in [self.source,self.sol]:
+            self.plan['required_inputs']=[p for p in [self.source,self.sol,self.docker]if p!=missing]
+            with self.subTest(missing=missing['bytes']),self.assertRaises(ValueError):self.observe()
+        self.plan['required_inputs']=[self.source,self.sol,self.docker];self.plan['diagnostic_rust_sources'][self.source_name]={**self.source,'sha256':'f'*64};self.plan['required_inputs'].append(self.plan['diagnostic_rust_sources'][self.source_name])
+        with self.assertRaisesRegex(ValueError,'Source changed'):self.observe()
+
+    def test_duplicate_nonfinite_ambiguous_status_or_repeated_identity_refuses_without_raw_output(self):
+        self.write();wire=self.path.read_text()
+        for malformed in [wire.replace('"pid": 77','"pid": 77, "pid": 78'),wire.replace('"exit_code": 0','"exit_code": NaN'),wire+wire,wire.replace('"signal": null','"signal": 6'),wire.replace('"exit_code": 0','"exit_code": null'),wire.replace('"success": false','"success": true')]:
+            self.path.write_text(malformed)
+            with self.subTest(size=len(malformed)),self.assertRaises(ValueError):self.observe()
+        self.path.write_text('PRIVATE_INVALID_BODY\n');observed=self.publish()['SVM_fixture_parent_waits'];self.assertEqual(observed,{'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False})
+
+    def test_journal_row_and_line_bounds_are_independent_of_valid_typed_content(self):
+        rows=[{**self.row,'pid':1000+index,'os_start_token':'unique-token-'+str(index)}for index in range(257)];self.write(rows)
+        self.assertLess(self.path.stat().st_size,1024**2)
+        with self.assertRaisesRegex(ValueError,'Bounded nonempty'):self.observe()
+        self.row['planned_container_stop']={'unexported':'PRIVATE_'+('x'*16384)};self.write()
+        with self.assertRaisesRegex(ValueError,'Bounded nonempty'):self.observe()
+
+    def test_missing_oversized_link_or_parent_symlink_fails_before_unbounded_capture(self):
+        with self.assertRaises(FileNotFoundError):self.observe()
+        with self.path.open('wb')as stream:stream.truncate(1024**2+1)
+        with mock.patch.object(self.module.os,'open',wraps=self.module.os.open)as opened:
+            with self.assertRaises(ValueError):self.observe()
+            self.assertFalse(any(str(call.args[0])==str(self.path)for call in opened.call_args_list))
+        self.path.unlink();self.write();link=self.case/'other-link';os.link(self.path,link)
+        with self.assertRaises(ValueError):self.observe()
+        link.unlink();self.path.unlink();target=self.case/'private-target';target.write_text('PRIVATE_TARGET');self.path.symlink_to(target)
+        with self.assertRaises(ValueError):self.observe()
+        self.path.unlink();(self.case/'evidence').rmdir();(self.case/'evidence').symlink_to(self.out,target_is_directory=True)
+        with self.assertRaises(ValueError):self.observe()
+
+    def test_unavailable_journal_cannot_mask_primary_and_ambiguous_parent_does_not_read_it(self):
+        result={'error':{'type':'Primary','message':'PRIVATE_PRIMARY'},'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101},{'role':'harness-cleanup','pid':43,'actual_parent_wait':True,'exit_code':101}]}
+        self.write()
+        with mock.patch.object(api,'svm_fixture_wait_observation',side_effect=AssertionError('Must not guess parent'))as projected:value=self.publish(result);projected.assert_not_called()
+        self.assertEqual(value['SVM_fixture_parent_waits']['collection_status'],'unavailable')
+
+    def test_actual_success_barriers_remain_before_fixture_wait_acceptance(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker')
+        calls=[n for n in ast.walk(worker)if isinstance(n,ast.Call)and ast.unparse(n.func)=='fixture_waits'];self.assertEqual(len(calls),1)
+        checks=[n for n in ast.walk(worker)if isinstance(n,ast.Call)and ast.unparse(n.func)=='require'and any(isinstance(arg,ast.Constant)and arg.value=='Actual native Rust/verifier failed'for arg in n.args)];self.assertEqual(len(checks),1);self.assertLess(checks[0].lineno,calls[0].lineno)
+        self.assertEqual(ast.unparse(checks[0].args[0]),'code == 0')
+
+
+
+
 if __name__=='__main__':unittest.main()
