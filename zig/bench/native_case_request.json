@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "tron",
+  "scenario": "sealevel-composite",
   "mode": "ReleaseSafe",
   "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
   "producer_run_id": 42451611648,
@@ -12,25 +12,7 @@
     "minimum_host_free_bytes": 6442450944,
     "maximum_wall_seconds": 3600
   },
-  "postgres": {
-    "schema": 2,
-    "architecture": "amd64",
-    "image": "postgres:14",
-    "image_id": {
-      "sha256_hex_chunks": [
-        "47b95c5ad45838febbc39cae4194b6f9",
-        "c3f6c3d7409b20043e8cea4a5bd70fec"
-      ],
-      "prefix": "sha256:"
-    },
-    "canonical_digest": {
-      "sha256_hex_chunks": [
-        "834a046089d76edd1d2e81c4741f3ad5",
-        "d1853646ededc86c2708936aad31c1ed"
-      ],
-      "prefix": "postgres@sha256:"
-    }
-  },
+  "postgres": null,
   "prerequisites": {
     "local_checkout_build": true,
     "hpack": {
@@ -44,43 +26,17 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "tron_cli": {
-      "schema": 1,
-      "name": "hyperlane",
-      "version": "45.1.0",
-      "node_version": "26.12.1",
-      "pnpm_version": "12.3.0",
-      "full_original_tsconfig": true,
-      "EVM_solc": "0.8.33",
-      "TVM_solc": "0.8.24",
-      "owned_full_package_graph": true
-    },
-    "tron_tre": {
+    "svm_offline": {
       "schema": 2,
-      "architecture": "amd64",
-      "source_image": {
-        "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "canonical_digest": {
-        "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "image_id": {
-        "sha256_hex_chunks": [
-          "bf3a2b631ff2a1834530f69fcb90508c",
-          "40970203aa1240b692223308cc90cae0"
-        ],
-        "prefix": "sha256:"
-      },
-      "command": ["./quickstart", "v2.0.0"],
-      "entrypoint": null
+      "platform": "linux-x86_64",
+      "agave_version": "3.0.14",
+      "platform_tools_version": "v1.51",
+      "spl_release": "2024-08-23",
+      "spl_token_revision": "e101cca",
+      "programs": 13,
+      "agave_files": 85,
+      "source_environment_files": 25,
+      "require_same_producer_source": true
     }
   },
   "artifact_pins": {
@@ -136,6 +92,17 @@
         "sha256_hex_chunks": [
           "6540bcb179de4910aa90a5bf791c0b1e",
           "d3cf44b63f49ccc97a31d8df99d4a4e5"
+        ]
+      }
+    },
+    "svm": {
+      "id": 13605619403,
+      "name": "svm-linux-prerequisites-42451611648-1",
+      "size_in_bytes": 327978116,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "d0802427a2f84cc54fbb7c0867f9b074",
+          "f347375d5dfa36c0a00bed754339e458"
         ]
       }
     }
