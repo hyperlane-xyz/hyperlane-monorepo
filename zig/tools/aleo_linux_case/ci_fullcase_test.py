@@ -9,7 +9,7 @@ FULL="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-
 INPUT="      aleo_full_case:\n        description: Run only reviewed dedicated Aleo Safe/Fast full cases (requires actual same-job prerequisites)\n        type: boolean\n        default: false\n"
 # Exact current14-job inverse, including the reviewed fixed Radix startup-log upload.
 # Further workflow-body changes still require explicit review and a new baseline.
-BASE_SHA=('899f87a72e65f5cc6577f487e40c2d8e' '4297ec18fbc862b463d661410446ef54')
+BASE_SHA=('e2dc9642d8d13b1bc2ebaa1d6666ca25' 'ccb8589892a32f17d7d77c55b20698c8')
 def evaluator():
  tree=ast.parse((REPO/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N}
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
@@ -53,7 +53,7 @@ class Routes(unittest.TestCase):
  def test_all_python_invocations_isolated_and_no_raw_fallback(self):
   job=self.text.split('\n  aleo-full-case:',1)[1]
   calls=[line for line in job.splitlines()if 'python3 'in line and 'apt-get'not in line]
-  self.assertEqual(len(calls),3);self.assertTrue(all('python3 -I -B'in line for line in calls))
+  self.assertEqual(len(calls),4);self.assertTrue(all('python3 -I -B'in line for line in calls))
   self.assertNotIn('run-locally',job);self.assertNotIn('**',job);self.assertNotIn('workflow_dispatch:',job)
  def test_policy_cli_binds_absolute_checkout_path_for_select_and_execute(self):
   # Both actual CLI sites call pin(), which deliberately rejects relative paths.
@@ -150,6 +150,26 @@ class InteropCommandContract(unittest.TestCase):
    # The former override combination really is refused by the pinned reader API.
    args.old_oracle=pathlib.Path('/owned/forbidden-override')
    self.assertTrue(eval(compile(ast.Expression(refusal),'actual Linux reader admission','eval'),{'args':args,'sys':N(platform='linux')}))
+class FailedCaseTail(unittest.TestCase):
+ def script(self):
+  import textwrap
+  job=(REPO/'.github/workflows/zig-agents.yml').read_text().split('\n  aleo-full-case:',1)[1]
+  step=job.split('      - name: Retain bounded failure tail from token-free laboratory case\n',1)[1].split('      - uses:',1)[0]
+  self.assertIn("if: failure() && steps.authority.outputs.enabled == 'true'",step)
+  return textwrap.dedent(step.split("python3 -I -B - <<'PYTHON'\n",1)[1].split('          PYTHON',1)[0])
+ def fixture(self):
+  temp=tempfile.TemporaryDirectory(prefix='ziggy-case-failure-tail-');self.addCleanup(temp.cleanup);root=pathlib.Path(temp.name);case=root/'aleo-fullcase-123-1-releasesafe';case.mkdir();return root,case
+ def capture(self,root):
+  import os
+  with mock.patch.dict(os.environ,{'MODE':'ReleaseSafe','RUNNER_TEMP':str(root),'GITHUB_RUN_ID':'123','GITHUB_RUN_ATTEMPT':'1','PRIVATE_SENTINEL':'never-read'},clear=True):exec(compile(self.script(),'actual bounded failure-tail workflow','exec'),{})
+ def test_actual_workflow_retains_only64KiB_tail_and_fingerprint(self):
+  root,case=self.fixture();raw=b'prefix'+b'x'*70000;source=case/'full-case.private.log';source.write_bytes(raw);self.capture(root)
+  target=case/'public/full-case-failure-tail.log';meta=json.loads((case/'public/full-case-failure-tail.json').read_text());self.assertEqual(target.read_bytes(),raw[-65536:]);self.assertEqual(source.read_bytes(),raw);self.assertEqual(target.stat().st_mode&0o777,0o600)
+  self.assertEqual(meta['sha256'],hashlib.sha256(raw[-65536:]).hexdigest());self.assertEqual(meta['retained_bytes'],65536);self.assertEqual(meta['original_bytes'],len(raw));self.assertTrue(meta['truncated']);self.assertFalse(meta['native_or_performance_credit']);self.assertNotIn('PRIVATE_SENTINEL',json.dumps(meta))
+ def test_actual_workflow_short_log_is_complete_and_never_native_acceptance(self):
+  root,case=self.fixture();raw=b'known laboratory failure\n';(case/'full-case.private.log').write_bytes(raw);self.capture(root);self.assertEqual((case/'public/full-case-failure-tail.log').read_bytes(),raw);self.assertFalse(json.loads((case/'public/full-case-failure-tail.json').read_text())['truncated'])
+ def test_actual_workflow_missing_or_symlink_log_never_reads_foreign_file(self):
+  root,case=self.fixture();self.capture(root);self.assertFalse((case/'public').exists());other=root/'unrelated';other.write_bytes(b'PRIVATE_SENTINEL');(case/'full-case.private.log').symlink_to(other);self.capture(root);self.assertFalse((case/'public').exists());self.assertEqual(other.read_bytes(),b'PRIVATE_SENTINEL')
 class Budget(unittest.TestCase):
  def observation(self,**changes):
   now=datetime.datetime(2026,11,8,12,0,0,tzinfo=datetime.timezone.utc);self.now=int(now.timestamp()*10**9)

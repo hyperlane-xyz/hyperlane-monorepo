@@ -2,7 +2,7 @@
   "schema": 1,
   "kind": "private-fullAleo-strict-Source-inventory",
   "root_approved": true,
-  "observed_planning_head": "270d6e2ada8ec6fcfa6ab795d6369221150c4c27",
+  "observed_planning_head": "b86b2a8a25bc153020f58f737c2eb385531f6e60",
   "final_execution_source_commit": null,
   "source_policy_paths_function": {
     "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
@@ -17,11 +17,11 @@
   "source_inventory": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 90576,
+      "bytes": 92647,
       "sha256": {
         "sha256_hex_chunks": [
-          "0a2e4c49b6ba0b888b77c20147331a23",
-          "1db939ef8ec71a613083d494574508e3"
+          "3ee58ddc351b2505e54748e1084977c5",
+          "d05be8235acd0aa9dcfa8c6834feb68c"
         ]
       }
     },

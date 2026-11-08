@@ -923,6 +923,7 @@ jobs:
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/radix-fullnode-failure.log
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-final-proof.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-failure-diagnostics.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-svm-listener-diagnostics.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-observer-before-stop.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-observer-diagnostics.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/PG-recovery.json
@@ -1199,6 +1200,34 @@ jobs:
           # strips all credentials from SDK, Docker and actual case environments.
           python3 -I -B zig/tools/aleo_linux_case/ci_fullcase.py --execute \
             --policy "$POLICY" --policy-sha "$(sha256sum "$POLICY" | cut -d' ' -f1)" --mode "$MODE"
+      - name: Retain bounded failure tail from token-free laboratory case
+        if: failure() && steps.authority.outputs.enabled == 'true'
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          python3 -I -B - <<'PYTHON'
+          import os, pathlib, hashlib, json
+          mode = os.environ['MODE']
+          assert mode in ('ReleaseSafe', 'ReleaseFast')
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / ('aleo-fullcase-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '-' + mode.lower())
+          source = root / 'full-case.private.log'
+          if source.is_file() and not source.is_symlink():
+              with source.open('rb') as stream:
+                  stream.seek(0, 2)
+                  original_bytes = stream.tell()
+                  stream.seek(max(0, original_bytes - 65536))
+                  raw = stream.read(65536)
+              public = root / 'public'
+              public.mkdir(mode=0o700, exist_ok=True)
+              target = public / 'full-case-failure-tail.log'
+              with target.open('xb') as stream:
+                  os.chmod(target, 0o600)
+                  stream.write(raw)
+              record = {'schema': 1, 'phase': 'full-case', 'scope': 'Bounded failure tail from token-free disposable laboratory case only', 'original_bytes': original_bytes, 'retained_bytes': len(raw), 'truncated': original_bytes > len(raw), 'sha256': hashlib.sha256(raw).hexdigest(), 'native_or_performance_credit': False}
+              with (public / 'full-case-failure-tail.json').open('x') as stream:
+                  json.dump(record, stream, indent=2)
+                  stream.write('\n')
+          PYTHON
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
@@ -1208,6 +1237,8 @@ jobs:
           # Only closed public files. Never raw log/config/env/DB/SDK/wire globs.
           path: |
             ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/ci-result.json
+            ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/full-case-failure-tail.log
+            ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/full-case-failure-tail.json
             ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/public-final-proof.json
             ${{ runner.temp }}/aleo-sdk-${{ github.run_id }}-${{ github.run_attempt }}/sdk-inspection.zip
             ${{ runner.temp }}/aleo-sdk-${{ github.run_id }}-${{ github.run_attempt }}/sdk-inspection.receipt.json
