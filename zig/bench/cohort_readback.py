@@ -467,35 +467,63 @@ def file_pin(path,owned=True):
     after=path.lstat();need((before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)==(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns),'FILE_MUTATION')
     return {'bytes':before.st_size,'sha256':digest}
 
+GH_DIAGNOSTIC_KINDS={'GH_VERSION_AS512','GH_VERSION_INHERITED'}
+GH_ERROR_CLASSES={'NONE','GO_VIRTUAL_RESERVATION','HTTP_401','HTTP_403','HTTP_404','HTTP_429','HTTP_5XX','DNS_FAILURE','TLS_FAILURE','CONNECT_FAILURE','UNKNOWN','SIGNAL','STDERR_BOUND','UNAVAILABLE'}
+def fixed_stderr_class(path,code):
+    # Raw bytes are transient and never copied into public diagnostics.
+    try:
+        with path.open('rb')as stream:body=stream.read(1024**2+1)
+    except OSError:return 'UNAVAILABLE'
+    if len(body)>1024**2:return 'STDERR_BOUND'
+    if type(code)is int and code<0:return 'SIGNAL'
+    if re.search(rb'(?m)^fatal error: failed to reserve (?:page summary|arena) memory\r?$',body):return 'GO_VIRTUAL_RESERVATION'
+    for status in (401,403,404,429):
+        if re.search(rb'(?m)^gh: [^\r\n]*\(HTTP '+str(status).encode()+rb'\)\r?$',body):return 'HTTP_'+str(status)
+    if re.search(rb'(?m)^gh: [^\r\n]*\(HTTP 5[0-9]{2}\)\r?$',body):return 'HTTP_5XX'
+    if b'no such host'in body or b'Temporary failure in name resolution'in body:return 'DNS_FAILURE'
+    if b'TLS handshake timeout'in body or b'x509: certificate'in body:return 'TLS_FAILURE'
+    if body.startswith(b'error connecting to api.github.com')or b'connect: connection refused'in body:return 'CONNECT_FAILURE'
+    return 'NONE'if code==0 and not body else 'UNKNOWN'
+
 class Runner:
     """Only fixed builtin gh API and read-only git; never an artifact program."""
     def __init__(self,root,repo,gh,guard,token):
-        self.root=root;self.repo=repo;self.gh=gh;self.guard=guard;self.token=token;self.count=0;self.waited=0;self.wait_hash=hashlib.sha256();self.failed=0
+        self.root=root;self.repo=repo;self.gh=gh;self.guard=guard;self.token=token;self.count=0;self.waited=0;self.wait_hash=hashlib.sha256();self.failed=0;self.last_command_diagnostic=None;self.last_failed_command=None;self.gh_startup=None
         for name in ['home','gh-config']:(root/name).mkdir(mode=0o700)
         self.tool_pins={'gh':file_pin(gh,owned=False),'git':file_pin(Path('/usr/bin/git'),owned=False)}
-    def _limits(self,maximum):
-        resource.setrlimit(resource.RLIMIT_AS,(LIMITS['child_RAM_bytes'],LIMITS['child_RAM_bytes']))
+    def _limits(self,maximum,*,inherited_address_space=False):
+        if inherited_address_space:
+            need(resource.getrlimit(resource.RLIMIT_AS)==(LIMITS['inspector_RAM_bytes'],LIMITS['inspector_RAM_bytes']),'GH_PROBE_INHERITED_AS')
+        else:resource.setrlimit(resource.RLIMIT_AS,(LIMITS['child_RAM_bytes'],LIMITS['child_RAM_bytes']))
         resource.setrlimit(resource.RLIMIT_FSIZE,(max(maximum,1024**2),max(maximum,1024**2)))
         resource.setrlimit(resource.RLIMIT_NOFILE,(128,128))
     def call(self,argv,kind,maximum=16*1024**2,allow_missing=False):
-        need(kind in {'API_JSON','ARTIFACT_ZIP','GIT_READ'}and integer(maximum,1,LIMITS['maximum_archive_bytes']),'COMMAND_PROFILE')
+        probe=kind in GH_DIAGNOSTIC_KINDS
+        need(kind in {'API_JSON','ARTIFACT_ZIP','GIT_READ'}|GH_DIAGNOSTIC_KINDS and integer(maximum,1,LIMITS['maximum_archive_bytes']),'COMMAND_PROFILE')
+        if probe:need(argv==[str(self.gh),'--version']and maximum==65536,'GH_PROBE_PROFILE')
         need(Path(argv[0])in {self.gh,Path('/usr/bin/git')},'COMMAND_EXECUTABLE')
         self.guard();self.count+=1;out=self.root/('call-'+str(self.count)+'.stdout');err=self.root/('call-'+str(self.count)+'.stderr')
         env={'PATH':'/usr/bin:/bin','HOME':str(self.root/'home'),'LC_ALL':'C.UTF-8','GIT_CONFIG_NOSYSTEM':'1','GIT_TERMINAL_PROMPT':'0','GIT_LFS_SKIP_SMUDGE':'1'}
-        if Path(argv[0])==self.gh:env.update({'GH_TOKEN':self.token,'GH_CONFIG_DIR':str(self.root/'gh-config'),'GH_PROMPT_DISABLED':'1','GH_NO_UPDATE_NOTIFIER':'1'})
+        if Path(argv[0])==self.gh:
+            env.update({'GH_CONFIG_DIR':str(self.root/'gh-config'),'GH_PROMPT_DISABLED':'1','GH_NO_UPDATE_NOTIFIER':'1'})
+            if not probe:env['GH_TOKEN']=self.token
         child=None;code=None;primary=None;forced=False;waited=False;birth=None;peak=0
+        probe_deadline=min(self.guard.deadline,self.guard.clock()+5)if probe else None
         with out.open('xb')as output,err.open('xb')as errors:
             try:
-                child=subprocess.Popen(argv,cwd=self.repo,env=env,stdin=subprocess.DEVNULL,stdout=output,stderr=errors,start_new_session=True,preexec_fn=lambda:self._limits(maximum))
+                child=subprocess.Popen(argv,cwd=self.repo,env=env,stdin=subprocess.DEVNULL,stdout=output,stderr=errors,start_new_session=True,preexec_fn=lambda:self._limits(maximum,inherited_address_space=kind=='GH_VERSION_INHERITED'))
                 # Direct-child wait ownership starts immediately at Popen; any
                 # following bookkeeping error still enters independent cleanup.
                 while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)is None:
-                    self.guard();need(out.stat().st_size<=maximum and err.stat().st_size<=1024**2,'COMMAND_OUTPUT_BOUND')
+                    self.guard()
+                    if probe:need(self.guard.clock()<probe_deadline,'GH_PROBE_DEADLINE')
+                    need(out.stat().st_size<=maximum and err.stat().st_size<=1024**2,'COMMAND_OUTPUT_BOUND')
                     raw=Path(f'/proc/{child.pid}/stat').read_text();fields=raw[raw.rindex(')')+2:].split();start=int(fields[19]);rss=int(fields[21])*os.sysconf('SC_PAGE_SIZE')
                     if birth is None:birth=start
                     need(start==birth and rss<=LIMITS['child_RAM_bytes'],'CHILD_IDENTITY_OR_RSS');peak=max(peak,rss);time.sleep(.01)
                 code=child.wait(timeout=3);waited=True;self.guard()
-                need((code==0 or allow_missing and code in (1,128))and out.stat().st_size<=maximum and err.stat().st_size<=1024**2,'COMMAND_OUTCOME')
+                if probe:need(self.guard.clock()<probe_deadline,'GH_PROBE_DEADLINE')
+                need((code==0 or allow_missing and code in (1,128)or probe and type(code)is int)and out.stat().st_size<=maximum and err.stat().st_size<=1024**2,'COMMAND_OUTCOME')
             except BaseException as error:primary=error
             finally:
                 cleanup_errors=[]
@@ -507,6 +535,8 @@ class Runner:
                         if not waited:code=child.wait(timeout=max(.01,min(10,self.guard.cleanup_deadline-self.guard.clock())));waited=True
                     except BaseException as error:cleanup_errors.append(type(error).__name__)
                 row={'kind':kind,'pid':None if child is None else child.pid,'birth_start_ticks':birth,'actual_parent_wait':waited,'exit_code':code,'forced_signal':forced,'cleanup_error_count':len(cleanup_errors),'peak_child_RSS_bytes':peak}
+                self.last_command_diagnostic={'kind':kind,'actual_parent_wait':waited,'exit_code':code if type(code)is int and code>=0 else None,'signal':-code if type(code)is int and code<0 else None,'error_class':fixed_stderr_class(err,code),'peak_child_RSS_bytes':peak,'forced_signal':forced,'cleanup_error_count':len(cleanup_errors)}
+                if not probe and(primary is not None or cleanup_errors):self.last_failed_command=dict(self.last_command_diagnostic)
                 self.wait_hash.update(canonical(row)+b'\n');self.waited+=int(waited);self.failed+=int(primary is not None or bool(cleanup_errors))
                 if primary is None and cleanup_errors:primary=Refused('COMMAND_CLEANUP')
         # Private raw stderr/output never becomes report content. Callers own
@@ -516,6 +546,17 @@ class Runner:
             if out.exists():out.unlink()
             raise primary
         return out,code
+    def startup_diagnostics(self):
+        rows={};self.gh_startup={'probes':rows,'token_supplied':False,'API_original_AS512_unchanged':True}
+        for key,kind in [('AS512','GH_VERSION_AS512'),('INHERITED_AS1G','GH_VERSION_INHERITED')]:
+            need(file_pin(self.gh,owned=False)==self.tool_pins['gh'],'SYSTEM_TOOL_MUTATION')
+            output=None;self.last_command_diagnostic=None
+            try:output,_=self.call([str(self.gh),'--version'],kind,65536)
+            finally:
+                if self.last_command_diagnostic is not None:rows[key]=dict(self.last_command_diagnostic)
+                if output is not None:output.unlink()
+            need(file_pin(self.gh,owned=False)==self.tool_pins['gh'],'SYSTEM_TOOL_MUTATION')
+        return self.gh_startup
     def api(self,path,maximum=16*1024**2):
         need(re.fullmatch(r'repos/hyperlane-xyz/hyperlane-monorepo/actions/(?:runs/\d+(?:/(?:jobs|artifacts)\?per_page=100&page=\d+)?|artifacts/\d+/zip)',path)is not None,'API_ENDPOINT')
         return self.call([str(self.gh),'api','--hostname','github.com','-H','Accept: application/vnd.github+json',path],'ARTIFACT_ZIP'if path.endswith('/zip')else'API_JSON',maximum)[0]
@@ -531,7 +572,7 @@ class Runner:
         # with a large history pack, without altering any checkout/global config.
         return self.call(['/usr/bin/git','-c','core.packedGitWindowSize=8m','-c','core.packedGitLimit=128m','-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null',*location,*args],'GIT_READ',maximum,missing)
     def summary(self):
-        return {'actual_calls':self.count,'actual_parent_waits':self.waited,'all_calls_actually_waited':self.waited==self.count,'failure_count':self.failed,'wait_catalog_sha256':self.wait_hash.hexdigest(),'tool_pins':self.tool_pins,'raw_argv_stderr_environment_exported':False}
+        return {'actual_calls':self.count,'actual_parent_waits':self.waited,'all_calls_actually_waited':self.waited==self.count,'failure_count':self.failed,'wait_catalog_sha256':self.wait_hash.hexdigest(),'tool_pins':self.tool_pins,'raw_argv_stderr_environment_exported':False,'last_failed_command':self.last_failed_command,'gh_startup_diagnostics':self.gh_startup}
 
 class GitSource:
     def __init__(self,runner,head):self.runner=runner;self.head=head;self.digests={};self.body_cache={};self.retained=0;self.forge_commit=None
@@ -607,7 +648,10 @@ def remote_inventory(runner,policy):
     return validate_remote(policy,run,collections['jobs'],collections['artifacts'])
 
 PUBLIC_FACT_KEYS=set(('mode source_commit products native_suite CPU_receipts export_actual_waits export_created_CID_removed actual_consumer_CPU_superset_checked SDK_or_native_product_executed_by_reader Source_origin actual_phase_waits actual_test_counts required_census_names_observed five_strict_deadline_tests_observed product_execution product ELF_machine ELF_type unchanged_declared_compiler_input_count declared_compiler_input_catalog_sha256 compiler_archive_inputs_independently_present_or_executed_by_reader CPU_flags_sha256 writer_executed_by_reader canonical_lock_origin canonical_compatibility_Source_exact actual_five_named_SDK_tests producer_CPU_rows producer_CPU_flags_sha256 actual_direct_waits actual_adopted_waits no_owner_signals_or_forced_cleanup closed_Agave_files closed_Agave_bytes SBF_machine_counts nine_actual_header_rows_verified official_acquisition_receipts nonfatal_stack_offset_warning_count native_VM_acceptance count catalog_sha256 all_declared_rows_match_producer_Git bytes sha256 total status_counts skip_catalog_sha256 three_recovery_allocation_tests_observed_OK scope flag_count flags_sha256 receipt_sha256 asset publisher_digest original_acquisition_receipt_matches_pinned_source compressed_original_independently_present_in_readback files expanded_bytes archive catalog actual_calls actual_parent_waits all_calls_actually_waited failure_count wait_catalog_sha256 tool_pins raw_argv_stderr_environment_exported path producer_tree execution_tree worktree_clean_in_scope source_rows_checked policy_map_sha256 all_policy_Git_blobs_match inspector_peak_RSS_bytes actual_streamed_bytes elapsed_seconds own_downloads_removed actual_remote_inventory_verified compiled_cohort core607 command_waits inspection_resources remote run_id run_attempt required_jobs artifacts id name size_in_bytes status conclusion whole_workflow_success_claim reader_sources committed_execution_sources_unchanged').split())|SDK_NAMES|set(TOOLS)|set(PRODUCT_KEYS)|set(REQUIRED_JOBS)|set(HELPER_PHASES)|{'embedded_tools_catalog_sha256','embedded_radix_catalog_sha256','embedded_duplicate_catalogs_match_separate_artifacts','symlink_count','normal','construction','OK','SKIP','FAIL','247','263','gh','git','runtime','helper','tools'}
+PUBLIC_FACT_KEYS|={'gh_startup_diagnostics','probes','AS512','INHERITED_AS1G','token_supplied','API_original_AS512_unchanged','last_failed_command','kind','actual_parent_wait','exit_code','signal','error_class','peak_child_RSS_bytes','forced_signal','cleanup_error_count'}
 PUBLIC_STRINGS=set(CPU_SCOPES)|{'ReleaseSafe','ReleaseFast','agave','platform','spl','criterion','completed','success'}|set(REQUIRED_JOBS)|set(artifact_names(0,0).values())|set(n for names in COMPILED_SCOPES.values()for n in names)
+
+PUBLIC_STRINGS|=GH_DIAGNOSTIC_KINDS|GH_ERROR_CLASSES|{'API_JSON','ARTIFACT_ZIP','GIT_READ'}
 
 def public_facts(value):
     """Reconstruct a closed public projection, including nested failure data."""
@@ -677,6 +721,7 @@ def main():
             finally:blob.unlink()
             reader_sources[logical]=actual
         source=GitSource(runner,PRODUCER);components['compiled_cohort']=source.compiled_cohort(args.execution_source_commit)
+        guard.phase='GH_STARTUP_DIAGNOSTIC';components['gh_startup_diagnostics']=runner.startup_diagnostics()
         guard.phase='REMOTE_PROVENANCE';components['remote']=remote_inventory(runner,policy)
         guard.phase='CORE607_GIT';core_origin=origin_rows(policy['core607'],source);components['core607']={'source_rows_checked':core_origin['count'],'policy_map_sha256':core_origin['catalog_sha256'],'all_policy_Git_blobs_match':True}
         for key in PRODUCT_KEYS:

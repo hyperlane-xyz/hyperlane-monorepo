@@ -424,4 +424,93 @@ class Controls(unittest.TestCase):
                 with self.assertRaisesRegex(api.Refused,'NATIVE_SELECTOR_MUST_BE_FALSE'):api.main()
             self.assertFalse(output.exists())
 
+class GhStartupDiagnostics(unittest.TestCase):
+    def runner(self,root,meter=None):
+        with mock.patch.object(api,'file_pin',return_value={'bytes':1,'sha256':'a'*64}):return api.Runner(root,root,Path('/usr/bin/gh'),meter or Meter(),'PRIVATE_TOKEN_MARKER')
+    def popen(self,code,stderr=b'',seen=None):
+        def spawn(argv,**kw):
+            if seen is not None:seen.append((list(argv),dict(kw['env']),kw['preexec_fn']))
+            kw['stderr'].write(stderr);kw['stderr'].flush()
+            child=mock.Mock(pid=123);child.wait.return_value=code
+            return child
+        return spawn
+    def test_actual_AB_uses_exact_version_and_no_token_and_retains_nonzero(self):
+        with tempfile.TemporaryDirectory()as d:
+            root=Path(d);r=self.runner(root);seen=[];spawns=iter([self.popen(2,b'fatal error: failed to reserve page summary memory\nPRIVATE_STACK',seen),self.popen(0,b'',seen)])
+            with mock.patch.object(api,'file_pin',return_value={'bytes':1,'sha256':'a'*64}),mock.patch.object(api.subprocess,'Popen',side_effect=lambda *a,**kw:next(spawns)(*a,**kw)),mock.patch.object(api.os,'waitid',return_value=object()):result=r.startup_diagnostics()
+            self.assertEqual([x[0]for x in seen],[['/usr/bin/gh','--version']]*2)
+            self.assertTrue(all('GH_TOKEN'not in x[1]for x in seen));self.assertEqual(r.waited,2)
+            self.assertEqual(result['probes']['AS512']['exit_code'],2);self.assertEqual(result['probes']['AS512']['error_class'],'GO_VIRTUAL_RESERVATION')
+            self.assertEqual(result['probes']['INHERITED_AS1G']['exit_code'],0)
+            self.assertFalse(list(root.glob('call-*')));self.assertIsNone(r.last_failed_command)
+            self.assertNotIn('PRIVATE',json.dumps(api.public_facts({'gh_startup_diagnostics':result})))
+    def test_actual_limits_API_stays_AS512_and_inherited_probe_keeps_AS1G(self):
+        with tempfile.TemporaryDirectory()as d:
+            r=self.runner(Path(d))
+            with mock.patch.object(api.resource,'setrlimit')as sets,mock.patch.object(api.resource,'getrlimit',return_value=(api.GIB,api.GIB)):
+                r._limits(65536);self.assertIn(mock.call(api.resource.RLIMIT_AS,(512*1024**2,512*1024**2)),sets.call_args_list)
+                sets.reset_mock();r._limits(65536,inherited_address_space=True);self.assertFalse(any(x.args[0]==api.resource.RLIMIT_AS for x in sets.call_args_list));self.assertEqual(len(sets.call_args_list),2)
+            with mock.patch.object(api.resource,'getrlimit',return_value=(-1,-1)),self.assertRaisesRegex(api.Refused,'GH_PROBE_INHERITED_AS'):r._limits(65536,inherited_address_space=True)
+    def test_probe_profile_cannot_run_api_or_git_or_large_output(self):
+        with tempfile.TemporaryDirectory()as d:
+            r=self.runner(Path(d))
+            for argv,n in [(['/usr/bin/gh','api'],65536),(['/usr/bin/git','--version'],65536),(['/usr/bin/gh','--version'],65537)]:
+                with self.subTest(argv=argv,n=n),self.assertRaisesRegex(api.Refused,'GH_PROBE_PROFILE'):r.call(argv,'GH_VERSION_INHERITED',n)
+            self.assertEqual(r.count,0)
+    def test_first_actual_API_failure_retains_closed_exit_class_and_token_not_raw(self):
+        with tempfile.TemporaryDirectory()as d:
+            root=Path(d);r=self.runner(root);seen=[]
+            with mock.patch.object(api.subprocess,'Popen',side_effect=self.popen(1,b'gh: PRIVATE_TOKEN_MARKER https://private.invalid (HTTP 403)\n',seen)),mock.patch.object(api.os,'waitid',return_value=object()):
+                with self.assertRaisesRegex(api.Refused,'COMMAND_OUTCOME'):r.api('repos/hyperlane-xyz/hyperlane-monorepo/actions/runs/42435923739')
+            self.assertEqual(seen[0][1]['GH_TOKEN'],'PRIVATE_TOKEN_MARKER');self.assertEqual(r.waited,1);self.assertEqual(r.failed,1)
+            row=r.summary()['last_failed_command'];self.assertEqual(row['exit_code'],1);self.assertEqual(row['error_class'],'HTTP_403');self.assertIsNone(row['signal'])
+            wire=json.dumps(api.public_facts({'command_waits':r.summary()}));self.assertNotIn('PRIVATE',wire);self.assertNotIn('https:',wire)
+    def test_actual_signal_exit_reports_positive_signal_without_invalid_negative_JSON(self):
+        with tempfile.TemporaryDirectory()as d:
+            root=Path(d);r=self.runner(root)
+            with mock.patch.object(api.subprocess,'Popen',side_effect=self.popen(-9)),mock.patch.object(api.os,'waitid',return_value=object()):
+                with self.assertRaisesRegex(api.Refused,'COMMAND_OUTCOME'):r.api('repos/hyperlane-xyz/hyperlane-monorepo/actions/runs/42435923739')
+            row=api.public_facts(r.summary())['last_failed_command'];self.assertIsNone(row['exit_code']);self.assertEqual(row['signal'],9);self.assertEqual(row['error_class'],'SIGNAL')
+    def test_fixed_error_classification_is_closed_and_unknown_does_not_echo(self):
+        with tempfile.TemporaryDirectory()as d:
+            p=Path(d)/'stderr'
+            for raw,expected in [(b'gh: bad credentials (HTTP 401)\n','HTTP_401'),(b'gh: server (HTTP 503)\n','HTTP_5XX'),(b'lookup private.invalid: no such host','DNS_FAILURE'),(b'PRIVATE_MARKER','UNKNOWN'),(b'', 'NONE')]:
+                p.write_bytes(raw);self.assertEqual(api.fixed_stderr_class(p,0 if not raw else 1),expected)
+            p.write_bytes(b'x'*(1024**2+1));self.assertEqual(api.fixed_stderr_class(p,1),'STDERR_BOUND');p.unlink();self.assertEqual(api.fixed_stderr_class(p,1),'UNAVAILABLE')
+    def test_late_probe_wait0_preserves_actualwait_and_fails_original_5s(self):
+        class Late(Meter):
+            def __init__(self):super().__init__();self.now=0;self.clock=lambda:self.now
+        with tempfile.TemporaryDirectory()as d:
+            root=Path(d);meter=Late();r=self.runner(root,meter);child=mock.Mock(pid=123)
+            def wait(**kw):meter.now=6;return 0
+            child.wait.side_effect=wait
+            with mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.os,'waitid',return_value=object()):
+                with self.assertRaisesRegex(api.Refused,'GH_PROBE_DEADLINE'):r.call(['/usr/bin/gh','--version'],'GH_VERSION_AS512',65536)
+            self.assertEqual(r.waited,1);child.wait.assert_called_once();self.assertFalse(list(root.glob('call-*')))
+    def test_inherited_probe_still_refuses_actual_RSS_over512(self):
+        with tempfile.TemporaryDirectory()as d:
+            root=Path(d);r=self.runner(root);child=mock.Mock(pid=123);child.wait.return_value=0
+            fields=['0']*22;fields[19]='1';fields[21]=str(512*1024**2//4096+1)
+            with mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.os,'waitid',side_effect=[None,object()]),mock.patch.object(api.Path,'read_text',return_value='123 (gh) '+' '.join(fields)),mock.patch.object(api.os,'sysconf',return_value=4096):
+                with self.assertRaisesRegex(api.Refused,'CHILD_IDENTITY_OR_RSS'):r.call(['/usr/bin/gh','--version'],'GH_VERSION_INHERITED',65536)
+            self.assertEqual(r.waited,1);child.wait.assert_called_once();self.assertFalse(list(root.glob('call-*')))
+    def test_partial_AB_diagnostics_survive_a_guard_failure_after_actualwait(self):
+        class Late(Meter):
+            def __init__(self):super().__init__();self.now=0;self.clock=lambda:self.now
+        with tempfile.TemporaryDirectory()as d:
+            root=Path(d);meter=Late();r=self.runner(root,meter);child=mock.Mock(pid=123)
+            def wait(**kw):meter.now=6;return 0
+            child.wait.side_effect=wait
+            with mock.patch.object(api,'file_pin',return_value={'bytes':1,'sha256':'a'*64}),mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.os,'waitid',return_value=object()):
+                with self.assertRaisesRegex(api.Refused,'GH_PROBE_DEADLINE'):r.startup_diagnostics()
+            rows=api.public_facts(r.summary())['gh_startup_diagnostics']['probes'];self.assertEqual(set(rows),{'AS512'});self.assertIs(rows['AS512']['actual_parent_wait'],True)
+    def test_enabled_main_AB_precedes_first_remote_api_disabled_main_no_probe(self):
+        tree=ast.parse((HERE/'cohort_readback.py').read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+        calls=[n for n in ast.walk(main)if isinstance(n,ast.Call)]
+        startup=next(n for n in calls if isinstance(n.func,ast.Attribute)and n.func.attr=='startup_diagnostics')
+        remote=next(n for n in calls if isinstance(n.func,ast.Name)and n.func.id=='remote_inventory')
+        self.assertLess(startup.lineno,remote.lineno)
+        disabled=next(n for n in ast.walk(main)if isinstance(n,ast.If)and isinstance(n.test,ast.UnaryOp)and isinstance(n.test.operand,ast.Name)and n.test.operand.id=='enabled')
+        self.assertLess(disabled.end_lineno,startup.lineno)
+
 if __name__=='__main__':unittest.main()
