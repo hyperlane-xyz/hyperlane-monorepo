@@ -61,6 +61,13 @@ def validate_profile(value,role,mode):
  if mode=='configmap':need(mounts==[{'name':'agent-defaults','mountPath':'/etc/hyperlane','readOnly':True}],'rendered readonly defaults')
  else:need(not mounts,'configured image must not mask baked defaults')
  env=value['common']['data'];need(env['HOME']=='/var/lib/hyperlane','rendered HOME')
+ if role=='validator':
+  data=value['validator'].get('data',{});need(set(data)=={'validator-0.env'},'closed fixture validator config')
+  selectors=[line.strip()for line in data['validator-0.env'].splitlines()if line.strip().startswith('HYP_ORIGINCHAINNAME=')]
+  need(selectors==['HYP_ORIGINCHAINNAME="containerfixture"'],'rendered fixture validator selector')
+ else:
+  key='HYP_RELAYCHAINS'if role=='relayer'else'HYP_CHAINSTOSCRAPE'
+  need([row.get('value')for row in a.get('env',[])if row.get('name')==key]==['containerfixture'],'rendered fixture role selector')
  return spec,a,env
 
 def render(c,root,helm,role,mode,db,folder):
@@ -68,7 +75,7 @@ def render(c,root,helm,role,mode,db,folder):
  common=folder/'agent-common';shutil.copytree(root/'rust/main/helm/agent-common',common)
  # Local dependency reference remains exactly ../agent-common.
  (chart/'templates/fixture-launch.yaml').write_text(PROFILE_TEMPLATE)
- values={'fixtureRole':role,'hyperlane':{'chains':[],'relayerChains':[],'dbPath':db,'metrics':{'port':0},'validator':{'enabled':role=='validator','configs':[{'originChainName':'containerfixture','chainSigner':{},'validator':{'type':'hexKey'},'checkpointSyncer':{'type':'localStorage','path':'/data/checkpoints'}}]if role=='validator'else[]},'relayer':{'enabled':role=='relayer'},'scraper':{'enabled':role=='scraper'}}}
+ values={'fixtureRole':role,'hyperlane':{'chains':[],'relayerChains':[],'dbPath':db,'metrics':{'port':0},'validator':{'enabled':role=='validator','configs':[{'originChainName':'containerfixture','chainSigner':{},'validator':{'type':'hexKey'},'checkpointSyncer':{'type':'localStorage','path':'/data/checkpoints'}}]if role=='validator'else[]},'relayer':{'enabled':role=='relayer','envConfig':{'relayChains':'containerfixture'}},'scraper':{'enabled':role=='scraper','config':{'chainsToScrape':'containerfixture'}}}}
  if mode=='configured-image':values['hyperlane']['defaultsConfigMap']=''
  file=folder/'fixture-values.json';file.write_text(json.dumps(values))
  c.checked([str(helm),'dependency','build','--skip-refresh',str(chart)],timeout=30)

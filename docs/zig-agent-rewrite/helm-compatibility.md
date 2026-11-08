@@ -52,6 +52,13 @@ baked `/etc/hyperlane` tree. For the chart's existing repository/tag interface,
 `image.tag` may carry `chosen-tag@sha256:DIGEST`; the resulting complete image
 reference remains digest-qualified.
 
+The chart's role selectors are environment overrides, so they take precedence
+above the public JSON. Set `hyperlane.relayer.envConfig.relayChains` and
+`hyperlane.scraper.config.chainsToScrape` explicitly for the selected roles, and
+align each validator's `hyperlane.validator.configs[].originChainName`. Empty
+chart selector values override JSON too. The disposable CI fixture supplies
+`containerfixture` explicitly.
+
 ## State ownership
 
 Relayer/validator keep their existing `hyperlane.dbPath` PVC mount and HYP_DB.
@@ -69,20 +76,22 @@ reviewed. Never change a live PVC's ownership as part of an image switch.
 
 ## CI lifecycle qualification
 
-The ordinary container job reuses the built core and migration images and
-existing disposable PG16.15/21-migration/RPC fixture. Its Helm slice renders each
-role using Helm3.15.2, runs the exact command/environment override with bounded
+The ordinary container job checks the core image. The matching ReleaseSafe and
+ReleaseFast SDK jobs each check their full-SDK image, using the same migration
+image and disposable PG16.15/21-migration/RPC fixture. Each Helm slice renders
+every role using Helm3.15.2, runs the exact command/environment override with bounded
 read-only ConfigMap fixtures and data-only configured-image fixtures, and
 performs two actual startup/SIGTERM/same-state runs per role per delivery mode.
-It records actual nonroot identities, PID1 executable (including the rendered
+All three image flavors must pass: twelve lifecycle runs each, thirty-six total.
+The checks record actual nonroot identities, PID1 executable (including the rendered
 validator shell where present), read-only defaults and exact owned CID
 stop/wait/removal/negative-inspect results. These are Docker daemon/container
 wait observations, not invented host-parent waits for container processes.
 
 Ownership fixtures use a new disposable directory: UID1000-owned0700 access must
 fail; after explicit fixture-only ownership to10001:2000 it must succeed. No
-production state, Kubernetes cluster, PVC, signer or checkpoint publication is
-used. Successful Docker fixture evidence does not assert real CSI/fsGroup
+production state, Kubernetes cluster, PVC, production signer or production
+checkpoint publication is used. Successful Docker fixture evidence does not assert real CSI/fsGroup
 behavior, final18native acceptance or performance. An actual passing published
 `helm-runtime.json` at the exact source/image head is required; render/pure tests
 alone do not constitute this lifecycle acceptance.

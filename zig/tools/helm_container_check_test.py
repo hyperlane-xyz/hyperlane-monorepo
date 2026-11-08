@@ -14,8 +14,9 @@ class Controls(unittest.TestCase):
   command=['/bin/sh','-c']if role=='validator'else['/opt/hyperlane/bin/'+role]
   a={'name':'agent','securityContext':{'runAsNonRoot':True,'runAsUser':10001,'runAsGroup':10001},'command':command}
   if role=='validator':a['args']=['env fixture /opt/hyperlane/bin/validator\n']
+  else:a['env']=[{'name':'HYP_RELAYCHAINS'if role=='relayer'else'HYP_CHAINSTOSCRAPE','value':'containerfixture'}]
   if mode=='configmap':a['volumeMounts']=[{'name':'agent-defaults','mountPath':'/etc/hyperlane','readOnly':True}]
-  return {'statefulset':{'spec':{'template':{'spec':{'containers':[a],'securityContext':{'fsGroup':2000},'terminationGracePeriodSeconds':10}}}},'common':{'data':{'HOME':'/var/lib/hyperlane','HYP_DB':'/data/relayer'}},'validator':{}}
+  return {'statefulset':{'spec':{'template':{'spec':{'containers':[a],'securityContext':{'fsGroup':2000},'terminationGracePeriodSeconds':10}}}},'common':{'data':{'HOME':'/var/lib/hyperlane','HYP_DB':'/data/relayer'}},'validator':{'data':{'validator-0.env':'HYP_ORIGINCHAINNAME="containerfixture"\n'}}if role=='validator'else{}}
  def launch(self):
   o=m.Launch();o.c=SimpleNamespace(checked=Mock(),command=Mock());o.active={'container_id':'a'*64,'docker_stop_client_exit':0};o.removals=[];o.base='base';o.image='base';o.owner_token='owned';return o
  def result(self,code=0,text='',missing=None):return SimpleNamespace(returncode=code,stdout='[]\n'if missing else text,stderr='Error: No such object: '+missing+'\n'if missing else'')
@@ -30,6 +31,23 @@ class Controls(unittest.TestCase):
   v=self.profile(mode='configured-image');m.validate_profile(v,'relayer','configured-image')
   v['statefulset']['spec']['template']['spec']['containers'][0]['volumeMounts']=self.profile()['statefulset']['spec']['template']['spec']['containers'][0]['volumeMounts']
   with self.assertRaises(AssertionError):m.validate_profile(v,'relayer','configured-image')
+ def test_all_three_fixture_selectors_are_exact_before_launch(self):
+  for role in m.ROLES:
+   for mode in ('configmap','configured-image'):
+    v=self.profile(role,mode);m.validate_profile(v,role,mode)
+    for selected in ('','other',None,False):
+     bad=copy.deepcopy(v)
+     if role=='validator':bad['validator']['data']['validator-0.env']='HYP_ORIGINCHAINNAME="'+str(selected)+'"\n'
+     else:bad['statefulset']['spec']['template']['spec']['containers'][0]['env'][0]['value']=selected
+     with self.subTest(role=role,mode=mode,selector_type=type(selected).__name__),self.assertRaisesRegex(AssertionError,'selector'):m.validate_profile(bad,role,mode)
+ def test_selector_missing_duplicate_and_wrong_validator_source_refuse(self):
+  for role in ('relayer','scraper'):
+   for rows in ([],[{'name':'HYP_RELAYCHAINS'if role=='relayer'else'HYP_CHAINSTOSCRAPE','value':'containerfixture'}]*2):
+    v=self.profile(role);v['statefulset']['spec']['template']['spec']['containers'][0]['env']=rows
+    with self.subTest(role=role),self.assertRaisesRegex(AssertionError,'selector'):m.validate_profile(v,role,'configmap')
+  for data in ({},{'validator-1.env':'HYP_ORIGINCHAINNAME="containerfixture"\n'},{'validator-0.env':'HYP_ORIGINCHAINNAME="containerfixture"\nHYP_ORIGINCHAINNAME="containerfixture"\n'}):
+   v=self.profile('validator');v['validator']['data']=data
+   with self.assertRaises(AssertionError):m.validate_profile(v,'validator','configmap')
  def test_docker_arguments_are_rendered_commands_env_and_readonly_mounts(self):
   o=self.launch();o.role='relayer';o.mode='configmap';o.agent={'command':['/opt/hyperlane/bin/relayer'],'env':[{'name':'CONFIG_FILES','value':'/relayer-configmap/relayer-config.json,/etc/hyperlane/mainnet_config.json'}]};o.environment={'HOME':'/var/lib/hyperlane'}
   args=o.docker_args('base','owned',Path('/config'),Path('/data'))
