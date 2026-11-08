@@ -4,6 +4,7 @@ Daemon objects never receive direct-parent-wait credit. Imports perform no I/O.
 """
 import hashlib
 import importlib.util
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -91,11 +92,65 @@ def ownership(row, project, fixture, previous=None):
     return service, cid
 
 
+def public_network_ports(row, service):
+    """Only known service port keys and categorized host bindings; no raw IPs."""
+    settings = row.get('NetworkSettings')
+    out = {'status': 'invalid', 'known_ports': {}, 'other_port_key_count': 0}
+    if not isinstance(settings, dict):
+        return out
+    if 'Ports' not in settings:
+        out['status'] = 'missing'
+        return out
+    value = settings['Ports']
+    if value is None:
+        out['status'] = 'null'
+        return out
+    if not isinstance(value, dict):
+        return out
+    allowed = SERVICES[service][2]
+    out['status'] = 'map'
+    out['other_port_key_count'] = len(value) - sum(key in value for key in allowed)
+    for key in allowed:
+        record = {'status': 'missing', 'bindings': []}
+        out['known_ports'][key] = record
+        if key not in value:
+            continue
+        bindings = value[key]
+        if bindings is None:
+            record['status'] = 'null'
+            continue
+        if not isinstance(bindings, list) or len(bindings) > 4:
+            record['status'] = 'invalid'
+            continue
+        record['status'] = 'bindings'
+        for binding in bindings:
+            if not isinstance(binding, dict):
+                record['status'] = 'invalid'
+                continue
+            host, port = binding.get('HostIp'), binding.get('HostPort')
+            if isinstance(port, str) and re.fullmatch('[0-9]{1,5}', port):
+                port = int(port)
+            if not isinstance(host, str) or len(host) > 64 or type(port) is not int or not 0 < port < 65536:
+                record['status'] = 'invalid'
+                continue
+            if host == '':
+                category = 'wildcard'
+            else:
+                try:
+                    address = ipaddress.ip_address(host)
+                    category = 'wildcard' if address.is_unspecified else 'loopback' if address.is_loopback else 'other'
+                except ValueError:
+                    record['status'] = 'invalid'
+                    continue
+            record['bindings'].append({'host_ip_category': category, 'host_port': port})
+    return out
+
+
 def public_service_state(row, service, observed_ns):
     """Closed diagnostics from an already authenticated CID; never raw inspect."""
     state = row.get('State')
     out = {'service': service, 'container_id': row['Id'], 'image_id': row['Image'],
-           'observed_monotonic_ns': observed_ns, 'state': {}, 'invalid_fields': []}
+           'observed_monotonic_ns': observed_ns, 'state': {}, 'invalid_fields': [], 'network_ports': public_network_ports(row, service)}
     if not isinstance(state, dict):
         out['invalid_fields'].append('State')
         return out
@@ -248,7 +303,7 @@ class Custody:
         return {'schema': 1, 'collection_status': 'unavailable' if self.service_observation_unavailable else 'available', 'scope': 'Owned service State before readiness checks; no log bodies or native acceptance credit.',
                 'last_inspected_service': self.last_inspected_service,
                 'readiness_passed_services': sorted(self.ready),
-                'services': [dict(self.service_states[name], state=dict(self.service_states[name]['state']), invalid_fields=list(self.service_states[name]['invalid_fields'])) for name in SERVICES if name in self.service_states]}
+                'services': [json.loads(json.dumps(self.service_states[name])) for name in SERVICES if name in self.service_states]}
 
     def failed_fullnode_log_target(self):
         # This exact CID/image/project/token was authenticated by inspect_container

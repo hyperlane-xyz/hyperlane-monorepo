@@ -623,7 +623,7 @@ class StarknetProgress:
     ROOT = 'rust/main/utils/run-locally/src/'
     SOURCE_NEEDLES = {
         'starknet/mod.rs': ('Building rust...', 'Running postgres db...', 'Init postgres db...', 'DISPATCHING MAILBOX: {} -> {:?}', 'Relayer confirmed {} submitted messages, expected {}', 'Scraper has scraped {} dispatched messages, expected {}', 'Scraper has scraped {} delivered messages, expected {}', 'Termination invariants have been met', 'timeout reached before message submission was confirmed', 'E2E tests passed'),
-        'starknet/cli.rs': ('send-tx result: {:?}', 'declare result: {:?}', 'deploy result: {:?}', 'invoke result: {:?}', '.cmd(function_name)', '.run_with_output()'),
+        'starknet/cli.rs': ('send-tx result: {:?}', 'declare result: {:?}', 'deploy result: {:?}', 'invoke result: {:?}', '.cmd(function_name)', '.run_with_output()', '.run_with_status_and_output()', 'assert!(success, "Starknet invoke failed")', 'assert!(success, "Starknet send transaction failed")'),
         'program.rs': ('({wd})$ ', 'log!("{:#}", &self)', 'self.run_full(false, true)', 'child.try_wait()', 'stdout.join()', 'stderr.join()'),
         'logging.rs': ('concat!("<E2E> ", $arg)',),
     }
@@ -680,6 +680,12 @@ class StarknetProgress:
         if marker is None: return
         event = self.events.setdefault(marker, {'count': 0, 'first': None, 'latest': None})
         observation = {'observed_monotonic_ns': now, 'line_start_offset': start, 'line_end_offset': end}
+        if marker == 'confirmed_metric_observed':
+            values = re.fullmatch(rb'<E2E> Relayer confirmed ([0-9]{1,10}) submitted messages, expected ([0-9]{1,10})', wire)
+            if values is not None and all(int(value) <= 0xffffffff for value in values.groups()):
+                observation.update({'confirmed_count': int(values[1]), 'expected_count': int(values[2]), 'metric_values_status': 'observed_u32'})
+            else:
+                observation['metric_values_status'] = 'outside_u32'
         event['count'] += 1
         if event['first'] is None: event['first'] = observation
         event['latest'] = observation; self.last_marker = marker

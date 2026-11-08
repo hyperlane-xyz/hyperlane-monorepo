@@ -260,6 +260,51 @@ class Controls(unittest.TestCase):
         self.assertNotIn('PRIVATE_SENTINEL',json.dumps(found));self.assertEqual(found['state']['FinishedAt'],'2026-11-08T00:00:00.123456789Z')
         self.assertEqual(set(found['invalid_fields']),{'Status','Pid','ExitCode','StartedAt'})
         row['State']=[];self.assertEqual(m.public_service_state(row,'fullnode',123)['invalid_fields'],['State'])
+    def test_actual_null_ports_remain_distinct_from_requested_bindings(self):
+        self.launch(['fullnode']);row=self.row('fullnode');row['NetworkSettings']['Ports']=None
+        self.custody.observe();report=self.custody.public_observation()
+        self.assertEqual(report['services'][0]['network_ports'],{'status':'null','known_ports':{},'other_port_key_count':0})
+        self.assertEqual(report['readiness_passed_services'],['fullnode'])
+        self.assertEqual(row['HostConfig']['PortBindings']['3333/tcp'][0]['HostIp'],'127.0.0.1')
+
+    def test_ports_projection_categorizes_actual_bindings_without_raw_addresses(self):
+        self.launch(['fullnode']);row=self.row('fullnode');original=copy.deepcopy(row)
+        row['NetworkSettings']['Ports']={'3333/tcp':[{'HostIp':'127.0.0.1','HostPort':'3333'},{'HostIp':'0.0.0.0','HostPort':'3334'},{'HostIp':'::','HostPort':'3335'},{'HostIp':'192.0.2.9','HostPort':'3336'}],'PRIVATE_UNKNOWN_PORT':[{'HostIp':'PRIVATE','HostPort':'PRIVATE'}]}
+        expected=[{'host_ip_category':category,'host_port':3333+index}for index,category in enumerate(['loopback','wildcard','wildcard','other'])]
+        out=m.public_network_ports(row,'fullnode');self.assertEqual(out['known_ports'],{'3333/tcp':{'status':'bindings','bindings':expected}});self.assertEqual(out['other_port_key_count'],1)
+        text=json.dumps(out);self.assertNotIn('127.0.0.1',text);self.assertNotIn('192.0.2.9',text);self.assertNotIn('PRIVATE',text)
+        self.assertEqual(row['HostConfig'],original['HostConfig'])
+
+    def test_missing_null_and_empty_known_ports_are_distinct(self):
+        for value,expected in [({},'missing'),({'3333/tcp':None},'null'),({'3333/tcp':[]},'bindings')]:
+            out=m.public_network_ports({'NetworkSettings':{'Ports':value}},'fullnode')
+            self.assertEqual(out['known_ports']['3333/tcp'],{'status':expected,'bindings':[]})
+        for value in [False,[]]:
+            out=m.public_network_ports({'NetworkSettings':value},'fullnode');self.assertEqual(out['status'],'invalid')
+        self.assertEqual(m.public_network_ports({'NetworkSettings':{'PRIVATE':'PRIVATE'}},'fullnode')['status'],'missing')
+
+    def test_malformed_or_excess_bindings_never_escape_closed_projection(self):
+        for value in [False,'PRIVATE',[{'HostIp':'PRIVATE','HostPort':'PRIVATE'}],[{'HostIp':'127.0.0.1','HostPort':True}],[{'HostIp':'127.0.0.1','HostPort':'65536'}],[{'HostIp':'127.0.0.1','HostPort':'000000'}],[{'HostIp':'127.0.0.1','HostPort':3333}]*5]:
+            out=m.public_network_ports({'NetworkSettings':{'Ports':{'3333/tcp':value}}},'fullnode')
+            self.assertEqual(out['known_ports']['3333/tcp'],{'status':'invalid','bindings':[]})
+            self.assertNotIn('PRIVATE',json.dumps(out))
+
+    def test_service_port_allowlists_do_not_expand_from_inspected_keys(self):
+        out=m.public_network_ports({'NetworkSettings':{'Ports':{'3333/tcp':None,'PRIVATE':None}}},'database_migrations_image')
+        self.assertEqual(out,{'status':'map','known_ports':{},'other_port_key_count':2})
+        out=m.public_network_ports({'NetworkSettings':{'Ports':{'8080/tcp':None}}},'gateway_api_image')
+        self.assertEqual(set(out['known_ports']),{'8080/tcp','1235/tcp'})
+
+    def test_ports_diagnostic_is_authenticated_immutable_and_deep_copied(self):
+        self.launch(['fullnode']);row=self.row('fullnode');before=copy.deepcopy(row)
+        self.custody.observe();self.assertEqual(row,before)
+        report=self.custody.public_observation();report['services'][0]['network_ports']['known_ports']['3333/tcp']['bindings'][0]['host_port']=9
+        self.assertEqual(self.custody.public_observation()['services'][0]['network_ports']['known_ports']['3333/tcp']['bindings'][0]['host_port'],3333)
+        row['Config']['Labels'][m.TOKEN_LABEL]='foreign'
+        self.custody.service_states={}
+        with self.assertRaisesRegex(ValueError,'Foreign'):self.custody.observe()
+        self.assertEqual(self.custody.public_observation()['services'],[])
+
     def test_observation_returns_independent_closed_copy(self):
         self.launch(['fullnode']);self.custody.observe();a=self.custody.public_observation()
         a['services'][0]['state']['Status']='foreign';a['services'][0]['invalid_fields'].append('foreign');a['readiness_passed_services'].clear()

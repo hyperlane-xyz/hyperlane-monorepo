@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "aleo-linux-fullcase-ci-policy-v1",
-  "root_approved": true,
+  "root_approved": false,
   "runtime_source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",
   "requests": {
     "ReleaseSafe": {
@@ -48,11 +48,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 92647,
+      "bytes": 92775,
       "sha256": {
         "sha256_hex_chunks": [
-          "3ee58ddc351b2505e54748e1084977c5",
-          "d05be8235acd0aa9dcfa8c6834feb68c"
+          "439b97050c03a1665d6371c26bac2c01",
+          "22aa0792785bb5baf2a60745743ec00f"
         ]
       }
     },

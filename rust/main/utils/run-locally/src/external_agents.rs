@@ -3643,56 +3643,172 @@ pub fn capture_launch(command: &mut Command, executable: &Path) -> Result<()> {
 
 /// Preserve explicit public fixture launch state before temporary setup drops.
 pub fn record_launch(command: &Command, executable: &Path) -> Result<()> {
-    use std::io::Write;
     let Some(m) = get()? else {
         return Ok(());
     };
+    record_launch_at(m, command, executable)
+}
+fn record_launch_at(m: &Manifest, command: &Command, executable: &Path) -> Result<()> {
+    use std::io::Write;
     let Some(role) = ["relayer", "validator", "scraper", "init-db"]
         .into_iter()
         .find(|role| m.artifacts[*role].path == executable)
     else {
         return Ok(());
     };
-    let _write_guard = EVIDENCE_WRITES
-        .lock()
-        .map_err(|_| eyre::eyre!("evidence writer poisoned"))?;
-    let evidence_relative = m.verifier.evidence_root.strip_prefix(&m.task_root)?;
-    create_owned_directory(&m.task_root, evidence_relative)?;
-    ensure!(
-        m.verifier
-            .evidence_root
-            .canonicalize()?
-            .starts_with(m.task_root.canonicalize()?),
-        "evidence parent escaped owned root"
-    );
-    let environment: BTreeMap<_, _> = command
-        .get_envs()
-        .filter_map(|(key, value)| {
-            value.map(|v| {
-                (
-                    key.to_string_lossy().into_owned(),
-                    v.to_string_lossy().into_owned(),
-                )
-            })
-        })
-        .collect();
-    let record = serde_json::json!({"role":role,"executable":m.artifacts[role],"arguments":command.get_args().map(|a|a.to_string_lossy().into_owned()).collect::<Vec<_>>(),"explicit_public_fixture_environment":environment,"cwd":command.get_current_dir(),"runtime_source_commit":m.runtime_source_commit,"scope":"External fixture only; inherited user credentials cleared. Mapped Rocks paths stay under task ownership after setup TempDirs drop."});
-    let target_relative = evidence_relative.join("role-launches.jsonl");
-    let target = checked_owned_path(&m.task_root, &target_relative)?;
-    if target.exists() {
+    let mut stage = "writer-lock";
+    let started = Instant::now();
+    let outcome = (|| -> Result<()> {
+        let _write_guard = EVIDENCE_WRITES
+            .lock()
+            .map_err(|_| eyre::eyre!("evidence writer poisoned"))?;
+        stage = "evidence-relative-path";
+        let evidence_relative = m.verifier.evidence_root.strip_prefix(&m.task_root)?;
+        stage = "owned-evidence-directory";
+        create_owned_directory(&m.task_root, evidence_relative)?;
+        stage = "canonical-evidence-parent";
         ensure!(
-            fs::symlink_metadata(&target)?.is_file()
-                && !fs::symlink_metadata(&target)?.file_type().is_symlink(),
-            "unsafe role evidence file"
+            m.verifier
+                .evidence_root
+                .canonicalize()?
+                .starts_with(m.task_root.canonicalize()?),
+            "evidence parent escaped owned root"
         );
+        stage = "public-record-serialization";
+        let environment: BTreeMap<_, _> = command
+            .get_envs()
+            .filter_map(|(key, value)| {
+                value.map(|v| {
+                    (
+                        key.to_string_lossy().into_owned(),
+                        v.to_string_lossy().into_owned(),
+                    )
+                })
+            })
+            .collect();
+        let record = serde_json::json!({"role":role,"executable":m.artifacts[role],"arguments":command.get_args().map(|a|a.to_string_lossy().into_owned()).collect::<Vec<_>>(),"explicit_public_fixture_environment":environment,"cwd":command.get_current_dir(),"runtime_source_commit":m.runtime_source_commit,"scope":"External fixture only; inherited user credentials cleared. Mapped Rocks paths stay under task ownership after setup TempDirs drop."});
+        stage = "role-journal-path";
+        let target_relative = evidence_relative.join("role-launches.jsonl");
+        let target = checked_owned_path(&m.task_root, &target_relative)?;
+        stage = "role-journal-type";
+        if target.exists() {
+            ensure!(
+                fs::symlink_metadata(&target)?.is_file()
+                    && !fs::symlink_metadata(&target)?.file_type().is_symlink(),
+                "unsafe role evidence file"
+            );
+        }
+        stage = "role-journal-open";
+        let mut output = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(target)?;
+        stage = "role-journal-write";
+        writeln!(output, "{}", serde_json::to_string(&record)?)?;
+        stage = "role-journal-fsync";
+        output.sync_all()?;
+        stage = "role-journal-postcheck";
+        checked_owned_path(&m.task_root, &target_relative)?;
+        Ok(())
+    })();
+    if let Err(error) = &outcome {
+        // Failure-only best effort. Never mask the original refusal, bypass a
+        // guard, read log/config bytes, or export a raw error/argument/env value.
+        let value = role_launch_failure_projection(m, role, stage, error, started.elapsed());
+        let _ = publish_role_launch_failure(&m.task_root, &value);
     }
-    let mut output = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(target)?;
-    writeln!(output, "{}", serde_json::to_string(&record)?)?;
-    output.sync_all()?;
-    checked_owned_path(&m.task_root, &target_relative)?;
+    outcome
+}
+
+fn role_launch_failure_projection(
+    manifest: &Manifest,
+    role: &str,
+    stage: &str,
+    error: &eyre::Report,
+    elapsed: Duration,
+) -> serde_json::Value {
+    let role = match role {
+        "relayer" | "validator" | "scraper" | "init-db" => role,
+        _ => "unknown",
+    };
+    let stage = match stage {
+        "writer-lock"
+        | "evidence-relative-path"
+        | "owned-evidence-directory"
+        | "canonical-evidence-parent"
+        | "public-record-serialization"
+        | "role-journal-path"
+        | "role-journal-type"
+        | "role-journal-open"
+        | "role-journal-write"
+        | "role-journal-fsync"
+        | "role-journal-postcheck" => stage,
+        _ => "unknown",
+    };
+    let io = error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<std::io::Error>());
+    let state = |relative: &Path| -> serde_json::Value {
+        let Ok(path) = checked_owned_path(&manifest.task_root, relative) else {
+            return serde_json::json!({"kind":"policy-unavailable"});
+        };
+        match fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                let kind = if metadata.is_dir() {
+                    "directory"
+                } else if metadata.is_file() {
+                    "file"
+                } else {
+                    "special"
+                };
+                #[cfg(unix)]
+                let value = serde_json::json!({"kind":kind,"mode":metadata.permissions().mode() & 0o7777,"uid":metadata.uid(),"gid":metadata.gid(),"bytes":metadata.len()});
+                #[cfg(not(unix))]
+                let value = serde_json::json!({"kind":kind,"bytes":metadata.len()});
+                value
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                serde_json::json!({"kind":"absent"})
+            }
+            Err(_) => serde_json::json!({"kind":"metadata-unavailable"}),
+        }
+    };
+    let evidence = manifest
+        .verifier
+        .evidence_root
+        .strip_prefix(&manifest.task_root)
+        .ok();
+    serde_json::json!({
+        "schema":1,"kind":"public-role-launch-write-failure","native_or_timing_credit":false,
+        "harness_pid":std::process::id(),"role":role,"stage":stage,
+        "elapsed_since_record_launch_ns":elapsed.as_nanos().min(u64::MAX as u128) as u64,
+        "error_class":if io.is_some() {"IO"} else {"POLICY_OR_SERIALIZATION"},
+        "io_kind":io.map(|value|format!("{:?}",value.kind())),"raw_os_error":io.and_then(|value|value.raw_os_error()),
+        "task_root":state(Path::new("")),
+        "evidence_root":evidence.map(state),
+        "role_journal":evidence.map(|relative|state(&relative.join("role-launches.jsonl"))),
+        "public_fixed_leaves":evidence.map(|relative|["controller.json","controller.sock","public-observer-diagnostics.json"].into_iter().map(|name|(name,state(&relative.join(name)))).collect::<BTreeMap<_,_>>())
+    })
+}
+fn publish_role_launch_failure(root: &Path, value: &serde_json::Value) -> Result<()> {
+    use std::io::Write;
+    let relative = Path::new("ci-supervision-worker/public-role-launch-write-failure.json");
+    let target = checked_owned_path(root, relative)?;
+    ensure!(!target.exists(), "preserve first role launch failure");
+    let parent = target
+        .parent()
+        .ok_or_else(|| eyre::eyre!("role diagnostic parent absent"))?;
+    let wire = serde_json::to_vec(value)?;
+    ensure!(wire.len() <= 8192, "role failure diagnostic bound");
+    let mut pending = tempfile::NamedTempFile::new_in(parent)?;
+    pending.write_all(&wire)?;
+    pending.write_all(b"\n")?;
+    pending.as_file().sync_all()?;
+    checked_owned_path(root, relative)?;
+    pending
+        .persist_noclobber(&target)
+        .map_err(|error| error.error)?;
+    fs::File::open(parent)?.sync_all()?;
     Ok(())
 }
 
@@ -4889,11 +5005,24 @@ pub fn stop_svm_fixture(child: &mut TrackedChild) -> Result<bool> {
     }
     outcome.map(|()| true)
 }
-fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::SocketAddr>> {
+// Agave v3.0.14 release client factories bind this half-open range independently
+// of the node's --bind-address/--dynamic-port-range. No subsystem attribution.
+const SVM_RELEASE_CLIENT_UDP_RANGE: std::ops::Range<u16> = 8000..10000;
+const SVM_MAX_OBSERVED_SOCKETS: usize = 512;
+type SvmObservedSocket = (std::net::SocketAddr, Option<std::net::SocketAddr>);
+
+fn svm_observed_sockets(pid: u32, output: &str) -> Result<Vec<SvmObservedSocket>> {
     ensure!(output.len() <= 65536, "SVM listener output bound");
     let mut owned = false;
     let mut descriptor = None;
     let mut found = Vec::new();
+    let endpoint = |value: &str| -> Result<std::net::SocketAddr> {
+        Ok(if let Some(port) = value.strip_prefix("*:") {
+            std::net::SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, port.parse::<u16>()?))
+        } else {
+            value.parse()?
+        })
+    };
     for line in output.lines() {
         match line.as_bytes().first() {
             Some(b'p') => {
@@ -4915,36 +5044,14 @@ fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::Sock
                     owned && descriptor.take().is_some(),
                     "SVM socket without numeric fd/process"
                 );
+                ensure!(
+                    found.len() < SVM_MAX_OBSERVED_SOCKETS,
+                    "SVM endpoint count bound"
+                );
                 let (local, remote) = line[1..]
                     .split_once("->")
                     .map_or((&line[1..], None), |(a, b)| (a, Some(b)));
-                if let Some(remote) = remote {
-                    ensure!(
-                        udp && remote.parse::<std::net::SocketAddr>()?.ip().is_loopback(),
-                        "SVM remote UDP peer differs"
-                    );
-                }
-                let socket = if matches!(local, "*:8899" | "*:8900" | "*:9900") {
-                    format!("0.0.0.0{}", &local[1..]).parse()?
-                } else {
-                    local.parse::<std::net::SocketAddr>()?
-                };
-                if udp {
-                    ensure!(
-                        socket.ip().is_loopback()
-                            && (socket.port() == 8001 || (8002..=8033).contains(&socket.port())),
-                        "SVM auxiliary UDP socket differs"
-                    );
-                } else {
-                    ensure!(
-                        socket.ip().is_loopback()
-                            || (socket.ip()
-                                == std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
-                                && matches!(socket.port(), 8899 | 8900 | 9900)),
-                        "unexpected wildcard/nonlocal SVM TCP listener"
-                    );
-                }
-                found.push(socket);
+                found.push((endpoint(local)?, remote.map(endpoint).transpose()?));
             }
             _ => bail!("unexpected SVM lsof row"),
         }
@@ -4952,6 +5059,133 @@ fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::Sock
     ensure!(descriptor.is_none(), "SVM fd has no socket");
     Ok(found)
 }
+
+fn svm_socket_policy(socket: &SvmObservedSocket, udp: bool) -> Result<()> {
+    let (local, remote) = socket;
+    if let Some(remote) = remote {
+        ensure!(
+            udp && remote.ip().is_loopback(),
+            "SVM remote UDP peer differs"
+        );
+    }
+    if udp {
+        ensure!(
+            (local.ip().is_loopback() && (8001..=8033).contains(&local.port()))
+                || (local.ip() == std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
+                    && remote.is_none()
+                    && SVM_RELEASE_CLIENT_UDP_RANGE.contains(&local.port())),
+            "SVM auxiliary UDP socket differs"
+        );
+    } else {
+        ensure!(
+            local.ip().is_loopback()
+                || (local.ip() == std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
+                    && matches!(local.port(), 8899 | 8900 | 9900)),
+            "unexpected wildcard/nonlocal SVM TCP listener"
+        );
+    }
+    Ok(())
+}
+
+fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::SocketAddr>> {
+    svm_observed_sockets(pid, output)?
+        .iter()
+        .map(|socket| {
+            svm_socket_policy(socket, udp)?;
+            Ok(socket.0)
+        })
+        .collect()
+}
+
+fn svm_listener_command(lsof: &Path, pid: u32, udp: bool) -> Command {
+    let mut command = Command::new(lsof);
+    command.args([
+        "-nP",
+        "-a",
+        "-p",
+        &pid.to_string(),
+        if udp { "-iUDP" } else { "-iTCP" },
+    ]);
+    if !udp {
+        command.args(["-sTCP:LISTEN"]);
+    }
+    // Modern lsof does not imply the descriptor field. The strict parser needs f.
+    command.args(["-F", "pfn"]);
+    command
+}
+
+fn svm_public_listener_snapshot(pid: u32, tcp: &str, udp: &str) -> Result<serde_json::Value> {
+    let scope = |address: std::net::IpAddr| {
+        if address.is_loopback() {
+            "loopback"
+        } else if address.is_unspecified() {
+            "wildcard"
+        } else {
+            "other"
+        }
+    };
+    let project = |raw: &str, is_udp: bool| -> Result<Vec<serde_json::Value>> {
+        Ok(svm_observed_sockets(pid, raw)?
+            .iter()
+            .map(|socket| {
+                serde_json::json!({
+                    "protocol":if is_udp {"udp"} else {"tcp"},
+                    "local_scope":scope(socket.0.ip()),"local_port":socket.0.port(),
+                    "connected":socket.1.is_some(),
+                    "peer_scope":socket.1.map(|peer|scope(peer.ip())),
+                    "peer_port":socket.1.map(|peer|peer.port()),
+                    "policy_allowed":svm_socket_policy(socket,is_udp).is_ok()
+                })
+            })
+            .collect())
+    };
+    // Project ALL syntactically owned rows before applying the endpoint policy.
+    Ok(
+        serde_json::json!({"capture_status":"parsed","tcp":project(tcp,false)?,"udp":project(udp,true)?}),
+    )
+}
+
+fn publish_svm_listener_diagnostics(
+    root: &Path,
+    value: &serde_json::Value,
+    first: bool,
+) -> Result<()> {
+    use std::io::Write;
+    let relative = Path::new("ci-supervision-worker/public-svm-listener-diagnostics.json");
+    let target = checked_owned_path(root, relative)?;
+    if first {
+        ensure!(
+            !target.exists(),
+            "SVM public diagnostic already exists before first capture"
+        );
+    } else {
+        let metadata = fs::symlink_metadata(&target)?;
+        ensure!(
+            metadata.is_file() && !metadata.file_type().is_symlink(),
+            "SVM diagnostic target changed"
+        );
+    }
+    let parent = target
+        .parent()
+        .ok_or_else(|| eyre::eyre!("SVM diagnostic parent absent"))?;
+    let wire = serde_json::to_vec(value)?;
+    ensure!(wire.len() <= 512 * 1024, "SVM public diagnostic size bound");
+    let mut pending = tempfile::NamedTempFile::new_in(parent)?;
+    pending.write_all(&wire)?;
+    pending.write_all(b"\n")?;
+    pending.as_file().sync_all()?;
+    checked_owned_path(root, relative)?;
+    if first {
+        pending
+            .persist_noclobber(&target)
+            .map_err(|error| error.error)?;
+    } else {
+        pending.persist(&target).map_err(|error| error.error)?;
+    }
+    fs::File::open(parent)?.sync_all()?;
+    Ok(())
+}
+
 fn svm_required_listeners(tcp: &[std::net::SocketAddr], udp: &[std::net::SocketAddr]) -> bool {
     ["0.0.0.0:8899", "0.0.0.0:8900", "0.0.0.0:9900"]
         .into_iter()
@@ -5017,36 +5251,55 @@ pub fn svm_node_ready(child: &mut TrackedChild, ledger: &Path) -> Result<()> {
         let command = String::from_utf8(command.stdout)?;
         let args: Vec<_> = command.split_whitespace().collect();
         svm_exact_node_arguments(&args, ledger)?;
-        let deadline = Instant::now() + Duration::from_secs(30);
+        let started = Instant::now();
+        let deadline = started + Duration::from_secs(30);
+        let mut first_capture = None;
+        let mut capture_count = 0_u32;
         loop {
             ensure!(
                 live_fixture_identity(&mut child.child, artifact, ps)? == token,
                 "SVM launch identity changed"
             );
-            let lookup = |udp: bool| -> Result<Vec<std::net::SocketAddr>> {
-                let mut command = Command::new(&lsof.path);
-                command.args([
-                    "-nP",
-                    "-a",
-                    "-p",
-                    &child.id().to_string(),
-                    if udp { "-iUDP" } else { "-iTCP" },
-                ]);
-                if !udp {
-                    command.args(["-sTCP:LISTEN"]);
-                }
-                let output = command.args(["-F", "pn"]).output()?;
+            let lookup = |udp: bool| -> Result<String> {
+                let output = svm_listener_command(&lsof.path, child.id(), udp).output()?;
                 ensure!(
-                    output.status.success() || output.status.code() == Some(1),
+                    (output.status.success() || output.status.code() == Some(1))
+                        && output.stdout.len() <= 65536
+                        && output.stderr.len() <= 65536,
                     "SVM socket lookup failed"
                 );
-                svm_listeners(child.id(), &String::from_utf8(output.stdout)?, udp)
+                Ok(String::from_utf8(output.stdout)?)
             };
-            let tcp = lookup(false)?;
-            let udp = lookup(true)?;
+            let tcp_raw = lookup(false)?;
+            let udp_raw = lookup(true)?;
             ensure!(
                 live_fixture_identity(&mut child.child, artifact, ps)? == token,
                 "SVM exited during socket lookup"
+            );
+            capture_count += 1;
+            ensure!(capture_count <= 512, "SVM diagnostic capture count bound");
+            let snapshot = svm_public_listener_snapshot(child.id(), &tcp_raw, &udp_raw)
+                .unwrap_or_else(|_| serde_json::json!({"capture_status":"invalid_owned_field_capture","tcp":[],"udp":[]}));
+            let is_first = first_capture.is_none();
+            let first = first_capture.get_or_insert_with(|| snapshot.clone());
+            publish_svm_listener_diagnostics(
+                &manifest.task_root,
+                &serde_json::json!({
+                    "schema":1,"kind":"public-svm-listener-diagnostics",
+                    "pid":child.id(),"os_start_token":token,"capture_count":capture_count,
+                    "original_readiness_deadline_seconds":30,
+                    "elapsed_milliseconds":started.elapsed().as_millis(),
+                    "completed_within_original_deadline":Instant::now()<deadline,
+                    "first":first,"latest":snapshot,
+                    "native_or_timing_credit":false
+                }),
+                is_first,
+            )?;
+            let tcp = svm_listeners(child.id(), &tcp_raw, false)?;
+            let udp = svm_listeners(child.id(), &udp_raw, true)?;
+            ensure!(
+                Instant::now() < deadline,
+                "SVM socket observation completed late"
             );
             if svm_required_listeners(&tcp, &udp) {
                 append_fixture_observation(
@@ -5056,6 +5309,9 @@ pub fn svm_node_ready(child: &mut TrackedChild, ledger: &Path) -> Result<()> {
                     "pid":child.id(),"os_start_token":token,"ledger":ledger,"tcp":tcp,"udp":udp,
                     "source_tcp_wildcard_ports":[8899,8900,9900],
                     "source_tcp_wildcard_roles":{"rpc":8899,"pubsub":8900,"faucet":9900},
+                    "source_udp_unconnected_wildcard_client_ports":udp.iter().filter(|socket|socket.ip()==std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)).map(std::net::SocketAddr::port).collect::<Vec<_>>(),
+                    "source_udp_client_port_range":{"minimum":8000,"exclusive_maximum":10000},
+                    "source_udp_client_scope":"Agave3.0.14 release-default unconnected IPv4 client binds; no socket subsystem attribution",
                     "client_endpoint_scope":"localhost",
                     "public_fixture_faucet_wildcard_port":9900,"faucet_funding_caps_SOL":0,
                     "scope":"actual owned sockets before deployment; no chain or600credit"}),
@@ -5578,13 +5834,159 @@ mod tests {
             super::svm_listeners(42, "p42\nf3\nn127.0.0.1:8002->127.0.0.1:8003\n", true).is_ok()
         );
         for raw in [
-            "p42\nf3\nn*:8001\n",
+            "p42\nf3\nn*:8001->127.0.0.1:8001\n",
             "p42\nf3\nn127.0.0.1:9000\n",
             "p42\nf3\nn127.0.0.1:8002->192.0.2.1:8003\n",
         ] {
             assert!(super::svm_listeners(42, raw, true).is_err());
         }
     }
+    #[test]
+    fn svm_listener_command_requests_actual_descriptor_field() {
+        for udp in [false, true] {
+            let command = super::svm_listener_command(Path::new("/owned/lsof"), 42, udp);
+            assert_eq!(command.get_program(), "/owned/lsof");
+            let args: Vec<_> = command
+                .get_args()
+                .map(|value| value.to_str().unwrap())
+                .collect();
+            let mut expected = vec!["-nP", "-a", "-p", "42", if udp { "-iUDP" } else { "-iTCP" }];
+            if !udp {
+                expected.push("-sTCP:LISTEN");
+            }
+            expected.extend(["-F", "pfn"]);
+            assert_eq!(args, expected);
+        }
+    }
+    #[test]
+    fn svm_release_client_udp_is_unconnected_ipv4_half_open_range_only() {
+        for host in ["*", "0.0.0.0"] {
+            for port in [8000, 8001, 8033, 8034, 9999] {
+                assert!(
+                    super::svm_listeners(42, &format!("p42\nf3\nn{host}:{port}\n"), true).is_ok()
+                );
+            }
+        }
+        for endpoint in [
+            "*:7999",
+            "*:10000",
+            "0.0.0.0:65535",
+            "[::]:8000",
+            "192.0.2.1:8000",
+            "127.0.0.1:8000",
+            "127.0.0.1:8034",
+            "*:8001->127.0.0.1:8002",
+            "0.0.0.0:9999->127.0.0.1:8001",
+            "*:8000->192.0.2.1:8001",
+        ] {
+            assert!(
+                super::svm_listeners(42, &format!("p42\nf3\nn{endpoint}\n"), true).is_err(),
+                "{endpoint}"
+            );
+        }
+    }
+    #[test]
+    fn svm_release_clients_cannot_replace_required_loopback_gossip() {
+        let tcp = super::svm_listeners(42, "p42\nf3\nn*:8899\nf4\nn*:8900\nf5\nn*:9900\n", false)
+            .unwrap();
+        let mut udp = super::svm_listeners(42, "p42\nf3\nn*:8000\nf4\nn*:8001\n", true).unwrap();
+        assert!(!super::svm_required_listeners(&tcp, &udp));
+        udp.push("127.0.0.1:8001".parse().unwrap());
+        assert!(super::svm_required_listeners(&tcp, &udp));
+        assert!(!super::svm_required_listeners(&tcp[..2], &udp));
+    }
+    #[test]
+    fn svm_public_projection_retains_all_rows_before_policy_failure_without_addresses() {
+        let tcp = "p42\nf3\nn*:8899\nf4\nn*:8900\nf5\nn*:9900\n";
+        let udp =
+            "p42\nf6\nn192.0.2.200:8002->192.0.2.201:8003\nf7\nn*:8000\nf8\nn127.0.0.1:8001\n";
+        assert!(super::svm_listeners(42, udp, true).is_err());
+        let value = super::svm_public_listener_snapshot(42, tcp, udp).unwrap();
+        assert_eq!(value["capture_status"], "parsed");
+        assert_eq!(value["tcp"].as_array().unwrap().len(), 3);
+        assert_eq!(value["udp"].as_array().unwrap().len(), 3);
+        assert_eq!(value["udp"][0]["local_scope"], "other");
+        assert_eq!(value["udp"][0]["policy_allowed"], false);
+        assert_eq!(value["udp"][1]["local_port"], 8000);
+        assert_eq!(value["udp"][1]["policy_allowed"], true);
+        assert_eq!(value["udp"][2]["local_scope"], "loopback");
+        for row in value["tcp"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .chain(value["udp"].as_array().unwrap())
+        {
+            assert_eq!(row.as_object().unwrap().len(), 7);
+        }
+        let wire = serde_json::to_string(&value).unwrap();
+        for forbidden in [
+            "192.0.2.",
+            "127.0.0.1",
+            "0.0.0.0",
+            "f6",
+            "environment",
+            "payload",
+        ] {
+            assert!(!wire.contains(forbidden));
+        }
+        for invalid in ["p43\nf3\nn*:8000\n", "p42\nn*:8000\n", "p42\nfx\nn*:8000\n"] {
+            assert!(super::svm_public_listener_snapshot(42, tcp, invalid).is_err());
+        }
+        let many = format!(
+            "p42\n{}",
+            "f3\nn*:8000\n".repeat(super::SVM_MAX_OBSERVED_SOCKETS + 1)
+        );
+        assert!(super::svm_public_listener_snapshot(42, tcp, &many).is_err());
+    }
+    #[test]
+    fn svm_public_listener_publication_is_complete_and_first_write_never_clobbers() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("ci-supervision-worker")).unwrap();
+        let path = root
+            .path()
+            .join("ci-supervision-worker/public-svm-listener-diagnostics.json");
+        let first = serde_json::json!({"schema":1,"first":{"tcp":[],"udp":[]},"latest":{"tcp":[],"udp":[]},"native_or_timing_credit":false});
+        super::publish_svm_listener_diagnostics(root.path(), &first, true).unwrap();
+        let bytes = fs::read(&path).unwrap();
+        assert!(bytes.ends_with(b"\n"));
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(),
+            first
+        );
+        assert!(super::publish_svm_listener_diagnostics(
+            root.path(),
+            &serde_json::json!({"changed":true}),
+            true
+        )
+        .is_err());
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        let next = serde_json::json!({"schema":1,"first":first["first"],"latest":{"tcp":[],"udp":[]},"capture_count":2,"native_or_timing_credit":false});
+        super::publish_svm_listener_diagnostics(root.path(), &next, false).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&fs::read(&path).unwrap()).unwrap(),
+            next
+        );
+        assert!(super::publish_svm_listener_diagnostics(
+            root.path(),
+            &serde_json::json!({"large":"x".repeat(512*1024)}),
+            false
+        )
+        .is_err());
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&fs::read(&path).unwrap()).unwrap(),
+            next
+        );
+        #[cfg(unix)]
+        {
+            fs::remove_file(&path).unwrap();
+            let foreign = root.path().join("foreign");
+            fs::write(&foreign, "preserve").unwrap();
+            std::os::unix::fs::symlink(&foreign, &path).unwrap();
+            assert!(super::publish_svm_listener_diagnostics(root.path(), &first, false).is_err());
+            assert_eq!(fs::read_to_string(foreign).unwrap(), "preserve");
+        }
+    }
+
     #[test]
     fn svm_bundle_raw_duplicate_and_unknown_field_reject_before_assets() {
         assert!(serde_json::from_str::<super::UniqueCaseJson>(
@@ -6270,6 +6672,97 @@ mod tests {
         let tool = &m.tool_overrides["E2E_HYPD_PATH"].path;
         fs::set_permissions(tool, fs::Permissions::from_mode(0o600)).unwrap();
         assert!(format!("{:#}", m.validate().unwrap_err()).contains("executable permission"));
+    }
+    #[test]
+    fn role_launch_failure_projection_is_closed_and_never_exports_raw_error() {
+        let root = tempfile::tempdir().unwrap();
+        let manifest = fixture(root.path());
+        let error: eyre::Report = std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "PRIVATE-CONTROL-ARGUMENT-AND-ENV",
+        )
+        .into();
+        let value = role_launch_failure_projection(
+            &manifest,
+            "validator",
+            "role-journal-open",
+            &error,
+            Duration::from_nanos(7),
+        );
+        assert_eq!(value["stage"], "role-journal-open");
+        assert_eq!(value["error_class"], "IO");
+        assert_eq!(value["io_kind"], "PermissionDenied");
+        assert_eq!(value["elapsed_since_record_launch_ns"], 7);
+        assert_eq!(value["native_or_timing_credit"], false);
+        assert!(!value.to_string().contains("PRIVATE-CONTROL"));
+        assert!(!value.to_string().contains(root.path().to_str().unwrap()));
+        let unknown = role_launch_failure_projection(
+            &manifest,
+            "PRIVATE-ROLE",
+            "PRIVATE-STAGE",
+            &eyre::eyre!("PRIVATE-ERROR"),
+            Duration::ZERO,
+        );
+        assert_eq!(unknown["role"], "unknown");
+        assert_eq!(unknown["stage"], "unknown");
+        assert!(!unknown.to_string().contains("PRIVATE"));
+    }
+    #[test]
+    fn role_launch_failure_atomic_publication_preserves_first_and_rejects_link() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("ci-supervision-worker")).unwrap();
+        let target = root
+            .path()
+            .join("ci-supervision-worker/public-role-launch-write-failure.json");
+        let value = serde_json::json!({"schema":1,"native_or_timing_credit":false});
+        publish_role_launch_failure(root.path(), &value).unwrap();
+        let before = fs::read(&target).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&before).unwrap(),
+            value
+        );
+        assert!(
+            publish_role_launch_failure(root.path(), &serde_json::json!({"changed":true})).is_err()
+        );
+        assert_eq!(fs::read(&target).unwrap(), before);
+        #[cfg(unix)]
+        {
+            fs::remove_file(&target).unwrap();
+            let outside = root.path().join("outside");
+            fs::write(&outside, b"preserve").unwrap();
+            std::os::unix::fs::symlink(&outside, &target).unwrap();
+            assert!(publish_role_launch_failure(root.path(), &value).is_err());
+            assert_eq!(fs::read(outside).unwrap(), b"preserve");
+        }
+    }
+    #[test]
+    fn role_launch_failure_retains_original_guard_and_rejects_directory_journal() {
+        let root = tempfile::tempdir().unwrap();
+        let manifest = fixture(root.path());
+        fs::create_dir_all(&manifest.verifier.evidence_root).unwrap();
+        fs::create_dir(root.path().join("ci-supervision-worker")).unwrap();
+        let journal = manifest.verifier.evidence_root.join("role-launches.jsonl");
+        fs::create_dir(&journal).unwrap();
+        let mut command = Command::new("never-executed");
+        command
+            .arg("PRIVATE-ARGUMENT")
+            .env("PRIVATE-ENV", "PRIVATE-VALUE");
+        let error = record_launch_at(&manifest, &command, &manifest.artifacts["validator"].path)
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("unsafe role evidence file"));
+        assert!(journal.is_dir());
+        let path = root
+            .path()
+            .join("ci-supervision-worker/public-role-launch-write-failure.json");
+        let wire = fs::read_to_string(path).unwrap();
+        let public: serde_json::Value = serde_json::from_str(&wire).unwrap();
+        assert_eq!(public["stage"], "role-journal-type");
+        assert_eq!(public["role_journal"]["kind"], "directory");
+        assert_eq!(public["error_class"], "POLICY_OR_SERIALIZATION");
+        assert_eq!(public["native_or_timing_credit"], false);
+        assert!(!wire.contains("PRIVATE"));
+        assert!(!wire.contains("arguments"));
+        assert!(!wire.contains("environment"));
     }
     #[test]
     fn retained_owned_directory_reopens_without_mutation() {

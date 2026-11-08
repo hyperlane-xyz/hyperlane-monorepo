@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "root_approved": true,
+  "root_approved": false,
   "scenario": "tron",
   "mode": "ReleaseSafe",
   "producer_source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",

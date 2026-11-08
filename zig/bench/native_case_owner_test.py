@@ -583,6 +583,25 @@ class StarknetProgressTests(unittest.TestCase):
         self.assertEqual(set(row['events']),{'confirmed_metric_observed','dispatch_metric_observed','delivery_metric_observed'})
         self.assertNotIn('dispatch_command_returned',row['events']);self.assertNotIn('passed',row)
 
+    def test_confirmed_metric_values_are_actual_bounded_integers(self):
+        row=self.observe(b'<E2E> Relayer confirmed 0 submitted messages, expected 10\n')
+        first=row['events']['confirmed_metric_observed']['first']
+        self.assertEqual((first['confirmed_count'],first['expected_count'],first['metric_values_status']),(0,10,'observed_u32'))
+        row=self.observe(b'<E2E> Relayer confirmed 9 submitted messages, expected 11\n')
+        event=row['events']['confirmed_metric_observed']
+        self.assertEqual(event['first'],first)
+        self.assertEqual((event['latest']['confirmed_count'],event['latest']['expected_count']),(9,11))
+        self.assertNotIn('passed',row)
+
+    def test_out_of_range_metric_is_observed_without_exporting_raw_values(self):
+        for observed,expected in [(b'4294967296',b'10'),(b'1',b'9'*100),(b'9'*100,b'10')]:
+            row=self.observe(b'<E2E> Relayer confirmed '+observed+b' submitted messages, expected '+expected+b'\n')
+            latest=row['events']['confirmed_metric_observed']['latest']
+            self.assertEqual(latest['metric_values_status'],'outside_u32')
+            self.assertNotIn('confirmed_count',latest);self.assertNotIn('expected_count',latest)
+        row=self.observe(b'<E2E> Relayer confirmed 4294967295 submitted messages, expected 4294967295\n')
+        self.assertEqual(row['events']['confirmed_metric_observed']['latest']['confirmed_count'],4294967295)
+
     def test_first_latest_observations_offsets_are_not_invented_emission_times(self):
         wire=b'<E2E> Init postgres db...\n';first=self.observe(wire);start=first['events']['postgres_init_requested']['first'].copy();row=self.observe(wire)
         event=row['events']['postgres_init_requested'];self.assertEqual(event['count'],2);self.assertEqual(event['first'],start);self.assertGreater(event['latest']['observed_monotonic_ns'],start['observed_monotonic_ns']);self.assertEqual(event['latest']['line_start_offset'],len(wire))

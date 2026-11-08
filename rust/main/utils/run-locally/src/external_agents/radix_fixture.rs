@@ -209,22 +209,24 @@ fn validate_cached_image(rows: &[Value], image: &Image, architecture: &str) -> R
 fn overrides(configuration: &Configuration) -> Value {
     let mut services = serde_json::Map::new();
     for (name, _, memory, pids) in SERVICES {
-        services.insert(
-            name.to_owned(),
-            json!({
-                "image": configuration.images[name].id, "pull_policy":"never",
-                "init":true, "mem_limit":format!("{memory}m"),
-                "memswap_limit":format!("{memory}m"), "cpus":2.0,
-                "pids_limit":pids, "restart":"no",
-                "deploy":{"restart_policy":{"condition":"none"}},
-                "labels":{"io.hyperlane.ziggy.radix-token":configuration.token},
-                "security_opt":["no-new-privileges:true"]
-            }),
-        );
+        let mut service = json!({
+            "image": configuration.images[name].id, "pull_policy":"never",
+            "init":true, "mem_limit":format!("{memory}m"),
+            "memswap_limit":format!("{memory}m"), "cpus":2.0,
+            "pids_limit":pids, "restart":"no",
+            "deploy":{"restart_policy":{"condition":"none"}},
+            "labels":{"io.hyperlane.ziggy.radix-token":configuration.token},
+            "security_opt":["no-new-privileges:true"]
+        });
+        if name == "fullnode" {
+            // The pinned single-node image skips external IP-oracle queries for
+            // loopback. This P2P host property does not change the API bindings.
+            service["environment"] = json!({"RADIXDLT_HOST_IP_ADDRESS":"127.0.0.1"});
+        }
+        services.insert(name.to_owned(), service);
     }
     json!({"services":services,"networks":{"default":{"internal":true}}})
 }
-
 fn ready_payloads(core: &Value, gateway: &Value) -> Result<()> {
     ensure!(
         core["network"] == "localnet"
@@ -615,6 +617,18 @@ mod tests {
         });
         let decoded: Configuration = serde_json::from_value(wire.clone()).unwrap();
         validate(&decoded).unwrap();
+        // The address is fixed by this external fixture, never case-supplied.
+        for (field, value) in [
+            (
+                "environment",
+                json!({"RADIXDLT_HOST_IP_ADDRESS":"198.51.100.1"}),
+            ),
+            ("network.host_ip", json!("remote.example")),
+        ] {
+            let mut foreign_host = wire.clone();
+            foreign_host[field] = value;
+            assert!(serde_json::from_value::<Configuration>(foreign_host).is_err());
+        }
         let mut redundant_version = wire;
         redundant_version["schema"] = json!(1);
         assert!(serde_json::from_value::<Configuration>(redundant_version).is_err());
@@ -668,7 +682,11 @@ mod tests {
     fn compose_model_cannot_pull_or_restart_unbounded_services() {
         let c = configuration();
         let model = overrides(&c);
-        assert_eq!(model["networks"]["default"]["internal"], true);
+        assert_eq!(model["networks"], json!({"default":{"internal":true}}));
+        assert_eq!(
+            model["services"]["fullnode"]["environment"],
+            json!({"RADIXDLT_HOST_IP_ADDRESS":"127.0.0.1"})
+        );
         for (name, _, memory, pids) in SERVICES {
             let row = &model["services"][name];
             assert_eq!(row["image"], c.images[name].id);
@@ -678,6 +696,15 @@ mod tests {
             assert_eq!(row["memswap_limit"], row["mem_limit"]);
             assert_eq!(row["pids_limit"], pids);
             assert_eq!(row["deploy"]["restart_policy"]["condition"], "none");
+            assert_eq!(row["init"], true);
+            assert_eq!(row["cpus"], 2.0);
+            assert_eq!(row["security_opt"], json!(["no-new-privileges:true"]));
+            assert!(row.get("network_mode").is_none());
+            assert!(row.get("networks").is_none());
+            assert!(row.get("ports").is_none());
+            if name != "fullnode" {
+                assert!(row.get("environment").is_none());
+            }
         }
     }
     fn pin(path: PathBuf) -> Artifact {
