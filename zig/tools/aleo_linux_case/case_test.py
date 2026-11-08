@@ -283,6 +283,33 @@ class NamespacePins(unittest.TestCase):
         (self.root/'interop/db/CURRENT').write_text('changed stopped database')
         with self.assertRaises(ValueError):specs.namespace_inputs(self.spec,self.sdk)
 
+    def strict_namespace_guard(self,spec):
+        # Execute the actual unchanged admission predicate, not a second
+        # acceptance implementation. Other native prerequisites are out of scope.
+        tree=ast.parse((HERE/'case_specs.py').read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='admission');node=next(n for n in fn.body if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and len(n.value.args)>1 and isinstance(n.value.args[1],ast.Constant)and n.value.args[1].value=='derived closed namespace leaves/mounts differ')
+        space={'spec':spec,'sdk':self.sdk,'namespace_inputs':specs.namespace_inputs,'namespace_roots':specs.namespace_roots,'need':specs.need};exec(compile(ast.Module(body=[node],type_ignores=[]),'actual-namespace-admission-predicate','exec'),space)
+
+    def bound_distinct_library_spec(self):
+        spec=copy.deepcopy(self.spec);spec['system_libraries']={'http':self.file('libraries/http.so','http fixture'),'crypto':self.file('libraries/crypto.so','crypto fixture')};spec['namespace_pins']=specs.namespace_inputs(spec,self.sdk);spec['readonly_roots']=specs.namespace_roots(spec,self.sdk);return spec
+
+    def test_actual_namespace_bind_atomic_sorted_payload_roundtrip_keeps_exact_derived_guard(self):
+        spec=self.bound_distinct_library_spec();self.strict_namespace_guard(spec);self.assertEqual(list(spec['system_libraries']),['http','crypto'])
+        payload=dict(spec,delegation_context=self.file('host-only/delegation.json','{}'),controller_receipt=self.file('host-only/controller.json','{}'),service_owner_spec=self.file('host-only/service.json','{}'));path=self.root/'host-only/payload.spec.json'
+        delegate.base.atomic(path,payload);loaded=specs.load(specs.pin(path));self.assertEqual(list(loaded['system_libraries']),['crypto','http']);self.strict_namespace_guard(loaded)
+        self.assertEqual(loaded['namespace_pins'],specs.namespace_inputs(loaded,self.sdk));self.assertEqual(loaded['readonly_roots'],specs.namespace_roots(loaded,self.sdk));self.assertEqual({r['path']:r for r in loaded['namespace_pins']},{r['path']:r for r in spec['namespace_pins']})
+        self.assertNotIn(self.secret['path'],{r['path']for r in loaded['namespace_pins']});self.assertNotIn(payload['controller_receipt']['path'],{r['path']for r in loaded['namespace_pins']})
+
+    def test_extra_missing_or_changed_library_and_extra_expected_pin_still_refuse(self):
+        original=self.bound_distinct_library_spec();extra=self.file('libraries/extra.so','extra fixture')
+        for mode in ['extra-library','missing-library','extra-expected-pin','changed-library']:
+            spec=copy.deepcopy(original)
+            if mode=='extra-library':spec['system_libraries']['extra']=extra
+            elif mode=='missing-library':spec['system_libraries'].pop('http')
+            elif mode=='extra-expected-pin':spec['namespace_pins'].append(extra)
+            else:Path(spec['system_libraries']['http']['path']).write_bytes(b'changed')
+            with self.subTest(mode=mode),self.assertRaises(ValueError):self.strict_namespace_guard(spec)
+
+
 
 class MetadataShape(unittest.TestCase):
     def test_actual_SDK_spec_stage_and_hydrated_tool_names_flow_to_pending_only(self):

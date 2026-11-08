@@ -227,11 +227,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/case_specs.py",
-      "bytes": 24509,
+      "bytes": 24552,
       "sha256": {
         "sha256_hex_chunks": [
-          "03ff5bf6560fe0319b0ee3f5bbf9ff02",
-          "e8130e061bd3c4cb1ab752e373ff6465"
+          "860e5291d81e091559e055f7c8c4afa3",
+          "2c72c686908bd34122650e87a1d383df"
         ]
       }
     },

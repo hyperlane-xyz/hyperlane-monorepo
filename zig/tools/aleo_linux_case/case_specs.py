@@ -99,7 +99,7 @@ def docker_admission(result_pin,owner_pin,node):
 def namespace_inputs(spec,sdk):
     """Derive actual visible leaves; host-only origins/cohort receipts stay out."""
     manifest=load(spec['manifest'])
-    rows=[*manifest['sourceFiles'],*manifest['artifacts'].values(),*manifest['tools'].values(),*manifest['parameterFiles'],*manifest['sourceGates'],manifest['acceptedBuild'],manifest['sdkBuild'],manifest['nativeRowsAcceptance'],manifest['approval'],spec['manifest'],spec['policy_template'],load(spec['policy_template'])['grant'],spec['python'],spec['node'],spec['bwrap'],*spec['system_libraries'].values()]
+    rows=[*manifest['sourceFiles'],*manifest['artifacts'].values(),*manifest['tools'].values(),*manifest['parameterFiles'],*manifest['sourceGates'],manifest['acceptedBuild'],manifest['sdkBuild'],manifest['nativeRowsAcceptance'],manifest['approval'],spec['manifest'],spec['policy_template'],load(spec['policy_template'])['grant'],spec['python'],spec['node'],spec['bwrap'],*[spec['system_libraries'][name]for name in sorted(spec['system_libraries'])]]
     shim=Path(manifest['tools']['docker']['path']).parent.parent
     for relative,origin in [('aleo_linux_sdk/docker_gate.py',SDK/'docker_gate.py'),('aleo_linux/receipts.py',KERNEL/'receipts.py')]:
         copy=pin(shim/relative);source=pin(origin);need((copy['bytes'],copy['sha256'])==(source['bytes'],source['sha256']),'owned shim sibling Source differs');rows.append(copy)
