@@ -3,10 +3,12 @@ import { ethers } from 'ethers';
 
 import {
   ERC20__factory,
+  LayerZeroV2HookIsm__factory,
   Mailbox__factory,
   MailboxClient__factory,
   MockLayerZeroEndpointV2__factory,
   MockLayerZeroUln302__factory,
+  ProxyAdmin__factory,
   StaticAggregationHook__factory,
   StaticAggregationIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -16,6 +18,7 @@ import {
   IsmType,
   LayerZeroV2ConfigMode,
   TokenType,
+  proxyAdmin,
 } from '@hyperlane-xyz/sdk';
 import type {
   IsmConfig,
@@ -55,6 +58,8 @@ import {
 } from '../consts.js';
 
 const PACKET_SERVICE_PORT = 3_803;
+// Anvil account #1: distinct from the deployer, which keeps the warp route.
+const LAYERZERO_ROUTER_OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
 interface LayerZeroMocks {
   endpoint: Address;
@@ -717,6 +722,70 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
 
     const check = await hyperlaneWarpCheck(routeId);
     expect(check.exitCode).to.equal(0);
+  });
+
+  it('hands only the LayerZero routers to a non-deployer owner on deploy', async () => {
+    const symbol = 'LZOW';
+    const configPath = `${TEMP_PATH}/layerzero-owner-warp.yaml`;
+    const routeId = getWarpRouteId(symbol, chains);
+    const warpCorePath = getCombinedWarpRoutePath(symbol, chains);
+    const config = configFor(symbol, {
+      wrapIsm: (ism) => ({
+        type: ism.type,
+        owner: LAYERZERO_ROUTER_OWNER,
+        endpoint: ism.endpoint,
+        layerZeroDomainId: ism.layerZeroDomainId,
+        pathways: ism.pathways,
+        urls: ism.urls,
+      }),
+    });
+    writeYamlOrJson(configPath, config);
+
+    const deploy = await hyperlaneWarpDeploy(configPath, routeId);
+    expect(deploy.exitCode).to.equal(0);
+
+    const multiProvider = await getMultiProvider();
+    const routers = await installedLayerZeroRouters(warpCorePath, chains);
+    for (const chain of chains) {
+      const provider = multiProvider.getProvider(chain);
+      const warpRouter = getDeployedWarpAddress(chain, warpCorePath);
+      const client = MailboxClient__factory.connect(warpRouter, provider);
+      expect(await client.owner()).to.equal(ANVIL_DEPLOYER_ADDRESS);
+      expect(
+        await ProxyAdmin__factory.connect(
+          await proxyAdmin(provider, warpRouter),
+          provider,
+        ).owner(),
+      ).to.equal(ANVIL_DEPLOYER_ADDRESS);
+
+      expect(
+        await LayerZeroV2HookIsm__factory.connect(
+          routers[chain],
+          provider,
+        ).owner(),
+      ).to.equal(LAYERZERO_ROUTER_OWNER);
+      const children = await StaticAggregationHook__factory.connect(
+        await client.hook(),
+        provider,
+      ).hooks('0x');
+      expect(children).to.have.length(2);
+      expect(children.map((child) => child.toLowerCase())).to.include(
+        routers[chain].toLowerCase(),
+      );
+
+      const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+      const derived = await new EvmLayerZeroV2HookIsmReader(
+        multiProvider,
+        chain,
+      ).deriveLayerZeroConfig(routers[chain]);
+      expect(Object.keys(derived.remoteRouters)).to.have.members([remote]);
+      expect(derived.remoteRouters[remote].router.toLowerCase()).to.equal(
+        routers[remote].toLowerCase(),
+      );
+    }
+
+    const check = await hyperlaneWarpCheck(routeId);
+    expect(check.exitCode, check.stdout).to.equal(0);
   });
 
   it('delivers a warp transfer over LayerZero through the packet service', async () => {
