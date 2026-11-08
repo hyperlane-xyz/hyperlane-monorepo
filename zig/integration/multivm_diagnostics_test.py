@@ -277,7 +277,7 @@ class RoleFailureProjectionControls(unittest.TestCase):
     def test_composite_projection_does_not_invent_scraper_or_extra_validator_logs(self):
         name='rust/main/utils/run-locally/src/sealevel/warp_route_composite_ism.rs';target=self.repo/name;target.write_bytes(b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))');raw=target.read_bytes();self.sources[name]={'path':str(target),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
         self.manifest['scenario']='sealevel-composite';self.owned=[r for r in self.owned if r['role']!='scraper'];self.exits=[r for r in self.exits if r['role']!='scraper'];self.save()
-        value=self.observe();self.assertEqual({r['role']for r in value['roles']},{'relayer','validator'});self.assertEqual([r['fixed_log']for r in value['fixed_role_logs']],['agent-logs/RLY-output.log','agent-logs/VL1-output.log'])
+        value=self.observe();self.assertEqual({r['role']for r in value['roles']},{'relayer','validator'});self.assertEqual([r['fixed_log']for r in value['fixed_role_logs']],['agent-logs/RLY-output.log','agent-logs/VL1-output.log','harness.log prefix RLY','harness.log prefix VL1'])
 
     def test_unmatched_epoch_product_parent_and_bool_status_refuse(self):
         original=copy.deepcopy(self.exits)
@@ -306,5 +306,35 @@ class RoleFailureProjectionControls(unittest.TestCase):
         target=self.case/'agent-logs/RLY-output.log';target.unlink();target.symlink_to(self.log)
         with self.assertRaises(ValueError):self.observe()
         target.unlink();value=self.observe();self.assertEqual(next(r for r in value['fixed_role_logs']if r['role']=='relayer')['status'],'absent')
+
+
+    def test_all_actual_SVM_harness_prefixes_capture_stderr_flags_when_stdout_is_empty(self):
+        (self.case/'agent-logs/RLY-output.log').write_bytes(b'')
+        self.log.write_bytes(b'<RLY> thread 10 panic: integer overflow\n<VL1> thread 11 panic: reached unreachable code\n<VL2> error: PrivateFailureName\n<VL3> panic: attempt to use null value\n<SCR> error: OtherPrivateFailure\n<OTHER> panic: incorrect alignment\n<RLY-private> panic: index out of bounds\nSECRET_TOKEN_ENV\n')
+        value=self.observe();rows={r['fixed_log']:r for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')}
+        self.assertEqual(set(rows),{'harness.log prefix '+p for p in ['RLY','VL1','VL2','VL3','SCR']})
+        expected={'RLY':['INTEGER_OVERFLOW','PANIC_HEADER_OBSERVED'],'VL1':['PANIC_HEADER_OBSERVED','UNREACHABLE'],'VL2':['ERROR_RETURN_HEADER_OBSERVED'],'VL3':['NULL_UNWRAP','PANIC_HEADER_OBSERVED'],'SCR':['ERROR_RETURN_HEADER_OBSERVED']}
+        for prefix,flags in expected.items():
+            row=rows['harness.log prefix '+prefix];self.assertEqual(row['finite_observed_flags'],flags);self.assertEqual(row['stream_scope'],'merged_prefixed_stdout_and_stderr');self.assertFalse(row['exact_pid_or_epoch_attribution'])
+        self.assertEqual(next(r for r in value['fixed_role_logs']if r['fixed_log']=='agent-logs/RLY-output.log')['finite_observed_flags'],[])
+        wire=json.dumps(value)
+        for private in ['PrivateFailureName','OtherPrivateFailure','SECRET_TOKEN_ENV','RLY-private','OTHER']:self.assertNotIn(private,wire)
+
+    def test_harness_capture_is_once_bounded_and_unavailable_never_masks_parent_waits(self):
+        real=api.captured_failure_bytes;calls=[]
+        def capture(path,maximum):
+            if Path(path)==self.log:calls.append(maximum)
+            return real(path,maximum)
+        with mock.patch.object(api,'captured_failure_bytes',side_effect=capture):value=self.observe()
+        self.assertEqual(calls,[32*1024**2]);self.assertEqual(len(value['roles']),3)
+        with self.log.open('wb')as stream:stream.truncate(32*1024**2+1)
+        with mock.patch.object(api.os,'open',wraps=api.os.open)as opened:value=self.observe()
+        self.assertNotIn(str(self.log),[str(c.args[0])for c in opened.call_args_list]);self.assertTrue(all(r['status']=='unavailable'for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')));self.assertEqual(len(value['roles']),3)
+        self.log.unlink();self.log.symlink_to(self.case/'agent-logs/RLY-output.log')
+        value=self.observe();self.assertTrue(all(r['status']=='unavailable'for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')))
+
+    def test_unowned_SVM_role_prefixes_do_not_grant_log_rows(self):
+        self.owned=[r for r in self.owned if r['role']=='relayer'];self.exits=[r for r in self.exits if r['role']=='relayer'];self.save();self.log.write_bytes(b'<SCR> panic: integer overflow\n<VL1> panic: reached unreachable code\n')
+        rows=self.observe()['fixed_role_logs'];self.assertEqual([r['fixed_log']for r in rows],['agent-logs/RLY-output.log','harness.log prefix RLY']);self.assertEqual(rows[-1]['finite_observed_flags'],[])
 
 if __name__=='__main__':unittest.main()

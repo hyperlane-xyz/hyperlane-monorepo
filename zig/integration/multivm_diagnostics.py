@@ -322,11 +322,14 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
         try:
             raw,fingerprint=captured_failure_bytes(target,32*1024**2);logs.append({'role':role,'fixed_log':relative,'status':'captured',**fingerprint,'finite_observed_flags':flags(raw),'exact_pid_or_epoch_attribution':False})
         except Exception:logs.append({'role':role,'fixed_log':relative,'status':'unavailable','exact_pid_or_epoch_attribution':False})
-    if manifest['scenario']=='sealevel'and any(row['role']=='scraper'for row in owned):
-        try:
-            raw,fingerprint=captured_failure_bytes(harness_log,32*1024**2);logs.append({'role':'scraper','fixed_log':'harness.log prefix SCR','status':'captured',**fingerprint,'finite_observed_flags':flags(raw,b'SCR'),'exact_pid_or_epoch_attribution':False})
-        except Exception:logs.append({'role':'scraper','fixed_log':'harness.log prefix SCR','status':'unavailable','exact_pid_or_epoch_attribution':False})
-    return {'schema':1,'kind':'public-SVM-role-failure-observation','writer_sources':writer_sources,'owned_child_journal':owned_pin,'parent_exit_journal':exit_pin,'roles':public,'fixed_role_logs':logs,'scope':'Actual existing parent wait records joined to admitted owned-child epochs/products. Finite plaintext role-log flags only, not Zig Sourceframes or original metrics HTTP/error attribution. Logs may contain multiple role epochs.','native_or_timing_or_cleanup_authority':False}
+    harness_prefixes={**prefixes,**({'SCR':'scraper'}if manifest['scenario']=='sealevel'else{})}
+    harness_prefixes={prefix:role for prefix,role in harness_prefixes.items()if any(row['role']==role for row in owned)}
+    try:raw,fingerprint=captured_failure_bytes(harness_log,32*1024**2)
+    except Exception:
+        logs.extend({'role':role,'fixed_log':'harness.log prefix '+prefix,'status':'unavailable','exact_pid_or_epoch_attribution':False}for prefix,role in harness_prefixes.items())
+    else:
+        logs.extend({'role':role,'fixed_log':'harness.log prefix '+prefix,'status':'captured',**fingerprint,'finite_observed_flags':flags(raw,prefix.encode()),'stream_scope':'merged_prefixed_stdout_and_stderr','exact_pid_or_epoch_attribution':False}for prefix,role in harness_prefixes.items())
+    return {'schema':1,'kind':'public-SVM-role-failure-observation','writer_sources':writer_sources,'owned_child_journal':owned_pin,'parent_exit_journal':exit_pin,'roles':public,'fixed_role_logs':logs,'scope':'Actual existing parent wait records joined to admitted owned-child epochs/products. Fixed role files contain stdout only; harness prefixes merge stdout and stderr. Finite flags only, not Zig Sourceframes, stderr-only or original metrics HTTP/error attribution. Logs may contain multiple role epochs.','native_or_timing_or_cleanup_authority':False}
 
 
 def validate_record(value,modules):
