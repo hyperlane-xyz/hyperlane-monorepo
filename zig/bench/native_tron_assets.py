@@ -1489,6 +1489,37 @@ def read_graph(row):
     path=checked(row);require(path.stat().st_size<=64*1024**2,'Bounded CLI payload manifest required');value=json.loads(path.read_text());verify_graph(value);return value
 
 
+# One closed diagnostic protocol; only the owned copied entrypoint is derived.
+CLI_CAUSE_MARKER = 'HYPERLANE_TRON_CAUGHT_V1 '
+CLI_CAUSE_CLASSES = ('Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError', 'URIError', 'EvalError', 'AggregateError', 'UNKNOWN')
+CLI_CAUSE_CODES = ('ENOENT', 'EACCES', 'EPERM', 'ENOSPC', 'EMFILE', 'ENFILE', 'EAI_AGAIN', 'ENOTFOUND', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED', 'ERR_INVALID_ARG_TYPE', 'ERR_INVALID_ARG_VALUE', 'ERR_INVALID_URL', 'ERR_UNKNOWN_FILE_EXTENSION', 'ERR_DLOPEN_FAILED', 'ERR_REQUIRE_ESM', 'INVALID_ARGUMENT', 'CALL_EXCEPTION', 'UNSUPPORTED_OPERATION', 'NETWORK_ERROR', 'SERVER_ERROR', 'TIMEOUT', 'BAD_DATA', 'UNKNOWN_ERROR')
+CLI_CAUSE_INSERT = b'    // Owned Tron failure-only derivative; never read message/stack/getters/toJSON.\n    try {\n        let nativeError = false, caughtClass = \'UNKNOWN\', caughtCode = null;\n        try {\n            nativeError = process.getBuiltinModule(\'node:util\').types.isNativeError(error);\n            if (nativeError) {\n                const prototype = Object.getPrototypeOf(error);\n                for (const [kind, name] of [[Error,\'Error\'],[TypeError,\'TypeError\'],[RangeError,\'RangeError\'],[ReferenceError,\'ReferenceError\'],[SyntaxError,\'SyntaxError\'],[URIError,\'URIError\'],[EvalError,\'EvalError\'],[AggregateError,\'AggregateError\']]) {\n                    if (prototype === kind.prototype) { caughtClass = name; break; }\n                }\n                const descriptor = Object.getOwnPropertyDescriptor(error, \'code\');\n                const code = descriptor && Object.hasOwn(descriptor, \'value\') ? descriptor.value : null;\n                if (typeof code === \'string\' && ["ENOENT","EACCES","EPERM","ENOSPC","EMFILE","ENFILE","EAI_AGAIN","ENOTFOUND","ECONNREFUSED","ECONNRESET","ETIMEDOUT","ERR_MODULE_NOT_FOUND","MODULE_NOT_FOUND","ERR_PACKAGE_PATH_NOT_EXPORTED","ERR_INVALID_ARG_TYPE","ERR_INVALID_ARG_VALUE","ERR_INVALID_URL","ERR_UNKNOWN_FILE_EXTENSION","ERR_DLOPEN_FAILED","ERR_REQUIRE_ESM","INVALID_ARGUMENT","CALL_EXCEPTION","UNSUPPORTED_OPERATION","NETWORK_ERROR","SERVER_ERROR","TIMEOUT","BAD_DATA","UNKNOWN_ERROR"].includes(code)) caughtCode = code;\n            }\n        } catch (_) {}\n        // Same synchronous writer as the original following errorRed call.\n        // All variable strings come only from the closed catalogs above.\n        errorRed(\'HYPERLANE_TRON_CAUGHT_V1 \' + \'{"schema":1,"native_error":\' + (nativeError ? \'true\' : \'false\') + \',"class":"\' + caughtClass + \'","code":\' + (caughtCode === null ? \'null\' : \'"\' + caughtCode + \'"\') + \',"stack":"NOT_READ_NO_GETTERS"}\');\n    } catch (_) {}\n'
+CLI_CATCH_BODY = b"    errorRed('Error: ' + error.message);\n    process.exit(1);"
+
+
+def cli_failure_derivative(original):
+    require(type(original)is bytes and 0<len(original)<=1024**2,'Bounded original CLI entry required')
+    require(CLI_CAUSE_INSERT not in original and original.count(CLI_CATCH_BODY)==1,'One unchanged original CLI catch required')
+    variants=[b'} catch (error) {\n'+CLI_CATCH_BODY+b'\n}',b'}\ncatch (error) {\n'+CLI_CATCH_BODY+b'\n}']
+    require(sum(original.count(v)for v in variants)==1,'Exact CLI outer catch shape required')
+    derived=original.replace(CLI_CATCH_BODY,CLI_CAUSE_INSERT+CLI_CATCH_BODY,1)
+    require(len(derived)<=1024**2 and derived.replace(CLI_CAUSE_INSERT,b'',1)==original,'Exact bounded derivative inverse required')
+    return derived
+
+
+def cli_derivative_entry(value):
+    relative='typescript/cli/dist/cli.js';row=value['entries'][relative];path=Path(value['root'])/relative
+    require(row['kind']=='file'and 0<row['bytes']<=1024**2,'Exact original graph CLI entry required')
+    require(pin(path)['sha256']==row['sha256']and pin(path)['bytes']==row['bytes'],'Original graph CLI entry changed')
+    return cli_failure_derivative(path.read_bytes())
+
+
+def cli_derivative_growth(value,fragment):
+    original=value['entries']['typescript/cli/dist/cli.js']['bytes'];derived=len(cli_derivative_entry(value))
+    charge=lambda n:max(fragment,((n+fragment-1)//fragment)*fragment)
+    return charge(derived)-charge(original)
+
+
 def copy_charge(value,fragment):
     require(type(fragment)is int and 0<fragment<=1024**2,'Actual bounded target filesystem fragment required')
     def charge(name,row):
@@ -1499,7 +1530,7 @@ def copy_charge(value,fragment):
     total+=sum(charge(name,row)for name,row in value['entries'].items()if name.startswith(prefixes)or name=='typescript/cli/package.json')
     # Root dirs plus bounded graph/copy/required-input metadata. The original
     # owner additionally charges exact2GiB PG tmpfs; reserve it BEFORE copying.
-    return total+32*fragment+256*1024**2
+    return total+32*fragment+256*1024**2+cli_derivative_growth(value,fragment)
 
 
 def copy_allocation_note(value,fragment,existing_case_allocated,copy_bytes,host_free,case_cap):
@@ -1510,9 +1541,9 @@ def copy_allocation_note(value,fragment,existing_case_allocated,copy_bytes,host_
     graph_bytes=sum(charge(row)for row in value['entries'].values())
     prefixes=('typescript/cli/dist/','typescript/cli/test-configs/tron/')
     duplicate_bytes=sum(charge(row)for name,row in value['entries'].items()if name.startswith(prefixes)or name=='typescript/cli/package.json')
-    directories=32*fragment;metadata=256*1024**2
-    require(graph_bytes+duplicate_bytes+directories+metadata==copy_bytes,'Diagnostic copy decomposition differs')
-    fields={'schema':1,'filesystem_fragment_bytes':fragment,'existing_case_allocated_bytes':existing_case_allocated,'graph_payload_charge_bytes':graph_bytes,'duplicate_entrypoint_charge_bytes':duplicate_bytes,'root_directory_charge_bytes':directories,'metadata_reserve_bytes':metadata,'copy_charge_bytes':copy_bytes,'PG_reservation_bytes':2*GIB,'final_required_bytes':existing_case_allocated+copy_bytes+2*GIB,'original_case_cap_bytes':case_cap,'observed_host_free_bytes':host_free,'host_free_floor_bytes':6*GIB,'required_host_free_bytes':6*GIB+copy_bytes}
+    directories=32*fragment;metadata=256*1024**2;derivative_growth=cli_derivative_growth(value,fragment)
+    require(graph_bytes+duplicate_bytes+directories+metadata+derivative_growth==copy_bytes,'Diagnostic copy decomposition differs')
+    fields={'schema':1,'filesystem_fragment_bytes':fragment,'existing_case_allocated_bytes':existing_case_allocated,'graph_payload_charge_bytes':graph_bytes,'duplicate_entrypoint_charge_bytes':duplicate_bytes,'root_directory_charge_bytes':directories,'metadata_reserve_bytes':metadata,'diagnostic_entry_growth_charge_bytes':derivative_growth,'copy_charge_bytes':copy_bytes,'PG_reservation_bytes':2*GIB,'final_required_bytes':existing_case_allocated+copy_bytes+2*GIB,'original_case_cap_bytes':case_cap,'observed_host_free_bytes':host_free,'host_free_floor_bytes':6*GIB,'required_host_free_bytes':6*GIB+copy_bytes}
     require(all(type(v)is int and 0<=v<2**63 for v in fields.values()),'Closed diagnostic allocation scalars required')
     note='PUBLIC_TRON_COPY_ALLOCATION '+json.dumps(fields,sort_keys=True,separators=(',',':'))
     require(len(note.encode())<=4096,'Bounded public copy allocation note required')
@@ -1542,6 +1573,7 @@ def materialize(value,destination,existing_case_allocated,case_cap):
     # The Rust checked_owned_path entrypoint has NO symlink parent. pnpm package
     # resolution may use only relative links into the already pinned own graph.
     shutil.copytree(workspace/'typescript/cli/dist',destination/'dist',symlinks=False)
+    entry=destination/'dist/cli.js';entry.write_bytes(cli_derivative_entry(copied))
     shutil.copytree(workspace/'typescript/cli/test-configs/tron',destination/'test-configs/tron',symlinks=False)
     shutil.copyfile(workspace/'typescript/cli/package.json',destination/'package.json')
     (destination/'node_modules').symlink_to('.workspace/typescript/cli/node_modules')
@@ -1551,13 +1583,16 @@ def materialize(value,destination,existing_case_allocated,case_cap):
             require(not path.is_symlink(),'CLI data/dist may not introduce link parents')
             if path.is_file()and str(path.relative_to(destination))not in MUTABLE_REGISTRY:immutable.append(pin(path))
     immutable.append(pin(destination/'package.json'))
-    return {'schema':1,'root':str(destination),'workspace':copied,'entrypoint':pin(destination/'dist/cli.js'),'immutable_files':immutable,'mutable_registry_slots':[str(destination/name)for name in MUTABLE_REGISTRY],'native_case_acceptance':False}
+    return {'schema':1,'root':str(destination),'workspace':copied,'diagnostic_derivative':{'kind':'Tron-catch-only-diagnostic-v1','original_entrypoint':pin(workspace/'typescript/cli/dist/cli.js'),'original_message_and_exit_flow_preserved':True},'entrypoint':pin(destination/'dist/cli.js'),'immutable_files':immutable,'mutable_registry_slots':[str(destination/name)for name in MUTABLE_REGISTRY],'native_case_acceptance':False}
 
 
 def verify_materialized(value):
     require(value['schema']==1 and value['native_case_acceptance']is False,'Owned CLI graph receipt required');root=Path(value['root']);require(root.is_absolute()and not root.is_symlink(),'Owned CLI root differs');verify_graph(value['workspace'])
     require((root/'node_modules').is_symlink()and os.readlink(root/'node_modules')=='.workspace/typescript/cli/node_modules','Owned CLI dependency alias changed')
     checked(value['entrypoint'])
+    original=Path(value['workspace']['root'])/'typescript/cli/dist/cli.js'
+    require(value['diagnostic_derivative']=={'kind':'Tron-catch-only-diagnostic-v1','original_entrypoint':pin(original),'original_message_and_exit_flow_preserved':True},'Exact derivative provenance required')
+    require(0<value['entrypoint']['bytes']<=1024**2 and Path(value['entrypoint']['path'])==root/'dist/cli.js'and (root/'dist/cli.js').read_bytes()==cli_derivative_entry(value['workspace']),'Only exact original-graph catch derivative admitted')
     for row in value['immutable_files']:checked(row)
     require(value['mutable_registry_slots']==[str(root/name)for name in MUTABLE_REGISTRY],'Only the two Source registry address files may mutate')
     actual=[]

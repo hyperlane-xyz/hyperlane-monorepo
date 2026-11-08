@@ -15,7 +15,7 @@ class Assets(unittest.TestCase):
   repo=self.root/'workspace';repo.mkdir();(repo/'node_modules').mkdir()
   for name in a.PACKAGE_ROOTS:
    path=repo/name;path.mkdir(parents=True,exist_ok=True);(path/'package.json').write_text(json.dumps({'name':'@fixture/'+path.name}))
-  for name,data in [('typescript/cli/dist/cli.js',b'// not executable SDK data'),('solidity/dist/tron/typechain/factories/index.js',b'// actual fixture output'),('solidity/dist/buildArtifact.json',b'{}')]:
+  for name,data in [('typescript/cli/dist/cli.js',b"try { publicFixture(); }\ncatch (error) {\n    errorRed('Error: ' + error.message);\n    process.exit(1);\n}\n"),('solidity/dist/tron/typechain/factories/index.js',b'// actual fixture output'),('solidity/dist/buildArtifact.json',b'{}')]:
    path=repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
   cli=repo/'typescript/cli';(cli/'node_modules').mkdir();(cli/'src').mkdir();(cli/'src/version.ts').write_text("export const VERSION = '45.1.0';\n");(cli/'package.json').write_text(json.dumps({'name':'@hyperlane-xyz/cli','version':'45.1.0','scripts':{'hyperlane':'node ./dist/cli.js'}}));(repo/'package.json').write_text(json.dumps({'packageManager':'pnpm@12.3.0'}));(repo/'.nvmrc').write_text('26.12.1\n')
   for i,name in enumerate(['anvil1','anvil2']):
@@ -125,10 +125,10 @@ class Assets(unittest.TestCase):
   with self.assertRaises(ValueError):a.materialize(v,d,0,8*a.GIB)
   self.assertEqual((d/'marker').read_text(),'preserve')
  def test_copy_charge_formula_unchanged_and_public_breakdown_scalar_only(self):
-  value={'entries':{'private-package-path':{'kind':'file','bytes':4097},'directory':{'kind':'directory'},'link':{'kind':'symlink'},'typescript/cli/dist/cli.js':{'kind':'file','bytes':0},'typescript/cli/test-configs/tron/data':{'kind':'file','bytes':7},'typescript/cli/package.json':{'kind':'file','bytes':8193}}}
+  value=self.graph()
   for fragment in [1,4096,65536]:
-   charge=a.copy_charge(value,fragment);note=a.copy_allocation_note(value,fragment,123,charge,8*a.GIB,8*a.GIB);self.assertTrue(note.startswith('PUBLIC_TRON_COPY_ALLOCATION '));self.assertLessEqual(len(note.encode()),4096);self.assertNotIn('private-package-path',note)
-   d=json.loads(note.split(' ',1)[1]);self.assertTrue(all(type(v)is int for v in d.values()));self.assertEqual(d['graph_payload_charge_bytes']+d['duplicate_entrypoint_charge_bytes']+d['root_directory_charge_bytes']+d['metadata_reserve_bytes'],charge);self.assertEqual(d['root_directory_charge_bytes'],32*fragment);self.assertEqual(d['metadata_reserve_bytes'],256*1024**2);self.assertEqual(d['PG_reservation_bytes'],2*a.GIB);self.assertEqual(d['final_required_bytes'],123+charge+2*a.GIB);self.assertEqual(d['original_case_cap_bytes'],8*a.GIB)
+   charge=a.copy_charge(value,fragment);note=a.copy_allocation_note(value,fragment,123,charge,8*a.GIB,8*a.GIB);self.assertTrue(note.startswith('PUBLIC_TRON_COPY_ALLOCATION '));self.assertLessEqual(len(note.encode()),4096);self.assertNotIn(str(self.root),note)
+   d=json.loads(note.split(' ',1)[1]);self.assertTrue(all(type(v)is int for v in d.values()));self.assertEqual(d['graph_payload_charge_bytes']+d['duplicate_entrypoint_charge_bytes']+d['root_directory_charge_bytes']+d['metadata_reserve_bytes']+d['diagnostic_entry_growth_charge_bytes'],charge);self.assertEqual(d['root_directory_charge_bytes'],32*fragment);self.assertEqual(d['metadata_reserve_bytes'],256*1024**2);self.assertEqual(d['PG_reservation_bytes'],2*a.GIB);self.assertEqual(d['final_required_bytes'],123+charge+2*a.GIB);self.assertEqual(d['original_case_cap_bytes'],8*a.GIB)
  def test_actual_precopy_guard_preserves_message_and_adds_existing_numeric_note(self):
   value=self.graph();destination=self.root/'oversized-numeric';fragment=os.statvfs(self.root).f_frsize;charge=a.copy_charge(value,fragment)
   with self.assertRaises(ValueError)as caught:a.materialize(value,destination,8*a.GIB,8*a.GIB)
@@ -278,6 +278,30 @@ class Assets(unittest.TestCase):
   repo,pins=self.bigint_loader_pins();relative,policy=next(iter(self.bigint_rows().items()))
   for name in [relative+'extra',relative.replace('@1.1.9/','@1.1.10/'),relative.replace('darwin-x64','darwin-arm64')]:
    with mock.patch.object(a,'pin',side_effect=AssertionError('Unknown path must not inspect borrowed loaders')):self.assertFalse(a.unselected_prebuild_data(repo,name,policy,0o644,bytes.fromhex(policy['header20_hex']),'amd64'))
+ def test_catch_derivative_is_unique_fullfile_inverse_and_original_graph_unchanged(self):
+  value=self.graph();source=pathlib.Path(value['root'])/'typescript/cli/dist/cli.js';original=source.read_bytes();derived=a.cli_derivative_entry(value)
+  self.assertEqual(derived.replace(a.CLI_CAUSE_INSERT,b'',1),original);self.assertEqual(derived.count(a.CLI_CAUSE_INSERT),1);self.assertIn(a.CLI_CAUSE_INSERT+a.CLI_CATCH_BODY,derived)
+  out=a.materialize(value,self.root/'derivative',0,8*a.GIB);self.assertEqual(pathlib.Path(out['entrypoint']['path']).read_bytes(),derived);self.assertEqual(source.read_bytes(),original);self.assertEqual((pathlib.Path(out['workspace']['root'])/'typescript/cli/dist/cli.js').read_bytes(),original);a.verify_materialized(out);receipt=self.root/'materialized.json';receipt.write_text(json.dumps(out));a.read_materialized(a.pin(receipt))
+ def test_catch_missing_duplicate_changed_or_already_instrumented_refused(self):
+  original=b"try { publicFixture(); }\ncatch (error) {\n"+a.CLI_CATCH_BODY+b"\n}\n"
+  for bad in [b'no catch',original+original,original.replace(b'error.message',b'error.reason'),a.cli_failure_derivative(original),original.replace(b'catch (error)',b'catch (other)')]:
+   with self.subTest(size=len(bad)),self.assertRaises(ValueError):a.cli_failure_derivative(bad)
+  with self.assertRaises(ValueError):a.cli_failure_derivative(original+b'x'*1024**2)
+ def test_rehashed_entry_or_receipt_cannot_admit_noninverse_derivative(self):
+  value=self.graph();out=a.materialize(value,self.root/'noninverse',0,8*a.GIB);entry=pathlib.Path(out['entrypoint']['path']);entry.write_bytes(entry.read_bytes()+b'// foreign change');row=a.pin(entry);out['entrypoint']=row;out['immutable_files']=[row if r['path']==str(entry)else r for r in out['immutable_files']]
+  with self.assertRaisesRegex(ValueError,'Only exact original-graph'):a.verify_materialized(out)
+ def test_derivative_receipt_and_original_entry_must_remain_exact(self):
+  value=self.graph();out=a.materialize(value,self.root/'bad-receipt',0,8*a.GIB);out['diagnostic_derivative']['original_message_and_exit_flow_preserved']=False
+  with self.assertRaisesRegex(ValueError,'Exact derivative provenance'):a.verify_materialized(out)
+ def test_diagnostic_entry_growth_is_charged_before_copy_without_reserve_increase(self):
+  value=self.graph();original=value['entries']['typescript/cli/dist/cli.js']['bytes'];derived=len(a.cli_derivative_entry(value))
+  for fragment in [1,4096,65536]:
+   charge=lambda n:max(fragment,((n+fragment-1)//fragment)*fragment)
+   self.assertEqual(a.cli_derivative_growth(value,fragment),charge(derived)-charge(original));self.assertGreaterEqual(a.cli_derivative_growth(value,fragment),0)
+  fragment=os.statvfs(self.root).f_frsize;copy=a.copy_charge(value,fragment);cap=8*a.GIB;existing=cap-2*a.GIB-copy+1
+  with self.assertRaises(ValueError):a.materialize(value,self.root/'one-byte-over',existing,cap)
+  self.assertFalse((self.root/'one-byte-over').exists())
+
 class LockedPackageBatch(unittest.TestCase):
  # Published archives are exhaustively audited outside this test. These tests
  # exercise the actual admission function without loading any addon/SDK/CLI.

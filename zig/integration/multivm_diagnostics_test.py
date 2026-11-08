@@ -896,4 +896,38 @@ class TronCLIAdmittedProjectionControls(unittest.TestCase):
         result=api.tron_cli_unavailable('PRIVATE_REASON https://PRIVATE_URL','PRIVATE_FRONTIER')
         self.assertEqual(result['discard_reason'],'COLLECTOR_FAILED');self.assertEqual(result['frontier'],'WINDOW_SCAN');self.assertNotIn('PRIVATE',json.dumps(result));self.assertFalse(result['native_or_timing_or_cleanup_authority'])
 
+
+class TronCaughtCauseControls(unittest.TestCase):
+    def setUp(self):
+        self.f=TronCLIAdmittedProjectionControls();self.f.setUp();self.addCleanup(self.f.doCleanups)
+        self.source=self.f.f.repo/'zig/bench/native_tron_assets.py';self.source.parent.mkdir(parents=True);self.source.write_bytes((Path(__file__).resolve().parents[1]/'bench/native_tron_assets.py').read_bytes())
+        constants={node.targets[0].id:ast.literal_eval(node.value)for node in ast.parse(self.source.read_bytes()).body if isinstance(node,ast.Assign)and len(node.targets)==1 and isinstance(node.targets[0],ast.Name)and node.targets[0].id in {'CLI_CAUSE_INSERT','CLI_CATCH_BODY'}}
+        self.f.entry.write_bytes(b'try { fixture(); }\ncatch (error) {\n'+constants['CLI_CAUSE_INSERT']+constants['CLI_CATCH_BODY']+b'\n}\n');row=api.pin(self.f.entry);self.f.required=[row if r['path']==str(self.f.entry)else r for r in self.f.required]+[api.pin(self.source)];self.f.inputs['tron_tre']['cli_entrypoint']=row;self.f.f.approval['tron_tre']=copy.deepcopy(self.f.inputs['tron_tre'])
+    def record(self,**changes):
+        value={'schema':1,'native_error':True,'class':'TypeError','code':'ERR_INVALID_ARG_TYPE','stack':'NOT_READ_NO_GETTERS'};value.update(changes);return self.f.line('HYPERLANE_TRON_CAUGHT_V1 '+json.dumps(value,separators=(',',':')))
+    def observe(self,body):return self.f.observe(self.f.log(body))['CLI_failure']
+    def test_source_bound_closed_caught_record_preserves_existing_primary(self):
+        value=self.observe(self.record()+self.f.line('Error: PRIVATE_MESSAGE https://PRIVATE_URL/?token=PRIVATE_TOKEN'));cause=value['caught_cause'];self.assertEqual(cause['collection_status'],'observed');self.assertEqual(cause['reported_standard_class'],'TypeError');self.assertEqual(cause['own_data_code'],'ERR_INVALID_ARG_TYPE');self.assertTrue(cause['native_error_object']);self.assertFalse(cause['typed_exception_or_root_cause_claim']);self.assertEqual(len(value['error_header_fingerprints']),1)
+        public=json.dumps(value)
+        for secret in ['PRIVATE_MESSAGE','PRIVATE_URL','PRIVATE_TOKEN',str(self.f.case)]:self.assertNotIn(secret,public)
+    def test_non_native_and_unknown_code_have_no_invented_type(self):
+        cause=self.observe(self.record(native_error=False,**{'class':'UNKNOWN','code':None}))['caught_cause'];self.assertFalse(cause['native_error_object']);self.assertEqual(cause['reported_standard_class'],'UNKNOWN');self.assertIsNone(cause['own_data_code'])
+        self.assertEqual(self.observe(self.record(code=None))['caught_cause']['collection_status'],'observed')
+    def test_unknown_payload_types_fields_duplicate_or_oversized_never_publish(self):
+        cases=[self.record(code='PRIVATE_CODE'),self.record(**{'class':'PRIVATE_CLASS'}),self.record(schema=True),self.record(native_error=1),self.record(stack='PRIVATE_STACK'),self.record(native_error=False),self.record(extra='PRIVATE_VALUE'),self.record()*2,self.f.line('HYPERLANE_TRON_CAUGHT_V1 '+('x'*4097)),self.f.line('HYPERLANE_TRON_CAUGHT_V1 {"schema":1,"schema":1}')]
+        for wire in cases:
+            with self.subTest(size=len(wire)):
+                value=self.observe(wire);self.assertEqual(value['caught_cause']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_marker_requires_original_window_and_admitted_derivative(self):
+        value=self.f.observe(self.record()+self.f.log()+self.record())['CLI_failure'];self.assertEqual(value['caught_cause']['reason'],'MARKER_NOT_OBSERVED')
+        self.f.entry.write_bytes(b"errorRed('Error: ' + error.message); process.exit(1);");row=api.pin(self.f.entry);self.f.required=[row if r['path']==str(self.f.entry)else r for r in self.f.required];self.f.inputs['tron_tre']['cli_entrypoint']=row;self.f.f.approval['tron_tre']=copy.deepcopy(self.f.inputs['tron_tre']);self.assertEqual(self.observe(self.record())['caught_cause'],{'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_UNAVAILABLE'})
+    def test_missing_mismatched_or_changed_source_refuses_without_raw_reason(self):
+        original=list(self.f.required);self.f.required=[r for r in original if r['path']!=str(self.source)];self.assertEqual(self.observe(self.record())['caught_cause'],{'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_UNAVAILABLE'})
+        self.f.required=original;self.source.write_bytes(self.source.read_bytes()+b'\n');self.assertEqual(self.observe(self.record())['caught_cause'],{'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_UNAVAILABLE'})
+    def test_publication_rechecks_captured_source(self):
+        original=api.TronCLIProjection.public
+        def changed(state):self.source.write_bytes(self.source.read_bytes()+b'\n');return original(state)
+        with mock.patch.object(api.TronCLIProjection,'public',changed):value=self.observe(self.record())
+        self.assertEqual(value['caught_cause'],{'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_CHANGED'})
+
 if __name__=='__main__':unittest.main()

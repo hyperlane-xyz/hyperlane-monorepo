@@ -1,5 +1,6 @@
 """Bounded public observer diagnostics; no messages, request data or proof credit."""
 from pathlib import Path
+import ast
 import copy
 import hashlib
 import io
@@ -1132,6 +1133,22 @@ class TronCLIProjection:
             self.join_source={'module':name,'source':sources[name],'line':82,'column':23};self.join_identity=RelayerStartup.identity(path)
         except Exception:self.source_capture_failures=1
 
+        self.cause=None;self.cause_reason='MARKER_NOT_OBSERVED';self.cause_seen=0;self.cause_contract=None;self.cause_identity=None;self.cause_path=None
+        try:
+            source=Path(repo)/'zig/bench/native_tron_assets.py';raw,source_pin=captured_failure_bytes(source,1024**2)
+            matches=[row for row in required_inputs if row.get('path')==str(source)]
+            if not matches or any(row!={'path':str(source),**source_pin}for row in matches):raise ValueError('Preadmitted CLI diagnostic Source required')
+            names={'CLI_CAUSE_MARKER','CLI_CAUSE_CLASSES','CLI_CAUSE_CODES','CLI_CAUSE_INSERT'};constants={}
+            for node in ast.parse(raw).body:
+                if isinstance(node,ast.Assign)and len(node.targets)==1 and isinstance(node.targets[0],ast.Name)and node.targets[0].id in names:
+                    if node.targets[0].id in constants:raise ValueError('Unique CLI diagnostic constant required')
+                    constants[node.targets[0].id]=ast.literal_eval(node.value)
+            if set(constants)!=names or constants['CLI_CAUSE_MARKER']!='HYPERLANE_TRON_CAUGHT_V1 'or type(constants['CLI_CAUSE_INSERT'])is not bytes or not 0<len(constants['CLI_CAUSE_INSERT'])<=4096 or wire.count(constants['CLI_CAUSE_INSERT'])!=1:raise ValueError('Exact catch derivative Source required')
+            for key in ['CLI_CAUSE_CLASSES','CLI_CAUSE_CODES']:
+                if type(constants[key])is not tuple or not 0<len(constants[key])<=64 or len(set(constants[key]))!=len(constants[key])or any(type(v)is not str or re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',v)is None for v in constants[key]):raise ValueError('Closed CLI diagnostic catalog required')
+            self.cause_contract={**constants,'pin':source_pin};self.cause_identity=RelayerStartup.identity(source);self.cause_path=source
+        except Exception:self.cause_reason='DIAGNOSTIC_SOURCE_UNAVAILABLE'
+
     def capture(self,path):
         if path in self.files:return self.files[path]['wire']
         candidate=Path(path)
@@ -1183,6 +1200,18 @@ class TronCLIProjection:
             except Exception:return
         try:message=text.decode('utf8','strict').strip()
         except UnicodeError:return
+        if message.startswith('HYPERLANE_TRON_CAUGHT_V1 '):
+            self.cause_seen+=1
+            if self.cause_seen!=1:self.cause=None;self.cause_reason='AMBIGUOUS_DIAGNOSTIC_RECORD';return
+            if self.cause_contract is None:return
+            try:
+                if len(text)>4096:raise ValueError('CLI diagnostic record bound')
+                value=startup_unique_json(message[len('HYPERLANE_TRON_CAUGHT_V1 '):])
+                if set(value)!={'schema','native_error','class','code','stack'}or type(value['schema'])is not int or value['schema']!=1 or type(value['native_error'])is not bool or value['class']not in self.cause_contract['CLI_CAUSE_CLASSES']or value['stack']!='NOT_READ_NO_GETTERS'or not(value['code']is None or type(value['code'])is str and value['code']in self.cause_contract['CLI_CAUSE_CODES']):raise ValueError('Closed CLI cause record required')
+                if not value['native_error']and(value['class']!='UNKNOWN'or value['code']is not None):raise ValueError('Non-error cause must be unknown')
+                self.cause={'collection_status':'observed','native_error_object':value['native_error'],'reported_standard_class':value['class'],'own_data_code':value['code'],'stack_status':value['stack'],'log_line':line,'typed_exception_or_root_cause_claim':False};self.cause_reason=None
+            except Exception:self.cause=None;self.cause_reason='INVALID_DIAGNOSTIC_RECORD'
+            return
         fixed={
             'Hyperlane Core deployment':('dist/src/commands/core.js',b'logCommandHeader',b'Hyperlane Core deployment','CORE_DEPLOY_HEADER'),
             'Running pre-flight checks for chains...':('dist/src/deploy/utils.js',b'log',b'Running pre-flight checks for chains...','PREFLIGHT_HEADER'),
@@ -1228,4 +1257,6 @@ class TronCLIProjection:
         if not self.qualified or self.state!='frozen':return {**tron_cli_unavailable(self.reason or'NO_QUALIFIED_WINDOW',self.frontier),'join_source_status':'MATCHED'if self.join_source is not None else'UNAVAILABLE','source_capture_failures':self.source_capture_failures}
         if any(RelayerStartup.identity(Path(path))!=row['identity']for path,row in self.files.items()):raise ValueError('Emitted Source identity changed before publication')
         if self.join_count and RelayerStartup.identity(Path(self.join_source['source']['path']))!=self.join_identity:raise ValueError('Helper join Source changed before publication')
-        return {'schema':1,'kind':'public-Tron-CLI-failure-text-observation','frontier':self.frontier,'source_capture_failures':self.source_capture_failures,'known_join_cascade_count':self.join_count,'known_join_Source':{'module':self.join_source['module'],'line':82,'column':23,'source_bytes':self.join_source['source']['bytes'],'source_sha256':self.join_source['source']['sha256']}if self.join_count else None,'collection_status':'observed','window':{'stage':'CORE_DEPLOY_FIRST_ENTERED','start_log_line':self.start_line,'end_log_line':self.end_line,'matched_Source_panic_category':'HYPERLANE_CORE_DEPLOY'},'prefix_kind':'admitted_pnpm_native_basename','last_seen_header':self.last_header,'error_header_fingerprints':self.headers,'emitted_JS_coordinates':self.frames,'unadmitted_coordinates_omitted':self.unadmitted,'frame_candidates_truncated':self.frame_attempts_truncated,'CLI_pipe_read_error_observed':self.pipe_error,'CLI_numeric_status':None,'native_or_timing_or_cleanup_authority':False,'scope':'Exact prefixed text within one Source first-deploy/panic window only. Source bytes/UTF16 coordinates matched existing admitted JS descriptors, not unique execution/PIDepoch/typed exception or parent wait. CLI catch prints message only; absent stack/unknown text stays unknown. No TS/sourcemap claim, function/address/rawpath/key/URL/argv/env/body/error text.'}
+        caught=self.cause or{'collection_status':'unavailable','reason':self.cause_reason}
+        if self.cause_contract is not None and RelayerStartup.identity(self.cause_path)!=self.cause_identity:caught={'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_CHANGED'}
+        return {'schema':1,'kind':'public-Tron-CLI-failure-text-observation','caught_cause':caught,'caught_cause_scope':'Fixed catch-only derivative marker on the original errorRed writer. No message/stack/getter/toJSON access or unique PID/typed exception/root-cause credit.','frontier':self.frontier,'source_capture_failures':self.source_capture_failures,'known_join_cascade_count':self.join_count,'known_join_Source':{'module':self.join_source['module'],'line':82,'column':23,'source_bytes':self.join_source['source']['bytes'],'source_sha256':self.join_source['source']['sha256']}if self.join_count else None,'collection_status':'observed','window':{'stage':'CORE_DEPLOY_FIRST_ENTERED','start_log_line':self.start_line,'end_log_line':self.end_line,'matched_Source_panic_category':'HYPERLANE_CORE_DEPLOY'},'prefix_kind':'admitted_pnpm_native_basename','last_seen_header':self.last_header,'error_header_fingerprints':self.headers,'emitted_JS_coordinates':self.frames,'unadmitted_coordinates_omitted':self.unadmitted,'frame_candidates_truncated':self.frame_attempts_truncated,'CLI_pipe_read_error_observed':self.pipe_error,'CLI_numeric_status':None,'native_or_timing_or_cleanup_authority':False,'scope':'Exact prefixed text within one Source first-deploy/panic window only. Source bytes/UTF16 coordinates matched existing admitted JS descriptors, not unique execution/PIDepoch/typed exception or parent wait. Original CLI catch prints message only; derivative adds only closed class/code observations; absent stack/unknown text stays unknown. No TS/sourcemap claim, function/address/rawpath/key/URL/argv/env/body/error text.'}

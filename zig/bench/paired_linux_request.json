@@ -143,11 +143,11 @@
     },
     {
       "path": "zig/bench/native_tron_assets.py",
-      "bytes": 190294,
+      "bytes": 195495,
       "sha256": {
         "sha256_hex_chunks": [
-          "1142516c4ae1d81c4d0f5153bd78c3a4",
-          "69173402a40e06ae8ae438218ae4e2a2"
+          "65d40aa60c3b7dae78dcf787ac912aa3",
+          "abe4ebb360c5bb71a07ea42fb6d4119e"
         ]
       }
     },
