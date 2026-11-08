@@ -151,6 +151,38 @@ export function install(policyPath, expectedSha) {
   const allowedFiles = new Map(policy.allowed_worker_files.map(p => [p.path,p]));
   const sdkFiles = new Map(policy.allowed_sdk_worker_files.map(p => [p.path,p]));
   requireValue(sdkFiles.size === 4 && [...sdkFiles.keys()].every(p => allowedFiles.has(p)), 'closed SDK Worker target set required');
+  if (capability === 'sdk' && !threads.isMainThread) {
+    // Both pinned network polyfills install these accessors without setting
+    // configurable. On an existing property omission retains its original flag.
+    // Admit the actual Source contract before touching any worker globals.
+    const groups = new Map();
+    for (const pin of sdkFiles.values()) {
+      verify(pin);
+      const wire = fs.readFileSync(pin.path);
+      requireValue(wire.length === pin.bytes && sha(wire) === pin.sha256, 'captured SDK worker Source differs');
+      const network = path.basename(path.dirname(pin.path));
+      const name = path.basename(pin.path);
+      requireValue(['mainnet','testnet'].includes(network) && ['node-polyfill.js','worker.js'].includes(name), 'SDK worker Source layout differs');
+      const key = `${network}/${name}`;
+      requireValue(!groups.has(key), 'duplicate SDK worker Source role');
+      groups.set(key, wire.toString('utf8'));
+    }
+    requireValue(groups.size === 4 && ['mainnet','testnet'].every(network => ['node-polyfill.js','worker.js'].every(name => groups.has(`${network}/${name}`))), 'exact SDK Source network pairs required');
+    for (const network of ['mainnet','testnet']) {
+      const source = groups.get(`${network}/node-polyfill.js`);
+      const marker = '    const makeSetter = (prop, event) => {';
+      const start = source.indexOf(marker);
+      const end = source.indexOf('    };', start);
+      requireValue(start >= 0 && source.indexOf(marker, start + 1) === -1 && end > start &&
+        sha(Buffer.from(source.slice(start,end + 6))) === '5a9221b3a6b5884387b7871b75d88348'+'5dcadf850fffa1704f1641a9e7036c8e' &&
+        source.includes('if (!$worker.isMainThread) {\n    const globals = globalThis;') &&
+        source.includes('    makeSetter("onmessage", "message");\n    makeSetter("onmessageerror", "messageerror");\n    makeSetter("onerror", "error");'), 'exact SDK worker handler Source contract required');
+    }
+    const handlers = ['onmessage','onmessageerror','onerror'];
+    for (const name of handlers) if (Object.getOwnPropertyDescriptor(globalThis,name) !== undefined) deny('unexpected SDK worker global handler');
+    for (const name of handlers) Object.defineProperty(globalThis,name,{configurable:true});
+  }
+
   let workers=0;
   threads.Worker = class extends OriginalWorker {
     constructor(entry, options={}) {

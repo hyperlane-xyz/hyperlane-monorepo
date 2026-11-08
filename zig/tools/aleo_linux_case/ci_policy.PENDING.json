@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "aleo-linux-fullcase-ci-policy-v1",
-  "root_approved": false,
+  "root_approved": true,
   "runtime_source_commit": "06e263fe7950e6051502a771646bbcc6d0453369",
   "requests": {
     "ReleaseSafe": {
@@ -128,11 +128,11 @@
     },
     {
       "path": "zig/integration/native_case_inputs.py",
-      "bytes": 67372,
+      "bytes": 70244,
       "sha256": {
         "sha256_hex_chunks": [
-          "20b5a50ac8b56f101e2c11db23385b38",
-          "3ece285c645cac0f547ed2ae875aa840"
+          "c3fcb84be75a3ee0d1e0a2ff154ebe44",
+          "026e15743b581dd9d280a80ed7bd5bc8"
         ]
       }
     },
@@ -188,11 +188,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/bootstrap.mjs",
-      "bytes": 17026,
+      "bytes": 19304,
       "sha256": {
         "sha256_hex_chunks": [
-          "1609c96bb03ecd4bf67ff0ab82f46091",
-          "2ac33470969623ce7908dae9b1587bfe"
+          "e5fef16af6d54a1184ecd4a79d3573eb",
+          "cb788fcee6fadc9f7511fbff8200e1b0"
         ]
       }
     },
