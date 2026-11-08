@@ -790,11 +790,25 @@ jobs:
           python3 -I -B zig/bench/native_case_setup_test.py -v
           python3 -I -B zig/bench/native_svm_assets_test.py -v
           python3 -I -B zig/bench/native_svm_case_test.py -v
+          python3 -I -B -W error zig/bench/native_svm_workspace_test.py -v
           python3 -I -B zig/bench/native_case_run_test.py -v
           python3 -I -B zig/bench/native_case_owner_test.py -v
           python3 -I -B zig/integration/multivm_restart_test.py -v
           python3 -I -B -W error zig/integration/multivm_restart_live_test.py -v
           python3 -I -B zig/integration/multivm_diagnostics_test.py -v
+      - name: Stage exact producer-baked Cargo for SVM workspace discovery only
+        if: steps.request.outputs.enabled == 'true'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRODUCER="$RUNNER_TEMP/native-case-producer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/producer-receipt.json"
+          python3 -I -B zig/bench/native_svm_workspace.py --execute \
+            --request "$GITHUB_WORKSPACE/zig/bench/native_case_request.json" \
+            --request-sha256 '${{ steps.request.outputs.sha256 }}' \
+            --producer-receipt "$PRODUCER" --producer-receipt-sha256 "$(sha256sum "$PRODUCER" | cut -d' ' -f1)" \
+            --execution-source-commit "$GITHUB_SHA" --repo "$GITHUB_WORKSPACE" \
+            --output "$RUNNER_TEMP/native-case-selection/svm-workspace-prerequisite.json"
       - name: Pin preinstalled tools; no CLI/SDK or chain main invoked
         if: steps.request.outputs.enabled == 'true'
         shell: bash
@@ -844,6 +858,7 @@ jobs:
           path: |
             ${{ runner.temp }}/native-case-selection/selection.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/producer-receipt.json
+            ${{ runner.temp }}/native-case-selection/svm-workspace-prerequisite.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/run.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/jobs-*.json
             ${{ runner.temp }}/native-case-producer-${{ github.run_id }}-${{ github.run_attempt }}/artifacts-*.json
