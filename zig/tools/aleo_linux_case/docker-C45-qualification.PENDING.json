@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "kind": "Root-qualified-portable-historical-C45-capability-header",
+  "root_approved": true,
+  "passed": true,
+  "passed_scope": "Previously Root-qualified C45 Docker capability prerequisite ONLY",
+  "source_commit": "cea7ef891ce13093503a3933854788327ff483de",
+  "run_id": 42439479527,
+  "run_attempt": 1,
+  "job_id": 128605426619,
+  "artifact_id": 13601395235,
+  "actual_public_archive": {
+    "bytes": 11975,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "ff82b31619a30de26792d4e058c035fb",
+        "6620653ffde66e9ecba6c247e94d9129"
+      ]
+    }
+  },
+  "Root_readback_fingerprint": {
+    "kind": "Root-independent-C45-capability-readback",
+    "bytes": 1226,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "a489c26952453de8972ab688a03fc4a6",
+        "e92f48fd66eb1967349caf97c5204ea8"
+      ]
+    }
+  },
+  "independent_peer_fingerprint": {
+    "kind": "independent-C45-capability-readback",
+    "bytes": 19200,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "43cc521a660d9c7199e501aa93621a8c",
+        "336c4be20e9c38b348925d4c55bf888f"
+      ]
+    }
+  },
+  "actual_closed_facts": {
+    "fresh_same_boot_kernel_and_actual_service_caps_verified": true,
+    "PG_rootless_backend_and_host_publisher_negative_verified": true,
+    "controlled_lost_create_CID_and_failed_shim_verified": true,
+    "all3_bootstrap_waits_and_client_wait0_verified": true,
+    "all3_CIDs_network_and_service_absent": true
+  },
+  "Leo_height": 3,
+  "Leo_stop_actual_shim_status": 0,
+  "current_job_or_boot_or_Node_or_Docker_admission": false,
+  "SDK_or_agent_or_proof_or_fullcase_or_performance_acceptance": false,
+  "same_job_all3_Docker_phases_must_run_again": true
+}

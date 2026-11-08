@@ -1,12 +1,592 @@
 {
   "schema": 1,
   "kind": "aleo-linux-fullcase-ci-policy-v1",
-  "root_approved": false,
-  "runtime_source_commit": null,
-  "requests": { "ReleaseSafe": null, "ReleaseFast": null },
-  "qualified_cohort": null,
-  "qualified_docker": null,
-  "required_source": null,
+  "root_approved": true,
+  "runtime_source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",
+  "requests": {
+    "ReleaseSafe": {
+      "path": "zig/tools/aleo_linux_case/transport-ReleaseSafe.PENDING.json",
+      "bytes": 3105,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "bae158250dfb71538bb510bc979b1d7a",
+          "12b694ce286763af8d79947dc73a4cd2"
+        ]
+      }
+    },
+    "ReleaseFast": {
+      "path": "zig/tools/aleo_linux_case/transport-ReleaseFast.PENDING.json",
+      "bytes": 3105,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "e2d51dbfbc241f90e2bd44628eeed9fb",
+          "01fba62df4cd2c5e8a044c6061af4c4b"
+        ]
+      }
+    }
+  },
+  "qualified_cohort": {
+    "path": "zig/tools/aleo_linux_case/cohort-qualification.PENDING.json",
+    "bytes": 6583,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "bb30d8479dcd0ebc59f2ad17186e6d80",
+        "40d8169395a130123dac80cb2087d64e"
+      ]
+    }
+  },
+  "qualified_docker": {
+    "path": "zig/tools/aleo_linux_case/docker-C45-qualification.PENDING.json",
+    "bytes": 1685,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "03dd02e857d8c2fa5d19a876cde7fbf7",
+        "eca7a17457f2bb4479c733e4b46214e6"
+      ]
+    }
+  },
+  "required_source": [
+    {
+      "path": ".github/workflows/zig-agents.yml",
+      "bytes": 90419,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "18532397048e2f046634c52f181b72d3",
+          "83f4dea90bddab10b3c29577ead652d3"
+        ]
+      }
+    },
+    {
+      "path": "zig/bench/cold_matrix_owner.py",
+      "bytes": 26673,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "981877a752abfebe0b1e620d2117b579",
+          "c9b89280c222acc0d8bba9c5c93a4435"
+        ]
+      }
+    },
+    {
+      "path": "zig/bench/native_case_ci.py",
+      "bytes": 22338,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "753f90a64b4b31dfc5137b33f780a785",
+          "b6d514bb957954aa9daf1bfd5627efe0"
+        ]
+      }
+    },
+    {
+      "path": "zig/bench/native_case_tools.py",
+      "bytes": 21844,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "f62eb4b61def5b0cde4eae60332cea8b",
+          "9a6e4d4f92e845525465007bfd1b7286"
+        ]
+      }
+    },
+    {
+      "path": "zig/bench/native_harness_census.py",
+      "bytes": 2888,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "3ac667693d8cb51ea940f59594085778",
+          "934e91d456de020298488f18167bc443"
+        ]
+      }
+    },
+    {
+      "path": "zig/bench/native_payload_export.py",
+      "bytes": 15966,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "6b6b714f6ae24f16dc5efe2da17b2a14",
+          "c25b9d73417be09e390c679eb4fe17a3"
+        ]
+      }
+    },
+    {
+      "path": "zig/integration/aleo_process.ts",
+      "bytes": 178001,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "8934e46a6b49f1184ab73c8d9a29c612",
+          "52ef3ef5c6758b407f6c40f58dca240a"
+        ]
+      }
+    },
+    {
+      "path": "zig/integration/aleo_process_test.ts",
+      "bytes": 70677,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "ef12775064c1437999c043779469762f",
+          "f8627f2698c6f97360927193d0f14847"
+        ]
+      }
+    },
+    {
+      "path": "zig/integration/native_case_inputs.py",
+      "bytes": 67263,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "8785ceb3463289068a0cbffcaa75bd10",
+          "0626d3b8bb55bbf9c92500d17f333664"
+        ]
+      }
+    },
+    {
+      "path": "zig/integration/native_rows_interop.py",
+      "bytes": 17328,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "993574ca7d8b457293b17d7b9ceced6c",
+          "c3b6bb4206bb8e33d800e7b493f74c07"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux/kernel_delegate.py",
+      "bytes": 15694,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "248187f051337060bb66097408cf016c",
+          "76669965d96d749b4662acabca5e6c64"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux/kernel_probe.py",
+      "bytes": 22023,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "316763823db23dacb4bdda91bc1ea1d8",
+          "0cd0cd0a456815eb195bfb7bd42143a1"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux/loopback_bridge.py",
+      "bytes": 7912,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "ca2a8372d7f25db7a16dc7636da34585",
+          "5d979004ea9f3290dc88a0ae8ac9fdbd"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux/receipts.py",
+      "bytes": 12287,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "a0dbe1ce96080a0f614605673994727a",
+          "85fa946b49632f27e70223a0afe917a6"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/bootstrap.mjs",
+      "bytes": 16836,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "77c7959d13e7a394e09dd8262aa6642e",
+          "af7a3f764df958e7c877548085eebdf6"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/bridge_close.py",
+      "bytes": 804,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "fc0de903b32841e94ed03043fa4e241e",
+          "28803f79b4ef584c62d1393214435a2c"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/cache_server.py",
+      "bytes": 3600,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "83553d0537ec7f2392bfc713242ea4ce",
+          "c08b9af10892543d63a54b897aec928a"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/case_assets.py",
+      "bytes": 6704,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "8b0a2289d3d9f4252d52cdd27354cc62",
+          "2e8f0c5e9c718030ceb78ee68cccee0a"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/case_cohort.py",
+      "bytes": 5480,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "e6030c34b48e38351fb6d8a6b3697211",
+          "f3730cf9f7f0785a0cfc49f70e055ef1"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/case_delegate.py",
+      "bytes": 18000,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "cbb28d84a02df45a8a7dd18bedd93648",
+          "4285d2f9c673fab8e97d01ed2ad57cc8"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/case_launcher.mjs",
+      "bytes": 897,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "785ab1b16644d23dab40faef8543bb6b",
+          "e308d6fa88e9f292debcaeeece0892f5"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/case_specs.py",
+      "bytes": 24509,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "03ff5bf6560fe0319b0ee3f5bbf9ff02",
+          "e8130e061bd3c4cb1ab752e373ff6465"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/case_supervisor.py",
+      "bytes": 26416,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "948aba20615c7f632747d5fb7e492f32",
+          "175962e6369d1d796ea09bc2f31d44d1"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/ci-case.sh",
+      "bytes": 3908,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "48c95be83bd05449ada840371e8d2332",
+          "c90f728a1bfb00f400a938b4c43c2923"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
+      "bytes": 28621,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "ec052687fd1bce3b8c8df66ce07f2353",
+          "f59e7b140e4a1fa4cc82e1c07d146c4d"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/clock.mjs",
+      "bytes": 46,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "89b72987de72f025847feab3b2a0f65b",
+          "e6c17726d618f9b4242d1f3d92415c71"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/closed-cache-assets.json.gz",
+      "bytes": 1748,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "875923869e887b44a88127aba794406f",
+          "41354951111210b20c2cf4eceb7257fa"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/controller_resources.py",
+      "bytes": 2305,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "a32e22c67e1be9db933319c3551a5ef6",
+          "a233c832714b8ccd2912e488f7f5b7d0"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/custody.py",
+      "bytes": 11077,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "039a721a74981b0482f947a857957f70",
+          "552833533f4509e9df6b1dafd699d460"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/inner.py",
+      "bytes": 7674,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "fef7c3960abf0a12905544cf5845c030",
+          "cf3fb791ea90d4ecd5cb435b27bc5d77"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/namespace_policy.py",
+      "bytes": 3840,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "70e0eae7e8caefdb0bbe83820dfd5c65",
+          "429d029861e6ece47f01df94fab3666c"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/prepare_manifest.mjs",
+      "bytes": 3642,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "df19cf6570c9aa662fe17f79cd8384ae",
+          "3e0de69a73d986adddfa261b0c73db4f"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/public-profile.json.gz",
+      "bytes": 585,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "5a2a5ba05aa5f75ea327f84d130ffefc",
+          "5bce1a2d90d0feb902333f69c9d4325a"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/public_proof.py",
+      "bytes": 6213,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "f330cc6eea119282545971cebfc8df57",
+          "b80ea4309d502ddfb270fdbcb8c53639"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_case/verifier_cache.py",
+      "bytes": 1280,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "9cfe5d907eed2dd5d58e32529c58b5fe",
+          "8104110eba9c509ea868c4f4419b23eb"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_docker/docker_delegate.py",
+      "bytes": 15907,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "c30c6c63ac1dc14345dbc460de33de09",
+          "c20e87183755a9567606d06c240951d0"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_docker/docker_probe.mjs",
+      "bytes": 6363,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "c9b7bd6fe35b9f34145cfaa1b9ff1663",
+          "ff49ccfaf14c74a28ba878ac6e88a0c9"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_docker/docker_probe.py",
+      "bytes": 33809,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "8a2ae2e79206c887e6b696ec9c1d7f17",
+          "214a7c9b5d5b6ee557b355259cf2a53b"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_docker/docker_probe_bind.py",
+      "bytes": 6831,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "7f3c12198b124cd5e63a3bdff73ec875",
+          "e44c33f042f1fa004d72463cb456f98f"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_docker/docker_probe_policy.PENDING.json",
+      "bytes": 825,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "546813950018a3e8937f99f61d1b5037",
+          "dd9e3bad620efa901c1a823a645ce9b6"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_docker/docker_probe_stage.py",
+      "bytes": 6505,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "77198712a24f03fed2817551c970d531",
+          "de34d497a5d376d38cf0844e48bdb321"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_docker/sibling_imports.py",
+      "bytes": 1522,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "17fea80c35a2ba7e38f5e39642ce5b6d",
+          "f721a2b4e9b20a911c932543b53a4b92"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/ci-prerequisites.sh",
+      "bytes": 4344,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "864c623e10c234f708bcefde4fb27ce6",
+          "49d583f23fda969533ae4fb0a8519db4"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/docker_cli.py",
+      "bytes": 9859,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "da45c9b012545b307b6425246d7b9586",
+          "86195be5402ad08542f615984cdb262b"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/docker_gate.py",
+      "bytes": 43222,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "a3a14dbd57dbaefdbc57a1b3af2f3124",
+          "7824e973ce08d09efe8affc37b800a91"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/sdk_build.py",
+      "bytes": 12306,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "fb3234dcecf48642b34282550b093d03",
+          "43a7e848ebd4028592c4eb2a069e75f5"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/sdk_delegate.py",
+      "bytes": 12909,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "507626779a19121e69d615bc879a71fa",
+          "32942a6f1e5dd1bc3ae18e63231db633"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/sdk_export.py",
+      "bytes": 4151,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "508f5e4402cbfa0b7b9e0a20f9ee0228",
+          "c1ae56b9b8745a31ebc12437cbd8a68b"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/sdk_provision.py",
+      "bytes": 23074,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "9910155fd53eedde70a6c74fa7c6b447",
+          "332601833250cb9a7f1fcb39ffd26cc4"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/sdk_specs.py",
+      "bytes": 11130,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "d361a452ca50aa8649150d726eb77a5e",
+          "eb64387d7c398a727a0dfee7009e1e9d"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/smoke.mjs",
+      "bytes": 2814,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "99c72a8fa8eb581d64a090ec4a018f63",
+          "3a7fbd71ca1679c9742b6fb181cfc33b"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/supervisor.py",
+      "bytes": 22727,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "681b4e6ab46002e93cabed061e78ae0a",
+          "f2c78b8e44debbce04b45627c7ec85f7"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/aleo_linux_sdk/worker_catalog.py",
+      "bytes": 1359,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "c16b3cd14f98c2090c1b43d5e2818746",
+          "6d47a9040c8407a7700d41ae42601465"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/build_cpu.py",
+      "bytes": 4034,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "fe3d41c3b47b4d0342a4004c38c71f3a",
+          "64686b914d178385dd08940a4a319c94"
+        ]
+      }
+    }
+  ],
   "confirm_seconds": 600,
   "restart_seconds": 30,
   "proof_seconds": 10800,

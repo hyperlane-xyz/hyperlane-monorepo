@@ -1,0 +1,244 @@
+{
+  "schema": 1,
+  "passed": true,
+  "scope": "Root acceptance of remote CI eight-product C43 archive contents and declared Source/receipt coherence; no native or timing grant",
+  "source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",
+  "run_id": 42435923739,
+  "run_attempt": 1,
+  "all8_same_run_required_product_artifacts": true,
+  "all4_required_jobs_actual_success": [
+    {
+      "name": "svm-prerequisites",
+      "id": 128594616657
+    },
+    {
+      "name": "native-harness-controls",
+      "id": 128594616661
+    },
+    {
+      "name": "full-sdk-native (ReleaseSafe)",
+      "id": 128594616818
+    },
+    {
+      "name": "full-sdk-native (ReleaseFast)",
+      "id": 128594616946
+    }
+  ],
+  "eight_artifacts": {
+    "sdk_safe": {
+      "id": 13599673473,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
+      "size_in_bytes": 52478141,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "5714a11a3d37dc2537f79f94bdad72a5",
+          "571c62f78e54f4e4ad729cfe2c6438a6"
+        ]
+      }
+    },
+    "sdk_fast": {
+      "id": 13600838226,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 55146691,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "5bda5bbfaa1113fa5bad32a6e3107027",
+          "d0764fbf285fbf3e6fcec47759ebeedd"
+        ]
+      }
+    },
+    "helper": {
+      "id": 13600052943,
+      "name": "zig-native-harness-controls",
+      "size_in_bytes": 56301411,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "d2281c9efbd1eb50a44d170ceed74847",
+          "5fc190376c88b756b9fb5675b79b6fac"
+        ]
+      }
+    },
+    "tools": {
+      "id": 13600331646,
+      "name": "zig-native-case-tools-982d45c6e6f363872ed75eae0a584714dd8f0bf3",
+      "size_in_bytes": 20092258,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "b497deed9bf68dfbe336d3b900e11b52",
+          "45a000b8d6b0b7d003897f690342f56d"
+        ]
+      }
+    },
+    "writer_safe": {
+      "id": 13599907595,
+      "name": "zig-native-interop-writer-ReleaseSafe",
+      "size_in_bytes": 5171513,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "2b970a033f11afd72414eba9c094f759",
+          "da950b8f5bfd063c67b472e7d2239696"
+        ]
+      }
+    },
+    "writer_fast": {
+      "id": 13601151434,
+      "name": "zig-native-interop-writer-ReleaseFast",
+      "size_in_bytes": 4863023,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "b4eabb579d94ee289c560a78e9fa50f9",
+          "1fe022d0403c334cae37abb062ab81f9"
+        ]
+      }
+    },
+    "svm": {
+      "id": 13599677223,
+      "name": "svm-linux-prerequisites-42435923739-1",
+      "size_in_bytes": 327980505,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "c1b180dfb861fc4d0a1bdf2c4aada512",
+          "82ff0c45eb3418069a258353ecbea54f"
+        ]
+      }
+    },
+    "radix_reference": {
+      "id": 13600306804,
+      "name": "zig-native-radix-reference-982d45c6e6f363872ed75eae0a584714dd8f0bf3",
+      "size_in_bytes": 3177992,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "0233e9da65746b5faa0273cd908997d1",
+          "2681b4c751029644a8e304ffbffcc096"
+        ]
+      }
+    }
+  },
+  "inspection": {
+    "source_commit": "db42acd5e0968e2b9e9fb601ebae98fbc83bd1b3",
+    "run_id": 42444352811,
+    "job_id": 128620039363,
+    "job_conclusion": "success",
+    "artifact_id": 13602179079,
+    "archive_bytes": 6578,
+    "archive_sha256": {
+      "sha256_hex_chunks": [
+        "cb9ffd682793324f0b9091866a724793",
+        "25edac0cffafb4dec03aff74672f4797"
+      ]
+    },
+    "report": {
+      "bytes": 27131,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "e1fc2ce096fe198a1cbc3fc736a81618",
+          "537c581c6490b52f64764320297ce9c1"
+        ]
+      }
+    }
+  },
+  "catalogs": {
+    "sdk_safe": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "14439cf7bcbd2f271739a0b308685259",
+          "f50fd921f3dc126dff549c60b252f6d3"
+        ]
+      },
+      "expanded_bytes": 157617227,
+      "files": 17
+    },
+    "sdk_fast": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "17edf5229be39e82c19c71e5af89cdb8",
+          "cb4d33cd51a86454cc7ec2ef677a227c"
+        ]
+      },
+      "expanded_bytes": 171800403,
+      "files": 17
+    },
+    "helper": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "4ff2eafc11ef4d3515333d36038b3379",
+          "f4fdda534584ee943e2e4d33502e0ff9"
+        ]
+      },
+      "expanded_bytes": 254314687,
+      "files": 45
+    },
+    "tools": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "e4394a45280416c57828721b0a3c92bb",
+          "7e2b94f10104f02db516f6780ba88519"
+        ]
+      },
+      "expanded_bytes": 90986413,
+      "files": 14
+    },
+    "writer_safe": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "479b03e69bf5e97a7b1d43f42e4d0cb0",
+          "2d5ba98210380f823b9fe88f88d05713"
+        ]
+      },
+      "expanded_bytes": 14496606,
+      "files": 5
+    },
+    "writer_fast": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "aa8ee9f5ae3286fc13dd4f060055c495",
+          "fb395344088e7f7073ccacce41fd074b"
+        ]
+      },
+      "expanded_bytes": 13664301,
+      "files": 5
+    },
+    "svm": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "27a5a8396c0e24df3c26617f9ef2498b",
+          "5e6293107b08e2a99424bb121865b8f1"
+        ]
+      },
+      "expanded_bytes": 851718834,
+      "files": 194
+    },
+    "radix_reference": {
+      "catalog_sha256": {
+        "sha256_hex_chunks": [
+          "c5ccc597f2ac45dce399c110c09b31bb",
+          "25fcc550ed311c27da3e133e3ca93474"
+        ]
+      },
+      "expanded_bytes": 10074542,
+      "files": 11
+    }
+  },
+  "actual607_Git_and_all_declared_Source_origin_checks": true,
+  "tested_and_packaged9_each_mode": true,
+  "Root_entire_closed_report_read": true,
+  "actual_inspection_command_waits": 8473,
+  "expected_AS512_negative_version_exit2_separate_from_zero_primary_failures": true,
+  "SVM_observed_stack_offset_warnings": 27,
+  "native_case_or_timing_acceptance": false,
+  "consumer_CPU_superset_admission_still_required_per_case": true,
+  "local_full_archive_possession_claim": false,
+  "historical_C42_SDK_archive_inspected": false,
+  "root_approved": true,
+  "kind": "Root-qualified-portable-C43-eight-product-cohort",
+  "Root_actual_cohort_acceptance": true,
+  "Root_qualification_fingerprint": {
+    "bytes": 5000,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "5f063803d5c0271e0b4376a8cde6c806",
+        "fb6d9bf8888edfc717fed2a6486313df"
+      ]
+    }
+  }
+}
