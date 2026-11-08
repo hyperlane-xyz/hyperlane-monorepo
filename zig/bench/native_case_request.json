@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "starknet",
+  "root_approved": true,
+  "scenario": "cosmosnative",
   "mode": "ReleaseSafe",
-  "producer_source_commit": "8eabae59eecb5cba3d8b76fca46447802f231a92",
-  "producer_run_id": 42420239263,
+  "producer_source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",
+  "producer_run_id": 42435923739,
   "producer_run_attempt": 1,
   "limits": {
     "maximum_owned_RAM_bytes": 8589934592,
@@ -45,129 +45,73 @@
     },
     "registry_commit": null,
     "native_cli": {
-      "name": "starkli",
+      "name": "hypd",
       "architecture": "amd64",
-      "source_url": "https://github.com/xJonathanLEI/starkli/releases/download/v0.4.1/starkli-x86_64-unknown-linux-gnu.tar.gz",
-      "bytes": 42077936,
+      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
+      "bytes": 69488792,
       "sha256": {
         "sha256_hex_chunks": [
-          "7d946b2b155831941f69cce42ce95a71",
-          "7f92d7950ac79db8e45f140d2e80877b"
-        ]
-      },
-      "archive": {
-        "bytes": 14276764,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "4217ccd75c11627e513e1c6e4395b4df",
-            "fdebe2b8a7494bc989e93c2b885b8be3"
-          ]
-        },
-        "publisher_digest": null,
-        "member": "./starkli"
-      }
-    },
-    "starknet_devnet": {
-      "schema": 2,
-      "architecture": "amd64",
-      "source_image": "shardlabs/starknet-devnet-rs:0.4.2",
-      "image_id": {
-        "sha256_hex_chunks": [
-          "0405b55a0d37c14ab0c9a38963a7cbf2",
-          "19f86afb324dab8ba72cc8f9456de222"
-        ],
-        "prefix": "sha256:"
-      },
-      "canonical_digest": {
-        "sha256_hex_chunks": [
-          "ccf8b80807c6cc5e6497681cfdeabedc",
-          "adcce2c69935c8bf514540726b8955d5"
-        ],
-        "prefix": "shardlabs/starknet-devnet-rs@sha256:"
-      }
-    },
-    "starknet_contracts": {
-      "release": "0.3.9",
-      "source_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.zip",
-      "bytes": 10829931,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "5303a50baf47b5c3cc30274cf4b6dcba",
-          "fbeb8425010fc3bf54854f5d1bd38667"
-        ]
-      },
-      "publisher_checksum_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.CHECKSUM",
-      "publisher_checksum_bytes": 96,
-      "publisher_checksum_sha256": {
-        "sha256_hex_chunks": [
-          "1c567654967a6e6f58741ae84a3fbe59",
-          "d46c0743a397e99c5fb5b6fcd0c7c301"
-        ]
-      },
-      "member_count": 558,
-      "member_sha256": {
-        "sha256_hex_chunks": [
-          "594307d5fbc39e65770f4a20429d0b35",
-          "e34ec02893580a72e7b1bfaf9aae826e"
+          "90a33bb46f87836675a2f0871d7d122c",
+          "1ecaa8c39014d6c7eae7815fb2e6706e"
         ]
       }
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13594350257,
+      "id": 13599673473,
       "name": "zig-native-runtime-payload-ReleaseSafe",
       "sha256": {
         "sha256_hex_chunks": [
-          "17a9cac90a5d702cd17cadc2299a53be",
-          "fef81750987b977bab81906c7b8cb537"
+          "5714a11a3d37dc2537f79f94bdad72a5",
+          "571c62f78e54f4e4ad729cfe2c6438a6"
         ]
       },
-      "size_in_bytes": 52478163
+      "size_in_bytes": 52478141
     },
     "helper": {
-      "id": 13592994441,
+      "id": 13600052943,
       "name": "zig-native-harness-controls",
       "sha256": {
         "sha256_hex_chunks": [
-          "0c74218ef6c3bdc4df6f28046660876b",
-          "8f975a4f0d6725ae301ea6f0eee8ccdd"
+          "d2281c9efbd1eb50a44d170ceed74847",
+          "5fc190376c88b756b9fb5675b79b6fac"
         ]
       },
-      "size_in_bytes": 56300384
+      "size_in_bytes": 56301411
     },
     "tools": {
-      "id": 13594096025,
-      "name": "zig-native-case-tools-8eabae59eecb5cba3d8b76fca46447802f231a92",
+      "id": 13600331646,
+      "name": "zig-native-case-tools-982d45c6e6f363872ed75eae0a584714dd8f0bf3",
       "sha256": {
         "sha256_hex_chunks": [
-          "21e0ce19d2761dab8d76fca05655e10a",
-          "36c61849dbf1dc4e3306605f3a53cbb5"
+          "b497deed9bf68dfbe336d3b900e11b52",
+          "45a000b8d6b0b7d003897f690342f56d"
         ]
       },
-      "size_in_bytes": 20092356
+      "size_in_bytes": 20092258
     },
     "writer_safe": {
-      "id": 13593942716,
+      "id": 13599907595,
       "name": "zig-native-interop-writer-ReleaseSafe",
       "sha256": {
         "sha256_hex_chunks": [
-          "bfef270ba74f4df6439c6a494a536a83",
-          "1398f2f2c64a343357ccb6430286b4e1"
+          "2b970a033f11afd72414eba9c094f759",
+          "da950b8f5bfd063c67b472e7d2239696"
         ]
       },
-      "size_in_bytes": 5171509
+      "size_in_bytes": 5171513
     },
     "writer_fast": {
-      "id": 13594064196,
+      "id": 13601151434,
       "name": "zig-native-interop-writer-ReleaseFast",
       "sha256": {
         "sha256_hex_chunks": [
-          "b497937b205124d0a67e630f5717218d",
-          "19e094f8cafcaf69d645c1bfb2b7df95"
+          "b4eabb579d94ee289c560a78e9fa50f9",
+          "1fe022d0403c334cae37abb062ab81f9"
         ]
       },
-      "size_in_bytes": 4863045
+      "size_in_bytes": 4863023
     }
   }
 }
