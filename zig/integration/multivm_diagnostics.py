@@ -569,9 +569,9 @@ def validate_record(value,modules):
     return value
 
 
-RELAYER_STARTUP_EPOCH = '843bf642a630591f10e927fd5e535aad715a0394'
+RELAYER_STARTUP_EPOCH = '9badc87e8c2e2f019a1b3453c323a8d89686e43e'
 RELAYER_STARTUP_SOURCE = (
-    ('zig/src/service_main.zig', 15117, 'e15bec2398d71a70a3b0a16ea26fe756' + '70751c6fc579d4eacd7e8d3d17d50db3'),
+    ('zig/src/service_main.zig', 15166, '6b9101771890b56a5303975c7f1433ea' + 'fc5cacc23b7f548f0d083356d32cca78'),
     ('zig/src/agents/relayer_task.zig', 153439, '768e6eca02149602e28d15caa7955a9c' + '58c7912665c5f49b9ab9da0e81ce9e73'),
     ('zig/src/runtime/lane_owner.zig', 10263, '694159949d9c7b67cba9e4514812dc7e' + 'e3ab2f284afdf5c3336704522d7d722b'),
     ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),

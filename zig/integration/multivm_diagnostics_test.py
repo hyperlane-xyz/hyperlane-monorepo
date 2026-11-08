@@ -482,7 +482,7 @@ class RelayerStartupNumericControls(unittest.TestCase):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules);record=probe.project(self.sample(),('selected',),405,1,99)
         self.assertTrue(record['admin_extra_handler_observed']);metric=record['metrics'][0]['metrics'];self.assertEqual(metric['destination_mailbox'],{'family_present':True,'selected_present':True,'series_count':1,'finite_values':[0.0]});self.assertFalse(metric['block_height']['family_present']);self.assertFalse(metric['destination_dispatcher']['selected_present'])
     def test_current_epoch_and_pinned_wildcard_bind_Source_contract(self):
-        self.assertEqual(api.RELAYER_STARTUP_EPOCH,'843bf642a630591f10e927fd5e535aad715a0394')
+        self.assertEqual(api.RELAYER_STARTUP_EPOCH,'9badc87e8c2e2f019a1b3453c323a8d89686e43e')
         service='zig/src/service_main.zig';path=self.root/service;wire=path.read_bytes();needle=b'Address.parseIp4("0.0.0.0", configured.metrics_port)'
         self.assertIn(needle,wire);changed=wire.replace(needle,b'Address.parseIp4("127.0.0.1", configured.metrics_port)');path.write_bytes(changed)
         altered=tuple((name,len(changed),hashlib.sha256(changed).hexdigest())if name==service else(name,size,digest)for name,size,digest in api.RELAYER_STARTUP_SOURCE)
