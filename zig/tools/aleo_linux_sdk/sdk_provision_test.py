@@ -375,5 +375,70 @@ class Tests(unittest.TestCase):
         exec(compile(ast.Module(body=[assignment],type_ignores=[]),'actual-builder-final-deadline','exec'),{'result':result,'stage_deadline':p.stage_deadline,'signals':[],'waits':[]})
         self.assertFalse(result['passed'])
 
+class LockedInstallDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve()
+    def command(self,stdout=b'',stderr=b''):
+        for name,body in [('stdout',stdout),('stderr',stderr)]:(self.root/('locked_install.'+name)).write_bytes(body)
+        return {'name':'locked_install','pid':4692,'actual_parent_wait':True,'exit_code':1,**{name:pin(self.root/('locked_install.'+name))for name in ['stdout','stderr']}}
+    def observe(self,row):
+        with mock.patch.object(p.time,'monotonic_ns',return_value=10*10**9):return p.locked_install_failure_diagnostic(self.root,row,1,1+1800*10**9)
+    def test_closed_code_projection_never_exports_raw_secret_URL_config_or_unknown_suffix(self):
+        marker=b'PRIVATE_FIXTURE_MARKER_!'
+        row=self.command(b'\x1b[31mERR_PNPM_OUTDATED_LOCKFILE\x1b[0m '+marker+b' https://user:'+marker+b'@registry.example/token\n',b'ERR_PNPM_PRIVATE_FIXTURE_MARKER EAI_AGAIN '+marker+b' {"authorization":"secret"}')
+        value=self.observe(row);wire=json.dumps(value).encode();self.assertNotIn(marker,wire);self.assertNotIn(b'https://',wire);self.assertNotIn(b'authorization',wire);self.assertNotIn(str(self.root).encode(),wire);self.assertNotIn(b'ERR_PNPM_PRIVATE_FIXTURE_MARKER',wire)
+        self.assertEqual(value['files']['stdout']['codes'],['ERR_PNPM_OUTDATED_LOCKFILE']);self.assertEqual(value['files']['stderr']['codes'],['EAI_AGAIN']);self.assertTrue(value['files']['stderr']['unknown_ERR_PNPM_token_present']);self.assertFalse(value['raw_body_path_argv_environment_exported']);self.assertFalse(value['native_or_SDK_acceptance'])
+    def test_static_lock_version_and_integrity_predicates_export_only_enum(self):
+        row=self.command(b'Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date. private details',b'Your pnpm version is incompatible with private-version. Integrity verification failed for private')
+        value=self.observe(row);self.assertEqual(value['files']['stdout']['predicates'],['frozen_lockfile_not_up_to_date']);self.assertEqual(value['files']['stderr']['predicates'],['integrity_verification_failed','package_manager_version_incompatible']);self.assertNotIn('private',json.dumps(value))
+    def test_sparse_oversize_and_links_refuse_before_any_open_or_read(self):
+        for kind in ['oversize','symlink','hardlink']:
+            with self.subTest(kind=kind):
+                row=self.command();path=self.root/'locked_install.stdout'
+                if kind=='oversize':
+                    with path.open('wb')as stream:stream.truncate(65537)
+                else:
+                    other=self.root/'private';other.write_bytes(b'private');path.unlink()
+                    if kind=='symlink':path.symlink_to(other)
+                    else:os.link(other,path)
+                # stderr is not being tested: force its existing fixed leaf absent.
+                (self.root/'locked_install.stderr').unlink()
+                with mock.patch.object(p.os,'open',side_effect=OSError(5,'fixed fixture refusal'))as opened:value=self.observe(row)
+                opened.assert_not_called();self.assertFalse(value['files']['stdout']['available']);self.assertEqual(value['files']['stdout']['refusal'],'SCAN_SIZE_BOUND'if kind=='oversize'else'NOT_SINGLE_REGULAR');self.assertNotIn('private',json.dumps(value))
+                path.unlink()
+                other=self.root/'private'
+                if other.exists():other.unlink()
+    def test_descriptor_or_file_identity_change_never_grants_verified_scan(self):
+        row=self.command(b'ERR_PNPM_FETCH_403');bad=copy.deepcopy(row);bad['stdout']['sha256']='0'*64;value=self.observe(bad);self.assertEqual(value['files']['stdout']['refusal'],'FILE_DESCRIPTOR_CHANGED');self.assertFalse(value['files']['stdout']['available'])
+        # The fd still refers to original bytes; replacing the fixed pathname
+        # before post-read stat must revoke the scan, even identical content.
+        original=p.os.read;replaced=[False]
+        def read(fd,size):
+            body=original(fd,size)
+            if not replaced[0]:
+                replaced[0]=True;temp=self.root/'replacement';temp.write_bytes(b'ERR_PNPM_FETCH_403');os.replace(temp,self.root/'locked_install.stdout')
+            return body
+        with mock.patch.object(p.os,'read',side_effect=read):value=self.observe(row)
+        self.assertEqual(value['files']['stdout']['refusal'],'FILE_CHANGED');self.assertFalse(value['files']['stdout']['available'])
+    def test_exact_fixed_leafs_and_actual_wait_required(self):
+        row=self.command(b'ERR_PNPM_FETCH_404');row['stdout']['path']=str(self.root/'foreign')
+        value=self.observe(row);self.assertEqual(value['files']['stdout']['refusal'],'INVALID_FIXED_DESCRIPTOR');self.assertNotIn('foreign',json.dumps(value))
+        for field,value in [('actual_parent_wait',False),('pid',True),('exit_code',True),('name','arbitrary')]:
+            row=self.command();row[field]=value
+            with self.subTest(field=field),self.assertRaises(ValueError):self.observe(row)
+    def test_actual_failed_packet_status_and_absent_text_remain_unknown_not_inferred(self):
+        # Source-bound sanitized actual Aleo6 shape; actual915/279 log bytes were
+        # not in the21437B public ZIP. This fixture must never invent the cause.
+        row={'name':'locked_install','pid':4692,'actual_parent_wait':True,'exit_code':1,'stdout':{'path':str(self.root/'locked_install.stdout'),'bytes':915,'sha256':('d39dc27d23b376ab5ea522c4c4398194d' '4dcc307b966f5431faa940efc229221')},'stderr':{'path':str(self.root/'locked_install.stderr'),'bytes':279,'sha256':('234ae1ae01aba41e5d76ee3c0c215f26' 'fa110125dcbf7de2c2a3028957ac8b63')}}
+        value=self.observe(row);self.assertEqual(value['actual_pid'],4692);self.assertEqual(value['exit_code'],1);self.assertTrue(value['actual_parent_wait']);self.assertTrue(all(r['refusal']=='FILE_MISSING'and not r['codes']for r in value['files'].values()));self.assertFalse(value['native_or_SDK_acceptance'])
+    def test_actual_except_projection_preserves_primary_failure_and_all_final_guards(self):
+        source=ast.parse((HERE/'sdk_provision.py').read_text());execute=next(n for n in source.body if isinstance(n,ast.FunctionDef)and n.name=='execute');handler=next(n for n in execute.body if isinstance(n,ast.Try)).handlers[0]
+        context={'value':{'commands':[{'name':'locked_install'}]},'error':ValueError('original fixed failure'),'root':self.root,'started':1,'deadline':1800*10**9+1,'locked_install_failure_diagnostic':mock.Mock(side_effect=RuntimeError('diagnostic failed'))}
+        exec(compile(ast.Module(body=handler.body,type_ignores=[]),'actual-package-failure-handler','exec'),context)
+        self.assertEqual(context['value']['error'],'ValueError:original fixed failure');self.assertEqual(context['value']['locked_install_failure_diagnostic']['refusal'],'DIAGNOSTIC_CONTEXT_REFUSED');context['locked_install_failure_diagnostic'].assert_called_once()
+        good={'original_started_ns':1,'original_deadline_ns':1800*10**9+1,'final_publication_check_ns':2,'source_unchanged':True,'owned_absent':True,'signals':[],'commands':[{'actual_parent_wait':True,'exit_code':0}for _ in range(3)],'adopted_waits':[]}
+        self.assertTrue(p.final_pass(good));self.assertFalse(p.final_pass({**good,'error':'original failure','locked_install_failure_diagnostic':{'available':True}}))
+
+
 if __name__=='__main__':
     with mock.patch('subprocess.Popen',side_effect=AssertionError('no actual package/compiler/SDK process')):unittest.main()

@@ -256,12 +256,20 @@ def failure_observation(error,repo,authority):
 def public_preparation_result(result,error,repo,authority):
  rows=[]
  for row in result['actual_command_waits']:
-  name=row.get('name');need(type(name)is str and re.fullmatch('[A-Za-z0-9_-]{1,96}',name),'closed diagnostic phase name')
+  name=row.get('name');need(type(name)is str and re.fullmatch('[A-Za-z0-9_.-]{1,96}',name),'closed diagnostic phase name')
   exit_code=row.get('exit_code');need(exit_code is None or type(exit_code)is int and -255<=exit_code<=255,'closed diagnostic exit status')
   error_type=row.get('error_type');need(error_type is None or type(error_type)is str,'closed diagnostic error class')
   error_type=error_type if error_type is None or error_type in PUBLIC_ERROR_NAMES else 'OtherError'
   rows.append({'name':name,'actual_parent_wait':row.get('actual_parent_wait')is True,'exit_code':exit_code,'owned_absent':row.get('owned_absent')is True,'signal_count':len(row.get('signals',[])),'error_type':error_type,'completed_within_original_deadline':row.get('completed_within_original_deadline')is True})
  return {'schema':1,'kind':'paired-linux-input-diagnostic','passed':result['passed'],'error_observation':failure_observation(error,repo,authority),'actual_phase_waits':rows,'source_policy':result['source_policy'],'limits':result['limits'],'started_monotonic_ns':result['started_monotonic_ns'],'completed_monotonic_ns':result['completed_monotonic_ns'],'whole_deadline_observed':result['whole_deadline_observed'],'native_or_timing_acceptance':False,'raw_exception_argv_environment_or_logs_exported':False}
+
+def publish_input_diagnostic(root,result,error,repo,authority):
+ try:record=public_preparation_result(result,error,repo,authority)
+ except Exception as diagnostic_error:
+  primary=type(error).__name__ if error is not None else None
+  record={'schema':1,'kind':'paired-linux-input-diagnostic','passed':False,'primary_error_type':primary if primary is None or primary in PUBLIC_ERROR_NAMES else 'OtherError','diagnostic_error_type':type(diagnostic_error).__name__ if type(diagnostic_error).__name__ in PUBLIC_ERROR_NAMES else 'OtherError','native_or_timing_acceptance':False,'raw_exception_argv_environment_or_logs_exported':False}
+ try:write(root/'input-diagnostic.json',record)
+ except OSError:print('INPUT_DIAGNOSTIC_WRITE_FAILED',file=sys.stderr)
 
 def read_phase_json(row):
  p=checked(row['stdout']);need(p.stat().st_size<=16*1024**2,'metadata stdout bound');return decode(p.read_bytes())
@@ -379,7 +387,7 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
   result['passed']=result['passed']and result['whole_deadline_observed']and bool(prep)and all(final_phase(x)for x in prep.rows)
   if not result['passed']:revoke_publication(published)
   publish_final_result(root,published,result,deadline)
-  write(root/'input-diagnostic.json',public_preparation_result(result,failure_error,repo,authority))
+  publish_input_diagnostic(root,result,failure_error,repo,authority)
  need(result['passed'],'input preparation failed; actual failure evidence retained');return result
 
 TOOL_NAMES=('cargo','rustc','rustup','cc','clang','cmake','pkg-config','protoc','git','ps','ldd','ldconfig','node','pnpm','anvil','cast','forge','docker','psql','lsof','sh','openssl')

@@ -19,6 +19,12 @@ class Controls(unittest.TestCase):
  def test_workflow_always_retains_only_the_fixed_closed_diagnostic(self):
   text=(REPO/'.github/workflows/zig-agents.yml').read_text();step=text.split('      - name: Retain closed input-preparation diagnostics\n',1)[1].split('      - uses:',1)[0]
   self.assertIn("if: always() && steps.authority.outputs.inputs_enabled == 'true'",step);self.assertIn('/input-diagnostic.json',step);self.assertNotIn('/logs',step);self.assertNotIn('/result.json',step)
+ def test_actual_version_phase_names_and_projection_failure_keep_primary_failure(self):
+  result={'passed':False,'actual_command_waits':[{'name':'resolve-1.98.0-cargo','actual_parent_wait':True,'exit_code':1,'owned_absent':True,'signals':[],'error_type':None,'completed_within_original_deadline':True}],'source_policy':{},'limits':m.LIMITS,'started_monotonic_ns':1,'completed_monotonic_ns':2,'whole_deadline_observed':True}
+  self.assertEqual(m.public_preparation_result(result,None,self.repo,{'source':{}})['actual_phase_waits'][0]['name'],'resolve-1.98.0-cargo')
+  result['actual_command_waits'][0]['name']='private/path';m.publish_input_diagnostic(self.root,result,ValueError('private sentinel'),self.repo,{'source':{}});value=json.loads((self.root/'input-diagnostic.json').read_text());self.assertEqual(value['primary_error_type'],'ValueError');self.assertEqual(value['diagnostic_error_type'],'Refused');self.assertNotIn('private',json.dumps(value));self.assertFalse(value['passed'])
+  with mock.patch.object(m,'write',side_effect=OSError('private write detail')),mock.patch.object(m.sys,'stderr')as stderr:m.publish_input_diagnostic(self.root,result,ValueError('private sentinel'),self.repo,{'source':{}})
+  self.assertNotIn('private',str(stderr.write.call_args_list))
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
  def file(self,name,data=b'fixture'):

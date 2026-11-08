@@ -8,6 +8,7 @@ from pathlib import Path
 import platform
 import re
 import signal
+import stat
 import shutil
 import subprocess
 import sys
@@ -252,6 +253,54 @@ def admitted(receipt_pin,owner_pin):
     return value
 
 
+# Finite public codes only. Never emit a matched arbitrary ERR_PNPM suffix.
+PNPM_DIAGNOSTIC_CODES=frozenset({'ERR_PNPM_OUTDATED_LOCKFILE','ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE','ERR_PNPM_NO_LOCKFILE','ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY','ERR_PNPM_LOCKFILE_CONFIG_MISMATCH','ERR_PNPM_BROKEN_LOCKFILE','ERR_PNPM_BAD_PM_VERSION','ERR_PNPM_BAD_PACKAGE_MANAGER','ERR_PNPM_UNSUPPORTED_ENGINE','ERR_PNPM_UNSUPPORTED_PLATFORM','ERR_PNPM_TARBALL_INTEGRITY','ERR_PNPM_UNEXPECTED_STORE','ERR_PNPM_NO_MATCHING_VERSION','ERR_PNPM_WORKSPACE_PKG_NOT_FOUND','ERR_PNPM_MISSING_WORKSPACE_PACKAGE','ERR_PNPM_PEER_DEP_ISSUES','ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY','ERR_PNPM_META_FETCH_FAIL','ERR_PNPM_FETCH_BAD_RESPONSE','ERR_PNPM_FETCH_400','ERR_PNPM_FETCH_401','ERR_PNPM_FETCH_403','ERR_PNPM_FETCH_404','ERR_PNPM_FETCH_429','ERR_PNPM_FETCH_500','ERR_PNPM_FETCH_502','ERR_PNPM_FETCH_503','ERR_PNPM_FETCH_504'})
+SYSTEM_DIAGNOSTIC_CODES=frozenset({'EAI_AGAIN','ENOTFOUND','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','EACCES','EPERM','ENOSPC','EROFS','EMFILE','ENFILE','ENOENT','EEXIST','EINVAL','ENOMEM','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN'})
+FAILURE_PREDICATES={'frozen_lockfile_not_up_to_date':(b'Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date',b'Cannot install with frozen-lockfile because pnpm-lock.yaml is not up to date'),'package_manager_version_incompatible':(b'Your pnpm version is incompatible with',b'This project is configured to use'),'engine_environment_unsupported':(b'Unsupported environment',b'Your Node version is incompatible with'),'lockfile_dependency_missing':(b'no entry for',b'is not found in the lockfile'),'integrity_verification_failed':(b'Integrity verification failed',)}
+
+
+def locked_install_failure_diagnostic(root,command,started_ns,deadline_ns):
+    """Read only two already-waited owned logs; retain no raw text or paths."""
+    completed=time.monotonic_ns()
+    need(command.get('name')=='locked_install'and command.get('actual_parent_wait')is True and type(command.get('pid'))is int and command['pid']>0 and type(command.get('exit_code'))is int and -128<=command['exit_code']<=255,'Exact actual locked-install diagnostic context')
+    need(type(started_ns)is int and type(deadline_ns)is int and 0<started_ns<deadline_ns and deadline_ns-started_ns==1800*10**9,'Original package diagnostic clock')
+    root=Path(root);need(root.is_absolute()and root.resolve(strict=True)==root and not root.is_symlink(),'Owned package diagnostic root')
+    result={'schema':1,'kind':'aleo-locked-install-failure-diagnostic-v1','actual_pid':command['pid'],'actual_parent_wait':True,'exit_code':command['exit_code'],'original_started_ns':started_ns,'original_deadline_ns':deadline_ns,'observed_monotonic_ns':completed,'original_stage_deadline_met':completed<deadline_ns,'files':{},'raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
+    for side in ('stdout','stderr'):
+        expected=command[side];path=root/('locked_install.'+side);row={'available':False,'refusal':None,'codes':[],'predicates':[],'unknown_ERR_PNPM_token_present':False};result['files'][side]=row;fd=None
+        try:
+            need(set(expected)=={'path','bytes','sha256'}and expected['path']==str(path)and type(expected['bytes'])is int and 0<=expected['bytes']<=CAPS['log_bytes']and type(expected['sha256'])is str and re.fullmatch('[0-9a-f]{64}',expected['sha256']),'Exact fixed log descriptor')
+            row['recorded_file']={k:expected[k]for k in ('bytes','sha256')}
+            before=path.lstat()
+            if not stat.S_ISREG(before.st_mode)or before.st_nlink!=1:row['refusal']='NOT_SINGLE_REGULAR';continue
+            row['observed_bytes']=before.st_size
+            if before.st_size>65536:row['refusal']='SCAN_SIZE_BOUND';continue
+            fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW);opened=os.fstat(fd)
+            if (before.st_dev,before.st_ino)!=(opened.st_dev,opened.st_ino)or not stat.S_ISREG(opened.st_mode)or opened.st_nlink!=1:row['refusal']='OPEN_IDENTITY_CHANGED';continue
+            chunks=[];count=0
+            while True:
+                part=os.read(fd,min(16384,65537-count))
+                if not part:break
+                chunks.append(part);count+=len(part)
+                if count>65536:row['refusal']='SCAN_SIZE_BOUND';break
+            if row['refusal']is not None:continue
+            wire=b''.join(chunks);after=os.fstat(fd);latest=path.lstat();identity=lambda v:(v.st_dev,v.st_ino,v.st_size,v.st_mtime_ns,v.st_nlink)
+            if identity(before)!=identity(after)or identity(before)!=identity(latest):row['refusal']='FILE_CHANGED';continue
+            digest=hashlib.sha256(wire).hexdigest()
+            if len(wire)!=expected['bytes']or digest!=expected['sha256']:row['refusal']='FILE_DESCRIPTOR_CHANGED';continue
+            clean=re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]',b'',wire)
+            def present(code):return re.search(rb'(?<![A-Za-z0-9_])'+re.escape(code.encode())+rb'(?![A-Za-z0-9_])',clean)is not None
+            row.update(available=True,scanned_bytes=len(wire),sha256=digest,codes=sorted(code for code in PNPM_DIAGNOSTIC_CODES|SYSTEM_DIAGNOSTIC_CODES if present(code)),predicates=sorted(code for code,phrases in FAILURE_PREDICATES.items()if any(phrase in clean for phrase in phrases)))
+            tokens=set(re.findall(rb'(?<![A-Za-z0-9_])ERR_PNPM_[A-Z0-9_]+',clean));row['unknown_ERR_PNPM_token_present']=any(token.decode('ascii')not in PNPM_DIAGNOSTIC_CODES for token in tokens)
+        except FileNotFoundError:row['refusal']='FILE_MISSING'
+        except OSError as error:row['refusal']='FILE_IO_REFUSED';row['errno']=error.errno if type(error.errno)is int else None
+        except ValueError:row['refusal']='INVALID_FIXED_DESCRIPTOR'
+        finally:
+            if fd is not None:os.close(fd)
+    result['projection_finished_monotonic_ns']=time.monotonic_ns()
+    return result
+
+
 def execute(spec_pin):
     spec=load(spec_pin)
     need(spec.get('root_approved')is True and spec.get('purpose')=='aleo-linux-locked-packages-v1'and spec.get('caps')==CAPS,'explicit bounded acquisition authorization required')
@@ -290,7 +339,11 @@ def execute(spec_pin):
         value.update(compiler(stage));value['stage']=str(stage);value['source_files']=sources;value['dependency_payloads']=[row for row in payloads if row not in sources];value['symlinks']=links
         need(value['dependency_payloads'],'actual installed payload closure absent')
         need(allocated(root)<=4*GIB and free(root)>=6*GIB and owner_rss()<=GIB//2,'acquisition final disk/floor')
-    except BaseException as error:value['error']=type(error).__name__+':'+str(error)
+    except BaseException as error:
+        value['error']=type(error).__name__+':'+str(error)
+        if value['commands']and value['commands'][-1]['name']=='locked_install':
+            try:value['locked_install_failure_diagnostic']=locked_install_failure_diagnostic(root,value['commands'][-1],started,deadline)
+            except BaseException:value['locked_install_failure_diagnostic']={'schema':1,'kind':'aleo-locked-install-failure-diagnostic-v1','available':False,'refusal':'DIAGNOSTIC_CONTEXT_REFUSED','raw_body_path_argv_environment_exported':False,'native_or_SDK_acceptance':False}
     finally:
         value.update(cleanup_owned(lease,child,pidfd,waits,value['signals']))
         pidfd=None
