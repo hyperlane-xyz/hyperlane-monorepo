@@ -225,6 +225,110 @@ def rust_panic_observation(log,sources,repo):
     return {'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint}
 
 
+
+def captured_failure_bytes(path, maximum):
+    """One stable bounded regular file; private bytes are never returned publicly."""
+    path=Path(path);before=path.lstat()
+    if not stat.S_ISREG(before.st_mode) or path.is_symlink() or before.st_nlink!=1 or before.st_size>maximum:raise ValueError('Bounded single-link diagnostic file required')
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        opened=os.fstat(fd)
+        identity=lambda row:(row.st_dev,row.st_ino,row.st_size,row.st_mtime_ns,row.st_nlink)
+        if identity(before)!=identity(opened)or not stat.S_ISREG(opened.st_mode):raise ValueError('Diagnostic file changed before capture')
+        with os.fdopen(fd,'rb',closefd=False)as stream:wire=stream.read(maximum+1)
+        if len(wire)!=before.st_size or len(wire)>maximum or identity(before)!=identity(os.fstat(fd))or identity(before)!=identity(path.lstat()):raise ValueError('Diagnostic file changed during capture')
+    finally:os.close(fd)
+    return wire,{'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
+
+
+def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
+    """Existing Source parent receipts and finite role-log flags, no new probe."""
+    if manifest['scenario']not in {'sealevel','sealevel-composite'}or type(parent_pid)is not int or parent_pid<=0:raise ValueError('Actual SVM harness identity required')
+    case=Path(case)
+    if case.is_symlink()or case.resolve()!=case:raise ValueError('Canonical owned diagnostic case required')
+    def path(relative):
+        target=case/relative
+        if any(p.is_symlink()for p in [target,*[p for p in target.parents if p.is_relative_to(case)]]):raise ValueError('Diagnostic path symlink')
+        return target
+    def lines(relative):
+        target=path(relative)
+        if not target.exists():return [],{'status':'absent'}
+        raw,fingerprint=captured_failure_bytes(target,1024**2)
+        rows=raw.splitlines()
+        if len(rows)>128 or any(len(row)>65536 for row in rows):raise ValueError('Role journal row bound')
+        def unique(pairs):
+            result={}
+            for key,value in pairs:
+                if key in result:raise ValueError('Duplicate role journal key')
+                result[key]=value
+            return result
+        return [json.loads(row,object_pairs_hook=unique)for row in rows],{'status':'captured',**fingerprint}
+    helper='rust/main/utils/run-locally/src/external_agents.rs';program='rust/main/utils/run-locally/src/program.rs';main='rust/main/utils/run-locally/src/main.rs'
+    caller='rust/main/utils/run-locally/src/sealevel/'+('mod.rs'if manifest['scenario']=='sealevel'else'warp_route_composite_ism.rs')
+    writer_sources={};bodies={}
+    for name in [helper,program,main,caller]:
+        row=sources[name];source=Path(repo)/name;body,fingerprint=captured_failure_bytes(source,1024**2)
+        if row!={'path':str(source),**fingerprint}:raise ValueError('Role journal or log writer Source changed')
+        writer_sources[name]=dict(row);bodies[name]=body
+    needles={helper:[b'pub struct OwnedChild',b'struct ChildExit',b'.join("parent-child-exits.jsonl")',b'impl Drop for TrackedChild'],program:[b'format!("{log_prefix}-output.log")',b'println!("<{prefix}> {line}")'],main:[b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")'],caller:[b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))']}
+    if not all(needle in bodies[name]for name,values in needles.items()for needle in values):raise ValueError('Exact Source role journal/log contract missing')
+    owned,owned_pin=lines('evidence/owned-children.jsonl');exits,exit_pin=lines('evidence/parent-child-exits.jsonl')
+    roles={'relayer','validator'}if manifest['scenario']=='sealevel-composite'else{'relayer','validator','scraper'}
+    def identity(row):
+        if not isinstance(row,dict)or row.get('role')not in roles or row.get('executable')!=manifest['artifacts'][row['role']]or type(row.get('pid'))is not int or not 0<row['pid']<2**31 or row.get('parent_pid')!=parent_pid or type(row.get('parent_pid'))is not int or not isinstance(row.get('os_start_token'),str)or not 0<len(row['os_start_token'])<=4096:raise ValueError('Role receipt identity differs from admitted product/harness')
+        return row['pid'],row['parent_pid'],row['os_start_token']
+    admitted={}
+    for row in owned:
+        key=identity(row)
+        if key in admitted:raise ValueError('Repeated owned role identity')
+        admitted[key]=row
+    joined={};public=[]
+    for row in exits:
+        key=identity(row)
+        if key not in admitted or key in joined or row['role']!=admitted[key]['role']:raise ValueError('Unmatched/replayed role parent wait')
+        for field in ['parent_wait_completed','already_exited','forced_kill','success','planned_exit']:
+            if type(row.get(field))is not bool:raise ValueError('Typed role parent wait required')
+        code,signum=row.get('exit_code'),row.get('signal')
+        if not(code is None or type(code)is int and 0<=code<=255)or not(signum is None or type(signum)is int and 1<=signum<=64)or((code is None)==(signum is None)):raise ValueError('Invalid role exit/signal')
+        if row.get('parent_wait_completed')is not True or row.get('purpose')not in {'final','same_db_restart','intentional_restart','intentional_reorg','unwind_or_early_drop'}:raise ValueError('Actual typed parent wait required')
+        joined[key]=row
+    for key,row in admitted.items():
+        item={'role':row['role'],'pid':row['pid'],'parent_pid':parent_pid,'os_start_token_sha256':hashlib.sha256(row['os_start_token'].encode()).hexdigest(),'executable':manifest['artifacts'][row['role']],'status':'actual_parent_wait_recorded'if key in joined else'parent_wait_not_recorded'}
+        if key in joined:item['actual_parent_wait']={name:joined[key][name]for name in ['parent_wait_completed','already_exited','forced_kill','success','exit_code','signal','purpose','planned_exit']}
+        public.append(item)
+    prefixes={'RLY':'relayer','VL1':'validator'}
+    if manifest['scenario']=='sealevel':prefixes.update(VL2='validator',VL3='validator')
+    patterns={b'integer overflow':'INTEGER_OVERFLOW',b'attempt to use null value':'NULL_UNWRAP',b'index out of bounds':'INDEX_OUT_OF_BOUNDS',b'reached unreachable code':'UNREACHABLE',b'incorrect alignment':'INCORRECT_ALIGNMENT',b'Deadlock detected':'DEADLOCK'}
+    def flags(raw,prefix=None):
+        result=set()
+        for line in io.BytesIO(raw):
+            if len(line)>65536:continue
+            line=re.sub(rb'\x1b\[[0-9;]*m',b'',line).strip()
+            if prefix is not None:
+                marker=b'<'+prefix+b'> '
+                if not line.startswith(marker):continue
+                line=line[len(marker):]
+            match=re.match(rb'^(?:thread [0-9]{1,20} )?panic: (.*)$',line)
+            if match:
+                result.add('PANIC_HEADER_OBSERVED')
+                if match[1]in patterns:result.add(patterns[match[1]])
+            if re.fullmatch(rb'error: [A-Za-z_][A-Za-z_0-9]{0,127}',line):result.add('ERROR_RETURN_HEADER_OBSERVED')
+        return sorted(result)
+    logs=[]
+    for prefix,role in prefixes.items():
+        if not any(row['role']==role for row in owned):continue
+        relative='agent-logs/'+prefix+'-output.log';target=path(relative)
+        if not target.exists():logs.append({'role':role,'fixed_log':relative,'status':'absent'});continue
+        try:
+            raw,fingerprint=captured_failure_bytes(target,32*1024**2);logs.append({'role':role,'fixed_log':relative,'status':'captured',**fingerprint,'finite_observed_flags':flags(raw),'exact_pid_or_epoch_attribution':False})
+        except Exception:logs.append({'role':role,'fixed_log':relative,'status':'unavailable','exact_pid_or_epoch_attribution':False})
+    if manifest['scenario']=='sealevel'and any(row['role']=='scraper'for row in owned):
+        try:
+            raw,fingerprint=captured_failure_bytes(harness_log,32*1024**2);logs.append({'role':'scraper','fixed_log':'harness.log prefix SCR','status':'captured',**fingerprint,'finite_observed_flags':flags(raw,b'SCR'),'exact_pid_or_epoch_attribution':False})
+        except Exception:logs.append({'role':'scraper','fixed_log':'harness.log prefix SCR','status':'unavailable','exact_pid_or_epoch_attribution':False})
+    return {'schema':1,'kind':'public-SVM-role-failure-observation','writer_sources':writer_sources,'owned_child_journal':owned_pin,'parent_exit_journal':exit_pin,'roles':public,'fixed_role_logs':logs,'scope':'Actual existing parent wait records joined to admitted owned-child epochs/products. Finite plaintext role-log flags only, not Zig Sourceframes or original metrics HTTP/error attribution. Logs may contain multiple role epochs.','native_or_timing_or_cleanup_authority':False}
+
+
 def validate_record(value,modules):
     """Closed public wire schema before a failed-run artifact is retained."""
     def require(ok):

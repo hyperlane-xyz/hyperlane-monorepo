@@ -623,6 +623,12 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
         startup=diagnostic_module(approval).observer_startup_sites(observer_log,approval['python_modules'],script.parent,manifest['verifier']['script'])
     record={'schema':1,'kind':'public-native-failure-observation','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'worker_started_monotonic_ns':started_ns,'observed_after_owned_waits_monotonic_ns':time.monotonic_ns(),'observer_before_stop':result.get('public_diagnostic_before_stop'),'observer_after_stop':observed,'rust_panic_source_locations':rust['sites'],'rust_panic_reason_codes':rust['reason_codes'],'rust_panic_reason_source':rust['reason_source'],'rust_reason_scope':'Static phrase observations only in the next exact Source-bound SVM tempfile expect message; no inferred root cause or native/timing credit.','rust_location_scope':'Only canonical panic-header locations matched to exact pinned Source; no message, thread, payload or inferred execution credit. Unknown/ambiguous paths omitted.','harness_log_fingerprint':rust['log_fingerprint'],'actual_direct_parent_waits':[{k:row[k]for k in ['role','pid','actual_parent_wait','exit_code','observed_monotonic_ns']if k in row}for row in result['direct_waits']],'native_or_timing_credit':False}
     record['observer_startup_source_traceback']=startup
+    if manifest['scenario']in{'sealevel','sealevel-composite'}:
+        try:
+            helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
+            require(len(helper_pids)==1,'One actual SVM helper parent required for failure projection')
+            record['SVM_role_failure']=diagnostic_module(approval).role_failure_observation(case,manifest,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log)
+        except Exception:record['SVM_role_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')

@@ -499,6 +499,30 @@ class CaseOwnerTests(unittest.TestCase):
                 row=api.write_public_failure_diagnostics(plan,manifest,approval,case,out,{'direct_waits':waits},90)
             self.assertIsNone(json.loads(Path(row['path']).read_text())['observer_startup_source_traceback'])
 
+    def test_actual_SVM_failure_publisher_calls_closed_projection_and_preserves_primary(self):
+        from types import SimpleNamespace
+        for fail in [False,True]:
+            case=self.root/('role-case-'+str(fail));case.mkdir();out=case/'worker';out.mkdir()
+            primary={'type':'RuntimeError','message':'PRIVATE_PRIMARY'}
+            result={'error':primary,'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101,'observed_monotonic_ns':100},{'role':'harness-cleanup','pid':42,'actual_parent_wait':True,'exit_code':101,'observed_monotonic_ns':101}]}
+            projected={'schema':1,'roles':[],'native_or_timing_or_cleanup_authority':False}
+            module=SimpleNamespace(role_failure_observation=mock.Mock(side_effect=RuntimeError('PRIVATE_DIAGNOSTIC')if fail else None,return_value=projected))
+            manifest={'scenario':'sealevel','mode':'ReleaseSafe','runtime_source_commit':'a'*40};plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}}
+            with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):
+                row=api.write_public_failure_diagnostics(plan,manifest,{},case,out,result,90)
+            public=json.loads(Path(row['path']).read_bytes());module.role_failure_observation.assert_called_once();self.assertEqual(module.role_failure_observation.call_args.args[2],42)
+            self.assertEqual(public['SVM_role_failure'],{'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}if fail else projected)
+            self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'][0]['exit_code'],101);self.assertNotIn('PRIVATE',json.dumps(public));self.assertFalse(public['native_or_timing_credit'])
+
+    def test_ambiguous_helper_pid_cannot_mint_role_exit_attribution(self):
+        from types import SimpleNamespace
+        case=self.root/'ambiguous-role-case';case.mkdir();out=case/'worker';out.mkdir();result={'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101},{'role':'harness-cleanup','pid':43,'actual_parent_wait':True,'exit_code':101}]}
+        module=SimpleNamespace(role_failure_observation=mock.Mock(side_effect=AssertionError('Must not infer parent PID')))
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):
+            row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'sealevel-composite','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},case,out,result,90)
+        module.role_failure_observation.assert_not_called();self.assertEqual(json.loads(Path(row['path']).read_bytes())['SVM_role_failure']['collection_status'],'unavailable')
+
+
 class StarknetProgressTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='stark-progress-pure-')

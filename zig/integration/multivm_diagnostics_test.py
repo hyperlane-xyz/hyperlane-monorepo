@@ -233,4 +233,78 @@ class Controls(unittest.TestCase):
         finally:release.set();thread.join(2)
         self.assertFalse(thread.is_alive());self.assertEqual(result,[{'verified':False}]);self.assertEqual(json.loads((self.root/'evidence/public-observer-diagnostics.json').read_text())['last_stage']['status'],'pending')
 
+
+class RoleFailureProjectionControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.case=Path(self.temp.name).resolve();(self.case/'evidence').mkdir();(self.case/'agent-logs').mkdir();self.repo=self.case/'repo';self.repo.mkdir()
+        self.names=['rust/main/utils/run-locally/src/'+n for n in ['external_agents.rs','program.rs','main.rs','sealevel/mod.rs']]
+        bodies=[b'pub struct OwnedChild\nstruct ChildExit\n.join("parent-child-exits.jsonl")\nimpl Drop for TrackedChild',b'format!("{log_prefix}-output.log")\nprintln!("<{prefix}> {line}")',b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")',b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))']
+        self.sources={}
+        for name,body in zip(self.names,bodies):
+            target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body);self.sources[name]={'path':str(target),'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest()}
+        self.products={role:{'path':str(self.case/role),'bytes':1,'sha256':hashlib.sha256(role.encode()).hexdigest()}for role in ['relayer','validator','scraper']}
+        self.manifest={'scenario':'sealevel','artifacts':self.products};self.owned=[];self.exits=[]
+        for i,role in enumerate(self.products,10):
+            row={'pid':i,'parent_pid':42,'role':role,'executable':self.products[role],'os_start_token':'PRIVATE_START_'+str(i),'scope':'PRIVATE_SCOPE'};self.owned.append(row)
+            self.exits.append({**row,'parent_wait_completed':True,'already_exited':role=='relayer','forced_kill':False,'success':False,'exit_code':None,'signal':6 if role=='relayer'else 15,'purpose':'unwind_or_early_drop','planned_exit':False})
+        self.log=self.case/'harness.log';self.log.write_bytes(b'<SCR> error: PrivateFailureName\nDO-NOT-EXPORT-AUTHORIZATION\n')
+        (self.case/'agent-logs/RLY-output.log').write_bytes(b'thread 100 panic: integer overflow\nPRIVATE_KEYS_AND_CONFIG\n')
+        self.save()
+
+    def save(self):
+        for name,rows in [('owned-children.jsonl',self.owned),('parent-child-exits.jsonl',self.exits)]:
+            (self.case/'evidence'/name).write_text(''.join(json.dumps(row)+'\n'for row in rows))
+
+    def observe(self):return api.role_failure_observation(self.case,self.manifest,42,self.sources,self.repo,self.log)
+
+    def test_actual_signal_parent_receipt_join_and_finite_panic_flags_never_publish_private_fields(self):
+        value=self.observe();relayer=next(r for r in value['roles']if r['role']=='relayer')
+        self.assertTrue(relayer['actual_parent_wait']['already_exited']);self.assertEqual(relayer['actual_parent_wait']['signal'],6);self.assertEqual(relayer['executable'],self.products['relayer'])
+        flags=next(r for r in value['fixed_role_logs']if r['role']=='relayer')['finite_observed_flags'];self.assertEqual(flags,['INTEGER_OVERFLOW','PANIC_HEADER_OBSERVED'])
+        self.assertEqual(next(r for r in value['fixed_role_logs']if r['role']=='scraper')['finite_observed_flags'],['ERROR_RETURN_HEADER_OBSERVED'])
+        wire=json.dumps(value)
+        for secret in ['PRIVATE_START','PRIVATE_SCOPE','PRIVATE_KEYS','PrivateFailureName','AUTHORIZATION']:self.assertNotIn(secret,wire)
+        self.assertFalse(value['native_or_timing_or_cleanup_authority']);self.assertFalse(next(r for r in value['fixed_role_logs']if r['role']=='relayer')['exact_pid_or_epoch_attribution'])
+
+    def test_actual_current_helper_Source_matches_fixed_journal_and_log_contract(self):
+        repo=Path(__file__).resolve().parents[2]
+        sources={}
+        for name in self.names:
+            source=repo/name;raw=source.read_bytes();sources[name]={'path':str(source),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+        self.repo,self.sources=repo,sources
+        value=self.observe();self.assertEqual(set(value['writer_sources']),set(self.names));self.assertEqual(len(value['roles']),3)
+
+    def test_composite_projection_does_not_invent_scraper_or_extra_validator_logs(self):
+        name='rust/main/utils/run-locally/src/sealevel/warp_route_composite_ism.rs';target=self.repo/name;target.write_bytes(b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))');raw=target.read_bytes();self.sources[name]={'path':str(target),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+        self.manifest['scenario']='sealevel-composite';self.owned=[r for r in self.owned if r['role']!='scraper'];self.exits=[r for r in self.exits if r['role']!='scraper'];self.save()
+        value=self.observe();self.assertEqual({r['role']for r in value['roles']},{'relayer','validator'});self.assertEqual([r['fixed_log']for r in value['fixed_role_logs']],['agent-logs/RLY-output.log','agent-logs/VL1-output.log'])
+
+    def test_unmatched_epoch_product_parent_and_bool_status_refuse(self):
+        original=copy.deepcopy(self.exits)
+        for key,value in [('pid',99),('parent_pid',43),('os_start_token','foreign'),('executable',self.products['validator']),('exit_code',True),('signal',True),('parent_wait_completed',False)]:
+            self.exits=copy.deepcopy(original);self.exits[0][key]=value;self.save()
+            with self.subTest(key=key),self.assertRaises(ValueError):self.observe()
+        self.exits=original+[copy.deepcopy(original[0])];self.save()
+        with self.assertRaises(ValueError):self.observe()
+
+    def test_missing_exit_does_not_invent_child_status_and_false_panic_substring_is_not_classified(self):
+        self.exits=[];self.save();(self.case/'agent-logs/RLY-output.log').write_bytes(b'PRIVATE panic: integer overflow\nthread 1 panic: SECRET integer overflow\n')
+        value=self.observe();self.assertTrue(all(r['status']=='parent_wait_not_recorded'and 'actual_parent_wait'not in r for r in value['roles']))
+        self.assertEqual(next(r for r in value['fixed_role_logs']if r['role']=='relayer')['finite_observed_flags'],['PANIC_HEADER_OBSERVED'])
+
+    def test_changed_source_linked_or_oversized_journal_refuses_without_reading_raw_body(self):
+        target=self.repo/self.names[0];original=target.read_bytes();target.write_bytes(original+b' source changed without removing contract markers')
+        with self.assertRaises(ValueError):self.observe()
+        target.write_bytes(original);journal=self.case/'evidence/parent-child-exits.jsonl';journal.unlink();journal.symlink_to(self.log)
+        with self.assertRaises(ValueError):self.observe()
+        journal.unlink()
+        with journal.open('wb')as stream:stream.truncate(1024**2+1)
+        with mock.patch.object(api.os,'open',side_effect=AssertionError('must refuse before open')):
+            with self.assertRaises(ValueError):api.captured_failure_bytes(journal,1024**2)
+
+    def test_missing_or_linked_role_log_is_unavailable_not_foreign_file_read(self):
+        target=self.case/'agent-logs/RLY-output.log';target.unlink();target.symlink_to(self.log)
+        with self.assertRaises(ValueError):self.observe()
+        target.unlink();value=self.observe();self.assertEqual(next(r for r in value['fixed_role_logs']if r['role']=='relayer')['status'],'absent')
+
 if __name__=='__main__':unittest.main()
