@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import http from 'http';
-import { $, type ProcessPromise } from 'zx';
 
 import {
   type MockWormholeCore,
@@ -20,7 +19,7 @@ import {
 import { type Address, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
-import { setSignerForChain } from '../commands/helpers.js';
+import { setSignerForChain, startCcipServer } from '../commands/helpers.js';
 import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
 
 /**
@@ -301,14 +300,6 @@ export async function startVaaUpstream(
   };
 }
 
-/**
- * Starts the real `WormholeVaaService` by running the ccip-server with only the
- * `wormhole` module enabled.
- *
- * Running the actual server — rather than re-mounting the routes in-process —
- * keeps the Fastify wiring, the ABI handler, and the CCIP-read response shape
- * inside this test's blast radius, which is the point of the E2E.
- */
 export interface LocalVaaService {
   url: string;
   close: () => Promise<void>;
@@ -320,6 +311,10 @@ export interface WormholeServiceRoute {
   router: Address;
 }
 
+/**
+ * Starts the real `WormholeVaaService` by running the ccip-server with only the
+ * `wormhole` module enabled.
+ */
 export async function startWormholeVaaService({
   port,
   upstreamUrl,
@@ -329,39 +324,16 @@ export async function startWormholeVaaService({
   upstreamUrl: string;
   routes: Record<string, WormholeServiceRoute>;
 }): Promise<LocalVaaService> {
-  const serverProcess: ProcessPromise = $({
+  const { baseUrl, close } = await startCcipServer({
+    port,
+    modules: ['wormhole'],
     env: {
-      ...process.env,
-      ENABLED_MODULES: 'wormhole',
-      SERVER_PORT: String(port),
-      REGISTRY_URI: REGISTRY_PATH,
       WORMHOLE_VAA_URLS: upstreamUrl,
       WORMHOLE_ROUTES: JSON.stringify(routes),
       WORMHOLE_VAA_MAX_ATTEMPTS: '3',
       WORMHOLE_VAA_RETRY_DELAY_MS: '250',
-      // The relayer supplies origin_tx_hash, so the Explorer is never reached.
-      HYPERLANE_EXPLORER_URL: 'http://127.0.0.1:1',
     },
-    nothrow: true,
-  })`pnpm --filter @hyperlane-xyz/ccip-server run start`;
+  });
 
-  const health = `http://127.0.0.1:${port}/health`;
-  const deadline = Date.now() + 60_000;
-  for (;;) {
-    try {
-      const response = await fetch(health);
-      if (response.ok) break;
-    } catch {
-      // Not listening yet.
-    }
-    assert(Date.now() < deadline, 'WormholeVaaService did not become healthy');
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-
-  return {
-    url: `http://127.0.0.1:${port}/wormhole/getWormholeVaa`,
-    close: async () => {
-      await serverProcess.kill();
-    },
-  };
+  return { url: `${baseUrl}/wormhole/getWormholeVaa`, close };
 }

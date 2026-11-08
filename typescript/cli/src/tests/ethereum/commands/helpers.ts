@@ -458,6 +458,59 @@ export async function stopRelayer(relayer: ProcessPromise): Promise<void> {
   }
 }
 
+/**
+ * Starts the real ccip-server with only the given modules enabled.
+ *
+ * Running the actual server — rather than re-mounting the routes in-process —
+ * keeps the Fastify wiring, the ABI handler, and the CCIP-read response shape
+ * inside the calling test's blast radius, which is the point of the E2E.
+ */
+export async function startCcipServer({
+  port,
+  modules,
+  env = {},
+}: {
+  port: number;
+  modules: string[];
+  env?: Record<string, string>;
+}): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  const serverProcess: ProcessPromise = $({
+    env: {
+      ...process.env,
+      ENABLED_MODULES: modules.join(','),
+      SERVER_PORT: String(port),
+      REGISTRY_URI: REGISTRY_PATH,
+      // The relayer supplies origin_tx_hash, so the Explorer is never reached.
+      HYPERLANE_EXPLORER_URL: 'http://127.0.0.1:1',
+      ...env,
+    },
+    nothrow: true,
+  })`pnpm --filter @hyperlane-xyz/ccip-server run start`;
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    try {
+      const response = await fetch(`${baseUrl}/health`);
+      if (response.ok) break;
+    } catch {
+      // Not listening yet.
+    }
+    assert(
+      Date.now() < deadline,
+      `ccip-server on port ${port} did not become healthy`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  return {
+    baseUrl,
+    close: async () => {
+      await serverProcess.kill();
+    },
+  };
+}
+
 export function createSnapshot(rpcUrl: string) {
   return snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
 }
