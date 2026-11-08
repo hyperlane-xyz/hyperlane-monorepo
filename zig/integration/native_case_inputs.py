@@ -653,6 +653,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     process.validate_manifest(manifest)
     write_new(paths['manifest'], manifest)
     env = {**stage['explicit_environment'], **environment, 'CI': 'true', 'E2E_CI_MODE': 'true', 'E2E_EXTERNAL_AGENT_MANIFEST': str(paths['manifest']), 'HOME': str(root / 'home'), 'TMPDIR': str(root / 'tmp'), **({'DOCKER_HOST':profile['local_docker']['host'],'DOCKER_CONFIG':profile['local_docker']['config_dir']}if scenario!='sealevel-composite'else{}), 'PYTHONNOUSERSITE': '1', 'PYTHONDONTWRITEBYTECODE': '1', 'RUST_BACKTRACE': 'full'}
+    if scenario == 'evm': env['E2E_KATHY_MESSAGES'] = '20'
     env.update({key: row['path'] for key, row in overrides.items()})
     if scenario=='tron':env.update(NPM_CONFIG_USERCONFIG='/dev/null',NPM_CONFIG_GLOBALCONFIG='/dev/null',npm_config_userconfig='/dev/null',npm_config_globalconfig='/dev/null',PNPM_DISABLE_SELF_UPDATE_CHECK='1',NO_UPDATE_NOTIFIER='1')
     argv = [harness['path']]

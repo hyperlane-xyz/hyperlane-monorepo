@@ -252,4 +252,25 @@ class HarnessWorkingDirectoryControls(unittest.TestCase):
   for scenario in ['cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite','radix','tron']:
    with self.subTest(scenario=scenario):self.assertEqual(self.planned_cwd(repo,scenario),repo/'rust/main/utils/run-locally')
 
+
+class EvmKathyConfigurationControls(unittest.TestCase):
+ def planned_environment(self,scenario,include_override=True):
+  import ast
+  tree=ast.parse(pathlib.Path(m.__file__).read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='prepare');start=next(i for i,n in enumerate(fn.body)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='env'for t in n.targets));nodes=fn.body[start:start+2]if include_override else fn.body[start:start+1]
+  space={'scenario':scenario,'stage':{'explicit_environment':{'PATH':'/usr/bin:/bin'}},'environment':{'FIXED_PUBLIC_WORKER':'/owned/worker'},'paths':{'manifest':pathlib.Path('/owned/manifest.json')},'root':pathlib.Path('/owned/case'),'profile':{'local_docker':{'host':'unix:///owned/docker.sock','config_dir':'/owned/docker-config'}},'str':str,'overrides':{}}
+  exec(compile(ast.Module(body=nodes,type_ignores=[]),'actual-prepare-explicit-environment','exec'),space);return space['env']
+ def test_actual_EVM_environment_matches_Rust_config_fixture_public_corpus_and_original_CI(self):
+  import ast,re
+  environment=self.planned_environment('evm');self.assertEqual(environment['E2E_CI_MODE'],'true');self.assertIn('E2E_KATHY_MESSAGES',environment);self.assertEqual(environment['E2E_KATHY_MESSAGES'],'20')
+  root=m.ROOT;config=(root/'rust/main/utils/run-locally/src/config.rs').read_text();self.assertIn('env::var("E2E_KATHY_MESSAGES")',config);self.assertRegex(config,r'r\.unwrap_or\(16\)')
+  main=(root/'rust/main/utils/run-locally/src/main.rs').read_text();self.assertIn('let config = Config::load();',main);self.assertIn('.arg("messages", (config.kathy_messages / 4).to_string())',main)
+  source=(root/'rust/main/utils/run-locally/src/external_agents.rs').read_text();fixture=source.split('fn configure_evm_fixture(',1)[1].split('type FixtureSnapshot',1)[0];self.assertRegex(fixture,r'"kathy",\s*"--messages",\s*"5",');self.assertIn('Kathy Source20 fixture arguments differ',fixture)
+  owner=ast.parse((root/'zig/bench/native_case_owner.py').read_text());calls=[n for n in ast.walk(owner)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and isinstance(n.func.value,ast.Name)and n.func.value.id=='os'and n.func.attr=='execve'];self.assertEqual(len(calls),1);self.assertEqual(ast.unparse(calls[0].args[2]),"plan['explicit_environment']")
+  messages=int(environment['E2E_KATHY_MESSAGES']);self.assertEqual(messages//4,5);self.assertNotEqual(16//4,5);profile=m.public_profile('evm')['initial_corpus'];self.assertEqual(profile,{'dispatches':31,'deliveries':20,'zero_insertions':10,'failed_body':1,'double_insertions':10});self.assertEqual(messages,profile['deliveries'])
+  workflow=(root/'.github/workflows/test-rust-e2e.yml').read_text();evm=workflow.split('- name: agent tests (EVM)',1)[1].split('- name:',1)[0];self.assertIn("E2E_CI_MODE: 'true'",evm);self.assertIn("E2E_KATHY_MESSAGES: '20'",evm)
+ def test_all_seven_other_families_keep_their_actual_original_environment(self):
+  for scenario in ['cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite','radix','tron']:
+   with self.subTest(scenario=scenario):
+    expected=self.planned_environment(scenario,include_override=False);actual=self.planned_environment(scenario);self.assertEqual(actual,expected);self.assertNotIn('E2E_KATHY_MESSAGES',actual)
+
 if __name__=='__main__':unittest.main(verbosity=2)
