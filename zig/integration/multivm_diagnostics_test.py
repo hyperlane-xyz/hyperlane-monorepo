@@ -237,8 +237,8 @@ class Controls(unittest.TestCase):
 class RoleFailureProjectionControls(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.case=Path(self.temp.name).resolve();(self.case/'evidence').mkdir();(self.case/'agent-logs').mkdir();self.repo=self.case/'repo';self.repo.mkdir()
-        self.names=['rust/main/utils/run-locally/src/'+n for n in ['external_agents.rs','program.rs','main.rs','sealevel/mod.rs']]
-        bodies=[b'pub struct OwnedChild\nstruct ChildExit\n.join("parent-child-exits.jsonl")\nimpl Drop for TrackedChild',b'format!("{log_prefix}-output.log")\nprintln!("<{prefix}> {line}")',b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")',b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))']
+        self.names=['rust/main/utils/run-locally/src/'+n for n in ['external_agents.rs','program.rs','main.rs','sealevel/mod.rs','logging.rs']]
+        bodies=[b'pub struct OwnedChild\nstruct ChildExit\n.join("parent-child-exits.jsonl")\nimpl Drop for TrackedChild',b'format!("{log_prefix}-output.log")\nprintln!("<{prefix}> {line}")\nlog!("Error reading from output for {}: {}", prefix, e)',b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")',b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))',b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)']
         self.sources={}
         for name,body in zip(self.names,bodies):
             target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body);self.sources[name]={'path':str(target),'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest()}
@@ -336,5 +336,31 @@ class RoleFailureProjectionControls(unittest.TestCase):
     def test_unowned_SVM_role_prefixes_do_not_grant_log_rows(self):
         self.owned=[r for r in self.owned if r['role']=='relayer'];self.exits=[r for r in self.exits if r['role']=='relayer'];self.save();self.log.write_bytes(b'<SCR> panic: integer overflow\n<VL1> panic: reached unreachable code\n')
         rows=self.observe()['fixed_role_logs'];self.assertEqual([r['fixed_log']for r in rows],['agent-logs/RLY-output.log','harness.log prefix RLY']);self.assertEqual(rows[-1]['finite_observed_flags'],[])
+
+
+    def test_canonical_fatal_flags_are_finite_and_addresses_codes_never_export(self):
+        self.log.write_bytes(b'<RLY> Segmentation fault at address 0xdeadbeef\n<RLY> Bus error at address 0x12345678\n<RLY> Illegal instruction at address 0xfedcba98\n<RLY> Arithmetic exception at address 0x98765432\n<RLY> General protection exception (no address available)\n<RLY> bzip2 internal invariant failure: -2147483648\n')
+        value=self.observe();row=next(r for r in value['fixed_role_logs']if r['fixed_log']=='harness.log prefix RLY')
+        self.assertEqual(row['finite_observed_flags'],['ARITHMETIC_EXCEPTION','BUS_ERROR','BZIP2_INTERNAL_INVARIANT_FAILURE','GENERAL_PROTECTION_EXCEPTION','ILLEGAL_INSTRUCTION','SEGMENTATION_FAULT']);self.assertFalse(row['exact_pid_or_epoch_attribution']);self.assertFalse(value['native_or_timing_or_cleanup_authority'])
+        wire=json.dumps(value)
+        for private in ['deadbeef','12345678','fedcba98','98765432','-2147483648']:self.assertNotIn(private,wire)
+        (self.case/'agent-logs/RLY-output.log').write_bytes(b'bzip2 internal invariant failure: 2147483647\n');value=self.observe();row=next(r for r in value['fixed_role_logs']if r['fixed_log']=='agent-logs/RLY-output.log');self.assertEqual(row['finite_observed_flags'],['BZIP2_INTERNAL_INVARIANT_FAILURE'])
+
+    def test_fatal_substrings_invalid_addresses_and_out_of_range_codes_do_not_classify(self):
+        bodies=[b'PRIVATE Segmentation fault at address 0x1234',b'Segmentation fault at address 0x1234 SECRET',b'Segmentation fault at address 0x10000000000000000',b'Segmentation fault at address 0xSECRET',b'Bus error',b'Illegal instruction at address 0xABCD',b'bzip2 internal invariant failure: 2147483648',b'bzip2 internal invariant failure: -2147483649',b'bzip2 internal invariant failure: 2 SECRET',b'PRIVATE General protection exception (no address available)']
+        self.log.write_bytes(b''.join(b'<RLY> '+body+b'\n'for body in bodies));value=self.observe();row=next(r for r in value['fixed_role_logs']if r['fixed_log']=='harness.log prefix RLY');self.assertEqual(row['finite_observed_flags'],[])
+        wire=json.dumps(value)
+        for private in ['PRIVATE','SECRET','2147483648','2147483649','0x1234']:self.assertNotIn(private,wire)
+
+
+    def test_exact_Source_role_pipe_error_marker_is_closed_and_not_a_UTF8_cause(self):
+        self.log.write_bytes(b'<E2E> Error reading from output for RLY: SECRET_BODY invalid bytes\n<E2E> Error reading from output for VL1: SECRET_OTHER\n<RLY> <E2E> Error reading from output for VL2: SPOOF\n<E2E> Error reading from output for VL3: \n<E2E> Error reading from output for OTHER: SECRET\n')
+        value=self.observe();rows={r['fixed_log']:r for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')}
+        for prefix in ['RLY','VL1']:self.assertEqual(rows['harness.log prefix '+prefix]['finite_observed_flags'],['ROLE_PIPE_READ_ERROR_OBSERVED'])
+        for prefix in ['VL2','VL3','SCR']:self.assertEqual(rows['harness.log prefix '+prefix]['finite_observed_flags'],[])
+        wire=json.dumps(value)
+        for secret in ['SECRET','invalid bytes','SPOOF']:self.assertNotIn(secret,wire)
+        path=self.repo/self.names[-1];path.write_bytes(path.read_bytes()+b' changed logging macro')
+        with self.assertRaises(ValueError):self.observe()
 
 if __name__=='__main__':unittest.main()

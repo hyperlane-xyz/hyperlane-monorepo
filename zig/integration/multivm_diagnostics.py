@@ -265,12 +265,13 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
         return [json.loads(row,object_pairs_hook=unique)for row in rows],{'status':'captured',**fingerprint}
     helper='rust/main/utils/run-locally/src/external_agents.rs';program='rust/main/utils/run-locally/src/program.rs';main='rust/main/utils/run-locally/src/main.rs'
     caller='rust/main/utils/run-locally/src/sealevel/'+('mod.rs'if manifest['scenario']=='sealevel'else'warp_route_composite_ism.rs')
+    logging='rust/main/utils/run-locally/src/logging.rs'
     writer_sources={};bodies={}
-    for name in [helper,program,main,caller]:
+    for name in [helper,program,main,caller,logging]:
         row=sources[name];source=Path(repo)/name;body,fingerprint=captured_failure_bytes(source,1024**2)
         if row!={'path':str(source),**fingerprint}:raise ValueError('Role journal or log writer Source changed')
         writer_sources[name]=dict(row);bodies[name]=body
-    needles={helper:[b'pub struct OwnedChild',b'struct ChildExit',b'.join("parent-child-exits.jsonl")',b'impl Drop for TrackedChild'],program:[b'format!("{log_prefix}-output.log")',b'println!("<{prefix}> {line}")'],main:[b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")'],caller:[b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))']}
+    needles={helper:[b'pub struct OwnedChild',b'struct ChildExit',b'.join("parent-child-exits.jsonl")',b'impl Drop for TrackedChild'],program:[b'format!("{log_prefix}-output.log")',b'println!("<{prefix}> {line}")',b'log!("Error reading from output for {}: {}", prefix, e)'],logging:[b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)'],main:[b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")'],caller:[b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))']}
     if not all(needle in bodies[name]for name,values in needles.items()for needle in values):raise ValueError('Exact Source role journal/log contract missing')
     owned,owned_pin=lines('evidence/owned-children.jsonl');exits,exit_pin=lines('evidence/parent-child-exits.jsonl')
     roles={'relayer','validator'}if manifest['scenario']=='sealevel-composite'else{'relayer','validator','scraper'}
@@ -305,6 +306,8 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
             if len(line)>65536:continue
             line=re.sub(rb'\x1b\[[0-9;]*m',b'',line).strip()
             if prefix is not None:
+                pipe_marker=b'<E2E> Error reading from output for '+prefix+b': '
+                if line.startswith(pipe_marker)and len(line)>len(pipe_marker):result.add('ROLE_PIPE_READ_ERROR_OBSERVED');continue
                 marker=b'<'+prefix+b'> '
                 if not line.startswith(marker):continue
                 line=line[len(marker):]
@@ -313,6 +316,12 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
                 result.add('PANIC_HEADER_OBSERVED')
                 if match[1]in patterns:result.add(patterns[match[1]])
             if re.fullmatch(rb'error: [A-Za-z_][A-Za-z_0-9]{0,127}',line):result.add('ERROR_RETURN_HEADER_OBSERVED')
+            fatal={b'Segmentation fault':'SEGMENTATION_FAULT',b'Bus error':'BUS_ERROR',b'Illegal instruction':'ILLEGAL_INSTRUCTION',b'Arithmetic exception':'ARITHMETIC_EXCEPTION'}
+            for phrase,label in fatal.items():
+                if re.fullmatch(re.escape(phrase)+rb' at address 0x[0-9a-f]{1,16}',line):result.add(label)
+            if line==b'General protection exception (no address available)':result.add('GENERAL_PROTECTION_EXCEPTION')
+            match=re.fullmatch(rb'bzip2 internal invariant failure: (-?[0-9]{1,10})',line)
+            if match and -(2**31)<=int(match[1])<2**31:result.add('BZIP2_INTERNAL_INVARIANT_FAILURE')
         return sorted(result)
     logs=[]
     for prefix,role in prefixes.items():
