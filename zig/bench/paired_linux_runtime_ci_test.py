@@ -48,9 +48,13 @@ class Fixture(unittest.TestCase):
         path=self.save(value)
         with mock.patch.object(c,'__file__',str(self.repo/c.SELF)):return c.request(path,c.pin(path)['sha256'],self.repo)
 
+    def inert_request(self):
+        # False-gate controls must stay independent of live runtime activation.
+        return {'schema':1,'kind':'paired-linux-runtime-ci-v1','root_approved':False,'reuse_header':None,'cohort_qualification':None,'native18_qualification':None,'general_CI_qualification':None,'final_Source_qualification':None,'methods':None,'required_source':[]}
+
 class Request(Fixture):
     def test_inert_actual_request_before_any_module_setup_output_or_download(self):
-        value=json.loads((HERE/'paired_linux_runtime_request.json').read_text());path=self.save(value)
+        value=self.inert_request();path=self.save(value)
         with mock.patch.object(c,'source_module',side_effect=AssertionError('No import')),mock.patch.object(c,'current_identity',side_effect=AssertionError('No API/env')):self.assertIsNone(c.request(path,c.pin(path)['sha256'],self.repo))
         self.assertEqual([p for p in self.repo.rglob('*')if p.is_file()],[path])
     def test_oversized_request_refused_before_hash_or_decode(self):
@@ -60,9 +64,9 @@ class Request(Fixture):
             with self.assertRaisesRegex(c.Refused,'before hash'):c.request(path,'a'*64,self.repo)
             hashed.assert_not_called();decoded.assert_not_called()
     def test_false_with_future_gate_or_nonliteral_bool_or_extra_field_refuses(self):
-        base=json.loads((HERE/'paired_linux_runtime_request.json').read_text())
-        for field,value in [('root_approved',1),('reuse_header',{}),('required_source',[{}]),('unknown',None)]:
-            with self.subTest(field=field),self.assertRaises(c.Refused):self.admit({**base,field:value})
+        base=self.inert_request()
+        for field,value,reason in [('root_approved',1,'Closed runtime request'),('reuse_header',{},'Unapproved future gates must remain null'),('required_source',[{}],'Unapproved future gates must remain null'),('unknown',None,'Closed runtime request')]:
+            with self.subTest(field=field),self.assertRaisesRegex(c.Refused,reason):self.admit({**base,field:value})
     def test_actual_enabled_closed_dto_and_all18_products_admitted_as_fixture_only(self):
         _,value=self.enabled();context=self.admit(value);self.assertEqual(context['producer'],'b'*40);self.assertEqual(len(context['native']['cases']),18);self.assertEqual(len(context['runtime_607']),607);self.assertNotIn('execution_source_commit',value)
     def test_each_independent_actual_Root_gate_and_source_count_required(self):
