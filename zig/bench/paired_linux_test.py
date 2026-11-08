@@ -252,7 +252,7 @@ class Workflow(unittest.TestCase):
    block=body.split('      - name: Install verified official Foundry v1.5.0\n',1)[1].split('      - ',1)[0];seen.append(block)
    for command in ['python3 -I -B -W error zig/tools/foundry_official_test.py -v','python3 -I -B zig/tools/foundry_official.py','--runner-temp "$RUNNER_TEMP"','--gh "$(readlink -f "$(command -v gh)")"','echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"']:self.assertIn(command,block)
   self.assertEqual(sum('        if: 'in b for b in seen),3);self.assertNotIn('foundry-rs/foundry-toolchain@',self.text)
-  required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=p.SOURCE_PATHS);self.assertEqual(len(p.SOURCE_PATHS),35)
+  required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=p.SOURCE_PATHS);self.assertEqual(len(p.SOURCE_PATHS),37)
   aleo=self.text.split('\n  aleo-full-case:',1)[1].split('\n  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0];self.assertNotIn('foundry_official',aleo)
  def test_foundry_token_is_only_six_steps_and_existing_job_permissions_unchanged(self):
   names=['native-linux','evm','native-case-producer-inputs','paired-linux-inputs','paired-linux-functional','paired-linux-runtime'];self.assertEqual(self.text.count('FOUNDRY_GITHUB_TOKEN: ${{ github.token }}'),6)
@@ -378,5 +378,20 @@ class ExternalToolMismatchDiagnostics(unittest.TestCase):
   error.external_tool_mismatch=valid;self.assertNotIn('external_tool_mismatch',stage.failure_observation(error,self.repo,{'required_source':[]}))
  def test_exact_actual_external_tool_loop_supplies_name_without_new_pin_calls(self):
   tree=ast.parse(Path(p.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='input_manifest');loop=next(n for n in fn.body if isinstance(n,ast.For)and isinstance(n.target,ast.Name)and n.target.id=='name'and isinstance(n.iter,ast.Name)and n.iter.id=='required_tools');calls=[n for n in ast.walk(loop)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='checked'];self.assertEqual(len(calls),1);self.assertEqual([(k.arg,ast.unparse(k.value))for k in calls[0].keywords],[('external_tool','name')])
+
+class FixedPnpmClosure(unittest.TestCase):
+ def test_two_existing_helpers_are_required_without_dropping_old_members(self):
+  self.assertTrue({'zig/bench/native_tron_setup.py','zig/bench/native_tron_assets.py'}<=p.SOURCE_PATHS)
+ def test_identical_native_file_passes_but_changed_launcher_is_not_waived(self):
+  with tempfile.TemporaryDirectory()as directory:
+   path=Path(directory).resolve()/'pnpm';elf=b'\x7fELF\x02\x01'+b'fixed-native-fixture';path.write_bytes(elf);row=p.pin(path);self.assertEqual(p.checked(row,external_tool='pnpm'),row);path.write_bytes(elf);self.assertEqual(p.checked(row,external_tool='pnpm'),row);path.write_bytes(b'#!/bin/sh\nexec different-local-path\n')
+   with self.assertRaises(p.Refused)as caught:p.checked(row,external_tool='pnpm')
+   self.assertEqual(caught.exception.args,('input bytes changed',));self.assertEqual(caught.exception.external_tool_mismatch['name'],'pnpm')
+ def test_only_paired_jobs_replace_their_generated_manager_and_keep_gates(self):
+  text=(HERE.parents[1]/'.github/workflows/zig-agents.yml').read_text()
+  for name,gate in [('paired-linux-inputs',"steps.authority.outputs.inputs_enabled == 'true'"),('paired-linux-functional',None),('paired-linux-runtime',"steps.runtime.outputs.runtime_enabled == 'true'")]:
+   body=re.split(r'\n  [a-z][a-z0-9-]*:\n',text.split('\n  '+name+':',1)[1],maxsplit=1)[0];self.assertNotIn('uses: pnpm/action-setup@',body);step=body.split('      - name: Stage exact official native pnpm12.3.0 outside all measurements\n',1)[1].split('      - ',1)[0];self.assertIn('timeout-minutes: 3',step)
+   if gate:self.assertIn('        if: '+gate,step)
+   else:self.assertIn('paired_linux.py select --request',step);self.assertIn('needs.paired-linux-inputs.outputs.request_sha256',step)
 
 if __name__=='__main__':unittest.main()

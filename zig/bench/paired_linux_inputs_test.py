@@ -71,7 +71,7 @@ class Controls(unittest.TestCase):
   v['required_source'].pop();p.write_text(json.dumps(v))
   with self.assertRaises(m.Refused):m.request(p,m.digest(p),self.repo)
  def test_foundry_installer_test_and_root_must_be_pinned_before_producer_setup(self):
-  required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=m.CODE);self.assertEqual(len(m.CODE),19)
+  required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=m.CODE);self.assertEqual(len(m.CODE),21)
   for missing in required:
    path,_,value=self.request(True);value['required_source']=[r for r in value['required_source']if r['path']!=missing];path.write_text(json.dumps(value))
    with self.subTest(missing=missing),self.assertRaisesRegex(m.Refused,'required executable producer dependency missing'):m.request(path,m.digest(path),self.repo)
@@ -261,5 +261,92 @@ class NativePsql16(unittest.TestCase):
  def test_actual_staged_version_uses_same_native_pin_and_rejects_other_major(self):
   path,(paths,versions),calls=self.staged();self.assertEqual(paths['psql'],m.pin(path));self.assertEqual(next(row for row in calls if row[0]=='version-psql'),('version-psql',[str(path),'--version'],10));self.assertIn('PostgreSQL) 16.',versions['psql']['text'])
   with self.assertRaisesRegex(m.Refused,'PostgreSQL16 client'):self.staged('psql (PostgreSQL) 17.0')
+
+class FixedNativePnpm(unittest.TestCase):
+ def recipe(self):
+  text=(REPO/'.github/workflows/zig-agents.yml').read_text();chunks=text.split("          /usr/bin/python3 -I -B - <<'PYTHON'\n");rows=[]
+  for chunk in chunks[1:]:
+   body=chunk.split('          PYTHON\n',1)[0];source='\n'.join(line[10:]for line in body.splitlines())+'\n'
+   if 'def run_owned('in source and 'def stage('in source:rows.append(source)
+  self.assertEqual(len(rows),3);self.assertEqual(len(set(rows)),1);scope={'__name__':'paired_pnpm_recipe_test'};exec(compile(rows[0],'actual-fixed-pnpm-workflow','exec'),scope);return scope,rows[0]
+ def fixture(self):
+  tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);root=pathlib.Path(tmp.name).resolve();repo=root/'repo';helper=repo/'zig/bench/native_tron_setup.py';helper.parent.mkdir(parents=True);base=root/'temp';base.mkdir();path=root/'PATH';path.write_text('existing\n')
+  payload=bytearray(40);payload[:6]=b'\x7fELF\x02\x01';payload[18:20]=(62).to_bytes(2,'little');payload=bytes(payload);archive=b'closed fake downloaded package'
+  policy={'source_url':'https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz','archive_bytes':len(archive),'archive_sha256':hashlib.sha256(archive).hexdigest(),'member':'package/pnpm','bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()}
+  helper.write_text('PNPM_RELEASE='+repr({'amd64':policy})+'\n');helper.with_name('native_tron_assets.py').write_text('# fixture helper\n');return root,base,repo,path,payload,archive,{'RUNNER_TEMP':str(base),'GITHUB_WORKSPACE':str(repo),'GITHUB_PATH':str(path)}
+ def attempt(self,failure=None):
+  scope,_=self.recipe();root,base,repo,path,payload,archive,env=self.fixture();calls=[]
+  def run(argv,clean,seconds,stdout,file_limit):
+   calls.append((argv,dict(clean),seconds,file_limit));self.assertEqual(path.read_text(),'existing\n');self.assertEqual(set(clean),{'PATH','LC_ALL','HOME'})
+   kind='download'if argv[1]=='-q'else'admit'if argv[0]=='/usr/bin/python3'else'version'
+   if kind==failure:raise RuntimeError('injected '+kind)
+   if kind=='download':stdout.write(archive[:-1]if failure=='short-download'else archive)
+   elif kind=='admit':
+    binary=pathlib.Path(argv[argv.index('--output')+1]);binary.write_bytes(b'#!/bin/sh\nforeign generated launcher\n'if failure=='changed-shim'else payload);binary.chmod(0o755)
+   else:stdout.write(b'foreign-version\n'if failure=='bad-version'else b'12.3.0\n')
+  with mock.patch.dict(scope,run_owned=run),mock.patch.object(scope['sys'],'platform','linux'),mock.patch.object(scope['os'],'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(scope['shutil'],'which',return_value='/usr/bin/curl'):
+   if failure:
+    with self.assertRaises(RuntimeError):scope['stage'](env)
+    self.assertEqual(path.read_text(),'existing\n');self.assertFalse((base/'ziggy-paired-pnpm-12.3.0').exists())
+   else:
+    scope['stage'](env);target=base/'ziggy-paired-pnpm-12.3.0';self.assertEqual(path.read_text(),'existing\n'+str(target)+'\n');self.assertEqual([p.name for p in target.iterdir()],['pnpm']);self.assertEqual((target/'pnpm').read_bytes(),payload);self.assertEqual(target.stat().st_mode&0o777,0o700)
+  return calls
+ def test_same_actual_workflow_recipe_stages_only_exact_owned_native(self):
+  rows=self.attempt();self.assertEqual([r[2]for r in rows],[65,30,10]);argv,clean,seconds,cap=rows[0];self.assertEqual(argv[1],'-q');self.assertIn('--proto',argv);self.assertEqual(argv[argv.index('--max-filesize')+1],str(cap));self.assertEqual(argv[argv.index('--max-time')+1],'60');self.assertEqual(argv[argv.index('--connect-timeout')+1],'15');self.assertEqual(argv[argv.index('--retry')+1],'0');self.assertEqual(argv[argv.index('--output')+1],'-');self.assertEqual(clean['PATH'],'/usr/bin:/bin')
+ def test_all_failure_boundaries_leave_PATH_unpublished_and_remove_only_owned_scratch(self):
+  for phase in ['download','admit','version','bad-version','short-download','changed-shim']:
+   with self.subTest(phase=phase):self.attempt(phase)
+ def test_preexisting_or_foreign_replaced_root_never_removed(self):
+  scope,_=self.recipe();_,base,_,path,_,_,env=self.fixture();target=base/'ziggy-paired-pnpm-12.3.0';target.mkdir();(target/'foreign').write_text('preserve')
+  with mock.patch.object(scope['sys'],'platform','linux'),mock.patch.object(scope['os'],'uname',return_value=types.SimpleNamespace(machine='x86_64')),self.assertRaises(FileExistsError):scope['stage'](env)
+  self.assertEqual((target/'foreign').read_text(),'preserve');self.assertEqual(path.read_text(),'existing\n')
+ def test_replaced_root_cannot_be_cleaned_or_publish_PATH(self):
+  scope,_=self.recipe();_,base,_,path,_,_,env=self.fixture();target=base/'ziggy-paired-pnpm-12.3.0'
+  def replace(*args,**kwargs):
+   target.rename(base/'owned-previous');target.mkdir();(target/'foreign').write_text('preserve');raise RuntimeError('original download failure')
+  with mock.patch.dict(scope,run_owned=replace),mock.patch.object(scope['sys'],'platform','linux'),mock.patch.object(scope['os'],'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(scope['shutil'],'which',return_value='/usr/bin/curl'),self.assertRaisesRegex(RuntimeError,'Setup root identity changed'):scope['stage'](env)
+  self.assertEqual((target/'foreign').read_text(),'preserve');self.assertEqual(path.read_text(),'existing\n')
+ def test_actual_owned_runner_applies_child_file_limit_and_restores_parent_limit(self):
+  scope,_=self.recipe();old=scope['resource'].getrlimit(scope['resource'].RLIMIT_FSIZE);seen=[];child=mock.Mock(pid=123);child.wait.return_value=0
+  def spawn(*args,**kwargs):seen.append(scope['resource'].getrlimit(scope['resource'].RLIMIT_FSIZE));self.assertNotIn('preexec_fn',kwargs);return child
+  with mock.patch.object(scope['subprocess'],'Popen',side_effect=spawn):scope['run_owned'](['fake-curl'],{},65,None,4096)
+  self.assertEqual(seen[0][0],4096);self.assertEqual(scope['resource'].getrlimit(scope['resource'].RLIMIT_FSIZE),old);child.wait.assert_called_once_with(timeout=65)
+ def test_nonzero_child_is_not_accepted(self):
+  scope,_=self.recipe();child=mock.Mock(pid=123);child.wait.return_value=7
+  with mock.patch.object(scope['subprocess'],'Popen',return_value=child),self.assertRaisesRegex(RuntimeError,'Fixed pnpm preparation child failed'):scope['run_owned'](['fake'],{},10,None,4096)
+  child.wait.assert_called_once_with(timeout=10)
+ def test_captured_signal_handler_kills_and_reaps_before_propagating(self):
+  scope,source=self.recipe();self.assertIn('signal.signal(signum,interrupted)',source);self.assertIn('[signal.SIGINT,signal.SIGTERM,signal.SIGHUP]',source);child=mock.Mock(pid=123)
+  def interruption(*args,**kwargs):scope['interrupted'](scope['signal'].SIGTERM,None)
+  calls=[]
+  def wait(**kwargs):
+   calls.append(kwargs)
+   if len(calls)==1:interruption()
+   return -9
+  child.wait.side_effect=wait
+  with mock.patch.object(scope['subprocess'],'Popen',return_value=child),mock.patch.object(scope['os'],'killpg')as kill,self.assertRaisesRegex(RuntimeError,'Fixed pnpm setup interrupted'):scope['run_owned'](['fake'],{},10,None,4096)
+  kill.assert_called_once_with(123,scope['signal'].SIGKILL);self.assertEqual(calls,[{'timeout':10},{'timeout':5}])
+ def test_timeout_kills_owned_group_and_waits_before_failure(self):
+  scope,_=self.recipe();child=mock.Mock(pid=123);child.wait.side_effect=[scope['subprocess'].TimeoutExpired('fake',10),-9]
+  with mock.patch.object(scope['subprocess'],'Popen',return_value=child),mock.patch.object(scope['os'],'killpg')as kill,self.assertRaises(scope['subprocess'].TimeoutExpired):scope['run_owned'](['fake'],{},10,None,4096)
+  kill.assert_called_once_with(123,scope['signal'].SIGKILL);self.assertEqual(child.wait.call_args_list,[mock.call(timeout=10),mock.call(timeout=5)])
+ def test_existing_admission_rejects_same_length_archive_mutation_and_wrong_machine(self):
+  import io,tarfile
+  scope={'__name__':'existing_pnpm_admission_test'};exec(compile((REPO/'zig/bench/native_tron_setup.py').read_bytes(),'actual-native-tron-setup','exec'),scope)
+  payload=bytearray(24);payload[:6]=b'\x7fELF\x02\x01';payload[18:20]=(62).to_bytes(2,'little');payload=bytes(payload)
+  def archive(body):
+   output=io.BytesIO()
+   with tarfile.open(fileobj=output,mode='w:gz')as tar:
+    for name,wire in [('package/pnpm',body),('package/package.json',json.dumps({'name':'@pnpm/exe.linux-x64','version':'12.3.0','os':['linux'],'libc':['glibc']}).encode()),('package/LICENSE',b'x'),('package/THIRD-PARTY-NOTICES.md',b'x')]:
+     row=tarfile.TarInfo(name);row.size=len(wire);tar.addfile(row,io.BytesIO(wire))
+   return output.getvalue()
+  blob=archive(payload);policy={'archive_bytes':len(blob),'archive_sha256':hashlib.sha256(blob).hexdigest(),'member':'package/pnpm','bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()}
+  with mock.patch.dict(scope['PNPM_RELEASE'],amd64=policy):
+   self.assertEqual(scope['pnpm_member'](blob,'amd64'),payload);changed=bytearray(blob);changed[4]^=1
+   with self.assertRaisesRegex(ValueError,'Exact official Linux'):scope['pnpm_member'](bytes(changed),'amd64')
+  wrong=bytearray(payload);wrong[18:20]=(183).to_bytes(2,'little');wrong=bytes(wrong);blob=archive(wrong);policy.update(archive_bytes=len(blob),archive_sha256=hashlib.sha256(blob).hexdigest(),sha256=hashlib.sha256(wrong).hexdigest())
+  with mock.patch.dict(scope['PNPM_RELEASE'],amd64=policy),self.assertRaisesRegex(ValueError,'Actual native pnpm payload differs'):scope['pnpm_member'](blob,'amd64')
+ def test_actual_curated_archive_and_ELF_policy_are_unchanged(self):
+  tree=ast.parse((REPO/'zig/bench/native_tron_setup.py').read_text());policy=next(ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='PNPM_RELEASE'for t in n.targets))['amd64'];self.assertEqual((policy['archive_bytes'],policy['bytes']),(19223500,44686464));self.assertEqual(policy['archive_sha256'],'bca0e805a33855a99c7b2557a842212d'+'67994785217cb8922b33d2c0e40815cb');self.assertEqual(policy['sha256'],'5635ac1a8305715ce6edc028890c9b30'+'d26f743733e215105ddc131ae5cfe186');self.assertTrue({'zig/bench/native_tron_setup.py','zig/bench/native_tron_assets.py'}<=m.CODE)
 
 if __name__=='__main__':unittest.main(verbosity=2)

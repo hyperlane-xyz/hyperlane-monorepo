@@ -1392,10 +1392,78 @@ jobs:
         if: steps.authority.outputs.inputs_enabled == 'true'
         with:
           node-version-file: .nvmrc
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+      - name: Stage exact official native pnpm12.3.0 outside all measurements
         if: steps.authority.outputs.inputs_enabled == 'true'
-        with:
-          run_install: false
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B - <<'PYTHON'
+          import ast,hashlib,json,os,resource,shutil,signal,stat,subprocess,sys
+          from pathlib import Path
+
+          def need(ok,message):
+              if not ok:raise RuntimeError(message)
+
+          def run_owned(argv,environ,seconds,stdout,file_limit):
+              # Single-threaded setup parent; child inherits the temporary file limit.
+              old=resource.getrlimit(resource.RLIMIT_FSIZE)
+              need(old[1]==resource.RLIM_INFINITY or old[1]>=file_limit,'File limit unavailable')
+              child=None
+              try:
+                  try:
+                      resource.setrlimit(resource.RLIMIT_FSIZE,(file_limit,old[1]))
+                      child=subprocess.Popen(argv,env=environ,stdin=subprocess.DEVNULL,stdout=stdout,start_new_session=True)
+                  finally:resource.setrlimit(resource.RLIMIT_FSIZE,old)
+                  code=child.wait(timeout=seconds)
+              except BaseException:
+                  if child is not None:
+                      try:os.killpg(child.pid,signal.SIGKILL)
+                      except ProcessLookupError:pass
+                      child.wait(timeout=5)
+                  raise
+              need(code==0,'Fixed pnpm preparation child failed')
+
+          def stage(environ):
+              base=Path(environ['RUNNER_TEMP']);repo=Path(environ['GITHUB_WORKSPACE'])
+              need(base.is_absolute()and base.resolve(strict=True)==base and repo.is_absolute()and repo.resolve(strict=True)==repo,'Canonical setup roots required')
+              need(sys.platform=='linux'and os.uname().machine=='x86_64','Linux amd64 pnpm required')
+              helper=repo/'zig/bench/native_tron_setup.py';assets=helper.with_name('native_tron_assets.py')
+              need(not helper.parent.joinpath('__pycache__').exists(),'Source bytecode refused')
+              need(helper.is_file()and not helper.is_symlink()and assets.is_file()and not assets.is_symlink(),'Fixed Source helpers required')
+              tree=ast.parse(helper.read_bytes());policies=[ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='PNPM_RELEASE'for t in n.targets)]
+              need(len(policies)==1,'Exact existing pnpm release policy required');policy=policies[0]['amd64']
+              need(policy['source_url']=='https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz'and policy['member']=='package/pnpm','Exact existing amd64 release required')
+              root=base/'ziggy-paired-pnpm-12.3.0';root.mkdir(mode=0o700);identity=(root.stat().st_dev,root.stat().st_ino)
+              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False
+              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}
+              def owned():
+                  row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')
+              def actual():
+                  need(binary.is_file()and not binary.is_symlink(),'Native pnpm file required');wire=binary.read_bytes()
+                  need(len(wire)==policy['bytes']and hashlib.sha256(wire).hexdigest()==policy['sha256']and wire[:6]==b'\x7fELF\x02\x01'and int.from_bytes(wire[18:20],'little')==62,'Native pnpm identity differs')
+                  return {'path':str(binary),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
+              try:
+                  curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')
+                  with archive.open('xb')as output:
+                      run_owned([curl,'-q','--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--retry','0','--connect-timeout','15','--max-time','60','--max-filesize',str(policy['archive_bytes']),'--output','-',policy['source_url']],clean,65,output,policy['archive_bytes'])
+                  need(archive.stat().st_size==policy['archive_bytes'],'Native pnpm archive size differs')
+                  run_owned(['/usr/bin/python3','-I','-B',str(helper),'--admit-pnpm','--architecture','amd64','--archive',str(archive),'--output',str(binary)],clean,30,subprocess.DEVNULL,policy['bytes'])
+                  before=actual()
+                  with version.open('xb')as output:run_owned([str(binary),'--version'],clean,10,output,128)
+                  need(version.read_bytes().strip()==b'12.3.0'and actual()==before,'Native pnpm version or postflight differs')
+                  owned();archive.unlink();version.unlink()
+                  need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')
+                  with Path(environ['GITHUB_PATH']).open('a')as output:output.write(str(root)+'\n')
+                  passed=True;print(json.dumps({'native_pnpm':before,'version':'12.3.0','generated_launcher_used':False},sort_keys=True))
+              finally:
+                  if not passed:owned();shutil.rmtree(root)
+
+          def interrupted(signum,frame):raise RuntimeError('Fixed pnpm setup interrupted')
+
+          if __name__=='__main__':
+              for signum in [signal.SIGINT,signal.SIGTERM,signal.SIGHUP]:signal.signal(signum,interrupted)
+              stage(os.environ)
+          PYTHON
       - name: Install verified official Foundry v1.5.0
         env:
           FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
@@ -1499,9 +1567,78 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version-file: .nvmrc
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
-        with:
-          run_install: false
+      - name: Stage exact official native pnpm12.3.0 outside all measurements
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          python3 -I -B zig/bench/paired_linux.py select --request "$GITHUB_WORKSPACE/zig/bench/paired_linux_request.json" --request-sha256 '${{ needs.paired-linux-inputs.outputs.request_sha256 }}' --repo "$GITHUB_WORKSPACE"
+          /usr/bin/python3 -I -B - <<'PYTHON'
+          import ast,hashlib,json,os,resource,shutil,signal,stat,subprocess,sys
+          from pathlib import Path
+
+          def need(ok,message):
+              if not ok:raise RuntimeError(message)
+
+          def run_owned(argv,environ,seconds,stdout,file_limit):
+              # Single-threaded setup parent; child inherits the temporary file limit.
+              old=resource.getrlimit(resource.RLIMIT_FSIZE)
+              need(old[1]==resource.RLIM_INFINITY or old[1]>=file_limit,'File limit unavailable')
+              child=None
+              try:
+                  try:
+                      resource.setrlimit(resource.RLIMIT_FSIZE,(file_limit,old[1]))
+                      child=subprocess.Popen(argv,env=environ,stdin=subprocess.DEVNULL,stdout=stdout,start_new_session=True)
+                  finally:resource.setrlimit(resource.RLIMIT_FSIZE,old)
+                  code=child.wait(timeout=seconds)
+              except BaseException:
+                  if child is not None:
+                      try:os.killpg(child.pid,signal.SIGKILL)
+                      except ProcessLookupError:pass
+                      child.wait(timeout=5)
+                  raise
+              need(code==0,'Fixed pnpm preparation child failed')
+
+          def stage(environ):
+              base=Path(environ['RUNNER_TEMP']);repo=Path(environ['GITHUB_WORKSPACE'])
+              need(base.is_absolute()and base.resolve(strict=True)==base and repo.is_absolute()and repo.resolve(strict=True)==repo,'Canonical setup roots required')
+              need(sys.platform=='linux'and os.uname().machine=='x86_64','Linux amd64 pnpm required')
+              helper=repo/'zig/bench/native_tron_setup.py';assets=helper.with_name('native_tron_assets.py')
+              need(not helper.parent.joinpath('__pycache__').exists(),'Source bytecode refused')
+              need(helper.is_file()and not helper.is_symlink()and assets.is_file()and not assets.is_symlink(),'Fixed Source helpers required')
+              tree=ast.parse(helper.read_bytes());policies=[ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='PNPM_RELEASE'for t in n.targets)]
+              need(len(policies)==1,'Exact existing pnpm release policy required');policy=policies[0]['amd64']
+              need(policy['source_url']=='https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz'and policy['member']=='package/pnpm','Exact existing amd64 release required')
+              root=base/'ziggy-paired-pnpm-12.3.0';root.mkdir(mode=0o700);identity=(root.stat().st_dev,root.stat().st_ino)
+              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False
+              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}
+              def owned():
+                  row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')
+              def actual():
+                  need(binary.is_file()and not binary.is_symlink(),'Native pnpm file required');wire=binary.read_bytes()
+                  need(len(wire)==policy['bytes']and hashlib.sha256(wire).hexdigest()==policy['sha256']and wire[:6]==b'\x7fELF\x02\x01'and int.from_bytes(wire[18:20],'little')==62,'Native pnpm identity differs')
+                  return {'path':str(binary),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
+              try:
+                  curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')
+                  with archive.open('xb')as output:
+                      run_owned([curl,'-q','--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--retry','0','--connect-timeout','15','--max-time','60','--max-filesize',str(policy['archive_bytes']),'--output','-',policy['source_url']],clean,65,output,policy['archive_bytes'])
+                  need(archive.stat().st_size==policy['archive_bytes'],'Native pnpm archive size differs')
+                  run_owned(['/usr/bin/python3','-I','-B',str(helper),'--admit-pnpm','--architecture','amd64','--archive',str(archive),'--output',str(binary)],clean,30,subprocess.DEVNULL,policy['bytes'])
+                  before=actual()
+                  with version.open('xb')as output:run_owned([str(binary),'--version'],clean,10,output,128)
+                  need(version.read_bytes().strip()==b'12.3.0'and actual()==before,'Native pnpm version or postflight differs')
+                  owned();archive.unlink();version.unlink()
+                  need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')
+                  with Path(environ['GITHUB_PATH']).open('a')as output:output.write(str(root)+'\n')
+                  passed=True;print(json.dumps({'native_pnpm':before,'version':'12.3.0','generated_launcher_used':False},sort_keys=True))
+              finally:
+                  if not passed:owned();shutil.rmtree(root)
+
+          def interrupted(signum,frame):raise RuntimeError('Fixed pnpm setup interrupted')
+
+          if __name__=='__main__':
+              for signum in [signal.SIGINT,signal.SIGTERM,signal.SIGHUP]:signal.signal(signum,interrupted)
+              stage(os.environ)
+          PYTHON
       - name: Install verified official Foundry v1.5.0
         env:
           FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
@@ -1596,10 +1733,78 @@ jobs:
         if: steps.runtime.outputs.runtime_enabled == 'true'
         with:
           node-version-file: .nvmrc
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+      - name: Stage exact official native pnpm12.3.0 outside all measurements
         if: steps.runtime.outputs.runtime_enabled == 'true'
-        with:
-          run_install: false
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B - <<'PYTHON'
+          import ast,hashlib,json,os,resource,shutil,signal,stat,subprocess,sys
+          from pathlib import Path
+
+          def need(ok,message):
+              if not ok:raise RuntimeError(message)
+
+          def run_owned(argv,environ,seconds,stdout,file_limit):
+              # Single-threaded setup parent; child inherits the temporary file limit.
+              old=resource.getrlimit(resource.RLIMIT_FSIZE)
+              need(old[1]==resource.RLIM_INFINITY or old[1]>=file_limit,'File limit unavailable')
+              child=None
+              try:
+                  try:
+                      resource.setrlimit(resource.RLIMIT_FSIZE,(file_limit,old[1]))
+                      child=subprocess.Popen(argv,env=environ,stdin=subprocess.DEVNULL,stdout=stdout,start_new_session=True)
+                  finally:resource.setrlimit(resource.RLIMIT_FSIZE,old)
+                  code=child.wait(timeout=seconds)
+              except BaseException:
+                  if child is not None:
+                      try:os.killpg(child.pid,signal.SIGKILL)
+                      except ProcessLookupError:pass
+                      child.wait(timeout=5)
+                  raise
+              need(code==0,'Fixed pnpm preparation child failed')
+
+          def stage(environ):
+              base=Path(environ['RUNNER_TEMP']);repo=Path(environ['GITHUB_WORKSPACE'])
+              need(base.is_absolute()and base.resolve(strict=True)==base and repo.is_absolute()and repo.resolve(strict=True)==repo,'Canonical setup roots required')
+              need(sys.platform=='linux'and os.uname().machine=='x86_64','Linux amd64 pnpm required')
+              helper=repo/'zig/bench/native_tron_setup.py';assets=helper.with_name('native_tron_assets.py')
+              need(not helper.parent.joinpath('__pycache__').exists(),'Source bytecode refused')
+              need(helper.is_file()and not helper.is_symlink()and assets.is_file()and not assets.is_symlink(),'Fixed Source helpers required')
+              tree=ast.parse(helper.read_bytes());policies=[ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='PNPM_RELEASE'for t in n.targets)]
+              need(len(policies)==1,'Exact existing pnpm release policy required');policy=policies[0]['amd64']
+              need(policy['source_url']=='https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz'and policy['member']=='package/pnpm','Exact existing amd64 release required')
+              root=base/'ziggy-paired-pnpm-12.3.0';root.mkdir(mode=0o700);identity=(root.stat().st_dev,root.stat().st_ino)
+              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False
+              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}
+              def owned():
+                  row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')
+              def actual():
+                  need(binary.is_file()and not binary.is_symlink(),'Native pnpm file required');wire=binary.read_bytes()
+                  need(len(wire)==policy['bytes']and hashlib.sha256(wire).hexdigest()==policy['sha256']and wire[:6]==b'\x7fELF\x02\x01'and int.from_bytes(wire[18:20],'little')==62,'Native pnpm identity differs')
+                  return {'path':str(binary),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
+              try:
+                  curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')
+                  with archive.open('xb')as output:
+                      run_owned([curl,'-q','--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--retry','0','--connect-timeout','15','--max-time','60','--max-filesize',str(policy['archive_bytes']),'--output','-',policy['source_url']],clean,65,output,policy['archive_bytes'])
+                  need(archive.stat().st_size==policy['archive_bytes'],'Native pnpm archive size differs')
+                  run_owned(['/usr/bin/python3','-I','-B',str(helper),'--admit-pnpm','--architecture','amd64','--archive',str(archive),'--output',str(binary)],clean,30,subprocess.DEVNULL,policy['bytes'])
+                  before=actual()
+                  with version.open('xb')as output:run_owned([str(binary),'--version'],clean,10,output,128)
+                  need(version.read_bytes().strip()==b'12.3.0'and actual()==before,'Native pnpm version or postflight differs')
+                  owned();archive.unlink();version.unlink()
+                  need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')
+                  with Path(environ['GITHUB_PATH']).open('a')as output:output.write(str(root)+'\n')
+                  passed=True;print(json.dumps({'native_pnpm':before,'version':'12.3.0','generated_launcher_used':False},sort_keys=True))
+              finally:
+                  if not passed:owned();shutil.rmtree(root)
+
+          def interrupted(signum,frame):raise RuntimeError('Fixed pnpm setup interrupted')
+
+          if __name__=='__main__':
+              for signum in [signal.SIGINT,signal.SIGTERM,signal.SIGHUP]:signal.signal(signum,interrupted)
+              stage(os.environ)
+          PYTHON
       - name: Install verified official Foundry v1.5.0
         env:
           FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
