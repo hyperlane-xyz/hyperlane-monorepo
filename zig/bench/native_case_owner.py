@@ -80,6 +80,27 @@ def load_plan(path, expected_sha):
     return plan, manifest, inputs, approval
 
 
+
+def functional_census(plan, approval):
+    descriptor = approval['native_reader_interoperability']
+    require(descriptor in plan['required_inputs'], 'Functional census interoperability descriptor is not admitted')
+    interop_path = checked(descriptor)
+    require(interop_path.stat().st_size <= 1024**2, 'Bounded interoperability metadata required')
+    wire = interop_path.read_bytes()
+    require(len(wire) == descriptor['bytes'] and hashlib.sha256(wire).hexdigest() == descriptor['sha256'], 'Interoperability metadata changed during capture')
+    interop = json.loads(wire)
+    require(interop.get('accepted_component_source_and_actual_Zig_storage_interop') is True and interop.get('family_chain_SDK_finality_delivery_elapsed600_acceptance') is False, 'Actual admitted interoperability required for census Source')
+    path = Path(__file__).resolve().with_name('native_harness_census.py')
+    expected = interop['source_sha256']['zig/bench/native_harness_census.py']
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 1024**2, 'Bounded regular functional census Source required')
+    source = path.read_bytes()
+    require(hashlib.sha256(source).hexdigest() == expected, 'Functional census Source differs from admitted interoperability')
+    # Execute the exact captured Source bytes, never an importlib bytecode cache.
+    module = importlib.util.module_from_spec(importlib.util.spec_from_file_location('owned_functional_census', path))
+    exec(compile(source, str(path), 'exec'), module.__dict__)
+    return module, {'path':str(path), 'bytes':len(source), 'sha256':expected}
+
+
 def svm_case():
     spec=importlib.util.spec_from_file_location('owned_svm_case',Path(__file__).with_name('native_svm_case.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
@@ -1121,6 +1142,7 @@ def main():
     if args.worker:
         require(args.original_deadline_ns is not None,'Original outer case deadline required')
         worker(args,plan,manifest,inputs,approval);return
+    census,census_source = functional_census(plan, approval)
     require(shutil.disk_usage(case).free>=6*GIB,'6GiB case floor')
     deadline_ns=time.monotonic_ns()+3600*10**9
     initial_free=shutil.disk_usage(case).free
@@ -1130,6 +1152,8 @@ def main():
     owner.enable_subreaper();known={};groups={};child=None;cleanup=None;failure=None;samples=[]
     args.output.mkdir(mode=0o700);worker_output=case/(args.output.name+'-worker');require(not worker_output.exists(),'Preserve earlier worker')
     result={'schema':1,'kind':'owned-linux-native-case-result','scenario':plan['scenario'],'mode':manifest['mode'],'runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':approval.get('execution_source_commit',manifest['runtime_source_commit']),'passed':False,'native_case_acceptance':False,'plan':pin(args.plan),'samples':samples,'scope':'Correctness only. Original case deadline/per-ID600..630 unchanged; actual continuous30s restarted-role observations required and retained. Nonchild cleanup never invents Source parent waits.'}
+    census_observations = {'source':census_source,'scope':'Untimed functional census up to15s/250k; original wall/RAM/disk/free limits unchanged. Resource sampling cadence includes census duration.'}
+    result['functional_allocation_census'] = census_observations
     stark_progress = None
     if plan['scenario'] == 'starknet':
         try: stark_progress = StarknetProgress(plan, manifest, Path(__file__).resolve().parents[2])
@@ -1144,7 +1168,10 @@ def main():
                     observe_stark_progress(stark_progress, worker_output/'harness.log', owned, args.output/'public-starknet-progress.json', result)
                 container_ram,container_disk=container_reservation(plan['scenario'])
                 ram=sum(row['rss_bytes'] for row in owned.values())+container_ram
-                disk=owner.allocated(case)+container_disk
+                require(time.monotonic_ns()<deadline_ns and ram<=8*GIB and shutil.disk_usage(case).free>=6*GIB,'Original native case deadline/resource guard before census')
+                disk=census.functional_allocated(case,census_observations)+container_disk
+                rows=owner.processes();owned=owner.owned_processes(rows,child.pid,known,groups,True)
+                ram=sum(row['rss_bytes'] for row in owned.values())+container_ram
                 free=shutil.disk_usage(case).free
                 if sn_resources is not None:
                     writable=0;record=worker_output/'starknet-writable.json'
@@ -1213,6 +1240,7 @@ def main():
                 result['generated_recovery_error']={'type':type(recovery_error).__name__,'message':str(recovery_error)};result['passed']=False;result['native_case_acceptance']=False
             try:
                 for row in [*plan['required_inputs'],*approval['python_modules'].values(),*manifest['artifacts'].values(),manifest['execution_approval'],manifest['case_inputs']]:checked(row)
+                checked(census_source)
                 result['accepted_inputs_unchanged_after']=True
             except BaseException as pin_error:
                 result['input_error']={'type':type(pin_error).__name__,'message':str(pin_error)};result['passed']=False;result['native_case_acceptance']=False

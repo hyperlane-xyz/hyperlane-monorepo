@@ -643,4 +643,96 @@ class StarknetProgressTests(unittest.TestCase):
         event=row['events']['postgres_init_requested'];self.assertEqual(event['count'],2);self.assertEqual(event['first'],start);self.assertGreater(event['latest']['observed_monotonic_ns'],start['observed_monotonic_ns']);self.assertEqual(event['latest']['line_start_offset'],len(wire))
 
 
+
+
+class FunctionalCensusControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix='functional-census-control-');self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve()
+        self.interop=self.root/'accepted-interop.json'
+        self.source=Path(api.__file__).with_name('native_harness_census.py')
+        self.accepted={'accepted_component_source_and_actual_Zig_storage_interop':True,'family_chain_SDK_finality_delivery_elapsed600_acceptance':False,'source_sha256':{'zig/bench/native_harness_census.py':api.pin(self.source)['sha256']}}
+
+    def admit(self, value=None):
+        self.interop.write_text(json.dumps(self.accepted if value is None else value));descriptor=api.pin(self.interop)
+        return {'required_inputs':[descriptor]},{'native_reader_interoperability':descriptor}
+
+    def test_exact_admitted_interop_loads_actual_census_and_records_tiny_tree(self):
+        plan,approval=self.admit();module,binding=api.functional_census(plan,approval)
+        self.assertEqual(binding,api.pin(self.source));(self.root/'one').write_bytes(b'owned')
+        observations={};value=module.functional_allocated(self.root,observations)
+        self.assertGreater(value,0);self.assertTrue(observations['last']['complete']);self.assertEqual(observations['last']['maximum_seconds'],15);self.assertEqual(observations['last']['maximum_entries'],250000)
+        self.assertEqual(observations['last']['reason'],None);self.assertEqual(observations['calls'],1)
+
+    def test_missing_admitted_descriptor_and_bad_actual_interop_flags_refuse(self):
+        plan,approval=self.admit()
+        with self.assertRaises(ValueError):api.functional_census({'required_inputs':[]},approval)
+        for key,value in [('accepted_component_source_and_actual_Zig_storage_interop',False),('family_chain_SDK_finality_delivery_elapsed600_acceptance',True)]:
+            changed=copy.deepcopy(self.accepted);changed[key]=value;plan,approval=self.admit(changed)
+            with self.subTest(key=key),self.assertRaises(ValueError):api.functional_census(plan,approval)
+
+    def test_wrong_census_hash_and_metadata_capture_replacement_refuse_before_compile(self):
+        changed=copy.deepcopy(self.accepted);changed['source_sha256']['zig/bench/native_harness_census.py']='0'*64;plan,approval=self.admit(changed)
+        with mock.patch('builtins.compile',side_effect=AssertionError('must not compile')):
+            with self.assertRaises(ValueError):api.functional_census(plan,approval)
+        plan,approval=self.admit();original=Path.read_bytes
+        def replacement(path):return b'{}' if path==self.interop else original(path)
+        with mock.patch.object(Path,'read_bytes',replacement),mock.patch('builtins.compile',side_effect=AssertionError('must not compile')):
+            with self.assertRaises(ValueError):api.functional_census(plan,approval)
+
+    def test_actual_function_preserves_time_and_entry_failure_observations(self):
+        module,binding=api.functional_census(*self.admit())
+        for mode in ['time_limit','entry_limit']:
+            observations={}
+            with self.subTest(mode=mode):
+                if mode=='time_limit':
+                    with mock.patch.object(module.time,'monotonic',side_effect=[0,16,16]):
+                        with self.assertRaises(module.FunctionalCensusIncomplete):module.functional_allocated(self.root,observations)
+                else:
+                    (self.root/'one').write_bytes(b'one');(self.root/'two').write_bytes(b'two')
+                    with self.assertRaises(module.FunctionalCensusIncomplete):module.functional_allocated(self.root,observations,maximum_entries=1)
+                self.assertFalse(observations['last']['complete']);self.assertEqual(observations['last']['reason'],mode);self.assertEqual(observations['calls'],1)
+
+    def test_actual_outer_main_retains_failed_census_observation_and_still_waits(self):
+        from types import SimpleNamespace
+        module,binding=api.functional_census(*self.admit());output=self.root/'supervision';plan_path=self.root/'plan';plan_path.write_text('{}')
+        descriptor=api.pin(plan_path)
+        plan={'scenario':'sealevel-composite','required_inputs':[],'maximum_case_allocated_bytes':8*api.GIB}
+        manifest={'task_root':str(self.root),'mode':'ReleaseSafe','runtime_source_commit':'a'*40,'artifacts':{},'execution_approval':descriptor,'case_inputs':descriptor}
+        failure=module.FunctionalCensusIncomplete({'complete':False,'reason':'entry_limit','files_seen':250001})
+        def census(case,observations):
+            observations.update(calls=1,last=failure.observation);raise failure
+        child=SimpleNamespace(pid=12345,returncode=0)
+        cleanup={'clean':True,'actual_parent_wait':True,'exit_code':0,'signals':[]}
+        with mock.patch.object(api.sys,'platform','linux'),mock.patch.object(api.sys,'argv',['owner','--plan',str(plan_path),'--plan-sha256',descriptor['sha256'],'--output',str(output)]),mock.patch.object(api,'load_plan',return_value=(plan,manifest,{}, {'python_modules':{}})),mock.patch.object(api,'functional_census',return_value=(SimpleNamespace(functional_allocated=census),binding)),mock.patch.object(api.shutil,'disk_usage',return_value=SimpleNamespace(free=8*api.GIB)),mock.patch.object(api.owner,'enable_subreaper'),mock.patch.object(api.owner,'processes',return_value={}),mock.patch.object(api.owner,'owned_processes',return_value={}),mock.patch.object(api.owner,'stop_owned',return_value=cleanup) as stop,mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.os,'waitid',return_value=None),mock.patch.object(api.signal,'signal'):
+            with self.assertRaisesRegex(ValueError,'Owned native case failed'):api.main()
+        stop.assert_called_once();record=json.loads((output/'result.json').read_bytes())
+        self.assertFalse(record['passed']);self.assertEqual(record['error']['type'],'FunctionalCensusIncomplete');self.assertEqual(record['functional_allocation_census']['last']['reason'],'entry_limit');self.assertEqual(record['cleanup'],cleanup)
+
+    def test_actual_outer_main_rejects_late_completed_census_under_original_deadline(self):
+        from types import SimpleNamespace
+        module,binding=api.functional_census(*self.admit());output=self.root/'supervision';plan_path=self.root/'plan';plan_path.write_text('{}')
+        descriptor=api.pin(plan_path)
+        plan={'scenario':'sealevel-composite','required_inputs':[],'maximum_case_allocated_bytes':8*api.GIB}
+        manifest={'task_root':str(self.root),'mode':'ReleaseSafe','runtime_source_commit':'a'*40,'artifacts':{},'execution_approval':descriptor,'case_inputs':descriptor}
+        clock=[0]
+        def census(case,observations):
+            observations.update(calls=1,last={'complete':True,'reason':None});clock[0]=3600*10**9+1;return 0
+        child=SimpleNamespace(pid=12345,returncode=0)
+        cleanup={'clean':True,'actual_parent_wait':True,'exit_code':0,'signals':[]}
+        with mock.patch.object(api.sys,'platform','linux'),mock.patch.object(api.sys,'argv',['owner','--plan',str(plan_path),'--plan-sha256',descriptor['sha256'],'--output',str(output)]),mock.patch.object(api,'load_plan',return_value=(plan,manifest,{}, {'python_modules':{}})),mock.patch.object(api,'functional_census',return_value=(SimpleNamespace(functional_allocated=census),binding)),mock.patch.object(api.shutil,'disk_usage',return_value=SimpleNamespace(free=8*api.GIB)),mock.patch.object(api.owner,'enable_subreaper'),mock.patch.object(api.owner,'processes',return_value={}),mock.patch.object(api.owner,'owned_processes',return_value={}),mock.patch.object(api.owner,'stop_owned',return_value=cleanup) as stop,mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.os,'waitid',return_value=None),mock.patch.object(api.signal,'signal'),mock.patch.object(api.time,'monotonic_ns',side_effect=lambda:clock[0]):
+            with self.assertRaisesRegex(ValueError,'Owned native case failed'):api.main()
+        stop.assert_called_once();record=json.loads((output/'result.json').read_bytes())
+        self.assertFalse(record['passed']);self.assertEqual(record['error'],{'type':'ValueError','message':'Original native case deadline/resource guard'});self.assertTrue(record['functional_allocation_census']['last']['complete']);self.assertEqual(record['cleanup'],cleanup)
+
+    def test_actual_outer_caller_uses_functional_census_and_original_pre_post_guards(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_bytes());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main');text=ast.unparse(main)
+        self.assertIn('census.functional_allocated(case, census_observations)',text);self.assertNotIn('owner.allocated(',text)
+        self.assertLess(text.index('resource guard before census'),text.index('census.functional_allocated'))
+        self.assertLess(text.index('census.functional_allocated'),text.index('resource_observed_ns = time.monotonic_ns()'))
+        self.assertIn('resource_observed_ns < deadline_ns and ram <= 8 * GIB and (disk <= plan[',text)
+        self.assertIn('checked(census_source)',text);self.assertIn("result['functional_allocation_census'] = census_observations",text)
+        original=Path(api.owner.__file__).read_text();self.assertIn('deadline=time.monotonic()+1',original.replace(' ',''))
+
+
 if __name__=='__main__':unittest.main()
