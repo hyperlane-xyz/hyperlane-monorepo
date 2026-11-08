@@ -56,6 +56,11 @@ jobs:
           - warp-check-1
           - warp-send
           - warp-fork
+          # TEMP: validate the combined hook/ISM suites in PR CI; do not merge.
+          - wormhole-hook-ism
+          - wormhole-warp
+          - layerzero-hook-ism
+          - layerzero-warp
     steps:
       - uses: actions/checkout@v7
         with:
