@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import threading
 
 STAGES={'preflight','live','before_restart','after_restart','restart','final','sampler','transport','restart_approval','restart_canonical','restart_identity','restart_readiness','restart_checkpoints','restart_continuous'}
@@ -116,6 +117,48 @@ class Recorder:
             if stage['latest']['attempt']==row['attempt']:stage['latest']=copy.deepcopy(row)
             if self.value['last_stage']['stage']==row['stage']and self.value['last_stage']['attempt']==row['attempt']:self.value['last_stage']=copy.deepcopy(row)
             self.save()
+
+
+def observer_startup_sites(log,modules,directory,entry_script):
+    """Project only pinned Source frames from a completed local startup log.
+
+    Printed traceback frames explain a failed startup; they grant no execution,
+    signature or native proof credit. Never retain source snippets or messages.
+    """
+    path=Path(log);before=path.lstat()
+    if not stat.S_ISREG(before.st_mode)or before.st_size>32*1024**2:raise ValueError('Bounded regular observer log required')
+    raw=path.read_bytes();after=path.lstat()
+    if (before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)!=(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns)or len(raw)!=before.st_size:raise ValueError('Observer log changed during snapshot')
+    approved=checked_modules(modules,directory)
+    if not isinstance(entry_script,dict)or set(entry_script)!={'path','bytes','sha256'}:raise ValueError('Exact approved observer entry descriptor required')
+    entry=Path(entry_script['path'])
+    expected=Path(directory).resolve()/'multivm_process.py'
+    if entry!=expected or entry.resolve(strict=True)!=entry or entry_script!=pin(entry):raise ValueError('Actual pinned observer entry differs')
+    approved[str(entry)]=(entry.name,dict(entry_script))
+    frames=[];omitted=0;tracebacks=0;walked=0;active=False;truncated=False
+    for line in raw.splitlines():
+        if len(line)>65536:truncated=True;active=False;continue
+        text=re.sub(r'\x1b\[[0-9;]*m','',line.decode('utf-8','replace'))
+        if text=='Traceback (most recent call last):':
+            tracebacks+=1;active=True
+            if tracebacks>8:truncated=True;break
+            continue
+        if not active:continue
+        match=re.fullmatch(r'  File "([^"\r\n]{1,4096})", line ([1-9][0-9]{0,6}), in ([A-Za-z_<>][A-Za-z_<>0-9]{0,127})',text)
+        if match is None:
+            if text and not text.startswith('    '):active=False
+            continue
+        walked+=1
+        if walked>64:truncated=True;break
+        filename,line_,_function=match.groups();line_=int(line_)
+        # Exact approved absolute paths only: no suffix/path inference.
+        if filename not in approved:omitted+=1;continue
+        name,row=approved[filename]
+        if not 0<line_<=len(Path(filename).read_bytes().splitlines()):omitted+=1;continue
+        # Unlike a live traceback object, printed function text is untrusted.
+        # Project only the approved Source identity and bounded line number.
+        frames.append({'module':name,'source':row,'line':line_})
+    return {'log':{'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()},'frames':frames[-8:],'unapproved_frames_omitted':omitted,'stack_truncated':truncated or len(frames)>8,'recognized_tracebacks':min(tracebacks,8),'native_or_timing_credit':False}
 
 
 def rust_panic_sites(log,sources,repo):

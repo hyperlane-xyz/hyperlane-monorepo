@@ -3,6 +3,8 @@ from pathlib import Path
 import copy
 import importlib.util
 import json
+import hashlib
+import ast
 import sys
 import tempfile
 import threading
@@ -69,6 +71,50 @@ class Controls(unittest.TestCase):
             if where=='root':bad['private_env']='PRIVATE'
             else:bad['last_stage']['state']['private_wire']='PRIVATE'
             with self.assertRaises(ValueError):api.validate_record(bad,self.modules)
+    def startup_fixture(self):
+        entry=self.root/'multivm_process.py';entry.write_text('entry line1\nentry line2\nentry line3\n');source=self.root/'multivm_startup_control.py';source.write_text('module line1\nmodule line2\nmodule line3\n');log=self.root/'observer.log';modules={source.name:api.pin(source)}
+        return entry,source,log,modules
+    def test_startup_real_checkout_entry_matches_actual_manifest_construction(self):
+        # Evaluate ONLY the actual Source manifest's entry descriptor expression;
+        # never import its builder or invoke main/native work.
+        source=HERE/'native_case_inputs.py';tree=ast.parse(source.read_text());candidates=[]
+        for node in ast.walk(tree):
+            if isinstance(node,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='manifest'for t in node.targets)and isinstance(node.value,ast.Dict):
+                for key,value in zip(node.value.keys,node.value.values):
+                    if isinstance(key,ast.Constant)and key.value=='verifier':candidates.append(value)
+        self.assertEqual(len(candidates),1)
+        verifier=candidates[0];expression=next(value for key,value in zip(verifier.keys,verifier.values)if isinstance(key,ast.Constant)and key.value=='script')
+        entry=eval(compile(ast.Expression(body=expression),str(source),'eval'),{'repo':HERE.parents[1],'artifact':api.pin})
+        self.assertEqual(Path(entry['path']),HERE/'multivm_process.py');self.assertFalse((HERE/'multivm.py').exists())
+        log=self.root/'actual-entry.log';log.write_text('Traceback (most recent call last):\n  File "'+entry['path']+'", line 2, in <module>\nValueError: PRIVATE\n')
+        result=api.observer_startup_sites(log,{},HERE,entry);self.assertEqual(result['frames'][0]['module'],'multivm_process.py');self.assertEqual(result['frames'][0]['source'],entry);self.assertNotIn('PRIVATE',json.dumps(result))
+        wrong=dict(entry,path=str(HERE/'multivm.py'))
+        with self.assertRaises(ValueError):api.observer_startup_sites(log,{},HERE,wrong)
+    def test_startup_traceback_only_pinned_frames_and_entry_never_body_env(self):
+        entry,source,log,modules=self.startup_fixture()
+        log.write_text('Traceback (most recent call last):\n  File "'+str(entry)+'", line 2, in <module>\n    PRIVATE-SOURCE-LINE\n  File "'+str(source)+'", line 3, in load_module\n    PRIVATE-PAYLOAD\n  File "/unapproved/site.py", line 1, in private_function\nValueError: PRIVATE-ERROR-ENV-KEY-WIRE\n')
+        result=api.observer_startup_sites(log,modules,self.root,api.pin(entry));self.assertEqual([v['module']for v in result['frames']],['multivm_process.py',source.name]);self.assertEqual(result['unapproved_frames_omitted'],1);self.assertEqual(result['recognized_tracebacks'],1);self.assertNotIn('PRIVATE',json.dumps(result));self.assertFalse(result['native_or_timing_credit']);self.assertEqual(result['log']['sha256'],hashlib.sha256(log.read_bytes()).hexdigest())
+    def test_startup_unanchored_malformed_outofrange_and_source_drift_refuse(self):
+        entry,source,log,modules=self.startup_fixture();line='  File "'+str(source)+'", line 2, in startup\n'
+        for raw in (line,'Traceback (most recent call last):\n'+line.replace('line 2','line 999'),'Traceback (most recent call last):\n'+line.replace('in startup','in PRIVATE-UNSAFE-FUNCTION')):
+            log.write_text(raw);self.assertEqual(api.observer_startup_sites(log,modules,self.root,api.pin(entry))['frames'],[])
+        log.write_text('Traceback (most recent call last):\n'+line);source.write_text('changed\n');self.assertEqual(api.observer_startup_sites(log,modules,self.root,api.pin(entry))['frames'],[])
+    def test_printed_function_names_never_become_public_payload(self):
+        entry,source,log,modules=self.startup_fixture()
+        log.write_text('Traceback (most recent call last):\n  File "'+str(source)+'", line 2, in PRIVATE_PAYLOAD_TOKEN\n')
+        result=api.observer_startup_sites(log,modules,self.root,api.pin(entry));self.assertEqual(len(result['frames']),1);self.assertNotIn('PRIVATE',json.dumps(result));self.assertEqual(set(result['frames'][0]),{'module','source','line'})
+    def test_startup_log_bound_symlink_and_snapshot_mutation_refuse(self):
+        entry,source,log,modules=self.startup_fixture();log.symlink_to(source)
+        with self.assertRaises(ValueError):api.observer_startup_sites(log,modules,self.root,api.pin(entry))
+        log.unlink();log.write_text('Traceback (most recent call last):\n');original=Path.read_bytes
+        def read(path):
+            raw=original(path)
+            if path==log:log.write_bytes(raw+b'PRIVATE-APPEND')
+            return raw
+        with mock.patch.object(Path,'read_bytes',read),self.assertRaisesRegex(ValueError,'changed'):api.observer_startup_sites(log,modules,self.root,api.pin(entry))
+        with log.open('wb')as stream:stream.truncate(32*1024**2+1)
+        with self.assertRaisesRegex(ValueError,'Bounded'):api.observer_startup_sites(log,modules,self.root,api.pin(entry))
+
     def test_Rust198_numeric_thread_header_projects_only_pinned_source_location(self):
         repo=self.root/'repo';path=repo/'rust/main/utils/run-locally/src/utils.rs';path.parent.mkdir(parents=True);path.write_text('line1\nline2\nline3\n');sources={str(path.relative_to(repo)):api.pin(path)};log=self.root/'harness.log'
         # Exact std1.98 default_hook: thread name, numeric OS tid, then location.

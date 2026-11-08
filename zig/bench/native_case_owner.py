@@ -593,7 +593,15 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     rust=[];log=out/'harness.log'
     if log.exists()and(value is None or not value['failures']):
         rust=diagnostic_module(approval).rust_panic_sites(log,plan.get('diagnostic_rust_sources',{}),Path(__file__).resolve().parents[2])
+    startup=None;observer_log=out/'observer.log'
+    waits=result['direct_waits']
+    observer_failed=any(row.get('role')=='observer'and row.get('actual_parent_wait')is True and type(row.get('exit_code'))is int and row['exit_code']!=0 for row in waits)
+    harness_started=any(row.get('role')in{'harness','harness-cleanup'}for row in waits)
+    if observed is None and observer_failed and not harness_started and observer_log.exists():
+        script=checked(manifest['verifier']['script'])
+        startup=diagnostic_module(approval).observer_startup_sites(observer_log,approval['python_modules'],script.parent,manifest['verifier']['script'])
     record={'schema':1,'kind':'public-native-failure-observation','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'worker_started_monotonic_ns':started_ns,'observed_after_owned_waits_monotonic_ns':time.monotonic_ns(),'observer_before_stop':result.get('public_diagnostic_before_stop'),'observer_after_stop':observed,'rust_panic_source_locations':rust,'rust_location_scope':'Only canonical panic-header locations matched to exact pinned Source; no message, thread, payload or inferred execution credit. Unknown/ambiguous paths omitted.','harness_log_fingerprint':pin(log)if log.exists()else None,'actual_direct_parent_waits':[{k:row[k]for k in ['role','pid','actual_parent_wait','exit_code','observed_monotonic_ns']if k in row}for row in result['direct_waits']],'native_or_timing_credit':False}
+    record['observer_startup_source_traceback']=startup
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')
