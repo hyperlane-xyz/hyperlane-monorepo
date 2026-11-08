@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "sealevel",
+  "scenario": "sealevel-composite",
   "mode": "ReleaseSafe",
   "producer_source_commit": "bcd97e71ce727edb4527d07757f6a2d4230c4378",
   "producer_run_id": 42519960947,
@@ -12,25 +12,7 @@
     "minimum_host_free_bytes": 6442450944,
     "maximum_wall_seconds": 3600
   },
-  "postgres": {
-    "schema": 2,
-    "architecture": "amd64",
-    "image": "postgres:14",
-    "image_id": {
-      "sha256_hex_chunks": [
-        "47b95c5ad45838febbc39cae4194b6f9",
-        "c3f6c3d7409b20043e8cea4a5bd70fec"
-      ],
-      "prefix": "sha256:"
-    },
-    "canonical_digest": {
-      "sha256_hex_chunks": [
-        "834a046089d76edd1d2e81c4741f3ad5",
-        "d1853646ededc86c2708936aad31c1ed"
-      ],
-      "prefix": "postgres@sha256:"
-    }
-  },
+  "postgres": null,
   "prerequisites": {
     "local_checkout_build": true,
     "hpack": {
