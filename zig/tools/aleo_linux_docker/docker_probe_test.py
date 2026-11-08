@@ -52,13 +52,13 @@ class Tests(unittest.TestCase):
  def test_actual_consensus_table_is_source_full17_not_synthetic_two(self):
   self.assertIn('CONSENSUS_VERSION_HEIGHTS='+','.join(map(str,range(17))),api.PUBLIC_ENV);self.assertNotIn('CONSENSUS_VERSION_HEIGHTS=0,1',api.PUBLIC_ENV)
  def test_rootless_PG_exact_User_tmpfs_and_Leo_templates_unchanged(self):
-  import importlib.util
-  original=P.parents[3]/'before/zig/tools/aleo_linux_sdk/docker_gate.py'
-  spec=importlib.util.spec_from_file_location('immutable_old_gate',original);old=importlib.util.module_from_spec(spec);spec.loader.exec_module(old)
+  import hashlib
   gs={'manifest':{'taskRoot':'/tmp/public-control','domains':[{'name':'aleo_a','port':23030},{'name':'aleo_b','port':23031}],**api.IMAGES},'run_token':'a'*32,'internal_network':'b'*64,'postgres_command':['postgres'],'public_node_env':api.PUBLIC_ENV}
-  before=old.container_templates(gs,1);after=api.container_templates(gs,1)
-  self.assertEqual(json.dumps(before[:2],sort_keys=True),json.dumps(after[:2],sort_keys=True));pg=after[2];self.assertEqual(pg['create_body']['User'],'999:999');self.assertEqual(pg['create_body']['HostConfig']['Tmpfs'],{'/var/lib/postgresql/data':'rw,noexec,nosuid,size=2147483648,uid=999,gid=999'})
-  self.assertNotIn('User',before[2]['create_body']);gate=api.Gate.__new__(api.Gate);row={'Config':{'User':'999:999'},'HostConfig':copy.deepcopy(pg['create_body']['HostConfig'])};gate.caps(row,pg)
+  after=api.container_templates(gs,1)
+  # Original Gate40eb61fb, exact fixed public fixture above; no private before tree.
+  expected=('e5b6a99fbee29b6e93ea5aa98a653bfa' '5cb669a8976a9a2914016600a2637e76')
+  self.assertEqual(hashlib.sha256(json.dumps(after[:2],sort_keys=True,separators=(',',':')).encode()).hexdigest(),expected);pg=after[2];self.assertEqual(pg['create_body']['User'],'999:999');self.assertEqual(pg['create_body']['HostConfig']['Tmpfs'],{'/var/lib/postgresql/data':'rw,noexec,nosuid,size=2147483648,uid=999,gid=999'})
+  gate=api.Gate.__new__(api.Gate);row={'Config':{'User':'999:999'},'HostConfig':copy.deepcopy(pg['create_body']['HostConfig'])};gate.caps(row,pg)
   for value in ['0','postgres','1000:999','999:1000',None]:
    wrong=copy.deepcopy(row);wrong['Config']['User']=value
    with self.subTest(user=value),self.assertRaises(ValueError):gate.caps(wrong,pg)
