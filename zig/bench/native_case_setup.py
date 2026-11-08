@@ -77,28 +77,6 @@ def build_commands(repo,tools,stage):
 
 
 
-def inspect_evm_native_pnpm(run,tools,architecture):
-    """Resolve the unchanged launcher's real native child, never invent a shim.
-
-    Match published pnpm12's installed optional package / cached native layout.
-    Resolution and reading only: do not import/evaluate package modules.
-    """
-    require(architecture in {'amd64','arm64'},'Supported exact native pnpm platform required')
-    recipe=module('setup_evm_pnpm_policy','zig/bench/native_tron_setup.py');policy=recipe.PNPM_RELEASE[architecture]
-    resolver="""const{createRequire}=require('node:module');const fs=require('node:fs');const path=require('node:path');const launcher=process.argv[1];const architecture=process.argv[2];if(process.platform!=='linux'||process.arch!==architecture)throw Error('Exact pnpm platform differs');const r=createRequire(launcher);let binary;try{binary=r.resolve('@pnpm/exe.linux-'+architecture+'/pnpm')}catch(error){if(error.code!=='MODULE_NOT_FOUND')throw error;const root=path.dirname(launcher).endsWith('/bin')?path.dirname(path.dirname(launcher)):path.dirname(launcher);const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));if(!['pnpm','@pnpm/exe'].includes(pkg.name)||pkg.version!=='12.3.0')throw Error('Exact pnpm wrapper package required');binary=path.join(root,'pnpm-native');if(!fs.statSync(binary).isFile())throw Error('Actual cached pnpm native child absent')}console.log(JSON.stringify({path:fs.realpathSync(binary)}));"""
-    with tools['pnpm'].open('rb')as stream:prefix=stream.read(4)
-    if prefix==b'\x7fELF':native=tools['pnpm']
-    else:
-        require(prefix.startswith(b'#!'),'Original pnpm launcher must be a script or native ELF')
-        log=run('resolve-original-launcher-native-pnpm',[str(tools['node']),'-e',resolver,str(tools['pnpm']),{'amd64':'x64','arm64':'arm64'}[architecture]])
-        raw=log.read_bytes();require(len(raw)<=8192,'Bounded native manager resolution required');row=json.loads(raw)
-        require(type(row)is dict and set(row)=={'path'}and isinstance(row['path'],str)and row['path'].startswith('/')and len(row['path'])<=4096,'Closed actual native manager path required')
-        native=Path(row['path']);require(native!=tools['pnpm'],'Separate canonical native manager executable required')
-    require(native.resolve(strict=True)==native and os.access(native,os.X_OK),'Separate canonical native manager executable required')
-    identity=pin(native);require(identity['bytes']==policy['bytes']and identity['sha256']==policy['sha256'],'Actual native pnpm differs from exact official12.3.0 bytes: '+json.dumps(identity,sort_keys=True))
-    with native.open('rb')as stream:header=stream.read(64)
-    require(header[:7]==b'\x7fELF\x02\x01\x01'and header[7]in{0,3}and int.from_bytes(header[18:20],'little')=={'amd64':62,'arm64':183}[architecture],'Actual native pnpm ELF/platform differs')
-    return identity
 
 
 def version_constants(repo):
@@ -359,7 +337,7 @@ def main():
     rx_assets=module('setup_radix_assets','zig/bench/native_radix_assets.py') if is_radix else None
     if is_radix:rx_assets.validate_policy(request['prerequisites'],request['postgres']['architecture'])
     tr_assets=module('setup_tron_assets','zig/bench/native_tron_assets.py')if is_tron else None
-    tr_setup=module('setup_tron_recipe','zig/bench/native_tron_setup.py')if is_tron else None
+    tr_setup=module('setup_native_pnpm_recipe','zig/bench/native_tron_setup.py')if is_evm or is_tron else None
     if is_tron:tr_assets.validate_policy(request['prerequisites'],request['postgres']['architecture']);tr_assets.cli_source(args.repo)
     require(args.repo.is_absolute() and args.repo.resolve(strict=True)==args.repo and args.output.is_absolute() and not args.output.exists() and not args.output.is_symlink() and not args.output.is_relative_to(args.repo),'Exclusive CI setup outside canonical checkout required')
     require(pin(args.tools)['sha256']==args.tools_sha256,'Explicit setup tool receipt changed')
@@ -368,7 +346,7 @@ def main():
     for name,path in tools.items():require(pin(path)==tool_rows[name] and path.is_absolute() and os.access(path,os.X_OK),'Preinstalled tool changed/nonexecutable: '+name)
     if is_evm or is_tron:version_constants(args.repo)
     original_tools=dict(tools)
-    planned_tools={**tools,'pnpm':args.output/'pnpm-native'}if is_tron else tools
+    planned_tools={**tools,'pnpm':args.output/'pnpm-native'}if is_evm or is_tron else tools
     commands=build_commands(args.repo,planned_tools,args.output)if is_evm or is_tron else []
     if is_tron:commands=tr_setup.build_commands(args.repo,planned_tools,args.output,{'packages':PACKAGES,'commands':commands})
     plan={'schema':1,'root_approved_for_setup_only':True,'execution_source_commit':args.execution_source_commit,'scenario':request['scenario'],'limits':LIMITS,'commands':commands,'native_case_acceptance':False,'SDK_or_helper_rebuild':False}
@@ -385,7 +363,7 @@ def main():
     env=clean_environment(args.output,tools);owner=module('case_owner','zig/bench/cold_matrix_owner.py');owner.enable_subreaper()
     deadline=time.monotonic()+LIMITS['maximum_setup_seconds'];initial_free=shutil.disk_usage(args.output).free
     if is_tron:env.update(NPM_CONFIG_USERCONFIG='/dev/null',NPM_CONFIG_GLOBALCONFIG='/dev/null',npm_config_userconfig='/dev/null',npm_config_globalconfig='/dev/null')
-    checks=[];failure=None;hpack=None;contracts={};registry={};final_tools={};samples=[];evm_pnpm_native=None
+    checks=[];failure=None;hpack=None;contracts={};registry={};final_tools={};samples=[]
     result={'schema':1,'passed':False,'execution_source_commit':args.execution_source_commit,'scenario':request['scenario'],'source_before':before,'source_after':{},'checks':checks,'tools':final_tools,'contract_artifacts':contracts,'hpack':None,'registry':registry,'explicit_environment':{}}
     def guard():
         free=shutil.disk_usage(args.output).free
@@ -423,7 +401,7 @@ def main():
     try:
         head=run('execution-head',[str(tools['git']),'rev-parse','HEAD'])
         require(head.read_text().strip()==args.execution_source_commit,'Execution checkout commit differs')
-        if is_tron:
+        if is_evm or is_tron:
             policy=tr_setup.PNPM_RELEASE[request['postgres']['architecture']]
             archive=args.output/'pnpm-native.tgz'
             run('download-exact-native-pnpm',[str(tools['curl']),'--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--max-time',str(max(1,int(deadline-time.monotonic()))),'--max-filesize',str(policy['archive_bytes']),'--output',str(archive),policy['source_url']])
@@ -431,7 +409,6 @@ def main():
             require(pin(args.output/'pnpm-native')['sha256']==policy['sha256'],'Admitted Linux pnpm identity differs')
             tools['pnpm']=args.output/'pnpm-native';alias=args.output/'bin/pnpm';require(alias.is_symlink()and alias.resolve()==original_tools['pnpm'],'Original owned manager alias changed');alias.unlink();alias.symlink_to(tools['pnpm']);verify_tool_aliases(args.output,tools)
         for name,argv,expected in ([('node-version',[str(tools['node']),'--version'],'v26.12.1'),('pnpm-version',[str(tools['pnpm']),'--version'],'12.3.0')] if is_evm or is_tron else []):require(run(name,argv).read_text().strip()==expected,'Pinned version differs: '+name)
-        if is_evm:evm_pnpm_native=inspect_evm_native_pnpm(run,tools,request['postgres']['architecture'])
         for name in (('forge','anvil','cast') if is_evm or is_tron else ('cast',)):require(re.search(r'(?<!\d)1\.5\.0(?!\d)',run(name+'-version',[str(tools[name]),'--version']).read_text()),'Pinned Foundryv1.5.0 differs')
         if request['scenario']!='sealevel-composite':
             run('approved-pg-image-prerequisite',[sys.executable,'-I','-B',str(Path(__file__).resolve()),'--prepare-pg-image','--request',str(args.request),'--request-sha256',args.request_sha256,'--docker',str(tools['docker']),'--docker-sha256',pin(tools['docker'])['sha256'],'--config',str(args.output/'docker-config'),'--deadline-ns',str(int(deadline*1e9))])
@@ -457,7 +434,7 @@ def main():
             # Resolution only. No SDK import, deployment, Kathy or chain CLI main.
             resolver="const{createRequire}=require('node:module');const{resolve}=require('node:path');const r=createRequire(resolve('typescript/infra/package.json'));const e=createRequire(r.resolve('tsx/package.json'));const x=createRequire(e.resolve('esbuild/package.json'));console.log(x.resolve('@esbuild/linux-'+({x64:'x64',arm64:'arm64'})[process.arch]+'/bin/esbuild'));"
             esbuild=Path(run('resolve-esbuild-only',[str(tools['node']),'-e',resolver]).read_text().strip()).resolve(strict=True)
-            final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof','anvil','node','sh')});final_tools.update({'pnpm_launcher':pin(original_tools['pnpm']),'pnpm_native':evm_pnpm_native,'esbuild':pin(esbuild)})
+            final_tools.update({name:pin(tools[name]) for name in ('cast','docker','psql','ps','lsof','anvil','node','sh')});final_tools.update({'pnpm_launcher':pin(tools['pnpm']),'pnpm_native':pin(tools['pnpm']),'esbuild':pin(esbuild)})
             contracts.update(output_files(args.repo))
         elif is_svm:
             require(args.hydrated_inputs is not None and pin(args.hydrated_inputs)['sha256']==args.hydrated_inputs_sha256,'Exact hydrated SVM context required')
@@ -534,8 +511,7 @@ def main():
             result['source_after']=snapshot(args.repo,tools['git'])
             require(result['source_after']==before,'Postflight tracked prerequisite source changed')
             for name,path in original_tools.items():require(pin(path)==tool_rows[name],'Postflight setup tool changed: '+name)
-            if is_tron:require(pin(tools['pnpm'])['sha256']==tr_setup.PNPM_RELEASE[request['postgres']['architecture']]['sha256'],'Postflight native manager changed')
-            if evm_pnpm_native is not None:require(pin(Path(evm_pnpm_native['path']))==evm_pnpm_native,'Postflight actual native manager changed')
+            if is_evm or is_tron:require(pin(tools['pnpm'])['sha256']==tr_setup.PNPM_RELEASE[request['postgres']['architecture']]['sha256'],'Postflight native manager changed')
             verify_tool_aliases(args.output,tools)
             guard()
         except BaseException as postflight_error:

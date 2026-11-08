@@ -120,42 +120,23 @@ class SetupTests(unittest.TestCase):
         with self.assertRaises(ValueError):api.pin(link)
 
 
-    def evm_manager_fixture(self,machine=62):
-        launcher=self.root/'launcher';launcher.write_bytes(b'#!/usr/bin/env node\n// public launcher fixture\n');launcher.chmod(0o700)
-        native=self.root/'pnpm-native';raw=bytearray(64);raw[:8]=b'\x7fELF\x02\x01\x01\x00';raw[18:20]=machine.to_bytes(2,'little');native.write_bytes(raw);native.chmod(0o700)
-        log=self.root/'resolution.json';log.write_text(json.dumps({'path':str(native)}));identity=api.pin(native);recipe=SimpleNamespace(PNPM_RELEASE={arch:{'bytes':identity['bytes'],'sha256':identity['sha256']}for arch in ('amd64','arm64')});tools={**self.tools,'pnpm':launcher};return launcher,native,log,recipe,tools
 
-    def test_EVM_resolves_and_pins_actual_native_without_relabelling_launcher(self):
-        launcher,native,log,recipe,tools=self.evm_manager_fixture();original=api.pin(launcher);run=mock.Mock(return_value=log)
-        with mock.patch.object(api,'module',return_value=recipe):value=api.inspect_evm_native_pnpm(run,tools,'amd64')
-        self.assertEqual(value,api.pin(native));self.assertNotEqual(value,original);self.assertEqual(api.pin(launcher),original);self.assertEqual(tools['pnpm'],launcher)
-        args=run.call_args.args;self.assertEqual(args[0],'resolve-original-launcher-native-pnpm');self.assertEqual(args[1][:2],['/public/node','-e']);self.assertEqual(args[1][-2:],[str(launcher),'x64']);self.assertIn('r.resolve(',args[1][2]);self.assertNotIn('spawn',args[1][2]);self.assertNotIn('import(',args[1][2]);self.assertNotIn('writeFile',args[1][2])
 
-    def test_EVM_wrong_native_identity_or_wrapper_as_native_never_passes(self):
-        launcher,native,log,recipe,tools=self.evm_manager_fixture()
-        with mock.patch.object(api,'module',return_value=recipe):
-            log.write_text(json.dumps({'path':str(launcher)}))
-            with self.assertRaisesRegex(ValueError,'Separate canonical'):api.inspect_evm_native_pnpm(mock.Mock(return_value=log),tools,'amd64')
-            log.write_text(json.dumps({'path':str(native)}));native.write_bytes(native.read_bytes()+b'changed')
-            with self.assertRaisesRegex(ValueError,'official12.3.0'):api.inspect_evm_native_pnpm(mock.Mock(return_value=log),tools,'amd64')
 
-    def test_EVM_exact_native_bytes_still_need_matching_ELF_platform(self):
-        launcher,native,log,recipe,tools=self.evm_manager_fixture(machine=62)
-        with mock.patch.object(api,'module',return_value=recipe),self.assertRaisesRegex(ValueError,'ELF/platform'):api.inspect_evm_native_pnpm(mock.Mock(return_value=log),tools,'arm64')
-        native.write_bytes(b'not ELF'+b'0'*57);identity=api.pin(native);recipe.PNPM_RELEASE['amd64']={'bytes':identity['bytes'],'sha256':identity['sha256']}
-        with mock.patch.object(api,'module',return_value=recipe),self.assertRaisesRegex(ValueError,'ELF/platform'):api.inspect_evm_native_pnpm(mock.Mock(return_value=log),tools,'amd64')
 
-    def test_EVM_native_resolution_is_closed_bounded_and_no_path_alias(self):
-        launcher,native,log,recipe,tools=self.evm_manager_fixture();alias=self.root/'alias';alias.symlink_to(native)
-        with mock.patch.object(api,'module',return_value=recipe):
-            for value in [{'path':str(alias)},{'path':'relative'},{'path':str(native),'extra':'foreign'},['wrong'],{'path':'/'+'p'*8192}]:
-                log.write_text(json.dumps(value))
-                with self.subTest(value=type(value).__name__),self.assertRaises(ValueError):api.inspect_evm_native_pnpm(mock.Mock(return_value=log),tools,'amd64')
-            with self.assertRaises(ValueError):api.inspect_evm_native_pnpm(mock.Mock(side_effect=AssertionError('no resolver')) ,tools,'darwin')
 
-    def test_EVM_original_native_launcher_retains_existing_native_path_semantics(self):
-        launcher,native,log,recipe,tools=self.evm_manager_fixture();tools['pnpm']=native;run=mock.Mock(side_effect=AssertionError('native ELF needs no module resolution'))
-        with mock.patch.object(api,'module',return_value=recipe):self.assertEqual(api.inspect_evm_native_pnpm(run,tools,'amd64'),api.pin(native))
-        run.assert_not_called()
+
+    def test_EVM_and_Tron_plan_exact_owned_manager_then_keep_original_tool_provenance(self):
+        import ast
+        source=Path(api.__file__).read_text();tree=ast.parse(source);main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+        self.assertNotIn('inspect_evm_native_pnpm',source);self.assertNotIn('resolve-original-launcher-native-pnpm',source)
+        self.assertIn("planned_tools={**tools,'pnpm':args.output/'pnpm-native'}if is_evm or is_tron else tools",source)
+        branch=next(n for n in ast.walk(main)if isinstance(n,ast.If)and ast.unparse(n.test)=='is_evm or is_tron'and any(isinstance(x,ast.Constant)and x.value=='download-exact-native-pnpm'for x in ast.walk(n)))
+        text=ast.get_source_segment(source,branch);self.assertIn('admit-exact-native-pnpm',text);self.assertIn("original_tools['pnpm']",text);self.assertIn('verify_tool_aliases',text)
+        self.assertIn("'pnpm_launcher':pin(tools['pnpm']),'pnpm_native':pin(tools['pnpm'])",source)
+        self.assertIn("for name,path in original_tools.items():require(pin(path)==tool_rows[name]",source)
+        self.assertIn("if is_evm or is_tron:require(pin(tools['pnpm'])['sha256']==tr_setup.PNPM_RELEASE",source)
+        rows=api.build_commands(self.root,{**self.tools,'pnpm':self.root/'owned/pnpm-native'},self.root/'stage')
+        self.assertEqual(rows[0]['argv'][0],str(self.root/'owned/pnpm-native'));self.assertIn('--frozen-lockfile',rows[0]['argv']);self.assertIn('--ignore-scripts',rows[0]['argv']);self.assertIn('--config.manage-package-manager-versions=false',rows[0]['argv'])
 
 if __name__=='__main__':unittest.main()
