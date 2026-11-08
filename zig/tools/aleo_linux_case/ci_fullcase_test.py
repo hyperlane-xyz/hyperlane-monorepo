@@ -288,4 +288,30 @@ class ClosedCaseFailure(unittest.TestCase):
     value=m.case_failure_diagnostics(case,REPO);pin_mock.assert_not_called();load_mock.assert_not_called()
    self.assertEqual(value['records']['payload']['status'],'unavailable');self.assertFalse(value['native_or_performance_credit'])
 
+
+class StartupFailureProjection(unittest.TestCase):
+ def fixture(self,case):
+  path=REPO/'zig/tools/aleo_linux_case/case_delegate.py';row=m.pin(path);marker={'schema':1,'kind':'aleo-case-service-startup-failure-v1','stage':'prepare-controllers','error_class':'PermissionError','errno':13,'observed_monotonic_ns':time.monotonic_ns(),'frames':[{'source':'case_delegate.py','line':1,'bytes':row['bytes'],'sha256':row['sha256']}]}
+  diagnostics={'schema':1,'kind':'aleo-case-service-failure-metadata-v1','files':{'stdout':{'status':'available','bytes':0,'sha256':hashlib.sha256(b'').hexdigest()},'stderr':{'status':'available','bytes':99,'sha256':'a'*64}},'startup':{'status':'available','record':marker},'raw_logs_argv_environment_exported':False}
+  value={'passed':False,'error':'ValueError:actual case service failed','client_wait':{'pid':123,'actual_parent_wait':True,'exit_code':1},'service_failure_diagnostics':diagnostics,'private':{'authorization':'PRIVATE_SENTINEL'}};directory=case.with_suffix('.owner');directory.mkdir();path=directory/'owner.json';path.write_text(json.dumps(value));return path,value
+ def test_actual_already_uploaded_public_caller_reconstructs_validated_stage_frames_logs(self):
+  with tempfile.TemporaryDirectory()as root:
+   case=pathlib.Path(root).resolve()/'case';path,value=self.fixture(case);result=m.case_failure_diagnostics(case,REPO);service=result['records']['service'];self.assertEqual(service['status'],'available');self.assertEqual(service['error']['fixed_Source_guard']['guard'],'actual case service failed');diagnostic=service['service_failure_diagnostics'];self.assertEqual(diagnostic['startup']['record']['stage'],'prepare-controllers');self.assertEqual(diagnostic['startup']['record']['errno'],13);self.assertEqual(diagnostic['files']['stderr']['bytes'],99);self.assertNotIn('PRIVATE_SENTINEL',json.dumps(result));self.assertNotIn(str(case),json.dumps(result));self.assertFalse(result['native_or_performance_credit'])
+ def test_public_malformed_private_or_stale_source_cannot_mask_original_service_error(self):
+  with tempfile.TemporaryDirectory()as root:
+   case=pathlib.Path(root).resolve()/'case';path,original=self.fixture(case)
+   for change in ['extra','nested','schema','bool-clock','wrong-source','wrong-hash','wrong-stage']:
+    value=copy.deepcopy(original);d=value['service_failure_diagnostics'];v=d['startup']['record']
+    if change=='extra':d['private']='PRIVATE_SENTINEL'
+    if change=='nested':v['frames'][0]['authorization']={'private':'PRIVATE_SENTINEL'}
+    if change=='schema':d['schema']=True
+    if change=='bool-clock':v['observed_monotonic_ns']=True
+    if change=='wrong-source':v['frames'][0]['source']='PRIVATE_SENTINEL'
+    if change=='wrong-hash':v['frames'][0]['sha256']='b'*64
+    if change=='wrong-stage':v['stage']='PRIVATE_SENTINEL'
+    path.write_text(json.dumps(value));result=m.case_failure_diagnostics(case,REPO);service=result['records']['service'];self.assertEqual(service['status'],'available');self.assertEqual(service['error']['fixed_Source_guard']['guard'],'actual case service failed');self.assertEqual(service['service_failure_diagnostics'],{'status':'refused'},change);self.assertNotIn('PRIVATE_SENTINEL',json.dumps(result))
+ def test_source_trace_fallback_stays_unobserved_and_no_performance_or_acceptance_credit(self):
+  with tempfile.TemporaryDirectory()as root:
+   case=pathlib.Path(root).resolve()/'case';path,value=self.fixture(case);d=value['service_failure_diagnostics'];d['startup']['status']='source-trace-only';d['startup']['record'].update(kind='aleo-case-service-source-trace-v1',stage='unobserved');path.write_text(json.dumps(value));result=m.case_failure_diagnostics(case,REPO);record=result['records']['service']['service_failure_diagnostics']['startup'];self.assertEqual(record['status'],'source-trace-only');self.assertEqual(record['record']['stage'],'unobserved');self.assertFalse(result['native_or_performance_credit'])
+
 if __name__=='__main__':unittest.main(verbosity=2)

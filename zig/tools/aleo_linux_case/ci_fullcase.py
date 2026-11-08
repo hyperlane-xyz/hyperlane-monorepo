@@ -64,6 +64,34 @@ def case_failure_diagnostics(case,repo):
     if row.get(key)in {'clock','case','failed-child','case-main','cache','node-case','actual-adopted-helper'}:public[key]=row[key]
    out.append(public)
   return {'status':'complete'if len(value)<=64 else'bounded','count':len(value),'rows':out}
+ def service_startup(value):
+  try:
+   need(type(value)is dict and type(value.get('schema'))is int and value.get('schema')==1 and value.get('kind')=='aleo-case-service-failure-metadata-v1'and value.get('raw_logs_argv_environment_exported')is False,'typed startup projection')
+   if set(value)=={'schema','kind','status','raw_logs_argv_environment_exported'}and value['status']=='unavailable':return {'status':'unavailable'}
+   need(set(value)=={'schema','kind','files','startup','raw_logs_argv_environment_exported'}and type(value['files'])is dict and set(value['files'])=={'stdout','stderr'},'closed startup files');files={}
+   for name,row in value['files'].items():
+    need(type(row)is dict and row.get('status')in {'available','absent','unsafe','oversized','unavailable'},'fixed log status');status=row['status'];keys={'status','bytes','sha256'}if status=='available'else{'status','bytes'}if status=='oversized'else{'status'};need(set(row)==keys,'closed fixed log metadata');files[name]={'status':status}
+    if 'bytes'in row:need(type(row['bytes'])is int and 0<=row['bytes']<2**63,'log size');files[name]['bytes']=row['bytes']
+    if status=='available':need(row['bytes']<=16*1024**2 and type(row['sha256'])is str and re.fullmatch('[0-9a-f]{64}',row['sha256']),'log hash');files[name]['sha256']=row['sha256']
+   startup=value['startup'];need(type(startup)is dict and startup.get('status')in {'available','source-trace-only','absent','refused'},'startup status');result={'schema':1,'kind':'aleo-case-service-failure-metadata-v1','files':files,'startup':{'status':startup['status']},'raw_logs_argv_environment_exported':False}
+   if startup['status']in {'available','source-trace-only'}:
+    need(set(startup)=={'status','record'},'closed startup record');v=startup['record'];need(type(v)is dict and set(v)in ({'schema','kind','stage','error_class','observed_monotonic_ns','frames'},{'schema','kind','stage','error_class','observed_monotonic_ns','frames','errno'}),'closed startup observation')
+    constants={}
+    for node in ast.parse((Path(repo)/'zig/tools/aleo_linux_case/case_delegate.py').read_text()).body:
+     if isinstance(node,ast.Assign)and len(node.targets)==1 and isinstance(node.targets[0],ast.Name)and node.targets[0].id in {'STARTUP_STAGES','DIAGNOSTIC_CLASSES','FRAME_SOURCE_FILES'}:constants[node.targets[0].id]=ast.literal_eval(node.value)
+    expected_kind='aleo-case-service-startup-failure-v1'if startup['status']=='available'else'aleo-case-service-source-trace-v1'
+    need(type(v['schema'])is int and v['schema']==1 and v['kind']==expected_kind and v['error_class']in constants['DIAGNOSTIC_CLASSES']|{'other'}and type(v['observed_monotonic_ns'])is int and 0<v['observed_monotonic_ns']<=time.monotonic_ns(),'actual startup observation')
+    need(v['stage']in constants['STARTUP_STAGES']if startup['status']=='available'else v['stage']=='unobserved','fixed stage');public={k:v[k]for k in ['schema','kind','stage','error_class','observed_monotonic_ns']}
+    if 'errno'in v:need(type(v['errno'])is int and 0<v['errno']<=4095,'typed errno');public['errno']=v['errno']
+    need(type(v['frames'])is list and len(v['frames'])<=8,'bounded Source frames');frames=[]
+    for frame in v['frames']:
+     need(type(frame)is dict and set(frame)=={'source','line','bytes','sha256'}and frame['source']in constants['FRAME_SOURCE_FILES'],'fixed Source frame');path=Path(repo)/constants['FRAME_SOURCE_FILES'][frame['source']];need(path.stat().st_size<=16*1024**2,'bounded frame Source')
+     with path.open('rb')as stream:raw=stream.read(16*1024**2+1)
+     need(len(raw)<=16*1024**2,'bounded captured public frame Source');row={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()};need(type(frame['line'])is int and 0<frame['line']<=len(raw.splitlines())and {k:frame[k]for k in ['bytes','sha256']}==row,'frame Source differs');frames.append(dict(frame))
+    public['frames']=frames;result['startup']['record']=public
+   else:need(set(startup)=={'status'},'closed absent startup status')
+   return result
+  except BaseException:return {'status':'refused'}
  leaves={'service':case.with_suffix('.owner')/'owner.json','payload':case/'result.json','namespace':case/'control/inner-result.json','driver':case/'data/case/result.json'}
  records={}
  for name,path in leaves.items():
@@ -84,6 +112,7 @@ def case_failure_diagnostics(case,repo):
    for key in ('cleanup','Docker_recovery','container_cleanup','network_cleanup'):
     if isinstance(value.get(key),dict):record[key]={k:v for k,v in value[key].items()if k in {'passed','owned_cgroup_absent','complete_positive_custody','performed_mutations','payload_never_started'}and type(v)is bool}
    record['gate_failure_present']=value.get('gate_failed')is not None
+   if name=='service'and 'service_failure_diagnostics'in value:record['service_failure_diagnostics']=service_startup(value['service_failure_diagnostics'])
   except BaseException as caught:record['status']='unavailable';record['read_error_class']=type(caught).__name__ if type(caught).__name__ in classes else'other'
  result={'schema':1,'kind':'aleo-fullcase-closed-failure-diagnostics','native_or_performance_credit':False,'records':records}
  need(len(json.dumps(result).encode())<=32768,'bounded public failure projection');return result

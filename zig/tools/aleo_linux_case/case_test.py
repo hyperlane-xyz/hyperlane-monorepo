@@ -443,4 +443,97 @@ class PublicProjection(unittest.TestCase):
         actual,owner,raw,spec,secret=self.public_fixture();actual['evidence']['dispatches'][0]['sender']={'authorization':secret}
         with self.assertRaises(ValueError):public_proof.project(actual,owner,raw,spec)
 
+
+class StartupDiagnostics(unittest.TestCase):
+    def setUp(self):
+        temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup);self.root=Path(temporary.name).resolve();self.spec={'pins':[delegate.kernel_probe.pin(Path(delegate.__file__).resolve())]};self.private='PRIVATE_AUTHORIZATION_BODY_https://example.invalid/key'
+    def marker(self,stage='authority'):
+        return {'schema':1,'kind':'aleo-case-service-startup-failure-v1','stage':stage,'error_class':'PermissionError','errno':13,'observed_monotonic_ns':time.monotonic_ns(),'frames':[{'source':'case_delegate.py','line':1,**{k:self.spec['pins'][0][k]for k in ['bytes','sha256']}}]}
+    def logs(self,value):
+        (self.root/'stdout.log').write_bytes(self.private.encode());(self.root/'stderr.log').write_text(delegate.STARTUP_PREFIX+json.dumps(value)+'\n')
+    def test_actual_inside_authority_exception_marker_rethrows_same_primary_without_message(self):
+        import io
+        primary=PermissionError(13,self.private);stream=io.StringIO()
+        with patch.object(delegate,'approved',side_effect=primary),patch.object(delegate.sys,'stderr',stream):
+            with self.assertRaises(PermissionError)as caught:delegate.inside({'untrusted-output':self.private})
+        self.assertIs(caught.exception,primary);self.assertNotIn(self.private,stream.getvalue());self.assertTrue(stream.getvalue().startswith(delegate.STARTUP_PREFIX));value=json.loads(stream.getvalue().removeprefix(delegate.STARTUP_PREFIX));checked=delegate.checked_startup_marker(value,self.spec);self.assertEqual(checked['stage'],'authority');self.assertEqual(checked['errno'],13);self.assertTrue(any(r['source']=='case_delegate.py'for r in checked['frames']))
+    def test_failed_emitter_cannot_mask_actual_inside_exception(self):
+        primary=ValueError(self.private)
+        with patch.object(delegate,'approved',side_effect=primary),patch.object(delegate,'emit_startup_failure',side_effect=OSError('secondary')):
+            with self.assertRaises(BaseException)as caught:delegate.inside({})
+        self.assertIs(caught.exception,primary)
+    def test_fixed_logs_closed_marker_rehashed_no_raw_body_or_paths(self):
+        self.logs(self.marker('controller-resources'));value=delegate.service_failure_diagnostics(self.root,self.spec);self.assertEqual(value['startup']['status'],'available');self.assertEqual(value['files']['stdout']['sha256'],hashlib.sha256(self.private.encode()).hexdigest());self.assertNotIn(self.private,json.dumps(value));self.assertNotIn(str(self.root),json.dumps(value));self.assertEqual(value['startup']['record']['stage'],'controller-resources')
+    def test_nested_fields_false_errno_unknown_stage_source_and_wrong_hash_refuse(self):
+        import shutil
+        for change in ['nested','errno','stage','source','hash']:
+            value=self.marker()
+            if change=='nested':value['authorization']={'value':self.private}
+            if change=='errno':value['errno']=True
+            if change=='stage':value['stage']=self.private
+            if change=='source':value['frames'][0]['source']=self.private
+            if change=='hash':value['frames'][0]['sha256']='a'*64
+            self.logs(value);result=delegate.service_failure_diagnostics(self.root,self.spec);self.assertEqual(result['startup']['status'],'refused',change);self.assertNotIn(self.private,json.dumps(result))
+    def test_duplicate_marker_and_duplicate_JSON_key_refuse(self):
+        self.logs(self.marker());path=self.root/'stderr.log';line=path.read_text();path.write_text(line+line);self.assertEqual(delegate.service_failure_diagnostics(self.root,self.spec)['startup']['status'],'refused')
+        path.write_text(line.replace('"stage": "authority"','"stage": "authority", "stage": "authority"'));self.assertEqual(delegate.service_failure_diagnostics(self.root,self.spec)['startup']['status'],'refused')
+    def test_unsafe_symlink_hardlink_and_sparse_oversize_never_opened(self):
+        import os
+        foreign=self.root/'foreign';foreign.write_text(self.private);stdout=self.root/'stdout.log';(self.root/'stderr.log').write_bytes(b'')
+        original=delegate.os.open
+        for kind in ['symlink','hardlink','oversized']:
+            if stdout.exists()or stdout.is_symlink():stdout.unlink()
+            if kind=='symlink':stdout.symlink_to(foreign)
+            elif kind=='hardlink':os.link(foreign,stdout)
+            else:
+                with stdout.open('wb')as f:f.truncate(16*1024**2+1)
+            def opened(path,*args,**kw):
+                self.assertNotEqual(Path(path),stdout,'unsafe bytes opened');return original(path,*args,**kw)
+            with patch.object(delegate.os,'open',side_effect=opened):result=delegate.service_failure_diagnostics(self.root,self.spec)
+            self.assertEqual(result['files']['stdout']['status'],'oversized'if kind=='oversized'else'unsafe');self.assertNotIn(self.private,json.dumps(result))
+    def test_changed_log_metadata_refuses_after_read(self):
+        self.logs(self.marker());read=delegate.os.read;changed=False
+        def altered(fd,n):
+            nonlocal changed
+            block=read(fd,n)
+            if block and not changed:changed=True;(self.root/'stdout.log').write_bytes(b'replaced')
+            return block
+        with patch.object(delegate.os,'read',side_effect=altered):result=delegate.service_failure_diagnostics(self.root,self.spec)
+        self.assertEqual(result['files']['stdout']['status'],'unavailable')
+    def test_pre_inside_trace_is_explicitly_weaker_pinned_Source_only(self):
+        (self.root/'stdout.log').write_bytes(b'');(self.root/'stderr.log').write_text('Traceback (most recent call last):\n  File "'+str(Path(delegate.__file__).resolve())+'", line 1, in <module>\nPermissionError: '+self.private+'\n')
+        result=delegate.service_failure_diagnostics(self.root,self.spec);self.assertEqual(result['startup']['status'],'source-trace-only');self.assertEqual(result['startup']['record']['stage'],'unobserved');self.assertEqual(result['startup']['record']['error_class'],'PermissionError');self.assertNotIn(self.private,json.dumps(result));self.assertNotIn(str(self.root),json.dumps(result))
+    def test_actual_failed_parent_caller_wait_cleanup_and_primary_survive_diagnostic_error(self):
+        from types import SimpleNamespace as N
+        spec={'output':str(self.root/'case'),'run_token':'a'*32,'pins':[],'tools':{},'delegation_tools':{},'case_spec':{}};records=[];waits=[]
+        class Child:
+            def poll(self):return 1
+            def wait(self,**kw):waits.append(kw);return 1
+            pid=123
+        def atomic(path,value):records.append((Path(path).name,copy.deepcopy(value)))
+        with patch.object(delegate,'approved',return_value=spec),patch.object(delegate,'identity',return_value='fixed-owned-unit'),patch.object(delegate.platform,'system',return_value='Linux'),patch.object(delegate.platform,'machine',return_value='x86_64'),patch.object(delegate.base,'tools',return_value={'systemd-run':'/not-executed','systemctl':'/not-executed'}),patch.object(delegate.base,'command',return_value=N(returncode=0,stdout=b'systemd 255\n')),patch.object(delegate.base,'show',return_value=None),patch.object(delegate.base,'atomic',side_effect=atomic),patch.object(delegate.controller_resources,'capture',return_value={}),patch.object(delegate,'launch_argv',return_value=['not-executed']),patch.object(delegate.subprocess,'Popen',return_value=Child()),patch.object(delegate,'cleanup',return_value={'owned_cgroup_absent':True}),patch.object(delegate,'checked'),patch.object(delegate,'service_failure_diagnostics',side_effect=OSError('secondary private '+self.private)):
+            self.assertEqual(delegate.execute({}),1)
+        value=next(v for name,v in records if name=='owner.json');self.assertEqual(value['error'],'ValueError:actual case service failed');self.assertEqual(value['client_wait']['exit_code'],1);self.assertTrue(value['client_wait']['actual_parent_wait']);self.assertTrue(value['cleanup']['owned_cgroup_absent']);self.assertFalse(value['passed']);self.assertEqual(len(waits),2);self.assertEqual(waits[1],{'timeout':243});self.assertEqual(value['service_failure_diagnostics']['status'],'unavailable');self.assertNotIn(self.private,json.dumps(value))
+
+    def test_actual_inside_properties_stage_is_recorded_before_failing_owned_API(self):
+        import io
+        primary=TimeoutError(self.private);stream=io.StringIO()
+        with patch.object(delegate,'approved',return_value={}),patch.object(delegate,'identity',return_value='owned-unit'),patch.object(delegate.base,'tools',return_value={'systemctl':'not-executed'}),patch.object(delegate.base,'show',side_effect=primary),patch.object(delegate.sys,'stderr',stream):
+            with self.assertRaises(TimeoutError)as caught:delegate.inside({})
+        self.assertIs(caught.exception,primary);value=json.loads(stream.getvalue().removeprefix(delegate.STARTUP_PREFIX));self.assertEqual(value['stage'],'properties');self.assertEqual(value['error_class'],'TimeoutError');self.assertNotIn(self.private,json.dumps(value))
+    def test_actual_failed_parent_log_reader_and_existing_public_caller_compose(self):
+        import importlib.util
+        from types import SimpleNamespace as N
+        case=self.root/'case';spec={'output':str(case),'run_token':'a'*32,'pins':self.spec['pins'],'tools':{},'delegation_tools':{},'case_spec':{}};records=[];marker=self.marker('properties')
+        class Child:
+            def poll(self):return 1
+            def wait(self,**kw):return 1
+            pid=123
+        def atomic(path,value):records.append((Path(path),copy.deepcopy(value)))
+        def popen(*args,**kw):kw['stderr'].write((delegate.STARTUP_PREFIX+json.dumps(marker)+'\n').encode());kw['stderr'].flush();return Child()
+        with patch.object(delegate,'approved',return_value=spec),patch.object(delegate,'identity',return_value='fixed-owned-unit'),patch.object(delegate.platform,'system',return_value='Linux'),patch.object(delegate.platform,'machine',return_value='x86_64'),patch.object(delegate.base,'tools',return_value={'systemd-run':'/not-executed','systemctl':'/not-executed'}),patch.object(delegate.base,'command',return_value=N(returncode=0,stdout=b'systemd 255\n')),patch.object(delegate.base,'show',return_value=None),patch.object(delegate.base,'atomic',side_effect=atomic),patch.object(delegate.controller_resources,'capture',return_value={}),patch.object(delegate,'launch_argv',return_value=['not-executed']),patch.object(delegate.subprocess,'Popen',side_effect=popen),patch.object(delegate,'cleanup',return_value={'owned_cgroup_absent':True}),patch.object(delegate,'checked'):
+            self.assertEqual(delegate.execute({}),1)
+        path,value=next((p,v)for p,v in records if p.name=='owner.json');path.write_text(json.dumps(value));self.assertIn('service_failure_diagnostics',value);self.assertEqual(value['service_failure_diagnostics']['startup']['record']['stage'],'properties');self.assertEqual(value['error'],'ValueError:actual case service failed')
+        load=importlib.util.spec_from_file_location('closed_startup_public_control',HERE/'ci_fullcase.py');ci=importlib.util.module_from_spec(load);load.loader.exec_module(ci);public=ci.case_failure_diagnostics(case,HERE.parents[2]);record=public['records']['service'];self.assertEqual(record['service_failure_diagnostics']['startup']['record']['stage'],'properties');self.assertEqual(record['error']['fixed_Source_guard']['guard'],'actual case service failed');self.assertNotIn(self.private,json.dumps(public));self.assertFalse(public['native_or_performance_credit'])
+
 if __name__=='__main__':unittest.main()

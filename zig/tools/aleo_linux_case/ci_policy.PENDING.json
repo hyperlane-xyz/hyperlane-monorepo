@@ -238,11 +238,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/case_delegate.py",
-      "bytes": 18000,
+      "bytes": 28255,
       "sha256": {
         "sha256_hex_chunks": [
-          "cbb28d84a02df45a8a7dd18bedd93648",
-          "4285d2f9c673fab8e97d01ed2ad57cc8"
+          "3075d8bf97d23d07659ed4cbe6421697",
+          "00711ce882f48f158cc4d0fa84f7bf8d"
         ]
       }
     },
@@ -288,11 +288,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-      "bytes": 32807,
+      "bytes": 37033,
       "sha256": {
         "sha256_hex_chunks": [
-          "fefc9cca53980c2dec4fec936fb1262c",
-          "2dba564598e0b61b5e2afb2947595eae"
+          "054810fc40271c13018b8e5ed7c220a3",
+          "180b986631d82f593ae4399b7f57c81f"
         ]
       }
     },

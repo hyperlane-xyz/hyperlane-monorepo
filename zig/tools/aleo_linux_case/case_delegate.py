@@ -1,5 +1,8 @@
 """One fixed full-case delegated service; inert without exact case authority."""
 import argparse
+import hashlib
+import json
+import stat
 import os
 from pathlib import Path
 import platform
@@ -86,36 +89,161 @@ def launch_argv(spec,tools,spec_pin):
     return [tools['sudo'],'-n',tools['systemd-run'],'--unit='+unit,'--description='+unit,'--service-type=exec','--uid='+str(os.getuid()),'--gid='+str(os.getgid()),'--wait','--pipe','--property=Delegate=memory pids','--property=DelegateSubgroup=manager','--property=MemoryMax='+str(MEMORY),'--property=MemorySwapMax=0','--property=TasksMax='+str(TASKS),'--property=RuntimeMaxSec='+str(SERVICE_SECONDS),'--property=TimeoutStopSec=240','--property=KillMode=control-group','--property=NoNewPrivileges=yes',str(checked(spec['tools']['python'])),'-I','-B',str(Path(__file__).resolve()),'--inside','--spec',spec_pin['path'],'--spec-sha',spec_pin['sha256']]
 
 
-def inside(spec_pin):
-    spec=approved(spec_pin);unit=identity(spec);tools=base.tools(spec)
-    properties=base.show(tools['systemctl'],unit);invocation=owned(properties,spec)
-    need(os.environ.get('INVOCATION_ID')==invocation,'actual case invocation differs')
-    root=Path('/sys/fs/cgroup/system.slice')/unit;manager=root/'manager'
-    need(root.resolve()==root and manager.resolve()==manager,'canonical case delegated paths required')
-    need(root.stat().st_uid==os.getuid()and manager.stat().st_uid==os.getuid(),'case inode UID differs')
-    context={'unit':unit,'invocation':invocation,'uid':os.getuid(),'gid':os.getgid(),'root':str(root),'root_dev':root.stat().st_dev,'root_ino':root.stat().st_ino,'manager_dev':manager.stat().st_dev,'manager_ino':manager.stat().st_ino,'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()}
-    directory=Path(spec['output']).with_suffix('.owner')
-    # Publish positive custody before partition. A cancellation before initial
-    # publication is never authority to stop an unclaimed unit (finite fallback).
-    base.atomic(directory/'delegation.json',context)
-    base.atomic(directory/'service-properties.json',{'observed_monotonic_ns':time.monotonic_ns(),'properties':properties})
-    base.prepare_inside(spec,unit)
-    # Bound the positively owned manager independently from its13.5GiB child.
-    manager_limits={'memory.max':str(GIB//2),'memory.swap.max':'0','pids.max':'128'}
-    for name,value in manager_limits.items():(manager/name).write_text(value)
-    actual_manager={name:(manager/name).read_text().strip()for name in manager_limits}
-    need(actual_manager==manager_limits,'actual case manager limits differ')
-    base.atomic(directory/'manager-limits.json',{'observed_monotonic_ns':time.monotonic_ns(),'path':str(manager),'limits':actual_manager})
-    kernel_probe.delegated_parent(context,spec['run_token'],family='case')
-    context_pin=kernel_probe.pin(directory/'delegation.json')
-    controller_pin=kernel_probe.pin(directory/'controller.json');controller=load(controller_pin)
-    need(controller['service_spec']==spec_pin and controller['run_token']==spec['run_token'],'original controller binding differs')
-    controller_resources.tree(controller['identity'])
-    payload=dict(load(spec['case_spec'],32*1024**2),delegation_context=context_pin,controller_receipt=controller_pin,service_owner_spec=spec_pin)
-    payload['pins']=payload['pins']+[spec_pin,context_pin,controller_pin]
-    base.atomic(directory/'payload.spec.json',payload)
-    return case_supervisor.run(kernel_probe.pin(directory/'payload.spec.json'))
+STARTUP_STAGES={'authority','properties','invocation','delegated-paths','publish-custody','prepare-controllers','manager-caps','parent-admission','controller-binding','controller-resources','payload-binding','payload-publication','payload-run'}
+DIAGNOSTIC_CLASSES={'ValueError','RuntimeError','AssertionError','KeyError','FileNotFoundError','FileExistsError','PermissionError','OSError','TimeoutError','ChildProcessError','TaskInterrupted','ImportError','ModuleNotFoundError','MemoryError','SystemExit'}
+FRAME_SOURCE_FILES={
+ 'case_delegate.py':'zig/tools/aleo_linux_case/case_delegate.py',
+ 'case_specs.py':'zig/tools/aleo_linux_case/case_specs.py',
+ 'case_supervisor.py':'zig/tools/aleo_linux_case/case_supervisor.py',
+ 'controller_resources.py':'zig/tools/aleo_linux_case/controller_resources.py',
+ 'case_cohort.py':'zig/tools/aleo_linux_case/case_cohort.py',
+ 'case_assets.py':'zig/tools/aleo_linux_case/case_assets.py',
+ 'custody.py':'zig/tools/aleo_linux_case/custody.py',
+ 'kernel_delegate.py':'zig/tools/aleo_linux/kernel_delegate.py',
+ 'kernel_probe.py':'zig/tools/aleo_linux/kernel_probe.py',
+ 'receipts.py':'zig/tools/aleo_linux/receipts.py',
+ 'sdk_specs.py':'zig/tools/aleo_linux_sdk/sdk_specs.py',
+ 'sdk_provision.py':'zig/tools/aleo_linux_sdk/sdk_provision.py',
+ 'sdk_build.py':'zig/tools/aleo_linux_sdk/sdk_build.py'}
+STARTUP_PREFIX='ALEO_CASE_STARTUP_DIAGNOSTIC '
 
+
+def startup_frames(error):
+    repo=HERE.parents[2];paths={str(repo/relative):name for name,relative in FRAME_SOURCE_FILES.items()};frames=[];tb=error.__traceback__;visited=0;cache={}
+    while tb is not None and visited<64:
+        visited+=1;name=paths.get(tb.tb_frame.f_code.co_filename)
+        if name is not None:
+            if name not in cache:
+                path=repo/FRAME_SOURCE_FILES[name];need(path.stat().st_size<=16*1024**2,'bounded startup Source')
+                with path.open('rb')as stream:raw=stream.read(16*1024**2+1)
+                need(len(raw)<=16*1024**2,'bounded captured startup Source');cache[name]={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'lines':len(raw.splitlines())}
+            row=cache[name]
+            if type(tb.tb_lineno)is int and 0<tb.tb_lineno<=row['lines']:frames.append({'source':name,'line':tb.tb_lineno,'bytes':row['bytes'],'sha256':row['sha256']})
+        tb=tb.tb_next
+    return frames[-8:]
+
+
+def emit_startup_failure(stage,error):
+    need(stage in STARTUP_STAGES,'fixed startup diagnostic stage');kind=type(error).__name__;row={'schema':1,'kind':'aleo-case-service-startup-failure-v1','stage':stage,'error_class':kind if kind in DIAGNOSTIC_CLASSES else'other','observed_monotonic_ns':time.monotonic_ns(),'frames':startup_frames(error)}
+    number=getattr(error,'errno',None)
+    if type(number)is int and 0<number<=4095:row['errno']=number
+    wire=STARTUP_PREFIX+json.dumps(row,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n';need(len(wire.encode())<=8192,'bounded startup diagnostic marker');sys.stderr.write(wire);sys.stderr.flush()
+
+
+def checked_startup_marker(value,spec):
+    need(type(value)is dict and set(value)in ({'schema','kind','stage','error_class','observed_monotonic_ns','frames'},{'schema','kind','stage','error_class','observed_monotonic_ns','frames','errno'}),'closed startup marker')
+    need(type(value['schema'])is int and value['schema']==1 and value['kind']in {'aleo-case-service-startup-failure-v1','aleo-case-service-source-trace-v1'}and ((value['stage']in STARTUP_STAGES and value['kind']=='aleo-case-service-startup-failure-v1')or(value['stage']=='unobserved'and value['kind']=='aleo-case-service-source-trace-v1')) and value['error_class']in DIAGNOSTIC_CLASSES|{'other'},'typed startup marker')
+    need(type(value['observed_monotonic_ns'])is int and 0<value['observed_monotonic_ns']<=time.monotonic_ns(),'actual startup observation clock')
+    if 'errno'in value:need(type(value['errno'])is int and 0<value['errno']<=4095,'typed startup errno')
+    rows=value['frames'];need(type(rows)is list and len(rows)<=8,'bounded startup frames');expected={r['path']:r for r in spec['pins']};repo=HERE.parents[2];frames=[]
+    for row in rows:
+        need(type(row)is dict and set(row)=={'source','line','bytes','sha256'}and row['source']in FRAME_SOURCE_FILES,'closed startup Source frame');path=repo/FRAME_SOURCE_FILES[row['source']];pin=expected.get(str(path));need(pin is not None and {'bytes':row['bytes'],'sha256':row['sha256']}=={k:pin[k]for k in ['bytes','sha256']},'startup frame Source pin differs');need(type(pin['bytes'])is int and 0<=pin['bytes']<=16*1024**2,'bounded admitted frame Source')
+        with path.open('rb')as stream:raw=stream.read(16*1024**2+1)
+        need(len(raw)==pin['bytes']and hashlib.sha256(raw).hexdigest()==pin['sha256'],'captured startup frame Source differs')
+        need(type(row['line'])is int and 0<row['line']<=len(raw.splitlines()),'startup frame line differs');frames.append(dict(row))
+    result={k:value[k]for k in ['schema','kind','stage','error_class','observed_monotonic_ns']};result['frames']=frames
+    if 'errno'in value:result['errno']=value['errno']
+    return result
+
+
+def service_failure_diagnostics(directory,spec):
+    # Actual terminal fixed service logs only; no body, arbitrary paths, argv,
+    # exception text or environments enter this record. Do not open unsafe files.
+    result={'schema':1,'kind':'aleo-case-service-failure-metadata-v1','files':{},'startup':{'status':'absent'},'raw_logs_argv_environment_exported':False};tail=b''
+    for name in ['stdout','stderr']:
+        row={'status':'absent'};result['files'][name]=row;path=directory/(name+'.log');fd=None
+        try:
+            before=path.lstat()
+            if path.resolve()!=path or not stat.S_ISREG(before.st_mode)or before.st_nlink!=1:row['status']='unsafe';continue
+            if before.st_size>16*1024**2:row.update(status='oversized',bytes=before.st_size);continue
+            fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK);opened=os.fstat(fd)
+            def stable(s):return (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns,s.st_nlink)
+            need(stable(before)==stable(opened)and stat.S_ISREG(opened.st_mode),'service diagnostic opened identity differs');digest=hashlib.sha256();count=0
+            while True:
+                block=os.read(fd,65536)
+                if not block:break
+                count+=len(block);need(count<=16*1024**2,'service diagnostic read bound');digest.update(block)
+                if name=='stderr':tail=(tail+block)[-65536:]
+            need(stable(before)==stable(os.fstat(fd))==stable(path.lstat())and count==before.st_size,'service diagnostic changed');row.update(status='available',bytes=count,sha256=digest.hexdigest())
+        except FileNotFoundError:row['status']='absent'
+        except BaseException:row['status']='unavailable';tail=b''if name=='stderr'else tail
+        finally:
+            if fd is not None:os.close(fd)
+    if result['files']['stderr']['status']=='available':
+        candidates=[line[len(STARTUP_PREFIX):]for line in tail.decode('utf-8',errors='replace').splitlines()if line.startswith(STARTUP_PREFIX)]
+        if candidates:
+            try:
+                need(len(candidates)==1 and len(candidates[0].encode())<=8192,'one bounded startup marker')
+                def pairs(rows):
+                    out={}
+                    for key,value in rows:need(key not in out,'duplicate startup key');out[key]=value
+                    return out
+                value=json.loads(candidates[0],object_pairs_hook=pairs);result['startup']={'status':'available','record':checked_startup_marker(value,spec)}
+            except BaseException:result['startup']={'status':'refused'}
+    if result['files']['stderr']['status']=='available'and result['startup']['status']=='absent':
+        # A marker cannot cover failures before Python enters inside(). A parsed
+        # Source trace is explicitly weaker diagnostic evidence, not a child
+        # execution witness; never export its text or arbitrary file paths.
+        lines=tail.decode('utf-8',errors='replace').splitlines();repo=HERE.parents[2];paths={str(repo/p):name for name,p in FRAME_SOURCE_FILES.items()};expected={r['path']:r for r in spec['pins']};frames=[]
+        try:
+            for line in lines:
+                match=re.fullmatch(r'  File "([^"\n]+)", line ([0-9]{1,8})(?:, in .*)?',line)
+                if match and match[1]in paths:
+                    name=paths[match[1]];row=expected.get(match[1]);need(row is not None,'trace frame must be admitted Source');frames.append({'source':name,'line':int(match[2]),'bytes':row['bytes'],'sha256':row['sha256']})
+            nonempty=[line for line in lines if line.strip()];kind=nonempty[-1].partition(':')[0]if nonempty else''
+            if frames and kind in DIAGNOSTIC_CLASSES:
+                record={'schema':1,'kind':'aleo-case-service-source-trace-v1','stage':'unobserved','error_class':kind,'observed_monotonic_ns':time.monotonic_ns(),'frames':frames[-8:]};result['startup']={'status':'source-trace-only','record':checked_startup_marker(record,spec)}
+        except BaseException:result['startup']={'status':'refused'}
+    return result
+
+
+def inside(spec_pin):
+    stage='authority'
+    try:
+        spec=approved(spec_pin);unit=identity(spec);tools=base.tools(spec)
+        stage='properties'
+        properties=base.show(tools['systemctl'],unit);invocation=owned(properties,spec)
+        stage='invocation'
+        need(os.environ.get('INVOCATION_ID')==invocation,'actual case invocation differs')
+        stage='delegated-paths'
+        root=Path('/sys/fs/cgroup/system.slice')/unit;manager=root/'manager'
+        need(root.resolve()==root and manager.resolve()==manager,'canonical case delegated paths required')
+        need(root.stat().st_uid==os.getuid()and manager.stat().st_uid==os.getuid(),'case inode UID differs')
+        context={'unit':unit,'invocation':invocation,'uid':os.getuid(),'gid':os.getgid(),'root':str(root),'root_dev':root.stat().st_dev,'root_ino':root.stat().st_ino,'manager_dev':manager.stat().st_dev,'manager_ino':manager.stat().st_ino,'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()}
+        directory=Path(spec['output']).with_suffix('.owner')
+        # Publish positive custody before partition. A cancellation before initial
+        # publication is never authority to stop an unclaimed unit (finite fallback).
+        stage='publish-custody'
+        base.atomic(directory/'delegation.json',context)
+        base.atomic(directory/'service-properties.json',{'observed_monotonic_ns':time.monotonic_ns(),'properties':properties})
+        stage='prepare-controllers'
+        base.prepare_inside(spec,unit)
+        # Bound the positively owned manager independently from its13.5GiB child.
+        stage='manager-caps'
+        manager_limits={'memory.max':str(GIB//2),'memory.swap.max':'0','pids.max':'128'}
+        for name,value in manager_limits.items():(manager/name).write_text(value)
+        actual_manager={name:(manager/name).read_text().strip()for name in manager_limits}
+        need(actual_manager==manager_limits,'actual case manager limits differ')
+        base.atomic(directory/'manager-limits.json',{'observed_monotonic_ns':time.monotonic_ns(),'path':str(manager),'limits':actual_manager})
+        stage='parent-admission'
+        kernel_probe.delegated_parent(context,spec['run_token'],family='case')
+        stage='controller-binding'
+        context_pin=kernel_probe.pin(directory/'delegation.json')
+        controller_pin=kernel_probe.pin(directory/'controller.json');controller=load(controller_pin)
+        need(controller['service_spec']==spec_pin and controller['run_token']==spec['run_token'],'original controller binding differs')
+        stage='controller-resources'
+        controller_resources.tree(controller['identity'])
+        stage='payload-binding'
+        payload=dict(load(spec['case_spec'],32*1024**2),delegation_context=context_pin,controller_receipt=controller_pin,service_owner_spec=spec_pin)
+        payload['pins']=payload['pins']+[spec_pin,context_pin,controller_pin]
+        stage='payload-publication'
+        base.atomic(directory/'payload.spec.json',payload)
+        stage='payload-run'
+        return case_supervisor.run(kernel_probe.pin(directory/'payload.spec.json'))
+    except BaseException as error:
+        try:emit_startup_failure(stage,error)
+        except BaseException:pass  # Diagnostic failure must preserve the original exception.
+        raise
 
 def cleanup(spec,tools,context):
     unit=identity(spec);rows=base.show(tools['systemctl'],unit);root=Path('/sys/fs/cgroup/system.slice')/unit
@@ -209,6 +337,9 @@ def execute(spec_pin):
             checked(spec['case_spec']);checked(spec_pin);result['source_unchanged']=True
         except BaseException as error:errors.append('Source:'+type(error).__name__);result['source_unchanged']=False
         result['cleanup_errors']=errors;result['passed']=final_pass(result)
+        if result.get('error'):
+            try:result['service_failure_diagnostics']=service_failure_diagnostics(directory,spec)
+            except BaseException:result['service_failure_diagnostics']={'schema':1,'kind':'aleo-case-service-failure-metadata-v1','status':'unavailable','raw_logs_argv_environment_exported':False}
         if result['passed']:
             try:
                 from public_proof import project
