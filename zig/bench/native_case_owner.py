@@ -894,6 +894,12 @@ def worker(args, plan, manifest, inputs, approval):
             if radix is not None:
                 try:result['radix_service_observation']=radix.public_observation()
                 except Exception:result['radix_service_observation']={'schema':1,'collection_status':'unavailable'}
+                if not result['passed']:
+                    try:
+                        target=radix.failed_fullnode_log_target()
+                        if target is not None:
+                            result['radix_fullnode_failure_log']=radix_custody().capture_fullnode_log(target,[str(docker),'--host',inputs['local_docker']['host'],'--config',inputs['local_docker']['config_dir']],docker_env,out/'radix-fullnode-failure.log',deadline)
+                    except Exception:result['radix_fullnode_failure_log']={'schema':1,'capture_status':'unavailable'}
             if not result['passed']:
                 try:result['public_diagnostic_before_stop']=snapshot_public_diagnostics(case,approval,out,'public-observer-before-stop.json')
                 except Exception as diagnostic_error:result['public_diagnostic_before_stop_error']={'type':type(diagnostic_error).__name__}

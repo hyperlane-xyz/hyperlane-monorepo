@@ -7,9 +7,9 @@ spec=importlib.util.spec_from_file_location('actual_ci_fullcase',HERE/'ci_fullca
 REPO=HERE.parents[2]
 FULL="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case))"
 INPUT="      aleo_full_case:\n        description: Run only reviewed dedicated Aleo Safe/Fast full cases (requires actual same-job prerequisites)\n        type: boolean\n        default: false\n"
-# Exact current14-job inverse, including reviewed C45 progress/C46 cold/C47 readback hunks.
+# Exact current14-job inverse, including the reviewed fixed Radix startup-log upload.
 # Further workflow-body changes still require explicit review and a new baseline.
-BASE_SHA=('e5907c15c98fde981fec43b356786ce34' '44c5c237a2ab790c3bed6172b86f401')
+BASE_SHA=('899f87a72e65f5cc6577f487e40c2d8e' '4297ec18fbc862b463d661410446ef54')
 def evaluator():
  tree=ast.parse((REPO/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N}
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]

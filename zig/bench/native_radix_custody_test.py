@@ -90,6 +90,121 @@ class Controls(unittest.TestCase):
         except ValueError:return None
         self.assertIs(result['passed'],False);self.assertIs(result['container_absent'],False);self.assertTrue(result['errors'])
         return result
+    def log_capture(self, chunks=None, eof=True, returncode=0, spawn_error=False, kill_error=False, wait_timeout=False, deadline=100):
+        import os
+        import subprocess
+        import types
+        from unittest import mock
+        state={'now':1.0,'reads':[],'requested':[],'kills':0,'waits':0,'closed':False,'selector_closed':False}
+        chunks=list(chunks or [])
+        class Pipe:
+            def fileno(self):return 12345
+            def close(self):state['closed']=True
+        class Child:
+            pid=54321
+            stdout=Pipe()
+            returncode=None
+            def poll(self):return self.returncode
+            def kill(self):
+                state['kills']+=1
+                if kill_error:raise OSError('PRIVATE_SENTINEL')
+                self.returncode=-9
+            def wait(self,timeout):
+                state['waits']+=1
+                if wait_timeout and state['waits']==1:raise subprocess.TimeoutExpired(['mock'],timeout)
+                if self.returncode is None:self.returncode=returncode
+                return self.returncode
+        child=Child()
+        class Selector:
+            def register(self,*args):pass
+            def select(self,timeout):state['now']+=timeout;return [(object(),1)]
+            def close(self):state['selector_closed']=True
+        def read(fd,n):
+            state['requested'].append(n)
+            if chunks:
+                value=chunks[0][:n];chunks[0]=chunks[0][n:]
+                if not chunks[0]:chunks.pop(0)
+            else:value=b''if eof else b'x'
+            state['reads'].append(len(value));return value
+        def popen(argv,**kwargs):
+            state['argv']=argv;state['environment']=kwargs['env']
+            if spawn_error:raise OSError('PRIVATE_SENTINEL')
+            return child
+        fake_process=types.SimpleNamespace(Popen=popen,DEVNULL=subprocess.DEVNULL,PIPE=subprocess.PIPE,STDOUT=subprocess.STDOUT,TimeoutExpired=subprocess.TimeoutExpired)
+        fake_time=types.SimpleNamespace(monotonic=lambda:state['now'],monotonic_ns=lambda:int(state['now']*10**9))
+        fake_select=types.SimpleNamespace(DefaultSelector=Selector,EVENT_READ=1)
+        target={'service':'fullnode','container_id':'ab'*32,'image_id':'sha256:'+'cd'*32,'project':'ziggy-e2e-0123456789-24680-radix'}
+        output=self.case/'radix-fullnode-failure.log'
+        with mock.patch.object(m,'subprocess',fake_process),mock.patch.object(m,'time',fake_time),mock.patch.object(m,'selectors',fake_select),mock.patch.object(m.os,'read',read),mock.patch.object(m.os,'set_blocking',lambda *args:None):
+            row=m.capture_fullnode_log(target,['/usr/bin/docker','--host','unix:///var/run/docker.sock','--config',str(self.case/'docker-config')],{'PRIVATE_SENTINEL':'not exported'},output,deadline)
+        self.assertNotIn('PRIVATE_SENTINEL',json.dumps(row));return row,state,output
+    def test_exact_owned_failed_fullnode_log_target_requires_failed_authenticated_observation(self):
+        self.launch(['fullnode']);self.custody.observe();self.assertIsNone(self.custody.failed_fullnode_log_target())
+        self.row('fullnode')['State'].update(Status='exited',Running=False,ExitCode=255)
+        with self.assertRaisesRegex(ValueError,'service failed or stopped'):self.custody.observe()
+        target=self.custody.failed_fullnode_log_target();self.assertEqual(target['container_id'],self.row('fullnode')['Id'])
+        self.assertEqual(target['image_id'],self.fixture['images']['fullnode']['id']);self.assertEqual(target['project'],self.custody.project)
+        self.custody.seen['fullnode']='ef'*32;self.assertIsNone(self.custody.failed_fullnode_log_target())
+    def test_changed_image_or_unavailable_state_cannot_authorize_logs(self):
+        self.launch(['fullnode']);self.row('fullnode')['State'].update(Status='exited',Running=False,ExitCode=255)
+        with self.assertRaises(ValueError):self.custody.observe()
+        row=self.custody.service_states['fullnode'];row['image_id']='sha256:'+'ef'*32
+        self.assertIsNone(self.custody.failed_fullnode_log_target())
+        row['image_id']=self.fixture['images']['fullnode']['id'];self.custody.service_observation_unavailable=True
+        self.assertIsNone(self.custody.failed_fullnode_log_target())
+    def test_wrong_service_log_target_is_rejected_before_spawn_or_file_creation(self):
+        from unittest import mock
+        target={'service':'postgres_db','container_id':'ab'*32,'image_id':'sha256:'+'cd'*32,'project':'project'}
+        out=self.case/'radix-fullnode-failure.log'
+        with mock.patch.object(m.subprocess,'Popen')as popen,self.assertRaisesRegex(ValueError,'Exact failed fullnode'):
+            m.capture_fullnode_log(target,['/usr/bin/docker','--host','unix:///var/run/docker.sock','--config',str(self.case)],{},out,10**12)
+        popen.assert_not_called();self.assertFalse(out.exists())
+    def test_foreign_fullnode_never_gets_log_authority(self):
+        self.launch(['fullnode']);self.row('fullnode')['State'].update(Status='exited',Running=False,ExitCode=255);self.row('fullnode')['Config']['Labels'][m.TOKEN_LABEL]='cd'*16
+        with self.assertRaisesRegex(ValueError,'Foreign'):self.custody.observe()
+        self.assertIsNone(self.custody.failed_fullnode_log_target())
+    def test_log_retains_exact_public_bytes_fingerprint_and_actual_client_wait_only(self):
+        raw=b'fixture startup diagnostic\n';row,state,out=self.log_capture([raw])
+        self.assertEqual(row['capture_status'],'complete');self.assertTrue(row['actual_parent_wait']);self.assertEqual(row['exit_code'],0)
+        self.assertEqual(out.read_bytes(),raw);self.assertEqual(out.stat().st_mode&0o777,0o600)
+        self.assertEqual(row['log'],{'path':str(out),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+        self.assertEqual(state['argv'][-6:],['container','logs','--tail','80','--timestamps','ab'*32]);self.assertEqual(state['kills'],0);self.assertEqual(state['waits'],1)
+        self.assertTrue(state['closed']and state['selector_closed'])
+    def test_log_byte_cap_stops_at16KiB_kills_and_waits_owned_client(self):
+        row,state,out=self.log_capture([b'x'*50000])
+        self.assertEqual(row['capture_status'],'byte_limit');self.assertEqual(len(out.read_bytes()),16384);self.assertEqual(sum(state['reads']),16384)
+        self.assertEqual(state['kills'],1);self.assertTrue(row['actual_parent_wait']);self.assertEqual(row['exit_code'],-9)
+    def test_log_trickle_uses_one_original_clamped_deadline_and_does_not_reset(self):
+        row,state,out=self.log_capture(eof=False,deadline=1.2)
+        self.assertEqual(row['read_deadline_seconds'],1.2);self.assertEqual(row['capture_status'],'deadline');self.assertLessEqual(state['now'],1.200001)
+        self.assertLess(len(out.read_bytes()),16384);self.assertEqual(state['kills'],1);self.assertTrue(row['actual_parent_wait'])
+    def test_log_spawn_error_has_no_fictional_wait_or_exception_text(self):
+        row,state,out=self.log_capture(spawn_error=True)
+        self.assertEqual(row['capture_status'],'unavailable');self.assertIsNone(row['pid']);self.assertFalse(row['actual_parent_wait']);self.assertEqual(out.read_bytes(),b'')
+    def test_log_kill_error_does_not_skip_independent_wait_and_descriptor_closes(self):
+        row,state,out=self.log_capture([b'x'*50000],kill_error=True)
+        self.assertEqual(row['capture_status'],'unavailable');self.assertEqual(row['cleanup_failures'],['client-kill'])
+        self.assertTrue(row['actual_parent_wait']);self.assertEqual(state['waits'],1);self.assertTrue(state['closed']and state['selector_closed'])
+    def test_log_eof_client_wait_timeout_kills_then_actually_reaps(self):
+        row,state,out=self.log_capture([b'fixture'],wait_timeout=True)
+        self.assertEqual(row['capture_status'],'client_error');self.assertEqual(state['waits'],2);self.assertEqual(state['kills'],1);self.assertTrue(row['actual_parent_wait'])
+    def test_log_nonzero_client_is_not_complete_or_native_acceptance(self):
+        row,state,out=self.log_capture([b'fixed fixture diagnostic'],returncode=1)
+        self.assertEqual(row['capture_status'],'client_error');self.assertEqual(row['exit_code'],1);self.assertTrue(row['actual_parent_wait']);self.assertNotIn('native_case_acceptance',row)
+    def test_actual_owner_log_exception_does_not_skip_next_child_cleanup(self):
+        import ast
+        import types
+        source=ast.parse(Path(__file__).with_name('native_case_owner.py').read_bytes());worker=next(n for n in source.body if isinstance(n,ast.FunctionDef)and n.name=='worker');primary=next(n for n in worker.body if isinstance(n,ast.Try)and n.finalbody);cleanup=next(n for n in primary.finalbody if isinstance(n,ast.Try))
+        diagnostic=next(n for n in cleanup.body if isinstance(n,ast.If)and ast.unparse(n.test)=='radix is not None');stop=next(n for n in cleanup.body if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and isinstance(n.value.func,ast.Name)and n.value.func.id=='stop_direct')
+        events=[]
+        class Radix:
+            def public_observation(self):return {'schema':1,'collection_status':'available'}
+            def failed_fullnode_log_target(self):return {'service':'fullnode'}
+        def failed(*args):events.append('log-diagnostic');raise RuntimeError('PRIVATE_SENTINEL')
+        result={'passed':False};context={'radix':Radix(),'result':result,'harness':object(),'stop_direct':lambda *args:events.append('child-stop'),'radix_custody':lambda:types.SimpleNamespace(capture_fullnode_log=failed),'docker':'/usr/bin/docker','inputs':{'local_docker':{'host':'unix:///var/run/docker.sock','config_dir':str(self.case/'docker-config')}},'docker_env':{},'out':self.case,'deadline':1}
+        exec(compile(ast.Module(body=[diagnostic,stop],type_ignores=[]),'actual-owner-log-finally-fragment','exec'),context)
+        self.assertEqual(events,['log-diagnostic','child-stop']);self.assertFalse(result['passed']);self.assertEqual(result['radix_fullnode_failure_log'],{'schema':1,'capture_status':'unavailable'})
+        self.assertNotIn('PRIVATE_SENTINEL',json.dumps(result))
     def test_projection_exception_disables_bookkeeping_but_preserves_readiness_and_cleanup(self):
         self.launch(['fullnode']);old=m.public_service_state;calls=[]
         def unavailable(*args):calls.append(True);raise RuntimeError('PRIVATE_SENTINEL')

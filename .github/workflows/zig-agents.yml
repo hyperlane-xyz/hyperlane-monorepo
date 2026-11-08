@@ -920,6 +920,7 @@ jobs:
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/result.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision/public-starknet-progress.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/worker-result.json
+            /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/radix-fullnode-failure.log
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-final-proof.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-failure-diagnostics.json
             /tmp/znc-${{ github.run_id }}-${{ github.run_attempt }}/ci-supervision-worker/public-observer-before-stop.json

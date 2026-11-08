@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
+import subprocess
 import time
 
 GIB = 1024 ** 3
@@ -116,6 +118,84 @@ def public_service_state(row, service, observed_ns):
     return out
 
 
+def capture_fullnode_log(target, prefix, environment, output, deadline):
+    """Owned fixture CID only; tail80, retained16KiB, read3s plus bounded wait."""
+    require(set(target) == {'service', 'container_id', 'image_id', 'project'} and target['service'] == 'fullnode' and re.fullmatch('[0-9a-f]{64}', target['container_id']) and re.fullmatch('sha256:[0-9a-f]{64}', target['image_id']), 'Exact failed fullnode log authority required')
+    require(len(prefix) == 5 and Path(prefix[0]).is_absolute() and prefix[1] == '--host' and prefix[2] == 'unix:///var/run/docker.sock' and prefix[3] == '--config' and Path(prefix[4]).is_absolute(), 'Exact native Docker log prefix required')
+    require(output.name == 'radix-fullnode-failure.log' and not output.exists() and not output.is_symlink(), 'Preserve exact bounded Radix diagnostic')
+    entered = time.monotonic()
+    end = min(deadline, entered + 3)
+    require(entered < end, 'No diagnostic time remains')
+    arguments = ['container', 'logs', '--tail', '80', '--timestamps', target['container_id']]
+    result = {'schema': 1, 'service': 'fullnode', 'container_id': target['container_id'], 'image_id': target['image_id'], 'project': target['project'], 'capture_status': 'unavailable', 'tail_lines': 80, 'maximum_retained_bytes': 16384, 'read_deadline_seconds': end, 'entered_monotonic_ns': time.monotonic_ns(), 'actual_parent_wait': False, 'pid': None, 'exit_code': None, 'cleanup_failures': []}
+    child = None
+    selector = None
+    retained = 0
+    digest = hashlib.sha256()
+    with output.open('xb') as stream:
+        os.chmod(output, 0o600)
+        try:
+            child = subprocess.Popen([*prefix, *arguments], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=environment)
+            result['pid'] = child.pid
+            os.set_blocking(child.stdout.fileno(), False)
+            selector = selectors.DefaultSelector()
+            selector.register(child.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = end - time.monotonic()
+                if remaining <= 0:
+                    result['capture_status'] = 'deadline'
+                    break
+                if not selector.select(min(.05, remaining)):
+                    continue
+                block = os.read(child.stdout.fileno(), min(4096, 16384 - retained))
+                if not block:
+                    result['capture_status'] = 'complete'
+                    break
+                stream.write(block)
+                digest.update(block)
+                retained += len(block)
+                if retained == 16384:
+                    # Exact-boundary EOF is deliberately not inferred.
+                    result['capture_status'] = 'byte_limit'
+                    break
+        except Exception:
+            result['capture_status'] = 'unavailable'
+        finally:
+            if child is not None:
+                if result['capture_status'] != 'complete' and child.poll() is None:
+                    try: child.kill()
+                    except Exception: result['cleanup_failures'].append('client-kill')
+                try:
+                    child.wait(timeout=min(1, max(.01, end - time.monotonic())) if result['capture_status'] == 'complete' else 1)
+                    result['actual_parent_wait'] = True
+                except subprocess.TimeoutExpired:
+                    try: child.kill()
+                    except Exception: result['cleanup_failures'].append('client-kill')
+                    try:
+                        child.wait(timeout=1)
+                        result['actual_parent_wait'] = True
+                    except Exception:
+                        result['capture_status'] = 'unavailable'
+                except Exception:
+                    result['capture_status'] = 'unavailable'
+                result['exit_code'] = child.returncode
+                if result['capture_status'] == 'complete' and child.returncode != 0:
+                    result['capture_status'] = 'client_error'
+                try: child.stdout.close()
+                except Exception: result['cleanup_failures'].append('stdout-close')
+            if selector is not None:
+                try: selector.close()
+                except Exception: result['cleanup_failures'].append('selector-close')
+            stream.flush()
+            os.fsync(stream.fileno())
+    if result['cleanup_failures']:
+        result['capture_status'] = 'unavailable'
+    result['log'] = {'path': str(output), 'bytes': retained, 'sha256': digest.hexdigest()}
+    result['finished_monotonic_ns'] = time.monotonic_ns()
+    result['arguments'] = arguments
+    return result
+
+
 def readiness(row, service, fixture, network):
     memory, pids, ports = SERVICES[service]
     host, config = row.get('HostConfig', {}), row.get('Config', {})
@@ -169,6 +249,19 @@ class Custody:
                 'last_inspected_service': self.last_inspected_service,
                 'readiness_passed_services': sorted(self.ready),
                 'services': [dict(self.service_states[name], state=dict(self.service_states[name]['state']), invalid_fields=list(self.service_states[name]['invalid_fields'])) for name in SERVICES if name in self.service_states]}
+
+    def failed_fullnode_log_target(self):
+        # This exact CID/image/project/token was authenticated by inspect_container
+        # immediately before the failed readiness check. No request-chosen target.
+        if self.service_observation_unavailable or self.last_inspected_service != 'fullnode':
+            return None
+        row = self.service_states.get('fullnode')
+        if row is None or row['container_id'] != self.seen.get('fullnode') or row['image_id'] != self.fixture['images']['fullnode']['id']:
+            return None
+        state = row['state']
+        if state.get('Status') not in {'exited', 'dead', 'restarting'} and state.get('OOMKilled') is not True:
+            return None
+        return {'service': 'fullnode', 'container_id': row['container_id'], 'image_id': row['image_id'], 'project': self.project}
 
     def context(self):
         return {'case_root': str(self.case), 'helper_pid': self.pid, 'helper_start': self.start, 'project': self.project, 'fixture': self.fixture}
