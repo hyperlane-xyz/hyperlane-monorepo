@@ -182,22 +182,11 @@ export class ActionTracker implements IActionTracker {
       }
     }
 
-    const existingTransfers = await this.getInProgressTransfers();
+    const existingTransfers =
+      await this.transferStore.getByStatus('in_progress');
     for (const transfer of existingTransfers) {
       if (this.config.isIgnoredTransfer?.(transfer.messageId)) {
-        await this.transferStore.delete(transfer.id);
         ignoredTransfers++;
-
-        this.logger.info(
-          {
-            id: transfer.id,
-            origin: transfer.origin,
-            destination: transfer.destination,
-            amount: transfer.amount.toString(),
-          },
-          'Dropped tracked transfer ignored by pending transfer middleware',
-        );
-
         continue;
       }
 
@@ -376,7 +365,12 @@ export class ActionTracker implements IActionTracker {
   }
 
   async getInProgressTransfers(): Promise<Transfer[]> {
-    return this.transferStore.getByStatus('in_progress');
+    const transfers = await this.transferStore.getByStatus('in_progress');
+    // Ignored transfers stay stored, so their reservation returns once a
+    // middleware stops ignoring them, e.g. when a deny rule expires.
+    return transfers.filter(
+      (transfer) => !this.config.isIgnoredTransfer?.(transfer.messageId),
+    );
   }
 
   async getTransfersByDestination(destination: Domain): Promise<Transfer[]> {
