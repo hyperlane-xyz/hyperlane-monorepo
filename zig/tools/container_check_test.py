@@ -250,5 +250,125 @@ class ExistingCompilerTests(unittest.TestCase):
             with self.subTest(mode=mode,jobs=jobs,machine=machine), self.assertRaises(ValueError):
                 c.native_suite_command(mode,jobs,[],Path("/work"),machine)
 
+
+class AtomicPublicationControls(unittest.TestCase):
+    def replace(self, path, body):
+        other = path.with_name('publication.tmp')
+        other.write_bytes(body)
+        other.chmod(0o600)
+        os.replace(other, path)
+
+    def test_actual_atomic_replacement_is_typed_but_stable_copy_validates(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'metadata.json'
+            raw = json.dumps(publication()).encode()
+            path.write_bytes(raw)
+            def copied():
+                self.replace(path, raw)
+                return raw
+            with self.assertRaises(c.MetadataPublicationReplaced) as caught:
+                c.metadata_snapshot(path, SHA, copied)
+            observation = caught.exception.observation
+            self.assertEqual(set(observation), {'before', 'after'})
+            self.assertNotEqual(observation['before']['inode'], observation['after']['inode'])
+            for row in observation.values():
+                self.assertEqual(set(row), {'device', 'inode', 'bytes', 'mtime_ns', 'nlink', 'regular'})
+                self.assertEqual(row['bytes'], len(raw)); self.assertEqual(row['nlink'], 1)
+                self.assertIs(row['regular'], True)
+            self.assertNotIn('git_sha', str(caught.exception))
+            self.assertEqual(c.metadata_snapshot(path, SHA, path.read_bytes)['metadata'], publication())
+
+    def test_same_inode_mutation_or_replaced_link_and_hardlink_remain_hard(self):
+        for kind in ['in-place', 'symlink', 'hardlink']:
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / 'metadata.json'; raw = json.dumps(publication()).encode()
+                path.write_bytes(raw)
+                def copied():
+                    if kind == 'in-place': path.write_bytes(raw + b' ')
+                    else:
+                        other = path.with_name('other'); other.write_bytes(raw)
+                        path.unlink()
+                        if kind == 'symlink': path.symlink_to(other)
+                        else: os.link(other, path)
+                    return raw
+                with self.assertRaises(AssertionError) as caught: c.metadata_snapshot(path, SHA, copied)
+                self.assertNotIsInstance(caught.exception, c.MetadataPublicationReplaced)
+
+    def run_startup(self, kind):
+        temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name); data = root / 'data'; (data / 'checkpoints').mkdir(parents=True)
+        path = data / 'checkpoints/metadata_latest.json'; raw = json.dumps(publication()).encode()
+        path.write_bytes(raw); clock = SimpleNamespace(now=0.0); state = {'copies': 0, 'stopped': False}; calls = []
+        def copied(_):
+            state['copies'] += 1
+            if state['copies'] == 1 or (kind == 'stopped' and state['stopped']):
+                self.replace(path, raw)
+            elif kind == 'late': clock.now = 11.0
+            return path.read_bytes()
+        def docker(args, **kwargs):
+            calls.append(args)
+            if args[1] == 'stop': state['stopped'] = True
+            if args[1] == 'inspect': return SimpleNamespace(stdout=json.dumps([{'State': {'Running': True, 'ExitCode': 0}}]), stderr='', returncode=0)
+            return SimpleNamespace(stdout='', stderr='', returncode=0)
+        with mock.patch.object(c.time, 'monotonic', side_effect=lambda: clock.now), mock.patch.object(c.time, 'sleep', side_effect=lambda n: setattr(clock, 'now', clock.now + n)), mock.patch.object(c, 'copied_metadata_bytes', side_effect=copied), mock.patch.object(c, 'checked', side_effect=docker), mock.patch.object(c, 'command', side_effect=docker), mock.patch.object(c, 'safe_logs'):
+            if kind == 'stopped':
+                with self.assertRaises(c.MetadataPublicationReplaced): c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA)
+                self.assertTrue(state['stopped'])
+            elif kind == 'late':
+                with self.assertRaisesRegex(AssertionError, 'beyond original deadline'): c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA)
+                self.assertFalse(state['stopped']); self.assertEqual(clock.now, 11.0)
+            else:
+                row = c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA)
+                self.assertEqual(row['metadata_replacement_count'], 1)
+                self.assertEqual(row['validator_metadata']['metadata'], publication())
+                self.assertGreaterEqual(row['startup_grace_ms'], 2000); self.assertLess(clock.now, 10)
+                self.assertTrue(state['stopped']); self.assertTrue(row['reopened'])
+            self.assertTrue(any(args[1] == 'rm' for args in calls))
+
+    def test_real_atomic_restart_replacement_retries_only_startup(self): self.run_startup('normal')
+    def test_stopped_atomic_replacement_never_retries(self): self.run_startup('stopped')
+    def test_atomic_retry_cannot_borrow_original_startup_deadline(self): self.run_startup('late')
+
+
+    def ready_replacement(self, repeat):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); data = root / 'data'; (data/'checkpoints').mkdir(parents=True)
+            path = data/'checkpoints/metadata_latest.json'; raw = json.dumps(publication()).encode(); path.write_bytes(raw)
+            clock = SimpleNamespace(now=0.0); state = {'replaced': False, 'stable_after': False, 'stopped': False}
+            def copied(_):
+                if not state['stopped'] and clock.now >= 2 and (repeat or not state['replaced']):
+                    state['replaced'] = True; self.replace(path, raw)
+                elif state['replaced']: state['stable_after'] = True
+                return path.read_bytes()
+            def docker(args, **kwargs):
+                if args[1] == 'stop':
+                    self.assertTrue(state['stable_after'], 'Cannot stop using the pre-replacement sample')
+                    state['stopped'] = True
+                if args[1] == 'inspect': return SimpleNamespace(stdout=json.dumps([{'State': {'Running': True, 'ExitCode': 0}}]), stderr='', returncode=0)
+                return SimpleNamespace(stdout='', stderr='', returncode=0)
+            with mock.patch.object(c.time, 'monotonic', side_effect=lambda: clock.now), mock.patch.object(c.time, 'sleep', side_effect=lambda n: setattr(clock, 'now', clock.now+n)), mock.patch.object(c, 'copied_metadata_bytes', side_effect=copied), mock.patch.object(c, 'checked', side_effect=docker), mock.patch.object(c, 'command', side_effect=docker), mock.patch.object(c, 'safe_logs'):
+                if repeat:
+                    with self.assertRaisesRegex(AssertionError, 'metadata startup deadline'): c.run_role('image','validator',root/'config',data,root/'logs',[],1,SHA)
+                    self.assertFalse(state['stopped']); self.assertLessEqual(clock.now,10.1)
+                else:
+                    row=c.run_role('image','validator',root/'config',data,root/'logs',[],1,SHA)
+                    self.assertEqual(row['metadata_replacement_count'],1); self.assertTrue(state['stable_after']); self.assertGreater(clock.now,2)
+                    self.assertTrue(state['stopped'])
+
+    def test_ready_time_replacement_requires_subsequent_stable_copy(self): self.ready_replacement(False)
+    def test_ready_time_replacement_churn_never_reuses_prior_stable_sample(self): self.ready_replacement(True)
+
+
+    def test_device_change_is_hard_even_with_changed_regular_inode(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'metadata.json'; path.write_text(json.dumps(publication()))
+            before=path.lstat()
+            fields={key:getattr(before,key)for key in ['st_mode','st_nlink','st_size','st_dev','st_ino','st_mtime_ns']}
+            after=SimpleNamespace(**dict(fields,st_dev=before.st_dev+1,st_ino=before.st_ino+1))
+            with mock.patch.object(Path,'lstat',side_effect=[before,after]),self.assertRaisesRegex(AssertionError,'device changed during read')as caught:
+                c.metadata_snapshot(path,SHA)
+            self.assertNotIsInstance(caught.exception,c.MetadataPublicationReplaced)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -272,6 +272,18 @@ def validate_git_sha(value: str | None) -> str:
     return value
 
 
+class MetadataPublicationReplaced(AssertionError):
+    """A regular atomic publication replaced the previous inode during copy."""
+    def __init__(self, before, after):
+        def identity(value):
+            return {"device": value.st_dev, "inode": value.st_ino,
+                    "bytes": value.st_size, "mtime_ns": value.st_mtime_ns,
+                    "nlink": value.st_nlink, "regular": stat.S_ISREG(value.st_mode)}
+        self.observation = {"before": identity(before), "after": identity(after)}
+        super().__init__("validator metadata atomically replaced during read: " +
+                         json.dumps(self.observation, sort_keys=True))
+
+
 def metadata_snapshot(path: Path, expected_git_sha: str, read_bytes=None) -> dict:
     validate_git_sha(expected_git_sha)
     before = path.lstat()  # Only absence is retryable at the bounded startup caller.
@@ -281,7 +293,13 @@ def metadata_snapshot(path: Path, expected_git_sha: str, read_bytes=None) -> dic
     if not isinstance(raw, bytes) or len(raw) > 65536:
         raise AssertionError("validator metadata copy exceeds publication bound")
     after = path.lstat()
-    if (before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns):
+    if not stat.S_ISREG(after.st_mode) or after.st_nlink != 1 or after.st_size > 65536:
+        raise AssertionError("validator metadata is not a bounded regular publication")
+    if before.st_dev != after.st_dev:
+        raise AssertionError("validator metadata device changed during read")
+    if before.st_ino != after.st_ino:
+        raise MetadataPublicationReplaced(before, after)
+    if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
         raise AssertionError("validator metadata changed during read")
     def unique_pairs(pairs):
         result = {}
@@ -360,6 +378,8 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
     checked(args)
     started = time.monotonic()
     metadata = None
+    replacement_count = 0
+    latest_replacement = None
     try:
         deadline = started + 10
         while time.monotonic() < deadline:
@@ -371,6 +391,11 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
                 try:
                     metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha,
                         lambda: copied_metadata_bytes(name))
+                except MetadataPublicationReplaced as error:
+                    # A restart republishes atomically. Retry only this startup
+                    # sample, under the original deadline; stopped reads stay hard.
+                    replacement_count += 1
+                    latest_replacement = error.observation
                 except FileNotFoundError:
                     pass
             if time.monotonic() - started >= 2 and (role != "validator" or metadata is not None):
@@ -392,7 +417,9 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
                 raise AssertionError("validator metadata changed during clean drain")
         return {"exit_code": 0, "startup_grace_ms": round((stop_started - started) * 1000),
                 "drain_ms": round((time.monotonic() - stop_started) * 1000), "reopened": attempt == 1,
-                "validator_metadata": metadata}
+                "validator_metadata": metadata,
+                "metadata_replacement_count": replacement_count,
+                "latest_metadata_replacement": latest_replacement}
     finally:
         try:
             safe_logs(name, log_dir / f"{role}-{attempt}.log", forbidden)

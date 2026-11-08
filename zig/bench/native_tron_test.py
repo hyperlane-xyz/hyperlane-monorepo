@@ -244,6 +244,69 @@ class Assets(unittest.TestCase):
   repo,pins=self.bigint_loader_pins();relative,policy=next(iter(self.bigint_rows().items()))
   for name in [relative+'extra',relative.replace('@1.1.9/','@1.1.10/'),relative.replace('darwin-x64','darwin-arm64')]:
    with mock.patch.object(a,'pin',side_effect=AssertionError('Unknown path must not inspect borrowed loaders')):self.assertFalse(a.unselected_prebuild_data(repo,name,policy,0o644,bytes.fromhex(policy['header20_hex']),'amd64'))
+class LockedPackageBatch(unittest.TestCase):
+ # Published archives are exhaustively audited outside this test. These tests
+ # exercise the actual admission function without loading any addon/SDK/CLI.
+ COUNTS={'bare-fs@4.8.1':13,'bare-path@3.1.1':13,'bare-url@2.5.2':13,'bufferutil@4.0.5':4,'fb-dotslash@0.5.8':5,'ganache@7.4.3':36,'hermes-compiler@250829098.0.17':12,'keccak@3.0.1':4,'keccak@3.0.4':4,'node-hid@2.1.1':1,'secp256k1@4.0.5':4,'secp256k1@5.0.2':4,'term-size@2.2.1':2,'usb@1.9.2':11,'utf-8-validate@5.0.7':4}
+ def rows(self):return {p:r for p,r in a.NPM_PREBUILD_DATA.items()if r['package']in self.COUNTS}
+ def pins(self,package):
+  repo=pathlib.Path('/OWNED/locked-workspace');loader=a.NPM_PREBUILD_LOADERS[package]
+  return repo,{repo/loader['root']/p:dict(r)for p,r in loader['files'].items()}
+ def test_all_fifteen_locked_archives_native_members_are_finite(self):
+  rows=self.rows();self.assertEqual(len(rows),130)
+  self.assertEqual({pkg:sum(r['package']==pkg for r in rows.values())for pkg in self.COUNTS},self.COUNTS)
+  for path,row in rows.items():
+   with self.subTest(path=path):
+    self.assertTrue(path.startswith('node_modules/.pnpm/'+row['package']+'/node_modules/'))
+    self.assertEqual(set(row),{'package','platform','architectures','bytes','sha256','header20_hex','mode'})
+    self.assertEqual(len(row['sha256']),64);self.assertEqual(len(row['header20_hex']),40);self.assertIn(row['mode'],{0o644,0o755})
+    if row['platform']=='linux':self.assertTrue(row['architectures'],'Unknown Linux architecture must not receive foreign data authority')
+ def test_exact_platform_and_architecture_precede_data_for_every_member(self):
+  for relative,row in self.rows().items():
+   repo,pins=self.pins(row['package'])
+   for arch,host in [('amd64','x64'),('arm64','arm64')]:
+    with self.subTest(path=relative,arch=arch),mock.patch.object(a,'pin',side_effect=lambda p:dict(pins[p]))as check:
+     actual=a.unselected_prebuild_data(repo,relative,row,row['mode'],bytes.fromhex(row['header20_hex']),arch)
+     self.assertEqual(actual,row['platform']!='linux'or host not in row['architectures'])
+     self.assertEqual({c.args[0]for c in check.call_args_list},set(pins))
+ def test_every_native_member_hash_size_mode_and_header_remain_mandatory(self):
+  for relative,row in self.rows().items():
+   repo,pins=self.pins(row['package']);header=bytes.fromhex(row['header20_hex'])
+   for supplied,mode,raw in [(dict(row,bytes=row['bytes']+1),row['mode'],header),(dict(row,sha256='0'*64),row['mode'],header),(row,row['mode']^0o100,header),(row,row['mode'],bytes([header[0]^1])+header[1:])]:
+    with self.subTest(path=relative),mock.patch.object(a,'pin',side_effect=lambda p:dict(pins[p])),self.assertRaisesRegex(ValueError,'Exact Source-locked prebuild'):
+     a.unselected_prebuild_data(repo,relative,supplied,mode,raw,'amd64')
+ def test_every_package_selector_source_pin_is_mandatory(self):
+  for package in self.COUNTS:
+   relative,row=next((p,r)for p,r in self.rows().items()if r['package']==package and r['platform']!='linux');repo,pins=self.pins(package)
+   for target in pins:
+    for field,value in [('bytes',pins[target]['bytes']+1),('sha256','0'*64)]:
+     changed=copy.deepcopy(pins);changed[target][field]=value
+     with self.subTest(package=package,path=str(target),field=field),mock.patch.object(a,'pin',side_effect=lambda p:dict(changed[p])),self.assertRaisesRegex(ValueError,'platform-selecting package loader changed'):
+      a.unselected_prebuild_data(repo,relative,row,row['mode'],bytes.fromhex(row['header20_hex']),'amd64')
+ def test_unknown_version_path_or_filename_has_no_data_authority(self):
+  for path,row in self.rows().items():
+   for bad in [path+'extra',path.replace('/node_modules/','/unknown/',1),path.replace(row['package'],row['package']+'-unpublished',1)]:
+    with self.subTest(path=bad),mock.patch.object(a,'pin',side_effect=AssertionError('Unknown payload must not borrow a loader')):
+     self.assertFalse(a.unselected_prebuild_data(pathlib.Path('/ABSENT'),bad,row,row['mode'],bytes.fromhex(row['header20_hex']),'amd64'))
+ def test_ganache_host_abi_nodes_and_bundled_loaders_remain_separate(self):
+  rows={path.rsplit('/',1)[-1]:r for path,r in self.rows().items()if r['package']=='ganache@7.4.3'and '/dist/node/'in path}
+  self.assertEqual(len(rows),15)
+  for name in ['222l8vHq.node','3V6RmN_1.node','tiTj4M0Y.node']:
+   self.assertEqual((rows[name]['platform'],rows[name]['architectures']),('linux',['x64']))
+  files=a.NPM_PREBUILD_LOADERS['ganache@7.4.3']['files']
+  for suffix in ['dist/node/0.js','dist/node/1.js','node_modules/node-gyp-build/index.js','node_modules/@trufflesuite/bigint-buffer/node_modules/node-gyp-build/index.js']:
+   self.assertTrue(any(p.endswith('/'+suffix)for p in files))
+  self.assertNotEqual(next(r['sha256']for p,r in files.items()if p.endswith('/node_modules/node-gyp-build/index.js')and '/bigint-buffer/'not in p),next(r['sha256']for p,r in files.items()if p.endswith('/bigint-buffer/node_modules/node-gyp-build/index.js')))
+ def test_linux_hermes_and_dotslash_cannot_be_dormant_host_payloads(self):
+  for package,suffix in [('hermes-compiler@250829098.0.17','/linux64-bin/hermesc'),('fb-dotslash@0.5.8','/linux-musl.x86_64/dotslash')]:
+   relative,row=next((p,r)for p,r in self.rows().items()if r['package']==package and p.endswith(suffix));repo,pins=self.pins(package)
+   with mock.patch.object(a,'pin',side_effect=lambda p:dict(pins[p])):
+    self.assertFalse(a.unselected_prebuild_data(repo,relative,row,row['mode'],bytes.fromhex(row['header20_hex']),'amd64'))
+ def test_source_specific_nonstandard_selectors_are_pinned(self):
+  required={'bare-fs@4.8.1':['binding.js','index.js'],'bare-path@3.1.1':['binding.js','index.js'],'bare-url@2.5.2':['binding.js','index.js'],'fb-dotslash@0.5.8':['platforms.js','bin/dotslash'],'node-hid@2.1.1':['nodehid.js','bindings@1.5.0/node_modules/bindings/bindings.js'],'term-size@2.2.1':['index.js'],'hermes-compiler@250829098.0.17':['package.json','index.js']}
+  for package,suffixes in required.items():
+   for suffix in suffixes:self.assertTrue(any(p.endswith('/'+suffix)or p==suffix for p in a.NPM_PREBUILD_LOADERS[package]['files']))
+
 class Custody(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.case=pathlib.Path(self.tmp.name).resolve();self.out=self.case/'output';self.out.mkdir()

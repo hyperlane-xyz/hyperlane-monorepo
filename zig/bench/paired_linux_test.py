@@ -12,6 +12,10 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 class Controls(unittest.TestCase):
+ def test_worker_environment_uses_actual_native_consumer_key(self):
+  source=(ROOT/'zig/src/aleo/worker.zig').read_text()
+  self.assertIn('getEnvVarOwned(a, "'+p.ENV['worker']+'")',source)
+  self.assertEqual(p.env_for({'artifacts':{'zig':{'ReleaseSafe':{'worker':{'path':'bin/worker'},**{n:{'path':'lib/'+n}for n in p.ENV if n!='worker'}}}}},self.root,'ReleaseSafe')['HYPERLANE_ALEO_VM_WORKER'],str(self.root/'bin/worker'))
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
  def test_false_gate_has_no_source_import_or_artifact_access(self):
