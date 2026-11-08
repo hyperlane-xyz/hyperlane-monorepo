@@ -48,11 +48,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 111080,
+      "bytes": 115671,
       "sha256": {
         "sha256_hex_chunks": [
-          "9f68232b1225044c4ef8a7403ed25131",
-          "81d9bee00dd415353cb17414c9ebc52a"
+          "056a6295e904093c936ecf344cbd1970",
+          "0e29db20259d4100769ff49398a8f7e0"
         ]
       }
     },

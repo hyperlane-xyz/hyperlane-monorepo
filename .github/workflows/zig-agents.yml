@@ -1455,12 +1455,16 @@ jobs:
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/proof.json.gz
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/resources.jsonl
   paired-linux-runtime:
-    # Phase1 reserves the exact ten workloads, but cannot execute a timing main.
-    # The final PG16/actual-six/native18/Source/quiet owner successor is separate.
-    if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-docker-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_native_docker_prerequisite)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-sdk-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_sdk_prerequisite)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && needs.paired-linux-inputs.outputs.runtime_enabled == 'true' }}
-    needs: [paired-linux-inputs, paired-linux-functional]
+    # Independent reuse: no needs on a new comparator build or proof matrix.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') && contains(github.event.head_commit.message, '[zig-paired-runtime]') && !contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]') && !contains(github.event.head_commit.message, '[zig-aleo-docker-only]') && !contains(github.event.head_commit.message, '[zig-aleo-sdk-only]') && !contains(github.event.head_commit.message, '[zig-aleo-kernel-only]') }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 330
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PAIRED_PG16_DIGEST_A: 43f9275df91e012c3da3d86bea5d7bb5
+      PAIRED_PG16_DIGEST_B: e67a473296cc906c5f9e80b8176b1a37
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -1472,9 +1476,94 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           submodules: recursive
-      - name: Refuse timings until the separately reviewed final owner is ready
+      - name: Read inert runtime authority before setup or executable Source imports
+        id: runtime
         run: |
-          python3 -I -B - <<'PYTHON'
-          raise SystemExit('Linux phase1 provides inputs and functional proofs only; timing owner not activated')
-          PYTHON
+          set -euo pipefail
+          REQUEST="$GITHUB_WORKSPACE/zig/bench/paired_linux_runtime_request.json"
+          SHA="$(sha256sum "$REQUEST" | cut -d' ' -f1)"
+          echo "request_sha256=$SHA" >> "$GITHUB_OUTPUT"
+          python3 -I -B zig/bench/paired_linux_runtime_ci.py select \
+            --request "$REQUEST" --request-sha256 "$SHA" --repo "$GITHUB_WORKSPACE"
+      - name: Check runtime controller, worker and owner pure controls
+        if: steps.runtime.outputs.runtime_enabled == 'true'
+        run: |
+          python3 -I -B -W error zig/bench/paired_linux_runtime_ci_test.py
+          python3 -I -B -W error zig/bench/paired_linux_runtime_test.py
+          python3 -I -B -W error zig/bench/paired_linux_runtime_owner_test.py
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        if: steps.runtime.outputs.runtime_enabled == 'true'
+        with:
+          node-version-file: .nvmrc
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+        if: steps.runtime.outputs.runtime_enabled == 'true'
+        with:
+          run_install: false
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf
+        if: steps.runtime.outputs.runtime_enabled == 'true'
+        with:
+          version: v1.5.0
+      - name: Stage the same ordinary consumer tools and exact canonical PostgreSQL16
+        if: steps.runtime.outputs.runtime_enabled == 'true'
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang cmake libclang-dev libcurl4-openssl-dev libpq-dev libssl-dev libudev-dev pkg-config protobuf-compiler postgresql-client-16 lsof jq python3 openssl
+          docker pull "postgres@sha256:${PAIRED_PG16_DIGEST_A}${PAIRED_PG16_DIGEST_B}"
+      - name: Reuse the actual Root-qualified once-input artifact and six proofs
+        if: steps.runtime.outputs.runtime_enabled == 'true'
+        timeout-minutes: 32
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -I -B zig/bench/paired_linux_runtime_ci.py reuse \
+            --request "$GITHUB_WORKSPACE/zig/bench/paired_linux_runtime_request.json" \
+            --request-sha256 '${{ steps.runtime.outputs.request_sha256 }}' \
+            --repo "$GITHUB_WORKSPACE" --gh "$(command -v gh)" \
+            --output "$RUNNER_TEMP/paired-runtime-reuse-${{ matrix.index }}"
+      - name: Check actual job budget and supervise the unchanged original workload
+        id: measured
+        if: steps.runtime.outputs.runtime_enabled == 'true'
+        timeout-minutes: 306
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REUSE="$RUNNER_TEMP/paired-runtime-reuse-${{ matrix.index }}/reuse-result-binding.json"
+          REUSE_SHA="$(sha256sum "$REUSE" | cut -d' ' -f1)"
+          MINT="$RUNNER_TEMP/paired-runtime-mint-${{ matrix.index }}"
+          OWNER="$RUNNER_TEMP/paired-runtime-owner-${{ matrix.index }}"
+          python3 -I -B zig/bench/paired_linux_runtime_ci.py mint \
+            --request "$GITHUB_WORKSPACE/zig/bench/paired_linux_runtime_request.json" \
+            --request-sha256 '${{ steps.runtime.outputs.request_sha256 }}' \
+            --repo "$GITHUB_WORKSPACE" --gh "$(command -v gh)" \
+            --reuse "$REUSE" --reuse-sha256 "$REUSE_SHA" \
+            --index '${{ matrix.index }}' --output "$MINT" --owner-output "$OWNER"
+          AUTHORITY_SHA="$(sha256sum "$MINT/runtime-authority.json" | cut -d' ' -f1)"
+          exec env -u GH_TOKEN python3 -I -B zig/bench/paired_linux_runtime_owner.py \
+            --runtime-authority "$MINT/runtime-authority.json" \
+            --runtime-authority-sha256 "$AUTHORITY_SHA" \
+            --reuse "$REUSE" --reuse-sha256 "$REUSE_SHA" \
+            --repo "$GITHUB_WORKSPACE" --index '${{ matrix.index }}' --output "$OWNER"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always() && steps.runtime.outputs.runtime_enabled == 'true'
+        with:
+          name: paired-linux-runtime-${{ matrix.index }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          # Original raw workload directory is exact Source-derived output;
+          # input payload/SDKs, manager token/env and command API logs excluded.
+          path: |
+            ${{ runner.temp }}/paired-runtime-owner-${{ matrix.index }}/owner-result.json
+            ${{ runner.temp }}/paired-runtime-owner-${{ matrix.index }}/resources.jsonl
+            ${{ runner.temp }}/paired-runtime-owner-${{ matrix.index }}/worker/result.json
+            ${{ runner.temp }}/paired-runtime-mint-${{ matrix.index }}/mint-result.json
+            ${{ runner.temp }}/paired-runtime-mint-${{ matrix.index }}/runtime-authority.json
+            ${{ runner.temp }}/paired-runtime-mint-${{ matrix.index }}/actual-prework-quiet-and-budget.json
+            ${{ runner.temp }}/paired-runtime-reuse-${{ matrix.index }}/reuse-result.json
+            ${{ runner.temp }}/paired-runtime-reuse-${{ matrix.index }}/reuse-result-binding.json
+            ${{ runner.temp }}/paired-runtime-reuse-${{ matrix.index }}/accepted-six.json
+            ${{ steps.measured.outputs.raw_output }}
   # END REVIEWED PAIRED LINUX JOBS

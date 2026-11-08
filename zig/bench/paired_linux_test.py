@@ -255,7 +255,8 @@ class Workflow(unittest.TestCase):
   for flags in [dict(message='[zig-paired-linux]'),dict(event='workflow_dispatch',paired=True)]:
    self.assertEqual(self.evaluate(self.rows,**flags),{'paired-linux-inputs'})
    self.assertEqual(self.evaluate(self.rows,functional=True,**flags),{'paired-linux-inputs','paired-linux-functional'})
-   self.assertEqual(self.evaluate(self.rows,functional=True,runtime=True,**flags),{'paired-linux-inputs','paired-linux-functional','paired-linux-runtime'})
+   self.assertEqual(self.evaluate(self.rows,functional=True,runtime=True,**flags),{'paired-linux-inputs','paired-linux-functional'})
+  self.assertEqual(self.evaluate(self.rows,message='[zig-native-case] [zig-paired-runtime]'),{'native-case-producer-inputs','paired-linux-runtime'})
   for key,marker in [('aleo','kernel'),('sdk','sdk'),('docker','docker'),('full','fullcase')]:
    self.assertEqual(self.evaluate(self.rows,event='workflow_dispatch',paired=True,**{key:True}),set());self.assertEqual(self.evaluate(self.rows,message='[zig-paired-linux] [zig-aleo-'+marker+'-only]'),set())
   for event,ref in [('pull_request','refs/heads/feat/zig-agent-rewrite'),('push','refs/heads/main')]:self.assertFalse(any(k.startswith('paired-linux-')for k in self.evaluate(self.rows,event=event,ref=ref,message='[zig-paired-linux]')))
@@ -264,6 +265,6 @@ class Workflow(unittest.TestCase):
   self.assertIn('POSTGRES_DIGEST_A: 933463a6c8eba2b9f5cd414138738cd8',self.legacy());self.assertNotIn('PAIRED_PG16_DIGEST',self.legacy())
  def test_fixed_six_and_ten_matrices_limits_and_timing_refusal(self):
   functional=self.text.split('\n  paired-linux-functional:',1)[1].split('\n  paired-linux-runtime:',1)[0];runtime=self.text.split('\n  paired-linux-runtime:',1)[1]
-  self.assertIn('index: [0, 1, 2, 3, 4, 5]',functional);self.assertIn('timeout-minutes: 180',functional);self.assertIn('timeout-minutes: 122',functional);self.assertIn('index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]',runtime);self.assertIn('max-parallel: 2',runtime);self.assertIn('timing owner not activated',runtime);self.assertNotIn('paired_linux_owner.py',runtime)
+  self.assertIn('index: [0, 1, 2, 3, 4, 5]',functional);self.assertIn('timeout-minutes: 180',functional);self.assertIn('timeout-minutes: 122',functional);self.assertIn('index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]',runtime);self.assertIn('max-parallel: 2',runtime);self.assertIn('paired_linux_runtime_ci.py select',runtime);self.assertIn("if: steps.runtime.outputs.runtime_enabled == 'true'",runtime);self.assertIn('exec env -u GH_TOKEN python3 -I -B zig/bench/paired_linux_runtime_owner.py',runtime);self.assertIn('timeout-minutes: 306',runtime);self.assertNotIn('paired_linux_owner.py',runtime)
 
 if __name__=='__main__':unittest.main()

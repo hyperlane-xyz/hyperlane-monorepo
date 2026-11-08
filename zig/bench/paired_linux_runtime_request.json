@@ -1,0 +1,12 @@
+{
+  "cohort_qualification": null,
+  "final_Source_qualification": null,
+  "general_CI_qualification": null,
+  "kind": "paired-linux-runtime-ci-v1",
+  "methods": null,
+  "native18_qualification": null,
+  "required_source": [],
+  "reuse_header": null,
+  "root_approved": false,
+  "schema": 1
+}
