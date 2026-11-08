@@ -580,4 +580,203 @@ class ResourceFailureDiagnostics(unittest.TestCase):
             else:self.assertIn(type(value),[int,bool])
         walk(row);self.assertFalse(row['native_or_timing_credit'])
 
+
+
+class PublisherControls(unittest.TestCase):
+    # Reuse only fixture setup, never duplicate inherited test execution.
+    setUp = Controls.setUp
+    new = Controls.new
+    sample_volume = Controls.sample_volume
+    launch = Controls.launch
+    stop_marker = Controls.stop_marker
+    def ready_snapshot(self):
+        self.launch();self.custody.observe()
+        network=self.custody.publisher_network;network['Driver']='bridge';network['Containers']={}
+        self.processes={24680:{'pid':24680,'start':'linux-ticks:123','state':'S'}}
+        for index,service in enumerate(m.PUBLISH_ROUTES,1):
+            row=self.custody.publisher_rows[service];pid=700+index
+            row['State']['Pid']=pid;self.processes[pid]={'pid':pid,'start':'linux-ticks:'+str(900+index),'state':'S'}
+            address='172.18.0.'+str(index+1);endpoint=hashlib.sha256(service.encode()).hexdigest()
+            row['NetworkSettings']['Networks'][self.custody.network]={'NetworkID':network['Id'],'EndpointID':endpoint,'IPAddress':address}
+            network['Containers'][row['Id']]={'EndpointID':endpoint,'IPv4Address':address+'/16'}
+        return self.custody.publisher_targets(self.processes.get)
+
+    def publisher(self):
+        from unittest import mock
+        self.ready_snapshot()
+        with mock.patch.object(m.time,'monotonic_ns',return_value=10):
+            publisher=m.LoopbackPublisher(self.custody,self.processes.get,lambda:False,1000)
+        publisher.targets=self.custody.publisher_targets(self.processes.get)
+        return publisher
+
+    def socket(self, incoming=(), sent_limit=65536):
+        class Stream:
+            def __init__(self):self.incoming=list(incoming);self.sent=bytearray();self.shutdowns=[];self.closed=False;self.options=[];self.accepted=[]
+            def setblocking(self,value):self.blocking=value
+            def setsockopt(self,*value):self.options.append(value)
+            def bind(self,value):self.bound=value
+            def listen(self,value):self.backlog=value
+            def close(self):self.closed=True
+            def connect_ex(self,value):self.target=value;return 0
+            def getsockopt(self,*args):return 0
+            def accept(self):return self.accepted.pop(0)
+            def send(self,value):n=min(sent_limit,len(value));self.sent.extend(value[:n]);return n
+            def recv(self,n):
+                if not self.incoming:raise BlockingIOError()
+                value=self.incoming[0][:n];self.incoming[0]=self.incoming[0][n:]
+                if not self.incoming[0]:self.incoming.pop(0)
+                return value
+            def shutdown(self,kind):self.shutdowns.append(kind)
+        return Stream()
+
+    def step(self,publisher,readable=(),writable=()):
+        from unittest import mock
+        with mock.patch.object(m.time,'monotonic_ns',return_value=10),mock.patch.object(m.select,'select',return_value=(list(readable),list(writable),[])):
+            publisher._step()
+
+    def connection(self,left,right,**changes):
+        return {'sockets':(left,right),'connecting':False,'buffers':[b'',b''],'eof':[False,False],'shutdown':[False,False],**changes}
+
+    def test_publisher_requires_current_full_custody_before_any_bind(self):
+        from unittest import mock
+        with mock.patch.object(m.time,'monotonic_ns',return_value=10):p=m.LoopbackPublisher(self.custody,lambda pid:None,lambda:False,1000)
+        with mock.patch.object(m.socket,'socket') as factory:p.observe();factory.assert_not_called()
+        self.assertIsNone(p.targets)
+        targets=self.ready_snapshot();self.assertEqual(set(targets),set(m.PUBLISH_ROUTES))
+        self.assertEqual({(v[0],v[1])for v in targets.values()},{(self.custody.seen[n],self.fixture['images'][n]['id'])for n in m.PUBLISH_ROUTES})
+
+    def test_publisher_rejects_foreign_network_endpoint_pid_caps_or_image_without_io(self):
+        from unittest import mock
+        self.ready_snapshot()
+        mutations=[lambda:setattr(self.custody,'publisher_network',{**self.custody.publisher_network,'Internal':False}),lambda:self.custody.publisher_network['Containers'].update({'f'*64:{}}),lambda:self.custody.publisher_rows['fullnode']['NetworkSettings']['Networks'][self.custody.network].update(EndpointID='f'*64),lambda:self.custody.publisher_rows['fullnode']['State'].update(Pid=True),lambda:self.custody.publisher_rows['fullnode']['Image'].replace('a','b'),lambda:self.custody.publisher_rows['fullnode']['HostConfig'].update(Privileged=True)]
+        # The image mutation is explicit below; each iteration starts from an
+        # independent snapshot, not from the prior negative's changed context.
+        rows=copy.deepcopy(self.custody.publisher_rows);network=copy.deepcopy(self.custody.publisher_network)
+        for index,mutate in enumerate(mutations):
+            self.custody.publisher_rows=copy.deepcopy(rows);self.custody.publisher_network=copy.deepcopy(network)
+            if index==4:self.custody.publisher_rows['fullnode']['Image']='sha256:'+'f'*64
+            else:mutate()
+            with self.subTest(index=index),mock.patch.object(m.socket,'socket') as factory,self.assertRaises((ValueError,KeyError)):
+                self.custody.publisher_targets(self.processes.get)
+            factory.assert_not_called()
+
+    def test_publisher_binds_only_two_exclusive_fixed_routes_and_cleans_partial_bind(self):
+        from unittest import mock
+        import types
+        self.ready_snapshot();streams=[self.socket(),self.socket()];thread=types.SimpleNamespace(start=mock.Mock(),join=mock.Mock(),is_alive=lambda:False)
+        with mock.patch.object(m.time,'monotonic_ns',return_value=10):p=m.LoopbackPublisher(self.custody,self.processes.get,lambda:False,1000)
+        with mock.patch.object(m.socket,'socket',side_effect=streams),mock.patch.object(m.threading,'Thread',return_value=thread),mock.patch.object(m.time,'monotonic_ns',return_value=10):p.observe()
+        self.assertEqual([s.bound for s in streams],[('127.0.0.1',3333),('127.0.0.1',5308)]);self.assertTrue(all(s.options==[]for s in streams));thread.start.assert_called_once()
+        p.stop_event.set();p._run();receipt=p.close(2**63/1e9);self.assertTrue(receipt['all_owned_sockets_closed']);self.assertTrue(all(s.closed for s in streams));thread.join.assert_called_once()
+        self.assertNotIn('172.18',json.dumps(receipt));self.assertIs(receipt['native_or_parent_wait_credit'],False)
+        self.custody.publisher_rows=copy.deepcopy(self.custody.publisher_rows)
+        first,second=self.socket(),self.socket();second.bind=mock.Mock(side_effect=OSError('PRIVATE_BIND_SENTINEL'))
+        with mock.patch.object(m.time,'monotonic_ns',return_value=10):failed=m.LoopbackPublisher(self.custody,self.processes.get,lambda:False,1000)
+        with mock.patch.object(m.socket,'socket',side_effect=[first,second]),mock.patch.object(m.time,'monotonic_ns',return_value=10),self.assertRaises(OSError):failed.observe()
+        self.assertTrue(first.closed and second.closed);self.assertFalse(failed.listeners)
+
+    def test_publisher_transparent_partial_write_and_half_close_preserves_original_bytes(self):
+        p=self.publisher();left=self.socket([b'POST /private HTTP/1.1\r\n\r\n{}',b''],2);right=self.socket([b'HTTP/1.1 200 OK\r\n\r\nPRIVATE_BODY',b''],3)
+        row=self.connection(left,right);p.connections=[row]
+        self.step(p,[left,right]);self.assertEqual(row['buffers'],[b'HTTP/1.1 200 OK\r\n\r\nPRIVATE_BODY',b'POST /private HTTP/1.1\r\n\r\n{}'])
+        for _ in range(30):
+            if not p.connections:break
+            self.step(p,[left,right],[left,right])
+        self.assertEqual(bytes(left.sent),b'HTTP/1.1 200 OK\r\n\r\nPRIVATE_BODY');self.assertEqual(bytes(right.sent),b'POST /private HTTP/1.1\r\n\r\n{}')
+        self.assertEqual(left.shutdowns,[m.socket.SHUT_WR]);self.assertEqual(right.shutdowns,[m.socket.SHUT_WR]);self.assertTrue(left.closed and right.closed);self.assertFalse(p.connections)
+
+    def test_publisher_buffer_and_connection_limits_refuse_without_reply_or_arbitrary_route(self):
+        from unittest import mock
+        p=self.publisher();left=self.socket([b'x'*70000]);right=self.socket();row=self.connection(left,right);p.connections=[row]
+        self.step(p,[left]);self.assertEqual(len(row['buffers'][1]),65536)
+        def selected(reads,writes,*rest):self.assertNotIn(left,reads);return [],[],[]
+        with mock.patch.object(m.select,'select',side_effect=selected),mock.patch.object(m.time,'monotonic_ns',return_value=10):p._step()
+        p.connections=[self.connection(self.socket(),self.socket())for _ in range(32)]
+        listener=self.socket();rejected=self.socket();listener.accepted=[(rejected,('127.0.0.1',123))];p.listeners={listener:'fullnode'}
+        with mock.patch.object(m.socket,'socket') as factory:self.step(p,[listener]);factory.assert_not_called()
+        self.assertTrue(rejected.closed);self.assertEqual(rejected.sent,b'');self.assertEqual(p.refused,1)
+        p._close_sockets();self.assertFalse(p.listeners or p.connections)
+
+    def test_publisher_connect_is_exact_leased_target_and_birth_rechecked_after_connect(self):
+        from unittest import mock
+        p=self.publisher();listener=self.socket();left=self.socket();right=self.socket();listener.accepted=[(left,('127.0.0.1',42))];p.listeners={listener:'gateway_api_image'}
+        with mock.patch.object(m.socket,'socket',return_value=right):self.step(p,[listener])
+        self.assertEqual(right.target,('172.18.0.3',8080));self.assertEqual(p.maximum_active,1);p._close_sockets()
+        p=self.publisher();listener=self.socket();left=self.socket();right=self.socket();listener.accepted=[(left,('127.0.0.1',42))];p.listeners={listener:'fullnode'}
+        def replaced(target):self.processes[701]['start']='linux-ticks:999';return 0
+        right.connect_ex=replaced
+        with mock.patch.object(m.socket,'socket',return_value=right),self.assertRaisesRegex(ValueError,'birth changed'):self.step(p,[listener])
+        self.assertTrue(left.closed and right.closed);self.assertEqual(left.sent+right.sent,b'');p._close_sockets()
+
+    def test_publisher_backend_refusal_is_real_closed_connection_not_readiness(self):
+        from unittest import mock
+        p=self.publisher();listener=self.socket();left=self.socket();right=self.socket();listener.accepted=[(left,('127.0.0.1',42))];p.listeners={listener:'fullnode'}
+        right.connect_ex=lambda target:m.errno.ECONNREFUSED
+        with mock.patch.object(m.socket,'socket',return_value=right):self.step(p,[listener])
+        self.assertTrue(left.closed and right.closed);self.assertFalse(p.connections);self.assertEqual(left.sent+right.sent,b'');self.assertIsNone(p.error);p._close_sockets()
+
+    def test_publisher_deadline_cancel_stopping_and_recycled_birth_stop_before_io(self):
+        from unittest import mock
+        for kind in ['deadline','cancel','stopping','birth']:
+            p=self.publisher();stream=self.socket();p.listeners={stream:'fullnode'}
+            if kind=='cancel':p.cancelled=lambda:True
+            if kind=='stopping':self.stop_marker()
+            if kind=='birth':self.processes[701]['start']='linux-ticks:999'
+            now=1000 if kind=='deadline'else 10
+            with self.subTest(kind=kind),mock.patch.object(m.select,'select') as select,mock.patch.object(m.time,'monotonic_ns',return_value=now):p._run();select.assert_not_called()
+            self.assertTrue(stream.closed);self.assertFalse(p.connections or p.listeners);self.assertTrue(p.finished)
+            self.assertEqual(p.error is not None,kind in {'deadline','birth'})
+            if kind=='stopping':(self.case/'radix-localnet/stopping.json').unlink()
+
+    def test_failed_custody_refresh_revokes_live_old_endpoint_before_any_more_io(self):
+        from unittest import mock
+        for failure in ['changed','missing','inspect_error']:
+            p=self.publisher();left=self.socket([b'PRIVATE_OLD_TARGET_BYTES']);right=self.socket();p.connections=[self.connection(left,right)]
+            original=ValueError('PRIVATE_CUSTODY_REPLACEMENT')
+            changed=dict(p.targets)
+            changed['fullnode']=(('f'*64),*changed['fullnode'][1:])
+            with mock.patch.object(self.custody,'publisher_targets',side_effect=original if failure=='inspect_error'else None,return_value=None if failure=='missing'else changed),self.assertRaises(ValueError)as caught:p.observe()
+            if failure=='inspect_error':self.assertIs(caught.exception,original)
+            self.assertTrue(p.stop_event.is_set());self.assertEqual(p.error,'ValueError')
+            # Old process births still match. Revocation, not PID disappearance,
+            # must stop an already-entered pump batch before select or send.
+            with mock.patch.object(m.select,'select',return_value=([],[],[]))as select,mock.patch.object(m.time,'monotonic_ns',return_value=10),self.assertRaises(m.PublisherStopped):p._step()
+            select.assert_not_called();self.assertEqual(left.sent+right.sent,b'');p._run();self.assertTrue(left.closed and right.closed)
+
+    def test_actual_worker_exception_revoke_stops_live_old_pump_even_if_event_reporting_fails(self):
+        import ast
+        from unittest import mock
+        p=self.publisher();left=self.socket([b'PRIVATE_OLD_TARGET']);right=self.socket();p.connections=[self.connection(left,right)]
+        owner_path=Path(m.__file__).with_name('native_case_owner.py');tree=ast.parse(owner_path.read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker')
+        handler=next(n for n in ast.walk(worker)if isinstance(n,ast.ExceptHandler)and n.name=='failure'and any(isinstance(n,ast.Assign)and any(ast.unparse(t)=="result['error']"for t in n.targets)for n in n.body))
+        original=ValueError('PRIVATE_CUSTODY_PRIMARY');result={}
+        with mock.patch.object(p.stop_event,'set',side_effect=RuntimeError('PRIVATE_EVENT_REPORT')):
+            env={'radix_publisher':p,'failure':original,'result':result};exec(compile(ast.Module(body=handler.body,type_ignores=[]),'<actual-owner-custody-failure>','exec'),env)
+        self.assertTrue(p.revoked);self.assertIs(env['error'],original);self.assertEqual(result['error']['message'],'PRIVATE_CUSTODY_PRIMARY')
+        with mock.patch.object(m.select,'select',return_value=([],[],[]))as select,mock.patch.object(m.time,'monotonic_ns',return_value=10),self.assertRaises(m.PublisherStopped):p._step()
+        select.assert_not_called();self.assertEqual(left.sent+right.sent,b'');p._run();self.assertTrue(left.closed and right.closed)
+
+    def test_publisher_close_error_still_closes_other_owned_sockets_and_cannot_claim_absence(self):
+        from unittest import mock
+        p=self.publisher();left=self.socket();right=self.socket();listener=self.socket()
+        left.close=mock.Mock(side_effect=OSError('PRIVATE_CLOSE_REASON'));p.listeners={listener:'fullnode'};p.connections=[self.connection(left,right)]
+        p.stop_event.set();p._run();receipt=p.close(1)
+        self.assertTrue(listener.closed and right.closed);self.assertIs(receipt['all_owned_sockets_closed'],False);self.assertEqual(receipt['error_class'],'OSError');self.assertNotIn('PRIVATE',json.dumps(receipt))
+        with self.assertRaisesRegex(ValueError,'publisher failed'):p.check()
+
+    def test_publisher_pending_connect_status_is_checked_before_any_application_forward(self):
+        p=self.publisher();left=self.socket([b'PRIVATE_REQUEST']);right=self.socket();row=self.connection(left,right,connecting=True);p.connections=[row]
+        self.step(p,[left]);self.assertTrue(row['connecting']);self.assertEqual(left.sent+right.sent,b'')
+        right.getsockopt=lambda *args:m.errno.ECONNREFUSED
+        self.step(p,[],[right]);self.assertFalse(p.connections);self.assertTrue(left.closed and right.closed);self.assertEqual(left.sent+right.sent,b'')
+
+    def test_publisher_changed_lease_is_hard_refusal_and_primary_error_cleanup_still_closes(self):
+        from unittest import mock
+        p=self.publisher();p.targets['fullnode']=('f'*64,*p.targets['fullnode'][1:])
+        with self.assertRaisesRegex(ValueError,'endpoint changed'):p.observe()
+        p=self.publisher();stream=self.socket();p.listeners={stream:'fullnode'};p._step=mock.Mock(side_effect=OSError('PRIVATE_URL_TOKEN_BODY'))
+        p._run();receipt=p.close(1);self.assertTrue(stream.closed);self.assertEqual(receipt['error_class'],'OSError');self.assertNotIn('PRIVATE',json.dumps(receipt))
+        with self.assertRaisesRegex(ValueError,'publisher failed'):p.check()
+
+
 if __name__=='__main__':unittest.main()

@@ -902,6 +902,7 @@ def worker(args, plan, manifest, inputs, approval):
     for name in ('controller.json','controller.sock'):require(not (case/'evidence'/name).exists(), 'Preserve existing controller')
     controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={};devnets=None;radix=None
     radix_transport=None
+    radix_publisher=None
     result={'schema':1,'kind':'native-case-worker-observation','passed':False,'native_case_acceptance':False,'docker_calls':[],'direct_waits':[]}
     deadline=args.original_deadline_ns/1e9
     cleanup_deadline=deadline+(180 if plan['scenario']=='radix'else 45)
@@ -982,6 +983,7 @@ def worker(args, plan, manifest, inputs, approval):
                 volume=importlib.util.module_from_spec(volume_spec);volume_spec.loader.exec_module(volume)
                 radix=radix_custody().Custody(case,harness.pid,helper_row['start'],inputs['radix_localnet'],out,docker_call,volume_sample=lambda name:volume.sample_volume(name,args.original_deadline_ns));radix.arm()
                 radix_transport=arm_radix_transport(plan,manifest,approval,repo,inputs['radix_localnet'],info,args.original_deadline_ns)
+                radix_publisher=radix_custody().LoopbackPublisher(radix,owner._linux_row,lambda:harness.poll()is not None or controller.poll()is not None,args.original_deadline_ns)
             if plan['scenario']=='tron':
                 devnets=tron_module('native_tron_custody').Custody(case,harness.pid,helper_row['start'],inputs['tron_tre'],out,docker_call);devnets.arm()
             require(harness.stdin is not None,'Owned helper bootstrap pipe missing')
@@ -990,11 +992,13 @@ def worker(args, plan, manifest, inputs, approval):
             next_inspect=0
             while harness.poll() is None:
                 require(time.monotonic()<deadline and controller.poll() is None,'Case deadline/observer failed')
+                if radix_publisher is not None:radix_publisher.check()
                 if time.monotonic()>=next_inspect:
                     inspect()
                     if radix is not None:
                         if radix_transport is not None:radix_transport['state'].begin_custody()
                         radix.observe()
+                        if radix_publisher is not None:radix_publisher.observe()
                         observe_radix_transport(radix_transport,radix,harness,controller,helper_row,args.original_deadline_ns)
                     elif devnets is not None:devnets.observe()
                     else:native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs)
@@ -1002,6 +1006,7 @@ def worker(args, plan, manifest, inputs, approval):
                     next_inspect=time.monotonic()+1
                 time.sleep(.1)
             code=harness.wait();result['direct_waits'].append({'role':'harness','pid':harness.pid,'actual_parent_wait':True,'exit_code':code,'observed_monotonic_ns':time.monotonic_ns()});require(code==0,'Actual native Rust/verifier failed')
+            if radix_publisher is not None:radix_publisher.check()
             final=case/'evidence/verified-final-native.jsonl';lines=checked(pin(final)).read_text().splitlines()
             require(lines and json.loads(lines[-1]).get('verified') is True,'Actual final native verification absent')
             waits=fixture_waits(case/'evidence/fixture-parent-waits.jsonl',plan['scenario'],harness.pid)
@@ -1048,6 +1053,7 @@ def worker(args, plan, manifest, inputs, approval):
             public_proof=write_public_native_proof(plan,manifest,case,out/'public-final-proof.json',pin(final))
             result.update({'actual_fixture_parent_waits':waits,'actual_final_evidence':pin(final),'public_final_proof':public_proof,'passed':True,'native_case_acceptance':True})
     except BaseException as failure:
+        if radix_publisher is not None:radix_publisher.revoke(failure)
         error=failure;result['error']={'type':type(failure).__name__,'message':str(failure)}
     finally:
         old={s:signal.signal(s,signal.SIG_IGN) for s in [signal.SIGTERM,signal.SIGINT,signal.SIGHUP]}
@@ -1066,6 +1072,12 @@ def worker(args, plan, manifest, inputs, approval):
                 except Exception as diagnostic_error:result['public_diagnostic_before_stop_error']={'type':type(diagnostic_error).__name__}
             stop_direct(harness,'harness-cleanup',15)
             stop_direct(controller,'observer',20)
+            if radix_publisher is not None:
+                try:
+                    result['radix_loopback_publisher']=radix_publisher.close(cleanup_deadline)
+                    require(result['radix_loopback_publisher']['error_class']is None,'Owned Radix loopback publisher failed')
+                except BaseException as publisher_error:
+                    result['radix_loopback_publisher_error']={'type':type(publisher_error).__name__};result['passed']=False;result['native_case_acceptance']=False
             if radix is not None:
                 recovered=radix.cleanup();result['radix_cleanup']=recovered
                 if not recovered['passed'] or recovered['recovery_needed']:result['passed']=False;result['native_case_acceptance']=False

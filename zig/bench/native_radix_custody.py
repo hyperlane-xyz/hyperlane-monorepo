@@ -2,6 +2,7 @@
 
 Daemon objects never receive direct-parent-wait credit. Imports perform no I/O.
 """
+import errno
 import hashlib
 import importlib.util
 import ipaddress
@@ -9,8 +10,11 @@ import json
 import os
 from pathlib import Path
 import re
+import select
 import selectors
+import socket
 import subprocess
+import threading
 import time
 
 GIB = 1024 ** 3
@@ -290,6 +294,236 @@ def readiness(row, service, fixture, network):
     return state.get('Running') is True
 
 
+# These are the only host APIs consumed by the admitted Rust Radix fixture.
+PUBLISH_ROUTES = {'fullnode': (3333, 3333), 'gateway_api_image': (5308, 8080)}
+
+
+class PublisherStopped(Exception):
+    """Only a bound Source stop intent or owner cancellation; no success credit."""
+
+
+class LoopbackPublisher:
+    """One case-owned pump thread; fixed routes, no HTTP interpretation/replies.
+
+    Docker custody snapshots run on the original worker cadence/budgets. The
+    pump checks the bound live process births before each nonblocking IO batch;
+    it cannot attest Docker identity continuously between those snapshots.
+    """
+    def __init__(self, custody, kernel_row, cancelled, deadline_ns):
+        require(type(deadline_ns) is int and deadline_ns > time.monotonic_ns(), 'Original Radix publisher deadline required')
+        self.custody, self.kernel_row, self.cancelled, self.deadline_ns = custody, kernel_row, cancelled, deadline_ns
+        self.lock = threading.Lock()
+        self.targets, self.listeners, self.connections = None, {}, []
+        self.stop_event = threading.Event()
+        self.thread, self.error, self.finished = None, None, False
+        self.close_failed = False
+        self.revoked = False
+        self.accepted, self.refused, self.forwarded, self.maximum_active = 0, 0, 0, 0
+
+    def _live(self, targets):
+        if self.revoked or self.stop_event.is_set():raise PublisherStopped()
+        require(time.monotonic_ns() < self.deadline_ns, 'Original Radix publisher deadline expired')
+        if self.cancelled() or self.custody.stopping():
+            raise PublisherStopped()
+        parent = self.kernel_row(self.custody.pid)
+        require(parent is not None and parent.get('pid') == self.custody.pid and parent.get('start') == self.custody.start and parent.get('state') != 'Z', 'Radix publisher helper birth changed')
+        for lease in targets.values():
+            live = self.kernel_row(lease[2])
+            require(live is not None and live.get('pid') == lease[2] and live.get('start') == lease[3] and live.get('state') != 'Z', 'Radix publisher container birth changed')
+
+    def observe(self):
+        """A rejected custody refresh revokes existing transport before unwind."""
+        try:
+            self._observe()
+        except BaseException as error:
+            self.revoke(error)
+            raise
+
+    def revoke(self, error):
+        # First revoke independently of Event/diagnostic reporting. This method
+        # cannot replace the worker's primary exception, even on report failure.
+        self.revoked = True
+        try:
+            if self.error is None:self.error = type(error).__name__ if type(error).__name__ in {'ValueError', 'OSError', 'TimeoutError', 'RuntimeError'} else 'OtherError'
+            self.stop_event.set()
+        except BaseException:
+            if self.error is None:self.error = 'OtherError'
+
+    def _observe(self):
+        """Called only after successful original ordinary Docker custody."""
+        targets = self.custody.publisher_targets(self.kernel_row)
+        if self.custody.stopping():
+            self.stop_event.set()
+            return
+        with self.lock:
+            if self.targets is not None:
+                require(targets == self.targets, 'Radix publisher CID/network/process endpoint changed')
+            if targets is None:
+                return
+            self._live(targets)
+            if self.targets is None:
+                self.targets = targets
+                # No reuse option: never take over an existing host listener.
+                try:
+                    for service, (port, _) in PUBLISH_ROUTES.items():
+                        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        self.listeners[listener] = service
+                        listener.setblocking(False)
+                        listener.bind(('127.0.0.1', port))
+                        listener.listen(32)
+                    self.thread = threading.Thread(target=self._run, name='owned-radix-loopback', daemon=False)
+                    self.thread.start()
+                except BaseException:
+                    self._close_sockets()
+                    raise
+        self.check()
+
+    def check(self):
+        require(self.error is None, 'Owned Radix loopback publisher failed')
+
+    def _close_stream(self, stream):
+        try:
+            stream.close()
+        except OSError:
+            self.close_failed = True
+            if self.error is None:self.error = 'OSError'
+
+    def _drop(self, connection):
+        for stream in connection['sockets']:
+            self._close_stream(stream)
+        self.connections.remove(connection)
+
+    def _close_sockets(self):
+        for stream in list(self.listeners):
+            self._close_stream(stream)
+        self.listeners.clear()
+        for connection in list(self.connections):
+            self._drop(connection)
+
+    def _step(self):
+        self._live(self.targets)
+        if self.custody.stopping():
+            self.stop_event.set()
+            return
+        reads = list(self.listeners)
+        writes = []
+        for row in self.connections:
+            left, right = row['sockets']
+            if row['connecting']:
+                writes.append(right)
+            else:
+                for index, stream in enumerate((left, right)):
+                    if not row['eof'][index] and len(row['buffers'][1-index]) < 65536:
+                        reads.append(stream)
+                    if row['buffers'][index]:
+                        writes.append(stream)
+        readable, writable, _ = select.select(reads, writes, [], .01)
+        self._live(self.targets)
+        for listener in list(self.listeners):
+            if listener not in readable:
+                continue
+            try:
+                left, peer = listener.accept()
+            except BlockingIOError:
+                continue
+            try:
+                require(ipaddress.IPv4Address(peer[0]).is_loopback, 'Radix publisher client must be loopback')
+                if len(self.connections) >= 32:
+                    self.refused += 1
+                    left.close()
+                    continue
+                service = self.listeners[listener]
+                lease = self.targets[service]
+                self._live(self.targets)
+                left.setblocking(False)
+                left.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
+                left.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
+                right = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    right.setblocking(False)
+                    right.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
+                    right.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
+                    status = right.connect_ex((lease[6], PUBLISH_ROUTES[service][1]))
+                    self._live(self.targets)
+                    if status not in {0, errno.EINPROGRESS, errno.EWOULDBLOCK, errno.EALREADY, errno.EINTR}:
+                        self.refused += 1
+                        right.close()
+                        left.close()
+                        continue
+                    self.connections.append({'sockets': (left, right), 'connecting': status != 0, 'buffers': [b'', b''], 'eof': [False, False], 'shutdown': [False, False]})
+                    self.accepted += 1
+                    self.maximum_active = max(self.maximum_active, len(self.connections))
+                except BaseException:
+                    right.close()
+                    raise
+            except BaseException:
+                left.close()
+                raise
+        for row in list(self.connections):
+            left, right = row['sockets']
+            try:
+                if row['connecting']:
+                    if right not in writable:
+                        continue
+                    if right.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR) != 0:
+                        self.refused += 1
+                        self._drop(row)
+                        continue
+                    self._live(self.targets)
+                    row['connecting'] = False
+                for index, stream in enumerate((left, right)):
+                    self._live(self.targets)
+                    if stream in writable and row['buffers'][index]:
+                        sent = stream.send(row['buffers'][index])
+                        require(sent > 0, 'Radix publisher zero send')
+                        row['buffers'][index] = row['buffers'][index][sent:]
+                        self.forwarded += sent
+                    if stream in readable and not row['eof'][index]:
+                        data = stream.recv(65536-len(row['buffers'][1-index]))
+                        if data:
+                            row['buffers'][1-index] += data
+                        else:
+                            row['eof'][index] = True
+                    if row['eof'][1-index] and not row['buffers'][index] and not row['shutdown'][index]:
+                        stream.shutdown(socket.SHUT_WR)
+                        row['shutdown'][index] = True
+                if all(row['eof']) and not any(row['buffers']):
+                    self._drop(row)
+            except BlockingIOError:
+                continue
+            except (ConnectionError, BrokenPipeError):
+                self._drop(row)
+
+    def _run(self):
+        try:
+            while not self.revoked and not self.stop_event.is_set():
+                # Source stopping and an actual finished helper are normal transport
+                # shutdown; the existing owner alone decides native acceptance.
+                if self.cancelled():
+                    self.stop_event.set()
+                    break
+                self._step()
+        except PublisherStopped:
+            self.stop_event.set()
+        except BaseException as error:
+            self.error = type(error).__name__ if type(error).__name__ in {'ValueError', 'OSError', 'TimeoutError', 'RuntimeError'} else 'OtherError'
+            self.stop_event.set()
+        finally:
+            self._close_sockets()
+            self.finished = True
+
+    def close(self, cleanup_deadline):
+        self.stop_event.set()
+        if self.thread is not None:
+            self.thread.join(timeout=max(0, cleanup_deadline-time.monotonic()))
+            require(not self.thread.is_alive(), 'Owned Radix publisher thread remains')
+        else:
+            self._close_sockets()
+            self.finished = True
+        require(self.finished and not self.listeners and not self.connections, 'Owned Radix publisher sockets remain')
+        return {'error_class': self.error, 'schema': 1, 'kind': 'owned-Radix-loopback-publisher', 'routes': ['fullnode', 'gateway_api_image'], 'accepted_connections': self.accepted, 'refused_connections': self.refused, 'forwarded_bytes': self.forwarded, 'maximum_active_connections': self.maximum_active, 'connection_limit': 32, 'buffer_bytes_per_direction': 65536, 'actual_thread_joined': self.thread is not None, 'all_owned_sockets_closed': not self.close_failed, 'new_processes': 0, 'native_or_parent_wait_credit': False, 'scope': 'Fixed loopback byte relay to owned internal endpoints; Docker identity checked at ordinary custody cadence, process births checked before nonblocking IO.'}
+
+
 class Custody:
     def __init__(self, case, pid, start, fixture, output, call, volume_sample=None):
         require(isinstance(start, str) and start.startswith('linux-ticks:'), 'Actual Linux helper birth token required')
@@ -312,6 +546,7 @@ class Custody:
         self.last_inspected_service = None
         self.service_observation_unavailable = False
         self.missing_inspection_observation = None
+        self.publisher_rows, self.publisher_network = {}, None
 
     def public_observation(self):
         return {'schema': 1, 'collection_status': 'unavailable' if self.service_observation_unavailable else 'available', 'scope': 'Owned service State before readiness checks; no log bodies or native acceptance credit.',
@@ -430,8 +665,34 @@ class Custody:
         require(not labels or labels == {'com.docker.volume.anonymous': ''} or labels.get(PROJECT_LABEL) == self.project, 'Gateway volume has foreign labels')
         shared().publish_first(self.output / 'radix-volume.json', {'name': name, 'container_id': self.seen['postgres_db'], 'destination': PGDATA})
 
+    def publisher_targets(self, kernel_row):
+        if self.stopping() or set(self.ready) != set(SERVICES) or set(self.publisher_rows) != set(PUBLISH_ROUTES):
+            return None
+        self.admitted_context()
+        network = self.publisher_network
+        require(isinstance(network, dict) and network.get('Internal') is True and network.get('Driver') == 'bridge' and network.get('Name') == self.network and network.get('Labels', {}).get(PROJECT_LABEL) == self.project and re.fullmatch('[0-9a-f]{64}', network.get('Id', '')), 'Exact internal Radix publisher network required')
+        require(set(network.get('Containers') or {}) <= set(self.seen.values()) and {self.seen[name] for name in PUBLISH_ROUTES} <= set(network.get('Containers') or {}), 'Radix publisher network membership changed')
+        result = {}
+        for service in PUBLISH_ROUTES:
+            row = self.publisher_rows[service]
+            _, cid = ownership(row, self.project, self.fixture, self.seen.get(service))
+            require(self.ready.get(service) == cid and readiness(row, service, self.fixture, self.network), 'Radix publisher Source readiness/caps required')
+            state = row['State']
+            require(type(state.get('Pid')) is int and state['Pid'] > 0 and state.get('Running') is True and state.get('OOMKilled') is False, 'Live Radix publisher endpoint required')
+            live = kernel_row(state['Pid'])
+            require(live is not None and live.get('pid') == state['Pid'] and live.get('state') != 'Z' and isinstance(live.get('start'), str) and re.fullmatch('linux-ticks:[1-9][0-9]{0,23}', live['start']), 'Actual Radix publisher process birth required')
+            endpoints = row['NetworkSettings']['Networks']
+            require(set(endpoints) == {self.network}, 'Sole Radix publisher network required')
+            endpoint = endpoints[self.network]
+            peer = network['Containers'].get(cid)
+            address = ipaddress.IPv4Address(endpoint['IPAddress'])
+            require(peer is not None and endpoint.get('NetworkID') == network['Id'] and re.fullmatch('[0-9a-f]{64}', endpoint.get('EndpointID', '')) and peer.get('EndpointID') == endpoint['EndpointID'] and ipaddress.IPv4Interface(peer['IPv4Address']).ip == address and address.is_private and not (address.is_loopback or address.is_unspecified or address.is_multicast or address.is_link_local), 'Exact owned private Radix publisher endpoint required')
+            result[service] = (cid, row['Image'], state['Pid'], live['start'], network['Id'], endpoint['EndpointID'], str(address))
+        return result
+
     def observe(self):
         self.admitted_context()
+        self.publisher_rows, self.publisher_network = {}, None
         found, total = {}, 0
         for cid in self.ids('container'):
             row = self.inspect_container(cid)
@@ -447,6 +708,7 @@ class Custody:
             service = row['Config']['Labels'][SERVICE_LABEL]
             require(service not in found, 'Duplicate Radix Compose service')
             found[service] = cid
+            if service in PUBLISH_ROUTES:self.publisher_rows[service] = row
             if not self.service_observation_unavailable:
                 try:
                     self.service_states[service] = public_service_state(row, service, time.monotonic_ns())
@@ -466,7 +728,7 @@ class Custody:
             total += row.get('SizeRw', 0)
         if set(self.seen.values()) - set(found.values()):
             require(self.stopping(), 'Radix container disappeared before Source stop intent')
-        self.inspect_network()
+        self.publisher_network = self.inspect_network()
         self.maximum_writable_bytes = max(self.maximum_writable_bytes, total)
         path = self.output / 'radix-writable.json'
         pending = self.output / '.radix-writable.pending'

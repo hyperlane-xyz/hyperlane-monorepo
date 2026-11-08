@@ -847,7 +847,7 @@ class RelayerStartupOwnerControls(unittest.TestCase):
         tree=ast.parse(Path(api.__file__).read_bytes());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None')
         inspector=mock.Mock(side_effect=lambda:self.calls.append('inspect'));native=mock.Mock(side_effect=lambda *a:self.calls.append('native'));self.calls=[]
         def done(*args):self.code=101
-        env={'harness':self.harness,'controller':self.controller,'require':api.require,'deadline':3,'next_inspect':0,'inspect':inspector,'radix':None,'devnets':None,'native_listener_proof':native,'plan':{'scenario':'evm','lsofArtifact':{}},'manifest':self.manifest,'inputs':{'chain_names':['one']},'case':self.root,'checked':lambda *args:Path('/public/lsof'),'node_proofs':{},'startup_context':self.context,'helper_row':self.helper,'args':self.simple(original_deadline_ns=3000000000),'observe_relayer_startup':api.observe_relayer_startup,'time':self.simple(monotonic=lambda:1,monotonic_ns=lambda:self.now,sleep=done)}
+        env={'harness':self.harness,'controller':self.controller,'require':api.require,'deadline':3,'next_inspect':0,'inspect':inspector,'radix':None,'radix_publisher':None,'devnets':None,'native_listener_proof':native,'plan':{'scenario':'evm','lsofArtifact':{}},'manifest':self.manifest,'inputs':{'chain_names':['one']},'case':self.root,'checked':lambda *args:Path('/public/lsof'),'node_proofs':{},'startup_context':self.context,'helper_row':self.helper,'args':self.simple(original_deadline_ns=3000000000),'observe_relayer_startup':api.observe_relayer_startup,'time':self.simple(monotonic=lambda:1,monotonic_ns=lambda:self.now,sleep=done)}
         with self.patches():exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-worker-inspection-loop>','exec'),env)
         self.assertEqual(self.calls[:2],['inspect','native']);self.assertEqual(self.calls[2:],[ (9092,'GET',1500000000),(9092,'HEAD',1500000000)]);self.assertEqual(env['next_inspect'],2);self.assertEqual(self.context['latest_probe']['collection_status'],'observed')
     def test_actual_failure_publisher_keeps_primary_and_fixed_JSON_bound(self):
@@ -898,7 +898,7 @@ class RadixTransportOwnerControls(unittest.TestCase):
         import ast
         tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None');calls=[];code=[None];harness=self.simple(poll=lambda:code[0]);state=self.simple(begin_custody=lambda:calls.append('begin'));radix=self.simple(observe=lambda:calls.append('ordinary_custody'))
         def done(_):code[0]=101
-        env={'harness':harness,'controller':self.simple(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':radix,'radix_transport':{'state':state},'observe_radix_transport':lambda *args:calls.append('Radix_HTTP'),'startup_context':None,'observe_relayer_startup':lambda *args:None,'manifest':self.manifest,'inputs':{},'case':self.root,'helper_row':{},'args':self.simple(original_deadline_ns=3_000_000_000),'time':self.simple(monotonic=lambda:1,sleep=done)}
+        env={'harness':harness,'controller':self.simple(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':radix,'radix_publisher':None,'radix_transport':{'state':state},'observe_radix_transport':lambda *args:calls.append('Radix_HTTP'),'startup_context':None,'observe_relayer_startup':lambda *args:None,'manifest':self.manifest,'inputs':{},'case':self.root,'helper_row':{},'args':self.simple(original_deadline_ns=3_000_000_000),'time':self.simple(monotonic=lambda:1,sleep=done)}
         exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-Radix-inspection-loop>','exec'),env);self.assertEqual(calls,['PG','begin','ordinary_custody','Radix_HTTP']);self.assertEqual(env['next_inspect'],2)
     def test_actual_failure_publisher_preserves_primary_and_finite_only(self):
         context=self.arm();(self.root/'harness.log').write_bytes(b'');result={'direct_waits':[],'error':{'type':'ValueError','message':'PRIMARY_PRIVATE'}};original=copy.deepcopy(result)
@@ -927,5 +927,68 @@ class TronCLIContextOwnerControls(unittest.TestCase):
         primary={'type':'ValueError','message':'PRIVATE_SOURCE'};result={'error':primary,'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]};module=SimpleNamespace(fixture_failure_observation=mock.Mock(side_effect=ValueError('PRIVATE_COLLECTOR')))
         with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'tron','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},self.root,self.root,result,1,None,None,{})
         value=json.loads(Path(row['path']).read_text());self.assertIs(result['error'],primary);self.assertEqual(value['fixture_failure']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))
+
+
+
+class RadixPublisherOwnerControls(unittest.TestCase):
+    def worker(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_text())
+        return ast,next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker')
+
+    def test_actual_worker_initializes_only_radix_and_uses_original_deadline(self):
+        ast,worker=self.worker();nodes=[n for n in ast.walk(worker)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='radix_publisher'for t in n.targets)]
+        self.assertEqual(len(nodes),2);self.assertIsNone(ast.literal_eval(nodes[0].value))
+        call=nodes[1].value;self.assertEqual(ast.unparse(call.func),'radix_custody().LoopbackPublisher');self.assertEqual([ast.unparse(a)for a in call.args],['radix','owner._linux_row','lambda: harness.poll() is not None or controller.poll() is not None','args.original_deadline_ns'])
+        guards=[n for n in ast.walk(worker)if isinstance(n,ast.If)and ast.unparse(n.test)=="plan['scenario'] == 'radix'"and nodes[1]in n.body];self.assertEqual(len(guards),1)
+        self.assertIn('radix.arm()',ast.unparse(guards[0]));self.assertLess(ast.unparse(guards[0]).index('radix.arm()'),ast.unparse(guards[0]).index('LoopbackPublisher'))
+
+    def test_actual_loop_checks_pump_before_custody_then_updates_after_custody(self):
+        import types
+        ast,worker=self.worker();loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None')
+        calls=[];code=[None];harness=types.SimpleNamespace(poll=lambda:code[0])
+        publisher=types.SimpleNamespace(check=lambda:calls.append('pump_check'),observe=lambda:calls.append('new_lease'))
+        def done(value):self.assertEqual(value,.1);code[0]=0
+        env={'harness':harness,'controller':types.SimpleNamespace(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':types.SimpleNamespace(observe=lambda:calls.append('ordinary_custody')),'radix_publisher':publisher,'radix_transport':None,'observe_radix_transport':lambda *args:calls.append('diagnostic_HTTP'),'observe_relayer_startup':lambda *args:None,'startup_context':None,'manifest':{},'inputs':{},'case':None,'helper_row':{},'args':types.SimpleNamespace(original_deadline_ns=3_000_000_000),'time':types.SimpleNamespace(monotonic=lambda:1,sleep=done)}
+        exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-publisher-worker-loop>','exec'),env)
+        self.assertEqual(calls,['pump_check','PG','ordinary_custody','new_lease','diagnostic_HTTP']);self.assertEqual(env['next_inspect'],2)
+        publisher.check=mock.Mock(side_effect=ValueError('closed-publisher-failed'));code[0]=None;calls.clear()
+        with self.assertRaisesRegex(ValueError,'publisher-failed'):exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-publisher-loop-failure>','exec'),env)
+        self.assertEqual(calls,[])
+
+    def test_actual_worker_primary_exception_revokes_before_error_recording_or_diagnostics(self):
+        import types
+        ast,worker=self.worker();handlers=[node for node in ast.walk(worker)if isinstance(node,ast.ExceptHandler)and node.name=='failure'and any(isinstance(n,ast.Assign)and any(ast.unparse(target)=="result['error']"for target in n.targets)for n in node.body)]
+        self.assertEqual(len(handlers),1);handler=handlers[0];calls=[];primary=ValueError('PRIVATE_ORIGINAL_PRIMARY')
+        class Result(dict):
+            def __setitem__(self,key,value):calls.append('record_'+key);super().__setitem__(key,value)
+        def revoke(error):self.assertIs(error,primary);calls.append('revoke')
+        env={'radix_publisher':types.SimpleNamespace(revoke=revoke),'failure':primary,'result':Result()}
+        exec(compile(ast.Module(body=handler.body,type_ignores=[]),'<actual-worker-first-except-action>','exec'),env)
+        self.assertEqual(calls,['revoke','record_error']);self.assertIs(env['error'],primary);self.assertEqual(env['result']['error']['message'],'PRIVATE_ORIGINAL_PRIMARY')
+        self.assertEqual(ast.unparse(handler.body[0].test),'radix_publisher is not None')
+        # The same except catches every failure in the surrounding original try,
+        # including PG inspect and ordinary radix.observe before publisher.observe.
+        outer=next(n for n in ast.walk(worker)if isinstance(n,ast.Try)and handler in n.handlers)
+        self.assertIn('radix.observe()',ast.unparse(outer));self.assertIn('inspect()',ast.unparse(outer))
+
+    def test_actual_cleanup_closes_pump_after_harness_stop_before_docker_even_on_failure(self):
+        import types
+        ast,worker=self.worker();body=next(n for n in worker.body if isinstance(n,ast.Try)).finalbody
+        cleanup=next(n for n in body if isinstance(n,ast.Try)).body
+        start=next(i for i,n in enumerate(cleanup)if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and ast.unparse(n.value.func)=='stop_direct')
+        fragment=cleanup[start:start+4]
+        self.assertEqual([ast.unparse(n.test)for n in fragment[2:]],['radix_publisher is not None','radix is not None'])
+        for error in [None,ValueError('PRIVATE_STOP_FAILURE')]:
+            calls=[];primary={'type':'PrimaryError','message':'KEEP_PRIMARY'};result={'passed':False,'native_case_acceptance':False,'error':dict(primary)}
+            def close(deadline):
+                self.assertEqual(deadline,180);calls.append('pump_close')
+                if error is not None:raise error
+                return {'error_class':None,'all_owned_sockets_closed':True}
+            env={'harness':object(),'controller':object(),'stop_direct':lambda process,role,seconds:calls.append(role),'radix_publisher':types.SimpleNamespace(close=close),'radix':types.SimpleNamespace(cleanup=lambda:(calls.append('Docker_cleanup')or{'passed':True,'recovery_needed':False})),'cleanup_deadline':180,'require':api.require,'result':result}
+            exec(compile(ast.Module(body=fragment,type_ignores=[]),'<actual-publisher-cleanup>','exec'),env)
+            self.assertEqual(calls,['harness-cleanup','observer','pump_close','Docker_cleanup']);self.assertEqual(result['error'],primary);self.assertFalse(result['native_case_acceptance'])
+            self.assertNotIn('PRIVATE',json.dumps({k:v for k,v in result.items()if k!='error'}))
+
 
 if __name__=='__main__':unittest.main()
