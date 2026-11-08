@@ -59,14 +59,20 @@ def inventory(root,hashes=True,*,owned_sdk_platform=None):
    if not hashes:need(time.monotonic()-started<3,'allocated census exceeded3s')
  return dict(sorted(rows.items()))
 def allocated(root):
- total=0;stack=[P(root)];started=time.monotonic();count=0
+ root=P(root);total=0;stack=[root];started=time.monotonic();count=0
  while stack:
-  for p in stack.pop().iterdir():
-   try:s=p.lstat()
-   except FileNotFoundError:continue
-   total+=s.st_blocks*512;count+=1
-   if stat.S_ISDIR(s.st_mode):stack.append(p)
-   need(count<=500000 and time.monotonic()-started<3,'allocated census exceeded3s/500k')
+  parent=stack.pop()
+  try:
+   for p in parent.iterdir():
+    try:s=p.lstat()
+    except FileNotFoundError:continue
+    total+=s.st_blocks*512;count+=1
+    if stat.S_ISDIR(s.st_mode):stack.append(p)
+    need(count<=500000 and time.monotonic()-started<3,'allocated census exceeded3s/500k')
+  except FileNotFoundError:
+   # Compiler temporary directories can retire after lstat queued them.
+   # Preserve their already-counted blocks; the owned root must still exist.
+   if parent==root:raise
  return total
 def extract(archive,dest,tick,*,platform_asset=None):
  omitted_symlinks={}

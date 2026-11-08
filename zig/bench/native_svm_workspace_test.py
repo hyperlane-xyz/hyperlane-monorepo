@@ -82,8 +82,8 @@ class Controls(unittest.TestCase):
         row = self.write(args[0], request)
         with self.assertRaisesRegex(ValueError, 'resource/lifecycle'): api.inputs(args[0], row['sha256'], args[2], args[3]['sha256'], self.repo, 'b'*40)
 
-    def test_actual_encoded_EVM_CW_requests_use_full_validator_and_same_baked_Cargo(self):
-        for family, scenario in [('evm', 'evm'), ('cw', 'cosmwasm')]:
+    def test_actual_encoded_EVM_CW_Tron_requests_use_full_validator_and_same_baked_Cargo(self):
+        for family, scenario in [('evm', 'evm'), ('cw', 'cosmwasm'), ('tron', 'tron')]:
             with self.subTest(family=family), tempfile.TemporaryDirectory() as temporary:
                 original_root, original_repo = self.root, self.repo
                 self.root = Path(temporary).resolve(); self.repo = self.root / 'repo'

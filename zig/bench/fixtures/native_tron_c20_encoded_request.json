@@ -1,0 +1,143 @@
+{
+  "schema": 1,
+  "root_approved": true,
+  "scenario": "tron",
+  "mode": "ReleaseSafe",
+  "producer_source_commit": "8eabae59eecb5cba3d8b76fca46447802f231a92",
+  "producer_run_id": 42420239263,
+  "producer_run_attempt": 1,
+  "limits": {
+    "maximum_owned_RAM_bytes": 8589934592,
+    "maximum_case_allocated_bytes": 4294967296,
+    "minimum_host_free_bytes": 6442450944,
+    "maximum_wall_seconds": 3600
+  },
+  "postgres": {
+    "schema": 2,
+    "architecture": "amd64",
+    "image": "postgres:14",
+    "image_id": {
+      "sha256_hex_chunks": [
+        "47b95c5ad45838febbc39cae4194b6f9",
+        "c3f6c3d7409b20043e8cea4a5bd70fec"
+      ],
+      "prefix": "sha256:"
+    },
+    "canonical_digest": {
+      "sha256_hex_chunks": [
+        "834a046089d76edd1d2e81c4741f3ad5",
+        "d1853646ededc86c2708936aad31c1ed"
+      ],
+      "prefix": "postgres@sha256:"
+    }
+  },
+  "prerequisites": {
+    "local_checkout_build": true,
+    "hpack": {
+      "version": "4.2.0",
+      "wheel_sha256": {
+        "sha256_hex_chunks": [
+          "858ac0b02280fa582b5080d68db0899c",
+          "62a80375e0e5413a74970c5e518b6986"
+        ]
+      },
+      "wheel_bytes": 34246
+    },
+    "registry_commit": null,
+    "tron_cli": {
+      "schema": 1,
+      "name": "hyperlane",
+      "version": "45.1.0",
+      "node_version": "26.12.1",
+      "pnpm_version": "12.3.0",
+      "full_original_tsconfig": true,
+      "EVM_solc": "0.8.33",
+      "TVM_solc": "0.8.24",
+      "owned_full_package_graph": true
+    },
+    "tron_tre": {
+      "schema": 2,
+      "architecture": "amd64",
+      "source_image": {
+        "sha256_hex_chunks": [
+          "f4332e11df12a9f360639a4546fd0465",
+          "93909630fda48af00b30410c144342f0"
+        ],
+        "prefix": "tronbox/tre@sha256:"
+      },
+      "canonical_digest": {
+        "sha256_hex_chunks": [
+          "f4332e11df12a9f360639a4546fd0465",
+          "93909630fda48af00b30410c144342f0"
+        ],
+        "prefix": "tronbox/tre@sha256:"
+      },
+      "image_id": {
+        "sha256_hex_chunks": [
+          "bf3a2b631ff2a1834530f69fcb90508c",
+          "40970203aa1240b692223308cc90cae0"
+        ],
+        "prefix": "sha256:"
+      },
+      "command": ["./quickstart", "v2.0.0"],
+      "entrypoint": null
+    }
+  },
+  "artifact_pins": {
+    "sdk": {
+      "id": 13594350257,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
+      "sha256": {
+        "sha256_hex_chunks": [
+          "17a9cac90a5d702cd17cadc2299a53be",
+          "fef81750987b977bab81906c7b8cb537"
+        ]
+      },
+      "size_in_bytes": 52478163
+    },
+    "helper": {
+      "id": 13592994441,
+      "name": "zig-native-harness-controls",
+      "sha256": {
+        "sha256_hex_chunks": [
+          "0c74218ef6c3bdc4df6f28046660876b",
+          "8f975a4f0d6725ae301ea6f0eee8ccdd"
+        ]
+      },
+      "size_in_bytes": 56300384
+    },
+    "tools": {
+      "id": 13594096025,
+      "name": "zig-native-case-tools-8eabae59eecb5cba3d8b76fca46447802f231a92",
+      "sha256": {
+        "sha256_hex_chunks": [
+          "21e0ce19d2761dab8d76fca05655e10a",
+          "36c61849dbf1dc4e3306605f3a53cbb5"
+        ]
+      },
+      "size_in_bytes": 20092356
+    },
+    "writer_safe": {
+      "id": 13593942716,
+      "name": "zig-native-interop-writer-ReleaseSafe",
+      "sha256": {
+        "sha256_hex_chunks": [
+          "bfef270ba74f4df6439c6a494a536a83",
+          "1398f2f2c64a343357ccb6430286b4e1"
+        ]
+      },
+      "size_in_bytes": 5171509
+    },
+    "writer_fast": {
+      "id": 13594064196,
+      "name": "zig-native-interop-writer-ReleaseFast",
+      "sha256": {
+        "sha256_hex_chunks": [
+          "b497937b205124d0a67e630f5717218d",
+          "19e094f8cafcaf69d645c1bfb2b7df95"
+        ]
+      },
+      "size_in_bytes": 4863045
+    }
+  }
+}

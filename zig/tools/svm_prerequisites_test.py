@@ -3,6 +3,32 @@ import importlib.util,io,json,pathlib,struct,tarfile,tempfile,unittest,hashlib
 from unittest import mock
 spec=importlib.util.spec_from_file_location('svm_prerequisites',pathlib.Path(__file__).with_name('svm_prerequisites.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class Controls(unittest.TestCase):
+ def allocated_fixture(self):
+  temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);root=pathlib.Path(temp.name).resolve();gone=root/'rmeta-directory';gone.mkdir();keep=root/'stable-file';keep.write_bytes(b'public resource fixture')
+  return root,gone,keep
+ def test_allocated_directory_disappears_after_lstat_before_scandir(self):
+  root,gone,keep=self.allocated_fixture();expected=(gone.lstat().st_blocks+keep.lstat().st_blocks)*512;original=pathlib.Path.iterdir
+  def scan(path):
+   if path==root:
+    yield gone  # Actual lstat queues a real directory before retirement.
+    gone.rmdir()
+    yield keep
+   else:yield from original(path)
+  with mock.patch.object(pathlib.Path,'iterdir',scan):self.assertEqual(m.allocated(root),expected)
+  self.assertFalse(gone.exists());self.assertTrue(keep.exists())
+ def test_allocated_missing_root_is_not_a_disappearing_compiler_leaf(self):
+  root,gone,keep=self.allocated_fixture()
+  with self.assertRaises(FileNotFoundError):m.allocated(root/'absent-root')
+ def test_allocated_scan_permission_and_wrong_type_still_fail(self):
+  for error in (PermissionError('refused'),NotADirectoryError('changed type')):
+   root,gone,keep=self.allocated_fixture();original=pathlib.Path.iterdir
+   def scan(path):
+    if path==gone:raise error
+    yield from original(path)
+   with self.subTest(error=type(error).__name__),mock.patch.object(pathlib.Path,'iterdir',scan),self.assertRaises(type(error)):m.allocated(root)
+ def test_allocated_original_three_second_bound_is_not_renewed(self):
+  root,gone,keep=self.allocated_fixture()
+  with mock.patch.object(m.time,'monotonic',side_effect=[10,13]),self.assertRaisesRegex(ValueError,'3s/500k'):m.allocated(root)
  def test_system_hardlink_hash_is_distinct_from_asset_requirement(self):
   with tempfile.TemporaryDirectory()as tmp:
    p=pathlib.Path(tmp)/'gcc';p.write_bytes(b'system compiler fixture');linked=p.with_name('gcc-alias');linked.hardlink_to(p)

@@ -195,6 +195,67 @@ NPM_PREBUILD_LOADERS={
         },
     },
 }
+NPM_EDR_DATA={'node_modules/.pnpm/@nomicfoundation+edr-darwin-arm64@0.12.0-next.23/node_modules/@nomicfoundation/edr-darwin-arm64/edr.darwin-arm64.node': {'platform': 'darwin',
+                                                                                                                                              'architecture': 'arm64',
+                                                                                                                                              'bytes': 21472160,
+                                                                                                                                              'sha256': ('cffdeee018ea297d63ca2c09e8b00348' 'cdc575825e36e97d1d70c075626bd024'),
+                                                                                                                                              'header20_hex': 'cffaedfe0c000001000000000600000014000000',
+                                                                                                                                              'package_manifest': 'node_modules/.pnpm/@nomicfoundation+edr-darwin-arm64@0.12.0-next.23/node_modules/@nomicfoundation/edr-darwin-arm64/package.json',
+                                                                                                                                              'package_manifest_pin': {'bytes': 319,
+                                                                                                                                                                       'sha256': ('852bac6c7a3c6c64ff2430c16623f5a6' 'e401c02c9de3d3c3355ec05b7ea8370e')}},
+ 'node_modules/.pnpm/@nomicfoundation+edr-darwin-x64@0.12.0-next.23/node_modules/@nomicfoundation/edr-darwin-x64/edr.darwin-x64.node': {'platform': 'darwin',
+                                                                                                                                        'architecture': 'amd64',
+                                                                                                                                        'bytes': 25615972,
+                                                                                                                                        'sha256': ('a32054d40ab1bdc0850490a68cf23e34' '41c278da229273232efd3a1cfde84c5f'),
+                                                                                                                                        'header20_hex': 'cffaedfe07000001030000000600000012000000',
+                                                                                                                                        'package_manifest': 'node_modules/.pnpm/@nomicfoundation+edr-darwin-x64@0.12.0-next.23/node_modules/@nomicfoundation/edr-darwin-x64/package.json',
+                                                                                                                                        'package_manifest_pin': {'bytes': 313,
+                                                                                                                                                                 'sha256': ('288f7dfc8ab0877146f70a0ad47394d9' 'cf6ba5e0d7eac92f86a9ed9ba7429c18')}},
+ 'node_modules/.pnpm/@nomicfoundation+edr-linux-arm64-gnu@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-arm64-gnu/edr.linux-arm64-gnu.node': {'platform': 'linux',
+                                                                                                                                                       'architecture': 'arm64',
+                                                                                                                                                       'bytes': 34649712,
+                                                                                                                                                       'sha256': ('17e6d355e924c5aa05b0e162ab63a15f' '62833408f03913aec497c886d8163ebc'),
+                                                                                                                                                       'header20_hex': '7f454c460201010000000000000000000300b700',
+                                                                                                                                                       'package_manifest': 'node_modules/.pnpm/@nomicfoundation+edr-linux-arm64-gnu@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-arm64-gnu/package.json',
+                                                                                                                                                       'package_manifest_pin': {'bytes': 328,
+                                                                                                                                                                                'sha256': ('f252ea1534448e09198fb725840a1d58' '65517dbaf3ebe81c8f6bec971bc05931')}},
+ 'node_modules/.pnpm/@nomicfoundation+edr-linux-arm64-musl@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-arm64-musl/edr.linux-arm64-musl.node': {'platform': 'linux',
+                                                                                                                                                          'architecture': 'arm64',
+                                                                                                                                                          'bytes': 34707344,
+                                                                                                                                                          'sha256': ('1e6af38c03c23c7868032b9c16e782da' 'a7bc57872fd42edb138aee98b59a38ee'),
+                                                                                                                                                          'header20_hex': '7f454c460201010000000000000000000300b700',
+                                                                                                                                                          'package_manifest': 'node_modules/.pnpm/@nomicfoundation+edr-linux-arm64-musl@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-arm64-musl/package.json',
+                                                                                                                                                          'package_manifest_pin': {'bytes': 331,
+                                                                                                                                                                                   'sha256': ('ca01c09f5f9555836ec423bd9d4a8628' '6e2a66076aee94f16ca7a589b8b6895f')}},
+ 'node_modules/.pnpm/@nomicfoundation+edr-linux-x64-gnu@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-x64-gnu/edr.linux-x64-gnu.node': {'platform': 'linux',
+                                                                                                                                                 'architecture': 'amd64',
+                                                                                                                                                 'bytes': 38264024,
+                                                                                                                                                 'sha256': ('cf163a301fcabbe14a0a915ed12af317' 'f10e973463dc6b335e88212ac8e2cf11'),
+                                                                                                                                                 'header20_hex': '7f454c4602010100000000000000000003003e00',
+                                                                                                                                                 'package_manifest': 'node_modules/.pnpm/@nomicfoundation+edr-linux-x64-gnu@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-x64-gnu/package.json',
+                                                                                                                                                 'package_manifest_pin': {'bytes': 322,
+                                                                                                                                                                          'sha256': ('82721bb2f2b8d54b4a28a94364bef161' 'e6187c551b6a7441b83c8dcc8ebffcbd')}},
+ 'node_modules/.pnpm/@nomicfoundation+edr-linux-x64-musl@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-x64-musl/edr.linux-x64-musl.node': {'platform': 'linux',
+                                                                                                                                                    'architecture': 'amd64',
+                                                                                                                                                    'bytes': 38322128,
+                                                                                                                                                    'sha256': ('da36f32e01c046352ae26583770e5aae' '83c5c4025e194a304107975d9448b3e2'),
+                                                                                                                                                    'header20_hex': '7f454c4602010100000000000000000003003e00',
+                                                                                                                                                    'package_manifest': 'node_modules/.pnpm/@nomicfoundation+edr-linux-x64-musl@0.12.0-next.23/node_modules/@nomicfoundation/edr-linux-x64-musl/package.json',
+                                                                                                                                                    'package_manifest_pin': {'bytes': 325,
+                                                                                                                                                                             'sha256': ('b5e7e7e79e9431a1f8c8d72ba0237657' '03a12148dc9e4a25cb8504cce176f21f')}},
+ 'node_modules/.pnpm/@nomicfoundation+edr-win32-x64-msvc@0.12.0-next.23/node_modules/@nomicfoundation/edr-win32-x64-msvc/edr.win32-x64-msvc.node': {'platform': 'win32',
+                                                                                                                                                    'architecture': 'amd64',
+                                                                                                                                                    'bytes': 25113600,
+                                                                                                                                                    'sha256': ('d17fb5896b4644c590f34a4be5983f50' 'e630ec2c1ed0083e75b2446e3a43b25e'),
+                                                                                                                                                    'header20_hex': '4d5a90000300000004000000ffff0000b8000000',
+                                                                                                                                                    'package_manifest': 'node_modules/.pnpm/@nomicfoundation+edr-win32-x64-msvc@0.12.0-next.23/node_modules/@nomicfoundation/edr-win32-x64-msvc/package.json',
+                                                                                                                                                    'package_manifest_pin': {'bytes': 325,
+                                                                                                                                                                             'sha256': ('cd485bb32745e74dc3dfd414a0979cc7' '007658764a2714646aec88b31e6d66c7')}}}
+NPM_EDR_LOADER={'root': 'node_modules/.pnpm/@nomicfoundation+edr@0.12.0-next.23/node_modules/@nomicfoundation/edr',
+ 'files': {'index.js': {'bytes': 14711,
+                        'sha256': ('d62c2566498c3883b3809e4ece1569a4' 'fb9cac66d048c223c498e1535ca47614')},
+           'package.json': {'bytes': 3166,
+                            'sha256': ('0ef28b78df13aa3075004e72a377563e' '30b427e58d0fc1783cb998fc3579c7f3')}}}
 MAX_FILES=200000
 MAX_BYTES=4*GIB
 
@@ -262,6 +323,22 @@ def unselected_prebuild_data(repo,relative,row,mode,header,architecture):
     return policy['platform']!='linux'or{'amd64':'x64','arm64':'arm64'}[architecture]not in policy['architectures']
 
 
+def unselected_EDR_data(repo,relative,row,mode,header,architecture):
+    policy=NPM_EDR_DATA.get(relative)
+    if policy is None:return False
+    require(architecture in {'amd64','arm64'},'Exact Linux EDR host architecture required')
+    # The pinned NAPI selector gates platform+arch BEFORE its libc branch.
+    # Both same-arch Linux GNU/musl candidates retain normal host ELF checks.
+    if policy['platform']=='linux'and policy['architecture']==architecture:return False
+    require(row['bytes']==policy['bytes']and row['sha256']==policy['sha256']and stat.S_IMODE(mode)==0o644 and header.hex()==policy['header20_hex'],'Exact nonexecutable Source-locked dormant EDR payload required')
+    for name,expected in NPM_EDR_LOADER['files'].items():
+        actual=pin(repo/NPM_EDR_LOADER['root']/name)
+        require(all(actual[key]==expected[key]for key in ('bytes','sha256')),'Source EDR platform/architecture selector changed')
+    actual=pin(repo/policy['package_manifest']);expected=policy['package_manifest_pin']
+    require(all(actual[key]==expected[key]for key in ('bytes','sha256')),'Source EDR platform package identity changed')
+    return True
+
+
 def payload_diagnostic(relative,row,header):
     require(len(relative)<=4096,'Bounded package payload name required')
     return json.dumps({'path':relative,'bytes':row['bytes'],'sha256':row['sha256'],'header20_hex':header[:20].hex(),'ELF_class':header[4]if len(header)>4 else None,'ELF_endian':header[5]if len(header)>5 else None,'ELF_machine':int.from_bytes(header[18:20],'little')if len(header)>=20 else None},sort_keys=True,separators=(',',':'))
@@ -295,7 +372,7 @@ def graph(repo,package_roots,architecture):
             require(stat.S_ISREG(mode),'Special package payload rejected')
             row=pin(path);total+=row['bytes'];require(total<=MAX_BYTES,'Full Linux CLI copies exceed original4GiB case cap')
             with path.open('rb')as source:header=source.read(20)
-            guest_data=source_SBF_data(relative,row,mode,header);foreign_data=unselected_prebuild_data(repo,relative,row,mode,header,architecture);data_only=guest_data or foreign_data
+            guest_data=source_SBF_data(relative,row,mode,header);foreign_data=unselected_prebuild_data(repo,relative,row,mode,header,architecture)or unselected_EDR_data(repo,relative,row,mode,header,architecture);data_only=guest_data or foreign_data
             if not data_only:
                 require(header[:4]not in {b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca'},'Mac executable payload cannot be a Linux package product: '+payload_diagnostic(relative,row,header))
                 if header[:4]==b'\x7fELF':require(header[4:6]==b'\x02\x01'and int.from_bytes(header[18:20],'little')=={'amd64':62,'arm64':183}[architecture],'Foreign native dependency payload: '+payload_diagnostic(relative,row,header))

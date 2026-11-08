@@ -74,7 +74,7 @@ def inputs(request_path, request_sha, receipt_path, receipt_sha, repo, execution
     request_pin = pin(request_path); need(request_pin['sha256'] == request_sha, 'Reviewed request changed')
     dispatch = request_module(); request = dispatch.read_request(request_path)
     need(type(request.get('root_approved')) is bool and type(request.get('schema')) is int and request['schema'] == 1, 'Typed request authority required')
-    if not request['root_approved'] or request.get('scenario') not in {'sealevel', 'sealevel-composite', 'evm', 'cosmwasm'}: return None
+    if not request['root_approved'] or request.get('scenario') not in {'sealevel', 'sealevel-composite', 'evm', 'cosmwasm', 'tron'}: return None
     dispatch.validate_request(request)
     receipt_pin = pin(receipt_path); need(receipt_pin['sha256'] == receipt_sha, 'Producer receipt changed')
     receipt = json.loads(receipt_path.read_text())

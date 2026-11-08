@@ -74,6 +74,41 @@ class Assets(unittest.TestCase):
  def test_new_installed_package_rejected(self):
   v=self.graph();(pathlib.Path(v['root'])/'node_modules/injected.js').write_text('changed')
   with self.assertRaises(ValueError):a.verify_graph(v)
+ def EDR_fixture(self):
+  repo=self.workspace();relative='node_modules/locked-edr/guest.node';payload=b'\xcf\xfa\xed\xfe'+b'\0'*16;path=repo/relative;path.parent.mkdir();path.write_bytes(payload)
+  loader={'root':'node_modules/locked-loader','files':{}}
+  for name,data in [('index.js',b'platform then architecture then libc selector'),('package.json',b'locked root manifest')]:
+   file=repo/loader['root']/name;file.parent.mkdir(exist_ok=True);file.write_bytes(data);loader['files'][name]={key:a.pin(file)[key]for key in ['bytes','sha256']}
+  manifest=path.parent/'package.json';manifest.write_bytes(b'locked platform manifest')
+  policy={relative:{'platform':'darwin','architecture':'arm64','bytes':len(payload),'sha256':a.pin(path)['sha256'],'header20_hex':payload.hex(),'package_manifest':str(manifest.relative_to(repo)),'package_manifest_pin':{key:a.pin(manifest)[key]for key in ['bytes','sha256']}}}
+  return repo,relative,path,payload,loader,policy
+ def test_Source_EDR_policy_is_exact_seven_platform_members_and_host_Linux_not_data(self):
+  self.assertEqual(len(a.NPM_EDR_DATA),7)
+  for relative,policy in a.NPM_EDR_DATA.items():
+   self.assertIn('@0.12.0-next.23/node_modules/@nomicfoundation/edr-',relative);self.assertEqual(len(policy['sha256']),64)
+   if policy['platform']=='linux':
+    self.assertFalse(a.unselected_EDR_data(pathlib.Path('/ABSENT'),relative,{},0,b'',policy['architecture']))
+ def test_exact_dormant_EDR_graph_retains_data_and_rechecks_every_byte(self):
+  repo,relative,path,payload,loader,policy=self.EDR_fixture()
+  with mock.patch.object(a,'NPM_EDR_DATA',policy),mock.patch.object(a,'NPM_EDR_LOADER',loader):
+   graph=a.graph(repo,list(a.PACKAGE_ROOTS),'amd64');self.assertTrue(graph['entries'][relative]['unselected_Source_locked_platform_data']);self.assertEqual(graph['entries'][relative]['sha256'],a.pin(path)['sha256']);a.verify_graph(graph)
+   path.write_bytes(payload+b'changed')
+   with self.assertRaises(ValueError):a.verify_graph(graph)
+ def test_dormant_EDR_rejects_loader_package_mode_hash_header_or_unknown_path(self):
+  repo,relative,path,payload,loader,policy=self.EDR_fixture()
+  with mock.patch.object(a,'NPM_EDR_DATA',policy),mock.patch.object(a,'NPM_EDR_LOADER',loader):
+   self.assertTrue(a.unselected_EDR_data(repo,relative,a.pin(path),path.stat().st_mode,payload,'amd64'))
+   for mode,header,row in [(0o755,payload,a.pin(path)),(0o644,b'foreign-header',a.pin(path)),(0o644,payload,{**a.pin(path),'sha256':'a'*64})]:
+    with self.assertRaises(ValueError):a.unselected_EDR_data(repo,relative,row,mode,header,'amd64')
+   self.assertFalse(a.unselected_EDR_data(repo,relative+'foreign',a.pin(path),0o644,payload,'amd64'))
+   for target in [repo/loader['root']/'index.js',repo/policy[relative]['package_manifest']]:
+    original=target.read_bytes();target.write_bytes(b'changed')
+    with self.assertRaises(ValueError):a.unselected_EDR_data(repo,relative,a.pin(path),0o644,payload,'amd64')
+    target.write_bytes(original)
+ def test_EDR_host_branch_cannot_use_dormant_MachO_exemption(self):
+  repo,relative,path,payload,loader,policy=self.EDR_fixture();policy[relative]['platform']='linux';policy[relative]['architecture']='amd64'
+  with mock.patch.object(a,'NPM_EDR_DATA',policy),mock.patch.object(a,'NPM_EDR_LOADER',loader):
+   with self.assertRaisesRegex(ValueError,'Mac executable'):a.graph(repo,list(a.PACKAGE_ROOTS),'amd64')
  def test_Darwin_payload_cannot_be_Linux_graph(self):
   r=self.workspace();(r/'node_modules/bad.node').write_bytes(b'\xcf\xfa\xed\xfe'+b'\0'*30)
   with self.assertRaises(ValueError):a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
