@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 120866,
+      "bytes": 121646,
       "sha256": {
         "sha256_hex_chunks": [
-          "7b613e72fe6f7ea32fc46cea27400186",
-          "370b84b1fb0e6f585e041fbb7acf213f"
+          "ed49550bb080eb23034429b64a533e88",
+          "b2519124bf6a2bb67bd5c0f57181112f"
         ]
       }
     },
@@ -363,21 +363,21 @@
     },
     {
       "path": "zig/tools/foundry_official.py",
-      "bytes": 28063,
+      "bytes": 28998,
       "sha256": {
         "sha256_hex_chunks": [
-          "96383e3006a26d0bdd0e8997f04b8c34",
-          "84bf9d52933043a727f3698aee7e1970"
+          "fbc7acb91933d690f6d665e46bfc64f9",
+          "3f2746498facf62324041c243c3b960c"
         ]
       }
     },
     {
       "path": "zig/tools/foundry_official_test.py",
-      "bytes": 29283,
+      "bytes": 35423,
       "sha256": {
         "sha256_hex_chunks": [
-          "4f207569f223b1043785711a5b9e5c11",
-          "0df766f9377c83976ed756495c06c58f"
+          "913055d0ff01aa3588b89f22902bfce4",
+          "c1bc7d00f5bad7cec740ee0bba528315"
         ]
       }
     },

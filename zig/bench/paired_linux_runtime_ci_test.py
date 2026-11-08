@@ -232,7 +232,7 @@ class Workflow(unittest.TestCase):
         return selected
     def test_all17_other_job_bodies_byteexact_and18_members(self):
         prefix,tail=self.text.split('  paired-linux-runtime:\n',1);inverse=prefix+tail.split('  # END REVIEWED PAIRED LINUX JOBS',1)[1]
-        self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(inverse.encode()).hexdigest(),'9d8cb4fd07f7d3d31d117e1d4637fbb9'+'eada1573a88deaa841c7b8011eeedf55')
+        self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(inverse.encode()).hexdigest(),'9339e35001577a91adff42a85a00f864'+'8716b19393e83a30d79c99c135964605')
         self.assertIn('name: paired-linux-input-diagnostic-',inverse);self.assertNotIn('needs:',self.job)
     def test_288_existing_ordinary_routes_never_start_runtime(self):
         count=0

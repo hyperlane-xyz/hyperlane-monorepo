@@ -221,12 +221,27 @@ def download(url, maximum, budget, binary=False):
             attempt['host'] = host
             attempt['phase'] = 'request_open'
             budget.trace.append({'redirect_status': code, 'host': host})
-            return super().redirect_request(req, fp, code, message, headers, newurl)
-    # No auth, proxy credentials, cookies, configuration, or tokens are added.
+            redirected = super().redirect_request(req, fp, code, message, headers, newurl)
+            if redirected is not None:
+                for mapping in (redirected.headers, redirected.unredirected_hdrs):
+                    for header in tuple(mapping):
+                        if header.lower() == 'authorization':
+                            del mapping[header]
+            return redirected
+    # No proxy credentials, cookies or inherited authentication handlers.
+    # The only optional credential is scoped to the exact initial API request below.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
     req = urllib.request.Request(url, headers={
         'Accept': 'application/octet-stream' if binary else 'application/vnd.github+json',
         'User-Agent': 'ziggy-foundry-fixed-official-installer', 'X-GitHub-Api-Version': '2022-11-28'})
+    token = os.environ.get('FOUNDRY_GITHUB_TOKEN')
+    if token is not None:
+        need(url in stages, 'FIXED_AUTHENTICATED_API_ROUTE')
+        need(type(token) is str and 1 <= len(token) <= 4096 and
+             all(33 <= ord(character) <= 126 for character in token), 'INVALID_SCOPED_API_TOKEN')
+        # urllib copies only normal headers on redirect. This is NEVER forwarded,
+        # including same-origin redirects; no cookies/auth handler/proxy fallback.
+        req.add_unredirected_header('Authorization', 'Bearer ' + token)
     body = bytearray()
     try:
         with budget.alarm(45 if binary else 20):

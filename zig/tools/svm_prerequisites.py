@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Linux-only SVM prerequisite production. No chain, fixture or agent execution."""
-import argparse,ctypes,gzip,hashlib,json,os,pathlib,posixpath,re,shutil,signal,stat,struct,subprocess,sys,tarfile,time,tomllib,urllib.request
+import argparse,ctypes,gzip,hashlib,json,os,pathlib,posixpath,re,shutil,signal,stat,struct,subprocess,sys,tarfile,time,tomllib,urllib.error,urllib.request
 P=pathlib.Path
 GIB=1024**3
 PROGRAMS=['mailbox','validator-announce','ism/multisig-ism-message-id','ism/composite-ism','hyperlane-sealevel-token','hyperlane-sealevel-token-native','hyperlane-sealevel-token-collateral','hyperlane-sealevel-token-cross-collateral','hyperlane-sealevel-igp']
@@ -244,7 +244,21 @@ class Owner:
   return out
  def fetch(self,url,dest,limit,expected=None,*,accept='application/octet-stream'):
   need(url.startswith('https://'),'HTTPS required');request=urllib.request.Request(url,headers={'User-Agent':'hyperlane-svm-ci-prerequisites','Accept':accept})
-  with self.opener.open(request,timeout=30)as response:
+  # Retry only transient OPEN failures for the same exact pinned asset.
+  # No destination exists yet; body/hash/extraction/compile failures never retry.
+  asset=next((a for a in ASSETS.values()if url==a['url']and expected==a and limit==a['bytes']and accept=='application/octet-stream'),None)
+  attempts=3 if asset is not None else 1
+  for attempt in range(1,attempts+1):
+   self.tick()
+   try:
+    response=self.opener.open(request,timeout=30)
+    break
+   except urllib.error.HTTPError as error:
+    if asset is None or type(error.code)is not int or error.code not in (502,503,504)or attempt==attempts:raise
+    error.close()
+    self.events.write(json.dumps({'kind':'pinned_asset_open_retry','asset_id':asset['asset_id'],'failed_attempt':attempt,'maximum_attempts':attempts,'http_status':error.code,'backoff_seconds':attempt})+'\n');self.events.flush()
+    self.tick();time.sleep(attempt);self.tick()
+  with response:
    need(response.url.startswith(('https://github.com/','https://release-assets.githubusercontent.com/','https://objects.githubusercontent.com/','https://api.github.com/')),'nonofficial redirect')
    with dest.open('xb')as f:
     total=0

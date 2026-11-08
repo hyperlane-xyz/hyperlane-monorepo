@@ -169,12 +169,15 @@ jobs:
           node-version-file: '.nvmrc'
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
       - name: Install verified official Foundry v1.5.0
+        env:
+          FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 -I -B -W error zig/tools/foundry_official_test.py -v
           python3 -I -B zig/tools/foundry_official.py \
             --runner-temp "$RUNNER_TEMP" \
             --gh "$(readlink -f "$(command -v gh)")"
+          cat -- "$RUNNER_TEMP/ziggy-foundry-v1.5.0/result.json"
           echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
@@ -251,12 +254,15 @@ jobs:
           node-version-file: '.nvmrc'
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
       - name: Install verified official Foundry v1.5.0
+        env:
+          FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 -I -B -W error zig/tools/foundry_official_test.py -v
           python3 -I -B zig/tools/foundry_official.py \
             --runner-temp "$RUNNER_TEMP" \
             --gh "$(readlink -f "$(command -v gh)")"
+          cat -- "$RUNNER_TEMP/ziggy-foundry-v1.5.0/result.json"
           echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Install native build requirements
         run: |
@@ -864,6 +870,8 @@ jobs:
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         if: steps.request.outputs.enabled == 'true'
       - name: Install verified official Foundry v1.5.0
+        env:
+          FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
         if: steps.request.outputs.enabled == 'true'
         run: |
           set -euo pipefail
@@ -871,6 +879,7 @@ jobs:
           python3 -I -B zig/tools/foundry_official.py \
             --runner-temp "$RUNNER_TEMP" \
             --gh "$(readlink -f "$(command -v gh)")"
+          cat -- "$RUNNER_TEMP/ziggy-foundry-v1.5.0/result.json"
           echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Install explicit native-case host prerequisites (no node/service starts)
         if: steps.request.outputs.enabled == 'true'
@@ -1380,6 +1389,8 @@ jobs:
         with:
           run_install: false
       - name: Install verified official Foundry v1.5.0
+        env:
+          FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
         if: steps.authority.outputs.inputs_enabled == 'true'
         run: |
           set -euo pipefail
@@ -1387,6 +1398,7 @@ jobs:
           python3 -I -B zig/tools/foundry_official.py \
             --runner-temp "$RUNNER_TEMP" \
             --gh "$(readlink -f "$(command -v gh)")"
+          cat -- "$RUNNER_TEMP/ziggy-foundry-v1.5.0/result.json"
           echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Ordinary tool preparation outside proof or daemon clocks
         if: steps.authority.outputs.inputs_enabled == 'true'
@@ -1483,12 +1495,15 @@ jobs:
         with:
           run_install: false
       - name: Install verified official Foundry v1.5.0
+        env:
+          FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 -I -B -W error zig/tools/foundry_official_test.py -v
           python3 -I -B zig/tools/foundry_official.py \
             --runner-temp "$RUNNER_TEMP" \
             --gh "$(readlink -f "$(command -v gh)")"
+          cat -- "$RUNNER_TEMP/ziggy-foundry-v1.5.0/result.json"
           echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Ordinary tool preparation outside proof or daemon clocks
         timeout-minutes: 15
@@ -1578,6 +1593,8 @@ jobs:
         with:
           run_install: false
       - name: Install verified official Foundry v1.5.0
+        env:
+          FOUNDRY_GITHUB_TOKEN: ${{ github.token }}
         if: steps.runtime.outputs.runtime_enabled == 'true'
         run: |
           set -euo pipefail
@@ -1585,6 +1602,7 @@ jobs:
           python3 -I -B zig/tools/foundry_official.py \
             --runner-temp "$RUNNER_TEMP" \
             --gh "$(readlink -f "$(command -v gh)")"
+          cat -- "$RUNNER_TEMP/ziggy-foundry-v1.5.0/result.json"
           echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Stage the same ordinary consumer tools and exact canonical PostgreSQL16
         if: steps.runtime.outputs.runtime_enabled == 'true'

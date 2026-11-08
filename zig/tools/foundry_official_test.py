@@ -24,6 +24,21 @@ def audit(event, args):
         raise AssertionError('Forbidden test effect: ' + event)
 
 
+_environment = None
+
+
+def setUpModule():
+    global _environment
+    # CI scopes its real token to this step. Tests only use synthetic credentials.
+    _environment = patch.dict(m.os.environ)
+    _environment.start()
+    m.os.environ.pop('FOUNDRY_GITHUB_TOKEN', None)
+
+
+def tearDownModule():
+    _environment.stop()
+
+
 class Budget:
     deadline_ns = 10**30
     child = None
@@ -321,6 +336,107 @@ class Transport(unittest.TestCase):
             self.assertFalse(value['activated'])
             self.assertNotIn('PRIVATE', output.getvalue())
 
+    def test_actual_redirect_handler_strips_scoped_token_on_all_redirects(self):
+        class ReadBudget(Budget):
+            requests = 0
+            from contextlib import nullcontext
+            def __init__(self):
+                self.trace = []
+            def alarm(self, seconds):
+                return self.nullcontext()
+        marker = 'SYNTHETIC_PRIVATE_TOKEN_DO_NOT_PERSIST'
+        handlers = []
+        class Response:
+            status = 200
+            url = m.API + '/releases/' + str(m.RELEASE_ID)
+            body = io.BytesIO(b'ok')
+            def read(self, size):
+                return self.body.read(size)
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+        def open_request(request, **kwargs):
+            self.assertEqual(request.get_header('Authorization'), 'Bearer ' + marker)
+            self.assertNotIn('Authorization', request.headers)
+            self.assertEqual(request.unredirected_hdrs['Authorization'], 'Bearer ' + marker)
+            redirect = next(x for x in handlers if isinstance(x, m.urllib.request.HTTPRedirectHandler))
+            # Call the REAL nested handler and REAL urllib redirect implementation.
+            for target in ['https://objects.githubusercontent.com/fixed']:
+                redirected = redirect.redirect_request(request, None, 302, 'Found', {}, target)
+                self.assertIsNone(redirected.get_header('Authorization'))
+                self.assertNotIn('Authorization', redirected.unredirected_hdrs)
+                self.assertNotIn(marker, repr(redirected.headers))
+            # A same-origin hop followed by CDN does not regain the initial token.
+            first = redirect.redirect_request(request, None, 302, 'Found', {}, m.API + '/fixed-hop')
+            second = redirect.redirect_request(first, None, 302, 'Found', {}, 'https://release-assets.githubusercontent.com/final')
+            self.assertIsNone(second.get_header('Authorization'))
+            with self.assertRaises(m.Refused):
+                redirect.redirect_request(first, None, 302, 'Found', {}, 'https://foreign.invalid/')
+            return Response()
+        def builder(*values):
+            handlers.extend(values)
+            return types.SimpleNamespace(open=open_request)
+        budget = ReadBudget()
+        with patch.dict(m.os.environ, {'FOUNDRY_GITHUB_TOKEN': marker}), patch.object(m.urllib.request, 'build_opener', side_effect=builder):
+            self.assertEqual(m.download(m.API + '/releases/' + str(m.RELEASE_ID), 2, budget), b'ok')
+        self.assertNotIn(marker, json.dumps(budget.trace))
+
+    def test_explicit_mixed_case_header_stripping_real_handler(self):
+        from contextlib import nullcontext
+        class ReadBudget(Budget):
+            requests = 0
+            trace = []
+            def alarm(self, seconds):
+                return nullcontext()
+        handlers = []
+        class Response:
+            status = 200
+            url = m.API + '/releases/' + str(m.RELEASE_ID)
+            def read(self, size):
+                return b''
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+        def opening(request, **kwargs):
+            request.headers['aUtHoRiZaTiOn'] = 'Bearer SYNTHETIC_PRIVATE_HEADER'
+            redirect = next(x for x in handlers if isinstance(x, m.urllib.request.HTTPRedirectHandler))
+            forwarded = redirect.redirect_request(request, None, 302, 'Found', {}, m.API + '/fixed-hop')
+            self.assertFalse(any(k.lower() == 'authorization' for k in forwarded.headers))
+            self.assertFalse(any(k.lower() == 'authorization' for k in forwarded.unredirected_hdrs))
+            return Response()
+        def builder(*rows):
+            handlers.extend(rows)
+            return types.SimpleNamespace(open=opening)
+        with patch.dict(m.os.environ, {'FOUNDRY_GITHUB_TOKEN': 'SYNTHETIC_SCOPED_TOKEN'}), patch.object(m.urllib.request, 'build_opener', side_effect=builder):
+            self.assertEqual(m.download(m.API + '/releases/' + str(m.RELEASE_ID), 2, ReadBudget()), b'')
+
+    def test_token_wrong_route_or_injection_rejected_before_io(self):
+        from unittest.mock import Mock
+        class ReadBudget(Budget):
+            requests = 0
+            trace = []
+            from contextlib import nullcontext
+            def alarm(self, seconds):
+                return self.nullcontext()
+        for value, route in [('synthetic', m.API + '/other'),
+                             ('synthetic\r\nHeader: injection', m.API + '/releases/' + str(m.RELEASE_ID)),
+                             ('', m.API + '/releases/' + str(m.RELEASE_ID)),
+                             ('x' * 4097, m.API + '/releases/' + str(m.RELEASE_ID))]:
+            opening = Mock(side_effect=m.Refused('CONTROL_IO_REACHED'))
+            with self.subTest(route=route, token_length=len(value)), patch.dict(m.os.environ, {'FOUNDRY_GITHUB_TOKEN': value}), patch.object(m.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=opening)), self.assertRaises(m.Refused) as caught:
+                m.download(route, 2, ReadBudget())
+            opening.assert_not_called()
+            self.assertNotIn(value, str(caught.exception)) if value else None
+
+    def test_synthetic_step_token_never_reaches_verifier_child(self):
+        from unittest.mock import Mock
+        # The actual verifier method already asserts its full fixed environment.
+        with tempfile.TemporaryDirectory() as temp, patch.dict(m.os.environ, {'FOUNDRY_GITHUB_TOKEN': 'SYNTHETIC_STEP_TOKEN'}):
+            rows = Verification().invoke(temp, Mock(return_value=0))
+        self.assertEqual(rows[0]['exit_code'], 0)
+
     def test_real_capacity_and_late_deadline_refuse(self):
         with tempfile.TemporaryDirectory() as temp:
             budget = m.Budget(Path(temp))
@@ -404,6 +520,7 @@ class Verification(unittest.TestCase):
         def popen(argv, **kwargs):
             self.assertEqual(argv, m.verifier_command(Path('/fixed/gh'), binary, root / 'bundle', root / 'trust'))
             self.assertNotIn('GH_TOKEN', kwargs['env'])
+            self.assertNotIn('FOUNDRY_GITHUB_TOKEN', kwargs['env'])
             self.assertNotIn('HOME', kwargs['env'])
             self.assertNotIn('--force', argv)
             kwargs['stdout'].write(m.canonical(verified_response()))

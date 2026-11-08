@@ -345,4 +345,66 @@ class OfficialAssetTransportControls(unittest.TestCase):
   for target in ['https://api.github.com.evil.invalid/asset','https://evil.invalid/asset','http://github.com/asset']:
    with self.subTest(target=target),self.assertRaisesRegex(ValueError,'nonofficial redirect'):m.OfficialRedirect().redirect_request(request,None,302,'Found',{},target)
 
+class PinnedOpenRetries(unittest.TestCase):
+ def setup_fetch(self,opens,*,pinned=True,accept='application/octet-stream',limit_delta=0,tick=None):
+  from types import SimpleNamespace
+  temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup);dest=pathlib.Path(temporary.name)/'asset';body=b'public retry fixture only'
+  asset={**m.ASSETS['spl'],'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest()};assets={**m.ASSETS,'spl':asset}
+  owner=m.Owner.__new__(m.Owner);owner.opener=SimpleNamespace(open=mock.Mock(side_effect=opens));owner.tick=mock.Mock(side_effect=tick);owner.events=io.StringIO();owner.deadline=123456.0
+  expected=asset if pinned else {'bytes':len(body),'sha256':asset['sha256']}
+  return owner,dest,body,asset,assets,expected,accept,len(body)+limit_delta
+ def response(self,body,read_error=None):
+  class Response(io.BytesIO):
+   url='https://release-assets.githubusercontent.com/public-fixture'
+   headers={}
+   def read(self,size=-1):
+    if read_error is not None:raise read_error
+    return super().read(size)
+  return Response(body)
+ def error(self,code):
+  error=m.urllib.error.HTTPError('https://api.github.com/public',code,'fixture status',{},io.BytesIO(b'public error'))
+  self.addCleanup(error.close);return error
+ def invoke(self,setup):
+  owner,dest,body,asset,assets,expected,accept,limit=setup
+  with mock.patch.object(m,'ASSETS',assets),mock.patch.object(m.time,'sleep')as sleep:
+   result=owner.fetch(asset['url'],dest,limit,expected,accept=accept)
+  return result,sleep
+ def test_transient_open_failures_retry_same_pinned_request_only(self):
+  for first in (502,503,504):
+   errors=[self.error(first),self.error(504)];setup=self.setup_fetch([*errors,self.response(b'public retry fixture only')]);owner,dest,body,asset,*_=setup
+   with self.subTest(status=first):
+
+    try:result,sleep=self.invoke(setup)
+    except m.urllib.error.HTTPError:self.fail('pinned transient OPEN failure escaped before the allowed attempts')
+    self.assertEqual(owner.opener.open.call_count,3);self.assertEqual(sleep.call_args_list,[mock.call(1),mock.call(2)])
+    self.assertTrue(all(e.fp.closed for e in errors));self.assertEqual(dest.read_bytes(),body);self.assertEqual(owner.deadline,123456.0)
+    self.assertEqual(set(result),{'path','bytes','sha256','actual_response_url','headers'})
+    for call in owner.opener.open.call_args_list:self.assertEqual((call.args[0].full_url,call.args[0].get_header('Accept'),call.kwargs['timeout']),(asset['url'],'application/octet-stream',30))
+    rows=[json.loads(line)for line in owner.events.getvalue().splitlines()];self.assertEqual([r['failed_attempt']for r in rows],[1,2]);self.assertTrue(all(set(r)=={'kind','asset_id','failed_attempt','maximum_attempts','http_status','backoff_seconds'}for r in rows))
+ def test_third_transient_open_failure_propagates_without_destination(self):
+  errors=[self.error(504)for _ in range(4)];setup=self.setup_fetch(errors);owner,dest,*_=setup
+  with self.assertRaises(m.urllib.error.HTTPError)as caught:self.invoke(setup)
+  self.assertIs(caught.exception,errors[2]);self.assertEqual(owner.opener.open.call_count,3);self.assertFalse(dest.exists());self.assertEqual(len(owner.events.getvalue().splitlines()),2)
+ def test_nontransient_and_unpinned_requests_never_retry(self):
+  for code in (400,401,403,404,408,429,500,501):
+   error=self.error(code);setup=self.setup_fetch([error]);owner,dest,*_=setup
+   with self.subTest(status=code),self.assertRaises(m.urllib.error.HTTPError)as caught:self.invoke(setup)
+   self.assertIs(caught.exception,error);self.assertEqual(owner.opener.open.call_count,1);self.assertFalse(dest.exists());self.assertEqual(owner.events.getvalue(),'')
+  for options in ({'pinned':False},{'accept':'application/vnd.github+json'},{'limit_delta':1}):
+   error=self.error(504);setup=self.setup_fetch(error,**options);owner,dest,*_=setup
+   with self.subTest(options=options),self.assertRaises(m.urllib.error.HTTPError)as caught:self.invoke(setup)
+   self.assertIs(caught.exception,error);self.assertEqual(owner.opener.open.call_count,1);self.assertFalse(dest.exists());self.assertEqual(owner.events.getvalue(),'')
+ def test_partial_body_and_digest_failures_never_retry(self):
+  error=self.error(504);setup=self.setup_fetch([self.response(b'',error)]);owner,dest,*_=setup
+  with self.assertRaises(m.urllib.error.HTTPError)as caught:self.invoke(setup)
+  self.assertIs(caught.exception,error);self.assertEqual(owner.opener.open.call_count,1);self.assertTrue(dest.exists());self.assertEqual(owner.events.getvalue(),'')
+  setup=self.setup_fetch([self.response(b'X'*len(b'public retry fixture only'))]);owner,dest,*_=setup
+  with self.assertRaisesRegex(ValueError,'asset size/SHA mismatch'):self.invoke(setup)
+  self.assertEqual(owner.opener.open.call_count,1);self.assertTrue(dest.exists());self.assertEqual(owner.events.getvalue(),'')
+ def test_original_guard_can_stop_before_backoff_or_second_open(self):
+  for ticks in ([None,ValueError('whole180m deadline')],[None,None,ValueError('owned12GiB RSS')]):
+   error=self.error(504);setup=self.setup_fetch([error],tick=ticks);owner,dest,*_=setup
+   with self.subTest(ticks=len(ticks)),self.assertRaisesRegex(ValueError,'whole180m|owned12GiB'):self.invoke(setup)
+   self.assertEqual(owner.opener.open.call_count,1);self.assertFalse(dest.exists());self.assertEqual(owner.deadline,123456.0);self.assertTrue(error.fp.closed)
+
 if __name__=='__main__':unittest.main()
