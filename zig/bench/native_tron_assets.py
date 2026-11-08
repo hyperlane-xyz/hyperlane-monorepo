@@ -262,6 +262,8 @@ NPM_EDR_LOADER={'root': 'node_modules/.pnpm/@nomicfoundation+edr@0.12.0-next.23/
                             'sha256': ('0ef28b78df13aa3075004e72a377563e' '30b427e58d0fc1783cb998fc3579c7f3')}}}
 MAX_FILES=200000
 MAX_BYTES=4*GIB
+MAX_UNSUPPORTED_ROWS=512
+MAX_UNSUPPORTED_REPORT_BYTES=512*1024
 
 
 def require(value,message):
@@ -359,7 +361,7 @@ def graph(repo,package_roots,architecture):
     for name in package_roots:
         require(not Path(name).is_absolute()and '..'not in Path(name).parts,'Closed relative workspace packages required')
         require((repo/name/'package.json').is_file(),'Workspace package manifest missing')
-    entries={};total=0;stack=[repo/name for name in roots]
+    entries={};total=0;unsupported=[];stack=[repo/name for name in roots]
     while stack:
         path=stack.pop();relative=str(path.relative_to(repo));require(len(entries)<MAX_FILES,'Bounded full CLI graph file count')
         if relative in entries:continue
@@ -378,13 +380,23 @@ def graph(repo,package_roots,architecture):
             with path.open('rb')as source:header=source.read(20)
             guest_data=source_SBF_data(relative,row,mode,header);foreign_data=unselected_prebuild_data(repo,relative,row,mode,header,architecture)or unselected_EDR_data(repo,relative,row,mode,header,architecture);data_only=guest_data or foreign_data
             if not data_only:
-                require(header[:4]not in {b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca'},'Mac executable payload cannot be a Linux package product: '+payload_diagnostic(relative,row,header))
-                if header[:4]==b'\x7fELF':require(header[4:6]==b'\x02\x01'and int.from_bytes(header[18:20],'little')=={'amd64':62,'arm64':183}[architecture],'Foreign native dependency payload: '+payload_diagnostic(relative,row,header))
-                if path.suffix=='.node':require(header[:4]==b'\x7fELF','Native addon must be actual Linux ELF: '+payload_diagnostic(relative,row,header))
+                reasons=[]
+                if header[:4]in {b'\xcf\xfa\xed\xfe',b'\xfe\xed\xfa\xcf',b'\xca\xfe\xba\xbe',b'\xbe\xba\xfe\xca'}:reasons.append('Mac executable payload cannot be a Linux package product')
+                if header[:4]==b'\x7fELF'and not(header[4:6]==b'\x02\x01'and int.from_bytes(header[18:20],'little')=={'amd64':62,'arm64':183}[architecture]):reasons.append('Foreign native dependency payload')
+                if path.suffix=='.node'and header[:4]!=b'\x7fELF':reasons.append('Native addon must be actual Linux ELF')
+                if reasons:
+                    # Diagnostic only: all existing unsafe-link, exact Source
+                    # pin, file-count and byte guards remain immediate failures.
+                    unsupported.append({**json.loads(payload_diagnostic(relative,row,header)),'mode':stat.S_IMODE(mode),'reasons':reasons})
+                    require(len(unsupported)<=MAX_UNSUPPORTED_ROWS and len(json.dumps(unsupported,separators=(',',':')).encode())<=MAX_UNSUPPORTED_REPORT_BYTES,'Unsupported native payload inventory bound exceeded; complete=false; admission=false')
             entries[relative]={'kind':'file','bytes':row['bytes'],'sha256':row['sha256'],'mode':stat.S_IMODE(mode),**({'Source_SBF_data_only':True}if guest_data else {}),**({'unselected_Source_locked_platform_data':True}if foreign_data else {})}
     require('typescript/cli/dist/cli.js'in entries and any(n.startswith('solidity/dist/tron/typechain/factories/')for n in entries)and 'solidity/dist/buildArtifact.json'in entries,'Actual CLI/core EVM/TVM artifacts required')
     for row in entries.values():
         if row['kind']=='symlink':require(row['resolved']in entries,'Symlink target missing from complete admitted graph')
+    if unsupported:
+        report={'schema':1,'kind':'unsupported-native-payload-inventory','complete':True,'admission':False,'native_case_acceptance':False,'count':len(unsupported),'entries':sorted(unsupported,key=lambda value:value['path'])}
+        wire=json.dumps(report,sort_keys=True,separators=(',',':'));require(len(wire.encode())<=MAX_UNSUPPORTED_REPORT_BYTES,'Unsupported native payload inventory report bound exceeded; complete=false; admission=false')
+        raise ValueError('Unsupported native dependency payload inventory: '+wire)
     return {'schema':1,'architecture':architecture,'root':str(repo),'package_roots':package_roots,'entries':dict(sorted(entries.items())),'regular_payload_bytes':total,'native_case_acceptance':False,'scope':'Full exact Linux workspace/package closure, not SDK/CLI evaluation or native delivery'}
 
 

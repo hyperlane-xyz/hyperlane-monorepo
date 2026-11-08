@@ -149,7 +149,33 @@ class Assets(unittest.TestCase):
  def test_foreign_payload_diagnostic_retains_exact_public_path_header_and_hash(self):
   r=self.workspace();header=bytearray(24);header[:6]=b'\x7fELF\x02\x01';struct.pack_into('<H',header,18,183);p=r/'node_modules/bad.node';p.write_bytes(header)
   with self.assertRaisesRegex(ValueError,'Foreign native dependency payload')as caught:a.graph(r,list(a.PACKAGE_ROOTS),'amd64')
-  value=json.loads(str(caught.exception).split(': ',1)[1]);self.assertEqual(value['path'],'node_modules/bad.node');self.assertEqual(value['ELF_machine'],183);self.assertEqual(value['header20_hex'],header[:20].hex());self.assertEqual(value['sha256'],a.pin(p)['sha256'])
+  report=json.loads(str(caught.exception).split(': ',1)[1]);self.assertTrue(report['complete']);self.assertFalse(report['admission']);self.assertEqual(report['count'],1);value=report['entries'][0];self.assertEqual(value['path'],'node_modules/bad.node');self.assertEqual(value['ELF_machine'],183);self.assertEqual(value['header20_hex'],header[:20].hex());self.assertEqual(value['sha256'],a.pin(p)['sha256'])
+ def unsupported(self,repo):
+  with self.assertRaisesRegex(ValueError,'Unsupported native dependency payload inventory: ')as caught:a.graph(repo,list(a.PACKAGE_ROOTS),'amd64')
+  return json.loads(str(caught.exception).split(': ',1)[1])
+ def test_inventory_reports_all_unknown_members_before_refusing(self):
+  repo=self.workspace();arm=bytearray(24);arm[:6]=b'\x7fELF\x01\x01';struct.pack_into('<H',arm,18,40)
+  samples={'a-android.bare':bytes(arm),'b-macos.bare':b'\xcf\xfa\xed\xfe'+b'not exported body','c-invalid.node':b'MZ'+b'not exported body','d-arm64.node':b'\x7fELF\x02\x01'+b'\0'*12+b'\xb7\0'+b'\0'*4}
+  for name,raw in samples.items():(repo/'node_modules'/name).write_bytes(raw)
+  report=self.unsupported(repo);self.assertEqual(report['count'],4);self.assertTrue(report['complete']);self.assertFalse(report['native_case_acceptance']);self.assertEqual([r['path']for r in report['entries']],['node_modules/'+n for n in sorted(samples)])
+  for row in report['entries']:
+   self.assertEqual(set(row),{'path','bytes','sha256','header20_hex','ELF_class','ELF_endian','ELF_machine','mode','reasons'});path=repo/row['path'];self.assertEqual(row['sha256'],a.pin(path)['sha256']);self.assertEqual(row['bytes'],path.stat().st_size)
+  self.assertNotIn('not exported body',json.dumps(report))
+ def test_inventory_does_not_waive_materialization_or_admission(self):
+  repo=self.workspace();(repo/'node_modules/guest.node').write_bytes(b'MZ'+b'\0'*30);dest=self.root/'must-not-materialize'
+  with self.assertRaises(ValueError):a.materialize(a.graph(repo,list(a.PACKAGE_ROOTS),'amd64'),dest,0)
+  self.assertFalse(dest.exists())
+ def test_inventory_preserves_unsafe_link_immediate_failure(self):
+  repo=self.workspace();(repo/'node_modules/a.node').write_bytes(b'not ELF');(repo/'node_modules/z-link').symlink_to('/foreign')
+  with self.assertRaisesRegex(ValueError,'External/absolute/dangling')as caught:a.graph(repo,list(a.PACKAGE_ROOTS),'amd64')
+  self.assertNotIn('complete=true',str(caught.exception))
+ def test_inventory_bound_refuses_incomplete_diagnostic_never_graph(self):
+  repo=self.workspace()
+  for name in ['a.node','b.node','c.node']:(repo/'node_modules'/name).write_bytes(b'not ELF')
+  with mock.patch.object(a,'MAX_UNSUPPORTED_ROWS',2),self.assertRaisesRegex(ValueError,'complete=false; admission=false'):a.graph(repo,list(a.PACKAGE_ROOTS),'amd64')
+ def test_inventory_empty_keeps_valid_host_ELF_in_normal_graph(self):
+  repo=self.workspace();raw=bytearray(24);raw[:6]=b'\x7fELF\x02\x01';struct.pack_into('<H',raw,18,62);path=repo/'node_modules/host.node';path.write_bytes(raw)
+  graph=a.graph(repo,list(a.PACKAGE_ROOTS),'amd64');self.assertFalse(graph['native_case_acceptance']);self.assertEqual(graph['entries']['node_modules/host.node']['sha256'],a.pin(path)['sha256']);self.assertNotIn('unsupported',graph);a.verify_graph(graph)
  def prebuild_fixture(self,platform='darwin',payload=b'\xcf\xfa\xed\xfe'+b'0'*20):
   import hashlib
   r=self.workspace();base='node_modules/.pnpm/bufferutil@4.1.0/node_modules/bufferutil';relative=base+'/prebuilds/'+platform+'-x64/fixture.node';p=r/relative;p.parent.mkdir(parents=True);p.write_bytes(payload);p.chmod(0o644);files={}

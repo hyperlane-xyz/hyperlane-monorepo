@@ -197,11 +197,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/case_cohort.py",
-      "bytes": 5480,
+      "bytes": 5597,
       "sha256": {
         "sha256_hex_chunks": [
-          "e6030c34b48e38351fb6d8a6b3697211",
-          "f3730cf9f7f0785a0cfc49f70e055ef1"
+          "90e0f978ec54ac037599ef868f900388",
+          "3ef9451075e294756a51d6c729f169bb"
         ]
       }
     },

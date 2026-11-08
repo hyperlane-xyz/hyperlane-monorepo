@@ -177,6 +177,55 @@ class Inputs(unittest.TestCase):
             else:changed['tools']['init-db']={'path':'different'}
             with self.assertRaises(ValueError):exec(code,dict(env,value=changed))
 
+    def canonical_transport_boundary(self, cohort_source=None, mutate=None):
+        # Actual checked-in encoded request -> exact canonical public decoder ->
+        # actual producer_receipt request-validation prefix. No Git, HTTP,
+        # SDK/library or transport child is executed; downstream IO is excluded.
+        repo=HERE.parents[2]
+        dispatch_path=repo/'zig/bench/native_case_ci.py'
+        spec=__import__('importlib.util',fromlist=['spec_from_file_location']).spec_from_file_location('actual_canonical_dispatch',dispatch_path)
+        dispatch=__import__('importlib.util',fromlist=['module_from_spec']).module_from_spec(spec);spec.loader.exec_module(dispatch)
+        payload=json.loads((HERE/'transport-ReleaseSafe.PENDING.json').read_text())
+        self.assertIsInstance(payload['postgres']['image_id'],dict)
+        self.assertIsInstance(payload['postgres']['canonical_digest'],dict)
+        self.assertIsInstance(next(iter(payload['artifact_pins'].values()))['sha256'],dict)
+        if mutate:mutate(payload)
+        with tempfile.TemporaryDirectory()as directory:
+            path=Path(directory).resolve()/'request.json';path.write_text(json.dumps(payload));wire=path.read_bytes();request_pin=specs.pin(path)
+            tree=ast.parse((repo/'zig/integration/native_case_inputs.py').read_text());producer=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='producer_receipt')
+            end=next(i for i,n in enumerate(producer.body)if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and isinstance(n.value.func,ast.Attribute)and n.value.func.attr=='validate_request')
+            # Reuse the real prefix including receipt parsing and actual dispatch
+            # validation; only receipt/transport acquisition is mocked here.
+            prefix=copy.deepcopy(producer);prefix.body=prefix.body[:end+1]+[ast.Return(value=ast.Name(id='request',ctx=ast.Load()))]
+            space={'Path':Path,'checked':specs.checked,'read_json':lambda path:{},'load_module':lambda name,path:dispatch}
+            exec(compile(ast.fix_missing_locations(ast.Module(body=[prefix],type_ignores=[])),'actual-producer-request-boundary','exec'),space)
+            calls=[]
+            def load_module(name,relative):
+                calls.append((name,relative));self.assertEqual(relative,'zig/bench/native_case_ci.py');return dispatch
+            module=types.SimpleNamespace(load_module=load_module,producer_receipt=space['producer_receipt'])
+            source=(HERE/'case_cohort.py').read_text()if cohort_source is None else cohort_source;fn=next(n for n in ast.parse(source).body if isinstance(n,ast.FunctionDef)and n.name=='source_cohort')
+            start=next(i for i,n in enumerate(fn.body)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id in {'dispatch','request'}for t in n.targets));end=next(i for i,n in enumerate(fn.body)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='producer'for t in n.targets))
+            ns={'module':module,'value':{'request':request_pin,'producer_receipt':request_pin},'checked':specs.checked,'load':specs.load,'Path':Path,'execution_commit':'b'*40}
+            exec(compile(ast.Module(body=fn.body[start:end+1],type_ignores=[]),'actual-case-cohort-caller','exec'),ns)
+            self.assertEqual(path.read_bytes(),wire);self.assertEqual(specs.pin(path),request_pin)
+            return ns['producer'],calls
+
+    def test_actual_encoded_transport_uses_canonical_request_reader(self):
+        request,calls=self.canonical_transport_boundary()
+        self.assertTrue(request['postgres']['image_id'].startswith('sha256:'))
+        self.assertTrue(request['postgres']['canonical_digest'].startswith('postgres@sha256:'))
+        self.assertTrue(all(isinstance(row['sha256'],str)and len(row['sha256'])==64 for row in request['artifact_pins'].values()))
+        self.assertEqual(calls,[('aleo_actual_case_dispatch','zig/bench/native_case_ci.py')])
+        # Original plain JSON caller deterministically reproduces actualAleo4's
+        # PG-policy failure rather than accidentally accepting encoded objects.
+        source=(HERE/'case_cohort.py').read_text();original=source.replace("    dispatch=module.load_module('aleo_actual_case_dispatch','zig/bench/native_case_ci.py')\n    request=dispatch.read_request(checked(value['request']))","    request=load(value['request'])")
+        self.assertNotEqual(original,source)
+        with self.assertRaisesRegex(ValueError,'Independent PG config ID and RepoDigest required'):self.canonical_transport_boundary(original)
+
+    def test_canonical_transport_decoder_preserves_closed_encoding_refusals(self):
+        for mutate in [lambda v:v['postgres']['image_id'].update(prefix='foreign:'),lambda v:v['postgres']['canonical_digest']['sha256_hex_chunks'].append('a'*32),lambda v:next(iter(v['artifact_pins'].values()))['sha256'].update(extra=True)]:
+            with self.subTest(mutate=mutate),self.assertRaises(ValueError):self.canonical_transport_boundary(mutate=mutate)
+
     def test_profile_public_inputs_preserve_full_original_workload(self):
         p=specs.public_profile()
         self.assertEqual(p['consensusHeights'],list(range(17)));self.assertEqual(p['deadlineSeconds'],10800)
