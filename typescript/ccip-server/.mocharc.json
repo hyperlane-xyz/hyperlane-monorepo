@@ -15,7 +15,8 @@
     "./tests/**/WormholeVaaService.test.ts",
     "./tests/**/WormholeVaaFetcher.test.ts",
     "./tests/**/wormholeVaaMatcher.test.ts",
-    "./tests/**/layerZeroPacketMatcher.test.ts"
+    "./tests/**/layerZeroPacketMatcher.test.ts",
+    "./tests/**/LayerZeroPacketService.test.ts"
   ],
   "exit": true
 }
