@@ -238,4 +238,51 @@ class DeadlineAndLaunchUnwind(unittest.TestCase):
    with self.assertRaises(subprocess.TimeoutExpired)as observed:cmd.run('signal-failed',['/fixed/tool'],10)
   self.assertIs(observed.exception,original);self.assertTrue(cmd.rows[0]['actual_parent_wait']);self.assertIn('signal:OSError',cmd.rows[0]['cleanup_errors']);self.assertEqual(child.wait.call_count,2)
 
+class CaseLogOwnership(unittest.TestCase):
+ def test_actual_inner_launch_cannot_reopen_supervisor_case_logs(self):
+  outer=next(n for n in ast.parse((HERE/'case_supervisor.py').read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='run')
+  launch=next(n for n in ast.walk(outer)if isinstance(n,ast.FunctionDef)and n.name=='launch')
+  opens=[n for n in launch.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id in {'out','err'}for t in n.targets)]
+  self.assertEqual(len(opens),2)
+  source=(HERE/'inner.py').read_text();run=next(n for n in ast.parse(source).body if isinstance(n,ast.FunctionDef)and n.name=='run')
+  inner=next(n for n in run.body if isinstance(n,ast.FunctionDef)and n.name=='launch')
+  call=next(n for n in ast.walk(run)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='main'for t in n.targets))
+  with tempfile.TemporaryDirectory()as directory:
+   control=pathlib.Path(directory);space={'control':control,'label':'case'}
+   exec(compile(ast.Module(body=opens,type_ignores=[]),'actual-supervisor-log-creation','exec'),space)
+   for name in ('out','err'):space[name].write(b'preserve-outer-log');space[name].close()
+   before={p.name:p.read_bytes()for p in control.iterdir()}
+   child=mock.Mock();popen=mock.Mock(return_value=child);streams=[];children=[]
+   env={'control':control,'spec':{'original_deadline_ns':2,'exact_node_argv':['admitted-node','admitted-launcher']},'cancelled':N(is_set=lambda:False),'time':N(monotonic_ns=lambda:1),'need':m.need,'subprocess':N(Popen=popen),'streams':streams,'children':children}
+   exec(compile(ast.Module(body=[inner],type_ignores=[]),'actual-inner-launch-definition','exec'),env)
+   old=copy.deepcopy(call);old.value.args[0]=ast.Constant(value='case');ast.fix_missing_locations(old)
+   with self.assertRaises(FileExistsError):exec(compile(ast.Module(body=[old],type_ignores=[]),'old-colliding-call','exec'),env)
+   popen.assert_not_called()
+   try:exec(compile(ast.Module(body=[call],type_ignores=[]),'actual-distinct-inner-call','exec'),env)
+   finally:
+    for stream in streams:stream.close()
+   popen.assert_called_once();self.assertEqual(children,[('node-case',child)])
+   self.assertEqual({p.name:p.read_bytes()for p in control.iterdir()if p.name in before},before)
+   self.assertEqual({p.name for p in control.iterdir()},set(before)|{'node-case.stdout','node-case.stderr'})
+
+class ClosedCaseFailure(unittest.TestCase):
+ def test_typed_projection_retains_io_guard_and_actual_waits_without_private_values(self):
+  with tempfile.TemporaryDirectory()as directory:
+   case=pathlib.Path(directory).resolve()/'case';(case/'control').mkdir(parents=True);case.with_suffix('.owner').mkdir()
+   (case/'result.json').write_text(json.dumps({'passed':False,'error':'ValueError:actual isolated Aleo case failed','direct_waits':[{'phase':'case','pid':123,'actual_parent_wait':True,'exit_code':1,'argv':['PRIVATE_SENTINEL']}],'argv':['PRIVATE_SENTINEL'],'gate_failed':None}))
+   (case/'control/inner-result.json').write_text(json.dumps({'passed':False,'error':"FileExistsError:[Errno 17] PRIVATE_SENTINEL",'actual_waits':[],'signals':[],'cleanup_errors':['PRIVATE_SENTINEL']}))
+   (case.with_suffix('.owner')/'owner.json').write_text(json.dumps({'passed':False,'error':'ValueError:actual case service failed','client_wait':{'pid':456,'actual_parent_wait':True,'exit_code':1,'private':'PRIVATE_SENTINEL'},'cleanup':{'owned_cgroup_absent':True,'private':'PRIVATE_SENTINEL'}}))
+   value=m.case_failure_diagnostics(case,REPO);text=json.dumps(value);self.assertNotIn('PRIVATE_SENTINEL',text);self.assertNotIn(str(case),text);self.assertFalse(value['native_or_performance_credit'])
+   payload=value['records']['payload'];self.assertEqual(payload['error']['fixed_Source_guard']['guard'],'actual isolated Aleo case failed');self.assertEqual(payload['direct_waits']['rows'],[{'pid':123,'exit_code':1,'actual_parent_wait':True,'phase':'case'}])
+   self.assertEqual(value['records']['namespace']['error'],{'present':True,'class':'FileExistsError','errno':17});self.assertEqual(value['records']['service']['cleanup'],{'owned_cgroup_absent':True});self.assertEqual(value['records']['driver']['status'],'absent')
+ def test_projection_refuses_alias_and_oversized_metadata_and_never_reads_logs(self):
+  with tempfile.TemporaryDirectory()as directory:
+   case=pathlib.Path(directory).resolve()/'case';case.mkdir();outside=case.parent/'private.json';outside.write_text('{"private":"PRIVATE_SENTINEL"}');(case/'result.json').symlink_to(outside);(case/'private.log').write_text('PRIVATE_SENTINEL')
+   value=m.case_failure_diagnostics(case,REPO);self.assertEqual(value['records']['payload']['status'],'unsafe-path');self.assertNotIn('PRIVATE_SENTINEL',json.dumps(value))
+   (case/'result.json').unlink()
+   with (case/'result.json').open('wb')as output:output.truncate(32*1024**2+1)
+   with mock.patch.object(m,'pin',side_effect=AssertionError('oversized metadata hashed'))as pin_mock,mock.patch.object(m,'load',side_effect=AssertionError('oversized metadata loaded'))as load_mock:
+    value=m.case_failure_diagnostics(case,REPO);pin_mock.assert_not_called();load_mock.assert_not_called()
+   self.assertEqual(value['records']['payload']['status'],'unavailable');self.assertFalse(value['native_or_performance_credit'])
+
 if __name__=='__main__':unittest.main(verbosity=2)

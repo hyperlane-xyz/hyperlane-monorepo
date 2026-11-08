@@ -1240,6 +1240,7 @@ jobs:
             ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/ci-result.json
             ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/full-case-failure-tail.log
             ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/full-case-failure-tail.json
+            ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/full-case-failure-diagnostics.json
             ${{ runner.temp }}/aleo-fullcase-${{ github.run_id }}-${{ github.run_attempt }}-*/public/public-final-proof.json
             ${{ runner.temp }}/aleo-sdk-${{ github.run_id }}-${{ github.run_attempt }}/sdk-inspection.zip
             ${{ runner.temp }}/aleo-sdk-${{ github.run_id }}-${{ github.run_attempt }}/sdk-inspection.receipt.json

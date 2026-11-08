@@ -47,7 +47,7 @@ def run(spec_pin):
         ready_until=min(spec['original_deadline_ns'],time.monotonic_ns()+10*10**9)
         while not (control/'cache-ready.json').exists():need(cache.poll()is None and time.monotonic_ns()<ready_until,'closed cache not ready');time.sleep(.05)
         # Same immutable launcher/bootstrap as final42, not the raw TS driver.
-        main=launch('case',spec['exact_node_argv'])
+        main=launch('node-case',spec['exact_node_argv'])
         while main.poll()is None:
             need(not cancelled.is_set()and time.monotonic_ns()<spec['original_deadline_ns'],'original case cancelled/deadline')
             need(cache.poll()is None and not any(row.get('failure')for row in records),'cache/byte bridge failed')

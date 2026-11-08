@@ -31,6 +31,62 @@ def write(path,value):
  return pin(path)
 def module(repo,name,relative):
  spec=importlib.util.spec_from_file_location(name,repo/relative);out=importlib.util.module_from_spec(spec);spec.loader.exec_module(out);return out
+def case_failure_diagnostics(case,repo):
+ # Fixed metadata leaves only. Raw error strings, argv, tokens, Docker replies,
+ # SDK output and log bodies are never copied into this public projection.
+ sources=('case_delegate.py','case_supervisor.py','inner.py')
+ guards={}
+ for name in sources:
+  tree=ast.parse((Path(repo)/'zig/tools/aleo_linux_case'/name).read_text())
+  for node in ast.walk(tree):
+   if isinstance(node,ast.Call)and isinstance(node.func,ast.Name)and node.func.id=='need'and len(node.args)>=2 and isinstance(node.args[1],ast.Constant)and type(node.args[1].value)is str:
+    guards.setdefault(node.args[1].value,{'source':name,'line':node.lineno,'guard':node.args[1].value})
+ classes={'ValueError','RuntimeError','AssertionError','KeyError','FileNotFoundError','FileExistsError','PermissionError','OSError','TimeoutError','ChildProcessError'}
+ def error(value):
+  if not isinstance(value,str):return {'present':value is not None,'class':'unavailable'}
+  kind,separator,body=value.partition(':');out={'present':True,'class':kind if separator and kind in classes else'other'}
+  if body in guards:out['fixed_Source_guard']=guards[body]
+  if out['class']in {'FileNotFoundError','FileExistsError','PermissionError','OSError'}:
+   match=re.match(r'\[Errno ([0-9]{1,3})\]',body)
+   if match:out['errno']=int(match[1])
+  return out
+ def waits(value):
+  if not isinstance(value,list):return {'status':'unavailable','rows':[]}
+  out=[]
+  for row in value[:64]:
+   if not isinstance(row,dict):continue
+   public={}
+   for key in ('pid','exit_code','raw_status','completed_monotonic_ns'):
+    if type(row.get(key))is int and -(2**63)<=row[key]<2**64:public[key]=row[key]
+   for key in ('actual_parent_wait','actual_waitpid'):
+    if type(row.get(key))is bool:public[key]=row[key]
+   for key in ('phase','role'):
+    if row.get(key)in {'clock','case','failed-child','case-main','cache','node-case','actual-adopted-helper'}:public[key]=row[key]
+   out.append(public)
+  return {'status':'complete'if len(value)<=64 else'bounded','count':len(value),'rows':out}
+ leaves={'service':case.with_suffix('.owner')/'owner.json','payload':case/'result.json','namespace':case/'control/inner-result.json','driver':case/'data/case/result.json'}
+ records={}
+ for name,path in leaves.items():
+  record={'status':'absent'};records[name]=record
+  try:
+   if path.is_symlink()or path.resolve()!=path:record['status']='unsafe-path';continue
+   if not path.exists():continue
+   need(path.stat().st_size<=32*1024**2,'bounded diagnostic metadata before hashing')
+   row=pin(path);value=load(row);need(type(value)is dict,'diagnostic metadata object required');record.update(status='available',bytes=row['bytes'],sha256=row['sha256'])
+   for key in ('passed','source_unchanged','payload_passed','owned_absent','bridges_joined','case_verdict'):
+    if type(value.get(key))is bool:record[key]=value[key]
+   record['error']=error(value.get('error'))
+   for key in ('direct_waits','actual_waits'):
+    if key in value:record[key]=waits(value[key])
+   if isinstance(value.get('client_wait'),dict):record['client_wait']=waits([value['client_wait']])
+   for key in ('signals','cleanup_errors','errors','bridge_records','Docker_calls','resource_samples'):
+    if isinstance(value.get(key),list):record[key+'_count']=len(value[key])
+   for key in ('cleanup','Docker_recovery','container_cleanup','network_cleanup'):
+    if isinstance(value.get(key),dict):record[key]={k:v for k,v in value[key].items()if k in {'passed','owned_cgroup_absent','complete_positive_custody','performed_mutations','payload_never_started'}and type(v)is bool}
+   record['gate_failure_present']=value.get('gate_failed')is not None
+  except BaseException as caught:record['status']='unavailable';record['read_error_class']=type(caught).__name__ if type(caught).__name__ in classes else'other'
+ result={'schema':1,'kind':'aleo-fullcase-closed-failure-diagnostics','native_or_performance_credit':False,'records':records}
+ need(len(json.dumps(result).encode())<=32768,'bounded public failure projection');return result
 def source_policy_paths(repo):
  # Read literal reviewed inventories without importing SDK, setup or case code.
  def constant(relative,name):
@@ -271,6 +327,9 @@ def execute(policy_path,policy_sha,mode,env):
   except BaseException:unchanged=False
   summary={'schema':1,'kind':'aleo-fullcase-ci-composition-v1','mode':mode,'passed':error is None and case is not None and (root/'public/public-final-proof.json').is_file()and unchanged,'error_type':error,'policy':authority_pin,'execution_source_commit':env['GITHUB_SHA'],'runtime_source_commit':authority['runtime_source_commit'],'source_unchanged':unchanged,'proof_owner_crossbound':crossbound,'command_waits':[{'name':r['name'],'pid':r.get('pid'),'actual_parent_wait':r['actual_parent_wait'],'exit_code':r.get('exit_code'),'signals':r['signals'],'cleanup_errors':r['cleanup_errors'],**{k:r.get(k)for k in ('started_monotonic_ns','maximum_wall_seconds','original_deadline_ns','completion_check_ns')}}for r in cmd.rows],'native_acceptance_requires_Root_readback':True,'performance_credit':False}
   summary['passed']=final_pass(summary)and summary['passed']
+  if error is not None and case is not None:
+   try:write(root/'public/full-case-failure-diagnostics.json',case_failure_diagnostics(case,repo))
+   except BaseException as caught:summary['failure_diagnostics_error_type']=type(caught).__name__
   write(root/'public/ci-result.json',summary)
   need(summary['passed'],'composition failed; private evidence retained, no raw fallback')
  return summary
