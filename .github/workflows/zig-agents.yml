@@ -749,6 +749,32 @@ jobs:
           (Path(os.environ['RUNNER_TEMP'])/'native-case-selection'/'selection.json').write_text(json.dumps(receipt,indent=2)+'\n')
           with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:output.write('enabled='+str(enabled).lower()+'\n');output.write('sha256='+module.pin(path)['sha256']+'\n')
           PYTHON
+      - name: Inspect an exact producer cohort without granting native execution
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') && contains(github.event.head_commit.message, '[zig-cohort-readback]') }}
+        timeout-minutes: 35
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B -W error zig/bench/cohort_readback_test.py -v
+          POLICY="$GITHUB_WORKSPACE/zig/bench/cohort_readback_request.json"
+          NATIVE="$GITHUB_WORKSPACE/zig/bench/native_case_request.json"
+          python3 -I -B zig/bench/cohort_readback.py \
+            --policy "$POLICY" --policy-sha256 "$(sha256sum "$POLICY" | cut -d' ' -f1)" \
+            --native-request "$NATIVE" --native-request-sha256 '${{ steps.request.outputs.sha256 }}' \
+            --repo "$GITHUB_WORKSPACE" --execution-source-commit "$GITHUB_SHA" \
+            --gh "$(command -v gh)" \
+            --output "$RUNNER_TEMP/cohort-readback-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain only the closed cohort inspection report
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') && contains(github.event.head_commit.message, '[zig-cohort-readback]') }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v7
+        with:
+          name: cohort-readback-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/cohort-readback-${{ github.run_id }}-${{ github.run_attempt }}/public/report.json
+            ${{ runner.temp }}/cohort-readback-${{ github.run_id }}-${{ github.run_attempt }}/public/report.sha256
       - name: Fetch only the exact completed artifact-producing jobs
         if: steps.request.outputs.enabled == 'true'
         timeout-minutes: 12
