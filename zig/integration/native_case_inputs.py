@@ -299,7 +299,6 @@ def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT
     require(shutil.disk_usage(output.parent).free >= LIMITS['minimum_host_free_bytes'], '6GiB case floor before hydration')
     output.mkdir(mode=0o700)
     for name in ('home', 'tmp', 'evidence', 'docker-config'): (output / name).mkdir(mode=0o700)
-    (output / 'docker-config/config.json').write_text('{}\n')
     (output / 'owned-root.json').write_text(json.dumps({'schema': 1, 'request': artifact(request_path), 'execution_source_commit': execution, 'token': secrets.token_hex(16), 'nodes_started': False}) + '\n')
     tools_module = load_module('case_tool_admission', 'zig/bench/native_case_tools.py')
     runtime = {}
