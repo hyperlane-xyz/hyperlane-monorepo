@@ -93,11 +93,11 @@
     },
     {
       "path": "zig/bench/inventory.py",
-      "bytes": 13265,
+      "bytes": 13313,
       "sha256": {
         "sha256_hex_chunks": [
-          "335561ffe2331c301b99629a88bc40c1",
-          "0e91afd7880f2aa14e2dd076da522c18"
+          "f1d5701205e17f69578b6035779effda",
+          "cce25b8ff509737cdbe7cdcbc380b300"
         ]
       }
     },

@@ -82,7 +82,7 @@ def category(path):
   return'native_vendored_source'if'vendor'in parts else'native_helper_source'
  if name=='Dockerfile':return'build_or_operational_tool_source'
  if path.suffix not in SOURCE:return'configuration_or_data'
- if any(p in{'tests','testing','test','benches','bench','integration','examples'}for p in parts)or name.endswith(('_test.zig','_tests.zig','_integration.zig','_bench.zig')):return'test_benchmark_or_integration_source'
+ if any(p in{'tests','testing','test','benches','bench','integration','examples'}for p in parts)or name in{'test.zig','tests.zig','testing.zig'}or name.endswith(('_test.zig','_tests.zig','_integration.zig','_bench.zig')):return'test_benchmark_or_integration_source'
  if parts[0]=='zig'and parts[1]in{'tools','deploy'}:return'build_or_operational_tool_source'
  return'implementation_source'
 def embedded_locks():
