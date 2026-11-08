@@ -46,9 +46,11 @@ class Tests(unittest.TestCase):
    root=pathlib.Path(temp)/'phase';spec={'run_token':'a'*32,'daemon_id':'fixed','python':{'path':'/usr/bin/python3.12'},'node':{'path':'/pinned/node'},'shim':{'path':str(P/'docker_cli.py')},'docker_socket':'/var/run/docker.sock','docker_api_version':'1.45'}
    lease=mock.Mock();lease.line='0::/owned/probe\n';gate=mock.Mock();gate.cleanup.return_value={'passed':True,'rows':[{'cid':'c'*64,'stopped_removed_absent':True}]}
    server=mock.Mock();server.close_bounded.side_effect=ValueError('controlled server close error');readlink=api.os.readlink
-   with mock.patch.object(api,'checked',side_effect=lambda v:pathlib.Path(v['path'])),mock.patch.object(api,'namespace_argv',return_value=['bwrap','--','node','fixed-main']),mock.patch.object(api.os,'readlink',side_effect=lambda v,*a,**kw:'namespace:[owned]'if str(v).startswith('/proc/self/ns/')else readlink(v,*a,**kw)),mock.patch.object(api,'RecordingGate',return_value=gate),mock.patch.object(api,'Server',return_value=server),mock.patch.object(api.threading,'Thread',return_value=mock.Mock()),mock.patch.object(api.subprocess,'Popen',side_effect=ValueError('controlled child-start failure')):
-    value=api.phase(spec,root,lease,[1,2],'b'*64,time.monotonic_ns()+30*10**9,'failed-child','postgres',False,[],mock.Mock(),0)
+   with mock.patch.object(api,'checked',side_effect=lambda v:pathlib.Path(v['path'])),mock.patch.object(api,'namespace_argv',return_value=['bwrap','--','node','fixed-main']),mock.patch.object(api.os,'readlink',side_effect=lambda v,*a,**kw:'namespace:[owned]'if str(v).startswith('/proc/self/ns/')else readlink(v,*a,**kw)),mock.patch.object(api,'RecordingGate',return_value=gate)as gate_factory,mock.patch.object(api.time,'monotonic_ns',return_value=200*10**9),mock.patch.object(api,'Server',return_value=server),mock.patch.object(api.threading,'Thread',return_value=mock.Mock()),mock.patch.object(api.subprocess,'Popen',side_effect=ValueError('controlled child-start failure')):
+    value=api.phase(spec,root,lease,[1,2],'b'*64,190*10**9,'failed-child','postgres',False,[],mock.Mock(),0)
    self.assertFalse(value['passed']);gate.cleanup.assert_called_once();self.assertTrue(value['container_cleanup']['passed']);self.assertIn('gate_server:ValueError',value['cleanup_errors'])
+   self.assertEqual(gate_factory.call_args.args[1].deadline_ns,280*10**9)  # Original190+90, NOT now200+90.
+
  def test_actual_consensus_table_is_source_full17_not_synthetic_two(self):
   self.assertIn('CONSENSUS_VERSION_HEIGHTS='+','.join(map(str,range(17))),api.PUBLIC_ENV);self.assertNotIn('CONSENSUS_VERSION_HEIGHTS=0,1',api.PUBLIC_ENV)
  def test_rootless_PG_exact_User_tmpfs_and_Leo_full_labels(self):
@@ -144,6 +146,8 @@ class Tests(unittest.TestCase):
     with self.subTest(entry=name),self.assertRaisesRegex(ValueError,'cached local bytecode'):exec(compile(ast.Module(body=[guard],type_ignores=[]),name,'exec'),{'HERE':here})
  def label_fixture(self):
   gs={'manifest':{'taskRoot':'/tmp/public-label-control','domains':[{'name':'aleo_a','port':23030},{'name':'aleo_b','port':23031}],**api.IMAGES},'run_token':'a'*32,'internal_network':'b'*64,'postgres_command':['postgres'],'public_node_env':api.PUBLIC_ENV}
+  import time
+  gs['original_deadline_ns']=time.monotonic_ns()+10**9
   selected=api.container_templates(gs,1)[0];return gs,selected
  def test_exact_pinned_image_labels_are_full_create_and_owned_labels(self):
   import docker_gate
@@ -158,7 +162,7 @@ class Tests(unittest.TestCase):
   class Daemon:
    deadline_ns=time.monotonic_ns()+10**9
    removed=False
-   def call(self,method,path,body=None,maximum=None):
+   def call(self,method,path,body=None,maximum=None,cleanup_deadline_ns=None):
     calls.append((method,path))
     if method=='GET':return (404,b'')if self.removed else(200,json.dumps(row).encode())
     if method=='DELETE':self.removed=True;return 204,b''
@@ -171,13 +175,13 @@ class Tests(unittest.TestCase):
    row={'Id':cid,'Name':'/'+selected['name'],'Image':selected['image'],'Config':{'Labels':dict(selected['labels'])},'State':{'Running':False}};change(row);calls=[]
    class Daemon:
     deadline_ns=time.monotonic_ns()+10**9
-    def call(self,method,path,body=None,maximum=None):calls.append(method);return 200,json.dumps(row).encode()
+    def call(self,method,path,body=None,maximum=None,cleanup_deadline_ns=None):calls.append(method);return 200,json.dumps(row).encode()
    gate=api.Gate(gs,Daemon(),None);gate.containers[cid]=selected;value=gate.cleanup();self.assertFalse(value['passed']);self.assertEqual(calls,['GET']);self.assertFalse(value['rows'][0]['stopped_removed_absent'])
  def test_actual_create_branch_rejects_unproven_image_label_map_before_create(self):
   import time
   gs,selected=self.label_fixture();gs['original_deadline_ns']=time.monotonic_ns()+10**9;calls=[]
   class Daemon:
-   def call(self,method,path,body=None,maximum=None):
+   def call(self,method,path,body=None,maximum=None,cleanup_deadline_ns=None):
     calls.append((method,path))
     if path.startswith('/containers/'):return 404,b''
     if path.startswith('/images/'):return 200,json.dumps({'Id':selected['image'],'RepoDigests':[selected['reference']],'Os':'linux','Architecture':'amd64','Config':{'Labels':{},'Volumes':None}}).encode()
@@ -191,8 +195,50 @@ class Tests(unittest.TestCase):
   class Daemon:
    deadline_ns=time.monotonic_ns()+10**9
    removed=False
-   def call(self,method,path,body=None,maximum=None):
+   def call(self,method,path,body=None,maximum=None,cleanup_deadline_ns=None):
     if method=='DELETE':self.removed=True;return 204,b''
     return (404,b'')if self.removed else(200,json.dumps(row).encode())
   gate=api.Gate(gs,Daemon(),None);gate.attempted[selected['name']]=selected;value=gate.cleanup();self.assertTrue(value['passed']);self.assertEqual(list(gate.containers),[cid]);self.assertTrue(value['rows'][0]['stopped_removed_absent'])
+ def test_stop10_cleanup_margin_is_bounded_and_never_changes_execution_budget(self):
+  import docker_gate
+  with mock.patch.object(docker_gate.time,'monotonic_ns',return_value=10**9):
+   route='/containers/'+'c'*64+'/stop?t=10'
+   self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,'POST',route),11*10**9)
+   self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,'POST',route,100*10**9),13*10**9)
+   self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,'POST',route,2*10**9),2*10**9)
+   for method,path in [('GET',route),('POST',route.replace('t=10','t=11')),('DELETE','/containers/'+'c'*64+'?v=1')]:self.assertEqual(docker_gate.daemon_request_deadline(100*10**9,method,path,100*10**9),11*10**9)
+   for end in [10**9,101*10**9,None]:
+    if end is not None:
+     with self.assertRaises(ValueError):docker_gate.daemon_request_deadline(100*10**9,'POST',route,end)
+ def test_actual_bounded_call_exposes_margin_only_during_explicit_caller_cleanup(self):
+  from types import SimpleNamespace
+  daemon=mock.Mock(deadline_ns=100);daemon.call.return_value=(204,b'');gate=api.Gate({'original_deadline_ns':10},daemon,None)
+  gate.bounded_call('POST','/containers/'+'c'*64+'/stop?t=10');self.assertNotIn('cleanup_deadline_ns',daemon.call.call_args.kwargs)
+  gate.cleaning=True;gate.bounded_call('POST','/containers/'+'c'*64+'/stop?t=10');self.assertEqual(daemon.call.call_args.kwargs['cleanup_deadline_ns'],100)
+  # Full-case caller already owns120s after its direct cleanup; shared Gate
+  # must not impose Docker-prerequisite's separate90s profile budget.
+  daemon.deadline_ns=10+120*10**9;daemon.call.reset_mock();gate.bounded_call('GET','/containers/'+'c'*64+'/json')
+  self.assertEqual(daemon.call.call_args.kwargs['cleanup_deadline_ns'],10+120*10**9)
+ def test_actual_Gate_crossprofile_remaining_cleanup_deadlines_and_stop_margin(self):
+  import docker_gate
+  class Transport:
+   def __init__(self,end):self.deadline_ns=end;self.observed=[]
+   def call(self,method,path,body=None,maximum=None,cleanup_deadline_ns=None):
+    self.observed.append(docker_gate.daemon_request_deadline(self.deadline_ns,method,path,cleanup_deadline_ns));return 204,b''
+  for end in [100*10**9,130*10**9]:
+   daemon=Transport(end);gate=api.Gate({'original_deadline_ns':10*10**9},daemon,None);route='/containers/'+'c'*64+'/stop?t=10'
+   with mock.patch.object(docker_gate.time,'monotonic_ns',return_value=20*10**9):
+    gate.bounded_call('POST',route);self.assertEqual(daemon.observed[-1],30*10**9)
+    gate.cleaning=True;gate.bounded_call('POST',route);self.assertEqual(daemon.observed[-1],32*10**9)
+    gate.bounded_call('GET',route);self.assertEqual(daemon.observed[-1],30*10**9)
+    daemon.deadline_ns=21*10**9;gate.bounded_call('POST',route);self.assertEqual(daemon.observed[-1],21*10**9)
+
+ def test_failed_phase_retains_closed_owned_State_kernel_and_no_raw_messages(self):
+  import tempfile,time
+  state={'Status':'running','Running':True,'Pid':123,'ExitCode':0,'OOMKilled':False,'StartedAt':'2026-11-08T00:00:00Z','FinishedAt':'0001-01-01T00:00:00Z','private':'DO-NOT-EXPORT-STATE'};gs={'original_deadline_ns':time.monotonic_ns()+10**9};daemon=mock.Mock(deadline_ns=gs['original_deadline_ns'],committed=None);gate=api.Gate(gs,daemon,None);gate.containers={'c'*64:{}};gate.owned=mock.Mock(return_value={'State':state});gate.actual_kernel=[{'cid':'c'*64,'actual_NoNewPrivs':'1'}];gate.failed='ValueError:DO-NOT-EXPORT-ERROR';result={}
+  with tempfile.TemporaryDirectory()as temp:
+   root=pathlib.Path(temp);(root/'node.stderr').write_text('DO-NOT-EXPORT-STDERR');api.retain_failure_state(result,gate,root)
+  encoded=json.dumps(result);self.assertNotIn('DO-NOT-EXPORT',encoded);self.assertEqual(result['actual_kernel'],gate.actual_kernel);row=result['owned_container_State'][0];self.assertTrue(row['full_owned_identity_verified']);self.assertEqual(set(row['State']),{'Status','Running','Pid','ExitCode','OOMKilled','StartedAt','FinishedAt'});self.assertEqual(result['latched_API_failure']['type'],'ValueError');self.assertIn('node_stderr_fingerprint',result)
+ def test_state_metadata_error_keeps_prior_identity_without_publishing_nested_values(self):
+  gate=mock.Mock();gate.containers={'c'*64:{}};gate.owned.return_value={'State':{'Status':{'private':'DO-NOT-EXPORT'},'Running':True,'Pid':1,'ExitCode':0,'OOMKilled':False,'StartedAt':'0','FinishedAt':'0'}};rows=api.owned_state_snapshot(gate);self.assertTrue(rows[0]['full_owned_identity_verified']);self.assertNotIn('State',rows[0]);self.assertNotIn('DO-NOT-EXPORT',json.dumps(rows));gate.owned.side_effect=ValueError('DO-NOT-EXPORT');rows=api.owned_state_snapshot(gate);self.assertFalse(rows[0]['full_owned_identity_verified']);self.assertNotIn('DO-NOT-EXPORT',json.dumps(rows))
 if __name__=='__main__':unittest.main()

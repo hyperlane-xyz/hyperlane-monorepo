@@ -104,8 +104,8 @@ def kernel_network(pid,cid,network,expected):
  return {'cid':cid,'pid':pid,'start':start,'network':network,'actual_capability_hex':caps,'actual_NoNewPrivs':status['NoNewPrivs'].strip(),'actual_UID_fields':[int(v)for v in status['Uid'].split()],'actual_GID_fields':[int(v)for v in status['Gid'].split()],'actual_cgroup_line':line,'actual_kernel_limits':limits,**routes}
 class LostReplyDaemon(Daemon):
  def __init__(self,*a,inject=False,**k):super().__init__(*a,**k);self.inject=inject;self.committed=None
- def call(self,method,path,body=None,maximum=16*MIB):
-  status,raw=super().call(method,path,body,maximum)
+ def call(self,method,path,body=None,maximum=16*MIB,cleanup_deadline_ns=None):
+  status,raw=super().call(method,path,body,maximum,cleanup_deadline_ns=cleanup_deadline_ns)
   if self.inject and method=='POST'and path.startswith('/containers/create?name=')and status==201:
    self.inject=False;self.committed={'cid':decode(raw)['Id'],'name':path.split('=',1)[1]};raise TimeoutError('controlled actual committed-create lost reply')
   return status,raw
@@ -121,6 +121,37 @@ class RecordingGate(Gate):
    rows=[r.split()for r in Path('/proc',str(v['pid']),'mountinfo').read_text().splitlines()];found=[r for r in rows if len(r)>6 and r[4]=='/var/lib/postgresql/data'];need(len(found)==1,'exact actual PG data mount required');mount=found[0];index=mount.index('-');options=set(mount[5].split(','))|set(mount[index+3].split(','));size=[o for o in options if o.startswith('size=')]
    need(mount[index+1]=='tmpfs'and len(size)==1 and size[0]in {'size=2147483648','size=2097152k','size=2g'}and {'noexec','nosuid','uid=999','gid=999'}<=options,'actual PG tmpfs differs');v['actual_PG_tmpfs']={'path':mount[4],'filesystem':mount[index+1],'flags':sorted({'noexec','nosuid','uid=999','gid=999',*size})}
   v.update(kernel_network(v['pid'],cid,self.spec['internal_network'],self.containers[cid]['create_body']['HostConfig']));self.actual_kernel.append(v);return v
+
+
+def safe_failure(value):
+ if value is None:return None
+ raw=str(value).encode();kind=str(value).split(':',1)[0]
+ return {'type':kind if re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,127}',kind)else'Unclassified','message_bytes':len(raw),'message_sha256':hashlib.sha256(raw).hexdigest()}
+
+def owned_state_snapshot(gate):
+ rows=[]
+ for cid in list(gate.containers):
+  row={'cid':cid,'full_owned_identity_verified':False}
+  try:
+   value=gate.owned(cid);row['full_owned_identity_verified']=True;state=value['State'];keys=('Status','Running','Pid','ExitCode','OOMKilled','StartedAt','FinishedAt');v={k:state[k]for k in keys}
+   need(v['Status']in{'created','running','paused','restarting','removing','exited','dead'}and type(v['Running'])is bool and type(v['OOMKilled'])is bool,'Typed owned container State flags required')
+   need(all(type(v[k])is int and 0<=v[k]<2**31 for k in('Pid','ExitCode')),'Typed owned container State counters required')
+   need(all(isinstance(v[k],str)and re.fullmatch('[0-9T:Z.+-]{1,64}',v[k])for k in('StartedAt','FinishedAt')),'Typed owned container State clocks required')
+   row.update(State=v,observed_monotonic_ns=time.monotonic_ns(),scope='cleanup read-only observation; no execution/liveness credit')
+  except BaseException as error:row['observation_error']=safe_failure(type(error).__name__+':'+str(error))
+  rows.append(row)
+ return rows
+
+def retain_failure_state(result,gate,root):
+ # API worker drain is attempted first; the actual Gate lock bounds snapshots.
+ with gate.locked(gate.daemon.deadline_ns):
+  result['actual_kernel']=list(gate.actual_kernel);result['latched_API_failure']=safe_failure(gate.failed)
+  result['actual_NamespacePeer_Node']=gate.node_identity;result['committed_create']=gate.daemon.committed
+  result['owned_container_State']=owned_state_snapshot(gate)
+ for name in('node.stdout','node.stderr'):
+  path=root/name
+  if path.is_file():
+   value=pin(path);result[name.replace('.','_')+'_fingerprint']={k:value[k]for k in('bytes','sha256')}
 
 def close_bridge_bounded(bridge,deadline_ns):
  bridge.stopping.set();errors=[]
@@ -208,8 +239,11 @@ def phase(s,root,lease,identity,network_id,deadline,name,kind,lost,signals,cance
    try:
     v=decode(progress.read_bytes(),4096);need(set(v)=={'schema','phase','stage','attempt','observed_monotonic_ns'}and v['schema']==1 and v['phase']==name and v['stage']in {'starting','docker.info','docker.image','docker.run','docker.exec','docker.stop','native.height','finished'}and type(v['attempt'])is int and 0<=v['attempt']<=8192 and isinstance(v['observed_monotonic_ns'],str)and re.fullmatch('[0-9]{1,20}',v['observed_monotonic_ns']),'closed safe Node progress required');result['public_Node_progress']=v
    except BaseException as error:result.setdefault('cleanup_errors',[]).append('public_progress:'+type(error).__name__);result['passed']=False
+  daemon.deadline_ns=cleanup_deadline
+  try:retain_failure_state(result,gate,root)
+  except BaseException as error:result['diagnostic_error']=safe_failure(type(error).__name__+':'+str(error));result['passed']=False
   try:
-   daemon.deadline_ns=cleanup_deadline;clean=gate.cleanup();result['container_cleanup']=clean;result['bridge_records']=rows
+   clean=gate.cleanup();result['container_cleanup']=clean;result['bridge_records']=rows
    need(clean['passed']is True and len(clean['rows'])==1 and clean['rows'][0]['stopped_removed_absent']is True,'exact single CID cleanup missing')
   except BaseException as error:result.setdefault('cleanup_errors',[]).append('containers:'+type(error).__name__);result['passed']=False
   if bridge is not None:

@@ -144,6 +144,16 @@ def operation_deadline(original_deadline_ns):
     return min(original_deadline_ns, time.monotonic_ns()+10*10**9)
 
 
+def daemon_request_deadline(transport_deadline_ns,method,path,cleanup_deadline_ns=None):
+    if cleanup_deadline_ns is None:return operation_deadline(transport_deadline_ns)
+    now=time.monotonic_ns()
+    need(type(cleanup_deadline_ns)is int and now<cleanup_deadline_ns<=transport_deadline_ns,'Explicit remaining cleanup budget required')
+    # Stop grants a fixed10s grace before Engine kills; transport needs a small
+    # bounded reply margin. This applies ONLY to positively owned cleanup calls.
+    seconds=12 if method=='POST'and re.fullmatch(r'/containers/[0-9a-f]{64}/stop\?t=10',path)else 10
+    return min(transport_deadline_ns,cleanup_deadline_ns,now+seconds*10**9)
+
+
 class Daemon:
     def __init__(self, path, identity, api, deadline_ns):
         self.path, self.identity, self.api = path, identity, api
@@ -157,8 +167,8 @@ class Daemon:
         try:yield
         finally:self.local.deadline_ns = previous
 
-    def call(self, method, path, body=None, maximum=LIMIT):
-        deadline = operation_deadline(self.deadline_ns)
+    def call(self, method, path, body=None, maximum=LIMIT, cleanup_deadline_ns=None):
+        deadline = daemon_request_deadline(self.deadline_ns,method,path,cleanup_deadline_ns)
         if getattr(self.local, 'deadline_ns', None) is not None:
             deadline = min(deadline, self.local.deadline_ns)
         info = os.stat(self.path, follow_symlinks=False)
@@ -236,7 +246,9 @@ class Gate:
         return decode(raw,LIMIT) if raw else None
 
     def bounded_call(self, method, path, body=None, maximum=LIMIT):
-        status, raw = self.daemon.call(method,path,body,maximum=maximum)
+        if self.cleaning:
+            status,raw=self.daemon.call(method,path,body,maximum=maximum,cleanup_deadline_ns=self.daemon.deadline_ns)
+        else:status,raw=self.daemon.call(method,path,body,maximum=maximum)
         self.total_reply += len(raw)
         need(self.cleaning or self.total_reply <= 128*1024**2, 'whole Docker reply byte cap')
         return status,raw
