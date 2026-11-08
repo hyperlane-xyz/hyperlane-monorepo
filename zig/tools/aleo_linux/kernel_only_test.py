@@ -39,7 +39,7 @@ def conditions(text):
 
 
 def selected(rows, event='push', message='', ref='refs/heads/feat/zig-agent-rewrite', **inputs):
-    scope = {'github': N(event_name=event, ref=ref, event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=inputs.get('svm', False), cold_full_feature=inputs.get('cold', False), aleo_linux_prerequisite=inputs.get('aleo', False), aleo_linux_sdk_prerequisite=inputs.get('sdk', False), aleo_native_docker_prerequisite=inputs.get('docker', False), aleo_full_case=inputs.get('full', False)), 'contains': lambda text, needle: needle in text}
+    scope = {'github': N(event_name=event, ref=ref, event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=inputs.get('svm', False), cold_full_feature=inputs.get('cold', False), aleo_linux_prerequisite=inputs.get('aleo', False), aleo_linux_sdk_prerequisite=inputs.get('sdk', False), aleo_native_docker_prerequisite=inputs.get('docker', False), aleo_full_case=inputs.get('full', False), paired_linux=inputs.get('paired', False)), 'contains': lambda text, needle: needle in text}
     def evaluate(value):
         value = value.removeprefix('${{ ').removesuffix(' }}')
         value = re.sub(r'!(?!=)', ' not ', value).replace('&&', ' and ').replace('||', ' or ').strip()

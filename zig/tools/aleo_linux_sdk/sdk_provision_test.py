@@ -339,7 +339,7 @@ class Tests(unittest.TestCase):
         text=(HERE.parents[2]/'.github/workflows/zig-agents.yml').read_text()
         return text,ns['conditions'](text),ns['selected'],ns['conditions']
     def test_actual_sdk_route_isolated_and_both_kernel_requests_fail_closed(self):
-        text,rows,selected,_=self.routes();self.assertEqual(len(rows),15)
+        text,rows,selected,_=self.routes();self.assertEqual(len(rows),18)
         for suffix in ['', ' [zig-native-case]', ' [zig-svm-prerequisites-only]', ' [zig-native-http-diagnostic]']:
             self.assertEqual(selected(rows,message='[zig-aleo-sdk-only]'+suffix),{'aleo-linux-sdk-prerequisite'})
         for suffix in ['', ' [zig-native-case] [zig-svm-prerequisites-only]']:

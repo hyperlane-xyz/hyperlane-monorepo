@@ -444,6 +444,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=pathlib.Path, default=ROOT / "zig/zig-out/bin/relayer")
     parser.add_argument("--oracle", type=pathlib.Path, default=relayer_process.IMMUTABLE_ORACLE)
+    parser.add_argument("--tool-manifest", type=pathlib.Path)
+    parser.add_argument("--tool-manifest-sha256")
+    parser.add_argument("--tool-source-commit")
     parser.add_argument("--output", type=pathlib.Path, default=ROOT / "zig/bench/results/public-relay-process.json")
     parser.add_argument("--compile-only", action="store_true")
     args = parser.parse_args()
@@ -452,7 +455,7 @@ def main():
         print(json.dumps({"compiled": list(contracts)}))
         return
     binary = relayer_process.pin(args.binary, "relayer")
-    oracle = relayer_process.verified_oracle(args.oracle)
+    oracle = relayer_process.verified_oracle(args.oracle,args.tool_manifest,args.tool_manifest_sha256,args.tool_source_commit)
     result = {
         "passed": False,
         "scope": __doc__,

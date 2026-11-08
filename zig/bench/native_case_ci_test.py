@@ -90,7 +90,11 @@ class DispatchTests(unittest.TestCase):
             if line.startswith('  ') and not line.startswith('   ') and line.endswith(':'): current = line.strip()[:-1]
             if line.startswith('    if: '): conditions[current] = line[8:]
         ordinary = {'svm-prerequisites', 'unit', 'evm', 'native-http', 'native-linux', 'container', 'vm-images', 'full-sdk-native', 'cold-full-feature', 'native-harness-controls'}
-        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs', 'aleo-linux-prerequisite', 'aleo-linux-sdk-prerequisite', 'aleo-native-docker-prerequisite', 'aleo-full-case'})
+        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs', 'aleo-linux-prerequisite', 'aleo-linux-sdk-prerequisite', 'aleo-native-docker-prerequisite', 'aleo-full-case'} | {'paired-linux-inputs', 'paired-linux-functional', 'paired-linux-runtime'})
+        paired = "((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))"
+        prefix = '${{ !' + paired + ' && ('
+        self.assertTrue(all(v.startswith(prefix) and v.endswith(') }}') for k,v in conditions.items() if not k.startswith('paired-linux-')))
+        conditions = {k: '${{ ' + v[len(prefix):-4] + ' }}' for k,v in conditions.items() if not k.startswith('paired-linux-')}
         full = "!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case))"
         for name, condition in conditions.items():
             if name != 'aleo-full-case':self.assertTrue(condition.startswith('${{ ' + full + ' && ('), name)
@@ -208,7 +212,7 @@ class DispatchTests(unittest.TestCase):
         from types import SimpleNamespace as N
         code = value.removeprefix('${{ ').removesuffix(' }}')
         code = re.sub(r'!(?!=)', ' not ', code).replace('&&', ' and ').replace('||', ' or ').strip()
-        context = {'github': N(event_name=event, ref=ref, event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk, aleo_native_docker_prerequisite=docker, aleo_full_case=full), 'contains': lambda text, needle: needle in text}
+        context = {'github': N(event_name=event, ref=ref, event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk, aleo_native_docker_prerequisite=docker, aleo_full_case=full, paired_linux=False), 'contains': lambda text, needle: needle in text}
         return bool(eval(compile(code, '<actual-workflow-condition>', 'eval'), {'__builtins__': {}}, context))
 
     def test_fullcase_request_cannot_run_native_case_or_old_dedicated_jobs(self):

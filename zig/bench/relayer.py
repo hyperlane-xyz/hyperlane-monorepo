@@ -38,7 +38,7 @@ import validator
 ROOT = evm.ROOT
 ORIGIN, DESTINATION, DESTINATION_ALT = 9913371, 9913372, 9913373
 PUBLIC_KEY = "0x" + "11" * 32
-CURL_LIBRARY = "/usr/lib/libcurl.4.dylib"
+CURL_LIBRARY = relayer_process.curl_library(allow_environment=False)
 ACCEPTED_ORACLE_SHA256 = "8e295002b44b4248d00d6627aaa47a21" + "2315f6f837f3a2d652f2e7f6ada69fd9"
 
 
@@ -94,7 +94,7 @@ def compiler_inventory():
     return [line for line in result.stdout.splitlines() if line.split() and pathlib.Path(line.split()[-1]).name in names]
 
 
-def load_provenance(path, binaries, oracle):
+def load_provenance(path, binaries, oracle, tool_manifest=None, tool_manifest_sha256=None, tool_source_commit=None):
     value = json.loads(path.read_text())
     if value.get("baseline") != "c520224":
         raise RuntimeError("baseline provenance must identify c520224")
@@ -112,8 +112,17 @@ def load_provenance(path, binaries, oracle):
     actual_oracle = "".join(digest(oracle)).lower()
     expected_text = "".join(expected_oracle) if isinstance(expected_oracle, list) else expected_oracle
     normalized_oracle = expected_text.lower().removeprefix("0x")
-    if normalized_oracle != ACCEPTED_ORACLE_SHA256 or actual_oracle != ACCEPTED_ORACLE_SHA256:
-        raise RuntimeError("oracle does not match accepted immutable provenance")
+    if sys.platform == "darwin":
+        if any(v is not None for v in (tool_manifest,tool_manifest_sha256,tool_source_commit)):
+            raise RuntimeError("Linux tool manifest cannot override immutable Mac provenance")
+        if normalized_oracle != ACCEPTED_ORACLE_SHA256 or actual_oracle != ACCEPTED_ORACLE_SHA256:
+            raise RuntimeError("oracle does not match accepted immutable provenance")
+    elif sys.platform.startswith("linux"):
+        accepted=relayer_process.verified_oracle(oracle,tool_manifest,tool_manifest_sha256,tool_source_commit)
+        if normalized_oracle != actual_oracle or accepted != oracle.resolve():
+            raise RuntimeError("oracle differs from actual accepted Linux provenance")
+    else:
+        raise RuntimeError("unsupported paired provenance platform")
     return value
 
 
@@ -1317,6 +1326,9 @@ def parse_args():
     parser.add_argument("--rust-validator", type=pathlib.Path, default=ROOT / "rust/main/target/release/validator")
     parser.add_argument("--zig-validator", type=pathlib.Path, default=ROOT / "zig/zig-out/bin/validator")
     parser.add_argument("--oracle", type=pathlib.Path, default=ROOT / "zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle")
+    parser.add_argument("--tool-manifest", type=pathlib.Path)
+    parser.add_argument("--tool-manifest-sha256")
+    parser.add_argument("--tool-source-commit")
     parser.add_argument("--baseline-provenance", type=pathlib.Path)
     parser.add_argument("--relayer-process-proof", type=pathlib.Path, help="passing exact-native-binary three-ISM/batch/crash functional result; required for paired execution")
     parser.add_argument("--relayer-stream-proof", type=pathlib.Path, help="passing exact-native-binary WSS functional result; required for paired execution")
@@ -1393,7 +1405,7 @@ def main():
         return
     if not args.baseline_provenance:
         raise RuntimeError("--execute requires --baseline-provenance")
-    provenance = load_provenance(args.baseline_provenance, binaries, args.oracle)
+    provenance = load_provenance(args.baseline_provenance, binaries, args.oracle,args.tool_manifest,args.tool_manifest_sha256,args.tool_source_commit)
     pinned = {name: pin_binary(path, args.output, name) for name, path in binaries.items()}
     args.oracle = pin_binary(args.oracle, args.output, "oracle")
     if args.mode == "paired":

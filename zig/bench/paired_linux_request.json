@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "kind": "paired-linux-ci-v1",
+  "root_approved": false,
+  "inputs_enabled": false,
+  "functional_enabled": false,
+  "runtime_enabled": false,
+  "producer_source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",
+  "baseline_source_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
+  "baseline_profile": "locked-c520224-production-three-agent-linux-v1",
+  "qualified_cohort": {
+    "path": "zig/tools/aleo_linux_case/cohort-qualification.PENDING.json",
+    "bytes": 6583,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "bb30d8479dcd0ebc59f2ad17186e6d80",
+        "40d8169395a130123dac80cb2087d64e"
+      ]
+    }
+  },
+  "transport_requests": {
+    "ReleaseSafe": {
+      "path": "zig/tools/aleo_linux_case/transport-ReleaseSafe.PENDING.json",
+      "bytes": 3105,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "bae158250dfb71538bb510bc979b1d7a",
+          "12b694ce286763af8d79947dc73a4cd2"
+        ]
+      }
+    },
+    "ReleaseFast": {
+      "path": "zig/tools/aleo_linux_case/transport-ReleaseFast.PENDING.json",
+      "bytes": 3105,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "e2d51dbfbc241f90e2bd44628eeed9fb",
+          "01fba62df4cd2c5e8a044c6061af4c4b"
+        ]
+      }
+    }
+  },
+  "required_source": null,
+  "prepared_inputs": null,
+  "accepted_six": null,
+  "runtime_authority": null
+}

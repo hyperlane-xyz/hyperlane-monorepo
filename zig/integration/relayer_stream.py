@@ -988,7 +988,7 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
                     "contracts": {name: {"mailbox": settings[name]["mailbox"], "hook": settings[name]["merkleTreeHook"], "paymaster": settings[name]["interchainGasPaymaster"]} for name in settings},
                     "recipient": recipient,
                     "merkle_ism": merkle_ism,
-                    "tls": {"wss": True, "ca_hostname_verification": True, "certificate": "repository localhost fixture", "native_curl": "/usr/lib/libcurl.4.dylib"},
+                    "tls": {"wss": True, "ca_hostname_verification": True, "certificate": "repository localhost fixture", "native_curl": relayer_process.curl_library()},
                     "errors": [],
                 }
     finally:
@@ -1015,6 +1015,9 @@ def main():
     parser.add_argument("--url-library", type=pathlib.Path)
     parser.add_argument("--validator-binary", type=pathlib.Path, default=ROOT / "zig/zig-out/bin/validator")
     parser.add_argument("--oracle", type=pathlib.Path, default=relayer_process.IMMUTABLE_ORACLE)
+    parser.add_argument("--tool-manifest", type=pathlib.Path)
+    parser.add_argument("--tool-manifest-sha256")
+    parser.add_argument("--tool-source-commit")
     parser.add_argument("--reference", type=pathlib.Path, default=ROOT / "zig/reference/target/release/ziggy-rust-reference")
     parser.add_argument("--output", type=pathlib.Path, default=ROOT / "zig/bench/results/relayer-stream-process.json")
     parser.add_argument("--compile-only", action="store_true")
@@ -1026,7 +1029,7 @@ def main():
     url_library = validator_fixture.url_dependency(args.url_library)
     binary = relayer_process.pin(args.binary, "relayer")
     validator_binary = relayer_process.pin(args.validator_binary, "validator")
-    oracle = relayer_process.verified_oracle(args.oracle)
+    oracle = relayer_process.verified_oracle(args.oracle,args.tool_manifest,args.tool_manifest_sha256,args.tool_source_commit)
     reference = args.reference.resolve()
     inventory = ["zig/integration/relayer_stream.py", "zig/src/agents/relayer_task.zig", "zig/src/agents/origin_tasks.zig", "zig/src/agents/evm_origin.zig", "zig/src/agents/stream/relayer_bridge.zig", "zig/src/agents/stream/relayer.zig", "zig/src/agents/stream/protocol.zig", "zig/src/agents/stream/socket_owner.zig", "zig/src/agents/stream/relayer_store.zig", "zig/src/ops/metrics_schema.zig"]
     result = {"passed": False, "scope": __doc__, "validator_url_library": url_library, "functional_not_benchmark": True, "executables": {"relayer_sha256_chunks": sha(binary), "validator_sha256_chunks": sha(validator_binary), "rocks_oracle_sha256_chunks": sha(oracle), "rust_reference_sha256_chunks": sha(reference)}, "source_inventory_sha256_chunks": {path: sha(ROOT / path) for path in inventory}, "errors": []}

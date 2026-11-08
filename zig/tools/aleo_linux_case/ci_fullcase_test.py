@@ -18,12 +18,15 @@ class Routes(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
   cls.text=(REPO/'.github/workflows/zig-agents.yml').read_text();cls.ns=evaluator();cls.rows=cls.ns['conditions'](cls.text)
+  cls.legacy_text=cls.text.split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0].rstrip()+'\n';cls.legacy_text=cls.legacy_text.replace('      paired_linux:\n        description: Run reviewed Linux paired input/proof preparation; timings require separate final authority\n        type: boolean\n        default: false\n','',1)
+  prefix='    if: ${{ !'+"((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))"+' && ('
+  cls.legacy_text=''.join(('    if: ${{ '+line[len(prefix):-5]+' }}\n')if line.startswith(prefix)else line for line in cls.legacy_text.splitlines(True));cls.legacy_rows=cls.ns['conditions'](cls.legacy_text)
  def selected(self,**kw):return self.ns['selected'](self.rows,**kw)
  def test_exact15jobs_and_both_mode_serial_hardbounds(self):
-  self.assertEqual(len(self.rows),15);job=self.text.split('\n  aleo-full-case:',1)[1]
+  self.assertEqual(len(self.rows),18);self.assertEqual(len(self.legacy_rows),15);job=self.legacy_text.split('\n  aleo-full-case:',1)[1]
   for item in ['mode: [ReleaseSafe, ReleaseFast]','max-parallel: 1','timeout-minutes: 330','runs-on: depot-ubuntu-24.04-16','actions: read','persist-credentials: false']:self.assertIn(item,job)
  def test_all14_old_bodies_have_exact_inverse(self):
-  old=self.text.split('\n  aleo-full-case:',1)[0];old=old.replace(INPUT,'',1)
+  old=self.legacy_text.split('\n  aleo-full-case:',1)[0];old=old.replace(INPUT,'',1)
   lines=[];count=0
   for line in old.splitlines(True):
    prefix='    if: ${{ !'+FULL+' && ('
@@ -40,9 +43,9 @@ class Routes(unittest.TestCase):
    if sdk or kernel or docker:self.assertEqual(self.selected(event='workflow_dispatch',full=True,sdk=sdk,aleo=kernel,docker=docker),set())
   for marker in ['sdk','kernel','docker']:self.assertEqual(self.selected(message='[zig-aleo-fullcase-only] [zig-aleo-'+marker+'-only]'),set())
  def test_ordinary288_combinations_identical_to_original14(self):
-  old={k:v[len('${{ !'+FULL+' && ('):-4]+' }}'for k,v in self.rows.items()if k!='aleo-full-case'}
+  old={k:v[len('${{ !'+FULL+' && ('):-4]+' }}'for k,v in self.legacy_rows.items()if k!='aleo-full-case'}
   # v tail is ') }}'; reconstruct exact old expression, never drop arbitrary fields.
-  old={k:'${{ '+v[len('${{ !'+FULL+' && ('):-4]+' }}'for k,v in self.rows.items()if k!='aleo-full-case'}
+  old={k:'${{ '+v[len('${{ !'+FULL+' && ('):-4]+' }}'for k,v in self.legacy_rows.items()if k!='aleo-full-case'}
   count=0
   for event,ref,message,flags in itertools.product(['push','pull_request','workflow_dispatch'],['refs/heads/main','refs/heads/feat/zig-agent-rewrite'],['ordinary','[zig-native-case]','[zig-svm-prerequisites-only]'],itertools.product([False,True],repeat=4)):
    svm,cold,sdk,aleo=flags;kw=dict(event=event,ref=ref,message=message,svm=svm,cold=cold,sdk=sdk,aleo=aleo)
@@ -51,13 +54,13 @@ class Routes(unittest.TestCase):
  def test_unrelated_branch_and_PR_full_marker_do_not_activate(self):
   for event,ref in [('pull_request','refs/heads/feat/zig-agent-rewrite'),('push','refs/heads/main')]:self.assertNotIn('aleo-full-case',self.selected(event=event,ref=ref,message='[zig-aleo-fullcase-only]'))
  def test_all_python_invocations_isolated_and_no_raw_fallback(self):
-  job=self.text.split('\n  aleo-full-case:',1)[1]
+  job=self.legacy_text.split('\n  aleo-full-case:',1)[1]
   calls=[line for line in job.splitlines()if 'python3 'in line and 'apt-get'not in line]
   self.assertEqual(len(calls),4);self.assertTrue(all('python3 -I -B'in line for line in calls))
   self.assertNotIn('run-locally',job);self.assertNotIn('**',job);self.assertNotIn('workflow_dispatch:',job)
  def test_policy_cli_binds_absolute_checkout_path_for_select_and_execute(self):
   # Both actual CLI sites call pin(), which deliberately rejects relative paths.
-  job=self.text.split('\n  aleo-full-case:',1)[1]
+  job=self.legacy_text.split('\n  aleo-full-case:',1)[1]
   assigned=re.findall(r'^\s+POLICY=(.+)$',job,re.MULTILINE)
   self.assertEqual(assigned,['"$GITHUB_WORKSPACE/zig/tools/aleo_linux_case/ci_policy.PENDING.json"']*2)
   self.assertIn('--select',job);self.assertIn('--execute',job)

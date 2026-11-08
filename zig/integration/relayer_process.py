@@ -112,8 +112,30 @@ def pin(path,label):
  return target
 def port():
  with socket.socket()as sock:sock.bind(('127.0.0.1',0));return sock.getsockname()[1]
+def curl_library(allow_environment=True):
+ explicit=os.environ.get('HYPERLANE_CURL_LIBRARY')if allow_environment else None
+ if explicit:return explicit
+ if sys.platform=='darwin':return '/usr/lib/libcurl.4.dylib'
+ if sys.platform.startswith('linux'):
+  machine=__import__('platform').machine().lower();multiarch={'x86_64':'x86_64-linux-gnu','amd64':'x86_64-linux-gnu','aarch64':'aarch64-linux-gnu','arm64':'aarch64-linux-gnu'}.get(machine)
+  if multiarch is None:raise ValueError('unsupported Linux curl architecture')
+  paths={p.resolve(strict=True)for prefix in ['/usr/lib','/lib']if(p:=pathlib.Path(prefix)/multiarch/'libcurl.so.4').is_file()}
+  if len(paths)!=1:raise ValueError('missing or ambiguous fixed system libcurl.so.4')
+  return str(paths.pop())
+ raise ValueError('unsupported fixture platform')
+def fault_platform():
+ if sys.platform=='darwin':return '.dylib','DYLD_INSERT_LIBRARIES',['-isysroot','/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk']
+ if sys.platform.startswith('linux'):return '.so','LD_PRELOAD',[]
+ raise ValueError('unsupported crash interposition platform')
+def fault_compile(source,output,shared=False):
+ extension,loader,sdk=fault_platform()
+ flags=(['-dynamiclib']if extension=='.dylib'else['-shared','-fPIC'])if shared else[]
+ return ['/usr/bin/clang',*flags,'-O2','-Wall','-Wextra','-Werror',*sdk,str(source),'-o',str(output)]
+def fault_environment(library,database,proof):
+ extension,loader,sdk=fault_platform()
+ return {loader:str(library),'ZIGGY_SEAL_CRASH_DATABASE':str(database.resolve()),'ZIGGY_SEAL_CRASH_PROOF':str(proof.resolve())}
 def launch(binary,config,log,extra_environment=None):
- environment={'HYPERLANE_ZIG_DEFAULTS':str(config),'HYPERLANE_CURL_LIBRARY':'/usr/lib/libcurl.4.dylib'};environment.update(extra_environment or {})
+ environment={'HYPERLANE_ZIG_DEFAULTS':str(config),'HYPERLANE_CURL_LIBRARY':curl_library()};environment.update(extra_environment or {})
  launched=time.time();process=subprocess.Popen([str(binary)],cwd=ROOT,env=environment,stdout=log,stderr=log);process.ziggy_launch_unix_seconds=launched
  return process
 def stop(process,hard=False):
@@ -130,21 +152,32 @@ def wait(predicate,process,seconds,description):
   time.sleep(.05)
  raise AssertionError(f'deadline waiting for{description}')
 def crash_library():
- source=ROOT/'zig/integration/faults/seal_crash.c';identity=hashlib.sha256(source.read_bytes()).hexdigest();library=ROOT/'zig/integration/.cache'/('seal-crash-'+identity[:32]+'.dylib')
- command=['/usr/bin/clang','-dynamiclib','-O2','-Wall','-Wextra','-Werror','-isysroot','/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk',str(source),'-o',str(library)]
+ source=ROOT/'zig/integration/faults/seal_crash.c';identity=hashlib.sha256(source.read_bytes()).hexdigest();library=ROOT/'zig/integration/.cache'/('seal-crash-'+identity[:32]+fault_platform()[0])
+ command=fault_compile(source,library,shared=True)
  if not library.exists():subprocess.run(command,cwd=ROOT,check=True,capture_output=True)
- return library,{'scope':'fixture-only dyld interposition after actual task-owned WAL write; unchanged executable','library_sha256_chunks':sha(library),'source_sha256_chunks':sha(source),'compile_command':command}
+ return library,{'scope':'fixture-only '+fault_platform()[1]+' interposition after actual task-owned WAL write; unchanged executable','library_sha256_chunks':sha(library),'source_sha256_chunks':sha(source),'compile_command':command}
 def verify_crash_library(library):
- source=ROOT/'zig/integration/faults/seal_crash_test.c';identity=hashlib.sha256(source.read_bytes()).hexdigest();writer=ROOT/'zig/integration/.cache'/('seal-crash-test-'+identity[:32])
- if not writer.exists():subprocess.run(['/usr/bin/clang','-O2','-Wall','-Wextra','-Werror','-isysroot','/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk',str(source),'-o',str(writer)],check=True,capture_output=True)
+ source=ROOT/'zig/integration/faults/seal_crash_test.c';identity=hashlib.sha256(source.read_bytes()).hexdigest();writer=ROOT/'zig/integration/.cache'/('seal-crash-test-'+identity[:32]+('-linux'if sys.platform.startswith('linux')else''))
+ if not writer.exists():subprocess.run(fault_compile(source,writer),check=True,capture_output=True)
  with tempfile.TemporaryDirectory(prefix='ziggy-public-relayer-process-interposer-')as directory:
-  root=pathlib.Path(directory);database=root/'crash-db-0';database.mkdir();other=root/'control-db';other.mkdir();proof=root/'proof.json'
-  environment={'DYLD_INSERT_LIBRARIES':str(library),'ZIGGY_SEAL_CRASH_DATABASE':str(database.resolve()),'ZIGGY_SEAL_CRASH_PROOF':str(proof.resolve())}
-  control=subprocess.run([str(writer),str(other/'000004.log'),str(root/'control-after')],env=environment,timeout=3)
-  assert control.returncode==0 and(root/'control-after').exists()and not proof.exists(),'unrelated path must never arm fault'
-  armed=subprocess.run([str(writer),str(database/'000004.log'),str(root/'after')],env=environment,timeout=3)
-  assert armed.returncode==-signal.SIGKILL and proof.exists()and not(root/'after').exists(),'fault must kill after durable WAL write before returning'
- return {'positive_real_write_sigkill':True,'unrelated_path_negative_control':True,'source_sha256_chunks':sha(source),'writer_sha256_chunks':sha(writer)}
+  root=pathlib.Path(directory);database=root/'crash-db-0';database.mkdir();other=root/'control-db';other.mkdir();near=root/'crash-db-0-other';near.mkdir();proof=root/'proof.json'
+  environment=fault_environment(library,database,proof)
+  escaped=database/'escaped.log';escaped.symlink_to(other/'escaped.log')
+  negatives=[other/'000004.log',near/'000004.log',database/'000004.txt',escaped]
+  for index,path in enumerate(negatives):
+   after=root/f'control-after-{index}'
+   control=subprocess.run([str(writer),str(path),str(after)],env=environment,timeout=3)
+   assert control.returncode==0 and after.exists()and not proof.exists(),'unrelated/non-WAL/escaped path must never arm fault'
+  modes=['write','pwrite','writev']+(['pwrite64']if sys.platform.startswith('linux')else[])
+  fixture='dyld-real-wal-write'if sys.platform=='darwin'else'ld-preload-real-wal-write'
+  for mode in modes:
+   wal=database/f'{mode}.log';after=root/f'after-{mode}'
+   armed=subprocess.run([str(writer),str(wal),str(after),mode],env=environment,timeout=3)
+   assert armed.returncode==-signal.SIGKILL and proof.exists()and not after.exists(),'fault must kill after durable WAL write before returning'
+   value=json.loads(proof.read_text());assert value=={'fixture':fixture,'seal_wal_fsynced_before_sigkill':True}
+   assert b'zig_relayer_payload_link_v1/'in wal.read_bytes(),'tagged WAL bytes must survive actual SIGKILL'
+   proof.unlink()
+ return {'positive_real_write_sigkill':True,'unrelated_path_negative_control':True,'write_modes':modes,'path_negative_count':len(negatives),'source_sha256_chunks':sha(source),'writer_sha256_chunks':sha(writer)}
 def compile_contracts():
  evm.CACHE=ROOT/'zig/integration/.cache/relayer-contracts';evm.CACHE.mkdir(parents=True,exist_ok=True)
  evm.CONTRACTS={name:path for name,path in evm.CONTRACTS.items()if name in ['Mailbox','MerkleTreeHook','TestIsm','TestRecipient','TestPostDispatchHook','StorageMessageIdMultisigIsm','StorageMerkleRootMultisigIsm']}
@@ -234,8 +267,21 @@ SOURCE_FINALITY_GRACE_SECONDS=30
 MULTICALL3='0xcA11bde05977b3631167028862bE2a173976CA11'
 IMMUTABLE_ORACLE=ROOT/'zig/bench/results/disk-preparation-20261106/rocks-helper-functional/ziggy-rocks-oracle'
 IMMUTABLE_ORACLE_SHA256='8e295002b44b4248d00d6627aaa47a21'+'2315f6f837f3a2d652f2e7f6ada69fd9'
-def verified_oracle(path):
- path=path.resolve();assert hashlib.sha256(path.read_bytes()).hexdigest()==IMMUTABLE_ORACLE_SHA256,'oracle does not match accepted immutable sidecar-proof helper';return path
+def verified_oracle(path,tool_manifest=None,tool_manifest_sha256=None,tool_source_commit=None):
+ trio=(tool_manifest,tool_manifest_sha256,tool_source_commit)
+ if sys.platform=='darwin':
+  if any(value is not None for value in trio):raise ValueError('Linux tool manifest cannot override immutable Mac oracle')
+  path=path.resolve();assert hashlib.sha256(path.read_bytes()).hexdigest()==IMMUTABLE_ORACLE_SHA256,'oracle does not match accepted immutable sidecar-proof helper';return path
+ if not sys.platform.startswith('linux'):raise ValueError('unsupported oracle platform')
+ if any(value is None for value in trio):raise ValueError('Linux oracle requires complete tool manifest SHA and producer Source')
+ import importlib.util,platform
+ source=ROOT/'zig/bench/native_case_tools.py';spec=importlib.util.spec_from_file_location('functional_oracle_native_tools',source);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+ machine=module.MACHINES.get(platform.machine().lower())
+ if machine is None:raise ValueError('unsupported Linux tool machine')
+ tools=module.load_manifest(pathlib.Path(tool_manifest),tool_manifest_sha256,tool_source_commit,machine);expected=tools['ziggy-rocks-oracle'];path=path.resolve(strict=True)
+ if str(path)!=expected['path']or path.stat().st_size!=expected['bytes']or hashlib.sha256(path.read_bytes()).hexdigest()!=expected['sha256']:raise ValueError('oracle differs from exact Source-qualified tool member')
+ return path
+
 def message_transaction(chain,proxy,message):
  matches=[]
  for transaction_hash in dict.fromkeys(proxy.raw_transactions):
@@ -696,11 +742,11 @@ def static_contract_tests():
  receipt['logs']=original_events
  return passed
 def main():
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/relayer');parser.add_argument('--url-library',type=pathlib.Path);parser.add_argument('--validator-binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');parser.add_argument('--oracle',type=pathlib.Path,default=IMMUTABLE_ORACLE);parser.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/relayer-process.json');parser.add_argument('--compile-only',action='store_true');parser.add_argument('--skip-expenditure-assert',action='store_true',help='Diagnostic only; result never passes expenditure acceptance');parser.add_argument('--keep-fixture',type=pathlib.Path);args=parser.parse_args()
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/relayer');parser.add_argument('--url-library',type=pathlib.Path);parser.add_argument('--validator-binary',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');parser.add_argument('--oracle',type=pathlib.Path,default=IMMUTABLE_ORACLE);parser.add_argument('--tool-manifest',type=pathlib.Path);parser.add_argument('--tool-manifest-sha256');parser.add_argument('--tool-source-commit');parser.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/relayer-process.json');parser.add_argument('--compile-only',action='store_true');parser.add_argument('--skip-expenditure-assert',action='store_true',help='Diagnostic only; result never passes expenditure acceptance');parser.add_argument('--keep-fixture',type=pathlib.Path);args=parser.parse_args()
  contracts=compile_contracts()
  if args.compile_only:print(json.dumps({'compiled':list(contracts)}));return
  url_library=validator_fixture.url_dependency(args.url_library)
- binary=pin(args.binary,'relayer');validator_binary=pin(args.validator_binary,'validator');oracle=verified_oracle(args.oracle);fault_library,fault_identity=crash_library();fault_identity['self_test']=verify_crash_library(fault_library);args.output.parent.mkdir(parents=True,exist_ok=True)
+ binary=pin(args.binary,'relayer');validator_binary=pin(args.validator_binary,'validator');oracle=verified_oracle(args.oracle,args.tool_manifest,args.tool_manifest_sha256,args.tool_source_commit);fault_library,fault_identity=crash_library();fault_identity['self_test']=verify_crash_library(fault_library);args.output.parent.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory(prefix='ziggy-public-relayer-process-')as directory,(evm.CACHE/'anvil.log').open('w')as anvil_log:
   temporary=pathlib.Path(directory);chain=evm.Chain(f'http://127.0.0.1:{port()}');anvil=subprocess.Popen(['anvil','--host','127.0.0.1','--port',chain.url.rsplit(':',1)[1],'--chain-id','31337','--silent'],cwd=ROOT,stdout=anvil_log,stderr=anvil_log);agents=[]
   try:
@@ -779,7 +825,7 @@ def main():
      crash_database=temporary/f'crash-db-{attempt}';crash_config=temporary/f'crash-config-{attempt}';crash_config.mkdir();crash_value=json.loads(json.dumps(value));crash_value['db']=str(crash_database);crash_value['metricsPort']=port();crash_value['whitelist']=[{'messageId':crash_message['id']}];(crash_config/'public.json').write_text(json.dumps(crash_value))
      with (temporary/f'relayer-crash-{attempt}.log').open('w')as log:
       crash_proof=temporary/f'seal-crash-proof-{attempt}.json'
-      crashing=launch(binary,crash_config,log,{'DYLD_INSERT_LIBRARIES':str(fault_library),'ZIGGY_SEAL_CRASH_DATABASE':str(crash_database.resolve()),'ZIGGY_SEAL_CRASH_PROOF':str(crash_proof.resolve())});agents.append(crashing)
+      crashing=launch(binary,crash_config,log,fault_environment(fault_library,crash_database,crash_proof));agents.append(crashing)
       try:crashing.wait(timeout=45)
       except subprocess.TimeoutExpired:stop(crashing)
       assert crashing.returncode==-signal.SIGKILL and crash_proof.exists(),('real WAL crash hook was not reached',crashing.returncode)

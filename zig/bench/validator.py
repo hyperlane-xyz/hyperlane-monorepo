@@ -37,8 +37,29 @@ def source_inventory():
   path=ROOT/name
   if path.exists():entries[name]=digest(path)
  return entries
+def curl_library():
+ if sys.platform=='darwin':return '/usr/lib/libcurl.4.dylib'
+ if not sys.platform.startswith('linux'):raise ValueError('unsupported validator curl platform')
+ multiarch={'x86_64':'x86_64-linux-gnu','amd64':'x86_64-linux-gnu','aarch64':'aarch64-linux-gnu','arm64':'aarch64-linux-gnu'}.get(platform.machine().lower())
+ if multiarch is None:raise ValueError('unsupported Linux validator architecture')
+ paths={p.resolve(strict=True)for prefix in ['/usr/lib','/lib']if(p:=pathlib.Path(prefix)/multiarch/'libcurl.so.4').is_file()}
+ if len(paths)!=1:raise ValueError('missing or ambiguous fixed system libcurl.so.4')
+ return str(paths.pop())
+CURL_LIBRARY=curl_library()
+def validation_references(message_reference,evm_oracle):
+ if sys.platform=='darwin'and message_reference is None and evm_oracle is None:return ROOT/'zig/reference/target/release/ziggy-rust-reference',ROOT/'zig/reference/evm/target/release/ziggy-evm-oracle',None
+ if not sys.platform.startswith('linux'):raise ValueError('explicit Linux validation helpers cannot replace Mac defaults')
+ if message_reference is None or evm_oracle is None:raise ValueError('Linux validator requires message-reference and evm-oracle')
+ import importlib.util
+ source=ROOT/'zig/bench/native_case_tools.py';spec=importlib.util.spec_from_file_location('validator_reference_native_tools',source);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);machine=module.MACHINES.get(platform.machine().lower())
+ if machine is None:raise ValueError('unsupported Linux reference machine')
+ result=[];pins={}
+ for label,path in [('message_reference',message_reference),('evm_oracle',evm_oracle)]:
+  path=path.resolve(strict=True);elf=module.validate_elf(path,machine);pins[label]={'path':str(path),'bytes':path.stat().st_size,'sha256_chunks':digest(path),'elf':elf};result.append(path)
+ return result[0],result[1],pins
+
 def daemon_environment(name, config, url_library):
- env={'HYPERLANE_ZIG_DEFAULTS':str(config),'HYPERLANE_CURL_LIBRARY':'/usr/lib/libcurl.4.dylib'}
+ env={'HYPERLANE_ZIG_DEFAULTS':str(config),'HYPERLANE_CURL_LIBRARY':CURL_LIBRARY}
  if name=='zig':env['HYPERLANE_URL_LIBRARY']=url_library['pinned_path']
  return env
 
@@ -110,12 +131,14 @@ def checkpoint_objects(directory,count):
  except (OSError,ValueError,KeyError):return None
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--rust',type=pathlib.Path,default=ROOT/'rust/main/target/release/validator');p.add_argument('--zig',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');p.add_argument('--url-library',type=pathlib.Path,required=True);p.add_argument('--zig-mode',choices=['ReleaseSafe','ReleaseFast'],default='ReleaseSafe');p.add_argument('--consensus',choices=['majority','quorum','fallback'],default='majority');p.add_argument('--samples',type=int,default=5);p.add_argument('--catchup',type=int,default=32);p.add_argument('--steady',type=int,default=8);p.add_argument('--steady-interval-ms',type=int,default=1000);p.add_argument('--deadline',type=float,default=90);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/whole-validator-initial');p.add_argument('--team-idle',action='store_true');p.add_argument('--profile',choices=['rust','zig','both']);p.add_argument('--check-metrics',action='store_true');p.add_argument('--rust-build-description',default='production cargo --release with .cargo tokio_unstable; no target-cpu override');p.add_argument('--telemetry-description',default='Rust includes tracing/Prometheus/Tokio task metrics; Zig telemetry is incomplete');args=p.parse_args();args.rust=args.rust.resolve();args.zig=args.zig.resolve();args.output=args.output.resolve();args.output.mkdir(parents=True,exist_ok=True)
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--rust',type=pathlib.Path,default=ROOT/'rust/main/target/release/validator');p.add_argument('--zig',type=pathlib.Path,default=ROOT/'zig/zig-out/bin/validator');p.add_argument('--url-library',type=pathlib.Path,required=True);p.add_argument('--message-reference',type=pathlib.Path);p.add_argument('--evm-oracle',type=pathlib.Path);p.add_argument('--zig-mode',choices=['ReleaseSafe','ReleaseFast'],default='ReleaseSafe');p.add_argument('--consensus',choices=['majority','quorum','fallback'],default='majority');p.add_argument('--samples',type=int,default=5);p.add_argument('--catchup',type=int,default=32);p.add_argument('--steady',type=int,default=8);p.add_argument('--steady-interval-ms',type=int,default=1000);p.add_argument('--deadline',type=float,default=90);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/whole-validator-initial');p.add_argument('--team-idle',action='store_true');p.add_argument('--profile',choices=['rust','zig','both']);p.add_argument('--check-metrics',action='store_true');p.add_argument('--rust-build-description',default='production cargo --release with .cargo tokio_unstable; no target-cpu override');p.add_argument('--telemetry-description',default='Rust includes tracing/Prometheus/Tokio task metrics; Zig telemetry is incomplete');args=p.parse_args();args.rust=args.rust.resolve();args.zig=args.zig.resolve();args.output=args.output.resolve();args.output.mkdir(parents=True,exist_ok=True)
  if args.samples<1 or args.catchup<1 or args.steady<1:raise ValueError('positive sample/trace counts required')
+ message_reference,evm_oracle,reference_inputs=validation_references(args.message_reference,args.evm_oracle)
  url_library=validator_fixture.url_dependency(args.url_library,ROOT/'zig/bench/.cache/validator-url')
  evm.CACHE=ROOT/'zig/integration/.cache/whole-validator';evm.CACHE.mkdir(parents=True,exist_ok=True);evm.CONTRACTS={k:v for k,v in evm.CONTRACTS.items()if k in ['Mailbox','MerkleTreeHook','TestIsm','TestPostDispatchHook']};evm.CONTRACTS['ValidatorAnnounce']='solidity/contracts/isms/multisig/ValidatorAnnounce.sol';contracts=evm.compile_contracts()
  metadata=dict(started_at_utc=datetime.now(timezone.utc).isoformat(),scope='Actual EVM validator daemons, common two-endpoint '+args.consensus+'/local hex signer/LocalStorage trace; excludes other VMs, cloud, websocket, lightweight; telemetry parity incomplete',host=platform.platform(),zig_optimize=args.zig_mode,rust_build=args.rust_build_description,load_average_before=os.getloadavg(),team_compilers_idle=args.team_idle,shared_host='Other user workloads remain; no exclusive-host claim',trace={'catchup_dispatches':args.catchup,'steady_dispatches':args.steady,'steady_pacing':'fixed elapsed-time arrival schedule independent of signing completion','steady_interval_ms':args.steady_interval_ms,'domain':9913371,'poll_interval_seconds':1,'index_interval_seconds':1,'max_sign_concurrency':50,'rpc_endpoints':2,'consensus':args.consensus},durability={'rust':'production RocksDB options; LocalStorage uses tokio::fs::write without explicit file/directory fsync or atomic rename','zig':'per-transition RocksDB WAL fsync; LocalStore atomic rename + file/directory fsync'},binaries={n:{'path':str(b.relative_to(ROOT)if b.is_relative_to(ROOT)else b),'bytes':b.stat().st_size,'sha256_chunks':digest(b)}for n,b in [('rust',args.rust),('zig',args.zig)]},git_head=evm.run(['git','rev-parse','HEAD']),raw_samples=[])
  metadata['url_library']=url_library
+ if reference_inputs is not None:metadata['validation_helpers']=reference_inputs
  metadata['feature_gaps']=[args.telemetry_description,'maxSignConcurrency50 supplied identically; Zig native-safe publication uses a bounded persistent thread pool, Rust uses async join_all; thread snapshots and RSS recorded','Zig uses stronger fsync/atomic-publication policy; Rust production LocalStorage uses direct writes','Rust default SIGTERM terminates process; Zig drains worker then exits0; shutdown latency reported separately']
  metadata['configuration_loading']={'rust':'production loader reads ./config/*.json from disposable process cwd','zig':'HYPERLANE_ZIG_DEFAULTS explicitly selects the same disposable config directory','environment':'original Rust environment retained; explicit URL library added only to Zig child; no inherited credentials'}
  metadata['source_inventory_sha256_chunks']=source_inventory()
@@ -192,14 +215,14 @@ def main():
       nonce=int(chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest']),16)
       if measurements['exit_code']not in [0,-signal.SIGTERM]:raise RuntimeError(f'{name} failed shutdown: {daemon.logs()}')
       # Validation/reference work is outside process lifetime/timing.
-      rust_vectors=[json.loads(line)for line in evm.run([ROOT/'zig/reference/target/release/ziggy-rust-reference','vectors'],input=''.join(m+'\n'for m in messages)).splitlines()]
+      rust_vectors=[json.loads(line)for line in evm.run([message_reference,'vectors'],input=''.join(m+'\n'for m in messages)).splitlines()]
       for i,(obj,expected)in enumerate(zip(objects,rust_vectors)):
        assert obj['value']['checkpoint']['index']==i and obj['value']['checkpoint']['mailbox_domain']==9913371
        assert obj['value']['checkpoint']['merkle_tree_hook_address'].removeprefix('0x')=='00'*12+hook[2:].lower()
        assert obj['value']['checkpoint']['root'].removeprefix('0x')==expected['root']and obj['value']['message_id'].removeprefix('0x')==expected['id']
-      digests=[json.loads(line)['digest']for line in evm.run([ROOT/'zig/reference/target/release/ziggy-rust-reference','checkpoint-digests'],input=''.join(json.dumps(o)+'\n'for o in objects)).splitlines()]
+      digests=[json.loads(line)['digest']for line in evm.run([message_reference,'checkpoint-digests'],input=''.join(json.dumps(o)+'\n'for o in objects)).splitlines()]
       requests=[{'operation':'recover','digest':h,'r':f"{int(o['signature']['r'],16):064x}",'s':f"{int(o['signature']['s'],16):064x}",'v':hex(o['signature']['v'])}for o,h in zip(objects,digests)]
-      recovered=[json.loads(line)['expected']['signer']for line in evm.run([ROOT/'zig/reference/evm/target/release/ziggy-evm-oracle'],input=''.join(json.dumps(r)+'\n'for r in requests)).splitlines()];assert all(a==evm.TEST_SIGNER[2:]for a in recovered)
+      recovered=[json.loads(line)['expected']['signer']for line in evm.run([evm_oracle],input=''.join(json.dumps(r)+'\n'for r in requests)).splitlines()];assert all(a==evm.TEST_SIGNER[2:]for a in recovered)
       row=dict(implementation=name,sample=sample,order=len(metadata['raw_samples']),catchup_ms=catchup_ms,steady_ms=(finished-caught)/1e6,freshness_ms=latencies,dispatch_offsets_ms=dispatch_offsets,measurements=measurements,rpc_startup=startup_rpc,rpc_total=total_rpc,canonical_checkpoint_count=len(objects),signatures_verified=len(recovered),announcement_account_nonce=nonce,metrics_probe=metrics,storage={'database':filesystem_usage(temp/'db'),'checkpoint_objects':filesystem_usage(checkpoints)},thread_snapshots={'after_catchup':threads_after_catchup,'after_steady':threads_after_steady,'scope':'process thread snapshots; not continuous peak sampling'},load_average=os.getloadavg());metadata['raw_samples'].append(row);persist();print(name,sample,round(catchup_ms,1),'ms catchup',round(statistics.median(latencies),1),'ms median freshness',flush=True)
     except Exception as error:
      metadata['failure']={'implementation':name,'sample':sample,'message_chunks':[str(error)[i:i+32]for i in range(0,len(str(error)),32)]};persist();raise
