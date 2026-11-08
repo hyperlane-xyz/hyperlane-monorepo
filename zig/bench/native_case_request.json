@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "evm",
+  "scenario": "starknet",
   "mode": "ReleaseSafe",
   "producer_source_commit": "982d45c6e6f363872ed75eae0a584714dd8f0bf3",
   "producer_run_id": 42435923739,
@@ -43,7 +43,75 @@
       },
       "wheel_bytes": 34246
     },
-    "registry_commit": "a03afaa4fc6b8bd86616ef9986d80dcc1863e66a"
+    "registry_commit": null,
+    "native_cli": {
+      "name": "starkli",
+      "architecture": "amd64",
+      "source_url": "https://github.com/xJonathanLEI/starkli/releases/download/v0.4.1/starkli-x86_64-unknown-linux-gnu.tar.gz",
+      "bytes": 42077936,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "7d946b2b155831941f69cce42ce95a71",
+          "7f92d7950ac79db8e45f140d2e80877b"
+        ]
+      },
+      "archive": {
+        "bytes": 14276764,
+        "sha256": {
+          "sha256_hex_chunks": [
+            "4217ccd75c11627e513e1c6e4395b4df",
+            "fdebe2b8a7494bc989e93c2b885b8be3"
+          ]
+        },
+        "publisher_digest": null,
+        "member": "./starkli"
+      }
+    },
+    "starknet_devnet": {
+      "schema": 2,
+      "architecture": "amd64",
+      "source_image": "shardlabs/starknet-devnet-rs:0.4.2",
+      "image_id": {
+        "sha256_hex_chunks": [
+          "0405b55a0d37c14ab0c9a38963a7cbf2",
+          "19f86afb324dab8ba72cc8f9456de222"
+        ],
+        "prefix": "sha256:"
+      },
+      "canonical_digest": {
+        "sha256_hex_chunks": [
+          "ccf8b80807c6cc5e6497681cfdeabedc",
+          "adcce2c69935c8bf514540726b8955d5"
+        ],
+        "prefix": "shardlabs/starknet-devnet-rs@sha256:"
+      }
+    },
+    "starknet_contracts": {
+      "release": "0.3.9",
+      "source_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.zip",
+      "bytes": 10829931,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "5303a50baf47b5c3cc30274cf4b6dcba",
+          "fbeb8425010fc3bf54854f5d1bd38667"
+        ]
+      },
+      "publisher_checksum_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.CHECKSUM",
+      "publisher_checksum_bytes": 96,
+      "publisher_checksum_sha256": {
+        "sha256_hex_chunks": [
+          "1c567654967a6e6f58741ae84a3fbe59",
+          "d46c0743a397e99c5fb5b6fcd0c7c301"
+        ]
+      },
+      "member_count": 558,
+      "member_sha256": {
+        "sha256_hex_chunks": [
+          "594307d5fbc39e65770f4a20429d0b35",
+          "e34ec02893580a72e7b1bfaf9aae826e"
+        ]
+      }
+    }
   },
   "artifact_pins": {
     "sdk": {
