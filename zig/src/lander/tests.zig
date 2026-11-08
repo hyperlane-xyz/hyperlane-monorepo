@@ -1780,7 +1780,8 @@ fn canonicalWinnerAfterMalformedReceipt(finalized: bool, paged: bool) !void {
     const uuid = (try fixture.store().transactionUuidByIndex(allocator, 1)).?;
     var record = (try fixture.store().loadTransaction(allocator, uuid)).?;
     defer record.deinit();
-    try std.testing.expectEqual(if (finalized) types.Status.finalized else types.Status.included, try records.status(record.value()));
+    const expected_status: types.Status = if (finalized) .finalized else .included;
+    try std.testing.expectEqual(expected_status, try records.status(record.value()));
     try std.testing.expectEqual(@as(?storage.FinalizedReceipt, null), try fixture.store().loadFinalizedReceipt(allocator, uuid, old_hash));
     const actual = try fixture.store().loadFinalizedReceipt(allocator, uuid, replacement_hash);
     if (finalized) {

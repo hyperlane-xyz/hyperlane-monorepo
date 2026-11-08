@@ -70,6 +70,11 @@ class Controls(unittest.TestCase):
   with self.assertRaises(m.Refused):m.request(p,'0'*64,self.repo)
   v['required_source'].pop();p.write_text(json.dumps(v))
   with self.assertRaises(m.Refused):m.request(p,m.digest(p),self.repo)
+ def test_foundry_installer_test_and_root_must_be_pinned_before_producer_setup(self):
+  required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=m.CODE);self.assertEqual(len(m.CODE),19)
+  for missing in required:
+   path,_,value=self.request(True);value['required_source']=[r for r in value['required_source']if r['path']!=missing];path.write_text(json.dumps(value))
+   with self.subTest(missing=missing),self.assertRaisesRegex(m.Refused,'required executable producer dependency missing'):m.request(path,m.digest(path),self.repo)
  def test_cohort_and_both_mode_transport_exact_binding(self):
   p,sha,_=self.request(True);v,a=m.request(p,sha,self.repo);self.assertEqual(a['cohort']['source_commit'],'a'*40);m.source_authority_recheck(a)
   transport=self.repo/'ReleaseFast.json';value=json.loads(transport.read_text());value['artifact_pins']['sdk']['sha256']='c'*64;transport.write_text(json.dumps(value))

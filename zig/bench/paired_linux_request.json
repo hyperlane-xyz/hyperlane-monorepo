@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 119261,
+      "bytes": 120866,
       "sha256": {
         "sha256_hex_chunks": [
-          "06fa9f951d4836bd3b9362a5e7e010a2",
-          "0b31a4ee955e8a2eecddef1139250677"
+          "7b613e72fe6f7ea32fc46cea27400186",
+          "370b84b1fb0e6f585e041fbb7acf213f"
         ]
       }
     },
@@ -143,21 +143,21 @@
     },
     {
       "path": "zig/bench/paired_linux.py",
-      "bytes": 14689,
+      "bytes": 14800,
       "sha256": {
         "sha256_hex_chunks": [
-          "ee4d07172fc5356f815b4ac1e70816d4",
-          "49f714b26fcbc1e6c183b57aa5eda789"
+          "f623328a21929b8f4048c9be3a41d74e",
+          "84446acde58b8e3d1d41a53950bab98c"
         ]
       }
     },
     {
       "path": "zig/bench/paired_linux_inputs.py",
-      "bytes": 51073,
+      "bytes": 51184,
       "sha256": {
         "sha256_hex_chunks": [
-          "eaa2cb84041ecd427ab18fc14b123d39",
-          "63fe70fda326170c95e4f203cff7ed82"
+          "317c434e6bd71af76a8fad1b92ec6273",
+          "32e8ed6565ad8be674b1ac0f2c34376e"
         ]
       }
     },
@@ -358,6 +358,36 @@
         "sha256_hex_chunks": [
           "fe3d41c3b47b4d0342a4004c38c71f3a",
           "64686b914d178385dd08940a4a319c94"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/foundry_official.py",
+      "bytes": 25984,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "539fd511d0d529f769e786935eb17636",
+          "610a80809dcc6751008ad636a827d377"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/foundry_official_test.py",
+      "bytes": 23315,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "ef7a9651397586c055c49c0d8efbfbfe",
+          "f487ba2b1f260ac02522f3e875d32193"
+        ]
+      }
+    },
+    {
+      "path": "zig/tools/foundry_public_good_root.json",
+      "bytes": 6787,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "6494e21ea73fa7ee769f85f57d5a3e6a",
+          "08725eae1e38c755fc3517c9e6bc0b66"
         ]
       }
     }

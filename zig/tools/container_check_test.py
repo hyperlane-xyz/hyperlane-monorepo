@@ -206,6 +206,22 @@ class Controls(unittest.TestCase):
         for bad in [log(names, {names[0]: 'SKIP'}), log(names[:-1]), log(names) + '\n999/999 unexpected...OK', log(names).replace('1/', '2/', 1), log(names, {names[0]: 'FAIL'}), 'Build Summary: cached']:
             with self.subTest(bad=bad), self.assertRaises(AssertionError): c.native_test_results(bad)
 
+    def test_native_suite_requires_every_canonical_receipt_regression(self):
+        required = (
+            'malformed older receipt cannot win included replacement',
+            'malformed older receipt cannot win finalized replacement',
+            'paged malformed older receipt cannot win included replacement after restart',
+            'paged malformed older receipt cannot win finalized replacement after restart',
+        )
+        names = ['fixture.test.' + name for name in c.NATIVE_REQUIRED]
+        for name in required:
+            self.assertIn(name, c.NATIVE_REQUIRED)
+            remaining = [row for row in names if row != 'fixture.test.' + name]
+            log = '\n'.join(f'{i}/{len(remaining)} {row}...OK'
+                            for i, row in enumerate(remaining, 1))
+            with self.subTest(missing=name), self.assertRaises(AssertionError):
+                c.native_test_results(log)
+
     def test_missing_worker_and_mode_cannot_reach_commands(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c, 'command', side_effect=AssertionError('no subprocess')) as called:
             library = Path(tmp) / 'fixture.so'; library.write_bytes(b'\x7fELFpublic-fixture')

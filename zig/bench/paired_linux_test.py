@@ -244,7 +244,16 @@ class Workflow(unittest.TestCase):
    lines.append(line)
   self.assertEqual(count,15);return ''.join(lines)
  def test_actual18jobs_exact_old15_byte_inverse(self):
-  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'fdb8abcb3e7b618788040c0a40fa17ed'+'59c01ccaf1e08c097335ae53eb001e41')
+  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'785279f9c5ab3f7fb4336205d78c04a6'+'153d39484f671503c7a754d2716caffe')
+ def test_six_foundry_callers_use_fixed_verified_recipe_and_preserve_existing_gates(self):
+  names=['native-linux','evm','native-case-producer-inputs','paired-linux-inputs','paired-linux-functional','paired-linux-runtime'];seen=[]
+  for name in names:
+   body=re.split(r'\n  [a-z][a-z0-9-]*:\n',self.text.split('\n  '+name+':',1)[1],maxsplit=1)[0]
+   block=body.split('      - name: Install verified official Foundry v1.5.0\n',1)[1].split('      - ',1)[0];seen.append(block)
+   for command in ['python3 -I -B -W error zig/tools/foundry_official_test.py -v','python3 -I -B zig/tools/foundry_official.py','--runner-temp "$RUNNER_TEMP"','--gh "$(readlink -f "$(command -v gh)")"','echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"']:self.assertIn(command,block)
+  self.assertEqual(sum('        if: 'in b for b in seen),3);self.assertNotIn('foundry-rs/foundry-toolchain@',self.text)
+  required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=p.SOURCE_PATHS);self.assertEqual(len(p.SOURCE_PATHS),35)
+  aleo=self.text.split('\n  aleo-full-case:',1)[1].split('\n  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0];self.assertNotIn('foundry_official',aleo)
  def test_old_routes_preserved_across_all_existing_contexts(self):
   old={k:v for k,v in self.rows.items()if not k.startswith('paired-linux-')};pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))";prefix='${{ !'+pd+' && (';old={k:'${{ '+v[len(prefix):-4]+' }}'for k,v in old.items()}
   count=0

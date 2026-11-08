@@ -211,7 +211,7 @@ class SdkPrerequisiteControls(unittest.TestCase):
   struct.pack_into('<H',wire,18,247);p.write_bytes(wire);self.assertEqual(m.elf(p,247)['elf_machine'],247)
  def test_criterion_exact_asset_pin(self):
   self.assertEqual(m.ASSETS['criterion']['asset_id'],9581569);self.assertEqual(m.ASSETS['criterion']['bytes'],677858)
-  self.assertEqual(m.ASSETS['criterion']['url'],'https://github.com/Snaipe/Criterion/releases/download/v2.3.3/criterion-v2.3.3-linux-x86_64.tar.bz2')
+  self.assertEqual(m.ASSETS['criterion']['url'],'https://api.github.com/repos/Snaipe/Criterion/releases/assets/9581569')
   self.assertFalse(m.ASSETS['criterion']['publisher_digest'])
 
 class TypedSbfElfControls(unittest.TestCase):
@@ -297,4 +297,52 @@ class FetchMediaControls(unittest.TestCase):
   row,seen,dest=self.fetch('application/vnd.github+json');self.assertEqual(seen,[('application/vnd.github+json',30)]);self.assertEqual(json.loads(dest.read_text()),{'sha':'public fixture'})
  def test_only_custom_spl_metadata_call_changes_media(self):
   source=pathlib.Path(m.__file__).read_text();self.assertEqual(source.count("accept='application/vnd.github+json'"),1);self.assertIn("custom-spl-commit.json',2*1024**2,accept='application/vnd.github+json'",source)
+class OfficialAssetTransportControls(unittest.TestCase):
+ EXPECTED={
+  'agave':('anza-xyz/agave',338693012,214232615,('65614325423316a48f57f1ceeaa91ca7' '8f4516e165e305b38c01873cf8c6b8b4'),True),
+  'platform':('anza-xyz/platform-tools',279991627,542447828,('0933e05dd964826e8e2db5c58c34ae25' '5e3baf0ce1711568552dca81b5407a6b'),True),
+  'spl':('hyperlane-xyz/solana-program-library',187913462,245817,('5a0862a76357316707a2056d810729ab' '563aded8b6c094a90fa204ef0fa2c415'),False),
+  'criterion':('Snaipe/Criterion',9581569,677858,('ee7f92d7268563848aa3ae90bbf5df86' '604b8d0fb0e4942b0ecfbf6201596550'),False)}
+ def test_asset_routes_bind_exact_fixed_repository_and_asset_id(self):
+  self.assertEqual(set(m.ASSETS),set(self.EXPECTED))
+  for name,(repo,asset,size,digest,publisher)in self.EXPECTED.items():
+   with self.subTest(asset=name):
+    self.assertEqual(m.ASSETS[name]['asset_id'],asset)
+    self.assertEqual(m.ASSETS[name]['url'],f'https://api.github.com/repos/{repo}/releases/assets/{asset}')
+ def test_published_bytes_hashes_flags_and_policy_keys_unchanged(self):
+  for name,(repo,asset,size,digest,publisher)in self.EXPECTED.items():
+   with self.subTest(asset=name):
+    self.assertEqual(set(m.ASSETS[name]),{'url','asset_id','bytes','sha256','publisher_digest'})
+    self.assertEqual((m.ASSETS[name]['bytes'],m.ASSETS[name]['sha256'],m.ASSETS[name]['publisher_digest']),(size,digest,publisher))
+ def actual_fetch(self,name,*,wrong_hash=False,wrong_size=False,short_limit=False):
+  temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);dest=pathlib.Path(temp.name)/'asset'
+  body=b'public transport fixture, not an SDK/archive acceptance';expected={'bytes':len(body)+(1 if wrong_size else 0),'sha256':'0'*64 if wrong_hash else hashlib.sha256(body).hexdigest()}
+  repo,asset,_,_,_=self.EXPECTED[name];expected_url=f'https://api.github.com/repos/{repo}/releases/assets/{asset}';seen=[];outer=self;url=m.ASSETS[name]['url'];redirect='https://release-assets.githubusercontent.com/github-production-release-asset/public-fixture'
+  class Response(io.BytesIO):
+   def __init__(self):super().__init__(body);self.url=redirect;self.headers={'Content-Length':str(len(body))}
+  class Opener:
+   def open(self,request,timeout):
+    outer.assertEqual(request.full_url,expected_url);outer.assertEqual(request.get_method(),'GET');outer.assertEqual(request.get_header('Accept'),'application/octet-stream');outer.assertEqual(timeout,30)
+    followed=m.OfficialRedirect().redirect_request(request,None,302,'Found',{},redirect)
+    outer.assertEqual(followed.full_url,redirect);outer.assertEqual(followed.get_method(),'GET');seen.append(request.full_url)
+    return Response()
+  owner=m.Owner.__new__(m.Owner);owner.opener=Opener();ticks=[];owner.tick=lambda:ticks.append(True)
+  row=owner.fetch(url,dest,len(body)-(1 if short_limit else 0),expected)
+  self.assertEqual(seen,[url]);self.assertTrue(ticks);self.assertEqual(dest.read_bytes(),body)
+  self.assertEqual((row['bytes'],row['sha256']),(len(body),hashlib.sha256(body).hexdigest()));self.assertEqual(row['actual_response_url'],redirect)
+  return row
+ def test_actual_API_request_official_redirect_bytes_and_digest(self):
+  for name in self.EXPECTED:
+   with self.subTest(asset=name):self.actual_fetch(name)
+ def test_actual_API_fetch_refuses_wrong_hash_and_size(self):
+  for name in self.EXPECTED:
+   for fault in ['wrong_hash','wrong_size']:
+    with self.subTest(asset=name,fault=fault),self.assertRaisesRegex(ValueError,'asset size/SHA mismatch'):self.actual_fetch(name,**{fault:True})
+ def test_actual_API_fetch_preserves_download_bound(self):
+  with self.assertRaisesRegex(ValueError,'download size bound'):self.actual_fetch('agave',short_limit=True)
+ def test_API_request_cannot_redirect_to_foreign_host_or_plain_HTTP(self):
+  request=m.urllib.request.Request(m.ASSETS['agave']['url'],headers={'Accept':'application/octet-stream'})
+  for target in ['https://api.github.com.evil.invalid/asset','https://evil.invalid/asset','http://github.com/asset']:
+   with self.subTest(target=target),self.assertRaisesRegex(ValueError,'nonofficial redirect'):m.OfficialRedirect().redirect_request(request,None,302,'Found',{},target)
+
 if __name__=='__main__':unittest.main()

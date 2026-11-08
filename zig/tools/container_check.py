@@ -565,6 +565,10 @@ NATIVE_SKIP_REASONS = {
     "agents.indexing.tx_id_native_test.test.transaction-ID restart rescans durable canonical dispatch and immutable Source Rust oracle decodes repaired rows": "Existing test pins a macOS oracle executable hash; portable Source-bound oracle control still required",
 }
 NATIVE_REQUIRED = (
+    "malformed older receipt cannot win included replacement",
+    "malformed older receipt cannot win finalized replacement",
+    "paged malformed older receipt cannot win included replacement after restart",
+    "paged malformed older receipt cannot win finalized replacement after restart",
     "optional CCS actual Factory every allocation failure propagates and cleans optional identity",
     "validator metadata full pretty schema matches actual immutable Rust producer including private RPC identities",
     "configured RPC production-default Tron HTTP reaches native transport while cloud remains strict",

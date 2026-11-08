@@ -13,10 +13,10 @@ PLATFORM_UNUSED_DANGLING_LINKS={
  'llvm/lib/python3.10/dist-packages/lldb/lldb-argdumper':'../../../../../bin/lldb-argdumper',
 }
 ASSETS={
- 'agave':{'url':'https://github.com/anza-xyz/agave/releases/download/v3.0.14/solana-release-x86_64-unknown-linux-gnu.tar.bz2','asset_id':338693012,'bytes':214232615,'sha256':('65614325423316a48f57f1ceeaa91ca7' '8f4516e165e305b38c01873cf8c6b8b4'),'publisher_digest':True},
- 'platform':{'url':'https://github.com/anza-xyz/platform-tools/releases/download/v1.51/platform-tools-linux-x86_64.tar.bz2','asset_id':279991627,'bytes':542447828,'sha256':('0933e05dd964826e8e2db5c58c34ae25' '5e3baf0ce1711568552dca81b5407a6b'),'publisher_digest':True},
- 'spl':{'url':'https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz','asset_id':187913462,'bytes':245817,'sha256':('5a0862a76357316707a2056d810729ab' '563aded8b6c094a90fa204ef0fa2c415'),'publisher_digest':False}}
-ASSETS['criterion']={'url':'https://github.com/Snaipe/Criterion/releases/download/v2.3.3/criterion-v2.3.3-linux-x86_64.tar.bz2','asset_id':9581569,'bytes':677858,'sha256':('ee7f92d7268563848aa3ae90bbf5df86' '604b8d0fb0e4942b0ecfbf6201596550'),'publisher_digest':False}
+ 'agave':{'url':'https://api.github.com/repos/anza-xyz/agave/releases/assets/338693012','asset_id':338693012,'bytes':214232615,'sha256':('65614325423316a48f57f1ceeaa91ca7' '8f4516e165e305b38c01873cf8c6b8b4'),'publisher_digest':True},
+ 'platform':{'url':'https://api.github.com/repos/anza-xyz/platform-tools/releases/assets/279991627','asset_id':279991627,'bytes':542447828,'sha256':('0933e05dd964826e8e2db5c58c34ae25' '5e3baf0ce1711568552dca81b5407a6b'),'publisher_digest':True},
+ 'spl':{'url':'https://api.github.com/repos/hyperlane-xyz/solana-program-library/releases/assets/187913462','asset_id':187913462,'bytes':245817,'sha256':('5a0862a76357316707a2056d810729ab' '563aded8b6c094a90fa204ef0fa2c415'),'publisher_digest':False}}
+ASSETS['criterion']={'url':'https://api.github.com/repos/Snaipe/Criterion/releases/assets/9581569','asset_id':9581569,'bytes':677858,'sha256':('ee7f92d7268563848aa3ae90bbf5df86' '604b8d0fb0e4942b0ecfbf6201596550'),'publisher_digest':False}
 def need(ok,msg):
  if not ok:raise ValueError(msg)
 def write(p,value):

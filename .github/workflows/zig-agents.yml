@@ -168,9 +168,14 @@ jobs:
         with:
           node-version-file: '.nvmrc'
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
-        with:
-          version: v1.5.0
+      - name: Install verified official Foundry v1.5.0
+        run: |
+          set -euo pipefail
+          python3 -I -B -W error zig/tools/foundry_official_test.py -v
+          python3 -I -B zig/tools/foundry_official.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --gh "$(readlink -f "$(command -v gh)")"
+          echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
       - name: Build integration fixture
@@ -245,9 +250,14 @@ jobs:
         with:
           node-version-file: '.nvmrc'
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
-        with:
-          version: v1.5.0
+      - name: Install verified official Foundry v1.5.0
+        run: |
+          set -euo pipefail
+          python3 -I -B -W error zig/tools/foundry_official_test.py -v
+          python3 -I -B zig/tools/foundry_official.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --gh "$(readlink -f "$(command -v gh)")"
+          echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Install native build requirements
         run: |
           sudo apt-get update
@@ -853,10 +863,15 @@ jobs:
           node-version-file: '.nvmrc'
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         if: steps.request.outputs.enabled == 'true'
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
+      - name: Install verified official Foundry v1.5.0
         if: steps.request.outputs.enabled == 'true'
-        with:
-          version: v1.5.0
+        run: |
+          set -euo pipefail
+          python3 -I -B -W error zig/tools/foundry_official_test.py -v
+          python3 -I -B zig/tools/foundry_official.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --gh "$(readlink -f "$(command -v gh)")"
+          echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Install explicit native-case host prerequisites (no node/service starts)
         if: steps.request.outputs.enabled == 'true'
         timeout-minutes: 10
@@ -1364,10 +1379,15 @@ jobs:
         if: steps.authority.outputs.inputs_enabled == 'true'
         with:
           run_install: false
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf
+      - name: Install verified official Foundry v1.5.0
         if: steps.authority.outputs.inputs_enabled == 'true'
-        with:
-          version: v1.5.0
+        run: |
+          set -euo pipefail
+          python3 -I -B -W error zig/tools/foundry_official_test.py -v
+          python3 -I -B zig/tools/foundry_official.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --gh "$(readlink -f "$(command -v gh)")"
+          echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Ordinary tool preparation outside proof or daemon clocks
         if: steps.authority.outputs.inputs_enabled == 'true'
         timeout-minutes: 15
@@ -1462,9 +1482,14 @@ jobs:
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
         with:
           run_install: false
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf
-        with:
-          version: v1.5.0
+      - name: Install verified official Foundry v1.5.0
+        run: |
+          set -euo pipefail
+          python3 -I -B -W error zig/tools/foundry_official_test.py -v
+          python3 -I -B zig/tools/foundry_official.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --gh "$(readlink -f "$(command -v gh)")"
+          echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Ordinary tool preparation outside proof or daemon clocks
         timeout-minutes: 15
         run: |
@@ -1552,10 +1577,15 @@ jobs:
         if: steps.runtime.outputs.runtime_enabled == 'true'
         with:
           run_install: false
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf
+      - name: Install verified official Foundry v1.5.0
         if: steps.runtime.outputs.runtime_enabled == 'true'
-        with:
-          version: v1.5.0
+        run: |
+          set -euo pipefail
+          python3 -I -B -W error zig/tools/foundry_official_test.py -v
+          python3 -I -B zig/tools/foundry_official.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --gh "$(readlink -f "$(command -v gh)")"
+          echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"
       - name: Stage the same ordinary consumer tools and exact canonical PostgreSQL16
         if: steps.runtime.outputs.runtime_enabled == 'true'
         timeout-minutes: 15

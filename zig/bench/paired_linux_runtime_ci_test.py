@@ -73,6 +73,11 @@ class Request(Fixture):
             self.document(key+'.json',self.documents[key])
         value=copy.deepcopy(base);value['required_source']=value['required_source'][:-1]
         with self.assertRaises(c.Refused):self.admit(value)
+    def test_foundry_installer_test_and_root_cannot_be_omitted_from_runtime_authority(self):
+        required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=c.REQUIRED_SOURCE)
+        for missing in required:
+            _,value=self.enabled();value['required_source']=[r for r in value['required_source']if r['path']!=missing]
+            with self.subTest(missing=missing),self.assertRaisesRegex(c.Refused,'Full finite runtime CI Source closure'):self.admit(value)
     def test_missing_duplicate_family_wrong_mode_or_C43_hash_cannot_replace_fresh18(self):
         _,base=self.enabled()
         for change in ['missing','duplicate','wrongmode','wrongproducer']:
@@ -227,7 +232,7 @@ class Workflow(unittest.TestCase):
         return selected
     def test_all17_other_job_bodies_byteexact_and18_members(self):
         prefix,tail=self.text.split('  paired-linux-runtime:\n',1);inverse=prefix+tail.split('  # END REVIEWED PAIRED LINUX JOBS',1)[1]
-        self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(inverse.encode()).hexdigest(),'62ed4e385821df7f7d73d4c46e5f6570'+'8a99deeeea9bcd95ea2346054e00238d')
+        self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(inverse.encode()).hexdigest(),'9d8cb4fd07f7d3d31d117e1d4637fbb9'+'eada1573a88deaa841c7b8011eeedf55')
         self.assertIn('name: paired-linux-input-diagnostic-',inverse);self.assertNotIn('needs:',self.job)
     def test_288_existing_ordinary_routes_never_start_runtime(self):
         count=0
@@ -240,7 +245,7 @@ class Workflow(unittest.TestCase):
         for wrong in [dict(message='[zig-paired-runtime]'),dict(message='[zig-native-case]'),dict(message=message,event='workflow_dispatch'),dict(message=message,ref='refs/heads/main'),dict(message=message,event='pull_request')]:self.assertNotIn('paired-linux-runtime',self.evaluate(**wrong))
         for marker in ['[zig-paired-linux]','[zig-aleo-fullcase-only]','[zig-aleo-docker-only]','[zig-aleo-sdk-only]','[zig-aleo-kernel-only]']:self.assertNotIn('paired-linux-runtime',self.evaluate(message=message+' '+marker))
     def test_false_gate_before_setup_and_reuse_clock_separate_from_original_owner(self):
-        order=['Read inert runtime authority','Check runtime controller','actions/setup-node@','pnpm/action-setup@','foundry-rs/foundry-toolchain@','Stage the same ordinary consumer tools','Reuse the actual Root-qualified','Check actual job budget']
+        order=['Read inert runtime authority','Check runtime controller','actions/setup-node@','pnpm/action-setup@','Install verified official Foundry v1.5.0','Stage the same ordinary consumer tools','Reuse the actual Root-qualified','Check actual job budget']
         positions=[self.job.index(x)for x in order];self.assertEqual(positions,sorted(positions))
         for item in ['timeout-minutes: 330','timeout-minutes: 306','timeout-minutes: 32','max-parallel: 2','index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]','actions: read','exec env -u GH_TOKEN python3 -I -B','--owner-output "$OWNER"','--reuse "$REUSE" --reuse-sha256 "$REUSE_SHA"','${{ steps.measured.outputs.raw_output }}']:self.assertIn(item,self.job)
         self.assertNotIn('cargo ',self.job);self.assertNotIn('rustup ',self.job);self.assertNotIn('pnpm install',self.job);self.assertNotIn('sdk_build',self.job);self.assertNotIn('inputs_root }}',self.job)
@@ -260,7 +265,7 @@ class Workflow(unittest.TestCase):
 
     def test_actual_source_and_reuse_CLI_signatures_without_project_import(self):
         tree=ast.parse((REPO/'zig/bench/paired_linux_reuse.py').read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='reuse');self.assertEqual([a.arg for a in fn.args.args],['header_pin','repo','output','current_source_commit','gh','token'])
-        self.assertEqual(len(c.REQUIRED_SOURCE),44)
+        self.assertEqual(len(c.REQUIRED_SOURCE),47)
         for name in ['paired_linux_runtime.py','paired_linux_runtime_owner.py','paired_linux.py']:
             nodes=ast.parse((REPO/'zig/bench'/name).read_text()).body;literal=next((n.value for n in nodes if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id in {'SOURCE_REQUIRED','SOURCE_PATHS'}for t in n.targets)),None)
             if literal is not None:
