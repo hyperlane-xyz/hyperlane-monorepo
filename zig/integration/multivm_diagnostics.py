@@ -341,6 +341,133 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log):
     return {'schema':1,'kind':'public-SVM-role-failure-observation','writer_sources':writer_sources,'owned_child_journal':owned_pin,'parent_exit_journal':exit_pin,'roles':public,'fixed_role_logs':logs,'scope':'Actual existing parent wait records joined to admitted owned-child epochs/products. Fixed role files contain stdout only; harness prefixes merge stdout and stderr. Finite flags only, not Zig Sourceframes, stderr-only or original metrics HTTP/error attribution. Logs may contain multiple role epochs.','native_or_timing_or_cleanup_authority':False}
 
 
+
+def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,harness_log):
+    """Fixed Source markers and actual client status only; no external text."""
+    scenario=manifest['scenario']
+    if scenario not in {'tron','radix'}or type(parent_pid)is not int or not 0<parent_pid<2**31:raise ValueError('Exact fixture helper parent required')
+    case=Path(case)
+    if case.is_symlink()or case.resolve()!=case:raise ValueError('Canonical fixture case required')
+    root='rust/main/utils/run-locally/src/'
+    suffixes=['program.rs','logging.rs','tron/mod.rs','main.rs','external_agents.rs']if scenario=='tron'else['radix/mod.rs','external_agents/radix_fixture.rs','external_agents.rs']
+    bodies={};checked_sources={}
+    for suffix in suffixes:
+        name=root+suffix;path=Path(repo)/name;raw,fingerprint=captured_failure_bytes(path,1024**2)
+        if sources[name]!={'path':str(path),**fingerprint}:raise ValueError('Fixture diagnostic Source changed')
+        bodies[name]=raw;checked_sources[name]=sources[name]
+    wire,log_pin=captured_failure_bytes(harness_log,32*1024**2)
+    program=root+'program.rs';caller=root+('tron/mod.rs'if scenario=='tron'else'radix/mod.rs');fixture=root+'external_agents/radix_fixture.rs'
+    markers={};guards={}
+    if scenario=='tron':
+        required={program:[b'log!("{:#}", &self)',b'.field("bin", &self.bin)',b'.field("args", &self.args)',b'Command returned non-zero exit code: {:?}'],root+'logging.rs':[b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)'],caller:[b'"Deploying core contracts to {}..."',b'"Deployed core contracts to {}"',b'.cmd("hyperlane")',b'.cmd("core")',b'.cmd("deploy")',b'.cmd("registry")',b'.cmd("agent-config")',b'.cmd("send")',b'.cmd("message")'],root+'main.rs':[b'const AGENT_BIN_PATH: &str = "target/debug";'],root+'external_agents.rs':[b'.bin(fixture.pnpm.path)']}
+        for name,needles in required.items():
+            if not all(n in bodies[name]for n in needles):raise ValueError('Exact Tron command writer contract missing')
+        literal_markers={b'Starting TRE docker container...':'TRE_START_REQUESTED',b'Waiting for TRE node...':'TRE_WAIT_ENTERED',b'Generating agent config...':'CONFIG_GENERATION_ENTERED',b'Patching agent config with Tron wallet URLs...':'CONFIG_PATCH_ENTERED',b'Patched agent config with wallet URLs':'CONFIG_PATCH_RETURNED',b'Starting postgres...':'POSTGRES_START_REQUESTED',b'Initializing postgres DB...':'POSTGRES_INIT_ENTERED',b'All agents started. Dispatching messages...':'DISPATCH_BATCH_ENTERED'}
+        for literal,category in literal_markers.items():
+            if b'"'+literal+b'"'not in bodies[caller]:raise ValueError('Tron stage Source literal missing')
+            markers[b'<E2E> '+literal]=category
+        for chain,ordinal in [(b'anvil1','FIRST'),(b'anvil2','SECOND')]:
+            if b'deploy_core(&cli_path, "'+chain+b'")'not in bodies[caller]:raise ValueError('Tron fixed chain call changed')
+            markers[b'<E2E> Deploying core contracts to '+chain+b'...']='CORE_DEPLOY_'+ordinal+'_ENTERED';markers[b'<E2E> Deployed core contracts to '+chain]='CORE_DEPLOY_'+ordinal+'_RETURNED'
+    else:
+        if b'panic!("actual owned Radix localnet: {error:#}")'not in bodies[caller]or b'"radix-client-parent-waits.jsonl"'not in bodies[fixture]or b'super::append_fixture_observation'not in bodies[fixture]or b'fn append_fixture_observation('not in bodies[root+'external_agents.rs']:raise ValueError('Exact Radix failure writer contract missing')
+        literals={b'owned Radix Core/Gateway startup deadline':'CORE_GATEWAY_STARTUP_DEADLINE',b'Radix Core readiness belongs to another native network':'CORE_NETWORK_MISMATCH',b'Radix Gateway readiness has no local committed ledger':'GATEWAY_LEDGER_MISSING',b'Radix Docker command exceeded time/output bound':'DOCKER_TIME_OR_OUTPUT_BOUND',b'Radix Docker output bound':'DOCKER_OUTPUT_BOUND',b'Radix fixture network is not owned and isolated from external networks':'NETWORK_CUSTODY_GUARD',b'Radix Compose service coverage differs':'SERVICE_COVERAGE_GUARD',b'actual Radix service resource bounds differ':'SERVICE_RESOURCE_GUARD',b'Radix container owner/image differs':'CONTAINER_CUSTODY_GUARD',b'Radix inspect coverage differs':'INSPECT_COVERAGE_GUARD',b'Radix service container replaced':'CONTAINER_REPLACED_GUARD'}
+        guards={literal:category for literal,category in literals.items()if b'"'+literal+b'"'in bodies[fixture]}
+        if len(guards)!=len(literals)or b'"Radix Docker command failed ({status})"'not in bodies[fixture]:raise ValueError('Radix static guard Source changed')
+    result={'schema':1,'kind':'public-fixed-fixture-failure-observation','scenario':scenario,'writer_sources':checked_sources,'harness_log_fingerprint':log_pin,'last_seen_stage':None,'panic_observations':[],'client_waits':None,'native_or_timing_or_cleanup_authority':False,'scope':'Source marker and finite panic-category observations only. Last seen is not stage success. No arbitrary error/command text, numeric Program status, root-cause, direct container wait or proof claim.'}
+    pending=None;observations=[];seen=set();lines_scanned=0
+    def classify(body,context):
+        if context=='radix':
+            if body.startswith(b'actual owned Radix localnet:'):body=body[len(b'actual owned Radix localnet:'):].strip()
+            body=re.sub(rb'^[0-9]{1,2}: ',b'',body)
+            label=guards.get(body)
+            if label is not None:return {'category':label}
+            if re.fullmatch(rb'Radix Docker command failed \(exit status: [0-9]{1,3}\)',body):return {'category':'DOCKER_NONZERO_STATUS'}
+            return None
+        prefix=b'Command returned non-zero exit code: '
+        if not body.startswith(prefix):return None
+        match=re.match(rb'^Program \{ bin: Some\(("(?:[^"\\]|\\.){1,4096}")\), args: \[',body[len(prefix):])
+        category='OTHER_PROGRAM_NONZERO'
+        if match is not None:
+            try:binary=json.loads(match[1])
+            except (ValueError,UnicodeError):binary=None
+            args=body[len(prefix)+match.end():]
+            if binary==approval.get('tron_tre',{}).get('pnpm',{}).get('path'):
+                for literal,name in [(b'"hyperlane", "core", "deploy"','HYPERLANE_CORE_DEPLOY'),(b'"hyperlane", "registry", "agent-config"','HYPERLANE_REGISTRY_AGENT_CONFIG'),(b'"hyperlane", "send", "message"','HYPERLANE_SEND_MESSAGE')]:
+                    if args.startswith(literal)and args[len(literal):len(literal)+1]in {b',',b']'}:category=name
+            elif binary=='../../target/debug/init-db'and b'Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))'in bodies[caller]:category='INIT_DB'
+        return {'category':category,'program_exit_code':None,'program_signal':None,'numeric_status_scope':'not emitted by Source Program assertion'}
+    for raw in io.BytesIO(wire):
+        lines_scanned+=1
+        if len(raw)>65536:pending=None;continue
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',raw).strip()
+        if clean in markers:result['last_seen_stage']={'category':markers[clean],'log_line':lines_scanned,'observed_only':True}
+        header=re.match(rb"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ([^:\r\n]{1,4096}):([0-9]{1,7}):([0-9]{1,5}):\s*(.*)$",clean)
+        if header is not None:
+            pending=None;path,line,column,tail=header.groups();line,column=int(line),int(column)
+            target=program if scenario=='tron'else caller;relative=target[len('rust/main/'):].encode();full=target.encode()
+            if not(path in {relative,full}or path.endswith(b'/'+relative)or path.endswith(b'/'+full)):continue
+            source_lines=bodies[target].splitlines()
+            if not 0<line<=len(source_lines)or column==0:continue
+            snippet=b'\n'.join(source_lines[line-1:min(line+4,len(source_lines))]);required=b'Command returned non-zero exit code: {:?}'if scenario=='tron'else b'panic!("actual owned Radix localnet: {error:#}")'
+            if required not in snippet or(scenario=='tron'and source_lines[line-1].strip()!=b'assert!(')or(scenario=='radix'and required not in source_lines[line-1]):continue
+            pending={'context':scenario,'remaining':16,'source':target,'line':line,'column':column}
+            if tail:
+                item=classify(tail,pending['context'])
+                if item is not None:
+                    key=(item['category'],target,line,column)
+                    if key not in seen and len(observations)<16:seen.add(key);observations.append({**item,'source':target,'line':line,'column':column})
+                pending=None
+            continue
+        if pending is None:continue
+        pending['remaining']-=1
+        if pending['remaining']<0 or clean.startswith(b'stack backtrace:'):pending=None;continue
+        if not clean:continue
+        context=pending;pending=None
+        item=classify(clean,context['context'])
+        if item is not None:
+            key=(item['category'],context['source'],context['line'],context['column'])
+            if key not in seen and len(observations)<16:seen.add(key);observations.append({**item,'source':context['source'],'line':context['line'],'column':context['column']})
+    result['panic_observations']=observations
+    if scenario=='radix':
+        journal=Path(case)/'evidence/radix-client-parent-waits.jsonl'
+        if journal.exists():
+            try:
+                if (case/'evidence').is_symlink():raise ValueError('Fixture evidence directory symlink')
+                raw,fingerprint=captured_failure_bytes(journal,1024**2);rows=raw.splitlines()
+                if not 0<len(rows)<=256 or any(len(row)>65536 for row in rows):raise ValueError('Bounded Radix wait rows required')
+                def unique(pairs):
+                    value={}
+                    for key,item in pairs:
+                        if key in value:raise ValueError('Duplicate Radix journal key')
+                        value[key]=item
+                    return value
+                public=[];identities=set()
+                for wire_row in rows:
+                    row=json.loads(wire_row,object_pairs_hook=unique);pid=row.get('pid');birth=row.get('os_start_token')
+                    if row.get('schema')!=1 or type(row.get('schema'))is not int or row.get('purpose')!='radix-fixture-docker-client'or row.get('runtime_source_commit')!=manifest['runtime_source_commit']or row.get('mode')!=manifest['mode']or type(row.get('parent_pid'))is not int or row['parent_pid']!=parent_pid or type(pid)is not int or not 0<pid<2**31 or row.get('os')!='linux'or not isinstance(birth,str)or re.fullmatch('linux-ticks:[1-9][0-9]{0,19}',birth)is None or row.get('executable')!=manifest['verifier_tools']['docker']or row.get('parent_wait_completed')is not True:raise ValueError('Radix actual client identity mismatch')
+                    if(pid,birth)in identities:raise ValueError('Repeated Radix client identity')
+                    identities.add((pid,birth));code,sig=row.get('exit_code'),row.get('signal')
+                    if not(code is None or type(code)is int and 0<=code<=255)or not(sig is None or type(sig)is int and 1<=sig<=64)or((code is None)==(sig is None))or any(type(row.get(k))is not bool for k in ['forced_cleanup','success']):raise ValueError('Typed Radix client status required')
+                    if row['success']and(code!=0 or sig is not None or row['forced_cleanup']or row.get('error')is not None):raise ValueError('Inconsistent successful Radix client status')
+                    elapsed,size=row.get('elapsed_monotonic_ns'),row.get('output_bytes')
+                    if type(elapsed)is not int or not 0<=elapsed<=2**64-1 or not(size is None or type(size)is int and 0<=size<=2**64-1):raise ValueError('Typed Radix client budget observation required')
+                    args=row.get('arguments')
+                    if not isinstance(args,list)or not 0<len(args)<=256 or any(not isinstance(a,str)or len(a)>4096 for a in args)or sum(len(a)for a in args)>65536:raise ValueError('Bounded Radix argument classification required')
+                    category='OTHER_DOCKER_CLIENT'
+                    if args[:2]==['image','inspect']:category='IMAGE_INSPECT'
+                    elif args[:2]==['network','inspect']:category='NETWORK_INSPECT'
+                    elif args[0]=='inspect':category='CONTAINER_INSPECT'
+                    elif args[:2]==['ps','--all']:category='PROJECT_CONTAINER_LIST'
+                    elif args[0]=='compose'and args[-5:]==['up','--detach','--no-build','--pull','never']:category='COMPOSE_UP'
+                    elif args[0]=='compose'and args[-4:]==['down','--timeout','15','--volumes']:category='COMPOSE_DOWN'
+                    elif args[:2]in [['network','ls'],['volume','ls']]:category='PROJECT_NETWORK_OR_VOLUME_LIST'
+                    public.append({'pid':pid,'parent_pid':parent_pid,'os_start_token_sha256':hashlib.sha256(birth.encode()).hexdigest(),'category':category,'actual_parent_wait':True,'exit_code':code,'signal':sig,'forced_cleanup':row['forced_cleanup'],'success':row['success'],'elapsed_monotonic_ns':elapsed,'output_bytes':size})
+                result['client_waits']={'status':'captured','journal':fingerprint,'rows':public,'scope':'Source direct Docker client parent waits only; no container parent-wait or absence/proof claim.'}
+            except Exception:result['client_waits']={'status':'unavailable'}
+        else:result['client_waits']={'status':'absent'}
+    return result
+
 def validate_record(value,modules):
     """Closed public wire schema before a failed-run artifact is retained."""
     def require(ok):

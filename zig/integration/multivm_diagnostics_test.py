@@ -363,4 +363,71 @@ class RoleFailureProjectionControls(unittest.TestCase):
         path=self.repo/self.names[-1];path.write_bytes(path.read_bytes()+b' changed logging macro')
         with self.assertRaises(ValueError):self.observe()
 
+class FixtureFailureDiscriminatorControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.case=Path(self.temp.name).resolve();(self.case/'evidence').mkdir();self.repo=self.case/'repo';self.repo.mkdir();self.sources={}
+        actual=Path(__file__).resolve().parents[2];root='rust/main/utils/run-locally/src/'
+        for suffix in ['program.rs','logging.rs','tron/mod.rs','main.rs','external_agents.rs','radix/mod.rs','external_agents/radix_fixture.rs']:
+            name=root+suffix;p=self.repo/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((actual/name).read_bytes());self.sources[name]=api.pin(p)
+        self.manifest={'scenario':'tron','runtime_source_commit':'a'*40,'mode':'ReleaseSafe','verifier_tools':{'docker':{'path':'/approved/docker','bytes':1,'sha256':'b'*64}}};self.approval={'tron_tre':{'pnpm':{'path':'/approved/pnpm','bytes':1,'sha256':'c'*64}}};self.log=self.case/'harness.log'
+        self.program='rust/main/utils/run-locally/src/program.rs';self.radix='rust/main/utils/run-locally/src/radix/mod.rs'
+        lines=(self.repo/self.program).read_text().splitlines();self.pline=next(i+1 for i,l in enumerate(lines)if l.strip()=='assert!('and any('Command returned non-zero'in t for t in lines[i:i+5]));self.rline=next(i+1 for i,l in enumerate((self.repo/self.radix).read_text().splitlines())if 'panic!("actual owned Radix localnet: {error:#}")'in l)
+    def observe(self):return api.fixture_failure_observation(self.case,self.manifest,self.approval,42,self.sources,self.repo,self.log)
+    def header(self,name,line):return "thread 'PRIVATE_THREAD' (44) panicked at /build/"+name+':'+str(line)+':9:\n'
+    def program_body(self,arguments,binary='/approved/pnpm'):
+        return 'Command returned non-zero exit code: Program { bin: Some('+json.dumps(binary)+'), args: '+json.dumps(arguments)+', env: {"PRIVATE_TOKEN": "SECRET"}, working_dir: Some("/PRIVATE_PATH"), log_filter: false }\n'
+    def journal(self,**extra):
+        return {'schema':1,'purpose':'radix-fixture-docker-client','runtime_source_commit':'a'*40,'mode':'ReleaseSafe','pid':81,'parent_pid':42,'os':'linux','os_start_token':'linux-ticks:22','executable':self.manifest['verifier_tools']['docker'],'arguments':['compose','PRIVATE_ARG','up','--detach','--no-build','--pull','never'],'parent_wait_completed':True,'exit_code':17,'signal':None,'forced_cleanup':False,'elapsed_monotonic_ns':123,'output_bytes':512,'success':False,'error':'PRIVATE_TOKEN_EXTERNAL_ERROR',**extra}
+    def save_journal(self,rows):
+        (self.case/'evidence/radix-client-parent-waits.jsonl').write_text(''.join(json.dumps(r)+'\n'for r in rows))
+    def test_actual_Tron_Program_and_static_stage_categories_never_export_Debug_values(self):
+        for args,category in [(['hyperlane','core','deploy','--key','PRIVATE_TOKEN'],'HYPERLANE_CORE_DEPLOY'),(['hyperlane','registry','agent-config'],'HYPERLANE_REGISTRY_AGENT_CONFIG'),(['hyperlane','send','message'],'HYPERLANE_SEND_MESSAGE')]:
+            self.log.write_text('<E2E> Deploying core contracts to anvil1...\n'+self.header(self.program,self.pline)+self.program_body(args));value=self.observe();self.assertEqual(value['last_seen_stage']['category'],'CORE_DEPLOY_FIRST_ENTERED');self.assertTrue(value['last_seen_stage']['observed_only']);self.assertEqual(value['panic_observations'][0]['category'],category);self.assertIsNone(value['panic_observations'][0]['program_exit_code']);self.assertIsNone(value['panic_observations'][0]['program_signal'])
+            wire=json.dumps(value)
+            for secret in ['PRIVATE_TOKEN','SECRET','PRIVATE_PATH','PRIVATE_THREAD','--key']:self.assertNotIn(secret,wire)
+        self.log.write_text(self.header(self.program,self.pline)+self.program_body([], '../../target/debug/init-db'));self.assertEqual(self.observe()['panic_observations'][0]['category'],'INIT_DB')
+    def test_unknown_program_or_subcommand_is_only_closed_nonzero_observation(self):
+        for args,binary in [(['hyperlane','core','deploy'],'/FOREIGN/pnpm'),(['hyperlane','core','deploySECRET'],'/approved/pnpm'),(['PRIVATE_SUBCOMMAND'],'/approved/pnpm')]:
+            self.log.write_text(self.header(self.program,self.pline)+self.program_body(args,binary));value=self.observe();self.assertEqual(value['panic_observations'][0]['category'],'OTHER_PROGRAM_NONZERO');self.assertNotIn('FOREIGN',json.dumps(value));self.assertNotIn('PRIVATE_SUBCOMMAND',json.dumps(value))
+    def test_panic_requires_immediate_actual_Source_location_and_exact_assertion_line(self):
+        body=self.program_body(['hyperlane','core','deploy'])
+        for text in [body,self.header(self.program,self.pline-1)+body,"thread 'private' (4) panicked at foreign.rs:2:3: "+self.program+':'+str(self.pline)+':9:\n'+body,self.header(self.program,self.pline)+'\n'*18+body]:
+            self.log.write_text(text);self.assertEqual(self.observe()['panic_observations'],[])
+        self.log.write_text(self.header(self.program,self.pline)+body);source=self.repo/self.program;source.write_bytes(source.read_bytes()+b'// changed Source')
+        with self.assertRaises(ValueError):self.observe()
+    def test_Radix_exact_panic_guard_and_parent_client_status_are_independent_observations(self):
+        self.manifest['scenario']='radix';self.log.write_text(self.header(self.radix,self.rline)+'actual owned Radix localnet: owned Radix Core/Gateway startup deadline\n');self.save_journal([self.journal()]);value=self.observe();self.assertEqual(value['panic_observations'][0]['category'],'CORE_GATEWAY_STARTUP_DEADLINE');row=value['client_waits']['rows'][0];self.assertEqual(row['category'],'COMPOSE_UP');self.assertEqual(row['exit_code'],17);self.assertEqual(row['elapsed_monotonic_ns'],123);self.assertTrue(row['actual_parent_wait']);self.assertFalse(value['native_or_timing_or_cleanup_authority']);wire=json.dumps(value)
+        for secret in ['PRIVATE_ARG','PRIVATE_TOKEN','EXTERNAL_ERROR','linux-ticks:22']:self.assertNotIn(secret,wire)
+        self.assertEqual(value['client_waits']['journal']['bytes'],(self.case/'evidence/radix-client-parent-waits.jsonl').stat().st_size)
+    def test_Radix_unknown_private_error_cannot_borrow_later_static_guard(self):
+        self.manifest['scenario']='radix'
+        for text in ['actual owned Radix localnet: PRIVATE owned Radix Core/Gateway startup deadline','actual owned Radix localnet: PRIVATE_ERROR\nstack backtrace:\nowned Radix Core/Gateway startup deadline']:
+            self.log.write_text(self.header(self.radix,self.rline)+text+'\n');value=self.observe();self.assertEqual(value['panic_observations'],[]);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(value['client_waits']['status'],'absent')
+    def test_Radix_parent_tool_birth_mode_bool_and_duplicate_journals_refuse_observation_only(self):
+        self.manifest['scenario']='radix';self.log.write_text(self.header(self.radix,self.rline)+'actual owned Radix localnet: owned Radix Core/Gateway startup deadline\n')
+        for extra in [{'parent_pid':43},{'pid':True},{'os_start_token':None},{'mode':'ReleaseFast'},{'executable':{}},{'parent_wait_completed':False},{'exit_code':True},{'signal':9},{'success':0},{'success':True}]:
+            self.save_journal([self.journal(**extra)]);value=self.observe();self.assertEqual(value['client_waits'],{'status':'unavailable'});self.assertEqual(value['panic_observations'][0]['category'],'CORE_GATEWAY_STARTUP_DEADLINE')
+        row=self.journal();self.save_journal([row,row]);self.assertEqual(self.observe()['client_waits'],{'status':'unavailable'})
+    def test_Radix_signal_rows_and_fixed_verb_catalog_do_not_invent_native_credit(self):
+        self.manifest['scenario']='radix';self.log.write_bytes(b'')
+        cases=[(['image','inspect','PRIVATE'],'IMAGE_INSPECT'),(['network','inspect','PRIVATE'],'NETWORK_INSPECT'),(['inspect','PRIVATE'],'CONTAINER_INSPECT'),(['ps','--all','PRIVATE'],'PROJECT_CONTAINER_LIST'),(['compose','PRIVATE','down','--timeout','15','--volumes'],'COMPOSE_DOWN'),(['volume','ls','PRIVATE'],'PROJECT_NETWORK_OR_VOLUME_LIST'),(['PRIVATE'],'OTHER_DOCKER_CLIENT')]
+        rows=[self.journal(pid=90+i,arguments=args,exit_code=None,signal=9,forced_cleanup=True)for i,(args,_)in enumerate(cases)];self.save_journal(rows);value=self.observe();self.assertEqual([r['category']for r in value['client_waits']['rows']],[name for _,name in cases]);self.assertTrue(all(r['signal']==9 and r['exit_code']is None and r['forced_cleanup']is True for r in value['client_waits']['rows']));self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_captured_files_bounds_and_evidence_links_never_read_foreign_journal(self):
+        self.manifest['scenario']='radix';self.log.write_bytes(b'');journal=self.case/'evidence/radix-client-parent-waits.jsonl'
+        with journal.open('wb')as stream:stream.truncate(1024**2+1)
+        real=api.os.open;opened=[]
+        def tracked(path,*args,**kwargs):opened.append(str(path));return real(path,*args,**kwargs)
+        with mock.patch.object(api.os,'open',side_effect=tracked):value=self.observe()
+        self.assertEqual(value['client_waits'],{'status':'unavailable'});self.assertNotIn(str(journal),opened)
+        journal.unlink();journal.symlink_to(self.log);self.assertEqual(self.observe()['client_waits'],{'status':'unavailable'})
+
+
+    def test_unknown_first_panic_message_cannot_borrow_later_unnumbered_guard(self):
+        self.manifest['scenario']='radix'
+        for inline in [False,True]:
+            header=self.header(self.radix,self.rline).rstrip('\n')if inline else self.header(self.radix,self.rline)
+            self.log.write_text(header+'actual owned Radix localnet: PRIVATE_UNKNOWN_ERROR\nowned Radix Core/Gateway startup deadline\n')
+            value=self.observe();self.assertEqual(value['panic_observations'],[]);self.assertNotIn('PRIVATE_UNKNOWN_ERROR',json.dumps(value))
+        self.manifest['scenario']='tron';self.log.write_text(self.header(self.program,self.pline)+'PRIVATE_UNKNOWN_ERROR\n'+self.program_body(['hyperlane','core','deploy']));self.assertEqual(self.observe()['panic_observations'],[])
+
 if __name__=='__main__':unittest.main()

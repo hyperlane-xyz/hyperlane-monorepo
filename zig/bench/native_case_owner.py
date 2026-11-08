@@ -629,6 +629,12 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
             require(len(helper_pids)==1,'One actual SVM helper parent required for failure projection')
             record['SVM_role_failure']=diagnostic_module(approval).role_failure_observation(case,manifest,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log)
         except Exception:record['SVM_role_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+    if manifest['scenario']in{'tron','radix'}:
+        try:
+            helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
+            require(len(helper_pids)==1,'One actual fixture helper parent required for failure projection')
+            record['fixture_failure']=diagnostic_module(approval).fixture_failure_observation(case,manifest,approval,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log)
+        except Exception:record['fixture_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')
