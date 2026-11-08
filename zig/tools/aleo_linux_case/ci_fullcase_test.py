@@ -314,4 +314,48 @@ class StartupFailureProjection(unittest.TestCase):
   with tempfile.TemporaryDirectory()as root:
    case=pathlib.Path(root).resolve()/'case';path,value=self.fixture(case);d=value['service_failure_diagnostics'];d['startup']['status']='source-trace-only';d['startup']['record'].update(kind='aleo-case-service-source-trace-v1',stage='unobserved');path.write_text(json.dumps(value));result=m.case_failure_diagnostics(case,REPO);record=result['records']['service']['service_failure_diagnostics']['startup'];self.assertEqual(record['status'],'source-trace-only');self.assertEqual(record['record']['stage'],'unobserved');self.assertFalse(result['native_or_performance_credit'])
 
+
+class DriverFailureProjection(unittest.TestCase):
+ def sources(self):
+  value=json.loads((REPO/'zig/tools/aleo_linux_case/ci_policy.PENDING.json').read_bytes())
+  row=next(r for r in value['required_source']if r['path']=='zig/integration/aleo_process.ts')
+  return [m.policy_pin(row,REPO)]
+ def test_actual_public_caller_projects_pinned_stage_and_static_guard_without_raw_errors(self):
+  with tempfile.TemporaryDirectory()as directory:
+   case=pathlib.Path(directory).resolve()/'case';path=case/'data/case/result.json';path.parent.mkdir(parents=True)
+   errors=['Docker daemon changed since resource approval','owned child cleanup: PermissionError: [Errno 13] PRIVATE_SENTINEL/path','owned command failed: PRIVATE_SENTINEL/token: private SDK reply','unclassified PRIVATE_SENTINEL']
+   path.write_text(json.dumps({'passed':False,'stage':'actual-runtime-preflight','errors':errors,'evidence':{'authorization':'PRIVATE_SENTINEL'}}))
+   result=m.case_failure_diagnostics(case,REPO,self.sources());record=result['records']['driver'];d=record['driver_observation'];self.assertEqual(record['errors_count'],4);self.assertEqual(d['status'],'observed');self.assertEqual(d['last_persisted_stage']['value'],'actual-runtime-preflight');self.assertGreater(d['last_persisted_stage']['source_literal_line'],0)
+   self.assertEqual(d['source']['sha256'],self.sources()[0]['sha256']);self.assertEqual(d['error_rows'][0]['classification'],'DOCKER_DAEMON_CHANGED');self.assertEqual(d['error_rows'][1]['prefix']['kind'],'OWNED_CHILD_CLEANUP');self.assertEqual(d['error_rows'][1]['text_class'],'PermissionError');self.assertEqual(d['error_rows'][1]['text_errno'],13);self.assertEqual(d['error_rows'][2]['classification'],'OWNED_COMMAND_FAILED');self.assertEqual(d['error_rows'][3]['classification'],'UNCLASSIFIED')
+   for raw,row in zip(errors,d['error_rows']):self.assertEqual((row['bytes'],row['sha256']),(len(raw.encode()),hashlib.sha256(raw.encode()).hexdigest()))
+   text=json.dumps(result);self.assertNotIn('PRIVATE_SENTINEL',text);self.assertNotIn(str(case),text);self.assertIn('Text',d['basis'].replace('text','Text'));self.assertFalse(result['native_or_performance_credit'])
+ def test_unknown_malicious_nested_or_nonstring_values_never_become_public_messages(self):
+  value={'passed':False,'stage':{'PRIVATE_SENTINEL':'secret'},'errors':[{'name':'PRIVATE_SENTINEL','errno':13},'SDK private PRIVATE_SENTINEL','EACCES: PRIVATE_SENTINEL']}
+  d=m.driver_failure_observation(value,REPO,self.sources());self.assertEqual(d['last_persisted_stage'],{'status':'unrecognized'});self.assertEqual(d['error_rows'][0],{'status':'non-string'});self.assertEqual(d['error_rows'][1]['classification'],'UNCLASSIFIED');self.assertEqual(d['error_rows'][2]['text_code'],'EACCES');self.assertNotIn('text_errno',d['error_rows'][2]);self.assertNotIn('PRIVATE_SENTINEL',json.dumps(d))
+ def test_error_row_count_size_and_malformed_text_are_bounded_without_leakage(self):
+  errors=['PRIVATE_SENTINEL'*6000,'\ud800']+['private']*20;d=m.driver_failure_observation({'passed':False,'stage':'preflight','errors':errors},REPO,self.sources());self.assertEqual(d['errors_count'],22);self.assertTrue(d['errors_truncated']);self.assertEqual(len(d['error_rows']),16);self.assertEqual(d['error_rows'][0]['status'],'oversized');self.assertEqual(d['error_rows'][0]['sha256'],hashlib.sha256(errors[0].encode()).hexdigest());self.assertEqual(d['error_rows'][1]['status'],'invalid-text');self.assertLess(len(json.dumps(d).encode()),32768);self.assertNotIn('PRIVATE_SENTINEL',json.dumps(d))
+ def test_absent_duplicate_mismatched_or_unbounded_admitted_Source_refuses_classification(self):
+  sources=self.sources();value={'passed':False,'stage':'actual-runtime-preflight','errors':['Docker daemon changed since resource approval']}
+  for rows in (None,[],sources+sources,[{**sources[0],'sha256':'0'*64}],[{**sources[0],'sha256':{'private':'PRIVATE_SENTINEL'}}]):
+   with self.subTest(rows=rows):self.assertEqual(m.driver_failure_observation(value,REPO,rows),{'status':'source-refused'})
+  with mock.patch.object(pathlib.Path,'open',side_effect=AssertionError('oversized Source opened'))as opened:self.assertEqual(m.driver_failure_observation(value,REPO,[{**sources[0],'bytes':1024**2+1}]),{'status':'source-refused'});opened.assert_not_called()
+ def test_Source_capture_is_single_bounded_read_and_replacement_bytes_fail_hash(self):
+  value={'passed':False,'stage':'preflight','errors':[]};source=self.sources()[0];original=pathlib.Path.open;seen=[]
+  def observe(path,*args,**kwargs):seen.append(path);return original(path,*args,**kwargs)
+  with mock.patch.object(pathlib.Path,'open',autospec=True,side_effect=observe):d=m.driver_failure_observation(value,REPO,[source])
+  self.assertEqual(d['status'],'observed');self.assertEqual(seen,[pathlib.Path(source['path'])])
+  stream=mock.MagicMock();stream.__enter__.return_value.read.return_value=b'PRIVATE_SENTINEL changed Source'
+  with mock.patch.object(pathlib.Path,'open',return_value=stream):self.assertEqual(m.driver_failure_observation(value,REPO,[source]),{'status':'source-refused'})
+ def test_dynamic_readback_stage_reports_only_Source_pattern_and_epoch(self):
+  for stage,kind in [('stopped-PRIVATE_SENTINEL-0','STOPPED_READBACK'),('readonly-files-PRIVATE_SENTINEL-1','READONLY_FILES')]:
+   d=m.driver_failure_observation({'passed':False,'stage':stage,'errors':[]},REPO,self.sources());self.assertEqual(d['last_persisted_stage']['category'],kind);self.assertNotIn('PRIVATE_SENTINEL',json.dumps(d));self.assertNotIn('value',d['last_persisted_stage'])
+  d=m.driver_failure_observation({'passed':False,'stage':'PRIVATE_SENTINEL','errors':[]},REPO,self.sources());self.assertEqual(d['last_persisted_stage'],{'status':'unrecognized'})
+ def test_ambiguous_Source_stage_or_guard_literal_is_not_assigned_a_callsite(self):
+  with tempfile.TemporaryDirectory()as directory:
+   repo=pathlib.Path(directory).resolve();path=repo/'zig/integration/aleo_process.ts';path.parent.mkdir(parents=True);original=(REPO/'zig/integration/aleo_process.ts').read_bytes();path.write_bytes(original+b"\nawait save('actual-runtime-preflight', {});\n'Docker daemon changed since resource approval';\n")
+   d=m.driver_failure_observation({'passed':False,'stage':'actual-runtime-preflight','errors':['Docker daemon changed since resource approval']},repo,[m.pin(path)]);self.assertEqual(d['last_persisted_stage'],{'status':'unrecognized'});self.assertEqual(d['error_rows'][0]['classification'],'UNCLASSIFIED')
+ def test_success_is_not_classified_and_actual_failure_caller_supplies_admitted_Source(self):
+  with mock.patch.object(pathlib.Path,'open',side_effect=AssertionError('success Source read')):self.assertEqual(m.driver_failure_observation({'passed':True},REPO,None),{'status':'not-failed'})
+  tree=ast.parse(pathlib.Path(m.__file__).read_bytes());execute=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');call=next(n for n in ast.walk(execute)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='case_failure_diagnostics');self.assertEqual(len(call.args),3);self.assertEqual(ast.unparse(call.args[2]),"authority['required_source']")
+
 if __name__=='__main__':unittest.main(verbosity=2)

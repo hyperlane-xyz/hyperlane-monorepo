@@ -31,7 +31,79 @@ def write(path,value):
  return pin(path)
 def module(repo,name,relative):
  spec=importlib.util.spec_from_file_location(name,repo/relative);out=importlib.util.module_from_spec(spec);spec.loader.exec_module(out);return out
-def case_failure_diagnostics(case,repo):
+def driver_failure_observation(value,repo,admitted_sources):
+ # Text witnesses from failed driver metadata only, never typed exception/stack credit.
+ if type(value)is not dict or value.get('passed')is not False:return {'status':'not-failed'}
+ relative='zig/integration/aleo_process.ts';path=Path(repo)/relative
+ try:
+  need(type(admitted_sources)is list and len(admitted_sources)<=128,'admitted driver Source missing')
+  rows=[r for r in admitted_sources if type(r)is dict and r.get('path')==str(path)]
+  need(len(rows)==1,'unique admitted driver Source required');row=rows[0]
+  need(set(row)=={'path','bytes','sha256'}and type(row['bytes'])is int and 0<row['bytes']<=1024**2 and type(row['sha256'])is str and re.fullmatch('[0-9a-f]{64}',row['sha256']),'bounded admitted driver Source')
+  need(path.is_absolute()and path.resolve(strict=True)==path and path.is_file()and not path.is_symlink(),'canonical driver Source')
+  with path.open('rb')as stream:raw=stream.read(1024**2+1)
+  need(len(raw)==row['bytes']and hashlib.sha256(raw).hexdigest()==row['sha256'],'captured driver Source differs');source=raw.decode('utf8')
+ except BaseException:return {'status':'source-refused'}
+ def line(needle):
+  places=[m.start()for m in re.finditer(re.escape(needle),source)]
+  return source.count('\n',0,places[0])+1 if len(places)==1 else None
+ stages={}
+ for match in re.finditer(r"await save\('([a-z][a-z0-9-]{0,63})',",source):
+  where=line("await save('"+match[1]+"',")
+  if where:stages[match[1]]=where
+ initial=line("stage: 'preflight'")
+ if initial and 'preflight'not in stages:stages['preflight']=initial
+ stage=value.get('stage');observed={'status':'unrecognized'}
+ if type(stage)is str and stage in stages:observed={'status':'observed','value':stage,'source_literal_line':stages[stage]}
+ elif type(stage)is str:
+  for prefix,kind in [('readonly-files','READONLY_FILES'),('stopped','STOPPED_READBACK')]:
+   needle='await save(`'+prefix+'-${chain.domain.name}-${epoch}`';where=line(needle)
+   match=re.fullmatch(re.escape(prefix)+r'-[A-Za-z0-9_-]{1,128}-([01])',stage)
+   if where and match:observed={'status':'observed-pattern','category':kind,'epoch':int(match[1]),'source_literal_line':where};break
+ guards={
+  'DOCKER_DAEMON_CHANGED':'Docker daemon changed since resource approval',
+  'LOCAL_IMAGE_ABSENT':'reviewed local image absent',
+  'LOCAL_IMAGE_IDENTITY':'local image identity differs; implicit pulls forbidden',
+  'PUBLIC_VALIDATOR_IDENTITY':'actual public fixture validator key differs from expected identity',
+  'PUBLIC_KEY_ENCODING':'public fixture private key encoding differs',
+  'NATIVE_SIGNER_WIDTH':'actual native signer address wrong width',
+  'OWNED_NODE_CONTAINER_ID':'actual owned node container ID missing',
+  'ROLE_EXITED_EARLY':'owned role exited early',
+  'ROLE_EXITED_BEFORE_SHUTDOWN':'owned role exited before parent shutdown',
+  'ROLE_REQUIRED_SIGKILL':'owned child required SIGKILL',
+  'LOG_DRAIN_TIMEOUT':'owned log drain timed out after actual child close',
+  'API_BODY_MISSING':'actual API response body missing',
+  'API_JSON_BOUND':'actual API JSON exceeds bound',
+  'CHECKPOINT_SIGNATURE':'actual checkpoint signature invalid',
+ }
+ guard_rows={text:(name,line("'"+text+"'"))for name,text in guards.items()}
+ contexts={'lifecycle drain: ':'LIFECYCLE_DRAIN','owned child cleanup: ':'OWNED_CHILD_CLEANUP','native worker cleanup: ':'NATIVE_WORKER_CLEANUP','proxy cleanup: ':'PROXY_CLEANUP','container log capture: ':'CONTAINER_LOG_CAPTURE','owned container stop: ':'OWNED_CONTAINER_STOP'}
+ command=line('`owned command failed: ${path}: ${error.message}; ${stderr.slice(0, 4096)}`')
+ classes='Error|TypeError|RangeError|SyntaxError|ReferenceError|AggregateError|AbortError|ValueError|RuntimeError|AssertionError|FileNotFoundError|FileExistsError|PermissionError|OSError|TimeoutError'
+ errors=value.get('errors');result={'status':'observed','source':{'path':relative,'bytes':row['bytes'],'sha256':row['sha256']},'last_persisted_stage':observed,'basis':'Pinned Source literal/prefix text only; no actual exception type, OS errno or stack-frame claim.','error_rows':[]}
+ if type(errors)is not list:result['errors_status']='refused';return result
+ result.update(errors_status='observed',errors_count=len(errors),errors_truncated=len(errors)>16)
+ for item in errors[:16]:
+  if type(item)is not str:result['error_rows'].append({'status':'non-string'});continue
+  try:encoded=item.encode('utf8')
+  except UnicodeEncodeError:result['error_rows'].append({'status':'invalid-text','characters':len(item)});continue
+  public={'bytes':len(encoded),'sha256':hashlib.sha256(encoded).hexdigest()};result['error_rows'].append(public)
+  if len(encoded)>65536:public['status']='oversized';continue
+  public.update(status='observed',classification='UNCLASSIFIED');body=item
+  for prefix,kind in contexts.items():
+   where=line('`'+prefix+'${String(error)}`')
+   if where and body.startswith(prefix):public['prefix']={'kind':kind,'source_literal_line':where};body=body[len(prefix):];break
+  match=re.match('^('+classes+r'):\s?',body)
+  if match:public['text_class']=match[1];body=body[match.end():]
+  match=re.match(r'^\[Errno ([1-9][0-9]{0,3})\](?:[ :]|$)',body)
+  if match and int(match[1])<=4095:public['text_errno']=int(match[1])
+  match=re.match(r'^(ENOENT|EACCES|EPERM|ENOSPC|EEXIST|ENOTDIR|ENOMEM|EMFILE|ETIMEDOUT|ECONNREFUSED|ECONNRESET)(?=[: ])',body)
+  if match:public['text_code']=match[1]
+  if body in guard_rows and guard_rows[body][1]:public.update(classification=guard_rows[body][0],source_literal_line=guard_rows[body][1])
+  elif command and body.startswith('owned command failed: '):public.update(classification='OWNED_COMMAND_FAILED',source_literal_line=command)
+ return result
+
+def case_failure_diagnostics(case,repo,admitted_sources=None):
  # Fixed metadata leaves only. Raw error strings, argv, tokens, Docker replies,
  # SDK output and log bodies are never copied into this public projection.
  sources=('case_delegate.py','case_supervisor.py','inner.py')
@@ -113,6 +185,7 @@ def case_failure_diagnostics(case,repo):
     if isinstance(value.get(key),dict):record[key]={k:v for k,v in value[key].items()if k in {'passed','owned_cgroup_absent','complete_positive_custody','performed_mutations','payload_never_started'}and type(v)is bool}
    record['gate_failure_present']=value.get('gate_failed')is not None
    if name=='service'and 'service_failure_diagnostics'in value:record['service_failure_diagnostics']=service_startup(value['service_failure_diagnostics'])
+   if name=='driver'and value.get('passed')is False:record['driver_observation']=driver_failure_observation(value,repo,admitted_sources)
   except BaseException as caught:record['status']='unavailable';record['read_error_class']=type(caught).__name__ if type(caught).__name__ in classes else'other'
  result={'schema':1,'kind':'aleo-fullcase-closed-failure-diagnostics','native_or_performance_credit':False,'records':records}
  need(len(json.dumps(result).encode())<=32768,'bounded public failure projection');return result
@@ -357,7 +430,7 @@ def execute(policy_path,policy_sha,mode,env):
   summary={'schema':1,'kind':'aleo-fullcase-ci-composition-v1','mode':mode,'passed':error is None and case is not None and (root/'public/public-final-proof.json').is_file()and unchanged,'error_type':error,'policy':authority_pin,'execution_source_commit':env['GITHUB_SHA'],'runtime_source_commit':authority['runtime_source_commit'],'source_unchanged':unchanged,'proof_owner_crossbound':crossbound,'command_waits':[{'name':r['name'],'pid':r.get('pid'),'actual_parent_wait':r['actual_parent_wait'],'exit_code':r.get('exit_code'),'signals':r['signals'],'cleanup_errors':r['cleanup_errors'],**{k:r.get(k)for k in ('started_monotonic_ns','maximum_wall_seconds','original_deadline_ns','completion_check_ns')}}for r in cmd.rows],'native_acceptance_requires_Root_readback':True,'performance_credit':False}
   summary['passed']=final_pass(summary)and summary['passed']
   if error is not None and case is not None:
-   try:write(root/'public/full-case-failure-diagnostics.json',case_failure_diagnostics(case,repo))
+   try:write(root/'public/full-case-failure-diagnostics.json',case_failure_diagnostics(case,repo,authority['required_source']))
    except BaseException as caught:summary['failure_diagnostics_error_type']=type(caught).__name__
   write(root/'public/ci-result.json',summary)
   need(summary['passed'],'composition failed; private evidence retained, no raw fallback')
