@@ -545,13 +545,18 @@ function scanAtom(pattern: string, index: number): ScannedAtom {
     return { end, size: escapeSize(pattern.slice(index, end)) };
   }
 
-  return { end: index + 1, size: char === '|' ? 0 : 1 };
+  return { end: index + 1, size: 1 };
 }
 
 /**
  * Whether Rust may reject a compiled pattern for exceeding its size limit,
  * which RE2 does not have. Atoms add their size, a repetition multiplies its
- * atom or group by its largest count, and alternatives add up.
+ * atom or group by its largest count, and alternatives add up. A `|` and a
+ * capturing group cost 1 each, as Rust fails from about 300,000 `|` and
+ * 110,000 `()`. Non-capturing and flag groups are free, as Rust accepts
+ * 2,000,000 `(?:)` and 1,000,000 `(?i)`. A repetition with a minimum of 0
+ * (`?`, `*`, `{0,n}`, `{0,}`, lazy or not) costs 1 more, like `(?:x|)`, as
+ * Rust fails from about 9,800 `.?` and 100,000 `(?:)*`. `{0}` is free.
  */
 function exceedsRelayerRegexSize(pattern: string): boolean {
   const groupSizes = [0];
@@ -569,7 +574,9 @@ function exceedsRelayerRegexSize(pattern: string): boolean {
       continue;
     }
     if (char === '(') {
-      groupSizes.push(0);
+      const capturing =
+        !rest.startsWith('(?') || NAMED_GROUP_OPENER_REGEX.test(rest);
+      groupSizes.push(capturing ? 1 : 0);
       index += /^\((\?[^:>]*[:>])?/.exec(rest)?.[0].length ?? 1;
       lastSize = 0;
       continue;
@@ -583,19 +590,22 @@ function exceedsRelayerRegexSize(pattern: string): boolean {
     }
 
     let copies: number | undefined;
-    if (char === '*' || char === '?') copies = 1;
+    let skippable = char === '*' || char === '?';
+    if (skippable) copies = 1;
     else if (char === '+') copies = 2;
     else if (char === '{' && repetition) {
       const [, min, range, max] = repetition;
       copies =
         range === undefined ? Number(min) : max ? Number(max) : Number(min) + 1;
+      skippable = min === '0' && range !== undefined;
     }
 
     if (copies !== undefined) {
       index += char === '{' && repetition ? repetition[0].length : 1;
       if (pattern[index] === '?') index++;
-      groupSizes[groupSizes.length - 1] += lastSize * (copies - 1);
-      lastSize *= copies;
+      const surcharge = skippable ? 1 : 0;
+      groupSizes[groupSizes.length - 1] += lastSize * (copies - 1) + surcharge;
+      lastSize = lastSize * copies + surcharge;
     } else {
       const atom = scanAtom(pattern, index);
       lastSize = atom.size;

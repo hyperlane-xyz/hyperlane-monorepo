@@ -512,6 +512,57 @@ describe('relayerDenylistRules', () => {
           '\\w{100,}',
         ],
         ['alternatives past the conservative size estimate', '\\w{60}|\\w{60}'],
+        ['alternatives just past the size estimate', '\\w{50}|\\w{50}'],
+        ['captures past the size estimate', '(a)'.repeat(5001)],
+        [
+          'named captures past the size estimate',
+          Array.from({ length: 5001 }, (_, i) => `(?<n${i}>a)`).join(''),
+        ],
+        [
+          'nested captures past the relayer size limit',
+          ('('.repeat(60) + '.' + ')'.repeat(60)).repeat(3000),
+        ],
+        [
+          'empty alternatives past the relayer size limit',
+          'a' + '|'.repeat(300000),
+        ],
+        [
+          'empty alternative groups past the relayer size limit',
+          '(?:|)'.repeat(80000),
+        ],
+        ['optionals past the relayer size limit', '.?'.repeat(10000)],
+        [
+          'zero-or-one counts past the relayer size limit',
+          '.{0,1}'.repeat(10000),
+        ],
+        [
+          'repeated optionals past the relayer size limit',
+          '(?:.?){1000}'.repeat(10),
+        ],
+        [
+          'optional empty groups past the relayer size limit',
+          '(?:)?'.repeat(150000),
+        ],
+        [
+          'starred empty groups past the relayer size limit',
+          '(?:)*'.repeat(150000),
+        ],
+        [
+          'open-ended zero counts past the relayer size limit',
+          '(?:){0,}'.repeat(150000),
+        ],
+        [
+          'nested optionals past the relayer size limit',
+          ('(?:'.repeat(59) + 'a?' + ')?'.repeat(59)).repeat(5000),
+        ],
+        [
+          'lazy optionals past the relayer size limit',
+          '(?:.??){1000}'.repeat(10),
+        ],
+        [
+          'repeated zero-or-one counts past the relayer size limit',
+          '(?:.{0,1}){1000}'.repeat(10),
+        ],
         [
           'a closing group past the conservative size estimate',
           '\\D{100}(?:\\D{100})',
@@ -590,7 +641,12 @@ describe('relayerDenylistRules', () => {
       ['the mainnet recipient prefix', '^0{24}[0-9a-f]{40}'],
       ['a repeated group at the size estimate', '(?:\\w{50})+'],
       ['an open-ended count at the size estimate', '\\w{99,}'],
-      ['alternatives at the size estimate', '\\w{50}|\\w{50}'],
+      ['alternatives at the size estimate', '\\w{50}|\\w{49}'],
+      ['captures at the size estimate', '(a)'.repeat(5000)],
+      ['non-capturing groups at the size estimate', '(?:a)'.repeat(10000)],
+      ['optionals at the size estimate', '.?'.repeat(5000)],
+      ['optional empty groups at the size estimate', '(?:)?'.repeat(10000)],
+      ['zero counts within the size estimate', 'a{0}'.repeat(20000)],
       ['a lazy count at the size estimate', '\\w{100}?'],
     ];
     for (const [syntax, bodyRegex] of acceptedBodyRegexes) {

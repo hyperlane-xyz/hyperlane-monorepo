@@ -61,6 +61,16 @@ const INVALID_REGEX_FILE = JSON.stringify({
   ],
 });
 
+const OVERSIZED_REGEX_FILE = JSON.stringify({
+  rules: [
+    {
+      reason: 'r',
+      addedBy: 'a',
+      match: { originDomain: 1, bodyRegex: '.?'.repeat(10000) },
+    },
+  ],
+});
+
 function buildMessage(msgId: string): ExplorerMessage {
   return {
     msg_id: msgId,
@@ -298,6 +308,11 @@ describe('RelayerDenylistMiddleware', () => {
     {
       name: 'a bodyRegex that does not compile',
       breakDenylist: () => writeDenylist(INVALID_REGEX_FILE),
+      failure: DenylistLoadFailure.InvalidFile,
+    },
+    {
+      name: "a bodyRegex past the relayer's size limit",
+      breakDenylist: () => writeDenylist(OVERSIZED_REGEX_FILE),
       failure: DenylistLoadFailure.InvalidFile,
     },
     {
