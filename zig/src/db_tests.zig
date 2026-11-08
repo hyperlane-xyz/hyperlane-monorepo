@@ -3,6 +3,7 @@ test {
     _ = @import("agents/indexing/cooperative_native_test.zig");
     _ = @import("agents/indexing/cosmos_native_test.zig");
     _ = @import("agents/scraper/aleo_cooperative_test.zig");
+    _ = @import("agents/scraper/testing.zig");
     _ = @import("db/native_test.zig");
     _ = @import("agents/store_test.zig");
     _ = @import("agents/validator/test.zig");
