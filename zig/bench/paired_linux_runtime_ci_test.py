@@ -235,7 +235,10 @@ class Workflow(unittest.TestCase):
             if eval(compile(code,'actual-reviewed-job-if','eval'),{'__builtins__':{}},scope):selected.add(name)
         return selected
     def test_all17_other_job_bodies_byteexact_and18_members(self):
-        prefix,tail=self.text.split('  paired-linux-runtime:\n',1);inverse=prefix+tail.split('  # END REVIEWED PAIRED LINUX JOBS',1)[1]
+        tree=ast.parse((REPO/'zig/bench/paired_linux_test.py').read_bytes());helper=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');scope={}
+        exec(compile(ast.Module(body=[helper],type_ignores=[]),'actual-reviewed-native-HTTP-inverse','exec'),scope)
+        ordinary=scope['ordinary_native_http_workflow'](self.text)
+        prefix,tail=ordinary.split('  paired-linux-runtime:\n',1);inverse=prefix+tail.split('  # END REVIEWED PAIRED LINUX JOBS',1)[1]
         self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(inverse.encode()).hexdigest(),'61c6875a22586bcd3408ef4d44638102'+'2879a14543ba46209f40638732810219')
         self.assertIn('name: paired-linux-input-diagnostic-',inverse);self.assertNotIn('needs:',self.job)
     def test_288_existing_ordinary_routes_never_start_runtime(self):

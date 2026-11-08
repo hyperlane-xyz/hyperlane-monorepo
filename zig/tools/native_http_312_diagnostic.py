@@ -20,14 +20,15 @@ import threading
 
 TARGET = 'zig/src/metadata_parallel_delegated_tests.zig'
 PAYLOAD = 'zig/tools/fixtures/native_http_312_diagnostic.zig.gz'
-BEFORE_SHA = ('c0b144c8319586990d9b8b722a745e64'
-              '8cb1a01574c0fcbef1f8932627ede0e0')
-AFTER_SHA = ('2b2a47d04f5c440f85f9ff56faaad2eb'
-              '47ac4b54937038e837617afb1ed0640f')
-PAYLOAD_SHA = ('9cc72cc24d37aadd80e82ba63962d1aa'
-              '0d357df7efcfc64f8588e19e24f080c8')
+BEFORE_SHA = ('847b82fed784d3fe4848229f7e091bd7'
+              '7a46e60780bf48a5f8238390894567e5')
+AFTER_SHA = ('4211efa9749ab94206f02338cc7e87be'
+              'c9106b5dcbf6dfb7c15c901bc78560c0')
+PAYLOAD_SHA = ('e09fdca6b6a999fc893042cea32afb52'
+              'fd38a49941783409bbd8d7fd65b82bd8')
 FILTER = 'native Pool yields eight stalled peers and verifies healthy EVM children three times'
 MARKER = '[zig-native-http-diagnostic]'
+ONLY_MARKER = '[zig-native-http-diagnostic-only]'
 REF = 'refs/heads/feat/zig-agent-rewrite'
 LOG_LIMIT = 8 * 1024 * 1024
 
@@ -48,7 +49,7 @@ def regular(path):
 
 def authorized(name, ref, event):
     message = event.get('head_commit', {}).get('message', '')
-    return (name == 'push' and ref == REF and isinstance(message, str) and MARKER in message
+    return (name == 'push' and ref == REF and isinstance(message, str) and (MARKER in message or (ONLY_MARKER in message and '[zig-paired-linux]' in message))
             and '[zig-native-case]' not in message and '[zig-svm-prerequisites-only]' not in message)
 
 

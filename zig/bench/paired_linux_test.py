@@ -11,6 +11,25 @@ ROOT=Path(os.environ.get('PAIRED_CONTROL_REPO',str(HERE.parents[1]))).resolve()
 def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
+def ordinary_native_http_workflow(text):
+ # Exact inverse of the isolated diagnostic's three native-http-only hunks.
+ only = "(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]'))"
+ prefix = '    if: ${{ ' + only + ' || ('
+ rows = text.splitlines(True)
+ matches = [i for i, line in enumerate(rows) if line.startswith(prefix)]
+ if len(matches) != 1: raise AssertionError('Exact native HTTP diagnostic-only branch required')
+ index = matches[0];line = rows[index]
+ if not line.endswith(') }}\n'): raise AssertionError('Exact diagnostic-only branch suffix required')
+ rows[index] = '    if: ${{ ' + line[len(prefix):-len(') }}\n')] + ' }}\n'
+ text = ''.join(rows)
+ guard = '        if: ${{ !' + only + ' }}\n'
+ if text.count(guard) != 1: raise AssertionError('Exact diagnostic-only suite guard required')
+ text = text.replace(guard, '', 1)
+ before = "contains(github.event.head_commit.message, '[zig-native-http-diagnostic]')"
+ after = "(contains(github.event.head_commit.message, '[zig-native-http-diagnostic]') || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')))"
+ if text.count(after) != 1: raise AssertionError('Exact diagnostic marker extension required')
+ return text.replace(after, before, 1)
+
 class Controls(unittest.TestCase):
  def test_worker_environment_uses_actual_native_consumer_key(self):
   source=(ROOT/'zig/src/aleo/worker.zig').read_text()
@@ -227,7 +246,7 @@ class OwnerPublication(unittest.TestCase):
 class Workflow(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  cls.text=(HERE.parents[1]/'.github/workflows/zig-agents.yml').read_text();tree=ast.parse((HERE.parents[1]/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N};exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='conditions'],type_ignores=[]),'actual-condition-reader','exec'),ns);cls.rows=ns['conditions'](cls.text)
+  cls.text=(HERE.parents[1]/'.github/workflows/zig-agents.yml').read_text();tree=ast.parse((HERE.parents[1]/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N};exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='conditions'],type_ignores=[]),'actual-condition-reader','exec'),ns);cls.rows=ns['conditions'](cls.text);cls.ordinary_rows=ns['conditions'](ordinary_native_http_workflow(cls.text))
  def evaluate(self,rows,event='push',ref='refs/heads/feat/zig-agent-rewrite',message='',paired=False,functional=False,runtime=False,**flags):
   scope={'github':N(event_name=event,ref=ref,event=N(head_commit=N(message=message))),'inputs':N(paired_linux=paired,svm_prerequisites=flags.get('svm',False),cold_full_feature=flags.get('cold',False),aleo_linux_prerequisite=flags.get('aleo',False),aleo_linux_sdk_prerequisite=flags.get('sdk',False),aleo_native_docker_prerequisite=flags.get('docker',False),aleo_full_case=flags.get('full',False)),'needs':N(paired_linux_inputs=N(outputs=N(functional_enabled=str(functional).lower(),runtime_enabled=str(runtime).lower()))),'contains':lambda text,needle:needle in text}
   selected=set()
@@ -238,7 +257,7 @@ class Workflow(unittest.TestCase):
  def legacy(self):
   pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))"
   block="      paired_linux:\n        description: Run reviewed Linux paired input/proof preparation; timings require separate final authority\n        type: boolean\n        default: false\n"
-  text=self.text.split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0].rstrip()+'\n';text=text.replace(block,'',1);prefix='    if: ${{ !'+pd+' && (';lines=[];count=0
+  text=ordinary_native_http_workflow(self.text).split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0].rstrip()+'\n';text=text.replace(block,'',1);prefix='    if: ${{ !'+pd+' && (';lines=[];count=0
   for line in text.splitlines(True):
    if line.startswith(prefix):line='    if: ${{ '+line[len(prefix):-5]+' }}\n';count+=1
    lines.append(line)
@@ -279,7 +298,7 @@ class Workflow(unittest.TestCase):
  def test_svm_token_scope_keeps_original_isolation_and_step_budget(self):
   step,source=self.svm_wrapper();self.assertEqual(self.text.count('SVM_GITHUB_TOKEN: ${{ github.token }}'),1);self.assertIn('        env:\n          SVM_GITHUB_TOKEN: ${{ github.token }}\n',step);self.assertIn('timeout-minutes: 182',step);self.assertIn('exec /usr/bin/python3 -I -B -',step);self.assertNotIn('env -i',step);self.assertNotIn('SVM_GITHUB_TOKEN=',step);self.assertNotIn('print(',source);self.assertNotIn('open(',source)
  def test_old_routes_preserved_across_all_existing_contexts(self):
-  old={k:v for k,v in self.rows.items()if not k.startswith('paired-linux-')};pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))";prefix='${{ !'+pd+' && (';old={k:'${{ '+v[len(prefix):-4]+' }}'for k,v in old.items()}
+  old={k:v for k,v in self.ordinary_rows.items()if not k.startswith('paired-linux-')};pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))";prefix='${{ !'+pd+' && (';old={k:'${{ '+v[len(prefix):-4]+' }}'for k,v in old.items()}
   count=0
   for event,ref,message,svm,cold,sdk,aleo in itertools.product(['push','pull_request','workflow_dispatch'],['refs/heads/main','refs/heads/feat/zig-agent-rewrite'],['ordinary','[zig-native-case]','[zig-svm-prerequisites-only]'],[False,True],[False,True],[False,True],[False,True]):
    kw=dict(event=event,ref=ref,message=message,svm=svm,cold=cold,sdk=sdk,aleo=aleo);self.assertEqual(self.evaluate(self.rows,**kw),self.evaluate(old,**kw));count+=1

@@ -165,9 +165,9 @@ class RouteControls(unittest.TestCase):
                   if isinstance(node, ast.Assign) and len(node.targets) == 1
                   and isinstance(node.targets[0], ast.Name) and isinstance(node.value, ast.Constant)}
         expected = {
-            'BEFORE_SHA': ('c0b144c8319586990d9b8b722a745e648c' 'b1a01574c0fcbef1f8932627ede0e0'),
-            'AFTER_SHA': (('2b2a47d04f5c440f85f9ff56faaad2eb' '47ac4b54937038e837617afb1ed0640f')),
-            'PAYLOAD_SHA': (('9cc72cc24d37aadd80e82ba63962d1aa' '0d357df7efcfc64f8588e19e24f080c8')),
+            'BEFORE_SHA': ('847b82fed784d3fe4848229f7e091bd7' '7a46e60780bf48a5f8238390894567e5'),
+            'AFTER_SHA': ('4211efa9749ab94206f02338cc7e87be' 'c9106b5dcbf6dfb7c15c901bc78560c0'),
+            'PAYLOAD_SHA': ('e09fdca6b6a999fc893042cea32afb52' 'fd38a49941783409bbd8d7fd65b82bd8'),
         }
         self.assertEqual({name: values[name] for name in expected}, expected)
 
@@ -181,11 +181,16 @@ class RouteControls(unittest.TestCase):
             ('push', api.REF, api.MARKER+' [zig-native-case]', False),
             ('push', api.REF, api.MARKER+' [zig-svm-prerequisites-only]', False),
             ('push', api.REF, '[zig-native-http-diagnosticX]', False),
+            ('push', api.REF, api.ONLY_MARKER+' [zig-paired-linux]', True),
+            ('push', api.REF, api.ONLY_MARKER, False),
+            ('workflow_dispatch', api.REF, api.ONLY_MARKER+' [zig-paired-linux]', False),
+            ('push', 'refs/heads/main', api.ONLY_MARKER+' [zig-paired-linux]', False),
+            ('push', api.REF, api.ONLY_MARKER+' [zig-paired-linux] [zig-native-case]', False),
         ]:
             with self.subTest(name=name, ref=ref, message=message):
                 self.assertIs(api.authorized(name, ref, {'head_commit': {'message': message}}), expected)
 
-    def test_workflow_original_suite_stays_unconditional_and_diagnostic_cannot_heal(self):
+    def test_workflow_ordinary_suite_stays_exact_and_only_diagnostic_route_can_skip_it(self):
         repo = Path(__file__).resolve().parents[2]
         workflow = (repo / '.github/workflows/zig-agents.yml').read_text()
         # Find the precise next job independently of its name.
@@ -195,6 +200,8 @@ class RouteControls(unittest.TestCase):
         native = '\n'.join(lines[begin:end])
         original = 'run: python3 zig/tools/native_http_tests.py --timeout-seconds 1200 --diagnostic-dir "$RUNNER_TEMP/native-http-diagnostics" -- python3 zig/tools/zig.py test src/root.zig -j"${BUILD_JOBS}" -OReleaseSafe -lc'
         self.assertEqual(native.count(original), 1)
+        only = "(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]'))"
+        self.assertIn('      - name: Exercise actual native HTTP/2 and cancellation\n        if: ${{ !'+only+' }}',native)
         self.assertIn('timeout-minutes: 40', native)
         self.assertLess(native.index(original), native.index('- name: Diagnose native HTTP test312'))
         diagnostic = native.split('- name: Diagnose native HTTP test312', 1)[1].split('- uses:', 1)[0]
@@ -213,8 +220,83 @@ class RouteControls(unittest.TestCase):
         overlay = api.payload(repo).decode()
         for text in ['.threshold = 8, .max_attempts = 1, .retry_delay_ms = 1', '.max_sessions = 4', '.max_concurrent = 128', '.timeout_ms = 20000', '.connect_timeout_ms = 20000', 'if (path_index < 8)', 'for (8..16) |index| try std.testing.expect(server.pathHits(index) >= 8);']:
             self.assertIn(text, overlay)
-        self.assertEqual(overlay.count('diagnostic_events: [2048]DiagnosticEvent'), 1)
+        self.assertEqual(overlay.count('started: [128]u64'), 1)
+        self.assertEqual(overlay.count('rows: [64]NativeDiagnosticChild'), 1)
+        self.assertIn('else self.started_overflow = true;',overlay)
         self.assertEqual(api.LOG_LIMIT, 8*1024*1024)
+
+
+class DecisiveSourceAndRouteControls(unittest.TestCase):
+    def test_payload_header_mutation_wrong_decoded_Source_and_oversize_refuse(self):
+        import gzip
+        repo=Path(__file__).resolve().parents[2];original=(repo/api.PAYLOAD).read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);target=root/api.PAYLOAD;target.parent.mkdir(parents=True)
+            changed=bytearray(original);changed[4]^=1;target.write_bytes(changed)
+            with self.assertRaisesRegex(ValueError,'payload changed'):api.payload(root)
+            for body in [b'foreign Source',b'x'*131073]:
+                wire=gzip.compress(body,mtime=0);target.write_bytes(wire)
+                with self.subTest(bytes=len(body)),mock.patch.object(api,'PAYLOAD_SHA',api.digest(wire)),self.assertRaisesRegex(ValueError,'Source changed/oversized'):api.payload(root)
+
+    def source(self):
+        repo=Path(__file__).resolve().parents[2]
+        return repo,api.payload(repo).decode()
+
+    def test_actual_payload_wraps_original_Source_exchange_and_preserves_capabilities(self):
+        _,source=self.source()
+        self.assertIn('const NativeDiagnosticInner = evm_source.Source(evm_source.LocalOrigin);',source)
+        for text in ['const actual = try self.inner.fork(allocator, cancel);','original.fetch_fn(original.context, allocator, body, options)','self.inner.client.options.exchange = self.original_exchange;','self.inner.deinitFork();','self.save(failure, false);','self.inner.endPass(failure);','self.save(err, true);','@hasDecl(NativeDiagnosticSource, name) != @hasDecl(NativeDiagnosticInner, name)','pub const parallel_quorum = NativeDiagnosticInner.parallel_quorum;','pub const parallel_latest = NativeDiagnosticInner.parallel_latest;']:
+            self.assertIn(text,source)
+        self.assertNotIn('pub fn verifyCandidate(',source.split('const NativeDiagnosticSource = struct {',1)[1].split('comptime {',1)[0])
+        self.assertLess(source.index('self.save(failure, false);'),source.index('self.inner.endPass(failure);'))
+        self.assertIn('rows: [64]NativeDiagnosticChild',source)
+        self.assertIn('var children: [64]Child',source)
+        self.assertIn('diagnostic sixty-four full records fit and remain closed',source)
+        self.assertIn('row.replay_state_known = false;',source)
+
+    def test_pool_observation_and_privacy_boundaries_stay_read_only(self):
+        _,source=self.source();snapshot=source.split('fn nativeDiagnosticPool(runtime: *Pool)',1)[1].split('const NativeDiagnosticProbe = struct',1)[0]
+        self.assertIn('if (!runtime.mutex.tryLock()) return result;',snapshot)
+        for text in ['runtime.sessions','session.id','session.closed.load(.acquire)','session.taken.load(.acquire)']:self.assertIn(text,snapshot)
+        for text in ['.peers','.native_id','.finished','session.mutex','runtime.mutex.lock()']:self.assertNotIn(text,snapshot)
+        for text in ['if (count == 4096)','count_including_probe_directory','if (wire.len > 32768)','if (err == error.PendingReadIo)','OtherCompiledError','self.probe.mutex.lock();']:self.assertIn(text,source)
+        actual=source.split('test "native Pool yields eight stalled peers and verifies healthy EVM children three times" {',1)[1].split('fn repeatedLeafReplayScenario',1)[0]
+        self.assertLess(actual.index('var probe:'),actual.index('Pool.start('));self.assertIn('.diagnostic = &probe',actual)
+        self.assertNotIn('observer.diagnostic =',actual)
+        self.assertIn('probe.before_pool = nativeDiagnosticPool(runtime);',actual)
+        self.assertIn('probe.before_fds = nativeDiagnosticFds();',actual)
+        self.assertLess(actual.index('probe.dump();'),actual.index('try server.check();'))
+        self.assertLess(actual.index('probe.dump();'),actual.index('return err;'))
+
+    def workflow_api(self):
+        import re
+        from types import SimpleNamespace as N
+        repo=Path(__file__).resolve().parents[2]
+        tree=ast.parse((repo/'zig/tools/aleo_linux/kernel_only_test.py').read_bytes())
+        ns={'re':re};exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='conditions'],type_ignores=[]),'actual-condition-reader','exec'),ns)
+        paired=ast.parse((repo/'zig/bench/paired_linux_test.py').read_bytes());method=next(n for cls in paired.body if isinstance(cls,ast.ClassDef)and cls.name=='Workflow'for n in cls.body if isinstance(n,ast.FunctionDef)and n.name=='evaluate')
+        scope={'re':re,'N':N};exec(compile(ast.Module(body=[method],type_ignores=[]),'actual-condition-evaluator','exec'),scope)
+        inverse=next(n for n in paired.body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');exec(compile(ast.Module(body=[inverse],type_ignores=[]),'exact-reviewed-workflow-inverse','exec'),scope)
+        text=(repo/'.github/workflows/zig-agents.yml').read_text()
+        return text,ns['conditions'],lambda rows,**kw:scope['evaluate'](None,rows,**kw),scope['ordinary_native_http_workflow']
+
+    def test_actual_isolated_workflow_routes_skip_all_heavy_jobs_and_preserve_old_routes(self):
+        import itertools
+        text,conditions,evaluate,inverse=self.workflow_api();rows=conditions(text)
+        only='[zig-paired-linux] [zig-native-http-diagnostic-only]'
+        self.assertEqual(evaluate(rows,message=only),{'native-http','paired-linux-inputs'})
+        self.assertEqual(evaluate(rows,message=only+' [zig-native-case]'),{'paired-linux-inputs'})
+        old=conditions(inverse(text))
+        for message in ['',api.MARKER,'[zig-native-case]','[zig-paired-linux]','[zig-aleo-fullcase-only]','[zig-svm-prerequisites-only]']:
+            with self.subTest(message=message):self.assertEqual(evaluate(rows,message=message),evaluate(old,message=message))
+        for values in itertools.product([False,True],repeat=6):
+            flags=dict(zip(['paired','svm','cold','full','sdk','docker'],values))
+            with self.subTest(flags=flags):self.assertEqual(evaluate(rows,event='workflow_dispatch',**flags),evaluate(old,event='workflow_dispatch',**flags))
+        native=text.split('      - name: Exercise actual native HTTP/2 and cancellation\n',1)[1]
+        suite=next(line.strip().removeprefix('if: ')for line in native.splitlines()if line.strip().startswith('if: '))
+        self.assertEqual(evaluate({'suite':suite},message=only),set())
+        self.assertEqual(evaluate({'suite':suite},message='ordinary'),{'suite'})
+        self.assertEqual(evaluate({'suite':suite},message=api.ONLY_MARKER),{'suite'})
 
 
 if __name__ == '__main__':

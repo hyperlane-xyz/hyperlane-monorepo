@@ -14,11 +14,30 @@ def evaluator():
  tree=ast.parse((REPO/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N}
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
+def ordinary_native_http_workflow(text):
+ # Exact inverse of the isolated diagnostic's three native-http-only hunks.
+ only = "(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]'))"
+ prefix = '    if: ${{ ' + only + ' || ('
+ rows = text.splitlines(True)
+ matches = [i for i, line in enumerate(rows) if line.startswith(prefix)]
+ if len(matches) != 1: raise AssertionError('Exact native HTTP diagnostic-only branch required')
+ index = matches[0];line = rows[index]
+ if not line.endswith(') }}\n'): raise AssertionError('Exact diagnostic-only branch suffix required')
+ rows[index] = '    if: ${{ ' + line[len(prefix):-len(') }}\n')] + ' }}\n'
+ text = ''.join(rows)
+ guard = '        if: ${{ !' + only + ' }}\n'
+ if text.count(guard) != 1: raise AssertionError('Exact diagnostic-only suite guard required')
+ text = text.replace(guard, '', 1)
+ before = "contains(github.event.head_commit.message, '[zig-native-http-diagnostic]')"
+ after = "(contains(github.event.head_commit.message, '[zig-native-http-diagnostic]') || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')))"
+ if text.count(after) != 1: raise AssertionError('Exact diagnostic marker extension required')
+ return text.replace(after, before, 1)
+
 class Routes(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
   cls.text=(REPO/'.github/workflows/zig-agents.yml').read_text();cls.ns=evaluator();cls.rows=cls.ns['conditions'](cls.text)
-  cls.legacy_text=cls.text.split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0].rstrip()+'\n';cls.legacy_text=cls.legacy_text.replace('      paired_linux:\n        description: Run reviewed Linux paired input/proof preparation; timings require separate final authority\n        type: boolean\n        default: false\n','',1)
+  cls.legacy_text=ordinary_native_http_workflow(cls.text).split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0].rstrip()+'\n';cls.legacy_text=cls.legacy_text.replace('      paired_linux:\n        description: Run reviewed Linux paired input/proof preparation; timings require separate final authority\n        type: boolean\n        default: false\n','',1)
   prefix='    if: ${{ !'+"((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))"+' && ('
   cls.legacy_text=''.join(('    if: ${{ '+line[len(prefix):-5]+' }}\n')if line.startswith(prefix)else line for line in cls.legacy_text.splitlines(True));cls.legacy_rows=cls.ns['conditions'](cls.legacy_text)
  def selected(self,**kw):return self.ns['selected'](self.rows,**kw)
