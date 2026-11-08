@@ -4,12 +4,14 @@ No artifact Python/library/program is imported or executed. Consumer performs it
 own CPU, ELF, tool-manifest and Source admission before a functional/timing main.
 """
 from pathlib import Path
-import argparse,hashlib,json,os,platform,re,resource,shutil,signal,stat,sys,time
+import argparse,ast,hashlib,json,os,platform,re,resource,shutil,signal,stat,sys,time
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import paired_linux as policy
 GIB=1024**3
 REPO='hyperlane-xyz/hyperlane-monorepo'
 LIMITS={'wall_seconds':1800,'cleanup_seconds':60,'inspector_RAM_bytes':GIB,'child_RAM_bytes':512*1024**2,'owned_disk_bytes':8*GIB,'host_free_bytes':6*GIB,'maximum_archive_bytes':4*GIB,'compressed_total_bytes':4*GIB,'streamed_total_bytes':8*GIB,'member_count':100000,'central_directory_bytes':32*1024**2,'metadata_bytes':32*1024**2,'report_bytes':2*1024**2}
+
+PUBLIC_ERROR_NAMES={'Refused','TaskInterrupted','ValueError','AssertionError','FileNotFoundError','FileExistsError','PermissionError','OSError','TypeError','KeyError','RuntimeError','AttributeError','NameError','ImportError','ModuleNotFoundError','TimeoutExpired','CalledProcessError'}
 
 class TaskInterrupted(RuntimeError):pass
 WATCHED=(signal.SIGTERM,signal.SIGINT,signal.SIGHUP,signal.SIGALRM)
@@ -84,10 +86,36 @@ def admit(value,root,repo,authority,guard=lambda count=0:None):
  for name,row in a['tools'].items():policy.need(policy.pin(root/row['path'])==products[name],'tool member and manifest mismatch')
  return materialize(value,root,repo,guard)
 
+def failure_observation(error,repo,authority):
+ """Only admitted Source coordinates and an exact failing-line literal guard."""
+ result={'status':'observed','error_type':type(error).__name__ if type(error).__name__ in PUBLIC_ERROR_NAMES else 'OtherError','Source_guard':None,'Source_frames':[]}
+ approved={row['path']:row for row in authority['required_source']};cache={};guards=set();captured=0;visited=0;frame=error.__traceback__
+ while frame is not None and visited<32 and len(result['Source_frames'])<16:
+  visited+=1;path=Path(frame.tb_frame.f_code.co_filename)
+  if path.is_absolute()and path.is_relative_to(repo):
+   relative=str(path.relative_to(repo));row=approved.get(relative)
+   if row is not None:
+    try:
+     if relative not in cache:
+      cache[relative]=None
+      if set(row)=={'path','bytes','sha256'}and type(row['bytes'])is int and 0<=row['bytes']<2*1024**2-captured and path.is_file()and not path.is_symlink()and path.resolve(strict=True)==path:
+       with path.open('rb')as stream:wire=stream.read(row['bytes']+1)
+       captured+=len(wire)
+       if len(wire)==row['bytes']and hashlib.sha256(wire).hexdigest()==row['sha256']:cache[relative]=(wire.count(b'\n')+1,ast.parse(wire))
+     checked=cache[relative];function=frame.tb_frame.f_code.co_name;line=frame.tb_lineno
+     if checked is not None and type(line)is int and 0<line<=checked[0]and re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,127}|<module>',function):
+      result['Source_frames'].append({'source':relative,'sha256':row['sha256'],'line':line,'function':function})
+      for call in ast.walk(checked[1]):
+       if isinstance(call,ast.Call)and call.lineno==line and isinstance(call.func,(ast.Name,ast.Attribute))and(call.func.id if isinstance(call.func,ast.Name)else call.func.attr)in {'need','require'}and len(call.args)>1 and isinstance(call.args[1],ast.Constant)and type(call.args[1].value)is str and re.fullmatch('[A-Za-z0-9 _.,;:/()+-]{1,192}',call.args[1].value):guards.add(call.args[1].value)
+    except (OSError,ValueError,TypeError,SyntaxError):pass
+  frame=frame.tb_next
+ if type(error).__name__ in {'Refused','ValueError','AssertionError'}and len(error.args)==1 and type(error.args[0])is str and error.args[0]in guards:result['Source_guard']=error.args[0]
+ return result
+
 def main():
  p=argparse.ArgumentParser();p.add_argument('--request',type=Path,required=True);p.add_argument('--request-sha256',required=True);p.add_argument('--repo',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--input-run-id',type=int,required=True);p.add_argument('--input-run-attempt',type=int,required=True);p.add_argument('--input-source-commit',required=True);p.add_argument('--manifest-sha256',required=True);args=p.parse_args();authority,request_pin=policy.request(args.request,args.request_sha256,args.repo)
  policy.need(authority['root_approved']and (authority['functional_enabled']or authority['runtime_enabled']),'consumer phase authority');policy.need(sys.platform=='linux'and platform.machine()=='x86_64','native Linux consumer');policy.need(args.output.is_absolute()and args.output.parent.resolve()==args.output.parent and not args.output.exists()and not args.output.is_relative_to(args.repo),'fresh outside Source stage')
- args.output.mkdir(mode=0o700);reader=policy.load_source(args.repo/'zig/bench/cohort_readback.py','paired_stage_reader',authority,args.repo);resource.setrlimit(resource.RLIMIT_AS,(GIB,GIB));guard=reader.Guard(args.output,LIMITS);runner=reader.Runner(args.output,args.repo,Path(shutil.which('gh')).resolve(strict=True),guard,os.environ.get('GH_TOKEN',''));remote=None;error=None;receipt=None;previous=arm_interrupts(guard)
+ args.output.mkdir(mode=0o700);reader=policy.load_source(args.repo/'zig/bench/cohort_readback.py','paired_stage_reader',authority,args.repo);resource.setrlimit(resource.RLIMIT_AS,(GIB,GIB));guard=reader.Guard(args.output,LIMITS);runner=reader.Runner(args.output,args.repo,Path(shutil.which('gh')).resolve(strict=True),guard,os.environ.get('GH_TOKEN',''));remote=None;error=None;receipt=None;observation=None;previous=arm_interrupts(guard)
  try:
   guard();run=reader.unique_json(runner.api(f'repos/{REPO}/actions/runs/{args.input_run_id}').read_bytes());jobs=[];artifacts=[]
   for collection,target in [('jobs',jobs),('artifacts',artifacts)]:
@@ -108,9 +136,13 @@ def main():
   manifest=args.output/'published/input-manifest.json';policy.need(policy.pin(manifest)['sha256']==args.manifest_sha256,'actual once manifest output');value=policy.input_manifest(manifest,args.output/'published',args.repo,authority['producer_source_commit']);policy.need(value.get('execution_source_commit')==args.input_source_commit and value.get('request_sha256')==request_pin['sha256'],'input request/executed Source bound');copied=admit(value,args.output/'published',args.repo,authority,guard)
   for row in authority['required_source']:policy.checked(row,args.repo)
   guard();receipt={'schema':1,'kind':'paired-linux-input-consumer','passed':True,'remote':remote,'input_manifest':policy.pin(manifest),'request':request_pin,'closed_catalog_members':len(value['files']),'fixture_data':copied,'consumer_cpu_and_elf_admitted':True,'tool_manifest_admitted':True,'native18_or_timing_acceptance':False}
- except BaseException as e:error=type(e).__name__
+ except BaseException as e:
+  error=type(e).__name__
+  try:observation=failure_observation(e,args.repo,authority)
+  except Exception:observation={'status':'unavailable'}
  finally:
   result=receipt or{'schema':1,'kind':'paired-linux-input-consumer','passed':False,'remote':remote,'error_type':error,'native18_or_timing_acceptance':False};result['actual_commands']=runner.summary()
+  if receipt is None:result['failure_observation']=observation
   try:policy.write(args.output/'consumer-result.json',result)
   finally:restore_interrupts(previous)
  policy.need(error is None,'input consumer failed; closed receipt retained')

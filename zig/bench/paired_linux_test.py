@@ -300,4 +300,56 @@ class Workflow(unittest.TestCase):
   functional=self.text.split('\n  paired-linux-functional:',1)[1].split('\n  paired-linux-runtime:',1)[0];runtime=self.text.split('\n  paired-linux-runtime:',1)[1]
   self.assertIn('index: [0, 1, 2, 3, 4, 5]',functional);self.assertIn('timeout-minutes: 180',functional);self.assertIn('timeout-minutes: 122',functional);self.assertIn('index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]',runtime);self.assertIn('max-parallel: 2',runtime);self.assertIn('paired_linux_runtime_ci.py select',runtime);self.assertIn("if: steps.runtime.outputs.runtime_enabled == 'true'",runtime);self.assertIn('exec env -u GH_TOKEN python3 -I -B zig/bench/paired_linux_runtime_owner.py',runtime);self.assertIn('timeout-minutes: 306',runtime);self.assertNotIn('paired_linux_owner.py',runtime)
 
+class AdmissionFailureDiagnostics(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.repo=Path(self.tmp.name).resolve();self.path=self.repo/'diagnostic.py'
+ def failure(self,source,extra=None):
+  self.path.write_text(source);namespace={'p':p,'reader':reader,**(extra or{})};exec(compile(source,str(self.path),'exec'),namespace)
+  try:namespace['fail']()
+  except BaseException as error:return error,{'required_source':[{**p.pin(self.path),'path':self.path.name}]}
+  self.fail('expected controlled failure')
+ def test_exact_policy_and_archive_guard_frames_use_checked_captured_Source(self):
+  for call,guard in [('p.need','consumer CPU superset'),('reader.need','ZIP_SPECIAL_OR_LINK')]:
+   error,authority=self.failure('def fail():\n '+call+'(False,"'+guard+'")\n');result=stage.failure_observation(error,self.repo,authority)
+   self.assertEqual(result['Source_guard'],guard);self.assertEqual(result['error_type'],'Refused');self.assertEqual(result['status'],'observed');self.assertEqual(result['Source_frames'],[{'source':'diagnostic.py','sha256':p.pin(self.path)['sha256'],'line':2,'function':'fail'}])
+ def test_foreign_and_changed_Source_never_grant_guard_or_frames(self):
+  error,authority=self.failure('def fail():\n p.need(False,"consumer CPU superset")\n')
+  self.assertEqual(stage.failure_observation(error,self.repo,{'required_source':[]})['Source_frames'],[])
+  self.path.write_text('def fail():\n p.need(False,"consumer GPU superset")\n')
+  result=stage.failure_observation(error,self.repo,authority);self.assertEqual(result['Source_frames'],[]);self.assertIsNone(result['Source_guard'])
+ def test_guard_literal_must_be_on_actual_failing_Source_line(self):
+  error,authority=self.failure('def fail():\n if False:p.need(False,"consumer CPU superset")\n raise p.Refused("consumer CPU superset")\n')
+  result=stage.failure_observation(error,self.repo,authority);self.assertEqual(result['Source_frames'][0]['line'],3);self.assertIsNone(result['Source_guard'])
+ def test_private_exception_payload_class_and_nested_values_never_export(self):
+  sentinel='private-token-body-argv-environment-sentinel'
+  for value in [sentinel,{'nested':sentinel}]:
+   error,authority=self.failure('def fail():\n raise ValueError(payload)\n',{'payload':value});result=stage.failure_observation(error,self.repo,authority);self.assertIsNone(result['Source_guard']);self.assertNotIn(sentinel,json.dumps(result))
+  private=type(sentinel,(RuntimeError,),{});error,authority=self.failure('def fail():\n raise Private(payload)\n',{'Private':private,'payload':sentinel});result=stage.failure_observation(error,self.repo,authority);self.assertEqual(result['error_type'],'OtherError');self.assertNotIn(sentinel,json.dumps(result))
+ def test_capture_depth_frame_and_Source_byte_budgets_are_bounded(self):
+  error,authority=self.failure('def recurse(n):\n if n:return recurse(n-1)\n p.need(False,"consumer CPU superset")\ndef fail():\n recurse(40)\n');result=stage.failure_observation(error,self.repo,authority);self.assertEqual(len(result['Source_frames']),16);self.assertIsNone(result['Source_guard'])
+  authority['required_source'][0]['bytes']=2*1024**2+1
+  with mock.patch.object(Path,'open',side_effect=AssertionError('oversized Source must not be read')):result=stage.failure_observation(error,self.repo,authority)
+  self.assertEqual(result['Source_frames'],[]);self.assertIsNone(result['Source_guard'])
+ def actual_boundary(self,primary=None,diagnostic=None):
+  tree=ast.parse((HERE/'paired_linux_stage.py').read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main');node=copy.deepcopy(next(n for n in fn.body if isinstance(n,ast.Try)))
+  node.body=ast.parse('raise primary'if primary is not None else 'pass').body;code=compile(ast.fix_missing_locations(ast.Module(body=[node,copy.deepcopy(fn.body[-1])],type_ignores=[])),str(HERE/'paired_linux_stage.py'),'exec');events=[];saved=[]
+  def write(path,value):events.append('write');saved.append(copy.deepcopy(value))
+  error,authority=self.failure('def fail():\n p.need(False,"consumer CPU superset")\n')
+  env={'policy':p,'args':N(repo=self.repo,output=self.repo/'out'),'authority':authority,'remote':None,'error':None,'observation':None,'receipt':None if primary is not None else {'schema':1,'passed':True},'primary':primary,'runner':N(summary=lambda:events.append('summary')or{'all_calls_actually_waited':True}),'restore_interrupts':lambda previous:events.append('restore'),'previous':{}}
+  with mock.patch.object(p,'write',side_effect=write):
+   env['failure_observation']=stage.failure_observation if diagnostic is None else diagnostic
+   try:exec(code,env)
+   except BaseException as raised:return env,saved,events,raised
+  return env,saved,events,None
+ def test_actual_except_finally_keeps_primary_failure_when_diagnostic_raises(self):
+  primary=p.Refused('consumer CPU superset');env,saved,events,raised=self.actual_boundary(primary,lambda *args:(_ for _ in ()).throw(ValueError('private diagnostic failure')))
+  self.assertIsInstance(raised,p.Refused);self.assertEqual(raised.args,('input consumer failed; closed receipt retained',));self.assertEqual(env['error'],'Refused');self.assertFalse(saved[0]['passed']);self.assertEqual(saved[0]['error_type'],'Refused');self.assertEqual(saved[0]['failure_observation'],{'status':'unavailable'});self.assertEqual(events,['summary','write','restore']);self.assertNotIn('private diagnostic failure',json.dumps(saved))
+ def test_actual_except_publishes_only_closed_failure_observation(self):
+  primary,authority=self.failure('def fail():\n p.need(False,"consumer CPU superset")\n');observed=stage.failure_observation(primary,self.repo,authority)
+  env,saved,events,raised=self.actual_boundary(primary,lambda *args:observed)
+  self.assertIsInstance(raised,p.Refused);self.assertEqual(saved[0]['failure_observation']['Source_guard'],'consumer CPU superset');self.assertEqual(events,['summary','write','restore']);self.assertFalse(saved[0]['native18_or_timing_acceptance'])
+ def test_actual_success_boundary_never_calls_diagnostic_or_changes_receipt_shape(self):
+  env,saved,events,raised=self.actual_boundary(diagnostic=lambda *args:(_ for _ in ()).throw(AssertionError('success invoked failure diagnostic')))
+  self.assertIsNone(raised);self.assertEqual(saved,[{'schema':1,'passed':True,'actual_commands':{'all_calls_actually_waited':True}}]);self.assertEqual(events,['summary','write','restore'])
+
 if __name__=='__main__':unittest.main()

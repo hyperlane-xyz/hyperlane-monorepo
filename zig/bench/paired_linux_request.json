@@ -193,11 +193,11 @@
     },
     {
       "path": "zig/bench/paired_linux_stage.py",
-      "bytes": 11450,
+      "bytes": 14206,
       "sha256": {
         "sha256_hex_chunks": [
-          "b23b7f90fbf0f0b7b687e18eb8f9d49a",
-          "dc0ea07f1920c1585448a0abd022322f"
+          "235250c05735e29f61c3a68125d1e37d",
+          "4de832e9eea3aa03786ded214c042ca9"
         ]
       }
     },
