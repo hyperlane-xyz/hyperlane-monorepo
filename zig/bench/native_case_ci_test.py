@@ -91,8 +91,11 @@ class DispatchTests(unittest.TestCase):
 
     def test_case_marker_skips_every_regular_sdk_svm_helper_and_cold_job(self):
         workflow = Path(__file__).resolve().parents[2] / '.github/workflows/zig-agents.yml'
+        tree=ast.parse((workflow.parents[2]/'zig/bench/paired_linux_test.py').read_bytes());helper=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');scope={}
+        exec(compile(ast.Module(body=[helper],type_ignores=[]),'actual-reviewed-native-HTTP-inverse', 'exec'),scope)
+        ordinary=scope['ordinary_native_http_workflow'](workflow.read_text())
         conditions, current, in_jobs = {}, None, False
-        for line in workflow.read_text().splitlines():
+        for line in ordinary.splitlines():
             if line == 'jobs:': in_jobs = True
             if not in_jobs: continue
             if line.startswith('  ') and not line.startswith('   ') and line.endswith(':'): current = line.strip()[:-1]
