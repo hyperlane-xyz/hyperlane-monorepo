@@ -485,7 +485,11 @@ def listener_rows(pid, raw, udp=False):
             require((local[0].is_loopback and 8001 <= local[1] <= 8033) if udp else
                     (local[0].is_loopback or
                      (str(local[0]) == '0.0.0.0' and local[1] == 9900)),
-                    'Native SVM listener escaped fixed local authority')
+                    'Native SVM listener escaped fixed local authority: '+json.dumps({
+                        'udp':udp,'local_scope':'loopback' if local[0].is_loopback else 'wildcard' if local[0].is_unspecified else 'other',
+                        'local_port':local[1],'connected':len(parsed)==2,
+                        'peer_scope':None if len(parsed)==1 else 'loopback' if parsed[1][0].is_loopback else 'wildcard' if parsed[1][0].is_unspecified else 'other',
+                        'peer_port':None if len(parsed)==1 else parsed[1][1]},sort_keys=True))
             require(not udp or len(parsed) == 1 or parsed[1][0].is_loopback,
                     'SVM UDP remote escaped loopback')
             require(udp or len(parsed) == 1, 'SVM TCP observation is not a listener')

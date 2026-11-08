@@ -161,6 +161,26 @@ class Controls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'pre-existing'):self.custody.observe()
         self.cleanup_failure();self.assertIn(old,self.docker.volumes)
         self.assertFalse(any(args[:2]==['volume','rm']for args in self.docker.mutations()))
+    def test_engine_anonymous_marker_keeps_exact_captured_volume_custody(self):
+        self.launch();name=self.row('postgres_db')['Mounts'][0]['Name']
+        self.docker.volumes[name]['Labels']={'com.docker.volume.anonymous':''}
+        self.custody.observe();record=json.loads((self.output/'radix-volume.json').read_text())
+        self.assertEqual(record['name'],name);self.assertEqual(record['container_id'],self.row('postgres_db')['Id'])
+        result=self.custody.cleanup();self.assertTrue(result['passed']);self.assertFalse(self.docker.volumes)
+    def test_wrong_or_extra_anonymous_labels_never_authorize_volume_cleanup(self):
+        self.launch();name=self.row('postgres_db')['Mounts'][0]['Name']
+        for labels in [{'com.docker.volume.anonymous':'true'},{'com.docker.volume.anonymous':'','foreign':'extra'},{m.PROJECT_LABEL:'foreign'}]:
+            self.docker.volumes[name]['Labels']=labels
+            with self.subTest(labels=labels),self.assertRaisesRegex(ValueError,'foreign labels'):self.custody.observe()
+        self.cleanup_failure();self.assertIn(name,self.docker.volumes)
+        self.assertFalse(any(args[:2]==['volume','rm']for args in self.docker.mutations()))
+    def test_engine_anonymous_marker_cannot_adopt_preexisting_volume(self):
+        name=hashlib.sha256(b'anonymous-pg15').hexdigest()
+        self.docker.volumes[name]={'Name':name,'Driver':'local','Labels':{'com.docker.volume.anonymous':''},'Options':None}
+        (self.output/'radix-armed.json').unlink();self.custody.arm();self.launch(['postgres_db'])
+        with self.assertRaisesRegex(ValueError,'pre-existing'):self.custody.observe()
+        self.cleanup_failure();self.assertIn(name,self.docker.volumes)
+
     def test_failed_pg_removal_preserves_its_volume_but_cleans_other_services(self):
         self.launch();self.custody.observe();pg=self.row('postgres_db')['Id'];self.docker.deny_rm.add(pg)
         self.cleanup_failure();self.assertEqual(set(self.docker.containers),{pg})

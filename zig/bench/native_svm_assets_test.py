@@ -192,5 +192,11 @@ class Controls(unittest.TestCase):
                     'p42\nf3\nn127.0.0.1:8001->192.0.2.1:8001\n']:
             with self.subTest(raw=raw),self.assertRaises(ValueError):m.listener_rows(42,raw,True)
 
+    def test_listener_refusal_exports_only_typed_scope_protocol_and_ports(self):
+        for raw,udp,expected in [('p42\nf3\nn*:8034\n',True,{'udp':True,'local_scope':'wildcard','local_port':8034,'connected':False,'peer_scope':None,'peer_port':None}),('p42\nf3\nn192.0.2.200:8034->192.0.2.201:8001\n',True,{'udp':True,'local_scope':'other','local_port':8034,'connected':True,'peer_scope':'other','peer_port':8001})]:
+            with self.subTest(udp=udp),self.assertRaisesRegex(ValueError,'Native SVM listener escaped') as caught:m.listener_rows(42,raw,udp)
+            text=str(caught.exception);self.assertEqual(json.loads(text.split(': ',1)[1]),expected)
+            self.assertNotIn('192.0.2.',text);self.assertNotIn(raw,text)
+
 
 if __name__ == '__main__': unittest.main()

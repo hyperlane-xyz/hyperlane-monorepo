@@ -209,7 +209,9 @@ class Custody:
         rows = json.loads(wire)
         require(isinstance(rows, list) and len(rows) == 1 and rows[0].get('Name') == name and rows[0].get('Driver') == 'local' and not rows[0].get('Options'), 'Unreviewed Gateway volume driver/options')
         labels = rows[0].get('Labels') or {}
-        require(not labels or labels.get(PROJECT_LABEL) == self.project, 'Gateway volume has foreign labels')
+        # Engine adds this exact marker to newly-created anonymous volumes.
+        # Pre-GO baseline, captured CID/mount/name and driver/options remain mandatory.
+        require(not labels or labels == {'com.docker.volume.anonymous': ''} or labels.get(PROJECT_LABEL) == self.project, 'Gateway volume has foreign labels')
         shared().publish_first(self.output / 'radix-volume.json', {'name': name, 'container_id': self.seen['postgres_db'], 'destination': PGDATA})
 
     def observe(self):
