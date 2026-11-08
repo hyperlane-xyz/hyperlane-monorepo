@@ -588,11 +588,11 @@ def snapshot_public_diagnostics(case,approval,out,name):
 def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns):
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
     value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
-    # Rust locations explain failures outside the recorded observer boundary;
-    # an observer exception retains its own approved Python source frames.
-    rust=[];log=out/'harness.log'
-    if log.exists()and(value is None or not value['failures']):
-        rust=diagnostic_module(approval).rust_panic_sites(log,plan.get('diagnostic_rust_sources',{}),Path(__file__).resolve().parents[2])
+    # Observer transport errors can accompany Rust fixture failure/teardown.
+    # Retain both approved boundaries; neither projection grants acceptance.
+    rust={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None};log=out/'harness.log'
+    if log.exists():
+        rust=diagnostic_module(approval).rust_panic_observation(log,plan.get('diagnostic_rust_sources',{}),Path(__file__).resolve().parents[2])
     startup=None;observer_log=out/'observer.log'
     waits=result['direct_waits']
     observer_failed=any(row.get('role')=='observer'and row.get('actual_parent_wait')is True and type(row.get('exit_code'))is int and row['exit_code']!=0 for row in waits)
@@ -600,7 +600,7 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     if observed is None and observer_failed and not harness_started and observer_log.exists():
         script=checked(manifest['verifier']['script'])
         startup=diagnostic_module(approval).observer_startup_sites(observer_log,approval['python_modules'],script.parent,manifest['verifier']['script'])
-    record={'schema':1,'kind':'public-native-failure-observation','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'worker_started_monotonic_ns':started_ns,'observed_after_owned_waits_monotonic_ns':time.monotonic_ns(),'observer_before_stop':result.get('public_diagnostic_before_stop'),'observer_after_stop':observed,'rust_panic_source_locations':rust,'rust_location_scope':'Only canonical panic-header locations matched to exact pinned Source; no message, thread, payload or inferred execution credit. Unknown/ambiguous paths omitted.','harness_log_fingerprint':pin(log)if log.exists()else None,'actual_direct_parent_waits':[{k:row[k]for k in ['role','pid','actual_parent_wait','exit_code','observed_monotonic_ns']if k in row}for row in result['direct_waits']],'native_or_timing_credit':False}
+    record={'schema':1,'kind':'public-native-failure-observation','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'worker_started_monotonic_ns':started_ns,'observed_after_owned_waits_monotonic_ns':time.monotonic_ns(),'observer_before_stop':result.get('public_diagnostic_before_stop'),'observer_after_stop':observed,'rust_panic_source_locations':rust['sites'],'rust_panic_reason_codes':rust['reason_codes'],'rust_panic_reason_source':rust['reason_source'],'rust_reason_scope':'Static phrase observations only in the next exact Source-bound SVM tempfile expect message; no inferred root cause or native/timing credit.','rust_location_scope':'Only canonical panic-header locations matched to exact pinned Source; no message, thread, payload or inferred execution credit. Unknown/ambiguous paths omitted.','harness_log_fingerprint':rust['log_fingerprint'],'actual_direct_parent_waits':[{k:row[k]for k in ['role','pid','actual_parent_wait','exit_code','observed_monotonic_ns']if k in row}for row in result['direct_waits']],'native_or_timing_credit':False}
     record['observer_startup_source_traceback']=startup
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
@@ -1148,13 +1148,21 @@ def main():
                     writable=volume_bytes=0;record=worker_output/'radix-writable.json'
                     if record.exists():
                         value=rx_resources.shared().read_record(record);require(value['case_root']==str(case) and value['fixture']==inputs['radix_localnet'],'Resource record belongs to another Radix fixture');writable=value['maximum_writable_bytes'];volume_bytes=value['maximum_volume_bytes']
+                    radix_case_allocated = disk-2*GIB
                     ram,disk=rx_resources.resource_charge(sum(row['rss_bytes'] for row in owned.values()),disk-2*GIB,initial_free,free,writable,volume_bytes)
                 if tr_resources is not None:
                     writable=0;record=worker_output/'tron-writable.json'
                     if record.exists():
                         value=tr_resources.read_record(record);require(value['case_root']==str(case)and value['image_id']==inputs['tron_tre']['image_id']and value['run_token']==inputs['tron_tre']['run_token'],'Tron resource record identity differs');writable=value['maximum_writable_bytes']
                     ram,disk=tr_resources.resource_charge(sum(row['rss_bytes']for row in owned.values()),disk-2*GIB,initial_free,free,writable)
-                require(time.monotonic_ns()<deadline_ns and ram<=8*GIB and disk<=4*GIB and free>=6*GIB,'Original native case deadline/resource guard')
+                resource_observed_ns = time.monotonic_ns()
+                resource_guard_passed = resource_observed_ns<deadline_ns and ram<=8*GIB and disk<=4*GIB and free>=6*GIB
+                if rx_resources is not None and not resource_guard_passed:
+                    try:
+                        result['radix_resource_limit_failure'] = rx_resources.public_resource_failure(sum(row['rss_bytes'] for row in owned.values()),radix_case_allocated,initial_free,free,writable,volume_bytes,ram,disk,resource_observed_ns,deadline_ns)
+                    except Exception as diagnostic_error:
+                        result['radix_resource_diagnostic_error'] = {'type':type(diagnostic_error).__name__}
+                require(resource_guard_passed,'Original native case deadline/resource guard')
                 require((args.output/'owner-worker.log').stat().st_size<=32*1024**2,'Bounded owner log')
                 samples.append({'monotonic_ns':time.monotonic_ns(),'owned_host_RAM_plus_PG_cap_bytes':ram,'case_allocated_plus_PG_tmpfs_cap_bytes':disk,'host_free_bytes':free,'owned_process_count':len(owned),**({'container_memory_reservation_bytes':5*GIB,'disk_scope':'max(case allocation, host filesystem free drop)+2GiB PG tmpfs; initial image acquisition excluded, ongoing6GiB floor'} if plan['scenario']=='starknet'else{'container_memory_reservation_bytes':4*GIB,'disk_scope':'max(case allocation plus TRE writable, host filesystem free drop)+2GiB PG tmpfs; original4GiB cap/6GiB floor'}if plan['scenario']=='tron'else{})})
                 time.sleep(.2)

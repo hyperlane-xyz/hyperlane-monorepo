@@ -54,6 +54,19 @@ def resource_charge(host_ram, case_bytes, initial_free, current_free, writable_b
     return host_ram + reservation, max(case_bytes + writable_bytes + volume_bytes, max(0, initial_free - current_free)) + 2 * GIB
 
 
+def public_resource_failure(host_ram, case_bytes, initial_free, current_free, writable_bytes, volume_bytes, charged_ram, charged_disk, observed_ns, deadline_ns):
+    """Closed scalar failure evidence only; does not alter resource admission."""
+    require(all(type(v) is int and v >= 0 for v in (host_ram, case_bytes, initial_free, current_free, writable_bytes, volume_bytes, charged_ram, charged_disk, observed_ns, deadline_ns)), 'Actual bounded Radix resource failure values required')
+    require(all(v < 2 ** 63 for v in (host_ram, case_bytes, initial_free, current_free, writable_bytes, volume_bytes, charged_ram, charged_disk, observed_ns, deadline_ns)), 'Radix resource diagnostic scalar bound')
+    require((charged_ram, charged_disk) == resource_charge(host_ram, case_bytes, initial_free, current_free, writable_bytes, volume_bytes), 'Radix diagnostic differs from original resource charge')
+    limits = {'RAM_bytes': 8 * GIB, 'disk_bytes': 4 * GIB, 'host_free_bytes': 6 * GIB}
+    checks = {'before_original_deadline': observed_ns < deadline_ns, 'RAM_within_limit': charged_ram <= limits['RAM_bytes'], 'disk_within_limit': charged_disk <= limits['disk_bytes'], 'host_free_above_floor': current_free >= limits['host_free_bytes']}
+    require(not all(checks.values()), 'Radix resource failure diagnostic requires actual failing conjunction')
+    record = {'schema': 1, 'kind': 'public-radix-resource-limit-failure', 'observed_monotonic_ns': observed_ns, 'original_deadline_monotonic_ns': deadline_ns, 'owned_host_RAM_bytes': host_ram, 'case_allocated_bytes': case_bytes, 'maximum_five_service_writable_bytes': writable_bytes, 'maximum_captured_gateway_PG15_volume_bytes': volume_bytes, 'initial_host_free_bytes': initial_free, 'current_host_free_bytes': current_free, 'host_free_drop_bytes': max(0, initial_free - current_free), 'case_plus_writable_plus_volume_bytes': case_bytes + writable_bytes + volume_bytes, 'container_RAM_reservation_bytes': sum(v[0] for v in SERVICES.values()) * MIB + GIB, 'agent_PG_tmpfs_reservation_bytes': 2 * GIB, 'charged_RAM_bytes': charged_ram, 'charged_disk_bytes': charged_disk, 'limits': limits, 'conjuncts': checks, 'native_or_timing_credit': False}
+    require(len(json.dumps(record, sort_keys=True, separators=(',', ':')).encode()) <= 4096, 'Radix resource diagnostic byte bound')
+    return record
+
+
 def missing_object(status, stderr, target, kind):
     if status != 1 or kind not in {'network', 'volume'}:
         return False

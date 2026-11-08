@@ -124,6 +124,29 @@ class Assets(unittest.TestCase):
   v=self.graph();d=self.root/'existing';d.mkdir();(d/'marker').write_text('preserve')
   with self.assertRaises(ValueError):a.materialize(v,d,0)
   self.assertEqual((d/'marker').read_text(),'preserve')
+ def test_copy_charge_formula_unchanged_and_public_breakdown_scalar_only(self):
+  value={'entries':{'private-package-path':{'kind':'file','bytes':4097},'directory':{'kind':'directory'},'link':{'kind':'symlink'},'typescript/cli/dist/cli.js':{'kind':'file','bytes':0},'typescript/cli/test-configs/tron/data':{'kind':'file','bytes':7},'typescript/cli/package.json':{'kind':'file','bytes':8193}}}
+  for fragment in [1,4096,65536]:
+   charge=a.copy_charge(value,fragment);note=a.copy_allocation_note(value,fragment,123,charge,8*a.GIB);self.assertTrue(note.startswith('PUBLIC_TRON_COPY_ALLOCATION '));self.assertLessEqual(len(note.encode()),4096);self.assertNotIn('private-package-path',note)
+   d=json.loads(note.split(' ',1)[1]);self.assertTrue(all(type(v)is int for v in d.values()));self.assertEqual(d['graph_payload_charge_bytes']+d['duplicate_entrypoint_charge_bytes']+d['root_directory_charge_bytes']+d['metadata_reserve_bytes'],charge);self.assertEqual(d['root_directory_charge_bytes'],32*fragment);self.assertEqual(d['metadata_reserve_bytes'],256*1024**2);self.assertEqual(d['PG_reservation_bytes'],2*a.GIB);self.assertEqual(d['final_required_bytes'],123+charge+2*a.GIB);self.assertEqual(d['original_case_cap_bytes'],4*a.GIB)
+ def test_actual_precopy_guard_preserves_message_and_adds_existing_numeric_note(self):
+  value=self.graph();destination=self.root/'oversized-numeric';fragment=os.statvfs(self.root).f_frsize;charge=a.copy_charge(value,fragment)
+  with self.assertRaises(ValueError)as caught:a.materialize(value,destination,4*a.GIB)
+  self.assertEqual(str(caught.exception),'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds original4GiB cap');self.assertFalse(destination.exists());self.assertEqual(len(caught.exception.__notes__),1)
+  d=json.loads(caught.exception.__notes__[0].split(' ',1)[1]);self.assertEqual(d['filesystem_fragment_bytes'],fragment);self.assertEqual(d['existing_case_allocated_bytes'],4*a.GIB);self.assertEqual(d['copy_charge_bytes'],charge);self.assertEqual(d['observed_host_free_bytes'],8*a.GIB)
+ def test_copy_note_failure_cannot_replace_or_heal_original_guard(self):
+  value=self.graph();destination=self.root/'note-failure'
+  with mock.patch.object(a,'copy_allocation_note',side_effect=RuntimeError('synthetic-diagnostic-failure')),self.assertRaises(ValueError)as caught:a.materialize(value,destination,4*a.GIB)
+  self.assertEqual(str(caught.exception),'Existing case/CLI allocation/metadata plus2GiB PG tmpfs exceeds original4GiB cap');self.assertFalse(hasattr(caught.exception,'__notes__'));self.assertFalse(destination.exists())
+ def test_actual_success_has_no_note_or_extra_filesystem_observation(self):
+  value=self.graph();destination=self.root/'successful-copy';statvfs=os.statvfs;observed=[]
+  def counted(path):observed.append(path);return statvfs(path)
+  with mock.patch.object(a,'copy_allocation_note',side_effect=AssertionError('success diagnostics reached')),mock.patch.object(a.os,'statvfs',side_effect=counted),mock.patch.object(a.shutil,'disk_usage',return_value=type('Usage',(),{'free':8*a.GIB})())as usage:a.materialize(value,destination,0)
+  self.assertEqual(observed,[destination.parent]);usage.assert_called_once_with(destination.parent)
+ def test_floor_refusal_note_uses_same_single_observed_capacity(self):
+  value=self.graph();destination=self.root/'low-free';usage=type('Usage',(),{'free':5*a.GIB})()
+  with mock.patch.object(a.shutil,'disk_usage',return_value=usage)as observed,self.assertRaises(ValueError)as caught:a.materialize(value,destination,0)
+  self.assertEqual(str(caught.exception),'Full owned CLI copies must preserve6GiB floor');d=json.loads(caught.exception.__notes__[0].split(' ',1)[1]);self.assertEqual(d['observed_host_free_bytes'],5*a.GIB);self.assertEqual(d['host_free_floor_bytes'],6*a.GIB);self.assertFalse(destination.exists());observed.assert_called_once_with(destination.parent)
  def test_conservative_existing_case_charge_fails_before_copy(self):
   v=self.graph();d=self.root/'oversized'
   with self.assertRaises(ValueError):a.materialize(v,d,4*a.GIB)

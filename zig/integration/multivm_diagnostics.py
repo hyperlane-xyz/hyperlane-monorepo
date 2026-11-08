@@ -2,6 +2,7 @@
 from pathlib import Path
 import copy
 import hashlib
+import io
 import json
 import os
 import re
@@ -161,33 +162,67 @@ def observer_startup_sites(log,modules,directory,entry_script):
     return {'log':{'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()},'frames':frames[-8:],'unapproved_frames_omitted':omitted,'stack_truncated':truncated or len(frames)>8,'recognized_tracebacks':min(tracebacks,8),'native_or_timing_credit':False}
 
 
-def rust_panic_sites(log,sources,repo):
-    """Bounded source-location extraction; never emits a panic message or thread."""
-    path=Path(log);info=path.stat()
-    if info.st_size>32*1024**2:raise ValueError('Bounded local harness log required')
-    approved={}
+def rust_panic_observation(log,sources,repo):
+    """One checked capture; approved sites and Source-bound finite reason labels."""
+    def capture(path,maximum):
+        path=Path(path);info=path.lstat()
+        if path.is_symlink()or not stat.S_ISREG(info.st_mode)or info.st_size>maximum:raise ValueError('Bounded regular diagnostic input required')
+        fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+        try:
+            opened=os.fstat(fd)
+            if(info.st_dev,info.st_ino)!=(opened.st_dev,opened.st_ino):raise ValueError('Diagnostic input changed before capture')
+            with os.fdopen(fd,'rb',closefd=False)as stream:wire=stream.read(maximum+1)
+            after=os.fstat(fd);latest=path.lstat();identity=lambda v:(v.st_dev,v.st_ino,v.st_size,v.st_mtime_ns)
+            if len(wire)!=info.st_size or len(wire)>maximum or identity(info)!=identity(after)or identity(info)!=identity(latest):raise ValueError('Diagnostic input changed while capturing')
+        finally:os.close(fd)
+        return wire,{'path':str(path),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
+    wire,fingerprint=capture(log,32*1024**2)
+    approved={};bodies={}
     for name,row in sources.items():
         if len(approved)>=256:break
         if not re.fullmatch(r'rust/main/utils/run-locally/src/[A-Za-z0-9_./-]+\.rs',name)or'..'in Path(name).parts:continue
-        source=Path(repo)/name
-        if pin(source)==row:approved[name]=row
-    output=[];seen=set()
-    with path.open('rb')as stream:
-        for line in stream:
-            if len(line)>65536:continue
-            # Matching a source suffix is intentional: build-host absolute paths
-            # differ; only an exact pinned repository module may become output.
-            text=line.decode('utf-8','replace')
-            text=re.sub(r'\x1b\[[0-9;]*m','',text)
-            if re.match(r"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ",text)is None:continue
-            for match in re.finditer(r'((?:rust/main/)?utils/run-locally/src/[A-Za-z0-9_./-]+\.rs):(\d{1,7}):(\d{1,5})(?=[:\s])',text):
-                name,line_,column=match.groups();name=name if name.startswith('rust/main/')else'rust/main/'+name;identity=(name,int(line_),int(column))
-                if name not in approved or identity in seen:continue
-                source=Path(repo)/name
-                if not 0<identity[1]<=len(source.read_bytes().splitlines())or identity[2]==0:continue
-                seen.add(identity);output.append({'module':name,'source':dict(approved[name]),'line':identity[1],'column':identity[2]})
-                if len(output)>=8:return output
-    return output
+        source=Path(repo)/name;body,actual=capture(source,1024*1024)
+        if actual==row:approved[name]=dict(row);bodies[name]=body
+    helper='rust/main/utils/run-locally/src/external_agents.rs';caller='rust/main/utils/run-locally/src/sealevel/warp_route_composite_ism.rs'
+    needed=(b'"symlink in owned writable path: {}"',b'"owned parent is not a directory"',b'pub fn svm_tempfile() -> Result<tempfile::NamedTempFile>',b'create_owned_directory(&manifest.task_root, Path::new("tmp"))?;',b'tempfile::NamedTempFile::new_in(root)?;')
+    reason_source=helper in bodies and all(value in bodies[helper]for value in needed)
+    # Standard Linux IO phrases are observations only within the exact admitted
+    # SVM tempfile expect message; they are never classified across arbitrary log.
+    labels={b'symlink in owned writable path':'OWNED_PATH_SYMLINK',b'owned parent is not a directory':'OWNED_PARENT_NOT_DIRECTORY',b'No space left on device':'IO_NO_SPACE_LEFT',b'Permission denied':'IO_PERMISSION_DENIED',b'File exists':'IO_FILE_EXISTS'}
+    prefix=b'Failed to create temp ISM config:';output=[];seen=set();reasons=set();await_message=False
+    def message(body):
+        body=body.strip()
+        if not body.startswith(prefix):return
+        for phrase,label in labels.items():
+            if phrase in body:reasons.add(label)
+    for raw in io.BytesIO(wire):
+        if len(raw)>65536:await_message=False;continue
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',raw);text=clean.decode('utf-8','replace')
+        header=re.match(r"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ",text)
+        if header is None:
+            if await_message and clean.strip():message(clean);await_message=False
+            continue
+        await_message=False
+        # Parse the immediate header location independently of approved suffixes.
+        # A later Source-looking token in panic text cannot grant reason authority.
+        actual_location=re.match(r'[^:\r\n]{1,4096}:\d{1,7}:\d{1,5}(?=[:\s])',text[header.end():])
+        actual_location_end=None if actual_location is None else header.end()+actual_location.end()
+        for match in re.finditer(r'((?:rust/main/)?utils/run-locally/src/[A-Za-z0-9_./-]+\.rs):(\d{1,7}):(\d{1,5})(?=[:\s])',text):
+            name,line_,column=match.groups();name=name if name.startswith('rust/main/')else'rust/main/'+name;identity=(name,int(line_),int(column))
+            if name not in approved:continue
+            lines=bodies[name].splitlines()
+            if not 0<identity[1]<=len(lines)or identity[2]==0:continue
+            if identity not in seen and len(output)<8:
+                seen.add(identity);output.append({'module':name,'source':approved[name],'line':identity[1],'column':identity[2]})
+            if identity not in seen:continue
+            snippet=lines[identity[1]-1]
+            context=actual_location_end==match.end() and reason_source and name==caller and re.search(rb'svm_tempfile\(\)\s*\.expect\(\s*"Failed to create temp ISM config"\s*\)',snippet)is not None
+            if context:
+                trailing=text[match.end():].lstrip(': \r\n').encode()
+                if trailing:message(trailing)
+                else:await_message=True
+    authority={'module':helper,'source':approved[helper],'owned_path_guard_literals_verified':True,'tempfile_directory_and_file_calls_verified':True}if reasons else None
+    return {'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint}
 
 
 def validate_record(value,modules):
