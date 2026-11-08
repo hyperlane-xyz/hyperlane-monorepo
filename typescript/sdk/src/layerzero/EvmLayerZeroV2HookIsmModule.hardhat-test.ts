@@ -8,7 +8,12 @@ import {
   MockLayerZeroEndpointV2__factory,
   MockLayerZeroUln302__factory,
 } from '@hyperlane-xyz/core';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  addressToBytes32,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { test4 } from '../consts/testChains.js';
 import { serializeContracts } from '../contracts/contracts.js';
@@ -342,6 +347,59 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
     expect(urlUpdate.map((tx) => tx.annotation)).to.deep.equal([
       `Updating LayerZero CCIP-read URLs on ${chainA}`,
     ]);
+  });
+
+  it('redeploys only the chain whose immutable changes and re-enrolls it', async () => {
+    const addresses = await EvmLayerZeroV2HookIsmModule.deployMesh(
+      multiProvider,
+      mesh(),
+    );
+    const replacementMailbox = await multiProvider.handleDeploy(
+      chainA,
+      new Mailbox__factory(),
+      [multiProvider.getDomainId(chainA)],
+    );
+    const target = mesh();
+    target[chainA].mailbox = replacementMailbox.address;
+
+    const result = await EvmLayerZeroV2HookIsmModule.reconcileMesh(
+      multiProvider,
+      target,
+      addresses,
+    );
+
+    expect(result.addresses[chainA]).to.not.equal(addresses[chainA]);
+    expect(result.addresses[chainB]).to.equal(addresses[chainB]);
+    expect(result.transactions[chainA]).to.equal(undefined);
+    expect(result.transactions[chainB]).to.have.length(1);
+    const [transaction] = result.transactions[chainB];
+    expect(transaction.to).to.equal(addresses[chainB]);
+    const [enrollment, ...extra] = decodeEnrollments(transaction);
+    expect(extra).to.deep.equal([]);
+    expect(enrollment.domainId).to.equal(11_001);
+    expect(enrollment.domainIsm).to.equal(
+      addressToBytes32(result.addresses[chainA]),
+    );
+    expect(enrollment.endpointId).to.equal(30_101);
+    expect(enrollment.sendLibrary).to.equal(sendLibraries[chainB]);
+    expect(enrollment.receiveLibrary).to.equal(receiveLibraries[chainB]);
+
+    await sendTxs(chainB, result.transactions[chainB]);
+    const keptRouter = LayerZeroV2HookIsm__factory.connect(
+      addresses[chainB],
+      multiProvider.getProvider(chainB),
+    );
+    expect(await keptRouter.routers(11_001)).to.equal(
+      addressToBytes32(result.addresses[chainA]),
+    );
+    const replacedRouter = LayerZeroV2HookIsm__factory.connect(
+      result.addresses[chainA],
+      multiProvider.getProvider(chainA),
+    );
+    expect(await replacedRouter.mailbox()).to.equal(replacementMailbox.address);
+    expect(await replacedRouter.routers(11_002)).to.equal(
+      addressToBytes32(addresses[chainB]),
+    );
   });
 
   describe('migrates libraries while resetting policy to defaults', () => {

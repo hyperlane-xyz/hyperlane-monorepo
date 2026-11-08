@@ -12,7 +12,12 @@ import {
   materializeLayerZeroV2WarpConfig,
   pairLayerZeroV2Configs,
 } from './config.js';
-import { LayerZeroV2ConfigMode, LayerZeroV2PathwaySchema } from './types.js';
+import {
+  LayerZeroV2ConfigMode,
+  LayerZeroV2MeshConfig,
+  LayerZeroV2PathwaySchema,
+  findAsymmetricLayerZeroV2Routes,
+} from './types.js';
 
 const address = () => ethers.Wallet.createRandom().address;
 
@@ -116,6 +121,43 @@ describe('LayerZero V2 warp config', () => {
         chainA: address(),
       }),
     ).to.throw('Missing deployed LayerZero router for chainB');
+  });
+
+  it('requires both leaves on every participating chain', () => {
+    const config = layerZeroConfig();
+    delete config.chainA.hook;
+
+    expect(() => pairLayerZeroV2Configs(config)).to.throw(
+      'chainA must contain exactly one LayerZero hook leaf; found 0',
+    );
+  });
+
+  it('rejects duplicate LayerZero leaves', () => {
+    const config = layerZeroConfig();
+    config.chainA.hook = {
+      type: HookType.AGGREGATION,
+      hooks: [
+        { type: HookType.LAYER_ZERO_V2 },
+        { type: HookType.LAYER_ZERO_V2 },
+      ],
+    };
+
+    expect(() => pairLayerZeroV2Configs(config)).to.throw(
+      'chainA must contain exactly one LayerZero hook leaf; found 2',
+    );
+  });
+
+  it('rejects a directional pairing mismatch', () => {
+    const config = layerZeroConfig();
+    config.chainA.hook = {
+      type: HookType.ROUTING,
+      owner: address(),
+      domains: { chainA: { type: HookType.LAYER_ZERO_V2 } },
+    };
+
+    expect(() => pairLayerZeroV2Configs(config)).to.throw(
+      /LayerZero pairing mismatch for chainA -> chainB/,
+    );
   });
 
   interface NestedIsmCase {
@@ -277,5 +319,25 @@ describe('LayerZero V2 warp config', () => {
     });
     expect(parsed.sendConfig).to.deep.equal(defaultSendConfig());
     expect(parsed.receiveConfig).to.deep.equal(defaultReceiveConfig());
+  });
+});
+
+describe('findAsymmetricLayerZeroV2Routes', () => {
+  function mesh(): LayerZeroV2MeshConfig {
+    const config = layerZeroConfig();
+    return buildLayerZeroV2MeshConfig(config, pairLayerZeroV2Configs(config));
+  }
+
+  it('accepts a reciprocal mesh', () => {
+    expect(findAsymmetricLayerZeroV2Routes(mesh())).to.deep.equal([]);
+  });
+
+  it('reports a one-sided enrollment', () => {
+    const oneSided = mesh();
+    oneSided.chainB.remoteRouters = {};
+
+    expect(findAsymmetricLayerZeroV2Routes(oneSided)).to.deep.equal([
+      'chainB does not enroll chainA',
+    ]);
   });
 });
