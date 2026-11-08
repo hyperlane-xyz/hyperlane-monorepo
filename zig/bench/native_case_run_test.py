@@ -66,7 +66,7 @@ class CompositionTests(unittest.TestCase):
 
 
 class ResourceWitnessControls(unittest.TestCase):
-    def invoke_actual_run(self, allocated=5*api.GIB, free=8*api.GIB, decline=0, rss=0, now=1, post=2, output_root=False, skip_live=False):
+    def invoke_actual_run(self, allocated=5*api.GIB, free=8*api.GIB, decline=0, rss=0, now=1, post=2, output_root=False, skip_live=False, scenario='cosmosnative'):
         import tempfile
         from types import SimpleNamespace
         from unittest import mock
@@ -75,7 +75,7 @@ class ResourceWitnessControls(unittest.TestCase):
         child=SimpleNamespace(pid=42,returncode=0);cleanup={'clean':True,'actual_parent_wait':True,'exit_code':0,'signals':[]}
         process_owner=SimpleNamespace(processes=mock.Mock(return_value={}),owned_processes=mock.Mock(return_value={42:{'rss_bytes':rss}}),stop_owned=mock.Mock(return_value=cleanup))
         census=SimpleNamespace(functional_allocated=mock.Mock(return_value=allocated));checks=[]
-        clock=mock.Mock(side_effect=[0,post]if skip_live else[0,now,post]);environment={'args':SimpleNamespace(output=output,case_root=case,repo=Path('/not-executed')),'time':SimpleNamespace(monotonic=clock,sleep=lambda _:None),'subprocess':SimpleNamespace(Popen=mock.Mock(return_value=child),DEVNULL=-3,STDOUT=-2),'os':SimpleNamespace(waitid=mock.Mock(side_effect=[object()]if skip_live else[None,object()]),P_PID=1,WEXITED=1,WNOHANG=2,WNOWAIT=4),'shutil':SimpleNamespace(disk_usage=lambda _:SimpleNamespace(free=free)),'owner':process_owner,'census':census,'checks':checks,'initial_free':free+decline,'env':{},'GIB':api.GIB,'require':api.require,'pin':api.pin,'phase_resource_failure':api.phase_resource_failure,'request':{'scenario':'tron','limits':{'maximum_case_allocated_bytes':8*api.GIB}},'signal':SimpleNamespace(SIGTERM=15,SIGINT=2,SIGHUP=1,SIG_IGN=1,signal=lambda *a:None)}
+        clock=mock.Mock(side_effect=[0,post]if skip_live else[0,now,post]);environment={'args':SimpleNamespace(output=output,case_root=case,repo=Path('/not-executed')),'time':SimpleNamespace(monotonic=clock,sleep=lambda _:None),'subprocess':SimpleNamespace(Popen=mock.Mock(return_value=child),DEVNULL=-3,STDOUT=-2),'os':SimpleNamespace(waitid=mock.Mock(side_effect=[object()]if skip_live else[None,object()]),P_PID=1,WEXITED=1,WNOHANG=2,WNOWAIT=4),'shutil':SimpleNamespace(disk_usage=lambda _:SimpleNamespace(free=free)),'owner':process_owner,'census':census,'checks':checks,'initial_free':free+decline,'env':{},'GIB':api.GIB,'require':api.require,'pin':api.pin,'phase_resource_failure':api.phase_resource_failure,'request':{'scenario':scenario,'limits':{'maximum_case_allocated_bytes':8*api.GIB}},'signal':SimpleNamespace(SIGTERM=15,SIGINT=2,SIGHUP=1,SIG_IGN=1,signal=lambda *a:None)}
         tree=ast.parse(Path(api.__file__).read_bytes());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main');run=next(n for n in main.body if isinstance(n,ast.FunctionDef)and n.name=='run');exec(compile(ast.Module(body=[run],type_ignores=[]),str(api.__file__),'exec'),environment)
         error=None
         try:environment['run']('owned-native-case',['PRIVATE_ARG_NOT_EXECUTED'],10,output if output_root else case)
@@ -102,9 +102,58 @@ class ResourceWitnessControls(unittest.TestCase):
                 self.assertEqual(witness['limits'],{'owned_RSS_bytes':8*api.GIB,'minimum_host_free_bytes':6*api.GIB,'maximum_whole_composition_host_free_decline_bytes':12*api.GIB})
 
     def test_original_exact_boundaries_and_late_postflight_failure_are_not_reset(self):
-        self.assertIsNone(api.phase_resource_failure('owned-native-case','live',9,10,8*api.GIB,6*api.GIB,18*api.GIB))
+        self.assertIsNone(api.phase_resource_failure('owned-native-case','live',9,10,8*api.GIB,6*api.GIB,18*api.GIB,scenario='cosmosnative'))
         checks,owner,census,error=self.invoke_actual_run(post=10);self.assertEqual(str(error),'Phase postflight original deadline/growth/free guard')
         witness=checks[0]['resource_guard_failure'];self.assertEqual(witness['failed_conjuncts'],['before_original_phase_deadline']);self.assertEqual(witness['original_phase_deadline_monotonic_seconds'],10);self.assertEqual(witness['sample_scope'],'postflight');self.assertIsNone(witness['owned_RSS_bytes']);self.assertNotIn('owned_RSS_at_most8GiB',witness['conjuncts'])
         owner.stop_owned.assert_called_once();self.assertEqual(census.functional_allocated.call_count,2)
+
+class TronStorageProfileControls(unittest.TestCase):
+    invoke_actual_run=ResourceWitnessControls.invoke_actual_run
+    # Reuse actual nested run, including its live/postflight checks and cleanup.
+    def test_tron13to16GiB_decline_uses_one_original_baseline_and_over16_refuses(self):
+        for postflight in [False,True]:
+            for decline in [13*api.GIB,16*api.GIB,16*api.GIB+1]:
+                with self.subTest(postflight=postflight,decline=decline):
+                    checks,owner,census,error=self.invoke_actual_run(scenario='tron',decline=decline,skip_live=postflight)
+                    owner.stop_owned.assert_called_once()
+                    self.assertTrue(checks[0]['actual_parent_wait'])
+                    if decline<=16*api.GIB:
+                        self.assertIsNone(error);self.assertNotIn('resource_guard_failure',checks[0])
+                    else:
+                        self.assertIsInstance(error,ValueError);witness=checks[0]['resource_guard_failure']
+                        self.assertEqual(witness['composition_storage_profile'],'TRON_16GiB')
+                        self.assertEqual(witness['whole_composition_host_free_decline_bytes'],decline)
+                        self.assertEqual(witness['composition_initial_free_bytes'],8*api.GIB+decline)
+                        self.assertEqual(witness['limits']['maximum_whole_composition_host_free_decline_bytes'],16*api.GIB)
+                        self.assertEqual(witness['failed_conjuncts'],['whole_composition_decline_at_most16GiB'])
+                        self.assertEqual(witness['sample_scope'],'postflight'if postflight else'live')
+                        self.assertFalse(witness['native_or_timing_or_cleanup_authority'])
+
+    def test_all_other_families_keep12GiB_and_tron_keeps_RSS_free_deadline_allocation(self):
+        for family in ['evm','cosmosnative','cosmwasm','starknet','sealevel','sealevel-composite','radix']:
+            for postflight in [False,True]:
+                for decline in [12*api.GIB,12*api.GIB+1]:
+                    with self.subTest(family=family,postflight=postflight,decline=decline):
+                        checks,owner,census,error=self.invoke_actual_run(scenario=family,decline=decline,skip_live=postflight)
+                        owner.stop_owned.assert_called_once()
+                        if decline==12*api.GIB:self.assertIsNone(error)
+                        else:
+                            self.assertIsInstance(error,ValueError);witness=checks[0]['resource_guard_failure']
+                            self.assertEqual(witness['composition_storage_profile'],'DEFAULT_12GiB')
+                            self.assertEqual(witness['limits']['maximum_whole_composition_host_free_decline_bytes'],12*api.GIB)
+                            self.assertEqual(witness['failed_conjuncts'],['whole_composition_decline_at_most12GiB'])
+        for changes in [dict(rss=8*api.GIB+1),dict(free=6*api.GIB-1),dict(now=10),dict(post=10),dict(allocated=8*api.GIB+1)]:
+            with self.subTest(unchanged_guard=changes):
+                checks,owner,census,error=self.invoke_actual_run(scenario='tron',decline=13*api.GIB,**changes)
+                self.assertIsInstance(error,ValueError);owner.stop_owned.assert_called_once()
+        tree=ast.parse(Path(api.__file__).read_bytes());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+        calls=[n for n in ast.walk(main)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='phase_resource_failure']
+        self.assertEqual(len(calls),2)
+        for call in calls:self.assertEqual(ast.dump(call.keywords[0].value),ast.dump(ast.parse("request['scenario']",mode='eval').body))
+        source=Path(api.__file__).read_text()
+        self.assertEqual(source.count('initial_free=shutil.disk_usage(args.output).free'),1)
+        self.assertIn('free>=24*GIB',source)
+        self.assertIn('maximum_case_allocated_bytes',source)
+        self.assertNotIn('--maximum-decline',source)
 
 if __name__=='__main__':unittest.main()

@@ -41,14 +41,16 @@ def interop_command(repo,context,mode,output):
 
 
 
-def phase_resource_failure(phase, sample_scope, now, deadline, owned_RSS, free, initial_free):
-    conjuncts={'before_original_phase_deadline':now<deadline,'host_free_at_least6GiB':free>=6*GIB,'whole_composition_decline_at_most12GiB':initial_free-free<=12*GIB}
+def phase_resource_failure(phase, sample_scope, now, deadline, owned_RSS, free, initial_free, *, scenario):
+    maximum_decline=(16 if scenario=='tron'else 12)*GIB
+    decline_conjunct='whole_composition_decline_at_most16GiB'if scenario=='tron'else'whole_composition_decline_at_most12GiB'
+    conjuncts={'before_original_phase_deadline':now<deadline,'host_free_at_least6GiB':free>=6*GIB,decline_conjunct:initial_free-free<=maximum_decline}
     if owned_RSS is not None:conjuncts['owned_RSS_at_most8GiB']=owned_RSS<=8*GIB
     if all(conjuncts.values()):return None
-    return {'schema':1,'kind':'public-native-composition-resource-guard-failure','phase':phase,'sample_scope':sample_scope,
+    return {'schema':1,'kind':'public-native-composition-resource-guard-failure','phase':phase,'sample_scope':sample_scope,'composition_storage_profile':'TRON_16GiB'if scenario=='tron'else'DEFAULT_12GiB',
             'observed_monotonic_seconds':now,'original_phase_deadline_monotonic_seconds':deadline,'owned_RSS_bytes':owned_RSS,
             'host_free_bytes':free,'composition_initial_free_bytes':initial_free,'whole_composition_host_free_decline_bytes':initial_free-free,
-            'limits':{'owned_RSS_bytes':8*GIB,'minimum_host_free_bytes':6*GIB,'maximum_whole_composition_host_free_decline_bytes':12*GIB},
+            'limits':{'owned_RSS_bytes':8*GIB,'minimum_host_free_bytes':6*GIB,'maximum_whole_composition_host_free_decline_bytes':maximum_decline},
             'conjuncts':conjuncts,'failed_conjuncts':sorted(name for name,passed in conjuncts.items()if not passed),
             'native_or_timing_or_cleanup_authority':False}
 
@@ -82,7 +84,7 @@ def main():
                 while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is None:
                     rows=owner.processes();owned=owner.owned_processes(rows,child.pid,known,groups,True)
                     free=shutil.disk_usage(args.output).free
-                    resource_failure=phase_resource_failure(name,'live',time.monotonic(),deadline,sum(row['rss_bytes'] for row in owned.values()),free,initial_free)
+                    resource_failure=phase_resource_failure(name,'live',time.monotonic(),deadline,sum(row['rss_bytes'] for row in owned.values()),free,initial_free,scenario=request['scenario'])
                     require(resource_failure is None,'Composition phase deadline/RSS/total-growth/free guard')
                     if resource_root.exists():require(census.functional_allocated(resource_root)<=(request['limits']['maximum_case_allocated_bytes'] if resource_root==args.case_root else 8*GIB),'Composition owned output allocation cap')
                     require(log.stat().st_size<=64*1024**2,'Composition phase log guard');time.sleep(.2)
@@ -103,7 +105,7 @@ def main():
         require(child.returncode==0 and cleanup['clean'] and not cleanup['signals'],'Actual composition command/wait/cleanup failed')
         require(log.stat().st_size<=64*1024**2,'Postflight composition log guard')
         if resource_root.exists():require(census.functional_allocated(resource_root)<=(request['limits']['maximum_case_allocated_bytes'] if resource_root==args.case_root else 8*GIB),'Postflight composition allocation cap')
-        postflight_failure=phase_resource_failure(name,'postflight',time.monotonic(),deadline,None,shutil.disk_usage(args.output).free,initial_free)
+        postflight_failure=phase_resource_failure(name,'postflight',time.monotonic(),deadline,None,shutil.disk_usage(args.output).free,initial_free,scenario=request['scenario'])
         if postflight_failure is not None:checks[-1]['resource_guard_failure']=postflight_failure
         require(postflight_failure is None,'Phase postflight original deadline/growth/free guard')
     try:
