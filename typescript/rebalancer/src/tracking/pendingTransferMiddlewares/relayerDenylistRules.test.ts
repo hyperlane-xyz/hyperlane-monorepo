@@ -512,6 +512,14 @@ describe('relayerDenylistRules', () => {
           '\\w{100,}',
         ],
         ['alternatives past the conservative size estimate', '\\w{60}|\\w{60}'],
+        [
+          'a closing group past the conservative size estimate',
+          '\\D{100}(?:\\D{100})',
+        ],
+        [
+          'nested closing groups past the size limit',
+          '\\D{100}' + '(?:\\D{100}'.repeat(8) + ')'.repeat(8),
+        ],
       ].map(([syntax, bodyRegex]) => ({
         name: `a bodyRegex with ${syntax}`,
         text: rulesFile([

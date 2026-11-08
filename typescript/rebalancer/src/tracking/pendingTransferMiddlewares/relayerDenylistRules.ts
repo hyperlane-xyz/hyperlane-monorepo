@@ -578,6 +578,7 @@ function exceedsRelayerRegexSize(pattern: string): boolean {
       lastSize = groupSizes.pop() ?? 0;
       groupSizes[groupSizes.length - 1] += lastSize;
       index++;
+      if (groupSizes.some((size) => size > MAX_RELAYER_REGEX_SIZE)) return true;
       continue;
     }
 
