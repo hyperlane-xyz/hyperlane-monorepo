@@ -12,12 +12,16 @@ import {
 } from '@hyperlane-xyz/utils';
 import {
   type DerivedTokenRouterConfig,
+  EvmLayerZeroV2HookIsmModule,
   EvmWarpModule,
   EvmWarpRouteReader,
   EvmWormholeHookIsmModule,
+  type HookConfig,
   HyperlaneDeployer,
   HookType,
+  type IsmConfig,
   IsmType,
+  LayerZeroV2ConfigMode,
   MultiProvider,
   TestChainName,
   TokenStandard,
@@ -639,97 +643,170 @@ describe('runWarpRouteApply', () => {
     }
   });
 
-  it('rethrows a transport error from the Wormhole router probe instead of dropping the deployed router', async () => {
-    const DEPLOYED_ROUTER = '0x4444444444444444444444444444444444444444';
-    const SHARED_HOOK_ISM = '0x5555555555555555555555555555555555555555';
-    const WORMHOLE_CORE = '0x6666666666666666666666666666666666666666';
-    const wormholeChainConfig = (
-      wormholeChainId: number,
-    ): WarpRouteDeployConfigMailboxRequired[string] => ({
-      type: TokenType.native,
-      mailbox: MAILBOX,
-      owner: OWNER,
-      hook: { type: HookType.WORMHOLE },
-      interchainSecurityModule: {
-        type: IsmType.WORMHOLE,
+  interface ProbeCase {
+    name: string;
+    hookIsm: (
+      chain: string,
+      remote: string,
+    ) => { hook: HookConfig; interchainSecurityModule: IsmConfig };
+    stubReconcileMesh: () => sinon.SinonStub;
+  }
+
+  const WORMHOLE_CHAIN_IDS: Record<string, number> = {
+    [TestChainName.test1]: 4001,
+    [TestChainName.test2]: 4002,
+  };
+  const LAYER_ZERO_DOMAIN_IDS: Record<string, number> = {
+    [TestChainName.test1]: 30_101,
+    [TestChainName.test2]: 30_102,
+  };
+  const COMBINED_HOOK_ISM_DEPENDENCY =
+    '0x6666666666666666666666666666666666666666';
+  const LAYER_ZERO_LIBRARY = '0x7777777777777777777777777777777777777777';
+
+  const probeCases: ProbeCase[] = [
+    {
+      name: 'Wormhole',
+      hookIsm: (chain) => ({
+        hook: { type: HookType.WORMHOLE },
+        interchainSecurityModule: {
+          type: IsmType.WORMHOLE,
+          owner: OWNER,
+          core: COMBINED_HOOK_ISM_DEPENDENCY,
+          wormholeChainId: WORMHOLE_CHAIN_IDS[chain],
+          consistencyLevel: { type: WormholeConsistencyType.Finalized },
+          urls: ['https://example.com/{data}'],
+        },
+      }),
+      stubReconcileMesh: () =>
+        sinon.stub(EvmWormholeHookIsmModule, 'reconcileMesh'),
+    },
+    {
+      name: 'LayerZero',
+      hookIsm: (chain, remote) => ({
+        hook: { type: HookType.LAYER_ZERO_V2 },
+        interchainSecurityModule: {
+          type: IsmType.LAYER_ZERO_V2,
+          owner: OWNER,
+          endpoint: COMBINED_HOOK_ISM_DEPENDENCY,
+          layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[chain],
+          urls: ['https://example.com/layerzero'],
+          pathways: {
+            [remote]: {
+              layerZeroDomainId: LAYER_ZERO_DOMAIN_IDS[remote],
+              sendLibrary: LAYER_ZERO_LIBRARY,
+              receiveLibrary: LAYER_ZERO_LIBRARY,
+              sendConfig: {
+                executor: { type: LayerZeroV2ConfigMode.Default },
+                uln: { type: LayerZeroV2ConfigMode.Default },
+              },
+              receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+            },
+          },
+        },
+      }),
+      stubReconcileMesh: () =>
+        sinon.stub(EvmLayerZeroV2HookIsmModule, 'reconcileMesh'),
+    },
+  ];
+
+  for (const { name, hookIsm, stubReconcileMesh } of probeCases) {
+    it(`rethrows a transport error from the ${name} router probe instead of dropping the deployed router`, async () => {
+      const DEPLOYED_ROUTER = '0x4444444444444444444444444444444444444444';
+      const SHARED_HOOK_ISM = '0x5555555555555555555555555555555555555555';
+      const chainConfig = (
+        chain: string,
+        remote: string,
+      ): WarpRouteDeployConfigMailboxRequired[string] => {
+        const { hook, interchainSecurityModule } = hookIsm(chain, remote);
+        return {
+          type: TokenType.native,
+          mailbox: MAILBOX,
+          owner: OWNER,
+          hook,
+          interchainSecurityModule,
+        };
+      };
+      const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [TestChainName.test1]: chainConfig(
+          TestChainName.test1,
+          TestChainName.test2,
+        ),
+        [TestChainName.test2]: chainConfig(
+          TestChainName.test2,
+          TestChainName.test1,
+        ),
+      };
+      const warpCoreConfig: WarpCoreConfig = {
+        tokens: [
+          {
+            chainName: TestChainName.test1,
+            standard: TokenStandard.EvmHypNative,
+            decimals: 18,
+            symbol: 'ETH',
+            name: 'Ether',
+            addressOrDenom: DEPLOYED_ROUTER,
+          },
+        ],
+      };
+      const deployed: DerivedTokenRouterConfig = {
+        type: TokenType.native,
+        mailbox: MAILBOX,
         owner: OWNER,
-        core: WORMHOLE_CORE,
-        wormholeChainId,
-        consistencyLevel: { type: WormholeConsistencyType.Finalized },
-        urls: ['https://example.com/{data}'],
-      },
-    });
-    const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
-      [TestChainName.test1]: wormholeChainConfig(4001),
-      [TestChainName.test2]: wormholeChainConfig(4002),
-    };
-    const warpCoreConfig: WarpCoreConfig = {
-      tokens: [
+        hook: SHARED_HOOK_ISM,
+        interchainSecurityModule: SHARED_HOOK_ISM,
+        remoteRouters: {},
+        destinationGas: {},
+      };
+      const transportError = Object.assign(
+        new Error(
+          'missing revert data in call exception (data="0x", code=CALL_EXCEPTION)',
+        ),
         {
-          chainName: TestChainName.test1,
-          standard: TokenStandard.EvmHypNative,
-          decimals: 18,
-          symbol: 'ETH',
-          name: 'Ether',
-          addressOrDenom: DEPLOYED_ROUTER,
+          code: 'CALL_EXCEPTION',
+          data: '0x',
+          error: {
+            code: 'SERVER_ERROR',
+            message:
+              'bad response (status=429, headers={}, body="Too Many Requests")',
+            status: 429,
+          },
         },
-      ],
-    };
-    const deployed: DerivedTokenRouterConfig = {
-      type: TokenType.native,
-      mailbox: MAILBOX,
-      owner: OWNER,
-      hook: SHARED_HOOK_ISM,
-      interchainSecurityModule: SHARED_HOOK_ISM,
-      remoteRouters: {},
-      destinationGas: {},
-    };
-    const transportError = Object.assign(
-      new Error(
-        'missing revert data in call exception (data="0x", code=CALL_EXCEPTION)',
-      ),
-      {
-        code: 'CALL_EXCEPTION',
-        data: '0x',
-        error: {
-          code: 'SERVER_ERROR',
-          message:
-            'bad response (status=429, headers={}, body="Too Many Requests")',
-          status: 429,
-        },
-      },
-    );
-    sinon
-      .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
-      .resolves(deployed);
-    const connect = sinon.stub(IPostDispatchHook__factory, 'connect').returns({
-      hookType: sinon.stub().rejects(transportError),
-      // CAST: test double exposing only the hookType() probe.
-    } as unknown as IPostDispatchHook);
-    const reconcileMesh = sinon.stub(EvmWormholeHookIsmModule, 'reconcileMesh');
+      );
+      sinon
+        .stub(EvmWarpRouteReader.prototype, 'deriveWarpRouteConfig')
+        .resolves(deployed);
+      const connect = sinon
+        .stub(IPostDispatchHook__factory, 'connect')
+        .returns({
+          hookType: sinon.stub().rejects(transportError),
+          // CAST: test double exposing only the hookType() probe.
+        } as unknown as IPostDispatchHook);
+      const reconcileMesh = stubReconcileMesh();
 
-    try {
-      await runWarpRouteApply({
-        context: {
-          altVmSigners: {},
-          chainMetadata: {},
-          multiProvider: new MultiProvider(testChainMetadata),
-          registry: {},
-          skipConfirmation: true,
-        },
-        warpCoreConfig,
-        warpDeployConfig,
-        // CAST: runWarpRouteApply rejects in the Wormhole prepass, before extension or update planning reads the remaining context.
-      } as unknown as Parameters<typeof runWarpRouteApply>[0]);
-      expect.fail('expected the Wormhole probe transport error to reject');
-    } catch (error) {
-      expect(error).to.equal(transportError);
-    }
+      try {
+        await runWarpRouteApply({
+          context: {
+            altVmSigners: {},
+            chainMetadata: {},
+            multiProvider: new MultiProvider(testChainMetadata),
+            registry: {},
+            skipConfirmation: true,
+          },
+          warpCoreConfig,
+          warpDeployConfig,
+          // CAST: runWarpRouteApply rejects in the combined hook/ISM prepass, before extension or update planning reads the remaining context.
+        } as unknown as Parameters<typeof runWarpRouteApply>[0]);
+        expect.fail(`expected the ${name} probe transport error to reject`);
+      } catch (error) {
+        expect(error).to.equal(transportError);
+      }
 
-    expect(connect.calledOnce).to.equal(true);
-    expect(connect.firstCall.args[0]).to.equal(SHARED_HOOK_ISM);
-    expect(reconcileMesh.called).to.equal(false);
-  });
+      expect(connect.calledOnce).to.equal(true);
+      expect(connect.firstCall.args[0]).to.equal(SHARED_HOOK_ISM);
+      expect(reconcileMesh.called).to.equal(false);
+    });
+  }
 });
 
 describe('runWarpUpdatePlanning', () => {
