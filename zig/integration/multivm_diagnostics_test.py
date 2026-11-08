@@ -601,4 +601,133 @@ class RelayerStartupProcControls(unittest.TestCase):
         with self.assertRaises(ValueError):self.journal(live={**self.row,'ppid':99})
         with self.assertRaises(ValueError):self.journal(originals=[])
 
+
+
+class RadixTransportControls(unittest.TestCase):
+    def setUp(self):
+        from types import SimpleNamespace
+        self.simple=SimpleNamespace;self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.now=1_000_000_000;self.stop=False;self.cancel=False;self.calls=[]
+        repo=HERE.parents[1];names=['rust/main/utils/run-locally/src/external_agents/radix_fixture.rs','zig/bench/native_radix_custody.py'];pins=[]
+        for name in names:
+            p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((repo/name).read_bytes());pins.append(api.pin(p))
+        self.fixture={'architecture':'amd64','token':'a'*32,'images':{s:{'id':'sha256:'+'b'*64,'source':'fixed'}for s in api.RADIX_TRANSPORT_SERVICES}}
+        self.state=api.RadixTransport(self.fixture,pins[0],pins[1],self.root)
+        seen={s:str(i+1)*64 for i,s in enumerate(api.RADIX_TRANSPORT_SERVICES)}
+        self.custody=self.simple(case=self.root,pid=42,start='linux-ticks:9',fixture=self.fixture,seen=seen,ready=dict(seen),network='project_default',project='project',stopping=lambda:self.stop)
+        self.containers={};self.net={'Id':'c'*64,'Name':'project_default','Internal':True,'Driver':'bridge','Labels':{'com.docker.compose.project':'project'},'Containers':{}}
+        for i,s in enumerate(api.RADIX_TRANSPORT_SERVICES):
+            cid=seen[s];ip='172.25.0.'+str(i+2);endpoint=str(i+1)*64
+            self.containers[s]={'Id':cid,'Image':self.fixture['images'][s]['id'],'Config':{'Labels':{'com.docker.compose.project':'project','com.docker.compose.service':s,'io.hyperlane.ziggy.radix-token':'a'*32},'Env':['SECRET_RAW_CONFIG']},'State':{'Running':s!='database_migrations_image','OOMKilled':False,'Pid':0 if s=='database_migrations_image'else 100+i,'Status':'exited'if s=='database_migrations_image'else'running','ExitCode':0},'NetworkSettings':{'Networks':{'project_default':{'NetworkID':'c'*64,'EndpointID':endpoint,'IPAddress':ip}}}}
+            self.net['Containers'][cid]={'EndpointID':endpoint,'IPv4Address':ip+'/16'}
+    def capture(self):
+        self.state.begin_custody()
+        for service,row in self.containers.items():self.state.capture(['container','inspect','--size',self.custody.seen[service]],json.dumps([row]))
+        self.state.capture(['network','inspect','project_default'],json.dumps([self.net]))
+    def kernel(self,pid):return {'pid':pid,'ppid':1,'start':'linux-ticks:17','state':'S'}
+    def check(self):
+        if self.cancel or self.now>=self.deadline:raise TimeoutError('PRIVATE_REASON')
+    def http(self,service,route,target,end,cancelled,clock):
+        self.calls.append((service,route,target,end));self.now+=10_000_000
+        return 200,b'{"network":"localnet","network_id":240,"network_hrp_suffix":"loc"}'if service=='fullnode'else b'{"ledger_state":{"network":"localnet","state_version":1}}'
+    def observe(self,http=None,kernel=None,deadline=10_000_000_000):
+        self.deadline=deadline;self.state.observe(self.custody,kernel or self.kernel,self.check,lambda:self.now,lambda:self.cancel,deadline,http or self.http)
+    def test_actual_capture_pending_and_next_cadence_crossbinding(self):
+        self.capture();self.observe();self.assertEqual(len(self.calls),4);a=self.state.public();row=a['samples'][0];self.assertFalse(row['crossbinding_verified']);self.assertEqual(row['crossbinding_status'],'PENDING_FRESH_CUSTODY');self.assertTrue(all(x['Source_predicate']=='SOURCE_READY'for x in row['observations']));self.assertEqual({x[-1]for x in self.calls},{1_500_000_000});self.assertNotIn('SECRET',json.dumps(a));self.assertNotIn('172.25.',json.dumps(a));self.assertNotIn('IPAddress',json.dumps(a));self.assertTrue(a['ordinary_custody_outside_HTTP_budget']);self.assertFalse(a['Rust120s_clock_observed'])
+        self.now+=1_000_000_000;self.capture();self.observe();a=self.state.public();self.assertEqual(len(self.calls),4);self.assertTrue(a['samples'][0]['crossbinding_verified']);self.assertEqual(a['samples'][0]['crossbinding_status'],'FRESH_CUSTODY_MATCHED')
+    def test_all5_positive_required_no_IO_before_ready(self):
+        for change in ['notready','unknownCID','internal','foreignEndpoint','image','label','peerIP','missingPID','stickyOldReady','wrongEndpointID','wrongNetworkID']:
+            with self.subTest(change=change):
+                self.setUp()
+                if change=='notready':self.custody.ready.pop('postgres_db')
+                elif change=='unknownCID':self.containers['fullnode']['Id']='f'*64
+                elif change=='internal':self.net['Internal']=False
+                elif change=='foreignEndpoint':self.net['Containers']['f'*64]={}
+                elif change=='image':self.containers['fullnode']['Image']='sha256:'+'d'*64
+                elif change=='label':self.containers['fullnode']['Config']['Labels']['io.hyperlane.ziggy.radix-token']='d'*32
+                elif change=='peerIP':self.net['Containers'][self.custody.seen['fullnode']]['IPv4Address']='172.25.9.9/16'
+                elif change=='missingPID':self.containers['fullnode']['State']['Pid']=0
+                elif change=='stickyOldReady':self.containers['postgres_db']['State']['Running']=False
+                elif change=='wrongEndpointID':self.containers['fullnode']['NetworkSettings']['Networks']['project_default']['EndpointID']='d'*64
+                else:self.containers['fullnode']['NetworkSettings']['Networks']['project_default']['NetworkID']='d'*64
+                self.capture();self.observe();self.assertEqual(self.calls,[]);self.assertEqual(self.state.samples,[])
+    def test_cancel_stop_original_deadline_no_HTTP(self):
+        for change in ['cancel','stop','deadline']:
+            self.setUp();self.capture();self.cancel=change=='cancel';self.stop=change=='stop';self.observe(deadline=self.now if change=='deadline'else 10_000_000_000);self.assertEqual(self.calls,[])
+    def test_missing_or_changed_postcheck_never_promotes(self):
+        for change in ['no_after','pid','birth','network','stop']:
+            self.setUp();self.capture();self.observe();self.now+=1_000_000_000
+            if change=='no_after':pass
+            elif change=='pid':self.containers['fullnode']['State']['Pid']+=10;self.capture();self.observe()
+            elif change=='birth':self.capture();self.observe(kernel=lambda pid:{'pid':pid,'start':'linux-ticks:18','state':'S'})
+            elif change=='network':self.net['Id']='d'*64;self.capture();self.observe()
+            else:self.stop=True;self.capture();self.observe()
+            self.assertFalse(self.state.public()['samples'][0]['crossbinding_verified'])
+    def test_late_positive_and_parser_work_cannot_survive_HTTP_fence(self):
+        self.capture()
+        def late(*args):value=self.http(*args);self.now+=600_000_000;return value
+        self.observe(http=late);sample=self.state.public()['samples'][0];self.assertTrue(all(r['http_status']is None and r['Source_predicate']=='UNAVAILABLE'for r in sample['observations']));self.assertEqual(len(self.calls),1)
+    def test_true_target_refusal_pending_then_post_and_untyped_refusal_unavailable(self):
+        self.capture();self.observe(http=mock.Mock(side_effect=api.RadixTargetConnectRefused));sample=self.state.public()['samples'][0];self.assertTrue(all(r['outcome']=='TARGET_CONNECT_REFUSED'for r in sample['observations']));self.assertFalse(sample['crossbinding_verified']);self.now+=1;self.capture();self.observe();self.assertTrue(self.state.public()['samples'][0]['crossbinding_verified'])
+        self.setUp();self.capture();self.observe(http=mock.Mock(side_effect=ConnectionRefusedError('SECRET_API')));self.assertTrue(all(r['outcome']=='UNAVAILABLE'for r in self.state.public()['samples'][0]['observations']));self.assertNotIn('SECRET',json.dumps(self.state.public()))
+    def test_two_samples_only_no_clock_reset_or_unbounded_growth(self):
+        self.capture();self.observe();self.now+=91_000_000_000;self.capture();self.observe(deadline=500_000_000_000);self.now+=91_000_000_000;self.capture();self.observe(deadline=500_000_000_000);self.assertEqual(len(self.calls),8);self.assertEqual(len(self.state.samples),2)
+    def test_HTTP_deadline_clamped_to_original_case_and_midread_stop_cancels(self):
+        self.capture();self.observe(deadline=1_200_000_000);self.assertEqual({row[-1]for row in self.calls},{1_200_000_000})
+        self.setUp();self.capture()
+        def stopping(*args):value=self.http(*args);self.stop=True;return value
+        self.observe(http=stopping);self.assertEqual(len(self.calls),1);sample=self.state.public()['samples'][0];self.assertTrue(all(row['Source_predicate']=='UNAVAILABLE'for row in sample['observations']));self.assertFalse(sample['crossbinding_verified'])
+    def test_source_changes_and_capture_errors_unavailable(self):
+        self.capture();source=self.root/'zig/bench/native_radix_custody.py';source.write_bytes(source.read_bytes()+b'\n');self.observe();self.assertEqual(self.calls,[])
+        self.setUp();self.capture();self.state.capture(['network','inspect','project_default'],'SECRET_INVALID_JSON');self.observe();self.assertEqual(self.calls,[])
+    def test_predicate_wrong_network_bool_nonfinite_duplicates_bounded(self):
+        self.assertEqual(api.radix_readiness_predicate('fullnode',b'{"network":"mainnet","network_id":240,"network_hrp_suffix":"loc"}'),'WRONG_SOURCE_NETWORK')
+        self.assertEqual(api.radix_readiness_predicate('gateway_api_image',b'{"ledger_state":{"network":"localnet","state_version":true}}'),'NO_SOURCE_COMMITTED_LEDGER')
+        self.capture();self.observe(http=lambda *args:(True,b'{}'));self.assertTrue(all(row['http_status']is None and row['outcome']=='UNAVAILABLE'for row in self.state.public()['samples'][0]['observations']))
+        for raw in [b'{"x":1e999}',b'{"network":1,"network":2}']:
+            with self.assertRaises(ValueError):api.radix_readiness_predicate('fullnode',raw)
+
+
+class RadixTransportHTTPControls(unittest.TestCase):
+    Wire=RelayerStartupHTTPControls.Wire
+    def run_http(self,chunks,service='fullnode',route='host_loopback',target=('127.0.0.1',3333),tick=1000000,deadline=500000001,cancelled=lambda:False):
+        import socket,select
+        stream=self.Wire(chunks);now=[1]
+        def ready(read,write,errors,seconds):now[0]+=min(tick,max(0,int(seconds*10**9)));self.assertLessEqual(seconds,.025);return read,write,[]
+        with mock.patch.object(socket,'socket',return_value=stream),mock.patch.object(select,'select',side_effect=ready):
+            try:return api.radix_transport_http(service,route,target,deadline,cancelled,lambda:now[0]),stream
+            finally:self.assertTrue(stream.closed)
+    def test_actual_POST_body_routes_and_length_chunked_EOF(self):
+        for chunks in [[b'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}'],[b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n{\r\n1\r\n}\r\n0\r\n\r\n'],[b'HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{}']]:
+            result,stream=self.run_http(chunks);self.assertEqual(result,(200,b'{}'));self.assertEqual(stream.target,('127.0.0.1',3333));self.assertTrue(stream.sent.startswith(b'POST /core/status/network-configuration HTTP/1.1'));self.assertTrue(stream.sent.endswith(b'\r\n\r\n{}'));self.assertIn(b'Content-Length: 2',stream.sent);self.assertNotIn(b'Authorization',stream.sent)
+        result,stream=self.run_http([b'HTTP/1.1 503 Error\r\nContent-Length: 0\r\n\r\n'],service='gateway_api_image',route='owned_private_endpoint',target=('172.25.0.4',8080));self.assertEqual(result,(503,b''));self.assertIn(b'POST /status/gateway-status ',stream.sent)
+    def test_absolute_trickle_cancel_and_invalid_targets_before_socket(self):
+        import socket
+        with self.assertRaises(TimeoutError):self.run_http([b'HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n']+[b'x']*100,tick=25000000)
+        for target in [('remote.example',3333),('8.8.8.8',3333),('127.0.0.1',5308)]:
+            with mock.patch.object(socket,'socket')as create,self.assertRaises(ValueError):api.radix_transport_http('fullnode','host_loopback',target,500000001,lambda:False,lambda:1)
+            create.assert_not_called()
+        with mock.patch.object(socket,'socket')as create,self.assertRaises(TimeoutError):api.radix_transport_http('fullnode','host_loopback',('127.0.0.1',3333),500000001,lambda:True,lambda:1)
+        create.assert_not_called()
+    def test_ambiguous_duplicate_encoding_oversize_malformed_refuse(self):
+        cases=[b'Content-Length: 2\r\nTransfer-Encoding: chunked',b'Content-Length: 2\r\ncontent-length: 2',b'Content-Encoding: gzip\r\nContent-Length: 2',b'Content-Length: 2097153',b'Transfer-Encoding: deflate',b'Transfer-Encoding: chunked\r\n\r\nZZ\r\n']
+        for headers in cases:
+            with self.subTest(headers=headers),self.assertRaises(ValueError):self.run_http([b'HTTP/1.1 200 OK\r\n'+headers+b'\r\n\r\n{}'])
+    def test_chunk_count_extensions_trailers_decoded_encoded_bounds(self):
+        self.assertEqual(api.radix_response_body(b'2;public=yes\r\n{}\r\n0\r\nX-Public: yes\r\n\r\n',None,True,False),b'{}')
+        for raw in [b'1\r\nx\r\n'*4097+b'0\r\n\r\n',b'0\r\n'+b'x'*8193,b'0\r\nContent-Length: 2\r\n\r\n',b'200001\r\n']:
+            with self.assertRaises(ValueError):api.radix_response_body(raw,None,True,True)
+        with self.assertRaises(ValueError):api.radix_response_body(b'x'*(2*1024**2+1),None,False,True)
+    def test_encoded_header_extension_bounds_and_actual_IO_cancellation(self):
+        with self.assertRaises(ValueError):self.run_http([b'HTTP/1.1 200 OK\r\nX: '+b'a'*16000,b'a'*16000,b'a'*1000])
+        with self.assertRaises(ValueError):api.radix_response_body(b'x'*(2*1024**2+32769),None,False,True)
+        with self.assertRaises(ValueError):api.radix_response_body(b'1;'+b'a'*200+b'\r\nx\r\n0\r\n\r\n',None,True,True)
+        count=[0]
+        def cancelled():count[0]+=1;return count[0]>6
+        with self.assertRaises(TimeoutError):self.run_http([b'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}'],cancelled=cancelled)
+    def test_only_actual_connect_refusal_has_typed_result(self):
+        import socket,errno
+        stream=self.Wire([]);stream.connect_ex=lambda _:errno.ECONNREFUSED
+        with mock.patch.object(socket,'socket',return_value=stream),self.assertRaises(api.RadixTargetConnectRefused):api.radix_transport_http('fullnode','host_loopback',('127.0.0.1',3333),500000001,lambda:False,lambda:1)
+        self.assertTrue(stream.closed)
+
 if __name__=='__main__':unittest.main()

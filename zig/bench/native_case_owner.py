@@ -669,7 +669,40 @@ def observe_relayer_startup(context,manifest,inputs,case,harness,controller,help
         context['latest_probe']={'collection_status':'unavailable','started_monotonic_ns':started,'finished_monotonic_ns':time.monotonic_ns(),'scope':'Missing, uncertain, cancelled, changed or outside original deadline; no primary/verdict effect.'}
 
 
-def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None):
+
+def arm_radix_transport(plan,manifest,approval,repo,fixture,engine_info,deadline_ns):
+    if plan['scenario']!='radix':return None
+    try:
+        require(time.monotonic_ns()<deadline_ns,'Original Radix diagnostic case deadline')
+        module=diagnostic_module(approval);name='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';source=plan['diagnostic_rust_sources'][name]
+        path=str(Path(repo)/'zig/bench/native_radix_custody.py');rows=[row for row in plan['required_inputs']if row.get('path')==path]
+        require(len(rows)==1 and source in plan['required_inputs'],'Existing admitted Radix Source descriptors required')
+        state=module.RadixTransport(fixture,source,rows[0],repo)
+        version=engine_info.get('ServerVersion');state.engine_version=version if isinstance(version,str)and re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(?:[-+][A-Za-z0-9_.-]{1,32})?',version)else None
+        require(time.monotonic_ns()<deadline_ns,'Original Radix diagnostic case deadline')
+        state.runtime_source_commit=manifest['runtime_source_commit']
+        return {'module':module,'state':state,'case':Path(manifest['task_root'])}
+    except Exception:return None
+
+
+def tap_radix_transport(context,arguments,wire):
+    if context is None:return
+    try:context['state'].capture(arguments,wire)
+    except Exception:context['state'].capture_invalid=True
+
+
+def observe_radix_transport(context,custody,harness,controller,helper_row,deadline_ns):
+    if context is None:return
+    def cancelled():return harness.poll()is not None or controller.poll()is not None
+    def check():
+        require(not cancelled()and time.monotonic_ns()<deadline_ns,'Original Radix diagnostic case deadline/cancel')
+        require(custody.case==context['case']and custody.pid==harness.pid and custody.start==helper_row['start'],'Bound Radix fixture/helper context required')
+        live=owner._linux_row(harness.pid)
+        require(live is not None and owner.same_process(helper_row,live)and live['state']!='Z','Actual Radix helper birth changed')
+    try:context['state'].observe(custody,owner._linux_row,check,time.monotonic_ns,cancelled,deadline_ns,context['module'].radix_transport_http)
+    except Exception:return
+
+def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None):
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
     value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
     # Observer transport errors can accompany Rust fixture failure/teardown.
@@ -704,6 +737,10 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
             record['EVM_Stark_startup']=startup_context['state'].public(log)
             record['EVM_Stark_startup']['latest_probe']=startup_context['latest_probe']
         except Exception:record['EVM_Stark_startup']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+    if manifest['scenario']=='radix':
+        try:
+            require(radix_transport is not None,'Radix transport diagnostic unavailable');record['Radix_transport']=radix_transport['state'].public()
+        except Exception:record['Radix_transport']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')
@@ -864,6 +901,7 @@ def worker(args, plan, manifest, inputs, approval):
     env=plan['explicit_environment'];pg=inputs.get('postgres');docker=checked(manifest['verifier_tools']['docker'],True)if pg is not None else None
     for name in ('controller.json','controller.sock'):require(not (case/'evidence'/name).exists(), 'Preserve existing controller')
     controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={};devnets=None;radix=None
+    radix_transport=None
     result={'schema':1,'kind':'native-case-worker-observation','passed':False,'native_case_acceptance':False,'docker_calls':[],'direct_waits':[]}
     deadline=args.original_deadline_ns/1e9
     cleanup_deadline=deadline+(180 if plan['scenario']=='radix'else 45)
@@ -887,7 +925,9 @@ def worker(args, plan, manifest, inputs, approval):
             stdout.seek(0);stderr.seek(0);wire=stdout.read();detail=stderr.read()
         if missing and (missing_container(code,detail,arguments[-1]) or plan['scenario']=='radix' and radix_custody().missing_object(code,detail,arguments[-1],arguments[0])):return None
         require(code==0,'Owned Docker command failed')
-        return wire.decode()
+        decoded=wire.decode()
+        if not cleaning:tap_radix_transport(radix_transport,arguments,decoded)
+        return decoded
     def inspect(cleaning=False):
         nonlocal cid,kernel
         if harness is None or pg is None:return
@@ -941,6 +981,7 @@ def worker(args, plan, manifest, inputs, approval):
                 volume_spec=importlib.util.spec_from_file_location('native_radix_volume',Path(__file__).with_name('native_radix_volume.py'))
                 volume=importlib.util.module_from_spec(volume_spec);volume_spec.loader.exec_module(volume)
                 radix=radix_custody().Custody(case,harness.pid,helper_row['start'],inputs['radix_localnet'],out,docker_call,volume_sample=lambda name:volume.sample_volume(name,args.original_deadline_ns));radix.arm()
+                radix_transport=arm_radix_transport(plan,manifest,approval,repo,inputs['radix_localnet'],info,args.original_deadline_ns)
             if plan['scenario']=='tron':
                 devnets=tron_module('native_tron_custody').Custody(case,harness.pid,helper_row['start'],inputs['tron_tre'],out,docker_call);devnets.arm()
             require(harness.stdin is not None,'Owned helper bootstrap pipe missing')
@@ -951,7 +992,10 @@ def worker(args, plan, manifest, inputs, approval):
                 require(time.monotonic()<deadline and controller.poll() is None,'Case deadline/observer failed')
                 if time.monotonic()>=next_inspect:
                     inspect()
-                    if radix is not None:radix.observe()
+                    if radix is not None:
+                        if radix_transport is not None:radix_transport['state'].begin_custody()
+                        radix.observe()
+                        observe_radix_transport(radix_transport,radix,harness,controller,helper_row,args.original_deadline_ns)
                     elif devnets is not None:devnets.observe()
                     else:native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs)
                     observe_relayer_startup(startup_context,manifest,inputs,case,harness,controller,helper_row,args.original_deadline_ns)
@@ -1047,7 +1091,7 @@ def worker(args, plan, manifest, inputs, approval):
             for signum,handler in old.items():signal.signal(signum,handler)
             result['forced_cleanup']=forced
             if not result['passed']:
-                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context)
+                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context,radix_transport)
                 except Exception as diagnostic_error:result['public_diagnostic_write_error']={'type':type(diagnostic_error).__name__}
             (out/'worker-result.json').write_text(json.dumps(result,indent=2)+'\n')
     require(result['passed'],'Native worker failed; retain original result')

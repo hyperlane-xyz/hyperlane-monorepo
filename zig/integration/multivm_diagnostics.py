@@ -829,3 +829,248 @@ def startup_selected_role(case,manifest,inputs,parent_pid,read,kernel_row,read_e
         candidates.append(live)
     if len(candidates)!=1:raise ValueError('One current owned relayer required')
     check();return candidates[0],captures[0],port
+
+
+RADIX_TRANSPORT_SERVICES = ('fullnode','postgres_db','database_migrations_image','data_aggregator_image','gateway_api_image')
+RADIX_HTTP_SERVICES = {'fullnode':(3333,3333,'/core/status/network-configuration'),'gateway_api_image':(5308,8080,'/status/gateway-status')}
+
+
+class RadixTargetConnectRefused(Exception):
+    """Only the fixed target socket.connect outcome, not a daemon/API error."""
+
+
+def radix_readiness_predicate(service,wire):
+    import math
+    value=startup_unique_json(wire);nodes=0
+    def finite(item,depth=0):
+        nonlocal nodes
+        nodes+=1
+        if depth>32 or nodes>250000:raise ValueError('Radix JSON structure bound')
+        if isinstance(item,float)and not math.isfinite(item):raise ValueError('Nonfinite Radix JSON')
+        if type(item)is int and abs(item)>10**308:raise ValueError('Radix JSON number bound')
+        if isinstance(item,dict):
+            for child in item.values():finite(child,depth+1)
+        elif isinstance(item,list):
+            for child in item:finite(child,depth+1)
+    finite(value)
+    if not isinstance(value,dict):return 'INVALID_PAYLOAD'
+    if service=='fullnode':
+        return 'SOURCE_READY'if value.get('network')=='localnet'and type(value.get('network_id'))is int and value['network_id']==240 and value.get('network_hrp_suffix')=='loc'else'WRONG_SOURCE_NETWORK'
+    state=value.get('ledger_state')
+    return 'SOURCE_READY'if isinstance(state,dict)and state.get('network')=='localnet'and type(state.get('state_version'))is int and 0<state['state_version']<2**64 else'NO_SOURCE_COMMITTED_LEDGER'
+
+
+class RadixTransport:
+    """Read-only first/latest bounded HTTP snapshots; never custody authority."""
+    def __init__(self,fixture,source_descriptor,custody_descriptor,repo):
+        self.fixture=copy.deepcopy(fixture);self.repo=Path(repo);self.source_identities={};self.source_descriptors=[];self.samples=[];self.pending=None;self.first_started=None;self.active=False;self.rows={};self.network=None;self.capture_invalid=False
+        for path,descriptor,needles in [(Path(repo)/'rust/main/utils/run-locally/src/external_agents/radix_fixture.rs',source_descriptor,[b'"networks":{"default":{"internal":true}}',b'http://127.0.0.1:3333/core/status/network-configuration',b'http://127.0.0.1:5308/status/gateway-status',b'.post(endpoint)',b'.send_string("{}")?',b'Duration::from_secs(120)']), (Path(repo)/'zig/bench/native_radix_custody.py',custody_descriptor,[b"'fullnode': (1536, 256, {'3333/tcp': 3333})",b"'gateway_api_image': (512, 128, {'8080/tcp': 5308",b'def readiness(',b'def ownership('])]:
+            wire,fingerprint=captured_failure_bytes(path,1024**2)
+            if descriptor!={'path':str(path),**fingerprint}or not all(x in wire for x in needles):raise ValueError('Exact existing Radix Source binding required')
+            self.source_identities[path]=RelayerStartup.identity(path);self.source_descriptors.append({'path':path.relative_to(self.repo).as_posix(),**fingerprint})
+        if set(fixture)!={'architecture','token','images'}or fixture['architecture']!='amd64'or re.fullmatch('[0-9a-f]{32}',fixture['token'])is None or set(fixture['images'])!=set(RADIX_TRANSPORT_SERVICES):raise ValueError('Exact Radix fixture required')
+
+    def check_sources(self):
+        if any(RelayerStartup.identity(path)!=identity for path,identity in self.source_identities.items()):raise ValueError('Radix diagnostic Source changed')
+
+    def begin_custody(self):
+        self.active=True;self.rows={};self.network=None;self.capture_invalid=False
+
+    def capture(self,arguments,wire):
+        # This tap is invoked only for already completed ordinary Docker calls.
+        # It never calls Docker and never exports a raw response/config/IP.
+        if not self.active:return
+        if not ((len(arguments)==4 and arguments[:3]==['container','inspect','--size'])or(len(arguments)==3 and arguments[:2]==['network','inspect'])):return
+        try:
+            if not isinstance(wire,str)or len(wire.encode())>2*1024**2:raise ValueError('Radix capture bound')
+            rows=startup_unique_json(wire)
+            if not isinstance(rows,list)or len(rows)!=1:raise ValueError('One captured Radix row required')
+            row=rows[0]
+            if arguments[0]=='container':
+                labels=row['Config']['Labels'];service=labels['com.docker.compose.service'];networks=row['NetworkSettings']['Networks']
+                if service not in RADIX_TRANSPORT_SERVICES or service in self.rows or len(networks)>8:raise ValueError('Captured service set differs')
+                self.rows[service]={'Id':row['Id'],'Image':row['Image'],'Config':{'Labels':{k:labels.get(k)for k in ('com.docker.compose.project','com.docker.compose.service','io.hyperlane.ziggy.radix-token')}},'State':{k:row['State'].get(k)for k in ('Running','OOMKilled','Pid','Status','ExitCode')},'Networks':{name:{k:v.get(k)for k in ('NetworkID','EndpointID','IPAddress')}for name,v in networks.items()}}
+            else:
+                containers=row.get('Containers')or{}
+                if len(containers)>8 or self.network is not None:raise ValueError('Captured network set differs')
+                self.network={'Id':row['Id'],'Name':row['Name'],'Internal':row['Internal'],'Driver':row['Driver'],'project':row['Labels'].get('com.docker.compose.project'),'Containers':{cid:{k:v.get(k)for k in ('EndpointID','IPv4Address')}for cid,v in containers.items()}}
+        except Exception:self.capture_invalid=True
+
+    def identity(self,custody,kernel_row,check):
+        import ipaddress
+        check();self.check_sources()
+        if custody.fixture!=self.fixture or self.capture_invalid or set(self.rows)!=set(RADIX_TRANSPORT_SERVICES)or set(custody.seen)!=set(RADIX_TRANSPORT_SERVICES)or custody.ready!=custody.seen or custody.stopping():raise ValueError('Positive ordinary custody required')
+        network=self.network
+        if not isinstance(network,dict)or network['Internal']is not True or network['Driver']!='bridge'or network['Name']!=custody.network or network['project']!=custody.project or re.fullmatch('[0-9a-f]{64}',network['Id'])is None or set(network['Containers'])-set(custody.seen.values()):raise ValueError('Exact internal owned network required')
+        for service,row in self.rows.items():
+            state=row['State']
+            if state['OOMKilled']is not False:raise ValueError('Current Radix readiness required')
+            if service=='database_migrations_image':
+                if state['Status']!='exited'or state['ExitCode']!=0:raise ValueError('Current successful migration required')
+            elif state['Running']is not True or type(state['Pid'])is not int or state['Pid']<=0:raise ValueError('Current running service required')
+        result={}
+        for service in RADIX_HTTP_SERVICES:
+            check();row=self.rows[service];cid=custody.seen[service];labels=row['Config']['Labels'];state=row['State']
+            if row['Id']!=cid or re.fullmatch('[0-9a-f]{64}',cid)is None or row['Image']!=self.fixture['images'][service]['id']or labels!={'com.docker.compose.project':custody.project,'com.docker.compose.service':service,'io.hyperlane.ziggy.radix-token':self.fixture['token']}or state['Running']is not True or state['OOMKilled']is not False or type(state['Pid'])is not int or state['Pid']<=0 or set(row['Networks'])!={custody.network}:raise ValueError('Exact live Radix CID/image/epoch required')
+            live=kernel_row(state['Pid']);check()
+            if live is None or live.get('pid')!=state['Pid']or live.get('state')=='Z'or not isinstance(live.get('start'),str)or re.fullmatch('linux-ticks:[0-9]{1,24}',live['start'])is None:raise ValueError('Actual container process birth required')
+            endpoint=row['Networks'][custody.network];peer=network['Containers'].get(cid);address=ipaddress.IPv4Address(endpoint['IPAddress'])
+            if peer is None or endpoint['NetworkID']!=network['Id']or re.fullmatch('[0-9a-f]{64}',endpoint['EndpointID'])is None or endpoint['EndpointID']!=peer['EndpointID']or ipaddress.IPv4Interface(peer['IPv4Address']).ip!=address or not address.is_private or address.is_loopback or address.is_unspecified or address.is_multicast:raise ValueError('Exact owned private endpoint required')
+            result[service]=(cid,row['Image'],state['Pid'],live['start'],network['Id'],endpoint['EndpointID'],str(address))
+        check();return result
+
+    def observe(self,custody,kernel_row,check,clock,cancelled,deadline_ns,http):
+        self.active=False
+        try:
+            before=self.identity(custody,kernel_row,check);observed=clock()
+            if self.pending is not None:
+                if before==self.pending['identity']and observed>self.pending['public']['HTTP_finished_ns']:
+                    self.pending['public'].update(crossbinding_status='FRESH_CUSTODY_MATCHED',crossbinding_verified=True,post_custody_observed_ns=observed)
+                else:self.pending['public']['crossbinding_status']='POST_CUSTODY_CHANGED'
+                self.pending=None
+            if len(self.samples)>=2 or(self.first_started is not None and observed-self.first_started<90_000_000_000):return
+            start=clock();end=min(deadline_ns,start+500_000_000)
+            def transport_cancelled():return cancelled()or custody.stopping()
+            def within():
+                check()
+                if transport_cancelled()or clock()>=end:raise TimeoutError('Original HTTP-only Radix fence')
+            report={'schema':1,'HTTP_started_ns':start,'HTTP_deadline_ns':end,'HTTP_finished_ns':None,'post_custody_observed_ns':None,'crossbinding_status':'PENDING_FRESH_CUSTODY','crossbinding_verified':False,'observations':[]}
+            for service,(host_port,private_port,_)in RADIX_HTTP_SERVICES.items():
+                for route in ('host_loopback','owned_private_endpoint'):
+                    row={'service':service,'route':route,'outcome':'NOT_ATTEMPTED','http_status':None,'Source_predicate':'UNAVAILABLE'};report['observations'].append(row)
+                    try:
+                        within();target=('127.0.0.1',host_port)if route=='host_loopback'else(before[service][-1],private_port)
+                        status,wire=http(service,route,target,end,transport_cancelled,clock);within()
+                        if type(status)is not int or not 100<=status<=599 or not isinstance(wire,bytes)or len(wire)>2*1024**2:raise ValueError('Bounded fixed HTTP result required')
+                        predicate=radix_readiness_predicate(service,wire)if status==200 else'HTTP_NOT_200';within();row.update(outcome='HTTP_RESPONSE',http_status=status,Source_predicate=predicate)
+                    except RadixTargetConnectRefused:row['outcome']='TARGET_CONNECT_REFUSED'
+                    except TimeoutError:row['outcome']='HTTP_DEADLINE_OR_CANCELLED'
+                    except Exception:row['outcome']='UNAVAILABLE'
+            report['HTTP_finished_ns']=clock()
+            if transport_cancelled()or report['HTTP_finished_ns']>=end:
+                for row in report['observations']:row.update(outcome='HTTP_DEADLINE_OR_CANCELLED',http_status=None,Source_predicate='UNAVAILABLE')
+            self.samples.append(report);self.first_started=start if self.first_started is None else self.first_started
+            self.pending={'identity':before,'public':report}
+        except Exception:
+            # Existing custody/worker guard retains the primary failure. A
+            # missing next cadence can never become a postvalidated observation.
+            return
+
+    def public(self):
+        self.check_sources()
+        return {'schema':1,'kind':'public-Radix-transport-observation','collection_status':'observed'if self.samples else'not_attempted_or_unavailable','Source_contracts':copy.deepcopy(self.source_descriptors),'runtime_source_commit':getattr(self,'runtime_source_commit',None),'samples':copy.deepcopy(self.samples),'HTTP_only_budget_ns':500_000_000,'ordinary_custody_outside_HTTP_budget':True,'ordinary_Docker_timeout_seconds':4,'ordinary_Docker_owned_child_cleanup_seconds':3,'Rust120s_clock_observed':False,'Docker_ServerVersion':getattr(self,'engine_version',None),'native_or_timing_or_cleanup_authority':False,'scope':'Fixed Source POST readiness observations only. CID/network/process endpoint crossbinding remains pending unless next ordinary custody matches. No raw IP/URL/header/body/error, daemon-parent wait or native readiness authority.'}
+
+
+def radix_response_body(wire,length,chunked,eof):
+    maximum=2*1024**2
+    if len(wire)>maximum+32768 or(length is not None and not 0<=length<=maximum):raise ValueError('Radix encoded body bound')
+    if length is not None:
+        if len(wire)>length:raise ValueError('Excess Radix HTTP body')
+        if len(wire)==length:return bytes(wire)
+    elif not chunked:
+        if len(wire)>maximum:raise ValueError('Radix response body bound')
+        if eof:return bytes(wire)
+    else:
+        cursor=0;decoded=bytearray();count=0
+        while True:
+            boundary=wire.find(b'\r\n',cursor)
+            if boundary<0:
+                if len(wire)-cursor>128:raise ValueError('Radix chunk header bound')
+                break
+            value=wire[cursor:boundary]
+            if re.fullmatch(rb'[0-9A-Fa-f]{1,8}(?:;[ -~]{0,96})?',value)is None:raise ValueError('Invalid Radix chunk header')
+            size=int(value.split(b';',1)[0],16);cursor=boundary+2;count+=1
+            if count>4096 or size>maximum-len(decoded):raise ValueError('Radix chunk body bound')
+            if size==0:
+                if len(wire)-cursor<2:break
+                if wire[cursor:cursor+2]==b'\r\n':end=cursor+2
+                else:
+                    trailer_end=wire.find(b'\r\n\r\n',cursor)
+                    if trailer_end<0:
+                        if len(wire)-cursor>8192:raise ValueError('Radix trailer bound')
+                        break
+                    trailer=wire[cursor:trailer_end];lines=trailer.split(b'\r\n')
+                    if len(trailer)>8192 or len(lines)>32:raise ValueError('Radix trailer bound')
+                    names=set()
+                    for line in lines:
+                        field=re.fullmatch(rb'([A-Za-z0-9-]{1,64}):[ \t]*([^\r\n]*)',line)
+                        if field is None or field[1].lower()in names or field[1].lower()in{b'content-length',b'transfer-encoding'}or any(x<32 and x!=9 or x==127 for x in field[2]):raise ValueError('Invalid Radix trailer')
+                        names.add(field[1].lower())
+                    end=trailer_end+4
+                if len(wire)!=end:raise ValueError('Excess Radix chunk wire')
+                return bytes(decoded)
+            if len(wire)-cursor<size+2:break
+            if wire[cursor+size:cursor+size+2]!=b'\r\n':raise ValueError('Invalid Radix chunk boundary')
+            decoded.extend(wire[cursor:cursor+size]);cursor+=size+2
+    if eof:raise ValueError('Incomplete Radix HTTP response')
+    return None
+
+
+def radix_transport_http(service,route,target,deadline_ns,cancelled,clock):
+    """Fixed Source POST{}, numeric AF_INET only, one supplied absolute fence."""
+    import errno
+    import ipaddress
+    import select
+    import socket
+    if service not in RADIX_HTTP_SERVICES or route not in{'host_loopback','owned_private_endpoint'}or not isinstance(target,tuple)or len(target)!=2 or type(deadline_ns)is not int:raise ValueError('Fixed Radix diagnostic route required')
+    address=ipaddress.IPv4Address(target[0]);host_port,private_port,path=RADIX_HTTP_SERVICES[service]
+    if target[1]!=(host_port if route=='host_loopback'else private_port)or(route=='host_loopback'and str(address)!='127.0.0.1')or(route=='owned_private_endpoint'and(not address.is_private or address.is_loopback or address.is_unspecified or address.is_multicast)):raise ValueError('Fixed admitted Radix endpoint required')
+    def check():
+        if cancelled()or clock()>=deadline_ns:raise TimeoutError('Radix HTTP absolute fence/cancel')
+    def wait(stream,writing=False):
+        while True:
+            check();remaining=(deadline_ns-clock())/10**9
+            if remaining<=0:raise TimeoutError('Radix HTTP absolute fence')
+            value=select.select([]if writing else[stream],[stream]if writing else[],[],min(.025,remaining));check()
+            if(value[1]if writing else value[0]):return
+    def connected(code):
+        check()
+        if code==errno.ECONNREFUSED:raise RadixTargetConnectRefused()
+        if code:raise OSError('Radix target connect unavailable')
+    check();stream=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    try:
+        stream.setblocking(False);check();code=stream.connect_ex((str(address),target[1]));check()
+        if code in{errno.EINPROGRESS,errno.EWOULDBLOCK,errno.EALREADY}:wait(stream,True);connected(stream.getsockopt(socket.SOL_SOCKET,socket.SO_ERROR))
+        else:connected(code)
+        wire=f'POST {path} HTTP/1.1\r\nHost: {address}:{target[1]}\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{{}}'.encode();sent=0
+        while sent<len(wire):
+            wait(stream,True)
+            try:size=stream.send(wire[sent:])
+            except BlockingIOError:continue
+            check()
+            if size<=0:raise OSError('Radix socket closed')
+            sent+=size
+        response=bytearray();boundary=None;length=None;status=None;chunked=False
+        while True:
+            wait(stream)
+            try:chunk=stream.recv(16384)
+            except BlockingIOError:continue
+            check()
+            if not chunk and boundary is None:raise ValueError('Incomplete Radix HTTP header')
+            response.extend(chunk)
+            if len(response)>2*1024**2+32768:raise ValueError('Radix response bound')
+            if boundary is None:
+                offset=response.find(b'\r\n\r\n')
+                if offset<0:
+                    if len(response)>32768:raise ValueError('Radix header bound')
+                    continue
+                if offset>32764:raise ValueError('Radix header bound')
+                lines=bytes(response[:offset]).split(b'\r\n');match=re.fullmatch(rb'HTTP/1\.[01] ([1-5][0-9]{2})(?: [^\r\n]*)?',lines[0])
+                if match is None:raise ValueError('Invalid Radix HTTP status')
+                status=int(match[1]);headers={}
+                for line in lines[1:]:
+                    item=re.fullmatch(rb'([!#$%&\x27*+.^_`|~0-9A-Za-z-]+):[ \t]*([^\r\n]*)',line)
+                    if item is None or item[1].lower()in headers or any(x<32 and x!=9 or x==127 for x in item[2]):raise ValueError('Invalid Radix HTTP header')
+                    headers[item[1].lower()]=item[2].strip()
+                if headers.get(b'content-encoding',b'identity')!=b'identity'or(b'transfer-encoding'in headers and b'content-length'in headers):raise ValueError('Ambiguous Radix response framing')
+                if b'transfer-encoding'in headers:
+                    if headers[b'transfer-encoding'].lower()!=b'chunked':raise ValueError('Unsupported Radix encoding')
+                    chunked=True
+                if b'content-length'in headers:
+                    if re.fullmatch(rb'[0-9]{1,7}',headers[b'content-length'])is None:raise ValueError('Invalid Radix length')
+                    length=int(headers[b'content-length'])
+                    if length>2*1024**2:raise ValueError('Radix body bound')
+                boundary=offset+4
+            body=radix_response_body(response[boundary:],length,chunked,not chunk);check()
+            if body is not None:return status,body
+    finally:stream.close()

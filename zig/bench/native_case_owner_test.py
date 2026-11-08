@@ -857,4 +857,52 @@ class RelayerStartupOwnerControls(unittest.TestCase):
         with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=self.diagnostic):row=api.write_public_failure_diagnostics(plan,manifest,{},self.root,self.root,result,1,self.context)
         wire=Path(row['path']).read_text();self.assertNotIn('PRIVATE',wire);self.assertEqual(result,original);self.assertLess(row['bytes'],512*1024);self.assertFalse(json.loads(wire)['EVM_Stark_startup']['native_or_timing_or_cleanup_authority'])
 
+
+
+class RadixTransportOwnerControls(unittest.TestCase):
+    def setUp(self):
+        from types import SimpleNamespace
+        self.simple=SimpleNamespace;self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=Path(api.__file__).resolve().parents[2]
+        spec=importlib.util.spec_from_file_location('radix_transport_diagnostics_fixture',self.repo/'zig/integration/multivm_diagnostics.py');self.diag=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.diag)
+        self.fixture={'architecture':'amd64','token':'a'*32,'images':{s:{'id':'sha256:'+'b'*64,'source':'fixed'}for s in self.diag.RADIX_TRANSPORT_SERVICES}}
+        rust='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';source=api.pin(self.repo/rust);custody=api.pin(self.repo/'zig/bench/native_radix_custody.py');self.plan={'execution_source_commit':'5'*40,'scenario':'radix','required_inputs':[source,custody],'diagnostic_rust_sources':{rust:source}};self.manifest={'scenario':'radix','task_root':str(self.root),'runtime_source_commit':'4'*40,'mode':'ReleaseSafe'}
+    def arm(self,plan=None):
+        with mock.patch.object(api,'diagnostic_module',return_value=self.diag),mock.patch.object(api.time,'monotonic_ns',return_value=1):return api.arm_radix_transport(plan or self.plan,self.manifest,{},self.repo,self.fixture,{'ServerVersion':'28.0.4'},1000)
+    def test_actual_arm_requires_existing_Source_descriptors_and_exact_fixture(self):
+        context=self.arm();self.assertIsNotNone(context);self.assertEqual(context['state'].engine_version,'28.0.4');self.assertEqual(context['case'],self.root)
+        bad=copy.deepcopy(self.plan);bad['required_inputs']=[];self.assertIsNone(self.arm(bad))
+        bad=copy.deepcopy(self.plan);bad['diagnostic_rust_sources'][next(iter(bad['diagnostic_rust_sources']))]['sha256']='0'*64;self.assertIsNone(self.arm(bad))
+        bad=copy.deepcopy(self.plan);bad['required_inputs'][1]['sha256']='0'*64;self.assertIsNone(self.arm(bad))
+        with mock.patch.object(api,'diagnostic_module',return_value=self.diag),mock.patch.object(api.time,'monotonic_ns',return_value=1):self.assertIsNone(api.arm_radix_transport(self.plan,self.manifest,{},self.repo,self.fixture,{},1))
+    def test_actual_tap_is_inert_without_context_and_cannot_mask_failure(self):
+        api.tap_radix_transport(None,[],None);failure=ValueError('PRIVATE_CAPTURE');state=self.simple(capture=mock.Mock(side_effect=failure),capture_invalid=False);api.tap_radix_transport({'state':state},['network','inspect','fixed'],'fixed');self.assertTrue(state.capture_invalid)
+    def test_actual_docker_call_keeps_original4_plus3_and_returns_originalwire(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');node=next(n for n in worker.body if isinstance(n,ast.FunctionDef)and n.name=='docker_call')
+        calls=[];captured=[]
+        class Child:
+            pid=123;returncode=0
+            def wait(self,timeout):calls.append(timeout);return 0
+        def popen(arguments,**kwargs):kwargs['stdout'].write(b'RAW_ORIGINAL_WIRE');return Child()
+        env={'require':api.require,'pg':{},'deadline':10,'cleanup_deadline':20,'time':self.simple(monotonic=lambda:1),'tempfile_files':api.tempfile_files,'out':self.root,'subprocess':self.simple(Popen=popen,DEVNULL=-1),'docker':Path('/public/docker'),'inputs':{'local_docker':{'host':'unix:///var/run/docker.sock','config_dir':str(self.root)}},'docker_env':{},'result':{'docker_calls':[]},'os':os,'plan':{'scenario':'radix'},'missing_container':api.missing_container,'radix_custody':api.radix_custody,'radix_transport':{'state':None},'tap_radix_transport':lambda context,args,wire:captured.append((args,wire))}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),'<actual-Docker-call>','exec'),env);self.assertEqual(env['docker_call'](['info']),'RAW_ORIGINAL_WIRE');self.assertEqual(calls,[4,3]);self.assertEqual(captured,[(['info'],'RAW_ORIGINAL_WIRE')]);captured.clear();env['docker_call'](['info'],cleaning=True);self.assertEqual(calls[-2:],[12,3]);self.assertEqual(captured,[])
+    def test_actual_owner_observe_checks_bound_helper_and_catches_diagnostic_exceptions(self):
+        context=self.arm();state=context['state'];custody=self.simple(case=self.root,pid=42,start='linux-ticks:9');helper={'pid':42,'start':'linux-ticks:9','state':'S'};harness=self.simple(pid=42,poll=lambda:None);controller=self.simple(poll=lambda:None);observed=[]
+        def observe(custody,kernel,check,clock,cancelled,deadline,http):check();observed.append((deadline,cancelled(),http))
+        with mock.patch.object(state,'observe',side_effect=observe),mock.patch.object(api.time,'monotonic_ns',return_value=1),mock.patch.object(api.owner,'_linux_row',return_value=helper):api.observe_radix_transport(context,custody,harness,controller,helper,1000)
+        self.assertEqual(observed,[(1000,False,self.diag.radix_transport_http)])
+        with mock.patch.object(state,'observe',side_effect=ValueError('PRIVATE_DIAGNOSTIC')):api.observe_radix_transport(context,custody,harness,controller,helper,1000)
+        with mock.patch.object(state,'observe',side_effect=observe),mock.patch.object(api.time,'monotonic_ns',return_value=1),mock.patch.object(api.owner,'_linux_row',return_value={**helper,'start':'linux-ticks:10'}):api.observe_radix_transport(context,custody,harness,controller,helper,1000)
+        self.assertEqual(len(observed),1)
+    def test_actual_worker_cadence_begin_capture_observe_then_HTTP_no_newclient(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None');calls=[];code=[None];harness=self.simple(poll=lambda:code[0]);state=self.simple(begin_custody=lambda:calls.append('begin'));radix=self.simple(observe=lambda:calls.append('ordinary_custody'))
+        def done(_):code[0]=101
+        env={'harness':harness,'controller':self.simple(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':radix,'radix_transport':{'state':state},'observe_radix_transport':lambda *args:calls.append('Radix_HTTP'),'startup_context':None,'observe_relayer_startup':lambda *args:None,'manifest':self.manifest,'inputs':{},'case':self.root,'helper_row':{},'args':self.simple(original_deadline_ns=3_000_000_000),'time':self.simple(monotonic=lambda:1,sleep=done)}
+        exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-Radix-inspection-loop>','exec'),env);self.assertEqual(calls,['PG','begin','ordinary_custody','Radix_HTTP']);self.assertEqual(env['next_inspect'],2)
+    def test_actual_failure_publisher_preserves_primary_and_finite_only(self):
+        context=self.arm();(self.root/'harness.log').write_bytes(b'');result={'direct_waits':[],'error':{'type':'ValueError','message':'PRIMARY_PRIVATE'}};original=copy.deepcopy(result)
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=self.diag):row=api.write_public_failure_diagnostics(self.plan,self.manifest,{},self.root,self.root,result,1,None,context)
+        wire=Path(row['path']).read_text();self.assertEqual(result,original);self.assertNotIn('PRIVATE',wire);self.assertFalse(json.loads(wire)['Radix_transport']['native_or_timing_or_cleanup_authority']);self.assertLess(row['bytes'],512*1024)
+
 if __name__=='__main__':unittest.main()

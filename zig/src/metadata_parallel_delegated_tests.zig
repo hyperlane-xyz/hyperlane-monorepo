@@ -1336,6 +1336,107 @@ const MetadataPoolObserver = struct {
     }
 };
 
+const NativePoolFailureRecord = struct {
+    schema: u8 = 1,
+    phase: enum { metadata_build } = .metadata_build,
+    build_iteration: u8 = 1,
+    build_error: enum { aggregation_threshold_not_met, other_build_error },
+    child_error_details: enum { unknown_not_retained } = .unknown_not_retained,
+    observation_scope: enum { before_teardown_counters_may_still_advance } = .before_teardown_counters_may_still_advance,
+    request_timeout_ms: u32,
+    connect_timeout_ms: u32,
+    root_next_request_id: i64,
+    build_elapsed_ns: ?u64,
+    upstream_failures: usize,
+    request_failures: usize,
+    attempt_timeouts: usize,
+    metadata_storage_errors: usize,
+    metadata_awaiting_signatures: usize,
+    metadata_verification_failures: usize,
+    stalled_path_hits: [8]usize,
+    healthy_path_hits: [8]usize,
+};
+
+fn nativePoolFailureSnapshot(failure: anyerror, observer: *const MetadataPoolObserver, server: *NativeMetadataServer, diagnostics: metadata.Diagnostics, options: evm.provider.Options, next_id: i64, elapsed_ns: ?u64) NativePoolFailureRecord {
+    var stalled: [8]usize = undefined;
+    var healthy: [8]usize = undefined;
+    for (0..8) |index| {
+        stalled[index] = server.pathHits(index);
+        healthy[index] = server.pathHits(index + 8);
+    }
+    return .{
+        .build_error = if (failure == error.AggregationThresholdNotMet) .aggregation_threshold_not_met else .other_build_error,
+        .request_timeout_ms = options.timeout_ms,
+        .connect_timeout_ms = options.connect_timeout_ms,
+        .root_next_request_id = next_id,
+        .build_elapsed_ns = elapsed_ns,
+        .upstream_failures = observer.upstream_failures.load(.acquire),
+        .request_failures = observer.request_failures.load(.acquire),
+        .attempt_timeouts = observer.attempt_timeouts.load(.acquire),
+        .metadata_storage_errors = diagnostics.storage_errors,
+        .metadata_awaiting_signatures = diagnostics.awaiting_signatures,
+        .metadata_verification_failures = diagnostics.verification_failures,
+        .stalled_path_hits = stalled,
+        .healthy_path_hits = healthy,
+    };
+}
+
+fn nativePoolFailureJson(buffer: []u8, record: NativePoolFailureRecord) ![]const u8 {
+    var writer = std.Io.Writer.fixed(buffer);
+    try std.json.Stringify.value(record, .{}, &writer);
+    return writer.buffered();
+}
+
+test "native Pool failure record projects existing counters and preserves unknown child errors" {
+    var observer: MetadataPoolObserver = .{};
+    observer.upstream_failures.store(3, .release);
+    observer.request_failures.store(2, .release);
+    observer.attempt_timeouts.store(1, .release);
+    var server: NativeMetadataServer = .{ .listener = undefined };
+    for (0..16) |index| server.hits[index].store(index + 10, .release);
+    const options: evm.provider.Options = .{ .timeout_ms = 20000, .connect_timeout_ms = 20000 };
+    const record = nativePoolFailureSnapshot(error.AggregationThresholdNotMet, &observer, &server, .{ .storage_errors = 4, .awaiting_signatures = 5, .verification_failures = 6 }, options, 3, 42);
+    try std.testing.expectEqual(@as(usize, 3), record.upstream_failures);
+    try std.testing.expectEqual(@as(usize, 2), record.request_failures);
+    try std.testing.expectEqual(@as(usize, 1), record.attempt_timeouts);
+    try std.testing.expectEqual(@as(usize, 4), record.metadata_storage_errors);
+    try std.testing.expectEqual(@as(usize, 5), record.metadata_awaiting_signatures);
+    try std.testing.expectEqual(@as(usize, 6), record.metadata_verification_failures);
+    try std.testing.expectEqual(@as(i64, 3), record.root_next_request_id);
+    try std.testing.expectEqual(@as(?u64, 42), record.build_elapsed_ns);
+    try std.testing.expectEqual(@as(u32, 20000), record.request_timeout_ms);
+    try std.testing.expectEqual(@as(u32, 20000), record.connect_timeout_ms);
+    for (0..8) |index| {
+        try std.testing.expectEqual(index + 10, record.stalled_path_hits[index]);
+        try std.testing.expectEqual(index + 18, record.healthy_path_hits[index]);
+    }
+    var buffer: [2048]u8 = undefined;
+    const wire = try nativePoolFailureJson(&buffer, record);
+    try std.testing.expect(std.mem.indexOf(u8, wire, "aggregation_threshold_not_met") != null);
+    try std.testing.expect(std.mem.indexOf(u8, wire, "unknown_not_retained") != null);
+    const unknown = nativePoolFailureSnapshot(error.PRIVATE_ERROR_DO_NOT_EXPORT, &observer, &server, .{}, options, 3, null);
+    const redacted = try nativePoolFailureJson(&buffer, unknown);
+    try std.testing.expect(std.mem.indexOf(u8, redacted, "other_build_error") != null);
+    try std.testing.expect(std.mem.indexOf(u8, redacted, "PRIVATE") == null);
+    try std.testing.expect(std.mem.indexOf(u8, redacted, "http") == null);
+    try std.testing.expect(unknown.build_elapsed_ns == null);
+}
+
+test "native Pool failure record stays bounded for maximum numeric counters" {
+    var observer: MetadataPoolObserver = .{};
+    observer.upstream_failures.store(std.math.maxInt(usize), .release);
+    observer.request_failures.store(std.math.maxInt(usize), .release);
+    observer.attempt_timeouts.store(std.math.maxInt(usize), .release);
+    var server: NativeMetadataServer = .{ .listener = undefined };
+    for (&server.hits) |*value| value.store(std.math.maxInt(usize), .release);
+    var buffer: [2048]u8 = undefined;
+    const record = nativePoolFailureSnapshot(error.OutOfMemory, &observer, &server, .{ .storage_errors = std.math.maxInt(usize), .awaiting_signatures = std.math.maxInt(usize), .verification_failures = std.math.maxInt(usize) }, .{ .timeout_ms = std.math.maxInt(u32), .connect_timeout_ms = std.math.maxInt(u32) }, std.math.minInt(i64), std.math.maxInt(u64));
+    const wire = try nativePoolFailureJson(&buffer, record);
+    try std.testing.expect(wire.len < buffer.len);
+    var tiny: [1]u8 = undefined;
+    try std.testing.expectError(error.WriteFailed, nativePoolFailureJson(&tiny, record));
+}
+
 test "native Pool yields eight stalled peers and verifies healthy EVM children three times" {
     const allocator = std.testing.allocator;
     const library = try pool_fixture.nativeLibrary(allocator);
@@ -1382,7 +1483,13 @@ test "native Pool yields eight stalled peers and verifies healthy EVM children t
         .origin = &origin,
     };
     var builder: metadata.Builder(@TypeOf(source)) = .{ .allocator = allocator, .source = &source, .executor = &root.executor };
+    const build_started: ?std.time.Instant = std.time.Instant.now() catch null;
     const encoded = builder.build(@splat(0), message()) catch |err| {
+        const elapsed_ns: ?u64 = if (build_started) |started| if (std.time.Instant.now()) |finished| finished.since(started) else |_| null else null;
+        const failure = nativePoolFailureSnapshot(err, &observer, &server, builder.diagnostics, client.options, client.next_id, elapsed_ns);
+        var diagnostic_buffer: [2048]u8 = undefined;
+        const diagnostic = nativePoolFailureJson(&diagnostic_buffer, failure) catch "{\"schema\":1,\"collection_status\":\"unavailable\"}";
+        std.debug.print("NATIVE_METADATA_POOL_FAILURE {s}\n", .{diagnostic});
         try server.check();
         return err;
     };
