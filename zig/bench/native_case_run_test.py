@@ -1,4 +1,5 @@
 """Closed composition controls; imports no SDK and executes no prerequisite."""
+import ast
 import importlib.util
 from pathlib import Path
 import unittest
@@ -33,7 +34,24 @@ class CompositionTests(unittest.TestCase):
         self.assertIn('timeout-minutes: 190',section);self.assertIn('timeout-minutes: 142',section)
         self.assertIn("if: steps.request.outputs.enabled == 'true'",section)
         self.assertIn('zig/bench/native_case_run.py --execute',section)
-        self.assertIn('node-version-file:',section);self.assertIn('version: v1.5.0',section)
+        self.assertIn('node-version-file:',section)
+        job = section.split('  aleo-linux-sdk-prerequisite:', 1)[0]
+        start = '      - name: Install verified official Foundry v1.5.0'
+        end = '      - name: Install explicit native-case host prerequisites'
+        self.assertIn(start, job); self.assertIn(end, job)
+        installer = job.split(start, 1)[1].split(end, 1)[0]
+        self.assertIn("if: steps.request.outputs.enabled == 'true'", installer)
+        self.assertIn('FOUNDRY_GITHUB_TOKEN: ${{ github.token }}', installer)
+        self.assertIn('python3 -I -B -W error zig/tools/foundry_official_test.py -v', installer)
+        self.assertIn('python3 -I -B zig/tools/foundry_official.py', installer)
+        self.assertIn('--runner-temp "$RUNNER_TEMP"', installer)
+        self.assertIn('--gh "$(readlink -f "$(command -v gh)")"', installer)
+        self.assertIn('cat -- "$RUNNER_TEMP/ziggy-foundry-v1.5.0/result.json"', installer)
+        self.assertIn('echo "$RUNNER_TEMP/ziggy-foundry-v1.5.0/bin" >> "$GITHUB_PATH"', installer)
+        source = Path(__file__).resolve().parents[2] / 'zig/tools/foundry_official.py'
+        tree = ast.parse(source.read_bytes())
+        versions = [node.value for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'VERSION' for target in node.targets)]
+        self.assertEqual(len(versions), 1); self.assertEqual(ast.literal_eval(versions[0]), 'v1.5.0')
         self.assertNotIn('docker build',section);self.assertNotIn('cargo build',section)
 
     def test_public_uploads_exclude_raw_native_logs_databases_configs_and_wires(self):

@@ -14,6 +14,15 @@ spec = importlib.util.spec_from_file_location('svm_workspace_controls', P / 'nat
 api = importlib.util.module_from_spec(spec); spec.loader.exec_module(api)
 
 
+def current_case_fixture(historical):
+    """Only synthetic positives adopt the reviewed current case-growth cap."""
+    current = copy.deepcopy(historical)
+    if current['limits']['maximum_case_allocated_bytes'] != 4 * api.GIB:
+        raise ValueError('Historical C20 fixture case-growth policy changed')
+    current['limits']['maximum_case_allocated_bytes'] = 8 * api.GIB
+    return current
+
+
 class Controls(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
@@ -33,7 +42,7 @@ class Controls(unittest.TestCase):
     def fixture(self, family="svm"):
         base = self.root / 'producer/helper'; base.mkdir(parents=True)
         product = self.elf(base / 'products/construction')
-        template = json.loads((P/f'fixtures/native_{family}_c20_encoded_request.json').read_text())
+        template = current_case_fixture(json.loads((P/f'fixtures/native_{family}_c20_encoded_request.json').read_text()))
         result = {'passed': True, 'source_unchanged': True, 'source_commit': template['producer_source_commit'], 'products': {'construction': {'artifact_relative_path': 'products/construction', 'published': product, 'producer': product}}}
         self.write(base / 'result.json', result)
         platform = base / 'setup/tools-platform.txt'; platform.parent.mkdir(); platform.write_text('cargo 1.98.0 (797e8a9bc 2026-08-05)\n')
@@ -50,6 +59,23 @@ class Controls(unittest.TestCase):
     def call(self, args):
         request, request_pin, receipt, receipt_pin, *_ = args
         return api.inputs(request, request_pin['sha256'], receipt, receipt_pin['sha256'], self.repo, 'b' * 40)
+
+    def test_frozen_C20_requests_refuse_old_cap_and_only_synthetic_growth_changes(self):
+        dispatch = api.request_module()
+        self.assertEqual(dispatch.LIMITS, {'maximum_owned_RAM_bytes': 8 * api.GIB, 'maximum_case_allocated_bytes': 8 * api.GIB, 'minimum_host_free_bytes': 6 * api.GIB, 'maximum_wall_seconds': 3600})
+        for family in ('svm', 'evm', 'cw', 'tron'):
+            with self.subTest(family=family):
+                path = P / f'fixtures/native_{family}_c20_encoded_request.json'
+                raw = path.read_bytes(); historical = dispatch.read_request(path); saved = copy.deepcopy(historical)
+                self.assertEqual(historical['limits']['maximum_case_allocated_bytes'], 4 * api.GIB)
+                with self.assertRaisesRegex(ValueError, 'resource/lifecycle'): dispatch.validate_request(historical)
+                current = current_case_fixture(historical); dispatch.validate_request(current)
+                self.assertEqual(current['limits'], dispatch.LIMITS)
+                restored = copy.deepcopy(current); restored['limits']['maximum_case_allocated_bytes'] = 4 * api.GIB
+                self.assertEqual(restored, historical)  # Includes every RAM/free/wall/provenance/family field.
+                current['artifact_pins']['helper']['id'] += 1
+                self.assertEqual(historical, saved)  # Nested data was deep-copied, not adapted in place.
+                self.assertEqual(path.read_bytes(), raw)
 
     def test_exact_baked_path_data_only_never_chmods_or_executes_helper(self):
         path = self.root / 'construction'; self.elf(path)
@@ -75,7 +101,8 @@ class Controls(unittest.TestCase):
         raw = json.loads(path.read_text()); self.assertIsInstance(raw['artifact_pins']['helper']['sha256'], dict)
         module = api.request_module(); decoded = module.read_request(path)
         self.assertIsInstance(decoded['artifact_pins']['helper']['sha256'], str)
-        module.validate_request(decoded)
+        with self.assertRaisesRegex(ValueError, 'resource/lifecycle'): module.validate_request(decoded)
+        module.validate_request(current_case_fixture(decoded))
         args = self.fixture(); self.assertEqual(self.call(args)['request'], args[1])
         # A valid codec value does not bypass the original family policy.
         request = json.loads(args[0].read_text()); request['limits']['maximum_wall_seconds'] = 3601
@@ -94,7 +121,9 @@ class Controls(unittest.TestCase):
                     raw = json.loads(source.read_text())
                     self.assertIsInstance(raw['artifact_pins']['helper']['sha256'], dict)
                     dispatch = api.request_module(); decoded = dispatch.read_request(source)
-                    self.assertEqual(decoded['scenario'], scenario); dispatch.validate_request(decoded)
+                    self.assertEqual(decoded['scenario'], scenario)
+                    with self.assertRaisesRegex(ValueError, 'resource/lifecycle'): dispatch.validate_request(decoded)
+                    dispatch.validate_request(current_case_fixture(decoded))
                     args = self.fixture(family); bound = self.call(args)
                     self.assertEqual(bound['baked_cargo_path'], str(api.CARGO))
                     self.assertEqual(bound['workspace_manifest'], str(self.repo / 'rust/main/Cargo.toml'))
