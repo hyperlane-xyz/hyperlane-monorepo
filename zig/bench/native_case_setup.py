@@ -95,7 +95,7 @@ def inspect_evm_native_pnpm(run,tools,architecture):
         require(type(row)is dict and set(row)=={'path'}and isinstance(row['path'],str)and row['path'].startswith('/')and len(row['path'])<=4096,'Closed actual native manager path required')
         native=Path(row['path']);require(native!=tools['pnpm'],'Separate canonical native manager executable required')
     require(native.resolve(strict=True)==native and os.access(native,os.X_OK),'Separate canonical native manager executable required')
-    identity=pin(native);require(identity['bytes']==policy['bytes']and identity['sha256']==policy['sha256'],'Actual native pnpm differs from exact official12.3.0 bytes')
+    identity=pin(native);require(identity['bytes']==policy['bytes']and identity['sha256']==policy['sha256'],'Actual native pnpm differs from exact official12.3.0 bytes: '+json.dumps(identity,sort_keys=True))
     with native.open('rb')as stream:header=stream.read(64)
     require(header[:7]==b'\x7fELF\x02\x01\x01'and header[7]in{0,3}and int.from_bytes(header[18:20],'little')=={'amd64':62,'arm64':183}[architecture],'Actual native pnpm ELF/platform differs')
     return identity
