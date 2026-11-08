@@ -18,8 +18,11 @@ class Controls(unittest.TestCase):
   self.assertEqual(p.env_for({'artifacts':{'zig':{'ReleaseSafe':{'worker':{'path':'bin/worker'},**{n:{'path':'lib/'+n}for n in p.ENV if n!='worker'}}}}},self.root,'ReleaseSafe')['HYPERLANE_ALEO_VM_WORKER'],str(self.root/'bin/worker'))
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
+ def inert_request(self):
+  # Explicit control fixture, independent of the live request approval state.
+  return {'schema':1,'kind':'paired-linux-ci-v1','root_approved':False,'inputs_enabled':False,'functional_enabled':False,'runtime_enabled':False,'producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'baseline_profile':'locked-c520224-production-three-agent-linux-v1','qualified_cohort':None,'transport_requests':{mode:None for mode in p.MODES},'required_source':None,'prepared_inputs':None,'accepted_six':None,'runtime_authority':None}
  def test_false_gate_has_no_source_import_or_artifact_access(self):
-  path=self.root/'request.json';path.write_bytes((HERE/'paired_linux_request.json').read_bytes())
+  path=self.root/'request.json';path.write_text(json.dumps(self.inert_request()))
   with mock.patch.object(p,'checked',side_effect=AssertionError('artifact admission reached')),mock.patch.object(p,'load_source',side_effect=AssertionError('Source import reached')):
    value,row=p.request(path,p.pin(path)['sha256'],self.repo)
    self.assertFalse(value['root_approved']);self.assertFalse(any(value[k]for k in ['inputs_enabled','functional_enabled','runtime_enabled']))
@@ -30,7 +33,7 @@ class Controls(unittest.TestCase):
   for name in p.SOURCE_PATHS:
    target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/name).read_bytes()if name=='zig/bench/native_case_ci.py'else b'# controlled public Source\n')
   cohort=p.decode((ROOT/'zig/tools/aleo_linux_case/cohort-qualification.PENDING.json').read_bytes());cohort['source_commit']=producer;cohort['eight_artifacts']['tools']['name']='zig-native-case-tools-'+producer;cohort['eight_artifacts']['radix_reference']['name']='zig-native-radix-reference-'+producer
-  cohort_path=self.repo/'qualified.json';cohort_path.write_text(json.dumps(cohort));value=json.loads((HERE/'paired_linux_request.json').read_text());value.update(root_approved=True,inputs_enabled=True,functional_enabled=True,producer_source_commit=producer,required_source=[{**p.pin(self.repo/name),'path':name}for name in sorted(p.SOURCE_PATHS)],qualified_cohort={**p.pin(cohort_path),'path':'qualified.json'})
+  cohort_path=self.repo/'qualified.json';cohort_path.write_text(json.dumps(cohort));value=self.inert_request();value.update(root_approved=True,inputs_enabled=True,functional_enabled=True,producer_source_commit=producer,required_source=[{**p.pin(self.repo/name),'path':name}for name in sorted(p.SOURCE_PATHS)],qualified_cohort={**p.pin(cohort_path),'path':'qualified.json'})
   for mode in p.MODES:
    raw=json.loads((ROOT/f'zig/tools/aleo_linux_case/transport-{mode}.PENDING.json').read_text());raw['producer_source_commit']=producer;raw['artifact_pins']['tools']['name']='zig-native-case-tools-'+producer;path=self.repo/(mode+'.json');path.write_text(json.dumps(raw));value['transport_requests'][mode]={**p.pin(path),'path':path.name}
   path=self.repo/'request.json';path.write_text(json.dumps(value));return path,value
@@ -61,7 +64,7 @@ class Controls(unittest.TestCase):
     self.assertFalse(positional&keywords,where);self.assertTrue(required<=positional|keywords,where)
     if fn.args.kwarg is None:self.assertTrue(keywords<=set(names)|{v.arg for v in fn.args.kwonlyargs},where)
  def test_false_policy_cannot_authorize_work_and_unknown_fields_refuse(self):
-  base=json.loads((HERE/'paired_linux_request.json').read_text())
+  base=self.inert_request()
   for key,value in [('root_approved',1),('inputs_enabled',True),('functional_enabled',True),('runtime_enabled',True),('unknown',None)]:
    v={**base,key:value};path=self.root/'request.json';path.write_text(json.dumps(v))
    with self.subTest(key=key),self.assertRaises(p.Refused):p.request(path,p.pin(path)['sha256'],self.repo)

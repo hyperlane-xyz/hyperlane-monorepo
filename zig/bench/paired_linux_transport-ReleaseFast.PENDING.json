@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "root_approved": true,
+  "scenario": "cosmosnative",
+  "mode": "ReleaseFast",
+  "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
+  "producer_run_id": 42451611648,
+  "producer_run_attempt": 1,
+  "limits": {
+    "maximum_owned_RAM_bytes": 8589934592,
+    "maximum_case_allocated_bytes": 4294967296,
+    "minimum_host_free_bytes": 6442450944,
+    "maximum_wall_seconds": 3600
+  },
+  "postgres": {
+    "schema": 2,
+    "architecture": "amd64",
+    "image": "postgres:14",
+    "image_id": {
+      "prefix": "sha256:",
+      "sha256_hex_chunks": [
+        "47b95c5ad45838febbc39cae4194b6f9",
+        "c3f6c3d7409b20043e8cea4a5bd70fec"
+      ]
+    },
+    "canonical_digest": {
+      "prefix": "postgres@sha256:",
+      "sha256_hex_chunks": [
+        "834a046089d76edd1d2e81c4741f3ad5",
+        "d1853646ededc86c2708936aad31c1ed"
+      ]
+    }
+  },
+  "prerequisites": {
+    "local_checkout_build": true,
+    "hpack": {
+      "version": "4.2.0",
+      "wheel_sha256": {
+        "sha256_hex_chunks": [
+          "858ac0b02280fa582b5080d68db0899c",
+          "62a80375e0e5413a74970c5e518b6986"
+        ]
+      },
+      "wheel_bytes": 34246
+    },
+    "registry_commit": null,
+    "native_cli": {
+      "name": "hypd",
+      "architecture": "amd64",
+      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
+      "bytes": 69488792,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "90a33bb46f87836675a2f0871d7d122c",
+          "1ecaa8c39014d6c7eae7815fb2e6706e"
+        ]
+      }
+    }
+  },
+  "artifact_pins": {
+    "sdk": {
+      "id": 13606304633,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 55146705,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "7e46655e0ba9fe731443a73bf702a8a0",
+          "0d4711d9c1086db629019098d9d40832"
+        ]
+      }
+    },
+    "helper": {
+      "id": 13606680784,
+      "name": "zig-native-harness-controls",
+      "size_in_bytes": 56436058,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "ab83a8f55b6479380e49253843521f4d",
+          "13339bbd19f14864f19bb34279e44481"
+        ]
+      }
+    },
+    "tools": {
+      "id": 13606129411,
+      "name": "zig-native-case-tools-e745fdaae1f8320ac2b67bea9157396db560c848",
+      "size_in_bytes": 20092129,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "a864800b83ffd809e3f7ed0d0f822aad",
+          "b811e214488e50f0c35dfc645ad21f67"
+        ]
+      }
+    },
+    "writer_safe": {
+      "id": 13606820795,
+      "name": "zig-native-interop-writer-ReleaseSafe",
+      "size_in_bytes": 5171534,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "cfcf2c3edb750d321b7d508c95d05aba",
+          "2e18cb4ba528d4792337a55cf74b7649"
+        ]
+      }
+    },
+    "writer_fast": {
+      "id": 13606508529,
+      "name": "zig-native-interop-writer-ReleaseFast",
+      "size_in_bytes": 4863041,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "6540bcb179de4910aa90a5bf791c0b1e",
+          "d3cf44b63f49ccc97a31d8df99d4a4e5"
+        ]
+      }
+    }
+  }
+}
