@@ -1168,7 +1168,7 @@ jobs:
           MODE: ${{ matrix.mode }}
         run: |
           set -euo pipefail
-          POLICY=zig/tools/aleo_linux_case/ci_policy.PENDING.json
+          POLICY="$GITHUB_WORKSPACE/zig/tools/aleo_linux_case/ci_policy.PENDING.json"
           python3 -I -B zig/tools/aleo_linux_case/ci_fullcase.py --select \
             --policy "$POLICY" --policy-sha "$(sha256sum "$POLICY" | cut -d' ' -f1)" --mode "$MODE"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -1193,7 +1193,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          POLICY=zig/tools/aleo_linux_case/ci_policy.PENDING.json
+          POLICY="$GITHUB_WORKSPACE/zig/tools/aleo_linux_case/ci_policy.PENDING.json"
           # Python keeps the token only for GitHub metadata/fetch children; it
           # strips all credentials from SDK, Docker and actual case environments.
           python3 -I -B zig/tools/aleo_linux_case/ci_fullcase.py --execute \

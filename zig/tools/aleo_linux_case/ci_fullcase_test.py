@@ -55,6 +55,12 @@ class Routes(unittest.TestCase):
   calls=[line for line in job.splitlines()if 'python3 'in line and 'apt-get'not in line]
   self.assertEqual(len(calls),3);self.assertTrue(all('python3 -I -B'in line for line in calls))
   self.assertNotIn('run-locally',job);self.assertNotIn('**',job);self.assertNotIn('workflow_dispatch:',job)
+ def test_policy_cli_binds_absolute_checkout_path_for_select_and_execute(self):
+  # Both actual CLI sites call pin(), which deliberately rejects relative paths.
+  job=self.text.split('\n  aleo-full-case:',1)[1]
+  assigned=re.findall(r'^\s+POLICY=(.+)$',job,re.MULTILINE)
+  self.assertEqual(assigned,['"$GITHUB_WORKSPACE/zig/tools/aleo_linux_case/ci_policy.PENDING.json"']*2)
+  self.assertIn('--select',job);self.assertIn('--execute',job)
 class Policy(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve();self.value=json.loads((HERE/'ci_policy.PENDING.json').read_text())
