@@ -508,13 +508,50 @@ class RelayerStartupNumericControls(unittest.TestCase):
         with self.assertRaises(ValueError):api.RelayerStartup(HERE.parents[1],self.manifest,bad)
     def test_exact_header_known_literal_unknown_and_foreign_prefix_do_not_leak(self):
         sources={'public.zig':b'error.OutOfMemory; error.RpcFailed'};raw=b'<RLY> warning: task 2 failed: OutOfMemory\n<RLY> warn: Common health metric update failed: PRIVATE_SENTINEL\n<RLY> error: agent stopped: RpcFailed\n<VL1> warning: task 3 failed: RpcFailed\n<RLY> warning: task 256 failed: RpcFailed\n<RLY> warning: task 1 failed: SECRET/full/path\n'
-        out=api.startup_header_projection(raw,sources);self.assertEqual(out['counts'],{'supervised_task_failed':1,'health_warning':1,'agent_stopped':1});self.assertEqual(out['observations'][0]['task_index'],2);self.assertEqual(out['observations'][0]['Source_error_name'],'OutOfMemory');self.assertIsNone(out['observations'][1]['Source_error_name']);self.assertNotIn('PRIVATE',json.dumps(out));self.assertNotIn('SECRET',json.dumps(out));self.assertTrue(all(r['lane_attribution']is None for r in out['observations']))
+        out=api.startup_header_projection(raw,sources);self.assertEqual(out['counts'],{'supervised_task_failed':1,'health_warning':1,'agent_stopped':1,'native_group_rpc_warning':0,'relayer_telemetry_warning':0,'initialization_metric_warning':0,'critical_metric_warning':0});self.assertEqual(out['observations'][0]['task_index'],2);self.assertEqual(out['observations'][0]['Source_error_name'],'OutOfMemory');self.assertIsNone(out['observations'][1]['Source_error_name']);self.assertNotIn('PRIVATE',json.dumps(out));self.assertNotIn('SECRET',json.dumps(out));self.assertTrue(all(r['lane_attribution']is None for r in out['observations']))
     def test_wholeprobe_limit_and_source_mutation_before_publication_refuse(self):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules)
         for start,end in [(0,1),(2,1),(1,500000002)]:
             with self.assertRaises(ValueError):probe.project(self.sample(),('selected',),405,start,end)
         probe.project(self.sample(),('selected',),405,1,500000001);log=self.root/'harness.log';log.write_bytes(b'<RLY> error: agent stopped: PRIVATE_SENTINEL\n');out=probe.public(log);self.assertNotIn('PRIVATE',json.dumps(out));self.assertFalse(out['native_or_timing_or_cleanup_authority']);target=self.root/api.RELAYER_STARTUP_SOURCE[-1][0];target.write_bytes(target.read_bytes()+b'\n')
         with self.assertRaises(ValueError):probe.public(log)
+
+    def test_four_warning_emitters_actual_Source13_publication_and_finite_counts(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules)
+        headers=[('native_group_rpc_warning','native submission group RPC'),('relayer_telemetry_warning','relayer telemetry update failed'),('initialization_metric_warning','initialization metric update failed'),('critical_metric_warning','critical metric update failed')]
+        wire=b''.join(('<RLY> warning: '+header+': RequestDeadlineExceeded\n<RLY> warn: '+header+': RequestDeadlineExceeded\n').encode()for _,header in headers);log=self.root/'warnings.log';log.write_bytes(wire);value=probe.public(log);out=value['fixed_harness_headers']
+        for key,_ in headers:self.assertEqual(out['counts'][key],2)
+        self.assertEqual([out['counts'][key]for key in ['supervised_task_failed','health_warning','agent_stopped']],[0,0,0]);self.assertEqual(len(out['observations']),4)
+        for row in out['observations']:self.assertEqual(row['Source_error_name'],'RequestDeadlineExceeded');self.assertEqual(row['error_name_status'],'Source_literal');self.assertIsNone(row['task_index']);self.assertIsNone(row['lane_attribution'])
+        self.assertFalse(value['native_or_timing_or_cleanup_authority']);self.assertEqual(value['Source_epoch'],api.RELAYER_STARTUP_EPOCH)
+    def test_four_warning_headers_need_exact_once_emitter_in_correct_Source(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules)
+        rows=[('native_group_rpc_warning','zig/src/agents/relayer_task.zig',b'native submission group RPC'),('relayer_telemetry_warning','zig/src/agents/relayer_task.zig',b'relayer telemetry update failed'),('initialization_metric_warning','zig/src/ops/init_metrics.zig',b'initialization metric update failed'),('critical_metric_warning','zig/src/ops/critical_metrics.zig',b'critical metric update failed')]
+        for key,path,header in rows:
+            needle=b'std.log.warn("'+header+b': {s}", .{@errorName(err)})';self.assertEqual(probe.sources[path].count(needle),1);wire=b'<RLY> warning: '+header+b': RequestDeadlineExceeded\n'
+            for variant in ['missing','wrong_path','changed','duplicate']:
+                sources=dict(probe.sources)
+                if variant=='missing':sources.pop(path)
+                elif variant=='wrong_path':sources['public-wrong-source.zig']=sources.pop(path)
+                elif variant=='changed':sources[path]=sources[path].replace(needle,needle.replace(b'@errorName(err)',b'unknown(err)'))
+                else:sources[path]+=b'\n'+needle
+                with self.subTest(key=key,variant=variant):self.assertEqual(api.startup_header_projection(wire,sources)['counts'][key],0)
+    def test_four_warning_unknown_names_never_export_private_error_or_payload(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules);headers=['native submission group RPC','relayer telemetry update failed','initialization metric update failed','critical metric update failed'];wire=b''.join(('<RLY> warning: '+header+': PRIVATE_SENTINEL\n').encode()for header in headers);out=api.startup_header_projection(wire,probe.sources);self.assertEqual(sum(out['counts'].values()),4);self.assertEqual(len(out['observations']),4)
+        for row in out['observations']:self.assertIsNone(row['Source_error_name']);self.assertEqual(row['error_name_status'],'unknown');self.assertIsNone(row['task_index']);self.assertIsNone(row['lane_attribution'])
+        self.assertNotIn('PRIVATE',json.dumps(out));self.assertNotIn(str(self.root),json.dumps(out))
+    def test_four_warning_ANSI_foreign_prefix_malformed_and_line_bounds(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules);valid=b'<RLY> warning: native submission group RPC: RequestDeadlineExceeded';ansi=b'\x1b[31m'+valid+b'\x1b[0m\n';out=api.startup_header_projection(ansi,probe.sources);self.assertEqual(out['counts']['native_group_rpc_warning'],1)
+        cases=[valid.replace(b'<RLY>',b'<VL1>')+b'\n',valid.replace(b'warning:',b'error:')+b'\n',valid+b'/PRIVATE_PATH\n',valid+b' PRIVATE_TOKEN\n',valid.replace(b'RequestDeadlineExceeded',b'\nPRIVATE_TOKEN')+b'\n',valid.replace(b'RequestDeadlineExceeded',b'x'*65)+b'\n',valid+b' '*(16385-len(valid))+b'\n']
+        for wire in cases:
+            with self.subTest(bytes=len(wire)):self.assertEqual(sum(api.startup_header_projection(wire,probe.sources)['counts'].values()),0)
+        self.assertNotIn('PRIVATE',json.dumps(api.startup_header_projection(b''.join(cases),probe.sources)))
+    def test_four_warning_counts_survive_existing16_observation_bound(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules);wire=b''.join(('<RLY> warning: task '+str(i)+' failed: RequestDeadlineExceeded\n').encode()for i in range(20));wire+=b''.join(('<RLY> warning: '+header+': RequestDeadlineExceeded\n').encode()for header in ['native submission group RPC','relayer telemetry update failed','initialization metric update failed','critical metric update failed']);out=api.startup_header_projection(wire,probe.sources);self.assertEqual(len(out['observations']),16);self.assertEqual(out['counts']['supervised_task_failed'],20)
+        for key in ['native_group_rpc_warning','relayer_telemetry_warning','initialization_metric_warning','critical_metric_warning']:self.assertEqual(out['counts'][key],1)
+    def test_four_warning_publication_rejects_changed_actual_emitter_Source(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules);log=self.root/'warning.log';log.write_bytes(b'<RLY> warning: native submission group RPC: RequestDeadlineExceeded\n');source=self.root/'zig/src/agents/relayer_task.zig';source.write_bytes(source.read_bytes()+b'\n')
+        with self.assertRaisesRegex(ValueError,'Source identity changed'):probe.public(log)
 
 
 

@@ -638,7 +638,16 @@ def startup_header_projection(raw, sources):
     for source in sources.values():
         known.update(x.decode()for x in re.findall(rb'\berror\.([A-Za-z][A-Za-z0-9_]{0,63})\b',source))
     if len(known)>2048:raise ValueError('Bounded Source error-name catalog required')
-    rows=[];counts={'supervised_task_failed':0,'health_warning':0,'agent_stopped':0}
+    # These emitters are already in the hash-captured Source13 epoch. They
+    # swallow recoverable/optional errors, so no supervisor failure is implied.
+    warnings=(
+        ('native_group_rpc_warning','zig/src/agents/relayer_task.zig',b'native submission group RPC'),
+        ('relayer_telemetry_warning','zig/src/agents/relayer_task.zig',b'relayer telemetry update failed'),
+        ('initialization_metric_warning','zig/src/ops/init_metrics.zig',b'initialization metric update failed'),
+        ('critical_metric_warning','zig/src/ops/critical_metrics.zig',b'critical metric update failed'),
+    )
+    armed=[(kind,header)for kind,path,header in warnings if sources.get(path,b'').count(b'std.log.warn("'+header+b': {s}", .{@errorName(err)})')==1]
+    rows=[];counts={'supervised_task_failed':0,'health_warning':0,'agent_stopped':0,**{kind:0 for kind,_,_ in warnings}}
     for line in io.BytesIO(raw):
         if len(line)>16384:continue
         clean=re.sub(rb'\x1b\[[0-9;]*m',b'',line).strip()
@@ -651,6 +660,10 @@ def startup_header_projection(raw, sources):
             else:
                 match=re.fullmatch(rb'<RLY> error: agent stopped: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
                 if match is not None:kind='agent_stopped';name=match[1].decode()
+        if kind is None:
+            for candidate,header in armed:
+                match=re.fullmatch(rb'<RLY> (?:warning|warn): '+re.escape(header)+rb': ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+                if match is not None:kind=candidate;name=match[1].decode();break
         if kind is not None:
             counts[kind]=min(2**32-1,counts[kind]+1)
             row={'header':kind,'task_index':index,'Source_error_name':name if name in known else None,'error_name_status':'Source_literal'if name in known else'unknown','lane_attribution':None}
