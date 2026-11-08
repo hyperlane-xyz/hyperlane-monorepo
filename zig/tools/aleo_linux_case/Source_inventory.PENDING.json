@@ -17,11 +17,11 @@
   "source_inventory": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 122142,
+      "bytes": 138384,
       "sha256": {
         "sha256_hex_chunks": [
-          "8e04f78f91a21c1bbe1af413ebcd2487",
-          "428b04072f3b717a450d235e3e31a75a"
+          "0b8e744f14610dbe5330fe5371b5bd35",
+          "1950bd4e8a9c9edc4be0cee176a208e7"
         ]
       }
     },
@@ -77,21 +77,21 @@
     },
     {
       "path": "zig/integration/aleo_process.ts",
-      "bytes": 184291,
+      "bytes": 185538,
       "sha256": {
         "sha256_hex_chunks": [
-          "9e6843e80bd42ddefc48cb88c688ea14",
-          "d68c2c4c034ec95f7a2d61145fbc3a64"
+          "45f4013827a4b47beb4f507820338205",
+          "0a6c94660ad465ddf2b4bc578a8eb8e0"
         ]
       }
     },
     {
       "path": "zig/integration/aleo_process_test.ts",
-      "bytes": 78238,
+      "bytes": 82824,
       "sha256": {
         "sha256_hex_chunks": [
-          "1340d6a10be8a5513444a8b27fb889c1",
-          "b2462078083dbe2e86bbc490aad9d5e2"
+          "e47f11ec0d073a51c8d22841567efba4",
+          "7f0d7d19b1bdf1c486903db34e51fb39"
         ]
       }
     },

@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 122142,
+      "bytes": 138384,
       "sha256": {
         "sha256_hex_chunks": [
-          "8e04f78f91a21c1bbe1af413ebcd2487",
-          "428b04072f3b717a450d235e3e31a75a"
+          "0b8e744f14610dbe5330fe5371b5bd35",
+          "1950bd4e8a9c9edc4be0cee176a208e7"
         ]
       }
     },
@@ -142,22 +142,42 @@
       }
     },
     {
-      "path": "zig/bench/paired_linux.py",
-      "bytes": 14800,
+      "path": "zig/bench/native_tron_assets.py",
+      "bytes": 190294,
       "sha256": {
         "sha256_hex_chunks": [
-          "f623328a21929b8f4048c9be3a41d74e",
-          "84446acde58b8e3d1d41a53950bab98c"
+          "1142516c4ae1d81c4d0f5153bd78c3a4",
+          "69173402a40e06ae8ae438218ae4e2a2"
+        ]
+      }
+    },
+    {
+      "path": "zig/bench/native_tron_setup.py",
+      "bytes": 6810,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "41cb83b42481a9e8be0a232f3aef8f17",
+          "b694cc89460601089387d5f1d9da079e"
+        ]
+      }
+    },
+    {
+      "path": "zig/bench/paired_linux.py",
+      "bytes": 15229,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "fa61c6f43605ddd7805d07abc0ce03e2",
+          "4577aa149f864fab4edeb89b395bafd0"
         ]
       }
     },
     {
       "path": "zig/bench/paired_linux_inputs.py",
-      "bytes": 51184,
+      "bytes": 51251,
       "sha256": {
         "sha256_hex_chunks": [
-          "317c434e6bd71af76a8fad1b92ec6273",
-          "32e8ed6565ad8be674b1ac0f2c34376e"
+          "bd6a749804c3f10285d01ed4c5ab951a",
+          "c6979f3dfa4bf15059e095e076985daa"
         ]
       }
     },
@@ -193,11 +213,11 @@
     },
     {
       "path": "zig/bench/paired_linux_stage.py",
-      "bytes": 14206,
+      "bytes": 15006,
       "sha256": {
         "sha256_hex_chunks": [
-          "235250c05735e29f61c3a68125d1e37d",
-          "4de832e9eea3aa03786ded214c042ca9"
+          "b7027471d3a08064f6b098eb2aaed36c",
+          "06089ca276c41cdd89a105b63781e6f0"
         ]
       }
     },
@@ -263,11 +283,11 @@
     },
     {
       "path": "zig/integration/native_case_inputs.py",
-      "bytes": 67372,
+      "bytes": 70244,
       "sha256": {
         "sha256_hex_chunks": [
-          "20b5a50ac8b56f101e2c11db23385b38",
-          "3ece285c645cac0f547ed2ae875aa840"
+          "c3fcb84be75a3ee0d1e0a2ff154ebe44",
+          "026e15743b581dd9d280a80ed7bd5bc8"
         ]
       }
     },
