@@ -182,7 +182,7 @@ fn compareRole(s: *const settings.Settings, expected: std.json.Value) !void {
         },
     }
 }
-test "60 actual production Rust role parser differential fixtures" {
+test "62 actual production Rust role parser differential fixtures" {
     const config = @import("config.zig");
     const fixture_bytes = try @import("testing/fixture.zig").bytes(std.testing.allocator, @embedFile("settings/fixtures/roles.jsonl.gz"), 16 * 1024 * 1024);
     defer std.testing.allocator.free(fixture_bytes);

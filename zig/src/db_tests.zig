@@ -88,3 +88,8 @@ test {
 test {
     _ = @import("announcement_replay_owner_tests.zig");
 }
+
+// Existing Rust-derived settings golden cases must run in the native CI suite.
+test {
+    _ = @import("settings_tests.zig");
+}

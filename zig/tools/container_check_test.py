@@ -222,6 +222,23 @@ class Controls(unittest.TestCase):
             with self.subTest(missing=name), self.assertRaises(AssertionError):
                 c.native_test_results(log)
 
+    def test_native_suite_requires_existing_settings_golden_cases(self):
+        required = (
+            'committed configs select Ethereum relayer without reading process environment',
+            'all committed chain settings and validator scraper roles parse with explicit sources',
+            '15 production Rust config source differential fixtures',
+            'role selection deduplicates and numeric parser rejects Rust-invalid underscore and hex strings',
+            '62 actual production Rust role parser differential fixtures',
+        )
+        names = ['fixture.test.' + name for name in c.NATIVE_REQUIRED]
+        for name in required:
+            self.assertIn(name, c.NATIVE_REQUIRED)
+            remaining = [row for row in names if row != 'fixture.test.' + name]
+            log = '\n'.join(f'{i}/{len(remaining)} {row}...OK'
+                            for i, row in enumerate(remaining, 1))
+            with self.subTest(missing=name), self.assertRaises(AssertionError):
+                c.native_test_results(log)
+
     def test_missing_worker_and_mode_cannot_reach_commands(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c, 'command', side_effect=AssertionError('no subprocess')) as called:
             library = Path(tmp) / 'fixture.so'; library.write_bytes(b'\x7fELFpublic-fixture')

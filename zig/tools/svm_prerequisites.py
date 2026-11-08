@@ -17,8 +17,15 @@ ASSETS={
  'platform':{'url':'https://api.github.com/repos/anza-xyz/platform-tools/releases/assets/279991627','asset_id':279991627,'bytes':542447828,'sha256':('0933e05dd964826e8e2db5c58c34ae25' '5e3baf0ce1711568552dca81b5407a6b'),'publisher_digest':True},
  'spl':{'url':'https://api.github.com/repos/hyperlane-xyz/solana-program-library/releases/assets/187913462','asset_id':187913462,'bytes':245817,'sha256':('5a0862a76357316707a2056d810729ab' '563aded8b6c094a90fa204ef0fa2c415'),'publisher_digest':False}}
 ASSETS['criterion']={'url':'https://api.github.com/repos/Snaipe/Criterion/releases/assets/9581569','asset_id':9581569,'bytes':677858,'sha256':('ee7f92d7268563848aa3ae90bbf5df86' '604b8d0fb0e4942b0ecfbf6201596550'),'publisher_digest':False}
+SVM_API_ROUTES=frozenset(a['url']for a in ASSETS.values())|frozenset({'https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca'})
 def need(ok,msg):
  if not ok:raise ValueError(msg)
+def public_exception(exc):
+ if 'SVM_GITHUB_TOKEN'in os.environ:
+  text=type(exc).__name__
+  if isinstance(exc,urllib.error.HTTPError)and type(exc.code)is int and 100<=exc.code<=599:text+=': HTTP '+str(exc.code)
+  return text
+ return type(exc).__name__+': '+str(exc)
 def write(p,value):
  with P(p).open('x')as f:json.dump(value,f,indent=2);f.write('\n')
 def pin(p):
@@ -152,7 +159,12 @@ def sbf_elf(path):
 class OfficialRedirect(urllib.request.HTTPRedirectHandler):
  def redirect_request(self,req,fp,code,msg,headers,newurl):
   need(newurl.startswith(('https://github.com/','https://release-assets.githubusercontent.com/','https://objects.githubusercontent.com/','https://api.github.com/')),'nonofficial redirect')
-  return super().redirect_request(req,fp,code,msg,headers,newurl)
+  redirected=super().redirect_request(req,fp,code,msg,headers,newurl)
+  if redirected is not None:
+   for mapping in(redirected.headers,redirected.unredirected_hdrs):
+    for header in tuple(mapping):
+     if header.lower()=='authorization':del mapping[header]
+  return redirected
 
 def owned_closure(snapshot,known,owner):
  roots={pid for pid,row in known.items()if snapshot.get(pid,{}).get('start')==row['start']};changed=True
@@ -244,6 +256,11 @@ class Owner:
   return out
  def fetch(self,url,dest,limit,expected=None,*,accept='application/octet-stream'):
   need(url.startswith('https://'),'HTTPS required');request=urllib.request.Request(url,headers={'User-Agent':'hyperlane-svm-ci-prerequisites','Accept':accept})
+  token=os.environ.get('SVM_GITHUB_TOKEN')
+  if token is not None:
+   need(url in SVM_API_ROUTES,'exact authenticated SVM API route required')
+   need(type(token)is str and 1<=len(token)<=4096 and all(33<=ord(c)<=126 for c in token),'invalid scoped SVM API token')
+   request.add_unredirected_header('Authorization','Bearer '+token)
   # Retry transient OPEN failures only for exact pinned assets or one fixed metadata request.
   # No destination exists yet; body/hash/extraction/compile failures never retry.
   asset=next((a for a in ASSETS.values()if url==a['url']and expected==a and limit==a['bytes']and accept=='application/octet-stream'),None)
@@ -401,15 +418,15 @@ def execute(a):
   write(root/'published/linux-profile.CANDIDATE.json',{'schema':1,'platform':'linux-x86_64','Root_approved':False,'native_case_admitted':False,'Darwin_profile_not_reused':True,'agave_archive':status['agave_archive'],'platform_archive':status['platform_archive'],'spl_archive':status['spl_archive'],'agave_member_manifest':pin(root/'published/agave-linux-runtime-members.json'),'agave_file_count':sum(row['type']=='file'for row in inventory(root/'published/agave').values()),'platform_member_manifest':pin(root/'published/platform-publisher-members.json'),'platform_debugger_link_omissions':pin(root/'published/platform-debugger-link-omissions.json'),'custom_spl_commit':sha,'custom_spl_tree':tree,'custom_spl_lock_overlay':pin(root/'published/custom-spl-lock-overlay.json'),'program_count':13,'products':products})
   o.tick(True)
   write(root/'published/products.json',products);status.update(passed=True,products=products,linux_profile_admitted=False,linux_profile_review_required=True,custom_spl_commit=sha,custom_spl_tree=tree)
- except BaseException as exc:error=type(exc).__name__+': '+str(exc)
+ except BaseException as exc:error=public_exception(exc)
  finally:
   try:o.drain()
-  except BaseException as exc:error=(error+'; 'if error else'')+'drain: '+str(exc);status['passed']=False
+  except BaseException as exc:error=(error+'; 'if error else'')+'drain: '+public_exception(exc);status['passed']=False
   if before is not None:
    try:
     after={n:source_row(repo,n)for n in before};status['Source_unchanged']=after==before
     if after!=before:raise ValueError('Source changed')
-   except BaseException as exc:status['Source_unchanged']=False;status['passed']=False;error=(error+'; 'if error else'')+'postflight: '+str(exc)
+   except BaseException as exc:status['Source_unchanged']=False;status['passed']=False;error=(error+'; 'if error else'')+'postflight: '+public_exception(exc)
   status.update(error=error,actual_owned_identities=[{k:v[k]for k in ['pid','start','ppid','group','session']}for v in o.history],owned_absent=not o.reap_terminal('final'),actual_orphan_waits=o.orphan_waits,actual_owner_signals=o.signals,forced_cleanup=bool(o.signals),peak_owned_RSS=o.peak,peak_new_disk=o.peakdisk,minimum_free=o.floor,elapsed_seconds_diagnostic_not_benchmark=time.monotonic()-o.started,compile_measurement_scope='No formal cold benchmark; downloads/fetch/toolchain setup have provision phase labels.')
   status['passed']=final_acceptance(status)
   o.events.close();write(root/'result.json',status)

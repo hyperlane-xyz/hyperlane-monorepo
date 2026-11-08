@@ -244,7 +244,7 @@ class Workflow(unittest.TestCase):
    lines.append(line)
   self.assertEqual(count,15);return ''.join(lines)
  def test_actual18jobs_exact_old15_byte_inverse(self):
-  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'4744d3c629d097fce9ca87781e133760'+'7348afa91ecfc9c307f08910f4a96f32')
+  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'3d14d7c59bf11e9b791d75bc0abbf179'+'7b4705290ed0340dd62d6d7b23a94f72')
  def test_six_foundry_callers_use_fixed_verified_recipe_and_preserve_existing_gates(self):
   names=['native-linux','evm','native-case-producer-inputs','paired-linux-inputs','paired-linux-functional','paired-linux-runtime'];seen=[]
   for name in names:
@@ -262,6 +262,22 @@ class Workflow(unittest.TestCase):
    permission=re.search(r'^    permissions:\n((?:      [^\n]+\n)+)',body,re.M)
    if name in {'native-linux','evm'}:self.assertIsNone(permission)
    else:self.assertIsNotNone(permission);self.assertEqual(dict(re.findall(r'^      ([a-z-]+): ([a-z]+)$',permission[1],re.M)),{'contents':'read','actions':'read'})
+ def svm_wrapper(self):
+  step=self.text.split('      - name: Provision then compile exact SVM prerequisites\n',1)[1].split('      - uses:',1)[0];source=step.split("<<'PY'\n",1)[1].rsplit('          PY\n',1)[0];return step,'\n'.join(line[10:]for line in source.splitlines())+'\n'
+ def run_svm_wrapper(self,rustup='/runner/toolchain/rustup',executable=True,token=True):
+  _,source=self.svm_wrapper();environment={'GITHUB_WORKSPACE':'/workspace/source','RUNNER_TEMP':'/runner/tmp','GITHUB_RUN_ID':'123','GITHUB_RUN_ATTEMPT':'4','PATH':'/foreign/bin','HOME':'/private/home','GH_TOKEN':'foreign-token','AWS_SECRET_ACCESS_KEY':'foreign-key'}
+  if token:environment['SVM_GITHUB_TOKEN']='test-token-not-for-argv'
+  calls=[];self.svm_wrapper_calls=calls;fake_os=N(environ=environment,X_OK=os.X_OK,access=lambda path,mode:executable,execve=lambda path,argv,env:calls.append((path,argv,env)));fake_shutil=N(which=lambda name:rustup if name=='rustup'else None)
+  def importer(name,*args,**kwargs):return {'os':fake_os,'shutil':fake_shutil}[name]
+  exec(compile(source,'actual-SVM-step-clean-exec','exec'),{'__builtins__':{'__import__':importer,'RuntimeError':RuntimeError}});return calls
+ def test_svm_step_token_is_only_clean_exec_environment_never_argv(self):
+  calls=self.run_svm_wrapper();self.assertEqual(len(calls),1);path,argv,environment=calls[0];self.assertEqual(path,'/usr/bin/python3');self.assertEqual(argv,['/usr/bin/python3','-I','-B','zig/tools/svm_prerequisites.py','--execute','--repo','/workspace/source','--output','/runner/tmp/svm-prerequisites-123-4','--rustup','/runner/toolchain/rustup','--bwrap','/usr/bin/bwrap']);self.assertEqual(environment,{'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','SVM_GITHUB_TOKEN':'test-token-not-for-argv'});self.assertNotIn('test-token-not-for-argv',argv);self.assertNotIn('foreign-token',repr(calls));self.assertNotIn('foreign-key',repr(calls))
+ def test_svm_wrapper_missing_rustup_nonexec_or_missing_token_never_executes(self):
+  for kwargs,error in [(dict(rustup=None),RuntimeError),(dict(executable=False),RuntimeError),(dict(token=False),KeyError)]:
+   with self.subTest(kwargs=kwargs),self.assertRaises(error):self.run_svm_wrapper(**kwargs)
+   self.assertEqual(self.svm_wrapper_calls,[])
+ def test_svm_token_scope_keeps_original_isolation_and_step_budget(self):
+  step,source=self.svm_wrapper();self.assertEqual(self.text.count('SVM_GITHUB_TOKEN: ${{ github.token }}'),1);self.assertIn('        env:\n          SVM_GITHUB_TOKEN: ${{ github.token }}\n',step);self.assertIn('timeout-minutes: 182',step);self.assertIn('exec /usr/bin/python3 -I -B -',step);self.assertNotIn('env -i',step);self.assertNotIn('SVM_GITHUB_TOKEN=',step);self.assertNotIn('print(',source);self.assertNotIn('open(',source)
  def test_old_routes_preserved_across_all_existing_contexts(self):
   old={k:v for k,v in self.rows.items()if not k.startswith('paired-linux-')};pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))";prefix='${{ !'+pd+' && (';old={k:'${{ '+v[len(prefix):-4]+' }}'for k,v in old.items()}
   count=0

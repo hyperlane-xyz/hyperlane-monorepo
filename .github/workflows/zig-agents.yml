@@ -99,15 +99,23 @@ jobs:
       - name: Provision then compile exact SVM prerequisites
         timeout-minutes: 182
         shell: bash
+        env:
+          SVM_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          RUSTUP_BIN="$(command -v rustup)"
-          test -x "$RUSTUP_BIN"
-          exec env -i PATH=/usr/bin:/bin LC_ALL=C.UTF-8 \
-            python3 -I -B zig/tools/svm_prerequisites.py --execute \
-            --repo "$GITHUB_WORKSPACE" \
-            --output "$RUNNER_TEMP/svm-prerequisites-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
-            --rustup "$RUSTUP_BIN" --bwrap /usr/bin/bwrap
+          exec /usr/bin/python3 -I -B - <<'PY'
+          import os, shutil
+          rustup = shutil.which('rustup')
+          if rustup is None or not os.access(rustup, os.X_OK):
+              raise RuntimeError('runner rustup executable required')
+          argv = ['/usr/bin/python3', '-I', '-B', 'zig/tools/svm_prerequisites.py', '--execute',
+                  '--repo', os.environ['GITHUB_WORKSPACE'],
+                  '--output', os.environ['RUNNER_TEMP'] + '/svm-prerequisites-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'],
+                  '--rustup', rustup, '--bwrap', '/usr/bin/bwrap']
+          clean = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8',
+                   'SVM_GITHUB_TOKEN': os.environ['SVM_GITHUB_TOKEN']}
+          os.execve('/usr/bin/python3', argv, clean)
+          PY
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:

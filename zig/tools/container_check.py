@@ -565,6 +565,11 @@ NATIVE_SKIP_REASONS = {
     "agents.indexing.tx_id_native_test.test.transaction-ID restart rescans durable canonical dispatch and immutable Source Rust oracle decodes repaired rows": "Existing test pins a macOS oracle executable hash; portable Source-bound oracle control still required",
 }
 NATIVE_REQUIRED = (
+    'committed configs select Ethereum relayer without reading process environment',
+    'all committed chain settings and validator scraper roles parse with explicit sources',
+    '15 production Rust config source differential fixtures',
+    'role selection deduplicates and numeric parser rejects Rust-invalid underscore and hex strings',
+    '62 actual production Rust role parser differential fixtures',
     "malformed older receipt cannot win included replacement",
     "malformed older receipt cannot win finalized replacement",
     "paged malformed older receipt cannot win included replacement after restart",

@@ -9,7 +9,7 @@ FULL="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-
 INPUT="      aleo_full_case:\n        description: Run only reviewed dedicated Aleo Safe/Fast full cases (requires actual same-job prerequisites)\n        type: boolean\n        default: false\n"
 # Exact current14-job inverse, including the reviewed fixed Radix startup-log upload.
 # Further workflow-body changes still require explicit review and a new baseline.
-BASE_SHA=('eb56b2c6ac85406beafa1d8d4fa64f2c' 'e49af96de553f17e562838d794fb677a')
+BASE_SHA=('4cd870d5400e176162b90604d291e12a' '687ae7df934266f3ae7969e2c8173dac')
 def evaluator():
  tree=ast.parse((REPO/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N}
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]

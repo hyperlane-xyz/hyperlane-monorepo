@@ -2,6 +2,11 @@
 import importlib.util,io,json,pathlib,struct,tarfile,tempfile,unittest,hashlib
 from unittest import mock
 spec=importlib.util.spec_from_file_location('svm_prerequisites',pathlib.Path(__file__).with_name('svm_prerequisites.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+_manager_environment=None
+def setUpModule():
+ global _manager_environment
+ _manager_environment=mock.patch.dict(m.os.environ);_manager_environment.start();m.os.environ.pop('SVM_GITHUB_TOKEN',None)
+def tearDownModule():_manager_environment.stop()
 class Controls(unittest.TestCase):
  def allocated_fixture(self):
   temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);root=pathlib.Path(temp.name).resolve();gone=root/'rmeta-directory';gone.mkdir();keep=root/'stable-file';keep.write_bytes(b'public resource fixture')
@@ -436,5 +441,87 @@ class FixedMetadataRetries(unittest.TestCase):
    case=dict(case);error=self.error(case.pop('_status',503));owner,dest=self.setup_metadata(error)
    with self.subTest(case=case,status=error.code),mock.patch.object(m.time,'sleep')as sleep,self.assertRaises(m.urllib.error.HTTPError)as caught:owner.fetch(dest=dest,**case)
    self.assertIs(caught.exception,error);self.assertEqual(owner.opener.open.call_count,1);self.assertFalse(dest.exists());self.assertEqual(owner.events.getvalue(),'');sleep.assert_not_called()
+
+class ScopedAPIAuthentication(unittest.TestCase):
+ METADATA='https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca'
+ def fake_fetch(self,url,token,*,mixed=False):
+  from types import SimpleNamespace
+  temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);dest=pathlib.Path(temp.name)/'public-data';owner=m.Owner.__new__(m.Owner);owner.tick=mock.Mock();owner.events=io.StringIO();seen=[]
+  class Response(io.BytesIO):url='https://release-assets.githubusercontent.com/public';headers={}
+  def opened(request,timeout):
+   seen.append(request);self.assertEqual(timeout,30)
+   if token is not None:self.assertEqual(request.get_header('Authorization'),'Bearer '+token);self.assertNotIn('Authorization',request.headers)
+   else:self.assertIsNone(request.get_header('Authorization'))
+   redirect=m.OfficialRedirect()
+   if mixed:request.headers['aUtHoRiZaTiOn']='Bearer '+token
+   first=redirect.redirect_request(request,None,302,'Found',{},'https://api.github.com/allowed-redirect')
+   second=redirect.redirect_request(first,None,302,'Found',{},'https://release-assets.githubusercontent.com/public')
+   third=redirect.redirect_request(second,None,302,'Found',{},'https://objects.githubusercontent.com/public')
+   for row in(first,second,third):
+    self.assertFalse(any(k.lower()=='authorization'for k in row.headers));self.assertFalse(any(k.lower()=='authorization'for k in row.unredirected_hdrs))
+   with self.assertRaisesRegex(ValueError,'nonofficial redirect'):redirect.redirect_request(third,None,302,'Found',{},'https://foreign.invalid/')
+   return Response(b'public authenticated transport fixture')
+  owner.opener=SimpleNamespace(open=mock.Mock(side_effect=opened))
+  environment={}if token is None else{'SVM_GITHUB_TOKEN':token}
+  with mock.patch.dict(m.os.environ,environment):row=owner.fetch(url,dest,1024)
+  self.assertEqual(owner.opener.open.call_count,1)
+  if token is not None:self.assertNotIn(token,json.dumps(row));self.assertNotIn(token,owner.events.getvalue())
+  return row,seen
+ def test_exact_five_initial_routes_auth_and_real_multihop_strip(self):
+  expected={a['url']for a in m.ASSETS.values()}|{self.METADATA};self.assertEqual(m.SVM_API_ROUTES,expected);self.assertEqual(len(expected),5)
+  for url in expected:
+   with self.subTest(route=url):self.fake_fetch(url,'SYNTHETIC_SVM_TOKEN')
+ def test_explicit_mixed_case_strip_and_optional_unauthenticated_mode(self):
+  self.fake_fetch(m.ASSETS['agave']['url'],'SYNTHETIC_SVM_TOKEN',mixed=True)
+  self.fake_fetch(m.ASSETS['agave']['url'],None)
+ def test_unreviewed_routes_and_malformed_tokens_refuse_before_open(self):
+  from types import SimpleNamespace
+  for url,token in[(self.METADATA+'?query=1','SYNTHETIC_TOKEN'),(self.METADATA.replace('e101cca','main'),'SYNTHETIC_TOKEN'),('https://api.github.com/repos/other/repo','SYNTHETIC_TOKEN'),(m.ASSETS['agave']['url'],'bad\r\nInjected:value'),(self.METADATA,''),(self.METADATA,'x'*4097)]:
+   owner=m.Owner.__new__(m.Owner);owner.opener=SimpleNamespace(open=mock.Mock(side_effect=ValueError('CONTROL_IO_REACHED')));owner.tick=mock.Mock();owner.events=io.StringIO()
+   with tempfile.TemporaryDirectory()as temp,mock.patch.dict(m.os.environ,{'SVM_GITHUB_TOKEN':token}),self.assertRaises(ValueError)as caught:owner.fetch(url,pathlib.Path(temp)/'absent',1024)
+   owner.opener.open.assert_not_called();self.assertNotIn('SYNTHETIC',str(caught.exception));self.assertNotIn('Injected',str(caught.exception));self.assertEqual(owner.events.getvalue(),'')
+ def test_actual_main_base_and_SBF_environments_never_inherit_token(self):
+  import ast
+  source=ast.parse(pathlib.Path(m.__file__).read_text());execute=next(n for n in source.body if isinstance(n,ast.FunctionDef)and n.name=='execute');assignment=next(n for n in ast.walk(execute)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='base'for t in n.targets));wire=ast.Module(body=[assignment],type_ignores=[]);ast.fix_missing_locations(wire);context={'root':pathlib.Path('/owned'),'str':str,'os':m.os};token='SYNTHETIC_MANAGER_TOKEN'
+  with mock.patch.dict(m.os.environ,{'SVM_GITHUB_TOKEN':token}):
+   exec(compile(wire,'actual-base-assignment','exec'),context);base=context['base'];provision,compile_env=m.sbf_environments(base,pathlib.Path('/owned/platform'),pathlib.Path('/owned/rustup/bin/cargo'))
+  for environment in(base,provision,compile_env):self.assertNotIn('SVM_GITHUB_TOKEN',environment);self.assertNotIn(token,json.dumps(environment));self.assertNotIn('Authorization',environment)
+ def test_authenticated_error_status_does_not_retry_fallback_or_log_token(self):
+  from types import SimpleNamespace
+  token='SYNTHETIC_TOKEN_PRIVATE';error=m.urllib.error.HTTPError(self.METADATA,403,'private message '+token,{},io.BytesIO(b'private '+token.encode()));self.addCleanup(error.close);owner=m.Owner.__new__(m.Owner);owner.opener=SimpleNamespace(open=mock.Mock(side_effect=error));owner.tick=mock.Mock();owner.events=io.StringIO()
+  with tempfile.TemporaryDirectory()as temp,mock.patch.dict(m.os.environ,{'SVM_GITHUB_TOKEN':token}),self.assertRaises(m.urllib.error.HTTPError)as caught:owner.fetch(self.METADATA,pathlib.Path(temp)/'absent',2*1024**2,accept='application/vnd.github+json')
+  self.assertIs(caught.exception,error);owner.opener.open.assert_called_once();self.assertEqual(owner.events.getvalue(),'')
+
+class AuthenticatedPublicErrorControls(unittest.TestCase):
+ def test_closed_formatter_omits_token_partial_reason_body_and_URL(self):
+  token='SYNTHETIC_MANAGER_SECRET';error=m.urllib.error.HTTPError('https://PRIVATE_URL.invalid/path',503,'PRIVATE_REASON '+token[:9],{},io.BytesIO(b'PRIVATE_BODY '+token.encode()));self.addCleanup(error.close)
+  with mock.patch.dict(m.os.environ,{'SVM_GITHUB_TOKEN':token}):
+   self.assertEqual(m.public_exception(error),'HTTPError: HTTP 503')
+   self.assertEqual(m.public_exception(ValueError('PRIVATE '+token)),'ValueError')
+   error.code=False;self.assertEqual(m.public_exception(error),'HTTPError')
+  self.assertIn('PRIVATE_REASON',m.public_exception(error))
+ def test_actual_execute_publishes_closed_primary_and_cleanup_failure(self):
+  from types import SimpleNamespace
+  from unittest.mock import patch
+  token='SYNTHETIC_MANAGER_SECRET';primary=m.urllib.error.HTTPError('https://PRIVATE_URL.invalid/path',403,'PRIVATE_REASON '+token[:9],{},io.BytesIO(b'PRIVATE_BODY '+token.encode()));self.addCleanup(primary.close)
+  class FakeOwner:
+   def __init__(self,*args):self.rows=[];self.history=[];self.orphan_waits=[];self.signals=[];self.peak=0;self.peakdisk=0;self.floor=0;self.started=m.time.monotonic();self.events=io.StringIO()
+   def run(self,*args):raise primary
+   def drain(self):raise ValueError('PRIVATE_DRAIN '+token)
+   def reap_terminal(self,*args):return []
+  original_read=m.P.read_text
+  def reading(path,*args,**kwargs):
+   if str(path)=='/proc/sys/kernel/random/boot_id':return 'public-unit-boot'
+   return original_read(path,*args,**kwargs)
+  with tempfile.TemporaryDirectory()as temp:
+   base=pathlib.Path(temp).resolve();out=base/'fresh-output';args=SimpleNamespace(repo=base,output=out,bwrap='/usr/bin/bwrap',rustup=base/'not-executed')
+   with patch.dict(m.os.environ,{'SVM_GITHUB_TOKEN':token}),patch.object(m.sys,'platform','linux'),patch.object(m.os,'uname',return_value=m.os.uname_result(('Linux','fixture','kernel','version','x86_64'))),patch.object(m.shutil,'disk_usage',return_value=SimpleNamespace(free=40*m.GIB)),patch.object(m.signal,'signal'),patch.object(m,'Owner',FakeOwner),patch.object(m.P,'read_text',reading),patch.object(m,'system_pin',return_value={'path':'public-unit','bytes':1,'sha256':'public-unit'}):result=m.execute(args)
+   wire=(out/'result.json').read_text();v=json.loads(wire);self.assertEqual(result,1);self.assertFalse(v['passed']);self.assertTrue(v['owned_absent']);self.assertEqual(v['error'],'HTTPError: HTTP 403; drain: ValueError');self.assertNotIn('PRIVATE',wire);self.assertNotIn(token,wire);self.assertEqual(primary.code,403)
+ def test_all_three_actual_error_serializers_use_closed_formatter(self):
+  import ast
+  fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='execute');handlers=[n for n in ast.walk(fn)if isinstance(n,ast.ExceptHandler)and n.name=='exc'];self.assertEqual(len(handlers),3)
+  for handler in handlers:
+   self.assertTrue(any(isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='public_exception'for n in ast.walk(handler)))
+   self.assertFalse(any(isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='str'and n.args and isinstance(n.args[0],ast.Name)and n.args[0].id=='exc'for n in ast.walk(handler)))
 
 if __name__=='__main__':unittest.main()
