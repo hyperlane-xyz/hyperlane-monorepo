@@ -1,4 +1,7 @@
 {{- if .Values.hyperlane.validator.enabled }}
+{{- if not (kindIs "bool" .Values.hyperlane.validator.execProcess) }}
+{{- fail "hyperlane.validator.execProcess must be a boolean" }}
+{{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -54,7 +57,7 @@ spec:
         args:
         - |
             RID=$(echo $REPLICA_NAME | grep -Eo '[0-9]+$')
-            env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) {{ include "agent.binary" (dict "root" . "role" "validator") }}
+            {{ if .Values.hyperlane.validator.execProcess }}exec {{ end }}env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) {{ include "agent.binary" (dict "root" . "role" "validator") }}
         envFrom:
         - configMapRef:
             name: {{ include "agent-common.fullname" . }}

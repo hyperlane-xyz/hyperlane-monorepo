@@ -95,3 +95,18 @@ checkpoint publication is used. Successful Docker fixture evidence does not asse
 behavior, final18native acceptance or performance. An actual passing published
 `helm-runtime.json` at the exact source/image head is required; render/pure tests
 alone do not constitute this lifecycle acceptance.
+
+### Validator process handoff
+
+The Zig values overlay sets `hyperlane.validator.execProcess: true`. The existing
+RID extraction and config/secret environment loading remain, followed by `exec
+env ... /opt/hyperlane/bin/validator`, so the validator can receive container
+SIGTERM directly. The option must be boolean; default Rust values retain `false`
+and their existing rendered wrapper. Do not compensate with a longer grace or
+accept exit137. The observed pre-fix disposable SDK validator had dash as PID1
+and exited137 without OOM; all owned containers and PG were removed.
+
+The new wrapper still requires actual core, Safe and Fast lifecycle readbacks
+(three roles, two configuration modes, two same-data runs per profile:36 total).
+Those post-fix results remain pending; renders and unit controls are not a
+Kubernetes rollout, existing-PVC migration, native600/30 or performance proof.

@@ -84,6 +84,8 @@ hyperlane:
   # Individually Switchable via <role>.enabled
   validator:
     enabled: false
+    # Keep the legacy Rust wrapper by default; opt in to direct signal delivery.
+    execProcess: false
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'

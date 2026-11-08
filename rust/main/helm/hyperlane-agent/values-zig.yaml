@@ -7,6 +7,8 @@ image:
 hyperlane:
   defaultsConfigMap: hyperlane-zig-defaults
   homeDirectory: /var/lib/hyperlane
+  validator:
+    execProcess: true
   relayer:
     appContextConfigFile: /etc/hyperlane/mainnet_config.json
     dbBootstrap:

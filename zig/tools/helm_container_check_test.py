@@ -13,7 +13,7 @@ class Controls(unittest.TestCase):
  def profile(self,role='relayer',mode='configmap'):
   command=['/bin/sh','-c']if role=='validator'else['/opt/hyperlane/bin/'+role]
   a={'name':'agent','securityContext':{'runAsNonRoot':True,'runAsUser':10001,'runAsGroup':10001},'command':command}
-  if role=='validator':a['args']=['env fixture /opt/hyperlane/bin/validator\n']
+  if role=='validator':a['args']=[m.VALIDATOR_EXEC_SCRIPT]
   else:a['env']=[{'name':'HYP_RELAYCHAINS'if role=='relayer'else'HYP_CHAINSTOSCRAPE','value':'containerfixture'}]
   if mode=='configmap':a['volumeMounts']=[{'name':'agent-defaults','mountPath':'/etc/hyperlane','readOnly':True}]
   return {'statefulset':{'spec':{'template':{'spec':{'containers':[a],'securityContext':{'fsGroup':2000},'terminationGracePeriodSeconds':10}}}},'common':{'data':{'HOME':'/var/lib/hyperlane','HYP_DB':'/data/relayer'}},'validator':{'data':{'validator-0.env':'HYP_ORIGINCHAINNAME="containerfixture"\n'}}if role=='validator'else{}}
@@ -103,6 +103,12 @@ class Controls(unittest.TestCase):
  def test_real_rendered_validator_shell_is_preserved_exactly(self):
   v=self.profile('validator');m.validate_profile(v,'validator','configmap');v['statefulset']['spec']['template']['spec']['containers'][0]['args'][0]+='; extra'
   with self.assertRaises(AssertionError):m.validate_profile(v,'validator','configmap')
+ def test_validator_fixture_requires_exact_exec_handoff_before_launch(self):
+  for mode in ('configmap','configured-image'):
+   v=self.profile('validator',mode);m.validate_profile(v,'validator',mode)
+   for script in (m.VALIDATOR_EXEC_SCRIPT.replace('exec env ','env '),m.VALIDATOR_EXEC_SCRIPT.replace('exec env ','exec other '),m.VALIDATOR_EXEC_SCRIPT+'extra\n'):
+    bad=copy.deepcopy(v);bad['statefulset']['spec']['template']['spec']['containers'][0]['args']=[script]
+    with self.subTest(mode=mode),self.assertRaisesRegex(AssertionError,'exec wrapper'):m.validate_profile(bad,'validator',mode)
  def test_Docker_permission_or_transport_error_is_not_absence(self):
   good=SimpleNamespace(returncode=1,stdout='[]\n',stderr='Error response from daemon: No such image: owned:fixture\n');self.assertTrue(m.absent_receipt(good,'owned:fixture')['owned_container_absent'])
   with self.assertRaises(AssertionError):m.absent_receipt(good,'owned:other')

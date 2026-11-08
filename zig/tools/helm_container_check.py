@@ -12,6 +12,9 @@ PROFILE_TEMPLATE='''{{- $role := .Values.fixtureRole -}}
 {{- dict "apiVersion" "v1" "kind" "ConfigMap" "metadata" (dict "name" "fixture-launch") "data" (dict "profile" (dict "statefulset" $state "common" $common "validator" $validator | toJson)) | toJson -}}
 '''
 ROLES=('relayer','validator','scraper')
+VALIDATOR_EXEC_SCRIPT="""RID=$(echo $REPLICA_NAME | grep -Eo '[0-9]+$')
+exec env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) /opt/hyperlane/bin/validator
+"""
 def need(ok,message):
  if not ok:raise AssertionError(message)
 def pin(path):
@@ -54,7 +57,7 @@ def validate_profile(value,role,mode):
  spec=value['statefulset']['spec']['template']['spec'];a=spec['containers'][0]
  need(a['name']=='agent'and a['securityContext']=={'runAsNonRoot':True,'runAsUser':10001,'runAsGroup':10001}and spec['securityContext']['fsGroup']==2000,'rendered nonroot identities')
  if role=='validator':
-  need(a['command']==['/bin/sh','-c']and len(a['args'])==1 and a['args'][0].endswith('/opt/hyperlane/bin/validator\n'),'rendered validator wrapper')
+  need(a['command']==['/bin/sh','-c']and a['args']==[VALIDATOR_EXEC_SCRIPT],'rendered validator exec wrapper')
  else:need(a['command']==['/opt/hyperlane/bin/'+role]and not a.get('args'),'rendered role command')
  need(spec['terminationGracePeriodSeconds']==10 and 'workingDir'not in a,'rendered workdir/grace')
  mounts=[r for r in a.get('volumeMounts',[])if r['name']=='agent-defaults']
