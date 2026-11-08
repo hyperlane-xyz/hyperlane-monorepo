@@ -64,4 +64,47 @@ class CompositionTests(unittest.TestCase):
         self.assertIn('/actual-interop-ReleaseFast.json',public)
 
 
+
+class ResourceWitnessControls(unittest.TestCase):
+    def invoke_actual_run(self, allocated=5*api.GIB, free=8*api.GIB, decline=0, rss=0, now=1, post=2, output_root=False, skip_live=False):
+        import tempfile
+        from types import SimpleNamespace
+        from unittest import mock
+        root=Path(tempfile.mkdtemp(prefix='composition-resource-control-')).resolve();self.addCleanup(lambda:__import__('shutil').rmtree(root))
+        output=root/'composition';output.mkdir();(output/'logs').mkdir();case=root/'case';case.mkdir()
+        child=SimpleNamespace(pid=42,returncode=0);cleanup={'clean':True,'actual_parent_wait':True,'exit_code':0,'signals':[]}
+        process_owner=SimpleNamespace(processes=mock.Mock(return_value={}),owned_processes=mock.Mock(return_value={42:{'rss_bytes':rss}}),stop_owned=mock.Mock(return_value=cleanup))
+        census=SimpleNamespace(functional_allocated=mock.Mock(return_value=allocated));checks=[]
+        clock=mock.Mock(side_effect=[0,post]if skip_live else[0,now,post]);environment={'args':SimpleNamespace(output=output,case_root=case,repo=Path('/not-executed')),'time':SimpleNamespace(monotonic=clock,sleep=lambda _:None),'subprocess':SimpleNamespace(Popen=mock.Mock(return_value=child),DEVNULL=-3,STDOUT=-2),'os':SimpleNamespace(waitid=mock.Mock(side_effect=[object()]if skip_live else[None,object()]),P_PID=1,WEXITED=1,WNOHANG=2,WNOWAIT=4),'shutil':SimpleNamespace(disk_usage=lambda _:SimpleNamespace(free=free)),'owner':process_owner,'census':census,'checks':checks,'initial_free':free+decline,'env':{},'GIB':api.GIB,'require':api.require,'pin':api.pin,'phase_resource_failure':api.phase_resource_failure,'request':{'scenario':'tron','limits':{'maximum_case_allocated_bytes':8*api.GIB}},'signal':SimpleNamespace(SIGTERM=15,SIGINT=2,SIGHUP=1,SIG_IGN=1,signal=lambda *a:None)}
+        tree=ast.parse(Path(api.__file__).read_bytes());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main');run=next(n for n in main.body if isinstance(n,ast.FunctionDef)and n.name=='run');exec(compile(ast.Module(body=[run],type_ignores=[]),str(api.__file__),'exec'),environment)
+        error=None
+        try:environment['run']('owned-native-case',['PRIVATE_ARG_NOT_EXECUTED'],10,output if output_root else case)
+        except Exception as caught:error=caught
+        return checks,process_owner,census,error
+
+    def test_actual_case_and_output_allocation_checks_accept4to8_and_refuse_over8_live_and_postflight(self):
+        for output in [False,True]:
+            for postflight in [False,True]:
+                for amount in [5*api.GIB,8*api.GIB,8*api.GIB+1]:
+                    with self.subTest(output_root=output,postflight=postflight,bytes=amount):
+                        checks,owner,census,error=self.invoke_actual_run(allocated=amount,output_root=output,skip_live=postflight)
+                        owner.stop_owned.assert_called_once()
+                        if amount<=8*api.GIB:self.assertIsNone(error);self.assertNotIn('resource_guard_failure',checks[0])
+                        else:self.assertIsInstance(error,ValueError);self.assertIn('allocation cap',str(error))
+                        self.assertTrue(checks[0]['actual_parent_wait'])
+
+    def test_each_original_live_conjunct_is_retained_before_refusal_and_cleanup_still_runs(self):
+        cases=[({'now':10},'before_original_phase_deadline'),({'rss':8*api.GIB+1},'owned_RSS_at_most8GiB'),({'free':6*api.GIB-1},'host_free_at_least6GiB'),({'decline':12*api.GIB+1},'whole_composition_decline_at_most12GiB')]
+        for changes,failed in cases:
+            with self.subTest(failed=failed):
+                checks,owner,census,error=self.invoke_actual_run(**changes);self.assertIsInstance(error,ValueError);self.assertEqual(str(error),'Composition phase deadline/RSS/total-growth/free guard');owner.stop_owned.assert_called_once();census.functional_allocated.assert_not_called()
+                witness=checks[0]['resource_guard_failure'];self.assertEqual(witness['failed_conjuncts'],[failed]);self.assertFalse(witness['conjuncts'][failed]);self.assertEqual(witness['sample_scope'],'live');self.assertFalse(witness['native_or_timing_or_cleanup_authority']);self.assertNotIn('PRIVATE',str(witness))
+                self.assertEqual(witness['limits'],{'owned_RSS_bytes':8*api.GIB,'minimum_host_free_bytes':6*api.GIB,'maximum_whole_composition_host_free_decline_bytes':12*api.GIB})
+
+    def test_original_exact_boundaries_and_late_postflight_failure_are_not_reset(self):
+        self.assertIsNone(api.phase_resource_failure('owned-native-case','live',9,10,8*api.GIB,6*api.GIB,18*api.GIB))
+        checks,owner,census,error=self.invoke_actual_run(post=10);self.assertEqual(str(error),'Phase postflight original deadline/growth/free guard')
+        witness=checks[0]['resource_guard_failure'];self.assertEqual(witness['failed_conjuncts'],['before_original_phase_deadline']);self.assertEqual(witness['original_phase_deadline_monotonic_seconds'],10);self.assertEqual(witness['sample_scope'],'postflight');self.assertIsNone(witness['owned_RSS_bytes']);self.assertNotIn('owned_RSS_at_most8GiB',witness['conjuncts'])
+        owner.stop_owned.assert_called_once();self.assertEqual(census.functional_allocated.call_count,2)
+
 if __name__=='__main__':unittest.main()

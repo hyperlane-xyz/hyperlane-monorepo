@@ -40,6 +40,19 @@ def interop_command(repo,context,mode,output):
     return [sys.executable,'-I','-B',str(repo/'zig/integration/native_rows_interop.py'),'--writer',writer['path'],'--writer-sha256',writer['sha256'],'--reader',reader['path'],'--reader-sha256',reader['sha256'],'--tool-manifest',manifest['path'],'--tool-manifest-sha256',manifest['sha256'],'--tool-source-commit',context['runtime_source_commit'],'--output',str(output)]
 
 
+
+def phase_resource_failure(phase, sample_scope, now, deadline, owned_RSS, free, initial_free):
+    conjuncts={'before_original_phase_deadline':now<deadline,'host_free_at_least6GiB':free>=6*GIB,'whole_composition_decline_at_most12GiB':initial_free-free<=12*GIB}
+    if owned_RSS is not None:conjuncts['owned_RSS_at_most8GiB']=owned_RSS<=8*GIB
+    if all(conjuncts.values()):return None
+    return {'schema':1,'kind':'public-native-composition-resource-guard-failure','phase':phase,'sample_scope':sample_scope,
+            'observed_monotonic_seconds':now,'original_phase_deadline_monotonic_seconds':deadline,'owned_RSS_bytes':owned_RSS,
+            'host_free_bytes':free,'composition_initial_free_bytes':initial_free,'whole_composition_host_free_decline_bytes':initial_free-free,
+            'limits':{'owned_RSS_bytes':8*GIB,'minimum_host_free_bytes':6*GIB,'maximum_whole_composition_host_free_decline_bytes':12*GIB},
+            'conjuncts':conjuncts,'failed_conjuncts':sorted(name for name,passed in conjuncts.items()if not passed),
+            'native_or_timing_or_cleanup_authority':False}
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ['request','producer-receipt','tools']:parser.add_argument('--'+name,type=Path,required=True);parser.add_argument('--'+name+'-sha256',required=True)
@@ -62,15 +75,16 @@ def main():
     owner=load('run_process_owner','zig/bench/cold_matrix_owner.py');owner.enable_subreaper();checks=[];failure=None;result={'schema':1,'kind':'linux-native-case-composition','passed':False,'native_case_acceptance':False,'plan':pin(args.output/'plan.json'),'checks':checks}
     env={'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':str(args.output/'home'),'LC_ALL':'C.UTF-8','GITHUB_ACTIONS':'true'}
     def run(name,argv,seconds,resource_root):
-        started=time.monotonic();deadline=started+seconds;log=args.output/'logs'/(name+'.log');child=None;known={};groups={};cleanup=None;error=None
+        started=time.monotonic();deadline=started+seconds;log=args.output/'logs'/(name+'.log');child=None;known={};groups={};cleanup=None;error=None;resource_failure=None
         try:
             with log.open('xb') as stream:
                 child=subprocess.Popen(argv,cwd=args.repo,env=env,stdin=subprocess.DEVNULL,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True);groups[child.pid]=child.pid
                 while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is None:
                     rows=owner.processes();owned=owner.owned_processes(rows,child.pid,known,groups,True)
                     free=shutil.disk_usage(args.output).free
-                    require(time.monotonic()<deadline and sum(row['rss_bytes'] for row in owned.values())<=8*GIB and free>=6*GIB and initial_free-free<=12*GIB,'Composition phase deadline/RSS/total-growth/free guard')
-                    if resource_root.exists():require(census.functional_allocated(resource_root)<=(4 if resource_root==args.case_root else 8)*GIB,'Composition owned output allocation cap')
+                    resource_failure=phase_resource_failure(name,'live',time.monotonic(),deadline,sum(row['rss_bytes'] for row in owned.values()),free,initial_free)
+                    require(resource_failure is None,'Composition phase deadline/RSS/total-growth/free guard')
+                    if resource_root.exists():require(census.functional_allocated(resource_root)<=(request['limits']['maximum_case_allocated_bytes'] if resource_root==args.case_root else 8*GIB),'Composition owned output allocation cap')
                     require(log.stat().st_size<=64*1024**2,'Composition phase log guard');time.sleep(.2)
         except BaseException as caught:error=caught
         finally:
@@ -84,11 +98,14 @@ def main():
             finally:
                 for sig,value in old.items():signal.signal(sig,value)
             checks.append({'name':name,'argv':argv,'pid':None if child is None else child.pid,'exit_code':None if child is None else child.returncode,'actual_parent_wait':bool(cleanup and cleanup['actual_parent_wait']),'cleanup':cleanup,'log':pin(log),'error':None if error is None else {'type':type(error).__name__,'message':str(error)}})
+            if resource_failure is not None:checks[-1]['resource_guard_failure']=resource_failure
         if error is not None:raise error
         require(child.returncode==0 and cleanup['clean'] and not cleanup['signals'],'Actual composition command/wait/cleanup failed')
         require(log.stat().st_size<=64*1024**2,'Postflight composition log guard')
-        if resource_root.exists():require(census.functional_allocated(resource_root)<=(4 if resource_root==args.case_root else 8)*GIB,'Postflight composition allocation cap')
-        require(time.monotonic()<deadline and shutil.disk_usage(args.output).free>=6*GIB and initial_free-shutil.disk_usage(args.output).free<=12*GIB,'Phase postflight original deadline/growth/free guard')
+        if resource_root.exists():require(census.functional_allocated(resource_root)<=(request['limits']['maximum_case_allocated_bytes'] if resource_root==args.case_root else 8*GIB),'Postflight composition allocation cap')
+        postflight_failure=phase_resource_failure(name,'postflight',time.monotonic(),deadline,None,shutil.disk_usage(args.output).free,initial_free)
+        if postflight_failure is not None:checks[-1]['resource_guard_failure']=postflight_failure
+        require(postflight_failure is None,'Phase postflight original deadline/growth/free guard')
     try:
         builder=args.repo/'zig/integration/native_case_inputs.py'
         run('hydrate-verified-source-cohort',[sys.executable,'-I','-B',str(builder),'hydrate','--reviewed-policy',str(args.request),'--reviewed-policy-sha256',args.request_sha256,'--producer-receipt',str(args.producer_receipt),'--producer-receipt-sha256',args.producer_receipt_sha256,'--expected-source-commit',args.execution_source_commit,'--output',str(args.case_root)],180,args.case_root)
