@@ -129,6 +129,189 @@ export interface AleoManifest {
   };
 }
 
+export const ALEO_FAILURE_BOUNDARIES: readonly string[] = Object.freeze([
+  'unrecognized',
+  'runtime-preflight',
+  'node-launch',
+  'node-height',
+  'proxy-start',
+  'capacity-preflight',
+  'sdk-deployment',
+  'sdk-signers',
+  'capability-probes',
+  'post-deployment',
+  'sdk-worker-parse',
+  'sdk-worker-deploy-left',
+  'sdk-worker-deploy-right',
+  'sdk-worker-link-left',
+  'sdk-worker-link-right',
+  'sdk-worker-dispatch',
+]);
+export const ALEO_FAILURE_CLASSES: readonly string[] = Object.freeze([
+  'Error',
+  'TypeError',
+  'RangeError',
+  'SyntaxError',
+  'ReferenceError',
+  'AggregateError',
+  'AbortError',
+  'OTHER_ERROR',
+  'NON_ERROR',
+]);
+export const ALEO_FAILURE_CODES: readonly string[] = Object.freeze([
+  'ENOENT',
+  'EACCES',
+  'EPERM',
+  'ENOSPC',
+  'EEXIST',
+  'EINVAL',
+  'ENOMEM',
+  'EADDRINUSE',
+  'EADDRNOTAVAIL',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EPIPE',
+  'ERR_INVALID_ARG_TYPE',
+  'ERR_OUT_OF_RANGE',
+  'ERR_INVALID_URL',
+]);
+interface AleoFailurePoint {
+  attempted_boundary: string;
+  error_class: string;
+  error_code: string | null;
+  driver_frames: { line: number; column: number }[];
+}
+interface AleoFailureDiagnostic extends AleoFailurePoint {
+  schema: 1;
+  kind: 'aleo-source-bound-caught-error-v1';
+  worker: AleoFailurePoint | null;
+}
+const isolateFailurePoints = new WeakMap<Error, AleoFailurePoint>();
+
+export function retainAleoIsolateFailure(error: Error, value: unknown): void {
+  // Optional observation cannot replace the original worker rejection.
+  try {
+    if (
+      !isObject(value) ||
+      value.schema !== 1 ||
+      value.kind !== 'aleo-source-bound-caught-error-v1' ||
+      value.worker !== null ||
+      Object.keys(value).sort().join(',') !==
+        'attempted_boundary,driver_frames,error_class,error_code,kind,schema,worker'
+    )
+      return;
+    const boundary = value.attempted_boundary;
+    const errorClass = value.error_class;
+    const errorCode = value.error_code;
+    if (
+      typeof boundary !== 'string' ||
+      !ALEO_FAILURE_BOUNDARIES.includes(boundary) ||
+      !boundary.startsWith('sdk-worker-') ||
+      typeof errorClass !== 'string' ||
+      !ALEO_FAILURE_CLASSES.includes(errorClass) ||
+      !(
+        errorCode === null ||
+        (typeof errorCode === 'string' &&
+          ALEO_FAILURE_CODES.includes(errorCode))
+      ) ||
+      !Array.isArray(value.driver_frames) ||
+      value.driver_frames.length > 8
+    )
+      return;
+    const frames: { line: number; column: number }[] = [];
+    for (const frame of value.driver_frames) {
+      if (
+        !isObject(frame) ||
+        Object.keys(frame).sort().join(',') !== 'column,line'
+      )
+        return;
+      const line = frame.line;
+      const column = frame.column;
+      if (
+        typeof line !== 'number' ||
+        typeof column !== 'number' ||
+        !Number.isSafeInteger(line) ||
+        !Number.isSafeInteger(column) ||
+        line < 1 ||
+        column < 1 ||
+        line > 1000000 ||
+        column > 1000000
+      )
+        return;
+      frames.push({ line, column });
+    }
+    isolateFailurePoints.set(error, {
+      attempted_boundary: boundary,
+      error_class: errorClass,
+      error_code: errorCode,
+      driver_frames: frames,
+    });
+  } catch {
+    /* Observation failure never changes the primary error. */
+  }
+}
+
+export function captureAleoFailureDiagnostic(
+  error: unknown,
+  boundary: string,
+): AleoFailureDiagnostic {
+  const point: AleoFailureDiagnostic = {
+    schema: 1,
+    kind: 'aleo-source-bound-caught-error-v1',
+    attempted_boundary: ALEO_FAILURE_BOUNDARIES.includes(boundary)
+      ? boundary
+      : 'unrecognized',
+    error_class: 'NON_ERROR',
+    error_code: null,
+    driver_frames: [],
+    worker: null,
+  };
+  try {
+    if (!(error instanceof Error)) return point;
+    point.worker = isolateFailurePoints.get(error) ?? null;
+    point.error_class = 'OTHER_ERROR';
+    if (ALEO_FAILURE_CLASSES.includes(error.name))
+      point.error_class = error.name;
+    const code: unknown = Reflect.get(error, 'code');
+    if (typeof code === 'string' && ALEO_FAILURE_CODES.includes(code))
+      point.error_code = code;
+    const stack: unknown = error.stack;
+    if (typeof stack !== 'string' || stack.length > 65536) return point;
+    const escape = (value: string) =>
+      value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const location =
+      '(?:' +
+      escape(import.meta.url) +
+      '|' +
+      escape(fileURLToPath(import.meta.url)) +
+      ')';
+    const frame = new RegExp(
+      '^\\s*at (?:' +
+        location +
+        ':([1-9][0-9]{0,5}):([1-9][0-9]{0,5})|[^()\\r\\n]{1,256} \\(' +
+        location +
+        ':([1-9][0-9]{0,5}):([1-9][0-9]{0,5})\\))$',
+    );
+    for (const line of stack.split('\n').slice(1, 65)) {
+      if (line.length > 1024) continue;
+      const match = frame.exec(line);
+      if (!match) continue;
+      const lineNumber = match[1] ?? match[3];
+      const columnNumber = match[2] ?? match[4];
+      if (lineNumber === undefined || columnNumber === undefined) continue;
+      point.driver_frames.push({
+        line: Number(lineNumber),
+        column: Number(columnNumber),
+      });
+      if (point.driver_frames.length === 8) break;
+    }
+  } catch {
+    /* Getter/stack failures provide no additional observation. */
+  }
+  return point;
+}
+
 function requireValue(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
@@ -2941,6 +3124,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
   const proxies: AleoProxy[] = [];
   let worker: NativeWorker | undefined;
   let stopLifecycle: (() => Promise<void>) | undefined;
+  let attemptedBoundary = 'runtime-preflight';
   const progress: {
     passed: boolean;
     stage: string;
@@ -3024,6 +3208,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
       nativeRoleProofSkip: false,
     });
     for (const [index, domain] of manifest.domains.entries()) {
+      attemptedBoundary = 'node-launch';
       const id = (
         await docker(
           aleoNodeArguments(manifest, domain, `${ownedTag}-${domain.name}`),
@@ -3035,6 +3220,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
         'actual owned node container ID missing',
       );
       containers.push(id);
+      attemptedBoundary = 'node-height';
       await waitFor(budget, async () => {
         try {
           const value = await getJson(
@@ -3059,6 +3245,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
       });
       const proxyPort = manifest.proxyPorts[index];
       requireValue(proxyPort !== undefined, 'explicit proxy port missing');
+      attemptedBoundary = 'proxy-start';
       await proxy.start(proxyPort);
       proxies.push(proxy);
     }
@@ -3099,6 +3286,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
         monotonic: monotonicMs(),
       };
     };
+    attemptedBoundary = 'capacity-preflight';
     await checkCapacity();
     capacityTask = (async () => {
       while (!capacityStop.signal.aborted) {
@@ -3111,6 +3299,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
         progress.errors.push(String(error));
       }
     });
+    attemptedBoundary = 'sdk-deployment';
     const deployed = await deployIsolated(manifest, budget);
     const first = deployed[0];
     const second = deployed[1];
@@ -3118,6 +3307,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
       first !== undefined && second !== undefined,
       'actual deployment incomplete',
     );
+    attemptedBoundary = 'sdk-signers';
     const signers = [
       await first.connectExecutionSigner(),
       await second.connectExecutionSigner(),
@@ -3152,6 +3342,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
       );
       return verification.decode(result.data);
     };
+    attemptedBoundary = 'capability-probes';
     const capabilities: unknown[] = [];
     for (const [index, chain] of deployed.entries()) {
       const base = `http://127.0.0.1:${chain.domain.port}/testnet`;
@@ -3254,6 +3445,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
       ),
       capabilities,
     });
+    attemptedBoundary = 'post-deployment';
     const pgId = (
       await docker([
         'run',
@@ -4277,6 +4469,10 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
     proxies.forEach((proxy) => proxy.check());
     progress.passed = true;
   } catch (error) {
+    progress.evidence.caughtErrorDiagnostic = captureAleoFailureDiagnostic(
+      error,
+      attemptedBoundary,
+    );
     progress.errors.push(
       error instanceof Error ? error.message : String(error),
     );
@@ -4415,9 +4611,11 @@ async function sdkIsolate(
       thread.on('message', (value: unknown) => {
         try {
           const row = object(value, 'actual SDK isolate reply');
-          if (row.error !== undefined)
-            reject(new Error(text(row.error, 'SDK error')));
-          else {
+          if (row.error !== undefined) {
+            const failure = new Error(text(row.error, 'SDK error'));
+            retainAleoIsolateFailure(failure, row.diagnostic);
+            reject(failure);
+          } else {
             requireValue(
               !received && 'value' in row,
               'duplicate/missing SDK isolate result',
@@ -4514,23 +4712,28 @@ async function deployIsolated(
 if (!isMainThread) {
   const port = parentPort;
   requireValue(port !== null, 'SDK fixture isolate has no owner');
+  let attemptedBoundary = 'sdk-worker-parse';
   try {
     const job = object(workerData, 'owned SDK request');
     if (job.kind === 'aleo-checked-deployment-v1') {
       fields(job, ['kind', 'manifest'], 'SDK deployment request');
       const manifest = parseAleoManifest(job.manifest);
       const [left, right] = manifest.domains;
+      attemptedBoundary = 'sdk-worker-deploy-left';
       const first = await withDeploymentEnvironment(
         manifest.consensusHeights,
         () => deployAleoDomain(manifest, left, right),
       );
+      attemptedBoundary = 'sdk-worker-deploy-right';
       const second = await withDeploymentEnvironment(
         manifest.consensusHeights,
         () => deployAleoDomain(manifest, right, left),
       );
+      attemptedBoundary = 'sdk-worker-link-left';
       await withDeploymentEnvironment(manifest.consensusHeights, () =>
         first.link(second),
       );
+      attemptedBoundary = 'sdk-worker-link-right';
       await withDeploymentEnvironment(manifest.consensusHeights, () =>
         second.link(first),
       );
@@ -4554,6 +4757,7 @@ if (!isMainThread) {
         'unknown fixture isolate job',
       );
       const manifest = parseAleoManifest(job.manifest);
+      attemptedBoundary = 'sdk-worker-dispatch';
       const local = domain(job.domain);
       const destination = integer(
         job.destination,
@@ -4601,6 +4805,7 @@ if (!isMainThread) {
   } catch (error) {
     port.postMessage({
       error: error instanceof Error ? error.message : String(error),
+      diagnostic: captureAleoFailureDiagnostic(error, attemptedBoundary),
     });
     process.exitCode = 1;
   } finally {

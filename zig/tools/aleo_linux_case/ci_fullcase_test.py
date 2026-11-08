@@ -358,4 +358,39 @@ class DriverFailureProjection(unittest.TestCase):
   with mock.patch.object(pathlib.Path,'open',side_effect=AssertionError('success Source read')):self.assertEqual(m.driver_failure_observation({'passed':True},REPO,None),{'status':'not-failed'})
   tree=ast.parse(pathlib.Path(m.__file__).read_bytes());execute=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');call=next(n for n in ast.walk(execute)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='case_failure_diagnostics');self.assertEqual(len(call.args),3);self.assertEqual(ast.unparse(call.args[2]),"authority['required_source']")
 
+
+
+class DriverCaughtErrorProjection(unittest.TestCase):
+ def source(self):return (REPO/'zig/integration/aleo_process.ts').read_text()
+ def diagnostic(self):
+  point={'attempted_boundary':'sdk-worker-deploy-left','error_class':'TypeError','error_code':'EACCES','driver_frames':[{'line':1,'column':1}]}
+  return {'schema':1,'kind':'aleo-source-bound-caught-error-v1','attempted_boundary':'sdk-deployment','error_class':'Error','error_code':None,'driver_frames':[{'line':1,'column':1}],'worker':point}
+ def test_actual_failed_driver_public_projection_checks_pinned_Source_and_caught_worker_properties(self):
+  with tempfile.TemporaryDirectory()as directory:
+   root=pathlib.Path(directory).resolve();repo=root/'repo';source=repo/'zig/integration/aleo_process.ts';source.parent.mkdir(parents=True);source.write_text(self.source())
+   for name in ['case_delegate.py','case_supervisor.py','inner.py']:
+    target=repo/'zig/tools/aleo_linux_case'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((REPO/'zig/tools/aleo_linux_case'/name).read_bytes())
+   case=root/'case';driver=case/'data/case/result.json';driver.parent.mkdir(parents=True)
+   driver.write_text(json.dumps({'passed':False,'stage':'actual-runtime-preflight','errors':['PRIVATE_PRIMARY'],'evidence':{'caughtErrorDiagnostic':self.diagnostic(),'PRIVATE':'AUTH_TOKEN'}}))
+   value=m.case_failure_diagnostics(case,repo,[m.pin(source)]);point=value['records']['driver']['driver_observation']['caught_error']
+   self.assertEqual(point['status'],'observed');self.assertEqual(point['attempted_boundary'],'sdk-deployment');self.assertEqual(point['worker']['attempted_boundary'],'sdk-worker-deploy-left');self.assertEqual(point['worker']['error_class'],'TypeError');self.assertEqual(point['worker']['error_code'],'EACCES');self.assertEqual(point['worker']['driver_frames'],[{'line':1,'column':1}])
+   self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn('AUTH_TOKEN',json.dumps(value));self.assertLess(len(json.dumps(value)),32768)
+   self.assertFalse(value['native_or_performance_credit'])
+ def test_unknown_metadata_fields_values_nested_objects_and_bad_Source_coordinates_refuse(self):
+  original=self.diagnostic();cases=[]
+  for key,value in [('PRIVATE','secret'),('error_class','PRIVATE_CLASS'),('error_code','PRIVATE_CODE'),('attempted_boundary','PRIVATE_STAGE'),('driver_frames',[{'line':1,'column':1,'path':'PRIVATE'}]),('driver_frames',[{'line':1000000,'column':1}]),('driver_frames',[{'line':1,'column':1000000}]),('driver_frames',[{'line':True,'column':1}]),('driver_frames',[{'line':1,'column':1}]*9),('worker',{'attempted_boundary':'PRIVATE'})]:
+   row=copy.deepcopy(original);row[key]=value;cases.append(row)
+  child=copy.deepcopy(original);child['worker']['attempted_boundary']='node-launch';cases.append(child)
+  for row in cases:
+   with self.subTest(rowkey=list(row)):
+    self.assertEqual(m.source_bound_caught_error(row,self.source()),{'status':'refused'})
+ def test_missing_metadata_is_honest_and_duplicate_Source_catalog_is_not_authority(self):
+  self.assertEqual(m.source_bound_caught_error(None,self.source()),{'status':'not-recorded'})
+  self.assertEqual(m.source_bound_caught_error(self.diagnostic(),self.source()+self.source()),{'status':'refused'})
+  self.assertEqual(m.source_bound_caught_error(self.diagnostic(),''),{'status':'refused'})
+ def test_actual_driver_Source_hash_mismatch_prevents_any_caught_error_classification(self):
+  with tempfile.TemporaryDirectory()as directory:
+   repo=pathlib.Path(directory).resolve();source=repo/'zig/integration/aleo_process.ts';source.parent.mkdir(parents=True);source.write_text(self.source());row=m.pin(source);source.write_text(self.source()+'\nchanged')
+   result=m.driver_failure_observation({'passed':False,'errors':['PRIVATE'],'evidence':{'caughtErrorDiagnostic':self.diagnostic()}},repo,[row]);self.assertEqual(result,{'status':'source-refused'})
+
 if __name__=='__main__':unittest.main(verbosity=2)

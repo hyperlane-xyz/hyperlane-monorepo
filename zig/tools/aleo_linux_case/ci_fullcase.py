@@ -31,6 +31,33 @@ def write(path,value):
  return pin(path)
 def module(repo,name,relative):
  spec=importlib.util.spec_from_file_location(name,repo/relative);out=importlib.util.module_from_spec(spec);spec.loader.exec_module(out);return out
+def source_bound_caught_error(value,source):
+ if value is None:return {'status':'not-recorded'}
+ try:
+  def catalog(name):
+   matches=list(re.finditer(r'export const '+re.escape(name)+r':\s*readonly string\[\]\s*=\s*Object\.freeze\(\[(.*?)\]\);',source,re.S))
+   need(len(matches)==1,'unique diagnostic Source catalog')
+   body=matches[0][1];values=re.findall(r"'([A-Za-z0-9_-]+)'",body)
+   need(values and len(values)==len(set(values))and re.sub(r"'([A-Za-z0-9_-]+)'|[\s,]",'',body)=='','literal diagnostic Source catalog')
+   return set(values)
+  boundaries=catalog('ALEO_FAILURE_BOUNDARIES');classes=catalog('ALEO_FAILURE_CLASSES');codes=catalog('ALEO_FAILURE_CODES');lines=source.splitlines()
+  def point(row):
+   need(type(row)is dict and set(row)=={'attempted_boundary','error_class','error_code','driver_frames'},'closed caught point')
+   need(type(row['attempted_boundary'])is str and row['attempted_boundary']in boundaries and type(row['error_class'])is str and row['error_class']in classes and(row['error_code']is None or type(row['error_code'])is str and row['error_code']in codes),'finite Source caught values')
+   frames=row['driver_frames'];need(type(frames)is list and len(frames)<=8,'bounded driver frames');checked_frames=[]
+   for frame in frames:
+    need(type(frame)is dict and set(frame)=={'line','column'}and type(frame['line'])is int and type(frame['column'])is int and 1<=frame['line']<=len(lines),'Source frame line bound')
+    need(1<=frame['column']<=len(lines[frame['line']-1].encode('utf-16-le'))//2+1,'Source frame column bound')
+    checked_frames.append({'line':frame['line'],'column':frame['column']})
+   return {'attempted_boundary':row['attempted_boundary'],'error_class':row['error_class'],'error_code':row['error_code'],'driver_frames':checked_frames}
+  need(type(value)is dict and set(value)=={'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker'}and type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-source-bound-caught-error-v1','closed caught diagnostic')
+  result=point({k:value[k]for k in ['attempted_boundary','error_class','error_code','driver_frames']});worker=value['worker']
+  if worker is not None:
+   worker=point(worker);need(worker['attempted_boundary'].startswith('sdk-worker-'),'worker boundary contract')
+  return {'status':'observed',**result,'worker':worker,'basis':'Finite caught properties and stack-frame text observed by pinned driver; frames match only admitted aleo_process.ts. No underlying SDK/OS root-cause or Zig execution claim.'}
+ except BaseException:return {'status':'refused'}
+
+
 def driver_failure_observation(value,repo,admitted_sources):
  # Text witnesses from failed driver metadata only, never typed exception/stack credit.
  if type(value)is not dict or value.get('passed')is not False:return {'status':'not-failed'}
@@ -81,6 +108,8 @@ def driver_failure_observation(value,repo,admitted_sources):
  command=line('`owned command failed: ${path}: ${error.message}; ${stderr.slice(0, 4096)}`')
  classes='Error|TypeError|RangeError|SyntaxError|ReferenceError|AggregateError|AbortError|ValueError|RuntimeError|AssertionError|FileNotFoundError|FileExistsError|PermissionError|OSError|TimeoutError'
  errors=value.get('errors');result={'status':'observed','source':{'path':relative,'bytes':row['bytes'],'sha256':row['sha256']},'last_persisted_stage':observed,'basis':'Pinned Source literal/prefix text only; no actual exception type, OS errno or stack-frame claim.','error_rows':[]}
+ evidence=value.get('evidence');caught=evidence.get('caughtErrorDiagnostic')if type(evidence)is dict else None
+ result['caught_error']=source_bound_caught_error(caught,source)
  if type(errors)is not list:result['errors_status']='refused';return result
  result.update(errors_status='observed',errors_count=len(errors),errors_truncated=len(errors)>16)
  for item in errors[:16]:

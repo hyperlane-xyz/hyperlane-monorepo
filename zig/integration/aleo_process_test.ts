@@ -15,8 +15,12 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { createServer, request as httpRequest } from 'node:http';
 import { once } from 'node:events';
+import { compileFunction } from 'node:vm';
+import { stripTypeScriptTypes } from 'node:module';
 
 import {
+  captureAleoFailureDiagnostic,
+  retainAleoIsolateFailure,
   OwnedChild,
   OwnedChildError,
   retainOwnedChild,
@@ -2321,5 +2325,233 @@ void test('Linux stopped DB closed membership rejects an extra file', async () =
     );
   } finally {
     await rm(root, { recursive: true });
+  }
+});
+
+void test('Aleo diagnostic finite caught fields omit messages paths and unapproved frames', () => {
+  const error = Object.assign(new TypeError('PRIVATE_MESSAGE'), {
+    code: 'EACCES',
+  });
+  const driver = new URL('./aleo_process.ts', import.meta.url).href;
+  error.stack = `TypeError: PRIVATE_MESSAGE\n    at actual (${driver}:1:1)\n    at foreign (/PRIVATE_PATH/other.ts:2:3)\n    at malformed (${driver}:2:1\n`;
+  const observed = captureAleoFailureDiagnostic(error, 'sdk-deployment');
+  assert.equal(observed.error_class, 'TypeError');
+  assert.equal(observed.error_code, 'EACCES');
+  assert.deepEqual(observed.driver_frames, [{ line: 1, column: 1 }]);
+  assert.equal(observed.attempted_boundary, 'sdk-deployment');
+  assert.equal(observed.worker, null);
+  assert.ok(!JSON.stringify(observed).includes('PRIVATE'));
+  assert.ok(!JSON.stringify(observed).includes('file:'));
+});
+
+void test('Aleo diagnostic hostile getters unknown fields and oversized stacks cannot replace error', () => {
+  const original = new Error('PRIVATE_PRIMARY');
+  Object.defineProperty(original, 'code', {
+    get() {
+      throw new Error('PRIVATE_GETTER');
+    },
+  });
+  assert.doesNotThrow(() =>
+    captureAleoFailureDiagnostic(original, 'node-height'),
+  );
+  assert.equal(original.message, 'PRIVATE_PRIMARY');
+  const oversized = Object.assign(new Error('PRIVATE'), {
+    code: 'PRIVATE_CODE',
+  });
+  oversized.stack = 'X'.repeat(65537);
+  const observed = captureAleoFailureDiagnostic(oversized, 'PRIVATE_BOUNDARY');
+  assert.equal(observed.error_code, null);
+  assert.deepEqual(observed.driver_frames, []);
+  assert.equal(observed.attempted_boundary, 'unrecognized');
+  assert.ok(!JSON.stringify(observed).includes('PRIVATE'));
+  const hostile = new Proxy(
+    {},
+    {
+      getPrototypeOf() {
+        throw original;
+      },
+    },
+  );
+  assert.doesNotThrow(() =>
+    captureAleoFailureDiagnostic(hostile, 'node-launch'),
+  );
+});
+
+void test('Aleo diagnostic actual worker catch reconstruction and main catch preserve primary message identity', async () => {
+  const source = await readFile(
+    new URL('./aleo_process.ts', import.meta.url),
+    'utf8',
+  );
+  const workerAt = source.indexOf('if (!isMainThread) {');
+  const catchAt = source.indexOf(
+    '  } catch (error) {\n    port.postMessage(',
+    workerAt,
+  );
+  const catchEnd = source.indexOf('  } finally {\n    port.close();', catchAt);
+  assert.ok(workerAt > 0 && catchAt > workerAt && catchEnd > catchAt);
+  const body = source.slice(catchAt + '  } catch (error) {'.length, catchEnd);
+  const childError = Object.assign(new RangeError('PRIVATE_WORKER_PRIMARY'), {
+    code: 'EACCES',
+  });
+  childError.stack = `RangeError: PRIVATE_WORKER_PRIMARY\n    at site (${new URL('./aleo_process.ts', import.meta.url).href}:1:1)`;
+  let reply: unknown;
+  const fakeProcess = { exitCode: 0 };
+  const workerCatch = compileFunction(stripTypeScriptTypes(body), [
+    'error',
+    'port',
+    'process',
+    'attemptedBoundary',
+    'captureAleoFailureDiagnostic',
+  ]);
+  workerCatch(
+    childError,
+    {
+      postMessage(value: unknown) {
+        reply = value;
+      },
+    },
+    fakeProcess,
+    'sdk-worker-deploy-left',
+    captureAleoFailureDiagnostic,
+  );
+  assert.equal(fakeProcess.exitCode, 1);
+  assert.equal(childError.message, 'PRIVATE_WORKER_PRIMARY');
+  const start = source.indexOf('async function sdkIsolate(');
+  const end = source.indexOf('async function dispatchIsolated(', start);
+  let actual = source.slice(start, end);
+  assert.equal(actual.split('import.meta.url').length, 2);
+  actual = actual.replace('import.meta.url', JSON.stringify(import.meta.url));
+  const factory = compileFunction(
+    stripTypeScriptTypes(actual) + '\nreturn sdkIsolate;',
+    [
+      'Worker',
+      'URL',
+      'setInterval',
+      'clearInterval',
+      'object',
+      'text',
+      'requireValue',
+      'fixtureError',
+      'retainAleoIsolateFailure',
+    ],
+  );
+  const callbacks = new Map<string, (value: unknown) => void>();
+  let retired = 0;
+  class FakeWorker {
+    on(name: string, callback: (value: unknown) => void) {
+      callbacks.set(name, callback);
+      if (name === 'message') queueMicrotask(() => callback(reply));
+      return this;
+    }
+    once(name: string, callback: (value: unknown) => void) {
+      callbacks.set(name, callback);
+      return this;
+    }
+    async terminate() {
+      retired++;
+      callbacks.get('exit')?.(1);
+      return 1;
+    }
+  }
+  const isolate = factory(
+    FakeWorker,
+    URL,
+    setInterval,
+    clearInterval,
+    (value: unknown) => {
+      assert.ok(typeof value === 'object' && value !== null);
+      return value;
+    },
+    (value: unknown) => {
+      assert.equal(typeof value, 'string');
+      return value;
+    },
+    (value: unknown) => assert.ok(value),
+    (value: unknown) => (value instanceof Error ? value : new Error('fixture')),
+    retainAleoIsolateFailure,
+  );
+  let caught: unknown;
+  try {
+    await isolate(
+      { consensusHeights: [0] },
+      { kind: 'aleo-checked-deployment-v1' },
+      {
+        remaining() {
+          return 1000;
+        },
+      },
+    );
+  } catch (error) {
+    caught = error;
+  }
+  assert.ok(caught instanceof Error);
+  assert.equal(caught.message, childError.message);
+  assert.equal(retired, 1);
+  const observed = captureAleoFailureDiagnostic(caught, 'sdk-deployment');
+  assert.equal(observed.worker?.attempted_boundary, 'sdk-worker-deploy-left');
+  assert.equal(observed.worker?.error_class, 'RangeError');
+  assert.equal(observed.worker?.error_code, 'EACCES');
+  assert.deepEqual(observed.worker?.driver_frames, [{ line: 1, column: 1 }]);
+  assert.ok(!JSON.stringify(observed).includes('PRIVATE'));
+  const mainAt = source.indexOf(
+    '  } catch (error) {\n    progress.evidence.caughtErrorDiagnostic',
+  );
+  const mainEnd = source.indexOf(
+    '  } finally {\n    if (stopLifecycle)',
+    mainAt,
+  );
+  assert.ok(mainAt > 0 && mainEnd > mainAt);
+  const mainCatch = compileFunction(
+    stripTypeScriptTypes(
+      source.slice(mainAt + '  } catch (error) {'.length, mainEnd),
+    ),
+    ['progress', 'error', 'attemptedBoundary', 'captureAleoFailureDiagnostic'],
+  );
+  const progress = { errors: [], evidence: {} };
+  assert.throws(
+    () =>
+      mainCatch(
+        progress,
+        caught,
+        'sdk-deployment',
+        captureAleoFailureDiagnostic,
+      ),
+    (error) => error === caught,
+  );
+  assert.deepEqual(progress.errors, [childError.message]);
+  assert.ok(!JSON.stringify(progress.evidence).includes('PRIVATE'));
+});
+
+void test('Aleo diagnostic malformed worker metadata never changes the original rejection', () => {
+  const error = new Error('PRIVATE_MESSAGE');
+  for (const value of [
+    null,
+    {},
+    {
+      schema: 1,
+      kind: 'aleo-source-bound-caught-error-v1',
+      attempted_boundary: 'sdk-worker-deploy-left',
+      error_class: 'Error',
+      error_code: null,
+      driver_frames: [],
+      worker: null,
+      PRIVATE: 'TOKEN',
+    },
+    {
+      schema: 1,
+      kind: 'aleo-source-bound-caught-error-v1',
+      attempted_boundary: 'PRIVATE_STAGE',
+      error_class: 'Error',
+      error_code: null,
+      driver_frames: [],
+      worker: null,
+    },
+  ]) {
+    retainAleoIsolateFailure(error, value);
+    assert.equal(
+      captureAleoFailureDiagnostic(error, 'sdk-deployment').worker,
+      null,
+    );
+    assert.equal(error.message, 'PRIVATE_MESSAGE');
   }
 });
