@@ -111,10 +111,61 @@ class DispatchTests(unittest.TestCase):
                 self.assertTrue(condition.startswith('${{ ' + kernel + ' && ('), name)
         conditions = {name: '${{ ' + condition.removeprefix('${{ ' + kernel + ' && (').removesuffix(') }}') + ' }}' for name, condition in conditions.items() if name != 'aleo-linux-prerequisite'}
         guard = "!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]'))"
+        cold_push = "(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') && contains(github.event.head_commit.message, '[zig-cold-full-feature]'))"
         for name in ordinary:
-            self.assertTrue(conditions[name].startswith('${{ ' + guard + ' && ('), name)
+            expected = '(' + guard + ' || ' + cold_push + ')' if name == 'cold-full-feature' else guard
+            self.assertTrue(conditions[name].startswith('${{ ' + expected + ' && ('), name)
         self.assertIn("contains(github.event.head_commit.message, '[zig-native-case]')", conditions['native-case-producer-inputs'])
         self.assertNotIn('!(', conditions['native-case-producer-inputs'])
+
+    def test_cold_dual_marker_routes_only_cold_and_inactive_case_planning(self):
+        values = self.workflow_conditions()
+        for message in ['[zig-native-case] [zig-cold-full-feature]', '[zig-cold-full-feature] [zig-native-case] [zig-cohort-readback]']:
+            selected = {name for name, value in values.items() if self.condition(value, 'push', message)}
+            self.assertEqual(selected, {'cold-full-feature', 'native-case-producer-inputs'})
+        for message in ['[zig-cold-full-feature]', '[zig-native-case]', '[zig-cold-full-featurex] [zig-native-case]']:
+            self.assertFalse(self.condition(values['cold-full-feature'], 'push', message))
+        for event in ['pull_request', 'workflow_dispatch']:
+            self.assertFalse(self.condition(values['cold-full-feature'], event, '[zig-native-case] [zig-cold-full-feature]'))
+        for ref in ['refs/heads/main', 'refs/heads/other']:
+            self.assertFalse(self.condition(values['cold-full-feature'], 'push', '[zig-native-case] [zig-cold-full-feature]', ref=ref))
+
+    def test_cold_marker_preserves_all_dedicated_exclusions(self):
+        values = self.workflow_conditions()
+        for extra, expected in [('[zig-aleo-kernel-only]', {'aleo-linux-prerequisite'}), ('[zig-aleo-sdk-only]', {'aleo-linux-sdk-prerequisite'}), ('[zig-aleo-docker-only]', {'aleo-native-docker-prerequisite'}), ('[zig-aleo-fullcase-only]', {'aleo-full-case'})]:
+            selected = {name for name, value in values.items() if self.condition(value, 'push', '[zig-native-case] [zig-cold-full-feature] ' + extra)}
+            self.assertEqual(selected, expected)
+        self.assertFalse(self.condition(values['cold-full-feature'], 'push', '[zig-native-case] [zig-cold-full-feature] [zig-svm-prerequisites-only]'))
+
+    def test_cold_native_selector_guard_precedes_every_heavy_staging_command(self):
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/zig-agents.yml').read_text()
+        section = workflow.split('  cold-full-feature:\n', 1)[1].split('  # Compilation and filtered native fixture controls only;', 1)[0]
+        self.assertLess(section.index("request.get('root_approved') is not False"), section.index('sudo apt-get update'))
+        self.assertIn('matrix:\n        include:', section)
+        for value in ['max-parallel: 1', 'order: rust-safe-fast', 'order: safe-fast-rust', 'order: fast-rust-safe', 'timeout-minutes: 300', 'timeout-minutes: 245']:
+            self.assertIn(value, section)
+
+    def test_actual_cold_preflight_requires_literal_false_and_rejects_duplicates(self):
+        import os, sys, textwrap
+        from unittest import mock
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/zig-agents.yml').read_text()
+        section = workflow.split('  cold-full-feature:\n', 1)[1]
+        code = textwrap.dedent(section.split("python3 -I -B - <<'PYTHON'\n", 1)[1].split('          PYTHON', 1)[0])
+        with tempfile.TemporaryDirectory(prefix='cold-inactive-policy-') as directory:
+            base = Path(directory); policy = base/'zig/bench/native_case_request.json';policy.parent.mkdir(parents=True)
+            cwd = Path.cwd(); previous = list(sys.path)
+            try:
+                os.chdir(base)
+                with mock.patch.dict(sys.modules, {'native_case_ci': ci}):
+                    for value in [False, True, None, 0, 'false']:
+                        policy.write_text(json.dumps({'root_approved': value}))
+                        if value is False:exec(compile(code, '<actual cold preflight>', 'exec'), {})
+                        else:
+                            with self.assertRaises(SystemExit):exec(compile(code, '<actual cold preflight>', 'exec'), {})
+                    policy.write_text('{"root_approved":false,"root_approved":true}')
+                    with self.assertRaisesRegex(ValueError, 'Duplicate'):exec(compile(code, '<actual cold preflight>', 'exec'), {})
+            finally:
+                os.chdir(cwd);sys.path[:]=previous
 
     def test_svm_only_marker_routes_only_prerequisites(self):
         conditions = self.workflow_conditions()
@@ -152,12 +203,12 @@ class DispatchTests(unittest.TestCase):
         return values
 
     @staticmethod
-    def condition(value, event, message, svm=False, cold=False, aleo=False, sdk=False, docker=False, full=False):
+    def condition(value, event, message, svm=False, cold=False, aleo=False, sdk=False, docker=False, full=False, ref='refs/heads/feat/zig-agent-rewrite'):
         import re
         from types import SimpleNamespace as N
         code = value.removeprefix('${{ ').removesuffix(' }}')
         code = re.sub(r'!(?!=)', ' not ', code).replace('&&', ' and ').replace('||', ' or ').strip()
-        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk, aleo_native_docker_prerequisite=docker, aleo_full_case=full), 'contains': lambda text, needle: needle in text}
+        context = {'github': N(event_name=event, ref=ref, event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk, aleo_native_docker_prerequisite=docker, aleo_full_case=full), 'contains': lambda text, needle: needle in text}
         return bool(eval(compile(code, '<actual-workflow-condition>', 'eval'), {'__builtins__': {}}, context))
 
     def test_fullcase_request_cannot_run_native_case_or_old_dedicated_jobs(self):

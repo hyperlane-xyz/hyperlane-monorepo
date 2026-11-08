@@ -92,7 +92,7 @@ class MeasuredProcess:
   while self.poll()is None and time.monotonic()<until:time.sleep(.01)
   if self.poll()is None:self.p.kill();_,status,self.usage=os.wait4(self.p.pid,0);self.status=os.waitstatus_to_exitcode(status);self.p.returncode=self.status
   self.end_ns=time.perf_counter_ns();self.shutdown_ms=(self.end_ns-started)/1e6
-  return dict(exit_code=self.status,user_seconds=self.usage.ru_utime,system_seconds=self.usage.ru_stime,max_rss_bytes=self.usage.ru_maxrss if sys.platform=='darwin'else self.usage.ru_maxrss*1024,process_wall_seconds=(self.end_ns-self.start_ns)/1e9,shutdown_ms=self.shutdown_ms)
+  return dict(exit_code=self.status,user_seconds=self.usage.ru_utime,system_seconds=self.usage.ru_stime,voluntary_context_switches=self.usage.ru_nvcsw,involuntary_context_switches=self.usage.ru_nivcsw,max_rss_bytes=self.usage.ru_maxrss if sys.platform=='darwin'else self.usage.ru_maxrss*1024,process_wall_seconds=(self.end_ns-self.start_ns)/1e9,shutdown_ms=self.shutdown_ms)
  def close(self):self.out.close();self.err.close()
 def filesystem_usage(directory):
  logical=allocated=files=0

@@ -268,6 +268,8 @@ class MeasuredProcess:
             "forced_kill": forced_kill,
             "user_seconds": self.usage.ru_utime,
             "system_seconds": self.usage.ru_stime,
+            "voluntary_context_switches": self.usage.ru_nvcsw,
+            "involuntary_context_switches": self.usage.ru_nivcsw,
             "max_rss_bytes": self.usage.ru_maxrss if sys.platform == "darwin" else self.usage.ru_maxrss * 1024,
             "process_wall_seconds": (self.end_ns - self.start_ns) / 1e9,
             "shutdown_ms": (self.end_ns - started) / 1e6,
