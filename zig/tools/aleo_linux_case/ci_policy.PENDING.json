@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "aleo-linux-fullcase-ci-policy-v1",
-  "root_approved": true,
+  "root_approved": false,
   "runtime_source_commit": "06e263fe7950e6051502a771646bbcc6d0453369",
   "requests": {
     "ReleaseSafe": {
