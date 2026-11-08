@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "sealevel",
-  "mode": "ReleaseSafe",
+  "scenario": "sealevel-composite",
+  "mode": "ReleaseFast",
   "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
   "producer_run_id": 42451611648,
   "producer_run_attempt": 1,
@@ -12,25 +12,7 @@
     "minimum_host_free_bytes": 6442450944,
     "maximum_wall_seconds": 3600
   },
-  "postgres": {
-    "schema": 2,
-    "architecture": "amd64",
-    "image": "postgres:14",
-    "image_id": {
-      "sha256_hex_chunks": [
-        "47b95c5ad45838febbc39cae4194b6f9",
-        "c3f6c3d7409b20043e8cea4a5bd70fec"
-      ],
-      "prefix": "sha256:"
-    },
-    "canonical_digest": {
-      "sha256_hex_chunks": [
-        "834a046089d76edd1d2e81c4741f3ad5",
-        "d1853646ededc86c2708936aad31c1ed"
-      ],
-      "prefix": "postgres@sha256:"
-    }
-  },
+  "postgres": null,
   "prerequisites": {
     "local_checkout_build": true,
     "hpack": {
@@ -59,13 +41,13 @@
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13606194323,
-      "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52478175,
+      "id": 13606304633,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 55146705,
       "sha256": {
         "sha256_hex_chunks": [
-          "8975f1a1f5ef9ab5dd03845c4f5cfd20",
-          "37c2d2eee2ef0589d40155eba9a042a2"
+          "7e46655e0ba9fe731443a73bf702a8a0",
+          "0d4711d9c1086db629019098d9d40832"
         ]
       }
     },
