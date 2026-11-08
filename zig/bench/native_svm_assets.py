@@ -449,8 +449,11 @@ def node_arguments(argv, task_root):
     return str(ledger)
 
 
+AGAVE_RELEASE_CLIENT_UDP_RANGE = (8000, 10000)  # v3.0.14; Rust range upper bound excluded.
+
+
 def listener_rows(pid, raw, udp=False):
-    """Exact owned PID/fd; IPv4 wildcard TCP only RPC8899/PubSub8900/faucet9900."""
+    """Exact PID/fd; fixed node sockets plus Source unconnected IPv4 UDP clients."""
     import ipaddress
     require(type(pid) is int and pid > 0 and isinstance(raw, str) and len(raw) <= 65536,
             'Bounded native SVM lsof observation required')
@@ -482,7 +485,9 @@ def listener_rows(pid, raw, udp=False):
                 address = ipaddress.ip_address(host)
                 parsed.append((address, int(port)))
             local = parsed[0]
-            require((local[0].is_loopback and 8001 <= local[1] <= 8033) if udp else
+            require(((local[0].is_loopback and 8001 <= local[1] <= 8033) or
+                     (str(local[0]) == '0.0.0.0' and len(parsed) == 1 and
+                      AGAVE_RELEASE_CLIENT_UDP_RANGE[0] <= local[1] < AGAVE_RELEASE_CLIENT_UDP_RANGE[1])) if udp else
                     (local[0].is_loopback or
                      (str(local[0]) == '0.0.0.0' and local[1] in (8899, 8900, 9900))),
                     'Native SVM listener escaped fixed local authority: '+json.dumps({

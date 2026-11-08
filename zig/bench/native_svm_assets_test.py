@@ -211,15 +211,32 @@ class Controls(unittest.TestCase):
     def test_udp_svm_gossip_range_and_remote_loopback(self):
         self.assertEqual(m.listener_rows(42,'p42\nf3\nn127.0.0.1:8001\n',True),[('127.0.0.1',8001)])
         self.assertEqual(m.listener_rows(42,'p42\nf3\nn127.0.0.1:8002->127.0.0.1:8003\n',True),[('127.0.0.1',8002)])
-        for raw in ['p42\nf3\nn0.0.0.0:8001\n','p42\nf3\nn127.0.0.1:8034\n',
+        for raw in ['p42\nf3\nn0.0.0.0:8001->127.0.0.1:8001\n','p42\nf3\nn127.0.0.1:8034\n',
                     'p42\nf3\nn127.0.0.1:8001->192.0.2.1:8001\n']:
             with self.subTest(raw=raw),self.assertRaises(ValueError):m.listener_rows(42,raw,True)
 
     def test_listener_refusal_exports_only_typed_scope_protocol_and_ports(self):
-        for raw,udp,expected in [('p42\nf3\nn*:8034\n',True,{'udp':True,'local_scope':'wildcard','local_port':8034,'connected':False,'peer_scope':None,'peer_port':None}),('p42\nf3\nn192.0.2.200:8034->192.0.2.201:8001\n',True,{'udp':True,'local_scope':'other','local_port':8034,'connected':True,'peer_scope':'other','peer_port':8001})]:
+        for raw,udp,expected in [('p42\nf3\nn*:10000\n',True,{'udp':True,'local_scope':'wildcard','local_port':10000,'connected':False,'peer_scope':None,'peer_port':None}),('p42\nf3\nn192.0.2.200:8034->192.0.2.201:8001\n',True,{'udp':True,'local_scope':'other','local_port':8034,'connected':True,'peer_scope':'other','peer_port':8001})]:
             with self.subTest(udp=udp),self.assertRaisesRegex(ValueError,'Native SVM listener escaped') as caught:m.listener_rows(42,raw,udp)
             text=str(caught.exception);self.assertEqual(json.loads(text.split(': ',1)[1]),expected)
             self.assertNotIn('192.0.2.',text);self.assertNotIn(raw,text)
 
+
+    def test_release_client_UDP_exact_half_open_range_unconnected_IPv4_only(self):
+        self.assertEqual(m.AGAVE_RELEASE_CLIENT_UDP_RANGE,(8000,10000))
+        for host in ['*','0.0.0.0']:
+            for port in [8000,8001,8033,8034,9999]:
+                with self.subTest(host=host,port=port):self.assertEqual(m.listener_rows(42,f'p42\nf3\nn{host}:{port}\n',True),[('0.0.0.0',port)])
+        for host,port,peer in [('0.0.0.0',7999,''),('0.0.0.0',10000,''),('0.0.0.0',65535,''),('[::]',8000,''),('192.0.2.1',8000,''),('127.0.0.1',8000,''),('127.0.0.1',8034,''),('0.0.0.0',8000,'->127.0.0.1:8001'),('0.0.0.0',9999,'->192.0.2.1:8001')]:
+            with self.subTest(host=host,port=port,peer=peer),self.assertRaises(ValueError):m.listener_rows(42,f'p42\nf3\nn{host}:{port}{peer}\n',True)
+    def test_release_client_UDP_never_replaces_loopback_gossip_or_TCP_readiness(self):
+        tcp=[('0.0.0.0',p)for p in [8899,8900,9900]];clients=m.listener_rows(42,'p42\nf3\nn*:8000\nf4\nn*:8001\n',True)
+        self.assertFalse(m.required_listener_rows(tcp,clients,allow_pending=True))
+        with self.assertRaisesRegex(ValueError,'loopback gossip'):m.required_listener_rows(tcp,clients)
+        self.assertTrue(m.required_listener_rows(tcp,clients+[('127.0.0.1',8001)]))
+        with self.assertRaisesRegex(ValueError,'wildcard RPC'):m.required_listener_rows(tcp[:-1],clients+[('127.0.0.1',8001)])
+    def test_release_client_UDP_still_requires_exact_PID_and_numeric_fd(self):
+        for raw in ['p41\nf3\nn*:8000\n','p42\nn*:8000\n','p42\nfname\nn*:8000\n','p42\nf3\nf4\nn*:8000\n']:
+            with self.subTest(raw=raw),self.assertRaises(ValueError):m.listener_rows(42,raw,True)
 
 if __name__ == '__main__': unittest.main()

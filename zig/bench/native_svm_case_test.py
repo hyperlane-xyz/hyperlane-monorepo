@@ -126,7 +126,7 @@ class Controls(unittest.TestCase):
             def link(p):
                 if p=='/proc/1/exe':raise PermissionError('protected unrelated')
                 return str(node)
-            tcp=b'p42\nf1\nn*:8899\nf2\nn0.0.0.0:8900\nf3\nn*:9900\n';udp=b'p42\nf4\nn127.0.0.1:8001\n'
+            tcp=b'p42\nf1\nn*:8899\nf2\nn0.0.0.0:8900\nf3\nn*:9900\n';udp=b'p42\nf4\nn127.0.0.1:8001\nf5\nn*:8000\nf6\nn0.0.0.0:9999\n'
             def run(command,**kwargs):return subprocess.CompletedProcess(command,0,udp if '-iUDP'in command else tcp,b'')
             full_tcp,full_udp=tcp,udp
             for tcp,udp in [(b'',b''),(b'p42\nf1\nn*:8899\n',full_udp),(full_tcp,b'')]:
@@ -142,6 +142,9 @@ class Controls(unittest.TestCase):
             self.assertEqual(proof['source_tcp_wildcard_ports'],[8899,8900,9900])
             self.assertEqual(proof['source_tcp_wildcard_roles'],{'rpc':8899,'pubsub':8900,'faucet':9900})
             self.assertEqual(proof['owned_loopback_tcp_ports'],[])
+            self.assertEqual(proof['source_udp_unconnected_wildcard_client_ports'],[8000,9999])
+            self.assertEqual(proof['source_udp_client_port_range'],{'minimum':8000,'exclusive_maximum':10000})
+            self.assertIn('no socket subsystem attribution',proof['source_udp_client_scope'])
             self.assertEqual(proof['client_endpoint_scope'],'localhost')
             self.assertNotIn('owned_loopback_ports',proof)
             for original_tcp in [tcp]:
