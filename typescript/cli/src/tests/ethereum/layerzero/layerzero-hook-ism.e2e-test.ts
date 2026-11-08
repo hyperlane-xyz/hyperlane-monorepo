@@ -1,7 +1,5 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
-import type { ProcessPromise } from 'zx';
-import { $ } from 'zx';
 
 import {
   ILayerZeroPacketService__factory,
@@ -27,7 +25,11 @@ import type { Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
-import { hyperlaneSendMessage, hyperlaneStatus } from '../commands/helpers.js';
+import {
+  hyperlaneSendMessage,
+  hyperlaneStatus,
+  startCcipServer,
+} from '../commands/helpers.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
@@ -54,41 +56,10 @@ interface LayerZeroFixture {
   library: Address;
 }
 
-interface LocalService {
-  close(): Promise<void>;
-}
-
 function extract(output: string, label: string): string {
   const match = output.match(new RegExp(`${label}: (0x[a-fA-F0-9]{64})`));
   assert(match, `Could not extract ${label}`);
   return match[1];
-}
-
-async function startLayerZeroService(): Promise<LocalService> {
-  const process: ProcessPromise = $({
-    env: {
-      ...globalThis.process.env,
-      ENABLED_MODULES: 'layerzero',
-      SERVER_PORT: String(SERVICE_PORT),
-      REGISTRY_URI: REGISTRY_PATH,
-      HYPERLANE_EXPLORER_URL: 'http://127.0.0.1:1',
-    },
-    nothrow: true,
-  })`pnpm --filter @hyperlane-xyz/ccip-server run start`;
-
-  const deadline = Date.now() + 60_000;
-  for (;;) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${SERVICE_PORT}/health`);
-      if (response.ok) break;
-    } catch {
-      // Server is still starting.
-    }
-    assert(Date.now() < deadline, 'LayerZero packet service did not start');
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-
-  return { close: async () => process.kill() };
 }
 
 describe('LayerZero V2 combined hook/ISM message E2E', function () {
@@ -261,7 +232,7 @@ describe('LayerZero V2 combined hook/ISM message E2E', function () {
 
   describe('CCIP-read delivery', () => {
     let routers: ChainMap<Address>;
-    let service: LocalService;
+    let service: Awaited<ReturnType<typeof startCcipServer>>;
     const serviceUrl = `http://127.0.0.1:${SERVICE_PORT}/layerzero/getLayerZeroPacket`;
 
     before(async () => {
@@ -270,7 +241,10 @@ describe('LayerZero V2 combined hook/ISM message E2E', function () {
         mesh([serviceUrl]),
       );
       await install(routers);
-      service = await startLayerZeroService();
+      service = await startCcipServer({
+        port: SERVICE_PORT,
+        modules: ['layerzero'],
+      });
     });
 
     after(async () => service?.close());

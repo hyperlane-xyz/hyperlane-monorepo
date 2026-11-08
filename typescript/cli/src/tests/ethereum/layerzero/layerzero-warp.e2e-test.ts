@@ -2,6 +2,8 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 
 import {
+  ERC20__factory,
+  Mailbox__factory,
   MailboxClient__factory,
   MockLayerZeroEndpointV2__factory,
   MockLayerZeroUln302__factory,
@@ -18,6 +20,7 @@ import {
 import type {
   IsmConfig,
   LayerZeroV2IsmConfig,
+  MultiProvider,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
@@ -26,17 +29,23 @@ import type { Address } from '@hyperlane-xyz/utils';
 import { getContext } from '../../../context/context.js';
 import { writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
-import { getDeployedWarpAddress } from '../commands/helpers.js';
+import {
+  getDeployedWarpAddress,
+  hyperlaneStatus,
+  startCcipServer,
+} from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
   hyperlaneWarpCheck,
   hyperlaneWarpDeploy,
+  hyperlaneWarpSendRelay,
 } from '../commands/warp.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
@@ -45,101 +54,143 @@ import {
   getWarpRouteId,
 } from '../consts.js';
 
+const PACKET_SERVICE_PORT = 3_803;
+
+interface LayerZeroMocks {
+  endpoint: Address;
+  sendLibrary: Address;
+  receiveLibrary: Address;
+}
+
 describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
   this.timeout(10 * DEFAULT_E2E_TEST_TIMEOUT);
   const chains = [CHAIN_NAME_2, CHAIN_NAME_3];
+  const extendedChains = [...chains, CHAIN_NAME_4];
   const eids: Record<string, number> = {
     [CHAIN_NAME_2]: 40_101,
     [CHAIN_NAME_3]: 40_102,
+    [CHAIN_NAME_4]: 40_103,
   };
   let mailboxes: Record<string, Address>;
   let endpoints: Record<string, Address>;
   let sendLibraries: Record<string, Address>;
   let receiveLibraries: Record<string, Address>;
 
-  before(async () => {
-    const cores = await Promise.all(
-      chains.map((chain) =>
-        deployOrUseExistingCore(chain, CORE_CONFIG_PATH, ANVIL_KEY),
-      ),
-    );
-    mailboxes = Object.fromEntries(
-      chains.map((chain, index) => [chain, cores[index].mailbox]),
-    );
+  async function getMultiProvider(): Promise<MultiProvider> {
     const { multiProvider } = await getContext({
       registryUris: [REGISTRY_PATH],
       key: ANVIL_KEY,
     });
+    return multiProvider;
+  }
+
+  async function deployLayerZeroMocks(
+    multiProvider: MultiProvider,
+    chain: string,
+  ): Promise<LayerZeroMocks> {
+    multiProvider.setSigner(
+      chain,
+      new ethers.Wallet(ANVIL_KEY, multiProvider.getProvider(chain)),
+    );
+    const endpoint = await multiProvider.handleDeploy(
+      chain,
+      new MockLayerZeroEndpointV2__factory(),
+      [eids[chain]],
+    );
+    const sendLibrary = await multiProvider.handleDeploy(
+      chain,
+      new MockLayerZeroUln302__factory(),
+      [endpoint.address],
+    );
+    const receiveLibrary = await multiProvider.handleDeploy(
+      chain,
+      new MockLayerZeroUln302__factory(),
+      [endpoint.address],
+    );
+    await multiProvider.handleTx(
+      chain,
+      endpoint
+        .connect(multiProvider.getSigner(chain))
+        .registerMockLibrary(sendLibrary.address),
+    );
+    await multiProvider.handleTx(
+      chain,
+      endpoint
+        .connect(multiProvider.getSigner(chain))
+        .registerMockLibrary(receiveLibrary.address),
+    );
+    return {
+      endpoint: endpoint.address,
+      sendLibrary: sendLibrary.address,
+      receiveLibrary: receiveLibrary.address,
+    };
+  }
+
+  before(async () => {
+    const cores = await Promise.all(
+      extendedChains.map((chain) =>
+        deployOrUseExistingCore(chain, CORE_CONFIG_PATH, ANVIL_KEY),
+      ),
+    );
+    mailboxes = Object.fromEntries(
+      extendedChains.map((chain, index) => [chain, cores[index].mailbox]),
+    );
+    const multiProvider = await getMultiProvider();
     endpoints = {};
     sendLibraries = {};
     receiveLibraries = {};
-    for (const chain of chains) {
-      multiProvider.setSigner(
-        chain,
-        new ethers.Wallet(ANVIL_KEY, multiProvider.getProvider(chain)),
-      );
-      const endpoint = await multiProvider.handleDeploy(
-        chain,
-        new MockLayerZeroEndpointV2__factory(),
-        [eids[chain]],
-      );
-      const sendLibrary = await multiProvider.handleDeploy(
-        chain,
-        new MockLayerZeroUln302__factory(),
-        [endpoint.address],
-      );
-      const receiveLibrary = await multiProvider.handleDeploy(
-        chain,
-        new MockLayerZeroUln302__factory(),
-        [endpoint.address],
-      );
-      await multiProvider.handleTx(
-        chain,
-        endpoint
-          .connect(multiProvider.getSigner(chain))
-          .registerMockLibrary(sendLibrary.address),
-      );
-      await multiProvider.handleTx(
-        chain,
-        endpoint
-          .connect(multiProvider.getSigner(chain))
-          .registerMockLibrary(receiveLibrary.address),
-      );
-      endpoints[chain] = endpoint.address;
-      sendLibraries[chain] = sendLibrary.address;
-      receiveLibraries[chain] = receiveLibrary.address;
+    for (const chain of extendedChains) {
+      const mocks = await deployLayerZeroMocks(multiProvider, chain);
+      endpoints[chain] = mocks.endpoint;
+      sendLibraries[chain] = mocks.sendLibrary;
+      receiveLibraries[chain] = mocks.receiveLibrary;
     }
   });
 
-  function layerZeroIsm(chain: string, remote: string): LayerZeroV2IsmConfig {
+  function layerZeroIsm(
+    chain: string,
+    remotes: string[],
+    urls: string[],
+  ): LayerZeroV2IsmConfig {
     return {
       type: IsmType.LAYER_ZERO_V2,
       owner: ANVIL_DEPLOYER_ADDRESS,
       endpoint: endpoints[chain],
       layerZeroDomainId: eids[chain],
-      urls: ['http://127.0.0.1:3000/layerzero/getLayerZeroPacket'],
-      pathways: {
-        [remote]: {
-          layerZeroDomainId: eids[remote],
-          sendLibrary: sendLibraries[chain],
-          receiveLibrary: receiveLibraries[chain],
-          sendConfig: {
-            executor: { type: LayerZeroV2ConfigMode.Default },
-            uln: { type: LayerZeroV2ConfigMode.Default },
+      urls,
+      pathways: Object.fromEntries(
+        remotes.map((remote) => [
+          remote,
+          {
+            layerZeroDomainId: eids[remote],
+            sendLibrary: sendLibraries[chain],
+            receiveLibrary: receiveLibraries[chain],
+            sendConfig: {
+              executor: { type: LayerZeroV2ConfigMode.Default },
+              uln: { type: LayerZeroV2ConfigMode.Default },
+            },
+            receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
           },
-          receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
-        },
-      },
+        ]),
+      ),
     };
   }
 
   function configFor(
     symbol: string,
-    wrapIsm: (ism: LayerZeroV2IsmConfig) => IsmConfig = (ism) => ism,
+    {
+      routeChains = chains,
+      urls = ['http://127.0.0.1:3000/layerzero/getLayerZeroPacket'],
+      wrapIsm = (ism) => ism,
+    }: {
+      routeChains?: string[];
+      urls?: string[];
+      wrapIsm?: (ism: LayerZeroV2IsmConfig) => IsmConfig;
+    } = {},
   ): WarpRouteDeployConfigMailboxRequired {
     const configs: WarpRouteDeployConfigMailboxRequired = {};
-    for (const [index, chain] of chains.entries()) {
-      const remote = chains[index === 0 ? 1 : 0];
+    for (const [index, chain] of routeChains.entries()) {
+      const remotes = routeChains.filter((remote) => remote !== chain);
       configs[chain] = {
         type: index === 0 ? TokenType.native : TokenType.synthetic,
         owner: ANVIL_DEPLOYER_ADDRESS,
@@ -154,7 +205,7 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
             { type: HookType.LAYER_ZERO_V2 },
           ],
         },
-        interchainSecurityModule: wrapIsm(layerZeroIsm(chain, remote)),
+        interchainSecurityModule: wrapIsm(layerZeroIsm(chain, remotes, urls)),
       };
     }
     return configs;
@@ -170,6 +221,21 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
       `Missing LayerZero ISM on ${chain}`,
     );
     return ism;
+  }
+
+  async function installedLayerZeroRouters(
+    warpCorePath: string,
+    routeChains: string[],
+  ): Promise<Record<string, Address>> {
+    const multiProvider = await getMultiProvider();
+    const routers: Record<string, Address> = {};
+    for (const chain of routeChains) {
+      routers[chain] = await MailboxClient__factory.connect(
+        getDeployedWarpAddress(chain, warpCorePath),
+        multiProvider.getProvider(chain),
+      ).interchainSecurityModule();
+    }
+    return routers;
   }
 
   function orderedDvns(chain: string): Address[] {
@@ -434,11 +500,13 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
     const warpCorePath = getCombinedWarpRoutePath(symbol, chains);
     writeYamlOrJson(
       configPath,
-      configFor(symbol, (ism) => ({
-        type: IsmType.AGGREGATION,
-        threshold: 1,
-        modules: [ism],
-      })),
+      configFor(symbol, {
+        wrapIsm: (ism) => ({
+          type: IsmType.AGGREGATION,
+          threshold: 1,
+          modules: [ism],
+        }),
+      }),
     );
 
     const deploy = await hyperlaneWarpDeploy(configPath, routeId);
@@ -531,5 +599,192 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
 
     const check = await hyperlaneWarpCheck(routeId);
     expect(check.exitCode).to.equal(0);
+  });
+
+  it('redeploys the chain whose immutable endpoint changes through warp apply', async () => {
+    const symbol = 'LZIM';
+    const configPath = `${TEMP_PATH}/layerzero-immutable-warp.yaml`;
+    const routeId = getWarpRouteId(symbol, chains);
+    const warpCorePath = getCombinedWarpRoutePath(symbol, chains);
+    const [changed, kept] = chains;
+    writeYamlOrJson(configPath, configFor(symbol));
+    const deploy = await hyperlaneWarpDeploy(configPath, routeId);
+    expect(deploy.exitCode).to.equal(0);
+    const previous = await installedLayerZeroRouters(warpCorePath, chains);
+
+    const multiProvider = await getMultiProvider();
+    const replacement = await deployLayerZeroMocks(multiProvider, changed);
+    const config = configFor(symbol);
+    const ism = layerZeroIsmOf(config, changed);
+    const pathway = ism.pathways[kept];
+    assert(pathway, `Missing ${changed} -> ${kept} pathway`);
+    ism.endpoint = replacement.endpoint;
+    pathway.sendLibrary = replacement.sendLibrary;
+    pathway.receiveLibrary = replacement.receiveLibrary;
+    writeYamlOrJson(
+      warpCorePath.replace('-config.yaml', '-deploy.yaml'),
+      config,
+    );
+    const apply = await hyperlaneWarpApply(routeId);
+    expect(apply.exitCode).to.equal(0);
+
+    const routers = await installedLayerZeroRouters(warpCorePath, chains);
+    expect(routers[changed]).not.to.equal(previous[changed]);
+    expect(routers[kept]).to.equal(previous[kept]);
+    const client = MailboxClient__factory.connect(
+      getDeployedWarpAddress(changed, warpCorePath),
+      multiProvider.getProvider(changed),
+    );
+    const children = await StaticAggregationHook__factory.connect(
+      await client.hook(),
+      multiProvider.getProvider(changed),
+    ).hooks('0x');
+    expect(children.map((child) => child.toLowerCase())).to.include(
+      routers[changed].toLowerCase(),
+    );
+    const replaced = await new EvmLayerZeroV2HookIsmReader(
+      multiProvider,
+      changed,
+    ).deriveLayerZeroConfig(routers[changed]);
+    expect(replaced.endpoint).to.equal(replacement.endpoint);
+    expect(replaced.remoteRouters[kept].router.toLowerCase()).to.equal(
+      routers[kept].toLowerCase(),
+    );
+    expect(replaced.remoteRouters[kept].sendLibrary).to.equal(
+      replacement.sendLibrary,
+    );
+    const reused = await new EvmLayerZeroV2HookIsmReader(
+      multiProvider,
+      kept,
+    ).deriveLayerZeroConfig(routers[kept]);
+    expect(reused.remoteRouters[changed].router.toLowerCase()).to.equal(
+      routers[changed].toLowerCase(),
+    );
+    expect(reused.remoteRouters[changed].layerZeroDomainId).to.equal(
+      eids[changed],
+    );
+
+    const check = await hyperlaneWarpCheck(routeId);
+    expect(check.exitCode).to.equal(0);
+    const idempotentApply = await hyperlaneWarpApply(routeId);
+    expect(idempotentApply.exitCode).to.equal(0);
+    expect(idempotentApply.stdout).to.include(
+      'Warp config is the same as target. No updates needed.',
+    );
+  });
+
+  it('extends the mesh to a third chain through warp apply', async () => {
+    const symbol = 'LZEX';
+    const configPath = `${TEMP_PATH}/layerzero-extend-warp.yaml`;
+    const routeId = getWarpRouteId(symbol, chains);
+    const warpCorePath = getCombinedWarpRoutePath(symbol, chains);
+    writeYamlOrJson(configPath, configFor(symbol));
+    const deploy = await hyperlaneWarpDeploy(configPath, routeId);
+    expect(deploy.exitCode).to.equal(0);
+    const existing = await installedLayerZeroRouters(warpCorePath, chains);
+
+    writeYamlOrJson(
+      warpCorePath.replace('-config.yaml', '-deploy.yaml'),
+      configFor(symbol, { routeChains: extendedChains }),
+    );
+    const apply = await hyperlaneWarpApply(routeId);
+    expect(apply.exitCode).to.equal(0);
+
+    const routers = await installedLayerZeroRouters(
+      warpCorePath,
+      extendedChains,
+    );
+    for (const chain of chains) {
+      expect(routers[chain]).to.equal(existing[chain]);
+    }
+    const multiProvider = await getMultiProvider();
+    for (const chain of extendedChains) {
+      const derived = await new EvmLayerZeroV2HookIsmReader(
+        multiProvider,
+        chain,
+      ).deriveLayerZeroConfig(routers[chain]);
+      const remotes = extendedChains.filter((remote) => remote !== chain);
+      expect(Object.keys(derived.remoteRouters)).to.have.members(remotes);
+      for (const remote of remotes) {
+        expect(derived.remoteRouters[remote].router.toLowerCase()).to.equal(
+          routers[remote].toLowerCase(),
+        );
+        expect(derived.remoteRouters[remote].layerZeroDomainId).to.equal(
+          eids[remote],
+        );
+      }
+    }
+
+    const check = await hyperlaneWarpCheck(routeId);
+    expect(check.exitCode).to.equal(0);
+  });
+
+  it('delivers a warp transfer over LayerZero through the packet service', async () => {
+    const symbol = 'LZSD';
+    const configPath = `${TEMP_PATH}/layerzero-send-warp.yaml`;
+    const routeId = getWarpRouteId(symbol, chains);
+    const warpCorePath = getCombinedWarpRoutePath(symbol, chains);
+    const [origin, destination] = chains;
+    writeYamlOrJson(
+      configPath,
+      configFor(symbol, {
+        urls: [
+          `http://127.0.0.1:${PACKET_SERVICE_PORT}/layerzero/getLayerZeroPacket`,
+        ],
+      }),
+    );
+    const deploy = await hyperlaneWarpDeploy(configPath, routeId);
+    expect(deploy.exitCode).to.equal(0);
+
+    const service = await startCcipServer({
+      port: PACKET_SERVICE_PORT,
+      modules: ['layerzero'],
+    });
+    try {
+      const multiProvider = await getMultiProvider();
+      const syntheticToken = ERC20__factory.connect(
+        getDeployedWarpAddress(destination, warpCorePath),
+        multiProvider.getProvider(destination),
+      );
+      const balanceBefore = await syntheticToken.balanceOf(
+        ANVIL_DEPLOYER_ADDRESS,
+      );
+
+      const send = await hyperlaneWarpSendRelay({
+        origin,
+        destination,
+        warpRouteId: routeId,
+        relay: false,
+        value: 2,
+        quick: true,
+      });
+      expect(send.exitCode).to.equal(0);
+
+      const mailbox = Mailbox__factory.connect(
+        mailboxes[origin],
+        multiProvider.getProvider(origin),
+      );
+      const dispatched = await mailbox.queryFilter(
+        mailbox.filters.Dispatch(getDeployedWarpAddress(origin, warpCorePath)),
+      );
+      expect(dispatched).to.have.length(1);
+      const relayed = await hyperlaneStatus({
+        origin,
+        dispatchTx: dispatched[0].transactionHash,
+        relay: true,
+        key: ANVIL_KEY,
+      }).nothrow();
+      expect(
+        relayed.exitCode,
+        `self-relay failed:\n${relayed.stdout}\n${relayed.stderr}`,
+      ).to.equal(0);
+
+      const balanceAfter = await syntheticToken.balanceOf(
+        ANVIL_DEPLOYER_ADDRESS,
+      );
+      expect(balanceAfter.sub(balanceBefore).toString()).to.equal('2');
+    } finally {
+      await service.close();
+    }
   });
 });
