@@ -223,7 +223,7 @@ jobs:
       - name: Diagnose native HTTP test312
         if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && (contains(github.event.head_commit.message, '[zig-native-http-diagnostic]') || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]'))) && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]') }}
         continue-on-error: true
-        timeout-minutes: 7
+        timeout-minutes: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && contains(github.event.head_commit.message, '[zig-native-http-full-suite]')) && 23 || 7 }}
         shell: bash
         run: |
           set -euo pipefail

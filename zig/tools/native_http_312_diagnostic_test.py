@@ -208,7 +208,9 @@ class RouteControls(unittest.TestCase):
         self.assertIn("always() && github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite'", diagnostic)
         self.assertIn("contains(github.event.head_commit.message, '[zig-native-http-diagnostic]')", diagnostic)
         self.assertIn('continue-on-error: true', diagnostic)
-        self.assertIn('timeout-minutes: 7', diagnostic)
+        self.assertIn('timeout-minutes: ${{ ', diagnostic)
+        self.assertIn('&& 23 || 7 }}', diagnostic)
+        self.assertIn("contains(github.event.head_commit.message, '[zig-native-http-full-suite]')", diagnostic)
         self.assertIn('python3 -I -B zig/tools/native_http_312_diagnostic_test.py', diagnostic)
         self.assertIn('python3 -I -B zig/tools/native_http_312_diagnostic.py', diagnostic)
         self.assertNotIn('inputs.', diagnostic)
@@ -297,6 +299,92 @@ class DecisiveSourceAndRouteControls(unittest.TestCase):
         self.assertEqual(evaluate({'suite':suite},message=only),set())
         self.assertEqual(evaluate({'suite':suite},message='ordinary'),{'suite'})
         self.assertEqual(evaluate({'suite':suite},message=api.ONLY_MARKER),{'suite'})
+
+
+class FullSuiteModeControls(unittest.TestCase):
+    def event(self,message):return {'head_commit':{'message':message}}
+    def full(self):return api.ONLY_MARKER+' [zig-paired-linux] '+api.FULL_MARKER
+
+    def test_actual_closed_profiles_preserve_filtered_and_use_ordinary_full_bound(self):
+        self.assertEqual(api.selected_profile('push',api.REF,self.event(api.MARKER)),'filtered')
+        self.assertEqual(api.selected_profile('push',api.REF,self.event(api.ONLY_MARKER+' [zig-paired-linux]')),'filtered')
+        self.assertEqual(api.selected_profile('push',api.REF,self.event(self.full())),'ordered-full-suite')
+        self.assertEqual(api.selected_profile('push',api.REF,self.event(self.full()+' '+api.MARKER)),'ordered-full-suite')
+        self.assertEqual(api.profile_limits('filtered'),{'inner':300,'outer':340})
+        self.assertEqual(api.profile_limits('ordered-full-suite'),{'inner':1200,'outer':1240})
+        changed=api.profile_limits('filtered');changed['inner']=1
+        self.assertEqual(api.profile_limits('filtered')['inner'],300)
+        for value in ['arbitrary',None,True,{},[]]:
+            with self.subTest(value=value),self.assertRaises(ValueError):api.profile_limits(value)
+
+    def test_malformed_full_including_old_marker_never_falls_back_or_enters_effects(self):
+        messages=[api.FULL_MARKER,api.MARKER+' '+api.FULL_MARKER,api.FULL_MARKER+' [zig-paired-linux]',api.ONLY_MARKER+' '+api.FULL_MARKER,self.full()+' [zig-native-case]',self.full()+' [zig-svm-prerequisites-only]']
+        contexts=[('push',api.REF,message)for message in messages]+[('workflow_dispatch',api.REF,self.full()),('pull_request',api.REF,self.full()),('push','refs/heads/main',self.full())]
+        with mock.patch.object(api,'payload',side_effect=AssertionError('payload entered'))as payload,mock.patch.object(api,'public_context',side_effect=AssertionError('native entered'))as native,mock.patch.object(api.Path,'mkdir',side_effect=AssertionError('output entered'))as mkdir:
+            for name,ref,message in contexts:
+                with self.subTest(name=name,ref=ref,message=message):
+                    self.assertFalse(api.authorized(name,ref,self.event(message)))
+                    with self.assertRaisesRegex(ValueError,'Explicit feature push'):api.selected_profile(name,ref,self.event(message))
+            payload.assert_not_called();native.assert_not_called();mkdir.assert_not_called()
+
+    def test_actual_command_changes_only_fixed_inner_bound_and_filter_tokens(self):
+        repo=Path('/actual/source');output=Path('/actual/output')
+        filtered=api.profile_command(repo,output,'filtered');full=api.profile_command(repo,output,'ordered-full-suite')
+        expected=[api.sys.executable,str(repo/'zig/tools/native_http_tests.py'),'--timeout-seconds','300','--diagnostic-dir',str(output/'inner-owner'),'--',api.sys.executable,str(repo/'zig/tools/zig.py'),'test','src/root.zig','--test-filter',api.FILTER,'-j2','-OReleaseSafe','-lc']
+        self.assertEqual(filtered,expected);expected[3]='1200';del expected[11:13]
+        self.assertEqual(full,expected);self.assertNotIn('--test-filter',full);self.assertEqual(full[-3:],['-j2','-OReleaseSafe','-lc'])
+        with self.assertRaises(ValueError):api.profile_command(repo,output,'custom')
+
+    def test_actual_context_reports_profile_and_clean_environment_nonequivalence(self):
+        from types import SimpleNamespace as N
+        expected=['PATH','HOME','RUNNER_TEMP','ZIG','LC_ALL','HYPERLANE_ZIG_SDKROOT'];self.assertEqual(list(api.CHILD_ENV_KEYS),expected)
+        with tempfile.TemporaryDirectory()as directory:
+            root=Path(directory).resolve();compiler=root/'zig';compiler.write_bytes(b'public fake compiler bytes')
+            library=N(curl_version=mock.Mock(return_value=b'public curl component fixture'))
+            with mock.patch.dict(api.os.environ,ZIG=str(compiler)),mock.patch.object(api.subprocess,'run',return_value=N(stdout=b'0.15.2\n',stderr=b''))as version,mock.patch.object(api.ctypes,'CDLL',return_value=library)as load,mock.patch.object(api.os,'sched_getaffinity',return_value={1,2},create=True):
+                for profile in ['filtered','ordered-full-suite']:
+                    value=api.public_context(root,profile)
+                    self.assertEqual(value['execution_profile'],profile);self.assertEqual(value['command_timeouts_seconds'],api.profile_limits(profile))
+                    self.assertEqual(value['child_environment_policy'],{'kind':'explicit-allowlist','allowed_keys':expected,'ambient_equivalence_to_ordinary_suite':False})
+                self.assertEqual(version.call_count,2);self.assertEqual(load.call_count,2)
+                for call in version.call_args_list:self.assertEqual(call.args[0],[str(compiler),'version']);self.assertEqual(call.kwargs['timeout'],5);self.assertEqual(call.kwargs['env'],{'PATH':'/usr/bin:/bin'})
+        tree=ast.parse(Path(api.__file__).read_bytes());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+        env=next(n.value for n in ast.walk(main)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='env'for t in n.targets))
+        values={name:'public-'+name for name in expected};values.update(GH_TOKEN='PRIVATE_TOKEN',AWS_SECRET_ACCESS_KEY='PRIVATE_AWS')
+        scope={'os':N(environ=values),'CHILD_ENV_KEYS':api.CHILD_ENV_KEYS}
+        captured=eval(compile(ast.Expression(env),'actual-clean-child-env','eval'),scope)
+        self.assertEqual(set(captured),set(expected));self.assertNotIn('PRIVATE',json.dumps(captured))
+
+    def test_main_admits_profile_before_overlay_and_uses_same_fixed_owner_clock(self):
+        tree=ast.parse(Path(api.__file__).read_bytes());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+        calls=[n for n in ast.walk(main)if isinstance(n,ast.Call)]
+        selected=next(n for n in calls if isinstance(n.func,ast.Name)and n.func.id=='selected_profile')
+        later=[n for n in calls if (isinstance(n.func,ast.Name)and n.func.id in {'payload','public_context','diagnostic'})or(isinstance(n.func,ast.Attribute)and n.func.attr=='mkdir')]
+        self.assertTrue(later);self.assertTrue(all(selected.lineno<n.lineno for n in later))
+        owner=next(n for n in calls if isinstance(n.func,ast.Attribute)and n.func.attr=='run_command')
+        self.assertEqual(ast.unparse(owner.args[3]),"limits['outer']")
+        self.assertIn("restoration and ownership require their separate qualified fields",Path(api.__file__).read_text())
+        self.assertIn("'full_suite_or_fix_acceptance': False",Path(api.__file__).read_text())
+        parser=next(n for n in ast.walk(main)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and n.func.attr=='add_argument')
+        self.assertEqual(ast.literal_eval(parser.args[0]),'--output')
+        self.assertEqual(sum(isinstance(n.func,ast.Attribute)and n.func.attr=='add_argument'for n in calls),1)
+
+    def test_actual_fourth_timeout_hunk_and_ordinary_routes_have_exact_modes(self):
+        import re
+        from types import SimpleNamespace as N
+        text,conditions,evaluate,inverse=DecisiveSourceAndRouteControls.workflow_api(self)
+        body=text.split('      - name: Diagnose native HTTP test312\n',1)[1].split('      - uses:',1)[0]
+        value=next(line.strip().split(': ',1)[1]for line in body.splitlines()if line.strip().startswith('timeout-minutes:'))
+        code=value.removeprefix('${{ ').removesuffix(' }}');code=re.sub(r'!(?!=)',' not ',code).replace('&&',' and ').replace('||',' or ').strip()
+        def actual(name,ref,message):
+            scope={'github':N(event_name=name,ref=ref,event=N(head_commit=N(message=message))),'contains':lambda text,needle:needle in text}
+            return eval(compile(code,'actual-nativeHTTP-step-timeout','eval'),{'__builtins__':{}},scope)
+        self.assertEqual(actual('push',api.REF,self.full()),23)
+        for name,ref,message in [('push',api.REF,api.MARKER),('push',api.REF,api.ONLY_MARKER+' [zig-paired-linux]'),('push',api.REF,api.MARKER+' '+api.FULL_MARKER),('push',api.REF,api.ONLY_MARKER+' '+api.FULL_MARKER),('push','refs/heads/main',self.full()),('workflow_dispatch',api.REF,self.full()),('push',api.REF,self.full()+' [zig-native-case]')]:
+            with self.subTest(name=name,ref=ref,message=message):self.assertEqual(actual(name,ref,message),7)
+        self.assertEqual(evaluate(conditions(text),message=self.full()),{'native-http','paired-linux-inputs'})
+        self.assertNotIn('[zig-native-http-full-suite]',inverse(text))
+        self.assertIn('timeout-minutes: 40',text.split('\n  native-http:',1)[1].split('\n  native-linux:',1)[0])
 
 
 if __name__ == '__main__':

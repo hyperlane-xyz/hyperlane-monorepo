@@ -28,7 +28,10 @@ def ordinary_native_http_workflow(text):
  before = "contains(github.event.head_commit.message, '[zig-native-http-diagnostic]')"
  after = "(contains(github.event.head_commit.message, '[zig-native-http-diagnostic]') || (github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')))"
  if text.count(after) != 1: raise AssertionError('Exact diagnostic marker extension required')
- return text.replace(after, before, 1)
+ text = text.replace(after, before, 1)
+ full_timeout = "        timeout-minutes: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && contains(github.event.head_commit.message, '[zig-native-http-full-suite]')) && 23 || 7 }}\n"
+ if text.count(full_timeout) != 1: raise AssertionError('Exact full-suite timeout branch required')
+ return text.replace(full_timeout, '        timeout-minutes: 7\n', 1)
 
 class Controls(unittest.TestCase):
  def test_worker_environment_uses_actual_native_consumer_key(self):

@@ -29,6 +29,8 @@ PAYLOAD_SHA = ('e09fdca6b6a999fc893042cea32afb52'
 FILTER = 'native Pool yields eight stalled peers and verifies healthy EVM children three times'
 MARKER = '[zig-native-http-diagnostic]'
 ONLY_MARKER = '[zig-native-http-diagnostic-only]'
+FULL_MARKER = '[zig-native-http-full-suite]'
+CHILD_ENV_KEYS = ('PATH', 'HOME', 'RUNNER_TEMP', 'ZIG', 'LC_ALL', 'HYPERLANE_ZIG_SDKROOT')
 REF = 'refs/heads/feat/zig-agent-rewrite'
 LOG_LIMIT = 8 * 1024 * 1024
 
@@ -49,8 +51,35 @@ def regular(path):
 
 def authorized(name, ref, event):
     message = event.get('head_commit', {}).get('message', '')
-    return (name == 'push' and ref == REF and isinstance(message, str) and (MARKER in message or (ONLY_MARKER in message and '[zig-paired-linux]' in message))
-            and '[zig-native-case]' not in message and '[zig-svm-prerequisites-only]' not in message)
+    if not (name == 'push' and ref == REF and isinstance(message, str)
+            and '[zig-native-case]' not in message and '[zig-svm-prerequisites-only]' not in message):
+        return False
+    dual = ONLY_MARKER in message and '[zig-paired-linux]' in message
+    # A malformed full-suite request cannot fall back to the old filtered route.
+    if FULL_MARKER in message:
+        return dual
+    return MARKER in message or dual
+
+
+def selected_profile(name, ref, event):
+    require(authorized(name, ref, event), 'Explicit feature push diagnostic marker required')
+    return 'ordered-full-suite' if FULL_MARKER in event['head_commit']['message'] else 'filtered'
+
+
+def profile_limits(profile):
+    if profile == 'filtered':
+        return {'inner': 300, 'outer': 340}
+    require(profile == 'ordered-full-suite', 'One fixed diagnostic profile required')
+    return {'inner': 1200, 'outer': 1240}
+
+
+def profile_command(repo, output, profile):
+    limits = profile_limits(profile)
+    command = [sys.executable, str(repo / 'zig/tools/native_http_tests.py'), '--timeout-seconds', str(limits['inner']), '--diagnostic-dir', str(output / 'inner-owner'), '--', sys.executable, str(repo / 'zig/tools/zig.py'), 'test', 'src/root.zig']
+    if profile == 'filtered':
+        command += ['--test-filter', FILTER]
+    command += ['-j2', '-OReleaseSafe', '-lc']
+    return command
 
 
 def payload(repo):
@@ -245,7 +274,7 @@ def diagnostic(repo, output, replacement, execute, inventory=None):
     return result
 
 
-def public_context(repo):
+def public_context(repo, profile):
     executable = Path(os.environ['ZIG'])
     require(executable.is_absolute() and executable.is_file() and not executable.is_symlink(), 'Existing pinned Zig executable required')
     version = subprocess.run([str(executable), 'version'], cwd=repo, env={'PATH': '/usr/bin:/bin'}, capture_output=True, timeout=5, check=True)
@@ -259,7 +288,10 @@ def public_context(repo):
     return {'system': platform.system(), 'machine': platform.machine(), 'allowed_cpu_count': len(os.sched_getaffinity(0)),
             'RLIMIT_NOFILE': list(resource.getrlimit(resource.RLIMIT_NOFILE)),
             'compiler_sha256': compiler_sha, 'compiler_version': '0.15.2', 'curl_version': curl_version.decode('ascii'),
-            'command_timeouts_seconds': {'inner': 300, 'outer': 340}, 'original_suite_unchanged': True}
+            'command_timeouts_seconds': profile_limits(profile), 'original_suite_unchanged': True,
+            'execution_profile': profile,
+            'child_environment_policy': {'kind': 'explicit-allowlist', 'allowed_keys': list(CHILD_ENV_KEYS),
+                                         'ambient_equivalence_to_ordinary_suite': False}}
 
 
 def main():
@@ -271,7 +303,7 @@ def main():
     event_path = Path(os.environ['GITHUB_EVENT_PATH'])
     require(event_path.stat().st_size <= 1024 * 1024, 'Bounded CI event required')
     event = json.loads(regular(event_path))
-    require(authorized(os.environ.get('GITHUB_EVENT_NAME'), os.environ.get('GITHUB_REF'), event), 'Explicit feature push diagnostic marker required')
+    profile = selected_profile(os.environ.get('GITHUB_EVENT_NAME'), os.environ.get('GITHUB_REF'), event)
     sha = os.environ.get('GITHUB_SHA', '')
     require(len(sha) == 40 and all(c in '0123456789abcdef' for c in sha) and event.get('after') == sha and event.get('head_commit', {}).get('id') == sha, 'Exact push Source commit required')
     head = subprocess.run(['/usr/bin/git', 'rev-parse', 'HEAD'], cwd=repo, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}, capture_output=True, timeout=3, check=True)
@@ -284,14 +316,15 @@ def main():
     specification = importlib.util.spec_from_file_location('native312_owned', repo / 'zig/tools/native_http_tests.py')
     owner = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(owner)
-    command = [sys.executable, str(repo / 'zig/tools/native_http_tests.py'), '--timeout-seconds', '300', '--diagnostic-dir', str(output / 'inner-owner'), '--', sys.executable, str(repo / 'zig/tools/zig.py'), 'test', 'src/root.zig', '--test-filter', FILTER, '-j2', '-OReleaseSafe', '-lc']
-    env = {key: os.environ[key] for key in ['PATH', 'HOME', 'RUNNER_TEMP', 'ZIG', 'LC_ALL', 'HYPERLANE_ZIG_SDKROOT'] if key in os.environ}
-    context = public_context(repo)
+    limits = profile_limits(profile)
+    command = profile_command(repo, output, profile)
+    env = {key: os.environ[key] for key in CHILD_ENV_KEYS if key in os.environ}
+    context = public_context(repo, profile)
     (output / 'context.json').write_text(json.dumps(context, indent=2) + '\n')
     log = BoundedLog(output / 'diagnostic.log')
     def execute():
         with log:
-            return owner.run_command(command, repo, env, 340, output / 'outer-owner')
+            return owner.run_command(command, repo, env, limits['outer'], output / 'outer-owner')
     def interrupted(signum, frame):
         raise RuntimeError('Diagnostic runner interrupted ' + str(signum))
     handlers = {sig: signal.signal(sig, interrupted) for sig in [signal.SIGTERM, signal.SIGINT, signal.SIGHUP]}
@@ -300,7 +333,12 @@ def main():
     finally:
         for sig, handler in handlers.items():
             signal.signal(sig, handler)
-    result.update({'git_commit': sha, 'compiled_inputs_scope': 'Recorded zig/src, vectors and named compiler/owner inputs with only pinned test312 overlay; no SDK/native input claim.', 'target_filter': FILTER, 'log_bytes': log.retained, 'log_overflow': log.overflow, 'log_error': log.failure, 'runtime_acceptance': False})
+    result.update({'git_commit': sha, 'compiled_inputs_scope': 'Recorded zig/src, vectors and named compiler/owner inputs with only pinned test312 overlay; no SDK/native input claim.', 'target_filter': FILTER if profile == 'filtered' else None, 'execution_profile': profile,
+                   'command_timeouts_seconds': limits, 'full_suite_or_fix_acceptance': False,
+                   'child_environment_policy': context['child_environment_policy'], 'log_bytes': log.retained, 'log_overflow': log.overflow, 'log_error': log.failure, 'runtime_acceptance': False})
+    if profile == 'ordered-full-suite':
+        result['interpretation'] = ('Ordered full-suite command exited zero under the Source overlay; cause remains unknown; restoration and ownership require their separate qualified fields.'
+                                    if result['command_exit_code'] == 0 else 'Ordered full-suite diagnostic failed; classify retained bounded observations before proposing a fix.')
     (output / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({key: result[key] for key in ['diagnostic_only', 'git_commit', 'command_exit_code', 'source_restored', 'owned_consumers_absent', 'runtime_acceptance']}))
     return 0 if result['source_restored'] and result['owned_consumers_absent'] and result['command_exit_code'] == 0 and 'diagnostic_error' not in result else 1
