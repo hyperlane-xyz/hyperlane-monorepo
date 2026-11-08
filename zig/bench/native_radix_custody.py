@@ -311,10 +311,12 @@ class Custody:
         self.service_states = {}
         self.last_inspected_service = None
         self.service_observation_unavailable = False
+        self.missing_inspection_observation = None
 
     def public_observation(self):
         return {'schema': 1, 'collection_status': 'unavailable' if self.service_observation_unavailable else 'available', 'scope': 'Owned service State before readiness checks; no log bodies or native acceptance credit.',
                 'last_inspected_service': self.last_inspected_service,
+                'missing_inspection': json.loads(json.dumps(self.missing_inspection_observation)),
                 'readiness_passed_services': sorted(self.ready),
                 'services': [json.loads(json.dumps(self.service_states[name])) for name in SERVICES if name in self.service_states]}
 
@@ -372,6 +374,22 @@ class Custody:
         require(value == {'project': self.project, 'parent_pid': self.pid, 'containers': self.seen}, 'Unbound Radix Source stop intent')
         return True
 
+    def missing_inspection(self, cid):
+        # The list target is an observation, never new cleanup authority. Only
+        # previously authenticated fixed service CIDs are named as captured.
+        report={'stage':'listed_CID_missing_on_inspect','observed_monotonic_ns':time.monotonic_ns(),'listed_container_id':cid,
+                'previously_captured_services':[name for name in SERVICES if self.seen.get(name)==cid],
+                'captured_CIDs':{name:self.seen[name] for name in SERVICES if name in self.seen},
+                'readiness_passed_services':[name for name in SERVICES if name in self.ready],
+                'Source_stop_intent':{'status':'unavailable','binding_matches':False},'native_or_cleanup_authority':False}
+        try:
+            matched=self.stopping()
+            report['Source_stop_intent']={'status':'present_and_exactly_bound' if matched else 'absent','binding_matches':matched}
+        except Exception as error:
+            report['Source_stop_intent']={'status':'invalid_or_unavailable','binding_matches':False,'error_class':type(error).__name__ if type(error).__name__ in {'ValueError','OSError','JSONDecodeError','FileNotFoundError','PermissionError'} else 'OtherError'}
+        report['completed_monotonic_ns']=time.monotonic_ns()
+        return report
+
     def inspect_container(self, cid, cleaning=False):
         require(re.fullmatch('[0-9a-f]{64}', cid), 'Complete Radix CID required')
         wire = self.call(['container', 'inspect', '--size', cid], missing=True, cleaning=cleaning)
@@ -417,6 +435,9 @@ class Custody:
         found, total = {}, 0
         for cid in self.ids('container'):
             row = self.inspect_container(cid)
+            if row is None:
+                try:self.missing_inspection_observation=self.missing_inspection(cid)
+                except Exception:self.missing_inspection_observation={'stage':'listed_CID_missing_on_inspect','collection_status':'unavailable','native_or_cleanup_authority':False}
             require(row is not None, 'Radix object vanished during inspection')
             service = row['Config']['Labels'][SERVICE_LABEL]
             require(service not in found, 'Duplicate Radix Compose service')

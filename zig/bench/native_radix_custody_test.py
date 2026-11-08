@@ -450,6 +450,52 @@ class Controls(unittest.TestCase):
 
 
 
+    def vanish_on_inspect(self, service='data_aggregator_image'):
+        self.launch();self.custody.observe();target=self.custody.seen[service];original=self.custody.call
+        def call(arguments,*args,**kwargs):
+            if arguments[:3]==['container','inspect','--size'] and arguments[-1]==target:
+                self.docker.containers.pop(target,None);return None
+            return original(arguments,*args,**kwargs)
+        self.custody.call=call
+        return target
+
+    def test_list_inspect_race_retains_exact_target_all_seen_ready_and_absent_intent(self):
+        target=self.vanish_on_inspect()
+        with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+        report=self.custody.public_observation()['missing_inspection']
+        self.assertEqual(report['listed_container_id'],target);self.assertEqual(report['previously_captured_services'],['data_aggregator_image'])
+        self.assertEqual(report['captured_CIDs'],self.custody.seen);self.assertEqual(set(report['readiness_passed_services']),set(m.SERVICES))
+        self.assertEqual(report['Source_stop_intent'],{'status':'absent','binding_matches':False});self.assertFalse(report['native_or_cleanup_authority'])
+        self.assertGreaterEqual(report['completed_monotonic_ns'],report['observed_monotonic_ns'])
+        report['captured_CIDs'].clear();self.assertEqual(len(self.custody.public_observation()['missing_inspection']['captured_CIDs']),5)
+
+    def test_exact_stop_intent_is_observed_but_never_waives_missing_inspect_guard(self):
+        self.vanish_on_inspect();self.stop_marker()
+        with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+        self.assertEqual(self.custody.public_observation()['missing_inspection']['Source_stop_intent'],{'status':'present_and_exactly_bound','binding_matches':True})
+        self.assertFalse(self.docker.mutations())
+
+    def test_unbound_or_private_stop_record_never_exports_body_or_masks_missing_guard(self):
+        self.vanish_on_inspect('fullnode');self.stop_marker();path=self.case/'radix-localnet/stopping.json';value=json.loads(path.read_bytes());value['PRIVATE_SENTINEL']='authorization secret';path.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+        report=self.custody.public_observation()['missing_inspection'];self.assertEqual(report['Source_stop_intent'],{'status':'invalid_or_unavailable','binding_matches':False,'error_class':'ValueError'})
+        self.assertNotIn('PRIVATE_SENTINEL',json.dumps(report));self.assertNotIn('authorization',json.dumps(report))
+
+    def test_diagnostic_exception_preserves_original_missing_inspection_failure(self):
+        self.vanish_on_inspect()
+        from unittest import mock
+        with mock.patch.object(self.custody,'missing_inspection',side_effect=RuntimeError('PRIVATE_SENTINEL')):
+            with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+        report=self.custody.public_observation()['missing_inspection'];self.assertEqual(report['collection_status'],'unavailable');self.assertNotIn('PRIVATE_SENTINEL',json.dumps(report))
+
+    def test_unseen_list_target_is_not_misattributed_to_last_successful_service(self):
+        self.launch(['fullnode']);self.custody.observe();unknown='f'*64;old_ids=self.custody.ids;old_inspect=self.custody.inspect_container
+        self.custody.ids=lambda kind,*a,**k:[unknown] if kind=='container' else old_ids(kind,*a,**k)
+        self.custody.inspect_container=lambda cid,*a,**k:None if cid==unknown else old_inspect(cid,*a,**k)
+        with self.assertRaisesRegex(ValueError,'Radix object vanished during inspection'):self.custody.observe()
+        report=self.custody.public_observation()['missing_inspection'];self.assertEqual(report['listed_container_id'],unknown);self.assertEqual(report['previously_captured_services'],[]);self.assertEqual(self.custody.public_observation()['last_inspected_service'],'fullnode')
+
+
 class ResourceFailureDiagnostics(unittest.TestCase):
     def failure(self, **changed):
         values={'host_ram':123,'case_bytes':5*m.GIB,'initial_free':100*m.GIB,'current_free':99*m.GIB,'writable_bytes':600000000,'volume_bytes':1100000000,'observed_ns':100,'deadline_ns':200}
