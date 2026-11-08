@@ -77,6 +77,124 @@ class Controls(unittest.TestCase):
                         c.run_role('image', 'validator', Path('/config'), Path('/data'), Path('/logs'), [], 0, SHA)
                     self.assertLessEqual(clock.now, 10.1)
 
+    def test_late_positive_metadata_or_inspect_cannot_borrow_startup_time(self):
+        for role in ['validator', 'relayer']:
+            clock = SimpleNamespace(now=0.0)
+            calls = []
+            def docker(args, **kwargs):
+                calls.append(args)
+                if args[1] == 'inspect':
+                    if role == 'relayer': clock.now = 11.0
+                    return SimpleNamespace(stdout=json.dumps([{'State': {'Running': True, 'ExitCode': 0}}]), stderr='', returncode=0)
+                return SimpleNamespace(stdout='', stderr='', returncode=0)
+            def metadata(*args):
+                clock.now = 11.0
+                return {'sha256': '1' * 64, 'metadata': publication()}
+            with self.subTest(role=role), mock.patch.object(c.time, 'monotonic', side_effect=lambda: clock.now), mock.patch.object(c, 'checked', side_effect=docker), mock.patch.object(c, 'command', side_effect=docker), mock.patch.object(c, 'metadata_snapshot', side_effect=metadata), mock.patch.object(c, 'safe_logs'):
+                with self.assertRaisesRegex(AssertionError, 'beyond original deadline'):
+                    c.run_role('image', role, Path('/config'), Path('/data'), Path('/logs'), [], 0, SHA)
+            self.assertFalse(any(args[1] == 'stop' for args in calls))
+
+    def test_private_metadata_is_copied_without_changing_source_mode(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'metadata.json'
+            raw = json.dumps(publication()).encode()
+            source.write_bytes(raw); source.chmod(0o600)
+            def copied(args, **kwargs):
+                self.assertEqual(args[:3], ['docker', 'cp', 'owned:/data/checkpoints/metadata_latest.json'])
+                self.assertEqual(kwargs['timeout'], 3)
+                Path(args[3]).write_bytes(raw)
+                return SimpleNamespace(stdout='', stderr='', returncode=0)
+            with mock.patch.object(c, 'checked', side_effect=copied) as call:
+                value = c.metadata_snapshot(source, SHA, lambda: c.copied_metadata_bytes('owned'))
+            self.assertEqual(value['metadata'], publication())
+            self.assertEqual(source.stat().st_mode & 0o777, 0o600)
+            call.assert_called_once()
+            for read in [lambda: b'x' * 65537, lambda: 'not bytes']:
+                with self.assertRaises(AssertionError): c.metadata_snapshot(source, SHA, read)
+            def changed():
+                source.write_bytes(raw + b' ')
+                return raw
+            with self.assertRaises(AssertionError): c.metadata_snapshot(source, SHA, changed)
+
+    def test_metadata_copy_rejects_links_and_oversize(self):
+        for kind in ['link', 'oversize']:
+            def copied(args, **kwargs):
+                target = Path(args[3])
+                if kind == 'link': target.symlink_to('/unused')
+                else: target.write_bytes(b'x' * 65537)
+                return SimpleNamespace(stdout='', stderr='', returncode=0)
+            with self.subTest(kind=kind), mock.patch.object(c, 'checked', side_effect=copied):
+                with self.assertRaises(AssertionError): c.copied_metadata_bytes('owned')
+
+    def test_fixture_cleanup_keeps_runtime_uid_and_fixed_owned_paths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data = Path(folder) / 'data'; data.mkdir()
+            with mock.patch.object(c, 'checked') as call:
+                c.remove_fixture_data('image', data)
+                args = call.call_args_list[0].args[0]
+                self.assertEqual(args[args.index('--user') + 1], '10001:10001')
+                self.assertEqual(args[-5:], ['-rf', '--', '/fixture/relayer', '/fixture/validator', '/fixture/checkpoints'])
+                self.assertIn('type=bind,src=' + str(data) + ',dst=/fixture', args)
+                self.assertIn('none', args); self.assertIn('--read-only', args)
+                self.assertIn('ALL', args); self.assertEqual(call.call_args_list[0].kwargs['timeout'], 15)
+                name = args[args.index('--name') + 1]
+                self.assertEqual(call.call_args_list[1].args[0], ['docker', 'rm', '--force', '--volumes', name])
+                self.assertEqual(call.call_args_list[1].kwargs['timeout'], 10)
+                link = Path(folder) / 'link'; link.symlink_to(data, target_is_directory=True)
+                with self.assertRaises(AssertionError): c.remove_fixture_data('image', link)
+                self.assertEqual(call.call_count, 2)
+
+    def test_cleanup_helper_timeout_or_failure_still_removes_exact_name(self):
+        for kind in ['timeout', 'failed-client', 'cancel']:
+            with tempfile.TemporaryDirectory() as folder:
+                data = Path(folder)
+                failure = c.subprocess.TimeoutExpired('docker', 15) if kind == 'timeout' else RuntimeError('failed client') if kind == 'failed-client' else KeyboardInterrupt()
+                with self.subTest(kind=kind), mock.patch.object(c, 'checked', side_effect=[failure, SimpleNamespace(returncode=0)]) as call:
+                    with self.assertRaises(type(failure)) as caught: c.remove_fixture_data('image', data)
+                self.assertIs(caught.exception, failure)
+                first = call.call_args_list[0].args[0]
+                name = first[first.index('--name') + 1]
+                self.assertTrue(name.startswith('ziggy-image-cleanup-'))
+                self.assertEqual(call.call_args_list[1].args[0], ['docker', 'rm', '--force', '--volumes', name])
+                self.assertEqual(call.call_count, 2)
+
+    def test_cleanup_helper_removal_failure_refuses_success_preserves_primary(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data = Path(folder)
+            cleanup = RuntimeError('daemon removal failed')
+            with mock.patch.object(c, 'checked', side_effect=[SimpleNamespace(returncode=0), cleanup]):
+                with self.assertRaisesRegex(RuntimeError, 'daemon removal failed'): c.remove_fixture_data('image', data)
+            primary = c.subprocess.TimeoutExpired('docker', 15)
+            with mock.patch.object(c, 'checked', side_effect=[primary, cleanup]):
+                with self.assertRaises(c.subprocess.TimeoutExpired) as caught: c.remove_fixture_data('image', data)
+            self.assertIs(caught.exception, primary)
+            self.assertIn('fixture helper removal failed', primary.__notes__[0])
+
+    def test_same_db_attempts_precede_cleanup_and_failures_still_cleanup(self):
+        for failure_attempt in [None, 0, 1]:
+            events = []
+            def docker(args, **kwargs):
+                text = '127.0.0.1:12345' if args[1] == 'port' else '21' if args[-1] == 'SELECT count(*) FROM seaql_migrations' else 'postgres (PostgreSQL) 16.15'
+                return SimpleNamespace(stdout=text, stderr='', returncode=0)
+            def role(image, name, config, data, logs, forbidden, attempt, sha):
+                events.append(('role', name, attempt, data))
+                if attempt == failure_attempt: raise RuntimeError('actual role failure')
+                return {'validator_metadata': {'sha256': '1' * 64}}
+            def cleanup(image, data): events.append(('cleanup', data))
+            with self.subTest(failure_attempt=failure_attempt), mock.patch.object(c, 'RpcFixture', return_value=SimpleNamespace(url='http://127.0.0.1:1234', close=lambda: None)), mock.patch.object(c, 'checked', side_effect=docker), mock.patch.object(c, 'command', side_effect=docker), mock.patch.object(c, 'run_role', side_effect=role), mock.patch.object(c, 'remove_fixture_data', side_effect=cleanup):
+                if failure_attempt is None:
+                    c.smoke_test('image', 'migration', 'postgres', Path('/unused'), expected_git_sha=SHA)
+                    self.assertEqual([event[0] for event in events], ['role', 'role', 'cleanup'] * 3)
+                    for i in range(0, len(events), 3):
+                        self.assertEqual(events[i][3], events[i + 1][3])
+                        self.assertEqual(events[i][3], events[i + 2][1])
+                else:
+                    with self.assertRaisesRegex(RuntimeError, 'actual role failure'):
+                        c.smoke_test('image', 'migration', 'postgres', Path('/unused'), expected_git_sha=SHA)
+                    self.assertEqual(events[-1][0], 'cleanup')
+                    self.assertEqual(sum(event[0] == 'role' for event in events), failure_attempt + 1)
+
     def test_native_catalog_is_dynamic_and_rejects_sdk_skip_or_incomplete_output(self):
         names = ['fixture.test.' + name for name in c.NATIVE_REQUIRED]
         def log(names, status=None):

@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "root_approved": true,
+  "purpose": "aleo-linux-native-docker-probe-v1",
+  "caps": {
+    "whole_seconds": 300,
+    "cleanup_seconds": 90,
+    "child_memory_bytes": 536870912,
+    "owner_memory_bytes": 268435456,
+    "pids": 64,
+    "maximum_container_memory_bytes": 3221225472,
+    "new_disk_bytes": 4294967296,
+    "free_floor_bytes": 6442450944
+  },
+  "provision_caps": {
+    "whole_seconds": 1200,
+    "maximum_process_memory_bytes": 268435456,
+    "new_disk_bytes": 8589934592,
+    "free_floor_bytes": 6442450944
+  },
+  "delegation_caps": {
+    "service_memory_bytes": 805306368,
+    "service_tasks": 96,
+    "service_runtime_seconds": 390,
+    "service_stop_seconds": 90,
+    "client_running_deadline_seconds": 395,
+    "actual_client_stop_wait_seconds": 94
+  },
+  "fresh_kernel_prerequisite": true
+}

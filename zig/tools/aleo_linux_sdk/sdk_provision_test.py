@@ -336,12 +336,16 @@ class Tests(unittest.TestCase):
         text=(HERE.parents[2]/'.github/workflows/zig-agents.yml').read_text()
         return text,ns['conditions'](text),ns['selected'],ns['conditions']
     def test_actual_sdk_route_isolated_and_both_kernel_requests_fail_closed(self):
-        text,rows,selected,_=self.routes();self.assertEqual(len(rows),13)
+        text,rows,selected,_=self.routes();self.assertEqual(len(rows),14)
         for suffix in ['', ' [zig-native-case]', ' [zig-svm-prerequisites-only]', ' [zig-native-http-diagnostic]']:
             self.assertEqual(selected(rows,message='[zig-aleo-sdk-only]'+suffix),{'aleo-linux-sdk-prerequisite'})
         for suffix in ['', ' [zig-native-case] [zig-svm-prerequisites-only]']:
             self.assertEqual(selected(rows,message='[zig-aleo-sdk-only] [zig-aleo-kernel-only]'+suffix),set())
         self.assertIn('default: false',text.split('aleo_linux_sdk_prerequisite:',1)[1].split('aleo_linux_prerequisite:',1)[0])
+    def test_actual_Docker_request_conflicts_fail_closed_with_SDK(self):
+        _,rows,selected,_=self.routes()
+        self.assertEqual(selected(rows,message='[zig-aleo-sdk-only] [zig-aleo-docker-only]'),set())
+        self.assertEqual(selected(rows,event='workflow_dispatch',sdk=True,docker=True),set())
     def test_actual_sdk_dispatch_beats_old_inputs_but_not_kernel_conflict(self):
         _,rows,selected,_=self.routes()
         for svm in (False,True):

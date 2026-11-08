@@ -14,6 +14,18 @@ HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
 KERNEL=HERE.parent/'aleo_linux'
 sys.path.insert(0,str(KERNEL))
+# Execute the exact reviewed bytes, never timestamp-selected cached bytecode.
+import types
+def _reviewed_module(name,path,digest):
+    raw=path.read_bytes()
+    if path.resolve(strict=True)!=path or any(p.is_symlink()for p in [path,*path.parents])or hashlib.sha256(raw).hexdigest()!=digest:raise ValueError('reviewed CLI dependency changed')
+    if name in sys.modules:raise ValueError('foreign preloaded CLI dependency')
+    module=types.ModuleType(name);module.__file__=str(path);module.__package__='';sys.modules[name]=module
+    try:exec(compile(raw,str(path),'exec'),module.__dict__)
+    except BaseException:sys.modules.pop(name,None);raise
+    return module
+_reviewed_module('receipts',KERNEL/'receipts.py',('a0dbe1ce96080a0f614605673994727a' '85fa946b49632f27e70223a0afe917a6'))
+_reviewed_module('docker_gate',HERE/'docker_gate.py',('3542e89975f7a7022e5027b8ae9233d7' 'c08552fecfa5b35712b77af921f1d924'))
 from receipts import decode, need
 from docker_gate import container_templates, WholeSocket, operation_deadline
 

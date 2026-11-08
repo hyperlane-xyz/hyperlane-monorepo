@@ -272,12 +272,14 @@ def validate_git_sha(value: str | None) -> str:
     return value
 
 
-def metadata_snapshot(path: Path, expected_git_sha: str) -> dict:
+def metadata_snapshot(path: Path, expected_git_sha: str, read_bytes=None) -> dict:
     validate_git_sha(expected_git_sha)
     before = path.lstat()  # Only absence is retryable at the bounded startup caller.
     if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > 65536:
         raise AssertionError("validator metadata is not a bounded regular publication")
-    raw = path.read_bytes()
+    raw = path.read_bytes() if read_bytes is None else read_bytes()
+    if not isinstance(raw, bytes) or len(raw) > 65536:
+        raise AssertionError("validator metadata copy exceeds publication bound")
     after = path.lstat()
     if (before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns):
         raise AssertionError("validator metadata changed during read")
@@ -305,6 +307,46 @@ def metadata_snapshot(path: Path, expected_git_sha: str) -> dict:
     return {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), "metadata": value}
 
 
+def copied_metadata_bytes(container: str) -> bytes:
+    # Docker copies as the invoking host user. Keep the runtime publication0600
+    # and runtime UID10001; do not weaken permissions for a host-side test reader.
+    with tempfile.TemporaryDirectory(prefix="ziggy-container-metadata-") as folder:
+        target = Path(folder) / "metadata.json"
+        checked(["docker", "cp", f"{container}:/data/checkpoints/metadata_latest.json", str(target)], timeout=3)
+        value = target.lstat()
+        if not stat.S_ISREG(value.st_mode) or value.st_nlink != 1 or value.st_size > 65536:
+            raise AssertionError("Docker metadata copy is not a bounded regular file")
+        return target.read_bytes()
+
+
+def remove_fixture_data(image: str, data: Path) -> None:
+    # The same runtime identity owns private DB directories. Remove only the
+    # three fixed disposable fixture outputs, after both same-DB attempts.
+    if data.is_symlink() or not data.is_dir():
+        raise AssertionError("fixture data must be a regular owned directory")
+    name = f"ziggy-image-cleanup-{os.getpid()}-{time.monotonic_ns()}"
+    failure = None
+    try:
+        checked(["docker", "run", "--name", name, "--network", "none", "--read-only",
+            "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+            "--user", "10001:10001", "--mount", f"type=bind,src={data},dst=/fixture",
+            "--entrypoint", "/bin/rm", image, "-rf", "--",
+            "/fixture/relayer", "/fixture/validator", "/fixture/checkpoints"], timeout=15)
+    except BaseException as error:
+        failure = error
+        raise
+    finally:
+        try:
+            # A timed-out foreground Docker client does not stop its daemon task.
+            # Keep the helper named until this targeted removal actually returns.
+            checked(["docker", "rm", "--force", "--volumes", name], timeout=10)
+        except BaseException as error:
+            if failure is None:
+                raise
+            failure.add_note(f"fixture helper removal failed for {name}: {type(error).__name__}")
+
+
+
 def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
              forbidden: list[str], attempt: int, expected_git_sha: str | None = None) -> dict:
     if role == "validator":
@@ -327,7 +369,8 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
             if role == "validator":
                 metadata = None
                 try:
-                    metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha)
+                    metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha,
+                        lambda: copied_metadata_bytes(name))
                 except FileNotFoundError:
                     pass
             if time.monotonic() - started >= 2 and (role != "validator" or metadata is not None):
@@ -343,7 +386,8 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
         if state["ExitCode"] != 0:
             raise AssertionError(f"{role} SIGTERM exit was {state['ExitCode']}")
         if role == "validator":
-            stopped_metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha)
+            stopped_metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha,
+                lambda: copied_metadata_bytes(name))
             if stopped_metadata["sha256"] != metadata["sha256"]:
                 raise AssertionError("validator metadata changed during clean drain")
         return {"exit_code": 0, "startup_grace_ms": round((stop_started - started) * 1000),
@@ -417,10 +461,13 @@ def smoke_test(image: str, migration_image: str, postgres_image: str, log_dir: P
                         "metricsPort": 0, "chains": {"containerfixture": chain}}
                 (config / "fixture.json").write_text(json.dumps(value))
                 forbidden = [rpc.url, "postgresql://", "0x" + "11" * 32]
-                runs = [run_role(image, role, config, data, log_dir, forbidden, attempt, expected_git_sha) for attempt in range(2)]
-                if role == "validator" and runs[0]["validator_metadata"]["sha256"] != runs[1]["validator_metadata"]["sha256"]:
-                    raise AssertionError("same-DB validator metadata bytes changed after restart")
-                evidence["roles"][role] = {"runs": runs, "same_db_reopen": True, "logs_checked": True}
+                try:
+                    runs = [run_role(image, role, config, data, log_dir, forbidden, attempt, expected_git_sha) for attempt in range(2)]
+                    if role == "validator" and runs[0]["validator_metadata"]["sha256"] != runs[1]["validator_metadata"]["sha256"]:
+                        raise AssertionError("same-DB validator metadata bytes changed after restart")
+                    evidence["roles"][role] = {"runs": runs, "same_db_reopen": True, "logs_checked": True}
+                finally:
+                    remove_fixture_data(image, data)
         return evidence
     finally:
         rpc.close()

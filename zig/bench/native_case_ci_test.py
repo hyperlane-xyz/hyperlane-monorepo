@@ -90,7 +90,11 @@ class DispatchTests(unittest.TestCase):
             if line.startswith('  ') and not line.startswith('   ') and line.endswith(':'): current = line.strip()[:-1]
             if line.startswith('    if: '): conditions[current] = line[8:]
         ordinary = {'svm-prerequisites', 'unit', 'evm', 'native-http', 'native-linux', 'container', 'vm-images', 'full-sdk-native', 'cold-full-feature', 'native-harness-controls'}
-        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs', 'aleo-linux-prerequisite', 'aleo-linux-sdk-prerequisite'})
+        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs', 'aleo-linux-prerequisite', 'aleo-linux-sdk-prerequisite', 'aleo-native-docker-prerequisite'})
+        docker = "!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-docker-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_native_docker_prerequisite))"
+        for name, condition in conditions.items():
+            if name != 'aleo-native-docker-prerequisite':self.assertTrue(condition.startswith('${{ ' + docker + ' && ('), name)
+        conditions = {name: '${{ ' + condition.removeprefix('${{ ' + docker + ' && (').removesuffix(') }}') + ' }}' for name, condition in conditions.items() if name != 'aleo-native-docker-prerequisite'}
         sdk = "!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-sdk-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_sdk_prerequisite))"
         for name, condition in conditions.items():
             if name != 'aleo-linux-sdk-prerequisite':self.assertTrue(condition.startswith('${{ ' + sdk + ' && ('), name)
@@ -142,12 +146,12 @@ class DispatchTests(unittest.TestCase):
         return values
 
     @staticmethod
-    def condition(value, event, message, svm=False, cold=False, aleo=False, sdk=False):
+    def condition(value, event, message, svm=False, cold=False, aleo=False, sdk=False, docker=False):
         import re
         from types import SimpleNamespace as N
         code = value.removeprefix('${{ ').removesuffix(' }}')
         code = re.sub(r'!(?!=)', ' not ', code).replace('&&', ' and ').replace('||', ' or ').strip()
-        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk), 'contains': lambda text, needle: needle in text}
+        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk, aleo_native_docker_prerequisite=docker), 'contains': lambda text, needle: needle in text}
         return bool(eval(compile(code, '<actual-workflow-condition>', 'eval'), {'__builtins__': {}}, context))
 
     def test_zip_expansion_bound_is_preflight(self):

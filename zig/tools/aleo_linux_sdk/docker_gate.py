@@ -63,9 +63,10 @@ def container_templates(spec, node_namespace_pid):
         memory=GIB//2 if pg else 3*GIB
         labels={'ziggy.aleo.owner':prefix,'ziggy.aleo.run-token':spec['run_token']}
         config={'Memory':memory,'MemorySwap':memory,'NanoCpus':10**9 if pg else 2*10**9,'PidsLimit':128 if pg else 256,'CapDrop':['ALL'],'SecurityOpt':['no-new-privileges:true'],'NetworkMode':spec['internal_network'],'PortBindings':{internal:[{'HostIp':'127.0.0.1','HostPort':str(port)}]},'Binds':[]}
-        if pg:config['Tmpfs']={'/var/lib/postgresql/data':'rw,noexec,nosuid,size=2147483648'}
+        if pg:config['Tmpfs']={'/var/lib/postgresql/data':'rw,noexec,nosuid,size=2147483648,uid=999,gid=999'}
         need(spec['postgres_command']==['postgres'],'admitted Source PG default command required')
         body={'Image':selected['reference'],'Cmd':spec['postgres_command']if pg else['leo','devnode','start','--socket-addr','0.0.0.0:3030'],'Env':['POSTGRES_USER=ziggy','POSTGRES_DB=ziggy','POSTGRES_HOST_AUTH_METHOD=trust']if pg else spec['public_node_env'],'Labels':labels,'ExposedPorts':{internal:{}},'HostConfig':config}
+        if pg:body['User']='999:999'
         result.append({'name':name,'kind':kind,'image':selected['id'],'reference':selected['reference'],'labels':labels,'create_body':body})
     return result
 
@@ -325,6 +326,7 @@ class Gate:
                 raise
 
     def caps(self, row, selected):
+        if selected['kind']=='postgres':need(row['Config'].get('User')=='999:999','actual fixed rootless PG User required')
         actual = row['HostConfig']; expected = selected['create_body']['HostConfig']
         for key in ('Memory','MemorySwap','NanoCpus','PidsLimit','NetworkMode','PortBindings','Tmpfs'):
             if key == 'Tmpfs' and key not in expected:
@@ -350,6 +352,9 @@ class Gate:
             options=set(row[5].split(','))|set(row[separator+3].split(','))
             sizes=[value[5:]for value in options if value.startswith('size=')]
             need(len(sizes)==1 and sizes[0]in {'2147483648','2097152k','2g'}and {'nosuid','noexec'}<=options,'actual PG tmpfs bound/flags differ')
+            need({'uid=999','gid=999'}<=options,'actual PG tmpfs ownership differs')
+            status={line.split(':',1)[0]:line.split(':',1)[1].strip()for line in(base/'status').read_text().splitlines()if ':'in line}
+            need([int(x)for x in status['Uid'].split()]==[999]*4 and [int(x)for x in status['Gid'].split()]==[999]*4,'actual rootless PG UID/GID differ')
         fresh=(base/'stat').read_text();need(fresh[fresh.rfind(')')+2:].split()[19]==start and self.owned(cid)['State']['Pid']==pid,'container PID changed during cap readback')
         return {'cid':cid,'pid':pid,'start':start,'actual_kernel_caps_checked':True}
 
