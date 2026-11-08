@@ -244,19 +244,23 @@ class Owner:
   return out
  def fetch(self,url,dest,limit,expected=None,*,accept='application/octet-stream'):
   need(url.startswith('https://'),'HTTPS required');request=urllib.request.Request(url,headers={'User-Agent':'hyperlane-svm-ci-prerequisites','Accept':accept})
-  # Retry only transient OPEN failures for the same exact pinned asset.
+  # Retry transient OPEN failures only for exact pinned assets or one fixed metadata request.
   # No destination exists yet; body/hash/extraction/compile failures never retry.
   asset=next((a for a in ASSETS.values()if url==a['url']and expected==a and limit==a['bytes']and accept=='application/octet-stream'),None)
-  attempts=3 if asset is not None else 1
+  metadata_request=(url=='https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca'and expected is None and limit==2*1024**2 and accept=='application/vnd.github+json')
+  attempts=3 if asset is not None or metadata_request else 1
   for attempt in range(1,attempts+1):
    self.tick()
    try:
     response=self.opener.open(request,timeout=30)
     break
    except urllib.error.HTTPError as error:
-    if asset is None or type(error.code)is not int or error.code not in (502,503,504)or attempt==attempts:raise
+    if (asset is None and not metadata_request)or type(error.code)is not int or error.code not in (502,503,504)or attempt==attempts:raise
     error.close()
-    self.events.write(json.dumps({'kind':'pinned_asset_open_retry','asset_id':asset['asset_id'],'failed_attempt':attempt,'maximum_attempts':attempts,'http_status':error.code,'backoff_seconds':attempt})+'\n');self.events.flush()
+    event={'kind':'pinned_asset_open_retry'if asset is not None else'fixed_spl_metadata_open_retry','failed_attempt':attempt,'maximum_attempts':attempts,'http_status':error.code,'backoff_seconds':attempt}
+    if asset is not None:event['asset_id']=asset['asset_id']
+    else:event['metadata_kind']='custom_spl_commit'
+    self.events.write(json.dumps(event)+'\n');self.events.flush()
     self.tick();time.sleep(attempt);self.tick()
   with response:
    need(response.url.startswith(('https://github.com/','https://release-assets.githubusercontent.com/','https://objects.githubusercontent.com/','https://api.github.com/')),'nonofficial redirect')

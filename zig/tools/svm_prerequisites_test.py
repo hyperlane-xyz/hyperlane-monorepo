@@ -407,4 +407,34 @@ class PinnedOpenRetries(unittest.TestCase):
    with self.subTest(ticks=len(ticks)),self.assertRaisesRegex(ValueError,'whole180m|owned12GiB'):self.invoke(setup)
    self.assertEqual(owner.opener.open.call_count,1);self.assertFalse(dest.exists());self.assertEqual(owner.deadline,123456.0);self.assertTrue(error.fp.closed)
 
+class FixedMetadataRetries(unittest.TestCase):
+ URL='https://api.github.com/repos/hyperlane-xyz/solana-program-library/commits/e101cca'
+ def setup_metadata(self,opens):
+  from types import SimpleNamespace
+  temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup);dest=pathlib.Path(temporary.name)/'metadata.json';owner=m.Owner.__new__(m.Owner);owner.opener=SimpleNamespace(open=mock.Mock(side_effect=opens));owner.tick=mock.Mock();owner.events=io.StringIO();owner.deadline=123456.0
+  return owner,dest
+ def error(self,code):
+  error=m.urllib.error.HTTPError(self.URL,code,'public status',{},io.BytesIO());self.addCleanup(error.close);return error
+ def test_exact_metadata_open_can_recover_without_changing_receipt_or_deadline(self):
+  body=b'{"sha":"public metadata fixture"}'
+  class Response(io.BytesIO):url=self.URL;headers={}
+  errors=[self.error(503),self.error(504)];owner,dest=self.setup_metadata([*errors,Response(body)])
+  with mock.patch.object(m.time,'sleep')as sleep:row=owner.fetch(self.URL,dest,2*1024**2,accept='application/vnd.github+json')
+  self.assertEqual(owner.opener.open.call_count,3);self.assertEqual(sleep.call_args_list,[mock.call(1),mock.call(2)]);self.assertEqual(dest.read_bytes(),body);self.assertEqual(owner.deadline,123456.0);self.assertEqual(set(row),{'path','bytes','sha256','actual_response_url','headers'})
+  for call in owner.opener.open.call_args_list:self.assertEqual((call.args[0].full_url,call.args[0].get_header('Accept'),call.args[0].get_header('Authorization'),call.kwargs['timeout']),(self.URL,'application/vnd.github+json',None,30))
+  rows=[json.loads(s)for s in owner.events.getvalue().splitlines()];self.assertEqual(len(rows),2)
+  for row in rows:self.assertEqual(row['kind'],'fixed_spl_metadata_open_retry');self.assertEqual(row['metadata_kind'],'custom_spl_commit');self.assertNotIn('asset_id',row);self.assertEqual(set(row),{'kind','metadata_kind','failed_attempt','maximum_attempts','http_status','backoff_seconds'})
+ def test_metadata_exhaustion_still_propagates_third_error_before_file(self):
+  errors=[self.error(503)for _ in range(4)];owner,dest=self.setup_metadata(errors)
+  with mock.patch.object(m.time,'sleep'),self.assertRaises(m.urllib.error.HTTPError)as caught:owner.fetch(self.URL,dest,2*1024**2,accept='application/vnd.github+json')
+  self.assertIs(caught.exception,errors[2]);self.assertEqual(owner.opener.open.call_count,3);self.assertFalse(dest.exists());self.assertEqual(owner.deadline,123456.0)
+ def test_metadata_whitelist_and_nontransient_refusals_remain_single_attempt(self):
+  good={'url':self.URL,'limit':2*1024**2,'expected':None,'accept':'application/vnd.github+json'}
+  cases=[{**good,'url':self.URL+'?unreviewed=1'},{**good,'url':self.URL.replace('e101cca','main')},{**good,'url':'https://api.github.com/repos/other/project/commits/e101cca'},{**good,'limit':2*1024**2+1},{**good,'expected':{}},{**good,'accept':'application/octet-stream'}]
+  cases +=[{**good,'_status':code}for code in (401,403,404,429,500)]
+  for case in cases:
+   case=dict(case);error=self.error(case.pop('_status',503));owner,dest=self.setup_metadata(error)
+   with self.subTest(case=case,status=error.code),mock.patch.object(m.time,'sleep')as sleep,self.assertRaises(m.urllib.error.HTTPError)as caught:owner.fetch(dest=dest,**case)
+   self.assertIs(caught.exception,error);self.assertEqual(owner.opener.open.call_count,1);self.assertFalse(dest.exists());self.assertEqual(owner.events.getvalue(),'');sleep.assert_not_called()
+
 if __name__=='__main__':unittest.main()

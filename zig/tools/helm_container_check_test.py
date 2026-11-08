@@ -97,6 +97,34 @@ class Controls(unittest.TestCase):
   o.c.checked.side_effect=[self.result(text=json.dumps([v])),self.result(),self.result(text='/opt/hyperlane/bin/relayer\n')];o.started('unused');self.assertEqual(o.active['actual_started_pid'],123);self.assertTrue(o.active['readonly_defaults_verified'])
   v['Config']['Cmd']=['foreign'];o.c.checked.side_effect=[self.result(text=json.dumps([v]))]
   with self.assertRaisesRegex(AssertionError,'command'):o.started('unused')
+ def started_fixture(self,command=None,actual=None):
+  o=self.launch();o.role='relayer';o.mode='configmap';o.agent={'command':['/opt/hyperlane/bin/relayer']if command is None else command};o.environment={'HOME':'/var/lib/hyperlane'}
+  v={'Id':'a'*64,'State':{'Running':True,'Pid':123},'Config':{'User':'10001:10001','Entrypoint':[o.agent['command'][0]],'Cmd':actual,'Env':['HOME=/var/lib/hyperlane','HYPERLANE_ZIG_DEFAULTS=/etc/hyperlane']},'HostConfig':{'GroupAdd':['2000']},'Mounts':[{'Destination':'/etc/hyperlane','RW':False}]}
+  o.c.checked.side_effect=[self.result(text=json.dumps([v])),self.result(),self.result(text='/opt/hyperlane/bin/relayer\n')];return o,v
+ def test_Docker_null_and_empty_only_for_expected_no_arguments(self):
+  for actual in (None,[]):
+   with self.subTest(actual=actual):
+    o,v=self.started_fixture(actual=actual);o.started('unused');self.assertTrue(o.active['rendered_command_verified']);row=o.active['rendered_comparison'];self.assertTrue(row['cmd_matches']);self.assertEqual(row['cmd_null'],actual is None);self.assertEqual(row['expected_cmd_count'],0);self.assertEqual(row['cmd_type'],'null'if actual is None else'array')
+ def test_null_does_not_match_nonempty_and_other_falsy_types_refuse(self):
+  for actual in (False,0,'',{},['foreign']):
+   with self.subTest(actual=actual):
+    o,v=self.started_fixture(actual=actual)
+    with self.assertRaisesRegex(AssertionError,'command'):o.started('unused')
+    self.assertFalse(o.active['rendered_comparison']['cmd_matches']);self.assertNotIn('actual_started_pid',o.active)
+  o,v=self.started_fixture(command=['/bin/sh','-c'],actual=None);o.agent['args']=['FIXED_PUBLIC_SHELL_COMMAND']
+  with self.assertRaisesRegex(AssertionError,'command'):o.started('unused')
+  self.assertFalse(o.active['rendered_comparison']['cmd_matches']);self.assertEqual(o.active['rendered_comparison']['expected_cmd_count'],2)
+ def test_failed_comparison_observation_precedes_guard_without_raw_values(self):
+  for changed in ('user','entrypoint','groups','CID','state'):
+   o,v=self.started_fixture(actual=None)
+   if changed=='user':v['Config']['User']='PRIVATE_USER_MARKER'
+   elif changed=='entrypoint':v['Config']['Entrypoint']=['PRIVATE_ARGV_MARKER']
+   elif changed=='groups':v['HostConfig']['GroupAdd']=['PRIVATE_GROUP_MARKER']
+   elif changed=='CID':v['Id']='PRIVATE_CID_MARKER'
+   else:v['State']['Running']=False
+   o.c.checked.side_effect=[self.result(text=json.dumps([v]))]
+   with self.subTest(changed=changed),self.assertRaises(AssertionError):o.started('unused')
+   row=o.active['rendered_comparison'];self.assertNotIn('PRIVATE',json.dumps(row));self.assertEqual(set(row),{'same_CID','running','positive_PID','user_matches','entrypoint_matches','groups_match','cmd_matches','cmd_null','cmd_type','cmd_count','expected_cmd_count'});self.assertNotIn('actual_started_pid',o.active)
  def test_utility_expected_denial_records_nonzero_and_actual_cleanup(self):
   o=self.launch();o.utilities=[];state={'name':None}
   def command(args,**kwargs):

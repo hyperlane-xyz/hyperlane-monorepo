@@ -155,8 +155,13 @@ class Launch:
   for name,value in sorted(env.items()):args+=['-e',name+'='+str(value)]
   return args+['--entrypoint',self.agent['command'][0],self.image,*self.agent['command'][1:],*self.agent.get('args',[])]
  def started(self,name):
-  cid=self.active['container_id'];v=json.loads(self.c.checked(['docker','inspect',cid]).stdout)[0];need(v['Id']==cid,'actual exact CID');need(v['State']['Running']is True and v['State']['Pid']>0,'actual started container PID')
-  need(v['Config']['User']=='10001:10001'and v['Config']['Entrypoint']==[self.agent['command'][0]]and v['Config']['Cmd']==self.agent['command'][1:]+self.agent.get('args',[])and v['HostConfig']['GroupAdd']==['2000'],'actual rendered command/UID/fsGroup')
+  cid=self.active['container_id'];v=json.loads(self.c.checked(['docker','inspect',cid]).stdout)[0]
+  expected=self.agent['command'][1:]+self.agent.get('args',[]);actual=v['Config']['Cmd']
+  command_matches=(type(actual)is list and actual==expected)or(actual is None and expected==[])
+  observed={'same_CID':v['Id']==cid,'running':v['State']['Running']is True,'positive_PID':v['State']['Pid']>0,'user_matches':v['Config']['User']=='10001:10001','entrypoint_matches':v['Config']['Entrypoint']==[self.agent['command'][0]],'groups_match':v['HostConfig']['GroupAdd']==['2000'],'cmd_matches':command_matches,'cmd_null':actual is None,'cmd_type':'null'if actual is None else'array'if type(actual)is list else'other','cmd_count':len(actual)if type(actual)is list else None,'expected_cmd_count':len(expected)}
+  self.active['rendered_comparison']=observed
+  need(observed['same_CID'],'actual exact CID');need(observed['running']and observed['positive_PID'],'actual started container PID')
+  need(observed['user_matches']and observed['entrypoint_matches']and observed['cmd_matches']and observed['groups_match'],'actual rendered command/UID/fsGroup')
   actual_env=dict(item.split('=',1)for item in v['Config']['Env']);need(all(actual_env.get(k)==str(value)for k,value in self.environment.items())and actual_env.get('HYPERLANE_ZIG_DEFAULTS')=='/etc/hyperlane','actual defaults and common environment')
   for row in self.agent.get('env',[]):
    if 'value'in row:need(actual_env.get(row['name'])==str(row['value']),'actual role environment')
