@@ -702,7 +702,7 @@ def observe_radix_transport(context,custody,harness,controller,helper_row,deadli
     try:context['state'].observe(custody,owner._linux_row,check,time.monotonic_ns,cancelled,deadline_ns,context['module'].radix_transport_http)
     except Exception:return
 
-def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None):
+def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None,case_inputs=None):
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
     value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
     # Observer transport errors can accompany Rust fixture failure/teardown.
@@ -729,7 +729,7 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
         try:
             helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
             require(len(helper_pids)==1,'One actual fixture helper parent required for failure projection')
-            record['fixture_failure']=diagnostic_module(approval).fixture_failure_observation(case,manifest,approval,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log)
+            record['fixture_failure']=diagnostic_module(approval).fixture_failure_observation(case,manifest,approval,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log,case_inputs=case_inputs,required_inputs=plan.get('required_inputs',()))
         except Exception:record['fixture_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     if manifest['scenario']in{'evm','starknet'}:
         try:
@@ -1091,7 +1091,7 @@ def worker(args, plan, manifest, inputs, approval):
             for signum,handler in old.items():signal.signal(signum,handler)
             result['forced_cleanup']=forced
             if not result['passed']:
-                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context,radix_transport)
+                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context,radix_transport,inputs)
                 except Exception as diagnostic_error:result['public_diagnostic_write_error']={'type':type(diagnostic_error).__name__}
             (out/'worker-result.json').write_text(json.dumps(result,indent=2)+'\n')
     require(result['passed'],'Native worker failed; retain original result')

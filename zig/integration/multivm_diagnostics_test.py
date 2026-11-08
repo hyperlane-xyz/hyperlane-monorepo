@@ -730,4 +730,107 @@ class RadixTransportHTTPControls(unittest.TestCase):
         with mock.patch.object(socket,'socket',return_value=stream),self.assertRaises(api.RadixTargetConnectRefused):api.radix_transport_http('fullnode','host_loopback',('127.0.0.1',3333),500000001,lambda:False,lambda:1)
         self.assertTrue(stream.closed)
 
+
+
+class TronCLIAdmittedProjectionControls(unittest.TestCase):
+    def setUp(self):
+        fixture=FixtureFailureDiscriminatorControls();fixture.setUp();self.addCleanup(fixture.doCleanups);self.f=fixture;self.case=fixture.case;self.root=self.case/'tron-cli';self.root.mkdir();(self.root/'dist/src/deploy').mkdir(parents=True)
+        self.entry=self.root/'dist/cli.js';self.entry.write_bytes(b"errorRed('Error: ' + error.message); process.exit(1); // Hyperlane\n")
+        self.utils=self.root/'dist/src/deploy/utils.js';self.utils.write_bytes(b"throw new Error('Empty chain selection'); throw new Error('signer is invalid'); throw new Error('Deployment cancelled'); log('Running pre-flight checks for chains...');\n")
+        self.js=self.root/'dist/src/public-frame.js';self.js.write_text('export const first = 1;\nconst face = "😀x";\n')
+        self.tool=self.case/'pnpm-native';self.tool.write_bytes(b'PUBLIC_TOOL_ONLY');receipt=self.case/'tron-cli-materialized.json';receipt.write_bytes(b'{}')
+        tre={'pnpm':api.pin(self.tool),'cli_directory':str(self.root),'cli_entrypoint':api.pin(self.entry)};self.inputs={'tron_tre':tre,'tron_cli':api.pin(receipt)};self.f.approval={'tron_tre':copy.deepcopy(tre),'tron_cli':api.pin(receipt)};self.required=[api.pin(p)for p in [receipt,self.tool,self.entry,self.utils,self.js]]
+    def line(self,text,prefix='pnpm-native'):return '<'+prefix+'> '+text+'\n'
+    def stack(self,path=None,line=2,column=4):return self.line('    at SECRET_FUNCTION (file://'+str(path or self.js)+':'+str(line)+':'+str(column)+')')
+    def panic(self,args=None):return self.f.header(self.f.program,self.f.pline)+self.f.program_body(args or['hyperlane','core','deploy','--key.ethereum','PRIVATE_KEY'],binary=str(self.tool))+'\n'
+    def log(self,body='',start=True,panic=True):return ('<E2E> Deploying core contracts to anvil1...\n'if start else'')+body+(self.panic()if panic else'')
+    def observe(self,wire):
+        self.f.log.write_text(wire);return api.fixture_failure_observation(self.case,self.f.manifest,self.f.approval,42,self.f.sources,self.f.repo,self.f.log,case_inputs=self.inputs,required_inputs=self.required)
+    def test_actual_single_scan_Source_gate_prefix_UTF16_and_privacy(self):
+        col=len(self.js.read_text().splitlines()[1].encode('utf-16-le'))//2+1
+        wire=self.log(self.line('Error: PRIVATE_KEY https://PRIVATE_URL/?token=SECRET')+self.stack(column=col))
+        original=api.captured_failure_bytes;reads=[]
+        def capture(path,maximum):reads.append(Path(path));return original(path,maximum)
+        with mock.patch.object(api,'captured_failure_bytes',side_effect=capture):value=self.observe(wire)
+        result=value['CLI_failure'];self.assertEqual(result['collection_status'],'observed');self.assertEqual(reads.count(self.f.log),1);self.assertEqual(result['emitted_JS_coordinates'],[{'source':'dist/src/public-frame.js','line':2,'column':col,'source_bytes':self.js.stat().st_size,'source_sha256':api.pin(self.js)['sha256']}]);self.assertIsNone(result['CLI_numeric_status']);self.assertFalse(result['native_or_timing_or_cleanup_authority']);self.assertFalse(result['error_header_fingerprints'][0]['typed_exception'])
+        public=json.dumps(result)
+        for secret in ['PRIVATE_KEY','PRIVATE_URL','SECRET_FUNCTION','SECRET',str(self.case),'file://']:self.assertNotIn(secret,public)
+        self.assertEqual(value['panic_observations'][0]['category'],'HYPERLANE_CORE_DEPLOY')
+    def test_known_complete_emitted_literal_vs_unknown_and_message_only(self):
+        value=self.observe(self.log(self.line('Error: Empty chain selection')));result=value['CLI_failure'];self.assertEqual(result['last_seen_header']['enum'],'EMPTY_CHAIN_SELECTION_TEXT');self.assertEqual(result['emitted_JS_coordinates'],[])
+        self.utils.write_bytes(b'// literal removed\n');self.required=[api.pin(self.utils)if row['path']==str(self.utils)else row for row in self.required];result=self.observe(self.log(self.line('Error: Empty chain selection')))['CLI_failure'];self.assertIsNone(result['last_seen_header']);self.assertEqual(len(result['error_header_fingerprints']),1)
+    def test_wrong_prefix_before_window_after_panic_and_later_guard_never_borrow(self):
+        cases=[self.line('Error: Empty chain selection')+self.stack()+self.log(),self.log(self.line('at '+str(self.js)+':2:1',prefix='pnpm')),self.log()+self.stack()+self.line('Error: Empty chain selection')]
+        for wire in cases:
+            result=self.observe(wire)['CLI_failure'];self.assertEqual(result['emitted_JS_coordinates'],[]);self.assertIsNone(result['last_seen_header'])
+        wrong=self.log(self.stack(),panic=False)+self.f.header(self.f.program,self.f.pline)+'PRIVATE_UNKNOWN_FIRST_MESSAGE\n'+self.panic();self.assertEqual(self.observe(wrong)['CLI_failure']['collection_status'],'unavailable')
+    def test_returned_stage_duplicate_start_and_wrong_program_unavailable(self):
+        for wire in [self.log(self.stack(),panic=False)+'<E2E> Deployed core contracts to anvil1\n'+self.panic(),self.log(self.stack(),panic=False)+'<E2E> Deploying core contracts to anvil1...\n'+self.panic(),self.log(self.stack(),panic=False)+self.panic(['hyperlane','send','message'])]:
+            self.assertEqual(self.observe(wire)['CLI_failure']['collection_status'],'unavailable')
+    def test_missing_mismatched_symlink_foreign_source_and_sourcemap_omit(self):
+        foreign=self.case/'foreign.js';foreign.write_bytes(b'export const x=1;\n');link=self.root/'dist/link.js';link.symlink_to(self.js)
+        for path in [foreign,link,self.root/'dist/missing.js',self.root/'dist/file.ts']:
+            result=self.observe(self.log(self.stack(path=path,line=1,column=1)))['CLI_failure'];self.assertEqual(result['emitted_JS_coordinates'],[])
+        self.js.write_bytes(self.js.read_bytes()+b'// changed\n');result=self.observe(self.log(self.stack()))['CLI_failure'];self.assertEqual(result['emitted_JS_coordinates'],[])
+    def test_actual_preadmitted_workspace_JS_descriptor_and_ambiguous_pin(self):
+        path=self.root/'.workspace/typescript/sdk/dist/public.js';path.parent.mkdir(parents=True);path.write_bytes(b'export const public_value=1;\n');row=api.pin(path);self.required.append(row)
+        result=self.observe(self.log(self.stack(path=path,line=1,column=1)))['CLI_failure'];self.assertEqual(result['emitted_JS_coordinates'][0]['source'],'.workspace/typescript/sdk/dist/public.js')
+        self.required.append({**row,'sha256':'0'*64});self.assertEqual(self.observe(self.log(self.stack(path=path,line=1,column=1)))['CLI_failure']['emitted_JS_coordinates'],[])
+    def test_UTF16_out_of_line_coordinates_and_duplicate_frames(self):
+        col=len(self.js.read_text().splitlines()[1].encode('utf-16-le'))//2+2
+        for line,column in [(0,1),(999,1),(2,0),(2,col)]:self.assertEqual(self.observe(self.log(self.stack(line=line,column=column)))['CLI_failure']['emitted_JS_coordinates'],[])
+        result=self.observe(self.log(self.stack()*3))['CLI_failure'];self.assertEqual(len(result['emitted_JS_coordinates']),1)
+        self.js.write_text('const text = \"a\u0085b\";\n');self.required=[api.pin(self.js)if row['path']==str(self.js)else row for row in self.required];self.assertEqual(self.observe(self.log(self.stack(line=2,column=2)))['CLI_failure']['emitted_JS_coordinates'],[])
+    def test_context_receipt_tool_membership_and_entry_contract_fail_closed(self):
+        saved=self.required
+        for row in saved[:3]:
+            self.required=[r for r in saved if r!=row];result=self.observe(self.log(self.stack()));self.assertEqual(result['CLI_failure']['collection_status'],'unavailable');self.assertEqual(result['panic_observations'][0]['category'],'HYPERLANE_CORE_DEPLOY')
+        self.required=saved;self.entry.write_bytes(b'// no catch contract\n');self.required=[api.pin(self.entry)if row['path']==str(self.entry)else row for row in saved];self.inputs['tron_tre']['cli_entrypoint']=api.pin(self.entry);self.f.approval['tron_tre']=copy.deepcopy(self.inputs['tron_tre']);self.assertEqual(self.observe(self.log(self.stack()))['CLI_failure']['collection_status'],'unavailable')
+    def test_collector_failure_cannot_mask_existing_Rust_observation(self):
+        with mock.patch.object(api.TronCLIProjection,'feed',side_effect=ValueError('PRIVATE_REASON')):value=self.observe(self.log(self.stack()))
+        self.assertEqual(value['panic_observations'][0]['category'],'HYPERLANE_CORE_DEPLOY');self.assertEqual(value['CLI_failure']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_Source_mutation_before_publication_unavailable(self):
+        original=api.TronCLIProjection.public
+        def changed(state):self.js.write_bytes(self.js.read_bytes()+b'\n');return original(state)
+        with mock.patch.object(api.TronCLIProjection,'public',changed):result=self.observe(self.log(self.stack()))
+        self.assertEqual(result['CLI_failure']['collection_status'],'unavailable');self.assertEqual(result['panic_observations'][0]['category'],'HYPERLANE_CORE_DEPLOY')
+    def test_max8frames_1MiBfile_4MiBtotal_and_candidate_count(self):
+        p=self.root/'dist/frames.js';p.write_bytes(b'export const x=1;\n'*10);self.required.append(api.pin(p))
+        text=''.join(self.stack(path=p,line=i+1,column=1)for i in range(10))
+        capped=self.observe(self.log(text))['CLI_failure'];self.assertEqual(len(capped['emitted_JS_coordinates']),8);self.assertTrue(capped['frame_candidates_truncated'])
+        huge=self.root/'dist/huge.js'
+        with huge.open('wb')as stream:stream.truncate(1024**2+1)
+        self.required.append({'path':str(huge),'bytes':huge.stat().st_size,'sha256':'0'*64});self.assertEqual(self.observe(self.log(self.stack(path=huge,line=1,column=1)))['CLI_failure']['emitted_JS_coordinates'],[])
+        large=''
+        for i in range(4):
+            p=self.root/('dist/large'+str(i)+'.js');p.write_bytes(b'//'+b'a'*(1024**2-3)+b'\n');self.required.append(api.pin(p));large+=self.stack(path=p,line=1,column=1)
+        self.assertEqual(len(self.observe(self.log(large))['CLI_failure']['emitted_JS_coordinates']),3)
+        text=''.join(self.stack(path=self.root/('dist/unknown'+str(i)+'.js'),line=1,column=1)for i in range(40));self.assertTrue(self.observe(self.log(text))['CLI_failure']['frame_candidates_truncated'])
+    def test_eight_total_Source_files_includes_entry_and_known_header(self):
+        text=self.line('Error: Empty chain selection')
+        for i in range(10):
+            p=self.root/('dist/file'+str(i)+'.js');p.write_bytes(b'export const x=1;\n');self.required.append(api.pin(p));text+=self.stack(path=p,line=1,column=1)
+        result=self.observe(self.log(text))['CLI_failure'];self.assertEqual(len(result['emitted_JS_coordinates']),6);self.assertEqual(result['unadmitted_coordinates_omitted'],4);self.assertEqual(result['last_seen_header']['enum'],'EMPTY_CHAIN_SELECTION_TEXT')
+
+    def test_missing_fixed_header_Source_lookup_is_attempted_once(self):
+        self.required=[row for row in self.required if row['path']!=str(self.utils)];calls=[];original=api.TronCLIProjection.capture
+        def capture(state,path):calls.append(path);return original(state,path)
+        with mock.patch.object(api.TronCLIProjection,'capture',capture):result=self.observe(self.log(self.line('Error: Empty chain selection')*100))['CLI_failure']
+        self.assertEqual(calls.count(str(self.utils)),1);self.assertIsNone(result['last_seen_header']);self.assertEqual(len(result['error_header_fingerprints']),1)
+
+    def test_partial_Source_text_never_grants_banner_or_complete_header(self):
+        self.assertIsNone(self.observe(self.log(self.line('Hyperlane CLI')))['CLI_failure']['last_seen_header'])
+        for body in [b'// Empty chain selection\n',b"throw new Error('prefix Empty chain selection suffix');\n",b"throw new Error('Empty chain selection suffix');\n",b"log('Empty chain selection');\n",b"DifferentError('Empty chain selection');\n"]:
+            self.utils.write_bytes(body);self.required=[api.pin(self.utils)if row['path']==str(self.utils)else row for row in self.required]
+            self.assertIsNone(self.observe(self.log(self.line('Error: Empty chain selection')))['CLI_failure']['last_seen_header'])
+        for quote in ["'",'"','`']:
+            self.utils.write_text('throw new Error('+quote+'Empty chain selection'+quote+');\n');self.required=[api.pin(self.utils)if row['path']==str(self.utils)else row for row in self.required]
+            self.assertEqual(self.observe(self.log(self.line('Error: Empty chain selection')))['CLI_failure']['last_seen_header']['enum'],'EMPTY_CHAIN_SELECTION_TEXT')
+
+    def test_unique_header_fingerprints_keep_first_line_and_later_distinct(self):
+        result=self.observe(self.log(self.line('Error: PRIVATE_FIRST')*100+self.line('Error: PRIVATE_SECOND')))['CLI_failure'];rows=result['error_header_fingerprints'];self.assertEqual(len(rows),2);self.assertEqual(rows[0]['log_line'],2);self.assertNotEqual(rows[0]['sha256'],rows[1]['sha256']);self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def test_CLI_pipe_read_error_flag_has_no_underlying_text(self):
+        result=self.observe(self.log('<E2E> Error reading from output for pnpm-native: PRIVATE_UTF8_OR_OTHER\n'))['CLI_failure'];self.assertTrue(result['CLI_pipe_read_error_observed']);self.assertNotIn('PRIVATE',json.dumps(result))
+
 if __name__=='__main__':unittest.main()

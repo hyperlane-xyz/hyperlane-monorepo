@@ -382,7 +382,7 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,z
 
 
 
-def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,harness_log):
+def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,harness_log,case_inputs=None,required_inputs=()):
     """Fixed Source markers and actual client status only; no external text."""
     scenario=manifest['scenario']
     if scenario not in {'tron','radix'}or type(parent_pid)is not int or not 0<parent_pid<2**31:raise ValueError('Exact fixture helper parent required')
@@ -415,6 +415,10 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
         guards={literal:category for literal,category in literals.items()if b'"'+literal+b'"'in bodies[fixture]}
         if len(guards)!=len(literals)or b'"Radix Docker command failed ({status})"'not in bodies[fixture]:raise ValueError('Radix static guard Source changed')
     result={'schema':1,'kind':'public-fixed-fixture-failure-observation','scenario':scenario,'writer_sources':checked_sources,'harness_log_fingerprint':log_pin,'last_seen_stage':None,'panic_observations':[],'client_waits':None,'native_or_timing_or_cleanup_authority':False,'scope':'Source marker and finite panic-category observations only. Last seen is not stage success. No arbitrary error/command text, numeric Program status, root-cause, direct container wait or proof claim.'}
+    cli=None
+    if scenario=='tron'and case_inputs is not None:
+        try:cli=TronCLIProjection(case,case_inputs,approval,required_inputs,bodies)
+        except Exception:pass
     pending=None;observations=[];seen=set();lines_scanned=0
     def classify(body,context):
         if context=='radix':
@@ -439,9 +443,15 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
         return {'category':category,'program_exit_code':None,'program_signal':None,'numeric_status_scope':'not emitted by Source Program assertion'}
     for raw in io.BytesIO(wire):
         lines_scanned+=1
-        if len(raw)>65536:pending=None;continue
+        if len(raw)>65536:
+            pending=None
+            if cli is not None:cli.state='ambiguous';cli.qualified=False
+            continue
         clean=re.sub(rb'\x1b\[[0-9;]*m',b'',raw).strip()
         if clean in markers:result['last_seen_stage']={'category':markers[clean],'log_line':lines_scanned,'observed_only':True}
+        if cli is not None:
+            try:cli.feed(clean,lines_scanned,markers.get(clean))
+            except Exception:cli=None
         header=re.match(rb"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ([^:\r\n]{1,4096}):([0-9]{1,7}):([0-9]{1,5}):\s*(.*)$",clean)
         if header is not None:
             pending=None;path,line,column,tail=header.groups();line,column=int(line),int(column)
@@ -451,9 +461,15 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
             if not 0<line<=len(source_lines)or column==0:continue
             snippet=b'\n'.join(source_lines[line-1:min(line+4,len(source_lines))]);required=b'Command returned non-zero exit code: {:?}'if scenario=='tron'else b'panic!("actual owned Radix localnet: {error:#}")'
             if required not in snippet or(scenario=='tron'and source_lines[line-1].strip()!=b'assert!(')or(scenario=='radix'and required not in source_lines[line-1]):continue
+            if cli is not None:
+                try:cli.source_header(lines_scanned)
+                except Exception:cli=None
             pending={'context':scenario,'remaining':16,'source':target,'line':line,'column':column}
             if tail:
                 item=classify(tail,pending['context'])
+                if cli is not None:
+                    try:cli.classify(item)
+                    except Exception:cli=None
                 if item is not None:
                     key=(item['category'],target,line,column)
                     if key not in seen and len(observations)<16:seen.add(key);observations.append({**item,'source':target,'line':line,'column':column})
@@ -465,10 +481,16 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
         if not clean:continue
         context=pending;pending=None
         item=classify(clean,context['context'])
+        if cli is not None:
+            try:cli.classify(item)
+            except Exception:cli=None
         if item is not None:
             key=(item['category'],context['source'],context['line'],context['column'])
             if key not in seen and len(observations)<16:seen.add(key);observations.append({**item,'source':context['source'],'line':context['line'],'column':context['column']})
     result['panic_observations']=observations
+    if scenario=='tron':
+        try:result['CLI_failure']=cli.public()if cli is not None else{'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        except Exception:result['CLI_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     if scenario=='radix':
         journal=Path(case)/'evidence/radix-client-parent-waits.jsonl'
         if journal.exists():
@@ -1074,3 +1096,100 @@ def radix_transport_http(service,route,target,deadline_ns,cancelled,clock):
             body=radix_response_body(response[boundary:],length,chunked,not chunk);check()
             if body is not None:return status,body
     finally:stream.close()
+
+
+
+class TronCLIProjection:
+    """One existing harness scan. Text/Source coordinates are not execution proof."""
+    def __init__(self,case,inputs,approval,required_inputs,bodies):
+        root=Path(case)/'tron-cli';fixture=inputs['tron_tre'];receipt=inputs['tron_cli']
+        if fixture!=approval['tron_tre']or receipt!=approval['tron_cli']or receipt not in required_inputs or fixture['cli_directory']!=str(root)or root.is_symlink()or root.resolve()!=root or not isinstance(required_inputs,list)or len(required_inputs)>250000:raise ValueError('Already admitted owned CLI context required')
+        tool=fixture['pnpm'];entry=fixture['cli_entrypoint']
+        if tool not in required_inputs or Path(tool['path']).name!='pnpm-native'or entry not in required_inputs or entry['path']!=str(root/'dist/cli.js'):raise ValueError('Exact admitted CLI tool/entry required')
+        program=bodies['rust/main/utils/run-locally/src/program.rs'];external=bodies['rust/main/utils/run-locally/src/external_agents.rs']
+        if not all(n in program for n in [b'pub fn get_bin_name(',b'.file_name()',b'let name = self.get_bin_name()',b'println!("<{prefix}> {line}")',b'Error reading from output for {}: {}'])or b'.bin(fixture.pnpm.path)'not in external:raise ValueError('Exact CLI log prefix Source required')
+        self.root=root;self.prefix=b'<'+Path(tool['path']).name.encode()+b'> ';self.rows=required_inputs;self.files={};self.fixed_sources={};self.total=0;self.state='not_started';self.starts=0;self.source_panic=False;self.qualified=False;self.headers=[];self.frames=[];self.seen=set();self.unadmitted=0;self.last_header=None;self.start_line=None;self.end_line=None;self.pipe_error=False;self.frame_attempts=0;self.frame_attempts_truncated=False
+        wire=self.capture(entry['path'])
+        if not all(n in wire for n in [b'error.message',b"'Error: '",b'process.exit(1)']):raise ValueError('CLI catch Source differs')
+
+    def capture(self,path):
+        if path in self.files:return self.files[path]['wire']
+        candidate=Path(path)
+        if not(candidate.is_relative_to(self.root/'dist')or candidate.is_relative_to(self.root/'.workspace'))or candidate.suffix not in{'.js','.mjs','.cjs'}or'..'in candidate.parts or str(candidate)!=path:raise ValueError('Canonical emitted CLI JS only')
+        rows=[row for row in self.rows if isinstance(row,dict)and row.get('path')==path]
+        if not rows or any(row!=rows[0]for row in rows)or set(rows[0])!={'path','bytes','sha256'}or type(rows[0]['bytes'])is not int or not 0<rows[0]['bytes']<=1024**2 or len(self.files)>=8 or self.total+rows[0]['bytes']>4*1024**2:raise ValueError('Bounded already admitted emitted Source required')
+        if candidate.is_symlink()or candidate.resolve()!=candidate or any(x.is_symlink()for x in candidate.parents if x.is_relative_to(self.root)):raise ValueError('Emitted Source links forbidden')
+        wire,pin=captured_failure_bytes(candidate,1024**2)
+        if rows[0]!={'path':path,**pin}:raise ValueError('Emitted Source changed')
+        self.total+=len(wire);self.files[path]={'wire':wire,'fingerprint':pin,'identity':RelayerStartup.identity(candidate)};return wire
+
+    def feed(self,clean,line,marker):
+        if self.state=='frozen'and clean.startswith(b"thread '")and b' panicked at 'in clean:self.state='ambiguous';self.qualified=False;return
+        if marker is not None:
+            if marker=='CORE_DEPLOY_FIRST_ENTERED':
+                self.starts+=1
+                if self.starts==1:self.state='open';self.start_line=line
+                else:self.state='ambiguous';self.qualified=False
+            elif self.state=='open':self.state='closed'
+        if self.state!='open':return
+        if clean.startswith(b"thread '")and b' panicked at 'in clean:self.state='frozen';self.end_line=line;return
+        pipe=b'<E2E> Error reading from output for '+self.prefix[1:-2]+b': '
+        if clean.startswith(pipe):self.pipe_error=True;return
+        if not clean.startswith(self.prefix):return
+        raw=clean[len(self.prefix):]
+        if not raw or len(raw)>16384:return
+        # Only one printed line; JSON logger msg is accepted only if single-line.
+        text=raw
+        if raw.startswith(b'{'):
+            try:
+                obj=startup_unique_json(raw);message=obj.get('msg')
+                if not isinstance(message,str)or'\n'in message or'\r'in message:return
+                text=message.encode()
+            except Exception:return
+        try:message=text.decode('utf8','strict').strip()
+        except UnicodeError:return
+        fixed={
+            'Hyperlane Core deployment':('dist/src/commands/core.js',b'logCommandHeader',b'Hyperlane Core deployment','CORE_DEPLOY_HEADER'),
+            'Running pre-flight checks for chains...':('dist/src/deploy/utils.js',b'log',b'Running pre-flight checks for chains...','PREFLIGHT_HEADER'),
+            'Error: Empty chain selection':('dist/src/deploy/utils.js',b'Error',b'Empty chain selection','EMPTY_CHAIN_SELECTION_TEXT'),
+            'Error: signer is invalid':('dist/src/deploy/utils.js',b'Error',b'signer is invalid','INVALID_SIGNER_TEXT'),
+            'Error: Deployment cancelled':('dist/src/deploy/utils.js',b'Error',b'Deployment cancelled','DEPLOYMENT_CANCELLED_TEXT'),
+        }
+        if message in fixed:
+            relative,call,needle,label=fixed[message]
+            if relative not in self.fixed_sources:
+                try:self.fixed_sources[relative]=self.capture(str(self.root/relative))
+                except Exception:self.fixed_sources[relative]=b''
+            if any(re.search(rb'(?<![A-Za-z0-9_$])'+re.escape(call+b'('+quote+needle+quote+b')'),self.fixed_sources[relative])is not None for quote in(b"'",b'"',b'`')):self.last_header={'enum':label,'log_line':line,'observed_only':True}
+        error_header=message.startswith('Error: ')or re.match(r'^Error \[[A-Z][A-Z_0-9]{1,63}\]:',message)is not None
+        if error_header and len(self.headers)<8:
+            row={'header':'CLI_ERROR_TEXT','bytes':len(text),'sha256':hashlib.sha256(text).hexdigest(),'typed_exception':False,'log_line':line}
+            if not any(all(prior[key]==row[key]for key in('header','bytes','sha256'))for prior in self.headers):self.headers.append(row)
+        if len(self.frames)>=8:
+            if message.startswith('at '):self.frame_attempts_truncated=True
+            return
+        match=re.fullmatch(r'at (?:[^\r\n]{1,256} \()?((?:file://)?/[^()\r\n]{1,4096}\.(?:js|mjs|cjs)):([0-9]{1,7}):([0-9]{1,7})\)?',message)
+        if match is None:return
+        if self.frame_attempts>=32:self.frame_attempts_truncated=True;return
+        self.frame_attempts+=1
+        path=match[1]
+        if path.startswith('file://'):path=path[7:]
+        if '%'in path or'?'in path or'#'in path:return
+        try:
+            source=self.capture(path);row,column=int(match[2]),int(match[3]);lines=re.split(r'\r\n|[\n\r\u2028\u2029]',source.decode('utf8','strict'))
+            if not 0<row<=len(lines)or not 0<column<=len(lines[row-1].encode('utf-16-le'))//2+1:raise ValueError('Valid emitted JS coordinate required')
+            relative=Path(path).relative_to(self.root).as_posix();key=(relative,row,column)
+            if key not in self.seen:
+                self.seen.add(key);pin=self.files[path]['fingerprint'];self.frames.append({'source':relative,'line':row,'column':column,'source_bytes':pin['bytes'],'source_sha256':pin['sha256']})
+        except Exception:self.unadmitted=min(2**32-1,self.unadmitted+1)
+
+    def source_header(self,line):
+        if self.state=='frozen'and self.starts==1 and line==self.end_line:self.source_panic=True
+
+    def classify(self,item):
+        if self.state=='frozen'and self.source_panic and self.starts==1 and item is not None and item.get('category')=='HYPERLANE_CORE_DEPLOY':self.qualified=True
+
+    def public(self):
+        if not self.qualified:return {'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False,'scope':'No unique first-deploy/Source Program panic window with admitted CLI context.'}
+        if any(RelayerStartup.identity(Path(path))!=row['identity']for path,row in self.files.items()):raise ValueError('Emitted Source identity changed before publication')
+        return {'schema':1,'kind':'public-Tron-CLI-failure-text-observation','collection_status':'observed','window':{'stage':'CORE_DEPLOY_FIRST_ENTERED','start_log_line':self.start_line,'end_log_line':self.end_line,'matched_Source_panic_category':'HYPERLANE_CORE_DEPLOY'},'prefix_kind':'admitted_pnpm_native_basename','last_seen_header':self.last_header,'error_header_fingerprints':self.headers,'emitted_JS_coordinates':self.frames,'unadmitted_coordinates_omitted':self.unadmitted,'frame_candidates_truncated':self.frame_attempts_truncated,'CLI_pipe_read_error_observed':self.pipe_error,'CLI_numeric_status':None,'native_or_timing_or_cleanup_authority':False,'scope':'Exact prefixed text within one Source first-deploy/panic window only. Source bytes/UTF16 coordinates matched existing admitted JS descriptors, not unique execution/PIDepoch/typed exception or parent wait. CLI catch prints message only; absent stack/unknown text stays unknown. No TS/sourcemap claim, function/address/rawpath/key/URL/argv/env/body/error text.'}

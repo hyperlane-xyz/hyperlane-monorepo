@@ -905,4 +905,27 @@ class RadixTransportOwnerControls(unittest.TestCase):
         with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=self.diag):row=api.write_public_failure_diagnostics(self.plan,self.manifest,{},self.root,self.root,result,1,None,context)
         wire=Path(row['path']).read_text();self.assertEqual(result,original);self.assertNotIn('PRIVATE',wire);self.assertFalse(json.loads(wire)['Radix_transport']['native_or_timing_or_cleanup_authority']);self.assertLess(row['bytes'],512*1024)
 
+
+
+class TronCLIContextOwnerControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve()
+    def test_actual_failure_publisher_passes_existing_readonly_context_and_preserves_primary(self):
+        from types import SimpleNamespace
+        required=[{'path':'/approved/file.js','bytes':1,'sha256':'c'*64}];inputs={'tron_cli':{'path':'/approved/receipt','bytes':1,'sha256':'d'*64},'tron_tre':{'pnpm':{'path':'/approved/pnpm-native'}}};approval={};result={'error':{'type':'RuntimeError','message':'PRIVATE_PRIMARY'},'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]};before=copy.deepcopy(result);plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':{},'required_inputs':required};manifest={'scenario':'tron','mode':'ReleaseSafe','runtime_source_commit':'a'*40}
+        method=mock.Mock(return_value={'schema':1,'native_or_timing_or_cleanup_authority':False});module=SimpleNamespace(fixture_failure_observation=method)
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics(plan,manifest,approval,self.root,self.root,result,1,None,None,inputs)
+        self.assertIs(method.call_args.kwargs['case_inputs'],inputs);self.assertIs(method.call_args.kwargs['required_inputs'],required);self.assertIs(method.call_args.args[2],approval);self.assertEqual(result,before);self.assertNotIn('PRIVATE',Path(row['path']).read_text())
+    def test_actual_worker_failure_call_passes_loaded_inputs_no_new_dataset(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');calls=[n for n in ast.walk(worker)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='write_public_failure_diagnostics'];self.assertEqual(len(calls),1);self.assertIsInstance(calls[0].args[-1],ast.Name);self.assertEqual(calls[0].args[-1].id,'inputs')
+        # This existing materialized graph admission remains BEFORE harness I/O;
+        # the failure collector never repeats it or changes successful behavior.
+        self.assertIn("read_materialized(inputs['tron_cli'])",ast.unparse(worker))
+    def test_actual_failure_callback_throw_remains_unavailable_and_primary_exact(self):
+        from types import SimpleNamespace
+        primary={'type':'ValueError','message':'PRIVATE_SOURCE'};result={'error':primary,'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]};module=SimpleNamespace(fixture_failure_observation=mock.Mock(side_effect=ValueError('PRIVATE_COLLECTOR')))
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'tron','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},self.root,self.root,result,1,None,None,{})
+        value=json.loads(Path(row['path']).read_text());self.assertIs(result['error'],primary);self.assertEqual(value['fixture_failure']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))
+
 if __name__=='__main__':unittest.main()
