@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "sealevel-composite",
-  "mode": "ReleaseSafe",
+  "scenario": "starknet",
+  "mode": "ReleaseFast",
   "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
   "producer_run_id": 42451611648,
   "producer_run_attempt": 1,
@@ -12,7 +12,25 @@
     "minimum_host_free_bytes": 6442450944,
     "maximum_wall_seconds": 3600
   },
-  "postgres": null,
+  "postgres": {
+    "schema": 2,
+    "architecture": "amd64",
+    "image": "postgres:14",
+    "image_id": {
+      "sha256_hex_chunks": [
+        "47b95c5ad45838febbc39cae4194b6f9",
+        "c3f6c3d7409b20043e8cea4a5bd70fec"
+      ],
+      "prefix": "sha256:"
+    },
+    "canonical_digest": {
+      "sha256_hex_chunks": [
+        "834a046089d76edd1d2e81c4741f3ad5",
+        "d1853646ededc86c2708936aad31c1ed"
+      ],
+      "prefix": "postgres@sha256:"
+    }
+  },
   "prerequisites": {
     "local_checkout_build": true,
     "hpack": {
@@ -26,28 +44,84 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "svm_offline": {
+    "native_cli": {
+      "name": "starkli",
+      "architecture": "amd64",
+      "source_url": "https://github.com/xJonathanLEI/starkli/releases/download/v0.4.1/starkli-x86_64-unknown-linux-gnu.tar.gz",
+      "bytes": 42077936,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "7d946b2b155831941f69cce42ce95a71",
+          "7f92d7950ac79db8e45f140d2e80877b"
+        ]
+      },
+      "archive": {
+        "bytes": 14276764,
+        "sha256": {
+          "sha256_hex_chunks": [
+            "4217ccd75c11627e513e1c6e4395b4df",
+            "fdebe2b8a7494bc989e93c2b885b8be3"
+          ]
+        },
+        "publisher_digest": null,
+        "member": "./starkli"
+      }
+    },
+    "starknet_devnet": {
       "schema": 2,
-      "platform": "linux-x86_64",
-      "agave_version": "3.0.14",
-      "platform_tools_version": "v1.51",
-      "spl_release": "2024-08-23",
-      "spl_token_revision": "e101cca",
-      "programs": 13,
-      "agave_files": 85,
-      "source_environment_files": 25,
-      "require_same_producer_source": true
+      "architecture": "amd64",
+      "source_image": "shardlabs/starknet-devnet-rs:0.4.2",
+      "image_id": {
+        "sha256_hex_chunks": [
+          "0405b55a0d37c14ab0c9a38963a7cbf2",
+          "19f86afb324dab8ba72cc8f9456de222"
+        ],
+        "prefix": "sha256:"
+      },
+      "canonical_digest": {
+        "sha256_hex_chunks": [
+          "ccf8b80807c6cc5e6497681cfdeabedc",
+          "adcce2c69935c8bf514540726b8955d5"
+        ],
+        "prefix": "shardlabs/starknet-devnet-rs@sha256:"
+      }
+    },
+    "starknet_contracts": {
+      "release": "0.3.9",
+      "source_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.zip",
+      "bytes": 10829931,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "5303a50baf47b5c3cc30274cf4b6dcba",
+          "fbeb8425010fc3bf54854f5d1bd38667"
+        ]
+      },
+      "publisher_checksum_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.CHECKSUM",
+      "publisher_checksum_bytes": 96,
+      "publisher_checksum_sha256": {
+        "sha256_hex_chunks": [
+          "1c567654967a6e6f58741ae84a3fbe59",
+          "d46c0743a397e99c5fb5b6fcd0c7c301"
+        ]
+      },
+      "member_count": 558,
+      "member_sha256": {
+        "sha256_hex_chunks": [
+          "594307d5fbc39e65770f4a20429d0b35",
+          "e34ec02893580a72e7b1bfaf9aae826e"
+        ]
+      }
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13606194323,
-      "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52478175,
+      "id": 13606304633,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 55146705,
       "sha256": {
         "sha256_hex_chunks": [
-          "8975f1a1f5ef9ab5dd03845c4f5cfd20",
-          "37c2d2eee2ef0589d40155eba9a042a2"
+          "7e46655e0ba9fe731443a73bf702a8a0",
+          "0d4711d9c1086db629019098d9d40832"
         ]
       }
     },
@@ -92,17 +166,6 @@
         "sha256_hex_chunks": [
           "6540bcb179de4910aa90a5bf791c0b1e",
           "d3cf44b63f49ccc97a31d8df99d4a4e5"
-        ]
-      }
-    },
-    "svm": {
-      "id": 13605619403,
-      "name": "svm-linux-prerequisites-42451611648-1",
-      "size_in_bytes": 327978116,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "d0802427a2f84cc54fbb7c0867f9b074",
-          "f347375d5dfa36c0a00bed754339e458"
         ]
       }
     }
