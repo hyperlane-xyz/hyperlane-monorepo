@@ -110,6 +110,12 @@ def failure_observation(error,repo,authority):
     except (OSError,ValueError,TypeError,SyntaxError):pass
   frame=frame.tb_next
  if type(error).__name__ in {'Refused','ValueError','AssertionError'}and len(error.args)==1 and type(error.args[0])is str and error.args[0]in guards:result['Source_guard']=error.args[0]
+ if result['Source_guard']=='input bytes changed'and any(row['source']=='zig/bench/paired_linux.py'and row['function']=='checked'for row in result['Source_frames']):
+  observed=getattr(error,'external_tool_mismatch',None)
+  if type(observed)is dict and set(observed)=={'name','expected','actual'}and type(observed['name'])is str and observed['name']in {'anvil','cast','clang','cc','node','pnpm','git','ps','lsof','sh','openssl'}:
+   pins=[observed['expected'],observed['actual']]
+   if all(type(row)is dict and set(row)=={'bytes','sha256'}and type(row['bytes'])is int and 0<=row['bytes']<=2*GIB and type(row['sha256'])is str and re.fullmatch('[0-9a-f]{64}',row['sha256'])for row in pins):
+    result['external_tool_mismatch']={'name':observed['name'],'expected':dict(pins[0]),'actual':dict(pins[1])}
  return result
 
 def main():

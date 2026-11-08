@@ -37,9 +37,15 @@ def pin(path):
  path=Path(path);need(path.is_file()and not path.is_symlink(),'regular file');before=path.stat()
  with path.open('rb')as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
  after=path.stat();need((before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)==(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns),'file changed');return {'path':str(path),'bytes':after.st_size,'sha256':digest}
-def checked(row,root=None):
+def checked(row,root=None,external_tool=None):
  need(isinstance(row,dict)and set(row)=={'path','bytes','sha256'}and type(row['bytes'])is int and 0<=row['bytes']<=2*1024**3 and isinstance(row['sha256'],str)and re.fullmatch('[0-9a-f]{64}',row['sha256']),'closed file descriptor')
- path=Path(row['path'])if root is None else Path(root)/relative(row['path']);need(path.is_absolute()and path.resolve()==path,'canonical owned input');actual=pin(path);need(actual['bytes']==row['bytes']and actual['sha256']==row['sha256'],'input bytes changed');return actual
+ path=Path(row['path'])if root is None else Path(root)/relative(row['path']);need(path.is_absolute()and path.resolve()==path,'canonical owned input');actual=pin(path)
+ try:need(actual['bytes']==row['bytes']and actual['sha256']==row['sha256'],'input bytes changed')
+ except Refused as error:
+  if type(external_tool)is str and external_tool in {'anvil','cast','clang','cc','node','pnpm','git','ps','lsof','sh','openssl'}:
+   error.external_tool_mismatch={'name':external_tool,'expected':{k:row[k]for k in ['bytes','sha256']},'actual':{k:actual[k]for k in ['bytes','sha256']}}
+  raise
+ return actual
 def captured_source(path,authority,repo):
  row=next((r for r in authority['required_source']if r['path']==str(Path(path).relative_to(repo))),None);need(row is not None,'Source outside admitted closure');raw=Path(path).read_bytes();need(len(raw)==row['bytes']and sha(raw)==row['sha256'],'captured Source differs');return raw
 def load_source(path,name,authority,repo):
@@ -82,7 +88,7 @@ def input_manifest(path,root,repo,producer):
  from_cpu=Path('/proc/cpuinfo').read_text();rows=[set(line.split(':',1)[1].split())for line in from_cpu.splitlines()if line.startswith('flags')and':'in line];need(rows and set(flags)<=set.intersection(*rows),'consumer CPU superset')
  required_tools={'anvil','cast','clang','cc','node','pnpm','git','ps','lsof','sh','openssl'};need(required_tools<=set(value['external']['tools']),'actual fixture executable closure')
  for name in required_tools:
-  row=value['external']['tools'][name];checked(row);need(__import__('shutil').which(name)is not None and str(Path(__import__('shutil').which(name)).resolve())==row['path'],'original bare tool resolution differs from producer')
+  row=value['external']['tools'][name];checked(row,external_tool=name);need(__import__('shutil').which(name)is not None and str(Path(__import__('shutil').which(name)).resolve())==row['path'],'original bare tool resolution differs from producer')
  for row in value['external']['libraries'].values():checked(row)
  for row in value.get('repository_source_files',[]):checked(row,repo)
  for row in value.get('repository_fixture_files',[]):

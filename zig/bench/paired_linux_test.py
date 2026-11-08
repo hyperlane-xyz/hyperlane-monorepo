@@ -352,4 +352,31 @@ class AdmissionFailureDiagnostics(unittest.TestCase):
   env,saved,events,raised=self.actual_boundary(diagnostic=lambda *args:(_ for _ in ()).throw(AssertionError('success invoked failure diagnostic')))
   self.assertIsNone(raised);self.assertEqual(saved,[{'schema':1,'passed':True,'actual_commands':{'all_calls_actually_waited':True}}]);self.assertEqual(events,['summary','write','restore'])
 
+class ExternalToolMismatchDiagnostics(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.tool=self.root/'PRIVATE_TOOL_PATH';self.tool.write_bytes(b'PRIVATE_FIRST');self.expected=p.pin(self.tool);self.repo=Path(p.__file__).resolve().parents[2];self.authority={'required_source':[{**p.pin(Path(p.__file__).resolve()),'path':'zig/bench/paired_linux.py'}]}
+ def changed(self,name='pnpm'):
+  self.tool.write_bytes(b'PRIVATE_OTHER')
+  try:p.checked(self.expected,external_tool=name)
+  except p.Refused as error:return error
+  self.fail('actual changed tool passed')
+ def test_actual_changed_tool_captures_single_checked_operands_without_path_or_body(self):
+  error=self.changed();self.assertEqual(error.args,('input bytes changed',));expected={'name':'pnpm','expected':{k:self.expected[k]for k in ['bytes','sha256']},'actual':{k:p.pin(self.tool)[k]for k in ['bytes','sha256']}};self.assertEqual(error.external_tool_mismatch,expected)
+  with mock.patch.object(p,'pin',side_effect=AssertionError('diagnostic must not reobserve tool')):value=stage.failure_observation(error,self.repo,self.authority)
+  self.assertEqual(value['Source_guard'],'input bytes changed');self.assertEqual(value['external_tool_mismatch'],expected);self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn(str(self.tool),json.dumps(value))
+ def test_unchanged_tool_and_ordinary_group_mismatch_keep_original_behavior(self):
+  self.assertEqual(p.checked(self.expected,external_tool='pnpm'),p.pin(self.tool));self.tool.write_bytes(b'PRIVATE_OTHER')
+  for name in [None,'PRIVATE_UNKNOWN']:
+   try:p.checked(self.expected,external_tool=name)
+   except p.Refused as error:self.assertEqual(error.args,('input bytes changed',));self.assertFalse(hasattr(error,'external_tool_mismatch'))
+   else:self.fail('mismatch healed')
+ def test_unknown_nested_bool_overflow_or_unapproved_Source_never_publish(self):
+  error=self.changed();valid=copy.deepcopy(error.external_tool_mismatch)
+  bad=[dict(valid,name='PRIVATE_UNKNOWN'),dict(valid,actual={'bytes':True,'sha256':'a'*64}),dict(valid,actual={'bytes':2*stage.GIB+1,'sha256':'a'*64}),dict(valid,actual={'bytes':1,'sha256':{'PRIVATE':'data'}}),dict(valid,actual={'bytes':1,'sha256':'a'*64,'path':'PRIVATE'})]
+  for row in bad:
+   error.external_tool_mismatch=row;value=stage.failure_observation(error,self.repo,self.authority);self.assertNotIn('external_tool_mismatch',value);self.assertNotIn('PRIVATE',json.dumps(value))
+  error.external_tool_mismatch=valid;self.assertNotIn('external_tool_mismatch',stage.failure_observation(error,self.repo,{'required_source':[]}))
+ def test_exact_actual_external_tool_loop_supplies_name_without_new_pin_calls(self):
+  tree=ast.parse(Path(p.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='input_manifest');loop=next(n for n in fn.body if isinstance(n,ast.For)and isinstance(n.target,ast.Name)and n.target.id=='name'and isinstance(n.iter,ast.Name)and n.iter.id=='required_tools');calls=[n for n in ast.walk(loop)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='checked'];self.assertEqual(len(calls),1);self.assertEqual([(k.arg,ast.unparse(k.value))for k in calls[0].keywords],[('external_tool','name')])
+
 if __name__=='__main__':unittest.main()
