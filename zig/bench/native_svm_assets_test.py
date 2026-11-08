@@ -167,20 +167,32 @@ class Controls(unittest.TestCase):
                   '--faucet-port','9900','--gossip-port','8001','--dynamic-port-range','8002-8033',
                   '--faucet-per-time-sol-cap','0','--faucet-per-request-sol-cap','0']
             self.assertEqual(m.node_arguments(argv,root),str(ledger))
-            for flag in ['--bind-address','--rpc-port','--faucet-per-request-sol-cap']:
+            for flag in argv[1::2]:
                 bad=argv[:];bad[bad.index(flag)+1]='1'
                 with self.assertRaises(ValueError):m.node_arguments(bad,root)
+                bad=argv[:];index=bad.index(flag);del bad[index:index+2]
+                with self.assertRaises(ValueError):m.node_arguments(bad,root)
+                with self.assertRaises(ValueError):m.node_arguments(argv+[flag,argv[argv.index(flag)+1]],root)
             with self.assertRaises(ValueError):m.node_arguments(argv+['--rpc-port','8899'],root)
             bad=argv[:];bad[2]='/tmp'
             with self.assertRaises(ValueError):m.node_arguments(bad,root)
 
     def test_tcp_svm_loopback_and_explicit_faucet_only(self):
-        rows=m.listener_rows(42,'p42\nf1\nn127.0.0.1:8899\nf2\nn127.0.0.1:8900\nf3\nn*:9900\n')
-        self.assertEqual(rows,[('127.0.0.1',8899),('127.0.0.1',8900),('0.0.0.0',9900)])
+        rows=m.listener_rows(42,'p42\nf1\nn*:8899\nf2\nn0.0.0.0:8900\nf3\nn*:9900\n')
+        self.assertEqual(rows,[('0.0.0.0',8899),('0.0.0.0',8900),('0.0.0.0',9900)])
+        udp=[('127.0.0.1',8001)]
+        m.required_listener_rows(rows,udp)
+        for port in (8899,8900,9900):
+            missing=[row for row in rows if row[1]!=port]
+            for bad in (missing,missing+[('127.0.0.1',port)],missing+[('::',port)]):
+                with self.subTest(port=port,bad=bad),self.assertRaises(ValueError):m.required_listener_rows(bad,udp)
+        for bad in ([],[('0.0.0.0',8001)],[('127.0.0.1',8002)]):
+            with self.assertRaises(ValueError):m.required_listener_rows(rows,bad)
         self.assertEqual(m.listener_rows(42,''),[])  # No socket is not readiness proof.
         self.assertEqual(m.listener_rows(42,'p42\nf4\nn127.0.0.1:1234\n'),[('127.0.0.1',1234)])
         for raw in ['p41\nf1\nn127.0.0.1:8899\n','p42\nn127.0.0.1:8899\n',
-                    'p42\nf1\nn*:8899\n','p42\nf1\nn192.0.2.1:8899\n',
+                    'p42\nf1\nn*:8898\n','p42\nf1\nn*:8901\n','p42\nf1\nn*:9901\n',
+                    'p42\nf1\nn[::]:8899\n','p42\nf1\nn192.0.2.1:8899\n',
                     'p42\nf1\nn*:1234\n','p42\nf1\nf2\nn127.0.0.1:8899\n',
                     'p42\nf1\nn127.0.0.1:8899->127.0.0.1:8899\n']:
             with self.subTest(raw=raw),self.assertRaises(ValueError):m.listener_rows(42,raw)

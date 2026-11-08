@@ -30,10 +30,10 @@ class Controls(unittest.TestCase):
         path.write_bytes(data + b'\0' + (cargo or str(api.CARGO)).encode() + b'\0'); path.chmod(0o600)
         return api.pin(path)
 
-    def fixture(self):
+    def fixture(self, family="svm"):
         base = self.root / 'producer/helper'; base.mkdir(parents=True)
         product = self.elf(base / 'products/construction')
-        template = json.loads((P/'fixtures/native_svm_c20_encoded_request.json').read_text())
+        template = json.loads((P/f'fixtures/native_{family}_c20_encoded_request.json').read_text())
         result = {'passed': True, 'source_unchanged': True, 'source_commit': template['producer_source_commit'], 'products': {'construction': {'artifact_relative_path': 'products/construction', 'published': product, 'producer': product}}}
         self.write(base / 'result.json', result)
         platform = base / 'setup/tools-platform.txt'; platform.parent.mkdir(); platform.write_text('cargo 1.98.0 (797e8a9bc 2026-08-05)\n')
@@ -59,7 +59,7 @@ class Controls(unittest.TestCase):
             with self.assertRaises(ValueError): api.baked_cargo(path)
 
     def test_disabled_and_other_family_do_not_read_receipt_or_discover_tools(self):
-        for request in [{'schema': 1, 'root_approved': False, 'scenario': 'sealevel'}, {'schema': 1, 'root_approved': True, 'scenario': 'evm'}]:
+        for request in [{'schema': 1, 'root_approved': False, 'scenario': 'sealevel'}, {'schema': 1, 'root_approved': True, 'scenario': 'cosmosnative'}]:
             path = self.root / 'request'; row = self.write(path, request)
             self.assertIsNone(api.inputs(path, row['sha256'], self.root / 'ABSENT', 'unused', self.repo, 'b' * 40))
 
@@ -82,6 +82,29 @@ class Controls(unittest.TestCase):
         row = self.write(args[0], request)
         with self.assertRaisesRegex(ValueError, 'resource/lifecycle'): api.inputs(args[0], row['sha256'], args[2], args[3]['sha256'], self.repo, 'b'*40)
 
+    def test_actual_encoded_EVM_CW_requests_use_full_validator_and_same_baked_Cargo(self):
+        for family, scenario in [('evm', 'evm'), ('cw', 'cosmwasm')]:
+            with self.subTest(family=family), tempfile.TemporaryDirectory() as temporary:
+                original_root, original_repo = self.root, self.repo
+                self.root = Path(temporary).resolve(); self.repo = self.root / 'repo'
+                (self.repo / 'rust/main/utils/run-locally').mkdir(parents=True)
+                (self.repo / 'rust/main/Cargo.toml').write_text('[workspace]\n')
+                try:
+                    source = P / f'fixtures/native_{family}_c20_encoded_request.json'
+                    raw = json.loads(source.read_text())
+                    self.assertIsInstance(raw['artifact_pins']['helper']['sha256'], dict)
+                    dispatch = api.request_module(); decoded = dispatch.read_request(source)
+                    self.assertEqual(decoded['scenario'], scenario); dispatch.validate_request(decoded)
+                    args = self.fixture(family); bound = self.call(args)
+                    self.assertEqual(bound['baked_cargo_path'], str(api.CARGO))
+                    self.assertEqual(bound['workspace_manifest'], str(self.repo / 'rust/main/Cargo.toml'))
+                    request = json.loads(args[0].read_text()); request['limits']['maximum_wall_seconds'] = 3601
+                    row = self.write(args[0], request)
+                    with self.assertRaisesRegex(ValueError, 'resource/lifecycle'):
+                        api.inputs(args[0], row['sha256'], args[2], args[3]['sha256'], self.repo, 'b' * 40)
+                finally:
+                    self.root, self.repo = original_root, original_repo
+
     def test_wrong_cohort_request_join_or_archive_cannot_provision(self):
         args = self.fixture()
         for field in ('source', 'request', 'join', 'archive'):
@@ -101,7 +124,7 @@ class Controls(unittest.TestCase):
     def test_workflow_keeps_finite_step_after_controls_before_composition(self):
         workflow = P.parents[1] / '.github/workflows/zig-agents.yml'
         text = workflow.read_text(); block = text[text.index('      - name: Stage exact producer-baked Cargo'):text.index('      - name: Pin preinstalled tools')]
-        self.assertIn('timeout-minutes: 5', block); self.assertIn("if: steps.request.outputs.enabled == 'true'", block)
+        self.assertIn('native Source workspace discovery', block); self.assertIn('timeout-minutes: 5', block); self.assertIn("if: steps.request.outputs.enabled == 'true'", block)
         self.assertLess(text.index('native_svm_workspace_test.py'), text.index('      - name: Stage exact producer-baked Cargo'))
         self.assertNotIn('rustup default', text[text.index('  native-case-producer-inputs:'):text.index('  aleo-linux-sdk-prerequisite:')])
 

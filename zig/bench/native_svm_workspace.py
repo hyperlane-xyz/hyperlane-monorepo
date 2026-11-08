@@ -74,7 +74,7 @@ def inputs(request_path, request_sha, receipt_path, receipt_sha, repo, execution
     request_pin = pin(request_path); need(request_pin['sha256'] == request_sha, 'Reviewed request changed')
     dispatch = request_module(); request = dispatch.read_request(request_path)
     need(type(request.get('root_approved')) is bool and type(request.get('schema')) is int and request['schema'] == 1, 'Typed request authority required')
-    if not request['root_approved'] or request.get('scenario') not in {'sealevel', 'sealevel-composite'}: return None
+    if not request['root_approved'] or request.get('scenario') not in {'sealevel', 'sealevel-composite', 'evm', 'cosmwasm'}: return None
     dispatch.validate_request(request)
     receipt_pin = pin(receipt_path); need(receipt_pin['sha256'] == receipt_sha, 'Producer receipt changed')
     receipt = json.loads(receipt_path.read_text())
@@ -123,7 +123,7 @@ def main():
     rustup_pin = pin(RUSTUP); need(os.access(RUSTUP, os.X_OK), 'Actual fixed rustup executable required')
     started = time.monotonic_ns(); deadline = started + 270 * 10 ** 9; free_before = shutil.disk_usage(args.output.parent).free; original_default = default_toolchain()
     env = {'PATH': '/usr/bin:/bin:/home/runner/.cargo/bin', 'LC_ALL': 'C.UTF-8', 'HOME': '/home/runner', 'RUSTUP_HOME': '/home/runner/.rustup', 'CARGO_HOME': '/home/runner/.cargo', 'RUSTUP_NO_UPDATE_CHECK': '1'}
-    result = {'schema': 1, 'kind': 'ordinary-SVM-baked-Cargo-prerequisite', 'passed': False, 'binding': bound, 'rustup': rustup_pin, 'commands': [], 'native_case_acceptance': False, 'helper_or_SDK_rebuilt': False, 'original_deadline_monotonic_ns': deadline, 'actual_future_case_environment_checked': False}
+    result = {'schema': 1, 'kind': 'ordinary-native-baked-Cargo-prerequisite', 'passed': False, 'binding': bound, 'rustup': rustup_pin, 'commands': [], 'native_case_acceptance': False, 'helper_or_SDK_rebuilt': False, 'original_deadline_monotonic_ns': deadline, 'actual_future_case_environment_checked': False}
     def run(name, argv, maximum_seconds, child_env):
         remaining = (deadline - time.monotonic_ns()) / 10 ** 9
         need(remaining > 0 and shutil.disk_usage(args.output.parent).free >= 6 * GIB, 'Original prerequisite deadline/free6GiB floor')

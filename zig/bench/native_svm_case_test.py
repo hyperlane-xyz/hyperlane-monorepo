@@ -118,11 +118,29 @@ class Controls(unittest.TestCase):
             def link(p):
                 if p=='/proc/1/exe':raise PermissionError('protected unrelated')
                 return str(node)
-            tcp=b'p42\nf1\nn127.0.0.1:8899\nf2\nn127.0.0.1:8900\nf3\nn*:9900\n';udp=b'p42\nf4\nn127.0.0.1:8001\n'
+            tcp=b'p42\nf1\nn*:8899\nf2\nn0.0.0.0:8900\nf3\nn*:9900\n';udp=b'p42\nf4\nn127.0.0.1:8001\n'
             def run(command,**kwargs):return subprocess.CompletedProcess(command,0,udp if '-iUDP'in command else tcp,b'')
             with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run):
                 expected=api.listener_proof({},inputs,root,root/'unused-lsof',observed,owner,subprocess)
             self.assertEqual(expected,[{8899,8900}]);self.assertEqual(observed['8899,8900']['pid'],42);self.assertEqual(observed['8899,8900']['ledger'],str(ledger))
+            proof=observed['8899,8900']
+            self.assertEqual(proof['source_tcp_wildcard_ports'],[8899,8900,9900])
+            self.assertEqual(proof['source_tcp_wildcard_roles'],{'rpc':8899,'pubsub':8900,'faucet':9900})
+            self.assertEqual(proof['owned_loopback_tcp_ports'],[])
+            self.assertEqual(proof['client_endpoint_scope'],'localhost')
+            self.assertNotIn('owned_loopback_ports',proof)
+            for original_tcp in [tcp]:
+                for port in (8899,8900,9900):
+                    for replacement in (b'',f'n127.0.0.1:{port}\n'.encode()):
+                        # Remove a complete field pair; substitute loopback on the same fd.
+                        import re
+                        tcp=re.sub(rb'f[123]\nn(?:\*|0\.0\.0\.0):'+str(port).encode()+rb'\n',
+                                   b'f8\n'+replacement if replacement else b'',original_tcp)
+                        failed={}
+                        with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run),self.assertRaisesRegex(ValueError,'Source wildcard'):
+                            api.listener_proof({},inputs,root,root/'unused-lsof',failed,owner,subprocess)
+                        self.assertEqual(failed,{})
+            tcp=original_tcp
             with mock.patch.object(Path,'read_bytes',side_effect=PermissionError('matched node denied')),mock.patch.object(api.os,'readlink',side_effect=link),self.assertRaises(PermissionError):api.listener_proof({},inputs,root,root/'unused-lsof',{},owner,subprocess)
 
     def exercise_prepare(self,scenario='sealevel'):

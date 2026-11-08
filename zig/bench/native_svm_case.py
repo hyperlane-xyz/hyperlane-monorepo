@@ -72,6 +72,7 @@ def profile(scenario=SCENARIO):return assets().public_profile(scenario,PAYER)
 
 def listener_proof(manifest,case_inputs,case,lsof,observations,owner,subprocess):
     """Actual stable Linux PID, Source argv/ledger, TCP+UDP endpoint proof."""
+    import ipaddress
     api=assets();bundle=case_inputs['svm_assets'];executable=Path(bundle['agave_files']['bin/solana-test-validator']['path']);require(api.pin(executable)==bundle['agave_files']['bin/solana-test-validator']and os.access(executable,os.X_OK),'SVM executable changed')
     for pid,row in owner.proc_fallback().items():
         if row['state']=='Z':continue
@@ -87,8 +88,7 @@ def listener_proof(manifest,case_inputs,case,lsof,observations,owner,subprocess)
                 live=owner._linux_row(pid);require(live is not None and owner.same_process(row,live),'SVM PID changed during observation')
                 observed[kind]=api.listener_rows(pid,call.stdout.decode(),udp=kind=='udp')
             ports={port for _,port in observed['tcp']}
-            require({8899,8900,9900}<=ports,'Actual SVM RPC/WS/faucet endpoints absent')
-            require(any(port==8001 for _,port in observed['udp']),'Actual SVM gossip endpoint absent')
-            observations['8899,8900']={'pid':pid,'start':row['start'],'executable':str(executable),'owned_loopback_ports':sorted(ports),'ledger':ledger,'tcp':observed['tcp'],'udp':observed['udp'],'faucet_wildcard_exception':'Source9900/caps0only'}
+            api.required_listener_rows(observed['tcp'],observed['udp'])
+            observations['8899,8900']={'pid':pid,'start':row['start'],'executable':str(executable),'owned_tcp_ports':sorted(ports),'owned_loopback_tcp_ports':sorted({port for host,port in observed['tcp'] if ipaddress.ip_address(host).is_loopback}),'source_tcp_wildcard_ports':sorted({port for host,port in observed['tcp'] if host=='0.0.0.0'}),'source_tcp_wildcard_roles':{'rpc':8899,'pubsub':8900,'faucet':9900},'client_endpoint_scope':'localhost','ledger':ledger,'tcp':observed['tcp'],'udp':observed['udp'],'faucet_wildcard_exception':'Source9900/caps0only','scope':'owned canonical Source IPv4 wildcard RPC/PubSub/faucet; localhost clients; no loopback-only RPC claim'}
         except(FileNotFoundError,ProcessLookupError):continue
     return [{8899,8900}]

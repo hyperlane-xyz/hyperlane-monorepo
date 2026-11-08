@@ -796,7 +796,7 @@ jobs:
           python3 -I -B zig/integration/multivm_restart_test.py -v
           python3 -I -B -W error zig/integration/multivm_restart_live_test.py -v
           python3 -I -B zig/integration/multivm_diagnostics_test.py -v
-      - name: Stage exact producer-baked Cargo for SVM workspace discovery only
+      - name: Stage exact producer-baked Cargo for native Source workspace discovery
         if: steps.request.outputs.enabled == 'true'
         timeout-minutes: 5
         shell: bash

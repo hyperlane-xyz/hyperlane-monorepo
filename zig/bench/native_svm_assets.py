@@ -427,7 +427,7 @@ def fixture_roles(scenario):
 
 
 def node_arguments(argv, task_root):
-    """Validate the Source-fixed native node binding without granting wildcards."""
+    """Validate Source argv; bind-address does not control RPC/PubSub in Agave3.0.14."""
     require(isinstance(argv, list) and argv and all(isinstance(v, str) for v in argv),
             'Native SVM argv required')
     pairs = [('--bind-address', '127.0.0.1'), ('--rpc-port', '8899'),
@@ -450,7 +450,7 @@ def node_arguments(argv, task_root):
 
 
 def listener_rows(pid, raw, udp=False):
-    """Exact Source fd/PID/loopback rules; faucet9900 is a typed exception only."""
+    """Exact owned PID/fd; IPv4 wildcard TCP only RPC8899/PubSub8900/faucet9900."""
     import ipaddress
     require(type(pid) is int and pid > 0 and isinstance(raw, str) and len(raw) <= 65536,
             'Bounded native SVM lsof observation required')
@@ -484,7 +484,7 @@ def listener_rows(pid, raw, udp=False):
             local = parsed[0]
             require((local[0].is_loopback and 8001 <= local[1] <= 8033) if udp else
                     (local[0].is_loopback or
-                     (str(local[0]) == '0.0.0.0' and local[1] == 9900)),
+                     (str(local[0]) == '0.0.0.0' and local[1] in (8899, 8900, 9900))),
                     'Native SVM listener escaped fixed local authority: '+json.dumps({
                         'udp':udp,'local_scope':'loopback' if local[0].is_loopback else 'wildcard' if local[0].is_unspecified else 'other',
                         'local_port':local[1],'connected':len(parsed)==2,
@@ -498,3 +498,12 @@ def listener_rows(pid, raw, udp=False):
             raise ValueError('Unknown native SVM lsof field')
     require(descriptor is None, 'Incomplete native SVM lsof observation')
     return sockets
+
+
+def required_listener_rows(tcp, udp):
+    """Require canonical Source wildcards, not interchangeable loopback-only ports."""
+    require({('0.0.0.0', port) for port in (8899, 8900, 9900)} <= set(tcp),
+            'Actual SVM Source wildcard RPC/WS/faucet endpoints absent')
+    import ipaddress
+    require(any(port == 8001 and ipaddress.ip_address(host).is_loopback for host, port in udp),
+            'Actual SVM loopback gossip endpoint absent')

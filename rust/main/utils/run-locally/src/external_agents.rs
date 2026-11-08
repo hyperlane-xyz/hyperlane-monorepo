@@ -4924,8 +4924,8 @@ fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::Sock
                         "SVM remote UDP peer differs"
                     );
                 }
-                let socket = if local == "*:9900" {
-                    "0.0.0.0:9900".parse()?
+                let socket = if matches!(local, "*:8899" | "*:8900" | "*:9900") {
+                    format!("0.0.0.0{}", &local[1..]).parse()?
                 } else {
                     local.parse::<std::net::SocketAddr>()?
                 };
@@ -4938,7 +4938,9 @@ fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::Sock
                 } else {
                     ensure!(
                         socket.ip().is_loopback()
-                            || socket == "0.0.0.0:9900".parse::<std::net::SocketAddr>()?,
+                            || (socket.ip()
+                                == std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
+                                && matches!(socket.port(), 8899 | 8900 | 9900)),
                         "unexpected wildcard/nonlocal SVM TCP listener"
                     );
                 }
@@ -4950,8 +4952,40 @@ fn svm_listeners(pid: u32, output: &str, udp: bool) -> Result<Vec<std::net::Sock
     ensure!(descriptor.is_none(), "SVM fd has no socket");
     Ok(found)
 }
-/// Consumed RPC/WS ownership, before first slot/readiness/deploy. The public
-/// fixture faucet is explicitly wildcard9900 with request/time funding caps0.
+fn svm_required_listeners(tcp: &[std::net::SocketAddr], udp: &[std::net::SocketAddr]) -> bool {
+    ["0.0.0.0:8899", "0.0.0.0:8900", "0.0.0.0:9900"]
+        .into_iter()
+        .all(|socket| {
+            socket
+                .parse::<std::net::SocketAddr>()
+                .is_ok_and(|socket| tcp.contains(&socket))
+        })
+        && udp
+            .iter()
+            .any(|socket| socket.ip().is_loopback() && socket.port() == 8001)
+}
+fn svm_exact_node_arguments(args: &[&str], ledger: &str) -> Result<()> {
+    for pair in [
+        ["--ledger", ledger],
+        ["--bind-address", "127.0.0.1"],
+        ["--rpc-port", "8899"],
+        ["--faucet-port", "9900"],
+        ["--gossip-port", "8001"],
+        ["--dynamic-port-range", "8002-8033"],
+        ["--faucet-per-time-sol-cap", "0"],
+        ["--faucet-per-request-sol-cap", "0"],
+    ] {
+        ensure!(
+            args.iter().filter(|arg| **arg == pair[0]).count() == 1
+                && args.windows(2).any(|actual| actual == pair),
+            "SVM exact node argument missing/duplicated/different"
+        );
+    }
+    Ok(())
+}
+/// Consumed RPC/WS ownership, before first slot/readiness/deploy. Canonical
+/// Agave 3.0.14 binds RPC8899/PubSub8900 to IPv4 wildcard; clients stay localhost.
+/// The separate public fixture faucet9900 has request/time funding caps0.
 pub fn svm_node_ready(child: &mut TrackedChild, ledger: &Path) -> Result<()> {
     let Some(manifest) = get()?.filter(|m| svm_family(&m.scenario)) else {
         return Ok(());
@@ -4982,21 +5016,7 @@ pub fn svm_node_ready(child: &mut TrackedChild, ledger: &Path) -> Result<()> {
         );
         let command = String::from_utf8(command.stdout)?;
         let args: Vec<_> = command.split_whitespace().collect();
-        for pair in [
-            ["--ledger", ledger],
-            ["--bind-address", "127.0.0.1"],
-            ["--rpc-port", "8899"],
-            ["--faucet-port", "9900"],
-            ["--gossip-port", "8001"],
-            ["--dynamic-port-range", "8002-8033"],
-            ["--faucet-per-time-sol-cap", "0"],
-            ["--faucet-per-request-sol-cap", "0"],
-        ] {
-            ensure!(
-                args.windows(2).any(|actual| actual == pair),
-                "SVM exact node argument missing"
-            );
-        }
+        svm_exact_node_arguments(&args, ledger)?;
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             ensure!(
@@ -5028,20 +5048,15 @@ pub fn svm_node_ready(child: &mut TrackedChild, ledger: &Path) -> Result<()> {
                 live_fixture_identity(&mut child.child, artifact, ps)? == token,
                 "SVM exited during socket lookup"
             );
-            if ["127.0.0.1:8899", "127.0.0.1:8900", "0.0.0.0:9900"]
-                .into_iter()
-                .all(|socket| {
-                    socket
-                        .parse::<std::net::SocketAddr>()
-                        .is_ok_and(|socket| tcp.contains(&socket))
-                })
-                && udp.iter().any(|socket| socket.port() == 8001)
-            {
+            if svm_required_listeners(&tcp, &udp) {
                 append_fixture_observation(
                     manifest,
                     "svm-node-readiness.jsonl",
                     &serde_json::json!({
                     "pid":child.id(),"os_start_token":token,"ledger":ledger,"tcp":tcp,"udp":udp,
+                    "source_tcp_wildcard_ports":[8899,8900,9900],
+                    "source_tcp_wildcard_roles":{"rpc":8899,"pubsub":8900,"faucet":9900},
+                    "client_endpoint_scope":"localhost",
                     "public_fixture_faucet_wildcard_port":9900,"faucet_funding_caps_SOL":0,
                     "scope":"actual owned sockets before deployment; no chain or600credit"}),
                 )?;
@@ -5497,17 +5512,57 @@ mod tests {
     }
     #[test]
     fn svm_listener_owned_faucet_is_explicit_and_not_loopback_credit() {
-        let sockets = super::svm_listeners(
+        let tcp = super::svm_listeners(
             42,
-            "p42\nf3\nn127.0.0.1:8899\nf4\nn127.0.0.1:8900\nf5\nn*:9900\n",
+            "p42\nf3\nn*:8899\nf4\nn0.0.0.0:8900\nf5\nn*:9900\n",
             false,
         )
         .unwrap();
-        assert!(sockets.contains(&"127.0.0.1:8899".parse().unwrap()));
-        assert!(sockets.contains(&"127.0.0.1:8900".parse().unwrap()));
-        assert!(sockets.contains(&"0.0.0.0:9900".parse().unwrap()));
-        assert!(super::svm_listeners(42, "p42\nf3\nn*:8899\n", false).is_err());
-        assert!(super::svm_listeners(42, "p42\nf3\nn*:9901\n", false).is_err());
+        let udp = super::svm_listeners(42, "p42\nf6\nn127.0.0.1:8001\n", true).unwrap();
+        assert!(super::svm_required_listeners(&tcp, &udp));
+        assert!(tcp.iter().all(|socket| socket.ip().is_unspecified()));
+        for port in [8899, 8900, 9900] {
+            let mut missing = tcp.clone();
+            missing.retain(|socket| socket.port() != port);
+            assert!(!super::svm_required_listeners(&missing, &udp));
+            missing.push(format!("127.0.0.1:{port}").parse().unwrap());
+            assert!(!super::svm_required_listeners(&missing, &udp));
+        }
+        assert!(!super::svm_required_listeners(&tcp, &[]));
+        for endpoint in ["*:8898", "*:8901", "*:9901", "[::]:8899", "192.0.2.1:8899"] {
+            assert!(super::svm_listeners(42, &format!("p42\nf3\nn{endpoint}\n"), false).is_err());
+        }
+        let args = [
+            "validator",
+            "--ledger",
+            "/owned/ledger",
+            "--bind-address",
+            "127.0.0.1",
+            "--rpc-port",
+            "8899",
+            "--faucet-port",
+            "9900",
+            "--gossip-port",
+            "8001",
+            "--dynamic-port-range",
+            "8002-8033",
+            "--faucet-per-time-sol-cap",
+            "0",
+            "--faucet-per-request-sol-cap",
+            "0",
+        ];
+        super::svm_exact_node_arguments(&args, "/owned/ledger").unwrap();
+        for index in (1..args.len()).step_by(2) {
+            let mut wrong = args.to_vec();
+            wrong[index + 1] = "wrong";
+            assert!(super::svm_exact_node_arguments(&wrong, "/owned/ledger").is_err());
+            let mut missing = args.to_vec();
+            missing.drain(index..index + 2);
+            assert!(super::svm_exact_node_arguments(&missing, "/owned/ledger").is_err());
+            let mut duplicate = args.to_vec();
+            duplicate.extend_from_slice(&args[index..index + 2]);
+            assert!(super::svm_exact_node_arguments(&duplicate, "/owned/ledger").is_err());
+        }
     }
     #[test]
     fn svm_listener_foreign_pid_fd_and_udp_escape_are_hard_errors() {
