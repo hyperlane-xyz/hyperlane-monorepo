@@ -1,0 +1,4 @@
+# Layer AFTER values-zig.yaml when the selected configured image contains the
+# complete reviewed nonsecret JSON at /etc/hyperlane. Do not mask it with a CM.
+hyperlane:
+  defaultsConfigMap: ''

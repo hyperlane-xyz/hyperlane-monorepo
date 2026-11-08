@@ -65,7 +65,7 @@ spec:
               apk add tar
               echo "Extracting data to {{ .Values.hyperlane.dbPath }}"
               tar --no-overwrite-dir --no-same-owner -xzf /tmp/seed.tar.gz -C {{ .Values.hyperlane.dbPath }}
-              chown -R 1000:2000 {{ .Values.hyperlane.dbPath }}
+              chown -R {{ include "agent.bootstrapOwner" . }} {{ .Values.hyperlane.dbPath }}
             fi
         env:
           - name: GOOGLE_APPLICATION_CREDENTIALS
@@ -83,7 +83,7 @@ spec:
           {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["./relayer"]
+        command: [{{ include "agent.binary" (dict "root" . "role" "relayer") | quote }}]
         envFrom:
         - configMapRef:
             name: {{ include "agent-common.fullname" . }}
@@ -94,7 +94,7 @@ spec:
         env:
           {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.envConfig) | nindent 10 }}
           - name: CONFIG_FILES
-            value: "/relayer-configmap/relayer-config.json,/app/app-contexts/mainnet_config.json"
+            value: {{ printf "/relayer-configmap/relayer-config.json%s" (ternary (printf ",%s" .Values.hyperlane.relayer.appContextConfigFile) "" (not (empty .Values.hyperlane.relayer.appContextConfigFile))) | quote }}
           {{- with .Values.hyperlane.relayer.cacheDefaultExpirationSeconds }}
           - name: HYP_CACHEDEFAULTEXPIRATIONSECONDS
             value: {{ . | quote }}
@@ -118,6 +118,11 @@ spec:
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:
+        {{- if .Values.hyperlane.defaultsConfigMap }}
+        - name: agent-defaults
+          mountPath: /etc/hyperlane
+          readOnly: true
+        {{- end }}
         - name: {{ .Values.hyperlane.relayer.storage.name | default "state" }}
           mountPath: {{ .Values.hyperlane.dbPath }}
         - name: relayer-configmap
@@ -142,6 +147,11 @@ spec:
             memory: 64Mi
       {{- end }}
       volumes:
+      {{- if .Values.hyperlane.defaultsConfigMap }}
+      - name: agent-defaults
+        configMap:
+          name: {{ .Values.hyperlane.defaultsConfigMap | quote }}
+      {{- end }}
       - name: relayer-configmap
         configMap:
           name: {{ include "agent-common.fullname" . }}-relayer-configmap

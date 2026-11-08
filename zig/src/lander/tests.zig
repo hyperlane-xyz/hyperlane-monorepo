@@ -1724,3 +1724,88 @@ test "receipt progress allocation is initialized before publication and OOM safe
     };
     try std.testing.checkAllAllocationFailures(std.testing.allocator, Sweep.run, .{});
 }
+
+// Exercise the real receipt reducer through normal signed replacements and
+// same-DB restart. A malformed older receipt must never become the winner of
+// a newer canonical receipt's included/finalized status.
+fn canonicalWinnerAfterMalformedReceipt(finalized: bool, paged: bool) !void {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    mock.send_failure = error.RequestDeadlineExceeded;
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    const config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .estimated_block_time_ms = 1 };
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    _ = try running.enqueue(dynamicPayload(id(114)));
+    _ = try running.tick(1_000, .{});
+    _ = try running.tick(100_000, .{});
+    mock.send_failure = null;
+    mock.rewards = &.{2};
+    _ = try running.tick(200_000, .{});
+    try std.testing.expectEqual(@as(usize, 2), mock.sent.items.len);
+    try std.testing.expect(!std.mem.eql(u8, mock.sent.items[0], mock.sent.items[1]));
+    running.deinit();
+
+    var old_hash: types.Hash = undefined;
+    var replacement_hash: types.Hash = undefined;
+    std.crypto.hash.sha3.Keccak256.hash(mock.sent.items[0], &old_hash, .{});
+    std.crypto.hash.sha3.Keccak256.hash(mock.sent.items[1], &replacement_hash, .{});
+    const canonical_hash: types.Hash = @splat(0x61);
+    // Evm.receipt admits this nullable DTO; no canonical header was supplied
+    // for the older attempt. The second attempt is independently canonical.
+    try mock.receipts.put(old_hash, .{ .block_number = 1, .block_hash = null, .gas_used = 999, .effective_gas_price = 99, .executed = false });
+    try mock.receipts.put(replacement_hash, .{ .block_number = 1, .block_hash = canonical_hash, .gas_used = 600, .effective_gas_price = 7, .executed = true });
+    try mock.headers.put(1, .{ .number = 1, .hash = canonical_hash });
+    mock.finalized_height = if (finalized) 1 else 0;
+    mock.next_nonce = if (finalized) 1 else 0;
+    mock.receipt_calls.clearRetainingCapacity();
+    var restarted = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer restarted.deinit();
+    const first = try restarted.tick(300_000, .{ .max_receipts = if (paged) 1 else 2 });
+    var finalized_count = first.finalized;
+    if (paged) {
+        try std.testing.expectEqual(@as(usize, 0), first.finalized);
+        try std.testing.expectEqual(@as(u64, 1), mock.receipt_calls.get(old_hash).?);
+        try std.testing.expectEqual(@as(?u64, null), mock.receipt_calls.get(replacement_hash));
+        const second = try restarted.tick(301_000, .{ .max_receipts = 1 });
+        finalized_count += second.finalized;
+    }
+    try std.testing.expectEqual(@as(usize, if (finalized) 1 else 0), finalized_count);
+    try std.testing.expectEqual(@as(u64, 1), mock.receipt_calls.get(old_hash).?);
+    try std.testing.expectEqual(@as(u64, 1), mock.receipt_calls.get(replacement_hash).?);
+    try std.testing.expectEqual(@as(usize, 2), mock.sent.items.len);
+    const uuid = (try fixture.store().transactionUuidByIndex(allocator, 1)).?;
+    var record = (try fixture.store().loadTransaction(allocator, uuid)).?;
+    defer record.deinit();
+    try std.testing.expectEqual(if (finalized) types.Status.finalized else types.Status.included, try records.status(record.value()));
+    try std.testing.expectEqual(@as(?storage.FinalizedReceipt, null), try fixture.store().loadFinalizedReceipt(allocator, uuid, old_hash));
+    const actual = try fixture.store().loadFinalizedReceipt(allocator, uuid, replacement_hash);
+    if (finalized) {
+        const receipt = actual orelse return error.MissingCanonicalReplacementReceipt;
+        try std.testing.expectEqual(replacement_hash, receipt.transaction_hash);
+        try std.testing.expectEqual(canonical_hash, receipt.block_hash);
+        try std.testing.expectEqual(@as(u64, 1), receipt.block_number);
+        try std.testing.expectEqual(@as(u256, 600), receipt.gas_used);
+        try std.testing.expectEqual(@as(?u256, 7), receipt.effective_gas_price);
+        try std.testing.expect(receipt.executed);
+    } else try std.testing.expectEqual(@as(?storage.FinalizedReceipt, null), actual);
+}
+
+test "malformed older receipt cannot win included replacement" {
+    try canonicalWinnerAfterMalformedReceipt(false, false);
+}
+
+test "malformed older receipt cannot win finalized replacement" {
+    try canonicalWinnerAfterMalformedReceipt(true, false);
+}
+
+test "paged malformed older receipt cannot win included replacement after restart" {
+    try canonicalWinnerAfterMalformedReceipt(false, true);
+}
+
+test "paged malformed older receipt cannot win finalized replacement after restart" {
+    try canonicalWinnerAfterMalformedReceipt(true, true);
+}

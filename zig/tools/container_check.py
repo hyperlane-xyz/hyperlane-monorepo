@@ -366,7 +366,7 @@ def remove_fixture_data(image: str, data: Path) -> None:
 
 
 def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
-             forbidden: list[str], attempt: int, expected_git_sha: str | None = None) -> dict:
+             forbidden: list[str], attempt: int, expected_git_sha: str | None = None, launch=None) -> dict:
     if role == "validator":
         validate_git_sha(expected_git_sha)
     name = f"ziggy-image-{role}-{os.getpid()}-{attempt}"
@@ -375,22 +375,32 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
         "-e", "HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3",
         "--mount", f"type=bind,src={config},dst=/config,readonly",
         "--mount", f"type=bind,src={data},dst=/data", image, role]
-    checked(args)
+    if launch is not None:
+        args = launch.docker_args(image, name, config, data)
+    if launch is None:
+        checked(args)
     started = time.monotonic()
     metadata = None
     replacement_count = 0
     latest_replacement = None
+    operation_target = name
     try:
+        if launch is not None:
+            launch.create(args, name)
+            operation_target = launch.active["container_id"]
+            launch.start()
         deadline = started + 10
+        if launch is not None:
+            launch.started(name)
         while time.monotonic() < deadline:
-            state = json.loads(checked(["docker", "inspect", name]).stdout)[0]["State"]
+            state = json.loads(checked(["docker", "inspect", operation_target]).stdout)[0]["State"]
             if not state["Running"]:
                 raise AssertionError(f"{role} exited before SIGTERM")
             if role == "validator":
                 metadata = None
                 try:
                     metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha,
-                        lambda: copied_metadata_bytes(name))
+                        lambda: copied_metadata_bytes(operation_target))
                 except MetadataPublicationReplaced as error:
                     # A restart republishes atomically. Retry only this startup
                     # sample, under the original deadline; stopped reads stay hard.
@@ -406,13 +416,15 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
         if time.monotonic() >= deadline:
             raise AssertionError("role startup completed beyond original deadline")
         stop_started = time.monotonic()
-        checked(["docker", "stop", "--time", "15", name], timeout=20)
-        state = json.loads(checked(["docker", "inspect", name]).stdout)[0]["State"]
+        stopped = checked(["docker", "stop", "--time", str(15 if launch is None else launch.grace_seconds), operation_target], timeout=20)
+        if launch is not None:
+            launch.stopped(stopped.returncode)
+        state = json.loads(checked(["docker", "inspect", operation_target]).stdout)[0]["State"]
         if state["ExitCode"] != 0:
             raise AssertionError(f"{role} SIGTERM exit was {state['ExitCode']}")
         if role == "validator":
             stopped_metadata = metadata_snapshot(data / "checkpoints/metadata_latest.json", expected_git_sha,
-                lambda: copied_metadata_bytes(name))
+                lambda: copied_metadata_bytes(operation_target))
             if stopped_metadata["sha256"] != metadata["sha256"]:
                 raise AssertionError("validator metadata changed during clean drain")
         return {"exit_code": 0, "startup_grace_ms": round((stop_started - started) * 1000),
@@ -420,24 +432,38 @@ def run_role(image: str, role: str, config: Path, data: Path, log_dir: Path,
                 "validator_metadata": metadata,
                 "metadata_replacement_count": replacement_count,
                 "latest_metadata_replacement": latest_replacement}
+    except BaseException as error:
+        if launch is not None:
+            launch.primary_error = error
+        raise
     finally:
         try:
-            safe_logs(name, log_dir / f"{role}-{attempt}.log", forbidden)
+            if launch is None:
+                safe_logs(name, log_dir / f"{role}-{attempt}.log", forbidden)
+            elif launch.active is not None:
+                safe_logs(launch.active["container_id"], log_dir / f"{role}-{attempt}.log", forbidden)
         finally:
-            command(["docker", "rm", "--force", "--volumes", name])
+            if launch is None:
+                command(["docker", "rm", "--force", "--volumes", name])
+            else:
+                launch.finish(name)
 
 
 def smoke_test(image: str, migration_image: str, postgres_image: str, log_dir: Path, include_roles: bool = True,
-               expected_git_sha: str | None = None) -> dict:
+               expected_git_sha: str | None = None, role_launch=None) -> dict:
     if include_roles:
         validate_git_sha(expected_git_sha)
     rpc = RpcFixture()
     pg_name = f"ziggy-image-pg-{os.getpid()}"
     pg_started = False
     try:
-        checked(["docker", "run", "--detach", "--name", pg_name,
+        pg_args = ["docker", "run", "--detach", "--name", pg_name,
             "-e", "POSTGRES_USER=ziggy", "-e", "POSTGRES_DB=ziggy",
-            "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "-p", "127.0.0.1::5432", postgres_image])
+            "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "-p", "127.0.0.1::5432", postgres_image]
+        if role_launch is None:
+            checked(pg_args)
+        else:
+            role_launch.start_postgres(pg_args, pg_name)
         pg_started = True
         port_text = checked(["docker", "port", pg_name, "5432/tcp"]).stdout.strip()
         host, port = port_text.rsplit(":", 1)
@@ -488,18 +514,37 @@ def smoke_test(image: str, migration_image: str, postgres_image: str, log_dir: P
                         "metricsPort": 0, "chains": {"containerfixture": chain}}
                 (config / "fixture.json").write_text(json.dumps(value))
                 forbidden = [rpc.url, "postgresql://", "0x" + "11" * 32]
+                launch = None
                 try:
-                    runs = [run_role(image, role, config, data, log_dir, forbidden, attempt, expected_git_sha) for attempt in range(2)]
+                    launch = role_launch(role, config, data, value) if role_launch is not None else None
+                    if launch is None:
+                        runs = [run_role(image, role, config, data, log_dir, forbidden, attempt, expected_git_sha) for attempt in range(2)]
+                    else:
+                        runs = [run_role(image, role, config, data, log_dir, forbidden, attempt, expected_git_sha, launch=launch) for attempt in range(2)]
                     if role == "validator" and runs[0]["validator_metadata"]["sha256"] != runs[1]["validator_metadata"]["sha256"]:
                         raise AssertionError("same-DB validator metadata bytes changed after restart")
                     evidence["roles"][role] = {"runs": runs, "same_db_reopen": True, "logs_checked": True}
                 finally:
-                    remove_fixture_data(image, data)
+                    try:
+                        if role_launch is None:
+                            remove_fixture_data(image, data)
+                        else:
+                            role_launch.clean_data(role, data, launch)
+                    finally:
+                        if launch is not None:
+                            launch.retire()
         return evidence
     finally:
-        rpc.close()
-        if pg_started:
-            command(["docker", "rm", "--force", "--volumes", pg_name])
+        if role_launch is None:
+            rpc.close()
+            if pg_started:
+                command(["docker", "rm", "--force", "--volumes", pg_name])
+        else:
+            try:
+                rpc.close()
+            finally:
+                if pg_started:
+                    role_launch.finish_postgres(pg_name)
 
 
 def migration_check(migration_image: str, postgres_image: str, output: Path) -> dict:

@@ -294,12 +294,13 @@ class AtomicPublicationControls(unittest.TestCase):
                 with self.assertRaises(AssertionError) as caught: c.metadata_snapshot(path, SHA, copied)
                 self.assertNotIsInstance(caught.exception, c.MetadataPublicationReplaced)
 
-    def run_startup(self, kind):
+    def run_startup(self, kind, launch=None, cid=None):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
         root = Path(temporary.name); data = root / 'data'; (data / 'checkpoints').mkdir(parents=True)
         path = data / 'checkpoints/metadata_latest.json'; raw = json.dumps(publication()).encode()
         path.write_bytes(raw); clock = SimpleNamespace(now=0.0); state = {'copies': 0, 'stopped': False}; calls = []
-        def copied(_):
+        def copied(target):
+            if cid is not None: self.assertEqual(target, cid)
             state['copies'] += 1
             if state['copies'] == 1 or (kind == 'stopped' and state['stopped']):
                 self.replace(path, raw)
@@ -307,23 +308,30 @@ class AtomicPublicationControls(unittest.TestCase):
             return path.read_bytes()
         def docker(args, **kwargs):
             calls.append(args)
+            if cid is not None and args[1] in ('inspect', 'stop', 'rm'): self.assertEqual(args[-1], cid)
             if args[1] == 'stop': state['stopped'] = True
             if args[1] == 'inspect': return SimpleNamespace(stdout=json.dumps([{'State': {'Running': True, 'ExitCode': 0}}]), stderr='', returncode=0)
             return SimpleNamespace(stdout='', stderr='', returncode=0)
-        with mock.patch.object(c.time, 'monotonic', side_effect=lambda: clock.now), mock.patch.object(c.time, 'sleep', side_effect=lambda n: setattr(clock, 'now', clock.now + n)), mock.patch.object(c, 'copied_metadata_bytes', side_effect=copied), mock.patch.object(c, 'checked', side_effect=docker), mock.patch.object(c, 'command', side_effect=docker), mock.patch.object(c, 'safe_logs'):
+        with mock.patch.object(c.time, 'monotonic', side_effect=lambda: clock.now), mock.patch.object(c.time, 'sleep', side_effect=lambda n: setattr(clock, 'now', clock.now + n)), mock.patch.object(c, 'copied_metadata_bytes', side_effect=copied), mock.patch.object(c, 'checked', side_effect=docker), mock.patch.object(c, 'command', side_effect=docker), mock.patch.object(c, 'safe_logs') as logs:
+            options = {} if launch is None else {'launch': launch}
             if kind == 'stopped':
-                with self.assertRaises(c.MetadataPublicationReplaced): c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA)
+                with self.assertRaises(c.MetadataPublicationReplaced): c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA, **options)
                 self.assertTrue(state['stopped'])
             elif kind == 'late':
-                with self.assertRaisesRegex(AssertionError, 'beyond original deadline'): c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA)
+                with self.assertRaisesRegex(AssertionError, 'beyond original deadline'): c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA, **options)
                 self.assertFalse(state['stopped']); self.assertEqual(clock.now, 11.0)
             else:
-                row = c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA)
+                row = c.run_role('image', 'validator', root/'config', data, root/'logs', [], 1, SHA, **options)
                 self.assertEqual(row['metadata_replacement_count'], 1)
                 self.assertEqual(row['validator_metadata']['metadata'], publication())
                 self.assertGreaterEqual(row['startup_grace_ms'], 2000); self.assertLess(clock.now, 10)
                 self.assertTrue(state['stopped']); self.assertTrue(row['reopened'])
             self.assertTrue(any(args[1] == 'rm' for args in calls))
+            if cid is not None:
+                self.assertGreater(state['copies'], 0)
+                self.assertTrue(any(args[1] == 'inspect' for args in calls))
+                self.assertTrue(logs.called)
+                for call in logs.call_args_list: self.assertEqual(call.args[0], cid)
 
     def test_real_atomic_restart_replacement_retries_only_startup(self): self.run_startup('normal')
     def test_stopped_atomic_replacement_never_retries(self): self.run_startup('stopped')
@@ -368,6 +376,34 @@ class AtomicPublicationControls(unittest.TestCase):
             with mock.patch.object(Path,'lstat',side_effect=[before,after]),self.assertRaisesRegex(AssertionError,'device changed during read')as caught:
                 c.metadata_snapshot(path,SHA)
             self.assertNotIsInstance(caught.exception,c.MetadataPublicationReplaced)
+
+
+class FixedCIDLaunch:
+    grace_seconds = 10
+
+    def __init__(self, cid):
+        self.cid = cid
+        self.active = None
+
+    def docker_args(self, *args): return ['docker', 'create', 'fixed-args']
+    def create(self, args, name): self.active = {'container_id': self.cid}
+    def start(self): pass
+    def started(self, name): pass
+    def stopped(self, code):
+        if code != 0: raise AssertionError('mock owned container did not stop cleanly')
+    def finish(self, name): c.command(['docker', 'rm', self.active['container_id']])
+
+
+class AtomicCIDPublicationControls(unittest.TestCase):
+    def exercise(self, kind):
+        fixture = AtomicPublicationControls()
+        self.addCleanup(fixture.doCleanups)
+        cid = 'a' * 64
+        fixture.run_startup(kind, launch=FixedCIDLaunch(cid), cid=cid)
+
+    def test_Helm_CID_retry_retains_replacement_diagnostics(self): self.exercise('normal')
+    def test_Helm_CID_stopped_replacement_stays_hard(self): self.exercise('stopped')
+    def test_Helm_CID_late_metadata_stays_inside_original_clock(self): self.exercise('late')
 
 
 if __name__ == '__main__':

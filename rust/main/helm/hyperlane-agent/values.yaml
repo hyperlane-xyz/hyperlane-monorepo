@@ -2,6 +2,8 @@ image:
   repository: ghcr.io/hyperlane-xyz/hyperlane-agent
   pullPolicy: IfNotPresent
   tag: 'latest'
+  # Role executable directory; preserves the Rust image's relative commands.
+  binaryDirectory: '.'
 
 imagePullSecrets: []
 nameOverride: ''
@@ -36,6 +38,10 @@ hyperlane:
   context: 'hyperlane'
   # Set the DB location to be the volume
   dbPath: /usr/share/hyperlane
+  # Optional external ConfigMap mounted read-only at /etc/hyperlane.
+  defaultsConfigMap: ''
+  # Empty preserves the image's HOME; Zig's explicit profile sets its owned home.
+  homeDirectory: ''
   rustBacktrace: full
   tracing:
     # Set the log formatting
@@ -100,6 +106,8 @@ hyperlane:
 
   relayer:
     enabled: false
+    # Empty omits the second CONFIG_FILES entry.
+    appContextConfigFile: /app/app-contexts/mainnet_config.json
     aws: # true | false
     # relayApi controls only the containerPort declaration so Kubernetes knows
     # about the port. The actual HYP_RELAYAPIENABLED / HYP_RELAYAPIPORT env vars
@@ -133,6 +141,9 @@ hyperlane:
     usingDefaultSignerKey: true
     dbBootstrap:
       enabled: false
+      # Ownership of newly extracted bootstrap state; no permission-mode changes.
+      ownerUid: 1000
+      ownerGid: 2000
       bucket: ''
       object_targz: ''
 

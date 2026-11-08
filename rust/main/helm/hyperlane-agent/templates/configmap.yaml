@@ -9,6 +9,9 @@ data:
   ONELINE_BACKTRACES: "true"
   RUST_BACKTRACE: {{ .Values.hyperlane.rustBacktrace }}
   HYP_DB: {{ .Values.hyperlane.dbPath }}
+  {{- with .Values.hyperlane.homeDirectory }}
+  HOME: {{ . | quote }}
+  {{- end }}
   HYP_LOG_FORMAT: {{ .Values.hyperlane.tracing.format }}
   HYP_LOG_LEVEL: {{ .Values.hyperlane.tracing.level }}
   {{- range .Values.hyperlane.chains }}

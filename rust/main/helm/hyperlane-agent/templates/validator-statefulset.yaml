@@ -54,7 +54,7 @@ spec:
         args:
         - |
             RID=$(echo $REPLICA_NAME | grep -Eo '[0-9]+$')
-            env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) ./validator
+            env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) {{ include "agent.binary" (dict "root" . "role" "validator") }}
         envFrom:
         - configMapRef:
             name: {{ include "agent-common.fullname" . }}
@@ -71,6 +71,11 @@ spec:
         resources:
           {{- toYaml .Values.hyperlane.validator.resources | nindent 10 }}
         volumeMounts:
+        {{- if .Values.hyperlane.defaultsConfigMap }}
+        - name: agent-defaults
+          mountPath: /etc/hyperlane
+          readOnly: true
+        {{- end }}
         - name: state
           mountPath: {{ .Values.hyperlane.dbPath }}
         - name: config-env-vars
@@ -88,6 +93,11 @@ spec:
           timeoutSeconds: 2
           failureThreshold: 1
       volumes:
+      {{- if .Values.hyperlane.defaultsConfigMap }}
+      - name: agent-defaults
+        configMap:
+          name: {{ .Values.hyperlane.defaultsConfigMap | quote }}
+      {{- end }}
       - name: config-env-vars
         configMap:
           name: {{ include "validator.fullname" . }}

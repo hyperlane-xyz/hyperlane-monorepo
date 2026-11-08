@@ -359,6 +359,28 @@ jobs:
           docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg GIT_SHA="$GITHUB_SHA" --target migration-image --tag zig-agents:ci-migration -f zig/Dockerfile .
       - name: Check image and run local SIGTERM/restart smoke
         run: python3 zig/tools/container_check.py runtime --image zig-agents:ci-core --smoke --migration-image zig-agents:ci-migration --expected-git-sha "$GITHUB_SHA" --output zig/bench/results/container/runtime.json
+      - name: Install checksum-pinned Helm render tool
+        run: |
+          HELM_ARCHIVE="$RUNNER_TEMP/helm-v3.15.2-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location --connect-timeout 10 --max-time 60 --max-filesize 33554432 \
+            https://get.helm.sh/helm-v3.15.2-linux-amd64.tar.gz --output "$HELM_ARCHIVE"
+          HELM_SHA_A=2694b91c3e501cff57caf650e639604a
+          HELM_SHA_B=274645f61af2ea4d601677b746b44fe2
+          echo "${HELM_SHA_A}${HELM_SHA_B}  $HELM_ARCHIVE" | sha256sum --check --strict -
+          mkdir -p "$RUNNER_TEMP/helm-render"
+          tar --extract --file "$HELM_ARCHIVE" --directory "$RUNNER_TEMP/helm-render" linux-amd64/helm
+          chmod 0755 "$RUNNER_TEMP/helm-render/linux-amd64/helm"
+          echo "HELM=$RUNNER_TEMP/helm-render/linux-amd64/helm" >> "$GITHUB_ENV"
+      - name: Check rendered Helm fixture authority without sockets or processes
+        run: |
+          python3 -I -B -W error -m unittest discover -s zig/tools -p container_check_test.py -v
+          python3 -I -B -W error zig/tools/helm_container_check_test.py
+      - name: Exercise actual Helm overrides with disposable config and state
+        run: |
+          python3 -I -B -W error zig/tools/helm_container_check.py \
+            --image zig-agents:ci-core --migration-image zig-agents:ci-migration \
+            --expected-git-sha "$GITHUB_SHA" --helm "$HELM" \
+            --output zig/bench/results/container/helm-runtime.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
@@ -491,6 +513,35 @@ jobs:
         with:
           name: zig-full-sdk-native-${{ matrix.mode }}
           path: zig/bench/results/full-sdk-${{ matrix.mode }}/
+          if-no-files-found: warn
+      - name: Prepare pinned PostgreSQL and migration image for full-SDK Helm lifecycle
+        run: |
+          POSTGRES_IMAGE="postgres:16.15@sha256:${POSTGRES_DIGEST_A}${POSTGRES_DIGEST_B}"
+          docker pull "$POSTGRES_IMAGE"
+          docker build --build-arg BUILD_JOBS="${BUILD_JOBS}" --build-arg ZIG_MODE=${{ matrix.mode }} --build-arg GIT_SHA="$GITHUB_SHA" --target migration-image --tag zig-agents:ci-helm-migration-${{ matrix.mode }} -f zig/Dockerfile .
+      - name: Install checksum-pinned Helm render tool
+        run: |
+          HELM_ARCHIVE="$RUNNER_TEMP/helm-v3.15.2-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location --connect-timeout 10 --max-time 60 --max-filesize 33554432 \
+            https://get.helm.sh/helm-v3.15.2-linux-amd64.tar.gz --output "$HELM_ARCHIVE"
+          HELM_SHA_A=2694b91c3e501cff57caf650e639604a
+          HELM_SHA_B=274645f61af2ea4d601677b746b44fe2
+          echo "${HELM_SHA_A}${HELM_SHA_B}  $HELM_ARCHIVE" | sha256sum --check --strict -
+          mkdir -p "$RUNNER_TEMP/helm-render"
+          tar --extract --file "$HELM_ARCHIVE" --directory "$RUNNER_TEMP/helm-render" linux-amd64/helm
+          chmod 0755 "$RUNNER_TEMP/helm-render/linux-amd64/helm"
+          echo "HELM=$RUNNER_TEMP/helm-render/linux-amd64/helm" >> "$GITHUB_ENV"
+      - name: Exercise full-SDK Helm overrides with disposable config and state
+        run: |
+          python3 -I -B -W error zig/tools/helm_container_check.py \
+            --image zig-agents:ci-full-${{ matrix.mode }} --migration-image zig-agents:ci-helm-migration-${{ matrix.mode }} \
+            --expected-git-sha "$GITHUB_SHA" --helm "$HELM" \
+            --output zig/bench/results/helm-full-sdk-${{ matrix.mode }}/helm-runtime.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-helm-full-sdk-${{ matrix.mode }}
+          path: zig/bench/results/helm-full-sdk-${{ matrix.mode }}/
           if-no-files-found: warn
 
   # Separate fresh VM per trial. Compiler-pair positions rotate; prerequisites remain fixed first.

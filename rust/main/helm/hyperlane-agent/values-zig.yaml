@@ -1,0 +1,21 @@
+# Layer after operator values and select the separately qualified Zig image explicitly.
+# ConfigMap mode requires an explicitly reviewed bounded config set (<1MiB total).
+# Full canonical app-contexts exceed that limit: use values-zig-configured.yaml
+# with a data-only configured image; never truncate policies to fit this example.
+image:
+  binaryDirectory: /opt/hyperlane/bin
+hyperlane:
+  defaultsConfigMap: hyperlane-zig-defaults
+  homeDirectory: /var/lib/hyperlane
+  relayer:
+    appContextConfigFile: /etc/hyperlane/mainnet_config.json
+    dbBootstrap:
+      enabled: false
+      ownerUid: 10001
+      ownerGid: 2000
+podSecurityContext:
+  fsGroup: 2000
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001

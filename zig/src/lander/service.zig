@@ -494,10 +494,10 @@ pub const Service = struct {
                 item.effective_gas_price = receipt_value.effective_gas_price;
                 item.executed = receipt_value.executed;
                 if (receipt_value.block_number) |number| {
-                    item.block = number;
                     if (receipt_value.block_hash) |receipt_hash| {
                         const header = try self.chain.blockHeader(number);
                         if (header.number == number and std.mem.eql(u8, &header.hash, &receipt_hash)) {
+                            item.block = number;
                             item.block_hash = receipt_hash;
                             item.status = .included;
                         } else {

@@ -244,7 +244,7 @@ class Workflow(unittest.TestCase):
    lines.append(line)
   self.assertEqual(count,15);return ''.join(lines)
  def test_actual18jobs_exact_old15_byte_inverse(self):
-  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'451ef96a98e0114f28ef0ca4a277f7c4'+'95a820c5e886ec4b170254415dbf6d9a')
+  self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(self.legacy().encode()).hexdigest(),'fdb8abcb3e7b618788040c0a40fa17ed'+'59c01ccaf1e08c097335ae53eb001e41')
  def test_old_routes_preserved_across_all_existing_contexts(self):
   old={k:v for k,v in self.rows.items()if not k.startswith('paired-linux-')};pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))";prefix='${{ !'+pd+' && (';old={k:'${{ '+v[len(prefix):-4]+' }}'for k,v in old.items()}
   count=0

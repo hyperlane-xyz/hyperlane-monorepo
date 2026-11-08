@@ -48,7 +48,7 @@ spec:
           {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["./scraper"]
+        command: [{{ include "agent.binary" (dict "root" . "role" "scraper") | quote }}]
         envFrom:
         - configMapRef:
             name: {{ include "agent-common.fullname" . }}
@@ -60,9 +60,21 @@ spec:
         {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.scraper.config) | nindent 8 }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
+        {{- if .Values.hyperlane.defaultsConfigMap }}
+        volumeMounts:
+        - name: agent-defaults
+          mountPath: /etc/hyperlane
+          readOnly: true
+        {{- end }}
         ports:
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
+      {{- if .Values.hyperlane.defaultsConfigMap }}
+      volumes:
+      - name: agent-defaults
+        configMap:
+          name: {{ .Values.hyperlane.defaultsConfigMap | quote }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
