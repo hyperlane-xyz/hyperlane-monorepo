@@ -23,6 +23,7 @@ import type {
 
 import { PENDING_TRANSFER_MIDDLEWARE_FAILED_MESSAGE } from './PendingTransferMiddleware.js';
 import {
+  FETCH_TIMEOUT_MS,
   MAX_DENYLIST_FILE_BYTES,
   RELAYER_DENYLIST_CHECK_FAILED_MESSAGE,
   RELAYER_DENYLIST_REFRESH_FAILED_MESSAGE,
@@ -557,6 +558,84 @@ describe('RelayerDenylistMiddleware', () => {
         'Denylist file is at least 4194305 bytes; the limit is 4194304',
       );
       expect(cancelled).to.be.true;
+    });
+
+    /** Replaces the Date-only clock with one that also fakes timeouts. */
+    function fakeTimeouts(): void {
+      clock.restore();
+      clock = Sinon.useFakeTimers({
+        toFake: ['Date', 'setTimeout', 'clearTimeout'],
+      });
+    }
+
+    /** A response that sends its headers, then never sends the body. */
+    function stalledResponse(cancel: Sinon.SinonSpy): Response {
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          pull: () => new Promise<void>(() => {}),
+          cancel,
+        }),
+      );
+    }
+
+    it('times out a body that stalls after the headers', async () => {
+      fakeTimeouts();
+      const cancel = Sinon.spy();
+      fetchStub = Sinon.stub(globalThis, 'fetch').resolves(
+        stalledResponse(cancel),
+      );
+
+      const result = loadError(
+        fetchDenylistFile(new URL('https://example.com/denylist.json')),
+      );
+      await clock.tickAsync(FETCH_TIMEOUT_MS);
+      const error = await result;
+
+      expect(error.failure).to.equal(DenylistLoadFailure.FetchFailed);
+      expect(error.message).to.equal('Denylist fetch timed out after 10000 ms');
+      expect(cancel.calledOnce).to.be.true;
+    });
+
+    it('times out a fetch that ignores the abort signal', async () => {
+      fakeTimeouts();
+      const stub = Sinon.stub(globalThis, 'fetch').returns(
+        new Promise<Response>(() => {}),
+      );
+      fetchStub = stub;
+
+      const result = loadError(
+        fetchDenylistFile(new URL('https://example.com/denylist.json')),
+      );
+      await clock.tickAsync(FETCH_TIMEOUT_MS);
+      const error = await result;
+
+      expect(error.failure).to.equal(DenylistLoadFailure.FetchFailed);
+      expect(error.message).to.equal('Denylist fetch timed out after 10000 ms');
+      expect(stub.firstCall.args[1]?.signal?.aborted).to.be.true;
+    });
+
+    it('cancels a body whose headers arrive after the timeout', async () => {
+      fakeTimeouts();
+      const cancel = Sinon.spy();
+      fetchStub = Sinon.stub(globalThis, 'fetch').callsFake(
+        () =>
+          new Promise<Response>((resolve) =>
+            setTimeout(
+              () => resolve(stalledResponse(cancel)),
+              FETCH_TIMEOUT_MS + 1000,
+            ),
+          ),
+      );
+
+      const result = loadError(
+        fetchDenylistFile(new URL('https://example.com/denylist.json')),
+      );
+      await clock.tickAsync(FETCH_TIMEOUT_MS);
+      const error = await result;
+      await clock.tickAsync(1000);
+
+      expect(error.message).to.equal('Denylist fetch timed out after 10000 ms');
+      expect(cancel.calledOnce).to.be.true;
     });
 
     it('reads file:// URLs', async () => {

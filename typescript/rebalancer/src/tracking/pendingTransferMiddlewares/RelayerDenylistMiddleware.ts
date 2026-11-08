@@ -2,7 +2,7 @@ import { open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import type { Logger } from 'pino';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, timeout } from '@hyperlane-xyz/utils';
 
 import { PendingTransferMiddlewareType } from '../../config/types.js';
 import type {
@@ -21,7 +21,7 @@ import {
 } from './relayerDenylistRules.js';
 import { normalizeMessageId } from './types.js';
 
-const FETCH_TIMEOUT_MS = 10_000;
+export const FETCH_TIMEOUT_MS = 10_000;
 
 /** The relayer's limit on a denylist file, in bytes. */
 export const MAX_DENYLIST_FILE_BYTES = 4 * 1024 * 1024;
@@ -109,14 +109,26 @@ async function readFileCapped(path: string): Promise<Uint8Array> {
   }
 }
 
-/** Reads at most the relayer's limit, rejecting a larger body before buffering it. */
-async function readBodyCapped(response: Response): Promise<Uint8Array> {
+/**
+ * Reads at most the relayer's limit, rejecting a larger body before buffering
+ * it. Cancels the body once `signal` aborts, as a fetch wrapper may not.
+ */
+async function readBodyCapped(
+  response: Response,
+  signal: AbortSignal,
+): Promise<Uint8Array> {
   const length = Number(response.headers.get('content-length'));
   if (length > MAX_DENYLIST_FILE_BYTES) throw fileTooLarge(length);
 
   const chunks: Uint8Array[] = [];
   let bytes = 0;
   const reader = response.body?.getReader();
+  // A rejected cancel means the stream already errored, which ends the read too.
+  const cancel = (): void => {
+    void reader?.cancel().catch(() => {});
+  };
+  if (signal.aborted) cancel();
+  else signal.addEventListener('abort', cancel, { once: true });
   while (reader) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -132,20 +144,35 @@ async function readBodyCapped(response: Response): Promise<Uint8Array> {
   return Buffer.concat(chunks);
 }
 
+async function fetchBodyCapped(
+  url: URL,
+  signal: AbortSignal,
+): Promise<Uint8Array> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`HTTP status ${response.status}`);
+  }
+
+  return readBodyCapped(response, signal);
+}
+
 async function readDenylistBytes(url: URL): Promise<Uint8Array> {
   switch (url.protocol) {
     case 'file:':
       return readFileCapped(fileURLToPath(url));
     case 'http:':
     case 'https:': {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP status ${response.status}`);
+      // The timer settles the load even if the fetch ignores the abort.
+      const controller = new AbortController();
+      try {
+        return await timeout(
+          fetchBodyCapped(url, controller.signal),
+          FETCH_TIMEOUT_MS,
+          `Denylist fetch timed out after ${FETCH_TIMEOUT_MS} ms`,
+        );
+      } finally {
+        controller.abort();
       }
-
-      return readBodyCapped(response);
     }
     default:
       throw new Error(`Unsupported denylist URL protocol ${url.protocol}`);
