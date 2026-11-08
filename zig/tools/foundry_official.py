@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -183,17 +184,42 @@ def official_url(url):
     return parsed.hostname
 
 
+def public_quota(headers):
+    result = {}
+    if headers is None:
+        return result
+    for header, field in [('X-RateLimit-Limit', 'limit'), ('X-RateLimit-Remaining', 'remaining'),
+                          ('X-RateLimit-Reset', 'reset'), ('Retry-After', 'retry_after_seconds')]:
+        value = headers.get(header)
+        if type(value) is str and 1 <= len(value) <= 16 and value.isascii() and value.isdigit():
+            number = int(value)
+            if number <= 2**53 - 1:
+                result[field] = number
+    return result
+
+
 def download(url, maximum, budget, binary=False):
     need(url.startswith(API + '/'), 'FIXED_ORIGIN_ROUTE')
     budget.requests += 1
     need(budget.requests <= 4, 'REQUEST_COUNT')
+    stages = {API + '/releases/' + str(RELEASE_ID): 'release_metadata',
+              API + '/releases/assets/320137029': 'attestation_link',
+              API + '/attestations/sha256:' + SUBJECTS['anvil']: 'signed_bundle',
+              API + '/releases/assets/320137030': 'archive'}
+    attempt = {'stage': stages.get(url, 'other_fixed_origin'), 'phase': 'request_open',
+               'host': 'api.github.com', 'status': None, 'passed': False,
+               'started_ns': time.monotonic_ns()}
+    budget.trace.append(attempt)
     redirects = 0
     class Redirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, message, headers, newurl):
             nonlocal redirects
             redirects += 1
             need(redirects <= 4, 'REDIRECT_COUNT')
+            attempt['phase'] = 'redirect_validation'
             host = official_url(newurl)
+            attempt['host'] = host
+            attempt['phase'] = 'request_open'
             budget.trace.append({'redirect_status': code, 'host': host})
             return super().redirect_request(req, fp, code, message, headers, newurl)
     # No auth, proxy credentials, cookies, configuration, or tokens are added.
@@ -202,19 +228,34 @@ def download(url, maximum, budget, binary=False):
         'Accept': 'application/octet-stream' if binary else 'application/vnd.github+json',
         'User-Agent': 'ziggy-foundry-fixed-official-installer', 'X-GitHub-Api-Version': '2022-11-28'})
     body = bytearray()
-    with budget.alarm(45 if binary else 20):
-        with opener.open(req, timeout=10) as response:
-            need(response.status == 200, 'HEALTHY_OFFICIAL_GET')
-            host = official_url(response.url)
-            while True:
-                budget.check()
-                chunk = response.read(min(MIB, maximum + 1 - len(body)))
-                if not chunk:
-                    break
-                body.extend(chunk)
-                need(len(body) <= maximum, 'DOWNLOAD_BYTE_BOUND')
-    budget.trace.append({'status': 200, 'host': host, 'bytes': len(body), 'sha256': sha(body)})
-    return bytes(body)
+    try:
+        with budget.alarm(45 if binary else 20):
+            with opener.open(req, timeout=10) as response:
+                attempt['status'] = response.status if type(response.status) is int else None
+                need(response.status == 200, 'HEALTHY_OFFICIAL_GET')
+                host = official_url(response.url)
+                attempt.update(host=host, phase='response_read')
+                while True:
+                    budget.check()
+                    chunk = response.read(min(MIB, maximum + 1 - len(body)))
+                    if not chunk:
+                        break
+                    body.extend(chunk)
+                    need(len(body) <= maximum, 'DOWNLOAD_BYTE_BOUND')
+        attempt.update(passed=True, phase='response_complete', bytes=len(body), sha256=sha(body))
+        return bytes(body)
+    except BaseException as error:
+        attempt['error_class'] = type(error).__name__
+        if isinstance(error, urllib.error.HTTPError):
+            attempt['status'] = error.code if type(error.code) is int and 100 <= error.code <= 599 else None
+            try:
+                attempt['quota'] = public_quota(error.headers)
+            except BaseException as projection_error:
+                attempt['quota_error_class'] = type(projection_error).__name__
+        raise
+    finally:
+        attempt['completed_ns'] = time.monotonic_ns()
+        attempt['received_bytes'] = len(body)
 
 
 def release_assets(wire):
@@ -496,6 +537,7 @@ def install(runner_temp, gh):
               'version': VERSION, 'foundry_executed': False, 'activated': False,
               'sigstore_verifier': gh_pin, 'installer_source': script_pin, 'commands': records}
     budget = Budget(root)
+    report['transport'] = budget.trace
     try:
         pending, work = root / 'bin.pending', root / 'verification'
         pending.mkdir(mode=0o700)

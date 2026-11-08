@@ -363,21 +363,21 @@
     },
     {
       "path": "zig/tools/foundry_official.py",
-      "bytes": 25984,
+      "bytes": 28063,
       "sha256": {
         "sha256_hex_chunks": [
-          "539fd511d0d529f769e786935eb17636",
-          "610a80809dcc6751008ad636a827d377"
+          "96383e3006a26d0bdd0e8997f04b8c34",
+          "84bf9d52933043a727f3698aee7e1970"
         ]
       }
     },
     {
       "path": "zig/tools/foundry_official_test.py",
-      "bytes": 23315,
+      "bytes": 29283,
       "sha256": {
         "sha256_hex_chunks": [
-          "ef7a9651397586c055c49c0d8efbfbfe",
-          "f487ba2b1f260ac02522f3e875d32193"
+          "4f207569f223b1043785711a5b9e5c11",
+          "0df766f9377c83976ed756495c06c58f"
         ]
       }
     },

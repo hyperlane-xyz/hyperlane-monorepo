@@ -213,6 +213,114 @@ class Transport(unittest.TestCase):
         original.close()
         opened.assert_called_once()
 
+    def test_failed_open_exact_stage_status_quota_and_no_raw_details(self):
+        from unittest.mock import Mock
+        class ReadBudget(Budget):
+            requests = 0
+            from contextlib import nullcontext
+            def __init__(self):
+                self.trace = []
+            def alarm(self, seconds):
+                return self.nullcontext()
+        marker = 'PRIVATE_URL_BODY_HEADER_MARKER'
+        original = m.urllib.error.HTTPError('https://foreign.invalid/' + marker, 403, marker,
+                    {'X-RateLimit-Limit': '60', 'X-RateLimit-Remaining': '0',
+                     'X-RateLimit-Reset': '1794137000', 'Retry-After': '12',
+                     'Authorization': marker, 'Location': marker}, None)
+        budget = ReadBudget()
+        try:
+            with patch.object(m.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=Mock(side_effect=original))), self.assertRaises(m.urllib.error.HTTPError) as caught:
+                m.download(m.API + '/releases/' + str(m.RELEASE_ID), m.MIB, budget)
+            self.assertIs(caught.exception, original)
+            row = budget.trace[0]
+            self.assertEqual(row['stage'], 'release_metadata')
+            self.assertEqual(row['host'], 'api.github.com')
+            self.assertEqual(row['phase'], 'request_open')
+            self.assertEqual(row['status'], 403)
+            self.assertEqual(row['quota'], {'limit': 60, 'remaining': 0, 'reset': 1794137000, 'retry_after_seconds': 12})
+            self.assertEqual(row['error_class'], 'HTTPError')
+            self.assertFalse(row['passed'])
+            self.assertEqual(row['received_bytes'], 0)
+            self.assertNotIn(marker, json.dumps(budget.trace))
+        finally:
+            original.close()
+
+    def test_failed_response_read_records_admitted_host_and_status(self):
+        class ReadBudget(Budget):
+            requests = 0
+            from contextlib import nullcontext
+            def __init__(self):
+                self.trace = []
+            def alarm(self, seconds):
+                return self.nullcontext()
+        primary = TimeoutError('PRIVATE_ERROR_QUERY_ENV_MARKER')
+        class Response:
+            status = 200
+            url = 'https://release-assets.githubusercontent.com/fixed?PRIVATE_QUERY_MARKER'
+            def read(self, amount):
+                raise primary
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+        budget = ReadBudget()
+        with patch.object(m.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *a, **k: Response())), self.assertRaises(TimeoutError) as caught:
+            m.download(m.API + '/releases/assets/320137029', 60, budget, True)
+        self.assertIs(caught.exception, primary)
+        row = budget.trace[0]
+        self.assertEqual((row['stage'], row['phase'], row['host'], row['status']),
+                         ('attestation_link', 'response_read', 'release-assets.githubusercontent.com', 200))
+        self.assertNotIn('PRIVATE', json.dumps(budget.trace))
+
+    def test_quota_allowlist_numeric_bounds_only_and_projection_cannot_mask(self):
+        for value in ['1e999', '-1', '2.5', '9' * 17, '9007199254740992', '９', 'Wed, 21 Oct', 'https://PRIVATE.invalid']:
+            self.assertEqual(m.public_quota({'X-RateLimit-Limit': value, 'Other': 'PRIVATE'}), {})
+        class BadHeaders:
+            def get(self, name):
+                raise RuntimeError('PRIVATE_METADATA_FAILURE')
+        class ReadBudget(Budget):
+            requests = 0
+            trace = []
+            from contextlib import nullcontext
+            def alarm(self, seconds):
+                return self.nullcontext()
+        original = m.urllib.error.HTTPError('https://PRIVATE.invalid', 503, 'PRIVATE', None, None)
+        original.headers = BadHeaders()
+        budget = ReadBudget()
+        try:
+            def opening(*args, **kwargs):
+                raise original
+            with patch.object(m.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=opening)), self.assertRaises(m.urllib.error.HTTPError) as caught:
+                m.download(m.API + '/releases/' + str(m.RELEASE_ID), m.MIB, budget)
+            self.assertIs(caught.exception, original)
+            self.assertEqual(budget.trace[-1]['quota_error_class'], 'RuntimeError')
+            self.assertNotIn('PRIVATE', json.dumps(budget.trace))
+        finally:
+            original.close()
+
+    def test_actual_installer_public_failure_binds_transport_before_download(self):
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            gh = root / 'gh'
+            gh.write_bytes(b'never-executed')
+            gh.chmod(0o700)
+            primary = TimeoutError('PRIVATE_RAW_NETWORK_MESSAGE')
+            def opening(*a, **k):
+                raise primary
+            output = io.StringIO()
+            with patch.object(m.sys, 'platform', 'linux'), patch.object(m.os, 'uname', return_value=types.SimpleNamespace(machine='x86_64')), patch.object(m.resource, 'getrusage', return_value=types.SimpleNamespace(ru_maxrss=1024)), patch.object(m.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=opening)), redirect_stdout(output), self.assertRaises(TimeoutError) as caught:
+                m.install(root, gh)
+            self.assertIs(caught.exception, primary)
+            value = json.loads(output.getvalue())
+            self.assertEqual(len(value['transport']), 1)
+            self.assertEqual(value['transport'][0]['error_class'], 'TimeoutError')
+            self.assertEqual(value['transport'][0]['stage'], 'release_metadata')
+            self.assertIsNone(value['transport'][0]['status'])
+            self.assertTrue(value['owned_absent'])
+            self.assertFalse(value['activated'])
+            self.assertNotIn('PRIVATE', output.getvalue())
+
     def test_real_capacity_and_late_deadline_refuse(self):
         with tempfile.TemporaryDirectory() as temp:
             budget = m.Budget(Path(temp))
