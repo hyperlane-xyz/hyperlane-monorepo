@@ -71,11 +71,16 @@ def descriptor(path):
     return {'path': str(path), 'bytes': path.stat().st_size, 'sha256': sha(path)}
 
 
-def validate_elf(path, expected_machine):
-    """Parse actual bounded ELF64 program headers; executable PIE needs PT_INTERP."""
+def validate_elf(path, expected_machine, *, transport_data_only=False):
+    """Parse bounded ELF64; default requires X mode, transport inspection never executes.
+
+    PIE still requires PT_INTERP in both modes. Callers must independently bind
+    hashes/provenance before copying a transport payload into executable mode.
+    """
     regular(path)
     size = path.stat().st_size
-    require(path.stat().st_mode & 0o111 and 64 <= size <= 512 * 1024 ** 2, 'Bounded executable required')
+    require(type(transport_data_only) is bool, 'Explicit ELF transport inspection flag required')
+    require((transport_data_only or path.stat().st_mode & 0o111) and 64 <= size <= 512 * 1024 ** 2, 'Bounded executable required')
     with path.open('rb') as stream:
         header = stream.read(64)
         require(header[:7] == b'\x7fELF\x02\x01\x01' and header[7] in (0, 3), 'Linux little-endian ELF64 required')

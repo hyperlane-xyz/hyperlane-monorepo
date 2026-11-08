@@ -44,7 +44,7 @@ def inspect_reference(receipt, request, repo, machine, flags, api):
     base = Path(remote['directory'])
     manifest = api.relative_file(base, 'manifest.json')
     reference = sibling('native_radix_reference')
-    product = reference.load_manifest(manifest, api.checksum(manifest), producer, machine, flags)
+    product = reference.load_manifest(manifest, api.checksum(manifest), producer, machine, flags, transport_data_only=True)
     value = api.read_json(manifest)
     gate_path = reference.member(base, value['source_gate'], 'source-gate.json')
     gate = api.read_json(gate_path)

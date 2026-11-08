@@ -323,7 +323,7 @@ def member(base, row, relative):
     return path
 
 
-def load_manifest(path, expected_sha256, expected_commit, expected_machine, consumer_flags):
+def load_manifest(path, expected_sha256, expected_commit, expected_machine, consumer_flags, *, transport_data_only=False):
     require(pin(path)['sha256'] == expected_sha256 and re.fullmatch('[0-9a-f]{40}', expected_commit), 'Exact artifact digest/Source required')
     manifest = json_read(path)
     require(manifest['schema'] == 1 and manifest['kind'] == 'source-built-linux-radix-reference' and manifest['source_commit'] == expected_commit, 'Reference identity differs')
@@ -351,7 +351,7 @@ def load_manifest(path, expected_sha256, expected_commit, expected_machine, cons
     require(gate['cpu']['required_flags'] and set(gate['cpu']['required_flags']) <= set(consumer_flags), 'Consumer CPU is not producer superset')
     product = manifest['tool']
     actual = member(base, product, 'bin/' + BIN)
-    require(tools.validate_elf(actual, expected_machine) == product['elf'], 'Actual reference ELF differs')
+    require(tools.validate_elf(actual, expected_machine, transport_data_only=transport_data_only) == product['elf'], 'Actual reference ELF differs')
     require(product['producer']['sha256'] == product['sha256'] and product['producer']['bytes'] == product['bytes'], 'Cargo product/copy differs')
     return pin(actual)
 

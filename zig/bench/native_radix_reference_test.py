@@ -195,5 +195,28 @@ class Controls(unittest.TestCase):
         self.bad(lambda: m.json_read(path))
 
 
+
+    def test_transport_readonly_keeps_default_strict_and_all_admission_gates(self):
+        out, gate, manifest = self.fixture()
+        binary = out / 'bin' / m.BIN; binary.chmod(0o600)
+        self.bad(lambda: self.save_load(out, gate, manifest))
+        path = out / 'manifest.json'
+        with mock.patch.object(m.subprocess, 'Popen', side_effect=AssertionError('No native execution')):
+            result = m.load_manifest(path, m.pin(path)['sha256'], self.commit, 62, ('sse', 'sse2', 'avx'), transport_data_only=True)
+        self.assertEqual(result, m.pin(binary.resolve(strict=True)));self.assertEqual(binary.stat().st_mode & 0o777, 0o600)
+        tools = m.sibling('native_case_tools');self.bad(lambda: tools.validate_elf(binary, 62))
+        self.assertEqual(tools.validate_elf(binary, 62, transport_data_only=True), manifest['tool']['elf'])
+        for flag in (None, 1, 'true'):self.bad(lambda: tools.validate_elf(binary, 62, transport_data_only=flag))
+        for field in ('checksum', 'source', 'cpu', 'ELF'):
+            g, value = copy.deepcopy(gate), copy.deepcopy(manifest)
+            if field == 'checksum': value['tool']['sha256'] = 'f' * 64
+            elif field == 'source': g['source_after'] = {}
+            elif field == 'cpu': g['cpu']['required_flags'] = ['not-a-real-consumer-feature']
+            else: value['tool']['elf']['machine'] = 183
+            self.bad(lambda: self.save_load(out, g, value))
+            self.bad(lambda: m.load_manifest(path, m.pin(path)['sha256'], self.commit, 62, ('sse', 'sse2', 'avx'), transport_data_only=True))
+        binary.write_bytes(b'not an ELF' * 100);self.bad(lambda: tools.validate_elf(binary, 62, transport_data_only=True))
+
+
 if __name__ == '__main__':
     unittest.main()

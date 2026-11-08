@@ -144,6 +144,29 @@ def image_inspect(rows, policy):
     return rows
 
 
+def resolve_system_dso(candidates, name, architecture):
+    """Select one canonical native ELF from a possibly multiarch ldconfig row.
+
+    This only selects by bounded ELF header. cli_loader still verifies every
+    dynamic table, SONAME, interpreter and search-path edge before admission.
+    """
+    require(architecture in {'amd64', 'arm64'} and re.fullmatch('[A-Za-z0-9_.+-]{1,128}', name), 'Exact native DSO lookup required')
+    require(isinstance(candidates, (set, list, tuple)) and 0 < len(candidates) <= 16, 'Bounded native DSO candidates required')
+    machine = {'amd64': 62, 'arm64': 183}[architecture]
+    native = set()
+    for candidate in candidates:
+        path = Path(candidate).resolve(strict=True)
+        row = path.stat()
+        require(stat.S_ISREG(row.st_mode) and 64 <= row.st_size <= 512 * 1024 ** 2, 'Bounded regular system DSO required')
+        with path.open('rb') as stream: header = stream.read(64)
+        require(len(header) == 64 and header[:4] == b'\x7fELF' and header[4] in (1, 2) and header[5:7] == b'\x01\x01', 'Malformed system DSO header')
+        kind, actual = struct.unpack_from('<HH', header, 16)
+        require(kind == 3, 'System DSO must be ET_DYN')
+        if header[4] == 2 and actual == machine: native.add(path)
+    require(len(native) == 1, 'Ambiguous/missing native system DSO: ' + name)
+    return next(iter(native))
+
+
 def cli_loader(cli, architecture, dynamic_parser, resolve):
     """Inspect real program headers, then close actual system DT_NEEDED edges.
 

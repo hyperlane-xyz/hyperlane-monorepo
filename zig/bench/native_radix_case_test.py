@@ -96,7 +96,7 @@ class Controls(unittest.TestCase):
         with mock.patch.object(m, 'sibling', side_effect=siblings):
             value = m.inspect_reference(receipt, self.request, self.repo, 62, ['actual-flag'], api)
         self.assertEqual(set(value['consumed_compiled_source']), {m.REFERENCE + '/' + n for n in m.SOURCE_FILES})
-        reference.load_manifest.assert_called_once_with(self.manifest, self.pin(self.manifest)['sha256'], 'a' * 40, 62, ['actual-flag'])
+        reference.load_manifest.assert_called_once_with(self.manifest, self.pin(self.manifest)['sha256'], 'a' * 40, 62, ['actual-flag'], transport_data_only=True)
         self.assertFalse(value['native_case_acceptance'])
 
     def test_changed_consumer_source_is_not_masked_by_producer_recipe(self):
