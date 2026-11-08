@@ -444,13 +444,33 @@ class GhStartupDiagnostics(unittest.TestCase):
             self.assertEqual(result['probes']['INHERITED_AS1G']['exit_code'],0)
             self.assertFalse(list(root.glob('call-*')));self.assertIsNone(r.last_failed_command)
             self.assertNotIn('PRIVATE',json.dumps(api.public_facts({'gh_startup_diagnostics':result})))
-    def test_actual_limits_API_stays_AS512_and_inherited_probe_keeps_AS1G(self):
+    def test_actual_limits_GIT_stays_AS512_and_inherited_GH_keeps_AS1G(self):
         with tempfile.TemporaryDirectory()as d:
             r=self.runner(Path(d))
             with mock.patch.object(api.resource,'setrlimit')as sets,mock.patch.object(api.resource,'getrlimit',return_value=(api.GIB,api.GIB)):
                 r._limits(65536);self.assertIn(mock.call(api.resource.RLIMIT_AS,(512*1024**2,512*1024**2)),sets.call_args_list)
                 sets.reset_mock();r._limits(65536,inherited_address_space=True);self.assertFalse(any(x.args[0]==api.resource.RLIMIT_AS for x in sets.call_args_list));self.assertEqual(len(sets.call_args_list),2)
-            with mock.patch.object(api.resource,'getrlimit',return_value=(-1,-1)),self.assertRaisesRegex(api.Refused,'GH_PROBE_INHERITED_AS'):r._limits(65536,inherited_address_space=True)
+            with mock.patch.object(api.resource,'getrlimit',return_value=(-1,-1)),self.assertRaisesRegex(api.Refused,'CHILD_INHERITED_AS'):r._limits(65536,inherited_address_space=True)
+    def test_actual_call_preexec_couples_API_ZIP_to_hard1G_and_GIT_to512(self):
+        cases=[(['/usr/bin/gh','api'],'API_JSON',True),(['/usr/bin/gh','api'],'ARTIFACT_ZIP',True),(['/usr/bin/git','rev-parse','HEAD'],'GIT_READ',False),(['/usr/bin/git','rev-parse','HEAD'],'API_JSON',False),(['/usr/bin/gh','--version'],'GH_VERSION_AS512',False),(['/usr/bin/gh','--version'],'GH_VERSION_INHERITED',True)]
+        with tempfile.TemporaryDirectory()as d:
+            r=self.runner(Path(d))
+            for argv,kind,inherited in cases:
+                seen=[]
+                def spawn(*a,**kw):
+                    kw['preexec_fn']();seen.append(kw['env']);child=mock.Mock(pid=123);child.wait.return_value=0;return child
+                with self.subTest(kind=kind,exe=argv[0]),mock.patch.object(api.resource,'setrlimit')as sets,mock.patch.object(api.resource,'getrlimit',return_value=(api.GIB,api.GIB))as gets,mock.patch.object(api.subprocess,'Popen',side_effect=spawn),mock.patch.object(api.os,'waitid',return_value=object()):
+                    output,_=r.call(argv,kind,65536);output.unlink()
+                    actual=[c for c in sets.call_args_list if c.args[0]==api.resource.RLIMIT_AS]
+                    if inherited:self.assertEqual(actual,[]);gets.assert_called_once_with(api.resource.RLIMIT_AS)
+                    else:self.assertEqual(actual,[mock.call(api.resource.RLIMIT_AS,(512*1024**2,512*1024**2))]);gets.assert_not_called()
+                    self.assertEqual('GH_TOKEN'in seen[0],argv[0]=='/usr/bin/gh'and kind not in api.GH_DIAGNOSTIC_KINDS)
+    def test_current_diagnostic_label_matches_actual_API_hard1G_route(self):
+        with tempfile.TemporaryDirectory()as d:
+            r=self.runner(Path(d))
+            with mock.patch.object(api,'file_pin',return_value={'bytes':1,'sha256':'a'*64}),mock.patch.object(api.subprocess,'Popen',side_effect=self.popen(0)),mock.patch.object(api.os,'waitid',return_value=object()):value=r.startup_diagnostics()
+            out=api.public_facts({'gh_startup_diagnostics':value})['gh_startup_diagnostics']
+            self.assertIs(out['API_original_AS512_unchanged'],False);self.assertIs(out['API_inherited_hard_AS1GiB'],True)
     def test_probe_profile_cannot_run_api_or_git_or_large_output(self):
         with tempfile.TemporaryDirectory()as d:
             r=self.runner(Path(d))

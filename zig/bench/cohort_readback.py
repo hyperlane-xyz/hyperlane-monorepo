@@ -493,7 +493,7 @@ class Runner:
         self.tool_pins={'gh':file_pin(gh,owned=False),'git':file_pin(Path('/usr/bin/git'),owned=False)}
     def _limits(self,maximum,*,inherited_address_space=False):
         if inherited_address_space:
-            need(resource.getrlimit(resource.RLIMIT_AS)==(LIMITS['inspector_RAM_bytes'],LIMITS['inspector_RAM_bytes']),'GH_PROBE_INHERITED_AS')
+            need(resource.getrlimit(resource.RLIMIT_AS)==(LIMITS['inspector_RAM_bytes'],LIMITS['inspector_RAM_bytes']),'CHILD_INHERITED_AS')
         else:resource.setrlimit(resource.RLIMIT_AS,(LIMITS['child_RAM_bytes'],LIMITS['child_RAM_bytes']))
         resource.setrlimit(resource.RLIMIT_FSIZE,(max(maximum,1024**2),max(maximum,1024**2)))
         resource.setrlimit(resource.RLIMIT_NOFILE,(128,128))
@@ -511,7 +511,7 @@ class Runner:
         probe_deadline=min(self.guard.deadline,self.guard.clock()+5)if probe else None
         with out.open('xb')as output,err.open('xb')as errors:
             try:
-                child=subprocess.Popen(argv,cwd=self.repo,env=env,stdin=subprocess.DEVNULL,stdout=output,stderr=errors,start_new_session=True,preexec_fn=lambda:self._limits(maximum,inherited_address_space=kind=='GH_VERSION_INHERITED'))
+                child=subprocess.Popen(argv,cwd=self.repo,env=env,stdin=subprocess.DEVNULL,stdout=output,stderr=errors,start_new_session=True,preexec_fn=lambda:self._limits(maximum,inherited_address_space=Path(argv[0])==self.gh and kind in {'API_JSON','ARTIFACT_ZIP','GH_VERSION_INHERITED'}))
                 # Direct-child wait ownership starts immediately at Popen; any
                 # following bookkeeping error still enters independent cleanup.
                 while os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)is None:
@@ -547,7 +547,7 @@ class Runner:
             raise primary
         return out,code
     def startup_diagnostics(self):
-        rows={};self.gh_startup={'probes':rows,'token_supplied':False,'API_original_AS512_unchanged':True}
+        rows={};self.gh_startup={'probes':rows,'token_supplied':False,'API_original_AS512_unchanged':False,'API_inherited_hard_AS1GiB':True}
         for key,kind in [('AS512','GH_VERSION_AS512'),('INHERITED_AS1G','GH_VERSION_INHERITED')]:
             need(file_pin(self.gh,owned=False)==self.tool_pins['gh'],'SYSTEM_TOOL_MUTATION')
             output=None;self.last_command_diagnostic=None
@@ -648,7 +648,7 @@ def remote_inventory(runner,policy):
     return validate_remote(policy,run,collections['jobs'],collections['artifacts'])
 
 PUBLIC_FACT_KEYS=set(('mode source_commit products native_suite CPU_receipts export_actual_waits export_created_CID_removed actual_consumer_CPU_superset_checked SDK_or_native_product_executed_by_reader Source_origin actual_phase_waits actual_test_counts required_census_names_observed five_strict_deadline_tests_observed product_execution product ELF_machine ELF_type unchanged_declared_compiler_input_count declared_compiler_input_catalog_sha256 compiler_archive_inputs_independently_present_or_executed_by_reader CPU_flags_sha256 writer_executed_by_reader canonical_lock_origin canonical_compatibility_Source_exact actual_five_named_SDK_tests producer_CPU_rows producer_CPU_flags_sha256 actual_direct_waits actual_adopted_waits no_owner_signals_or_forced_cleanup closed_Agave_files closed_Agave_bytes SBF_machine_counts nine_actual_header_rows_verified official_acquisition_receipts nonfatal_stack_offset_warning_count native_VM_acceptance count catalog_sha256 all_declared_rows_match_producer_Git bytes sha256 total status_counts skip_catalog_sha256 three_recovery_allocation_tests_observed_OK scope flag_count flags_sha256 receipt_sha256 asset publisher_digest original_acquisition_receipt_matches_pinned_source compressed_original_independently_present_in_readback files expanded_bytes archive catalog actual_calls actual_parent_waits all_calls_actually_waited failure_count wait_catalog_sha256 tool_pins raw_argv_stderr_environment_exported path producer_tree execution_tree worktree_clean_in_scope source_rows_checked policy_map_sha256 all_policy_Git_blobs_match inspector_peak_RSS_bytes actual_streamed_bytes elapsed_seconds own_downloads_removed actual_remote_inventory_verified compiled_cohort core607 command_waits inspection_resources remote run_id run_attempt required_jobs artifacts id name size_in_bytes status conclusion whole_workflow_success_claim reader_sources committed_execution_sources_unchanged').split())|SDK_NAMES|set(TOOLS)|set(PRODUCT_KEYS)|set(REQUIRED_JOBS)|set(HELPER_PHASES)|{'embedded_tools_catalog_sha256','embedded_radix_catalog_sha256','embedded_duplicate_catalogs_match_separate_artifacts','symlink_count','normal','construction','OK','SKIP','FAIL','247','263','gh','git','runtime','helper','tools'}
-PUBLIC_FACT_KEYS|={'gh_startup_diagnostics','probes','AS512','INHERITED_AS1G','token_supplied','API_original_AS512_unchanged','last_failed_command','kind','actual_parent_wait','exit_code','signal','error_class','peak_child_RSS_bytes','forced_signal','cleanup_error_count'}
+PUBLIC_FACT_KEYS|={'gh_startup_diagnostics','probes','AS512','INHERITED_AS1G','token_supplied','API_original_AS512_unchanged','API_inherited_hard_AS1GiB','last_failed_command','kind','actual_parent_wait','exit_code','signal','error_class','peak_child_RSS_bytes','forced_signal','cleanup_error_count'}
 PUBLIC_STRINGS=set(CPU_SCOPES)|{'ReleaseSafe','ReleaseFast','agave','platform','spl','criterion','completed','success'}|set(REQUIRED_JOBS)|set(artifact_names(0,0).values())|set(n for names in COMPILED_SCOPES.values()for n in names)
 
 PUBLIC_STRINGS|=GH_DIAGNOSTIC_KINDS|GH_ERROR_CLASSES|{'API_JSON','ARTIFACT_ZIP','GIT_READ'}
