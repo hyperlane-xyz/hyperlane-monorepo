@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 REFERENCE = 'zig/src/radix/reference'
-SOURCE_FILES = ('Cargo.toml', 'Cargo.lock.gz', 'src/main.rs', 'crypto_differential.py')
+SOURCE_FILES = ('Cargo.toml', 'Cargo.lock.gz', 'src/main.rs', 'crypto_differential.py', '.gitignore')
 
 
 def require(ok, message):

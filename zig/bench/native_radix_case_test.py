@@ -105,6 +105,20 @@ class Controls(unittest.TestCase):
         with mock.patch.object(m, 'sibling', side_effect=siblings), self.assertRaisesRegex(ValueError, 'Source changed'):
             m.inspect_reference(receipt, self.request, self.repo, 62, [], api)
 
+    def test_actual_producer_tracked_ignore_metadata_is_required_and_hashed(self):
+        self.assertEqual(set(m.SOURCE_FILES), {'Cargo.toml', 'Cargo.lock.gz', 'src/main.rs', 'crypto_differential.py', '.gitignore'})
+        receipt, api, reference, siblings = self.fixture()
+        ignored = self.repo / m.REFERENCE / '.gitignore'
+        with mock.patch.object(m, 'sibling', side_effect=siblings):
+            value = m.inspect_reference(receipt, self.request, self.repo, 62, [], api)
+            self.assertEqual(value['consumed_compiled_source'][m.REFERENCE + '/.gitignore'], self.pin(ignored))
+            ignored.write_text('changed tracked metadata')
+            with self.assertRaisesRegex(ValueError, 'Source changed'):
+                m.inspect_reference(receipt, self.request, self.repo, 62, [], api)
+            gate = json.loads(self.gate.read_text()); del gate['source_before'][m.REFERENCE + '/.gitignore']; self.gate.write_text(json.dumps(gate))
+            with self.assertRaisesRegex(ValueError, 'Exact compiled Radix reference Source set'):
+                m.inspect_reference(receipt, self.request, self.repo, 62, [], api)
+
     def test_reference_loader_failure_cannot_be_relabelled_as_admission(self):
         receipt, api, reference, siblings = self.fixture()
         reference.load_manifest.side_effect = ValueError('actual SDK/cohort gate failed')
