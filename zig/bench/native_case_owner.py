@@ -620,7 +620,56 @@ def snapshot_public_diagnostics(case,approval,out,name):
     return {'artifact':pin(path),'actual_observer_record':before}
 
 
-def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns):
+
+
+def arm_relayer_startup(plan,manifest,approval,repo,deadline_ns):
+    if plan['scenario']not in{'evm','starknet'}:return None
+    try:
+        require(time.monotonic_ns()<deadline_ns,'Original diagnostic deadline expired')
+        module=diagnostic_module(approval);state=module.RelayerStartup(repo,manifest,approval['python_modules'])
+        name='rust/main/utils/run-locally/src/external_agents.rs';row=plan['diagnostic_rust_sources'][name];path=Path(repo)/name;wire,fingerprint=module.captured_failure_bytes(path,1024**2)
+        require(row=={'path':str(path),**fingerprint}and all(needle in wire for needle in [b'pub fn record_child(',b'let record = OwnedChild',b'.join("owned-children.jsonl")',b'parent_pid: std::process::id()']),'Actual role ownership writer changed')
+        state.module_identities[path]=state.identity(path)
+        product=checked(manifest['artifacts']['relayer'],True);identity=state.identity(product)
+        require(time.monotonic_ns()<deadline_ns,'Original diagnostic deadline expired')
+        return {'module':module,'state':state,'product':product,'product_identity':identity,'latest_probe':{'collection_status':'not_attempted'}}
+    except Exception:return None
+
+
+def observe_relayer_startup(context,manifest,inputs,case,harness,controller,helper_row,original_deadline_ns):
+    if context is None:return
+    previous=context['state'].last
+    started=time.monotonic_ns();end=min(original_deadline_ns,started+500_000_000)
+    def cancelled():return harness.poll()is not None or controller.poll()is not None
+    def check():
+        require(not cancelled()and time.monotonic_ns()<end,'Original absolute diagnostic probe expired/cancelled')
+        live=owner._linux_row(harness.pid)
+        require(live is not None and owner.same_process(helper_row,live)and live['state']!='Z','Actual helper epoch changed')
+        require(context['state'].identity(context['product'])==context['product_identity'],'Admitted relayer product changed')
+    try:
+        check();module=context['module'];context['state'].check_sources()
+        def read(path,maximum):
+            check();wire=module.captured_failure_bytes(path,maximum);check();return wire
+        row,chains,port=module.startup_selected_role(case,manifest,inputs,harness.pid,read,owner._linux_row,lambda pid:os.readlink(f'/proc/{pid}/exe'),check)
+        pid=row['pid']
+        def same_role():
+            check();live=owner._linux_row(pid)
+            require(live is not None and owner.same_process(row,live)and live['ppid']==harness.pid and live['state']!='Z'and os.readlink(f'/proc/{pid}/exe')==str(context['product']),'Current relayer epoch/product changed')
+        same_role();inode=module.startup_owned_listener(pid,port,row,end,cancelled,time.monotonic_ns,owner._linux_row)
+        _,body=module.startup_http(port,'GET',end,cancelled,time.monotonic_ns)
+        same_role();require(module.startup_owned_listener(pid,port,row,end,cancelled,time.monotonic_ns,owner._linux_row)==inode,'Relayer listener changed before HEAD')
+        status,_=module.startup_http(port,'HEAD',end,cancelled,time.monotonic_ns)
+        same_role();require(module.startup_owned_listener(pid,port,row,end,cancelled,time.monotonic_ns,owner._linux_row)==inode,'Actual relayer listener inode changed')
+        check();value=context['state'].project(body,chains,status,started,time.monotonic_ns());check()
+        value['finished_monotonic_ns']=time.monotonic_ns();require(value['finished_monotonic_ns']<=end,'Absolute diagnostic publication fence')
+        value['current_role_identity']={'pid':pid,'parent_pid':harness.pid,'kernel_start_token':row['start'],'historical_journal_PS_epoch_compared':False,'scope':'Current kernel epoch/product/owned helper parent observed before and after read. Captured relayer configurations agree; no ordinal-to-PID or PS-token-to-ticks equivalence inferred.'}
+        context['latest_probe']={'collection_status':'observed','started_monotonic_ns':started,'finished_monotonic_ns':value['finished_monotonic_ns']}
+    except Exception:
+        context['state'].last=previous
+        context['latest_probe']={'collection_status':'unavailable','started_monotonic_ns':started,'finished_monotonic_ns':time.monotonic_ns(),'scope':'Missing, uncertain, cancelled, changed or outside original deadline; no primary/verdict effect.'}
+
+
+def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None):
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
     value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
     # Observer transport errors can accompany Rust fixture failure/teardown.
@@ -649,6 +698,12 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
             require(len(helper_pids)==1,'One actual fixture helper parent required for failure projection')
             record['fixture_failure']=diagnostic_module(approval).fixture_failure_observation(case,manifest,approval,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log)
         except Exception:record['fixture_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+    if manifest['scenario']in{'evm','starknet'}:
+        try:
+            require(startup_context is not None,'Startup diagnostic unavailable')
+            record['EVM_Stark_startup']=startup_context['state'].public(log)
+            record['EVM_Stark_startup']['latest_probe']=startup_context['latest_probe']
+        except Exception:record['EVM_Stark_startup']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')
@@ -861,6 +916,7 @@ def worker(args, plan, manifest, inputs, approval):
         require(not result['passed'] or role!='observer' or code==0,'Observer failed during actual final close')
     repo=Path(__file__).resolve().parents[2]
     transaction=GeneratedSlots(repo,out/'generated-slots',plan['scenario']=='evm')
+    startup_context=arm_relayer_startup(plan,manifest,approval,repo,args.original_deadline_ns)
     if plan['scenario']=='tron':tron_module('native_tron_assets').read_materialized(inputs['tron_cli'])
     try:
         with (out/'observer.log').open('xb') as observer_log,(out/'harness.log').open('xb') as harness_log:
@@ -898,6 +954,7 @@ def worker(args, plan, manifest, inputs, approval):
                     if radix is not None:radix.observe()
                     elif devnets is not None:devnets.observe()
                     else:native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs)
+                    observe_relayer_startup(startup_context,manifest,inputs,case,harness,controller,helper_row,args.original_deadline_ns)
                     next_inspect=time.monotonic()+1
                 time.sleep(.1)
             code=harness.wait();result['direct_waits'].append({'role':'harness','pid':harness.pid,'actual_parent_wait':True,'exit_code':code,'observed_monotonic_ns':time.monotonic_ns()});require(code==0,'Actual native Rust/verifier failed')
@@ -990,7 +1047,7 @@ def worker(args, plan, manifest, inputs, approval):
             for signum,handler in old.items():signal.signal(signum,handler)
             result['forced_cleanup']=forced
             if not result['passed']:
-                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns)
+                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context)
                 except Exception as diagnostic_error:result['public_diagnostic_write_error']={'type':type(diagnostic_error).__name__}
             (out/'worker-result.json').write_text(json.dumps(result,indent=2)+'\n')
     require(result['passed'],'Native worker failed; retain original result')

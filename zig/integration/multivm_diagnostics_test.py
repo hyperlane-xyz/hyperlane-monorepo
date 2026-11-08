@@ -466,4 +466,139 @@ class ZigRoleSourceFrameControls(unittest.TestCase):
         with mock.patch.object(api.os,'open',side_effect=AssertionError('over total must not open')),self.assertRaises(ValueError):self.frames(raw,catalog=catalog)
         with self.assertRaises(ValueError):self.frames(raw,catalog={str(i):{}for i in range(769)})
 
+
+
+class RelayerStartupNumericControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve()
+        self.modules={name:api.pin(HERE/name)for name in ['multivm_session.py','multivm_evidence.py']}
+        repo=HERE.parents[1]
+        for relative,_,_ in api.RELAYER_STARTUP_SOURCE:
+            target=self.root/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((repo/relative).read_bytes())
+        self.manifest={'scenario':'evm','runtime_source_commit':api.RELAYER_STARTUP_EPOCH}
+    def sample(self,name='hyperlane_chain_init_latency',extra='role="destination",entity="mailbox",',value='0',chain='selected'):
+        return f'{name}{{chain="{chain}",{extra}agent="relayer",hyperlane_baselib_version="3.0.0"}} {value}\n'.encode()
+    def test_actual_Source13_and_zero_present_distinguish_absent_family(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules);record=probe.project(self.sample(),('selected',),405,1,99)
+        self.assertTrue(record['admin_extra_handler_observed']);metric=record['metrics'][0]['metrics'];self.assertEqual(metric['destination_mailbox'],{'family_present':True,'selected_present':True,'series_count':1,'finite_values':[0.0]});self.assertFalse(metric['block_height']['family_present']);self.assertFalse(metric['destination_dispatcher']['selected_present'])
+    def test_current_epoch_and_pinned_wildcard_bind_Source_contract(self):
+        self.assertEqual(api.RELAYER_STARTUP_EPOCH,'4c0df031d53df423b779194cf1f8ac4c0788bef7')
+        service='zig/src/service_main.zig';path=self.root/service;wire=path.read_bytes();needle=b'Address.parseIp4("0.0.0.0", configured.metrics_port)'
+        self.assertIn(needle,wire);changed=wire.replace(needle,b'Address.parseIp4("127.0.0.1", configured.metrics_port)');path.write_bytes(changed)
+        altered=tuple((name,len(changed),hashlib.sha256(changed).hexdigest())if name==service else(name,size,digest)for name,size,digest in api.RELAYER_STARTUP_SOURCE)
+        with mock.patch.object(api,'RELAYER_STARTUP_SOURCE',altered),self.assertRaisesRegex(ValueError,'wildcard metrics bind'):api.RelayerStartup(self.root,self.manifest,self.modules)
+        with self.assertRaises(ValueError):api.RelayerStartup(HERE.parents[1],{**self.manifest,'runtime_source_commit':'06e263fe7950e6051502a771646bbcc6d0453369'},self.modules)
+    def test_actual_missing_selected_chain_is_not_invented_zero_or_405(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules);record=probe.project(self.sample(chain='other'),('selected',),404,1,99)
+        metric=record['metrics'][0]['metrics']['destination_mailbox'];self.assertTrue(metric['family_present']);self.assertFalse(metric['selected_present']);self.assertEqual(metric['series_count'],0);self.assertEqual(metric['finite_values'],[]);self.assertFalse(record['admin_extra_handler_observed'])
+    def test_all_five_groups_are_fixed_finite_scalars_without_labels_or_wallet(self):
+        raw=self.sample()+self.sample(extra='role="destination",entity="dispatcher_and_entrypoint",',value='4')+self.sample('hyperlane_block_height',extra='',value='42')+self.sample('hyperlane_wallet_balance',extra='wallet_address="PRIVATE_SENTINEL",wallet_name="relayer",',value='3.5')+self.sample('hyperlane_critical_error',extra='',value='0')
+        rows=api.startup_metric_projection(raw,('selected',));self.assertEqual([v['series_count']for v in rows[0]['metrics'].values()],[1]*5);self.assertNotIn('PRIVATE',json.dumps(rows));self.assertNotIn('selected',json.dumps(rows).replace('selected_present',''));self.assertEqual(rows[0]['metrics']['critical_error']['finite_values'],[0.0])
+    def test_malformed_duplicate_nonfinite_oversize_and_foreign_base_refuse(self):
+        cases=[self.sample()*2,self.sample(value='NaN'),self.sample(value='Inf'),self.sample(value='9007199254740993'),b'x'*(1024**2+1),self.sample().replace(b'agent="relayer"',b'agent="PRIVATE"'),self.sample().replace(b'chain="selected"',b'chain="selected",chain="selected"'),self.sample().replace(b'} 0',b',} 0')]
+        for raw in cases:
+            with self.subTest(size=len(raw)),self.assertRaises((ValueError,UnicodeError)):api.startup_metric_projection(raw,('selected',))
+    def test_wrong_epoch_Source_change_and_existing_writer_change_refuse(self):
+        for manifest in [{**self.manifest,'runtime_source_commit':'a'*40},{**self.manifest,'scenario':'tron'}]:
+            with self.assertRaises(ValueError):api.RelayerStartup(self.root,manifest,self.modules)
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules);target=self.root/api.RELAYER_STARTUP_SOURCE[0][0];target.write_bytes(target.read_bytes()+b'\n')
+        with self.assertRaises(ValueError):probe.project(self.sample(),('selected',),405,1,99)
+        with self.assertRaises(ValueError):api.RelayerStartup(self.root,self.manifest,self.modules)
+        bad=copy.deepcopy(self.modules);bad['multivm_session.py']['sha256']='0'*64
+        with self.assertRaises(ValueError):api.RelayerStartup(HERE.parents[1],self.manifest,bad)
+    def test_exact_header_known_literal_unknown_and_foreign_prefix_do_not_leak(self):
+        sources={'public.zig':b'error.OutOfMemory; error.RpcFailed'};raw=b'<RLY> warning: task 2 failed: OutOfMemory\n<RLY> warn: Common health metric update failed: PRIVATE_SENTINEL\n<RLY> error: agent stopped: RpcFailed\n<VL1> warning: task 3 failed: RpcFailed\n<RLY> warning: task 256 failed: RpcFailed\n<RLY> warning: task 1 failed: SECRET/full/path\n'
+        out=api.startup_header_projection(raw,sources);self.assertEqual(out['counts'],{'supervised_task_failed':1,'health_warning':1,'agent_stopped':1});self.assertEqual(out['observations'][0]['task_index'],2);self.assertEqual(out['observations'][0]['Source_error_name'],'OutOfMemory');self.assertIsNone(out['observations'][1]['Source_error_name']);self.assertNotIn('PRIVATE',json.dumps(out));self.assertNotIn('SECRET',json.dumps(out));self.assertTrue(all(r['lane_attribution']is None for r in out['observations']))
+    def test_wholeprobe_limit_and_source_mutation_before_publication_refuse(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules)
+        for start,end in [(0,1),(2,1),(1,500000002)]:
+            with self.assertRaises(ValueError):probe.project(self.sample(),('selected',),405,start,end)
+        probe.project(self.sample(),('selected',),405,1,500000001);log=self.root/'harness.log';log.write_bytes(b'<RLY> error: agent stopped: PRIVATE_SENTINEL\n');out=probe.public(log);self.assertNotIn('PRIVATE',json.dumps(out));self.assertFalse(out['native_or_timing_or_cleanup_authority']);target=self.root/api.RELAYER_STARTUP_SOURCE[-1][0];target.write_bytes(target.read_bytes()+b'\n')
+        with self.assertRaises(ValueError):probe.public(log)
+
+
+
+class RelayerStartupHTTPControls(unittest.TestCase):
+    class Wire:
+        def __init__(self,chunks):self.chunks=list(chunks);self.sent=b'';self.closed=False;self.blocking=None;self.target=None
+        def setblocking(self,value):self.blocking=value
+        def connect_ex(self,target):self.target=target;return 0
+        def send(self,wire):self.sent+=wire;return len(wire)
+        def recv(self,limit):
+            if not self.chunks:return b''
+            wire=self.chunks.pop(0);assert len(wire)<=limit;return wire
+        def close(self):self.closed=True
+    def run_http(self,chunks,method='GET',deadline=500000001,tick=1000000,cancelled=lambda:False):
+        import socket,select
+        stream=self.Wire(chunks);now=[1];calls=[]
+        def ready(read,write,errors,seconds):
+            self.assertLessEqual(seconds,.025);now[0]+=min(tick,max(0,int(seconds*10**9)));calls.append((bool(read),bool(write)));return read,write,[]
+        with mock.patch.object(socket,'socket',return_value=stream),mock.patch.object(select,'select',side_effect=ready):
+            try:return api.startup_http(9092,method,deadline,cancelled,lambda:now[0]),stream,now,calls
+            finally:self.assertTrue(stream.closed);self.assertFalse(stream.blocking)
+    def test_actual_nonblocking_fixed_requests_strict_body_and_no_redirect(self):
+        result,stream,now,_=self.run_http([b'HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n',b'abc']);self.assertEqual(result,(200,b'abc'));self.assertEqual(stream.target,('127.0.0.1',9092));self.assertIn(b'GET /metrics HTTP/1.1',stream.sent);self.assertNotIn(b'Authorization',stream.sent);self.assertLess(now[0],500000001)
+        result,stream,_,_=self.run_http([b'HTTP/1.1 405 PRIVATE_SENTINEL\r\nContent-Length: 9999999\r\n\r\n'],method='HEAD');self.assertEqual(result,(405,b''));self.assertIn(b'HEAD /messages HTTP/1.1',stream.sent);self.assertNotIn('PRIVATE',str(result))
+        with self.assertRaises(ValueError):self.run_http([b'HTTP/1.1 302 Found\r\nLocation: https://PRIVATE\r\nContent-Length: 0\r\n\r\n'])
+    def test_trickle_body_cannot_restart_absolute_clock(self):
+        chunks=[b'HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n']+[b'x']*100
+        with self.assertRaises(TimeoutError):self.run_http(chunks,tick=25000000)
+        with self.assertRaises(TimeoutError):self.run_http(chunks,deadline=60000001,tick=25000000)
+    def test_deadline_and_cancel_refuse_before_socket_or_after_first_io(self):
+        import socket
+        for deadline,cancel in [(1,False),(500000001,True)]:
+            with self.subTest(deadline=deadline,cancel=cancel),mock.patch.object(socket,'socket')as create,self.assertRaises(TimeoutError):api.startup_http(9093,'GET',deadline,lambda:cancel,lambda:1)
+            create.assert_not_called()
+        calls=[0]
+        def cancelled():calls[0]+=1;return calls[0]>6
+        with self.assertRaises(TimeoutError):self.run_http([b'HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n',b'abc'],cancelled=cancelled)
+    def test_header_length_encoding_duplicates_incomplete_and_body_bounds_refuse(self):
+        cases=[[b'HTTP/1.1 200 OK\r\nContent-Length: 1048577\r\n\r\n'],[b'HTTP/1.1 200 OK\r\nContent-Length: 0\r\ncontent-length: 0\r\n\r\n'],[b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n'],[b'HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: 0\r\n\r\n'],[b'HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nxx'],[b'HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nx'],[b'HTTP/1.1 200 OK\r\n'+b'X: '+b'a'*16000,b'a'*16000,b'a'*1000]]
+        for chunks in cases:
+            with self.subTest(firstlen=len(chunks[0])),self.assertRaises(ValueError):self.run_http(chunks)
+    def test_arbitrary_ports_methods_and_query_routes_are_impossible(self):
+        import socket
+        for port,method in [(80,'GET'),(9092,'POST'),(9093,'GET /private')]:
+            with mock.patch.object(socket,'socket')as create,self.assertRaises(ValueError):api.startup_http(port,method,500000001,lambda:False,lambda:1)
+            create.assert_not_called()
+
+
+
+class RelayerStartupProcControls(unittest.TestCase):
+    def setUp(self):
+        self.row={'pid':43,'ppid':42,'start':'linux-ticks:55','state':'S'}
+        self.table=b'  sl local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n0: 00000000:2384 00000000:0000 0A 00000000:00000000 00:00000000 00000000 1000 0 1234\n'
+    def observe(self,table=None,links=None,rows=None,cancel=lambda:False):
+        from types import SimpleNamespace
+        iterator=mock.MagicMock();iterator.__enter__.return_value=iter([SimpleNamespace(name=str(i))for i in range(len(links or ['socket:[1234]']))]);links=links or['socket:[1234]']
+        with mock.patch.object(api.os,'scandir',return_value=iterator),mock.patch.object(api.os,'readlink',side_effect=links),mock.patch.object(api,'startup_proc_read',return_value=self.table if table is None else table)as read:
+            result=api.startup_owned_listener(43,9092,self.row,500000001,cancel,lambda:1,mock.Mock(side_effect=rows or[self.row,self.row]));read.assert_called_once();self.assertEqual(read.call_args.args[0],Path('/proc/43/net/tcp'));self.assertEqual(read.call_args.args[1],1024**2);return result
+    def test_actual_inode_join_requires_Source_wildcard_owned_LISTEN(self):
+        try:observed=self.observe()
+        except ValueError:observed=None
+        self.assertEqual(observed,'1234')
+        for wire in [self.table.replace(b'00000000:2384',b'0100007F:2384'),self.table.replace(b'2384',b'2385'),self.table.replace(b'0A',b'01'),self.table.replace(b'1234',b'9876')]:
+            with self.subTest(wire=wire[-20:]),self.assertRaises(ValueError):self.observe(table=wire)
+        with self.assertRaises(ValueError):self.observe(links=['socket:[9999]'])
+    def test_kernel_epoch_replacement_cancel_and_oversized_FD_set_refuse(self):
+        with self.assertRaises(ValueError):self.observe(rows=[self.row,{**self.row,'start':'linux-ticks:56'}])
+        with self.assertRaises(TimeoutError):self.observe(cancel=lambda:True)
+        with self.assertRaises(ValueError):self.observe(links=['socket:[1234]']*1025)
+    def journal(self,originals=None,owned=None,live=None):
+        from types import SimpleNamespace
+        artifact={'path':'/public/relayer','bytes':4,'sha256':'a'*64};manifest={'scenario':'evm','runtime_source_commit':api.RELAYER_STARTUP_EPOCH,'artifacts':{'relayer':artifact}}
+        capture={'role':'relayer','runtime_source_commit':api.RELAYER_STARTUP_EPOCH,'scenario':'evm','harness_pid':42,'metrics_port':9092,'role_chain_names':['one'],'chains':{'one':{'protocol':'ethereum'}}};child={'role':'relayer','pid':43,'parent_pid':42,'os_start_token':'43 42 Mon Jan 1 00:00:00 2026 /public/relayer','executable':artifact}
+        rows={'effective-role-configs.jsonl':[{'original':x}for x in(originals if originals is not None else[capture])],'owned-children.jsonl':owned if owned is not None else[child]}
+        def read(path,maximum):self.assertEqual(maximum,1024**2);return ('\n'.join(json.dumps(x)for x in rows[path.name]).encode(),{})
+        return api.startup_selected_role(Path('/public/case'),manifest,{'chain_names':['one']},42,read,lambda _:self.row if live is None else live,lambda _:'/public/relayer',lambda:None),capture,child
+    def test_actual_journal_capture_binding_has_no_ordinal_or_PS_tick_guess(self):
+        (row,chains,port),capture,child=self.journal();self.assertEqual(row,self.row);self.assertEqual(chains,('one',));self.assertEqual(port,9092)
+        self.assertEqual(self.journal(originals=[capture,copy.deepcopy(capture)])[0][1],('one',))
+        for changed in [{**capture,'metrics_port':9093},{**capture,'harness_pid':99},{**capture,'role_chain_names':['foreign']},{**capture,'runtime_source_commit':'b'*40}]:
+            with self.assertRaises(ValueError):self.journal(originals=[changed])
+        with self.assertRaises(ValueError):self.journal(owned=[{**child,'parent_pid':99}])
+        with self.assertRaises(ValueError):self.journal(owned=[child,copy.deepcopy(child)])
+        with self.assertRaises(ValueError):self.journal(live={**self.row,'ppid':99})
+        with self.assertRaises(ValueError):self.journal(originals=[])
+
 if __name__=='__main__':unittest.main()

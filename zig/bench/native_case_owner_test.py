@@ -792,4 +792,69 @@ class FunctionalCensusControls(unittest.TestCase):
         original=Path(api.owner.__file__).read_text();self.assertIn('deadline=time.monotonic()+1',original.replace(' ',''))
 
 
+
+
+class RelayerStartupOwnerControls(unittest.TestCase):
+    def setUp(self):
+        diagnostic_spec=importlib.util.spec_from_file_location('startup_diagnostics_fixture',Path(api.__file__).resolve().parents[1]/'integration/multivm_diagnostics.py')
+        diagnostic=importlib.util.module_from_spec(diagnostic_spec);diagnostic_spec.loader.exec_module(diagnostic)
+        from types import SimpleNamespace
+        self.diagnostic=diagnostic;self.simple=SimpleNamespace;self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.product=self.root/'relayer';self.product.write_bytes(b'public-fixture-only')
+        repo=Path(api.__file__).resolve().parents[2];here=repo/'zig/integration';self.modules={name:diagnostic.pin(here/name)for name in ['multivm_session.py','multivm_evidence.py']};self.manifest={'scenario':'evm','runtime_source_commit':diagnostic.RELAYER_STARTUP_EPOCH,'artifacts':{'relayer':api.pin(self.product)}}
+        state=diagnostic.RelayerStartup(repo,self.manifest,self.modules);self.context={'module':diagnostic,'state':state,'product':self.product,'product_identity':state.identity(self.product),'latest_probe':{'collection_status':'not_attempted'}}
+        self.helper={'pid':42,'ppid':1,'start':'linux-ticks:123','state':'S'};self.role={'pid':43,'ppid':42,'start':'linux-ticks:456','state':'S'};self.code=None;self.harness=self.simple(pid=42,poll=lambda:self.code);self.controller=self.simple(poll=lambda:None);self.now=1000000000;self.calls=[]
+        self.body=b'hyperlane_block_height{chain="one",agent="relayer",hyperlane_baselib_version="3.0.0"} 0\n'
+    def patches(self):
+        from contextlib import ExitStack
+        stack=ExitStack();stack.enter_context(mock.patch.object(api.time,'monotonic_ns',side_effect=lambda:self.now));stack.enter_context(mock.patch.object(api.owner,'_linux_row',side_effect=lambda pid:self.helper if pid==42 else self.role));stack.enter_context(mock.patch.object(api.os,'readlink',return_value=str(self.product)));self.selected=stack.enter_context(mock.patch.object(self.diagnostic,'startup_selected_role',return_value=(self.role,('one',),9092)));self.listener=stack.enter_context(mock.patch.object(self.diagnostic,'startup_owned_listener',return_value='1234'))
+        def http(port,method,deadline,cancel,clock):
+            self.calls.append((port,method,deadline));return (200,self.body)if method=='GET'else(405,b'')
+        self.http=stack.enter_context(mock.patch.object(self.diagnostic,'startup_http',side_effect=http));return stack
+    def observe(self,deadline=3000000000):api.observe_relayer_startup(self.context,self.manifest,{'chain_names':['one']},self.root,self.harness,self.controller,self.helper,deadline)
+    def test_actual_arm_requires_Source_epoch_writer_and_admitted_product(self):
+        repo=Path(api.__file__).resolve().parents[2];name='rust/main/utils/run-locally/src/external_agents.rs';source=repo/name;self.product.chmod(0o700);manifest={**self.manifest,'artifacts':{'relayer':api.pin(self.product)}};plan={'scenario':'evm','diagnostic_rust_sources':{name:api.pin(source)}};approval={'python_modules':self.modules}
+        with mock.patch.object(api,'diagnostic_module',return_value=self.diagnostic),mock.patch.object(api.time,'monotonic_ns',return_value=1):
+            self.assertIsNotNone(api.arm_relayer_startup(plan,manifest,approval,repo,1000))
+            bad=copy.deepcopy(plan);bad['diagnostic_rust_sources'][name]['sha256']='0'*64;self.assertIsNone(api.arm_relayer_startup(bad,manifest,approval,repo,1000));self.assertIsNone(api.arm_relayer_startup(plan,{**manifest,'runtime_source_commit':'a'*40},approval,repo,1000));self.assertIsNone(api.arm_relayer_startup(plan,manifest,approval,repo,1))
+    def test_epoch_change_between_GET_and_HEAD_and_late_projection_cannot_publish_new_data(self):
+        prior={'prior':'closed-observation'};self.context['state'].last=prior
+        with self.patches():
+            def changed(*args):self.role={**self.role,'start':'linux-ticks:789'};return 200,self.body
+            self.http.side_effect=changed;self.observe();self.assertEqual(self.http.call_count,1);self.assertIs(self.context['state'].last,prior)
+        self.role={**self.role,'start':'linux-ticks:456'};original=self.context['state'].project
+        def late(*args):value=original(*args);self.now+=600000000;return value
+        with self.patches(),mock.patch.object(self.context['state'],'project',side_effect=late):self.observe()
+        self.assertIs(self.context['state'].last,prior);self.assertEqual(self.context['latest_probe']['collection_status'],'unavailable')
+    def test_actual_owner_helper_preserves_same_absolute_budget_and_public_projection(self):
+        with self.patches():self.observe()
+        self.assertEqual(self.calls,[(9092,'GET',1500000000),(9092,'HEAD',1500000000)]);self.assertEqual(self.listener.call_count,3);value=self.context['state'].last;self.assertEqual(value['metrics'][0]['metrics']['block_height']['finite_values'],[0.0]);self.assertFalse(value['current_role_identity']['historical_journal_PS_epoch_compared']);self.assertEqual(self.context['latest_probe']['collection_status'],'observed')
+    def test_actual_owner_expired_cancelled_changed_product_or_uncertain_capture_no_HTTP(self):
+        for kind in ['expired','cancel','product','capture','helper']:
+            with self.subTest(kind=kind),self.patches():
+                if kind=='cancel':self.code=101
+                if kind=='product':self.context['product_identity']=()
+                if kind=='capture':self.selected.side_effect=ValueError('PRIVATE_TOKEN')
+                if kind=='helper':api.owner._linux_row.side_effect=lambda _:None
+                self.observe(deadline=1 if kind=='expired'else 3000000000);self.http.assert_not_called();self.assertEqual(self.context['latest_probe']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(self.context['latest_probe']));self.code=None;self.context['product_identity']=self.context['state'].identity(self.product)
+    def test_actual_owner_late_IO_discards_new_observation_without_replacing_old(self):
+        prior={'prior':'closed-observation'};self.context['state'].last=prior
+        with self.patches():
+            def late(*args):self.now+=600000000;return 200,self.body
+            self.http.side_effect=late;self.observe();self.assertEqual(self.http.call_count,1)
+        self.assertIs(self.context['state'].last,prior);self.assertEqual(self.context['latest_probe']['collection_status'],'unavailable')
+    def test_actual_worker_inspection_loop_calls_observer_after_original_checks_and_keeps_cadence(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_bytes());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None')
+        inspector=mock.Mock(side_effect=lambda:self.calls.append('inspect'));native=mock.Mock(side_effect=lambda *a:self.calls.append('native'));self.calls=[]
+        def done(*args):self.code=101
+        env={'harness':self.harness,'controller':self.controller,'require':api.require,'deadline':3,'next_inspect':0,'inspect':inspector,'radix':None,'devnets':None,'native_listener_proof':native,'plan':{'scenario':'evm','lsofArtifact':{}},'manifest':self.manifest,'inputs':{'chain_names':['one']},'case':self.root,'checked':lambda *args:Path('/public/lsof'),'node_proofs':{},'startup_context':self.context,'helper_row':self.helper,'args':self.simple(original_deadline_ns=3000000000),'observe_relayer_startup':api.observe_relayer_startup,'time':self.simple(monotonic=lambda:1,monotonic_ns=lambda:self.now,sleep=done)}
+        with self.patches():exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-worker-inspection-loop>','exec'),env)
+        self.assertEqual(self.calls[:2],['inspect','native']);self.assertEqual(self.calls[2:],[ (9092,'GET',1500000000),(9092,'HEAD',1500000000)]);self.assertEqual(env['next_inspect'],2);self.assertEqual(self.context['latest_probe']['collection_status'],'observed')
+    def test_actual_failure_publisher_keeps_primary_and_fixed_JSON_bound(self):
+        with self.patches():self.observe()
+        (self.root/'harness.log').write_bytes(b'<RLY> error: agent stopped: PRIVATE_SENTINEL\n');result={'direct_waits':[],'error':{'type':'ValueError','message':'PRIMARY_PRIVATE'}};original=copy.deepcopy(result)
+        manifest={**self.manifest,'mode':'ReleaseSafe'};plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}}
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=self.diagnostic):row=api.write_public_failure_diagnostics(plan,manifest,{},self.root,self.root,result,1,self.context)
+        wire=Path(row['path']).read_text();self.assertNotIn('PRIVATE',wire);self.assertEqual(result,original);self.assertLess(row['bytes'],512*1024);self.assertFalse(json.loads(wire)['EVM_Stark_startup']['native_or_timing_or_cleanup_authority'])
+
 if __name__=='__main__':unittest.main()

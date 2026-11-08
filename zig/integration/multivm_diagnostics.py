@@ -544,3 +544,288 @@ def validate_record(value,modules):
     for signature,row in value['failures'].items():
         require(re.fullmatch('[0-9a-f]{64}',signature)and set(row)=={'count','first','latest'}and integer(row['count']));entry(row['first']);entry(row['latest'])
     return value
+
+
+RELAYER_STARTUP_EPOCH = '4c0df031d53df423b779194cf1f8ac4c0788bef7'
+RELAYER_STARTUP_SOURCE = (
+    ('zig/src/service_main.zig', 15117, 'e15bec2398d71a70a3b0a16ea26fe756' + '70751c6fc579d4eacd7e8d3d17d50db3'),
+    ('zig/src/agents/relayer_task.zig', 153439, '768e6eca02149602e28d15caa7955a9c' + '58c7912665c5f49b9ab9da0e81ce9e73'),
+    ('zig/src/runtime/lane_owner.zig', 10263, '694159949d9c7b67cba9e4514812dc7e' + 'e3ab2f284afdf5c3336704522d7d722b'),
+    ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),
+    ('zig/src/agents/origin_tasks.zig', 20356, '26b7a93daddea7e5866499a9bb685aaa' + '9e3ffbbb4e59a79eb425f8db5be566d3'),
+    ('zig/src/agents/health_set.zig', 9871, '0010bf67352a7ef38db3078eed8d2861' + '384b4629e69907b35dc92812a26956eb'),
+    ('zig/src/agents/health_metrics.zig', 9378, '2600a2196ec6da551ff79c99208350c6' + 'f0d253560ceac5280cd47ba36fc51f3e'),
+    ('zig/src/ops/metrics_schema.zig', 36606, '3294839328444cead6812c8f47778466' + 'b3ee07b0c8822c20ee236d993193ebb0'),
+    ('zig/src/ops/init_metrics.zig', 4813, '7ab0cc739441ec9a4bc8be197e37da95' + '211781e09e058cd0d3c9c1651e9be16d'),
+    ('zig/src/ops/critical_metrics.zig', 5138, 'a7e1125be31ca9dd320659188f6a438f' + '176dd0a7035ab23c13a865709bbabec8'),
+    ('zig/src/ops/health_metrics.zig', 2432, 'db829a94c2c6091b39db646c2017948a' + '6d93c09e9462714b781abe13ef11c576'),
+    ('zig/src/ops/routes.zig', 1778, '9396bbf0696c0dceed740770a96c8677' + '3bfccac6f03327f108b991c4dcad4037'),
+    ('zig/src/ops/admin/api.zig', 39480, '06e58abacaa25a682d9e68ad03b0ab0c' + 'c741228784d0d024726cf36243850d68'),
+)
+
+
+def startup_metric_projection(raw, chains):
+    """Fixed numeric families only. Never persist response labels or text."""
+    import math
+    import decimal
+    if not isinstance(raw,bytes) or len(raw)>1024**2 or not isinstance(chains,tuple) or not 0<len(chains)<=8 or len(set(chains))!=len(chains) or any(not isinstance(x,str) or re.fullmatch('[A-Za-z0-9_-]{1,64}',x)is None for x in chains):raise ValueError('Bounded selected startup metrics required')
+    targets={'destination_mailbox':('hyperlane_chain_init_latency',{'role':'destination','entity':'mailbox'}),'destination_dispatcher':('hyperlane_chain_init_latency',{'role':'destination','entity':'dispatcher_and_entrypoint'}),'block_height':('hyperlane_block_height',{}),'wallet_balance':('hyperlane_wallet_balance',{'wallet_name':'relayer'}),'critical_error':('hyperlane_critical_error',{})}
+    families={name:False for name,_ in targets.values()};samples={};seen=set()
+    for line in raw.decode('utf8','strict').splitlines():
+        if not line or line.startswith('#'):continue
+        if len(line)>16384:raise ValueError('Bounded startup metric line required')
+        family=line.split('{',1)[0]
+        if family not in families:continue
+        families[family]=True
+        match=re.fullmatch(re.escape(family)+r'\{([^\r\n]*)\} ([^ \t]+)',line)
+        if match is None:raise ValueError('Malformed selected startup metric')
+        labels={};cursor=0;label_text=match[1]
+        while cursor<len(label_text):
+            item=re.match(r'([A-Za-z_][A-Za-z0-9_]*)=("(?:[^"\\]|\\["\\n])*")',label_text[cursor:])
+            if item is None or item[1]in labels or len(labels)>=16:raise ValueError('Malformed startup metric labels')
+            labels[item[1]]=json.loads(item[2]);cursor+=item.end()
+            if cursor<len(label_text):
+                if label_text[cursor]!=',':raise ValueError('Malformed startup metric separator')
+                cursor+=1
+                if cursor==len(label_text):raise ValueError('Trailing startup metric separator')
+        identity=(family,tuple(sorted(labels.items())))
+        if identity in seen or len(seen)>=512:raise ValueError('Duplicate or excessive startup series')
+        seen.add(identity)
+        try: exact=decimal.Decimal(match[2])
+        except decimal.InvalidOperation:raise ValueError('Malformed startup number')from None
+        if not exact.is_finite()or abs(exact)>2**53:raise ValueError('Nonfinite or excessive startup metric')
+        number=float(exact)
+        if not math.isfinite(number):raise ValueError('Nonfinite startup metric')
+        if labels.get('agent')!='relayer' or labels.get('hyperlane_baselib_version')!='3.0.0':raise ValueError('Startup metric Source base labels differ')
+        for index,chain in enumerate(chains):
+            if labels.get('chain')!=chain:continue
+            for key,(name,required)in targets.items():
+                if name==family and all(labels.get(k)==value for k,value in required.items()):
+                    values=samples.setdefault((index,key),[])
+                    if len(values)>=16:raise ValueError('Bounded selected startup samples required')
+                    values.append(number)
+    return [{'chain_index':index,'metrics':{key:{'family_present':families[name],'selected_present':bool(samples.get((index,key))),'series_count':len(samples.get((index,key),[])),'finite_values':samples.get((index,key),[])}for key,(name,_)in targets.items()}}for index in range(len(chains))]
+
+
+def startup_header_projection(raw, sources):
+    """Text-header observations, never typed exception or lane attribution."""
+    if not isinstance(raw,bytes)or len(raw)>32*1024**2:raise ValueError('Bounded existing harness capture required')
+    known=set()
+    for source in sources.values():
+        known.update(x.decode()for x in re.findall(rb'\berror\.([A-Za-z][A-Za-z0-9_]{0,63})\b',source))
+    if len(known)>2048:raise ValueError('Bounded Source error-name catalog required')
+    rows=[];counts={'supervised_task_failed':0,'health_warning':0,'agent_stopped':0}
+    for line in io.BytesIO(raw):
+        if len(line)>16384:continue
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',line).strip()
+        match=re.fullmatch(rb'<RLY> (?:warning|warn): task ([0-9]{1,3}) failed: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+        kind=None;index=None;name=None
+        if match is not None and int(match[1])<=255:kind='supervised_task_failed';index=int(match[1]);name=match[2].decode()
+        else:
+            match=re.fullmatch(rb'<RLY> (?:warning|warn): Common health metric update failed: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+            if match is not None:kind='health_warning';name=match[1].decode()
+            else:
+                match=re.fullmatch(rb'<RLY> error: agent stopped: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+                if match is not None:kind='agent_stopped';name=match[1].decode()
+        if kind is not None:
+            counts[kind]=min(2**32-1,counts[kind]+1)
+            row={'header':kind,'task_index':index,'Source_error_name':name if name in known else None,'error_name_status':'Source_literal'if name in known else'unknown','lane_attribution':None}
+            if row not in rows and len(rows)<16:rows.append(row)
+    return {'counts':counts,'observations':rows,'scope':'Fixed RLY-prefixed text only; no typed exception, task-to-lane, unique PID/epoch or readiness claim.'}
+
+
+class RelayerStartup:
+    """Diagnostic state only. Source is captured once; clocks never renewed."""
+    def __init__(self,repo,manifest,modules):
+        if manifest.get('scenario')not in{'evm','starknet'}or manifest.get('runtime_source_commit')!=RELAYER_STARTUP_EPOCH:raise ValueError('Exact startup producer epoch required')
+        self.repo=Path(repo);self.sources={};self.source_identities={};self.module_identities={};self.last=None
+        for relative,size,digest in RELAYER_STARTUP_SOURCE:
+            path=self.repo/relative
+            if any(x.is_symlink()for x in [path,*[x for x in path.parents if x.is_relative_to(self.repo)]]):raise ValueError('Startup Source symlink')
+            wire,fingerprint=captured_failure_bytes(path,1024**2)
+            if fingerprint!={'bytes':size,'sha256':digest}:raise ValueError('Startup producer Source changed')
+            self.sources[relative]=wire;self.source_identities[path]=self.identity(path)
+        if b'Address.parseIp4("0.0.0.0", configured.metrics_port)' not in self.sources['zig/src/service_main.zig']:raise ValueError('Exact Source wildcard metrics bind required')
+        for name,needles in {'multivm_session.py':[b'"effective-role-configs.jsonl"',b'capture = effective_config(request, self.manifest)'],'multivm_evidence.py':[b'def effective_config(',b'def process_identity(']}.items():
+            row=modules[name];path=Path(row['path']);wire,fingerprint=captured_failure_bytes(path,1024**2)
+            if row!={'path':str(path),**fingerprint}or not all(x in wire for x in needles):raise ValueError('Actual capture writer Source differs')
+            self.module_identities[path]=self.identity(path)
+        self.check_sources()
+
+    @staticmethod
+    def identity(path):
+        st=path.lstat()
+        if not stat.S_ISREG(st.st_mode)or st.st_nlink!=1 or path.is_symlink():raise ValueError('Stable startup Source required')
+        return st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns,st.st_ctime_ns
+
+    def check_sources(self):
+        # Interpret only the captured hash-matched Source, with unchanged file
+        # identity checked before interpretation/publication. No per-second
+        # full Source rehash and no authority inferred from an unrelated map.
+        if any(self.identity(p)!=identity for p,identity in {**self.source_identities,**self.module_identities}.items()):raise ValueError('Startup Source identity changed')
+
+    def project(self,raw,chains,status,started,finished):
+        self.check_sources()
+        if type(started)is not int or type(finished)is not int or not 0<started<=finished or finished-started>500_000_000:raise ValueError('Original whole startup probe budget expired')
+        metrics=startup_metric_projection(raw,chains)
+        self.last={'collection_status':'observed','started_monotonic_ns':started,'finished_monotonic_ns':finished,'wholeprobe_limit_ns':500_000_000,'HEAD_messages_status':status if status in{200,404,405}else None,'admin_extra_handler_observed':status==405,'metrics':metrics,'metrics_body_bytes':len(raw),'metrics_body_sha256':hashlib.sha256(raw).hexdigest(),'native_or_timing_or_readiness_credit':False}
+        return self.last
+
+    def public(self,harness_log):
+        self.check_sources()
+        raw,fingerprint=captured_failure_bytes(harness_log,32*1024**2)
+        return {'schema':1,'kind':'public-EVM-Stark-relayer-startup-observation','last_probe':self.last,'fixed_harness_headers':startup_header_projection(raw,self.sources),'harness_log_fingerprint':fingerprint,'Source_epoch':RELAYER_STARTUP_EPOCH,'Source_contracts':[{'path':name,'bytes':size,'sha256_hex_chunks':[digest[:32],digest[32:]]}for name,size,digest in RELAYER_STARTUP_SOURCE],'native_or_timing_or_cleanup_authority':False,'scope':'Bounded read-only observations of an actual owned wildcard relayer listener via fixed numeric loopback.405 only proves installed messages handler;404/absence unknown.0 metric is not absence. No ccipSigners/critical0 readiness, raw labels/address/error/config/env/token or inferred lane.'}
+
+
+
+def startup_http(port, method, deadline_ns, cancelled, clock):
+    """One fixed read-only numeric-loopback request, one absolute deadline."""
+    import errno
+    import select
+    import socket
+    if port not in{9092,9093}or method not in{'GET','HEAD'}or type(deadline_ns)is not int:raise ValueError('Fixed startup endpoint required')
+    def check():
+        if cancelled()or clock()>=deadline_ns:raise TimeoutError('Startup absolute probe deadline/cancel')
+    def wait(stream,writing=False):
+        while True:
+            check();remaining=(deadline_ns-clock())/10**9
+            if remaining<=0:raise TimeoutError('Startup absolute probe deadline')
+            ready=select.select([]if writing else[stream],[stream]if writing else[],[],min(.025,remaining))
+            check()
+            if (ready[1]if writing else ready[0]):return
+    check();stream=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    try:
+        stream.setblocking(False);check();status=stream.connect_ex(('127.0.0.1',port));check()
+        if status not in{0,errno.EINPROGRESS,errno.EWOULDBLOCK,errno.EALREADY}:raise OSError('Startup connect unavailable')
+        if status:
+            wait(stream,True)
+            if stream.getsockopt(socket.SOL_SOCKET,socket.SO_ERROR)!=0:raise OSError('Startup connect unavailable')
+        route='/metrics'if method=='GET'else'/messages';request=f'{method} {route} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n'.encode();sent=0
+        while sent<len(request):
+            wait(stream,True)
+            try:size=stream.send(request[sent:])
+            except BlockingIOError:continue
+            check()
+            if size<=0:raise OSError('Startup socket closed')
+            sent+=size
+        wire=bytearray();boundary=None;length=None;response_status=None
+        while True:
+            wait(stream)
+            try:chunk=stream.recv(16384)
+            except BlockingIOError:continue
+            check()
+            if not chunk:raise ValueError('Incomplete startup HTTP response')
+            wire.extend(chunk)
+            if len(wire)>1024**2+32768:raise ValueError('Startup HTTP bound')
+            if boundary is None:
+                offset=wire.find(b'\r\n\r\n')
+                if offset<0:
+                    if len(wire)>32768:raise ValueError('Startup header bound')
+                    continue
+                if offset>32764:raise ValueError('Startup header bound')
+                lines=bytes(wire[:offset]).split(b'\r\n');match=re.fullmatch(rb'HTTP/1\.[01] ([1-5][0-9]{2})(?: [^\r\n]*)?',lines[0])
+                if match is None:raise ValueError('Malformed startup HTTP status')
+                response_status=int(match[1]);headers={}
+                for line in lines[1:]:
+                    item=re.fullmatch(rb'([!#$%&\x27*+.^_`|~0-9A-Za-z-]+):[ \t]*([^\r\n]*)',line)
+                    if item is None:raise ValueError('Malformed startup header')
+                    name=item[1].lower()
+                    if name in headers:raise ValueError('Duplicate startup header')
+                    if any(value<32 and value!=9 or value==127 for value in item[2]):raise ValueError('Control byte in startup header')
+                    headers[name]=item[2].strip()
+                if b'transfer-encoding'in headers or headers.get(b'content-encoding',b'identity')!=b'identity':raise ValueError('Unsupported startup HTTP encoding')
+                if method=='HEAD':check();return response_status,b''
+                if response_status!=200 or re.fullmatch(rb'[0-9]{1,7}',headers.get(b'content-length',b''))is None:raise ValueError('Exact startup metrics HTTP200 length required')
+                length=int(headers[b'content-length'])
+                if length>1024**2:raise ValueError('Startup body bound')
+                boundary=offset+4
+            body=len(wire)-boundary
+            if body>length:raise ValueError('Excess startup HTTP body')
+            if body==length:check();return response_status,bytes(wire[boundary:])
+    finally:stream.close()
+
+
+
+def startup_proc_read(path,maximum,deadline_ns,cancelled,clock):
+    def check():
+        if cancelled()or clock()>=deadline_ns:raise TimeoutError('Startup absolute probe deadline/cancel')
+    check();fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):raise ValueError('Kernel startup table required')
+        wire=bytearray()
+        while True:
+            check();chunk=os.read(fd,min(65536,maximum+1-len(wire)));check()
+            if not chunk:return bytes(wire)
+            wire.extend(chunk)
+            if len(wire)>maximum:raise ValueError('Bounded kernel startup table required')
+    finally:os.close(fd)
+
+
+def startup_owned_listener(pid,port,expected,deadline_ns,cancelled,clock,kernel_row):
+    """Source wildcard IPv4 LISTEN owned by PID/inode, reached via numeric loopback."""
+    def check():
+        if cancelled()or clock()>=deadline_ns:raise TimeoutError('Startup absolute probe deadline/cancel')
+    def same():
+        check();live=kernel_row(pid);check()
+        if live is None or live.get('state')=='Z'or any(live.get(k)!=expected.get(k)for k in('pid','ppid','start')):raise ValueError('Startup listener epoch changed')
+    if type(pid)is not int or not 0<pid<2**31 or port not in{9092,9093}or not isinstance(expected,dict)or expected.get('pid')!=pid:raise ValueError('Positive fixed startup listener required')
+    same();inodes=set();count=0
+    with os.scandir(f'/proc/{pid}/fd')as entries:
+        for entry in entries:
+            check();count+=1
+            if count>1024 or re.fullmatch('[0-9]{1,10}',entry.name)is None:raise ValueError('Bounded kernel FD census required')
+            target=os.readlink(f'/proc/{pid}/fd/{entry.name}');check();match=re.fullmatch(r'socket:\[([0-9]{1,20})\]',target)
+            if match is not None:inodes.add(match[1])
+    if not inodes:raise ValueError('No current role socket')
+    wire=startup_proc_read(Path(f'/proc/{pid}/net/tcp'),1024**2,deadline_ns,cancelled,clock);lines=wire.splitlines()
+    if not lines or len(lines)>16384 or b'local_address'not in lines[0]or b'inode'not in lines[0]:raise ValueError('Kernel TCP table shape changed')
+    matched=set();endpoint=f'00000000:{port:04X}'.encode()
+    for line in lines[1:]:
+        check();fields=line.split()
+        if not 10<=len(fields)<=32 or re.fullmatch(rb'[0-9]{1,20}',fields[9])is None:raise ValueError('Kernel TCP row shape changed')
+        if fields[3]==b'0A'and fields[1]==endpoint and fields[9].decode()in inodes:matched.add(fields[9].decode())
+    same()
+    if len(matched)!=1:raise ValueError('One owned numeric loopback listener required')
+    return next(iter(matched))
+
+
+def startup_unique_json(wire):
+    def unique(pairs):
+        out={}
+        for key,value in pairs:
+            if key in out:raise ValueError('Duplicate startup journal field')
+            out[key]=value
+        return out
+    return json.loads(wire,object_pairs_hook=unique,parse_constant=lambda _:(_ for _ in()).throw(ValueError('Nonfinite startup journal')))
+
+
+def startup_selected_role(case,manifest,inputs,parent_pid,read,kernel_row,read_executable,check):
+    """No ordinal→PID guess: all actual relayer captures must agree."""
+    check();port=9092 if manifest['scenario']=='evm'else 9093
+    def journal(name):
+        target=Path(case)/'evidence'/name
+        if any(x.is_symlink()for x in [target,target.parent,Path(case)]):raise ValueError('Startup journal symlink')
+        raw,_=read(target,1024**2);check();lines=raw.splitlines()
+        if len(lines)>128 or any(len(line)>65536 for line in lines):raise ValueError('Bounded startup journal rows required')
+        return [startup_unique_json(line)for line in lines]
+    captures=[]
+    for row in journal('effective-role-configs.jsonl'):
+        if not isinstance(row,dict)or not isinstance(row.get('original'),dict):raise ValueError('Actual role capture shape differs')
+        original=row['original']
+        if original.get('role')!='relayer':continue
+        chains=original.get('role_chain_names')
+        if original.get('runtime_source_commit')!=manifest['runtime_source_commit']or original.get('scenario')!=manifest['scenario']or original.get('harness_pid')!=parent_pid or original.get('metrics_port')!=port or not isinstance(chains,list)or not 0<len(chains)<=8 or len(set(chains))!=len(chains)or any(not isinstance(x,str)or re.fullmatch('[A-Za-z0-9_-]{1,64}',x)is None or x not in inputs['chain_names']or x not in original.get('chains',{})or not isinstance(original['chains'][x],dict)or original['chains'][x].get('protocol')!=('ethereum'if manifest['scenario']=='evm'else'starknet')for x in chains):raise ValueError('Actual relayer capture differs')
+        captures.append(tuple(chains))
+    if not captures or len(set(captures))!=1:raise ValueError('Ambiguous selected relayer captures')
+    candidates=[];seen=set()
+    for row in journal('owned-children.jsonl'):
+        if not isinstance(row,dict):raise ValueError('Actual role ownership shape differs')
+        if row.get('role')!='relayer':continue
+        pid=row.get('pid');token=row.get('os_start_token');key=(pid,token)
+        if type(pid)is not int or not 0<pid<2**31 or row.get('parent_pid')!=parent_pid or row.get('executable')!=manifest['artifacts']['relayer']or not isinstance(token,str)or len(token)>4096 or len(token.split())<8 or token.split()[:2]!=[str(pid),str(parent_pid)]or key in seen:raise ValueError('Actual role ownership differs')
+        seen.add(key);live=kernel_row(pid);check()
+        if live is None or live.get('state')=='Z':continue
+        if live.get('pid')!=pid or live.get('ppid')!=parent_pid or not isinstance(live.get('start'),str)or re.fullmatch('linux-ticks:[0-9]{1,24}',live['start'])is None or read_executable(pid)!=manifest['artifacts']['relayer']['path']:raise ValueError('Current relayer identity differs')
+        candidates.append(live)
+    if len(candidates)!=1:raise ValueError('One current owned relayer required')
+    check();return candidates[0],captures[0],port
