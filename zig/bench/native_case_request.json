@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "cosmwasm",
-  "mode": "ReleaseSafe",
+  "scenario": "evm",
+  "mode": "ReleaseFast",
   "producer_source_commit": "e745fdaae1f8320ac2b67bea9157396db560c848",
   "producer_run_id": 42451611648,
   "producer_run_attempt": 1,
@@ -43,49 +43,17 @@
       },
       "wheel_bytes": 34246
     },
-    "registry_commit": null,
-    "native_cli": {
-      "name": "osmosisd",
-      "architecture": "amd64",
-      "source_url": "https://github.com/osmosis-labs/osmosis/releases/download/v20.5.0/osmosisd-20.5.0-linux-amd64",
-      "bytes": 72612632,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "f9ff6176e32499f22b20288c71dbc802",
-          "556eb5399baef23de164fe6158a55a69"
-        ]
-      }
-    },
-    "wasm_bundle": {
-      "schema": 1,
-      "source_release": "v0.0.6",
-      "source_url": "https://github.com/hyperlane-xyz/cosmwasm/releases/download/v0.0.6/wasm_codes.zip",
-      "bytes": 1640623,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "5b0b3b76ef5daf8a69cbc4ee1e9762d3",
-          "c9108127842343bd59cd68862ed0aa9c"
-        ]
-      },
-      "member_count": 21,
-      "member_digest": {
-        "sha256_hex_chunks": [
-          "df340d9c357fea6e44a402a68e061ba3",
-          "484db11e00e19b11ebb282a8b698b7a7"
-        ]
-      },
-      "publisher_checksum": null
-    }
+    "registry_commit": "a03afaa4fc6b8bd86616ef9986d80dcc1863e66a"
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13606194323,
-      "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52478175,
+      "id": 13606304633,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 55146705,
       "sha256": {
         "sha256_hex_chunks": [
-          "8975f1a1f5ef9ab5dd03845c4f5cfd20",
-          "37c2d2eee2ef0589d40155eba9a042a2"
+          "7e46655e0ba9fe731443a73bf702a8a0",
+          "0d4711d9c1086db629019098d9d40832"
         ]
       }
     },
