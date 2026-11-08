@@ -26,6 +26,20 @@ export const PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE =
 export const MAX_EXPLORER_QUERY_LIMIT = 25_600;
 
 /**
+ * A query could not fill its limit under the Explorer row cap; `messages` is
+ * the best page it got.
+ */
+export class ExplorerRowLimitError extends Error {
+  constructor(
+    message: string,
+    readonly messages: ExplorerMessage[],
+  ) {
+    super(message);
+    this.name = 'ExplorerRowLimitError';
+  }
+}
+
+/**
  * Explorer client decorator that drops the pending user transfers it decides
  * will never be delivered, so their amounts are not reserved. Middlewares
  * chain: each one wraps the previous client and sees only what the inner
@@ -35,9 +49,12 @@ export const MAX_EXPLORER_QUERY_LIMIT = 25_600;
  * inner client with a larger limit, at least doubling it each time and capped
  * at `MAX_EXPLORER_QUERY_LIMIT`, until it keeps the requested number of
  * transfers or the Explorer has no more. If a full page at the cap still keeps
- * too few transfers, the query throws. Only messages within the returned
- * page are evaluated: a tracked transfer that falls outside it is not
- * re-checked and stays reserved, as without middlewares.
+ * too few transfers, the query records what it ignored on that page, then
+ * throws an `ExplorerRowLimitError` carrying its kept page, which an outer
+ * middleware filters instead of failing outright.
+ * Only messages within the returned page are evaluated: a tracked transfer
+ * that falls outside it is not re-checked and stays reserved, as without
+ * middlewares.
  */
 export abstract class PendingTransferMiddleware implements IExplorerClient {
   private lastIgnored = new Map<string, string>();
@@ -81,29 +98,37 @@ export abstract class PendingTransferMiddleware implements IExplorerClient {
     );
     let messages: ExplorerMessage[] = [];
     let found = new Map<string, string>();
+    let overflow = false;
 
     for (;;) {
-      messages = await this.inner.getInflightUserTransfers(
-        {
-          routersByDomain: params.routersByDomain,
-          excludeTxSenders: params.excludeTxSenders,
-          limit,
-        },
-        logger,
-      );
+      let capped = false;
+      try {
+        messages = await this.inner.getInflightUserTransfers(
+          {
+            routersByDomain: params.routersByDomain,
+            excludeTxSenders: params.excludeTxSenders,
+            limit,
+          },
+          logger,
+        );
+      } catch (error: unknown) {
+        // The inner client hit the row cap, but its page may still hold enough.
+        if (!(error instanceof ExplorerRowLimitError)) throw error;
+        messages = error.messages;
+        capped = true;
+      }
       found = await this.findIgnoredSafely(messages, logger);
 
       const ignoredCount = messages.filter((msg) =>
         found.has(normalizeMessageId(msg.msg_id)),
       ).length;
       const kept = messages.length - ignoredCount;
-      const exhausted = messages.length < limit;
+      const exhausted = !capped && messages.length < limit;
       if (kept >= requested || exhausted) break;
 
-      if (limit === MAX_EXPLORER_QUERY_LIMIT) {
-        throw new Error(
-          `${PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE} (middleware ${this.name}, requested ${requested}, kept ${kept} of ${limit} rows, limit ${MAX_EXPLORER_QUERY_LIMIT})`,
-        );
+      if (capped || limit === MAX_EXPLORER_QUERY_LIMIT) {
+        overflow = true;
+        break;
       }
       limit = Math.min(
         MAX_EXPLORER_QUERY_LIMIT,
@@ -145,6 +170,13 @@ export abstract class PendingTransferMiddleware implements IExplorerClient {
     }
 
     this.lastIgnored = ignored;
+
+    if (overflow) {
+      throw new ExplorerRowLimitError(
+        `${PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE} (middleware ${this.name}, requested ${requested}, kept ${kept.length} of ${messages.length} rows, limit ${MAX_EXPLORER_QUERY_LIMIT})`,
+        kept,
+      );
+    }
     return kept;
   }
 

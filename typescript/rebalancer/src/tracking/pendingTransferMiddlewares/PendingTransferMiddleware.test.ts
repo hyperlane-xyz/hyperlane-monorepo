@@ -21,6 +21,7 @@ import {
 } from '../../test/pendingTransferMiddlewareMocks.js';
 
 import {
+  ExplorerRowLimitError,
   MAX_EXPLORER_QUERY_LIMIT,
   PENDING_TRANSFER_MIDDLEWARE_FAILED_MESSAGE,
   PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE,
@@ -331,6 +332,167 @@ describe('PendingTransferMiddleware Explorer paging', () => {
         `${PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE} (middleware paging, requested 100, kept 0 of 25600 rows, limit 25600)`,
       );
       expect(inner.limits).to.deep.equal([13_100, 25_600]);
+    });
+  });
+
+  describe('through stacked middlewares', () => {
+    function idRange(start: number, count: number): string[] {
+      return Array.from({ length: count }, (_, index) =>
+        messageId(start + index),
+      );
+    }
+
+    const innerIdsStart = 1;
+    const outerIdsStart = 100_001;
+    const realIdsStart = 200_001;
+
+    interface Case {
+      outerDrops: number;
+      innerDrops: number;
+    }
+
+    const cases: Case[] = [
+      { outerDrops: 12_750, innerDrops: 100 },
+      { outerDrops: 13_000, innerDrops: 500 },
+      { outerDrops: 24_000, innerDrops: 1_000 },
+    ];
+
+    for (const c of cases) {
+      it(`keeps transfers when the outer layer drops ${c.outerDrops} and the inner layer drops ${c.innerDrops}`, async () => {
+        const innerIds = idRange(innerIdsStart, c.innerDrops);
+        const outerIds = idRange(outerIdsStart, c.outerDrops);
+        const realIds = idRange(realIdsStart, 30_000);
+        const explorer = new PagedExplorerClient(
+          [...innerIds, ...outerIds, ...realIds].map(buildMessage),
+        );
+        const innerLayer = new StaticMiddleware(explorer, 'inner', innerIds);
+        const outerLayer = new StaticMiddleware(innerLayer, 'outer', outerIds);
+
+        const result = await outerLayer.getInflightUserTransfers(
+          PARAMS,
+          logger,
+        );
+
+        expect(result).to.not.be.empty;
+        expect(result[0].msg_id).to.equal(realIds[0]);
+        expect(outerLayer.isIgnored(outerIds[0])).to.be.true;
+        expect(outerLayer.isIgnored(innerIds[0])).to.be.true;
+        expect(outerLayer.isIgnored(realIds[0])).to.be.false;
+      });
+    }
+
+    it('recovers when a policy refresh leaves the outer layer with a stale hint', async () => {
+      const outerIds = idRange(outerIdsStart, 25_000);
+      const innerIds = idRange(innerIdsStart, 1_000);
+      const realIds = idRange(realIdsStart, 30_000);
+      const explorer = new PagedExplorerClient(
+        [...outerIds, ...realIds].map(buildMessage),
+      );
+      const innerLayer = new StaticMiddleware(explorer, 'inner', []);
+      const outerLayer = new StaticMiddleware(innerLayer, 'outer', outerIds);
+
+      const firstCycle = await outerLayer.getInflightUserTransfers(
+        PARAMS,
+        logger,
+      );
+      expect(firstCycle[0].msg_id).to.equal(realIds[0]);
+
+      explorer.newestFirst = [...innerIds, ...realIds].map(buildMessage);
+      innerLayer.ignoredIds = innerIds;
+      outerLayer.ignoredIds = [];
+      explorer.limits.length = 0;
+
+      const secondCycle = await outerLayer.getInflightUserTransfers(
+        PARAMS,
+        logger,
+      );
+      expect(secondCycle[0].msg_id).to.equal(realIds[0]);
+      expect(explorer.limits).to.deep.equal([25_100, 25_600]);
+      expect(outerLayer.isIgnored(innerIds[0])).to.be.true;
+      expect(outerLayer.isIgnored(outerIds[0])).to.be.false;
+
+      explorer.limits.length = 0;
+
+      const thirdCycle = await outerLayer.getInflightUserTransfers(
+        PARAMS,
+        logger,
+      );
+      expect(thirdCycle[0].msg_id).to.equal(realIds[0]);
+      expect(explorer.limits).to.deep.equal([1_100]);
+    });
+
+    it('stops reporting an id the inner layer no longer ignores once its capped page is used', async () => {
+      const outerIds = idRange(outerIdsStart, 25_000);
+      const innerIds = idRange(innerIdsStart, 1_000);
+      const realIds = idRange(realIdsStart, 30_000);
+      const explorer = new PagedExplorerClient(
+        [ID_A, ...outerIds, ...realIds].map(buildMessage),
+      );
+      const innerLayer = new StaticMiddleware(explorer, 'inner', [ID_A]);
+      const outerLayer = new StaticMiddleware(innerLayer, 'outer', outerIds);
+
+      await outerLayer.getInflightUserTransfers(PARAMS, logger);
+      expect(outerLayer.isIgnored(ID_A)).to.be.true;
+
+      explorer.newestFirst = [...innerIds, ID_A, ...realIds].map(buildMessage);
+      innerLayer.ignoredIds = innerIds;
+      outerLayer.ignoredIds = [];
+      explorer.limits.length = 0;
+
+      const result = await outerLayer.getInflightUserTransfers(PARAMS, logger);
+
+      expect(explorer.limits).to.deep.equal([25_101, 25_600]);
+      expect(result[0].msg_id).to.equal(ID_A);
+      expect(outerLayer.isIgnored(ID_A)).to.be.false;
+      expect(outerLayer.isIgnored(innerIds[0])).to.be.true;
+    });
+
+    it('throws with the outer layer name when the inner capped page keeps too few', async () => {
+      const innerIds = idRange(innerIdsStart, 1_000);
+      const outerIds = idRange(outerIdsStart, 25_000);
+      const explorer = new PagedExplorerClient(
+        [...innerIds, ...outerIds, ID_A].map(buildMessage),
+      );
+      const innerLayer = new StaticMiddleware(explorer, 'inner', innerIds);
+      const outerLayer = new StaticMiddleware(innerLayer, 'outer', outerIds);
+
+      const result = outerLayer.getInflightUserTransfers(PARAMS, logger);
+
+      await expect(result).to.be.rejectedWith(
+        ExplorerRowLimitError,
+        `${PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE} (middleware outer, requested 100, kept 0 of 24600 rows, limit 25600)`,
+      );
+    });
+
+    it('throws without raising its own limit when a capped inner page arrives below the row cap', async () => {
+      const hintIds = idRange(outerIdsStart, 1_000);
+      const explorer = new PagedExplorerClient(
+        [...hintIds, ...idRange(realIdsStart, 1_000)].map(buildMessage),
+      );
+      const innerLayer = new StaticMiddleware(explorer, 'inner', []);
+      const outerLayer = new StaticMiddleware(innerLayer, 'outer', hintIds);
+      await outerLayer.getInflightUserTransfers(PARAMS, logger);
+
+      const innerIds = idRange(innerIdsStart, 25_000);
+      const outerIds = idRange(outerIdsStart, 550);
+      explorer.newestFirst = [
+        ...innerIds,
+        ...outerIds,
+        ...idRange(realIdsStart, 1_000),
+      ].map(buildMessage);
+      innerLayer.ignoredIds = innerIds;
+      outerLayer.ignoredIds = outerIds;
+      explorer.limits.length = 0;
+
+      const result = outerLayer.getInflightUserTransfers(PARAMS, logger);
+
+      await expect(result).to.be.rejectedWith(
+        ExplorerRowLimitError,
+        `${PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE} (middleware outer, requested 100, kept 50 of 600 rows, limit 25600)`,
+      );
+      expect(explorer.limits).to.deep.equal([
+        1_100, 2_200, 4_400, 8_800, 17_600, 25_600,
+      ]);
     });
   });
 });
