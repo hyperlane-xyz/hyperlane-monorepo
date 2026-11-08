@@ -587,6 +587,8 @@ NATIVE_REQUIRED = (
     "Aleo actual isolated native worker authorizes fees and exports source proving wire through pipes",
     "Aleo actual isolated local proof is bound to exact authorized execution and fee",
     "Aleo actual proof worker OS sandbox forbids loopback network connections",
+    'scraper generic raw sequence snapshots dispatch before derived insertion union write',
+    'Aleo worker forwards explicit public consensus override into actual clean child and preserves absence',
 )
 
 

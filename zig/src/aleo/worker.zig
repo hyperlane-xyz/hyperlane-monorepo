@@ -36,6 +36,14 @@ pub const Session = struct {
             defer a.free(directory);
             try environment.put("HYPERLANE_ALEO_PARAMETER_DIR", directory);
         }
+        // Rust/snarkVM already supports this public, process-local consensus
+        // override. Preserve it without inheriting any credential environment.
+        const consensus = std.process.getEnvVarOwned(a, "CONSENSUS_VERSION_HEIGHTS") catch |err| switch (err) {
+            error.EnvironmentVariableNotFound => null,
+            else => return err,
+        };
+        defer if (consensus) |value| a.free(value);
+        if (consensus) |value| try environment.put("CONSENSUS_VERSION_HEIGHTS", value);
         child.env_map = &environment;
         try child.spawn();
         child.env_map = null;
@@ -502,4 +510,64 @@ test "Aleo actual proof worker OS sandbox forbids loopback network connections" 
     defer a.free(result);
     try std.testing.expectEqualSlices(u8, &.{1}, result);
     try std.testing.expectError(error.WouldBlock, listener.accept());
+}
+
+extern "c" fn setenv(name: [*:0]const u8, value: [*:0]const u8, overwrite: c_int) c_int;
+extern "c" fn unsetenv(name: [*:0]const u8) c_int;
+
+fn workerTestEnvironment(name: [:0]const u8, value: ?[]const u8) !void {
+    if (value) |text| {
+        const terminated = try std.testing.allocator.dupeZ(u8, text);
+        defer std.testing.allocator.free(terminated);
+        if (setenv(name.ptr, terminated.ptr, 1) != 0) return error.EnvironmentVariableSetFailed;
+    } else if (unsetenv(name.ptr) != 0) return error.EnvironmentVariableUnsetFailed;
+}
+
+test "Aleo worker forwards explicit public consensus override into actual clean child and preserves absence" {
+    const a = std.testing.allocator;
+    const key = "CONSENSUS_VERSION_HEIGHTS";
+    const foreign = "ZIGGY_COMPONENT_PRIVATE_SENTINEL";
+    const prior = std.process.getEnvVarOwned(a, key) catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => null,
+        else => return err,
+    };
+    defer if (prior) |value| a.free(value);
+    defer workerTestEnvironment(key, prior) catch @panic("restore public consensus environment");
+    const prior_foreign = std.process.getEnvVarOwned(a, foreign) catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => null,
+        else => return err,
+    };
+    defer if (prior_foreign) |value| a.free(value);
+    defer workerTestEnvironment(foreign, prior_foreign) catch @panic("restore foreign fixture environment");
+    try workerTestEnvironment(foreign, "PRIVATE_SENTINEL");
+    const schedule = "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,4294967291,4294967292,4294967293,4294967294,4294967295";
+    const script =
+        \\import os,struct,sys,json
+        \\while True:
+        \\ h=sys.stdin.buffer.read(4)
+        \\ if not h:break
+        \\ size=struct.unpack('>I',h)[0]
+        \\ request=sys.stdin.buffer.read(size)
+        \\ data=json.dumps({'consensus':os.environ.get('CONSENSUS_VERSION_HEIGHTS'),'foreign':any(k in os.environ for k in {'ZIGGY_COMPONENT_PRIVATE_SENTINEL','GH_TOKEN','AWS_SECRET_ACCESS_KEY','HOME','ALEO_SKIP_PROOFS','ALEO_CONSENSUS_VERSION_HEIGHTS'}),'parameter':os.environ.get('HYPERLANE_ALEO_PARAMETER_DIR')}).encode()
+        \\ sys.stdout.buffer.write(struct.pack('>IB',len(data)+1,0)+data);sys.stdout.buffer.flush()
+    ;
+    const Snapshot = struct { consensus: ?[]const u8, foreign: bool, parameter: ?[]const u8 };
+    for ([_]?[]const u8{ schedule, null }) |value| {
+        try workerTestEnvironment(key, value);
+        var session = try Session.spawn(a, &.{ "/usr/bin/python3", "-c", script }, .{ .timeout_ms = 5000, .parameter_home = "/tmp/ziggy-public-environment-component" });
+        defer session.deinit();
+        const reply = try session.exchange(.program_info, "public-environment-only");
+        defer a.free(reply);
+        const parsed = try std.json.parseFromSlice(Snapshot, a, reply, .{});
+        defer parsed.deinit();
+        if (value) |expected| try std.testing.expectEqualStrings(expected, parsed.value.consensus orelse return error.MissingPublicConsensusOverride) else try std.testing.expect(parsed.value.consensus == null);
+        try std.testing.expect(!parsed.value.foreign);
+        try std.testing.expectEqualStrings("/tmp/ziggy-public-environment-component/.aleo", parsed.value.parameter orelse return error.MissingParameterDirectory);
+        session.child.stdin.?.close();
+        session.child.stdin = null;
+        const term = try session.child.wait();
+        session.retired = true;
+        try std.testing.expectEqual(std.process.Child.Term{ .Exited = 0 }, term);
+        std.debug.print("ALEO_PUBLIC_ENV_COMPONENT forwarded={any} foreign=false actual_parent_wait=0\n", .{value != null});
+    }
 }

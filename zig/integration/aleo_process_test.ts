@@ -59,6 +59,8 @@ import {
   verifyLinuxNativeReaderAcceptance,
   verifySdkBuildClosure,
   roleEnvironment,
+  sdkNativeConsensusHeights,
+  requireFixtureConsensusHeight,
   withDeploymentEnvironment,
   withExecutionEnvironment,
 } from './aleo_process.ts';
@@ -550,8 +552,11 @@ void test('Aleo fee evidence remains absent or erroneous until exact native rece
     assert.throws(() => nativeAleoReceiptFee(changed, 'at1fixture'));
 });
 
-void test('Aleo role environment is explicit and has no proof or consensus bypass', () => {
-  const input = parseAleoManifest(fixture());
+void test('Aleo role environment is explicit and has no proof or ambient environment bypass', () => {
+  const input = parseAleoManifest({
+    ...fixture(),
+    consensusHeights: Array.from({ length: 17 }, (_, i) => i),
+  });
   const environment = roleEnvironment(
     input,
     '/fixture/owned/config.json',
@@ -566,9 +571,12 @@ void test('Aleo role environment is explicit and has no proof or consensus bypas
     input.artifacts.aleoVm.path,
   );
   assert.equal(environment.CONFIG_FILES, '/fixture/owned/config.json');
+  assert.equal(
+    environment.CONSENSUS_VERSION_HEIGHTS,
+    sdkNativeConsensusHeights(input.consensusHeights).join(','),
+  );
   for (const name of [
     'ALEO_SKIP_PROOFS',
-    'CONSENSUS_VERSION_HEIGHTS',
     'ALEO_CONSENSUS_VERSION_HEIGHTS',
     'PRIVATE_KEY',
     'AWS_ACCESS_KEY_ID',
@@ -587,20 +595,31 @@ void test('Aleo SDK deployment proof bypass is scoped and execution reconnect en
   process.env.ALEO_MAILBOX = '/unrelated/program.aleo';
   try {
     await assert.rejects(
-      withDeploymentEnvironment([0, 5], async () => {
-        assert.equal(process.env.ALEO_SKIP_PROOFS, 'true');
-        assert.equal(process.env.ALEO_CONSENSUS_VERSION_HEIGHTS, '0,5');
-        assert.equal(process.env.ALEO_MAILBOX, undefined);
-        throw new Error('deployment failure');
-      }),
+      withDeploymentEnvironment(
+        Array.from({ length: 17 }, (_, i) => i),
+        async () => {
+          assert.equal(process.env.ALEO_SKIP_PROOFS, 'true');
+          assert.equal(
+            process.env.ALEO_CONSENSUS_VERSION_HEIGHTS,
+            sdkNativeConsensusHeights(
+              Array.from({ length: 17 }, (_, i) => i),
+            ).join(','),
+          );
+          assert.equal(process.env.ALEO_MAILBOX, undefined);
+          throw new Error('deployment failure');
+        },
+      ),
       /deployment failure/,
     );
     assert.equal(process.env.ALEO_MAILBOX, '/unrelated/program.aleo');
     assert.equal(process.env.ALEO_SKIP_PROOFS, before.get('ALEO_SKIP_PROOFS'));
-    await withExecutionEnvironment([0, 5], async () => {
-      assert.equal(process.env.ALEO_SKIP_PROOFS, 'false');
-      assert.equal(process.env.ALEO_MAILBOX, undefined);
-    });
+    await withExecutionEnvironment(
+      Array.from({ length: 17 }, (_, i) => i),
+      async () => {
+        assert.equal(process.env.ALEO_SKIP_PROOFS, 'false');
+        assert.equal(process.env.ALEO_MAILBOX, undefined);
+      },
+    );
     assert.equal(process.env.ALEO_MAILBOX, '/unrelated/program.aleo');
   } finally {
     for (const [name, value] of before) {
@@ -2433,11 +2452,21 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
       'requireValue',
       'fixtureError',
       'retainAleoIsolateFailure',
+      'sdkNativeConsensusHeights',
     ],
   );
   const callbacks = new Map<string, (value: unknown) => void>();
   let retired = 0;
   class FakeWorker {
+    constructor(_entry: URL, options: { env: Record<string, string> }) {
+      assert.deepEqual(options.env, {
+        ALEO_SKIP_PROOFS: 'false',
+        ALEO_SKIP_SUFFIXES: 'true',
+        ALEO_CONSENSUS_VERSION_HEIGHTS: sdkNativeConsensusHeights(
+          Array.from({ length: 17 }, (_, i) => i),
+        ).join(','),
+      });
+    }
     on(name: string, callback: (value: unknown) => void) {
       callbacks.set(name, callback);
       if (name === 'message') queueMicrotask(() => callback(reply));
@@ -2469,11 +2498,12 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
     (value: unknown) => assert.ok(value),
     (value: unknown) => (value instanceof Error ? value : new Error('fixture')),
     retainAleoIsolateFailure,
+    sdkNativeConsensusHeights,
   );
   let caught: unknown;
   try {
     await isolate(
-      { consensusHeights: [0] },
+      { consensusHeights: Array.from({ length: 17 }, (_, i) => i) },
       { kind: 'aleo-checked-deployment-v1' },
       {
         remaining() {
@@ -2553,5 +2583,113 @@ void test('Aleo diagnostic malformed worker metadata never changes the original 
       null,
     );
     assert.equal(error.message, 'PRIVATE_MESSAGE');
+  }
+});
+
+void test('Aleo SDK native consensus adapter preserves the legacy prefix and fences inactive future versions', () => {
+  const original = Object.freeze(Array.from({ length: 17 }, (_, i) => i));
+  const expanded = sdkNativeConsensusHeights(original);
+  assert.equal(expanded.length, 22);
+  assert.deepEqual(expanded.slice(0, 17), original);
+  assert.deepEqual(
+    expanded.slice(17),
+    [0xfffffffb, 0xfffffffc, 0xfffffffd, 0xfffffffe, 0xffffffff],
+  );
+  for (const height of [0, 1, 5, 16, 17, 25, 10800, 0xfffffffa]) {
+    requireFixtureConsensusHeight(height);
+    assert.equal(
+      effectiveConsensus(original, height),
+      effectiveConsensus(expanded, height),
+    );
+  }
+  assert.equal(effectiveConsensus(expanded, 16), 17);
+  assert.equal(effectiveConsensus(expanded, 25), 17);
+  assert.equal(
+    effectiveConsensus([0, ...Array.from({ length: 21 }, (_, i) => i + 5)], 16),
+    13,
+  );
+  assert.equal(
+    effectiveConsensus([0, ...Array.from({ length: 21 }, (_, i) => i + 5)], 25),
+    22,
+  );
+  for (const height of [-1, 0xfffffffb, 0xffffffff, 0x100000000, NaN])
+    assert.throws(() => requireFixtureConsensusHeight(height));
+  for (const heights of [
+    [0, 1],
+    [0, 5, 6, 7],
+    expanded,
+    original.slice(0, 16),
+    [...original, 17],
+    original.map((n) => (n === 5 ? 4 : n)),
+    original.map((n) => (n === 5 ? NaN : n)),
+  ])
+    assert.throws(() => sdkNativeConsensusHeights(heights));
+});
+
+void test('Aleo actual NativeWorker constructor captures only explicit native consensus and parameter environment', async () => {
+  const source = await readFile(
+    new URL('./aleo_process.ts', import.meta.url),
+    'utf8',
+  );
+  const start = source.indexOf('class NativeWorker {');
+  const end = source.indexOf('function unsigned(', start);
+  assert.ok(start > 0 && end > start);
+  const factory = compileFunction(
+    stripTypeScriptTypes(source.slice(start, end)) + '\nreturn NativeWorker;',
+    ['spawn', 'join', 'MAX_WIRE', 'sdkNativeConsensusHeights'],
+  );
+  const calls: {
+    file: string;
+    argv: string[];
+    env: Record<string, string>;
+    stdio: string[];
+  }[] = [];
+  const fakeChild = {
+    stdout: { on() {} },
+    stdin: { on() {} },
+    stderr: { on() {}, resume() {} },
+    once() {},
+  };
+  const NativeWorkerClass = factory(
+    (
+      file: string,
+      argv: string[],
+      options: { env: Record<string, string>; stdio: string[] },
+    ) => {
+      calls.push({ file, argv, env: options.env, stdio: options.stdio });
+      return fakeChild;
+    },
+    join,
+    64 * 1024 ** 2,
+    sdkNativeConsensusHeights,
+  );
+  const input = parseAleoManifest({
+    ...fixture(),
+    consensusHeights: Array.from({ length: 17 }, (_, i) => i),
+  });
+  const before = process.env.CONSENSUS_VERSION_HEIGHTS;
+  process.env.CONSENSUS_VERSION_HEIGHTS = 'PRIVATE_AMBIENT';
+  try {
+    new NativeWorkerClass(input);
+    assert.equal(calls.length, 1);
+    const [actual] = calls;
+    assert.ok(actual);
+    assert.equal(actual.file, input.artifacts.worker.path);
+    assert.deepEqual(actual.argv, [
+      '4294967296',
+      String(64 * 1024 ** 2),
+      String(64 * 1024 ** 2),
+    ]);
+    assert.deepEqual(actual.env, {
+      HYPERLANE_ALEO_PARAMETER_DIR: join(input.parameterHome, '.aleo'),
+      CONSENSUS_VERSION_HEIGHTS: sdkNativeConsensusHeights(
+        input.consensusHeights,
+      ).join(','),
+    });
+    assert.deepEqual(actual.stdio, ['pipe', 'pipe', 'pipe']);
+    assert.ok(!JSON.stringify(calls).includes('PRIVATE_AMBIENT'));
+  } finally {
+    if (before === undefined) delete process.env.CONSENSUS_VERSION_HEIGHTS;
+    else process.env.CONSENSUS_VERSION_HEIGHTS = before;
   }
 });

@@ -239,6 +239,22 @@ class Controls(unittest.TestCase):
             with self.subTest(missing=name), self.assertRaises(AssertionError):
                 c.native_test_results(log)
 
+    def test_native_suite_requires_current_scraper_and_worker_regressions(self):
+        required = (
+            'scraper generic raw sequence snapshots dispatch before derived insertion union write',
+            'Aleo worker forwards explicit public consensus override into actual clean child and preserves absence',
+        )
+        names = ['fixture.test.' + name for name in c.NATIVE_REQUIRED]
+        for name in required:
+            self.assertIn(name, c.NATIVE_REQUIRED)
+            remaining = [row for row in names if row != 'fixture.test.' + name]
+            for status in ['absent', 'SKIP']:
+                selected = remaining if status == 'absent' else names
+                log = '\n'.join(f'{i}/{len(selected)} {row}...{("SKIP" if status == "SKIP" and row.endswith(name) else "OK")}'
+                                for i, row in enumerate(selected, 1))
+                with self.subTest(name=name, status=status), self.assertRaises(AssertionError):
+                    c.native_test_results(log)
+
     def test_missing_worker_and_mode_cannot_reach_commands(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c, 'command', side_effect=AssertionError('no subprocess')) as called:
             library = Path(tmp) / 'fixture.so'; library.write_bytes(b'\x7fELFpublic-fixture')

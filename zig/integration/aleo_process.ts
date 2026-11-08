@@ -650,6 +650,34 @@ export function effectiveConsensus(
   return version;
 }
 
+/** The pinned SDK/native VM has V1..V22; the fixed Leo devnode has V1..V17. */
+export function sdkNativeConsensusHeights(
+  heights: readonly number[],
+): number[] {
+  requireValue(
+    heights.length === 17 && heights.every((height, index) => height === index),
+    'exact original seventeen-height fixture schedule required',
+  );
+  // Later versions remain inactive throughout the explicitly fenced fixture.
+  // Never send this extension to the legacy Leo devnode or change its policy.
+  return [
+    ...heights,
+    0xfffffffb,
+    0xfffffffc,
+    0xfffffffd,
+    0xfffffffe,
+    0xffffffff,
+  ];
+}
+
+export function requireFixtureConsensusHeight(height: number): void {
+  integer(height, 0, 0xffffffff, 'actual fixture consensus height');
+  requireValue(
+    height < 0xfffffffb,
+    'fixture reached inactive future consensus',
+  );
+}
+
 /** Compare observations at actual execution heights; array lengths alone prove nothing. */
 export function requireConsensusAtHeight(
   height: number,
@@ -1475,6 +1503,9 @@ export function roleEnvironment(
 ): Record<string, string> {
   return {
     CONFIG_FILES: configPath,
+    CONSENSUS_VERSION_HEIGHTS: sdkNativeConsensusHeights(
+      manifest.consensusHeights,
+    ).join(','),
     PGPASSFILE: join(manifest.taskRoot, 'empty.pgpass'),
     PGSERVICEFILE: join(manifest.taskRoot, 'empty.pgservice'),
     PGSYSCONFDIR: join(manifest.taskRoot, 'empty-pg-config'),
@@ -1515,7 +1546,8 @@ async function withSdkEnvironment<T>(
 ): Promise<T> {
   const overrides = {
     ALEO_SKIP_PROOFS: deployment ? 'true' : 'false',
-    ALEO_CONSENSUS_VERSION_HEIGHTS: heights.join(','),
+    ALEO_CONSENSUS_VERSION_HEIGHTS:
+      sdkNativeConsensusHeights(heights).join(','),
     ALEO_SKIP_SUFFIXES: 'true',
   };
   const previous = new Map<string, string | undefined>();
@@ -2354,6 +2386,9 @@ class NativeWorker {
       {
         env: {
           HYPERLANE_ALEO_PARAMETER_DIR: join(manifest.parameterHome, '.aleo'),
+          CONSENSUS_VERSION_HEIGHTS: sdkNativeConsensusHeights(
+            manifest.consensusHeights,
+          ).join(','),
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       },
@@ -3335,7 +3370,9 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
         ),
         'native metadata-aware mapping',
       );
-      integer(result.height, 0, 0xffffffff, 'actual mapping height');
+      requireFixtureConsensusHeight(
+        integer(result.height, 0, 0xffffffff, 'actual mapping height'),
+      );
       requireValue(
         typeof result.data === 'string',
         'native mapping metadata/data capability unavailable',
@@ -3352,6 +3389,7 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
         0xffffffff,
         'actual node height',
       );
+      requireFixtureConsensusHeight(height);
       const block = await getJson(`${base}/block/${height}`, budget);
       const decoded = await worker.json(11, block, budget);
       requireValue(
@@ -4593,7 +4631,9 @@ async function sdkIsolate(
     env: {
       ALEO_SKIP_PROOFS: 'false',
       ALEO_SKIP_SUFFIXES: 'true',
-      ALEO_CONSENSUS_VERSION_HEIGHTS: manifest.consensusHeights.join(','),
+      ALEO_CONSENSUS_VERSION_HEIGHTS: sdkNativeConsensusHeights(
+        manifest.consensusHeights,
+      ).join(','),
     },
   });
   let reply: unknown;
