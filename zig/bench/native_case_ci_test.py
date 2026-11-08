@@ -90,7 +90,13 @@ class DispatchTests(unittest.TestCase):
             if line.startswith('  ') and not line.startswith('   ') and line.endswith(':'): current = line.strip()[:-1]
             if line.startswith('    if: '): conditions[current] = line[8:]
         ordinary = {'svm-prerequisites', 'unit', 'evm', 'native-http', 'native-linux', 'container', 'vm-images', 'full-sdk-native', 'cold-full-feature', 'native-harness-controls'}
-        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs', 'aleo-linux-prerequisite', 'aleo-linux-sdk-prerequisite', 'aleo-native-docker-prerequisite'})
+        self.assertEqual(set(conditions), ordinary | {'native-case-producer-inputs', 'aleo-linux-prerequisite', 'aleo-linux-sdk-prerequisite', 'aleo-native-docker-prerequisite', 'aleo-full-case'})
+        full = "!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case))"
+        for name, condition in conditions.items():
+            if name != 'aleo-full-case':self.assertTrue(condition.startswith('${{ ' + full + ' && ('), name)
+        # Validate the exact new outer exclusion, then exercise the unchanged
+        # original14 dedicated/ordinary route layers below.
+        conditions = {name: '${{ ' + condition.removeprefix('${{ ' + full + ' && (').removesuffix(') }}') + ' }}' for name, condition in conditions.items() if name != 'aleo-full-case'}
         docker = "!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-docker-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_native_docker_prerequisite))"
         for name, condition in conditions.items():
             if name != 'aleo-native-docker-prerequisite':self.assertTrue(condition.startswith('${{ ' + docker + ' && ('), name)
@@ -146,13 +152,19 @@ class DispatchTests(unittest.TestCase):
         return values
 
     @staticmethod
-    def condition(value, event, message, svm=False, cold=False, aleo=False, sdk=False, docker=False):
+    def condition(value, event, message, svm=False, cold=False, aleo=False, sdk=False, docker=False, full=False):
         import re
         from types import SimpleNamespace as N
         code = value.removeprefix('${{ ').removesuffix(' }}')
         code = re.sub(r'!(?!=)', ' not ', code).replace('&&', ' and ').replace('||', ' or ').strip()
-        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk, aleo_native_docker_prerequisite=docker), 'contains': lambda text, needle: needle in text}
+        context = {'github': N(event_name=event, ref='refs/heads/feat/zig-agent-rewrite', event=N(head_commit=N(message=message))), 'inputs': N(svm_prerequisites=svm, cold_full_feature=cold, aleo_linux_prerequisite=aleo, aleo_linux_sdk_prerequisite=sdk, aleo_native_docker_prerequisite=docker, aleo_full_case=full), 'contains': lambda text, needle: needle in text}
         return bool(eval(compile(code, '<actual-workflow-condition>', 'eval'), {'__builtins__': {}}, context))
+
+    def test_fullcase_request_cannot_run_native_case_or_old_dedicated_jobs(self):
+        values = self.workflow_conditions()
+        for event, message, extra in [('push', '[zig-aleo-fullcase-only]', {}), ('push', '[zig-aleo-fullcase-only] [zig-native-case]', {}), ('workflow_dispatch', '', {'full': True})]:
+            selected = {name for name, value in values.items() if self.condition(value, event, message, **extra)}
+            self.assertEqual(selected, {'aleo-full-case'})
 
     def test_zip_expansion_bound_is_preflight(self):
         archive = self.zip([('large', b'12345', stat.S_IFREG)])

@@ -8,8 +8,8 @@ sys.path.insert(0,str(HERE))
 from sibling_imports import load_shared,SHARED,SDK,CLI_SHA
 load_shared()
 from receipts import checked,decode,load,need
-from docker_gate import Daemon,Gate,NamespacePeer,NetworkLease,Server,container_templates,proc_identity,inherited_image_labels
-from loopback_bridge import FixedServer
+from docker_gate import operation_deadline,Daemon,Gate,NamespacePeer,NetworkLease,Server,container_templates,proc_identity,inherited_image_labels
+from loopback_bridge import FixedServer,connect_target
 GIB=1024**3;MIB=1024**2
 PURPOSE='aleo-linux-native-docker-probe-v1'
 CAPS={'whole_seconds':300,'cleanup_seconds':90,'child_memory_bytes':512*MIB,'owner_memory_bytes':256*MIB,'pids':64,'maximum_container_memory_bytes':3*GIB,'new_disk_bytes':4*GIB,'free_floor_bytes':6*GIB}
@@ -145,7 +145,7 @@ def owned_state_snapshot(gate):
 def retain_failure_state(result,gate,root):
  # API worker drain is attempted first; the actual Gate lock bounds snapshots.
  with gate.locked(gate.daemon.deadline_ns):
-  result['actual_kernel']=list(gate.actual_kernel);result['latched_API_failure']=safe_failure(gate.failed)
+  result['actual_kernel']=list(gate.actual_kernel);result['latched_API_failure']=safe_failure(gate.failed);result['owned_endpoint_transport']=dict(gate.endpoint_observations)
   result['actual_NamespacePeer_Node']=gate.node_identity;result['committed_create']=gate.daemon.committed
   result['owned_container_State']=owned_state_snapshot(gate)
  for name in('node.stdout','node.stderr'):
@@ -198,31 +198,72 @@ def namespace_argv(s,root,config):
 def bootstrap(argv):
  need(sys.stdin.buffer.readline(4)==b'GO\n','cgroup GO barrier absent');need(ctypes.CDLL(None,use_errno=True).prctl(38,1,0,0,0)==0,'NNP missing');os.execve(argv[0],argv,{'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':'/tmp','TMPDIR':'/tmp'})
 
+def postgres_transport_witness(gate,cancel,deadline):
+ end=operation_deadline(deadline)
+ with gate.locked(end),gate.daemon.operation(end):
+  anchor=gate.endpoint_anchor(25432);gate.main_node_identity()
+ result={'cid':anchor['cid'],'kind':'postgres','requested_host_target':['127.0.0.1',25432],'requested_host_TCP':{},'owned_backend_TCP_connected':False,'native_SQL_or_parent_wait_credit':False,'requested_bindings':anchor['requested_bindings'],'actual_published_ports':anchor['actual_published_ports']}
+ need(time.monotonic_ns()<deadline and not cancel.is_set(),'Original PG transport control')
+ # One diagnostic of the OLD fixed publisher; it grants no owned-peer credit.
+ with socket.socket(socket.AF_INET,socket.SOCK_STREAM)as connection:
+  connection.settimeout(min(.25,max(.001,(deadline-time.monotonic_ns())/10**9)))
+  try:
+   need(time.monotonic_ns()<deadline and not cancel.is_set(),'Original PG publisher diagnostic control')
+   connection.connect(('127.0.0.1',25432));result['requested_host_TCP']={'connected':True,'owned_PG_attribution':False}
+  except OSError as error:result['requested_host_TCP']={'connected':False,'error_type':type(error).__name__,'errno':error.errno if type(error.errno)is int else None,'owned_PG_attribution':False}
+ with socket.socket(socket.AF_INET,socket.SOCK_STREAM)as connection:
+  connect_target(connection,True,25432,'',('127.0.0.1',25432),lambda:gate.endpoint_lease(25432,cancel),deadline)
+ result['owned_backend_TCP_connected']=True;result['observed_monotonic_ns']=time.monotonic_ns()
+ need(result['observed_monotonic_ns']<deadline,'Original PG transport witness deadline')
+ return result
+
+
+def publish_postgres_barrier(root,phase,case,witness,deadline):
+ need(time.monotonic_ns()<deadline and witness['owned_backend_TCP_connected']is True,'No live owned PG backend witness')
+ need(re.fullmatch('[0-9a-f]{64}',witness['cid'])and re.fullmatch('[0-9a-f]{64}',case)and re.fullmatch('[a-z-]{1,32}',phase),'Closed PG barrier identity')
+ final=root/'readonly/PG-host-receipt.json';temporary=root/'readonly/PG-host-receipt.tmp'
+ need(not final.exists()and not final.is_symlink(),'Preserve existing PG host receipt')
+ receipt={'schema':1,'phase':phase,'case':case,'cid':witness['cid'],'passed':True}
+ write(temporary,receipt);os.replace(temporary,final)
+ need(time.monotonic_ns()<deadline,'Original PG barrier publication deadline')
+ return pin(final)
+
+
 def phase(s,root,lease,identity,network_id,deadline,name,kind,lost,signals,cancel,initial_free):
  for d in (root,root/'readonly',root/'task',root/'capabilities'):d.mkdir(mode=0o700)
  manifest={'taskRoot':str(root/'task/case'),'domains':[{'name':'aleo_a','port':23030},{'name':'aleo_b','port':23031}],**IMAGES};digest=hashlib.sha256(json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()).hexdigest();cap=root/'capabilities'
  gs={'manifest':manifest,'daemon_id':s['daemon_id'],'run_token':s['run_token'],'internal_network':network_id,'original_deadline_ns':deadline,'public_node_env':PUBLIC_ENV,'postgres_command':['postgres'],'python':s['python'],'node':s['node'],'docker_cli':s['shim'],'actual_case_cgroup_line':lease.line,'task_root':manifest['taskRoot'],'manifest_digest':digest}
  selected=next(v for v in container_templates(gs,1)if v['kind']==kind)
- config=write(root/'readonly/probe.json',{'phase':name,'selected':selected,'python':str(checked(s['python'])),'shim':str(checked(s['shim'])),'task_root':manifest['taskRoot'],'manifest_digest':digest,'socket':str(cap/'docker.sock'),'deadline_ns':str(deadline),'host_net':os.readlink('/proc/self/ns/net'),'host_time':os.readlink('/proc/self/ns/time'),'inject_lost_create_reply':lost})
+ config=write(root/'readonly/probe.json',{'phase':name,'selected':selected,'python':str(checked(s['python'])),'shim':str(checked(s['shim'])),'task_root':manifest['taskRoot'],'manifest_digest':digest,'socket':str(cap/'docker.sock'),'deadline_ns':str(deadline),'host_net':os.readlink('/proc/self/ns/net'),'host_time':os.readlink('/proc/self/ns/time'),'inject_lost_create_reply':lost,'PG_host_receipt':str(root/'readonly/PG-host-receipt.json')})
  argv=namespace_argv(s,root,config);gs['exact_node_argv']=argv[argv.index('--')+1:]
  write(root/'readonly/docker-client-policy.json',{k:gs[k]for k in('manifest','run_token','internal_network','original_deadline_ns','public_node_env','postgres_command','manifest_digest')}|{'gate_socket':str(cap/'docker.sock')})
  daemon=LostReplyDaemon(s['docker_socket'],identity,s['docker_api_version'],deadline,inject=lost);gate=RecordingGate(gs,daemon,NamespacePeer(gs));server=Server(str(cap/'docker.sock'),gate);thread=threading.Thread(target=server.serve_forever);thread.start()
- bridge=None;child=None;pidfd=None;rows=[];result={'phase':name,'controlled_fault':lost,'passed':False}
+ bridge=None;child=None;pidfd=None;rows=[];result={'phase':name,'controlled_fault':lost,'passed':False};PG_witness_written=False
  try:
   if kind=='aleo_a'and not lost:
    def peer(connection):
     import struct
-    pid,uid,_=struct.unpack('3i',connection.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12));need(uid==os.getuid()and Path('/proc',str(pid),'cgroup').read_text()==lease.line,'foreign byte-bridge peer')
-   bridge=FixedServer(cap,23030,True,peer,deadline,threading.BoundedSemaphore(4),rows.append);bridge.start()
+    pid,uid,_=struct.unpack('3i',connection.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12));gate.bridge_main_node_peer(pid,uid)
+   bridge=FixedServer(cap,23030,True,peer,deadline,threading.BoundedSemaphore(4),rows.append,target_lease=lambda:gate.endpoint_lease(23030,cancel));bridge.start()
   with(root/'node.stdout').open('xb')as out,(root/'node.stderr').open('xb')as err:child=subprocess.Popen([str(checked(s['python'])),'-I','-B',str(Path(__file__).resolve()),'--bootstrap',json.dumps(argv)],stdin=subprocess.PIPE,stdout=out,stderr=err,env={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8'},start_new_session=True)
   birth=proc_identity(child.pid);result['actual_child_birth']={k:birth[k]for k in ('pid','parent','group','start','uid','exe','cgroup')};lease.attach(child.pid);pidfd=os.pidfd_open(child.pid);child.stdin.write(b'GO\n');child.stdin.flush();child.stdin.close()
   while child.poll()is None:
    need(time.monotonic_ns()<deadline and not cancel.is_set(),'original probe deadline/cancel');need(gate.failed is None or lost,'unexpected API gate failure')
    need(int(lease.read('memory.current'))<=CAPS['child_memory_bytes']and free(root)>=6*GIB and initial_free-free(root)<=4*GIB,'actual memory/disk/floor guard')
    rss=int(next(line.split()[1]for line in Path('/proc/self/status').read_text().splitlines()if line.startswith('VmRSS:')))*1024;need(rss<=CAPS['owner_memory_bytes'],'actual owner memory bound')
+   if kind=='postgres'and not PG_witness_written:
+    progress_file=root/'task/case/probe-progress.json'
+    if progress_file.exists():
+     progress_value=decode(progress_file.read_bytes(),4096)
+     if progress_value.get('stage')=='postgres.ready':
+      need(progress_value.get('phase')==name,'PG host barrier phase differs')
+      witness=postgres_transport_witness(gate,cancel,deadline);result['postgres_transport_witness']=witness
+      result['PG_host_barrier_receipt']=publish_postgres_barrier(root,name,digest,witness,deadline);PG_witness_written=True
+
    need((root/'node.stdout').stat().st_size+(root/'node.stderr').stat().st_size<=2*MIB,'Node output bound');time.sleep(.05)
   code=child.wait();result['direct_wait']={'pid':child.pid,'actual_parent_wait':True,'exit_code':code,'scope':'original bootstrap/bwrap child; never a daemon-container wait'}
   need(code==0 and time.monotonic_ns()<deadline,'real pinned Node main failed/late');actual=decode((root/'node.stdout').read_bytes(),MIB)
+  need(kind!='postgres'or PG_witness_written,'Live owned PG TCP host witness missing')
   need(actual['passed']is True and actual['node_version']=='v26.12.1'and actual['controlled_lost_create_reply']is lost and gate.node_identity is not None,'actual NamespacePeer/Node result missing')
   if lost:need(daemon.committed is not None and gate.failed is not None and actual['cid']is None,'real committed-create fault not reached')
   else:need(gate.failed is None and len(gate.containers)==1 and len(gate.actual_kernel)==1 and actual['actual_readonly_API']is not None,'actual one-container/API/kernel witness missing')
@@ -237,7 +278,7 @@ def phase(s,root,lease,identity,network_id,deadline,name,kind,lost,signals,cance
   progress=root/'task/case/probe-progress.json'
   if progress.exists():
    try:
-    v=decode(progress.read_bytes(),4096);need(set(v)=={'schema','phase','stage','attempt','observed_monotonic_ns'}and v['schema']==1 and v['phase']==name and v['stage']in {'starting','docker.info','docker.image','docker.run','docker.exec','docker.stop','native.height','finished'}and type(v['attempt'])is int and 0<=v['attempt']<=8192 and isinstance(v['observed_monotonic_ns'],str)and re.fullmatch('[0-9]{1,20}',v['observed_monotonic_ns']),'closed safe Node progress required');result['public_Node_progress']=v
+    v=decode(progress.read_bytes(),4096);need(set(v)=={'schema','phase','stage','attempt','observed_monotonic_ns'}and v['schema']==1 and v['phase']==name and v['stage']in {'starting','docker.info','docker.image','docker.run','docker.exec','docker.stop','native.height','postgres.ready','finished'}and type(v['attempt'])is int and 0<=v['attempt']<=8192 and isinstance(v['observed_monotonic_ns'],str)and re.fullmatch('[0-9]{1,20}',v['observed_monotonic_ns']),'closed safe Node progress required');result['public_Node_progress']=v
    except BaseException as error:result.setdefault('cleanup_errors',[]).append('public_progress:'+type(error).__name__);result['passed']=False
   daemon.deadline_ns=cleanup_deadline
   try:retain_failure_state(result,gate,root)
@@ -261,6 +302,7 @@ def run(spec_pin):
   lease=Lease(s);v=Path(s['docker_socket']).stat(follow_symlinks=False);need(stat.S_ISSOCK(v.st_mode),'native Engine Unix socket required');identity=[v.st_dev,v.st_ino];daemon=Daemon(s['docker_socket'],identity,s['docker_api_version'],deadline)
   status,raw=daemon.call('GET','/info');info=decode(raw);need(status==200 and info['ID']==s['daemon_id']and info['OSType']=='linux'and info['Architecture']=='x86_64'and info['DockerRootDir']==s['docker_filesystem'],'actual native Engine differs')
   need(Path(s['docker_filesystem']).stat().st_dev==root.stat().st_dev,'daemon/probe disk must share observed filesystem')
+  result['actual_Engine_version']=Gate({'original_deadline_ns':deadline},daemon,None).engine_version()
   network=NetworkLease(daemon,'ziggy-aleo-net-'+s['run_token'],{'ziggy.aleo.run-token':s['run_token']});network_id=network.create();n=network.inspect();need(n['Internal']is True and n['Driver']=='bridge'and n['Attachable']is False and n['Scope']=='local'and type(n['EnableIPv6'])is bool,'actual internal local bridge required');result['actual_network_configuration']={k:n[k]for k in ('Id','Name','Driver','Internal','Attachable','Scope','EnableIPv6','Labels')}
   for name,kind,lost in [('postgres','postgres',False),('leo','aleo_a',False),('committed_create_lost_reply','aleo_a',True)]:
    need(time.monotonic_ns()<deadline and initial_free-free(root)<=4*GIB,'original time/disk bound')

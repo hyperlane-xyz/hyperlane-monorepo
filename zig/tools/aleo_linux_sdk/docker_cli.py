@@ -25,7 +25,7 @@ def _reviewed_module(name,path,digest):
     except BaseException:sys.modules.pop(name,None);raise
     return module
 _reviewed_module('receipts',KERNEL/'receipts.py',('a0dbe1ce96080a0f614605673994727a' '85fa946b49632f27e70223a0afe917a6'))
-_reviewed_module('docker_gate',HERE/'docker_gate.py',('5f366f27fb5699f0c111ffaa24c825b4' '643053b25f9be49bd2fdfeaddd5ce28d'))
+_reviewed_module('docker_gate',HERE/'docker_gate.py',('238b4a20c461dcf60844bd11832729e9' 'c049fb67495d6d36ef72393ff4bf2878'))
 from receipts import decode, need
 from docker_gate import container_templates, WholeSocket, operation_deadline
 
@@ -94,7 +94,18 @@ def run(policy,args):
         call(policy,'POST','/containers/'+cid+'/start');return (cid+'\n').encode(),b'',0
     if command[0]=='port':
         need(len(command)==3 and command[2]=='5432/tcp','only owned PG port supported')
-        row=decode(call(policy,'GET','/containers/'+command[1]+'/json'));need(row['NetworkSettings']['Ports']['5432/tcp']==[{'HostIp':'127.0.0.1','HostPort':'25432'}],'actual exclusive PG port differs')
+        need(re.fullmatch('[0-9a-f]{64}',command[1]),'Exact owned PG CID required')
+        row=decode(call(policy,'GET','/containers/'+command[1]+'/json'));selected=next(value for value in containers if value['kind']=='postgres')
+        need(row['Id']==command[1]and row['Name']=='/'+selected['name']and row['Image']==selected['image']and row['Config']['Labels']==selected['labels']and row['Config'].get('User')=='999:999'and row['Config'].get('Cmd')==selected['create_body']['Cmd'],'Namespace PG frontend is not the exact owned template')
+        need(row['HostConfig']['PortBindings']==selected['create_body']['HostConfig']['PortBindings']and row['HostConfig']['NetworkMode']==policy['internal_network'],'Namespace PG requested binding/network differs')
+        networks=row['NetworkSettings']['Networks'];name='ziggy-aleo-net-'+policy['run_token']
+        need(type(networks)is dict and set(networks)=={name}and networks[name]['NetworkID']==policy['internal_network'],'Namespace PG endpoint network differs')
+        ports=row['NetworkSettings'].get('Ports');need(ports is None or type(ports)is dict and set(ports)<={'5432/tcp'},'Unexpected actual PG published ports')
+        published=None if ports is None else ports.get('5432/tcp')
+        need(published is None or type(published)is list and published in ([],[{'HostIp':'127.0.0.1','HostPort':'25432'}]),'Foreign actual PG publisher')
+        # This is the fixed INNER namespace frontend contract, not a claim
+        # that Docker published a host port. Actual inspect stays unmodified;
+        # the trusted host bridge separately leases the owned backend5432.
         return b'127.0.0.1:25432\n',b'',0
     if command[0]=='exec':
         need(len(command)>=3,'exec argv missing');cid=command[1]

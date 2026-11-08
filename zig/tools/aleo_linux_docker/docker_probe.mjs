@@ -50,6 +50,12 @@ if(c.inject_lost_create_reply)docker(command,true);
 else{
  cid=docker(command);assert.match(cid,/^[0-9a-f]{64}$/);
  while(true){check();try{if(selected.kind==='postgres'){docker(['exec',cid,'pg_isready','-U','ziggy','-d','ziggy']);ready={postgres:true};}else{ready={height:await height()};}break;}catch{await new Promise(r=>setTimeout(r,250));}}
+ if(selected.kind==='postgres'){
+  progress('postgres.ready');
+  while(!fs.existsSync(c.PG_host_receipt)){check();await new Promise(resolve=>setTimeout(resolve,25));}
+  check();const raw=fs.readFileSync(c.PG_host_receipt);assert.ok(raw.length<=2048);const receipt=JSON.parse(raw);
+  assert.deepEqual(Object.keys(receipt).sort(),['case','cid','passed','phase','schema']);assert.equal(receipt.schema,1);assert.equal(receipt.phase,c.phase);assert.equal(receipt.case,c.manifest_digest);assert.equal(receipt.cid,cid);assert.equal(receipt.passed,true);
+ }
  docker(['exec',cid,'df','-Pk','/']);docker(['stop','--time','10',cid]);
 }
 if(bridge){await Promise.all([...bridgeSockets].map(socket=>new Promise(resolve=>{socket.once('close',resolve);socket.destroy()})));await new Promise(resolve=>bridge.close(resolve));assert.equal(bridgeSockets.size,0);}

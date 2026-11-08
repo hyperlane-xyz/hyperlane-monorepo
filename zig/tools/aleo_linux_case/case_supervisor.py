@@ -220,7 +220,7 @@ def run(spec_pin):
             import struct
             pid,uid,_=struct.unpack('3i',connection.getsockopt(__import__('socket').SOL_SOCKET,__import__('socket').SO_PEERCRED,12));need(uid==os.getuid()and process(pid)['cgroup']==lease.line,'byte bridge peer outside owned cgroup')
         for port in PORTS:
-            server=FixedServer(cap,port,True,peer,deadline,slots,bridge_rows.append);servers.append(server);server.start()
+            server=FixedServer(cap,port,True,peer,deadline,slots,bridge_rows.append,target_lease=lambda port=port:gate.endpoint_lease(port,cancelled));servers.append(server);server.start()
         inner_spec={'parent_spec':spec_pin,'deadline_receipt':clock_pin,'policy':policy_pin,'original_deadline_ns':deadline,'pins':spec['namespace_pins'],'python':spec['python'],'cache_server':spec['cache_server'],'capability_root':str(cap),'exact_node_argv':exact_node_argv}
         inner_pin=write(readonly/'inner.json',inner_spec)
         argv=policy_code.namespace_argv(bwrap,spec['readonly_roots']+[str(readonly),spec_pin['path']],{'control':str(control),'task':str(data)},str(cap),python,str(checked(spec['inner'])),inner_pin['path'])+['--spec-sha',inner_pin['sha256']]
@@ -290,7 +290,7 @@ def run(spec_pin):
         for server in reversed(servers):
             try:close_bridge_bounded(server,min(cleanup_deadline,time.monotonic_ns()+5*10**9))
             except Exception as error:cleanup.append(str(error))
-        result['bridge_records']=bridge_rows;result['bridges_joined']=not cleanup and all(not row.get('failure')and(row.get('both_pump_threads_joined')is True or(row.get('actual_fixed_target_connect_refused')is True and row.get('pump_threads_started')==0 and row.get('reply_or_parent_wait_credit')is False))for row in bridge_rows)
+        result['bridge_records']=bridge_rows;result['bridges_joined']=not cleanup and all(not row.get('failure')and(row.get('both_pump_threads_joined')is True or(row.get('actual_owned_endpoint_connect_refused')is True and row.get('pump_threads_started')==0 and row.get('reply_or_parent_wait_credit')is False))for row in bridge_rows)
         try:
             for row in spec['pins']+spec['namespace_pins']:checked(row)
             checked(spec_pin);result['source_unchanged']=True

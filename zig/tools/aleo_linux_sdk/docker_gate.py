@@ -239,6 +239,7 @@ class Gate:
         self.node_identity = None
         self.attempted = {}
         self.cleaning = False
+        self.endpoint_observations = {}
 
     def json_call(self, method, path, body=None, expected=(200,)):
         status, raw = self.bounded_call(method,path,body)
@@ -383,6 +384,121 @@ class Gate:
             need([int(x)for x in status['Uid'].split()]==[999]*4 and [int(x)for x in status['Gid'].split()]==[999]*4,'actual rootless PG UID/GID differ')
         fresh=(base/'stat').read_text();need(fresh[fresh.rfind(')')+2:].split()[19]==start and self.owned(cid)['State']['Pid']==pid,'container PID changed during cap readback')
         return {'cid':cid,'pid':pid,'start':start,'actual_kernel_caps_checked':True}
+
+    def engine_version(self):
+        value=self.json_call('GET','/version')
+        result={}
+        for name in ('Version','ApiVersion','MinAPIVersion','Os','Arch'):
+            text=value.get(name)
+            need(type(text)is str and re.fullmatch('[A-Za-z0-9_.+-]{1,64}',text),'Closed actual Engine version required')
+            result[name]=text
+        need(result['Os']=='linux'and result['Arch']in{'amd64','x86_64'},'Native Linux amd64 Engine required')
+        return result
+
+    def main_node_identity(self):
+        need(self.node_identity is not None,'No admitted bridge main Node')
+        saved=self.node_identity;row=proc_identity(saved['pid'])
+        need(row['state']not in {'Z','X'}and row['uid']==os.getuid()and row['cgroup']==self.spec['actual_case_cgroup_line'],'Bridge main Node not live in owned cgroup')
+        need(all(row[key]==saved[key]for key in ('pid','start','namespace_pids','exe','group')),'Bridge main Node identity changed')
+        return {key:row[key]for key in ('pid','start','namespace_pids','exe','group')}
+
+    def bridge_main_node_peer(self,pid,uid):
+        # Microprobe only. Full-case transport peer is its separately-owned
+        # Python namespace forwarder, not the admitted SDK main Node.
+        need(uid==os.getuid()and self.main_node_identity()['pid']==pid,'Not the direct admitted main Node bridge peer')
+
+
+    def endpoint_anchor(self,outer_port):
+        import ipaddress
+        choices={23030:('aleo_a',3030),23031:('aleo_b',3030),25432:('postgres',5432)}
+        need(type(outer_port)is int and outer_port in choices,'Unknown fixed endpoint port')
+        kind,inside=choices[outer_port]
+        matches=[(cid,saved)for cid,saved in self.containers.items()if saved['kind']==kind]
+        need(len(matches)==1,'Exact one owned endpoint container required')
+        cid,saved=matches[0];row=self.owned(cid);self.caps(row,saved)
+        need(row['Config'].get('Cmd')==saved['create_body']['Cmd'],'Owned endpoint command changed')
+        need(row['State']['Running']is True and type(row['State']['Pid'])is int and row['State']['Pid']>0,'Owned endpoint PID not running')
+        kernel=Gate.kernel_caps(self,cid)
+        need(kernel['pid']==row['State']['Pid'],'Endpoint/native kernel PID changed')
+        endpoints=row['NetworkSettings']['Networks'];network_name='ziggy-aleo-net-'+self.spec['run_token']
+        need(type(endpoints)is dict and set(endpoints)=={network_name},'Owned endpoint has foreign network')
+        endpoint=endpoints[network_name];network_id=self.spec['internal_network']
+        need(endpoint['NetworkID']==network_id and re.fullmatch('[0-9a-f]{64}',endpoint['EndpointID']),'Owned endpoint network/ID differs')
+        address=ipaddress.IPv4Address(endpoint['IPAddress']);prefix=endpoint['IPPrefixLen']
+        need(type(prefix)is int and 8<=prefix<=30 and any(address in ipaddress.IPv4Network(block)for block in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')),'Only exact owned RFC1918 endpoint allowed')
+        network=self.json_call('GET','/networks/'+network_id)
+        need(network['Id']==network_id and network['Name']==network_name and network['Labels']=={'ziggy.aleo.run-token':self.spec['run_token']},'Owned network identity changed')
+        need(network['Internal']is True and network['Driver']=='bridge'and network['Attachable']is False and network['EnableIPv6']is False,'Owned internal network policy changed')
+        members=network['Containers'];need(type(members)is dict and cid in members and set(members)<=set(self.containers),'Unknown native internal network member')
+        member=members[cid]
+        need(member['Name']==saved['name']and member['EndpointID']==endpoint['EndpointID']and member['IPv4Address']==str(address)+'/'+str(prefix),'Container/IPAM endpoint cross-binding failed')
+        subnets=network['IPAM']['Config'];need(type(subnets)is list and 1<=len(subnets)<=2,'Closed actual IPv4 IPAM required')
+        need(any(ipaddress.IPv4Network(item['Subnet'])==ipaddress.IPv4Network(str(address)+'/'+str(prefix),strict=False)for item in subnets),'Endpoint subnet not owned IPAM')
+        ports=row['NetworkSettings'].get('Ports');need(ports is None or type(ports)is dict and set(ports)<={str(inside)+'/tcp'},'Unexpected actual published port key')
+        actual=None if ports is None else ports.get(str(inside)+'/tcp')
+        need(actual is None or type(actual)is list and actual in ([],[{'HostIp':'127.0.0.1','HostPort':str(outer_port)}]),'Unexpected actual published host authority')
+        return {'cid':cid,'kind':kind,'pid':kernel['pid'],'birth':kernel['start'],'network_id':network_id,'endpoint_id':endpoint['EndpointID'],'IPv4':str(address),'prefix':prefix,'inside_port':inside,'fixed_namespace_frontend_port':outer_port,'namespace_frontend_binding_credit':False,'requested_bindings':saved['create_body']['HostConfig']['PortBindings'],'actual_published_ports':actual,'full_identity_kernel_caps_and_IPAM_checked':True}
+
+    def endpoint_witness(self,anchor):
+        # Closed known-port diagnostic only; no full socket table or process env.
+        value={'authority':anchor,'observed_monotonic_ns':time.monotonic_ns(),'listeners':{},'net_namespace':{}}
+        base=Path('/proc')/str(anchor['pid'])
+        for name,width in (('tcp',8),('tcp6',32)):
+            try:
+                with(base/'net'/name).open('rb')as stream:raw=stream.read(131073)
+                need(len(raw)<=131072,'Bounded fixed-port listener observation')
+                rows=[]
+                for line in raw.decode('ascii').splitlines()[1:]:
+                    fields=line.split();need(len(fields)>=10,'Typed native socket row')
+                    address,port=fields[1].split(':')
+                    if int(port,16)!=anchor['inside_port']or fields[3]!='0A':continue
+                    need(re.fullmatch('[0-9A-Fa-f]{'+str(width)+'}',address)and fields[7].isdigit()and fields[9].isdigit(),'Typed fixed LISTEN row')
+                    rows.append({'local_address_hex':address.upper(),'port':anchor['inside_port'],'state':'LISTEN','uid':int(fields[7]),'inode':int(fields[9])})
+                    need(len(rows)<=8,'Bounded fixed-port listeners')
+                value['listeners'][name]={'available':True,'rows':rows}
+            except (OSError,ValueError)as error:value['listeners'][name]={'available':False,'error_type':type(error).__name__}
+        try:
+            namespace=os.readlink(base/'ns/net');need(re.fullmatch(r'net:\[[0-9]{1,20}\]',namespace),'Typed native net namespace')
+            value['net_namespace']={'available':True,'identity':namespace}
+        except (OSError,ValueError)as error:value['net_namespace']={'available':False,'error_type':type(error).__name__}
+        with(base/'stat').open('rb')as stream:stat_raw=stream.read(4097)
+        need(len(stat_raw)<=4096,'Bounded native PID birth observation')
+        fields=stat_raw.decode('ascii')[stat_raw.rfind(b')')+2:].split()
+        need(len(fields)>=20 and fields[0]not in {'Z','X'}and fields[19]==str(anchor['birth']),'Listener observation native PID reused')
+        return value
+
+
+    @contextmanager
+    def endpoint_lease(self,outer_port,cancel=None):
+        end=operation_deadline(self.spec['original_deadline_ns'])
+        need(cancel is None or not cancel.is_set(),'Owned endpoint cancelled')
+        with self.locked(end),self.daemon.operation(end):
+            try:
+                need(not self.cleaning and self.failed is None,'Owned endpoint closed after cleanup/failure')
+                main_node=self.main_node_identity()
+                before=self.endpoint_anchor(outer_port)
+                summary=self.endpoint_observations.setdefault(outer_port,{'admitted':0,'connect_returned':0,'connect_refused':0})
+                summary['admitted']+=1;witness=self.endpoint_witness(before);summary.setdefault('first',witness);summary['latest']=witness
+                lease={'target':(before['IPv4'],before['inside_port']),'deadline_ns':end,'connect_result':None}
+                try:
+                    yield lease
+                finally:
+                    need(cancel is None or not cancel.is_set(),'Owned endpoint cancelled after connect')
+                    need(time.monotonic_ns()<end,'Owned endpoint original call deadline')
+                    after=self.endpoint_anchor(outer_port)
+                    need(after==before and self.main_node_identity()==main_node,'Owned endpoint/main Node changed during connect')
+                    need(time.monotonic_ns()<end,'Owned endpoint postconnect validation late')
+                    witness=self.endpoint_witness(after)
+                    need(time.monotonic_ns()<end,'Owned endpoint witness completed late')
+                    need(lease['connect_result']in {'connected','refused','error'},'Actual connector result acknowledgement missing')
+                    summary['connect_returned']+=int(lease['connect_result']=='connected');summary['connect_refused']+=int(lease['connect_result']=='refused')
+                    summary['latest']=witness;summary['last_observed_monotonic_ns']=time.monotonic_ns()
+
+            except Exception as error:
+                # Latch before releasing the owner lock: a sibling lease must
+                # not obtain fresh authority between failure and publication.
+                self.failed='OwnedEndpoint:'+type(error).__name__
+                raise
 
     def cleanup(self):
         """Exact created IDs only; allowed after a latched protocol/health failure."""

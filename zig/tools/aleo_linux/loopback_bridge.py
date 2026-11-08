@@ -59,10 +59,42 @@ def relay(left, right, deadline, stopping):
     return {'bytes_to_fixed_target':counts[0],'bytes_from_fixed_target':counts[1],'both_pump_threads_joined':True,'reply_or_parent_wait_credit':False}
 
 
+class OwnedBackendRefused(ConnectionRefusedError):
+    """Only a real target connect refusal AFTER successful lease postvalidation."""
+
+
+def connect_target(other,host,port,unix,tcp,target_lease,deadline):
+    if target_lease is None:
+        other.connect(tcp if host else unix)
+        return
+    import ipaddress
+    need(host and callable(target_lease),'Owned target callback is host-only Source')
+    with target_lease() as lease:
+        need(type(lease)is dict and set(lease)=={'target','deadline_ns','connect_result'}and lease['connect_result']is None,'Closed owned target lease required')
+        target=lease['target'];end=lease['deadline_ns']
+        need(type(target)is tuple and len(target)==2 and type(target[0])is str and type(target[1])is int,'Typed owned endpoint target required')
+        address=ipaddress.IPv4Address(target[0])
+        need(str(address)==target[0]and any(address in ipaddress.IPv4Network(block)for block in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')),'Only owned private IPv4 target')
+        need(port in PORTS and target[1]==(5432 if port==25432 else 3030),'Owned target port differs')
+        need(type(end)is int and time.monotonic_ns()<end<=deadline,'Owned target original deadline')
+        other.settimeout(min(3,(end-time.monotonic_ns())/10**9))
+        refused=False
+        try:other.connect(target)
+        except ConnectionRefusedError:refused=True
+        except BaseException:
+            lease['connect_result']='error'
+            raise
+        lease['connect_result']='refused'if refused else'connected'
+        need(time.monotonic_ns()<end,'Owned target connect completed late')
+    # Authority/API exceptions during enter or postvalidation never reach here.
+    if refused:raise OwnedBackendRefused('validated owned backend refused TCP')
+
+
 class FixedServer:
     """Host: Unix→fixed host TCP. Inner: exact TCP→fixed capability Unix."""
-    def __init__(self, capability_root, port, host, peer_check, deadline, slots, record):
+    def __init__(self, capability_root, port, host, peer_check, deadline, slots, record, *, target_lease=None):
         unix,tcp=route(capability_root,port)
+        need(target_lease is None or host is True and callable(target_lease),'Owned target callback is host-only Source')
         self.stopping=threading.Event();self.lock=threading.Lock();self.open=set();self.count=0
         parent=self
         class Handler(socketserver.BaseRequestHandler):
@@ -74,18 +106,18 @@ class FixedServer:
                         parent.count+=1;need(parent.count<=8192,'bridge lifetime connection cap');parent.open.add(self.request)
                     if host:peer_check(self.request)
                     family=socket.AF_INET if host else socket.AF_UNIX
-                    other=socket.socket(family);other.settimeout(3);other.connect(tcp if host else unix)
+                    other=socket.socket(family);other.settimeout(3);connect_target(other,host,port,unix,tcp,target_lease,deadline)
                     with parent.lock:parent.open.add(other)
                     record(relay(self.request,other,deadline,parent.stopping))
                 except Exception as error:
-                    if host and isinstance(error,ConnectionRefusedError) and other is not None:
+                    if host and other is not None and (target_lease is None and isinstance(error,ConnectionRefusedError)or target_lease is not None and isinstance(error,OwnedBackendRefused)):
                         # The actual Source readiness loop deliberately probes
                         # before Leo listens. Closing the byte channel retains
                         # that unavailable attempt; it supplies no RPC reply or
                         # liveness/acceptance credit and is not a policy escape.
-                        record({'actual_fixed_target_connect_refused':True,'pump_threads_started':0,'reply_or_parent_wait_credit':False})
+                        record({('actual_fixed_target_connect_refused'if target_lease is None else'actual_owned_endpoint_connect_refused'):True,'pump_threads_started':0,'reply_or_parent_wait_credit':False})
                     else:
-                        record({'failure':type(error).__name__+':'+str(error)});parent.stopping.set()
+                        record({'failure':type(error).__name__+':'+str(error)}if target_lease is None else{'failure':type(error).__name__,'owned_endpoint_authority_failure':True});parent.stopping.set()
                 finally:
                     with parent.lock:
                         parent.open.discard(self.request)
