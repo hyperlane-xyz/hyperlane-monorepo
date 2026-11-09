@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "radix",
+  "root_approved": true,
+  "scenario": "cosmosnative",
   "mode": "ReleaseSafe",
-  "producer_source_commit": "9badc87e8c2e2f019a1b3453c323a8d89686e43e",
-  "producer_run_id": 42532107058,
+  "producer_source_commit": "f453948ae31c1fadb35e10c87577e73a39350103",
+  "producer_run_id": 42549077977,
   "producer_run_attempt": 1,
   "limits": {
     "maximum_owned_RAM_bytes": 8589934592,
@@ -44,193 +44,72 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "radix_images": {
-      "data_aggregator_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "de7f1efe19f219530da50b9cd6478f78",
-            "2858affd76a6b520b79eba2e1649b05d"
-          ],
-          "prefix": "radixdlt/babylon-ng-data-aggregator@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "eb23d60cb95fa1400f4b9aa430de39b9",
-            "babdc41c3119fd7f4293a354c7f69de2"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-data-aggregator:v1.10.3"
-      },
-      "database_migrations_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "f0bc2f9fbf8ca59a5c221128d3e0c879",
-            "714957a3753fb0ab21e393562196da1c"
-          ],
-          "prefix": "radixdlt/babylon-ng-database-migrations@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "4ec55f7eb0680512f65d3c6844dae05c",
-            "bf5972d8171e0e0944302d60fa2ab50f"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-database-migrations:v1.10.3"
-      },
-      "fullnode": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "4acd3afcb28376c560409fca46b36397",
-            "054b151b62aa2a38cb91fbd48ffbb602"
-          ],
-          "prefix": "radixdlt/babylon-node@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "f04273c2411d89b502aed11552fe83d0",
-            "cb5660d1996ee196adfc7c7a7805955f"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-node:v1.3.0.1"
-      },
-      "gateway_api_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "ef7aa39651897ebfbb6b39bbfea2a75c",
-            "a4e04d5ff802a62b8ee4247ca1638676"
-          ],
-          "prefix": "radixdlt/babylon-ng-gateway-api@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "8053a0fa3c5b1c42be1cb3f837b6a55c",
-            "8e92d0618d406bd64b26b8a0365ece65"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-gateway-api:v1.10.3"
-      },
-      "postgres_db": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "07ec36ad2d5ab9250f38c8ef749239b6",
-            "62cf15d03c9ddb7167422edbbdf71156"
-          ],
-          "prefix": "postgres@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "ddc12ac7fa27279bfcc41deaccd13682",
-            "91ab7d71ca7cee0420b41f9974e9a468"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "postgres:15.2-alpine"
-      }
-    },
-    "radix_contracts": {
-      "release": "1.0.0",
-      "files": {
-        "hyperlane_radix.rpd": {
-          "bytes": 19071,
-          "sha256": {
-            "sha256_hex_chunks": [
-              "274871ffb45c9db2d78fd0fc5bff7ec8",
-              "9a21907870118303fe35a65bbce5be88"
-            ]
-          }
-        },
-        "hyperlane_radix.wasm": {
-          "bytes": 438167,
-          "sha256": {
-            "sha256_hex_chunks": [
-              "f3dd959d32a2a123dda7744ca9963fd6",
-              "42376e4d60128d24d458474183309336"
-            ]
-          }
-        }
-      },
-      "metadata_bytes": 7865,
-      "metadata_sha256": {
+    "native_cli": {
+      "name": "hypd",
+      "architecture": "amd64",
+      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
+      "bytes": 69488792,
+      "sha256": {
         "sha256_hex_chunks": [
-          "a90945c1008b267040c4d6eb17c32a9e",
-          "2da0dd414804ca963dfb9bf7d270d7b2"
+          "90a33bb46f87836675a2f0871d7d122c",
+          "1ecaa8c39014d6c7eae7815fb2e6706e"
         ]
       }
-    },
-    "radix_reference": {
-      "same_producer_source": true,
-      "actual_sdk_tests": 5,
-      "locked_offline": true
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13638846249,
+      "id": 13644779178,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52486705,
+      "size_in_bytes": 52486714,
       "sha256": {
         "sha256_hex_chunks": [
-          "c06111d1b296ffc1c95d35a79913f320",
-          "d688922080c82ad43863cd0f4a64d27e"
+          "f0588251bcb8b6d7824e17281ab17d16",
+          "8635dec5e360795683b78dfc4ef11e07"
         ]
       }
     },
     "helper": {
-      "id": 13637893225,
+      "id": 13645795593,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56454188,
+      "size_in_bytes": 56492368,
       "sha256": {
         "sha256_hex_chunks": [
-          "a497e4f96ebac7c4db309f84ce5aab48",
-          "24d8e888d71d89ce92b0bf32bf893c83"
+          "9f01fa82bae5c56a347cea705fc15abe",
+          "0afc382b64d9079407901c8e65c5a227"
         ]
       }
     },
     "tools": {
-      "id": 13638266962,
-      "name": "zig-native-case-tools-9badc87e8c2e2f019a1b3453c323a8d89686e43e",
-      "size_in_bytes": 20092394,
+      "id": 13645158595,
+      "name": "zig-native-case-tools-f453948ae31c1fadb35e10c87577e73a39350103",
+      "size_in_bytes": 20092677,
       "sha256": {
         "sha256_hex_chunks": [
-          "f04139f1078246606854cbb01bb02f87",
-          "bbae5f0093630fe9dd2bea4ad20843bc"
+          "cf069b9258b14ee760907e871ba8ce73",
+          "fabdaca1a274509921e1a55328d89879"
         ]
       }
     },
     "writer_safe": {
-      "id": 13638433644,
+      "id": 13644704351,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171533,
+      "size_in_bytes": 5171535,
       "sha256": {
         "sha256_hex_chunks": [
-          "9e95b27f01992bb2b1f60c8b0fe3f180",
-          "7e01824c81ff373278a32fe9da8a5a15"
+          "73e7dcecbadfc0bbf97fb3a9f1130eb3",
+          "83589e81a85c40e0fa016b809f157d29"
         ]
       }
     },
     "writer_fast": {
-      "id": 13639154834,
+      "id": 13646433693,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4863041,
+      "size_in_bytes": 4863022,
       "sha256": {
         "sha256_hex_chunks": [
-          "5479fcdfa89d9e5e82d2535d59704318",
-          "0ebf132c6f91d55c75412a7095bcb2ae"
-        ]
-      }
-    },
-    "radix_reference": {
-      "id": 13637609682,
-      "name": "zig-native-radix-reference-9badc87e8c2e2f019a1b3453c323a8d89686e43e",
-      "size_in_bytes": 3177950,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "67a74440c7ae175642fc91f3784f09f9",
-          "c97c7d4a8f6ce10f30c25ed3f03920ed"
+          "5f12d92b3a7591d5ff9edd98acb43fc2",
+          "810a104f650836502135b9dfe346117a"
         ]
       }
     }
