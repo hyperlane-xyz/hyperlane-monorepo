@@ -92,7 +92,7 @@ class Controls(unittest.TestCase):
 
     def test_actual_stage_validator_accepts_no_CosmosCLI_and_rejects_dataset_swap(self):
         base=load('svm_input_fixture',HERE.parent/'integration/native_case_inputs_test.py');state=base.StageControls('test_native_cosmos_empty_contract_map_is_honest');state.setUp();self.addCleanup(state.doCleanups)
-        stage,context,request=state.fixture_stage('cosmosnative');stage['scenario']='sealevel';context['scenario']='sealevel';stage['tools'].pop('native_cli');stage['svm_assets']={'actual':'dataset-A'};context['svm_prerequisites']=stage['svm_assets'];original=base.m.load_module
+        stage,context,request=state.fixture_stage('cosmosnative');stage['scenario']='sealevel';context['scenario']='sealevel';stage['diagnostic_node']=stage['tools'].pop('native_cli');stage['svm_assets']={'actual':'dataset-A'};context['svm_prerequisites']=stage['svm_assets'];original=base.m.load_module
         def module(name,relative):
             if name=='validate_svm_case':
                 from types import SimpleNamespace
@@ -101,6 +101,7 @@ class Controls(unittest.TestCase):
         with mock.patch.object(base.m,'load_module',side_effect=module),mock.patch.object(base.m.platform,'machine',return_value='x86_64'):
             self.assertTrue(base.m.validate_stage(stage,context,request));bad=copy.deepcopy(stage);bad['svm_assets']={'actual':'dataset-B'}
             with self.assertRaisesRegex(ValueError,'dataset differs'):base.m.validate_stage(bad,context,request)
+        self.assertEqual(set(stage['tools']),{'cast','docker','psql','ps','lsof'});self.assertNotIn('diagnostic_node',stage['tools']);self.assertIn('diagnostic_node',stage)
         self.assertEqual(stage['contract_artifacts'],{});self.assertEqual(stage['registry'],{'path':None,'commit':None});self.assertNotIn('native_cli',stage['tools'])
     def test_actual_two_child_wait_contract_excludes_foreign_or_extra(self):
         owner=load('svm_owner_fixture',HERE/'native_case_owner.py')
@@ -192,7 +193,9 @@ class Controls(unittest.TestCase):
         request['limits']=m.LIMITS.copy();request['postgres']={'schema':2,'image':'postgres:14','image_id':'sha256:'+'1'*64,'canonical_digest':'postgres@sha256:'+'2'*64,'architecture':'amd64'}
         def output(path,value):path.write_text(json.dumps(value));return m.artifact(path)
         if scenario=='sealevel-composite':request['postgres']=None
-        request_pin=output(repo/'request.json',request);receipt=output(repo/'receipt.json',{});template=Path(stage['tools'].pop('native_cli')['path']);tools={}
+        request_pin=output(repo/'request.json',request);receipt=output(repo/'receipt.json',{});stage['diagnostic_node']=stage['tools'].pop('native_cli')
+        diagnostic_node=repo/'diagnostic-node';shutil.copyfile(stage['diagnostic_node']['path'],diagnostic_node);diagnostic_node.chmod(0o755);stage['diagnostic_node']=m.artifact(diagnostic_node)
+        template=Path(stage['diagnostic_node']['path']);tools={}
         for name in ['init-db','ziggy-native-rows','ziggy-rocks-oracle','ziggy-rust-reference']:
             path=case/'tools'/name;shutil.copyfile(template,path);path.chmod(0o755);tools[name]=m.artifact(path)
         process=m.load_module('svm_process_fixture','zig/integration/multivm_process.py');artifacts={}
@@ -210,6 +213,7 @@ class Controls(unittest.TestCase):
             return actual_load(name,relative)
         with mock.patch.object(m.sys,'platform','linux'),mock.patch.object(m.platform,'machine',return_value='x86_64'),mock.patch.object(m,'producer_receipt',return_value={}),mock.patch.object(m,'cohort',return_value=[]),mock.patch.object(m,'decoded_locks',return_value=[]),mock.patch.object(m,'interop_summary',return_value=interop),mock.patch.object(m,'load_module',side_effect=module):paths=m.prepare(cp,m.checksum(cp),interop_pin,stage_pin,repo)
         manifest=json.loads(paths['manifest'].read_text());process.validate_manifest(manifest);owner=load('svm_prepared_owner',repo/'zig/bench/native_case_owner.py');plan,_,inputs,approval=owner.load_plan(paths['launch-plan'],m.checksum(paths['launch-plan']))
+        self.assertNotIn(stage['diagnostic_node'],stage['tools'].values());self.assertEqual(plan.get('diagnostic_node'),stage['diagnostic_node']);self.assertIn(stage['diagnostic_node'],plan['required_inputs']);self.assertEqual(set(stage['tools']),{'cast','docker','psql','ps','lsof'});self.assertNotIn('diagnostic_node',stage['tools'])
         self.assertEqual(plan['harness_argv'][1:],owner.FILTERS[scenario]);self.assertEqual(plan['clean_fixture_parent_waits_required'],1 if scenario=='sealevel-composite'else 2);self.assertEqual(manifest['tool_overrides'],{});self.assertEqual(approval['svm_assets'],inputs['svm_assets']);self.assertEqual(inputs['initial_corpus'],{'dispatches':2,'deliveries':2,'unpaid':0}if scenario=='sealevel-composite'else{'dispatches':13,'deliveries':12,'unpaid':1});self.assertEqual(plan['confirm_seconds'],600);self.assertEqual(plan['grace_seconds'],30);self.assertFalse(plan['native_case_acceptance'])
         if scenario=='sealevel-composite':
             self.assertTrue(all(key not in inputs and key not in approval for key in ['postgres','local_docker']));self.assertNotIn('DOCKER_HOST',plan['explicit_environment']);self.assertNotIn('DOCKER_CONFIG',plan['explicit_environment'])
