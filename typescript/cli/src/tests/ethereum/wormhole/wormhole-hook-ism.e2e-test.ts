@@ -37,10 +37,10 @@ import {
   buildMeshConfig,
   deployWormholeMesh,
   deployWormholeMocks,
-  encodeMockVaa,
   getMultiProvider,
   readPublications,
   setRecipientIsm,
+  signPublicationVaa,
   startVaaUpstream,
   startWormholeVaaService,
 } from './fixtures.js';
@@ -287,9 +287,6 @@ describe('hyperlane wormhole hook/ISM e2e tests', function () {
         const { dispatchTx, messageId, publication } =
           await sendAndAssertPublication(origin, destination, routers);
 
-        const emitter = addressToBytes32(routers[origin]).slice(2);
-        const vaaId = `${mocks[origin].wormholeChainId}/${emitter}/${publication.sequence}`;
-
         // While the upstream has no VAA the relayer cannot build metadata, and
         // no delivery state is written.
         const pending = await hyperlaneStatus({
@@ -303,14 +300,11 @@ describe('hyperlane wormhole hook/ISM e2e tests', function () {
           'self-relay must fail without a VAA',
         ).to.not.equal(0);
 
-        signedVaas.set(
-          vaaId,
-          encodeMockVaa({
-            emitterChainId: mocks[origin].wormholeChainId,
-            emitterAddress: routers[origin],
-            publication,
-          }),
-        );
+        signPublicationVaa(signedVaas, {
+          wormholeChainId: mocks[origin].wormholeChainId,
+          router: routers[origin],
+          publication,
+        });
 
         const relayed = await hyperlaneStatus({
           origin,

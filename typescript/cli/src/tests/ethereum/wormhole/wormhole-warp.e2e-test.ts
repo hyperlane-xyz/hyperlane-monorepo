@@ -61,9 +61,9 @@ import {
   WH_CHAIN_ID_4,
   type WormholeChainFixture,
   deployWormholeMocks,
-  encodeMockVaa,
   getMultiProvider,
   readPublications,
+  signPublicationVaa,
   startVaaUpstream,
   startWormholeVaaService,
 } from './fixtures.js';
@@ -656,15 +656,11 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
           mocks[origin].core,
         );
         assert(publication, `Missing Wormhole publication on ${origin}`);
-        const emitter = addressToBytes32(routers[origin]).slice(2);
-        signedVaas.set(
-          `${mocks[origin].wormholeChainId}/${emitter}/${publication.sequence}`,
-          encodeMockVaa({
-            emitterChainId: mocks[origin].wormholeChainId,
-            emitterAddress: routers[origin],
-            publication,
-          }),
-        );
+        signPublicationVaa(signedVaas, {
+          wormholeChainId: mocks[origin].wormholeChainId,
+          router: routers[origin],
+          publication,
+        });
 
         const relayed = await hyperlaneStatus({
           origin,

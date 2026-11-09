@@ -237,6 +237,30 @@ export function encodeMockVaa({
   );
 }
 
+/** Makes the upstream serve the mock VAA for a router's publication. */
+export function signPublicationVaa(
+  signedVaas: Map<string, string>,
+  {
+    wormholeChainId,
+    router,
+    publication,
+  }: {
+    wormholeChainId: number;
+    router: Address;
+    publication: WormholePublication;
+  },
+): void {
+  const emitter = addressToBytes32(router).slice(2);
+  signedVaas.set(
+    `${wormholeChainId}/${emitter}/${publication.sequence}`,
+    encodeMockVaa({
+      emitterChainId: wormholeChainId,
+      emitterAddress: router,
+      publication,
+    }),
+  );
+}
+
 /**
  * Deterministic stand-in for Wormholescan.
  *
@@ -311,6 +335,22 @@ export interface WormholeServiceRoute {
   router: Address;
 }
 
+/** ccip-server env that configures the `wormhole` module against an upstream. */
+export function wormholeServiceEnv({
+  upstreamUrl,
+  routes,
+}: {
+  upstreamUrl: string;
+  routes: Record<string, WormholeServiceRoute>;
+}): Record<string, string> {
+  return {
+    WORMHOLE_VAA_URLS: upstreamUrl,
+    WORMHOLE_ROUTES: JSON.stringify(routes),
+    WORMHOLE_VAA_MAX_ATTEMPTS: '3',
+    WORMHOLE_VAA_RETRY_DELAY_MS: '250',
+  };
+}
+
 /**
  * Starts the real `WormholeVaaService` by running the ccip-server with only the
  * `wormhole` module enabled.
@@ -327,12 +367,7 @@ export async function startWormholeVaaService({
   const { baseUrl, close } = await startCcipServer({
     port,
     modules: ['wormhole'],
-    env: {
-      WORMHOLE_VAA_URLS: upstreamUrl,
-      WORMHOLE_ROUTES: JSON.stringify(routes),
-      WORMHOLE_VAA_MAX_ATTEMPTS: '3',
-      WORMHOLE_VAA_RETRY_DELAY_MS: '250',
-    },
+    env: wormholeServiceEnv({ upstreamUrl, routes }),
   });
 
   return { url: `${baseUrl}/wormhole/getWormholeVaa`, close };
