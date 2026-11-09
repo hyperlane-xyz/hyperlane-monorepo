@@ -717,7 +717,7 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,z
 
 
 
-def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,harness_log,case_inputs=None,required_inputs=()):
+def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,harness_log,case_inputs=None,required_inputs=(),private_capture=None):
     """Fixed Source markers and actual client status only; no external text."""
     scenario=manifest['scenario']
     if scenario not in {'tron','radix'}or type(parent_pid)is not int or not 0<parent_pid<2**31:raise ValueError('Exact fixture helper parent required')
@@ -753,7 +753,7 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
     result={'schema':1,'kind':'public-fixed-fixture-failure-observation','scenario':scenario,'writer_sources':checked_sources,'harness_log_fingerprint':log_pin,'last_seen_stage':None,'panic_observations':[],'client_waits':None,'native_or_timing_or_cleanup_authority':False,'scope':'Source marker and finite panic-category observations only. Last seen is not stage success. No arbitrary error/command text, numeric Program status, root-cause, direct container wait or proof claim.'}
     cli=None;cli_reason='CONTEXT_NOT_SUPPLIED';cli_frontier='CONSTRUCTOR'
     if scenario=='tron'and case_inputs is not None:
-        try:cli=TronCLIProjection(case,case_inputs,approval,required_inputs,bodies,sources,repo)
+        try:cli=TronCLIProjection(case,case_inputs,approval,required_inputs,bodies,sources,repo,private_requested=private_capture is not None)
         except TronCLIProjectionError as error:cli_reason=error.reason
         except Exception:cli_reason='CONSTRUCTOR_CONTEXT_REJECTED'
     pending=None;observations=[];seen=set();lines_scanned=0
@@ -829,6 +829,11 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
     if scenario=='tron':
         try:result['CLI_failure']=cli.public()if cli is not None else tron_cli_unavailable(cli_reason,cli_frontier)
         except Exception:result['CLI_failure']=tron_cli_unavailable('PUBLIC_SOURCE_RECHECK_FAILED','PUBLICATION')
+        if private_capture is not None and cli is not None:
+            try:
+                value=cli.private_error_window()
+                if value is not None:private_capture(*value)
+            except BaseException:pass
     if scenario=='radix':
         journal=Path(case)/'evidence/radix-client-parent-waits.jsonl'
         if journal.exists():
@@ -1702,7 +1707,7 @@ def tron_encrypted_prefix(value,key_id):
 
 class TronCLIProjection:
     """One existing harness scan. Text/Source coordinates are not execution proof."""
-    def __init__(self,case,inputs,approval,required_inputs,bodies,sources,repo):
+    def __init__(self,case,inputs,approval,required_inputs,bodies,sources,repo,private_requested=False):
         root=Path(case)/'tron-cli';fixture=inputs['tron_tre'];receipt=inputs['tron_cli']
         if fixture!=approval['tron_tre']or receipt!=approval['tron_cli']or receipt not in required_inputs or fixture['cli_directory']!=str(root)or root.is_symlink()or root.resolve()!=root or not isinstance(required_inputs,list)or len(required_inputs)>250000:raise ValueError('Already admitted owned CLI context required')
         tool=fixture['pnpm'];entry=fixture['cli_entrypoint']
@@ -1722,6 +1727,7 @@ class TronCLIProjection:
             self.join_source={'module':name,'source':sources[name],'line':82,'column':23};self.join_identity=RelayerStartup.identity(path)
         except Exception:self.source_capture_failures=1
 
+        self.private_requested=private_requested is True;self.private_error=None;self.private_error_truncated=False;self.private_window_refused=False
         self.cause=None;self.cause_reason='MARKER_NOT_OBSERVED';self.cause_seen=0;self.cause_contract=None;self.cause_identity=None;self.cause_path=None
         try:
             source=Path(repo)/'zig/bench/native_tron_assets.py';raw,source_pin=captured_failure_bytes(source,1024**2)
@@ -1780,17 +1786,25 @@ class TronCLIProjection:
         if clean.startswith(pipe):self.pipe_error=True;return
         if not clean.startswith(self.prefix):return
         raw=clean[len(self.prefix):]
-        if not raw or len(raw)>16384:return
+        if not raw or len(raw)>16384:
+            if raw and self.private_requested and self.private_error is None:self.private_window_refused=True
+            return
         # Only one printed line; JSON logger msg is accepted only if single-line.
         text=raw
         if raw.startswith(b'{'):
             try:
                 obj=startup_unique_json(raw);message=obj.get('msg')
-                if not isinstance(message,str)or'\n'in message or'\r'in message:return
+                if not isinstance(message,str)or'\n'in message or'\r'in message:
+                    if self.private_requested and self.private_error is None:self.private_window_refused=True
+                    return
                 text=message.encode()
-            except Exception:return
+            except Exception:
+                if self.private_requested and self.private_error is None:self.private_window_refused=True
+                return
         try:message=text.decode('utf8','strict').strip()
-        except UnicodeError:return
+        except UnicodeError:
+            if self.private_requested and self.private_error is None:self.private_window_refused=True
+            return
         if message.startswith('HYPERLANE_TRON_ENCRYPTED_V1 '):
             self.cause_seen+=1
             if self.cause_seen!=1:self.cause=None;self.cause_reason='AMBIGUOUS_DIAGNOSTIC_RECORD';return
@@ -1816,6 +1830,8 @@ class TronCLIProjection:
                 except Exception:self.fixed_sources[relative]=b'';self.source_capture_failures=min(32,self.source_capture_failures+1)
             if any(re.search(rb'(?<![A-Za-z0-9_$])'+re.escape(call+b'('+quote+needle+quote+b')'),self.fixed_sources[relative])is not None for quote in(b"'",b'"',b'`')):self.last_header={'enum':label,'log_line':line,'observed_only':True}
         error_header=message.startswith('Error: ')or re.match(r'^Error \[[A-Z][A-Z_0-9]{1,63}\]:',message)is not None
+        if error_header and self.private_requested and not self.private_window_refused and self.private_error is None:
+            self.private_error=bytes(text[:4096]);self.private_error_truncated=len(text)>4096
         if error_header and len(self.headers)<8:
             row={'header':'CLI_ERROR_TEXT','bytes':len(text),'sha256':hashlib.sha256(text).hexdigest(),'typed_exception':False,'log_line':line}
             if not any(all(prior[key]==row[key]for key in('header','bytes','sha256'))for prior in self.headers):self.headers.append(row)
@@ -1836,6 +1852,14 @@ class TronCLIProjection:
             if key not in self.seen:
                 self.seen.add(key);pin=self.files[path]['fingerprint'];self.frames.append({'source':relative,'line':row,'column':column,'source_bytes':pin['bytes'],'source_sha256':pin['sha256']})
         except Exception:self.unadmitted=min(2**32-1,self.unadmitted+1);self.source_capture_failures=min(32,self.source_capture_failures+1)
+
+    def private_error_window(self):
+        """Only first Source-tagged Error text after unchanged public qualification."""
+        try:
+            value=self.public()
+            if self.private_window_refused or value.get('collection_status')!='observed'or self.cause_contract is None or RelayerStartup.identity(self.cause_path)!=self.cause_identity or not isinstance(self.private_error,bytes)or not 0<len(self.private_error)<=4096:return None
+            return self.private_error,{'windows':[{'tag':'PNPM_NATIVE','position':'first_error','bytes':len(self.private_error),'truncated':self.private_error_truncated}],'oversized_lines_omitted':0,'scope':'First Source-tagged normalized Error header in the unique first-deploy/panic window only; no typed error or CLI PID attribution.'}
+        finally:self.private_error=None
 
     def source_header(self,line):
         if self.state=='frozen'and self.starts==1 and line==self.end_line:self.source_panic=True

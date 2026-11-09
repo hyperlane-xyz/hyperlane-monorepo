@@ -1214,6 +1214,68 @@ class SvmEncryptedWindowOwnerControls(unittest.TestCase):
         self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(self.result,self.original)
 
 
+class TronPostwaitEncryptionOwnerControls(unittest.TestCase):
+    def setUp(self):
+        self.f=SvmEncryptedWindowOwnerControls();self.f.setUp();self.addCleanup(self.f.doCleanups);self.root=self.f.root;self.module=self.f.module;self.node=self.f.plan['diagnostic_node']
+        self.version=self.root/'node-version.log';self.version.write_bytes(b'v26.12.1\n');self.stagepath=self.root/'local-stage.json'
+        self.stage={'schema':1,'passed':True,'scenario':'tron','execution_source_commit':'b'*40,'tools':{'node':self.node},'checks':[{'name':'node-version','log':api.pin(self.version)}]}
+        self.plan={'scenario':'tron','execution_source_commit':'b'*40,'diagnostic_rust_sources':{},'required_inputs':[self.node,api.pin(self.version)]};self.approval={};self.stage_update()
+        self.plain=b'Error: PRIVATE_TRON_SECRET';self.selection={'windows':[{'tag':'PNPM_NATIVE','position':'first_error','bytes':len(self.plain),'truncated':False}],'oversized_lines_omitted':0,'scope':'fixed'}
+    def stage_update(self):
+        self.stagepath.write_text(json.dumps(self.stage));row=api.pin(self.stagepath);self.plan['required_inputs']=[v for v in self.plan['required_inputs']if v.get('path')!=str(self.stagepath)]+[row];self.approval['local_stage']=row
+    def test_only_existing_required_stage_Node_and_version_descriptor_admitted(self):
+        self.assertEqual(api.admitted_tron_failure_node(self.plan,self.approval,self.module,time.monotonic_ns()+5_000_000_000),self.node)
+        original=copy.deepcopy(self.stage)
+        for field,value in [('passed',False),('scenario','evm'),('execution_source_commit','c'*40),('schema',True)]:
+            self.stage=copy.deepcopy(original);self.stage[field]=value;self.stage_update()
+            with self.subTest(field=field),self.assertRaises(ValueError):api.admitted_tron_failure_node(self.plan,self.approval,self.module,time.monotonic_ns()+5_000_000_000)
+        self.stage=original;self.stage_update();bad=copy.deepcopy(self.plan);bad['required_inputs'].remove(self.node)
+        with self.assertRaisesRegex(ValueError,'admitted stage Node'):api.admitted_tron_failure_node(bad,self.approval,self.module,time.monotonic_ns()+5_000_000_000)
+        self.version.write_bytes(b'v26.12.2\n');self.plan['required_inputs']=[self.node,api.pin(self.version)];self.stage['checks'][0]['log']=api.pin(self.version);self.stage_update()
+        with self.assertRaisesRegex(ValueError,'Actual Node version'):api.admitted_tron_failure_node(self.plan,self.approval,self.module,time.monotonic_ns()+5_000_000_000)
+    def test_expired_or_wrongscenario_refuses_before_stage_IO(self):
+        for plan,end in [(self.plan,0),({**self.plan,'scenario':'evm'},time.monotonic_ns()+5_000_000_000)]:
+            with mock.patch.object(self.module,'captured_failure_bytes',side_effect=AssertionError('no IO'))as read:
+                with self.assertRaises(ValueError):api.admitted_tron_failure_node(plan,self.approval,self.module,end)
+                read.assert_not_called()
+    def probe(self,selection=None):
+        with mock.patch.object(api.sys,'platform','linux'),mock.patch.object(api.owner,'proc_fallback',return_value={}),mock.patch.object(api.owner,'_linux_row',return_value={'pid':123456789,'sid':123456789,'pgid':123456789,'start':'linux-ticks:900'}):return api.svm_encrypt_failure_windows({**self.plan,'diagnostic_node':self.node},self.module,self.plain,self.selection if selection is None else selection,self.root,self.f.result,time.monotonic_ns()+5_000_000_000,window_mode='tron')
+    def test_owned_Tron_pipe_protocol_uses_same_script_limits_wait_and_no_plain_export(self):
+        import base64
+        wire=json.dumps({'schema':1,'key_id':self.module.SVM_ENCRYPTION_KEY_ID,'blocks':[base64.b64encode(b'x'*512).decode()],'limits':{name:[None if v==api.resource.RLIM_INFINITY else v for v in api.resource.getrlimit(kind)]for name,kind in [('address_space',api.resource.RLIMIT_AS),('open_files',api.resource.RLIMIT_NOFILE)]}}).encode();child=self.f.fake_child(wire)
+        with mock.patch.object(api.subprocess,'Popen',return_value=child)as popen:
+            before=copy.deepcopy(self.f.result);value=self.probe();self.assertEqual(value['collection_status'],'encrypted');self.assertEqual(value['windows'],self.selection['windows']);self.assertTrue(value['actual_parent_wait']);self.assertTrue(value['owned_group_absent_after_wait']);self.assertEqual(value['child_exit_code'],0);self.assertEqual(self.f.result,before)
+            self.assertEqual(popen.call_args.args[0][-1],self.module.SVM_ENCRYPTION_SCRIPT);self.assertEqual(popen.call_args.kwargs['env'],{'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8'});self.assertNotIn('PRIVATE_TRON_SECRET',json.dumps(value));self.assertIn('original CLI PID/epoch/typed cause unknown',value['scope'])
+    def test_wrongtag_extra_frame_or_malformed_metadata_refuses_before_child(self):
+        for change in ('tag','count','extra','truncated'):
+            selection=copy.deepcopy(self.selection)
+            if change=='tag':selection['windows'][0]['tag']='SOL'
+            elif change=='count':selection['windows']*=2
+            elif change=='extra':selection['windows'][0]['private']='PRIVATE'
+            else:selection['windows'][0]['truncated']=1
+            with self.subTest(change=change),mock.patch.object(api.subprocess,'Popen')as child:self.assertEqual(self.probe(selection)['collection_status'],'unavailable');child.assert_not_called()
+    def test_actual_failure_publisher_callback_same_deadline_primary_and_closed_capsule(self):
+        from types import SimpleNamespace
+        out=self.root/'publication';out.mkdir();(out/'harness.log').write_bytes(b'SYNTHETIC bounded pipe');result=copy.deepcopy(self.f.result);before=copy.deepcopy(result)
+        def fixture(*args,**kwargs):kwargs['private_capture'](self.plain,self.selection);return {'CLI_failure':{'collection_status':'observed'}}
+        module=SimpleNamespace(rust_panic_observation=lambda *a,**k:{'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None},fixture_failure_observation=fixture)
+        capsule={'schema':1,'collection_status':'encrypted','blocks':['OPAQUE_CIPHER'],'native_or_timing_or_cleanup_authority':False};deadline=time.monotonic_ns()+9_000_000_000
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module),mock.patch.object(api,'admitted_tron_failure_node',return_value=self.node)as admit,mock.patch.object(api,'svm_encrypt_failure_windows',return_value=capsule)as encrypt:
+            descriptor=api.write_public_failure_diagnostics(self.plan,{'scenario':'tron','mode':'ReleaseSafe','runtime_source_commit':'a'*40},self.approval,self.root,out,result,1,case_inputs={},original_deadline_ns=deadline)
+        value=json.loads(Path(descriptor['path']).read_bytes());self.assertEqual(value['Tron_encrypted_deploy_error'],capsule);self.assertEqual(result,before);self.assertNotIn('PRIVATE',json.dumps(value));encrypt.assert_called_once();self.assertEqual(encrypt.call_args.kwargs,{'window_mode':'tron'});self.assertEqual(admit.call_args.args[-1],encrypt.call_args.args[-1]);self.assertLessEqual(encrypt.call_args.args[-1],deadline)
+    def test_admission_exception_or_no_capture_preserves_primary_unavailable_without_child(self):
+        from types import SimpleNamespace
+        for capture in (False,True):
+            out=self.root/('unavailable-'+str(capture));out.mkdir();(out/'harness.log').write_bytes(b'SYNTHETIC');result=copy.deepcopy(self.f.result);before=copy.deepcopy(result)
+            def fixture(*args,**kwargs):
+                if capture:kwargs['private_capture'](self.plain,self.selection)
+                return {'CLI_failure':{'collection_status':'observed'}}
+            module=SimpleNamespace(rust_panic_observation=lambda *a,**k:{'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None},fixture_failure_observation=fixture)
+            with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module),mock.patch.object(api,'admitted_tron_failure_node',side_effect=KeyboardInterrupt('PRIVATE')),mock.patch.object(api,'svm_encrypt_failure_windows')as encrypt:
+                descriptor=api.write_public_failure_diagnostics(self.plan,{'scenario':'tron','mode':'ReleaseSafe','runtime_source_commit':'a'*40},self.approval,self.root,out,result,1,case_inputs={},original_deadline_ns=time.monotonic_ns()+5_000_000_000)
+            self.assertEqual(json.loads(Path(descriptor['path']).read_bytes())['Tron_encrypted_deploy_error']['collection_status'],'unavailable');self.assertEqual(result,before);encrypt.assert_not_called()
+
+
 @unittest.skipUnless(sys.platform=='linux','Requires actual Linux /proc and CI-pinned Node26; no Mac ownership claim')
 class SvmEncryptedLinuxComponentControls(unittest.TestCase):
     def test_actual_node26_owned_pipes_limits_wait_absence_small_max_exit_and_deadline(self):

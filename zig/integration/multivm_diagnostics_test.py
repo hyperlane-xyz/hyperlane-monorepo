@@ -1092,6 +1092,49 @@ class TronCaughtCauseControls(unittest.TestCase):
         self.assertEqual(value['caught_cause'],{'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_CHANGED'})
 
 
+class TronPostwaitPrivateErrorControls(unittest.TestCase):
+    def setUp(self):
+        self.c=TronCaughtCauseControls();self.c.setUp();self.addCleanup(self.c.doCleanups);self.f=self.c.f
+    def observe(self,wire,callback=None):
+        self.f.f.log.write_text(wire);selected=[]
+        def capture(plain,selection):
+            selected.append((plain,selection))
+            if callback is not None:callback(plain,selection)
+        value=api.fixture_failure_observation(self.f.case,self.f.f.manifest,self.f.f.approval,42,self.f.f.sources,self.f.f.repo,self.f.f.log,case_inputs=self.f.inputs,required_inputs=self.f.required,private_capture=capture)
+        return value,selected
+    def test_plain_ANSI_JSON_actualcollector_firsterror_private_only(self):
+        text='Error: PRIVATE_SECRET https://PRIVATE_HOST/?token=PRIVATE_TOKEN'
+        for rendered in [text,'\x1b[31m'+text+'\x1b[0m',json.dumps({'msg':text,'level':50})]:
+            value,selected=self.observe(self.f.log(self.f.line(rendered)+self.f.line('Error: SECOND_PRIVATE')))
+            self.assertEqual(len(selected),1);plain,selection=selected[0];self.assertEqual(plain,text.encode());self.assertEqual(selection['windows'],[{'tag':'PNPM_NATIVE','position':'first_error','bytes':len(plain),'truncated':False}]);self.assertEqual(value['CLI_failure']['caught_cause']['reason'],'MARKER_NOT_OBSERVED')
+            for secret in ['PRIVATE_SECRET','PRIVATE_HOST','PRIVATE_TOKEN','SECOND_PRIVATE']:self.assertNotIn(secret,json.dumps(value))
+    def test_wrongprefix_outsidewindow_or_unqualifiedpanic_never_captures(self):
+        private=self.f.line('Error: PRIVATE')
+        cases=[self.f.log(self.f.line('Error: PRIVATE',prefix='fake-native')),private+self.f.log(),self.f.log()+private,self.f.log(private,panic=False),self.f.log(private).replace('"hyperlane", "core", "deploy"','"hyperlane", "registry", "agent-config"'),self.f.log(private)+'<E2E> Deploying core contracts to anvil1...\n']
+        for wire in cases:
+            with self.subTest(size=len(wire)):self.assertEqual(self.observe(wire)[1],[])
+    def test_oversized_prefixed_line_before_firsterror_never_borrows_later_header(self):
+        for text in ['Error: '+('x'*16384),'x'*16385,json.dumps({'msg':'Error: PRIVATE_FIRST\nMORE'}),'{malformed']:
+            value,selected=self.observe(self.f.log(self.f.line(text)+self.f.line('Error: PRIVATE_LATER')))
+            self.assertEqual(selected,[]);self.assertEqual(value['CLI_failure']['collection_status'],'observed');self.assertEqual(len(value['CLI_failure']['error_header_fingerprints']),1)
+        value,selected=self.observe(self.f.log(self.f.line('Error: PRIVATE_FIRST')+self.f.line('x'*16385)))
+        self.assertEqual(len(selected),1);self.assertEqual(selected[0][0],b'Error: PRIVATE_FIRST')
+    def test_joincascade_retains_firstwindow_and_privateprefix_is_hard4096(self):
+        text='Error: '+('é'*6000);value,selected=self.observe(self.f.log(self.f.line(text))+self.f.cascade())
+        self.assertEqual(len(selected),1);self.assertEqual(selected[0][0],text.encode()[:4096]);self.assertTrue(selected[0][1]['windows'][0]['truncated']);self.assertEqual(value['CLI_failure']['known_join_cascade_count'],1)
+    def test_changed_or_missing_diagnosticSource_and_callback_failure_keep_public(self):
+        wire=self.f.log(self.f.line('Error: PRIVATE'))
+        self.f.f.log.write_text(wire);without=api.fixture_failure_observation(self.f.case,self.f.f.manifest,self.f.f.approval,42,self.f.f.sources,self.f.f.repo,self.f.f.log,case_inputs=self.f.inputs,required_inputs=self.f.required)
+        value,selected=self.observe(wire,lambda *args:(_ for _ in()).throw(KeyboardInterrupt('PRIVATE')));self.assertEqual(value,without);self.assertEqual(len(selected),1)
+        self.f.required=[r for r in self.f.required if r['path']!=str(self.c.source)];self.assertEqual(self.observe(wire)[1],[])
+    def test_private_method_rechecks_Source_identity_and_clears_bytes(self):
+        original=api.TronCLIProjection.public
+        def changed(state):
+            self.c.source.write_bytes(self.c.source.read_bytes()+b'\n');return original(state)
+        with mock.patch.object(api.TronCLIProjection,'public',changed):value,selected=self.observe(self.f.log(self.f.line('Error: PRIVATE')))
+        self.assertEqual(selected,[]);self.assertEqual(value['CLI_failure']['caught_cause']['reason'],'DIAGNOSTIC_SOURCE_CHANGED')
+
+
 class EvmChildWaitTextControls(unittest.TestCase):
     CATALOG=(('fixture monitor poisoned','FIXTURE_MONITOR_POISONED_TEXT'),('fixture PID/start/parent changed','FIXTURE_IDENTITY_CHANGED_TEXT'),('fixture descendant executable not approved','FIXTURE_EXECUTABLE_UNAPPROVED_TEXT'),('fixture descendant count exceeds bound','FIXTURE_DESCENDANT_BOUND_TEXT'),('unknown fixture group member has no observed parent lineage','FIXTURE_LINEAGE_UNOBSERVED_TEXT'),('fixture process snapshot timeout','FIXTURE_SNAPSHOT_TIMEOUT_TEXT'),('fixture process snapshot output limit','FIXTURE_SNAPSHOT_OUTPUT_BOUND_TEXT'),('fixture process snapshot failed','FIXTURE_SNAPSHOT_FAILED_TEXT'))
     def setUp(self):

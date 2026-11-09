@@ -811,7 +811,22 @@ def svm_fixture_wait_observation(case, manifest, plan, case_inputs, parent, appr
 
 
 
-def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns):
+def admitted_tron_failure_node(plan,approval,module,end_ns):
+    """Existing admitted local-stage Node only, under the original private deadline."""
+    require(plan.get('scenario')=='tron'and type(end_ns)is int and time.monotonic_ns()<end_ns,'Original private diagnostic budget expired or non-Tron plan')
+    stage_row=approval['local_stage'];require(stage_row in plan['required_inputs']and set(stage_row)=={'path','bytes','sha256'}and type(stage_row['bytes'])is int and 0<stage_row['bytes']<=16*1024**2,'Admitted bounded local stage required')
+    raw,fingerprint=module.captured_failure_bytes(Path(stage_row['path']),16*1024**2)
+    require(stage_row=={'path':stage_row['path'],**fingerprint}and time.monotonic_ns()<end_ns,'Local stage changed or private budget expired')
+    stage=module.startup_unique_json(raw)
+    require(type(stage['schema'])is int and stage['schema']==1 and stage['passed']is True and stage['scenario']=='tron'and stage['execution_source_commit']==plan['execution_source_commit'],'Exact admitted Tron stage required')
+    descriptor=stage['tools']['node'];require(isinstance(descriptor,dict)and set(descriptor)=={'path','bytes','sha256'}and descriptor in plan['required_inputs'],'Exact admitted stage Node required')
+    probes=[row['log']for row in stage['checks']if row['name']=='node-version'];require(len(probes)==1 and probes[0]in plan['required_inputs'],'Admitted actual Node version probe required')
+    raw,fingerprint=module.captured_failure_bytes(Path(probes[0]['path']),128)
+    require(probes[0]=={'path':probes[0]['path'],**fingerprint}and raw.strip()==b'v26.12.1'and time.monotonic_ns()<end_ns,'Actual Node version probe differs')
+    return descriptor
+
+
+def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns,*,window_mode='svm'):
     """One optional owned ciphertext child; no primary/verdict or limit mutation."""
     child=None;wire=bytearray();sent=0;waited=False;candidate=None;cleanup_ok=False;cleanup_debt=False;birth=None;started=time.monotonic_ns()
     work_end_ns=end_ns-900_000_000 if type(end_ns)is int else 0
@@ -822,8 +837,13 @@ def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns):
         check(600_000_000)
         require(sys.platform=='linux'and isinstance(plain,bytes)and 0<len(plain)<=16384,'Linux bounded private diagnostic required')
         require(set(selection)=={'windows','oversized_lines_omitted','scope'}and type(selection['oversized_lines_omitted'])is int and 0<=selection['oversized_lines_omitted']<2**32,'Closed window metadata required')
-        windows=selection['windows'];require(isinstance(windows,list)and len(windows)==4,'Fixed four windows required')
-        for row,(tag,position)in zip(windows,[('SOL','first'),('SOL','tail'),('SCR','first'),('SCR','tail')]):require(isinstance(row,dict)and set(row)=={'tag','position','bytes'}and row['tag']==tag and row['position']==position and type(row['bytes'])is int and 0<=row['bytes']<=4096,'Fixed window framing required')
+        windows=selection['windows']
+        if window_mode=='svm':
+            require(isinstance(windows,list)and len(windows)==4,'Fixed four windows required')
+            for row,(tag,position)in zip(windows,[('SOL','first'),('SOL','tail'),('SCR','first'),('SCR','tail')]):require(isinstance(row,dict)and set(row)=={'tag','position','bytes'}and row['tag']==tag and row['position']==position and type(row['bytes'])is int and 0<=row['bytes']<=4096,'Fixed window framing required')
+        else:
+            require(window_mode=='tron'and plan['scenario']=='tron'and isinstance(windows,list)and len(windows)==1,'Closed Tron error window required')
+            row=windows[0];require(isinstance(row,dict)and set(row)=={'tag','position','bytes','truncated'}and row['tag']=='PNPM_NATIVE'and row['position']=='first_error'and type(row['bytes'])is int and 0<row['bytes']<=4096 and type(row['truncated'])is bool,'Fixed Tron error framing required')
         require(sum(row['bytes']for row in windows)==len(plain),'Window bytes differ')
         waits=result['direct_waits'];helpers={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
         require(len(helpers)==1,'Actual helper wait required')
@@ -832,7 +852,7 @@ def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns):
         # Existing bounded Linux fallback (8192 rows / .5s), no ambient ps process.
         rows=owner.proc_fallback();check(100_000_000)
         anchors={row['pid']for row in waits if row.get('actual_parent_wait')is True and row.get('role')in{'harness','harness-cleanup','observer'}}
-        roles=result.get('_svm_diagnostic_roles',())
+        roles=result.get('_svm_diagnostic_roles',())if window_mode=='svm'else[]
         require(isinstance(roles,list),'Captured actual role identities required')
         for row in rows.values():
             require(row['sid']not in anchors and row['pgid']not in anchors,'Known helper/observer group remains')
@@ -879,7 +899,7 @@ def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns):
         value=module.svm_encrypted_blocks(bytes(wire),len(plain));require(sum(row['bytes']for row in selection['windows'])==len(plain),'Window framing changed')
         require(value['limits']is not None and value['limits']['address_space']==limits['address_space'],'Actual child AS differs from unchanged inherited parent cap')
         require(identity(node.lstat())==identity(before),'Diagnostic Node changed after execution')
-        candidate={'schema':1,'collection_status':'encrypted','key_id':value['key_id'],'windows':selection['windows'],'oversized_lines_omitted':selection['oversized_lines_omitted'],'chunk_bytes':384,'ciphertext_block_bytes':512,'blocks':value['blocks'],'actual_parent_wait':True,'child_exit_code':code,'parent_resource_limits_at_launch':limits,'actual_child_resource_limits':value['limits'],'started_monotonic_ns':started,'finished_monotonic_ns':time.monotonic_ns(),'scope':'Private fixed Source-tagged merged pipe windows encrypted to Root; no unique PID/epoch/typed error or cause claim. Known groups/role identities absent at pre-probe snapshot only.','native_or_timing_or_cleanup_authority':False}
+        candidate={'schema':1,'collection_status':'encrypted','key_id':value['key_id'],'windows':selection['windows'],'oversized_lines_omitted':selection['oversized_lines_omitted'],'chunk_bytes':384,'ciphertext_block_bytes':512,'blocks':value['blocks'],'actual_parent_wait':True,'child_exit_code':code,'parent_resource_limits_at_launch':limits,'actual_child_resource_limits':value['limits'],'started_monotonic_ns':started,'finished_monotonic_ns':time.monotonic_ns(),'scope':'Private fixed Source-tagged merged pipe windows encrypted to Root; no unique PID/epoch/typed error or cause claim. Known groups/role identities absent at pre-probe snapshot only.'if window_mode=='svm'else'First Source-tagged CLI Error header encrypted after owned waits; original CLI PID/epoch/typed cause unknown. Only known helper/observer groups checked absent at pre-probe snapshot.','native_or_timing_or_cleanup_authority':False}
     except BaseException:candidate=None
     finally:
         if child is not None:
@@ -903,7 +923,7 @@ def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns):
 
 def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None,case_inputs=None,original_deadline_ns=None,radix_scraper=None):
     private_end_ns=min(original_deadline_ns,time.monotonic_ns()+5_000_000_000)if type(original_deadline_ns)is int else 0
-    selected=[]
+    selected=[];tron_selected=[]
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
     value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
     # Observer transport errors can accompany Rust fixture failure/teardown.
@@ -947,7 +967,10 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
         try:
             helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
             require(len(helper_pids)==1,'One actual fixture helper parent required for failure projection')
-            record['fixture_failure']=diagnostic_module(approval).fixture_failure_observation(case,manifest,approval,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log,case_inputs=case_inputs,required_inputs=plan.get('required_inputs',()))
+            def capture_tron(plain,selection):
+                require(time.monotonic_ns()<private_end_ns and not tron_selected,'One bounded private Tron capture required')
+                tron_selected.append((plain,selection))
+            record['fixture_failure']=diagnostic_module(approval).fixture_failure_observation(case,manifest,approval,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log,case_inputs=case_inputs,required_inputs=plan.get('required_inputs',()),**({'private_capture':capture_tron}if manifest['scenario']=='tron'else{}))
         except Exception:record['fixture_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     if manifest['scenario']in{'evm','starknet'}:
         try:
@@ -964,6 +987,14 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
             private_result={**result,'_svm_diagnostic_roles':record.get('SVM_role_failure',{}).get('roles')}
             record['SVM_encrypted_fixture_windows']=svm_encrypt_failure_windows(plan,module,*selected[0],out,private_result,private_end_ns)
         selected.clear()
+    if manifest['scenario']=='tron':
+        record['Tron_encrypted_deploy_error']={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        try:
+            if len(tron_selected)==1 and record.get('fixture_failure',{}).get('CLI_failure',{}).get('collection_status')=='observed'and len(json.dumps(record,sort_keys=True,separators=(',',':')).encode())<=512*1024-40*1024:
+                module=diagnostic_module(approval);node=admitted_tron_failure_node(plan,approval,module,private_end_ns)
+                record['Tron_encrypted_deploy_error']=svm_encrypt_failure_windows({**plan,'diagnostic_node':node},module,*tron_selected[0],out,result,private_end_ns,window_mode='tron')
+        except BaseException:pass
+        finally:tron_selected.clear()
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')
