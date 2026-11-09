@@ -38,8 +38,13 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import {
+  CombinedHookIsmLeafMatcher,
+  pairCombinedHookIsmConfigs,
+} from '../combinedHookIsm/config.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { HookConfig } from '../hook/types.js';
+import { collectHookTreeNodes } from '../hook/utils.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -58,11 +63,8 @@ import {
 } from '../utils/decimals.js';
 import { EvmLayerZeroV2HookIsmModule } from '../layerzero/EvmLayerZeroV2HookIsmModule.js';
 import {
-  LayerZeroV2ConfigPair,
+  LAYER_ZERO_V2_LEAF_MATCHER,
   buildLayerZeroV2MeshConfig,
-  findLayerZeroV2Hooks,
-  findLayerZeroV2Isms,
-  pairLayerZeroV2Configs,
 } from '../layerzero/config.js';
 import {
   DerivedLayerZeroV2HookIsmConfig,
@@ -71,16 +73,14 @@ import {
 } from '../layerzero/types.js';
 import {
   collectHybridIsmNodes,
+  collectIsmTreeNodes,
   combinedHookIsmNodeAddress,
 } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
 import {
-  WormholeConfigPair,
+  WORMHOLE_LEAF_MATCHER,
   buildWormholeMeshConfig,
-  findWormholeHooks,
-  findWormholeIsms,
-  pairWormholeConfigs,
 } from '../wormhole/config.js';
 import {
   DerivedWormholeHookIsmConfig,
@@ -1238,18 +1238,19 @@ function combinedHookIsmCountDiff(addresses: Address[]): ObjectDiffLeaf {
  * hook and ISM surfaces. A chain whose instance is missing, duplicated, or split
  * across two addresses is reported in `diff` and left out of `addresses`.
  */
-function resolveCombinedHookIsmAddresses({
+function resolveCombinedHookIsmAddresses<
+  THook extends HookConfig,
+  TIsm extends IsmConfig,
+>({
   chains,
-  label,
+  matcher,
+  diffKey,
   onChainWarpConfig,
-  findHooks,
-  findIsms,
 }: {
   chains: ChainName[];
-  label: string;
+  matcher: CombinedHookIsmLeafMatcher<THook, TIsm>;
+  diffKey: string;
   onChainWarpConfig: DerivedWarpRouteDeployConfig;
-  findHooks: (hook: HookConfig | undefined) => HookConfig[];
-  findIsms: (ism: IsmConfig | undefined) => IsmConfig[];
 }): {
   addresses: Record<ChainName, Address>;
   diff: Record<string, ObjectDiff>;
@@ -1261,13 +1262,14 @@ function resolveCombinedHookIsmAddresses({
     // A chain without an on-chain router is already reported as a missing route.
     if (!actual) continue;
 
-    const hookAddresses = findHooks(actual.hook).map((node) =>
-      combinedHookIsmNodeAddress(chain, node),
+    const hookAddresses = collectHookTreeNodes(actual.hook, matcher.isHook).map(
+      (node) => combinedHookIsmNodeAddress(chain, node),
     );
-    const ismAddresses = findIsms(actual.interchainSecurityModule).map((node) =>
-      combinedHookIsmNodeAddress(chain, node),
-    );
-    const path = ['combinedHookIsm', label];
+    const ismAddresses = collectIsmTreeNodes(
+      actual.interchainSecurityModule,
+      matcher.isIsm,
+    ).map((node) => combinedHookIsmNodeAddress(chain, node));
+    const path = ['combinedHookIsm', diffKey];
     if (hookAddresses.length === 1 && ismAddresses.length === 1) {
       const [hookAddress] = hookAddresses;
       const [ismAddress] = ismAddresses;
@@ -1323,16 +1325,18 @@ export async function deriveWormholeRemoteRouterDiff({
   onChainWarpConfig: DerivedWarpRouteDeployConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }): Promise<Record<string, ObjectDiff>> {
-  const pairs = pairWormholeConfigs(warpDeployConfig);
+  const pairs = pairCombinedHookIsmConfigs(
+    WORMHOLE_LEAF_MATCHER,
+    warpDeployConfig,
+  );
   const chains = Object.keys(pairs);
   if (chains.length === 0) return {};
 
   const { addresses, diff } = resolveCombinedHookIsmAddresses({
     chains,
-    label: IsmType.WORMHOLE,
+    matcher: WORMHOLE_LEAF_MATCHER,
+    diffKey: IsmType.WORMHOLE,
     onChainWarpConfig,
-    findHooks: findWormholeHooks,
-    findIsms: findWormholeIsms,
   });
 
   // Enrollments of an unresolved chain have no expected router address, so
@@ -1340,7 +1344,7 @@ export async function deriveWormholeRemoteRouterDiff({
   // is already reported above.
   const resolvedPairs = objFilter(
     pairs,
-    (chain, _pair): _pair is WormholeConfigPair => chain in addresses,
+    (chain, _pair): _pair is (typeof pairs)[ChainName] => chain in addresses,
   );
   const unresolvedChains = chains.filter((chain) => !(chain in addresses));
   const expected = EvmWormholeHookIsmModule.withDeployedRouters(
@@ -1415,16 +1419,18 @@ export async function deriveLayerZeroV2RemoteRouterDiff({
   onChainWarpConfig: DerivedWarpRouteDeployConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }): Promise<Record<string, ObjectDiff>> {
-  const pairs = pairLayerZeroV2Configs(warpDeployConfig);
+  const pairs = pairCombinedHookIsmConfigs(
+    LAYER_ZERO_V2_LEAF_MATCHER,
+    warpDeployConfig,
+  );
   const chains = Object.keys(pairs);
   if (chains.length === 0) return {};
 
   const { addresses, diff } = resolveCombinedHookIsmAddresses({
     chains,
-    label: IsmType.LAYER_ZERO_V2,
+    matcher: LAYER_ZERO_V2_LEAF_MATCHER,
+    diffKey: IsmType.LAYER_ZERO_V2,
     onChainWarpConfig,
-    findHooks: findLayerZeroV2Hooks,
-    findIsms: findLayerZeroV2Isms,
   });
 
   // Enrollments of an unresolved chain have no expected router address, so
@@ -1432,7 +1438,7 @@ export async function deriveLayerZeroV2RemoteRouterDiff({
   // is already reported above.
   const resolvedPairs = objFilter(
     pairs,
-    (chain, _pair): _pair is LayerZeroV2ConfigPair => chain in addresses,
+    (chain, _pair): _pair is (typeof pairs)[ChainName] => chain in addresses,
   );
   const unresolvedChains = chains.filter((chain) => !(chain in addresses));
   const expected = EvmLayerZeroV2HookIsmModule.withDeployedRouters(

@@ -1193,17 +1193,16 @@ export {
 } from './wormhole/EvmWormholeHookIsmModule.js';
 export { EvmWormholeHookIsmReader } from './wormhole/EvmWormholeHookIsmReader.js';
 export {
-  WormholeConfigPair,
-  WormholeWarpChainConfig,
-  buildWormholeMeshConfig,
+  CombinedHookIsmConfigPair,
+  CombinedHookIsmLeafMatcher,
   collectHookAddresses,
   collectIsmAddresses,
-  findWormholeHooks,
-  findWormholeIsms,
-  materializeWormholeWarpConfig,
-  pairWormholeConfigs,
-  replaceWormholeHook,
-  replaceWormholeIsm,
+  materializeCombinedHookIsmWarpConfig,
+  pairCombinedHookIsmConfigs,
+} from './combinedHookIsm/config.js';
+export {
+  WORMHOLE_LEAF_MATCHER,
+  buildWormholeMeshConfig,
 } from './wormhole/config.js';
 export {
   DerivedWormholeHookIsmConfig,
@@ -1236,15 +1235,8 @@ export {
 } from './layerzero/EvmLayerZeroV2HookIsmModule.js';
 export { EvmLayerZeroV2HookIsmReader } from './layerzero/EvmLayerZeroV2HookIsmReader.js';
 export {
-  LayerZeroV2ConfigPair,
-  LayerZeroV2WarpChainConfig,
+  LAYER_ZERO_V2_LEAF_MATCHER,
   buildLayerZeroV2MeshConfig,
-  findLayerZeroV2Hooks,
-  findLayerZeroV2Isms,
-  materializeLayerZeroV2WarpConfig,
-  pairLayerZeroV2Configs,
-  replaceLayerZeroV2Hook,
-  replaceLayerZeroV2Ism,
 } from './layerzero/config.js';
 export {
   DerivedLayerZeroV2HookIsmConfig,

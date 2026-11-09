@@ -15,6 +15,10 @@ import {
   assert,
 } from '@hyperlane-xyz/utils';
 
+import {
+  CombinedHookIsmWarpChainConfig,
+  pairCombinedHookIsmConfigs,
+} from '../combinedHookIsm/config.js';
 import { test4 } from '../consts/testChains.js';
 import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
@@ -36,9 +40,8 @@ import {
 import { EvmLayerZeroV2HookIsmModule } from './EvmLayerZeroV2HookIsmModule.js';
 import { EvmLayerZeroV2HookIsmReader } from './EvmLayerZeroV2HookIsmReader.js';
 import {
-  LayerZeroV2WarpChainConfig,
+  LAYER_ZERO_V2_LEAF_MATCHER,
   buildLayerZeroV2MeshConfig,
-  pairLayerZeroV2Configs,
 } from './config.js';
 import {
   LayerZeroV2ConfigMode,
@@ -529,7 +532,7 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
     let routers: Record<string, Address>;
     let warp: EvmWarpModule;
 
-    function routeConfig(): Record<string, LayerZeroV2WarpChainConfig> {
+    function routeConfig(): Record<string, CombinedHookIsmWarpChainConfig> {
       return Object.fromEntries(
         chains.map((chain) => [
           chain,
@@ -605,7 +608,10 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
       const input = routeConfig();
       routers = await EvmLayerZeroV2HookIsmModule.deployMesh(
         multiProvider,
-        buildLayerZeroV2MeshConfig(input, pairLayerZeroV2Configs(input)),
+        buildLayerZeroV2MeshConfig(
+          input,
+          pairCombinedHookIsmConfigs(LAYER_ZERO_V2_LEAF_MATCHER, input),
+        ),
       );
     });
 

@@ -9,6 +9,11 @@ import {
   WormholeVaaHookIsm__factory,
 } from '@hyperlane-xyz/core';
 
+import {
+  CombinedHookIsmWarpChainConfig,
+  materializeCombinedHookIsmWarpConfig,
+  pairCombinedHookIsmConfigs,
+} from '../combinedHookIsm/config.js';
 import { test4 } from '../consts/testChains.js';
 import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
@@ -29,12 +34,7 @@ import {
 
 import { EvmWormholeHookIsmModule } from './EvmWormholeHookIsmModule.js';
 import { EvmWormholeHookIsmReader } from './EvmWormholeHookIsmReader.js';
-import {
-  WormholeWarpChainConfig,
-  buildWormholeMeshConfig,
-  materializeWormholeWarpConfig,
-  pairWormholeConfigs,
-} from './config.js';
+import { WORMHOLE_LEAF_MATCHER, buildWormholeMeshConfig } from './config.js';
 import { WormholeConsistencyType } from './types.js';
 import {
   WormholeConsistencyLevel,
@@ -101,7 +101,7 @@ describe('EvmWormholeHookIsmModule', () => {
     consistencyLevel: WormholeConsistencyLevelConfig = {
       type: WormholeConsistencyType.Finalized,
     },
-  ): Record<string, WormholeWarpChainConfig> {
+  ): Record<string, CombinedHookIsmWarpChainConfig> {
     return Object.fromEntries(
       chains.map((chain) => {
         return [
@@ -144,7 +144,10 @@ describe('EvmWormholeHookIsmModule', () => {
       };
     }
 
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
       mesh,
@@ -183,7 +186,10 @@ describe('EvmWormholeHookIsmModule', () => {
 
   it('deploys, reads back, and reuses a zero-finalized mesh', async () => {
     const input = routeConfig({ type: WormholeConsistencyType.ZeroFinalized });
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
 
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
@@ -239,7 +245,10 @@ describe('EvmWormholeHookIsmModule', () => {
     const input = routeConfig();
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
-      buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+      buildWormholeMeshConfig(
+        input,
+        pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+      ),
     );
     const router = WormholeVaaHookIsm__factory.connect(
       addresses[chain],
@@ -277,7 +286,10 @@ describe('EvmWormholeHookIsmModule', () => {
   it('unenrolls a remote router whose domain is outside the registry', async () => {
     const [chain, remote] = chains;
     const input = routeConfig();
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
       mesh,
@@ -334,12 +346,19 @@ describe('EvmWormholeHookIsmModule', () => {
 
   it('deploys, enrolls, materializes, and reuses a mesh', async () => {
     const input = routeConfig();
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
       mesh,
     );
-    const materialized = materializeWormholeWarpConfig(input, addresses);
+    const materialized = materializeCombinedHookIsmWarpConfig(
+      WORMHOLE_LEAF_MATCHER,
+      input,
+      addresses,
+    );
 
     for (const chain of chains) {
       const remote = chains.find((candidate) => candidate !== chain);
@@ -369,7 +388,10 @@ describe('EvmWormholeHookIsmModule', () => {
 
   it('returns owner-authorized mutable updates for a reused mesh', async () => {
     const input = routeConfig();
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
       mesh,
@@ -404,7 +426,10 @@ describe('EvmWormholeHookIsmModule', () => {
     const input = routeConfig();
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
-      buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+      buildWormholeMeshConfig(
+        input,
+        pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+      ),
     );
     const changedIsm = input[changed].interchainSecurityModule;
     assert(
@@ -417,7 +442,10 @@ describe('EvmWormholeHookIsmModule', () => {
 
     const result = await EvmWormholeHookIsmModule.reconcileMesh(
       multiProvider,
-      buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+      buildWormholeMeshConfig(
+        input,
+        pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+      ),
       addresses,
     );
 
@@ -462,7 +490,10 @@ describe('EvmWormholeHookIsmModule', () => {
 
   it('redeploys when an immutable changes', async () => {
     const input = routeConfig();
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
     const addresses = await EvmWormholeHookIsmModule.deployMesh(
       multiProvider,
       mesh,
@@ -489,7 +520,10 @@ describe('EvmWormholeHookIsmModule', () => {
 
   it('rejects an asymmetric mesh before deploying', async () => {
     const input = routeConfig();
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
     delete mesh.wormholea.remoteRouters.wormholeb;
     const nonceBefore =
       await hre.ethers.provider.getTransactionCount(signerAddress);
@@ -507,7 +541,10 @@ describe('EvmWormholeHookIsmModule', () => {
 
   it('rejects a remote router outside the mesh before deploying', async () => {
     const input = routeConfig();
-    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const mesh = buildWormholeMeshConfig(
+      input,
+      pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+    );
     mesh.wormholea.remoteRouters.wormholec = {
       router: randomAddress(),
       wormholeChainId: 4_003,
@@ -588,7 +625,10 @@ describe('EvmWormholeHookIsmModule', () => {
       const input = routeConfig();
       routers = await EvmWormholeHookIsmModule.deployMesh(
         multiProvider,
-        buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+        buildWormholeMeshConfig(
+          input,
+          pairCombinedHookIsmConfigs(WORMHOLE_LEAF_MATCHER, input),
+        ),
       );
     });
 

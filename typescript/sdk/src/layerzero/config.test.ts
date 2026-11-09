@@ -1,16 +1,16 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { assert } from '@hyperlane-xyz/utils';
-
+import {
+  CombinedHookIsmWarpChainConfig,
+  pairCombinedHookIsmConfigs,
+} from '../combinedHookIsm/config.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 
 import {
-  LayerZeroV2WarpChainConfig,
+  LAYER_ZERO_V2_LEAF_MATCHER,
   buildLayerZeroV2MeshConfig,
-  materializeLayerZeroV2WarpConfig,
-  pairLayerZeroV2Configs,
 } from './config.js';
 import {
   LayerZeroV2ConfigMode,
@@ -31,7 +31,7 @@ const defaultReceiveConfig = () => ({
 
 const URLS = ['https://example.com/layerzero'];
 
-function layerZeroConfig(): Record<string, LayerZeroV2WarpChainConfig> {
+function layerZeroConfig(): Record<string, CombinedHookIsmWarpChainConfig> {
   const endpointA = address();
   const endpointB = address();
   const libraryA = address();
@@ -90,7 +90,10 @@ function layerZeroConfig(): Record<string, LayerZeroV2WarpChainConfig> {
 describe('LayerZero V2 warp config', () => {
   it('pairs hook and ISM leaves and builds the complete mesh', () => {
     const config = layerZeroConfig();
-    const pairs = pairLayerZeroV2Configs(config);
+    const pairs = pairCombinedHookIsmConfigs(
+      LAYER_ZERO_V2_LEAF_MATCHER,
+      config,
+    );
     const mesh = buildLayerZeroV2MeshConfig(config, pairs);
     expect(Object.keys(pairs)).to.deep.equal(['chainA', 'chainB']);
     expect(mesh.chainA.urls).to.deep.equal(URLS);
@@ -99,113 +102,6 @@ describe('LayerZero V2 warp config', () => {
       ethers.constants.AddressZero,
     );
   });
-
-  it('replaces both tree leaves with one deployed address', () => {
-    const config = layerZeroConfig();
-    const deployed = address();
-    const result = materializeLayerZeroV2WarpConfig(config, {
-      chainA: deployed,
-      chainB: address(),
-    });
-    expect(result.chainA.interchainSecurityModule).to.equal(deployed);
-    const hook = result.chainA.hook;
-    expect(typeof hook).not.to.equal('string');
-    if (typeof hook !== 'string' && hook?.type === HookType.AGGREGATION) {
-      expect(hook.hooks).to.include(deployed);
-    }
-  });
-
-  it('requires a deployed address for every chain', () => {
-    expect(() =>
-      materializeLayerZeroV2WarpConfig(layerZeroConfig(), {
-        chainA: address(),
-      }),
-    ).to.throw('Missing deployed LayerZero router for chainB');
-  });
-
-  it('requires both leaves on every participating chain', () => {
-    const config = layerZeroConfig();
-    delete config.chainA.hook;
-
-    expect(() => pairLayerZeroV2Configs(config)).to.throw(
-      'chainA must contain exactly one LayerZero hook leaf; found 0',
-    );
-  });
-
-  it('rejects duplicate LayerZero leaves', () => {
-    const config = layerZeroConfig();
-    config.chainA.hook = {
-      type: HookType.AGGREGATION,
-      hooks: [
-        { type: HookType.LAYER_ZERO_V2 },
-        { type: HookType.LAYER_ZERO_V2 },
-      ],
-    };
-
-    expect(() => pairLayerZeroV2Configs(config)).to.throw(
-      'chainA must contain exactly one LayerZero hook leaf; found 2',
-    );
-  });
-
-  it('rejects a directional pairing mismatch', () => {
-    const config = layerZeroConfig();
-    config.chainA.hook = {
-      type: HookType.ROUTING,
-      owner: address(),
-      domains: { chainA: { type: HookType.LAYER_ZERO_V2 } },
-    };
-
-    expect(() => pairLayerZeroV2Configs(config)).to.throw(
-      /LayerZero pairing mismatch for chainA -> chainB/,
-    );
-  });
-
-  interface NestedIsmCase {
-    name: string;
-    wrap: (
-      ism: NonNullable<LayerZeroV2WarpChainConfig['interchainSecurityModule']>,
-    ) => NonNullable<LayerZeroV2WarpChainConfig['interchainSecurityModule']>;
-  }
-
-  const nestedCases: NestedIsmCase[] = [
-    {
-      name: 'an aggregation ISM',
-      wrap: (ism) => ({
-        type: IsmType.AGGREGATION,
-        threshold: 1,
-        modules: [ism],
-      }),
-    },
-    {
-      name: 'a routing ISM',
-      wrap: (ism) => ({
-        type: IsmType.ROUTING,
-        owner: address(),
-        domains: { chainB: ism },
-      }),
-    },
-  ];
-
-  for (const { name, wrap } of nestedCases) {
-    it(`pairs a LayerZero ISM nested in ${name}`, () => {
-      const config = layerZeroConfig();
-      const ism = config.chainA.interchainSecurityModule;
-      assert(ism, 'Missing chainA LayerZero ISM');
-      config.chainA.interchainSecurityModule = wrap(ism);
-
-      const pairs = pairLayerZeroV2Configs(config);
-
-      expect(pairs.chainA.ism).to.equal(ism);
-      const deployed = address();
-      const result = materializeLayerZeroV2WarpConfig(config, {
-        chainA: deployed,
-        chainB: address(),
-      });
-      expect(JSON.stringify(result.chainA.interchainSecurityModule)).to.include(
-        deployed,
-      );
-    });
-  }
 
   it('canonicalizes and validates typed overrides', () => {
     const lowerDvn = '0x0000000000000000000000000000000000000001';
@@ -325,7 +221,10 @@ describe('LayerZero V2 warp config', () => {
 describe('findAsymmetricLayerZeroV2Routes', () => {
   function mesh(): LayerZeroV2MeshConfig {
     const config = layerZeroConfig();
-    return buildLayerZeroV2MeshConfig(config, pairLayerZeroV2Configs(config));
+    return buildLayerZeroV2MeshConfig(
+      config,
+      pairCombinedHookIsmConfigs(LAYER_ZERO_V2_LEAF_MATCHER, config),
+    );
   }
 
   it('accepts a reciprocal mesh', () => {

@@ -35,6 +35,8 @@ import {
   CCIPContractCache,
   type ChainMap,
   type ChainName,
+  type CombinedHookIsmConfigPair,
+  type CombinedHookIsmLeafMatcher,
   type CompositeIsmConfig,
   type CompositeIsmNodeConfig,
   CompositeIsmNodeType,
@@ -45,7 +47,10 @@ import {
   EvmWarpRouteReader,
   ExplorerLicenseType,
   HypERC20Deployer,
+  type HookConfig,
+  type IsmConfig,
   IsmType,
+  LAYER_ZERO_V2_LEAF_MATCHER,
   type MultiProvider,
   type MultisigIsmConfig,
   OnchainHookType,
@@ -69,6 +74,7 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   TOKEN_CROSS_COLLATERAL_STANDARDS,
+  WORMHOLE_LEAF_MATCHER,
   altVmChainLookup,
   assertDelayedFlowRoutePreconditions,
   buildDelayedFlowEnrollmentTxs,
@@ -87,11 +93,9 @@ import {
   getSubmitterBuilder,
   getTokenConnectionId,
   isCrossCollateralTokenConfig,
-  materializeLayerZeroV2WarpConfig,
-  materializeWormholeWarpConfig,
+  materializeCombinedHookIsmWarpConfig,
   normalizeScale,
-  pairLayerZeroV2Configs,
-  pairWormholeConfigs,
+  pairCombinedHookIsmConfigs,
   planWarpRouteHybrids,
   splitWarpCoreAndExtendedConfigs,
   throwIfNotMissingSelector,
@@ -361,6 +365,126 @@ export async function runWarpRouteDeploy({
 }
 
 /**
+ * A combined hook/ISM protocol whose mesh `warp deploy` and `warp apply`
+ * deploy or reconcile before generic Warp processing.
+ */
+interface CombinedHookIsmMesh {
+  label: string;
+  onchainHookType: OnchainHookType;
+  pairedChains: (config: WarpRouteDeployConfigMailboxRequired) => ChainName[];
+  deploy: (
+    multiProvider: MultiProvider,
+    config: WarpRouteDeployConfigMailboxRequired,
+    contractVerifier: ContractVerifier,
+  ) => Promise<ChainMap<Address>>;
+  reconcile: (
+    multiProvider: MultiProvider,
+    config: WarpRouteDeployConfigMailboxRequired,
+    existingAddresses: ChainMap<Address>,
+    contractVerifier: ContractVerifier,
+  ) => Promise<CombinedHookIsmMeshReconciliation>;
+  materialize: (
+    config: WarpRouteDeployConfigMailboxRequired,
+    addresses: ChainMap<Address>,
+  ) => WarpRouteDeployConfigMailboxRequired;
+}
+
+interface CombinedHookIsmMeshReconciliation {
+  addresses: ChainMap<Address>;
+  transactions: ChainMap<TypedAnnotatedTransaction[]>;
+}
+
+function defineCombinedHookIsmMesh<
+  THook extends HookConfig,
+  TIsm extends IsmConfig,
+  TMesh,
+>({
+  onchainHookType,
+  matcher,
+  buildMesh,
+  deployMesh,
+  reconcileMesh,
+}: {
+  onchainHookType: OnchainHookType;
+  matcher: CombinedHookIsmLeafMatcher<THook, TIsm>;
+  buildMesh: (
+    config: WarpRouteDeployConfigMailboxRequired,
+    pairs: ChainMap<CombinedHookIsmConfigPair<THook, TIsm>>,
+  ) => TMesh;
+  deployMesh: (
+    multiProvider: MultiProvider,
+    mesh: TMesh,
+    contractVerifier: ContractVerifier,
+  ) => Promise<ChainMap<Address>>;
+  reconcileMesh: (
+    multiProvider: MultiProvider,
+    mesh: TMesh,
+    existingAddresses: ChainMap<Address>,
+    contractVerifier: ContractVerifier,
+  ) => Promise<CombinedHookIsmMeshReconciliation>;
+}): CombinedHookIsmMesh {
+  const meshFor = (config: WarpRouteDeployConfigMailboxRequired) =>
+    buildMesh(config, pairCombinedHookIsmConfigs(matcher, config));
+  return {
+    label: matcher.label,
+    onchainHookType,
+    pairedChains: (config) =>
+      Object.keys(pairCombinedHookIsmConfigs(matcher, config)),
+    deploy: (multiProvider, config, contractVerifier) =>
+      deployMesh(multiProvider, meshFor(config), contractVerifier),
+    reconcile: (multiProvider, config, existingAddresses, contractVerifier) =>
+      reconcileMesh(
+        multiProvider,
+        meshFor(config),
+        existingAddresses,
+        contractVerifier,
+      ),
+    materialize: (config, addresses) =>
+      materializeCombinedHookIsmWarpConfig(matcher, config, addresses),
+  };
+}
+
+/** Materialized in this order; each one sees the previous ones' addresses. */
+const COMBINED_HOOK_ISM_MESHES: CombinedHookIsmMesh[] = [
+  defineCombinedHookIsmMesh({
+    onchainHookType: OnchainHookType.WORMHOLE,
+    matcher: WORMHOLE_LEAF_MATCHER,
+    buildMesh: buildWormholeMeshConfig,
+    deployMesh: (multiProvider, mesh, contractVerifier) =>
+      EvmWormholeHookIsmModule.deployMesh(
+        multiProvider,
+        mesh,
+        contractVerifier,
+      ),
+    reconcileMesh: (multiProvider, mesh, existingAddresses, contractVerifier) =>
+      EvmWormholeHookIsmModule.reconcileMesh(
+        multiProvider,
+        mesh,
+        existingAddresses,
+        contractVerifier,
+      ),
+  }),
+  defineCombinedHookIsmMesh({
+    onchainHookType: OnchainHookType.LAYER_ZERO,
+    matcher: LAYER_ZERO_V2_LEAF_MATCHER,
+    buildMesh: buildLayerZeroV2MeshConfig,
+    deployMesh: (multiProvider, mesh, contractVerifier) =>
+      EvmLayerZeroV2HookIsmModule.deployMesh(
+        multiProvider,
+        mesh,
+        contractVerifier,
+      ),
+    reconcileMesh: (multiProvider, mesh, existingAddresses, contractVerifier) =>
+      EvmLayerZeroV2HookIsmModule.reconcileMesh(
+        multiProvider,
+        mesh,
+        existingAddresses,
+        contractVerifier,
+      ),
+  }),
+];
+
+/**
  * Deploys the combined hook/ISM meshes of a new route and replaces their
  * leaves with the deployed addresses.
  */
@@ -369,54 +493,20 @@ async function materializeNewCombinedHookIsmMeshes(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contractVerifier: ContractVerifier,
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
-  const withWormhole = await materializeNewWormholeMesh(
-    multiProvider,
-    warpDeployConfig,
-    contractVerifier,
-  );
-  return materializeNewLayerZeroV2Mesh(
-    multiProvider,
-    withWormhole,
-    contractVerifier,
-  );
-}
+  return COMBINED_HOOK_ISM_MESHES.reduce(async (pending, mesh) => {
+    const config = await pending;
+    if (mesh.pairedChains(config).length === 0) return config;
 
-async function materializeNewWormholeMesh(
-  multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  contractVerifier: ContractVerifier,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
-  const pairs = pairWormholeConfigs(warpDeployConfig);
-  if (Object.keys(pairs).length === 0) return warpDeployConfig;
-
-  logBlue('Deploying and enrolling combined Wormhole hook/ISM routers...');
-  const mesh = buildWormholeMeshConfig(warpDeployConfig, pairs);
-  const addresses = await EvmWormholeHookIsmModule.deployMesh(
-    multiProvider,
-    mesh,
-    contractVerifier,
-  );
-  return materializeWormholeWarpConfig(warpDeployConfig, addresses);
-}
-
-async function materializeNewLayerZeroV2Mesh(
-  multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  contractVerifier: ContractVerifier,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
-  const pairs = pairLayerZeroV2Configs(warpDeployConfig);
-  if (Object.keys(pairs).length === 0) return warpDeployConfig;
-
-  logBlue(
-    'Deploying and configuring combined LayerZero V2 hook/ISM routers...',
-  );
-  const mesh = buildLayerZeroV2MeshConfig(warpDeployConfig, pairs);
-  const addresses = await EvmLayerZeroV2HookIsmModule.deployMesh(
-    multiProvider,
-    mesh,
-    contractVerifier,
-  );
-  return materializeLayerZeroV2WarpConfig(warpDeployConfig, addresses);
+    logBlue(
+      `Deploying and enrolling combined ${mesh.label} hook/ISM routers...`,
+    );
+    const addresses = await mesh.deploy(
+      multiProvider,
+      config,
+      contractVerifier,
+    );
+    return mesh.materialize(config, addresses);
+  }, Promise.resolve(warpDeployConfig));
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -740,49 +830,66 @@ async function materializeCombinedHookIsmMeshesForApply(
   config: WarpRouteDeployConfigMailboxRequired;
   transactions: ChainMap<TypedAnnotatedTransaction[]>;
 }> {
-  const wormhole = await materializeWormholeMeshForApply(
-    multiProvider,
-    warpDeployConfig,
-    warpCoreConfig,
-    contractVerifier,
+  return COMBINED_HOOK_ISM_MESHES.reduce(
+    async (pending, mesh) => {
+      const { config, transactions } = await pending;
+      const chains = mesh.pairedChains(config);
+      if (chains.length === 0) return { config, transactions };
+
+      const existingAddresses = await findDeployedCombinedHookIsmRouters(
+        multiProvider,
+        chains,
+        warpCoreConfig,
+        mesh,
+      );
+      logBlue(`Reconciling combined ${mesh.label} hook/ISM routers...`);
+      const result = await mesh.reconcile(
+        multiProvider,
+        config,
+        existingAddresses,
+        contractVerifier,
+      );
+      const mergedTransactions: ChainMap<TypedAnnotatedTransaction[]> =
+        Object.fromEntries(
+          [
+            ...new Set([
+              ...Object.keys(transactions),
+              ...Object.keys(result.transactions),
+            ]),
+          ].map((chain) => [
+            chain,
+            [
+              ...(transactions[chain] ?? []),
+              ...(result.transactions[chain] ?? []),
+            ],
+          ]),
+        );
+      return {
+        config: mesh.materialize(config, result.addresses),
+        transactions: mergedTransactions,
+      };
+    },
+    Promise.resolve<{
+      config: WarpRouteDeployConfigMailboxRequired;
+      transactions: ChainMap<TypedAnnotatedTransaction[]>;
+    }>({ config: warpDeployConfig, transactions: {} }),
   );
-  const layerZero = await materializeLayerZeroV2MeshForApply(
-    multiProvider,
-    wormhole.config,
-    warpCoreConfig,
-    contractVerifier,
-  );
-  const transactions: ChainMap<TypedAnnotatedTransaction[]> = {};
-  for (const chain of new Set([
-    ...Object.keys(wormhole.transactions),
-    ...Object.keys(layerZero.transactions),
-  ])) {
-    transactions[chain] = [
-      ...(wormhole.transactions[chain] ?? []),
-      ...(layerZero.transactions[chain] ?? []),
-    ];
-  }
-  return { config: layerZero.config, transactions };
 }
 
-async function materializeWormholeMeshForApply(
+/**
+ * Finds the router of the mesh's protocol that each chain's deployed Warp
+ * router already installs on both its hook and ISM.
+ */
+async function findDeployedCombinedHookIsmRouters(
   multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  chains: ChainName[],
   warpCoreConfig: WarpCoreConfig,
-  contractVerifier: ContractVerifier,
-): Promise<{
-  config: WarpRouteDeployConfigMailboxRequired;
-  transactions: ChainMap<TypedAnnotatedTransaction[]>;
-}> {
-  const pairs = pairWormholeConfigs(warpDeployConfig);
-  if (Object.keys(pairs).length === 0) {
-    return { config: warpDeployConfig, transactions: {} };
-  }
-
+  mesh: Pick<CombinedHookIsmMesh, 'label' | 'onchainHookType'>,
+): Promise<ChainMap<Address>> {
   const deployedWarpRouters =
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
-  const existingWormholeRouters: ChainMap<Address> = {};
-  for (const chain of Object.keys(pairs)) {
+  const existingRouters: ChainMap<Address> = {};
+  for (const chain of chains) {
     const deployedWarpRouter = deployedWarpRouters[chain];
     if (!deployedWarpRouter) continue;
 
@@ -807,101 +914,19 @@ async function materializeWormholeMeshForApply(
           candidate,
           multiProvider.getProvider(chain),
         ).hookType();
-        if (hookType === OnchainHookType.WORMHOLE) matches.push(candidate);
+        if (hookType === mesh.onchainHookType) matches.push(candidate);
       } catch (error) {
-        // Shared hook/ISM addresses of other types are not Wormhole candidates.
+        // Shared hook/ISM addresses of other types are not candidates.
         throwIfNotMissingSelector(error);
       }
     }
     assert(
       matches.length <= 1,
-      `${chain} has multiple deployed combined Wormhole hook/ISM routers`,
+      `${chain} has multiple deployed combined ${mesh.label} hook/ISM routers`,
     );
-    if (matches[0]) existingWormholeRouters[chain] = matches[0];
+    if (matches[0]) existingRouters[chain] = matches[0];
   }
-
-  logBlue('Reconciling combined Wormhole hook/ISM routers...');
-  const mesh = buildWormholeMeshConfig(warpDeployConfig, pairs);
-  const result = await EvmWormholeHookIsmModule.reconcileMesh(
-    multiProvider,
-    mesh,
-    existingWormholeRouters,
-    contractVerifier,
-  );
-  return {
-    config: materializeWormholeWarpConfig(warpDeployConfig, result.addresses),
-    transactions: result.transactions,
-  };
-}
-
-async function materializeLayerZeroV2MeshForApply(
-  multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  warpCoreConfig: WarpCoreConfig,
-  contractVerifier: ContractVerifier,
-): Promise<{
-  config: WarpRouteDeployConfigMailboxRequired;
-  transactions: ChainMap<TypedAnnotatedTransaction[]>;
-}> {
-  const pairs = pairLayerZeroV2Configs(warpDeployConfig);
-  if (Object.keys(pairs).length === 0) {
-    return { config: warpDeployConfig, transactions: {} };
-  }
-
-  const warpRouters = getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
-  const existing: ChainMap<Address> = {};
-  for (const chain of Object.keys(pairs)) {
-    const warpRouter = warpRouters[chain];
-    if (!warpRouter) continue;
-    const actual = await new EvmWarpRouteReader(
-      multiProvider,
-      chain,
-    ).deriveWarpRouteConfig(warpRouter);
-    const hookAddresses = new Set(
-      collectHookAddresses(actual.hook).map((address) => address.toLowerCase()),
-    );
-    const candidates = Array.from(
-      new Set(
-        collectIsmAddresses(actual.interchainSecurityModule).filter((address) =>
-          hookAddresses.has(address.toLowerCase()),
-        ),
-      ),
-    );
-    const matches: Address[] = [];
-    for (const candidate of candidates) {
-      try {
-        const hookType = await IPostDispatchHook__factory.connect(
-          candidate,
-          multiProvider.getProvider(chain),
-        ).hookType();
-        if (hookType === OnchainHookType.LAYER_ZERO) matches.push(candidate);
-      } catch (error) {
-        // Shared hook/ISM addresses of other types are not LayerZero candidates.
-        throwIfNotMissingSelector(error);
-      }
-    }
-    assert(
-      matches.length <= 1,
-      `${chain} has multiple deployed LayerZero V2 hook/ISM routers`,
-    );
-    if (matches[0]) existing[chain] = matches[0];
-  }
-
-  logBlue('Reconciling combined LayerZero V2 hook/ISM routers...');
-  const mesh = buildLayerZeroV2MeshConfig(warpDeployConfig, pairs);
-  const result = await EvmLayerZeroV2HookIsmModule.reconcileMesh(
-    multiProvider,
-    mesh,
-    existing,
-    contractVerifier,
-  );
-  return {
-    config: materializeLayerZeroV2WarpConfig(
-      warpDeployConfig,
-      result.addresses,
-    ),
-    transactions: result.transactions,
-  };
+  return existingRouters;
 }
 
 /**
