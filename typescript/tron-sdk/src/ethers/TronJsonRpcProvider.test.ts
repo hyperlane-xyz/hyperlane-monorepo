@@ -1,7 +1,12 @@
+import { once } from 'node:events';
+import { createServer } from 'node:http';
+
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { utils } from 'ethers';
 import { TronWeb } from 'tronweb';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TRON_EMPTY_ADDRESS, toTronHex } from '../utils/index.js';
 import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
@@ -61,7 +66,15 @@ interface TronWebStub {
   fullNode: {
     request: RequestImpl;
   };
-  solidityNode: { request: RequestImpl };
+  solidityNode: {
+    instance: {
+      request: (config: {
+        url: string;
+        data: Record<string, unknown>;
+        method?: string;
+      }) => Promise<{ data: StubResponse | undefined }>;
+    };
+  };
 }
 
 // Shared real TronWeb for the pure helpers (address/utf8 conversion) that the
@@ -92,7 +105,13 @@ function stubFullNodeRequest(
     },
     toUtf8: (hex: string) => realTronWeb.toUtf8(hex),
     fullNode: { request },
-    solidityNode: { request },
+    solidityNode: {
+      instance: {
+        request: async ({ url, data, method }) => ({
+          data: await request(url, data, method),
+        }),
+      },
+    },
   };
   // CAST: inject the minimal fullNode double into the provider's private
   // `tronWeb` field.
@@ -136,7 +155,61 @@ describe('TronJsonRpcProvider finalized block', () => {
       captured,
     );
     expect(await provider.getFinalizedBlockNumber()).to.equal(123);
-    expect(captured.value?.url).to.equal('walletsolidity/getnowblock');
+    expect(captured.value).to.deep.equal({
+      url: 'walletsolidity/getnowblock',
+      payload: {},
+      method: 'POST',
+    });
+  });
+
+  it('sends an empty JSON object through the configured native transport', async () => {
+    let body = '';
+    let path: string | undefined;
+    let method: string | undefined;
+    let header: string | string[] | undefined;
+    const server = createServer((request, response) => {
+      path = request.url;
+      method = request.method;
+      header = request.headers['x-finality-test'];
+      request.setEncoding('utf8');
+      request.on('data', (chunk: string) => {
+        body += chunk;
+      });
+      request.on('end', () => {
+        response.setHeader('content-type', 'application/json');
+        if (body !== '{}') {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: 'JSON object required' }));
+          return;
+        }
+        response.end(
+          JSON.stringify({ block_header: { raw_data: { number: 123 } } }),
+        );
+      });
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    assert(
+      address && typeof address === 'object',
+      'Expected listening test server',
+    );
+    const provider = new TronJsonRpcProvider(
+      `http://127.0.0.1:${address.port}/v2/test/jsonrpc?custom_rpc_header=x-finality-test:preserved`,
+      728126428,
+    );
+    try {
+      expect(await provider.getFinalizedBlockNumber()).to.equal(123);
+      expect(body).to.equal('{}');
+      expect(path).to.equal('/v2/test/walletsolidity/getnowblock');
+      expect(method).to.equal('POST');
+      expect(header).to.equal('preserved');
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
   });
 
   it('rejects missing or malformed finality and propagates transport failures', async () => {
@@ -145,6 +218,7 @@ describe('TronJsonRpcProvider finalized block', () => {
       { block_header: {} },
       { block_header: { raw_data: { number: '123' } } },
       { block_header: { raw_data: { number: -1 } } },
+      { block_header: { raw_data: { number: Number.MAX_SAFE_INTEGER + 1 } } },
     ]) {
       const provider = makeProvider();
       stubFullNode(provider, response);

@@ -155,11 +155,14 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
 
   /** Read the solidified head; a latest full-node block is not finality. */
   async getFinalizedBlockNumber(): Promise<number> {
-    const response: unknown = await this.tronWeb.solidityNode.request(
-      'walletsolidity/getnowblock',
-      {},
-      'post',
-    );
+    // TronWeb.request turns an empty object into null, which native API proxies
+    // can reject. Keep the configured transport and send the required JSON object.
+    const { data: response } =
+      await this.tronWeb.solidityNode.instance.request<unknown>({
+        url: 'walletsolidity/getnowblock',
+        method: 'POST',
+        data: {},
+      });
     assert(
       isRecord(response) && isRecord(response['block_header']),
       'Missing Tron finalized block header',
