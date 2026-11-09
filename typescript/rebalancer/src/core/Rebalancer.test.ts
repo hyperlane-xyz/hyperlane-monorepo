@@ -13,6 +13,7 @@ import {
   TEST_ADDRESSES,
   buildTestMovableCollateralRoute,
   createRebalancerTestContext,
+  createMockSettlementProvider,
 } from '../test/helpers.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 
@@ -354,6 +355,38 @@ describe('Rebalancer', () => {
   });
 
   describe('validateRoute()', () => {
+    it('rejects an unidentifiable bridge before quotes, approvals or source sends', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
+      const provider = new ethers.providers.StaticJsonRpcProvider(
+        'https://rpc.invalid',
+        { chainId: 1, name: 'test' },
+      );
+      Sinon.stub(provider, 'call').rejects(
+        new Error('RPC timeout or unsupported mailbox selector'),
+      );
+      ctx.warpCore.multiProvider.getEthersV5Provider = () => provider;
+      const rebalancer = new Rebalancer(
+        ctx.warpCore,
+        ctx.chainMetadata,
+        ctx.tokensByChainName,
+        ctx.multiProvider,
+        createMockActionTracker(),
+        testLogger,
+      );
+      const results = await rebalancer.rebalance([
+        buildTestMovableCollateralRoute(),
+      ]);
+      expect(results[0].success).to.equal(false);
+      expect(results[0].error).to.include('settlement preflight failed');
+      expect(ctx.adapters.ethereum.getRebalanceQuotes.called).to.equal(false);
+      expect(ctx.multiProvider._mockSigner.sendTransaction.called).to.equal(
+        false,
+      );
+      expect(
+        ctx.multiProvider._mockProvider.waitForTransaction.called,
+      ).to.equal(false);
+    });
+
     it('should fail when origin token not found', async () => {
       const ctx = createRebalancerTestContext(['arbitrum']);
 
@@ -1261,6 +1294,16 @@ describe('Rebalancer', () => {
   describe('result building', () => {
     it('tracks LayerZero settlement without requiring a Dispatch event', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
+      ctx.warpCore.multiProvider.getEthersV5Provider = (chain) =>
+        createMockSettlementProvider(ctx.multiProvider.getDomainId(chain), {
+          address:
+            chain === 'ethereum'
+              ? TEST_ADDRESSES.ethereum
+              : TEST_ADDRESSES.arbitrum,
+          eid: chain === 'ethereum' ? 30110 : 30420,
+          destinationEid: 30420,
+          destinationOft: TEST_ADDRESSES.arbitrum,
+        });
       const dispatchStub = sandbox
         .stub(HyperlaneCore, 'getDispatchedMessages')
         .returns([]);

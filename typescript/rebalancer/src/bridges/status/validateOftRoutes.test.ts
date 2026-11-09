@@ -18,6 +18,7 @@ import {
   TokenBridgeStatusAdapterType,
   type StrategyConfig,
 } from '../../config/types.js';
+import { createMockSettlementProvider } from '../../test/helpers.js';
 import { validateOftRoutes } from './validateOftRoutes.js';
 
 const BRIDGE = '0x1111111111111111111111111111111111111111';
@@ -137,6 +138,63 @@ async function rejection(operation: Promise<unknown>): Promise<unknown> {
 
 describe('resolved OFT route validation', () => {
   afterEach(() => Sinon.restore());
+
+  for (const explicit of [false, true]) {
+    it(`rejects an OFT bridge with ${explicit ? 'an explicit Hyperlane adapter' : 'no settlement adapter'}`, async () => {
+      const { config, tokens, multiProvider } = fixture();
+      config.chains.ethereum.statusAdapter = explicit
+        ? { kind: TokenBridgeStatusAdapterType.HyperlaneMessage }
+        : undefined;
+      expect(
+        String(
+          await rejection(validateOftRoutes([config], tokens, multiProvider)),
+        ),
+      ).to.include('OFT bridges require lz_scan');
+    });
+  }
+
+  it('accepts positive Hyperlane mailbox and local-domain identity for defaults and overrides', async () => {
+    const { config, tokens, multiProvider } = fixture();
+    config.chains.ethereum.statusAdapter = undefined;
+    config.chains.ethereum.override = {
+      tron: {
+        statusAdapter: { kind: TokenBridgeStatusAdapterType.HyperlaneMessage },
+      },
+    };
+    multiProvider.getEthersV5Provider.callsFake((chain) =>
+      createMockSettlementProvider(multiProvider.getDomainId(chain)),
+    );
+    await validateOftRoutes([config], tokens, multiProvider);
+  });
+
+  it('rejects ambiguous RPC failures instead of inferring Hyperlane messaging', async () => {
+    const { config, tokens, multiProvider } = fixture();
+    config.chains.ethereum.statusAdapter = undefined;
+    const provider = new ethers.providers.StaticJsonRpcProvider(
+      'https://rpc.invalid',
+      { chainId: 1, name: 'test' },
+    );
+    Sinon.stub(provider, 'call').rejects(new Error('RPC timeout'));
+    multiProvider.getEthersV5Provider.returns(provider);
+    expect(
+      String(
+        await rejection(validateOftRoutes([config], tokens, multiProvider)),
+      ),
+    ).to.include('settlement preflight failed');
+  });
+
+  it('rejects Hyperlane identity on the wrong source domain', async () => {
+    const { config, tokens, multiProvider } = fixture();
+    config.chains.ethereum.statusAdapter = undefined;
+    multiProvider.getEthersV5Provider.returns(
+      createMockSettlementProvider(999),
+    );
+    expect(
+      String(
+        await rejection(validateOftRoutes([config], tokens, multiProvider)),
+      ),
+    ).to.include('settlement preflight failed');
+  });
 
   it('accepts a chain default with correct destination overrides', async () => {
     const { config, tokens, multiProvider } = fixture();

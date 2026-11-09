@@ -22,6 +22,7 @@ import {
   revokeErc20ApprovalIfNeeded,
 } from '../bridges/erc20Approve.js';
 import { createStatusAdapters } from '../bridges/status/index.js';
+import { validateSettlementRoute } from '../bridges/status/validateOftRoutes.js';
 import { TokenBridgeStatusAdapterType } from '../config/types.js';
 import type {
   IMovableCollateralRebalancer,
@@ -312,10 +313,24 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     );
 
     // 1. Adapter and permissions validation
+    const statusKind =
+      route.statusAdapter?.kind ??
+      TokenBridgeStatusAdapterType.HyperlaneMessage;
+    if (!this.statusAdaptersByKind.has(statusKind)) {
+      throw new Error(`No status adapter registered for ${statusKind}`);
+    }
     if (!(await this.validateRoute(route))) {
       // Errors logged in validateRoute
       return null;
     }
+
+    await validateSettlementRoute(
+      origin,
+      destination,
+      route,
+      this.tokensByChainName,
+      this.warpCore.multiProvider,
+    );
 
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
