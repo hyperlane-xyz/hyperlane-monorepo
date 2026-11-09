@@ -8,6 +8,7 @@ import { parse, parseAllDocuments, stringify } from 'yaml';
 import { GithubRegistry } from '@hyperlane-xyz/registry';
 import { WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
 
+import { DockerImageRepos } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
 import { RebalancerHelmManager } from '../src/rebalancer/helm.js';
 import { getInfraPath } from '../src/utils/utils.js';
@@ -91,8 +92,9 @@ describe('USDT Eni production manifest', () => {
     const statefulSet = documents.find(
       (document) => document.kind === 'StatefulSet',
     );
+    expect(loaded.deployment.imageDigest).to.match(/^sha256:[0-9a-f]{64}$/);
     expect(statefulSet.spec.template.spec.containers[0].image).to.equal(
-      'ghcr.io/hyperlane-xyz/hyperlane-node-services:d267369-20261020-150802',
+      `${DockerImageRepos.NODE_SERVICES}@${loaded.deployment.imageDigest}`,
     );
     expect(statefulSet.spec.template.spec.containers[0].env).to.deep.include({
       name: 'MONITOR_ONLY',
