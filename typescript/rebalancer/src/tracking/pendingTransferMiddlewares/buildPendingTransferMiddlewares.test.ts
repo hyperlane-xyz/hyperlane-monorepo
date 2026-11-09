@@ -22,6 +22,7 @@ import {
   buildMessage,
 } from '../../test/pendingTransferMiddlewareMocks.js';
 
+import { INITIAL_LOAD_RETRY_DELAY_MS } from './RelayerDenylistMiddleware.js';
 import {
   type PendingTransferMiddlewareDeps,
   buildPendingTransferMiddlewares,
@@ -151,25 +152,35 @@ describe('buildPendingTransferMiddlewares', () => {
     const configs: PendingTransferMiddlewareConfig[] = [
       {
         type: PendingTransferMiddlewareType.RelayerDenylist,
-        url: 'file:///nonexistent/denylist.json',
+        url: 'https://example.com/denylist.json',
         refreshIntervalSecs: 60,
       },
     ];
-
-    const error = await buildPendingTransferMiddlewares(
-      inner,
-      configs,
-      deps,
-    ).then(
-      () => expect.fail('Expected buildPendingTransferMiddlewares to throw'),
-      (err: unknown) => err,
+    // Startup retries a failed fetch after a delay; a stubbed fetch keeps
+    // the faked delays off real I/O.
+    const clock = Sinon.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout'],
+    });
+    const fetchStub = Sinon.stub(globalThis, 'fetch').rejects(
+      new Error('getaddrinfo ENOTFOUND example.com'),
     );
-
-    expect(error).to.be.instanceOf(Error);
-    if (error instanceof Error) {
-      expect(error.message).to.match(
-        /^Failed to load relayer denylist from file:\/\/\/nonexistent\/denylist\.json \(fetch_failed\): /,
+    try {
+      const result = buildPendingTransferMiddlewares(inner, configs, deps).then(
+        () => expect.fail('Expected buildPendingTransferMiddlewares to throw'),
+        (err: unknown) => err,
       );
+      await clock.tickAsync(2 * INITIAL_LOAD_RETRY_DELAY_MS);
+      const error = await result;
+
+      expect(error).to.be.instanceOf(Error);
+      if (error instanceof Error) {
+        expect(error.message).to.equal(
+          'Failed to load relayer denylist from https://example.com/denylist.json (fetch_failed): getaddrinfo ENOTFOUND example.com',
+        );
+      }
+    } finally {
+      fetchStub.restore();
+      clock.restore();
     }
   });
 });

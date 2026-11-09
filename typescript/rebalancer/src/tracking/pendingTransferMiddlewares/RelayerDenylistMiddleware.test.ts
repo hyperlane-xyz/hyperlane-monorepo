@@ -24,8 +24,10 @@ import type {
 import { PENDING_TRANSFER_MIDDLEWARE_FAILED_MESSAGE } from './PendingTransferMiddleware.js';
 import {
   FETCH_TIMEOUT_MS,
+  INITIAL_LOAD_RETRY_DELAY_MS,
   MAX_DENYLIST_FILE_BYTES,
   RELAYER_DENYLIST_CHECK_FAILED_MESSAGE,
+  RELAYER_DENYLIST_INITIAL_LOAD_RETRY_MESSAGE,
   RELAYER_DENYLIST_REFRESH_FAILED_MESSAGE,
   RelayerDenylistMiddleware,
   fetchDenylistFile,
@@ -161,6 +163,14 @@ describe('RelayerDenylistMiddleware', () => {
     );
   }
 
+  /** Replaces the Date-only clock with one that also fakes timeouts. */
+  function fakeTimeouts(): void {
+    clock.restore();
+    clock = Sinon.useFakeTimers({
+      toFake: ['Date', 'setTimeout', 'clearTimeout'],
+    });
+  }
+
   /** Ids of the Explorer messages the middleware drops from the query. */
   async function queryIgnoredIds(
     middleware: RelayerDenylistMiddleware,
@@ -228,6 +238,7 @@ describe('RelayerDenylistMiddleware', () => {
     name: string;
     response: () => Promise<Response>;
     failure: DenylistLoadFailure;
+    fetches: number;
   }
   const startupFailures: StartupFailureCase[] = [
     {
@@ -235,32 +246,40 @@ describe('RelayerDenylistMiddleware', () => {
       response: () =>
         Promise.reject(new Error(`connect ECONNREFUSED ${URL_WITH_TOKEN}`)),
       failure: DenylistLoadFailure.FetchFailed,
+      fetches: 3,
     },
     {
       name: 'the file is invalid',
       response: async () => new Response('{"rules": [{}]}'),
       failure: DenylistLoadFailure.InvalidFile,
+      fetches: 1,
     },
     {
       name: 'a bodyRegex does not compile',
       response: async () => new Response(INVALID_REGEX_FILE),
       failure: DenylistLoadFailure.InvalidFile,
+      fetches: 1,
     },
     {
       name: 'the file starts with a BOM',
       response: async () => new Response(`\ufeff${denylistFor([MESSAGE_ID])}`),
       failure: DenylistLoadFailure.InvalidFile,
+      fetches: 1,
     },
   ];
   for (const c of startupFailures) {
     it(`fails to start with a redacted URL when ${c.name}`, async () => {
+      fakeTimeouts();
       fetchStub = Sinon.stub(globalThis, 'fetch').callsFake(c.response);
 
-      const error = await createMiddleware(URL_WITH_TOKEN).then(
+      const result = createMiddleware(URL_WITH_TOKEN).then(
         () => expect.fail('Expected create to throw'),
         (err: unknown) => err,
       );
+      await clock.tickAsync(2 * INITIAL_LOAD_RETRY_DELAY_MS);
+      const error = await result;
 
+      expect(fetchStub.callCount).to.equal(c.fetches);
       expect(error).to.be.instanceOf(Error);
       if (error instanceof Error) {
         expect(error.message).to.match(
@@ -272,6 +291,44 @@ describe('RelayerDenylistMiddleware', () => {
       }
     });
   }
+
+  it('starts once a fetch succeeds after two failed attempts', async () => {
+    fakeTimeouts();
+    fetchStub = Sinon.stub(globalThis, 'fetch');
+    fetchStub.onCall(0).rejects(new Error('socket hang up'));
+    fetchStub.onCall(1).resolves(new Response('', { status: 503 }));
+    fetchStub.onCall(2).resolves(new Response(denylistFor([MESSAGE_ID])));
+
+    const result = createMiddleware(URL_WITH_TOKEN);
+    await clock.tickAsync(INITIAL_LOAD_RETRY_DELAY_MS - 1);
+    expect(fetchStub.callCount).to.equal(1);
+    await clock.tickAsync(1);
+    expect(fetchStub.callCount).to.equal(2);
+    await clock.tickAsync(INITIAL_LOAD_RETRY_DELAY_MS);
+    const middleware = await result;
+
+    expect(fetchStub.callCount).to.equal(3);
+    expect(await queryIgnoredIds(middleware)).to.deep.equal([MESSAGE_ID]);
+    expect(
+      warn
+        .getCalls()
+        .filter((call) =>
+          call.args.includes(RELAYER_DENYLIST_INITIAL_LOAD_RETRY_MESSAGE),
+        )
+        .map((call) => call.args[0]),
+    ).to.deep.equal([
+      {
+        url: 'https://example.com/denylist.json',
+        attempt: 1,
+        error: 'socket hang up',
+      },
+      {
+        url: 'https://example.com/denylist.json',
+        attempt: 2,
+        error: 'HTTP status 503',
+      },
+    ]);
+  });
 
   it('refetches only once the refresh interval has passed', async () => {
     writeDenylist(denylistFor([MESSAGE_ID]));
@@ -574,14 +631,6 @@ describe('RelayerDenylistMiddleware', () => {
       );
       expect(cancelled).to.be.true;
     });
-
-    /** Replaces the Date-only clock with one that also fakes timeouts. */
-    function fakeTimeouts(): void {
-      clock.restore();
-      clock = Sinon.useFakeTimers({
-        toFake: ['Date', 'setTimeout', 'clearTimeout'],
-      });
-    }
 
     /** A response that sends its headers, then never sends the body. */
     function stalledResponse(cancel: Sinon.SinonSpy): Response {

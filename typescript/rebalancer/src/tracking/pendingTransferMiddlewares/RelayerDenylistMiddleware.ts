@@ -2,7 +2,7 @@ import { open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import type { Logger } from 'pino';
 
-import { assert, timeout } from '@hyperlane-xyz/utils';
+import { assert, sleep, timeout } from '@hyperlane-xyz/utils';
 
 import { PendingTransferMiddlewareType } from '../../config/types.js';
 import type {
@@ -23,11 +23,18 @@ import { normalizeMessageId } from './types.js';
 
 export const FETCH_TIMEOUT_MS = 10_000;
 
+/** Startup fetch attempts and the delay between them, as in the relayer. */
+const INITIAL_LOAD_ATTEMPTS = 3;
+export const INITIAL_LOAD_RETRY_DELAY_MS = 2_000;
+
 /** The relayer's limit on a denylist file, in bytes. */
 export const MAX_DENYLIST_FILE_BYTES = 4 * 1024 * 1024;
 
 export const RELAYER_DENYLIST_REFRESH_FAILED_MESSAGE =
   'Relayer denylist refresh failed, keeping last good rules';
+
+export const RELAYER_DENYLIST_INITIAL_LOAD_RETRY_MESSAGE =
+  'Failed to fetch relayer denylist at startup, retrying';
 
 export const RELAYER_DENYLIST_CHECK_FAILED_MESSAGE =
   'Failed to check pending transfer against relayer denylist, keeping it';
@@ -216,6 +223,35 @@ function loadFailure(error: unknown): DenylistLoadFailure {
     : DenylistLoadFailure.FetchFailed;
 }
 
+/** Retries fetch failures only: an invalid file stays invalid. */
+async function loadInitialRules(
+  source: DenylistSource,
+  logger: Logger,
+): Promise<DenylistRules> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await loadRules(source, logger);
+    } catch (error: unknown) {
+      if (
+        attempt >= INITIAL_LOAD_ATTEMPTS ||
+        loadFailure(error) !== DenylistLoadFailure.FetchFailed
+      ) {
+        throw error;
+      }
+
+      logger.warn(
+        {
+          url: source.redactedUrl,
+          attempt,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        RELAYER_DENYLIST_INITIAL_LOAD_RETRY_MESSAGE,
+      );
+      await sleep(INITIAL_LOAD_RETRY_DELAY_MS);
+    }
+  }
+}
+
 /**
  * Ignores messages the relayer's runtime denylist blocks. `create()` loads the
  * file; it is re-fetched once `refreshIntervalMs` has passed, and a failed
@@ -249,7 +285,10 @@ export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
     this.lastAttemptAt = loadedAt;
   }
 
-  /** Loads the denylist. Throws if it cannot be fetched or is invalid. */
+  /**
+   * Loads the denylist, retrying fetch failures. Throws if it still cannot be
+   * fetched or is invalid.
+   */
   static async create(
     inner: IExplorerClient,
     options: RelayerDenylistMiddlewareOptions,
@@ -270,7 +309,7 @@ export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
 
     let rules: DenylistRules;
     try {
-      rules = await loadRules(source, logger);
+      rules = await loadInitialRules(source, logger);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(

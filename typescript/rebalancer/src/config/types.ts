@@ -176,7 +176,7 @@ const RelayerDenylistMiddlewareConfigSchema = z
       .describe('Seconds between denylist re-fetches.'),
   })
   .describe(
-    'Ignores messages the relayer runtime denylist blocks. Startup fails if the first load fails.',
+    'Ignores messages the relayer runtime denylist blocks. Startup retries a failed fetch twice and fails if every attempt fails or the file is invalid.',
   );
 
 const BlacklistIsmMiddlewareConfigSchema = z
