@@ -223,6 +223,7 @@ describe('Rebalancer Helm deployment', () => {
   });
 
   it('rejects invalid deployment metadata and a mismatched route', () => {
+    expect(() => config({ unknownControl: true })).to.throw('unknownControl');
     expect(() => config({ deployment: { imageDigest: 'latest' } })).to.throw();
     expect(() => config({ deployment: { imageDgiest: 'typo' } })).to.throw();
     expect(() =>

@@ -1,8 +1,8 @@
 # Route controls
 
-`enabled: false` excludes an economic origin-to-destination proposal from strategy allocation. Destination overrides take precedence over the origin default. Unknown chain/override fields are rejected, including misspellings such as `enable`.
+`enabled: false` excludes an economic origin-to-destination proposal from strategy allocation. Destination overrides take precedence over the origin default. Unknown runtime, chain and override fields are rejected, including misspellings such as `enable`. Deployment metadata is validated separately and removed before runtime parsing.
 
-Allocation can reassign earlier choices to use available enabled pairs. Existing tolerance and minimum-transfer filters still apply; this is not an optimizer for arbitrary per-edge minimum amounts.
+Allocation can reassign earlier choices to use available enabled pairs, including in the collateral-deficit strategy. That strategy retains its preference for the origin of pending user transfers when enabled capacity permits. Existing tolerance and minimum-transfer filters still apply; this is not an optimizer for arbitrary per-edge minimum amounts.
 
 The flag does not cancel an existing intent, restrict manual execution, or prohibit every physical inventory hop. An economic A-to-B inventory proposal may bridge inventory from C to B, then call `transferRemote` from B to A to lock collateral on B and release it on A. Configuration changes take effect when the service reloads through deployment.
 

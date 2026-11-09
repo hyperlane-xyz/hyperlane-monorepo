@@ -133,6 +133,13 @@ describe('RebalancerConfig', () => {
     );
   });
 
+  it('rejects unknown top-level runtime controls', () => {
+    writeYamlOrJson(TEST_CONFIG_PATH, { ...data, unknownControl: true });
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      'unknownControl',
+    );
+  });
+
   it('should load config from file', () => {
     expect(RebalancerConfig.load(TEST_CONFIG_PATH)).to.deep.equal({
       warpRouteId: 'warpRouteId',
