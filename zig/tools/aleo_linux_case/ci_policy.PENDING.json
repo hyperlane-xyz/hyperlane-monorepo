@@ -1,27 +1,27 @@
 {
-  "selected_mode": "ReleaseSafe",
+  "selected_mode": null,
   "schema": 1,
   "kind": "aleo-linux-fullcase-ci-policy-v1",
-  "root_approved": true,
+  "root_approved": false,
   "runtime_source_commit": "9badc87e8c2e2f019a1b3453c323a8d89686e43e",
   "requests": {
     "ReleaseSafe": {
       "path": "zig/tools/aleo_linux_case/transport-ReleaseSafe.PENDING.json",
-      "bytes": 3105,
+      "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "e0693441f0ffdbfb80254149c67dabfa",
-          "ef302368e67f368dcfe4c9a2a00f97c3"
+          "feb82d28cee8060266fb6f01eef2d49a",
+          "dde1c7ab75aa3af32bc76d856115b545"
         ]
       }
     },
     "ReleaseFast": {
       "path": "zig/tools/aleo_linux_case/transport-ReleaseFast.PENDING.json",
-      "bytes": 3105,
+      "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "d695b840196364294c60043c74d9509e",
-          "41bcb3cffa013aa03ea5d029536eaa6b"
+          "a4bc4dca624889314ca6582727fd3ce0",
+          "a733205381e29f826fa8568bb434943a"
         ]
       }
     }
