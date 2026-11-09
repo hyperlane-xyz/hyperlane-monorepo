@@ -430,25 +430,6 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
       weiAmountOrId,
     );
   }
-
-  async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    interchainGas,
-  }: TransferRemoteParams): Promise<Call> {
-    const nonOption = new CairoOption(CairoOptionVariant.None);
-    const amount = BigInt(weiAmountOrId.toString());
-    const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
-    return this.collateralContract.populateTransaction.transfer_remote(
-      destination,
-      cairo.uint256(addressToBytes32(recipient)),
-      cairo.uint256(amount),
-      cairo.uint256(gasAmount),
-      nonOption,
-      nonOption,
-    );
-  }
 }
 
 export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
@@ -495,25 +476,6 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
     return this.feeTokenContract.populateTransaction.approve(
       recipient,
       weiAmountOrId,
-    );
-  }
-
-  async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    interchainGas,
-  }: TransferRemoteParams): Promise<Call> {
-    const nonOption = new CairoOption(CairoOptionVariant.None);
-    const amount = BigInt(weiAmountOrId.toString());
-    const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
-    return this.collateralContract.populateTransaction.transfer_remote(
-      destination,
-      cairo.uint256(addressToBytes32(recipient)),
-      cairo.uint256(amount),
-      cairo.uint256(gasAmount),
-      nonOption,
-      nonOption,
     );
   }
 }
