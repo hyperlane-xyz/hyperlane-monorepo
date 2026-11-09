@@ -96,6 +96,14 @@
       },
       "overhead": 166887
     },
+    "elysium": {
+      "oracleConfig": {
+        "tokenExchangeRate": "11883353584447144593",
+        "gasPrice": "7267248303",
+        "tokenDecimals": 18
+      },
+      "overhead": 166460
+    },
     "eni": {
       "oracleConfig": {
         "tokenExchangeRate": "144383482529598614",
@@ -345,6 +353,14 @@
         "tokenDecimals": 6
       },
       "overhead": 600000
+    },
+    "elysium": {
+      "oracleConfig": {
+        "tokenExchangeRate": "521433141394753678",
+        "gasPrice": "7267247552",
+        "tokenDecimals": 18
+      },
+      "overhead": 166460
     },
     "ethereum": {
       "oracleConfig": {
