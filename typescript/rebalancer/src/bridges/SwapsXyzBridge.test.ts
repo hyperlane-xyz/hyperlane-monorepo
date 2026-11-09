@@ -489,6 +489,7 @@ function createTronExecuteHarness(
   const sendTransactionStub = sinon
     .stub(wallet, 'sendTransaction')
     .resolves(txResponse);
+  stubObservedEvmSend(wallet, provider);
   const estimateGasStub = sinon
     .stub(wallet, 'estimateGas')
     .resolves(BigNumber.from(100_000));
