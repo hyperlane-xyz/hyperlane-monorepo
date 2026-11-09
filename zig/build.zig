@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const git_sha = buildGitSha(b);
     const native_cpp = b.option([]const u8, "native-cxx-library", "Linux GNU libstdc++ shared library; zig.py discovers the native compiler path");
+    const libpq_library = b.option([]const u8, "libpq-library", "Full path to libpq for isolated PostgreSQL integration tests");
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode (default ReleaseSafe)") orelse .ReleaseSafe;
     const module = b.addModule("agents", .{
         .root_source_file = b.path("src/root.zig"),
@@ -76,12 +77,13 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         });
         linkNativeCpp(native_module, target.result, native_cpp);
+        if (libpq_library) |library| native_module.addObjectFile(.{ .cwd_relative = library });
         var paths = std.mem.splitScalar(u8, libraries, ',');
         while (paths.next()) |path| native_module.addObjectFile(.{ .cwd_relative = path });
         const native_tests = b.addTest(.{ .root_module = native_module });
         b.step("native-db-test", "Verify real production RocksDB compatibility").dependOn(&b.addRunArtifact(native_tests).step);
     }
-    if (b.option([]const u8, "libpq-library", "Full path to libpq for isolated PostgreSQL integration tests")) |library| {
+    if (libpq_library) |library| {
         const service_options = b.addOptions();
         service_options.addOption([]const u8, "role", "scraper");
         service_options.addOption([]const u8, "git_sha", git_sha);

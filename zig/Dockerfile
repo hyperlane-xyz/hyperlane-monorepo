@@ -58,7 +58,7 @@ RUN python3 zig/tools/native_deps.py --offline --jobs "${BUILD_JOBS}" \
     && HYPERLANE_CURL_LIBRARY=libcurl.so.4 HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3 \
         python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
         python3 zig/tools/zig.py --compiler "${ZIG}" build -j"${BUILD_JOBS}" native-db-test relayer validator \
-        -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" --summary all \
+        -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" "-Dlibpq-library=${LIBPQ}" --summary all \
     && python3 zig/tools/zig.py --compiler "${ZIG}" build -j"${BUILD_JOBS}" scraper \
         -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dlibpq-library=${LIBPQ}" \
     && python3 zig/tools/container_check.py write-probe --output /tmp/native-runtime-probe.c \
@@ -74,6 +74,7 @@ FROM native-db AS native-starknet
 RUN python3 zig/src/starknet/testing/locked.py --toolchain 1.98.0 \
     && ZIG="$(python3 zig/tools/bootstrap.py)" \
     && LIBS="$(python3 -c 'import json; print(json.load(open("/opt/hyperlane-native/manifest.json"))["native_db_libs"])')" \
+    && LIBPQ="$(readlink -f "$(pkg-config --variable=libdir libpq)/libpq.so.5")" \
     && GNU_UNWIND="$(readlink -f "$(c++ -print-file-name=libgcc_s.so.1)")" \
     && LIBS="${LIBS},${GNU_UNWIND}" \
     && export HYPERLANE_STARKNET_CRYPTO_LIBRARY=/work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so \
@@ -81,7 +82,7 @@ RUN python3 zig/src/starknet/testing/locked.py --toolchain 1.98.0 \
     && python3 zig/tools/zig.py --compiler "${ZIG}" test src/starknet_batch_tests.zig -O "${ZIG_MODE}" -j"${BUILD_JOBS}" -lc --test-filter Starknet \
     && python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
         python3 zig/tools/zig.py --compiler "${ZIG}" build -j"${BUILD_JOBS}" native-db-test \
-        -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" --summary all \
+        -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" "-Dlibpq-library=${LIBPQ}" --summary all \
     && python3 zig/tools/build_cpu.py --scope starknet --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
         --artifact libziggy_starknet_crypto.so=/work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so \
         --output /opt/hyperlane-build-cpu/starknet.json

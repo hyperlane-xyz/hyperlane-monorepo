@@ -307,7 +307,7 @@ jobs:
         run: |
           python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
             python3 zig/tools/zig.py build -j"${BUILD_JOBS}" native-db-test relayer validator \
-            -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dnative-db-libs=$LIBS" --summary all
+            -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dnative-db-libs=$LIBS" "-Dlibpq-library=$LIBPQ" --summary all
       - name: Test durable directory fsync variants
         run: |
           IFS=',' read -r -a native_libs <<< "$LIBS"

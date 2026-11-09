@@ -271,13 +271,16 @@ class Controls(unittest.TestCase):
 class ExistingCompilerTests(unittest.TestCase):
     def test_actual_fixture_path_is_explicit_in_both_modes(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             for machine in ("x86_64", "aarch64"):
                 compiler = root / "zig/.toolchain" / ("zig-" + machine + "-linux-0.15.2") / "zig"
                 compiler.parent.mkdir(parents=True); compiler.write_bytes(b"compiler path fixture, never executed"); compiler.chmod(0o755)
                 for mode in ("ReleaseSafe", "ReleaseFast"):
                     libraries = ["/native/librocksdb.a", "/native/libgcc_s.so.1"]
-                    argv = c.native_suite_command(mode, 2, libraries, root, machine)
+                    pq = root / ("libpq-" + machine + ".so.5")
+                    header = bytearray(20);header[:7] = b"\x7fELF\x02\x01\x01";header[16:18] = (3).to_bytes(2, "little");header[18:20] = ({"x86_64":62,"aarch64":183}[machine]).to_bytes(2, "little");pq.write_bytes(header)
+                    argv = c.native_suite_command(mode, 2, libraries, root, machine, pq)
+                    self.assertEqual(argv.count(str(pq)), 1)
                     self.assertEqual(argv[argv.index("--compiler") + 1], str(compiler))
                     self.assertIn(mode, argv); self.assertIn("src/db_tests.zig", argv)
                     self.assertEqual(argv[-2:], libraries)
@@ -286,18 +289,18 @@ class ExistingCompilerTests(unittest.TestCase):
     def test_missing_compiler_fails_without_fetch_or_ambient_alias(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, "existing pinned fixture compiler"):
-                c.native_suite_command("ReleaseSafe", 2, [], Path(tmp), "x86_64")
+                c.native_suite_command("ReleaseSafe", 2, [], Path(tmp), "x86_64", Path(tmp)/"libpq.so.5")
     def test_symlink_or_nonexecutable_compiler_rejects(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); compiler = root / "zig/.toolchain/zig-x86_64-linux-0.15.2/zig"; compiler.parent.mkdir(parents=True)
             compiler.symlink_to("/bin/sh")
-            with self.assertRaises(ValueError): c.native_suite_command("ReleaseSafe", 2, [], root, "x86_64")
+            with self.assertRaises(ValueError): c.native_suite_command("ReleaseSafe", 2, [], root, "x86_64", root/"libpq.so.5")
             compiler.unlink(); compiler.write_text("not executable"); compiler.chmod(0o644)
-            with self.assertRaises(ValueError): c.native_suite_command("ReleaseSafe", 2, [], root, "x86_64")
+            with self.assertRaises(ValueError): c.native_suite_command("ReleaseSafe", 2, [], root, "x86_64", root/"libpq.so.5")
     def test_wrong_platform_mode_or_jobs_rejects(self):
         for mode,jobs,machine in [("Debug",2,"x86_64"),("ReleaseSafe",8,"x86_64"),("ReleaseSafe",2,"arm64")]:
             with self.subTest(mode=mode,jobs=jobs,machine=machine), self.assertRaises(ValueError):
-                c.native_suite_command(mode,jobs,[],Path("/work"),machine)
+                c.native_suite_command(mode,jobs,[],Path("/work"),machine,Path("/native/libpq.so.5"))
 
 
 class AtomicPublicationControls(unittest.TestCase):
@@ -454,6 +457,35 @@ class AtomicCIDPublicationControls(unittest.TestCase):
     def test_Helm_CID_stopped_replacement_stays_hard(self): self.exercise('stopped')
     def test_Helm_CID_late_metadata_stays_inside_original_clock(self): self.exercise('late')
 
+
+class NativePqLinkControls(unittest.TestCase):
+    def test_native_suite_rejects_missing_alias_wrong_format_type_and_arch_libpq(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve(); compiler = root / "zig/.toolchain/zig-x86_64-linux-0.15.2/zig"
+            compiler.parent.mkdir(parents=True); compiler.write_text("never executed"); compiler.chmod(0o755)
+            pq = root / "libpq.so.5"
+            with self.assertRaises(FileNotFoundError):c.native_suite_command("ReleaseSafe",2,[],root,"x86_64",pq)
+            valid = bytearray(20);valid[:7] = b"\x7fELF\x02\x01\x01";valid[16:18] = (3).to_bytes(2,"little");valid[18:20] = (62).to_bytes(2,"little")
+            for offset,value in [(0,0),(4,1),(5,2),(16,2),(18,183)]:
+                bad = valid.copy();bad[offset] = value;pq.write_bytes(bad)
+                with self.subTest(offset=offset),self.assertRaisesRegex(ValueError,"matching Linux libpq"):c.native_suite_command("ReleaseSafe",2,[],root,"x86_64",pq)
+            pq.write_bytes(valid);alias = root / "alias.so";alias.symlink_to(pq)
+            with self.assertRaisesRegex(ValueError,"canonical libpq"):c.native_suite_command("ReleaseSafe",2,[],root,"x86_64",alias)
+            with self.assertRaisesRegex(ValueError,"canonical libpq"):c.native_suite_command("ReleaseSafe",2,[],root,"x86_64",Path("libpq.so.5"))
+
+    def test_every_native_db_build_caller_passes_existing_explicit_pq_and_roles_stay_unchanged(self):
+        root = c.ROOT
+        build = (root / "zig/build.zig").read_text();docker = (root / "zig/Dockerfile").read_text();workflow = (root / ".github/workflows/zig-agents.yml").read_text()
+        self.assertEqual(build.count('b.option([]const u8, "libpq-library"'),1)
+        self.assertIn('if (libpq_library) |library| native_module.addObjectFile(.{ .cwd_relative = library });',build)
+        self.assertNotIn('validator_module.addObjectFile(.{ .cwd_relative = library });',build)
+        self.assertEqual(workflow.count('"-Dnative-db-libs=$LIBS" "-Dlibpq-library=$LIBPQ" --summary all'),1)
+        self.assertEqual(docker.count('"-Dnative-db-libs=${LIBS}" "-Dlibpq-library=${LIBPQ}" --summary all'),2)
+        self.assertIn('&& LIBPQ="$(readlink -f "$(pkg-config --variable=libdir libpq)/libpq.so.5")"',docker.split('FROM native-db AS native-starknet\n',1)[1].split('FROM native-db AS native-aleo',1)[0])
+        import ast
+        tree = ast.parse((root / "zig/tools/container_check.py").read_text());suite = next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name == 'native_suite')
+        calls = [n for n in ast.walk(suite) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id == 'native_suite_command']
+        self.assertEqual(len(calls),1);self.assertEqual(len(calls[0].args),6);self.assertIsInstance(calls[0].args[-1],ast.Name);self.assertEqual(calls[0].args[-1].id,'libpq_library')
 
 if __name__ == '__main__':
     unittest.main()

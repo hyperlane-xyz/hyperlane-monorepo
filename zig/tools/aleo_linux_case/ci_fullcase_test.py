@@ -15,6 +15,11 @@ def evaluator():
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the NativeLinux native-db libpq object argument.
+ pq_after = '"-Dnative-db-libs=$LIBS" "-Dlibpq-library=$LIBPQ" --summary all'
+ pq_before = '"-Dnative-db-libs=$LIBS" --summary all'
+ if text.count(pq_after) != 1: raise AssertionError('Exact once-only native DB libpq argument required')
+ text = text.replace(pq_after, pq_before, 1)
  # Exact inverse of once-only EVM and Stark adapter controls before peer controls.
  evm = '          python3 -B -W error zig/integration/multivm_evm_admission_test.py -v\n'
  stark = '          python3 -I -B -W error zig/integration/multivm_starknet_test.py -v\n'
