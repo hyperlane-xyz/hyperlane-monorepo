@@ -8,6 +8,7 @@ import { getAssociatedTokenAddressSync, getMint } from '@solana/spl-token';
 import { ethers } from 'ethers';
 import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 
 import {
   ChainStatus,
@@ -49,6 +50,7 @@ import {
 } from './deBridgeSettlement.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
+import { minimumOutputForLoss } from '../utils/quoteBudget.js';
 import { approveErc20IfNeeded } from './erc20Approve.js';
 import {
   DEBRIDGE_API_BASE,
@@ -89,19 +91,22 @@ export interface DeBridgeBridgeConfig {
   maxSolanaNativeSpendLamports?: bigint;
 }
 
-interface ExpectedSettlement {
-  fromChain: number;
-  toChain: number;
-  token: string;
-  recipient: string;
-  minimumAmount: bigint;
-}
+const TransferIdentitySchema = z.object({
+  version: z.literal(1),
+  orderId: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
+  fromChain: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  toChain: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  token: z.string().regex(/^0x(?:[0-9a-fA-F]{2})+$/),
+  recipient: z.string().regex(/^0x(?:[0-9a-fA-F]{2})+$/),
+  minimumAmount: z.string().regex(/^[1-9][0-9]*$/),
+});
+
+type TransferIdentity = z.infer<typeof TransferIdentitySchema>;
 
 export class DeBridgeBridge implements IExternalBridge {
   readonly externalBridgeId = DEBRIDGE_TOOL;
   readonly logger: Logger;
 
-  private readonly expectedSettlements = new Map<string, ExpectedSettlement>();
   private readonly apiUrl: string;
   private readonly statusApiUrl: string;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
@@ -212,7 +217,7 @@ export class DeBridgeBridge implements IExternalBridge {
       tool: DEBRIDGE_TOOL,
       fromAmount,
       toAmount,
-      toAmountMin: toAmount,
+      toAmountMin: this.executionMinimum(params, data),
       executionDuration: 60,
       gasCosts: 0n,
       feeCosts,
@@ -226,8 +231,8 @@ export class DeBridgeBridge implements IExternalBridge {
     privateKeys: Partial<Record<ProtocolType, string>>,
     options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
-    return new TransactionSubmission(options).run(() =>
-      this.executeOrder(quote, privateKeys, options),
+    return new TransactionSubmission(options).run((observers) =>
+      this.executeOrder(quote, privateKeys, { ...options, ...observers }),
     );
   }
 
@@ -258,6 +263,7 @@ export class DeBridgeBridge implements IExternalBridge {
               quote,
               options,
               prepared.preparedAt,
+              prepared.transferId,
             )
           : await this.executeEvmLike(
               protocol,
@@ -266,6 +272,7 @@ export class DeBridgeBridge implements IExternalBridge {
               quote,
               options,
               prepared.preparedAt,
+              prepared.transferId,
             );
       if (result) return result;
       // Only preparation/approval occurred. A submission error never reaches
@@ -277,9 +284,11 @@ export class DeBridgeBridge implements IExternalBridge {
   }
 
   /** Fetch and validate an executable unsigned order without keys or approvals. */
-  async prepare(
-    quote: BridgeQuote,
-  ): Promise<{ response: DeBridgeCreateTxResponse; preparedAt: number }> {
+  async prepare(quote: BridgeQuote): Promise<{
+    response: DeBridgeCreateTxResponse;
+    preparedAt: number;
+    transferId: string;
+  }> {
     assert(quote.tool === DEBRIDGE_TOOL, 'Quote was not created by deBridge');
     assert(quote.fromAmount > 0n, 'Quote fromAmount must be positive');
     assert(quote.toAmountMin > 0n, 'Quote toAmountMin must be positive');
@@ -343,8 +352,10 @@ export class DeBridgeBridge implements IExternalBridge {
       'Creating deBridge order transaction',
     );
 
-    const preparedAt = Date.now();
-    const body = await this.fetchWithRetry(createTxUrl);
+    let preparedAt = Date.now();
+    const body = await this.fetchWithRetry(createTxUrl, (startedAt) => {
+      preparedAt = startedAt;
+    });
     const createTx = parseDeBridgeCreateTxResponse(body);
     this.validateEstimation(createTx, params, {
       exactFromAmount: quote.fromAmount,
@@ -357,26 +368,30 @@ export class DeBridgeBridge implements IExternalBridge {
       Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
       'deBridge transaction expired during preparation',
     );
-    const expected = {
+    const transferId = JSON.stringify({
+      version: 1,
+      orderId: createTx.orderId.toLowerCase(),
       fromChain: params.fromChain,
       toChain: params.toChain,
       token: deBridgeAddressBytes(params.toToken, params.toChain),
       recipient: deBridgeAddressBytes(params.toAddress, params.toChain),
-      minimumAmount: quote.toAmountMin,
-    };
-    const orderId = createTx.orderId.toLowerCase();
-    const previous = this.expectedSettlements.get(orderId);
-    assert(
-      !previous ||
-        (previous.fromChain === expected.fromChain &&
-          previous.toChain === expected.toChain &&
-          previous.token === expected.token &&
-          previous.recipient === expected.recipient &&
-          previous.minimumAmount === expected.minimumAmount),
-      'deBridge reused an order ID for a different destination intent',
+      minimumAmount: quote.toAmountMin.toString(),
+    } satisfies TransferIdentity);
+    return { response: createTx, preparedAt, transferId };
+  }
+
+  private executionMinimum(
+    params: BridgeQuoteParams,
+    response: DeBridgeQuoteResponse,
+  ): bigint {
+    const floor = minimumOutputForLoss(
+      BigInt(response.estimation.srcChainTokenIn.amount),
+      response.estimation.srcChainTokenIn.decimals,
+      response.estimation.dstChainTokenOut.decimals,
+      this.maxFeeBps,
     );
-    this.expectedSettlements.set(orderId, expected);
-    return { response: createTx, preparedAt };
+    const requested = params.toAmount ?? 1n;
+    return floor > requested ? floor : requested;
   }
 
   private getEvmProvider(chainId: number): ethers.providers.JsonRpcProvider {
@@ -513,22 +528,30 @@ export class DeBridgeBridge implements IExternalBridge {
     transferId?: string,
   ): Promise<BridgeTransferStatus> {
     assert(
-      transferId && /^0x[0-9a-fA-F]{64}$/.test(transferId),
-      'A valid deBridge order ID is required to check transfer status',
+      transferId,
+      'A deBridge order ID is required to check transfer status',
     );
+    // Legacy raw IDs can report progress, but cannot establish trusted intent.
+    const expected = /^0x[0-9a-fA-F]{64}$/.test(transferId)
+      ? undefined
+      : TransferIdentitySchema.parse(JSON.parse(transferId));
+    const orderId = expected?.orderId ?? transferId;
+    if (expected) {
+      assert(
+        expected.fromChain === fromChain && expected.toChain === toChain,
+        'DLN settlement does not match the requested route',
+      );
+    }
     const url = new URL(
-      `/v1.0/dln/order/${encodeURIComponent(transferId)}/status`,
+      `/v1.0/dln/order/${encodeURIComponent(orderId)}/status`,
       this.statusApiUrl,
     ).toString();
 
-    this.logger.debug(
-      { txHash, orderId: transferId },
-      'Checking deBridge order',
-    );
+    this.logger.debug({ txHash, orderId }, 'Checking deBridge order');
     const body = await this.fetchWithRetry(url);
     const data = parseDeBridgeOrderStatusResponse(body);
     assert(
-      data.orderId.toLowerCase() === transferId.toLowerCase(),
+      data.orderId.toLowerCase() === orderId.toLowerCase(),
       `deBridge status returned unexpected order ID ${data.orderId}`,
     );
 
@@ -552,7 +575,8 @@ export class DeBridgeBridge implements IExternalBridge {
           fromChain,
           receivingTxHash,
           toChain,
-          transferId,
+          orderId,
+          expected,
         );
         if (receivedAmount === undefined)
           return {
@@ -606,8 +630,8 @@ export class DeBridgeBridge implements IExternalBridge {
     destinationHash: string,
     toChain: number,
     orderId: string,
+    expected: TransferIdentity | undefined,
   ): Promise<bigint | undefined> {
-    const expected = this.expectedSettlements.get(orderId.toLowerCase());
     if (!expected) return undefined;
     assert(
       expected.fromChain === fromChain && expected.toChain === toChain,
@@ -647,7 +671,7 @@ export class DeBridgeBridge implements IExternalBridge {
     assert(
       order.takeTokenAddress.toLowerCase() === expected.token.toLowerCase() &&
         order.receiverDst.toLowerCase() === expected.recipient.toLowerCase() &&
-        order.takeAmount >= expected.minimumAmount,
+        order.takeAmount >= BigInt(expected.minimumAmount),
       'DLN settlement does not match the accepted destination',
     );
     const destinationProtocol = this.getProtocol(
@@ -753,6 +777,7 @@ export class DeBridgeBridge implements IExternalBridge {
     quote: BridgeQuote,
     options: BridgeExecutionOptions | undefined,
     preparedAt: number,
+    transferId: string,
   ): Promise<BridgeTransferResult | undefined> {
     const { tx, fixFee, orderId } = createTx;
     assert(tx.to, 'deBridge create-tx response is missing tx.to');
@@ -817,7 +842,7 @@ export class DeBridgeBridge implements IExternalBridge {
       },
       `Sending deBridge ${protocol} transaction`,
     );
-    await options?.onTransferId?.(orderId);
+    await options?.onTransferId?.(transferId);
     const transaction = await submitEvmLikeTransaction(
       wallet,
       {
@@ -832,7 +857,7 @@ export class DeBridgeBridge implements IExternalBridge {
       txHash: transaction.hash,
       fromChain: quote.requestParams.fromChain,
       toChain: quote.requestParams.toChain,
-      transferId: orderId,
+      transferId,
     };
   }
 
@@ -842,6 +867,7 @@ export class DeBridgeBridge implements IExternalBridge {
     quote: BridgeQuote,
     options: BridgeExecutionOptions | undefined,
     preparedAt: number,
+    transferId: string,
   ): Promise<BridgeTransferResult | undefined> {
     const keypair = Keypair.fromSecretKey(parseSolanaPrivateKey(privateKey));
     const transaction = await this.validateSolanaTransaction(quote, createTx);
@@ -861,7 +887,7 @@ export class DeBridgeBridge implements IExternalBridge {
       `deBridge Solana transaction simulation failed: ${JSON.stringify(simulation.value.err)}`,
     );
 
-    await options?.onTransferId?.(createTx.orderId);
+    await options?.onTransferId?.(transferId);
     const signedSignature = bufferToBase58(
       Buffer.from(transaction.signatures[0]),
     );
@@ -881,7 +907,7 @@ export class DeBridgeBridge implements IExternalBridge {
       txHash: signature,
       fromChain: quote.requestParams.fromChain,
       toChain: quote.requestParams.toChain,
-      transferId: createTx.orderId,
+      transferId,
     };
   }
 
@@ -1107,7 +1133,10 @@ export class DeBridgeBridge implements IExternalBridge {
     return url.toString();
   }
 
-  private async fetchWithRetry(url: string): Promise<unknown> {
+  private async fetchWithRetry(
+    url: string,
+    onAttempt?: (startedAt: number) => void,
+  ): Promise<unknown> {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -1119,6 +1148,7 @@ export class DeBridgeBridge implements IExternalBridge {
 
       let terminalError: Error | undefined;
       try {
+        onAttempt?.(Date.now());
         return await fetchWithDeadline(
           url,
           {},

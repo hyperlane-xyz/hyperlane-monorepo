@@ -367,6 +367,23 @@ function makeBridgeQuote(
   };
 }
 
+function makeTransferIdentity(
+  params = BSC_TO_TRON_PARAMS,
+  orderId = ORDER_ID,
+  minimumAmount = DESTINATION_AMOUNT,
+): string {
+  assert(params.toAddress, 'Fixture requires a destination recipient');
+  return JSON.stringify({
+    version: 1,
+    orderId: orderId.toLowerCase(),
+    fromChain: params.fromChain,
+    toChain: params.toChain,
+    token: deBridgeAddressBytes(params.toToken, params.toChain),
+    recipient: deBridgeAddressBytes(params.toAddress, params.toChain),
+    minimumAmount: minimumAmount.toString(),
+  });
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -721,6 +738,29 @@ function stubMint(): sinon.SinonStub {
 describe('DeBridgeBridge.execute', function () {
   let callStub: sinon.SinonStub;
   beforeEach(() => {
+    sinon
+      .stub(ethers.Wallet.prototype, 'populateTransaction')
+      .callsFake(async (tx) => ({
+        ...(await ethers.utils.resolveProperties(tx)),
+        chainId: 56,
+        nonce: 0,
+        gasLimit: ethers.BigNumber.from(100_000),
+        gasPrice: ethers.BigNumber.from(1),
+        type: 0,
+      }));
+    sinon
+      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'sendTransaction')
+      .callsFake(async (signed) => {
+        const bytes = await signed;
+        const tx = ethers.utils.parseTransaction(bytes);
+        // Keep each test's broadcast behavior while exercising local signing.
+        const result = await new ethers.Wallet(PRIVATE_KEY).sendTransaction({
+          to: tx.to,
+          data: tx.data,
+          value: tx.value,
+        });
+        return { ...result, hash: ethers.utils.keccak256(bytes) };
+      });
     callStub = sinon
       .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'call')
       .callsFake((tx) => chainRead(tx));
@@ -766,6 +806,51 @@ describe('DeBridgeBridge.execute', function () {
         ethers.utils.id('allowance(address,address)').slice(0, 10),
       );
     }
+  });
+
+  it('preserves a fixed request budget across small adverse quote changes', async () => {
+    const fetch = sinon.stub(globalThis, 'fetch');
+    fetch.onFirstCall().resolves(jsonResponse(makeQuoteResponse()));
+    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
+    const quote = await bridge.quote(BSC_TO_TRON_PARAMS);
+    expect(quote.toAmountMin).to.equal(995_000_000n);
+    const refreshed = makeCreateTxResponse();
+    refreshed.estimation.dstChainTokenOut.amount = (
+      DESTINATION_AMOUNT - 1n
+    ).toString();
+    fetch.onSecondCall().resolves(jsonResponse(refreshed));
+    const prepared = await bridge.prepare(quote);
+    expect(prepared.transferId).to.equal(
+      makeTransferIdentity(BSC_TO_TRON_PARAMS, ORDER_ID, 995_000_000n),
+    );
+    refreshed.estimation.dstChainTokenOut.amount = '994999999';
+    fetch.onThirdCall().resolves(jsonResponse(refreshed));
+    expect((await getRejection(bridge.prepare(quote))).message).to.include(
+      'below required',
+    );
+  });
+
+  it('keeps the original exact-output target above the economic floor', async () => {
+    sinon.stub(globalThis, 'fetch').resolves(jsonResponse(makeQuoteResponse()));
+    const quote = await new DeBridgeBridge(BRIDGE_CONFIG, logger).quote({
+      ...BSC_TO_TRON_PARAMS,
+      fromAmount: undefined,
+      toAmount: DESTINATION_AMOUNT,
+    });
+    expect(quote.toAmountMin).to.equal(DESTINATION_AMOUNT);
+  });
+
+  it('dates a successful retry from its own request start after a full timeout', async () => {
+    const clock = sinon.useFakeTimers();
+    const fetch = sinon.stub(globalThis, 'fetch');
+    fetch.onFirstCall().returns(new Promise(() => {}));
+    fetch.onSecondCall().resolves(jsonResponse(makeCreateTxResponse()));
+    const pending = new DeBridgeBridge(BRIDGE_CONFIG, logger).prepare(
+      makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
+    );
+    await clock.tickAsync(31_001);
+    expect((await pending).preparedAt).to.equal(31_000);
+    expect(fetch.callCount).to.equal(2);
   });
 
   it('rejects incidental native value above the configured cap', async () => {
@@ -949,11 +1034,11 @@ describe('DeBridgeBridge.execute', function () {
       data: makeEvmOrderData(),
     });
     expect(captured[2].value.toString()).to.equal(FIX_FEE.toString());
-    expect(result).to.deep.equal({
-      txHash: `0x${'3'.padStart(64, '0')}`,
+    expect(result.txHash).to.match(/^0x[0-9a-f]{64}$/);
+    expect(result).to.deep.include({
       fromChain: 56,
       toChain: 728126428,
-      transferId: ORDER_ID,
+      transferId: makeTransferIdentity(),
     });
   });
 
@@ -1002,7 +1087,7 @@ describe('DeBridgeBridge.execute', function () {
     expect(approval[1].toString()).to.equal(SOURCE_AMOUNT.toString());
     expect(captured[1].to).to.equal(DLN_FORWARDER);
     expect(captured[1].data).to.equal(response.tx.data);
-    expect(result.transferId).to.equal(ORDER_ID);
+    expect(result.transferId).to.equal(makeTransferIdentity());
   });
 
   it('constructs an exact TRC20 approval for Tron execution', async () => {
@@ -1115,7 +1200,15 @@ describe('DeBridgeBridge.execute', function () {
     expect(error.submissionState).to.equal('unknown');
     expect(error.txHash).to.equal(onSubmissionAttempt.firstCall.args[0]);
     expect(error.txHash).to.have.length.greaterThan(60);
-    expect(onTransferId.calledOnceWithExactly(ORDER_ID)).to.equal(true);
+    expect(
+      onTransferId.calledOnceWithExactly(
+        makeTransferIdentity(
+          makeSolanaParams(signer),
+          ORDER_ID,
+          BigInt(makeSolanaQuoteResponse().estimation.dstChainTokenOut.amount),
+        ),
+      ),
+    ).to.equal(true);
     expect(onSubmissionAttempt.calledBefore(send)).to.equal(true);
   });
 
@@ -1222,7 +1315,11 @@ describe('DeBridgeBridge.execute', function () {
       txHash: await sendStub.firstCall.returnValue,
       fromChain: 1399811149,
       toChain: 56,
-      transferId: ORDER_ID,
+      transferId: makeTransferIdentity(
+        params,
+        ORDER_ID,
+        BigInt(response.estimation.dstChainTokenOut.amount),
+      ),
     });
   });
 });
@@ -1230,7 +1327,7 @@ describe('DeBridgeBridge.execute', function () {
 async function preparedStatusBridge(
   params = BSC_TO_TRON_PARAMS,
   orderId = ORDER_ID,
-): Promise<DeBridgeBridge> {
+): Promise<{ bridge: DeBridgeBridge; transferId: string }> {
   const response = makeCreateTxResponse();
   response.orderId = orderId;
   response.estimation.dstChainTokenOut.chainId = hyperlaneChainIdToDebridge(
@@ -1265,14 +1362,14 @@ async function preparedStatusBridge(
     logger,
   );
   try {
-    await bridge.prepare(makeBridgeQuote(params, response));
+    const prepared = await bridge.prepare(makeBridgeQuote(params, response));
+    return { bridge, transferId: prepared.transferId };
   } finally {
     fetch.restore();
     call.restore();
     tronCall.restore();
     mint.restore();
   }
-  return bridge;
 }
 
 describe('DeBridgeBridge.getStatus', function () {
@@ -1280,8 +1377,9 @@ describe('DeBridgeBridge.getStatus', function () {
   let destinationReceipt: ethers.providers.TransactionReceipt;
   let receiptStub: sinon.SinonStub;
   let bridge: DeBridgeBridge;
+  let transferId: string;
   beforeEach(async () => {
-    bridge = await preparedStatusBridge();
+    ({ bridge, transferId } = await preparedStatusBridge());
     const order = settlementOrder();
     sourceReceipt = await makeTransactionResponse(
       { to: DLN_SOURCE, data: '0x', value: ethers.constants.Zero },
@@ -1374,6 +1472,47 @@ describe('DeBridgeBridge.getStatus', function () {
     ).to.equal('pending');
   });
 
+  it('verifies the serialized expectation on a fresh adapter and repeated status calls', async () => {
+    sinon.stub(globalThis, 'fetch').callsFake(async () =>
+      jsonResponse({
+        orderId: ORDER_ID,
+        status: 'Fulfilled',
+        fulfilledDstEventMetadata: {
+          transactionHash: { stringValue: DESTINATION_TX_HASH },
+        },
+      }),
+    );
+    const restarted = new DeBridgeBridge(BRIDGE_CONFIG, logger);
+    for (let i = 0; i < 2; i++) {
+      expect(
+        (await restarted.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId))
+          .status,
+      ).to.equal('complete');
+    }
+  });
+
+  it('rejects malformed, unsupported-version and route-mismatched identities before API access', async () => {
+    const fetch = sinon.stub(globalThis, 'fetch');
+    for (const identity of [
+      'invalid JSON',
+      transferId.replace('"version":1', '"version":2'),
+    ]) {
+      expect(
+        await getRejection(
+          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, identity),
+        ),
+      ).to.be.instanceOf(Error);
+    }
+    expect(
+      (
+        await getRejection(
+          bridge.getStatus(SOURCE_TX_HASH, 1, 728126428, transferId),
+        )
+      ).message,
+    ).to.include('requested route');
+    expect(fetch.called).to.equal(false);
+  });
+
   for (const change of [
     'recipient',
     'token',
@@ -1389,7 +1528,10 @@ describe('DeBridgeBridge.getStatus', function () {
       if (change === 'chain') order.takeChainId = 1n;
       if (change === 'net source amount') order.giveAmount -= 1_000n;
       const id = dlnOrderId(order);
-      bridge = await preparedStatusBridge(BSC_TO_TRON_PARAMS, id);
+      ({ bridge, transferId } = await preparedStatusBridge(
+        BSC_TO_TRON_PARAMS,
+        id,
+      ));
       Object.assign(
         sourceReceipt.logs[0],
         DLN_EVENTS.encodeEventLog(DLN_EVENTS.getEvent('CreatedOrder'), [
@@ -1429,7 +1571,12 @@ describe('DeBridgeBridge.getStatus', function () {
           },
         }),
       );
-      const status = bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, id);
+      const status = bridge.getStatus(
+        SOURCE_TX_HASH,
+        56,
+        728126428,
+        transferId,
+      );
       if (change === 'net source amount') {
         expect((await status).status).to.equal('complete');
       } else {
@@ -1458,7 +1605,7 @@ describe('DeBridgeBridge.getStatus', function () {
       SOURCE_TX_HASH,
       56,
       728126428,
-      ORDER_ID,
+      transferId,
     );
 
     expect(calledUrl).to.include(`/order/${ORDER_ID}/status`);
@@ -1514,7 +1661,7 @@ describe('DeBridgeBridge.getStatus', function () {
       }
       expect(
         await getRejection(
-          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID),
+          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId),
         ),
       ).to.be.instanceOf(Error);
     });
@@ -1534,7 +1681,7 @@ describe('DeBridgeBridge.getStatus', function () {
     expect(
       (
         await getRejection(
-          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID),
+          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId),
         )
       ).message,
     ).to.include('less than the committed amount');
@@ -1568,10 +1715,10 @@ describe('DeBridgeBridge.getStatus', function () {
       ]),
     );
     destinationReceipt.logs.length = 1;
-    bridge = await preparedStatusBridge(
+    ({ bridge, transferId } = await preparedStatusBridge(
       { ...BSC_TO_TRON_PARAMS, toToken: ethers.constants.AddressZero },
       id,
-    );
+    ));
     sinon.stub(globalThis, 'fetch').callsFake(async () =>
       jsonResponse({
         orderId: id,
@@ -1585,15 +1732,19 @@ describe('DeBridgeBridge.getStatus', function () {
       .stub(TronJsonRpcProvider.prototype, 'call')
       .resolves(ethers.utils.defaultAbiCoder.encode(['uint256'], [0]));
     expect(
-      (await bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, id)).status,
+      (await bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId))
+        .status,
     ).to.equal('complete');
     expect(await call.firstCall.args[1]).to.equal(
       destinationReceipt.blockNumber,
     );
     call.resolves(ethers.utils.defaultAbiCoder.encode(['uint256'], [1]));
     expect(
-      (await getRejection(bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, id)))
-        .message,
+      (
+        await getRejection(
+          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId),
+        )
+      ).message,
     ).to.include('amount was reduced');
   });
 
@@ -1610,20 +1761,21 @@ describe('DeBridgeBridge.getStatus', function () {
     for (const receipt of [sourceReceipt, destinationReceipt]) {
       receipt.confirmations = 0;
       expect(
-        (await bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID))
+        (await bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId))
           .status,
       ).to.equal('pending');
       receipt.confirmations = 1;
     }
     destinationReceipt.blockNumber = 2;
     expect(
-      (await bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID)).status,
+      (await bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId))
+        .status,
     ).to.equal('pending');
     receiptStub.rejects(new Error('receipt RPC timeout'));
     expect(
       (
         await getRejection(
-          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID),
+          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, transferId),
         )
       ).message,
     ).to.include('receipt RPC timeout');
@@ -1641,7 +1793,7 @@ describe('DeBridgeBridge.getStatus', function () {
       orderAuthorityAddressDst: ethers.utils.hexlify(recipient.toBytes()),
     };
     const id = dlnOrderId(order);
-    bridge = await preparedStatusBridge(
+    ({ bridge, transferId } = await preparedStatusBridge(
       {
         ...BSC_TO_TRON_PARAMS,
         toChain: 1399811149,
@@ -1649,7 +1801,7 @@ describe('DeBridgeBridge.getStatus', function () {
         toAddress: recipient.toBase58(),
       },
       id,
-    );
+    ));
     Object.assign(
       sourceReceipt.logs[0],
       DLN_EVENTS.encodeEventLog(DLN_EVENTS.getEvent('CreatedOrder'), [
@@ -1722,7 +1874,8 @@ describe('DeBridgeBridge.getStatus', function () {
       }),
     );
     expect(
-      (await bridge.getStatus(SOURCE_TX_HASH, 56, 1399811149, id)).status,
+      (await bridge.getStatus(SOURCE_TX_HASH, 56, 1399811149, transferId))
+        .status,
     ).to.equal('complete');
     expect(get.firstCall.args[1]).to.deep.equal({
       commitment: 'finalized',
@@ -1730,8 +1883,11 @@ describe('DeBridgeBridge.getStatus', function () {
     });
     amount--;
     expect(
-      (await getRejection(bridge.getStatus(SOURCE_TX_HASH, 56, 1399811149, id)))
-        .message,
+      (
+        await getRejection(
+          bridge.getStatus(SOURCE_TX_HASH, 56, 1399811149, transferId),
+        )
+      ).message,
     ).to.include('less than the committed amount');
   });
 
@@ -1743,7 +1899,7 @@ describe('DeBridgeBridge.getStatus', function () {
       'ClaimedOrderCancel',
     ]) {
       fetchStub.resolves(jsonResponse({ orderId: ORDER_ID, status }));
-      const result = await bridge.getStatus('tx', 56, 728126428, ORDER_ID);
+      const result = await bridge.getStatus('tx', 56, 728126428, transferId);
       expect(result).to.deep.equal({ status: 'failed', error: status });
       fetchStub.resetBehavior();
     }
@@ -1753,7 +1909,7 @@ describe('DeBridgeBridge.getStatus', function () {
     const fetchStub = sinon.stub(globalThis, 'fetch');
     for (const status of ['Fulfilled', 'SentUnlock', 'ClaimedUnlock']) {
       fetchStub.resolves(jsonResponse({ orderId: ORDER_ID, status }));
-      const result = await bridge.getStatus('tx', 56, 728126428, ORDER_ID);
+      const result = await bridge.getStatus('tx', 56, 728126428, transferId);
       expect(result).to.deep.equal({
         status: 'pending',
         substatus: 'Missing destination transaction',
@@ -1771,12 +1927,12 @@ describe('DeBridgeBridge.getStatus', function () {
       .onSecondCall()
       .resolves(jsonResponse({ orderId: ORDER_ID, status: 'None' }));
 
-    expect(await bridge.getStatus('tx', 56, 728126428, ORDER_ID)).to.deep.equal(
-      { status: 'pending', substatus: 'Created' },
-    );
-    expect(await bridge.getStatus('tx', 56, 728126428, ORDER_ID)).to.deep.equal(
-      { status: 'not_found' },
-    );
+    expect(
+      await bridge.getStatus('tx', 56, 728126428, transferId),
+    ).to.deep.equal({ status: 'pending', substatus: 'Created' });
+    expect(
+      await bridge.getStatus('tx', 56, 728126428, transferId),
+    ).to.deep.equal({ status: 'not_found' });
   });
 
   it('rejects missing IDs, mismatched IDs, and unknown statuses', async () => {
@@ -1793,11 +1949,11 @@ describe('DeBridgeBridge.getStatus', function () {
       .onSecondCall()
       .resolves(jsonResponse({ orderId: ORDER_ID, status: 'Unexpected' }));
     const mismatchedIdError = await getRejection(
-      bridge.getStatus('tx', 56, 728126428, ORDER_ID),
+      bridge.getStatus('tx', 56, 728126428, transferId),
     );
     expect(mismatchedIdError.message).to.include('unexpected order ID');
     const statusError = await getRejection(
-      bridge.getStatus('tx', 56, 728126428, ORDER_ID),
+      bridge.getStatus('tx', 56, 728126428, transferId),
     );
     expect(statusError.message).to.include('status');
   });
