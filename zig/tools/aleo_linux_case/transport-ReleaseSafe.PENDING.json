@@ -3,8 +3,8 @@
   "root_approved": false,
   "scenario": "cosmosnative",
   "mode": "ReleaseSafe",
-  "producer_source_commit": "56e791042c3be1b5adf944a9095fc7a4245204a0",
-  "producer_run_id": 42574074422,
+  "producer_source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
+  "producer_run_id": 42586182471,
   "producer_run_attempt": 1,
   "limits": {
     "maximum_owned_RAM_bytes": 8589934592,
@@ -59,57 +59,57 @@
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13655766769,
+      "id": 13660307486,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52489918,
+      "size_in_bytes": 52481326,
       "sha256": {
         "sha256_hex_chunks": [
-          "0951f91fe6c65ed652053c3fafafc6f4",
-          "83b221ec19f55b671c0caa13dd5615ea"
+          "439ac3e94c66ba4a497b5f3bf0f4f649",
+          "6c8fdb4294ad903fffcd31a6a98163a9"
         ]
       }
     },
     "helper": {
-      "id": 13655681273,
+      "id": 13659769342,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56509727,
+      "size_in_bytes": 56510096,
       "sha256": {
         "sha256_hex_chunks": [
-          "dca049be4f21501a1695fd3f2bce96e6",
-          "29d33254411c178890b723511588a93e"
+          "bdc7221c07fbde482d2931edcd57d672",
+          "d21449a7d5f25ea4e1fe40db04b75933"
         ]
       }
     },
     "tools": {
-      "id": 13654959635,
-      "name": "zig-native-case-tools-56e791042c3be1b5adf944a9095fc7a4245204a0",
-      "size_in_bytes": 20092406,
+      "id": 13659838754,
+      "name": "zig-native-case-tools-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
+      "size_in_bytes": 20092495,
       "sha256": {
         "sha256_hex_chunks": [
-          "9c20274f42605a92835fdd756a359126",
-          "7f9b4fb44f4a224498b392e641bf111d"
+          "8237aa5ede95c948939598213c493f4e",
+          "0c4be97f1d262565d6ba166346557669"
         ]
       }
     },
     "writer_safe": {
-      "id": 13655697161,
+      "id": 13660502012,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171530,
+      "size_in_bytes": 5171516,
       "sha256": {
         "sha256_hex_chunks": [
-          "027b026b246007a71ed6f024ee623fcf",
-          "9073f64441d954cba7b62acbc75e1be3"
+          "23bcbfecfc95b1c40cedee62adec4980",
+          "9aeceab45247ffc7a3b73e1e58ae584a"
         ]
       }
     },
     "writer_fast": {
-      "id": 13656334454,
+      "id": 13661962123,
       "name": "zig-native-interop-writer-ReleaseFast",
       "size_in_bytes": 4863021,
       "sha256": {
         "sha256_hex_chunks": [
-          "6ff795cccc0bda3a3120397d8b62c079",
-          "d207cda58a89ddb44b7d7d43b564abde"
+          "e9cddb589d43d50eaaddfa16aa7e0ccc",
+          "74d8a7b87cb7153ed38814b37b46e749"
         ]
       }
     }
