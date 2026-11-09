@@ -29,7 +29,13 @@ export interface MCRStatusRef {
 }
 
 export type MCRSettlementStatus =
-  | { status: 'pending'; substatus?: string; ref?: MCRStatusRef }
+  | {
+      status: 'pending';
+      substatus?: string;
+      ref?: MCRStatusRef;
+      /** Solid destination effects are visible but configured receipt depth is pending. */
+      balanceMayIncludePendingSettlement?: boolean;
+    }
   | {
       status: 'complete';
       receivingTxHash?: string;

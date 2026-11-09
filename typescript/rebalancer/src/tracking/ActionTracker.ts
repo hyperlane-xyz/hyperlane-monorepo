@@ -381,6 +381,7 @@ export class ActionTracker implements IActionTracker {
             },
             'No status adapter registered for movable collateral action',
           );
+          requiresFreshBalances = true;
           continue;
         }
 
@@ -398,8 +399,31 @@ export class ActionTracker implements IActionTracker {
               blockTag,
             },
           );
+          const settlementRef = status.ref ?? action.externalExecutionRef;
+          // Keep positive balance-inclusion evidence through later lookup failures
+          // or pending responses that omit it. Only verified completion removes the credit.
+          const balanceMayIncludePendingSettlement =
+            action.externalExecutionRef.data
+              .balanceMayIncludePendingSettlement === true ||
+            (status.status === 'pending' &&
+              status.balanceMayIncludePendingSettlement === true);
+          if (
+            balanceMayIncludePendingSettlement &&
+            status.status !== 'complete'
+          ) {
+            requiresFreshBalances = true;
+          }
           await this.rebalanceActionStore.update(action.id, {
-            externalExecutionRef: status.ref ?? action.externalExecutionRef,
+            externalExecutionRef:
+              balanceMayIncludePendingSettlement && status.status !== 'complete'
+                ? {
+                    ...settlementRef,
+                    data: {
+                      ...settlementRef.data,
+                      balanceMayIncludePendingSettlement: true,
+                    },
+                  }
+                : settlementRef,
             lastBridgeStatus: status.status,
             ...(status.status === 'complete' && status.receivingTxHash
               ? { destinationTxHash: status.receivingTxHash }
@@ -409,6 +433,7 @@ export class ActionTracker implements IActionTracker {
           if (status.status === 'complete') {
             await this.completeRebalanceAction(action.id);
             completedActions++;
+            if (typeof blockTag !== 'number') requiresFreshBalances = true;
             this.logger.debug(
               { id: action.id, statusAdapterKind: statusAdapter.kind },
               'RebalanceAction completed',
@@ -433,6 +458,7 @@ export class ActionTracker implements IActionTracker {
             },
             'Failed to poll movable collateral settlement status',
           );
+          requiresFreshBalances = true;
         }
         continue;
       }
