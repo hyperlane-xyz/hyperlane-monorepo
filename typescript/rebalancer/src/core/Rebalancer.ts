@@ -36,6 +36,7 @@ import type {
 import { MovableCollateralRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { isReceiptFinalized } from '../utils/receiptFinality.js';
 import type { RebalanceIntent } from '../tracking/types.js';
 import {
   denormalizeToLocal,
@@ -649,13 +650,15 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         const receipt = await provider.getTransactionReceipt(pending.txHash);
         if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
           return false;
-        const finality = this.getReorgPeriod(origin);
-        if (typeof finality === 'number') {
-          if (receipt.confirmations < Math.max(finality, 1)) return false;
-        } else {
-          const block = await provider.getBlock(finality);
-          if (!block || receipt.blockNumber > block.number) return false;
-        }
+        if (
+          !(await isReceiptFinalized(
+            provider,
+            receipt,
+            this.multiProvider.getChainMetadata(origin).blocks,
+            this.multiProvider.getProtocol(origin),
+          ))
+        )
+          return false;
         pending.awaitingReceipt = false;
       }
       if (pending.approval) {
