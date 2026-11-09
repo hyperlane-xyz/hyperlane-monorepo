@@ -382,6 +382,30 @@ describe('RelayerDenylistMiddleware', () => {
     expect(ignored).to.deep.equal([OTHER_MESSAGE_ID]);
   });
 
+  it('applies a refresh to a query that starts while it is in progress', async () => {
+    fetchStub = Sinon.stub(globalThis, 'fetch');
+    fetchStub
+      .onFirstCall()
+      .resolves(new Response(denylistFor([])))
+      .onSecondCall()
+      .resolves(new Response(denylistFor([MESSAGE_ID])));
+    const middleware = await createMiddleware(URL_WITH_TOKEN);
+    clock.tick(REFRESH_INTERVAL_MS);
+
+    const [transfers, rebalanceActions] = await Promise.all([
+      middleware.getInflightUserTransfers(PARAMS, logger),
+      middleware.getInflightRebalanceActions(REBALANCE_PARAMS, logger),
+    ]);
+
+    expect(transfers.map((msg) => msg.msg_id)).to.deep.equal([
+      OTHER_MESSAGE_ID,
+    ]);
+    expect(rebalanceActions.map((msg) => msg.msg_id)).to.deep.equal([
+      OTHER_MESSAGE_ID,
+    ]);
+    expect(fetchStub.callCount).to.equal(2);
+  });
+
   interface RefreshFailureCase {
     name: string;
     breakDenylist: () => void;

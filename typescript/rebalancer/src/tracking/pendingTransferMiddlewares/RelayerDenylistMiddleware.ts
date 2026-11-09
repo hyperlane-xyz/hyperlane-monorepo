@@ -277,6 +277,7 @@ async function loadInitialRules(
 export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
   protected override readonly ignoresRebalanceActions = true;
   private lastAttemptAt: number;
+  private refreshing?: Promise<void>;
 
   private constructor(
     inner: IExplorerClient,
@@ -352,11 +353,20 @@ export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
     return ignored;
   }
 
-  private async refreshIfStale(logger: Logger): Promise<void> {
-    const now = Date.now();
-    if (now - this.lastAttemptAt < this.source.refreshIntervalMs) return;
+  private refreshIfStale(logger: Logger): Promise<void> {
+    if (this.refreshing) return this.refreshing;
+    if (Date.now() - this.lastAttemptAt < this.source.refreshIntervalMs) {
+      return Promise.resolve();
+    }
 
-    this.lastAttemptAt = now;
+    this.lastAttemptAt = Date.now();
+    this.refreshing = this.reload(logger).finally(() => {
+      this.refreshing = undefined;
+    });
+    return this.refreshing;
+  }
+
+  private async reload(logger: Logger): Promise<void> {
     try {
       this.rules = await loadRules(this.source, logger);
       this.loadedAt = Date.now();
