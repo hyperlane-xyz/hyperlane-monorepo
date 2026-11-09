@@ -241,22 +241,88 @@ fn ready_payloads(core: &Value, gateway: &Value) -> Result<()> {
     );
     Ok(())
 }
-fn local_status(agent: &ureq::Agent, endpoint: &str) -> Result<Value> {
-    let response = agent
-        .post(endpoint)
-        .timeout(Duration::from_secs(2))
-        .set("Content-Type", "application/json")
-        .send_string("{}")?;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ReadinessFailure {
+    Pending,
+    HttpStatus(u16),
+    Transport,
+    BodyBound,
+    Schema,
+    Deadline,
+}
+impl std::fmt::Display for ReadinessFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+impl std::error::Error for ReadinessFailure {}
+
+fn readiness_failure(error: &eyre::Report) -> ReadinessFailure {
+    if let Some(error) = error.downcast_ref::<ReadinessFailure>() {
+        return *error;
+    }
+    if let Some(ureq::Error::Status(status, _)) = error.downcast_ref::<ureq::Error>() {
+        return ReadinessFailure::HttpStatus(*status);
+    }
+    ReadinessFailure::Transport
+}
+
+fn readiness_response(response: ureq::Response, deadline: Instant) -> Result<Value> {
+    ensure!(Instant::now() < deadline, ReadinessFailure::Deadline);
+    ensure!(
+        response.status() == 200,
+        ReadinessFailure::HttpStatus(response.status())
+    );
     let mut wire = Vec::new();
     response
         .into_reader()
         .take(2 * 1024 * 1024 + 1)
         .read_to_end(&mut wire)?;
-    ensure!(
-        wire.len() <= 2 * 1024 * 1024,
-        "Radix readiness response bound"
-    );
-    Ok(serde_json::from_slice(&wire)?)
+    ensure!(Instant::now() < deadline, ReadinessFailure::Deadline);
+    ensure!(wire.len() <= 2 * 1024 * 1024, ReadinessFailure::BodyBound);
+    let value = serde_json::from_slice(&wire).map_err(|_| ReadinessFailure::Schema)?;
+    ensure!(Instant::now() < deadline, ReadinessFailure::Deadline);
+    Ok(value)
+}
+
+fn local_status(
+    agent: &ureq::Agent,
+    endpoint: &str,
+    deadline: Instant,
+    body: &str,
+) -> Result<Value> {
+    let request_deadline = deadline.min(Instant::now() + Duration::from_secs(2));
+    let timeout = request_deadline
+        .checked_duration_since(Instant::now())
+        .ok_or(ReadinessFailure::Deadline)?;
+    ensure!(!timeout.is_zero(), ReadinessFailure::Deadline);
+    let request = agent
+        .post(endpoint)
+        .timeout(timeout)
+        .set("Content-Type", "application/json");
+    let response = match body {
+        "{}" => request.send_string("{}")?,
+        // No historical selector: this invokes the same current read-lag
+        // guard used by submission, without constructing/submitting a tx.
+        r#"{"limit_per_page":1}"# => request.send_string(r#"{"limit_per_page":1}"#)?,
+        _ => return Err(ReadinessFailure::Schema.into()),
+    };
+    readiness_response(response, request_deadline)
+}
+
+fn ready_read_payloads(
+    core: &Value,
+    gateway: &Value,
+    read: Result<Value>,
+) -> Result<Option<ReadinessFailure>> {
+    ready_payloads(core, gateway)?;
+    match read {
+        Ok(read) => {
+            ready_payloads(core, &read)?;
+            Ok(None)
+        }
+        Err(error) => Ok(Some(readiness_failure(&error))),
+    }
 }
 
 fn publish_stop_intent(path: &std::path::Path, wire: &[u8]) -> Result<()> {
@@ -376,23 +442,54 @@ impl Localnet {
             localnet.identities.len() == SERVICES.len(),
             "Radix Compose service coverage differs"
         );
-        let agent = ureq::AgentBuilder::new().try_proxy_from_env(false).build();
+        let agent = ureq::AgentBuilder::new()
+            .try_proxy_from_env(false)
+            .redirects(0)
+            .build();
         let deadline = Instant::now() + Duration::from_secs(120);
+        let mut last_probe = ("startup", ReadinessFailure::Pending);
         loop {
+            ensure!(
+                Instant::now() < deadline,
+                "owned Radix Core/Gateway startup deadline; phase={}, status={:?}",
+                last_probe.0,
+                last_probe.1
+            );
             let core = local_status(
                 &agent,
                 "http://127.0.0.1:3333/core/status/network-configuration",
+                deadline,
+                "{}",
             );
-            let gateway = local_status(&agent, "http://127.0.0.1:5308/status/gateway-status");
-            if let (Ok(core), Ok(gateway)) = (core, gateway) {
-                ready_payloads(&core, &gateway)?;
-                break;
+            let gateway = local_status(
+                &agent,
+                "http://127.0.0.1:5308/status/gateway-status",
+                deadline,
+                "{}",
+            );
+            match (core, gateway) {
+                (Ok(core), Ok(gateway)) => {
+                    // Wrong network/schema remains fatal before any new read.
+                    ready_payloads(&core, &gateway)?;
+                    let read = local_status(
+                        &agent,
+                        "http://127.0.0.1:5308/stream/transactions",
+                        deadline,
+                        r#"{"limit_per_page":1}"#,
+                    );
+                    if let Some(reason) = ready_read_payloads(&core, &gateway, read)? {
+                        last_probe = ("gateway-read", reason);
+                    } else {
+                        ensure!(Instant::now() < deadline, ReadinessFailure::Deadline);
+                        break;
+                    }
+                }
+                (Err(error), _) => last_probe = ("core-status", readiness_failure(&error)),
+                (_, Err(error)) => last_probe = ("gateway-status", readiness_failure(&error)),
             }
-            ensure!(
-                Instant::now() < deadline,
-                "owned Radix Core/Gateway startup deadline"
+            thread::sleep(
+                Duration::from_millis(500).min(deadline.saturating_duration_since(Instant::now())),
             );
-            thread::sleep(Duration::from_millis(500));
         }
         Ok(Some(localnet))
     }
@@ -930,6 +1027,242 @@ printf '%s:%s' "$1" "$2"
             json!({"ledger_state":{"network":"localnet","state_version":0}}),
         ] {
             assert!(ready_payloads(&core, &value).is_err());
+        }
+    }
+
+    fn readiness_http_fixture(
+        replies: Vec<(u16, Vec<u8>, Duration)>,
+    ) -> (String, thread::JoinHandle<Vec<(String, Value)>>) {
+        use std::io::Write;
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        listener.set_nonblocking(true).unwrap();
+        let handle = thread::spawn(move || {
+            let mut requests = Vec::new();
+            for (status, body, delay) in replies {
+                let deadline = Instant::now() + Duration::from_secs(3);
+                let mut socket = loop {
+                    match listener.accept() {
+                        Ok((socket, _)) => break socket,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            assert!(Instant::now() < deadline, "owned HTTP fixture not called");
+                            thread::sleep(Duration::from_millis(1));
+                        }
+                        Err(error) => panic!("owned HTTP fixture accept: {error}"),
+                    }
+                };
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(1)))
+                    .unwrap();
+                let mut request = Vec::new();
+                let (header_end, length) = loop {
+                    assert!(request.len() <= 4096, "owned request bound");
+                    if let Some(end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
+                        let header = std::str::from_utf8(&request[..end]).unwrap();
+                        let length = header
+                            .lines()
+                            .find_map(|line| {
+                                let (name, value) = line.split_once(':')?;
+                                name.eq_ignore_ascii_case("content-length")
+                                    .then(|| value.trim().parse::<usize>().unwrap())
+                            })
+                            .unwrap();
+                        assert!(length <= 64);
+                        break (end + 4, length);
+                    }
+                    let mut byte = [0];
+                    socket.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                };
+                let mut body_request = vec![0; length];
+                socket.read_exact(&mut body_request).unwrap();
+                let first_line = std::str::from_utf8(&request[..header_end])
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_owned();
+                requests.push((first_line, serde_json::from_slice(&body_request).unwrap()));
+                thread::sleep(delay);
+                let header = format!("HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n", body.len());
+                if socket.write_all(header.as_bytes()).is_ok() {
+                    let _ = socket.write_all(&body);
+                }
+            }
+            requests
+        });
+        (endpoint, handle)
+    }
+
+    #[test]
+    fn readiness_waits_for_current_read_guard_without_submitting_or_renewing_network_checks() {
+        let core = json!({"network":"localnet","network_id":240,"network_hrp_suffix":"loc"});
+        let gateway = json!({"ledger_state":{"network":"localnet","state_version":1}});
+        let body = serde_json::to_vec(&gateway).unwrap();
+        let (endpoint, server) = readiness_http_fixture(vec![
+            (200, serde_json::to_vec(&core).unwrap(), Duration::ZERO),
+            (200, body.clone(), Duration::ZERO),
+            (
+                500,
+                br#"{"details":{"type":"NotSyncedUpError"}}"#.to_vec(),
+                Duration::ZERO,
+            ),
+            (200, body, Duration::ZERO),
+        ]);
+        let agent = ureq::AgentBuilder::new()
+            .try_proxy_from_env(false)
+            .redirects(0)
+            .build();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let actual_core = local_status(
+            &agent,
+            &format!("{endpoint}/core/status/network-configuration"),
+            deadline,
+            "{}",
+        )
+        .unwrap();
+        let actual_gateway = local_status(
+            &agent,
+            &format!("{endpoint}/status/gateway-status"),
+            deadline,
+            "{}",
+        )
+        .unwrap();
+        // The old status-only gate accepts this stale/genesis-shaped state.
+        ready_payloads(&actual_core, &actual_gateway).unwrap();
+        let pending = local_status(
+            &agent,
+            &format!("{endpoint}/stream/transactions"),
+            deadline,
+            r#"{"limit_per_page":1}"#,
+        );
+        assert_eq!(
+            ready_read_payloads(&actual_core, &actual_gateway, pending).unwrap(),
+            Some(ReadinessFailure::HttpStatus(500))
+        );
+        let current = local_status(
+            &agent,
+            &format!("{endpoint}/stream/transactions"),
+            deadline,
+            r#"{"limit_per_page":1}"#,
+        );
+        assert_eq!(
+            ready_read_payloads(&actual_core, &actual_gateway, current).unwrap(),
+            None
+        );
+        let requests = server.join().unwrap();
+        assert_eq!(requests.len(), 4);
+        assert_eq!(
+            requests[0],
+            (
+                "POST /core/status/network-configuration HTTP/1.1".into(),
+                json!({})
+            )
+        );
+        assert_eq!(
+            requests[1],
+            ("POST /status/gateway-status HTTP/1.1".into(), json!({}))
+        );
+        for request in &requests[2..] {
+            assert_eq!(
+                *request,
+                (
+                    "POST /stream/transactions HTTP/1.1".into(),
+                    json!({"limit_per_page":1})
+                )
+            );
+            assert!(request.1.get("at_ledger_state").is_none());
+        }
+        let wrong_core = json!({"network":"mainnet","network_id":1,"network_hrp_suffix":"rdx"});
+        assert!(ready_read_payloads(
+            &wrong_core,
+            &gateway,
+            Err(ureq::Error::Status(500, ureq::Response::new(500, "Test", "{}").unwrap()).into())
+        )
+        .is_err());
+        let wrong_read = json!({"ledger_state":{"network":"mainnet","state_version":1}});
+        assert!(ready_read_payloads(&core, &gateway, Ok(wrong_read)).is_err());
+        assert!(ready_read_payloads(&core, &gateway, Ok(json!({}))).is_err());
+    }
+
+    #[test]
+    fn readiness_read_probe_has_expired_and_delayed_absolute_fences() {
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let endpoint = format!(
+            "http://{}/stream/transactions",
+            listener.local_addr().unwrap()
+        );
+        let agent = ureq::AgentBuilder::new()
+            .try_proxy_from_env(false)
+            .redirects(0)
+            .build();
+        let expired = Instant::now() - Duration::from_millis(1);
+        for result in [
+            local_status(&agent, &endpoint, expired, "{}"),
+            local_status(&agent, &endpoint, expired, r#"{"limit_per_page":1}"#),
+        ] {
+            assert_eq!(
+                readiness_failure(&result.unwrap_err()),
+                ReadinessFailure::Deadline
+            );
+        }
+        let unapproved_body = local_status(
+            &agent,
+            &endpoint,
+            Instant::now() + Duration::from_secs(1),
+            r#"{"at_ledger_state":{"state_version":1}}"#,
+        );
+        assert_eq!(
+            readiness_failure(&unapproved_body.unwrap_err()),
+            ReadinessFailure::Schema
+        );
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        let (endpoint, server) =
+            readiness_http_fixture(vec![(200, b"{}".to_vec(), Duration::from_secs(1))]);
+        let started = Instant::now();
+        assert!(local_status(
+            &agent,
+            &endpoint,
+            started + Duration::from_millis(250),
+            r#"{"limit_per_page":1}"#
+        )
+        .is_err());
+        assert!(started.elapsed() < Duration::from_millis(750));
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn readiness_response_byte_schema_and_http_status_bounds_remain_hard() {
+        let agent = ureq::AgentBuilder::new()
+            .try_proxy_from_env(false)
+            .redirects(0)
+            .build();
+        for (status, body, expected) in [
+            (
+                200,
+                vec![b'x'; 2 * 1024 * 1024 + 1],
+                ReadinessFailure::BodyBound,
+            ),
+            (200, b"not-json PRIVATE".to_vec(), ReadinessFailure::Schema),
+            (201, b"{}".to_vec(), ReadinessFailure::HttpStatus(201)),
+        ] {
+            let (endpoint, server) = readiness_http_fixture(vec![(status, body, Duration::ZERO)]);
+            let error = local_status(
+                &agent,
+                &endpoint,
+                Instant::now() + Duration::from_secs(2),
+                r#"{"limit_per_page":1}"#,
+            )
+            .unwrap_err();
+            assert_eq!(readiness_failure(&error), expected);
+            assert!(!format!("{:?}", readiness_failure(&error)).contains("PRIVATE"));
+            server.join().unwrap();
         }
     }
 
