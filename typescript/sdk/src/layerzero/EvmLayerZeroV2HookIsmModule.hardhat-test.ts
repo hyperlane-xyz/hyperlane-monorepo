@@ -1,4 +1,5 @@
 import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { constants } from 'ethers';
 import hre from 'hardhat';
 
@@ -55,11 +56,13 @@ import {
   LayerZeroV2SendConfig,
 } from './types.js';
 
+chai.use(chaiAsPromised);
 const { expect } = chai;
 
 const URL = 'https://example.com/layerzero/{data}';
 
 interface RouteOptions {
+  layerZeroDomainId?: number;
   sendLibrary?: Address;
   receiveLibrary?: Address;
   sendConfig?: LayerZeroV2SendConfig;
@@ -169,7 +172,8 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
   ): LayerZeroV2RemoteRouterConfig {
     return {
       router: constants.AddressZero,
-      layerZeroDomainId: endpointIds[remoteOf(chain)],
+      layerZeroDomainId:
+        options.layerZeroDomainId ?? endpointIds[remoteOf(chain)],
       sendLibrary: options.sendLibrary ?? sendLibraries[chain],
       receiveLibrary: options.receiveLibrary ?? receiveLibraries[chain],
       sendConfig: options.sendConfig ?? defaultSendConfig(),
@@ -407,6 +411,24 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
     expect(await replacedRouter.routers(11_002)).to.equal(
       addressToBytes32(addresses[chainB]),
     );
+  });
+
+  it('rejects a pathway whose endpoint ID differs from the remote Endpoint before deploying', async () => {
+    const nonceBefore =
+      await hre.ethers.provider.getTransactionCount(signerAddress);
+
+    await expect(
+      EvmLayerZeroV2HookIsmModule.deployMesh(
+        multiProvider,
+        mesh({ [chainA]: { layerZeroDomainId: 30_999 } }),
+      ),
+    ).to.be.rejectedWith(
+      `${chainA} expects LayerZero domain ID 30999 for ${chainB}; the ${chainB} Endpoint reports 30102`,
+    );
+
+    expect(
+      await hre.ethers.provider.getTransactionCount(signerAddress),
+    ).to.equal(nonceBefore);
   });
 
   it('unenrolls a remote router whose domain is outside the registry', async () => {

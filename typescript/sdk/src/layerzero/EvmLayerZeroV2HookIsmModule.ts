@@ -257,35 +257,51 @@ export class EvmLayerZeroV2HookIsmModule {
       `Asymmetric LayerZero mesh:\n  ${asymmetries.join('\n  ')}`,
     );
 
-    await Promise.all(
-      chains.map(async (chain) => {
-        assert(
-          EvmLayerZeroV2HookIsmModule.protocols.includes(
-            multiProvider.getProtocol(chain),
-          ),
-          `LayerZero V2 hook/ISM only supports Ethereum and Tron chains; ${chain} is neither`,
-        );
-        const endpoint = new Contract(
-          mesh[chain].endpoint,
-          ENDPOINT_ABI,
-          multiProvider.getProvider(chain),
-        );
-        const [layerZeroDomainId, nativeToken] = await Promise.all([
-          endpoint.eid(),
-          endpoint.nativeToken(),
-        ]);
-        if (mesh[chain].layerZeroDomainId !== undefined) {
+    const endpointIds: ChainMap<number> = Object.fromEntries(
+      await Promise.all(
+        chains.map(async (chain) => {
           assert(
-            Number(layerZeroDomainId) === mesh[chain].layerZeroDomainId,
-            `${chain} Endpoint reports LayerZero domain ID ${layerZeroDomainId}; config expects ${mesh[chain].layerZeroDomainId}`,
+            EvmLayerZeroV2HookIsmModule.protocols.includes(
+              multiProvider.getProtocol(chain),
+            ),
+            `LayerZero V2 hook/ISM only supports Ethereum and Tron chains; ${chain} is neither`,
           );
-        }
-        assert(
-          eqAddress(nativeToken, constants.AddressZero),
-          `${chain} Endpoint uses unsupported native token ${nativeToken}`,
-        );
-      }),
+          const endpoint = new Contract(
+            mesh[chain].endpoint,
+            ENDPOINT_ABI,
+            multiProvider.getProvider(chain),
+          );
+          const [layerZeroDomainId, nativeToken] = await Promise.all([
+            endpoint.eid(),
+            endpoint.nativeToken(),
+          ]);
+          if (mesh[chain].layerZeroDomainId !== undefined) {
+            assert(
+              Number(layerZeroDomainId) === mesh[chain].layerZeroDomainId,
+              `${chain} Endpoint reports LayerZero domain ID ${layerZeroDomainId}; config expects ${mesh[chain].layerZeroDomainId}`,
+            );
+          }
+          assert(
+            eqAddress(nativeToken, constants.AddressZero),
+            `${chain} Endpoint uses unsupported native token ${nativeToken}`,
+          );
+          return [chain, Number(layerZeroDomainId)];
+        }),
+      ),
     );
+    for (const chain of chains) {
+      for (const [remote, route] of Object.entries(mesh[chain].remoteRouters)) {
+        const remoteEndpointId = endpointIds[remote];
+        assert(
+          remoteEndpointId !== undefined,
+          `${chain} enrolls ${remote}, which is not in the LayerZero mesh`,
+        );
+        assert(
+          route.layerZeroDomainId === remoteEndpointId,
+          `${chain} expects LayerZero domain ID ${route.layerZeroDomainId} for ${remote}; the ${remote} Endpoint reports ${remoteEndpointId}`,
+        );
+      }
+    }
 
     const addresses: ChainMap<Address> = {};
     const fresh = new Set<ChainName>();
