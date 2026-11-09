@@ -5,7 +5,6 @@ import {
   IsmCacheConfig,
   IsmCachePolicy,
   IsmCacheSelectorType,
-  MatchingList,
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -111,6 +110,12 @@ const contextBase = {
   },
 } as const;
 
+// Diagnostics share the mainnet database; origin/destination domains identify chains.
+const messageActivityDatabaseUrlSecret =
+  'hyperlane-testnet4-relayer-postgres-writer-url';
+const diagnosticsDatabaseSecret =
+  'hyperlane-testnet4-relayer-postgres-reader-url';
+
 const scraperWebsocketUrl =
   'ws://scraper-proxy.testnet4.svc.cluster.local:8383/agents';
 
@@ -188,55 +193,10 @@ const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
   ],
 };
 
-const retiredLoadTestBlacklist: MatchingList = [
-  {
-    recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
-  },
-  {
-    destinationDomain: getDomainId('basesepolia'),
-    recipientAddress: '0x4Cd2d5deD9D1ef5013fddCDceBeaCB32DFb5ad47',
-  },
-  {
-    destinationDomain: getDomainId('bsctestnet'),
-    recipientAddress: '0x975B8Cf9501cBaD717812fcdE3b51a390AD77540',
-  },
-  {
-    destinationDomain: getDomainId('optimismsepolia'),
-    recipientAddress: '0x554B0724432Ef42CB4a2C12E756F6F022e37aD8F',
-  },
-  {
-    destinationDomain: getDomainId('arbitrumsepolia'),
-    recipientAddress: '0xdED2d823A5e4E82AfbBB68A3e9D947eE03EFbA9d',
-  },
-  {
-    destinationDomain: getDomainId('sepolia'),
-    recipientAddress: '0x51BB50884Ec21063DEC3DCA0B2d4aCeF2559E65a',
-  },
-];
-
-const relayBlacklist: BaseRelayerConfig['blacklist'] = [
-  ...retiredLoadTestBlacklist,
-  {
-    // In an effort to reduce some giant retry queues that resulted
-    // from spam txs to the old TestRecipient before we were charging for
-    // gas, we blacklist the old TestRecipient address.
-    recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
-  },
-  // Ignore load testing done by Mitosis from sepolia when they used a different Mailbox on
-  // arbitrumsepolia and optimismsepolia.
-  {
-    originDomain: getDomainId('sepolia'),
-    senderAddress: '0xb6f4a8dccac0beab1062212f4665879d9937c83c',
-    destinationDomain: getDomainId('arbitrumsepolia'),
-    recipientAddress: '0x3da95d8d0b98d7428dc2f864511e2650e34f7087',
-  },
-  {
-    originDomain: getDomainId('sepolia'),
-    senderAddress: '0xb6f4a8dccac0beab1062212f4665879d9937c83c',
-    destinationDomain: getDomainId('optimismsepolia'),
-    recipientAddress: '0xa49942c908ec50db14652914317518661ec04904',
-  },
-];
+const runtimeDenylist = {
+  url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/testnet-denylist.json',
+  pollIntervalSecs: 60,
+};
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -244,6 +204,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
@@ -252,7 +213,7 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayer,
     },
-    blacklist: relayBlacklist,
+    runtimeDenylist,
     gasPaymentEnforcement,
     ismCacheConfigs,
     processAltOverrides,
@@ -279,6 +240,7 @@ const hyperlane: RootAgentConfig = {
     resources: validatorResources,
   },
   scraper: {
+    websocketConfigSecret: 'hyperlane-testnet4-scraper3-websocket-config',
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     docker: {
@@ -288,6 +250,7 @@ const hyperlane: RootAgentConfig = {
     resources: scraperResources,
   },
   scraperProxy: {
+    diagnosticsDatabaseSecret,
     docker: {
       repo: DockerImageRepos.NODE_SERVICES,
       tag: testnetDockerTags.scraperProxy,
@@ -309,6 +272,7 @@ const releaseCandidate: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },
@@ -318,7 +282,7 @@ const releaseCandidate: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayerRC,
     },
-    blacklist: relayBlacklist,
+    runtimeDenylist,
     gasPaymentEnforcement,
     ismCacheConfigs,
     processAltOverrides,
@@ -356,6 +320,7 @@ const fastPath: RootAgentConfig = {
   },
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     // Use RPC indexing until the scraper proxy supports fastpath streaming.
@@ -365,7 +330,7 @@ const fastPath: RootAgentConfig = {
     },
     gasPaymentEnforcement,
     reorgPeriodOverrides: fastPathReorgPeriodOverrides,
-    blacklist: relayBlacklist,
+    runtimeDenylist,
     ismCacheConfigs,
     cache: {
       enabled: true,

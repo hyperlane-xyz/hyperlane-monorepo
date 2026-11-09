@@ -33,6 +33,8 @@ import {
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
 
+const DEPLOY_SUFFIX_REGEX = /-deploy$/;
+
 export async function runPreflightChecksForChains({
   context,
   chains,
@@ -304,6 +306,6 @@ export function warpRouteIdFromFileName(
 ): string {
   // Remove the -deploy suffix from the file name in case the input file has it to avoid
   // having file names like this one: *-deploy-config.yaml
-  const fileName = path.parse(filePath).name.replace(/-deploy$/, '');
+  const fileName = path.parse(filePath).name.replace(DEPLOY_SUFFIX_REGEX, '');
   return createWarpRouteConfigId(symbol, fileName);
 }

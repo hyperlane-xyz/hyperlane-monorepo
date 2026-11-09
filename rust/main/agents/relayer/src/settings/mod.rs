@@ -43,6 +43,8 @@ pub struct RelayerSettings {
     #[deref_mut]
     pub base: Settings,
 
+    /// Optional separate PostgreSQL database for sanitized message activity.
+    pub message_activity_database_url: Option<Secret<String>>,
     /// Database path
     pub db: PathBuf,
     /// The chain to relay messages from
@@ -454,6 +456,20 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let message_activity_database_url = p
+            .chain(&mut err)
+            .get_opt_key("messageActivityDatabaseUrl")
+            .parse_string()
+            .end()
+            .map(|value| Secret::new(value.to_owned()));
+        if let Some(value) = &message_activity_database_url {
+            if !url::Url::parse(value.expose_secret()).is_ok_and(|url| {
+                matches!(url.scheme(), "postgres" | "postgresql") && url.host_str().is_some()
+            }) {
+                err.push(cwp.clone(), eyre!("messageActivityDatabaseUrl must be a postgres:// or postgresql:// URL with a host"));
+            }
+        }
+
         let websocket_url: Option<url::Url> = p
             .chain(&mut err)
             .get_opt_key("websocketUrl")
@@ -538,6 +554,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .unwrap_or_else(|| vec!["https://nexus.hyperlane.xyz".to_string()]);
 
         err.into_result(RelayerSettings {
+            message_activity_database_url,
             base,
             db,
             origin_chains: relay_chains.clone(),
@@ -766,6 +783,39 @@ mod test {
             }],
         }))
         .expect("zero feeToken should parse");
+    }
+
+    #[test]
+    fn message_activity_database_config_is_optional_and_redacted() {
+        let base =
+            json!({"relaychains": "legacy", "chains": {"legacy": chain_config("legacy", 1000)}});
+        assert!(parse_settings(base.clone())
+            .expect("valid config")
+            .message_activity_database_url
+            .is_none());
+        let mut configured = base;
+        let url =
+            "postgresql://activity-user:secret-password@localhost/diagnostics?sslmode=verify-full";
+        configured["messageactivitydatabaseurl"] = json!(url);
+
+        let settings = parse_settings(configured.clone()).expect("Postgres URL");
+        assert!(!format!("{settings:?}").contains("secret-password"));
+        assert_eq!(
+            settings
+                .message_activity_database_url
+                .expect("enabled")
+                .expose_secret(),
+            url
+        );
+        for invalid in [
+            "https://activity-user:secret-password@localhost/diagnostics",
+            "postgresql:///diagnostics",
+            "secret-password",
+        ] {
+            configured["messageactivitydatabaseurl"] = json!(invalid);
+            let error = parse_settings(configured.clone()).expect_err("invalid URL");
+            assert!(!format!("{error:?} {error}").contains("secret-password"));
+        }
     }
 
     #[test]

@@ -185,6 +185,36 @@ async fn enrichment_returning_errors_and_empty_inputs_preserve_boundaries() -> e
 }
 
 #[tokio::test]
+async fn transaction_enrichment_returns_all_rows_across_chunks() -> eyre::Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let store = store(ScraperDb::with_connection(connection)).await?;
+    let block = store
+        .ensure_blocks(std::iter::once(BlockId::new(H256::from_low_u64_be(1), 1)))
+        .await?
+        .next()
+        .expect("stored block");
+    let count = u64::try_from(CHUNK_SIZE + 1)?;
+    let requested = (1..=count).map(|id| (H512::from_low_u64_be(id), block.id));
+    let found: HashMap<_, _> = store.ensure_txns(requested).await?.collect();
+    assert_eq!(found.len(), CHUNK_SIZE + 1);
+    for id in 1..=count {
+        assert!(found[&H512::from_low_u64_be(id)] > 0);
+    }
+    let replay = (1..=count).map(|id| (H512::from_low_u64_be(id), block.id));
+    assert_eq!(
+        store.ensure_txns(replay).await?.collect::<HashMap<_, _>>(),
+        found
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn enrichment_returning_observes_concurrent_conflict_winner_in_postgres() -> eyre::Result<()>
 {
     let postgres = Postgres::default().start().await?;

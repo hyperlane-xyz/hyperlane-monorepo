@@ -20,6 +20,7 @@ export class HyperlaneEtherscanProvider
   implements IProviderMethods
 {
   protected readonly logger = rootLogger.child({ module: 'EtherscanProvider' });
+  private hostnameCache?: { url: string; hostname: string };
   // Seeing problems with these two methods even though etherscan api claims to support them
   public readonly supportedMethods = excludeProviderMethods([
     ProviderMethod.Call,
@@ -65,7 +66,11 @@ export class HyperlaneEtherscanProvider
   }
 
   getHostname(): string {
-    return new URL(this.getBaseUrl()).hostname;
+    const url = this.getBaseUrl();
+    if (this.hostnameCache?.url !== url) {
+      this.hostnameCache = { url, hostname: new URL(url).hostname };
+    }
+    return this.hostnameCache.hostname;
   }
 
   getQueryWaitTime(): number {

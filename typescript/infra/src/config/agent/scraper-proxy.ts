@@ -5,6 +5,8 @@ type ScraperProxyTunnelConfig =
   | { enabled: true; image: string };
 
 export interface ScraperProxyConfig {
+  /** GCP Secret Manager secret containing the optional diagnostics database URL. */
+  diagnosticsDatabaseSecret?: string;
   docker: DockerConfig;
   enabled: boolean;
   maxAgentClients?: number;

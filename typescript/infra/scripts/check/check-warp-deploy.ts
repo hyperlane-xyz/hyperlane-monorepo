@@ -43,6 +43,8 @@ import { isContractVerificationViolation } from './contract-verification-skip.js
 import { resolveAcceptedInactiveOwners } from './governance-ica-owners.js';
 import { isSkippedOwnerStatusViolation } from './owner-status-skip.js';
 
+const ROUTE_SEGMENT_SEPARATOR_REGEX = /[-/]/;
+
 const ROUTES_TO_SKIP: string[] = [
   'EDGEN/bsc-edgenchain-ethereum',
   'INJ/inevm-injective',
@@ -105,7 +107,10 @@ function isStagingOrTestRoute(warpRouteId: string): boolean {
   if (STAGING_SYMBOL_SUFFIXES.some((suffix) => lowerSymbol.endsWith(suffix))) {
     return true;
   }
-  const segments = rest.join('/').toLowerCase().split(/[-/]/);
+  const segments = rest
+    .join('/')
+    .toLowerCase()
+    .split(ROUTE_SEGMENT_SEPARATOR_REGEX);
   return segments.some((segment) => STAGING_ROUTE_MARKERS.includes(segment));
 }
 

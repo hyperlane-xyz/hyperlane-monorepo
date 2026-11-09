@@ -1,5 +1,7 @@
 import chalk from 'chalk';
 
+const INDENTATION_REGEX = /^(\s*)/;
+
 export enum ViolationDiffType {
   None,
   Expected,
@@ -27,7 +29,7 @@ export function formatYamlViolationsOutput(
   let lastDiffIndent = 0;
   const highlightedLines = lines.map((line) => {
     // Get how many white space/tabs we have before the property name
-    const match = line.match(/^(\s*)/);
+    const match = line.match(INDENTATION_REGEX);
     const currentIndent = match ? match[0].length : 0;
 
     let formattedLine = line;

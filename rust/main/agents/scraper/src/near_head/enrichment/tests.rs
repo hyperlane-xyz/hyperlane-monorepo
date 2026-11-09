@@ -130,10 +130,15 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     let worker_store = store.clone();
     let worker_metric = oldest_pending_seconds.clone();
     // A full successful page must not wait for this deliberately long poll interval.
-    let worker =
-        tokio::spawn(
-            async move { run(&worker_store, Duration::from_secs(60), &worker_metric).await },
-        );
+    let worker = tokio::spawn(async move {
+        run(
+            &worker_store,
+            Duration::from_secs(60),
+            &worker_metric,
+            &ReceiptWakeups::default(),
+        )
+        .await
+    });
     let drained = timeout(Duration::from_secs(5), async {
         loop {
             let row = db
@@ -172,26 +177,28 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     // asking for immediate catch-up. Retrying poison rows therefore waits.
     let mut after = 0;
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
-    assert!(
-        !enrich_page(
+    assert_eq!(
+        enrich_page(
             &store,
             ReceiptStream::Delivery,
             &mut after,
             Duration::from_millis(50),
             &domain_rpc_permits,
         )
-        .await
+        .await,
+        PageOutcome::Retry
     );
     assert!(after > 0);
-    assert!(
-        !enrich_page(
+    assert_eq!(
+        enrich_page(
             &store,
             ReceiptStream::Delivery,
             &mut after,
             Duration::from_millis(50),
             &domain_rpc_permits,
         )
-        .await
+        .await,
+        PageOutcome::Idle
     );
     assert_eq!(after, 0);
     assert_eq!(calls.load(Ordering::Relaxed), 2);
@@ -204,15 +211,16 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
                decode(lpad(to_hex(206),64,'0'),'hex') FROM block"#,
     )
     .await?;
-    assert!(
-        !enrich_page(
+    assert_eq!(
+        enrich_page(
             &store,
             ReceiptStream::Delivery,
             &mut after,
             Duration::from_millis(200),
             &domain_rpc_permits,
         )
-        .await
+        .await,
+        PageOutcome::Retry
     );
     let linked = db
         .query_one(Statement::from_string(
@@ -224,4 +232,24 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     assert_eq!(linked.try_get::<i64>("", "linked")?, 1);
     assert_eq!(calls.load(Ordering::Relaxed), 4);
     Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn receipt_wakeups_interrupt_idle_waits_but_preserve_failure_cooldowns() {
+    let wakeup = Notify::new();
+    let interval = Duration::from_secs(5);
+    let start = tokio::time::Instant::now();
+    wakeup.notify_one();
+    PageOutcome::Idle.wait(interval, &wakeup).await;
+    assert_eq!(tokio::time::Instant::now(), start);
+
+    PageOutcome::Idle.wait(interval, &wakeup).await;
+    assert_eq!(tokio::time::Instant::now(), start + interval);
+    wakeup.notify_one();
+    PageOutcome::Retry.wait(interval, &wakeup).await;
+    assert_eq!(tokio::time::Instant::now(), start + interval + interval);
+    PageOutcome::Idle.wait(interval, &wakeup).await;
+    assert_eq!(tokio::time::Instant::now(), start + interval + interval);
+    PageOutcome::More.wait(interval, &wakeup).await;
+    assert_eq!(tokio::time::Instant::now(), start + interval + interval);
 }

@@ -1,16 +1,27 @@
 //! One state writer per chain. RPC work remains asynchronous, but observation,
 //! publication and ingestion never contend for the same `scraper_head` row.
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
+use futures::FutureExt;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
-use tokio::time::{sleep, Instant};
+use tokio::{
+    sync::{mpsc, watch, Mutex, Notify},
+    time::{interval, sleep, sleep_until, Instant, MissedTickBehavior},
+};
 use tracing::{debug, warn};
 
 use super::{
     pipeline::{confirm_leased_through, confirmation_lease, ingest_cached, observe, CountCache},
-    source::Source,
-    store::Store,
+    source::{Header, Source},
+    store::{State, Store},
 };
 
 pub(super) struct Worker {
@@ -20,6 +31,12 @@ pub(super) struct Worker {
     pub period: ReorgPeriod,
     pub chunk_size: u64,
     pub poll_interval: Duration,
+    pub wakeup: Notify,
+    pub dispatch_wakeup: Arc<Notify>,
+    pub receipt_wakeups: super::enrichment::ReceiptWakeups,
+    pub wanted: AtomicU64,
+    pub heads: Mutex<mpsc::Receiver<Header>>,
+    pub polled_head: watch::Sender<u64>,
     pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
@@ -54,12 +71,49 @@ impl FailureStreak {
     }
 }
 
+enum Wakeup {
+    Index,
+    Head,
+}
+
 /// A completed cycle: whether to run again at once, and whether ingestion failed
 /// while existing work still published.
 #[derive(Debug)]
 pub(super) struct CycleOutcome {
     pub more: bool,
     pub ingestion_failed: bool,
+}
+
+const MIN_WAKE_INTERVAL: Duration = Duration::from_secs(1);
+const MIN_HEAD_INTERVAL: Duration = Duration::from_millis(200);
+const RECENT_HEADERS: usize = 256;
+// At 250ms/block this allows 16s of HTTP/WS skew without trusting an unbounded lead.
+const MAX_HEADER_LEAD: u64 = 64;
+
+fn remember_header(recent: &mut VecDeque<Header>, header: Header) {
+    if recent.back() == Some(&header) {
+        return;
+    }
+    if recent.back().is_some_and(|tip| {
+        tip.height.checked_add(1) != Some(header.height) || header.parent != tip.hash
+    }) {
+        recent.clear();
+    }
+    recent.push_back(header);
+    if recent.len() > RECENT_HEADERS {
+        recent.pop_front();
+    }
+}
+
+fn linked_tip<'a>(recent: &'a VecDeque<Header>, state: &State) -> Option<&'a Header> {
+    let anchored = recent.iter().any(|header| {
+        (header.height == state.indexed && header.hash == state.hash)
+            || (state.indexed.checked_add(1) == Some(header.height) && header.parent == state.hash)
+    });
+    if !anchored {
+        return None;
+    }
+    recent.back().filter(|tip| tip.height > state.indexed)
 }
 
 impl Worker {
@@ -78,8 +132,30 @@ impl Worker {
     async fn run_cycles(&self) {
         let mut count_cache = CountCache::default();
         let mut failures = FailureStreak::default();
+        let mut polling = interval(self.poll_interval);
+        polling.reset(); // The first cycle runs immediately.
+        polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        let mut heads = self.heads.lock().await;
+        let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
+        let mut wakeup = Wakeup::Index;
+        let mut next_index = Instant::now();
+        let mut next_head = Instant::now();
         loop {
-            let result = self.cycle(&mut count_cache).await;
+            let result = match wakeup {
+                Wakeup::Index => {
+                    next_index = Instant::now()
+                        .checked_add(MIN_WAKE_INTERVAL)
+                        .expect("Wake deadline");
+                    self.cycle(&mut count_cache).await
+                }
+                Wakeup::Head => {
+                    let result = self.header_cycle(&recent, &count_cache).await;
+                    next_head = Instant::now()
+                        .checked_add(MIN_HEAD_INTERVAL)
+                        .expect("Head deadline");
+                    result
+                }
+            };
             let failed = result
                 .as_ref()
                 .map_or(true, |outcome| outcome.ingestion_failed);
@@ -88,14 +164,36 @@ impl Worker {
                 .set_critical_error(self.domain.name(), critical);
             match result {
                 Ok(CycleOutcome { more: true, .. }) => continue,
-                Ok(CycleOutcome { more: false, .. }) => {}
+                Ok(_) => {}
                 Err(error) => warn!(
                     domain = self.store.domain,
                     ?error,
                     "Near-head indexing paused; retrying"
                 ),
             }
-            sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
+            if failed {
+                // Neither subscription may bypass RPC-error backoff.
+                sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
+                wakeup = Wakeup::Index;
+                continue;
+            }
+            wakeup = tokio::select! {
+                biased;
+                _ = polling.tick() => Wakeup::Index,
+                _ = async {
+                    sleep_until(next_index).await;
+                    if self.wanted.load(Ordering::Relaxed) == 0 {
+                        self.wakeup.notified().await;
+                    } else {
+                        let _ = self.wakeup.notified().now_or_never();
+                    }
+                } => Wakeup::Index,
+                Some(header) = async { sleep_until(next_head).await; heads.recv().await } => {
+                    remember_header(&mut recent, header);
+                    while let Ok(header) = heads.try_recv() { remember_header(&mut recent, header); }
+                    Wakeup::Head
+                }
+            };
         }
     }
 
@@ -111,6 +209,8 @@ impl Worker {
                 return Err(error);
             }
         };
+        // Reuse this observation to detect stalled WebSocket delivery; no probe RPC.
+        self.polled_head.send_replace(observed.head);
         // Ingest before publication so newly indexed events do not wait for the
         // next poll. Keep the result so existing work can still publish when
         // the log query fails.
@@ -272,41 +372,13 @@ impl Worker {
             publishable,
         )
         .await?;
-        for (label, count) in [
-            "raw_message_dispatch",
-            "message_delivery",
-            "gas_payment",
-            "merkle_tree_insertion",
-        ]
-        .into_iter()
-        .zip(confirmation.counts)
-        {
-            self.sync_metrics
-                .stored_events
-                .with_label_values(&[label, self.domain.name()])
-                .inc_by(count);
-        }
-
         let state = self
             .store
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-        self.sync_metrics
-            .indexed_height
-            .with_label_values(&["near_head", self.domain.name()])
-            .set(i64::try_from(state.indexed)?);
-        for label in [
-            "message_dispatch",
-            "message_delivery",
-            "gas_payment",
-            "merkle_tree_insertion",
-        ] {
-            self.sync_metrics
-                .indexed_height
-                .with_label_values(&[label, self.domain.name()])
-                .set(i64::try_from(state.confirmed)?);
-        }
+
+        self.record_progress(&state, confirmation.counts)?;
 
         // Keep draining confirmed pages while logs fail; the failure was logged
         // above and stays visible through the critical-error metric.
@@ -347,6 +419,116 @@ impl Worker {
             more: more_ingestion,
             ingestion_failed: false,
         })
+    }
+    /// Recent headers must descend from the current indexed hash, including after polls/rewinds.
+    async fn header_cycle(
+        &self,
+        recent: &VecDeque<Header>,
+        cache: &CountCache,
+    ) -> eyre::Result<CycleOutcome> {
+        let idle = CycleOutcome {
+            more: false,
+            ingestion_failed: false,
+        };
+        let mut state = self
+            .store
+            .state()
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        let Some(header) = linked_tip(recent, &state) else {
+            return Ok(idle);
+        };
+        if state.halted || header.height > self.polled_head.borrow().saturating_add(MAX_HEADER_LEAD)
+        {
+            return Ok(idle);
+        }
+        let lease = confirmation_lease(self.poll_interval);
+        self.store
+            .advance_head(&state, header.height, lease)
+            .await?;
+        state.head = state.head.max(header.height);
+        let through = match &self.period {
+            ReorgPeriod::Blocks(depth) => header.height.saturating_sub(u64::from(depth.get())),
+            ReorgPeriod::Tag(tag) if tag == "latest" => header.height,
+            // Latest headers cannot prove safe/finalized tags.
+            _ => return Ok(idle),
+        }
+        .min(state.indexed)
+        .min(cache.proven_through.unwrap_or(state.confirmed));
+        if through <= state.confirmed {
+            return Ok(idle);
+        }
+        let bounded = self
+            .store
+            .confirmation_boundary(state.confirmed, through)
+            .await?;
+        // Ingestion retained every event block and the indexed boundary.
+        // Empty gaps need no new header to publish all eligible events.
+        let Some(boundary) = self
+            .store
+            .confirmation_checkpoint(state.confirmed, bounded)
+            .await?
+        else {
+            return Ok(idle);
+        };
+        let counts = self.store.confirm(&state, &boundary, lease).await?;
+        state.confirmed = boundary.height;
+        self.record_progress(&state, counts)?;
+        Ok(CycleOutcome {
+            more: bounded < through,
+            ingestion_failed: false,
+        })
+    }
+
+    fn record_progress(&self, state: &State, counts: [u64; 4]) -> eyre::Result<()> {
+        // Both HTTP and head-driven confirmations have committed before this call.
+        for (count, wakeup) in [
+            (counts[0], self.dispatch_wakeup.as_ref()),
+            (counts[1], &self.receipt_wakeups.delivery),
+            (counts[2], &self.receipt_wakeups.gas_payment),
+        ] {
+            if count > 0 {
+                wakeup.notify_one();
+            }
+        }
+        for (label, count) in [
+            "raw_message_dispatch",
+            "message_delivery",
+            "gas_payment",
+            "merkle_tree_insertion",
+        ]
+        .into_iter()
+        .zip(counts)
+        {
+            self.sync_metrics
+                .stored_events
+                .with_label_values(&[label, self.domain.name()])
+                .inc_by(count);
+        }
+
+        // Clear only hints whose blocks are durably indexed; preserve newer logs.
+        let _ = self
+            .wanted
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |wanted| {
+                (wanted <= state.indexed).then_some(0)
+            });
+        self.sync_metrics
+            .indexed_height
+            .with_label_values(&["near_head", self.domain.name()])
+            .set(i64::try_from(state.indexed)?);
+        for label in [
+            "message_dispatch",
+            "message_delivery",
+            "gas_payment",
+            "merkle_tree_insertion",
+        ] {
+            self.sync_metrics
+                .indexed_height
+                .with_label_values(&[label, self.domain.name()])
+                .set(i64::try_from(state.confirmed)?);
+        }
+
+        Ok(())
     }
 }
 

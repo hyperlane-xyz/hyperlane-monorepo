@@ -225,8 +225,9 @@ export async function raceWithContext<T>(
 }
 
 /**
- * Map an async function over a list xs with a given concurrency level
- * Forked from https://github.com/celo-org/developer-tooling/blob/0c61e7e02c741fe10ecd1d733a33692d324cdc82/packages/sdk/base/src/async.ts#L128
+ * Map an async function over a list xs with a given concurrency level.
+ * Starts the next item as soon as a slot is available and preserves input order.
+ * On failure, stops starting new items and waits for active calls before rejecting.
  *
  * @param concurrency number of `mapFn` concurrent executions
  * @param xs list of value
@@ -237,17 +238,29 @@ export async function concurrentMap<A, B>(
   xs: A[],
   mapFn: (val: A, idx: number) => Promise<B>,
 ): Promise<B[]> {
-  let res: B[] = [];
   assert(concurrency > 0, 'concurrency must be greater than 0');
-  for (let i = 0; i < xs.length; i += concurrency) {
-    const remaining = xs.length - i;
-    const sliceSize = Math.min(remaining, concurrency);
-    const slice = xs.slice(i, i + sliceSize);
-    res = res.concat(
-      await Promise.all(slice.map((elem, index) => mapFn(elem, i + index))),
-    );
-  }
-  return res;
+  const results: B[] = [];
+  let nextIndex = 0;
+  let failed = false;
+  let firstError: unknown;
+
+  const worker = async () => {
+    while (!failed && nextIndex < xs.length) {
+      const index = nextIndex++;
+      try {
+        results[index] = await mapFn(xs[index], index);
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(Math.ceil(concurrency), xs.length) }, worker),
+  );
+  if (failed) throw firstError;
+  return results;
 }
 
 /**

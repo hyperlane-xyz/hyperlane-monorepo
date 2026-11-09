@@ -5,6 +5,7 @@ export function parseCustomRpcHeaders(url: string): {
   headers: Record<string, string>;
   redactedHeaders: Record<string, string>;
 } {
+  if (!url.includes('?')) return { url, headers: {}, redactedHeaders: {} };
   let parsed: URL;
   try {
     parsed = new URL(url);

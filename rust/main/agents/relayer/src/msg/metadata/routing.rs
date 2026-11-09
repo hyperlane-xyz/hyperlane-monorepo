@@ -45,7 +45,17 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
 
         let module = self.route(ism.as_ref(), message, cache_policy).await?;
 
-        self.base.build(module, message, params).await
+        self.report_activity(
+            message,
+            crate::message_activity::Activity::Routing {
+                ism: ism_address,
+                module,
+            },
+        );
+        self.base
+            .child(0, module)
+            .build(module, message, params)
+            .await
     }
 }
 
@@ -196,6 +206,7 @@ mod tests {
         ))));
 
         RoutingIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
             base: Arc::new(base),
             app_context: None,
             root_ism: H256::from_low_u64_be(1),

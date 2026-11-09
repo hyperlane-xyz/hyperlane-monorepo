@@ -3,6 +3,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 
 import { config } from './config.js';
+import { openDiagnostics } from './diagnostics/service.js';
 import { DbService } from './db/db.service.js';
 import { EventWebSocketServer } from './live/event-websocket.js';
 import {
@@ -15,14 +16,24 @@ const logger = rootLogger.child({ module: 'Shutdown' });
 
 async function bootstrap(): Promise<void> {
   const db = new DbService();
-  const app = await createScraperProxyApp(db);
-  const eventWebSocketServer = new EventWebSocketServer(db);
+  const diagnostics = config.DIAGNOSTICS_DATABASE_URL
+    ? openDiagnostics(config.DIAGNOSTICS_DATABASE_URL)
+    : undefined;
+  const app = await createScraperProxyApp(db, {
+    diagnostics: diagnostics?.service,
+  });
+  const eventWebSocketServer = new EventWebSocketServer(
+    db,
+    {},
+    diagnostics?.service,
+  );
   setDatabaseMetricsProvider(() => db.metricsSnapshot());
   setWebSocketMetricsProvider(() => eventWebSocketServer.metricsSnapshot());
   app.addHook('onReady', () => db.start());
   app.addHook('onReady', () => eventWebSocketServer.start(app.server));
   app.addHook('preClose', () => eventWebSocketServer.stop());
   app.addHook('onClose', () => db.close());
+  app.addHook('onClose', () => diagnostics?.close());
   try {
     await app.listen({ host: '0.0.0.0', port: config.PORT });
   } catch (error) {

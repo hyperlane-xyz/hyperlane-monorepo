@@ -73,6 +73,9 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+const FACTORY_SUFFIX_REGEX = /__factory$/;
+const TIMESTAMP_PUNCTUATION_REGEX = /[:.]/g;
+
 const ETHEREUM_CHAIN: ChainName = 'ethereum';
 const OUTPUT_ROOT = 'igp-upgrade-output';
 const CANCUN_PROBE_INIT_CODE = '0x5f5f5d5f5c5f5260205ff3';
@@ -196,7 +199,10 @@ class DryRunDeployMultiProvider extends MultiProvider {
       from: this.deployerAddress,
       nonce,
     });
-    const contractName = factory.constructor.name.replace(/__factory$/, '');
+    const contractName = factory.constructor.name.replace(
+      FACTORY_SUFFIX_REGEX,
+      '',
+    );
     this.simulatedDeployments.push({
       chain,
       contractName,
@@ -1616,7 +1622,7 @@ async function main() {
   const groups = splitSafeCallGroups([...safeGroups.values()]);
   const runDir = join(
     OUTPUT_ROOT,
-    new Date().toISOString().replace(/[:.]/g, '-'),
+    new Date().toISOString().replace(TIMESTAMP_PUNCTUATION_REGEX, '-'),
   );
   const rawFallbackGroupKeys = await writeSafeBatchFiles({
     groups,

@@ -30,13 +30,14 @@ use hyperlane_base::{
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::IndexSettings,
+    settings::{ChainSigner, IndexSettings},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, H160,
+    U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -367,7 +368,7 @@ impl BaseAgent for Relayer {
         )?);
         // Load before message processing starts so queued messages are
         // checked against the current rules.
-        runtime_denylist.initial_load().await;
+        runtime_denylist.initial_load().await?;
         // Looks up origin tx senders while runtime `address` rules exist,
         // reusing the origin's existing provider.
         let mut origin_sender_checks = HashMap::new();
@@ -394,6 +395,37 @@ impl BaseAgent for Relayer {
         );
 
         start_entity_init = Instant::now();
+        let activity_reporter = if let Some(url) = settings.message_activity_database_url.clone() {
+            // Reuse a signer already initialized for delivery/CCIP. Choose by
+            // domain ID so HashMap iteration cannot change the reported identity.
+            let signer = destinations
+                .values()
+                .filter_map(|destination| {
+                    destination
+                        .ccip_signer
+                        .as_ref()
+                        .map(|signer| (destination.domain.id(), signer))
+                })
+                .min_by_key(|(domain, _)| *domain);
+            match signer {
+                Some((domain, signer)) => {
+                    let relayer = H160::from(signer.address_h256());
+                    info!(domain, ?relayer, "Message activity reporting identity");
+                    Some(crate::message_activity::MessageActivityReporter::start(
+                        url,
+                        relayer,
+                        &core_metrics,
+                        db.clone(),
+                    )?)
+                }
+                None => {
+                    warn!("Message activity reporting disabled: no initialized EVM-compatible relayer signer");
+                    None
+                }
+            }
+        } else {
+            None
+        };
         let mut msg_ctxs = HashMap::new();
         for (destination_domain, destination) in destinations.iter() {
             let application_operation_verifier = destination.application_operation_verifier.clone();
@@ -440,7 +472,8 @@ impl BaseAgent for Relayer {
                     ),
                     ccip_signer.clone(),
                     origin_chain_setup.ignore_reorg_reports,
-                );
+                )
+                .with_activity_reporter(activity_reporter.clone());
 
                 msg_ctxs.insert(
                     ContextKey {

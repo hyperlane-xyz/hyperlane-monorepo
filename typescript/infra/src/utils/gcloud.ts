@@ -8,11 +8,13 @@ import { rm, writeFile } from 'fs/promises';
 
 import { execCmd, execCmdAndParseJson } from './utils.js';
 
+const NOT_FOUND_REGEX = /not[_\s]?found/i;
+
 export const GCP_PROJECT_ID = 'abacus-labs-dev';
 
 export function isSecretNotFoundError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /not[_\s]?found/i.test(message);
+  return NOT_FOUND_REGEX.test(message);
 }
 
 interface IamCondition {

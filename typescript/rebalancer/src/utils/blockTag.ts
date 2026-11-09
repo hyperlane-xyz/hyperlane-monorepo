@@ -9,6 +9,8 @@ import {
 import { isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
+const HEX_BLOCK_NUMBER_REGEX = /^0x[0-9a-fA-F]+$/;
+
 /**
  * Get the confirmed block tag for a chain, accounting for reorg period.
  * Returns a block number that is safe from reorgs, or a named tag like 'finalized'.
@@ -16,7 +18,8 @@ import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
  * @param multiProvider - Provider registry with chain metadata and ethers access
  * @param chainName - Name of the chain
  * @param logger - Optional logger for warnings
- * @returns Confirmed block tag (number, named tag, or undefined on error)
+ * @returns Confirmed block tag, or undefined for optional tags, metadata errors or failed Ethereum lookups.
+ * @throws If a numeric Tron block lookup fails.
  */
 export async function getConfirmedBlockTag(
   multiProvider: Pick<
@@ -26,6 +29,7 @@ export async function getConfirmedBlockTag(
   chainName: string,
   logger?: Logger,
 ): Promise<ConfirmedBlockTag> {
+  let numericTronLookup = false;
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
 
@@ -47,33 +51,38 @@ export async function getConfirmedBlockTag(
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 
+    numericTronLookup = metadata.protocol === ProtocolType.Tron;
     const provider = multiProvider.getEthersV5Provider(chainName);
     let latestBlock: number;
     if (provider instanceof providers.JsonRpcProvider) {
       const latestBlockHex = await provider.send('eth_blockNumber', []);
       if (
         typeof latestBlockHex !== 'string' ||
-        !/^0x[0-9a-fA-F]+$/.test(latestBlockHex)
+        !HEX_BLOCK_NUMBER_REGEX.test(latestBlockHex)
       ) {
         throw new Error(
           `Invalid eth_blockNumber response for ${chainName}: ${latestBlockHex}`,
         );
       }
       latestBlock = parseInt(latestBlockHex, 16);
-      if (!Number.isFinite(latestBlock)) {
-        throw new Error(
-          `Parsed block number is not finite for ${chainName}: ${latestBlockHex}`,
-        );
-      }
     } else {
       latestBlock = await provider.getBlockNumber();
+    }
+    if (!Number.isSafeInteger(latestBlock) || latestBlock < 0) {
+      throw new Error(`Invalid block number for ${chainName}: ${latestBlock}`);
     }
     return Math.max(0, latestBlock - reorgPeriod);
   } catch (error) {
     logger?.warn(
-      { chain: chainName, error: (error as Error).message },
-      'Failed to get confirmed block, using latest',
+      {
+        chain: chainName,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'Failed to get confirmed block',
     );
+    // For Tron, undefined is intentional only in named-tag mode. A failed
+    // numeric lookup must not silently query supply at latest instead.
+    if (numericTronLookup) throw error;
     return undefined;
   }
 }

@@ -229,6 +229,16 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
     threshold: u8,
     message: &HyperlaneMessage,
 ) -> Result<Metadata, MetadataBuildError> {
+    if validators.len() <= MAX_VALIDATOR_SET_SIZE {
+        ism_builder.as_ref().report_activity(
+            message,
+            crate::message_activity::Activity::ValidatorSet {
+                ism: (!ism_address.is_zero()).then_some(ism_address),
+                validators: validators.clone(),
+                threshold,
+            },
+        );
+    }
     if validators.is_empty() {
         info!("Could not fetch metadata: No validator set found for ISM");
         return Err(MetadataBuildError::CouldNotFetch);
@@ -270,9 +280,31 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
         }
     };
 
-    let metadata = ism_builder
+    let observer = ism_builder
+        .as_ref()
+        .base_builder()
+        .activity_reporter()
+        .map(|reporter| {
+            reporter.checkpoint_observer_for_node(
+                message,
+                (!ism_address.is_zero()).then_some(ism_address),
+                threshold,
+                Some(&ism_builder.as_ref().node_id),
+            )
+        });
+    let checkpoint_syncer = if let Some(observer) = &observer {
+        checkpoint_syncer.with_observer(observer.clone())
+    } else {
+        checkpoint_syncer
+    };
+    let result = ism_builder
         .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
-        .await
+        .await;
+    // Report failures too, but not abandoned aggregation children.
+    if let Some(observer) = observer {
+        observer.report();
+    }
+    let metadata = result
         .map_err(|_| MetadataBuildError::CouldNotFetch)?
         .ok_or_else(|| {
             info!(

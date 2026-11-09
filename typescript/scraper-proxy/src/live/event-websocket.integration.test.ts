@@ -5,6 +5,7 @@ import { after, before, it, type TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
 
+import { DiagnosticsService } from '../diagnostics/service.js';
 import {
   metricsRegistry,
   websocketCatchUps,
@@ -664,8 +665,12 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
     },
   );
   const sockets = [
-    new WebSocket(`${messagesUrl}?confirmations=0&domains=1,2`),
-    new WebSocket(`${messagesUrl}?confirmations=0&domains=2,1`),
+    new WebSocket(
+      `${messagesUrl}?confirmations=0&domains=1,2&messageIds=0x${msgId.slice(2)}`,
+    ),
+    new WebSocket(
+      `${messagesUrl}?confirmations=0&domains=2,1&messageIds=0x${msgId.slice(2)}`,
+    ),
   ];
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
   sockets.forEach((socket, i) =>
@@ -727,6 +732,7 @@ for (const eventType of [
   void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
     const completions = delayServerSendCompletions(context);
     let replacement = false;
+    const targets: bigint[] = [];
     context.mock.method(
       db,
       'queryLive',
@@ -765,6 +771,7 @@ for (const eventType of [
           const after = BigInt(String(values[1]));
           const id = BigInt(String(values[explorer ? 3 : 2]));
           const through = BigInt(String(values[explorer ? 4 : 3]));
+          targets.push(through);
           if (through < 10n || after > 10n || (after === 10n && id >= 1n))
             return [];
           if (explorer)
@@ -832,10 +839,13 @@ for (const eventType of [
       await new Promise<void>((resolve) => setImmediate(resolve));
       assert.equal(completions.length, 0, 'height 10 needs head 12');
       advance('12', '10', '10');
+      advance('13', '10', '10');
+      assert.deepEqual(targets, []); // Forward heads wait for the shared batch.
       const frame = await waitFor(
         messages,
         eventType === 'messages' ? 'message_upsert' : 'event',
       );
+      assert.deepEqual(targets, [10n]);
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);
@@ -2914,6 +2924,48 @@ void it('only emits addresses named by sequence cursors', async () => {
   await new Promise<void>((resolve) => socket.once('close', () => resolve()));
 });
 
+void it('filters Explorer message IDs before enrichment and keeps empty filters quiet', async () => {
+  const selected = new WebSocket(
+    `${messagesUrl}?messageIds=0x${msgId.slice(2)}`,
+  );
+  const empty = new WebSocket(`${messagesUrl}?messageIds=`);
+  const frames = captureMessages(selected);
+  const emptyFrames = captureMessages(empty);
+  try {
+    const ready = await waitFor(frames, 'ready');
+    await waitFor(emptyFrames, 'ready');
+    assert.deepEqual(ready.messageIds, [msgId]);
+    const reads = explorerQueryCount;
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: 'ff'.repeat(32) }),
+    );
+    // A wanted notification flushes the worker, proving the unrelated ID was not enriched.
+    const beforeBatches = explorerBatchSizes.length;
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitFor(frames, 'message_upsert');
+    assert.equal(explorerQueryCount, reads + 1);
+    assert.deepEqual(explorerBatchSizes.slice(beforeBatches), [1]);
+    assert.equal(
+      emptyFrames.some((frame) => frame.type === 'message_upsert'),
+      false,
+    );
+    assert.equal(record(frames.at(-1)?.data).msg_id, msgId);
+  } finally {
+    selected.close();
+    empty.close();
+    await Promise.all(
+      [selected, empty].map(
+        (socket) =>
+          new Promise<void>((resolve) => socket.once('close', () => resolve())),
+      ),
+    );
+  }
+});
+
 void it('emits normalized message upserts to Explorer', async () => {
   const socket = new WebSocket(messagesUrl);
   const messages = captureMessages(socket);
@@ -3622,6 +3674,119 @@ void it('bounds aggregate Explorer outbound buffering', async () => {
   );
 });
 
+void it('skips oversized diagnostics and retries fanout without interrupting normal updates', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const completions = delayServerSendCompletions(t);
+  let payloadSize = 5_000;
+  let reads = 0;
+  let notifyLocal: Parameters<EventDatabase['listen']>[1] = () => {};
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer(
+    {
+      listen: async (_channels, handler) => {
+        notifyLocal = handler;
+        return async () => undefined;
+      },
+      queryLive: db.queryLive,
+    },
+    { maxBufferedBytes: 4_096, maxTotalBufferedBytes: 4_096 },
+    new DiagnosticsService({
+      query: async () => {
+        reads++;
+        return [
+          {
+            id: '1',
+            message_id: `0x${msgId.slice(2)}`,
+            relayer: 'relayer',
+            origin: 1,
+            destination: 2,
+            observed_at: '2026-11-05',
+            received_at: '2026-11-05',
+            version: 1,
+            activity: { type: 'future_event', detail: 'x'.repeat(payloadSize) },
+          },
+        ];
+      },
+    }),
+  );
+  const sockets: WebSocket[] = [];
+  t.after(async () => {
+    for (const complete of completions.splice(0)) complete();
+    sockets.forEach((socket) => socket.terminate());
+    await localEvents.stop();
+    await new Promise<void>((resolve) => localHttp.close(() => resolve()));
+  });
+  await localEvents.start(localHttp);
+  await new Promise<void>((resolve) =>
+    localHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = localHttp.address();
+  assert(address && typeof address !== 'string');
+  // Two subscribers prove deferred fanout without multiplying real-time retries.
+  for (let i = 0; i < 2; i++)
+    sockets.push(
+      new WebSocket(
+        `ws://127.0.0.1:${address.port}/messages?diagnostics=true&messageIds=0x${msgId.slice(2)}`,
+      ),
+    );
+  const messages = sockets.map(captureMessages);
+  await Promise.all(messages.map((items) => waitFor(items, 'ready')));
+
+  t.mock.timers.tick(5_000);
+  await waitUntil(() => reads === 1);
+  notifyLocal(
+    'scraper_explorer_event',
+    JSON.stringify({ messageId: msgId.slice(2) }),
+  );
+  await Promise.all(messages.map((items) => waitFor(items, 'message_upsert')));
+  assert.equal(
+    messages.flat().filter(({ type }) => type === 'diagnostics').length,
+    0,
+  );
+  assert(sockets.every((socket) => socket.readyState === WebSocket.OPEN));
+  for (const complete of completions.splice(0)) complete();
+  messages.forEach((items) => {
+    items.length = 0;
+  });
+
+  payloadSize = 1_000;
+  t.mock.timers.tick(5_000);
+  await waitUntil(() => completions.length === 1, 200);
+  await waitUntil(() =>
+    messages.flat().some(({ type }) => type === 'diagnostics'),
+  );
+  // One diagnostic fits the soft budget. Other subscribers retry later.
+  assert.equal(
+    messages.flat().filter(({ type }) => type === 'diagnostics').length,
+    1,
+  );
+  notifyLocal(
+    'scraper_explorer_event',
+    JSON.stringify({ messageId: msgId.slice(2) }),
+  );
+  await Promise.all(messages.map((items) => waitFor(items, 'message_upsert')));
+  assert(sockets.every((socket) => socket.readyState === WebSocket.OPEN));
+  for (const complete of completions.splice(0)) complete();
+  for (let count = 2; count <= sockets.length; count++) {
+    t.mock.timers.tick(5_000);
+    await waitUntil(() => completions.length === 1, 200);
+    await waitUntil(
+      () =>
+        messages.flat().filter(({ type }) => type === 'diagnostics').length ===
+        count,
+    );
+    for (const complete of completions.splice(0)) complete();
+  }
+  assert(
+    messages.every(
+      (items) =>
+        items.filter(({ type }) => type === 'diagnostics').length === 1,
+    ),
+  );
+  assert(sockets.every((socket) => socket.readyState === WebSocket.OPEN));
+});
+
 function row(
   merkle_tree_hook: string,
   leaf_index = 1,
@@ -3724,6 +3889,7 @@ function delayServerSendCompletions(
         completion &&
         (message?.type === 'event' ||
           message?.type === 'caught_up' ||
+          message?.type === 'diagnostics' ||
           message?.type === 'message_upsert');
       const completed = delay
         ? (error?: Error) =>

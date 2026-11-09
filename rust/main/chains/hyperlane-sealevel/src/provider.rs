@@ -44,6 +44,7 @@ use crate::provider::transaction::{parsed_message, txn};
 use crate::tx_type::SealevelTxType;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelKeypair, SealevelTransactionFormat, TransactionSubmitter};
+use hyperlane_core::utils::read_concurrently;
 
 mod recipient;
 pub(crate) mod transaction;
@@ -280,10 +281,13 @@ impl SealevelProviderForLander for SealevelProvider {
             )
             .await?;
 
-        let simulation_result = self
-            .rpc_client()
-            .simulate_sealevel_tx(&simulation_tx)
-            .await?;
+        // Both reads depend only on the built transaction. Complete the oracle
+        // read even if simulation fails, keeping simulation errors first.
+        let (simulation_result, priority_fee) = tokio::join!(
+            self.rpc_client().simulate_sealevel_tx(&simulation_tx),
+            priority_fee_oracle.get_priority_fee(&simulation_tx),
+        );
+        let simulation_result = simulation_result?;
 
         // If there was an error in the simulation result, return an error.
         if simulation_result.err.is_some() {
@@ -322,7 +326,7 @@ impl SealevelProviderForLander for SealevelProvider {
                 .saturating_div(COMPUTE_UNIT_MULTIPLIER_DENOMINATOR),
         );
 
-        let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+        let mut priority_fee = priority_fee?;
 
         if let Ok(max_priority_fee) = std::env::var("SVM_MAX_PRIORITY_FEE") {
             let max_priority_fee = max_priority_fee.parse()?;
@@ -458,11 +462,12 @@ impl SealevelProvider {
             }
         }
 
-        let mut alt_accounts = Vec::with_capacity(alt_addresses.as_slice().len());
-        for alt_address in alt_addresses.as_slice() {
-            let alt_account = self.get_or_fetch_alt(*alt_address).await?;
-            alt_accounts.push((*alt_account).clone());
-        }
+        let alt_accounts = read_concurrently(alt_addresses.as_slice(), |alt_address| async move {
+            self.get_or_fetch_alt(*alt_address)
+                .await
+                .map(|account| (*account).clone())
+        })
+        .await?;
         let alt_accounts: Arc<[AddressLookupTableAccount]> = alt_accounts.into();
 
         let mut cache = self.alt_set_cache.write().await;
@@ -941,7 +946,10 @@ mod tests {
         slot: u64,
         accounts: Arc<Mutex<HashMap<Pubkey, Vec<u8>>>>,
         simulation_accounts: Vec<AccountMeta>,
+        simulation_barrier: Option<Arc<tokio::sync::Barrier>>,
+        simulation_failure: bool,
         account_gate: Option<Arc<tokio::sync::Notify>>,
+        account_waiters: Arc<std::sync::atomic::AtomicUsize>,
         fail_accounts: Arc<std::sync::atomic::AtomicBool>,
     }
 
@@ -959,7 +967,12 @@ mod tests {
                 RpcRequest::GetVersion => json!({"solana-core": "3.0.0", "feature-set": 1}),
                 RpcRequest::GetAccountInfo => {
                     if let Some(gate) = &self.account_gate {
-                        gate.notified().await;
+                        let wait = gate.notified();
+                        tokio::pin!(wait);
+                        wait.as_mut().enable();
+                        self.account_waiters
+                            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        wait.await;
                     }
                     if self.fail_accounts.load(std::sync::atomic::Ordering::SeqCst) {
                         return Err(std::io::Error::other("ALT RPC unavailable").into());
@@ -979,6 +992,9 @@ mod tests {
                     }})
                 }
                 RpcRequest::SimulateTransaction => {
+                    if let Some(barrier) = &self.simulation_barrier {
+                        barrier.wait().await;
+                    }
                     let bytes = borsh::to_vec(&SimulationReturnData::new(
                         self.simulation_accounts
                             .iter()
@@ -988,7 +1004,7 @@ mod tests {
                     ))
                     .expect("test fixture should be valid");
                     json!({"context": {"slot": self.slot}, "value": {
-                        "err": null, "logs": [], "unitsConsumed": 1,
+                        "err": if self.simulation_failure { json!("AccountNotFound") } else { Value::Null }, "logs": [], "unitsConsumed": 1,
                         "returnData": {
                             "programId": Pubkey::default().to_string(),
                             "data": [base64::engine::general_purpose::STANDARD.encode(bytes), "base64"],
@@ -1037,6 +1053,153 @@ mod tests {
         }
         .serialize_for_tests()
         .expect("test fixture should be valid")
+    }
+
+    struct GatedPriorityFeeOracle {
+        barrier: Arc<tokio::sync::Barrier>,
+        gate: Arc<tokio::sync::Notify>,
+        finished: Arc<std::sync::atomic::AtomicBool>,
+        fail: bool,
+    }
+
+    #[async_trait]
+    impl PriorityFeeOracle for GatedPriorityFeeOracle {
+        async fn get_priority_fee(&self, _transaction: &SealevelTxType) -> ChainResult<u64> {
+            self.barrier.wait().await;
+            self.gate.notified().await;
+            self.finished
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            if self.fail {
+                Err(ChainCommunicationError::CustomError(
+                    "oracle unavailable".to_owned(),
+                ))
+            } else {
+                Ok(0)
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn estimation_overlaps_simulation_and_oracle_and_drains_failures() {
+        for (simulation_failure, oracle_failure) in
+            [(false, false), (true, false), (false, true), (true, true)]
+        {
+            let barrier = Arc::new(tokio::sync::Barrier::new(2));
+            let gate = Arc::new(tokio::sync::Notify::new());
+            let finished = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let sender = RecordingRpcSender {
+                simulation_barrier: Some(barrier.clone()),
+                simulation_failure,
+                ..Default::default()
+            };
+            let provider = Arc::new(recording_provider(sender.clone()));
+            let oracle = Arc::new(GatedPriorityFeeOracle {
+                barrier,
+                gate: gate.clone(),
+                finished: finished.clone(),
+                fail: oracle_failure,
+            });
+            let payer = SealevelKeypair::default();
+            let read = provider.get_estimated_costs_for_instruction(
+                Instruction {
+                    program_id: Pubkey::new_unique(),
+                    accounts: vec![],
+                    data: vec![],
+                },
+                &payer,
+                Arc::new(crate::tx_submitter::RpcTransactionSubmitter::new(
+                    provider.clone(),
+                )),
+                oracle,
+                &SealevelTransactionFormat::Legacy,
+            );
+            tokio::pin!(read);
+            // The recorder yields once before simulation reaches the barrier.
+            for _ in 0..3 {
+                assert!(futures_util::poll!(read.as_mut()).is_pending());
+            }
+            assert!(!finished.load(std::sync::atomic::Ordering::SeqCst));
+            assert_eq!(
+                sender
+                    .calls
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|(request, _)| *request == RpcRequest::SimulateTransaction)
+                    .count(),
+                1
+            );
+            gate.notify_one();
+            let result = tokio::time::timeout(std::time::Duration::from_secs(2), read)
+                .await
+                .expect("both independent reads must run");
+            assert!(finished.load(std::sync::atomic::Ordering::SeqCst));
+            if simulation_failure {
+                assert!(result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("Error in simulation result"));
+            } else if oracle_failure {
+                assert!(result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("oracle unavailable"));
+            } else {
+                assert!(result.unwrap().compute_units > 0);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn one_alt_bundle_fetches_independent_tables_before_waiting_for_either() {
+        let keys = [Pubkey::new_unique(), Pubkey::new_unique()];
+        let gate = Arc::new(tokio::sync::Notify::new());
+        let sender = RecordingRpcSender {
+            account_gate: Some(gate.clone()),
+            ..Default::default()
+        };
+        for key in keys {
+            sender
+                .accounts
+                .lock()
+                .unwrap()
+                .insert(key, alt_fixture(vec![]));
+        }
+        let provider = recording_provider(sender.clone());
+        let addresses = NonEmptyAltAddresses::try_from(keys.to_vec()).unwrap();
+        let release = async {
+            while sender
+                .account_waiters
+                .load(std::sync::atomic::Ordering::SeqCst)
+                < keys.len()
+            {
+                tokio::task::yield_now().await;
+            }
+            gate.notify_waiters();
+        };
+        let (accounts, ()) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            tokio::join!(provider.get_or_fetch_alts(&addresses), release)
+        })
+        .await
+        .expect("both ALT reads must start before either completes");
+        assert_eq!(
+            accounts
+                .unwrap()
+                .iter()
+                .map(|account| account.key)
+                .collect::<Vec<_>>(),
+            keys
+        );
+        assert_eq!(
+            sender
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(request, _)| *request == RpcRequest::GetAccountInfo)
+                .count(),
+            keys.len()
+        );
     }
 
     #[tokio::test]

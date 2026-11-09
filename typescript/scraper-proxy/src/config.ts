@@ -13,6 +13,7 @@ const ConfigSchema = z.object({
     .min(1_000)
     .default(15_000),
   DATABASE_URL: z.string().min(1),
+  DIAGNOSTICS_DATABASE_URL: z.string().min(1).optional(),
   EVENT_STREAM_BATCH_SIZE: z.coerce
     .number()
     .int()

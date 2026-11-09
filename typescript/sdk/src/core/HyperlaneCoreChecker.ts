@@ -23,6 +23,13 @@ import {
   ValidatorAnnounceViolation,
 } from './types.js';
 
+const BLOCK_NUMBER_BYTECODE_REGEX =
+  /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g;
+const LEGACY_BLOCK_NUMBER_BYTECODE_REGEX =
+  /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g;
+const OPT_BLOCK_NUMBER_BYTECODE_REGEX =
+  /(f167f00000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})338989898/g;
+
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,
   CoreConfig
@@ -227,17 +234,14 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
               (match, offset) => (offset > 8000 ? match : ''),
             )
             // We persist the block number in the bytecode now too, so we have to strip it
-            .replaceAll(
-              /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
-              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            .replaceAll(BLOCK_NUMBER_BYTECODE_REGEX, (match, _offset) =>
+              match.length % 2 === 0 ? '' : '0',
             )
-            .replaceAll(
-              /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
-              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            .replaceAll(LEGACY_BLOCK_NUMBER_BYTECODE_REGEX, (match, _offset) =>
+              match.length % 2 === 0 ? '' : '0',
             )
-            .replaceAll(
-              /(f167f00000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})338989898/g,
-              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            .replaceAll(OPT_BLOCK_NUMBER_BYTECODE_REGEX, (match, _offset) =>
+              match.length % 2 === 0 ? '' : '0',
             ),
       );
     }

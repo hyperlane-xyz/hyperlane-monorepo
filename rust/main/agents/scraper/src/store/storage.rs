@@ -17,6 +17,8 @@ use crate::db::{BasicBlock, ScraperDb, StorableTxn};
 /// lot of data to query from the node provider between points when we would
 /// actually save it to the database.
 const CHUNK_SIZE: usize = 50;
+/// Bound provider pressure independently of the database write batch size.
+const ENRICHMENT_RPC_CONCURRENCY: usize = 8;
 
 /// Database and provider context for enriching one chain’s events.
 #[derive(Clone, Debug)]
@@ -102,7 +104,7 @@ impl HyperlaneDbStore {
                     result.is_ok()
                 }
             })
-            .buffer_unordered(8);
+            .buffer_unordered(ENRICHMENT_RPC_CONCURRENCY);
         let mut complete = true;
         while let Some(success) = results.next().await {
             complete &= success;
@@ -164,15 +166,25 @@ impl HyperlaneDbStore {
             .filter(|(hash, _)| !stored.contains_key(hash) && !hash.is_zero())
             .collect();
         for chunk in missing.chunks(CHUNK_SIZE) {
-            let mut rows = Vec::with_capacity(chunk.len());
-            for &(hash, block_id) in chunk {
-                match self.provider.get_txn_by_hash(&hash).await {
-                    Ok(info) if info.hash == hash => rows.push(StorableTxn { info, block_id }),
-                    Ok(info) => warn!(requested_hash = ?hash, returned_hash = ?info.hash,
-                        "transaction enrichment returned a different hash"),
-                    Err(error) => warn!(?hash, ?error, "error fetching and parsing transaction"),
-                }
-            }
+            let rows: Vec<_> = stream::iter(chunk.iter().copied())
+                .map(|(hash, block_id)| async move {
+                    match self.provider.get_txn_by_hash(&hash).await {
+                        Ok(info) if info.hash == hash => Some(StorableTxn { info, block_id }),
+                        Ok(info) => {
+                            warn!(requested_hash = ?hash, returned_hash = ?info.hash,
+                                "transaction enrichment returned a different hash");
+                            None
+                        }
+                        Err(error) => {
+                            warn!(?hash, ?error, "error fetching and parsing transaction");
+                            None
+                        }
+                    }
+                })
+                .buffer_unordered(ENRICHMENT_RPC_CONCURRENCY)
+                .filter_map(futures::future::ready)
+                .collect()
+                .await;
             if rows.is_empty() {
                 continue;
             }
@@ -208,18 +220,26 @@ impl HyperlaneDbStore {
             .filter(|(hash, _)| !stored.contains_key(hash))
             .collect();
         for chunk in missing.chunks(CHUNK_SIZE) {
-            let mut rows = Vec::with_capacity(chunk.len());
-            for &(hash, height) in chunk {
-                match self.provider.get_block_by_height(height).await {
-                    Ok(info) if info.hash == hash && info.number == height => rows.push(info),
-                    Ok(info) => {
-                        warn!(requested_hash = ?hash, requested_height = height, returned_block = ?info,
-                        "block enrichment returned a different block")
+            let rows: Vec<_> = stream::iter(chunk.iter().copied())
+                .map(|(hash, height)| async move {
+                    match self.provider.get_block_by_height(height).await {
+                        Ok(info) if info.hash == hash && info.number == height => Some(info),
+                        Ok(info) => {
+                            warn!(requested_hash = ?hash, requested_height = height, returned_block = ?info,
+                                "block enrichment returned a different block");
+                            None
+                        }
+                        Err(error) => {
+                            warn!(block_hash = ?hash, block_height = height, ?error,
+                                "error fetching and parsing block");
+                            None
+                        }
                     }
-                    Err(error) => warn!(block_hash = ?hash, block_height = height, ?error,
-                        "error fetching and parsing block"),
-                }
-            }
+                })
+                .buffer_unordered(ENRICHMENT_RPC_CONCURRENCY)
+                .filter_map(futures::future::ready)
+                .collect()
+                .await;
             if rows.is_empty() {
                 continue;
             }
@@ -285,3 +305,6 @@ mod returning_tests;
 
 #[cfg(test)]
 mod event_loss_tests;
+
+#[cfg(test)]
+mod concurrency_tests;

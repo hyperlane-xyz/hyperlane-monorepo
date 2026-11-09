@@ -1,13 +1,21 @@
+use std::collections::HashMap;
 use std::convert::Into;
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 use async_trait::async_trait;
 use ethers::abi::Function;
 use ethers::prelude::{Block, BlockNumber, FeeHistory, TransactionReceipt, U256 as EthersU256};
+use ethers::providers::{HttpClientError, JsonRpcClient};
 use ethers::types::{transaction::eip2718::TypedTransaction, Address, H160, H256 as EthersH256};
 use ethers_core::abi::{Param, ParamType, StateMutability};
 use ethers_core::types::{Eip1559TransactionRequest, TransactionRequest};
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::Value;
+use tokio::sync::{Notify, Semaphore};
 
 use hyperlane_core::identifiers::UniqueIdentifier;
 use hyperlane_core::{
@@ -19,6 +27,84 @@ use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, ZksyncEstima
 use crate::adapter::EthereumTxPrecursor;
 use crate::transaction::{Transaction, VmSpecificTxData};
 use crate::{FullPayload, TransactionStatus};
+
+#[derive(Debug, Default)]
+struct RpcActivity {
+    active: AtomicUsize,
+    peak: AtomicUsize,
+    total: AtomicUsize,
+    started: Notify,
+}
+
+/// A real asynchronous RPC boundary for concurrency regressions. Mockall's
+/// async method expectations otherwise return synchronously in these tests.
+#[derive(Debug, Clone)]
+pub struct YieldingRpcClient {
+    responses: Arc<HashMap<&'static str, Value>>,
+    activity: Arc<RpcActivity>,
+    first_request_gate: Option<Arc<Semaphore>>,
+}
+
+impl YieldingRpcClient {
+    pub fn new(responses: impl IntoIterator<Item = (&'static str, Value)>) -> Self {
+        Self {
+            responses: Arc::new(responses.into_iter().collect()),
+            activity: Arc::new(RpcActivity::default()),
+            first_request_gate: None,
+        }
+    }
+
+    pub fn with_first_request_gate(mut self, gate: Arc<Semaphore>) -> Self {
+        self.first_request_gate = Some(gate);
+        self
+    }
+
+    pub async fn wait_for_total(&self, total: usize) {
+        loop {
+            let started = self.activity.started.notified();
+            if self.total() >= total {
+                return;
+            }
+            started.await;
+        }
+    }
+
+    pub fn peak(&self) -> usize {
+        self.activity.peak.load(Ordering::Relaxed)
+    }
+
+    pub fn total(&self) -> usize {
+        self.activity.total.load(Ordering::Relaxed)
+    }
+}
+
+#[async_trait]
+impl JsonRpcClient for YieldingRpcClient {
+    type Error = HttpClientError;
+
+    async fn request<T, R>(&self, method: &str, _params: T) -> Result<R, Self::Error>
+    where
+        T: Debug + Serialize + Send + Sync,
+        R: DeserializeOwned,
+    {
+        let response = self.responses.get(method).expect("unexpected RPC method");
+        let index = self.activity.total.fetch_add(1, Ordering::Relaxed);
+        let active = self.activity.active.fetch_add(1, Ordering::Relaxed) + 1;
+        self.activity.peak.fetch_max(active, Ordering::Relaxed);
+        self.activity.started.notify_one();
+        if index == 0 {
+            if let Some(gate) = &self.first_request_gate {
+                let _permit = gate.acquire().await.expect("request gate remains open");
+            }
+        }
+        tokio::task::yield_now().await;
+        self.activity.active.fetch_sub(1, Ordering::Relaxed);
+        serde_json::from_value(response.clone()).map_err(|err| HttpClientError::SerdeJson {
+            err,
+            text: response.to_string(),
+        })
+    }
+}
 
 mockall::mock! {
     pub EvmProvider {}

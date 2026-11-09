@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -15,6 +16,11 @@ use crate::utils::{
     as_task, concat_path, download, get_sealevel_path, get_workspace_path, poll_until,
     AgentHandles, TaskHandle,
 };
+
+static MESSAGE_ID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"Dispatched message to \d+, ID 0x([0-9a-fA-F]+)")
+        .expect("valid message dispatch log regex")
+});
 
 pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 
@@ -688,10 +694,9 @@ pub fn initiate_non_matching_igp_paying_transfer(
 }
 
 fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
-    let message_id_regex = Regex::new(r"Dispatched message to \d+, ID 0x([0-9a-fA-F]+)").unwrap();
     for log in logs {
         // Use the regular expression to capture the ID
-        if let Some(captures) = message_id_regex.captures(&log) {
+        if let Some(captures) = MESSAGE_ID_REGEX.captures(&log) {
             if let Some(id_match) = captures.get(1) {
                 let id = id_match.as_str();
                 return Some(format!("0x{id}"));

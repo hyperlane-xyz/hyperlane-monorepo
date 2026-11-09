@@ -30,6 +30,32 @@ const PENDING_PAYLOAD_INDEX_WRITE_MARKER_STORAGE_PREFIX: &str =
 static PAYLOAD_WRITE_LOCKS: LazyLock<Mutex<HashMap<u32, Arc<Mutex<()>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// A projection of the canonical record, with no independent cache to become
+/// stale after an older writer or database rollback. RocksDB still reads and
+/// scans the JSON value, but does not allocate the payload's data/details.
+#[derive(serde::Deserialize)]
+struct PayloadStatusRecord {
+    status: PayloadStatus,
+}
+
+impl Decode for PayloadStatusRecord {
+    fn read_from<R: std::io::Read>(reader: &mut R) -> Result<Self, HyperlaneProtocolError> {
+        serde_json::from_reader(reader).map_err(|err| {
+            HyperlaneProtocolError::IoError(std::io::Error::other(format!(
+                "Failed to deserialize payload status. Error: {err}"
+            )))
+        })
+    }
+
+    fn read_from_slice(bytes: &[u8]) -> Result<Self, HyperlaneProtocolError> {
+        serde_json::from_slice(bytes).map_err(|err| {
+            HyperlaneProtocolError::IoError(std::io::Error::other(format!(
+                "Failed to deserialize payload status. Error: {err}"
+            )))
+        })
+    }
+}
+
 fn payload_write_lock(db: &HyperlaneRocksDB) -> DbResult<Arc<Mutex<()>>> {
     let mut locks = PAYLOAD_WRITE_LOCKS
         .lock()
@@ -46,6 +72,18 @@ pub trait PayloadDb: Send + Sync {
         &self,
         payload_uuid: &PayloadUuid,
     ) -> DbResult<Option<FullPayload>>;
+
+    /// Read only status. The default supports non-RocksDB implementations;
+    /// RocksDB decodes a projection directly from its canonical pinned value.
+    async fn retrieve_payload_status_by_uuid(
+        &self,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<PayloadStatus>> {
+        Ok(self
+            .retrieve_payload_by_uuid(payload_uuid)
+            .await?
+            .map(|payload| payload.status))
+    }
 
     /// Store a payload by its unique ID
     async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()>;
@@ -152,6 +190,17 @@ impl PayloadDb for HyperlaneRocksDB {
         payload_uuid: &PayloadUuid,
     ) -> DbResult<Option<FullPayload>> {
         self.retrieve_decodable(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload_uuid.as_bytes())
+    }
+
+    async fn retrieve_payload_status_by_uuid(
+        &self,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<PayloadStatus>> {
+        self.retrieve_decodable::<PayloadStatusRecord>(
+            PAYLOAD_BY_UUID_STORAGE_PREFIX,
+            payload_uuid.as_bytes(),
+        )
+        .map(|record| record.map(|record| record.status))
     }
 
     async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()> {
@@ -465,6 +514,78 @@ mod tests {
 
     fn tmp_db() -> Arc<HyperlaneRocksDB> {
         db_in(&tempfile::tempdir().unwrap())
+    }
+
+    #[tokio::test]
+    async fn status_projection_reads_canonical_updates_across_reopen() {
+        use crate::payload::{DropReason, RetryReason};
+
+        let directory = tempfile::tempdir().unwrap();
+        let db = db_in(&directory);
+        let mut payload = FullPayload::random();
+        payload.data = vec![17; 65_536];
+        payload.details.metadata = "large payload 🦀".repeat(4096);
+        payload.details.success_criteria = Some(vec![23; 65_536]);
+        assert_eq!(
+            db.retrieve_payload_status_by_uuid(payload.uuid())
+                .await
+                .unwrap(),
+            None
+        );
+        for status in [
+            PayloadStatus::ReadyToSubmit,
+            PayloadStatus::Retry(RetryReason::Reorged),
+            PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
+            PayloadStatus::Dropped(DropReason::FailedSimulation),
+            PayloadStatus::Dropped(DropReason::Reverted),
+            PayloadStatus::Dropped(DropReason::UnhandledError),
+            PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
+            PayloadStatus::InTransaction(TransactionStatus::Mempool),
+            PayloadStatus::InTransaction(TransactionStatus::Included),
+            PayloadStatus::InTransaction(TransactionStatus::Finalized),
+            PayloadStatus::InTransaction(TransactionStatus::Dropped(
+                crate::transaction::DropReason::DroppedByChain,
+            )),
+        ] {
+            payload.status = status.clone();
+            // Write the original canonical key directly, as old writers do.
+            // There is no side-key to miss this update or require a backfill.
+            db.store_value_by_key(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload.uuid(), &payload)
+                .unwrap();
+            assert_eq!(
+                db.retrieve_payload_status_by_uuid(payload.uuid())
+                    .await
+                    .unwrap(),
+                Some(status)
+            );
+        }
+        drop(db);
+        assert_eq!(
+            db_in(&directory)
+                .retrieve_payload_status_by_uuid(payload.uuid())
+                .await
+                .unwrap(),
+            Some(payload.status)
+        );
+    }
+
+    #[test]
+    fn status_projection_rejects_missing_invalid_and_trailing_json() {
+        use hyperlane_core::Decode;
+
+        for mut input in [
+            b"{}".as_slice(),
+            br#"{"status":"unknown"}"#,
+            br#"{"status":null}"#,
+            br#"{"status":"ReadyToSubmit""#,
+            br#"{"status":"ReadyToSubmit"}{}"#,
+            br#"{"status":"ReadyToSubmit","status":"ReadyToSubmit"}"#,
+            br#"{"data":[1,],"status":"ReadyToSubmit"}"#,
+            &[255],
+        ] {
+            assert!(super::PayloadStatusRecord::read_from_slice(input).is_err());
+            assert!(super::PayloadStatusRecord::read_from(&mut input).is_err());
+        }
     }
 
     #[test]

@@ -5,6 +5,8 @@ import { Address, assert, objMerge } from '@hyperlane-xyz/utils';
 
 import { describeError } from '../aggregation-hook-upgrade/redact.js';
 
+const GAS_AMOUNT_REGEX = /^\d+(\.\d{1,9})?$/;
+
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const PRIVATE_KEY_PATTERN = /^(0x)?[0-9a-fA-F]{64}$/;
 export const REDACTED_KEY = '<redacted-key>';
@@ -96,7 +98,7 @@ export async function withPriorityFee(
 
 export function parsePriorityFeeGwei(value: string): BigNumber {
   assert(
-    /^\d+(\.\d{1,9})?$/.test(value),
+    GAS_AMOUNT_REGEX.test(value),
     '--priority-fee-gwei must be a non-negative decimal number of gwei',
   );
   return utils.parseUnits(value, 9);

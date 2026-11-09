@@ -23,12 +23,14 @@ use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    PendingOperationStatus, ReprepareReason, SubmissionStage, TryBatchAs, TxCostEstimate,
+    TxOutcome, H256, U256,
 };
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
+    message_activity::{Activity, Outcome, Stage},
     metrics::message_submission::{
         MessageSubmissionMetrics, MetadataBuildMetric, MetadataWaitObservation,
     },
@@ -191,6 +193,10 @@ pub struct PendingMessage {
     #[serde(skip_serializing)]
     first_seen: SystemTime,
     #[serde(skip_serializing)]
+    first_seen_reported: bool,
+    #[serde(skip_serializing)]
+    submission_stage: Mutex<Option<SubmissionStage>>,
+    #[serde(skip_serializing)]
     pending_tracked: bool,
     #[serde(skip_serializing)]
     max_retries: u32,
@@ -243,6 +249,37 @@ pub struct PendingMessage {
 }
 
 impl PendingMessage {
+    fn report_first_seen(&mut self) {
+        if self.first_seen_reported {
+            return;
+        }
+        let at_millis = self
+            .first_seen
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+            .unwrap_or_default();
+        self.ctx
+            .metadata_builder
+            .report_activity(&self.message, Activity::FirstSeen { at_millis });
+        self.first_seen_reported = true;
+    }
+
+    fn report_progress(&self, stage: Stage, outcome: Outcome) {
+        self.ctx
+            .metadata_builder
+            .report_activity(&self.message, Activity::Progress { stage, outcome });
+    }
+
+    fn report_chain_failure(&self, stage: Stage, error: &ChainCommunicationError) {
+        self.ctx.metadata_builder.report_activity(
+            &self.message,
+            Activity::ChainFailure {
+                stage,
+                reason: crate::message_activity::chain_error(error),
+            },
+        );
+    }
+
     pub fn new(
         message: HyperlaneMessage,
         ctx: Arc<MessageContext>,
@@ -262,6 +299,8 @@ impl PendingMessage {
             status,
             app_context,
             first_seen,
+            first_seen_reported: false,
+            submission_stage: Mutex::new(None),
             pending_tracked,
             max_retries,
             submitted: false,
@@ -308,6 +347,9 @@ impl PendingMessage {
                     .on_reprepare(Some(err), ReprepareReason::ErrorPersistingTerminalMessage);
             }
         }
+        self.ctx
+            .metadata_builder
+            .report_activity(&self.message, Activity::Dropped);
         PendingOperationResult::Drop
     }
 }
@@ -373,6 +415,12 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
 #[typetag::serialize]
 impl PendingOperation for PendingMessage {
     fn on_runtime_denylist_drop(&mut self) {
+        self.ctx.metadata_builder.report_activity(
+            &self.message,
+            Activity::Filtered {
+                reason: crate::message_activity::FilterReason::RuntimeDenylisted,
+            },
+        );
         if let Some(guard) = self.loaded_message_guard.as_mut() {
             guard.reconsider_on_release();
         }
@@ -399,6 +447,14 @@ impl PendingOperation for PendingMessage {
             {
                 warn!(message_id = ?self.message.id(), err = %e, status = %status, "Persisting `status` failed for message");
             }
+        }
+        if self.status != status {
+            self.ctx.metadata_builder.report_activity(
+                &self.message,
+                Activity::Status {
+                    status: status.clone(),
+                },
+            );
         }
         self.status = status;
     }
@@ -448,6 +504,8 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
+        self.report_first_seen();
+        self.report_progress(Stage::Prepare, Outcome::Started);
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
@@ -479,6 +537,9 @@ impl PendingOperation for PendingMessage {
                 Err(reprepare_reason) => return reprepare_reason,
             };
         if !is_contract {
+            self.ctx
+                .metadata_builder
+                .report_activity(&self.message, Activity::RecipientNotContract);
             info!(
                 recipient=?self.message.recipient,
                 "Dropping message because recipient is not a contract"
@@ -515,6 +576,9 @@ impl PendingOperation for PendingMessage {
             match denial {
                 Ok(Some(reason)) => {
                     warn!(?message_id, %reason, "Dropping message: origin tx signer matches runtime denylist");
+                    self.ctx
+                        .metadata_builder
+                        .report_activity(&self.message, Activity::OriginSenderDenied);
                     check.record_drop(self.ctx.destination_mailbox.domain().name());
                     // Not terminal: the loader reloads it if the rule is removed.
                     self.on_runtime_denylist_drop();
@@ -603,9 +667,12 @@ impl PendingOperation for PendingMessage {
                         if is_ica_invalid_reveal(&e)
                             && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX =>
                     {
+                        self.report_progress(Stage::Simulate, Outcome::Failed);
                         return self.requeue_ica_reveal();
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        self.report_chain_failure(Stage::Simulate, &e);
+                        self.report_progress(Stage::Simulate, Outcome::Failed);
                         self.clear_metadata();
                         None
                     }
@@ -658,6 +725,8 @@ impl PendingOperation for PendingMessage {
                         cost
                     }
                     Err(e) => {
+                        self.report_chain_failure(Stage::Simulate, &e);
+                        self.report_progress(Stage::Simulate, Outcome::Failed);
                         if is_ica_invalid_reveal(&e)
                             && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX
                         {
@@ -750,6 +819,8 @@ impl PendingOperation for PendingMessage {
             )
             .await
             {
+                self.report_chain_failure(Stage::Simulate, &e);
+                self.report_progress(Stage::Simulate, Outcome::Failed);
                 warn!(
                     message_id = ?self.message.id(),
                     error = %e,
@@ -764,6 +835,8 @@ impl PendingOperation for PendingMessage {
             }
         }
 
+        self.on_submission_stage(SubmissionStage::Submitting);
+        self.report_progress(Stage::Submit, Outcome::Started);
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
         let tx_outcome = with_rpc_operation(
@@ -782,6 +855,7 @@ impl PendingOperation for PendingMessage {
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
+                self.report_chain_failure(Stage::Submit, &e);
                 error!(error=?e, "Error when processing message");
                 self.clear_metadata();
                 return self.on_reprepare::<String>(None, ReprepareReason::ErrorSubmitting);
@@ -790,6 +864,13 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_submission_outcome(&mut self, outcome: TxOutcome) {
+        self.ctx.metadata_builder.report_activity(
+            &self.message,
+            Activity::TransactionOutcome {
+                transaction_id: outcome.transaction_id,
+                executed: outcome.executed,
+            },
+        );
         self.submission_outcome = Some(outcome);
     }
 
@@ -810,14 +891,14 @@ impl PendingOperation for PendingMessage {
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
-                return self.on_reconfirm(Some(err), "Error confirming message delivery");
+                self.report_chain_failure(Stage::Confirm, &err);
+                return self.on_reconfirm(Some(err), ConfirmReason::ErrorConfirmingDelivery);
             }
         };
 
         if is_delivered {
             if let Err(err) = self.record_message_process_success() {
-                return self
-                    .on_reconfirm(Some(err), "Error when recording message process success");
+                return self.on_reconfirm(Some(err), ConfirmReason::ErrorRecordingProcessSuccess);
             }
             self.ctx.destination_mailbox.on_delivered(&self.message);
             info!(
@@ -915,6 +996,17 @@ impl PendingOperation for PendingMessage {
             .on_submitted_success(&self.message);
     }
 
+    fn on_submission_stage(&self, stage: SubmissionStage) {
+        let mut current = self.submission_stage.lock();
+        if current.as_ref() == Some(&stage) {
+            return;
+        }
+        self.ctx
+            .metadata_builder
+            .report_activity(&self.message, Activity::Submission { stage });
+        *current = Some(stage);
+    }
+
     fn get_metric(&self) -> Option<Arc<IntGauge>> {
         self.metric.clone()
     }
@@ -931,7 +1023,15 @@ impl PendingOperation for PendingMessage {
             .as_ref()
             .expect("Pending message must be prepared before we can create payload for it");
         let metadata = &submission_data.metadata;
-        let payload = mailbox.process_calldata(message, metadata).await?;
+
+        let payload = mailbox
+            .process_calldata(message, metadata)
+            .await
+            .inspect_err(|error| {
+                self.report_chain_failure(Stage::BuildPayload, error);
+                self.report_progress(Stage::BuildPayload, Outcome::Failed);
+            })?;
+
         Ok(payload)
     }
 
@@ -991,6 +1091,8 @@ impl PendingMessage {
             }
         }
         if Self::should_skip(num_retries, max_retries) && !manual_retry {
+            // Loading an already-exhausted message is not a new retry-limit
+            // transition. Repeated admission scans must not replay diagnostics.
             return None;
         }
         let reprepare_reason = match &message_status {
@@ -1348,6 +1450,7 @@ impl PendingMessage {
         delay: Duration,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
+        *self.submission_stage.lock() = None;
         self.submitted = false;
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = self.last_attempted_at.checked_add(delay);
@@ -1360,6 +1463,7 @@ impl PendingMessage {
         err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
+        *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
         self.submitted = false;
         if let Some(e) = err {
@@ -1372,6 +1476,7 @@ impl PendingMessage {
 
     fn on_metadata_wait(&mut self, observation: MetadataWaitObservation) -> PendingOperationResult {
         let reason = ReprepareReason::AwaitingValidatorSignatures;
+        *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
         self.submitted = false;
         if observation.first_observation {
@@ -1402,6 +1507,13 @@ impl PendingMessage {
         // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
         // Normal relayer messages do NOT set fail_fast and continue to the long-backoff arm.
         if self.fail_fast && self.num_retries >= self.max_retries {
+            self.ctx.metadata_builder.report_activity(
+                &self.message,
+                Activity::RetryLimitReached {
+                    retries: self.num_retries,
+                    limit: self.max_retries,
+                },
+            );
             warn!(
                 message_id = ?self.message.id(),
                 num_retries = self.num_retries,
@@ -1413,7 +1525,17 @@ impl PendingMessage {
         PendingOperationResult::Reprepare(reason)
     }
 
-    fn on_reconfirm<E: Debug>(&mut self, err: Option<E>, reason: &str) -> PendingOperationResult {
+    fn on_reconfirm<E: Debug>(
+        &mut self,
+        err: Option<E>,
+        reason: ConfirmReason,
+    ) -> PendingOperationResult {
+        self.ctx.metadata_builder.report_activity(
+            &self.message,
+            Activity::ConfirmationError {
+                reason: reason.clone(),
+            },
+        );
         self.set_pending_tracking(true);
         self.inc_attempts(None);
         if let Some(e) = err {
@@ -1443,6 +1565,9 @@ impl PendingMessage {
             );
         }
         self.ctx.origin_db.store_message_processed(&self.message)?;
+        self.ctx
+            .metadata_builder
+            .report_activity(&self.message, Activity::Delivered);
         self.ctx.metrics.update_nonce(&self.message);
         self.ctx.metrics.messages_processed.inc();
         Ok(())
@@ -1509,6 +1634,14 @@ impl PendingMessage {
                 .try_into()
                 .ok()
         });
+        self.ctx.metadata_builder.report_activity(
+            &self.message,
+            Activity::Retry {
+                reason: reason.clone(),
+                retry_count: self.num_retries,
+                next_attempt_at_millis,
+            },
+        );
         let retry_delay_millis = delay.and_then(|delay| delay.as_millis().try_into().ok());
         let state = PendingMessageRetryState::new(
             self.num_retries,
@@ -2914,7 +3047,7 @@ mod test {
             ));
             pending.set_next_attempt_after(Duration::from_secs(60));
             if reconfirm_error {
-                pending.on_reconfirm::<String>(None, "reconfirm failure before restart");
+                pending.on_reconfirm::<String>(None, ConfirmReason::ErrorConfirmingDelivery);
             }
             let message = pending.message.clone();
             let ctx = pending.ctx.clone();

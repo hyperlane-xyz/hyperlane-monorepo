@@ -471,7 +471,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Use a timeout to prevent waiting for a log that might never happen and fail faster
       timeoutId = setTimeout(() => {
-        settleError(new Error(`Timeout waiting for log: "${expectedLogs[0]}"`));
+        settleError(
+          new Error(
+            `Timeout waiting for log: "${expectedLogs[0]}"\nRecent rebalancer output:\n${observedLines.slice(-20).join('\n')}`,
+          ),
+        );
       }, timeout);
 
       // Handle when the process exits due to an error that is not the expected log

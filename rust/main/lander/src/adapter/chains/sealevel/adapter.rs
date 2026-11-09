@@ -1,7 +1,8 @@
-use std::{collections::HashMap, ops::Sub, sync::Arc, time::Duration};
+use std::{ops::Sub, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use chrono::Utc;
+use dashmap::DashMap;
 use eyre::eyre;
 use futures_util::future::join_all;
 use serde_json::json;
@@ -18,7 +19,7 @@ use solana_transaction_status::{
 };
 
 use hyperlane_sealevel::SealevelTxType;
-use tokio::sync::Mutex;
+use tokio::sync::Semaphore;
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -32,7 +33,7 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{ChainResult, ReorgPeriod, H256, H512};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ReorgPeriod, H256, H512};
 use hyperlane_sealevel::{
     fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc},
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForLander, SealevelTxCostEstimate,
@@ -60,13 +61,7 @@ use crate::{
 const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
 const STATUS_TX_BATCH_SIZE: usize = 16;
 const MAX_SIGNATURES_PER_STATUS_REQUEST: usize = 256;
-
-#[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
-pub enum EstimateFreshnessCache {
-    #[default]
-    Stale,
-    Fresh,
-}
+const MAX_CONCURRENT_ESTIMATES: usize = 16;
 
 pub struct SealevelAdapter {
     estimated_block_time: Duration,
@@ -79,7 +74,10 @@ pub struct SealevelAdapter {
     provider: Arc<dyn SealevelProviderForLander>,
     oracle: Arc<dyn PriorityFeeOracle>,
     submitter: Arc<dyn TransactionSubmitter>,
-    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionUuid, EstimateFreshnessCache>>>,
+    /// One-shot tokens for estimates prepared immediately before submission.
+    /// Sharded by transaction; no guard is held across provider calls.
+    fresh_estimates: DashMap<TransactionUuid, ()>,
+    estimate_permits: Semaphore,
 }
 
 impl SealevelAdapter {
@@ -140,8 +138,6 @@ impl SealevelAdapter {
         let max_batch_size = Self::batch_size(&conf)?;
         let keypair = create_keypair(&conf)?;
         let identity = create_identity_keypair(&conf, &keypair)?;
-        let estimate_freshness_cache = Arc::new(Mutex::new(HashMap::new()));
-
         Ok(Self {
             estimated_block_time,
             max_batch_size,
@@ -151,7 +147,8 @@ impl SealevelAdapter {
             client,
             oracle,
             submitter,
-            estimate_freshness_cache,
+            fresh_estimates: DashMap::new(),
+            estimate_permits: Semaphore::new(MAX_CONCURRENT_ESTIMATES),
         })
     }
 
@@ -172,7 +169,8 @@ impl SealevelAdapter {
             client,
             oracle,
             submitter,
-            estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
+            fresh_estimates: DashMap::new(),
+            estimate_permits: Semaphore::new(MAX_CONCURRENT_ESTIMATES),
         }
     }
 
@@ -211,7 +209,8 @@ impl SealevelAdapter {
             client,
             oracle,
             submitter,
-            estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
+            fresh_estimates: DashMap::new(),
+            estimate_permits: Semaphore::new(MAX_CONCURRENT_ESTIMATES),
         }
     }
 
@@ -227,6 +226,11 @@ impl SealevelAdapter {
         &self,
         precursor: &SealevelTxPrecursor,
     ) -> Result<SealevelTxPrecursor, LanderError> {
+        let _permit = self
+            .estimate_permits
+            .acquire()
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
         let estimate = self
             .provider
             .get_estimated_costs_for_instruction(
@@ -409,40 +413,25 @@ impl AdaptsChain for SealevelAdapter {
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        use EstimateFreshnessCache::{Fresh, Stale};
-
         info!(?tx, "estimating transaction");
+        // A failed or cancelled refresh must not reuse an earlier estimate.
+        self.fresh_estimates.remove(&tx.uuid);
         let not_estimated = tx.precursor();
         let estimated = self.estimate(not_estimated).await?;
-
-        // If cache does not contain estimate type, insert Simulation type so that it can be used on the first submission
-        {
-            let mut guard = self.estimate_freshness_cache.lock().await;
-            if guard.get(&tx.uuid).copied().unwrap_or_default() == Stale {
-                guard.insert(tx.uuid.clone(), Fresh);
-            }
-        };
-
         tx.vm_specific_data = VmSpecificTxData::Svm(Box::new(estimated));
+        self.fresh_estimates.insert(tx.uuid.clone(), ());
         info!(?tx, "estimated transaction");
         Ok(())
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        use EstimateFreshnessCache::{Fresh, Stale};
-
         info!(?tx, "submitting transaction");
 
         let previous = tx.precursor();
-        let estimated = {
-            let mut guard = self.estimate_freshness_cache.lock().await;
-            match guard.get(&tx.uuid).copied().unwrap_or_default() {
-                Stale => self.estimate(previous).await?,
-                Fresh => {
-                    guard.insert(tx.uuid.clone(), Stale);
-                    previous.clone()
-                }
-            }
+        let estimated = if self.fresh_estimates.remove(&tx.uuid).is_some() {
+            previous.clone()
+        } else {
+            self.estimate(previous).await?
         };
 
         let svm_transaction = self.create_signed_transaction(&estimated).await?;

@@ -10,6 +10,10 @@ import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
+const SAFE_GATEWAY_HOST_REGEX = /safe\.global|5afe\.dev/;
+const TRAILING_SLASHES_REGEX = /\/+$/;
+const GATEWAY_TX_SERVICE_PATH_REGEX = /^\/tx-service\/[^/]+\/api$/;
+
 export const SAFE_API_RETRIES = 10;
 export const SAFE_API_BASE_RETRY_MS = 1000;
 
@@ -26,11 +30,11 @@ function isSafeApiKitConstructor(
 }
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
-  return /safe\.global|5afe\.dev/.test(txServiceUrl);
+  return SAFE_GATEWAY_HOST_REGEX.test(txServiceUrl);
 }
 
 export function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
-  const trimmedUrl = txServiceUrl.replace(/\/+$/, '');
+  const trimmedUrl = txServiceUrl.replace(TRAILING_SLASHES_REGEX, '');
   if (trimmedUrl.endsWith('/api')) return trimmedUrl;
   return `${trimmedUrl}/api`;
 }
@@ -40,7 +44,7 @@ export function isSafeGlobalTxServiceUrl(txServiceUrl: string): boolean {
     const url = new URL(normalizeSafeTxServiceUrl(txServiceUrl));
     return (
       ['api.safe.global', 'api.5afe.dev'].includes(url.hostname) &&
-      /^\/tx-service\/[^/]+\/api$/.test(url.pathname)
+      GATEWAY_TX_SERVICE_PATH_REGEX.test(url.pathname)
     );
   } catch {
     return false;

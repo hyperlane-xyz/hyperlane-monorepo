@@ -94,6 +94,32 @@ describe('transactionFeeEstimators', () => {
     });
   });
 
+  it('reads Ethers fee data while gas simulation is still pending', async () => {
+    const provider = new EthersV5Providers.JsonRpcProvider();
+    const gas = sinon.promise<BigNumber>();
+    const estimateGas = sandbox.stub(provider, 'estimateGas').returns(gas);
+    const getFeeData = sandbox.stub(provider, 'getFeeData').resolves({
+      gasPrice: BigNumber.from(2),
+      lastBaseFeePerGas: null,
+      maxFeePerGas: null,
+      maxPriorityFeePerGas: null,
+    });
+
+    const estimate = estimateTransactionFeeEthersV5({
+      transaction: { to: EVM_ADDRESS },
+      provider,
+      sender: EVM_ADDRESS,
+    });
+    expect(estimateGas.calledOnce).to.equal(true);
+    expect(getFeeData.calledOnce).to.equal(true);
+    void gas.resolve(BigNumber.from(21_000));
+    expect(await estimate).to.deep.equal({
+      gasUnits: 21_000n,
+      gasPrice: 2n,
+      fee: 42_000n,
+    });
+  });
+
   it('overrides the Ethers sender balance only when requested', async () => {
     const provider = makeEthersFeeProvider({
       gasPrice: 2n,
@@ -228,6 +254,53 @@ describe('transactionFeeEstimators', () => {
       gasUnits: 21_000n,
       gasPrice: 0n,
       fee: 0n,
+    });
+  });
+
+  it('reads Viem fee data while gas simulation is still pending', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new Error('Unexpected RPC request');
+        },
+      }),
+    });
+    const gas = sinon.promise<bigint>();
+    const estimateGas = sandbox.stub(client, 'estimateGas').returns(gas);
+    const estimateFees = sandbox
+      .stub(client, 'estimateFeesPerGas')
+      .resolves({ gasPrice: 2n });
+    const transaction = {
+      blockHash: EVM_HASH,
+      blockNumber: 1n,
+      from: EVM_ADDRESS,
+      gas: 21_000n,
+      gasPrice: 2n,
+      hash: EVM_HASH,
+      input: '0x',
+      nonce: 0,
+      r: '0x',
+      s: '0x',
+      to: EVM_ADDRESS,
+      transactionIndex: 0,
+      type: 'legacy',
+      typeHex: '0x0',
+      v: 27n,
+      value: 0n,
+    } satisfies ViemTransaction['transaction'];
+
+    const estimate = estimateTransactionFeeViem({
+      transaction: { type: ProviderType.Viem, transaction },
+      provider: { type: ProviderType.Viem, provider: client },
+      sender: EVM_ADDRESS,
+    });
+    expect(estimateGas.calledOnce).to.equal(true);
+    expect(estimateFees.calledOnce).to.equal(true);
+    void gas.resolve(21_000n);
+    expect(await estimate).to.deep.equal({
+      gasUnits: 21_000n,
+      gasPrice: 2n,
+      fee: 42_000n,
     });
   });
 

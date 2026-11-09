@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tracing::warn;
 
 use hyperlane_base::db::HyperlaneDb;
-use hyperlane_core::QueueOperation;
+use hyperlane_core::{QueueOperation, SubmissionStage};
 use lander::{Entrypoint, LanderError, PayloadStatus, TransactionStatus};
 
 /// Disposition for routing operations through the message processor pipeline.
@@ -110,11 +110,26 @@ pub(crate) async fn operation_disposition_by_payload_status(
     };
 
     match status {
-        PayloadStatus::ReadyToSubmit
-        | PayloadStatus::InTransaction(TransactionStatus::PendingInclusion)
-        | PayloadStatus::InTransaction(TransactionStatus::Mempool) => Submit,
-        PayloadStatus::InTransaction(TransactionStatus::Included)
-        | PayloadStatus::InTransaction(TransactionStatus::Finalized) => PostSubmitSuccess,
+        PayloadStatus::ReadyToSubmit => {
+            op.on_submission_stage(SubmissionStage::Submitted);
+            Submit
+        }
+        PayloadStatus::InTransaction(TransactionStatus::PendingInclusion) => {
+            op.on_submission_stage(SubmissionStage::PendingInclusion);
+            Submit
+        }
+        PayloadStatus::InTransaction(TransactionStatus::Mempool) => {
+            op.on_submission_stage(SubmissionStage::Mempool);
+            Submit
+        }
+        PayloadStatus::InTransaction(TransactionStatus::Included) => {
+            op.on_submission_stage(SubmissionStage::Included);
+            PostSubmitSuccess
+        }
+        PayloadStatus::InTransaction(TransactionStatus::Finalized) => {
+            op.on_submission_stage(SubmissionStage::Finalized);
+            PostSubmitSuccess
+        }
         PayloadStatus::Dropped(_)
         | PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
         | PayloadStatus::Retry(_) => PostSubmitFailure,
@@ -131,8 +146,17 @@ pub(crate) async fn awaiting_transaction_finality(
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> bool {
+    let status = operation_payload_status(entrypoint, db, op).await;
+    if matches!(
+        status,
+        Ok(Some(PayloadStatus::InTransaction(
+            TransactionStatus::Finalized
+        )))
+    ) {
+        op.on_submission_stage(SubmissionStage::Finalized);
+    }
     matches!(
-        operation_payload_status(entrypoint, db, op).await,
+        status,
         Ok(Some(PayloadStatus::ReadyToSubmit))
             | Ok(Some(PayloadStatus::InTransaction(
                 TransactionStatus::PendingInclusion

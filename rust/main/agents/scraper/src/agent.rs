@@ -248,17 +248,22 @@ impl Scraper {
 
         let chain_setup = self.settings.chain_setup(&domain)?;
         let mut tasks = Vec::with_capacity(3);
-        tasks.push(
-            crate::near_head::spawn(
-                chain_setup,
-                store.clone(),
-                self.core_metrics.clone(),
-                self.chain_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                self.receipt_oldest_pending_seconds.clone(),
-            )
-            .await?,
-        );
+        let (near_head, dispatch_wakeup) = crate::near_head::spawn(
+            chain_setup,
+            self.settings
+                .websocket_urls
+                .expose_secret()
+                .get(domain.name())
+                .cloned()
+                .map(Into::into),
+            store.clone(),
+            self.core_metrics.clone(),
+            self.chain_metrics.clone(),
+            self.contract_sync_metrics.clone(),
+            self.receipt_oldest_pending_seconds.clone(),
+        )
+        .await?;
+        tasks.push(near_head);
 
         tasks.push(reconciliation::spawn(
             domain.clone(),
@@ -266,6 +271,7 @@ impl Scraper {
             self.raw_dispatch_unenriched_max_age.clone(),
             self.raw_dispatch_reconciliation_metrics.clone(),
             store.clone(),
+            dispatch_wakeup,
         ));
 
         let ccr_task = match crate::ccr::spawn(

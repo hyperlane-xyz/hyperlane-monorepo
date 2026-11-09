@@ -2,6 +2,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import mercurius, { type MercuriusOptions } from 'mercurius';
 
+import type { DiagnosticsService } from '../diagnostics/service.js';
 import { config } from '../config.js';
 import {
   graphqlActiveRequestLimit,
@@ -34,6 +35,7 @@ const logger = rootLogger.child({ module: 'GraphQL' });
 export const MAX_REQUEST_BYTES = 100 * 1_024;
 
 export type ScraperProxyAppOptions = {
+  diagnostics?: DiagnosticsService;
   jit?: MercuriusOptions['jit'];
 };
 
@@ -210,7 +212,7 @@ export async function registerGraphqlRoute(
         : options.jit,
     graphql: { parseOptions: { maxTokens: MAX_GRAPHQL_TOKENS } },
     path: '/graphql',
-    resolvers: buildResolvers(new ScraperDbService(db)),
+    resolvers: buildResolvers(new ScraperDbService(db), options.diagnostics),
     schema,
     subscription: false,
     validationRules: [scraperProxyValidationRule],

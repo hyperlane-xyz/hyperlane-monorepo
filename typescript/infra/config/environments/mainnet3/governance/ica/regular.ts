@@ -121,4 +121,8 @@ export const regularIcas: ChainMap<Address> = {
   // Oct 27, 2026 - Tempo
   // ----------------------------------------------------------
   tempo: '0x889524709d5c1D58254d62e6dc031069EEd67A80',
+
+  // Nov 6, 2026 - Elysium (v2 router)
+  // ----------------------------------------------------------
+  elysium: '0x4eAF5Eef9d8a1d2d32BaA4034Cd4631BD1F597A2',
 } as const;

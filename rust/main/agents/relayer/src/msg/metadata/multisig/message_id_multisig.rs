@@ -1,3 +1,4 @@
+use crate::message_activity::{Activity, Outcome, Stage};
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -37,15 +38,28 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
+        let report = |outcome| {
+            self.report_activity(
+                message,
+                Activity::Progress {
+                    stage: Stage::MerkleLeaf,
+                    outcome,
+                },
+            )
+        };
+        report(Outcome::Started);
         let message_id = message.id();
         let leaf_index = match self
             .base_builder()
             .get_merkle_leaf_id_by_message_id(message_id)
             .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
-        {
+            .map_err(|err| {
+                report(Outcome::Failed);
+                MetadataBuildError::FailedToBuild(err.to_string())
+            })? {
             Some(idx) => idx,
             None => {
+                report(Outcome::Unavailable);
                 debug!(
                     hyp_message=?message,
                     "No merkle leaf found for message id, must have not been enqueued in the tree"
@@ -54,6 +68,14 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             }
         };
 
+        report(Outcome::Succeeded);
+        self.report_activity(
+            message,
+            Activity::MerkleLeaf {
+                index: leaf_index,
+                highest_known: None,
+            },
+        );
         // Updating the validator latest checkpoint metrics is independent of fetching the exact
         // message-id checkpoint. Run both storage operations concurrently so metrics collection
         // does not add another round trip to the metadata critical path.

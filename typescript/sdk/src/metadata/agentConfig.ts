@@ -19,6 +19,8 @@ import {
 } from './deploymentArtifacts.js';
 import { MatchingListSchema } from './matchingList.js';
 
+const WEBSOCKET_URL_PREFIX_REGEX = /^wss?:\/\//i;
+
 // Keep in sync with MAX_SIGN_CONCURRENCY in the validator settings parser.
 const MAX_SIGN_CONCURRENCY = 1_000;
 
@@ -656,13 +658,16 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .url()
     .refine(
       (value) => {
-        if (!URL.canParse(value)) return false;
-        const { protocol, hostname } = new URL(value);
-        return (
-          ((protocol === 'https:' || protocol === 'http:') &&
-            hostname.length > 0) ||
-          (protocol === 'file:' && hostname.length === 0)
-        );
+        try {
+          const { protocol, hostname } = new URL(value);
+          return (
+            ((protocol === 'https:' || protocol === 'http:') &&
+              hostname.length > 0) ||
+            (protocol === 'file:' && hostname.length === 0)
+          );
+        } catch {
+          return false;
+        }
       },
       {
         message:
@@ -719,6 +724,12 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe('Whether to enable IGP indexing'),
+  messageActivityDatabaseUrl: z
+    .url({ protocol: /^postgres(ql)?$/, hostname: /.+/ })
+    .optional()
+    .describe(
+      'Separate diagnostics PostgreSQL URL. Activity writes are best effort; credentials must not be logged.',
+    ),
   websocketUrl: z
     .url()
     .refine(
@@ -816,6 +827,12 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
+  websocketUrls: z
+    .record(z.string(), z.url({ protocol: /^wss?$/ }))
+    .optional()
+    .describe(
+      'Optional EVM log subscription URLs by chain name. Wake indexing while HTTP polling remains the fallback.',
+    ),
   db: z.string().min(1).describe('Database connection string'),
   chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',
@@ -914,7 +931,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   leightweigt: z.boolean().optional().describe('Alias for lightweight.'),
   websocketUrl: z
     .url()
-    .refine((url) => /^wss?:\/\//i.test(url), {
+    .refine((url) => WEBSOCKET_URL_PREFIX_REGEX.test(url), {
       message: 'Must use ws:// or wss://',
     })
     .optional()

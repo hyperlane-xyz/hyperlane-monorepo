@@ -310,6 +310,8 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
     values.hyperlane.relayer = {
       enabled: true,
+      messageActivityDatabaseUrlSecret:
+        this.config.relayerConfig.messageActivityDatabaseUrlSecret,
       aws: this.config.requiresAwsCredentials,
       envConfig,
       configMapConfig,
@@ -451,6 +453,8 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
     const values = await super.helmValues();
     values.hyperlane.scraper = {
       enabled: true,
+      websocketConfigSecret:
+        this.config.rawConfig.scraper?.websocketConfigSecret,
       config: await this.config.buildConfig(),
       resources: this.kubernetesResources(),
     };

@@ -24,7 +24,7 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
-    PendingOperationStatus, QueueOperation, ReprepareReason,
+    PendingOperationStatus, QueueOperation, ReprepareReason, SubmissionStage,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
@@ -714,6 +714,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     let Some(op) = submit::drop_denied_before_submission(denylist, op).await else {
         return;
     };
+    op.on_submission_stage(SubmissionStage::Submitting);
     let operation_payload = match op.payload().await {
         Ok(p) => p,
         Err(e) => {
@@ -775,6 +776,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
+    op.on_submission_stage(SubmissionStage::Submitted);
 
     // Push to submit queue - the filtering logic will move it to confirm queue
     // once the transaction is actually included on-chain
