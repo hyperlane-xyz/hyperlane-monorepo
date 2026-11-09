@@ -1367,4 +1367,21 @@ class RadixScraperOwnerControls(unittest.TestCase):
             with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'runtime_source_commit':'a'*40,'scenario':'radix','mode':'ReleaseSafe'}, {},case,out,result,1,radix_scraper={'state':state})
             public=json.loads(Path(row['path']).read_bytes());self.assertEqual(public['Radix_scraper_cutover'],{'collection_status':'observed','operand_marker':7});state.public.assert_called_once_with({'counts':{'lane_failure':1}});self.assertIs(module.rust_panic_observation.call_args.kwargs['radix_scraper'],state);self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'][0]['exit_code'],101);self.assertNotIn('PRIVATE',json.dumps(public))
 
+
+
+class RadixRpcPublicationControls(unittest.TestCase):
+    def test_actual_failure_publisher_retains_RPC_field_under_same_private_deadline_and_primary(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory()as tmp:
+            case=Path(tmp);out=case/'worker';out.mkdir();primary=ValueError('PRIVATE_PRIMARY');result={'error':primary,'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]};state=SimpleNamespace(public=lambda raw:{'collection_status':'observed'});observed={'collection_status':'observed','routes':{'CORE_CALL_PREVIEW':{'error_count':1}}};module=SimpleNamespace(fixture_failure_observation=mock.Mock(return_value={}),radix_rpc_failure_observation=mock.Mock(return_value=observed));deadline=time.monotonic_ns()+9_000_000_000
+            with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'runtime_source_commit':'a'*40,'scenario':'radix','mode':'ReleaseSafe'}, {},case,out,result,1,case_inputs={'owned':True},original_deadline_ns=deadline,radix_scraper={'state':state})
+            value=json.loads(Path(row['path']).read_bytes());self.assertEqual(value['Radix_RPC_failures'],observed);call=module.radix_rpc_failure_observation.call_args;self.assertEqual(call.args[5],42);self.assertIs(call.args[6],state);self.assertLessEqual(call.args[7],deadline);self.assertIs(call.args[8],time.monotonic_ns);self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'][0]['exit_code'],101);self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_diagnostic_refusal_or_ambiguous_parent_keeps_original_error_wait_and_unavailable(self):
+        from types import SimpleNamespace
+        for ambiguous in [False,True]:
+            with tempfile.TemporaryDirectory()as tmp:
+                case=Path(tmp);out=case/'worker';out.mkdir();primary=ValueError('PRIVATE_PRIMARY');waits=[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]+([{'role':'harness-cleanup','pid':43,'actual_parent_wait':True,'exit_code':101}]if ambiguous else[]);result={'error':primary,'direct_waits':waits};state=SimpleNamespace(public=lambda raw:{});module=SimpleNamespace(fixture_failure_observation=mock.Mock(return_value={}),radix_rpc_failure_observation=mock.Mock(side_effect=ValueError('PRIVATE_DIAGNOSTIC')))
+                with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'runtime_source_commit':'a'*40,'scenario':'radix','mode':'ReleaseSafe'}, {},case,out,result,1,case_inputs={},original_deadline_ns=time.monotonic_ns()+5_000_000_000,radix_scraper={'state':state})
+                value=json.loads(Path(row['path']).read_bytes());self.assertEqual(value['Radix_RPC_failures'],{'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False});self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'],waits);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(module.radix_rpc_failure_observation.call_count,0 if ambiguous else 1)
+
 if __name__=='__main__':unittest.main()

@@ -1375,4 +1375,90 @@ class RadixScraperCutoverControls(unittest.TestCase):
             with self.assertRaises(ValueError):self.selected(mutate)
         with self.assertRaises(ValueError):self.selected(live={'pid':43,'ppid':42,'start':'linux-ticks:10','state':'Z'})
 
+
+
+class RadixRpcJournalControls(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.case=self.root/'case';(self.case/'evidence').mkdir(parents=True);actual=Path(__file__).resolve().parents[2]
+        for name,_,_ in api.RADIX_SCRAPER_SOURCE:
+            target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(actual/name,target)
+        self.modules={}
+        for name in ['multivm_session.py','multivm_evidence.py']:
+            target=self.repo/'zig/integration'/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(actual/'zig/integration'/name,target);self.modules[name]=api.pin(target)
+        lock=self.repo/api.RADIX_SUBMIT_LOCK;lock.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(actual/api.RADIX_SUBMIT_LOCK,lock)
+        self.inputs={'chain_names':['a','b']};self.inputpath=self.case/'case-inputs.json';self.inputpath.write_text(json.dumps(self.inputs));self.approvalpath=self.case/'approval.json';self.manifestpath=self.case/'manifest.json'
+        self.approval={'root_approved':True,'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'execution_source_commit':'b'*40,'python_modules':self.modules};self.manifest={'scenario':'radix','implementation':'zig','task_root':str(self.case),'runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'case_inputs':api.pin(self.inputpath)};self.plan={'root_approved':True,'scenario':'radix','execution_source_commit':'b'*40,'diagnostic_radix_client_lock':api.pin(lock),'required_inputs':list(self.modules.values())+[api.pin(lock)]};self.rebind()
+        self.state=api.RadixScraper(self.repo,self.manifest,self.modules);self.capture={'original':{'role':'scraper','scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'harness_pid':42,'metrics_port':9093,'role_chain_names':['a','b'],'chains':{name:{'protocol':'radix','rpcurls':'http://localhost:3333/core','gatewayurls':[{'http':'http://localhost:5308/'}]}for name in ['a','b']}}};self.captures=self.case/'evidence/effective-role-configs.jsonl';self.captures.write_text(json.dumps(self.capture)+'\n');self.journal=self.case/'evidence/native-rpc-observations.jsonl';self.write([])
+    def rebind(self):
+        self.approvalpath.write_text(json.dumps(self.approval));self.manifest['execution_approval']=api.pin(self.approvalpath);self.manifestpath.write_text(json.dumps(self.manifest));self.plan['manifestArtifact']=api.pin(self.manifestpath)
+    def row(self,route='CORE_CALL_PREVIEW',status=200,request=None,response=None):
+        core=route.startswith('CORE');paths={'CORE_CALL_PREVIEW':'/core/transaction/call-preview','CORE_NETWORK_STATUS':'/core/status/network-status','GATEWAY_STATUS':'/status/gateway-status','GATEWAY_STREAM':'/stream/transactions'}
+        return {'chain':'a','role':'scraper','endpoint_field':'rpcurls'if core else'gatewayurls','upstream':'http://localhost:3333/core'if core else'http://localhost:5308/','status':status,'requested_monotonic_ns':10,'received_monotonic_ns':20,'request_wire_sha256':'a'*64,'response_wire_sha256':'c'*64,'path':paths[route],'request':{}if request is None else request,'response':{}if response is None else response}
+    def write(self,rows):self.journal.write_bytes(b''.join(json.dumps(r).encode()+b'\n'for r in rows))
+    def observe(self,clock=lambda:1,end=1000):return api.radix_rpc_failure_observation(self.case,self.manifest,self.approval,self.plan,self.inputs,42,self.state,end,clock)
+    def test_actual_writer_context_routes_status_Source_method_and_SV_first_latest_error(self):
+        request={'target':{'type':'Method','method_name':'nonce','component_address':'PRIVATE_ADDRESS'},'at_ledger_state':{'type':'ByStateVersion','state_version':200}}
+        rows=[self.row(response={'at_ledger_state':{'state_version':210}},request=request),self.row(status=400,response={'error_type':'Basic','message':'PRIVATE_CORE_ERROR'},request=request),self.row(response={'at_ledger_state':{'state_version':211}}),self.row('GATEWAY_STREAM',400,{'at_ledger_state':{'state_version':211}},{'details':{'type':'InvalidRequestError'},'message':'PRIVATE_URL_TOKEN'}),self.row('CORE_NETWORK_STATUS',200,response={'current_state_identifier':{'state_version':212}}),self.row('GATEWAY_STATUS',200,response={'ledger_state':{'state_version':190}})]
+        self.write(rows);value=self.observe();core=value['routes']['CORE_CALL_PREVIEW'];self.assertEqual((core['matched_count'],core['error_count']),(3,1));self.assertEqual(core['first']['requested_state_version'],200);self.assertEqual(core['first']['returned_state_version'],210);self.assertEqual(core['latest']['returned_state_version'],211);self.assertEqual(core['latest_error']['HTTP_status'],400);self.assertEqual(core['latest_error']['official_error_type'],'Basic');self.assertEqual(core['first']['Source_counter_method'],'nonce');self.assertIsNone(core['first']['observed_method']);self.assertEqual(core['first']['Source_method'],'POST');self.assertEqual(value['routes']['GATEWAY_STREAM']['latest_error']['official_error_type'],'InvalidRequestError');self.assertEqual(value['routes']['GATEWAY_STREAM']['latest_error']['requested_state_version'],211);self.assertEqual(value['routes']['GATEWAY_STATUS']['first']['returned_state_version'],190)
+        public=json.dumps(value)
+        for private in ['PRIVATE','localhost','component_address','chain','http://']:
+            if private=='chain':self.assertNotIn('"chain"',public)
+            else:self.assertNotIn(private,public)
+        self.assertFalse(value['native_or_timing_or_cleanup_authority']);self.assertNotIn('a'*64,public);self.assertIn('Persisted append order',value['ordering_basis'])
+    def test_unknown_errors_methods_numeric_shapes_and_unselected_paths_never_echo(self):
+        rows=[self.row(status=500,request={'target':{'type':'Method','method_name':'PRIVATE_METHOD'},'at_ledger_state':{'type':'Other','state_version':3}},response={'error_type':'PRIVATE_SECRET','message':'PRIVATE_BODY'}),self.row('GATEWAY_STREAM',500,response={'details':{'type':['PRIVATE']},'message':'PRIVATE_MESSAGE'}),self.row('CORE_NETWORK_STATUS',response={'current_state_identifier':{'state_version':True}}),self.row('GATEWAY_STATUS',response={'ledger_state':{'state_version':2**64}})]
+        extra=self.row();extra['path']='/core/PRIVATE_ROUTE';rows.append(extra);other=self.row();other['role']='relayer';rows.append(other);self.write(rows);value=self.observe();self.assertEqual(value['unselected_scraper_records'],1);self.assertEqual(value['records_scanned'],6);self.assertIsNone(value['routes']['CORE_CALL_PREVIEW']['first']['official_error_type']);self.assertIsNone(value['routes']['CORE_CALL_PREVIEW']['first']['Source_counter_method']);self.assertIsNone(value['routes']['CORE_CALL_PREVIEW']['first']['requested_state_version']);self.assertIsNone(value['routes']['CORE_NETWORK_STATUS']['first']['returned_state_version']);self.assertIsNone(value['routes']['GATEWAY_STATUS']['first']['returned_state_version']);self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_strict_case_manifest_approval_capture_and_endpoint_crossbinding_refuse(self):
+        self.write([self.row()]);variants=[lambda:self.plan.__setitem__('root_approved',False),lambda:self.manifest.__setitem__('task_root',str(self.root)),lambda:self.approval.__setitem__('runtime_source_commit','d'*40)]
+        for change in variants:
+            before=(copy.deepcopy(self.plan),copy.deepcopy(self.manifest),copy.deepcopy(self.approval));change()
+            with self.assertRaises(ValueError):self.observe()
+            self.plan,self.manifest,self.approval=before
+        original=copy.deepcopy(self.capture)
+        for change in [lambda c:c['original'].__setitem__('harness_pid',99),lambda c:c['original'].__setitem__('role_chain_names',['a','a']),lambda c:c['original']['chains']['a'].__setitem__('rpcurls','http://PRIVATE:3333/core'),lambda c:c['original'].__setitem__('runtime_source_commit','d'*40)]:
+            value=copy.deepcopy(original);change(value);self.captures.write_text(json.dumps(value)+'\n')
+            with self.assertRaises(ValueError):self.observe()
+        self.captures.write_text(json.dumps(original)+'\n');row=self.row();row['upstream']='http://localhost:5308/';self.write([row])
+        with self.assertRaises(ValueError):self.observe()
+    def test_changed_Source_lock_writer_and_duplicate_JSON_refuse(self):
+        self.write([self.row()]);original=self.plan['diagnostic_radix_client_lock'];path=Path(original['path']);saved=path.read_bytes();path.write_bytes(saved+b'\n');self.plan['diagnostic_radix_client_lock']=api.pin(path);self.plan['required_inputs'][-1]=api.pin(path)
+        with self.assertRaises(ValueError):self.observe()
+        path.write_bytes(saved);self.plan['diagnostic_radix_client_lock']=original;self.plan['required_inputs'][-1]=original
+        writer=Path(self.modules['multivm_session.py']['path']);writer.write_bytes(writer.read_bytes().replace(b'self.append("native-rpc-observations.jsonl", record)',b'self.append("other.jsonl", record)'));old=self.modules['multivm_session.py'];self.modules['multivm_session.py']=api.pin(writer);self.plan['required_inputs']=[self.modules['multivm_session.py']if v==old else v for v in self.plan['required_inputs']];self.rebind();self.state=api.RadixScraper(self.repo,self.manifest,self.modules)
+        with self.assertRaises(ValueError):self.observe()
+    def test_byte_line_record_depth_and_SYMLINK_bounds_no_debt_or_public_data(self):
+        variants=[b'x'*(8*1024**2+1),b'x'*(1024**2+1),b'{}\n'*4097,b'{"role":"scraper","role":"validator"}\n']
+        row=self.row();nested={};v=nested
+        for _ in range(34):v['private']={};v=v['private']
+        row['response']=nested;variants.append(json.dumps(row).encode())
+        for raw in variants:
+            self.journal.write_bytes(raw)
+            with self.subTest(size=len(raw)),self.assertRaises(ValueError):self.observe()
+        self.journal.unlink();target=self.root/'outside';target.write_bytes(b'');self.journal.symlink_to(target)
+        with self.assertRaises(ValueError):self.observe()
+    def test_deadline_refuses_IO_and_midread_closes_actual_owned_FD(self):
+        with mock.patch.object(api.os,'open',side_effect=AssertionError('Expired must not open'))as opened:
+            with self.assertRaises(TimeoutError):self.observe(clock=lambda:1000)
+            opened.assert_not_called()
+        self.write([self.row()]);clock=[1];actual_open=api.os.open;actual_read=api.os.read;actual_close=api.os.close;target=[];closed=[]
+        def opened(path,*args):
+            fd=actual_open(path,*args)
+            if Path(path)==self.journal:target.append(fd)
+            return fd
+        def read(fd,*args):
+            result=actual_read(fd,*args)
+            if fd in target:clock[0]=1000
+            return result
+        def close(fd):closed.append(fd);return actual_close(fd)
+        with mock.patch.object(api.os,'open',side_effect=opened),mock.patch.object(api.os,'read',side_effect=read),mock.patch.object(api.os,'close',side_effect=close),self.assertRaises(TimeoutError):self.observe(clock=lambda:clock[0])
+        self.assertEqual(len(target),1);self.assertIn(target[0],closed)
+    def test_actual_postcapture_change_or_publication_Source_change_cannot_escape(self):
+        self.write([self.row()]);original=self.state.check_sources;calls=[]
+        def check():
+            calls.append(1)
+            if len(calls)==2:self.journal.write_bytes(self.journal.read_bytes()+b'\n')
+            return original()
+        with mock.patch.object(self.state,'check_sources',side_effect=check),self.assertRaises(ValueError):self.observe()
+
 if __name__=='__main__':unittest.main()

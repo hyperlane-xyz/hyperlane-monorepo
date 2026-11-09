@@ -947,6 +947,13 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
         try:
             require(radix_scraper is not None,'SCR diagnostic unavailable');record['Radix_scraper_cutover']=radix_scraper['state'].public(rust.get('Radix_scraper_headers'))
         except Exception:record['Radix_scraper_cutover']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        record['Radix_RPC_failures']={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        try:
+            require(radix_scraper is not None and case_inputs is not None,'RPC diagnostic context unavailable')
+            pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
+            require(len(pids)==1,'One actual RPC helper parent required')
+            record['Radix_RPC_failures']=diagnostic_module(approval).radix_rpc_failure_observation(case,manifest,approval,plan,case_inputs,next(iter(pids)),radix_scraper['state'],private_end_ns,time.monotonic_ns)
+        except Exception:pass
     if manifest['scenario']in{'sealevel','sealevel-composite'}:
         module=diagnostic_module(approval)
         def private_capture(raw):

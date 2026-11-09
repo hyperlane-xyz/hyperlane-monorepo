@@ -1438,6 +1438,132 @@ def radix_selected_scraper(case,manifest,inputs,parent_pid,read,kernel_row,read_
     check();return candidates[0],captures[0],9093
 
 
+RADIX_RPC_CORE_ERRORS = frozenset(('Basic','TransactionSubmit','LtsTransactionSubmit','TransactionPreviewV2','StreamTransactions','StreamProofs'))
+RADIX_RPC_ROUTES = {'CORE_NETWORK_STATUS':('core','/status/network-status'),'CORE_CALL_PREVIEW':('core','/transaction/call-preview'),'GATEWAY_STATUS':('gateway','/status/gateway-status'),'GATEWAY_STREAM':('gateway','/stream/transactions')}
+
+
+def radix_rpc_failure_observation(case,manifest,approval,plan,inputs,parent_pid,state,end_ns,clock):
+    """Read existing passive journal only; Source contract, no HTTP or raw text."""
+    import urllib.parse,ast
+    def check():
+        if type(end_ns)is not int or clock()>=end_ns:raise TimeoutError('Original private failure budget expired')
+    def identity(path):
+        value=path.lstat()
+        if path.is_symlink()or not stat.S_ISREG(value.st_mode)or value.st_nlink!=1 or value.st_uid!=os.getuid():raise ValueError('Owned regular RPC evidence required')
+        return value.st_dev,value.st_ino,value.st_size,value.st_mtime_ns,value.st_ctime_ns
+    identities={}
+    def read(path,maximum):
+        check();path=Path(path)
+        if not path.is_absolute()or path.resolve(strict=True)!=path:raise ValueError('Canonical RPC evidence required')
+        before=identity(path)
+        if before[2]>maximum:raise ValueError('Bounded RPC evidence required')
+        fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+        try:
+            info=os.fstat(fd)
+            if (info.st_dev,info.st_ino)!=(before[0],before[1]):raise ValueError('RPC evidence replaced')
+            wire=bytearray()
+            while True:
+                check();part=os.read(fd,min(65536,maximum+1-len(wire)));check()
+                if not part:break
+                wire.extend(part)
+                if len(wire)>maximum:raise ValueError('RPC evidence bound')
+            if len(wire)!=before[2]or identity(path)!=before:raise ValueError('RPC evidence changed')
+        finally:os.close(fd)
+        identities[path]=before;return bytes(wire)
+    def bound(row,maximum,owned=False):
+        if type(row)is not dict or set(row)!={'path','bytes','sha256'}or type(row['bytes'])is not int or not 0<row['bytes']<=maximum or type(row['sha256'])is not str or re.fullmatch('[a-f0-9]{64}',row['sha256'])is None:raise ValueError('Exact RPC context descriptor required')
+        path=Path(row['path'])
+        if owned and not path.is_relative_to(root):raise ValueError('RPC context outside owned case')
+        wire=read(path,maximum)
+        if len(wire)!=row['bytes']or hashlib.sha256(wire).hexdigest()!=row['sha256']:raise ValueError('RPC context changed')
+        return wire
+    def records(path,maximum,limit,line_limit):
+        wire=read(path,maximum);lines=wire.splitlines()
+        if len(lines)>limit or any(not line or len(line)>line_limit for line in lines):raise ValueError('RPC record bound')
+        return lines
+    def finite(value,depth=0):
+        nonlocal nodes
+        check();nodes+=1
+        if depth>32 or nodes>100000:raise ValueError('RPC JSON structure bound')
+        if isinstance(value,dict):
+            for child in value.values():finite(child,depth+1)
+        elif isinstance(value,list):
+            for child in value:finite(child,depth+1)
+    def uint(value):return value if type(value)is int and 0<=value<2**64 else None
+    check();state.check_sources();root=Path(case)
+    if root!=Path(manifest['task_root'])or not root.is_absolute()or root.is_symlink()or root.resolve(strict=True)!=root or manifest.get('scenario')!='radix'or plan.get('scenario')!='radix'or plan.get('root_approved')is not True or manifest.get('implementation')!='zig'or manifest.get('runtime_source_commit')!=RADIX_SCRAPER_EPOCH or type(parent_pid)is not int or not 0<parent_pid<2**31:raise ValueError('Exact owned Radix case required')
+    if startup_unique_json(bound(plan['manifestArtifact'],1024**2,True))!=manifest or startup_unique_json(bound(manifest['execution_approval'],1024**2,True))!=approval or startup_unique_json(bound(manifest['case_inputs'],1024**2,True))!=inputs:raise ValueError('RPC case/control context differs')
+    if approval.get('root_approved')is not True or approval.get('scenario')!='radix'or approval.get('runtime_source_commit')!=manifest['runtime_source_commit']or approval.get('execution_source_commit')!=plan['execution_source_commit']:raise ValueError('RPC approval differs')
+    module_bodies={}
+    for name,needles in {'multivm_session.py':[b'record = {"chain": chain, "role": role, "endpoint_field": field, "upstream": endpoint, "status": status,',b'"path": request["start"].split(" ")[1]',b'self.append("native-rpc-observations.jsonl", record)',b'self.captures.append(row)',b'capture = effective_config(request, self.manifest)'],'multivm_evidence.py':[b'def effective_config(',b'def urls(value):',b'def direct_endpoint(',b'def endpoint(self):']}.items():
+        row=approval['python_modules'][name]
+        if row not in plan['required_inputs']or row['path']!=str(state.repo/'zig/integration'/name):raise ValueError('RPC writer not admitted')
+        wire=bound(row,1024**2)
+        if any(wire.count(needle)!=1 for needle in needles):raise ValueError('RPC writer Source contract differs')
+        module_bodies[name]=wire
+    provider=state.sources['zig/src/radix/provider.zig']
+    if provider.count(b'.method = .POST')!=1 or any(path.encode()not in provider for _,path in RADIX_RPC_ROUTES.values()):raise ValueError('RPC Source POST/routes differ')
+    lock=plan['diagnostic_radix_client_lock']
+    if lock not in plan['required_inputs']or lock['path']!=str(state.repo/RADIX_SUBMIT_LOCK):raise ValueError('RPC official client lock not admitted')
+    wire=bound(lock,1024**2)
+    if hashlib.sha256(wire).hexdigest()!=RADIX_SUBMIT_SOURCE_SHA[RADIX_SUBMIT_LOCK]or ('rev='+RADIX_CLIENT_REVISION+'#'+RADIX_CLIENT_REVISION).encode()not in wire:raise ValueError('RPC official error catalog revision differs')
+    names=inputs['chain_names']
+    if type(names)is not list or len(names)!=2 or len(set(names))!=2:raise ValueError('Two admitted Radix chains required')
+    # Reuse only the admitted pure URL parser, not a second interpretation.
+    tree=ast.parse(module_bodies['multivm_evidence.py']);node=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='urls');scope={'json':json,'require':lambda value,reason:None if value else(_ for _ in()).throw(ValueError('RPC URL shape differs'))}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),'admitted-RPC-urls','exec'),scope)
+    endpoint_sets=[]
+    for line in records(root/'evidence/effective-role-configs.jsonl',1024**2,128,65536):
+        row=startup_unique_json(line);original=row.get('original')if isinstance(row,dict)else None
+        if not isinstance(original,dict):raise ValueError('RPC capture shape')
+        if original.get('role')!='scraper':continue
+        if original.get('scenario')!='radix'or original.get('runtime_source_commit')!=manifest['runtime_source_commit']or original.get('harness_pid')!=parent_pid or original.get('metrics_port')!=9093 or type(original.get('role_chain_names'))is not list or len(original['role_chain_names'])!=2 or len(set(original['role_chain_names']))!=2 or set(original['role_chain_names'])!=set(names)or type(original.get('chains'))is not dict or set(original['chains'])!=set(names):raise ValueError('RPC SCR capture differs')
+        selected=set()
+        for name in names:
+            chain=original['chains'][name]
+            if chain.get('protocol')!='radix':raise ValueError('RPC captured family differs')
+            for field in ('rpcurls','customrpcurls','gatewayurls','customgatewayurls'):
+                if field not in chain:continue
+                kind='core'if field in{'rpcurls','customrpcurls'}else'gateway'
+                for endpoint in scope['urls'](chain[field]):
+                    parsed=urllib.parse.urlsplit(endpoint)
+                    if parsed.scheme!='http'or parsed.hostname not in{'localhost','127.0.0.1'}or parsed.port!=(3333 if kind=='core'else 5308)or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment or parsed.path.rstrip('/')!=('/core'if kind=='core'else''):raise ValueError('RPC Source endpoint differs')
+                    selected.add((name,field,endpoint,kind,parsed.path.rstrip('/')))
+        if not all(any(x[0]==name and x[3]==kind for x in selected)for name in names for kind in ('core','gateway')):raise ValueError('RPC endpoint coverage differs')
+        endpoint_sets.append(selected)
+    if not endpoint_sets or any(value!=endpoint_sets[0]for value in endpoint_sets):raise ValueError('Ambiguous RPC SCR captures')
+    allowed={(name,field,url):(kind,path)for name,field,url,kind,path in endpoint_sets[0]};groups={key:{'matched_count':0,'error_count':0,'first':None,'latest':None,'latest_error':None}for key in RADIX_RPC_ROUTES};other=0;scanned=0
+    keys={'chain','role','endpoint_field','upstream','status','requested_monotonic_ns','received_monotonic_ns','request_wire_sha256','response_wire_sha256','request','response','path'}
+    for index,line in enumerate(records(root/'evidence/native-rpc-observations.jsonl',8*1024**2,4096,1024**2)):
+        check();row=startup_unique_json(line);nodes=0;finite(row);scanned+=1
+        if type(row)is not dict or set(row)!=keys or row['role']not in{'relayer','validator','scraper'}:raise ValueError('RPC writer record differs')
+        if row['role']!='scraper':continue
+        endpoint_key=(row['chain'],row['endpoint_field'],row['upstream'])
+        if endpoint_key not in allowed:raise ValueError('RPC endpoint not captured')
+        kind,base=allowed[endpoint_key];route=next((key for key,(api,path)in RADIX_RPC_ROUTES.items()if api==kind and row['path']==base+path),None)
+        if route is None:other+=1;continue
+        status=row['status'];requested=row['requested_monotonic_ns'];received=row['received_monotonic_ns']
+        if type(status)is not int or not 100<=status<=599 or type(requested)is not int or type(received)is not int or not 0<requested<=received<=end_ns or any(type(row[name])is not str or re.fullmatch('[a-f0-9]{64}',row[name])is None for name in ('request_wire_sha256','response_wire_sha256')):raise ValueError('RPC status/clock/shape differs')
+        request=row['request'];response=row['response'];request=request if isinstance(request,dict)else{};response=response if isinstance(response,dict)else{};selector=request.get('at_ledger_state');selector=selector if isinstance(selector,dict)else{};target=request.get('target');target=target if isinstance(target,dict)else{}
+        requested_sv=uint(selector.get('state_version'))if route=='GATEWAY_STREAM'or route=='CORE_CALL_PREVIEW'and selector.get('type')=='ByStateVersion'else None
+        ledger=response.get('current_state_identifier'if route=='CORE_NETWORK_STATUS'else'at_ledger_state'if route=='CORE_CALL_PREVIEW'else'ledger_state');ledger=ledger if isinstance(ledger,dict)else{}
+        current_sv=uint(ledger.get('state_version'))if status==200 else None
+        error=None
+        if status!=200:
+            if kind=='core':error=response.get('error_type')if type(response.get('error_type'))is str and response.get('error_type')in RADIX_RPC_CORE_ERRORS else None
+            else:
+                details=response.get('details');error=details.get('type')if isinstance(details,dict)and type(details.get('type'))is str and details.get('type')in RADIX_GATEWAY_ERRORS else None
+        method=target.get('method_name')if route=='CORE_CALL_PREVIEW'and target.get('type')=='Method'and type(target.get('method_name'))is str and target.get('method_name')in{'nonce','processed','sequence','count'}else None
+        public={'journal_record_index':index,'observed_method':None,'Source_method':'POST','Source_method_basis':'Pinned SCR Client.callOne; HTTPmethod not recorded by journal','HTTP_status':status,'official_error_type':error,'error_type_basis':'Allowlisted JSON text only; no typed exception or cause claim','requested_state_version':requested_sv,'returned_state_version':current_sv,'Source_counter_method':method,'requested_monotonic_ns':requested,'received_monotonic_ns':received}
+        group=groups[route];group['matched_count']+=1
+        if group['first']is None:group['first']=public
+        group['latest']=public
+        if status!=200:group['error_count']+=1;group['latest_error']=public
+    check();state.check_sources()
+    if any(identity(path)!=before for path,before in identities.items()):raise ValueError('RPC evidence changed before publication')
+    check();return {'schema':1,'collection_status':'observed','records_scanned':scanned,'unselected_scraper_records':other,'routes':groups,'ordering_basis':'Persisted append order; concurrent requests need not be chronological','official_catalog_revision':RADIX_CLIENT_REVISION,'native_or_timing_or_cleanup_authority':False,'scope':'Existing Source-bound SCR proxy journal. No new requests, rawURL/headers/body/message/chain labels or PID inference. Method is Source-only, not observed; optional integers from fixed structured fields. No actual Rust-poll simultaneity or causal fix claim.'}
+
+
 RADIX_TRANSPORT_SERVICES = ('fullnode','postgres_db','database_migrations_image','data_aggregator_image','gateway_api_image')
 RADIX_HTTP_SERVICES = {'fullnode':(3333,3333,'/core/status/network-configuration'),'gateway_api_image':(5308,8080,'/status/gateway-status')}
 
