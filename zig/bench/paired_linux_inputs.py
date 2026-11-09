@@ -11,7 +11,7 @@ from pathlib import Path
 GIB=1024**3
 MODES=('ReleaseSafe','ReleaseFast')
 BASELINE='c5202242cc6569da4a858ed7ddbb34170ab696aa'
-PROFILE='locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-v3'
+PROFILE='locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-native-abi-v4'
 LIMITS={'maximum_wall_seconds':9000,'maximum_tree_RAM_bytes':16*GIB,'maximum_owned_growth_bytes':30*GIB,'minimum_host_free_bytes':6*GIB,'minimum_initial_free_bytes':40*GIB,'maximum_log_bytes':64*1024**2,'maximum_published_bytes':2*GIB}
 SDK_KEYS={'relayer':'relayer','validator':'validator','scraper':'scraper','hyperlane-aleo-vm-worker':'worker','libziggy_aleo_crypto.so':'aleoCrypto','libziggy_aleo_vm.so':'aleoVm','libziggy_starknet_crypto.so':'starknetCrypto','libziggy_regex.so':'regex','libziggy_url.so':'url'}
 TOOLS={'init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference'}
@@ -320,6 +320,7 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
   owner=load_source(repo,'zig/bench/cold_matrix_owner.py','paired_preparation_custody',authority)
   census=load_source(repo,'zig/bench/native_harness_census.py','paired_preparation_census',authority)
   cpu=load_source(repo,'zig/tools/build_cpu.py','paired_preparation_cpu',authority)
+  cpu.require_native_linux_host()
   owner.enable_subreaper()
   def interrupted(sig,frame):raise TaskInterrupted('preparation cancelled')
   for sig in [signal.SIGINT,signal.SIGTERM,signal.SIGHUP]:signal.signal(sig,interrupted)

@@ -256,7 +256,7 @@ class Controls(unittest.TestCase):
                     c.native_test_results(log)
 
     def test_missing_worker_and_mode_cannot_reach_commands(self):
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c, 'command', side_effect=AssertionError('no subprocess')) as called:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c.cpu, 'require_native_linux_host'), mock.patch.object(c, 'command', side_effect=AssertionError('no subprocess')) as called:
             library = Path(tmp) / 'fixture.so'; library.write_bytes(b'\x7fELFpublic-fixture')
             env = {'ZIG_NATIVE_TEST_MODE': 'ReleaseSafe'}
             for key in ['HYPERLANE_URL_LIBRARY', 'HYPERLANE_REGEX_LIBRARY', 'HYPERLANE_STARKNET_CRYPTO_LIBRARY', 'HYPERLANE_ALEO_CRYPTO_LIBRARY', 'HYPERLANE_ALEO_VM_LIBRARY']:
@@ -266,6 +266,20 @@ class Controls(unittest.TestCase):
             with mock.patch.dict(os.environ, env, clear=True), self.assertRaisesRegex(AssertionError, 'mode differs'):
                 c.native_suite('ReleaseFast', 2, Path(tmp) / 'out.json')
             called.assert_not_called()
+
+
+class NativeAbiHostFenceTests(unittest.TestCase):
+    def test_actual_x86_native_suite_refuses_non_Linux_or_non_GNU_before_effects(self):
+        for system,libc in [('Darwin','glibc'),('Linux','musl')]:
+            with mock.patch.object(c.os,'uname',return_value=SimpleNamespace(machine='x86_64')), mock.patch.object(c.cpu.platform,'system',return_value=system), mock.patch.object(c.cpu.platform,'machine',return_value='x86_64'), mock.patch.object(c.cpu.platform,'libc_ver',return_value=(libc,'2.36')), mock.patch.dict(c.os.environ,{'ZIG_NATIVE_TEST_MODE':'ReleaseSafe'},clear=True), mock.patch.object(c,'command',side_effect=AssertionError('compiler cannot start'))as command:
+                with self.assertRaisesRegex(ValueError,'native ABI compiler requires Linux x86_64 GNU host'):
+                    c.native_suite('ReleaseSafe',2,Path('/not-created/result.json'))
+                command.assert_not_called()
+
+    def test_existing_ARM_path_keeps_its_mode_fence_without_x86_profile_guard(self):
+        with mock.patch.object(c.os,'uname',return_value=SimpleNamespace(machine='aarch64')), mock.patch.object(c.cpu,'require_native_linux_host',side_effect=AssertionError('x86-only guard')), mock.patch.dict(c.os.environ,{},clear=True):
+            with self.assertRaisesRegex(AssertionError,'mode differs'):
+                c.native_suite('ReleaseSafe',2,Path('/not-created/result.json'))
 
 
 class ExistingCompilerTests(unittest.TestCase):
@@ -282,7 +296,7 @@ class ExistingCompilerTests(unittest.TestCase):
                     argv = c.native_suite_command(mode, 2, libraries, root, machine, pq)
                     self.assertEqual(argv.count(str(pq)), 1)
                     if machine=="x86_64":
-                        self.assertEqual(argv[argv.index("-target")+1],"x86_64-linux-gnu");self.assertEqual([v for v in argv if v.startswith("-mcpu=")],["-mcpu=x86_64_v3+pclmul"])
+                        self.assertEqual(argv[argv.index("-target")+1],"native");self.assertEqual([v for v in argv if v.startswith("-mcpu=")],["-mcpu=x86_64_v3+pclmul"])
                     else:self.assertNotIn("-mcpu=x86_64_v3+pclmul",argv)
                     self.assertEqual(argv[argv.index("--compiler") + 1], str(compiler))
                     self.assertIn(mode, argv); self.assertIn("src/db_tests.zig", argv)

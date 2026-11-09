@@ -37,7 +37,7 @@ def chunks(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cpu-profile", choices=["production-default", "x86_64_v3_pclmul"], default="production-default")
+    parser.add_argument("--cpu-profile", choices=["production-default", "x86_64_v3_pclmul_native_abi"], default="production-default")
     parser.add_argument("--compiler", default=os.environ.get("ZIG", "zig"))
     parser.add_argument("--mode", choices=["ReleaseSafe", "ReleaseFast"], default="ReleaseSafe")
     parser.add_argument("--sdk-root", type=Path)
@@ -55,7 +55,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     if not args.process_only and run([args.compiler, "version"]).stdout.strip() != "0.15.2":
         parser.error("Zig0.15.2 required")
-    portable = args.cpu_profile == "x86_64_v3_pclmul"
+    portable = args.cpu_profile == "x86_64_v3_pclmul_native_abi"
     if portable and (sys.platform != "linux" or os.uname().machine != "x86_64" or args.migration_bin.resolve() != ROOT / "rust/main/target/release/init-db"):
         parser.error("Portable fixture compilers require Linux x86_64 and their actual Cargo migration output")
     compiler_environment = cpu.portable_environment(os.environ, tokio_unstable=True) if portable else dict(os.environ)

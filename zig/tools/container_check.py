@@ -688,6 +688,8 @@ def native_suite(mode: str, jobs: int, output: Path) -> None:
         raise ValueError("invalid native fixture mode/jobs")
     if os.environ.get("ZIG_NATIVE_TEST_MODE") != mode:
         raise AssertionError("test mode differs from actual worker/roles build mode")
+    if os.uname().machine == "x86_64":
+        cpu.require_native_linux_host()
     variables = ("HYPERLANE_URL_LIBRARY", "HYPERLANE_REGEX_LIBRARY", "HYPERLANE_STARKNET_CRYPTO_LIBRARY",
                  "HYPERLANE_ALEO_CRYPTO_LIBRARY", "HYPERLANE_ALEO_VM_LIBRARY", "HYPERLANE_ALEO_VM_WORKER")
     artifacts = {}

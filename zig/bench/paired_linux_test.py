@@ -17,27 +17,27 @@ def ordinary_native_http_workflow(text):
  portable_before = '        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '          python3 zig/tools/native_deps.py --cpu-profile x86_64_v3_pclmul --git-sha "$GITHUB_SHA" --offline --jobs "${BUILD_JOBS}" \\\n'
+ portable_after = '          python3 zig/tools/native_deps.py --cpu-profile x86_64_v3_pclmul_native_abi --git-sha "$GITHUB_SHA" --offline --jobs "${BUILD_JOBS}" \\\n'
  portable_before = '          python3 zig/tools/native_deps.py --offline --jobs "${BUILD_JOBS}" \\\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '            python3 zig/tools/zig.py build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" native-db-test relayer validator \\\n'
+ portable_after = '            python3 zig/tools/zig.py build -Dtarget=native -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" native-db-test relayer validator \\\n'
  portable_before = '            python3 zig/tools/zig.py build -j"${BUILD_JOBS}" native-db-test relayer validator \\\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3+pclmul src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"\n'
+ portable_after = '          python3 zig/tools/zig.py test -target native -mcpu=x86_64_v3+pclmul src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"\n'
  portable_before = '          python3 zig/tools/zig.py test src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '        run: python3 zig/tools/zig.py build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"\n'
+ portable_after = '        run: python3 zig/tools/zig.py build -Dtarget=native -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"\n'
  portable_before = '        run: python3 zig/tools/zig.py build -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3+pclmul src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3+pclmul src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
+ portable_after = '          python3 zig/tools/zig.py test -target native -mcpu=x86_64_v3+pclmul src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n          python3 zig/tools/zig.py test -target native -mcpu=x86_64_v3+pclmul src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
  portable_before = '          python3 zig/tools/zig.py test src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n          python3 zig/tools/zig.py test src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '          python3 zig/tools/zig.py build-exe -target x86_64-linux-gnu -mcpu=x86_64_v3+pclmul src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"\n'
+ portable_after = '          python3 zig/tools/zig.py build-exe -target native -mcpu=x86_64_v3+pclmul src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"\n'
  portable_before = '          python3 zig/tools/zig.py build-exe src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
@@ -45,11 +45,11 @@ def ordinary_native_http_workflow(text):
  portable_before = '          python3 zig/src/ops/tools/locked.py --toolchain 1.98.0\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3+pclmul src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
+ portable_after = '          python3 zig/tools/zig.py test -target native -mcpu=x86_64_v3+pclmul src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
  portable_before = '          python3 zig/tools/zig.py test src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)
- portable_after = '            python3 zig/integration/postgres.py --cpu-profile x86_64_v3_pclmul --compiler "$ZIG" \\\n'
+ portable_after = '            python3 zig/integration/postgres.py --cpu-profile x86_64_v3_pclmul_native_abi --compiler "$ZIG" \\\n'
  portable_before = '            python3 zig/integration/postgres.py --compiler "$ZIG" \\\n'
  if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
  text = text.replace(portable_after, portable_before, 1)

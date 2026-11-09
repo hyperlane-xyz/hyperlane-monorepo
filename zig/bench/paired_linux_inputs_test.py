@@ -103,18 +103,28 @@ class Controls(unittest.TestCase):
    if row['name'].startswith('build-'):
     self.assertIn('--offline',row['command']);self.assertIn('--release',row['command']);self.assertEqual(row['command'][row['command'].index('-j')+1],'2');self.assertNotIn('--no-default-features',row['command'])
   runtime=rows[3];self.assertEqual(runtime['cwd'],str(self.repo/'rust/main'));self.assertIn('relayer/aleo,validator/aleo,scraper/aleo',runtime['command']);self.assertIn(str(self.root/'oracle-target'),rows[-1]['command'])
- def test_failed_H_profile_cannot_relabel_new_paired_request_or_legacy_validation(self):
-  p,_,value=self.request()
-  value['baseline_profile']='locked-c520224-production-three-agent-linux-x86_64-v3-v2';p.write_text(json.dumps(value))
-  with self.assertRaisesRegex(m.Refused,'original comparator profile required'):m.request(p,m.digest(p),self.repo)
+ def test_failed_H_and_I_profiles_cannot_relabel_native_ABI_request_or_legacy_validation(self):
   spec=importlib.util.spec_from_file_location('paired_cpu_profile_under_test',P.with_name('paired_linux.py'));paired=importlib.util.module_from_spec(spec);spec.loader.exec_module(paired)
-  self.assertEqual(paired.PORTABLE_PROFILE,m.PROFILE);self.assertNotIn(value['baseline_profile'],paired.PROFILE_RUSTFLAGS)
+  for old in ('locked-c520224-production-three-agent-linux-x86_64-v3-v2','locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-v3'):
+   path,_,value=self.request();value['baseline_profile']=old;path.write_text(json.dumps(value))
+   with self.subTest(profile=old),self.assertRaisesRegex(m.Refused,'original comparator profile required'):m.request(path,m.digest(path),self.repo)
+   self.assertNotIn(old,paired.PROFILE_RUSTFLAGS)
+  self.assertEqual(paired.PORTABLE_PROFILE,m.PROFILE)
   self.assertEqual(paired.PROFILE_RUSTFLAGS[paired.PORTABLE_PROFILE],'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq')
   self.assertEqual(paired.PROFILE_RUSTFLAGS[paired.LEGACY_PROFILE],'--cfg tokio_unstable -Ctarget-cpu=native')
+ def test_actual_admitted_CPU_host_guard_precedes_owned_comparator_compilers(self):
+  tree=ast.parse(P.read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='producer_main');body=next(n for n in fn.body if isinstance(n,ast.Try)).body
+  load=next(i for i,n in enumerate(body)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='cpu'for t in n.targets))
+  guard=body[load+1];self.assertIsInstance(guard,ast.Expr);self.assertEqual(ast.unparse(guard),'cpu.require_native_linux_host()')
+  self.assertLess(load+1,next(i for i,n in enumerate(body)if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and ast.unparse(n.value.func)=='owner.enable_subreaper'))
+  cpu=__import__('runpy').run_path(str(REPO/'zig/tools/build_cpu.py'));cpu=types.SimpleNamespace(**cpu);namespace={'cpu':cpu}
+  for libc in [('musl','1.2.5'),('','')]:
+   with self.subTest(libc=libc),mock.patch.object(cpu.platform,'system',return_value='Linux'),mock.patch.object(cpu.platform,'machine',return_value='x86_64'),mock.patch.object(cpu.platform,'libc_ver',return_value=libc),self.assertRaisesRegex(ValueError,'GNU host'):exec(compile(ast.Module(body=[guard],type_ignores=[]),'<actual-producer-guard>','exec'),namespace)
+  with mock.patch.object(cpu.platform,'system',return_value='Linux'),mock.patch.object(cpu.platform,'machine',return_value='x86_64'),mock.patch.object(cpu.platform,'libc_ver',return_value=('glibc','2.39')):exec(compile(ast.Module(body=[guard],type_ignores=[]),'<actual-producer-guard>','exec'),namespace)
  def test_compile_environment_strips_auth_proxy_wrappers_and_preserves_profile(self):
   cpu=__import__('runpy').run_path(str(REPO/'zig/tools/build_cpu.py'));cpu=types.SimpleNamespace(**cpu)
   env=m.compile_environment(self.root,{'PATH':'/bin','RUSTUP_HOME':'/staged/rustup','GH_TOKEN':'secret','HTTPS_PROXY':'secret','RUSTC_WRAPPER':'secret','CARGO_PROFILE_RELEASE_DEBUG':'1'},cpu)
-  self.assertNotIn('GH_TOKEN',env);self.assertNotIn('HTTPS_PROXY',env);self.assertNotIn('CARGO_PROFILE_RELEASE_DEBUG',env);self.assertEqual(env['RUSTC_WRAPPER'],'');self.assertEqual(env['RUSTFLAGS'],'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq');self.assertEqual(m.PROFILE,'locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-v3');self.assertEqual(env['CARGO_HOME'],str(self.root/'cargo-home'))
+  self.assertNotIn('GH_TOKEN',env);self.assertNotIn('HTTPS_PROXY',env);self.assertNotIn('CARGO_PROFILE_RELEASE_DEBUG',env);self.assertEqual(env['RUSTC_WRAPPER'],'');self.assertEqual(env['RUSTFLAGS'],'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq');self.assertEqual(m.PROFILE,'locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-native-abi-v4');self.assertEqual(env['CARGO_HOME'],str(self.root/'cargo-home'))
  def graph(self,helper_kind='dev'):
   packages=[{'id':n,'name':n,'manifest_path':str(self.repo/'rust/main/agents'/n/'Cargo.toml')}for n in ['relayer','validator','scraper']]+[{'id':'core','name':'core','manifest_path':str(self.repo/'rust/main/hyperlane-core/Cargo.toml')},{'id':'helper','name':'run-locally','manifest_path':str(self.repo/'rust/main/utils/run-locally/Cargo.toml')}]
   nodes=[{'id':n,'deps':[{'pkg':'core','dep_kinds':[{'kind':None}]},{'pkg':'helper','dep_kinds':[{'kind':helper_kind}]}]}for n in ['relayer','validator','scraper']]+[{'id':'core','deps':[]},{'id':'helper','deps':[]}]

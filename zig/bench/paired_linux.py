@@ -5,7 +5,7 @@ import argparse,ast,copy,gzip,hashlib,importlib.util,json,math,os,platform,re,sy
 MODES=('ReleaseSafe','ReleaseFast');KINDS=('relayer_process','relayer_stream','public_relay_process')
 BASELINE='c5202242cc6569da4a858ed7ddbb34170ab696aa'
 LEGACY_PROFILE='locked-c520224-production-three-agent-linux-v1'
-PORTABLE_PROFILE='locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-v3'
+PORTABLE_PROFILE='locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-native-abi-v4'
 PROFILE_RUSTFLAGS={LEGACY_PROFILE:'--cfg tokio_unstable -Ctarget-cpu=native',PORTABLE_PROFILE:'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq'}
 ZIG={'relayer','validator','scraper','worker','aleoCrypto','aleoVm','starknetCrypto','regex','url'};RUST={'relayer','validator','scraper'};TOOLS={'init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference'}
 ENV={'aleoCrypto':'HYPERLANE_ALEO_CRYPTO_LIBRARY','aleoVm':'HYPERLANE_ALEO_VM_LIBRARY','starknetCrypto':'HYPERLANE_STARKNET_CRYPTO_LIBRARY','regex':'HYPERLANE_REGEX_LIBRARY','url':'HYPERLANE_URL_LIBRARY','worker':'HYPERLANE_ALEO_VM_WORKER'}

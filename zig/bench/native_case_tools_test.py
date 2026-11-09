@@ -363,7 +363,7 @@ class EvmConsumerControls(unittest.TestCase):
         rows=m.evm_control_commands(Path('/owned/source'),Path('/owned/compiler'), 'ReleaseFast',[str(i)+'.a'for i in range(7)],Path('/owned'))
         self.assertEqual(len(rows),2)
         for row in rows:
-            self.assertIn('test',row);self.assertEqual(row[row.index('-target')+1],'x86_64-linux-gnu');self.assertEqual([v for v in row if v.startswith('-mcpu=')],['-mcpu=x86_64_v3+pclmul']);self.assertIn('--test-no-exec',row);self.assertIn('ReleaseFast',row);self.assertIn('-j2',row);self.assertNotIn('cargo',row);self.assertNotIn('build',row)
+            self.assertIn('test',row);self.assertEqual(row[row.index('-target')+1],'native');self.assertEqual([v for v in row if v.startswith('-mcpu=')],['-mcpu=x86_64_v3+pclmul']);self.assertIn('--test-no-exec',row);self.assertIn('ReleaseFast',row);self.assertIn('-j2',row);self.assertNotIn('cargo',row);self.assertNotIn('build',row)
         self.assertEqual(rows[0].count('--test-filter'),2);self.assertEqual(rows[1].count('--test-filter'),1)
         for mode,libraries in [('Debug',['a']*7),('ReleaseSafe',['a']*6)]:
             with self.assertRaises(ValueError):m.evm_control_commands(Path('/owned'),Path('/compiler'),mode,libraries,Path('/owned'))
@@ -507,9 +507,9 @@ class PortableProducerControls(unittest.TestCase):
                 calls.append((argv,kwargs))
                 if argv[:2]==['docker','run']:raise RuntimeError('STOP_BEFORE_DATABASE_OR_NATIVE_EXECUTION')
                 return types.SimpleNamespace(returncode=0,stdout='0.15.2\n'if argv[-1]=='version'else'',stderr='')
-            with mock.patch.object(module,'ROOT',root),mock.patch.object(module.sys,'platform','linux'),mock.patch.object(module.os,'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(module.cpu,'recipe',wraps=lambda kind,argv,env,source,repo: m.cpu.recipe(kind,argv,env,Path(__file__).resolve().parents[2]/'zig/integration/postgres.py')),mock.patch.object(module.cpu,'finish_recipe',wraps=lambda recipe,wait,repo:m.cpu.finish_recipe(recipe,wait)),mock.patch.object(sys,'argv',['postgres.py','--cpu-profile','x86_64_v3_pclmul','--compiler','/fixture/zig','--output',str(root/'out')]),mock.patch.object(module,'run',side_effect=execute),self.assertRaisesRegex(RuntimeError,'STOP_BEFORE_DATABASE'):
+            with mock.patch.object(module,'ROOT',root),mock.patch.object(module.sys,'platform','linux'),mock.patch.object(module.os,'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(module.cpu,'recipe',wraps=lambda kind,argv,env,source,repo: m.cpu.recipe(kind,argv,env,Path(__file__).resolve().parents[2]/'zig/integration/postgres.py')),mock.patch.object(module.cpu,'finish_recipe',wraps=lambda recipe,wait,repo:m.cpu.finish_recipe(recipe,wait)),mock.patch.object(sys,'argv',['postgres.py','--cpu-profile','x86_64_v3_pclmul_native_abi','--compiler','/fixture/zig','--output',str(root/'out')]),mock.patch.object(module,'run',side_effect=execute),self.assertRaisesRegex(RuntimeError,'STOP_BEFORE_DATABASE'):
                 module.main()
-            cargo=[row for row in calls if row[0][0]=='cargo'];zig=[row for row in calls if 'zig/src/pg_tests.zig'in row[0]];self.assertEqual(len(cargo),1);self.assertEqual(len(zig),1);self.assertIn('init-db',cargo[0][0]);self.assertIn(m.cpu.RUST_CPU,cargo[0][1]['env']['RUSTFLAGS']);self.assertEqual(zig[0][0][zig[0][0].index('-target')+1],'x86_64-linux-gnu');self.assertIn('-mcpu=x86_64_v3+pclmul',zig[0][0]);self.assertEqual(migration.read_bytes(),b'legacy fixture, never executed')
+            cargo=[row for row in calls if row[0][0]=='cargo'];zig=[row for row in calls if 'zig/src/pg_tests.zig'in row[0]];self.assertEqual(len(cargo),1);self.assertEqual(len(zig),1);self.assertIn('init-db',cargo[0][0]);self.assertIn(m.cpu.RUST_CPU,cargo[0][1]['env']['RUSTFLAGS']);self.assertEqual(zig[0][0][zig[0][0].index('-target')+1],'native');self.assertIn('-mcpu=x86_64_v3+pclmul',zig[0][0]);self.assertEqual(migration.read_bytes(),b'legacy fixture, never executed')
 
     def test_actual_Docker_compiler_commands_refuse_unpinned_CPU_and_scope_recorders_require_v2(self):
         import shlex
@@ -526,26 +526,29 @@ class PortableProducerControls(unittest.TestCase):
             self.assertEqual(set(scopes),set(m.cpu.SCOPES));self.assertIn('zig-build',kinds);self.assertIn('cc',kinds)
         validate(source)
         with self.assertRaises(ValueError):validate(source.replace('-Dcpu=x86_64_v3+pclmul','-Dcpu=native',1))
-        with self.assertRaises((ValueError,AssertionError)):validate(source.replace('--profile linux-x86_64-v3-pclmul-v1','',1))
+        with self.assertRaises((ValueError,AssertionError)):validate(source.replace('--profile linux-x86_64-v3-pclmul-native-abi-v1','',1))
         with self.assertRaises(ValueError):validate(source.replace('cc -march=x86-64-v3 -mtune=generic -mpclmul','cc -march=x86-64-v3 -mtune=generic',1))
         with self.assertRaises(ValueError):validate(source.replace('-Dcpu=x86_64_v3+pclmul','-Dcpu=x86_64_v3',1))
         with self.assertRaises(ValueError):validate(source.replace('-mcpu=x86_64_v3+pclmul','-mcpu=x86_64_v3',1))
+        with self.assertRaises(ValueError):validate(source.replace('-Dtarget=native','-Dtarget=x86_64-linux-gnu',1))
+        with self.assertRaises(ValueError):validate(source.replace('-target native','-target x86_64-linux-gnu',1))
         self.assertNotIn('/opt/hyperlane-native/cpu-recipes',source);self.assertIn('--cpu-recipe-directory /opt/hyperlane-build-cpu/recipes/native-deps',source)
 
     def test_old_portable_selector_is_refused_before_any_compile_or_fixture_activity(self):
         import contextlib,io,sys
         for index,name in enumerate(['zig/tools/native_deps.py','zig/integration/postgres.py']):
             module=self.load(name,'old_profile_cli_'+str(index))
-            with mock.patch.object(sys,'argv',[name,'--cpu-profile','x86_64_v3']),contextlib.redirect_stderr(io.StringIO()),self.assertRaises(SystemExit)as caught:
-                module.main()
-            self.assertEqual(caught.exception.code,2)
+            for obsolete in ['x86_64_v3','x86_64_v3_pclmul']:
+                with mock.patch.object(sys,'argv',[name,'--cpu-profile',obsolete]),contextlib.redirect_stderr(io.StringIO()),self.assertRaises(SystemExit)as caught:
+                    module.main()
+                self.assertEqual(caught.exception.code,2)
 
     def test_native_linux_workflow_profiles_only_actual_builder_commands_and_preserves_source_SBF(self):
         root=Path(__file__).resolve().parents[2];workflow=(root/'.github/workflows/zig-agents.yml').read_text();body=workflow.split('  native-linux:\n',1)[1].split('  container:\n',1)[0]
         for line in body.splitlines():
-            if 'python3 zig/tools/zig.py build 'in line:self.assertIn('-Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3+pclmul',line)
-            if any('python3 zig/tools/zig.py '+kind+' 'in line for kind in ['test','build-exe']):self.assertIn('-target x86_64-linux-gnu -mcpu=x86_64_v3+pclmul',line)
-        self.assertIn('native_deps.py --cpu-profile x86_64_v3_pclmul --git-sha "$GITHUB_SHA"',body);self.assertIn('postgres.py --cpu-profile x86_64_v3_pclmul',body)
+            if 'python3 zig/tools/zig.py build 'in line:self.assertIn('-Dtarget=native -Dcpu=x86_64_v3+pclmul',line)
+            if any('python3 zig/tools/zig.py '+kind+' 'in line for kind in ['test','build-exe']):self.assertIn('-target native -mcpu=x86_64_v3+pclmul',line)
+        self.assertIn('native_deps.py --cpu-profile x86_64_v3_pclmul_native_abi --git-sha "$GITHUB_SHA"',body);self.assertIn('postgres.py --cpu-profile x86_64_v3_pclmul_native_abi',body)
         import ast
         actual=ast.parse((root/'zig/tools/svm_prerequisites.py').read_text());sbf=next(n for n in actual.body if isinstance(n,ast.FunctionDef)and n.name=='sbf_environments');self.assertNotIn('portable_environment',ast.dump(sbf));host=next(n for n in actual.body if isinstance(n,ast.FunctionDef)and n.name=='host_compile_environment');self.assertIn('portable_environment',ast.dump(host))
 

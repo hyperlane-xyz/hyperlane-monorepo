@@ -68,15 +68,15 @@ class Integrity(unittest.TestCase):
 
     def test_portable_cpu_is_explicit_after_sanitization_and_direct_CPP_flags(self):
         with patch.object(helper.platform,'system',return_value='Linux'),patch.object(helper.platform,'machine',return_value='x86_64'),patch.dict(helper.os.environ,{'RUSTFLAGS':'-Ctarget-cpu=native','CARGO_ENCODED_RUSTFLAGS':'PRIVATE','CFLAGS_x86_64_unknown_linux_gnu':'-march=native','CXXFLAGS':'-march=native','ROCKSDB_LIB_DIR':'/foreign'}):
-            env=helper.build_environment(None,cpu_profile='x86_64_v3_pclmul');flags,_=helper.native_flags(None,'x86_64_v3_pclmul')
+            env=helper.build_environment(None,cpu_profile='x86_64_v3_pclmul_native_abi');flags,_=helper.native_flags(None,'x86_64_v3_pclmul_native_abi')
         self.assertEqual(env['RUSTFLAGS'],helper.cpu.RUST_CPU);self.assertEqual(env['CFLAGS'],helper.cpu.C_FLAGS);self.assertEqual(env['CXXFLAGS'],helper.cpu.C_FLAGS);self.assertEqual(flags,helper.cpu.C_FLAGS.split());self.assertNotIn('CARGO_ENCODED_RUSTFLAGS',env);self.assertNotIn('CFLAGS_x86_64_unknown_linux_gnu',env);self.assertNotIn('ROCKSDB_LIB_DIR',env)
-        with patch.object(helper.platform,'system',return_value='Darwin'),self.assertRaises(ValueError):helper.build_environment(None,cpu_profile='x86_64_v3_pclmul')
+        with patch.object(helper.platform,'system',return_value='Darwin'),self.assertRaises(ValueError):helper.build_environment(None,cpu_profile='x86_64_v3_pclmul_native_abi')
         with self.assertRaises(ValueError):helper.build_environment(None,cpu_profile='unreviewed')
 
     def test_portable_shim_and_probe_bind_their_two_actual_CPP_calls_and_waits(self):
         with tempfile.TemporaryDirectory()as temporary:
             root=Path(temporary);source=root/'source';(source/'rocksdb/include').mkdir(parents=True);output=root/'out';output.mkdir();recipes=[];calls=[]
-            args=SimpleNamespace(cxx='c++',ar='ar',sdk_root=None,macos_deployment_target='11.0',cpu_profile='x86_64_v3_pclmul')
+            args=SimpleNamespace(cxx='c++',ar='ar',sdk_root=None,macos_deployment_target='11.0',cpu_profile='x86_64_v3_pclmul_native_abi')
             def execute(argv,**kwargs):
                 calls.append((argv,kwargs))
                 if argv[0]=='ar':Path(argv[2]).write_bytes(b'!<arch>\n')

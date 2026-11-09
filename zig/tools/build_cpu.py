@@ -46,7 +46,7 @@ def validate_v1(row, scope, mode, commit, expected):
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PROFILE = 'linux-x86_64-v3-pclmul-v1'
+PROFILE = 'linux-x86_64-v3-pclmul-native-abi-v1'
 # ISA-only Linux names for the pinned x86_64_v3 model plus explicit PCLMUL.
 # Pinned RocksDB10.4.2 CRC compilation requires PCLMUL independently of GCC v3.
 # Linux calls SSE3 pni, BMI bmi1, LZCNT abm, SAHF lahf_lm, x87 fpu, and pclmul pclmulqdq.
@@ -55,7 +55,7 @@ REQUIRED_FLAGS = tuple(sorted(('cmov', 'cx8', 'cx16', 'fpu', 'fxsr', 'mmx', 'sse
                                'avx', 'avx2', 'bmi1', 'bmi2', 'f16c', 'fma', 'abm', 'movbe', 'nopl', 'pclmulqdq', 'xsave')))
 RUST_CPU = '-Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq'
 C_FLAGS = '-march=x86-64-v3 -mtune=generic -mpclmul'
-TARGET = {'profile': PROFILE, 'zig_target': 'x86_64-linux-gnu', 'zig_cpu': 'x86_64_v3+pclmul',
+TARGET = {'profile': PROFILE, 'zig_target': 'native', 'abi_policy': 'publisher-native-linux-gnu', 'zig_cpu': 'x86_64_v3+pclmul',
           'rust_target': 'x86_64-unknown-linux-gnu', 'rust_cpu': 'x86-64-v3', 'rust_features': ['pclmulqdq'],
           'cc_cpu': 'x86-64-v3', 'cc_features': ['pclmul'], 'required_flags': list(REQUIRED_FLAGS)}
 EXTRA_SCOPES = {'writer', 'helper', 'tools', 'radix-reference', 'svm-host', 'native-deps', 'evm-controls'}
@@ -104,9 +104,9 @@ def portable_environment(environment, tokio_unstable=False):
 
 def zig_cpu_args(kind):
     if kind == 'build':
-        return ['-Dtarget=x86_64-linux-gnu', '-Dcpu=x86_64_v3+pclmul']
+        return ['-Dtarget=native', '-Dcpu=x86_64_v3+pclmul']
     if kind == 'direct':
-        return ['-target', 'x86_64-linux-gnu', '-mcpu=x86_64_v3+pclmul']
+        return ['-target', 'native', '-mcpu=x86_64_v3+pclmul']
     raise ValueError('fixed Zig command kind required')
 
 
@@ -160,7 +160,7 @@ def recipe(kind, argv, environment, source_path, repo=ROOT):
             raise ValueError('exact portable Zig build target required')
         flags['argv'] = expected
     elif kind == 'zig-direct':
-        if any(v.startswith('-target=') for v in argv) or argv.count('-target') != 1 or argv[argv.index('-target') + 1:argv.index('-target') + 2] != ['x86_64-linux-gnu'] or [v for v in argv if v.startswith('-mcpu')] != ['-mcpu=x86_64_v3+pclmul']:
+        if any(v.startswith('-target=') for v in argv) or argv.count('-target') != 1 or argv[argv.index('-target') + 1:argv.index('-target') + 2] != ['native'] or [v for v in argv if v.startswith('-mcpu')] != ['-mcpu=x86_64_v3+pclmul']:
             raise ValueError('exact portable Zig direct target required')
         flags['argv'] = zig_cpu_args('direct')
     elif kind == 'cc':
@@ -291,6 +291,13 @@ def consumer_covers(rows, architecture, available_flags):
     return bool(rows) and all(row['architecture'] == architecture and set(required_flags(row) if row.get('schema') == 2 else row['flags']) <= set(available_flags) for row in rows)
 
 
+def require_native_linux_host():
+    # Native ABI inference must execute on the admitted Linux GNU publisher;
+    # the explicit CPU remains fixed independently of host feature detection.
+    if platform.system() != 'Linux' or platform.machine() != 'x86_64' or platform.libc_ver()[0] != 'glibc':
+        raise ValueError('native ABI compiler requires Linux x86_64 GNU host')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--scope', required=True, choices=sorted(SCOPES))
@@ -306,6 +313,8 @@ def main():
     architecture = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     if architecture is None:
         raise ValueError('unsupported compiler architecture')
+    if args.profile:
+        require_native_linux_host()
     artifacts = {}
     for value in args.artifact:
         name, path = value.split('=', 1)
@@ -339,6 +348,7 @@ def run_main():
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
     if not command or not args.recipe_output.is_absolute() or args.recipe_output.exists() or args.recipe_output.is_symlink():
         raise ValueError('actual compiler command and fresh absolute recipe output required')
+    require_native_linux_host()
     environment = portable_environment(os.environ, args.tokio_unstable)
     pending = recipe(args.kind, command, environment, args.recipe_source, args.repo)
     # Same process group and inherited streams: existing outer ownership/deadline

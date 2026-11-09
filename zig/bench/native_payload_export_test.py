@@ -82,7 +82,7 @@ class WriterPlanControls(unittest.TestCase):
         import native_interop_writer_export as writer
         root=Path('/work');libs=[Path('/opt/hyperlane-native')/name for name in sorted(writer.ARCHIVES)]
         argv=writer.compile_plan(root,Path('/compiler'),'ReleaseFast',2,libs,Path('/output/writer'))
-        self.assertIn('build-exe',argv);self.assertEqual(argv[argv.index('-target')+1],'x86_64-linux-gnu');self.assertEqual([v for v in argv if v.startswith('-mcpu=')],['-mcpu=x86_64_v3+pclmul']);self.assertIn('src/native_rows_interop_fixture.zig',argv);self.assertIn('-j2',argv);self.assertIn('ReleaseFast',argv);self.assertNotIn('run',argv);self.assertFalse(any('bootstrap' in word for word in argv))
+        self.assertIn('build-exe',argv);self.assertEqual(argv[argv.index('-target')+1],'native');self.assertEqual([v for v in argv if v.startswith('-mcpu=')],['-mcpu=x86_64_v3+pclmul']);self.assertIn('src/native_rows_interop_fixture.zig',argv);self.assertIn('-j2',argv);self.assertIn('ReleaseFast',argv);self.assertNotIn('run',argv);self.assertFalse(any('bootstrap' in word for word in argv))
         with self.assertRaises(ValueError):writer.compile_plan(root,Path('/compiler'),'ReleaseFast',2,libs[:-1],Path('/output/writer'))
         with self.assertRaises(ValueError):writer.compile_plan(root,Path('/compiler'),'ReleaseSafe',8,libs,Path('/output/writer'))
 
@@ -164,12 +164,12 @@ class PortableCpuControls(unittest.TestCase):
 
     def test_explicit_pclmul_is_required_across_Rust_Zig_C_and_consumer_flags(self):
         import copy
-        self.assertEqual(self.cpu.PROFILE,'linux-x86_64-v3-pclmul-v1')
+        self.assertEqual(self.cpu.PROFILE,'linux-x86_64-v3-pclmul-native-abi-v1')
         self.assertEqual(len(self.cpu.REQUIRED_FLAGS),25);self.assertIn('pclmulqdq',self.cpu.REQUIRED_FLAGS)
         self.assertEqual(self.env['RUSTFLAGS'],'-Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq')
         self.assertEqual(self.env['CFLAGS'],'-march=x86-64-v3 -mtune=generic -mpclmul')
-        self.assertEqual(self.cpu.zig_cpu_args('direct'),['-target','x86_64-linux-gnu','-mcpu=x86_64_v3+pclmul'])
-        self.assertEqual(self.cpu.zig_cpu_args('build'),['-Dtarget=x86_64-linux-gnu','-Dcpu=x86_64_v3+pclmul'])
+        self.assertEqual(self.cpu.zig_cpu_args('direct'),['-target','native','-mcpu=x86_64_v3+pclmul'])
+        self.assertEqual(self.cpu.zig_cpu_args('build'),['-Dtarget=native','-Dcpu=x86_64_v3+pclmul'])
         self.assertFalse(self.cpu.consumer_covers([self.row()],'amd64',[v for v in self.cpu.REQUIRED_FLAGS if v!='pclmulqdq']))
         # Failed H V3-only records and recipes remain historical, never relabelled.
         row=self.row();row['target']['profile']='linux-x86_64-v3-v1'
@@ -201,15 +201,39 @@ class PortableCpuControls(unittest.TestCase):
         output=self.root/'recipe.json'
         argv=['build_cpu.py','run','--kind','rust','--repo',str(self.root),'--recipe-source',str(self.source),
               '--recipe-output',str(output),'--','cargo','build','--locked']
-        with patch.object(sys,'argv',argv),patch.object(self.cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=0))as run:
+        with patch.object(self.cpu.platform,'system',return_value='Linux'),patch.object(self.cpu.platform,'machine',return_value='x86_64'),patch.object(self.cpu.platform,'libc_ver',return_value=('glibc','2.39')),patch.object(sys,'argv',argv),patch.object(self.cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=0))as run:
             self.cpu.run_main()
         actual=run.call_args;self.assertEqual(actual.args[0],['cargo','build','--locked'])
         self.assertEqual(actual.kwargs['env']['RUSTFLAGS'],self.cpu.RUST_CPU)
         self.assertNotIn('start_new_session',actual.kwargs)
         self.assertEqual(json.loads(output.read_text())['actual_parent_wait'],True)
         failed=self.root/'failed.json';argv[argv.index(str(output))]=str(failed)
-        with patch.object(sys,'argv',argv),patch.object(self.cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=7)),self.assertRaises(SystemExit)as raised:
+        with patch.object(self.cpu.platform,'system',return_value='Linux'),patch.object(self.cpu.platform,'machine',return_value='x86_64'),patch.object(self.cpu.platform,'libc_ver',return_value=('glibc','2.39')),patch.object(sys,'argv',argv),patch.object(self.cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=7)),self.assertRaises(SystemExit)as raised:
             self.cpu.run_main()
         self.assertEqual(raised.exception.code,7);self.assertFalse(failed.exists())
+
+    def test_native_ABI_is_explicit_fixed_CPU_and_failed_I_target_cannot_be_relabelled(self):
+        self.assertEqual(self.cpu.TARGET['abi_policy'],'publisher-native-linux-gnu')
+        self.assertEqual(self.cpu.TARGET['zig_target'],'native')
+        for kind,old,new in [('zig-build',['zig','build','-Dtarget=x86_64-linux-gnu','-Dcpu=x86_64_v3+pclmul'],['zig','build',*self.cpu.zig_cpu_args('build')]),('zig-direct',['zig','test','-target','x86_64-linux-gnu','-mcpu=x86_64_v3+pclmul'],['zig','test',*self.cpu.zig_cpu_args('direct')])]:
+            with self.subTest(kind=kind),self.assertRaises(ValueError):self.recipe(kind,old)
+            self.recipe(kind,new)
+            native_cpu=[('-Dcpu=native'if word.startswith('-Dcpu=')else'-mcpu=native'if word.startswith('-mcpu=')else word)for word in new]
+            with self.subTest(kind=kind,CPU='native'),self.assertRaises(ValueError):self.recipe(kind,native_cpu)
+        row=self.row();row['target']['profile']='linux-x86_64-v3-pclmul-v1'
+        with self.assertRaises(ValueError):self.cpu.required_flags(row)
+        for key,value in [('zig_target','x86_64-linux-gnu'),('abi_policy','universal-glibc-2.17')]:
+            row=self.row();row['target'][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):self.cpu.required_flags(row)
+
+    def test_actual_native_ABI_wrapper_refuses_foreign_host_before_compiler_or_output(self):
+        from unittest.mock import patch
+        import sys
+        output=self.root/'never.json'
+        argv=['build_cpu.py','run','--kind','zig-direct','--repo',str(self.root),'--recipe-source',str(self.source),'--recipe-output',str(output),'--','zig','test',*self.cpu.zig_cpu_args('direct')]
+        for system,machine,libc in [('Darwin','x86_64',''),('Linux','aarch64','glibc'),('Linux','x86_64','musl')]:
+            with self.subTest(system=system,machine=machine,libc=libc),patch.object(self.cpu.platform,'system',return_value=system),patch.object(self.cpu.platform,'machine',return_value=machine),patch.object(self.cpu.platform,'libc_ver',return_value=(libc,'')),patch.object(sys,'argv',argv),patch.object(self.cpu.subprocess,'run')as run,self.assertRaisesRegex(ValueError,'native ABI compiler'):
+                self.cpu.run_main()
+            run.assert_not_called();self.assertFalse(output.exists())
 
 if __name__=='__main__':unittest.main()

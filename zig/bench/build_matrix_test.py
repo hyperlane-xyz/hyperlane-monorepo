@@ -35,27 +35,33 @@ class CpuConfiguration(unittest.TestCase):
   self.assertEqual(env,{'PATH':'/bin','CFLAGS':'legacy'})
   with self.assertRaises(ValueError):matrix.cpu_configuration('unknown',env,None)
   with self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3',env,None)
+  with self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3_pclmul',env,None)
  def test_portable_selection_uses_shared_real_policy_and_platform_fence(self):
   cpu=matrix.cpu_module();env={'PATH':'/bin','RUSTFLAGS':'-Ctarget-cpu=native','CFLAGS':'-march=native','CXXFLAGS':'-march=native','GH_TOKEN':'not-consumed-by-pure-helper'}
-  with mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'):
-   actual,args=matrix.cpu_configuration('x86_64_v3_pclmul',env,cpu)
+  with mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'),mock.patch.object(matrix.platform,'libc_ver',return_value=('glibc','2.39')):
+   actual,args=matrix.cpu_configuration('x86_64_v3_pclmul_native_abi',env,cpu)
   self.assertEqual(actual,cpu.portable_environment(env,tokio_unstable=True));self.assertEqual(args,cpu.zig_cpu_args('build'))
-  self.assertEqual(cpu.PROFILE,'linux-x86_64-v3-pclmul-v1');self.assertIn('pclmulqdq',cpu.REQUIRED_FLAGS);self.assertEqual(actual['CFLAGS'],'-march=x86-64-v3 -mtune=generic -mpclmul');self.assertEqual(args,['-Dtarget=x86_64-linux-gnu','-Dcpu=x86_64_v3+pclmul'])
+  self.assertEqual(cpu.PROFILE,'linux-x86_64-v3-pclmul-native-abi-v1');self.assertIn('pclmulqdq',cpu.REQUIRED_FLAGS);self.assertEqual(actual['CFLAGS'],'-march=x86-64-v3 -mtune=generic -mpclmul');self.assertEqual(args,['-Dtarget=native','-Dcpu=x86_64_v3+pclmul'])
   self.assertNotIn('native',actual['RUSTFLAGS']);self.assertNotIn('native',actual['CFLAGS']);self.assertEqual(env['RUSTFLAGS'],'-Ctarget-cpu=native')
   for system,machine in [('Darwin','x86_64'),('Linux','aarch64')]:
-   with mock.patch.object(matrix.platform,'system',return_value=system),mock.patch.object(matrix.platform,'machine',return_value=machine),self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3_pclmul',env,cpu)
+   with mock.patch.object(matrix.platform,'system',return_value=system),mock.patch.object(matrix.platform,'machine',return_value=machine),self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3_pclmul_native_abi',env,cpu)
+
+ def test_portable_native_ABI_refuses_musl_and_unknown_libc_without_changing_ISA(self):
+  cpu=matrix.cpu_module()
+  for libc in [('musl','1.2.5'),('','')]:
+   with self.subTest(libc=libc),mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'),mock.patch.object(matrix.platform,'libc_ver',return_value=libc),self.assertRaisesRegex(ValueError,'GNU host'):matrix.cpu_configuration('x86_64_v3_pclmul_native_abi',{'PATH':'/bin'},cpu)
 
 class CpuPlans(unittest.TestCase):
  def plan(self,policy):
   with tempfile.TemporaryDirectory()as directory:
    root=pathlib.Path(directory);libraries=root/'libs';libraries.write_text(','.join(str(root/('lib'+str(i)+'.a'))for i in range(7)));pq=root/'libpq.so';pq.write_bytes(b'not executed');output=root/'plan'
    args=['build_matrix.py','--compiler','never-executed-zig','--native-db-libs-file',str(libraries),'--libpq-library',str(pq),'--cpu',policy,'--git-sha','a'*40,'--native-cold','--optional-native-sdks','--output',str(output)]
-   with mock.patch.object(sys,'argv',args),mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'),mock.patch.object(subprocess,'Popen',side_effect=AssertionError('plan executed child')):
+   with mock.patch.object(sys,'argv',args),mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'),mock.patch.object(matrix.platform,'libc_ver',return_value=('glibc','2.39')),mock.patch.object(subprocess,'Popen',side_effect=AssertionError('plan executed child')):
     matrix.main()
    return __import__('json').loads((output/'plan.json').read_text())
  def test_actual_portable_plan_covers_both_Zig_modes_Rust_and_native7_without_wait_credit(self):
-  plan=self.plan('x86_64_v3_pclmul');cpu=matrix.cpu_module();self.assertEqual(plan['cpu_policy'],'x86_64_v3_pclmul')
-  native=next(p for p in plan['phases']if p['name']=='native-sdk-cold');self.assertEqual(len(native['artifacts']),7);self.assertEqual(native['command'][native['command'].index('--cpu-profile')+1],'x86_64_v3_pclmul');self.assertEqual(native['command'][native['command'].index('--git-sha')+1],'a'*40);self.assertTrue(native['CPU_manifest'].endswith('/manifest.json'));self.assertNotIn('CPU_recipe',native)
+  plan=self.plan('x86_64_v3_pclmul_native_abi');cpu=matrix.cpu_module();self.assertEqual(plan['cpu_policy'],'x86_64_v3_pclmul_native_abi')
+  native=next(p for p in plan['phases']if p['name']=='native-sdk-cold');self.assertEqual(len(native['artifacts']),7);self.assertEqual(native['command'][native['command'].index('--cpu-profile')+1],'x86_64_v3_pclmul_native_abi');self.assertEqual(native['command'][native['command'].index('--git-sha')+1],'a'*40);self.assertTrue(native['CPU_manifest'].endswith('/manifest.json'));self.assertNotIn('CPU_recipe',native)
   zig=[p for p in plan['phases']if p['name'].startswith('zig-')];self.assertEqual(len(zig),4)
   for phase in plan['phases']:
    if phase is native:continue

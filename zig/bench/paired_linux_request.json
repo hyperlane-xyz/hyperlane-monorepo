@@ -7,7 +7,7 @@
   "runtime_enabled": false,
   "producer_source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
   "baseline_source_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
-  "baseline_profile": "locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-v3",
+  "baseline_profile": "locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-native-abi-v4",
   "qualified_cohort": {
     "path": "zig/bench/paired_linux_cohort.PENDING.json",
     "bytes": 12969,
@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 142633,
+      "bytes": 142585,
       "sha256": {
         "sha256_hex_chunks": [
-          "95ecf0374b1ffabdf4f4f67c80561db2",
-          "0207ddc031a1cbb460fce759e3bd1aeb"
+          "7f10d54e337d79c5cf74f2d15e68f78f",
+          "307be79dee7f078d8d1ea3bcb06eed6a"
         ]
       }
     },
@@ -83,11 +83,11 @@
     },
     {
       "path": "zig/bench/cold_matrix_owner.py",
-      "bytes": 26683,
+      "bytes": 26694,
       "sha256": {
         "sha256_hex_chunks": [
-          "7edb586d6b51d08d280fa8a7b223472d",
-          "da2d8661116b5d0d81c2e322d661d70c"
+          "3ba9eed8813f6543014defdd7776f5c2",
+          "5f47ad734c94657a0063bbbff8feea8e"
         ]
       }
     },
@@ -163,21 +163,21 @@
     },
     {
       "path": "zig/bench/paired_linux.py",
-      "bytes": 20034,
+      "bytes": 20045,
       "sha256": {
         "sha256_hex_chunks": [
-          "78a0b5e5e7a978ccf47a03b0e10d8fce",
-          "ae1c40d5d0cece741fedf59b3256c797"
+          "5e0c203d349e8d364439c84e1d9ffed2",
+          "36b6f2590a707e99f43384d65ee95739"
         ]
       }
     },
     {
       "path": "zig/bench/paired_linux_inputs.py",
-      "bytes": 53072,
+      "bytes": 53117,
       "sha256": {
         "sha256_hex_chunks": [
-          "7dc5a0be5ce174b489ca7b8ff4699118",
-          "36c74dbd0cbc165ebccd6aeeddd0e1af"
+          "d79a16474a0bf7ebd7b31b21bdf94a67",
+          "79888262b2b9535c2e7894e4c7f451d6"
         ]
       }
     },
@@ -373,11 +373,11 @@
     },
     {
       "path": "zig/tools/build_cpu.py",
-      "bytes": 22833,
+      "bytes": 23314,
       "sha256": {
         "sha256_hex_chunks": [
-          "a547ec119154f666a2963965f38aaa9e",
-          "b9059310b3ef63677071ec51d8d3a312"
+          "9e6c357c1715eef1198c6b917bb31d86",
+          "e96a64e1c73d457c042255379e686ce3"
         ]
       }
     },

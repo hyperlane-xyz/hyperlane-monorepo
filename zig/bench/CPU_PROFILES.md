@@ -1,16 +1,21 @@
 # Linux CPU profiles
 
-New paired benchmarks use `locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-v3`.
+New paired benchmarks use `locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-native-abi-v4`.
 Both implementations and rebuilt native dependencies target x86-64-v3 with PCLMUL:
 
 - Rust: `-Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq`.
-- Zig: Linux x86-64 with `x86_64_v3+pclmul`.
+- Zig: native GNU/Linux target ABI with `x86_64_v3+pclmul`.
 - C and C++: `-march=x86-64-v3 -mtune=generic -mpclmul`.
 
 `zig/tools/build_cpu.py` records the actual compiler command, selected compiler
 environment, successful parent wait, source digest, and output digests. Consumers
 check the required ISA against their actual host. Raw producer host flags remain
 provenance; they are not the portable target requirements.
+
+Zig uses `-Dtarget=native` or `-target native` to retain the publisher host's
+GNU libc detection. The CPU remains explicit. The receipts normalize ISA
+requirements; they do not promise compatibility with every glibc version.
+Container linkage and actual consumer ELF/runtime checks remain required.
 
 Historical v1 records retain their original full-host feature-subset check. Do
 not relabel their artifacts or reuse their timings under the new profile. Rebuild
