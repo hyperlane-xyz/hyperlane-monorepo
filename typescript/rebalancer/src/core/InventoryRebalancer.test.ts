@@ -2092,13 +2092,14 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: BigInt(10e18),
       });
 
+      const capacity = Sinon.stub().resolves(0n);
+      inventoryRebalancer['getTransferCapacity'] = capacity;
       const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect((results[0] as any).reason).to.equal(
-        'completed_with_acceptable_loss',
-      );
+      expect(results[0].reason).to.equal('completed_with_acceptable_loss');
+      expect(capacity.called).to.equal(false);
 
       // Verify: Intent was completed (not left in progress)
       expect(actionTracker.completeRebalanceIntent.calledOnce).to.be.true;
@@ -2108,6 +2109,44 @@ describe('InventoryRebalancer E2E', () => {
       // Verify: No transferRemote was attempted
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
+  });
+
+  it('retains a meaningful remainder when transfer capacity is zero', async () => {
+    createTestIntent();
+    const capacity = Sinon.stub().resolves(0n);
+    inventoryRebalancer['getTransferCapacity'] = capacity;
+    const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+    expect(capacity.calledOnce).to.equal(true);
+    expect(results[0].success).to.equal(false);
+    expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+    expect(bridge.execute.called).to.equal(false);
+    expect(actionTracker.createRebalanceAction.called).to.equal(false);
+  });
+
+  it('prefunds the full remaining intent when only a partial deposit fits current capacity', async () => {
+    const amount = 1_000_000n;
+    createTestIntent({ amount });
+    inventoryRebalancer['getTransferCapacity'] = Sinon.stub().resolves(
+      amount / 10n,
+    );
+    inventoryRebalancer.setInventoryBalances({
+      [SOLANA_CHAIN]: 0n,
+      [ARBITRUM_CHAIN]: amount * 10n,
+    });
+    bridge.quote.resolves(
+      createMockBridgeQuote({ fromAmount: amount * 2n, toAmount: amount * 2n }),
+    );
+    bridge.execute.resolves({
+      txHash: 'source-hash',
+      fromChain: ARBITRUM_DOMAIN,
+      toChain: SOLANA_DOMAIN,
+    });
+    await inventoryRebalancer.rebalance([createTestRoute({ amount })]);
+    expect(
+      bridge.quote
+        .getCalls()
+        .some((call) => (call.args[0].toAmount ?? 0n) >= amount),
+    ).to.equal(true);
   });
 
   describe('Parallel Multi-Source Bridging', () => {
