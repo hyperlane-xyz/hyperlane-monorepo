@@ -458,6 +458,7 @@ async fn run_and_expect_successful_inclusion(
         tx_received = run_inclusion_stage(expected_tx_states, dispatcher_state, created_tx.clone()) => {
             let tx_received = tx_received.unwrap();
             assert_eq!(tx_received.payload_details[0].uuid, created_tx.payload_details[0].uuid);
+            assert_eq!(tx_received.status, TransactionStatus::Finalized);
             success = true;
         },
         _ = tokio::time::sleep(Duration::from_millis(5000)) => {}
@@ -708,9 +709,14 @@ async fn assert_tx_db_state(
         expected.compute_unit_price_micro_lamports,
         "Compute unit price does not match"
     );
+    // Finalized is forwarded to finality but must remain recoverable in the DB.
+    let expected_persisted_status = match &expected.status {
+        TransactionStatus::Finalized => TransactionStatus::Included,
+        status => status.clone(),
+    };
     assert_eq!(
-        retrieved_tx.status, expected.status,
-        "Transaction status does not match"
+        retrieved_tx.status, expected_persisted_status,
+        "Persisted transaction status does not match"
     );
     assert_eq!(
         retrieved_tx.submission_attempts, expected.retries,

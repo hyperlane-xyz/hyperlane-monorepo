@@ -29,6 +29,19 @@ pub(in crate::near_head) struct EvmContracts {
     pub paymaster: H160,
 }
 
+impl EvmContracts {
+    pub(in crate::near_head) fn event_filter(&self) -> Filter {
+        Filter::new()
+            .address(vec![self.mailbox, self.hook, self.paymaster])
+            .topic0(vec![
+                DispatchFilter::signature(),
+                ProcessIdFilter::signature(),
+                InsertedIntoTreeFilter::signature(),
+                GasPaymentFilter::signature(),
+            ])
+    }
+}
+
 #[async_trait]
 impl BuildableWithProvider for SourceBuilder {
     type Output = Box<dyn Source>;
@@ -130,20 +143,11 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
         ensure!(from <= through, "Invalid event range");
-        let filter = Filter::new()
+        let filter = self
+            .contracts
+            .event_filter()
             .from_block(from)
-            .to_block(through)
-            .address(vec![
-                self.contracts.mailbox,
-                self.contracts.hook,
-                self.contracts.paymaster,
-            ])
-            .topic0(vec![
-                DispatchFilter::signature(),
-                ProcessIdFilter::signature(),
-                InsertedIntoTreeFilter::signature(),
-                GasPaymentFilter::signature(),
-            ]);
+            .to_block(through);
         let logs = self.provider.get_logs(&filter).await?;
         let mut events = Vec::new();
         for log in logs {

@@ -3,17 +3,22 @@ use std::{ops::RangeInclusive, str::FromStr};
 
 use aleo_serialize::AleoSerialize;
 use futures::future;
+use hyperlane_core::utils::read_concurrently;
 use hyperlane_core::{ChainResult, Indexed, LogMeta, H512};
+use indexmap::IndexMap;
 use snarkvm::ledger::Block;
 use snarkvm::prelude::{CanaryV0, Itertools, MainnetV0, Network, TestnetV0};
 use snarkvm::{
     prelude::{Identifier, Plaintext, ProgramID},
     synthesizer::program::FinalizeOperation,
 };
+use tokio::sync::Semaphore;
 
 use crate::provider::AleoClient;
 use crate::utils::{get_tx_id, to_h256, to_key_id};
 use crate::{AleoProvider, HyperlaneAleoError};
+
+const EVENT_READ_CONCURRENCY: usize = 8;
 
 pub(crate) trait AleoIndexer {
     const INDEX_MAPPING: &str;
@@ -87,12 +92,23 @@ pub(crate) trait AleoIndexer {
             })
             .collect_vec();
 
+        // All blocks in this range share one event RPC budget. Per-block
+        // windows alone would multiply the number of active reads.
+        let event_budget = Semaphore::new(EVENT_READ_CONCURRENCY);
         let block_logs_futures = relevant_blocks
             .into_iter()
-            .map(|(height, latest_event_index)| async move {
-                let block = self.get_provider().get_block::<N>(height).await?;
-                self.get_logs_for_block(block, latest_event_index, None)
+            .map(|(height, latest_event_index)| {
+                let event_budget = &event_budget;
+                async move {
+                    let block = self.get_provider().get_block::<N>(height).await?;
+                    self.get_logs_for_block_with_event_budget(
+                        block,
+                        latest_event_index,
+                        None,
+                        event_budget,
+                    )
                     .await
+                }
             })
             .collect_vec();
         let result = future::join_all(block_logs_futures)
@@ -154,6 +170,22 @@ pub(crate) trait AleoIndexer {
     where
         Self::AleoType: AleoSerialize<N>,
     {
+        let event_budget = Semaphore::new(EVENT_READ_CONCURRENCY);
+        self.get_logs_for_block_with_event_budget(block, last_event_index, tx_id, &event_budget)
+            .await
+    }
+
+    /// Fetch one block using the caller's shared event RPC budget.
+    async fn get_logs_for_block_with_event_budget<N: Network>(
+        &self,
+        block: Block<N>,
+        last_event_index: u32,
+        tx_id: Option<N::TransactionID>,
+        event_budget: &Semaphore,
+    ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>>
+    where
+        Self::AleoType: AleoSerialize<N>,
+    {
         let height = block.metadata().height();
         let program_id =
             ProgramID::from_str(self.get_program()).map_err(HyperlaneAleoError::from)?;
@@ -188,7 +220,7 @@ pub(crate) trait AleoIndexer {
             })
             .collect::<ChainResult<_>>()?;
 
-        let mut logs = HashMap::with_capacity(possible_key_ids.len());
+        let mut events = IndexMap::with_capacity(possible_key_ids.len());
 
         for transition in transitions {
             // Check that the corresponding transaction is executed and didn't get reverted
@@ -224,14 +256,8 @@ pub(crate) trait AleoIndexer {
                 }
             }
 
-            // At this point we have recovered all event indices emitted in this transaction
-            // We can now fetch the event data from the mapping using these indices
+            // Resolve immutable event keys and metadata before issuing the independent reads.
             for (index, key) in event_indices {
-                let event: Self::AleoType = self
-                    .get_provider()
-                    .get_mapping_value_raw(self.get_program(), Self::VALUE_MAPPING, &key)
-                    .await?;
-                let indexed = Indexed::<Self::Type>::new(event.into()).with_sequence(index);
                 let meta: LogMeta = LogMeta {
                     address: to_h256(program_address)?,
                     block_number: height.into(),
@@ -240,9 +266,22 @@ pub(crate) trait AleoIndexer {
                     transaction_index: transaction.index().into(),
                     log_index: index.into(),
                 };
-                logs.entry(index).or_insert_with(|| (indexed, meta));
+                events.entry(index).or_insert((key, meta));
             }
         }
-        Ok(logs.into_values().collect())
+        read_concurrently(events, |(index, (key, meta))| async move {
+            let event: Self::AleoType = {
+                let _permit = event_budget
+                    .acquire()
+                    .await
+                    .map_err(hyperlane_core::ChainCommunicationError::from_other)?;
+                self.get_provider()
+                    .get_mapping_value_raw(self.get_program(), Self::VALUE_MAPPING, &key)
+                    .await?
+            };
+            let indexed = Indexed::<Self::Type>::new(event.into()).with_sequence(index);
+            Ok((indexed, meta))
+        })
+        .await
     }
 }

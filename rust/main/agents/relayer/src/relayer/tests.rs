@@ -267,6 +267,7 @@ fn generate_test_relayer_settings(
         .collect();
 
     RelayerSettings {
+        message_activity_database_url: None,
         base: Settings {
             domains,
             chains,
@@ -583,6 +584,22 @@ async fn test_relayer_started_successfully(
 ) -> Result<(), Elapsed> {
     let future = check_relayer_metrics(agent, metrics_port, failed_chain_count);
     tokio::time::timeout(Duration::from_secs(50), future).await
+}
+
+#[tokio::test]
+async fn test_from_settings_rejects_unavailable_runtime_denylist_without_cache() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut settings = generate_test_relayer_settings(temp_dir.path(), vec![], &[], &[], 0);
+    settings.runtime_denylist = Some(crate::msg::runtime_denylist::RuntimeDenylistConf {
+        url: Url::from_file_path(temp_dir.path().join("missing-feed.json")).expect("file URL"),
+        poll_interval: Duration::from_secs(60),
+        cache_path: temp_dir.path().join("runtime_denylist_cache.json"),
+    });
+
+    let error = build_relayer(settings)
+        .await
+        .expect_err("relayer startup must propagate the failed policy load");
+    assert!(format!("{error:#}").contains("refusing to start without a policy"));
 }
 
 #[tracing_test::traced_test]

@@ -373,5 +373,43 @@ describe('Block explorer utils', () => {
         'https://test.com/tx/0x123',
       );
     });
+
+    it('preserves base normalization, path resolution, and query encoding', () => {
+      const chain = {
+        ...chainWithTrailingSlash,
+        blockExplorers: [
+          {
+            ...chainWithTrailingSlash.blockExplorers[0],
+            url: ' HTTPS://TEST.COM:443/nested/../base/?cluster=a%20b ',
+            family: ExplorerFamily.Blockscout,
+          },
+        ],
+      };
+      expect(getExplorerTxUrl(chain, '0x123')).to.equal(
+        'https://test.com/base/tx/0x123?cluster=a+b',
+      );
+      expect(getExplorerAddressUrl(chain, '0x123')).to.equal(
+        'https://test.com/base/address/0x123?cluster=a+b',
+      );
+    });
+
+    it('preserves hash-routed explorer paths', () => {
+      const chain = {
+        ...chainWithTrailingSlash,
+        blockExplorers: [
+          {
+            ...chainWithTrailingSlash.blockExplorers[0],
+            url: 'https://test.com/?network=main#/nested/',
+            family: ExplorerFamily.TronScan,
+          },
+        ],
+      };
+      expect(getExplorerTxUrl(chain, '0x123')).to.equal(
+        'https://test.com/?network=main#/nested/transaction/123',
+      );
+      expect(getExplorerAddressUrl(chain, 'T123')).to.equal(
+        'https://test.com/?network=main#/nested/address/T123',
+      );
+    });
   });
 });

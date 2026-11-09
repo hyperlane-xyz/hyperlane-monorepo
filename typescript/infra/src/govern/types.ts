@@ -9,6 +9,11 @@ export enum SubmissionType {
   SIGNER = 2,
 }
 
+export interface GovernancePreparationOptions {
+  // Enabled by govern(); review-only exports must leave provisioning disabled.
+  allowDeployments?: boolean;
+}
+
 export interface AnnotatedCallData extends CallData {
   submissionType?: SubmissionType;
   description: string;

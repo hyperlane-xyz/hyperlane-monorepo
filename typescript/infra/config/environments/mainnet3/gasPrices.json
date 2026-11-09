@@ -67,6 +67,10 @@
     "amount": "10.000000007",
     "decimals": 9
   },
+  "elysium": {
+    "amount": "0.1",
+    "decimals": 9
+  },
   "eni": {
     "amount": "108.9",
     "decimals": 9

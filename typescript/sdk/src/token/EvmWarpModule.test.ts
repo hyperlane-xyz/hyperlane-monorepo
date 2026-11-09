@@ -1,11 +1,12 @@
 import { expect } from 'chai';
-import { BigNumber, utils } from 'ethers';
+import { BigNumber, constants, utils } from 'ethers';
 import sinon from 'sinon';
 
 import {
   ProxyAdmin__factory,
   TimelockController__factory,
   TokenBridgeCctpBase__factory,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -26,6 +27,7 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
+  WarpRouteDeployConfigSchemaErrors,
   XERC20Type,
 } from './types.js';
 
@@ -39,6 +41,7 @@ const TIMELOCK_PROPOSER_ADDRESS = '0x7777777777777777777777777777777777777777';
 const TIMELOCK_EXECUTOR_ADDRESS = '0x8888888888888888888888888888888888888888';
 const TIMELOCK_ADDRESS = '0x9999999999999999999999999999999999999999';
 const OTHER_TIMELOCK_ADDRESS = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const FEE_HOOK_ADDRESS = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
 type EvmWarpModuleForTest = {
   configWithTimelockProxyAdminOwner(
@@ -446,6 +449,62 @@ describe('EvmWarpModule', () => {
           module.updatePhases(changedTransmitterConfig),
         ).to.be.rejectedWith(ShortCircuit);
       });
+    });
+  });
+
+  describe('createFeeHookUpdateTxs', () => {
+    function fiatExpectedConfig(feeHook: string): HypTokenRouterConfig {
+      return {
+        type: TokenType.collateralFiat,
+        token: TOKEN_ADDRESS,
+        mailbox: MAILBOX_ADDRESS,
+        owner: OWNER_ADDRESS,
+        feeHook,
+      };
+    }
+
+    function fiatActualConfig(feeHook?: string): DerivedTokenRouterConfig {
+      return {
+        type: TokenType.collateralFiat,
+        token: TOKEN_ADDRESS,
+        mailbox: MAILBOX_ADDRESS,
+        owner: OWNER_ADDRESS,
+        hook: constants.AddressZero,
+        interchainSecurityModule: constants.AddressZero,
+        feeHook,
+      };
+    }
+
+    it('rejects setting a fee hook on an unsupported token type', () => {
+      const module = createModule();
+
+      expect(() =>
+        module.createFeeHookUpdateTxs(
+          fiatActualConfig(),
+          fiatExpectedConfig(FEE_HOOK_ADDRESS),
+        ),
+      ).to.throw(
+        `${WarpRouteDeployConfigSchemaErrors.FEE_HOOK_UNSUPPORTED} ${TokenType.collateralFiat} on ${TestChainName.test1}`,
+      );
+    });
+
+    it('allows removing an existing fee hook on an unsupported token type', () => {
+      const module = createModule();
+
+      const txs = module.createFeeHookUpdateTxs(
+        fiatActualConfig(FEE_HOOK_ADDRESS),
+        fiatExpectedConfig(constants.AddressZero),
+      );
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].to).to.equal(ROUTER_ADDRESS);
+      assert(txs[0].data, 'Expected setFeeHook transaction data');
+      const [feeHook] =
+        TokenRouter__factory.createInterface().decodeFunctionData(
+          'setFeeHook',
+          txs[0].data,
+        );
+      expect(feeHook).to.equal('0x0000000000000000000000000000000000000000');
     });
   });
 

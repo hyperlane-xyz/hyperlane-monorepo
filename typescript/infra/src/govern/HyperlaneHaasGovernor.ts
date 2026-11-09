@@ -11,6 +11,7 @@ import {
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 import {
+  assert,
   formatStandardHookMetadata,
   hasValidRefundAddress,
   isEVMLike,
@@ -25,7 +26,7 @@ import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
-import { AnnotatedCallData } from './types.js';
+import { AnnotatedCallData, GovernancePreparationOptions } from './types.js';
 
 export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
@@ -36,7 +37,7 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   protected readonly coreGovernor: HyperlaneCoreGovernor;
 
   constructor(
-    ica: InterchainAccount,
+    ica: InterchainAccount | undefined,
     private readonly icaChecker: HyperlaneICAChecker,
     private readonly coreChecker: HyperlaneCoreChecker,
   ) {
@@ -140,7 +141,7 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
     );
 
     if (failedChains.length > 0) {
-      rootLogger.error(chalk.red('Failed chains:', failedChains.join(', ')));
+      throw new Error(`Failed to check chains: ${failedChains.join(', ')}`);
     }
   }
 
@@ -153,19 +154,36 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
     return [...this.icaChecker.violations, ...this.coreChecker.violations];
   }
 
+  override selectViolations(
+    select: (violation: CheckerViolation) => CheckerViolation | undefined,
+  ) {
+    super.selectViolations(select);
+    const selected = this.icaChecker.violations.flatMap((violation) => {
+      const result = select(violation);
+      return result ? [result] : [];
+    });
+    this.icaChecker.violations.splice(
+      0,
+      this.icaChecker.violations.length,
+      ...selected,
+    );
+  }
+
+  override async prepareGovernanceCalls(
+    options: GovernancePreparationOptions = {},
+  ) {
+    await super.prepareGovernanceCalls(options);
+    await this.batchIcaCalls();
+    return this.calls;
+  }
+
   async govern(confirm = true, chain?: ChainName) {
     const totalViolations =
       this.icaChecker.violations.length + this.coreChecker.violations.length;
     if (totalViolations === 0) return;
 
     // 1. Map violations to calls
-    await this.mapViolationsToCalls();
-
-    // 2. For each call, infer how it should be submitted on-chain.
-    await this.inferCallSubmissionTypes();
-
-    // 2.5. Combine ICA calls that have the same callRemoteArgs
-    await this.batchIcaCalls();
+    await this.prepareGovernanceCalls({ allowDeployments: true });
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
@@ -177,7 +195,13 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
 
   async batchIcaCalls() {
     if (!this.interchainAccount) {
-      throw new Error('InterchainAccount is not available');
+      assert(
+        !Object.values(this.calls).some((calls) =>
+          calls.some((call) => call.callRemoteArgs),
+        ),
+        'Cannot batch ICA calls without v2 governance routers',
+      );
+      return;
     }
 
     for (const [chain, calls] of Object.entries(this.calls)) {

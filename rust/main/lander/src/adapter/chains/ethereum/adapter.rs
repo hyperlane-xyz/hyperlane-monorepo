@@ -10,7 +10,7 @@ use ethers::{
 use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
-use futures_util::future;
+use futures_util::{future, stream, StreamExt, TryStreamExt};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
@@ -69,6 +69,7 @@ const NONCE_TOO_LOW_ERRORS: [&str; 4] = [
     "tx already exist in the fetch queue",
 ];
 const DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS: Duration = Duration::from_secs(1);
+const PAYLOAD_STATUS_READ_CONCURRENCY: usize = 16;
 
 pub struct EthereumAdapter {
     pub estimated_block_time: Duration,
@@ -871,24 +872,29 @@ impl AdaptsChain for EthereumAdapter {
         let payload_details_and_precursors = tx
             .payload_details
             .iter()
-            .filter_map(|d| {
-                EthereumTxPrecursor::from_success_criteria(d, self.signer).map(|p| (d, p))
+            .enumerate()
+            .filter_map(|(index, detail)| {
+                EthereumTxPrecursor::from_success_criteria(detail, self.signer)
+                    .map(|precursor| (index, precursor))
             })
             .collect::<Vec<_>>();
+        let provider = self.provider.as_ref();
 
-        let mut reverted = Vec::new();
-        for (detail, precursor) in payload_details_and_precursors {
-            let success = self
-                .provider
-                .check(&precursor.tx, &precursor.function)
-                .await
-                .unwrap_or(true);
-            if !success {
-                reverted.push(detail.clone());
-            }
-        }
+        let mut reverted: Vec<_> = stream::iter(payload_details_and_precursors)
+            .map(|(index, precursor)| async move {
+                let success = provider.check(&precursor.tx, &precursor.function).await?;
+                Ok::<_, ChainCommunicationError>((!success).then_some(index))
+            })
+            .buffer_unordered(PAYLOAD_STATUS_READ_CONCURRENCY)
+            .try_filter_map(|index| future::ready(Ok(index)))
+            .try_collect()
+            .await?;
 
-        Ok(reverted)
+        reverted.sort_unstable();
+        Ok(reverted
+            .into_iter()
+            .map(|index| tx.payload_details[index].clone())
+            .collect())
     }
 
     async fn payload_delivered(&self, payload: &PayloadDetails) -> Result<bool, LanderError> {

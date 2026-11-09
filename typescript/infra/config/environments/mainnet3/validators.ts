@@ -59,6 +59,14 @@ export const validatorChainConfig = (
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   const configs: ValidatorBaseChainConfigMap = {
+    elysium: {
+      interval: DEFAULT_VALIDATOR_INTERVAL,
+      reorgPeriod: getReorgPeriod('elysium'),
+      validators: validatorsConfig(
+        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
+        'elysium',
+      ),
+    },
     tempo: {
       interval: DEFAULT_VALIDATOR_INTERVAL,
       reorgPeriod: getReorgPeriod('tempo'),

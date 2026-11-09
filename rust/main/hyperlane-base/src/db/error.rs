@@ -28,6 +28,9 @@ pub enum DbError {
     /// A sequenced gas payment disagrees with the payment stored for its sequence.
     #[error("{0}")]
     GasPaymentSequenceConflict(Box<GasPaymentSequenceConflict>),
+    /// Indexed data conflicts with a value already consumed by the relayer.
+    #[error("{0}")]
+    ConflictingEvent(#[from] ConflictingEvent),
     /// Custom error
     #[error("{0}")]
     Other(String),

@@ -229,13 +229,16 @@ async fn estimate_eip1559_fees_zksync(
     provider: &Arc<dyn EvmProviderForLander>,
     tx: &TypedTransaction,
 ) -> ChainResult<(Eip1559Fee, Block<TxHash>)> {
-    let latest_block = latest_block(provider).await?;
+    let block_with_base_fee = async {
+        let latest_block = latest_block(provider).await?;
+        let base_fee_per_gas = latest_block
+            .base_fee_per_gas
+            .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
+        Ok::<_, ChainCommunicationError>((latest_block, base_fee_per_gas))
+    };
+    let ((latest_block, base_fee_per_gas), response) =
+        try_join!(block_with_base_fee, zksync_estimate_fee(provider, tx))?;
 
-    let base_fee_per_gas = latest_block
-        .base_fee_per_gas
-        .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
-
-    let response = zksync_estimate_fee(provider, tx).await?;
     let max_fee_per_gas = response.max_fee_per_gas;
     let max_priority_fee_per_gas = response.max_priority_fee_per_gas;
 
@@ -412,7 +415,7 @@ mod tests {
     };
 
     use crate::adapter::chains::ethereum::tests::{
-        dummy_tx_precursor, ExpectedTxType, MockEvmProvider,
+        dummy_tx_precursor, ExpectedTxType, MockEvmProvider, YieldingRpcClient,
     };
 
     use super::*;
@@ -421,6 +424,44 @@ mod tests {
 
     fn gwei_milli(milli_gwei: u64) -> EthersU256 {
         EthersU256::from(milli_gwei) * EthersU256::from(GWEI / 1000)
+    }
+
+    #[tokio::test]
+    async fn zksync_fee_and_block_are_read_concurrently() {
+        let client = YieldingRpcClient::new([
+            (
+                "eth_getBlockByNumber",
+                serde_json::to_value(Block::<TxHash> {
+                    base_fee_per_gas: Some(10.into()),
+                    ..Default::default()
+                })
+                .expect("serialize block response"),
+            ),
+            (
+                "zks_estimateFee",
+                serde_json::to_value(ZksyncEstimateFeeResponse {
+                    gas_limit: 21_000.into(),
+                    max_fee_per_gas: 30.into(),
+                    max_priority_fee_per_gas: 2.into(),
+                    gas_per_pubdata_limit: 800.into(),
+                })
+                .expect("serialize fee response"),
+            ),
+        ]);
+        let provider: Arc<dyn EvmProviderForLander> =
+            Arc::new(hyperlane_ethereum::EthereumProvider::new(
+                Arc::new(ethers::providers::Provider::new(client.clone())),
+                KnownHyperlaneDomain::Zksync.into(),
+            ));
+        let precursor = dummy_tx_precursor(ExpectedTxType::Eip1559, H160::zero());
+
+        let (fees, _) = estimate_eip1559_fees_zksync(&provider, &precursor.tx)
+            .await
+            .expect("estimate zkSync fees concurrently with block read");
+
+        assert_eq!(fees, (10.into(), 30.into(), 2.into()));
+        assert_eq!(client.total(), 2);
+        assert_eq!(client.peak(), 2);
     }
 
     #[tokio::test]

@@ -31,6 +31,8 @@ use super::{DbError, GasPaymentSequenceConflict, TypedDB, DB};
 // these keys MUST not be given multiple uses in case multiple agents are
 // started with the same database and domain.
 
+const INDEXED_EVENT_CONFLICT: &str = "indexed_event_conflict_v1_";
+
 const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
 const MESSAGE: &str = "message_";
@@ -104,6 +106,13 @@ impl HyperlaneRocksDB {
             Arc::new(Mutex::new(())),
             Arc::new(Mutex::new(())),
         )
+    }
+
+    /// Durably gate this origin before changing data its consumers may have read.
+    /// Clear `indexed_event_conflict_v1_` only after coordinated DB, queue and
+    /// prover recovery. A matching replay or restart must not clear this marker.
+    pub fn mark_indexed_event_conflict(&self) -> DbResult<()> {
+        self.store_value_by_key(INDEXED_EVENT_CONFLICT, &false, &true)
     }
 
     /// Get the domain this database is scoped to
@@ -646,6 +655,9 @@ impl HyperlaneRocksDB {
                 debug!(insertion=?insertion, "Tree insertion already stored in db");
                 return Ok(false);
             }
+            if existing != *insertion {
+                self.mark_indexed_event_conflict()?;
+            }
             self.store_tree_insertion_inner(insertion, insertion_block_number)?;
             return Ok(existing != *insertion);
         }
@@ -663,11 +675,25 @@ impl HyperlaneRocksDB {
         self.store_tree_insertion_inner(insertion, insertion_block_number)
     }
 
-    /// Store an unverified insertion only if its leaf index is absent. Returns the
-    /// existing insertion otherwise, filling absent metadata for matching leaves.
+    /// Store an insertion only if its leaf index is absent; return the existing
+    /// insertion otherwise, preserving its block metadata for validator recovery.
+    pub fn store_tree_insertion_if_absent(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<Option<MerkleTreeInsertion>> {
+        let _guard = self.3.lock();
+        let existing = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?;
+        if existing.is_none() {
+            self.store_tree_insertion_inner(insertion, insertion_block_number)?;
+        }
+        Ok(existing)
+    }
+
+    /// Validate replay parity and fill absent Merkle metadata for matching leaves.
     /// Shares the RPC writer's lock so a concurrent stream replay cannot overwrite
     /// a canonical insertion or its existing metadata.
-    pub fn store_tree_insertion_if_absent(
+    pub fn store_tree_insertion_if_consistent(
         &self,
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
@@ -786,6 +812,80 @@ mod pending_index_tests {
 
     use super::*;
     use crate::db::rocks::test_utils::run_test_db;
+
+    #[tokio::test]
+    async fn rpc_dispatch_conflicts_gate_only_the_affected_origin() {
+        run_test_db(|raw_db| async move {
+            let db =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db.clone());
+            let other = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("other"), raw_db);
+            let original = message(7, 10);
+            let conflicting = message(7, 11);
+            let meta = LogMeta {
+                block_number: 100,
+                transaction_id: H512::from_low_u64_be(1),
+                ..Default::default()
+            };
+            db.store_dispatched_message_if_consistent(&original, 100, meta.transaction_id, || {
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(
+                db.store_logs(&[(Indexed::new(original.clone()), meta.clone())])
+                    .await
+                    .unwrap(),
+                0
+            );
+            db.ensure_no_indexed_event_conflict().unwrap();
+            let error = db
+                .store_logs(&[(Indexed::new(conflicting.clone()), meta)])
+                .await
+                .unwrap_err();
+            assert!(error.is::<ConflictingEvent>());
+            assert_eq!(db.retrieve_message_by_nonce(7).unwrap(), Some(original));
+            assert!(db
+                .retrieve_dispatched_tx_hash_by_message_id(&conflicting.id())
+                .unwrap()
+                .is_none());
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+            other.ensure_no_indexed_event_conflict().unwrap();
+        })
+        .await;
+    }
+
+    #[test]
+    fn rpc_merkle_replacement_is_durably_gated_before_repair() {
+        let dir = tempfile::tempdir().unwrap();
+        let domain = HyperlaneDomain::new_test_domain("origin");
+        let original = MerkleTreeInsertion::new(0, H256::from_low_u64_be(1));
+        let replacement = MerkleTreeInsertion::new(0, H256::from_low_u64_be(2));
+        {
+            let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
+            assert!(db.process_tree_insertion(&original, 100).unwrap());
+            db.ensure_no_indexed_event_conflict().unwrap();
+            assert!(!db.process_tree_insertion(&original, 100).unwrap());
+            // Repair block metadata without treating the matching leaf as a replacement.
+            db.store_merkle_tree_insertion_block_number_by_leaf_index(&0, &99)
+                .unwrap();
+            assert!(!db.process_tree_insertion(&original, 100).unwrap());
+            db.ensure_no_indexed_event_conflict().unwrap();
+            assert!(db.process_tree_insertion(&replacement, 101).unwrap());
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+            assert_eq!(
+                db.retrieve_merkle_tree_insertion_by_leaf_index(&0).unwrap(),
+                Some(replacement)
+            );
+            assert_eq!(
+                db.retrieve_merkle_leaf_index_by_message_id(&original.message_id())
+                    .unwrap(),
+                None
+            );
+            assert!(!db.process_tree_insertion(&replacement, 101).unwrap());
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+        }
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
+        assert!(db.ensure_no_indexed_event_conflict().is_err());
+    }
 
     #[tokio::test]
     async fn zero_dispatch_tx_id_is_never_stored() {
@@ -958,7 +1058,7 @@ mod pending_index_tests {
                     .unwrap()
                     .is_none());
                 started.send(()).unwrap();
-                writer.store_tree_insertion_if_absent(&insertion, 100, || {
+                writer.store_tree_insertion_if_consistent(&insertion, 100, || {
                     panic!("conflict must be detected before recording live metadata")
                 })
             });
@@ -1245,6 +1345,13 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
         let mut stored: u32 = 0;
         for (message, meta) in messages {
             let _guard = self.4.lock();
+            if self
+                .retrieve_message_by_nonce(message.inner().nonce)?
+                .is_some_and(|stored| stored != *message.inner())
+            {
+                self.mark_indexed_event_conflict()?;
+                return Err(ConflictingEvent("dispatch").into());
+            }
             let stored_message = self.store_message_inner(message.inner(), meta.block_number)?;
             if stored_message {
                 stored = stored.saturating_add(1);
@@ -1435,6 +1542,16 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 impl HyperlaneDb for HyperlaneRocksDB {
+    fn ensure_no_indexed_event_conflict(&self) -> DbResult<()> {
+        if self
+            .retrieve_value_by_key(INDEXED_EVENT_CONFLICT, &false)?
+            .unwrap_or(false)
+        {
+            return Err(ConflictingEvent("origin requires DB/queue/prover recovery").into());
+        }
+        Ok(())
+    }
+
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
         self.retrieve_highest_seen_message_nonce_number()
     }

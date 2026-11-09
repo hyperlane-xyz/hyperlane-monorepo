@@ -31,6 +31,7 @@ import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type WithAddress,
   assert,
+  concurrentMap,
   eqAddress,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
@@ -128,8 +129,7 @@ export class EvmQuoteService implements IProtocolQuoteService {
     core: HyperlaneCore;
     routes: ReadonlyArray<EvmRouteSpec>;
   }): Promise<EvmQuoteService> {
-    const routesByKey = new Map<string, EvmRouteState>();
-    for (const r of opts.routes) {
+    const routeEntries = await concurrentMap(4, [...opts.routes], async (r) => {
       const reader = new EvmWarpRouteReader(opts.multiProvider, r.origin);
       const derivedConfig = await reader.deriveWarpRouteConfig(r.warpRouter);
 
@@ -143,17 +143,20 @@ export class EvmQuoteService implements IProtocolQuoteService {
         derivedConfig.hook = await hookReader.deriveHookConfig(hookAddress);
       }
 
-      routesByKey.set(routeKey(r.origin, r.warpRouter), {
-        chainId: opts.multiProvider.getEvmChainId(r.origin),
-        quotedCallsAddress: r.quotedCallsAddress,
-        feeToken: r.feeToken,
-        derivedConfig,
-      });
-    }
+      return [
+        routeKey(r.origin, r.warpRouter),
+        {
+          chainId: opts.multiProvider.getEvmChainId(r.origin),
+          quotedCallsAddress: r.quotedCallsAddress,
+          feeToken: r.feeToken,
+          derivedConfig,
+        },
+      ] as const;
+    });
     return new EvmQuoteService({
       account: privateKeyToAccount(opts.signerKey),
       logger: opts.logger,
-      routesByKey,
+      routesByKey: new Map(routeEntries),
     });
   }
 

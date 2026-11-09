@@ -1,3 +1,4 @@
+use crate::message_activity::{Activity, Outcome, Stage};
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -40,19 +41,35 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
-        let highest_leaf_index = unwrap_or_none_result!(
-            self.base_builder().highest_known_leaf_index().await,
-            debug!("Couldn't get highest known leaf index")
-        );
+        let report =
+            |stage, outcome| self.report_activity(message, Activity::Progress { stage, outcome });
+        let highest_leaf_index =
+            unwrap_or_none_result!(self.base_builder().highest_known_leaf_index().await, {
+                report(Stage::MerkleLeaf, Outcome::Unavailable);
+                debug!("Couldn't get highest known leaf index");
+            });
         let leaf_index = unwrap_or_none_result!(
             self.base_builder()
                 .get_merkle_leaf_id_by_message_id(message.id())
                 .await
-                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
-            debug!(
-                hyp_message=?message,
-                "No merkle leaf found for message id, must have not been enqueued in the tree"
-            )
+                .map_err(|err| {
+                    report(Stage::MerkleLeaf, Outcome::Failed);
+                    MetadataBuildError::FailedToBuild(err.to_string())
+                })?,
+            {
+                report(Stage::MerkleLeaf, Outcome::Unavailable);
+                debug!(
+                    hyp_message=?message,
+                    "No merkle leaf found for message id, must have not been enqueued in the tree"
+                );
+            }
+        );
+        self.report_activity(
+            message,
+            Activity::MerkleLeaf {
+                index: leaf_index,
+                highest_known: Some(highest_leaf_index),
+            },
         );
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
@@ -74,7 +91,10 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         let proof = self
             .base_builder()
             .get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
-            .await?;
+            .await
+            .inspect_err(|_| {
+                report(Stage::MerkleProof, Outcome::Failed);
+            })?;
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint,
             leaf_index,

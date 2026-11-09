@@ -260,7 +260,10 @@ export class EventStore {
     through: bigint,
     frontiers: Map<number, bigint>,
     confirmations: number,
+    messageIds?: Set<string>,
   ): AsyncIterable<ConfirmationRow> {
+    if (messageIds?.size === 0) return;
+    const filter = messageIds ? ' AND msg_id = ANY($7::bytea[])' : '';
     let position = after;
     while (true) {
       const changes = await this.db.queryLive<{
@@ -270,9 +273,9 @@ export class EventStore {
         msg_id: string;
       }>(
         `/* confirmation_messages */ SELECT * FROM (
-          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint
-          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
-          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
+          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint${filter}
+          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint${filter}
+          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint${filter}
         ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6`,
         [
           storedDomain(domain),
@@ -281,6 +284,7 @@ export class EventStore {
           position[2].toString(),
           through.toString(),
           config.EVENT_STREAM_BATCH_SIZE,
+          ...(messageIds ? [[...messageIds]] : []),
         ],
       );
       if (!changes.length) return;

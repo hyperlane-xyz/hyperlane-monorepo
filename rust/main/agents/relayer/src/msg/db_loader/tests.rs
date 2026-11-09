@@ -238,6 +238,23 @@ async fn finish_legacy_migration(loader: &mut MessageDbLoader) {
 }
 
 #[tokio::test]
+async fn indexed_event_conflict_blocks_loading_stored_messages() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        add_db_entry(&db, &dummy_hyperlane_message(&destination, 0), 0);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        db.mark_indexed_event_conflict().unwrap();
+        assert!(loader.tick().await.is_err());
+        assert!(receiver.try_recv().is_err());
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn idle_loader_does_not_reserve_shared_destination_capacity() {
     test_utils::run_test_db(|db| async move {
         let origin = dummy_domain(0, "dummy_origin_domain");
@@ -999,6 +1016,10 @@ async fn destination_outcomes_attribute_loader_decisions_once() {
         ));
         point_destination_scan_at(&mut loader, nonce);
         assert!(loader.try_load_destination(0).await.unwrap());
+        assert!(
+            loader.logged_denials.is_none(),
+            "whitelist exclusions must not allocate the denial cache"
+        );
         loader.message_whitelist = Arc::new(MatchingList::default());
         db.delete_pending_message_index(&not_whitelisted).unwrap();
 

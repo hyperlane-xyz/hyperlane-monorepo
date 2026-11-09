@@ -12,6 +12,9 @@ import {
 
 import { execCmd, execCmdAndParseJson } from './utils.js';
 
+const TRAILING_DASHES_REGEX = /-+$/;
+const REGISTRY_TREE_PATH_REGEX = /\/tree\/(.+)$/;
+
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
   UpgradeDiff = 'template --debug',
@@ -502,7 +505,7 @@ export function getHelmReleaseName(id: string, prefix: string): string {
   // Max out length, and it can't end with a dash.
   if (name.length > maxChars) {
     name = name.slice(0, maxChars);
-    name = name.replace(/-+$/, '');
+    name = name.replace(TRAILING_DASHES_REGEX, '');
   }
   return name;
 }
@@ -518,7 +521,7 @@ export function extractRegistryCommitFromHelmValues(
 
   const registryUri = values?.hyperlane?.registryUri;
   if (registryUri) {
-    const match = registryUri.match(/\/tree\/(.+)$/);
+    const match = registryUri.match(REGISTRY_TREE_PATH_REGEX);
     if (match?.[1]) return match[1];
   }
 

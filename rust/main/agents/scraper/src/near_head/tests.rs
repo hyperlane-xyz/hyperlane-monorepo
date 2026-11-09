@@ -12,7 +12,9 @@ use async_trait::async_trait;
 use ethers::types::{H160, H256};
 use hyperlane_core::HyperlaneMessage;
 use migration::MigratorTrait;
-use sea_orm::{ConnectionTrait, Database, DbBackend, Statement, TransactionTrait};
+use sea_orm::{
+    ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement, TransactionTrait,
+};
 use testcontainers::{runners::AsyncRunner, ImageExt};
 use testcontainers_modules::postgres::Postgres;
 use tokio::time::timeout;
@@ -270,6 +272,20 @@ async fn count(store: &Store, relation: &str) -> Result<i64> {
         .try_get("", "n")?)
 }
 
+/// Roll back the named migration and its applied successors, independent of
+/// migrations appended after the historical schema boundary under test.
+async fn rollback_through(db: &DatabaseConnection, name: &str) -> Result<()> {
+    let steps = migration::Migrator::get_applied_migrations(db)
+        .await?
+        .iter()
+        .rev()
+        .position(|migration| migration.name() == name)
+        .expect("the requested rollback boundary is applied")
+        .saturating_add(1);
+    migration::Migrator::down(db, Some(u32::try_from(steps)?)).await?;
+    Ok(())
+}
+
 #[tokio::test]
 async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
@@ -279,7 +295,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(4)).await?;
+    rollback_through(&db, "m20260924_000015_near_head_checkpoints").await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp) VALUES
@@ -318,7 +334,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
         .db
         .execute_unprepared("DELETE FROM block WHERE domain=1 AND height=8")
         .await?;
-    migration::Migrator::down(&store.db, Some(4)).await?;
+    rollback_through(&store.db, "m20260924_000015_near_head_checkpoints").await?;
     let restored_confirmed = store
         .db
         .query_one(Statement::from_string(
@@ -327,7 +343,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
         ))
         .await?;
     assert!(restored_confirmed.is_some());
-    migration::Migrator::down(&store.db, Some(1)).await?;
+    rollback_through(&store.db, "m20260922_000014_near_head").await?;
     let restored = store
         .db
         .query_one(Statement::from_string(
@@ -349,7 +365,7 @@ async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()>
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(4)).await?;
+    rollback_through(&db, "m20260924_000015_near_head_checkpoints").await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp)
@@ -386,7 +402,7 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     );
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(3)).await?;
+    rollback_through(&db, "m20260924_000016_frontier_publication").await?;
     db.execute_unprepared(
         r#"
         INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
@@ -418,7 +434,7 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     }
     let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     head_listener.listen("scraper_head").await?;
-    migration::Migrator::down(&db, Some(3)).await?;
+    rollback_through(&db, "m20260924_000016_frontier_publication").await?;
     for relation in ["delivered_message", "gas_payment"] {
         let row = db
             .query_one(Statement::from_string(
@@ -836,12 +852,14 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     store.initialize(&anchor, &contracts()).await?;
     assert!(observe(&chain, &store).await.is_err());
     assert_eq!(count(&store, "confirmed_gas_payment").await?, 1);
-    migration::Migrator::down(&store.db, Some(3)).await?;
-    migration::Migrator::down(&store.db, Some(1)).await?;
-    assert!(
-        migration::Migrator::down(&store.db, Some(1)).await.is_err(),
-        "Base near-head rollback must not expose provisional or halted history"
-    );
+    rollback_through(&store.db, "m20260924_000016_frontier_publication").await?;
+    rollback_through(&store.db, "m20260924_000015_near_head_checkpoints").await?;
+    let error = rollback_through(&store.db, "m20260922_000014_near_head")
+        .await
+        .expect_err("Base near-head rollback must not expose provisional or halted history");
+    assert!(error
+        .to_string()
+        .contains("Drain or repair near-head history before rollback"));
     Ok(())
 }
 

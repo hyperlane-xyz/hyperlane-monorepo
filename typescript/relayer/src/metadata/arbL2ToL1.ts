@@ -28,6 +28,8 @@ import type {
   MetadataContext,
 } from './types.js';
 
+const WAIT_BLOCKS_REGEX = /Wait (\d+) blocks/;
+
 export type NitroChildToParentTransactionEvent = EventArgs<L2ToL1TxEvent>;
 export type ArbL2ToL1Metadata = Omit<
   NitroChildToParentTransactionEvent,
@@ -93,7 +95,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         // Extract blocks remaining from error message
         // Note: This parsing depends on error format from buildArbitrumBridgeCalldata
         // e.g., "Wait 123 blocks until the challenge period..."
-        const blocksMatch = errorMessage.match(/Wait (\d+) blocks/);
+        const blocksMatch = errorMessage.match(WAIT_BLOCKS_REGEX);
         const blocksRemaining = blocksMatch
           ? parseInt(blocksMatch[1], 10)
           : undefined;

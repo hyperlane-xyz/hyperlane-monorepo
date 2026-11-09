@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
+import type { Prisma } from '../../src/generated/prisma/client.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
 import { PrometheusMetrics } from '../../src/utils/prometheus.js';
 
@@ -48,6 +49,20 @@ function mockRes() {
     set: header,
     status: code,
   };
+}
+
+function projectSelectedFields(
+  record: Record<string, unknown>,
+  select: object | null | undefined,
+): Record<string, unknown> {
+  const fields = new Set(
+    Object.entries(select ?? {})
+      .filter(([, selected]) => selected === true)
+      .map(([field]) => field),
+  );
+  return Object.fromEntries(
+    Object.entries(record).filter(([field]) => fields.has(field)),
+  );
 }
 
 const validAddress = '0x' + 'ab'.repeat(20);
@@ -924,7 +939,15 @@ describe('CallCommitmentsService.handleCheckCommitment', () => {
   const commitment = '0x' + '34'.repeat(32);
 
   it('returns stored metadata and disables caching when present', async () => {
-    const findUnique = sinon.stub().resolves(storedMetadata);
+    const routingMetadata = {
+      ica: storedMetadata.ica,
+      originDomain: storedMetadata.originDomain,
+    };
+    const findUnique = sinon
+      .stub()
+      .callsFake(async ({ select }: Prisma.CommitmentFindUniqueArgs) =>
+        projectSelectedFields(routingMetadata, select),
+      );
     sinon.stub(prisma, 'commitment').value({ findUnique });
     const service = createService();
     const res = mockRes();
@@ -943,6 +966,12 @@ describe('CallCommitmentsService.handleCheckCommitment', () => {
       }),
     ).to.be.true;
     expect(res.json.firstCall.args[0]).not.to.have.property('relayers');
+    expect(
+      findUnique.calledOnceWithExactly({
+        where: { commitment },
+        select: { ica: true, originDomain: true },
+      }),
+    ).to.be.true;
   });
 
   it('returns exists false and disables caching when missing', async () => {
@@ -1415,6 +1444,86 @@ describe('CallCommitmentsService.handleCalldataPost', () => {
 
     expect(res.status.calledWith(500)).to.be.true;
     expect(res.json.calledWith({ error: 'Internal server error' })).to.be.true;
+  });
+});
+
+describe('CallCommitmentsService read projections', () => {
+  function createService() {
+    const service = Object.create(CallCommitmentsService.prototype);
+    service.addLoggerServiceContext = () => mockLogger();
+    service.auth = { signer: () => baseRelayers[0] };
+    return service;
+  }
+
+  it('retrieves all reveal fields without fetching creation metadata', async () => {
+    const commitment = '0x' + '34'.repeat(32);
+    const record = {
+      commitment,
+      ...storedMetadata,
+      calls: baseCalls,
+      salt,
+    };
+    const findUnique = sinon
+      .stub()
+      .callsFake(async ({ select }: Prisma.CommitmentFindUniqueArgs) =>
+        projectSelectedFields(record, select),
+      );
+    sinon.stub(prisma, 'commitment').value({ findUnique });
+
+    expect(
+      await createService().fetchCommitmentRecord(commitment, mockLogger()),
+    ).to.deep.equal(record);
+    expect(
+      findUnique.calledOnceWithExactly({
+        where: { commitment },
+        select: {
+          commitment: true,
+          ica: true,
+          originDomain: true,
+          relayers: true,
+          calls: true,
+          salt: true,
+        },
+      }),
+    ).to.be.true;
+  });
+
+  it('retrieves calldata response and authorization fields only', async () => {
+    const record = { ...calldataPayload, revealAccounts: null };
+    const findUnique = sinon
+      .stub()
+      .callsFake(async ({ select }: Prisma.CalldataFindUniqueArgs) =>
+        projectSelectedFields(record, select),
+      );
+    sinon.stub(prisma, 'calldata').value({ findUnique });
+    const res = mockRes();
+
+    await createService().handleCalldataGet(
+      { params: { commitment: record.commitment }, log: mockLogger() },
+      res,
+    );
+
+    expect(
+      findUnique.calledOnceWithExactly({
+        where: { commitment: record.commitment },
+        select: {
+          originDomain: true,
+          data: true,
+          salt: true,
+          relayers: true,
+          destinationAccount: true,
+          revealAccounts: true,
+        },
+      }),
+    ).to.be.true;
+    expect(
+      res.send.calledOnceWithExactly({
+        originDomain: record.originDomain,
+        data: record.data,
+        salt: record.salt,
+        destinationAccount: record.destinationAccount,
+      }),
+    ).to.be.true;
   });
 });
 

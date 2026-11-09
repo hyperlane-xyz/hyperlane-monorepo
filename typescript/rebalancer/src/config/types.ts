@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ProtocolType, isAddressEvm } from '@hyperlane-xyz/utils';
 
+const SEALEVEL_ADDRESS_REGEX = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
@@ -357,7 +359,7 @@ export const RebalancerConfigSchema = z
               });
             }
           } else if (protocol === ProtocolType.Sealevel) {
-            if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(signerConfig.address)) {
+            if (!SEALEVEL_ADDRESS_REGEX.test(signerConfig.address)) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: `inventorySigners.${protocol} must be a valid Solana base58 address (32-44 chars), got: ${signerConfig.address}`,

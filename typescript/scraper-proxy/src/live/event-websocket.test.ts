@@ -7,6 +7,7 @@ import {
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerBlocks,
+  parseExplorerMessageIds,
   parseHeadNotification,
 } from './protocol.js';
 
@@ -43,10 +44,15 @@ void describe('event websocket protocol', () => {
         ),
       );
     }
-    assert.equal(parseExplorerBlocks('/messages'), false);
-    assert.equal(parseExplorerBlocks('/messages?blocks=true'), true);
-    assert.equal(parseExplorerBlocks('/messages?blocks=false'), false);
-    assert.throws(() => parseExplorerBlocks('/messages?blocks=oops'));
+    assert.equal(parseExplorerBlocks(new URLSearchParams()), false);
+    assert.equal(parseExplorerBlocks(new URLSearchParams('blocks=true')), true);
+    assert.equal(
+      parseExplorerBlocks(new URLSearchParams('blocks=false')),
+      false,
+    );
+    assert.throws(() =>
+      parseExplorerBlocks(new URLSearchParams('blocks=oops')),
+    );
   });
 
   void it('parses indexed block hashes without losing large heights', () => {
@@ -485,4 +491,27 @@ void describe('event websocket protocol', () => {
     );
     assert.throws(() => parseExplorerNotification('{"messageId":"ab"}'));
   });
+});
+
+void it('validates optional shared message-ID filters', () => {
+  const id = 'ab'.repeat(32);
+  assert.equal(parseExplorerMessageIds(new URLSearchParams()), undefined);
+  assert.deepEqual(
+    parseExplorerMessageIds(new URLSearchParams('messageIds=')),
+    new Set(),
+  );
+  assert.deepEqual(
+    parseExplorerMessageIds(
+      new URLSearchParams(`messageIds=0x${id},${id.toUpperCase()}`),
+    ),
+    new Set([`\\x${id}`]),
+  );
+  assert.throws(() =>
+    parseExplorerMessageIds(new URLSearchParams('messageIds=bad')),
+  );
+  assert.throws(() =>
+    parseExplorerMessageIds(
+      new URLSearchParams(`messageIds=${Array(51).fill(id).join(',')}`),
+    ),
+  );
 });

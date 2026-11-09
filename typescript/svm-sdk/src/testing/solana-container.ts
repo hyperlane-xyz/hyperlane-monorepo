@@ -22,6 +22,10 @@ import {
 
 import { AGAVE_VERSION, TEST_SVM_CHAIN_METADATA } from './constants.js';
 
+const MAJOR_MINOR_VERSION_REGEX = /(\d+)\.(\d+)/;
+const VALIDATOR_VERSION_REGEX = /solana-test-validator\s+(\d+\.\d+\.\d+)/;
+const RPC_READY_REGEX = /rpc bound to/;
+
 // Vendored Docker seccomp profile with io_uring syscalls pre-patched.
 // Agave v2.0+ requires io_uring which Docker's default profile blocks.
 // To update: fetch https://raw.githubusercontent.com/moby/profiles/main/seccomp/default.json,
@@ -62,7 +66,7 @@ const MIN_SOLANA_VERSION = { major: 3, minor: 0 };
 function parseVersion(
   version: string,
 ): { major: number; minor: number } | null {
-  const match = version.match(/(\d+)\.(\d+)/);
+  const match = version.match(MAJOR_MINOR_VERSION_REGEX);
   if (!match) return null;
   const [, major, minor] = match;
   assert(major && minor, `Invalid Solana version: ${version}`);
@@ -83,7 +87,7 @@ function getValidatorVersion(binaryPath: string): string | null {
     const output = execFileSync(binaryPath, ['--version'], {
       encoding: 'utf-8',
     });
-    const match = output.match(/solana-test-validator\s+(\d+\.\d+\.\d+)/);
+    const match = output.match(VALIDATOR_VERSION_REGEX);
     return match?.[1] ?? null;
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -321,7 +325,7 @@ async function startDockerValidator(
     .withExposedPorts({ container: rpcPort, host: rpcPort })
     .withCommand(command)
     .withSecurityOpt(`seccomp=${seccompProfile}`)
-    .withWaitStrategy(Wait.forLogMessage(/rpc bound to/, 1))
+    .withWaitStrategy(Wait.forLogMessage(RPC_READY_REGEX, 1))
     .withStartupTimeout(120_000);
 
   assert(

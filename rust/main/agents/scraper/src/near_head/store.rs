@@ -80,6 +80,35 @@ impl Store {
         })).transpose()
     }
 
+    /// A linked WebSocket header changes eligibility, never indexed history.
+    pub async fn advance_head(&self, expected: &State, height: u64, lease: Duration) -> Result<()> {
+        let result = self.db.execute(sql(
+            "UPDATE scraper_head SET head_height=greatest(head_height,$2),updated_at=clock_timestamp(),writer_lease_until=CASE WHEN writer_lease_until>clock_timestamp()+make_interval(secs=>$6/2) THEN writer_lease_until ELSE clock_timestamp()+make_interval(secs=>$6) END WHERE domain=$1 AND indexed_height=$3 AND indexed_hash=$4 AND writer_id=$5 AND healthy AND NOT halted",
+            vec![self.domain(), number(height)?, number(expected.indexed)?, bytes(expected.hash), writer_id().into(), lease.as_secs_f64().into()],
+        )).await?;
+        ensure!(
+            result.rows_affected() == 1,
+            "Header observation changed or is unhealthy"
+        );
+        Ok(())
+    }
+
+    pub async fn confirmation_checkpoint(
+        &self,
+        after: u64,
+        through: u64,
+    ) -> Result<Option<Header>> {
+        self.db.query_one(sql(
+            "SELECT height,hash,extract(epoch FROM timestamp)::bigint AS timestamp FROM scraper_checkpoint WHERE domain=$1 AND height>$2 AND height<=$3 ORDER BY height DESC LIMIT 1",
+            vec![self.domain(), number(after)?, number(through)?],
+        )).await?.map(|row| Ok(Header {
+            height: u64::try_from(row.try_get::<i64>("", "height")?)?,
+            timestamp: u64::try_from(row.try_get::<i64>("", "timestamp")?)?,
+            hash: H256::from_slice(&row.try_get::<Vec<u8>>("", "hash")?),
+            parent: H256::zero(), // Not persisted or used by confirmation.
+        })).transpose()
+    }
+
     /// Only empty domains can start automatically. Neither stored maxima nor the
     /// shared legacy cursor prove that all four streams completed a cutover.
     pub async fn anchor_height(&self, index_from: u64) -> Result<u64> {

@@ -6,6 +6,12 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket, WebSocketServer } from 'ws';
 
+import { DiagnosticsStream } from '../diagnostics/stream.js';
+import type { DiagnosticsService } from '../diagnostics/service.js';
+import {
+  DiagnosticsEventType,
+  type DiagnosticsFrame,
+} from '../diagnostics/types.js';
 import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
 import {
@@ -23,12 +29,15 @@ import {
   type BlockStreamRequest,
   type EventNotification,
   type EventType,
+  type HeadNotification,
   parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerConfirmations,
   parseExplorerBlocks,
+  parseExplorerMessageIds,
+  parseExplorerDiagnostics,
   parseOptionalBlockHash,
   parseHeadNotification,
   parseId,
@@ -90,6 +99,7 @@ type Client = {
   subscribing: boolean;
 };
 type ExplorerClient = {
+  messageIds?: Set<string>;
   alive: boolean;
   custom: boolean;
   ip: string;
@@ -152,6 +162,7 @@ export class EventWebSocketServer {
   private readonly catchUpWaiters: CatchUpWaiter[] = [];
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
+  private readonly pendingHeads = new Map<number, HeadNotification>();
   private readonly headRanges = new Map<number, HeadRange>();
   private readonly headFailures = new Map<number, number>();
   private heartbeatTimer?: NodeJS.Timeout;
@@ -164,6 +175,17 @@ export class EventWebSocketServer {
   private readonly explorerUpdates = new NotificationWorker(
     NOTIFICATION_BATCH_MS,
     () => this.drainExplorerNotifications(),
+    (error) => this.failExplorerStream(error),
+  );
+  private readonly confirmationUpdates = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    async () => {
+      const heads = [...this.pendingHeads.values()];
+      this.pendingHeads.clear();
+      if (!heads.length) return;
+      this.store.invalidateMessages();
+      for (const head of heads) this.notifyConfirmationStreams(head);
+    },
     (error) => this.failExplorerStream(error),
   );
   private readonly headUpdates = new NotificationWorker(
@@ -184,11 +206,18 @@ export class EventWebSocketServer {
   private explorerServer?: WebSocketServer;
   private readonly limits: Limits;
   private readonly store: EventStore;
+  private readonly diagnostics?: DiagnosticsStream;
+  private readonly serializedDiagnostics = new WeakMap<
+    DiagnosticsFrame,
+    SerializedMessage
+  >();
 
   constructor(
     private readonly db: EventDatabase,
     limits: Partial<Limits> = {},
+    diagnostics?: DiagnosticsService,
   ) {
+    if (diagnostics) this.diagnostics = new DiagnosticsStream(diagnostics);
     this.store = new EventStore(db);
     this.limits = {
       heartbeatMs: HEARTBEAT_MS,
@@ -215,6 +244,7 @@ export class EventWebSocketServer {
       );
     }
     await this.connectListener();
+    this.diagnostics?.start();
     this.agentServer = new WebSocketServer({
       // Agent subscriptions carry one cursor per chain and stream, so the
       // fleet-wide relayer payload is substantially larger than an Explorer
@@ -244,6 +274,7 @@ export class EventWebSocketServer {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    await this.diagnostics?.stop();
     [this.heartbeatTimer, this.listenerRetryTimer].forEach(
       (timer) => timer && clearTimeout(timer),
     );
@@ -251,6 +282,7 @@ export class EventWebSocketServer {
       this.agentNotifications,
       this.explorerUpdates,
       this.headUpdates,
+      this.confirmationUpdates,
     ])
       worker.stop();
     this.explorerNotifications.clear();
@@ -417,9 +449,15 @@ export class EventWebSocketServer {
     if (!this.accept(socket, 'explorer')) return;
     let custom: ReturnType<typeof parseExplorerConfirmations>;
     let blocks: boolean;
+    let diagnostics: boolean;
+    let messageIds: Set<string> | undefined;
     try {
-      custom = parseExplorerConfirmations(request.url);
-      blocks = parseExplorerBlocks(request.url);
+      const params = new URL(request.url ?? '/', 'http://localhost')
+        .searchParams;
+      custom = parseExplorerConfirmations(params);
+      blocks = parseExplorerBlocks(params);
+      messageIds = parseExplorerMessageIds(params);
+      diagnostics = parseExplorerDiagnostics(params, messageIds);
     } catch (error) {
       this.rejectNegotiation(socket, formatError(error));
       return;
@@ -446,6 +484,7 @@ export class EventWebSocketServer {
     this.explorerClients.set(socket, {
       alive: true,
       custom: custom !== undefined,
+      messageIds,
       ip,
       queuedBytes: 0,
       queue: [],
@@ -466,7 +505,14 @@ export class EventWebSocketServer {
       this.rejectNegotiation(socket, formatError(error));
       return;
     }
+    // Initialization awaits DB reads; the peer may already have disconnected.
+    if (
+      !this.explorerClients.has(socket) ||
+      socket.readyState !== WebSocket.OPEN
+    )
+      return;
     this.send(socket, {
+      ...(messageIds && { messageIds: [...messageIds] }),
       ...(custom && {
         confirmations: custom.confirmations,
         domains: [...custom.domains],
@@ -477,11 +523,30 @@ export class EventWebSocketServer {
         'message_upsert',
         ...(custom ? ['rollback'] : []),
         ...(blocks ? ['block'] : []),
+        ...(diagnostics ? Object.values(DiagnosticsEventType) : []),
       ],
       type: 'ready',
     });
     confirmationStream?.start();
     this.startBlocks(socket);
+    if (diagnostics && messageIds) {
+      try {
+        if (!this.diagnostics)
+          throw new Error('Diagnostics are not configured');
+        const unsubscribe = this.diagnostics.subscribe(
+          ip,
+          [...messageIds].map(displayAddress),
+          (frame, complete) => this.sendDiagnostics(socket, frame, complete),
+        );
+        socket.once('close', unsubscribe);
+      } catch (error) {
+        this.sendDiagnostics(socket, {
+          type: DiagnosticsEventType.Unavailable,
+          message_ids: [...messageIds].map(displayAddress),
+          message: formatError(error),
+        });
+      }
+    }
   }
 
   private async subscribeBlocks(
@@ -561,6 +626,8 @@ export class EventWebSocketServer {
     domains: Set<number>,
     eventType?: EventType,
   ): Promise<ConfirmationStream> {
+    // Deliver older queued heads before this stream takes its initial snapshot.
+    await this.confirmationUpdates.flush();
     const stream = new ConfirmationStream(confirmations, domains, {
       active: () =>
         this.clients.has(socket) || this.explorerClients.has(socket),
@@ -579,6 +646,7 @@ export class EventWebSocketServer {
               through,
               frontiers,
               confirmations,
+              this.explorerClients.get(socket)?.messageIds,
             ),
       send: (message) => this.sendAndWait(socket, message),
       messageId: eventType
@@ -596,7 +664,12 @@ export class EventWebSocketServer {
       enrich: eventType
         ? undefined
         : async (ids, frontiers) => {
-            const rows = await this.store.provisionalMessages(ids, frontiers);
+            const interested = this.explorerMessageIds(socket, ids);
+            if (!interested.length) return [];
+            const rows = await this.store.provisionalMessages(
+              interested,
+              frontiers,
+            );
             return rows
               .filter(
                 ({ data }) =>
@@ -711,7 +784,7 @@ export class EventWebSocketServer {
     }
     if (this.clients.get(socket) !== client) return;
     for (const request of eventStreams) {
-      const subscription = new AgentSubscription(
+      const subscription: AgentSubscription = new AgentSubscription(
         request,
         this.store,
         this.limits.maxCatchUpMs,
@@ -818,6 +891,11 @@ export class EventWebSocketServer {
     }
   }
 
+  private notifyConfirmationStreams(head: HeadNotification): void {
+    for (const streams of this.confirmationStreams.values())
+      for (const stream of streams) stream.notify(head);
+  }
+
   private async connectListener(): Promise<void> {
     try {
       this.stopListening = await this.db.listen(
@@ -853,9 +931,20 @@ export class EventWebSocketServer {
             headHeight: head.headHeight.toString(),
           });
         }
-        this.store.invalidateMessages();
-        for (const streams of this.confirmationStreams.values())
-          for (const stream of streams) stream.notify(head);
+        if (
+          head.previousIndexedHeight !== undefined &&
+          head.indexedHeight !== undefined &&
+          head.indexedHeight < head.previousIndexedHeight
+        ) {
+          // A rollback must invalidate in-flight readers immediately; never
+          // coalesce it away with a subsequent forward observation.
+          this.pendingHeads.delete(head.domain);
+          this.store.invalidateMessages();
+          this.notifyConfirmationStreams(head);
+        } else {
+          this.pendingHeads.set(head.domain, head);
+          this.confirmationUpdates.schedule();
+        }
         if (
           head.previousConfirmedHeight === undefined ||
           head.confirmedHeight <= head.previousConfirmedHeight
@@ -905,7 +994,7 @@ export class EventWebSocketServer {
   }
 
   private queueExplorerNotification(messageId: string): void {
-    if (!this.explorerClients.size) return;
+    if (!this.hasExplorerSubscriber(messageId)) return;
     if (
       !this.explorerNotifications.has(messageId) &&
       this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
@@ -1029,7 +1118,8 @@ export class EventWebSocketServer {
               const messageId = row.msg_id ?? row.message_id;
               if (
                 typeof messageId === 'string' &&
-                !explorerIds.has(messageId)
+                !explorerIds.has(messageId) &&
+                this.hasExplorerSubscriber(messageId)
               ) {
                 explorerIds.add(messageId);
                 batch.push(messageId);
@@ -1126,24 +1216,49 @@ export class EventWebSocketServer {
     events.forEach((row) => this.publish(eventType, row));
   }
 
+  private hasExplorerSubscriber(messageId: string): boolean {
+    for (const client of this.explorerClients.values())
+      if (!client.messageIds || client.messageIds.has(messageId)) return true;
+    return false;
+  }
+
+  private explorerMessageIds(socket: WebSocket, ids: string[]): string[] {
+    const filter = this.explorerClients.get(socket)?.messageIds;
+    return filter ? ids.filter((id) => filter.has(id)) : ids;
+  }
+
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
     this.store.invalidateMessages();
+    const canonicalIds = new Set<string>();
     for (const [socket, client] of this.explorerClients) {
-      if (client.custom)
+      const interested = this.explorerMessageIds(socket, messageIds);
+      if (!interested.length) continue;
+      if (client.custom) {
         this.confirmationStreams
           .get(socket)
-          ?.forEach((stream) => stream.refresh(messageIds));
+          ?.forEach((stream) => stream.refresh(interested));
+      } else interested.forEach((id) => canonicalIds.add(id));
     }
-    if (![...this.explorerClients.values()].some((client) => !client.custom))
-      return;
-    const rows = await this.store.canonicalMessages(messageIds);
-    const messages = rows.map((row) =>
-      serialize({ data: row, type: 'message_upsert' }),
-    );
+    if (!canonicalIds.size) return;
+    const rows = await this.store.canonicalMessages([...canonicalIds]);
+    const messages = rows.map((row) => ({
+      id: row.msg_id,
+      frame: serialize({ data: row, type: 'message_upsert' }),
+    }));
     for (const [socket, client] of this.explorerClients) {
       if (client.custom) continue;
-      this.enqueueExplorer(socket, client, messages);
+      this.enqueueExplorer(
+        socket,
+        client,
+        messages
+          .filter(
+            ({ id }) =>
+              !client.messageIds ||
+              (typeof id === 'string' && client.messageIds.has(id)),
+          )
+          .map(({ frame }) => frame),
+      );
     }
   }
 
@@ -1245,6 +1360,7 @@ export class EventWebSocketServer {
 
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
+    this.pendingHeads.clear();
     this.store.invalidateMessages();
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
@@ -1295,6 +1411,33 @@ export class EventWebSocketServer {
 
   private send(socket: WebSocket, message: Record<string, unknown>): boolean {
     return this.sendSerialized(socket, serialize(message));
+  }
+
+  private sendDiagnostics(
+    socket: WebSocket,
+    frame: DiagnosticsFrame,
+    complete?: (sent: boolean) => void,
+  ): boolean {
+    const client = this.explorerClients.get(socket);
+    // Never queue diagnostics behind normal updates. The affected ID is retried.
+    if (!client || client.sending || client.queue.length) {
+      complete?.(false);
+      return false;
+    }
+    const message = this.serializedDiagnostics.get(frame) ?? serialize(frame);
+    this.serializedDiagnostics.set(frame, message);
+    // Leave at least half of both outbound budgets available for normal traffic.
+    if (
+      socket.bufferedAmount + message.length >
+        this.limits.maxBufferedBytes / 2 ||
+      this.pendingBytes + message.length > this.limits.maxTotalBufferedBytes / 2
+    ) {
+      complete?.(false);
+      return false;
+    }
+    const accepted = this.sendSerialized(socket, message, complete);
+    if (!accepted) complete?.(false);
+    return accepted;
   }
 
   private sendAndWait(
@@ -1380,6 +1523,8 @@ export class EventWebSocketServer {
       this.releaseExplorerClient(explorerClient.ip);
     }
     this.explorerClients.delete(socket);
+    if (!this.clients.size && !this.explorerClients.size)
+      this.pendingHeads.clear();
   }
 
   private clearExplorerQueue(client: ExplorerClient): void {

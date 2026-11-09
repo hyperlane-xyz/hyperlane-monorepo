@@ -40,6 +40,27 @@ automatically initialized domain is still empty after RPC preflight. Restarts
 load the saved boundary and resume indexed progress; they do not select a new
 boundary from stored maxima. Contract changes are rejected.
 
+## Optional EVM WebSocket wake-ups
+
+Configure `websocketUrls` as a JSON map of EVM chain names to `ws://` or `wss://`
+endpoints; keys must be in `chainsToScrape`. Set `websocketConfigSecret` to load
+that JSON from GCP Secret Manager through External Secrets and `CONFIG_FILES`.
+Create the secret before deployment, use a scraper image supporting this setting,
+and restart the scraper after secret updates sync. URLs stay out of Helm values.
+
+Each connection subscribes to filtered contract logs and block headers. Logs wake
+HTTP indexing at most once per second; lagging HTTP providers retry until the log
+height is indexed. Linked headers confirm proven, indexed events without RPCs.
+A single 256-header buffer checks ancestry against the current indexed hash;
+headers are limited to 64 blocks above the last HTTP observation. Head writes
+coalesce at 200ms; proxy forward updates coalesce at 100ms, with immediate rollbacks.
+Safe/finalized tags still require polling. Both subscriptions reconnect together
+on disconnect, setup timeout, or 30s without header progress while HTTP advances.
+
+Polling keeps its independent 5s default (`index.interval` overrides it), including
+when WebSockets are unavailable. No URL means polling only. HTTP error backoff,
+confirmation proofs and database ownership guards remain unchanged.
+
 ## Behavior
 
 - EVM uses one combined RPC log query for all four event types. Other protocols
@@ -134,13 +155,17 @@ boundary from stored maxima. Contract changes are rejected.
   cannot retract anything already consumed by a legacy client.
 - The CCR indexer is capped at the near-head confirmed frontier and stops on a
   persistent halt, preventing auxiliary writes into the provisional suffix.
-- Near-head dispatch reconciliation starts immediately and discovers newly
-  confirmed dispatches every 5 seconds, rather than the legacy five-minute
-  fallback cadence.
+- Near-head dispatch reconciliation starts immediately and wakes when dispatches
+  become confirmed, through either HTTP polling or WebSocket heads. Discovery
+  still polls every 5 seconds as a fallback; wake-ups preserve failure backoff
+  and active-page progress.
 - Confirmation does not wait for receipt enrichment. Gas/delivery transaction
   metadata is filled in by independent gas and delivery loops. Each page contains
   at most 100 event rows; healthy full pages drain immediately with a scheduler
-  yield, while short, exhausted or failed pages wait for the polling interval.
+  yield. Newly confirmed events wake their respective receipt loop from idle
+  waits; polling remains a fallback, and failures retain the polling-interval
+  cooldown. Successful short pages restart the scan so old pending rows are
+  retried even when new events keep arriving.
   Failed/timed-out pages advance their scan cursor so later pages are attempted;
   missing receipts are retried on the next sweep. Cache lookups are batched per
   page, and at most 16 missing receipts are fetched concurrently across all domains.

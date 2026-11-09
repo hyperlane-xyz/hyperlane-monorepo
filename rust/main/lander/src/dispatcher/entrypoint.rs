@@ -61,13 +61,10 @@ impl Entrypoint for DispatcherEntrypoint {
         &self,
         payload_uuid: PayloadUuid,
     ) -> Result<PayloadStatus, LanderError> {
-        let payload = self
-            .inner
+        self.inner
             .payload_db
-            .retrieve_payload_by_uuid(&payload_uuid)
-            .await?;
-        payload
-            .map(|payload| payload.status)
+            .retrieve_payload_status_by_uuid(&payload_uuid)
+            .await?
             .ok_or(LanderError::PayloadNotFound)
     }
 

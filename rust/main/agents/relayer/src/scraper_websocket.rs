@@ -8,6 +8,9 @@
 //! reconcile the origin DB, pending work and in-memory Merkle tree together before
 //! clearing `scraper_websocket_rollback_recovery`; this client never deletes rows
 //! behind those consumers. Unaffected rollback notifications do not interrupt streams.
+//! Conflicting live block hashes or RPC event replacements also durably gate the
+//! affected origin's loaders, proofs and submissions via `indexed_event_conflict_v1_`.
+//! Clear that marker only after the same coordinated recovery.
 
 use std::{
     collections::HashMap,
@@ -156,7 +159,8 @@ impl ScraperSource {
         for kind in [Kind::Dispatch, Kind::Merkle] {
             self.verify_live_block(kind, None).await?;
         }
-        self.ensure_no_rollback_recovery()
+        self.ensure_no_rollback_recovery()?;
+        Ok(self.database.ensure_no_indexed_event_conflict()?)
     }
 
     async fn verify_live_block(&self, kind: Kind, rollback_to: Option<u64>) -> Result<()> {
@@ -339,13 +343,14 @@ impl ScraperSource {
             let previous: Option<u64> = self
                 .database
                 .retrieve_value_by_key(LIVE_BLOCK, &self.address(kind))?;
-            if previous == Some(block) {
-                ensure!(
-                    self.database
-                        .retrieve_value_by_key::<_, H256>(LIVE_BLOCK_HASH, &self.address(kind))?
-                        == Some(hash),
-                    ConflictingEvent("live block hash")
-                );
+            if previous == Some(block)
+                && self
+                    .database
+                    .retrieve_value_by_key::<_, H256>(LIVE_BLOCK_HASH, &self.address(kind))?
+                    != Some(hash)
+            {
+                self.database.mark_indexed_event_conflict()?;
+                return Err(ConflictingEvent("live block hash").into());
             }
             if previous.is_none_or(|previous| block > previous) {
                 // Persist the intent only after validation and before changing the DB.
@@ -358,6 +363,7 @@ impl ScraperSource {
         Ok(())
     }
     fn store(&self, kind: Kind, data: serde_json::Value, write: bool) -> Result<()> {
+        self.database.ensure_no_indexed_event_conflict()?;
         match kind {
             Kind::Dispatch => {
                 let data: DispatchData = serde_json::from_value(data)?;
@@ -426,7 +432,7 @@ impl ScraperSource {
                     data.decode(self.domain, self.merkle_tree_hook, sequence)?;
                 if write {
                     self.database
-                        .store_tree_insertion_if_absent(&insertion, block, || {
+                        .store_tree_insertion_if_consistent(&insertion, block, || {
                             self.record_live_write(kind, block, block_hash)
                         })?;
                 }
@@ -2388,6 +2394,12 @@ mod tests {
             .unwrap_err()
             .is::<ConflictingEvent>());
         assert!(!source.has_sequence(Kind::Dispatch, 1).unwrap());
+        assert!(source.database.ensure_no_indexed_event_conflict().is_err());
+        assert!(source.verify_live_blocks().await.is_err());
+        fixture.monitor.sources[&6]
+            .database
+            .ensure_no_indexed_event_conflict()
+            .unwrap();
     }
 
     #[tokio::test]

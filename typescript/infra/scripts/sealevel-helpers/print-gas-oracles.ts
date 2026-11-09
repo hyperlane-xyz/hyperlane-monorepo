@@ -127,6 +127,7 @@ function getChainConnections(
       ['solanamainnet', 'igra'],
       ['solanamainnet', 'fluent'],
       ['solanamainnet', 'nesa'],
+      ['solanamainnet', 'elysium'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -141,6 +142,7 @@ function getChainConnections(
       ['eclipsemainnet', 'bsc'],
       ['eclipsemainnet', 'plasma'],
       ['eclipsemainnet', 'tempo'],
+      ['eclipsemainnet', 'elysium'],
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],

@@ -249,6 +249,8 @@ async fn test_processing_included_txs() {
     mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Included));
+    mock_adapter.expect_tx_ready_for_resubmission().never();
+    mock_adapter.expect_submit().never();
 
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
@@ -603,6 +605,46 @@ async fn test_failed_estimation() {
         &tx_db,
         &payload_db,
         TransactionStatus::Dropped(TxDropReason::FailedSimulation),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn failed_finalized_handoff_keeps_database_and_pool_recoverable() {
+    let mut adapter = MockAdapter::new();
+    adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    adapter
+        .expect_tx_status()
+        .once()
+        .returning(|_| Ok(TransactionStatus::Finalized));
+    let (state, pool) = reprocess_test_state(adapter);
+    let tx = create_random_txs_and_store_them(
+        1,
+        &state.payload_db,
+        &state.tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await
+    .pop()
+    .unwrap();
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (sender, receiver) = mpsc::channel(1);
+    drop(receiver);
+
+    InclusionStage::process_txs_step(&pool, &sender, &state, "test")
+        .await
+        .unwrap();
+    assert_eq!(
+        pool.lock().await.get(&tx.uuid).unwrap().status,
+        TransactionStatus::Included
+    );
+    assert_tx_status(
+        vec![tx],
+        &state.tx_db,
+        &state.payload_db,
+        TransactionStatus::Included,
     )
     .await;
 }

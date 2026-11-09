@@ -10,6 +10,8 @@ import {
   validateTurnkeyActivityCompleted,
 } from '../turnkeyClient.js';
 
+const SIGNATURE_COMPONENT_REGEX = /^[0-9a-fA-F]{64}$/;
+
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
 
 /**
@@ -23,7 +25,7 @@ export function normalizeSignatureComponent(
 ): string {
   const stripped =
     value.startsWith('0x') || value.startsWith('0X') ? value.slice(2) : value;
-  if (!/^[0-9a-fA-F]{64}$/.test(stripped)) {
+  if (!SIGNATURE_COMPONENT_REGEX.test(stripped)) {
     throw new Error(`Invalid ${label} value from Turnkey`);
   }
   return `0x${stripped}`;

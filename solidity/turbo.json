@@ -24,6 +24,9 @@
         "types/**"
       ]
     },
+    "coverage": {
+      "outputs": ["coverage/**", "fixtures/**", "lcov.info"]
+    },
     "build:tron": {
       "inputs": ["$TURBO_DEFAULT$", "!test/**"],
       "dependsOn": ["deps:soldeer", "deps:hardhat", "version:update"]

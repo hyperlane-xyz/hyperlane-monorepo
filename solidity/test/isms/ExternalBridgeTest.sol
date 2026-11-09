@@ -101,6 +101,67 @@ abstract contract ExternalBridgeTest is Test {
         hook.postDispatch{value: quote}(testMetadata, encodedMessage);
     }
 
+    function test_postDispatch_revertWhen_replayedWithDifferentMsgValue()
+        public
+    {
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: quote}(testMetadata, encodedMessage);
+
+        bytes memory replayMetadata = StandardHookMetadata.overrideMsgValue(
+            MSG_VALUE
+        );
+        uint256 replayQuote = hook.quoteDispatch(
+            replayMetadata,
+            encodedMessage
+        );
+        vm.deal(address(this), replayQuote);
+
+        vm.expectRevert("AbstractMessageIdAuthHook: message already processed");
+        hook.postDispatch{value: replayQuote}(replayMetadata, encodedMessage);
+    }
+
+    function test_postDispatch_revertWhen_replayedInLaterBlock() public {
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: quote}(testMetadata, encodedMessage);
+
+        vm.roll(block.number + 1);
+
+        vm.expectRevert("AbstractMessageIdAuthHook: message already processed");
+        hook.postDispatch{value: quote}(testMetadata, encodedMessage);
+    }
+
+    function test_postDispatch_allowsNextMessage() public {
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(_encodeHookData(messageId, 0));
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: quote}(testMetadata, encodedMessage);
+
+        bytes memory nextMessage = originMailbox.buildOutboundMessage(
+            DESTINATION_DOMAIN,
+            TypeCasts.addressToBytes32(address(testRecipient)),
+            "next message"
+        );
+        bytes32 nextMessageId = Message.id(nextMessage);
+        originMailbox.updateLatestDispatchedId(nextMessageId);
+        _expectOriginExternalBridgeCall(_encodeHookData(nextMessageId, 0));
+
+        quote = hook.quoteDispatch(testMetadata, nextMessage);
+        hook.postDispatch{value: quote}(testMetadata, nextMessage);
+
+        vm.expectRevert(
+            "AbstractMessageIdAuthHook: message not latest dispatched"
+        );
+        hook.postDispatch{value: quote}(testMetadata, encodedMessage);
+    }
+
     function test_postDispatch_revertWhen_chainIDNotSupported() public {
         bytes memory message = originMailbox.buildOutboundMessage(
             3,

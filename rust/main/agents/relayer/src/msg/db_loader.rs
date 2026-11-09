@@ -28,6 +28,7 @@ use super::{
     blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*,
     runtime_denylist::RuntimeDenylist, QueueOperationBatch,
 };
+use crate::message_activity::FilterReason;
 use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
 
 const LEGACY_MIGRATION_BATCH_SIZE: usize = 256;
@@ -95,7 +96,7 @@ enum IndexDirection {
 /// leave the pending index (e.g. delivered elsewhere) without the loader
 /// seeing it again, so entries can't rely on being removed.
 #[derive(Debug)]
-struct LoggedDenials(moka::future::Cache<H256, ()>);
+struct LoggedDenials(moka::future::Cache<H256, FilterReason>);
 
 impl LoggedDenials {
     fn new(ttl: Duration) -> Self {
@@ -482,6 +483,7 @@ impl DbLoaderExt for MessageDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        self.db.ensure_no_indexed_event_conflict()?;
         self.check_runtime_denylist_version();
         self.reconsider_released_messages();
         self.drain_index_notifications()?;
@@ -609,7 +611,7 @@ impl MessageDbLoader {
     async fn log_denial_once(
         &mut self,
         message: &HyperlaneMessage,
-        list: &str,
+        list: FilterReason,
         detail: Option<&str>,
     ) {
         let message_id = message.id();
@@ -618,14 +620,16 @@ impl MessageDbLoader {
             .logged_denials
             .get_or_insert_with(|| LoggedDenials::new(ttl))
             .0;
-        if logged.get(&message_id).await.is_none() {
-            logged.insert(message_id, ()).await;
+        if logged.get(&message_id).await != Some(list) {
+            logged.insert(message_id, list).await;
+            // Admission scans revisit retained history on startup and rescan. Keep
+            // these decisions in logs/metrics, not the message activity database.
             info!(
                 ?message_id,
                 origin = message.origin,
                 destination = message.destination,
                 nonce = message.nonce,
-                list,
+                list = ?list,
                 detail,
                 "Message denied, not relaying"
             );
@@ -980,7 +984,8 @@ impl MessageDbLoader {
         if self.message_blacklist.msg_matches(&message, false) {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_MESSAGE_BLACKLISTED);
-            self.log_denial_once(&message, "blacklist", None).await;
+            self.log_denial_once(&message, FilterReason::MessageBlacklisted, None)
+                .await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -989,8 +994,12 @@ impl MessageDbLoader {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_ADDRESS_BLACKLISTED);
             let blacklisted_address = hex::encode(blacklisted_address);
-            self.log_denial_once(&message, "address_blacklist", Some(&blacklisted_address))
-                .await;
+            self.log_denial_once(
+                &message,
+                FilterReason::AddressBlacklisted,
+                Some(&blacklisted_address),
+            )
+            .await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -1005,7 +1014,7 @@ impl MessageDbLoader {
         if let Some(reason) = deny_reason {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_RUNTIME_DENYLISTED);
-            self.log_denial_once(&message, "runtime_denylist", Some(&reason))
+            self.log_denial_once(&message, FilterReason::RuntimeDenylisted, Some(&reason))
                 .await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);

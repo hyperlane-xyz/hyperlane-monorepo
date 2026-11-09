@@ -92,4 +92,8 @@ export const awIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   arc: '0x70905eBe9BA33Ab72ab2C51059B4048B835Ae744',
   viction: '0xacabBBa51DB75161274950aB57a466EAFB5F13B8',
+
+  // Nov 6, 2026 - Elysium (v2 router)
+  // ----------------------------------------------------------
+  elysium: '0xfA858c3c2352dE6fd77614544691F7704744F461',
 } as const;

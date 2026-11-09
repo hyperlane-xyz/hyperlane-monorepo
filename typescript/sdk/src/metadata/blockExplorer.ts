@@ -2,6 +2,8 @@ import { isEVMLike, strip0x } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
+const ETHERSCAN_V2_API_URL = 'https://api.etherscan.io/v2/api';
+
 /**
  * Converts Etherscan-like API URLs to the new V2 format
  * @param apiUrl The original API URL
@@ -16,15 +18,10 @@ function convertToEtherscanV2Url(
 ): string {
   // Only convert if it's an Etherscan family explorer
   if (family === ExplorerFamily.Etherscan) {
-    // Convert to Etherscan V2 format
-    const etherscanV2Url = new URL('https://api.etherscan.io/v2/api');
-
-    // Add chainId parameter if provided
-    if (chainId) {
-      etherscanV2Url.searchParams.set('chainid', chainId.toString());
-    }
-
-    return etherscanV2Url.toString();
+    const params = chainId
+      ? new URLSearchParams({ chainid: chainId.toString() }).toString()
+      : '';
+    return params ? `${ETHERSCAN_V2_API_URL}?${params}` : ETHERSCAN_V2_API_URL;
   }
 
   // Return original URL if not an Etherscan family
@@ -35,9 +32,12 @@ export function getExplorerBaseUrl(
   metadata: ChainMetadata,
   index = 0,
 ): string | null {
+  return getExplorerBase(metadata, index)?.toString() ?? null;
+}
+
+function getExplorerBase(metadata: ChainMetadata, index = 0): URL | null {
   if (!metadata?.blockExplorers?.length) return null;
-  const url = new URL(metadata.blockExplorers[index].url);
-  return url.toString();
+  return new URL(metadata.blockExplorers[index].url);
 }
 
 export function getExplorerApi(
@@ -88,7 +88,7 @@ export function getExplorerTxUrl(
   metadata: ChainMetadata,
   hash: string,
 ): string | null {
-  const baseUrl = getExplorerBaseUrl(metadata);
+  const baseUrl = getExplorerBase(metadata);
   if (!baseUrl) return null;
   const chainName = metadata.name;
   // TODO consider move handling of these chain/protocol specific quirks to ChainMetadata
@@ -118,7 +118,7 @@ export function getExplorerAddressUrl(
   metadata: ChainMetadata,
   address: string,
 ): string | null {
-  const baseUrl = getExplorerBaseUrl(metadata);
+  const baseUrl = getExplorerBase(metadata);
   if (!baseUrl) return null;
 
   const urlPathStub = getExplorerAddressPathStub(metadata, 0, address);
@@ -127,8 +127,9 @@ export function getExplorerAddressUrl(
   return appendToPath(baseUrl, `${urlPathStub}/${address}`).toString();
 }
 
-function appendToPath(baseUrl: string, pathExtension: string) {
+function appendToPath(base: URL, pathExtension: string) {
   // Handle URLs with hash fragments (e.g., TronScan uses explorer.com/#/path)
+  const baseUrl = base.toString();
   const hashIndex = baseUrl.indexOf('#');
   if (hashIndex !== -1) {
     const urlPart = baseUrl.slice(0, hashIndex);
@@ -137,7 +138,6 @@ function appendToPath(baseUrl: string, pathExtension: string) {
     return new URL(`${urlPart}#${hashPath}/${pathExtension}`);
   }
 
-  const base = new URL(baseUrl);
   let currentPath = base.pathname;
   if (currentPath.endsWith('/')) currentPath = currentPath.slice(0, -1);
   const newPath = `${currentPath}/${pathExtension}`;

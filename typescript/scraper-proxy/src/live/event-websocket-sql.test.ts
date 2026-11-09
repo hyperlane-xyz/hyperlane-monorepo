@@ -51,3 +51,42 @@ void it('includes block identity only in the provisional Merkle projection', asy
   assert.match(queries[0], /SELECT .*event_row\.block_hash, event_row\.id/);
   assert.ok(!STREAMS.merkle_tree_insertion.columns.includes('block_hash'));
 });
+
+void it('filters confirmation dispatch, delivery and gas rows in SQL before enrichment', async () => {
+  const { EventStore } = await import('./event-store.js');
+  const queries: { sql: string; values: unknown[] }[] = [];
+  const store = new EventStore({
+    queryLive: async (sql, values = []) => {
+      queries.push({ sql, values });
+      return [];
+    },
+  });
+  const ids = new Set([`\\x${'ab'.repeat(32)}`]);
+  for await (const row of store.confirmationMessageRows(
+    1,
+    [0n, 0, 0n],
+    10n,
+    new Map(),
+    0,
+    ids,
+  )) {
+    assert.fail(`Unexpected row ${JSON.stringify(row)}`);
+  }
+  assert.equal(queries.length, 1);
+  assert.equal(
+    queries[0]?.sql.match(/msg_id = ANY\(\$7::bytea\[\]\)/g)?.length,
+    3,
+  );
+  assert.deepEqual(queries[0]?.values[6], [...ids]);
+  for await (const row of store.confirmationMessageRows(
+    1,
+    [0n, 0, 0n],
+    10n,
+    new Map(),
+    0,
+    new Set(),
+  )) {
+    assert.fail(`Unexpected row ${JSON.stringify(row)}`);
+  }
+  assert.equal(queries.length, 1);
+});
