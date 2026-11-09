@@ -18,9 +18,9 @@ observation/receipt timestamps and structured activity data. Storage is best eff
 | Delivery | ISM verification outcomes, simulation/payload failures, typed chain errors, transaction outcomes/hashes, confirmation failures and delivery completion |
 
 RPC URLs, credentials, local storage paths, raw errors, message bodies, metadata and
-signature bytes are excluded. Public validator-announced storage URLs are retained;
-local storage is reported as `local`. Offchain success means metadata was received,
-not verified.
+signature bytes are excluded. Validator-announced storage URLs omit credentials,
+queries and fragments; local storage is reported as `local`. Offchain success means
+metadata was received, not verified.
 
 Legacy event readers clear attempt state on prepare start. Snapshot writers retain
 the latest known observations when preparation reuses cached metadata; changed

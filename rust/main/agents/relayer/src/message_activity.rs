@@ -37,7 +37,7 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const WARNING_INTERVAL: Duration = Duration::from_secs(30);
 
 // Intentionally structured data only: no provider errors, RPC URLs, message bodies,
-// metadata bytes or signature bytes. Validator-announced storage URLs are public.
+// metadata bytes or signature bytes. Sanitized validator storage URLs are public.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Activity {

@@ -15,6 +15,7 @@ use hyperlane_ethereum::Signers;
 use maplit::hashmap;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use url::Url;
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
@@ -376,14 +377,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                                 states: states.into_iter().collect(),
                                 usable: true,
                             });
-                            let location = if matches!(
-                                &config,
-                                CheckpointSyncerConf::LocalStorage { .. }
-                            ) {
-                                "local".to_owned()
-                            } else {
-                                storage_location.clone()
-                            };
+                            let location = safe_storage_location(&config, storage_location);
                             return Ok(Some((*validator, syncer, location)));
                         }
                     }
@@ -416,7 +410,9 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         let mut selected_locations = HashMap::new();
         for (validator, checkpoint_syncer, location) in checkpoint_syncers_results {
             checkpoint_syncers.insert(validator.into(), checkpoint_syncer);
-            selected_locations.insert(validator.into(), location);
+            if let Some(location) = location {
+                selected_locations.insert(validator.into(), location);
+            }
         }
 
         Ok(MultisigCheckpointSyncer::new(
@@ -429,6 +425,22 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
     fn get_signer(&self) -> Option<&Signers> {
         self.signer.as_ref()
     }
+}
+
+fn safe_storage_location(config: &CheckpointSyncerConf, storage_location: &str) -> Option<String> {
+    if matches!(config, CheckpointSyncerConf::LocalStorage { .. }) {
+        return Some("local".to_owned());
+    }
+    let mut location = Url::parse(storage_location).ok()?;
+    if location.host_str().is_none()
+        || !location.username().is_empty()
+        || location.password().is_some()
+    {
+        return None;
+    }
+    location.set_query(None);
+    location.set_fragment(None);
+    Some(location.into())
 }
 
 impl BaseMetadataBuilder {
@@ -533,6 +545,28 @@ mod tests {
     use crate::test_utils::dummy_data::dummy_metadata_builder;
 
     use super::*;
+
+    #[test]
+    fn storage_locations_exclude_credentials() {
+        let location = "s3://bucket/us-east-1/checkpoints?token=secret#fragment";
+        let config = CheckpointSyncerConf::from_str(location).unwrap();
+        assert_eq!(
+            safe_storage_location(&config, location).as_deref(),
+            Some("s3://bucket/us-east-1/checkpoints")
+        );
+
+        let location = "s3://user:secret@bucket/us-east-1/checkpoints";
+        let config = CheckpointSyncerConf::from_str(location).unwrap();
+        assert_eq!(safe_storage_location(&config, location), None);
+
+        let config = CheckpointSyncerConf::LocalStorage {
+            path: "/private/checkpoints".into(),
+        };
+        assert_eq!(
+            safe_storage_location(&config, "file:///private/checkpoints").as_deref(),
+            Some("local")
+        );
+    }
 
     #[tokio::test]
     async fn revalidates_reorg_status_on_every_pool_checkout() {
