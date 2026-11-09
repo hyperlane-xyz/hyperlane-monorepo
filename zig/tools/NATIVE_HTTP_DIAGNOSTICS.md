@@ -17,3 +17,9 @@ The inner command has a 1,200-second deadline and its outer owner has 1,240 seco
 A successful diagnostic is evidence about the instrumented suite. It does not establish the cause of an intermittent failure or replace an ordinary suite pass, native chain validation or a benchmark.
 
 The [observed failure on producer M](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/runs/42688478305/job/129401592531) is retained separately from subsequent diagnostic runs.
+
+The diagnostic step uses `continue-on-error`. A green job does not establish a passing test command. Read the published `summary.json` command exit code, named test record, original/compiled/restored source inventories and both owner cleanup results before reporting a pass.
+
+The controlled four-slot test uses four ISM children with threshold two and sixteen RPC endpoints, eight of which stall. Four held verification sessions fill the real Pool. Releasing two children allows their gas-estimation sessions to fill the two remaining slots; the test checks actual external admission refusals at both barriers, preserved cached reads and full cancellation drain. The legacy sixteen-child fixture remains separate. This focused test does not reproduce the intermittent sixteen-child failure or prove that a selected child's gas admission was refused.
+
+Failure rows distinguish cumulative successful fixture writes, upstream completion masks for actual session IDs, terminal events, and finished/consumed flags. These are separate observations: a fixture write does not prove client receipt or a matching vote, and a terminal event can precede the finished flag's publication.
