@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "root_approved": true,
+  "root_approved": false,
   "scenario": "sealevel-composite",
   "mode": "ReleaseSafe",
   "producer_source_commit": "f453948ae31c1fadb35e10c87577e73a39350103",
