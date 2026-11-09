@@ -344,38 +344,38 @@ impl CheckpointSyncer for S3Storage {
     }
 
     fn checkpoint_location(&self, index: u32) -> Option<String> {
-        let location = Url::parse(&self.announcement_location()).ok()?;
+        let location = Url::parse(&format!("s3://{}", self.bucket)).ok()?;
         if !location.username().is_empty()
             || location.password().is_some()
             || location.query().is_some()
             || location.fragment().is_some()
+            || !location.path().is_empty()
         {
             return None;
         }
         let bucket = location.host_str()?;
-        let mut segments = location
-            .path_segments()?
-            .filter(|segment| !segment.is_empty());
-        let region = segments.next()?;
+        if bucket != self.bucket {
+            return None;
+        }
+        let region = self.region.as_ref();
         if !region
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
         {
             return None;
         }
-        let filename = Self::checkpoint_key(index);
-        let path = segments
-            .chain([filename.as_str()])
-            .collect::<Vec<_>>()
-            .join("/");
+        let key = self.get_composite_key(Self::checkpoint_key(index));
+        if key.contains('?') || key.contains('#') {
+            return None;
+        }
         let aws_domain = if region.starts_with("cn-") {
             "amazonaws.com.cn"
         } else {
             "amazonaws.com"
         };
-        Url::parse(&format!("https://s3.{region}.{aws_domain}/{bucket}/{path}"))
-            .ok()
-            .map(Into::into)
+        let mut public = Url::parse(&format!("https://s3.{region}.{aws_domain}")).ok()?;
+        public.set_path(&format!("{bucket}/{}", key.replace('%', "%25")));
+        Some(public.into())
     }
 
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
@@ -491,6 +491,19 @@ mod tests {
         assert_eq!(
             storage.checkpoint_location(7).as_deref(),
             Some("https://s3.cn-north-1.amazonaws.com.cn/test.bucket/checkpoint_7_with_id.json")
+        );
+
+        let storage = S3Storage::new(
+            "test-bucket".to_owned(),
+            Some("foo%20bar//nested".to_owned()),
+            Region::new("us-east-1"),
+            None,
+        );
+        assert_eq!(
+            storage.checkpoint_location(7).as_deref(),
+            Some(
+                "https://s3.us-east-1.amazonaws.com/test-bucket/foo%2520bar//nested/checkpoint_7_with_id.json"
+            )
         );
     }
 
