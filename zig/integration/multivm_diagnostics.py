@@ -165,7 +165,7 @@ def observer_startup_sites(log,modules,directory,entry_script):
     return {'log':{'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()},'frames':frames[-8:],'unapproved_frames_omitted':omitted,'stack_truncated':truncated or len(frames)>8,'recognized_tracebacks':min(tracebacks,8),'native_or_timing_credit':False}
 
 
-def rust_panic_observation(log,sources,repo,radix_client_lock=None):
+def rust_panic_observation(log,sources,repo,radix_client_lock=None,radix_scraper=None):
     """One checked capture; approved sites and Source-bound finite reason labels."""
     def capture(path,maximum):
         path=Path(path);info=path.lstat()
@@ -230,7 +230,11 @@ def rust_panic_observation(log,sources,repo,radix_client_lock=None):
                 if trailing:message(trailing)
                 else:await_message=True
     authority={'module':helper,'source':approved[helper],'owned_path_guard_literals_verified':True,'tempfile_directory_and_file_calls_verified':True}if reasons else None
-    return {'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint,'EVM_child_wait_text':evm_child_wait_text_observation(wire,bodies,approved),**({'Radix_submit_error_text':radix_submit_error_text_observation(wire,bodies,approved,radix_client_lock)}if radix_client_lock is not None else{})}
+    scraper_headers=None
+    if radix_scraper is not None:
+        try:scraper_headers=radix_scraper.headers(wire)
+        except Exception:scraper_headers={'collection_status':'unavailable'}
+    return {**({'Radix_scraper_headers':scraper_headers}if radix_scraper is not None else{}),'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint,'EVM_child_wait_text':evm_child_wait_text_observation(wire,bodies,approved),**({'Radix_submit_error_text':radix_submit_error_text_observation(wire,bodies,approved,radix_client_lock)}if radix_client_lock is not None else{})}
 
 
 
@@ -1286,6 +1290,147 @@ def startup_selected_role(case,manifest,inputs,parent_pid,read,kernel_row,read_e
         candidates.append(live)
     if len(candidates)!=1:raise ValueError('One current owned relayer required')
     check();return candidates[0],captures[0],port
+
+
+RADIX_SCRAPER_EPOCH = 'f453948ae31c1fadb35e10c87577e73a39350103'
+RADIX_SCRAPER_SOURCE = (
+    ('zig/src/service_main.zig', 15166, '6b9101771890b56a5303975c7f1433ea' + 'fc5cacc23b7f548f0d083356d32cca78'),
+    ('zig/src/ops/critical_metrics.zig', 5138, 'a7e1125be31ca9dd320659188f6a438f' + '176dd0a7035ab23c13a865709bbabec8'),
+    ('zig/src/ops/metrics_schema.zig', 36606, '3294839328444cead6812c8f47778466' + 'b3ee07b0c8822c20ee236d993193ebb0'),
+    ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),
+    ('zig/src/agents/scraper/task.zig', 35102, '39d5f45671dd6a155b20f05373fb592c' + '49c4ad9801da513d0bbc7edbe2ca2303'),
+    ('zig/src/agents/scraper/radix.zig', 14286, 'e171e3992c68993e622e261bb97b9212' + '1428c374b9c9e80b89dea52ecdd3190d'),
+    ('zig/src/agents/scraper/setup.zig', 2232, 'ae1dc00f49f09da514b6819bdf5966f6' + '6a5cfcfac56ab5bfadf0478202392740'),
+    ('zig/src/radix/provider.zig', 13805, '504d4ac521c66909288b0a8803ba52bb' + '4cc95cd1d12f95a5e0fa2c4b26405bd5'),
+    ('zig/src/radix/events.zig', 7269, '73859ce4e38b30ecd6621d6efd036650' + '236843f110a8e76dfb9a23e1e43d6e28'),
+    ('zig/src/radix/sbor.zig', 11342, 'bf22610337733294df42cf51a7a60dbf' + '904feaa0767940bc9022739468862e84'),
+    ('rust/main/utils/run-locally/src/radix/mod.rs', 17600, '7792d33957b75fee20925e56d82e7332' + '95310c575cddbed10c9ff59d65fc6461'),
+    ('rust/main/utils/run-locally/src/program.rs', 18930, 'fd74db13536484d524e31b2188b6ef0a' + 'c8713422d0a63bf0eba7f60186751510'),
+    ('rust/main/utils/run-locally/src/external_agents.rs', 340745, '081efe58801ebbec38076745952e0b61' + '590d5e45ae4d4b422168e23a2b6d4adb'),
+    ('rust/main/utils/run-locally/src/main.rs', 30900, 'a8e847063664cec776617dace03309dc' + 'e2ebe9c8cd5798108fe8c487d9ac0aaf'),
+)
+
+def radix_scraper_metrics(raw, chains):
+    """Exact SCR critical operands; absence and zero remain different."""
+    if not isinstance(raw,bytes)or len(raw)>1024**2 or not isinstance(chains,tuple)or len(chains)!=2 or len(set(chains))!=2 or any(not isinstance(x,str)or re.fullmatch('[A-Za-z0-9_-]{1,64}',x)is None for x in chains):raise ValueError('Closed Radix scraper metrics required')
+    values=[[]for _ in chains];seen=set();count=0
+    for line in raw.decode('utf8','strict').splitlines():
+        if not line.startswith('hyperlane_critical_error'):continue
+        if len(line)>16384:raise ValueError('Bounded SCR sample required')
+        match=re.fullmatch(r'hyperlane_critical_error\{([^\r\n]*)\} ([01])',line)
+        if match is None:raise ValueError('Closed SCR boolean metric required')
+        labels={};cursor=0
+        while cursor<len(match[1]):
+            item=re.match(r'([A-Za-z_][A-Za-z0-9_]*)=("(?:[^"\\]|\\["\\n])*")',match[1][cursor:])
+            if item is None or item[1]in labels or len(labels)>=3:raise ValueError('Closed SCR labels required')
+            labels[item[1]]=json.loads(item[2]);cursor+=item.end()
+            if cursor<len(match[1]):
+                if match[1][cursor]!=',':raise ValueError('Closed SCR separator required')
+                cursor+=1
+                if cursor==len(match[1]):raise ValueError('Trailing SCR separator')
+        if set(labels)!={'agent','hyperlane_baselib_version','chain'}or labels['agent']!='scraper'or labels['hyperlane_baselib_version']!='3.0.0'or labels['chain']not in chains:raise ValueError('SCR Source labels differ')
+        index=chains.index(labels['chain'])
+        if index in seen:raise ValueError('Duplicate SCR chain sample')
+        seen.add(index);count+=1;values[index].append(int(match[2]))
+    return {'family_present':count>0,'series_count':count,'expected_series_count':2,'chains':[{'chain_index':i,'selected_present':bool(v),'series_count':len(v),'finite_values':v}for i,v in enumerate(values)],'exact_cutover_operands_observed':count==2 and all(v==[0]for v in values),'native_or_readiness_credit':False}
+
+
+def radix_scraper_headers(raw, sources):
+    """Source-bound SCR text only; no typed exception or PID/lane attribution."""
+    if not isinstance(raw,bytes)or len(raw)>32*1024**2:raise ValueError('Existing bounded harness capture required')
+    task=sources['zig/src/agents/scraper/task.zig'];supervisor=sources['zig/src/runtime/supervisor.zig'];main=sources['zig/src/service_main.zig']
+    needed=[(task,b'std.log.warn("scraper chain={s} lane={s} failed={s}", .{ self.chain.configured.name, @tagName(self.kind), @errorName(err) });'),(main,b'task {d} failed: {s}'),(main,b'agent stopped: {s}')]
+    if any(wire.count(needle)!=1 for wire,needle in needed):raise ValueError('Exact SCR warning Source required')
+    known=set()
+    for wire in sources.values():known.update(x.decode()for x in re.findall(rb'\berror\.([A-Za-z][A-Za-z0-9_]{0,63})\b',wire))
+    if len(known)>2048:raise ValueError('Bounded SCR Source error catalog required')
+    counts={'lane_failure':0,'supervised_task_failed':0,'agent_stopped':0,'critical_metric_warning':0};rows=[]
+    for line in io.BytesIO(raw):
+        if len(line)>16384 or not line.startswith(b'<SCR> '):continue
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',line).strip();kind=None;lane=None;task_index=None;name=None
+        m=re.fullmatch(rb'<SCR> (?:warning|warn): scraper chain=[A-Za-z0-9_-]{1,64} lane=(head|delivery|gas|reconciliation|ccr) failed=([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+        if m is not None:kind='lane_failure';lane=m[1].decode();name=m[2].decode()
+        else:
+            m=re.fullmatch(rb'<SCR> (?:warning|warn): task ([0-9]{1,3}) failed: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+            if m is not None and int(m[1])<=255:kind='supervised_task_failed';task_index=int(m[1]);name=m[2].decode()
+            else:
+                m=re.fullmatch(rb'<SCR> error: agent stopped: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+                if m is not None:kind='agent_stopped';name=m[1].decode()
+                elif sources['zig/src/ops/critical_metrics.zig'].count(b'std.log.warn("critical metric update failed: {s}", .{@errorName(err)})')==1:
+                    m=re.fullmatch(rb'<SCR> (?:warning|warn): critical metric update failed: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+                    if m is not None:kind='critical_metric_warning';name=m[1].decode()
+        if kind is not None:
+            counts[kind]=min(2**32-1,counts[kind]+1);row={'header':kind,'Source_lane_name':lane,'task_index':task_index,'Source_error_name':name if name in known else None,'error_name_status':'Source_literal'if name in known else'unknown','PID_or_chain_attribution':None}
+            if row not in rows and len(rows)<16:rows.append(row)
+    return {'collection_status':'observed','counts':counts,'observations':rows,'scope':'Exact SCR-prefixed Source text; no typed exception, chain label, PID, lane-from-task-index or readiness inference.'}
+
+
+class RadixScraper:
+    """One captured Source epoch; first/latest diagnostic operands, no authority."""
+    def __init__(self,repo,manifest,modules):
+        if manifest.get('scenario')!='radix'or manifest.get('runtime_source_commit')!=RADIX_SCRAPER_EPOCH:raise ValueError('Exact SCR producer epoch required')
+        self.repo=Path(repo);self.sources={};self.identities={};self.first=None;self.last=None;self.latest_probe={'collection_status':'not_attempted'}
+        for name,size,digest in RADIX_SCRAPER_SOURCE:
+            path=self.repo/name
+            if any(x.is_symlink()for x in [path,*[x for x in path.parents if x.is_relative_to(self.repo)]]):raise ValueError('SCR Source symlink')
+            wire,actual=captured_failure_bytes(path,1024**2)
+            if actual!={'bytes':size,'sha256':digest}:raise ValueError('SCR Source changed')
+            self.sources[name]=wire;self.identities[path]=RelayerStartup.identity(path)
+        checks={'rust/main/utils/run-locally/src/main.rs':[b'const SCRAPER_METRICS_PORT: &str = \"9093\";'],'zig/src/service_main.zig':[b'Address.parseIp4("0.0.0.0", configured.metrics_port)'],'rust/main/utils/run-locally/src/radix/mod.rs':[b'.spawn("SCR", None)',b'"Radix scraper cutovers", Duration::from_secs(60)',b'"hyperlane_critical_error"'],'rust/main/utils/run-locally/src/program.rs':[b'println!("<{prefix}> {line}");'],'rust/main/utils/run-locally/src/external_agents.rs':[b'pub fn record_child(',b'.join("owned-children.jsonl")']}
+        for name,needles in checks.items():
+            if any(self.sources[name].count(needle)!=1 for needle in needles):raise ValueError('SCR Source contract differs')
+        for name,needles in {'multivm_session.py':[b'"effective-role-configs.jsonl"',b'capture = effective_config(request, self.manifest)'],'multivm_evidence.py':[b'def effective_config(',b'def process_identity(']}.items():
+            row=modules[name];path=Path(row['path']);wire,actual=captured_failure_bytes(path,1024**2)
+            if row!={'path':str(path),**actual}or any(needle not in wire for needle in needles):raise ValueError('SCR capture writer changed')
+            self.identities[path]=RelayerStartup.identity(path)
+        self.check_sources()
+    def check_sources(self):
+        if any(RelayerStartup.identity(path)!=identity for path,identity in self.identities.items()):raise ValueError('SCR Source identity changed')
+    def project(self,raw,chains,started,finished):
+        self.check_sources()
+        if type(started)is not int or type(finished)is not int or not 0<started<=finished or finished-started>500_000_000:raise ValueError('SCR absolute probe bound')
+        row={'collection_status':'observed','started_monotonic_ns':started,'finished_monotonic_ns':finished,'whole_Radix_diagnostic_cadence_limit_ns':500_000_000,'operands':radix_scraper_metrics(raw,chains),'native_or_timing_or_cleanup_authority':False}
+        if self.first is None:self.first=row
+        self.last=row;self.latest_probe={'collection_status':'observed','started_monotonic_ns':started,'finished_monotonic_ns':finished}
+        return row
+    def headers(self,raw):
+        self.check_sources();return radix_scraper_headers(raw,self.sources)
+    def public(self,headers):
+        self.check_sources()
+        return {'schema':1,'collection_status':'observed','Source_epoch':RADIX_SCRAPER_EPOCH,'Source_contracts':[{'path':n,'bytes':z,'sha256_hex_chunks':[h[:32],h[32:]]}for n,z,h in RADIX_SCRAPER_SOURCE],'first_probe':self.first,'last_probe':self.last,'latest_probe':self.latest_probe,'fixed_harness_headers':headers if headers is not None else{'collection_status':'unavailable'},'native_or_timing_or_cleanup_authority':False,'scope':'Fixed owned SCR9093 read-only metric operands.0 differs from absence. No raw labels/messages or typed exception, actual parent-wait or native acceptance authority.'}
+
+
+def radix_selected_scraper(case,manifest,inputs,parent_pid,read,kernel_row,read_executable,check):
+    """Captured SCR configuration plus current child identity, never PS vs ticks."""
+    check()
+    if manifest.get('scenario')!='radix':raise ValueError('Radix-only SCR selection')
+    def journal(name):
+        target=Path(case)/'evidence'/name
+        if any(x.is_symlink()for x in [target,target.parent,Path(case)]):raise ValueError('SCR journal symlink')
+        raw,_=read(target,1024**2);check();lines=raw.splitlines()
+        if len(lines)>128 or any(len(line)>65536 for line in lines):raise ValueError('Bounded SCR journal required')
+        return [startup_unique_json(line)for line in lines]
+    captures=[]
+    for row in journal('effective-role-configs.jsonl'):
+        if not isinstance(row,dict)or not isinstance(row.get('original'),dict):raise ValueError('SCR capture shape')
+        original=row['original']
+        if original.get('role')!='scraper':continue
+        chains=original.get('role_chain_names')
+        if original.get('runtime_source_commit')!=manifest['runtime_source_commit']or original.get('scenario')!='radix'or original.get('harness_pid')!=parent_pid or original.get('metrics_port')!=9093 or not isinstance(chains,list)or len(chains)!=2 or len(set(chains))!=2 or set(chains)!=set(inputs['chain_names'])or any(not isinstance(x,str)or re.fullmatch('[A-Za-z0-9_-]{1,64}',x)is None or not isinstance(original.get('chains',{}).get(x),dict)or original['chains'][x].get('protocol')!='radix'for x in chains):raise ValueError('SCR captured configuration differs')
+        captures.append(tuple(chains))
+    if not captures or len(set(captures))!=1:raise ValueError('One consistent SCR capture required')
+    candidates=[];seen=set()
+    for row in journal('owned-children.jsonl'):
+        if not isinstance(row,dict):raise ValueError('SCR ownership shape')
+        if row.get('role')!='scraper':continue
+        pid=row.get('pid');token=row.get('os_start_token');key=(pid,token)
+        if type(pid)is not int or not 0<pid<2**31 or row.get('parent_pid')!=parent_pid or row.get('executable')!=manifest['artifacts']['scraper']or not isinstance(token,str)or len(token)>4096 or len(token.split())<8 or token.split()[:2]!=[str(pid),str(parent_pid)]or key in seen:raise ValueError('SCR ownership differs')
+        seen.add(key);live=kernel_row(pid);check()
+        if live is None or live.get('state')=='Z':continue
+        if live.get('pid')!=pid or live.get('ppid')!=parent_pid or not isinstance(live.get('start'),str)or re.fullmatch('linux-ticks:[0-9]{1,24}',live['start'])is None or read_executable(pid)!=manifest['artifacts']['scraper']['path']:raise ValueError('Current SCR identity differs')
+        candidates.append(live)
+    if len(candidates)!=1:raise ValueError('One current owned SCR required')
+    check();return candidates[0],captures[0],9093
 
 
 RADIX_TRANSPORT_SERVICES = ('fullnode','postgres_db','database_migrations_image','data_aggregator_image','gateway_api_image')

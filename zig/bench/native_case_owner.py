@@ -687,6 +687,47 @@ def observe_relayer_startup(context,manifest,inputs,case,harness,controller,help
 
 
 
+def arm_radix_scraper(plan,manifest,approval,repo,deadline_ns):
+    if plan['scenario']!='radix':return None
+    try:
+        require(time.monotonic_ns()<deadline_ns,'Original SCR diagnostic deadline')
+        module=diagnostic_module(approval);state=module.RadixScraper(repo,manifest,approval['python_modules'])
+        product=checked(manifest['artifacts']['scraper'],True);identity=state.identities.get(product)or module.RelayerStartup.identity(product)
+        require(time.monotonic_ns()<deadline_ns,'Original SCR diagnostic deadline')
+        return {'module':module,'state':state,'product':product,'product_identity':identity}
+    except Exception:return None
+
+
+def observe_radix_scraper(context,manifest,inputs,case,harness,controller,helper_row,cadence_deadline_ns):
+    if context is None:return
+    started=time.monotonic_ns();phase='OWNERSHIP_UNAVAILABLE';module=context['module'];state=context['state'];previous=(state.first,state.last)
+    def cancelled():return harness.poll()is not None or controller.poll()is not None
+    def check():
+        require(not cancelled()and time.monotonic_ns()<cadence_deadline_ns,'Original shared Radix diagnostic deadline/cancel')
+        live=owner._linux_row(harness.pid)
+        require(live is not None and owner.same_process(helper_row,live)and live['state']!='Z','Actual SCR helper epoch changed')
+        require(module.RelayerStartup.identity(context['product'])==context['product_identity'],'Admitted SCR product changed')
+    try:
+        check();state.check_sources()
+        def read(path,maximum):
+            check();wire=module.captured_failure_bytes(path,maximum);check();return wire
+        row,chains,port=module.radix_selected_scraper(case,manifest,inputs,harness.pid,read,owner._linux_row,lambda pid:os.readlink(f'/proc/{pid}/exe'),check)
+        pid=row['pid']
+        def same_role():
+            check();live=owner._linux_row(pid)
+            require(live is not None and owner.same_process(row,live)and live['ppid']==harness.pid and live['state']!='Z'and os.readlink(f'/proc/{pid}/exe')==str(context['product']),'Current SCR epoch/product changed')
+        same_role();inode=module.startup_owned_listener(pid,port,row,cadence_deadline_ns,cancelled,time.monotonic_ns,owner._linux_row)
+        phase='REQUEST_ERROR';_,body=module.startup_http(port,'GET',cadence_deadline_ns,cancelled,time.monotonic_ns)
+        phase='OWNERSHIP_UNAVAILABLE';same_role()
+        require(module.startup_owned_listener(pid,port,row,cadence_deadline_ns,cancelled,time.monotonic_ns,owner._linux_row)==inode,'Actual SCR listener changed')
+        check();phase='SOURCE_UNAVAILABLE';state.check_sources();check();phase='METRICS_PARSE_ERROR'
+        # Commit operands only after ownership, parsing and original shared fence.
+        state.project(body,chains,started,time.monotonic_ns());check()
+    except Exception:
+        state.first,state.last=previous
+        state.latest_probe={'collection_status':'unavailable','reason':'DEADLINE_OR_CANCEL'if cancelled()or time.monotonic_ns()>=cadence_deadline_ns else phase,'started_monotonic_ns':started,'finished_monotonic_ns':time.monotonic_ns(),'native_or_timing_or_cleanup_authority':False}
+
+
 def arm_radix_transport(plan,manifest,approval,repo,fixture,engine_info,deadline_ns):
     if plan['scenario']!='radix':return None
     try:
@@ -860,7 +901,7 @@ def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns):
     return {**unavailable,'actual_parent_wait':waited if child is not None else None,'owned_cleanup_debt':cleanup_debt}
 
 
-def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None,case_inputs=None,original_deadline_ns=None):
+def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None,case_inputs=None,original_deadline_ns=None,radix_scraper=None):
     private_end_ns=min(original_deadline_ns,time.monotonic_ns()+5_000_000_000)if type(original_deadline_ns)is int else 0
     selected=[]
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
@@ -870,7 +911,7 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     rust={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None};log=out/'harness.log'
     if log.exists():
         arguments=(log,plan.get('diagnostic_rust_sources',{}),Path(__file__).resolve().parents[2])
-        rust=diagnostic_module(approval).rust_panic_observation(*arguments,**({'radix_client_lock':admitted_radix_submit_context(plan,Path(__file__).resolve().parents[2])}if manifest['scenario']=='radix'and'diagnostic_radix_client_lock'in plan else{}))
+        rust=diagnostic_module(approval).rust_panic_observation(*arguments,**({'radix_scraper':radix_scraper['state']}if manifest['scenario']=='radix'and radix_scraper is not None else{}),**({'radix_client_lock':admitted_radix_submit_context(plan,Path(__file__).resolve().parents[2])}if manifest['scenario']=='radix'and'diagnostic_radix_client_lock'in plan else{}))
     startup=None;observer_log=out/'observer.log'
     waits=result['direct_waits']
     observer_failed=any(row.get('role')=='observer'and row.get('actual_parent_wait')is True and type(row.get('exit_code'))is int and row['exit_code']!=0 for row in waits)
@@ -881,7 +922,11 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     record={'schema':1,'kind':'public-native-failure-observation','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'worker_started_monotonic_ns':started_ns,'observed_after_owned_waits_monotonic_ns':time.monotonic_ns(),'observer_before_stop':result.get('public_diagnostic_before_stop'),'observer_after_stop':observed,'rust_panic_source_locations':rust['sites'],'rust_panic_reason_codes':rust['reason_codes'],'rust_panic_reason_source':rust['reason_source'],'rust_reason_scope':'Static phrase observations only in the next exact Source-bound SVM tempfile expect message; no inferred root cause or native/timing credit.','rust_location_scope':'Only canonical panic-header locations matched to exact pinned Source; no message, thread, payload or inferred execution credit. Unknown/ambiguous paths omitted.','harness_log_fingerprint':rust['log_fingerprint'],'actual_direct_parent_waits':[{k:row[k]for k in ['role','pid','actual_parent_wait','exit_code','observed_monotonic_ns']if k in row}for row in result['direct_waits']],'native_or_timing_credit':False}
     record['observer_startup_source_traceback']=startup
     if manifest['scenario']=='evm':record['EVM_child_wait_text']=rust.get('EVM_child_wait_text')
-    if manifest['scenario']=='radix':record['Radix_submit_error_text']=rust.get('Radix_submit_error_text')
+    if manifest['scenario']=='radix':
+        record['Radix_submit_error_text']=rust.get('Radix_submit_error_text')
+        try:
+            require(radix_scraper is not None,'SCR diagnostic unavailable');record['Radix_scraper_cutover']=radix_scraper['state'].public(rust.get('Radix_scraper_headers'))
+        except Exception:record['Radix_scraper_cutover']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
     if manifest['scenario']in{'sealevel','sealevel-composite'}:
         module=diagnostic_module(approval)
         def private_capture(raw):
@@ -1080,6 +1125,7 @@ def worker(args, plan, manifest, inputs, approval):
     for name in ('controller.json','controller.sock'):require(not (case/'evidence'/name).exists(), 'Preserve existing controller')
     controller=harness=None;cid=None;pg_name=None;kernel=False;error=None;forced=False;node_proofs={};devnets=None;radix=None
     radix_transport=None
+    radix_scraper=None
     radix_publisher=None
     result={'schema':1,'kind':'native-case-worker-observation','passed':False,'native_case_acceptance':False,'docker_calls':[],'direct_waits':[]}
     deadline=args.original_deadline_ns/1e9
@@ -1161,6 +1207,7 @@ def worker(args, plan, manifest, inputs, approval):
                 volume=importlib.util.module_from_spec(volume_spec);volume_spec.loader.exec_module(volume)
                 radix=radix_custody().Custody(case,harness.pid,helper_row['start'],inputs['radix_localnet'],out,docker_call,volume_sample=lambda name:volume.sample_volume(name,args.original_deadline_ns));radix.arm()
                 radix_transport=arm_radix_transport(plan,manifest,approval,repo,inputs['radix_localnet'],info,args.original_deadline_ns)
+                radix_scraper=arm_radix_scraper(plan,manifest,approval,repo,args.original_deadline_ns)
                 radix_publisher=radix_custody().LoopbackPublisher(radix,owner._linux_row,lambda:harness.poll()is not None or controller.poll()is not None,args.original_deadline_ns)
             if plan['scenario']=='tron':
                 devnets=tron_module('native_tron_custody').Custody(case,harness.pid,helper_row['start'],inputs['tron_tre'],out,docker_call);devnets.arm()
@@ -1177,7 +1224,9 @@ def worker(args, plan, manifest, inputs, approval):
                         if radix_transport is not None:radix_transport['state'].begin_custody()
                         radix.observe()
                         if radix_publisher is not None:radix_publisher.observe()
-                        observe_radix_transport(radix_transport,radix,harness,controller,helper_row,args.original_deadline_ns)
+                        diagnostic_end=min(args.original_deadline_ns,time.monotonic_ns()+500_000_000)
+                        observe_radix_transport(radix_transport,radix,harness,controller,helper_row,diagnostic_end)
+                        observe_radix_scraper(radix_scraper,manifest,inputs,case,harness,controller,helper_row,diagnostic_end)
                     elif devnets is not None:devnets.observe()
                     else:native_listener_proof(plan['scenario'],manifest,inputs,case,checked(plan['lsofArtifact'],True),node_proofs)
                     observe_relayer_startup(startup_context,manifest,inputs,case,harness,controller,helper_row,args.original_deadline_ns)
@@ -1281,7 +1330,7 @@ def worker(args, plan, manifest, inputs, approval):
             for signum,handler in old.items():signal.signal(signum,handler)
             result['forced_cleanup']=forced
             if not result['passed']:
-                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context,radix_transport,inputs,original_deadline_ns=args.original_deadline_ns)
+                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context,radix_transport,inputs,original_deadline_ns=args.original_deadline_ns,radix_scraper=radix_scraper)
                 except Exception as diagnostic_error:result['public_diagnostic_write_error']={'type':type(diagnostic_error).__name__}
             (out/'worker-result.json').write_text(json.dumps(result,indent=2)+'\n')
     require(result['passed'],'Native worker failed; retain original result')

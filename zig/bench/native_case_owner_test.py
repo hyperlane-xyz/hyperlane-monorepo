@@ -925,8 +925,8 @@ class RadixTransportOwnerControls(unittest.TestCase):
         import ast
         tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None');calls=[];code=[None];harness=self.simple(poll=lambda:code[0]);state=self.simple(begin_custody=lambda:calls.append('begin'));radix=self.simple(observe=lambda:calls.append('ordinary_custody'))
         def done(_):code[0]=101
-        env={'harness':harness,'controller':self.simple(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':radix,'radix_publisher':None,'radix_transport':{'state':state},'observe_radix_transport':lambda *args:calls.append('Radix_HTTP'),'startup_context':None,'observe_relayer_startup':lambda *args:None,'manifest':self.manifest,'inputs':{},'case':self.root,'helper_row':{},'args':self.simple(original_deadline_ns=3_000_000_000),'time':self.simple(monotonic=lambda:1,sleep=done)}
-        exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-Radix-inspection-loop>','exec'),env);self.assertEqual(calls,['PG','begin','ordinary_custody','Radix_HTTP']);self.assertEqual(env['next_inspect'],2)
+        env={'harness':harness,'controller':self.simple(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':radix,'radix_publisher':None,'radix_transport':{'state':state},'radix_scraper':None,'observe_radix_scraper':lambda *args:calls.append('SCR_metrics'),'observe_radix_transport':lambda *args:calls.append('Radix_HTTP'),'startup_context':None,'observe_relayer_startup':lambda *args:None,'manifest':self.manifest,'inputs':{},'case':self.root,'helper_row':{},'args':self.simple(original_deadline_ns=3_000_000_000),'time':self.simple(monotonic=lambda:1,monotonic_ns=lambda:1_000_000_000,sleep=done)}
+        exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-Radix-inspection-loop>','exec'),env);self.assertEqual(calls,['PG','begin','ordinary_custody','Radix_HTTP','SCR_metrics']);self.assertEqual(env['next_inspect'],2)
     def test_actual_failure_publisher_preserves_primary_and_finite_only(self):
         context=self.arm();(self.root/'harness.log').write_bytes(b'');result={'direct_waits':[],'error':{'type':'ValueError','message':'PRIMARY_PRIVATE'}};original=copy.deepcopy(result)
         with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=self.diag):row=api.write_public_failure_diagnostics(self.plan,self.manifest,{},self.root,self.root,result,1,None,context)
@@ -976,9 +976,9 @@ class RadixPublisherOwnerControls(unittest.TestCase):
         calls=[];code=[None];harness=types.SimpleNamespace(poll=lambda:code[0])
         publisher=types.SimpleNamespace(check=lambda:calls.append('pump_check'),observe=lambda:calls.append('new_lease'))
         def done(value):self.assertEqual(value,.1);code[0]=0
-        env={'harness':harness,'controller':types.SimpleNamespace(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':types.SimpleNamespace(observe=lambda:calls.append('ordinary_custody')),'radix_publisher':publisher,'radix_transport':None,'observe_radix_transport':lambda *args:calls.append('diagnostic_HTTP'),'observe_relayer_startup':lambda *args:None,'startup_context':None,'manifest':{},'inputs':{},'case':None,'helper_row':{},'args':types.SimpleNamespace(original_deadline_ns=3_000_000_000),'time':types.SimpleNamespace(monotonic=lambda:1,sleep=done)}
+        env={'harness':harness,'controller':types.SimpleNamespace(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':types.SimpleNamespace(observe=lambda:calls.append('ordinary_custody')),'radix_publisher':publisher,'radix_transport':None,'radix_scraper':None,'observe_radix_scraper':lambda *args:calls.append('SCR_metrics'),'observe_radix_transport':lambda *args:calls.append('diagnostic_HTTP'),'observe_relayer_startup':lambda *args:None,'startup_context':None,'manifest':{},'inputs':{},'case':None,'helper_row':{},'args':types.SimpleNamespace(original_deadline_ns=3_000_000_000),'time':types.SimpleNamespace(monotonic=lambda:1,monotonic_ns=lambda:1_000_000_000,sleep=done)}
         exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-publisher-worker-loop>','exec'),env)
-        self.assertEqual(calls,['pump_check','PG','ordinary_custody','new_lease','diagnostic_HTTP']);self.assertEqual(env['next_inspect'],2)
+        self.assertEqual(calls,['pump_check','PG','ordinary_custody','new_lease','diagnostic_HTTP','SCR_metrics']);self.assertEqual(env['next_inspect'],2)
         publisher.check=mock.Mock(side_effect=ValueError('closed-publisher-failed'));code[0]=None;calls.clear()
         with self.assertRaisesRegex(ValueError,'publisher-failed'):exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-publisher-loop-failure>','exec'),env)
         self.assertEqual(calls,[])
@@ -1248,5 +1248,61 @@ class SvmEncryptedLinuxComponentControls(unittest.TestCase):
             expired=api.svm_encrypt_failure_windows(plan,module,b'SYNTHETIC',selection(b'SYNTHETIC'),root,result,0);self.assertEqual(expired['collection_status'],'unavailable');self.assertIsNone(expired['actual_parent_wait'])
             self.assertEqual(result,original);self.assertEqual({name:api.resource.getrlimit(kind)for name,kind in [('address_space',api.resource.RLIMIT_AS),('open_files',api.resource.RLIMIT_NOFILE)]},limits_before)
             print(json.dumps({'kind':'SYNTHETIC-Linux-Node26-owned-encryption-component','native_or_case_or_timing_authority':False,'node_sha256':descriptor['sha256'],'node_bytes':descriptor['bytes'],'child_observations':rows,'no_parent_limits_changed':True,'root_private_key_read':False},sort_keys=True))
+
+
+
+class RadixScraperOwnerControls(unittest.TestCase):
+    def fixture(self):
+        from types import SimpleNamespace
+        module=SimpleNamespace(RelayerStartup=SimpleNamespace(identity=lambda path:('stable',)),captured_failure_bytes=lambda path,maximum:(b'journal',{}),radix_selected_scraper=mock.Mock(return_value=({'pid':43,'ppid':42,'start':'linux-ticks:2','state':'S'},('a','b'),9093)),startup_owned_listener=mock.Mock(return_value='123'),startup_http=mock.Mock(return_value=(200,b'metrics')))
+        state=SimpleNamespace(first=None,last=None,latest_probe={},check_sources=mock.Mock(),public=mock.Mock(return_value={'collection_status':'observed','operand_marker':7}))
+        def project(raw,chains,started,finished):state.first={'first':1};state.last={'last':2}
+        state.project=mock.Mock(side_effect=project);context={'module':module,'state':state,'product':Path('/owned/scraper'),'product_identity':('stable',)}
+        harness=SimpleNamespace(pid=42,poll=mock.Mock(return_value=None));controller=SimpleNamespace(poll=mock.Mock(return_value=None));helper={'pid':42,'ppid':40,'start':'linux-ticks:1','state':'S'}
+        return context,module,state,harness,controller,helper
+    def run_probe(self,fixture,*,now=1,kernel=None):
+        context,module,state,harness,controller,helper=fixture
+        kernel=kernel or(lambda pid:helper if pid==42 else{'pid':43,'ppid':42,'start':'linux-ticks:2','state':'S'})
+        with mock.patch.object(api.time,'monotonic_ns',return_value=now),mock.patch.object(api.owner,'_linux_row',side_effect=kernel),mock.patch.object(api.os,'readlink',return_value='/owned/scraper'):
+            api.observe_radix_scraper(context,{'scenario':'radix'}, {},Path('/owned'),harness,controller,helper,500000001)
+    def test_actual_observer_wiring_before_after_ownership_and_fixed_GET(self):
+        fixture=self.fixture();context,module,state,*_=fixture;self.run_probe(fixture)
+        module.startup_http.assert_called_once();self.assertEqual(module.startup_http.call_args.args[:2],(9093,'GET'));self.assertEqual(module.startup_http.call_args.args[2],500000001);self.assertEqual(module.startup_owned_listener.call_count,2);state.project.assert_called_once();self.assertEqual(state.last,{'last':2})
+    def test_expired_cancelled_missing_or_changed_owner_cannot_HTTP(self):
+        for variant in ['expired','cancelled','helper','role']:
+            fixture=self.fixture();context,module,state,harness,*_=fixture
+            if variant=='cancelled':harness.poll.return_value=101
+            kernel=(lambda pid:None)if variant=='helper'else(lambda pid:fixture[-1]if pid==42 else{'pid':43,'ppid':999,'start':'linux-ticks:2','state':'S'})if variant=='role'else None
+            self.run_probe(fixture,now=500000001 if variant=='expired'else 1,kernel=kernel);module.startup_http.assert_not_called();self.assertIsNone(state.last);self.assertEqual(state.latest_probe['collection_status'],'unavailable')
+    def test_request_parse_and_postread_ownership_errors_are_finite_and_preserve_previous(self):
+        for variant in ['request','parse','listener']:
+            fixture=self.fixture();context,module,state,*_=fixture;previous={'approved_previous':7};state.first=previous;state.last=previous
+            if variant=='request':module.startup_http.side_effect=OSError('PRIVATE_URL_TOKEN')
+            elif variant=='parse':state.project.side_effect=ValueError('PRIVATE_METRIC_LABEL')
+            else:module.startup_owned_listener.side_effect=['123','changed']
+            self.run_probe(fixture);self.assertIs(state.first,previous);self.assertIs(state.last,previous);self.assertEqual(state.latest_probe['reason'],{'request':'REQUEST_ERROR','parse':'METRICS_PARSE_ERROR','listener':'OWNERSHIP_UNAVAILABLE'}[variant]);self.assertNotIn('PRIVATE',json.dumps(state.latest_probe))
+    def test_deadline_after_project_rolls_back_unpublished_candidate(self):
+        fixture=self.fixture();context,module,state,*_=fixture;clock=[1]
+        def project(*args):state.first={'late':1};state.last={'late':1};clock[0]=500000001
+        state.project.side_effect=project
+        with mock.patch.object(api.time,'monotonic_ns',side_effect=lambda:clock[0]),mock.patch.object(api.owner,'_linux_row',side_effect=lambda pid:fixture[-1]if pid==42 else{'pid':43,'ppid':42,'start':'linux-ticks:2','state':'S'}),mock.patch.object(api.os,'readlink',return_value='/owned/scraper'):
+            api.observe_radix_scraper(context,{}, {},Path('/owned'),fixture[3],fixture[4],fixture[-1],500000001)
+        self.assertIsNone(state.first);self.assertIsNone(state.last);self.assertEqual(state.latest_probe['reason'],'DEADLINE_OR_CANCEL')
+    def test_actual_worker_AST_shares_transport_budget_and_arms_SCR_before_GO(self):
+        import ast
+        source=Path(api.__file__).read_text();tree=ast.parse(source);worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');branch=next(n for n in ast.walk(worker)if isinstance(n,ast.If)and ast.unparse(n.test)=='radix is not None'and any(isinstance(x,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_end'for t in x.targets)for x in n.body))
+        calls=[]
+        from types import SimpleNamespace
+        context={'time':SimpleNamespace(monotonic_ns=lambda:10),'args':SimpleNamespace(original_deadline_ns=300),'radix_transport':{'state':SimpleNamespace(begin_custody=lambda:calls.append('begin'))},'radix':SimpleNamespace(observe=lambda:calls.append('custody')),'radix_publisher':SimpleNamespace(observe=lambda:calls.append('publisher')),'radix_scraper':object(),'manifest':{},'inputs':{},'case':object(),'harness':object(),'controller':object(),'helper_row':{},'observe_radix_transport':lambda *args:calls.append(('transport',args[-1])),'observe_radix_scraper':lambda *args:calls.append(('scraper',args[-1]))}
+        exec(compile(ast.Module(body=branch.body,type_ignores=[]),'actual-worker-cadence','exec'),context)
+        self.assertEqual(calls,['begin','custody','publisher',('transport',300),('scraper',300)])
+        self.assertEqual(source.count('radix_scraper=arm_radix_scraper('),1);self.assertIn('radix_scraper=radix_scraper',source)
+    def test_actual_failure_writer_keeps_optional_field_without_primary_or_wait_changes(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory()as tmp:
+            case=Path(tmp);out=case/'worker';out.mkdir();log=out/'harness.log';log.write_bytes(b'captured');primary=ValueError('PRIVATE_PRIMARY');result={'error':primary,'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]}
+            state=SimpleNamespace(public=mock.Mock(return_value={'collection_status':'observed','operand_marker':7}));module=SimpleNamespace(rust_panic_observation=mock.Mock(return_value={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':{},'Radix_scraper_headers':{'counts':{'lane_failure':1}}}),fixture_failure_observation=mock.Mock(return_value={}))
+            with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'runtime_source_commit':'a'*40,'scenario':'radix','mode':'ReleaseSafe'}, {},case,out,result,1,radix_scraper={'state':state})
+            public=json.loads(Path(row['path']).read_bytes());self.assertEqual(public['Radix_scraper_cutover'],{'collection_status':'observed','operand_marker':7});state.public.assert_called_once_with({'counts':{'lane_failure':1}});self.assertIs(module.rust_panic_observation.call_args.kwargs['radix_scraper'],state);self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'][0]['exit_code'],101);self.assertNotIn('PRIVATE',json.dumps(public))
 
 if __name__=='__main__':unittest.main()

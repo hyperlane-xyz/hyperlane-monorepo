@@ -1267,4 +1267,69 @@ class SvmPrivateWindowControls(unittest.TestCase):
         again=api.role_failure_observation(fixture.case,fixture.manifest,42,fixture.sources,fixture.repo,fixture.log,fixture.zig_sources,private_capture=broken);self.assertEqual(value,again)
 
 
+
+
+class RadixScraperCutoverControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve()
+    def state(self):
+        import shutil
+        repo=Path(__file__).resolve().parents[2]
+        for name,_,_ in api.RADIX_SCRAPER_SOURCE:
+            target=self.root/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(repo/name,target)
+        self.modules={name:api.pin(HERE/name)for name in ['multivm_session.py','multivm_evidence.py']}
+        return api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH},self.modules)
+    def sample(self,chain='a',value='0'):
+        return ('hyperlane_critical_error{chain="'+chain+'",agent="scraper",hyperlane_baselib_version="3.0.0"} '+value+'\n').encode()
+    def test_absence_zero_nonzero_and_exact_Rust_count_operands_are_separate(self):
+        project=lambda raw:api.radix_scraper_metrics(raw,('a','b'))
+        absent=project(b'# HELP hyperlane_critical_error private\n');self.assertFalse(absent['family_present']);self.assertEqual(absent['series_count'],0)
+        one=project(self.sample());self.assertTrue(one['family_present']);self.assertEqual(one['chains'][0]['finite_values'],[0]);self.assertFalse(one['chains'][1]['selected_present']);self.assertFalse(one['exact_cutover_operands_observed'])
+        ready=project(self.sample()+self.sample('b'));self.assertTrue(ready['exact_cutover_operands_observed']);self.assertFalse(ready['native_or_readiness_credit'])
+        failed=project(self.sample()+self.sample('b','1'));self.assertEqual(failed['chains'][1]['finite_values'],[1]);self.assertFalse(failed['exact_cutover_operands_observed'])
+        self.assertNotIn('"a"',json.dumps(ready));self.assertNotIn('"b"',json.dumps(ready))
+    def test_malformed_nonfinite_duplicate_private_foreign_and_oversize_are_not_public(self):
+        variants=[self.sample(value=x)for x in ['NaN','Inf','-1','2','0.0','1e0','PRIVATE_KEY']]+[self.sample()+self.sample(),self.sample('PRIVATE_CHAIN'),self.sample().replace(b'agent="scraper"',b'agent="relayer"'),self.sample().replace(b'chain="a"',b'chain="a",chain="b"'),b'hyperlane_critical_error_private 0\n',b'x'*(1024**2+1),b'hyperlane_critical_error{'+b'x'*16385+b'} 0\n',b'\xff']
+        for raw in variants:
+            with self.subTest(size=len(raw)),self.assertRaises(ValueError):api.radix_scraper_metrics(raw,('a','b'))
+    def test_actual_Source_arms_headers_and_rejects_poison_or_identity_change(self):
+        state=self.state();self.assertEqual(len(state.sources),14)
+        raw=(b'<SCR> \x1b[33mwarning: scraper chain=PRIVATE_CHAIN lane=head failed=WrongRadixNetwork\x1b[0m\n<SCR> warning: task 7 failed: PRIVATE_TOKEN\n<SCR> error: agent stopped: WrongRadixNetwork\n<SCR> warning: critical metric update failed: WrongRadixNetwork\n')
+        value=state.headers(raw);self.assertEqual(value['counts'],{'lane_failure':1,'supervised_task_failed':1,'agent_stopped':1,'critical_metric_warning':1});self.assertEqual(value['observations'][0]['Source_error_name'],'WrongRadixNetwork');self.assertEqual(value['observations'][0]['Source_lane_name'],'head');self.assertIsNone(value['observations'][1]['Source_error_name']);self.assertIsNone(value['observations'][1]['PID_or_chain_attribution']);self.assertNotIn('PRIVATE',json.dumps(value))
+        sources=dict(state.sources);sources['zig/src/agents/scraper/task.zig']=sources['zig/src/agents/scraper/task.zig'].replace(b'scraper chain=',b'other chain=')
+        with self.assertRaises(ValueError):api.radix_scraper_headers(raw,sources)
+        path=self.root/'zig/src/agents/scraper/task.zig';path.write_bytes(path.read_bytes()+b'\n')
+        with self.assertRaises(ValueError):state.headers(raw)
+        with self.assertRaises(ValueError):api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH},self.modules)
+    def test_wrong_epoch_unknown_headers_linebounds_and_foreign_prefix_refuse(self):
+        state=self.state()
+        with self.assertRaises(ValueError):api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':'a'*40},self.modules)
+        raw=b'\x1b[33m<SCR> warning: scraper chain=a lane=head failed=WrongRadixNetwork\n <SCR> warning: scraper chain=a lane=head failed=WrongRadixNetwork\n<RLY> warning: scraper chain=a lane=head failed=WrongRadixNetwork\n<SCR> warning: scraper chain=a lane=PRIVATE failed=WrongRadixNetwork\n'+b'<SCR> warning: scraper chain='+b'x'*17000+b' lane=head failed=WrongRadixNetwork\n'
+        value=state.headers(raw);self.assertTrue(all(v==0 for v in value['counts'].values()));self.assertEqual(value['observations'],[])
+    def test_first_latest_bounded_rows_and_same_single_harness_capture(self):
+        state=self.state();state.project(self.sample(),('a','b'),1,10);state.project(self.sample()+self.sample('b'),('a','b'),11,20)
+        self.assertEqual(state.first['operands']['series_count'],1);self.assertEqual(state.last['operands']['series_count'],2)
+        with self.assertRaises(ValueError):state.project(self.sample(),('a','b'),1,500000002)
+        log=self.root/'harness.log';log.write_bytes(b'<SCR> warning: scraper chain=a lane=head failed=WrongRadixNetwork\n');reads=[];original=api.os.open
+        def opened(path,*args,**kwargs):
+            if Path(path)==log:reads.append(path)
+            return original(path,*args,**kwargs)
+        with mock.patch.object(api.os,'open',side_effect=opened):value=api.rust_panic_observation(log,{},self.root,radix_scraper=state)
+        self.assertEqual(len(reads),1);self.assertEqual(value['Radix_scraper_headers']['counts']['lane_failure'],1)
+    def selected(self,rows=None,live=None):
+        product={'path':'/owned/scraper','bytes':1,'sha256':'a'*64};manifest={'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'artifacts':{'scraper':product}}
+        capture={'original':{'role':'scraper','role_chain_names':['a','b'],'runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'scenario':'radix','harness_pid':42,'metrics_port':9093,'chains':{'a':{'protocol':'radix'},'b':{'protocol':'radix'}}}}
+        child={'role':'scraper','pid':43,'parent_pid':42,'os_start_token':'43 42 Wed Nov 9 00:00:00 2026 scraper','executable':product}
+        records={'effective-role-configs.jsonl':[capture],'owned-children.jsonl':[child]}
+        if rows is not None:rows(records)
+        def read(path,maximum):return b'\n'.join(json.dumps(x).encode()for x in records[Path(path).name]),{}
+        row={'pid':43,'ppid':42,'start':'linux-ticks:10','state':'S'}if live is None else live
+        return api.radix_selected_scraper(self.root,manifest,{'chain_names':['a','b']},42,read,lambda pid:row,lambda pid:'/owned/scraper',lambda:None)
+    def test_actual_capture_selection_never_equates_PS_token_with_linux_ticks(self):
+        row,chains,port=self.selected();self.assertEqual((row['pid'],chains,port),(43,('a','b'),9093))
+        variants=[lambda r:r['effective-role-configs.jsonl'][0]['original'].__setitem__('metrics_port',9092),lambda r:r['effective-role-configs.jsonl'][0]['original']['chains']['a'].__setitem__('protocol','ethereum'),lambda r:r['owned-children.jsonl'].append(copy.deepcopy(r['owned-children.jsonl'][0])),lambda r:r['owned-children.jsonl'][0].__setitem__('parent_pid',999),lambda r:r['effective-role-configs.jsonl'][0]['original'].__setitem__('role_chain_names',['a'])]
+        for mutate in variants:
+            with self.assertRaises(ValueError):self.selected(mutate)
+        with self.assertRaises(ValueError):self.selected(live={'pid':43,'ppid':42,'start':'linux-ticks:10','state':'Z'})
+
 if __name__=='__main__':unittest.main()
