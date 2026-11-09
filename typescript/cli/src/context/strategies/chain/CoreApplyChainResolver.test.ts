@@ -11,6 +11,7 @@ import {
   type DerivedCoreConfig,
   DerivedCoreConfigSchema,
   EvmCoreModule,
+  EvmCoreReader,
   HookType,
   IsmType,
   MultiProvider,
@@ -69,7 +70,7 @@ describe('core apply chain discovery', () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'core-apply-chains-'));
     multiProvider = MultiProvider.createTestMultiProvider();
     read = sandbox
-      .stub(EvmCoreModule.prototype, 'read')
+      .stub(EvmCoreReader.prototype, 'deriveCoreConfig')
       .resolves(derivedConfig());
     update = sandbox
       .stub(EvmCoreModule.prototype, 'update')
@@ -105,7 +106,10 @@ describe('core apply chain discovery', () => {
   it('always provisions the local chain for a no-op without updating or requiring a signer', async () => {
     expect(multiProvider.tryGetSigner('test1')).to.equal(null);
     expect(await resolveChains(args())).to.deep.equal(['test1']);
-    sinon.assert.calledOnce(read);
+    sinon.assert.calledOnceWithExactly(read, {
+      mailbox: ADDRESS,
+      interchainAccountRouter: ADDRESS,
+    });
     sinon.assert.notCalled(update);
   });
 

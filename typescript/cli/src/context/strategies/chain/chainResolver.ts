@@ -5,7 +5,7 @@ import {
 import {
   type ChainName,
   DeployedCoreAddressesSchema,
-  EvmCoreModule,
+  EvmCoreReader,
   TxSubmitterType,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
@@ -473,14 +473,12 @@ async function resolveCoreApplyChains(argv: {
       const coreAddresses = DeployedCoreAddressesSchema.parse(
         await registry.getChainAddresses(argv.chain),
       );
-      const module = new EvmCoreModule(multiProvider, {
-        chain: argv.chain,
-        config,
-        addresses: coreAddresses,
+      const reader = new EvmCoreReader(multiProvider, argv.chain);
+      // Discovery runs before signer initialization; read ICA enrollment deltas.
+      const actual = await reader.deriveCoreConfig({
+        mailbox: coreAddresses.mailbox,
+        interchainAccountRouter: coreAddresses.interchainAccountRouter,
       });
-      // Discovery runs before signer initialization. update() may deploy new
-      // hooks, ISMs, or QuotedCalls, so derive only the ICA enrollment deltas.
-      const actual = await module.read();
       const actualRouters = actual.interchainAccountRouter?.remoteRouters;
       if (actualRouters) {
         const changedDomains = symmetricDifference(
