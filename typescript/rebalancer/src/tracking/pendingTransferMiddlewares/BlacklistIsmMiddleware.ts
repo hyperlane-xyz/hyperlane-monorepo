@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   type DerivedIsmConfig,
+  EthJsonRpcBlockParameterTag,
   EvmIsmReader,
   type IsmConfig,
   IsmType,
@@ -48,9 +49,9 @@ interface UnroutedOrigin {
 
 /**
  * BlacklistIsms, by lowercase address, that make an ISM reject a message on
- * their own, with their blacklisted ids from the derivation.
+ * their own.
  */
-type SufficientBlacklists = Map<string, readonly string[]>;
+type SufficientBlacklists = Set<string>;
 
 type ResolvedBlacklists = SufficientBlacklists | UnroutedOrigin;
 
@@ -134,19 +135,19 @@ function combineAggregation(
   const resolved: SufficientBlacklists[] = [];
   let alwaysRejecting: UnroutedOrigin | undefined;
   for (const child of children) {
-    if (child instanceof Map) resolved.push(child);
+    if (child instanceof Set) resolved.push(child);
     else alwaysRejecting ??= child;
   }
 
   const passable = resolved.length;
   if (alwaysRejecting && passable < threshold) return alwaysRejecting;
 
-  const sufficient: SufficientBlacklists = new Map();
+  const sufficient: SufficientBlacklists = new Set();
   for (const child of resolved) {
-    for (const [address, ids] of child) {
+    for (const address of child) {
       const rejecting = resolved.filter((other) => other.has(address));
       if (passable - rejecting.length < threshold) {
-        sufficient.set(address, ids);
+        sufficient.add(address);
       }
     }
   }
@@ -170,14 +171,14 @@ function findSufficientBlacklists(
   origin: string,
   mailboxDefaults: ReadonlyMap<string, ResolvedBlacklists>,
 ): ResolvedBlacklists {
-  if (typeof config === 'string') return new Map();
+  if (typeof config === 'string') return new Set();
 
   switch (config.type) {
     case IsmType.BLACKLIST: {
       const address = addressOf(config);
       assert(address, 'Derived BlacklistIsm config has no address');
 
-      return new Map([[address.toLowerCase(), config.blacklistedIds]]);
+      return new Set([address.toLowerCase()]);
     }
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -212,7 +213,7 @@ function findSufficientBlacklists(
       // DefaultIsm routes every message to its mailbox's default ISM.
       return mailboxDefaultFor(config, mailboxDefaults);
     default:
-      return new Map();
+      return new Set();
   }
 }
 
@@ -362,7 +363,7 @@ class MailboxDefaultIsmReader {
           }
           if (!isMissingSelectorCallException(error)) throw error;
 
-          return new Map();
+          return new Set();
         }
 
         return this.resolveIsm(routed, origin, originName, path);
@@ -394,7 +395,7 @@ class MailboxDefaultIsmReader {
           new Map(),
         );
       default:
-        return new Map();
+        return new Set();
     }
   }
 
@@ -474,8 +475,7 @@ async function readRecipientIsmBlacklists(
 
 /**
  * Resolves every (origin, destination) pair with an EVM destination to the
- * BlacklistIsms that reject its messages on their own, seeded with the ids
- * read during derivation.
+ * BlacklistIsms that reject its messages on their own, with no ids yet.
  */
 async function resolveRouteBlacklists(
   options: BlacklistIsmMiddlewareOptions,
@@ -513,7 +513,7 @@ async function resolveRouteBlacklists(
     }
 
     for (const [origin, sufficient] of resolved) {
-      if (!(sufficient instanceof Map)) {
+      if (!(sufficient instanceof Set)) {
         logger.warn(
           {
             router,
@@ -538,10 +538,8 @@ async function resolveRouteBlacklists(
       const route: RouteBlacklist = {
         destination,
         chainName: multiProvider.getChainName(destination),
-        blacklistIsms: [...sufficient.keys()],
-        ids: new Set(
-          [...sufficient.values()].flat().map((id) => id.toLowerCase()),
-        ),
+        blacklistIsms: [...sufficient],
+        ids: new Set(),
         loadedAt: now,
         lastAttemptAt: now,
       };
@@ -554,6 +552,79 @@ async function resolveRouteBlacklists(
   }
 
   return routes;
+}
+
+function readKey(destination: number, blacklistIsm: string): string {
+  return `${destination}:${blacklistIsm}`;
+}
+
+/** Groups the BlacklistIsm reads of `routes`, one per destination and ISM. */
+function groupReads(routes: Iterable<RouteBlacklist>): BlacklistRead[] {
+  const reads = new Map<string, BlacklistRead>();
+  for (const route of routes) {
+    for (const blacklistIsm of route.blacklistIsms) {
+      const key = readKey(route.destination, blacklistIsm);
+      const read = reads.get(key) ?? {
+        destination: route.destination,
+        chainName: route.chainName,
+        blacklistIsm,
+        routes: [],
+      };
+      read.routes.push(route);
+      reads.set(key, read);
+    }
+  }
+
+  return [...reads.values()];
+}
+
+/** Adds `ids` to every pair using the BlacklistIsm. */
+function addIds(read: BlacklistRead, ids: readonly string[]): void {
+  for (const route of read.routes) {
+    for (const id of ids) route.ids.add(id.toLowerCase());
+  }
+}
+
+/** Reads a BlacklistIsm's blacklisted ids at its destination's finalized block. */
+function readFinalizedIds(
+  multiProvider: MultiProvider,
+  read: BlacklistRead,
+): Promise<string[]> {
+  return readBlacklistedIds(
+    read.chainName,
+    read.blacklistIsm,
+    multiProvider,
+    undefined,
+    EthJsonRpcBlockParameterTag.Finalized,
+  );
+}
+
+/**
+ * Reads every pair's BlacklistIsms at their destination's finalized block and
+ * adds the ids to the pairs. Throws if any read fails.
+ */
+async function seedRouteIds(
+  routes: ReadonlyMap<string, RouteBlacklist>,
+  multiProvider: MultiProvider,
+): Promise<void> {
+  await concurrentMap(
+    REFRESH_CONCURRENCY,
+    groupReads(routes.values()),
+    async (read) => {
+      let ids: string[];
+      try {
+        ids = await readFinalizedIds(multiProvider, read);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Failed to read the blacklisted ids of BlacklistIsm ${read.blacklistIsm} on domain ${read.destination}: ${message}`,
+          { cause: error },
+        );
+      }
+
+      addIds(read, ids);
+    },
+  );
 }
 
 /**
@@ -574,11 +645,20 @@ async function resolveRouteBlacklists(
  * routing ISM. Amount routing ISMs are treated as never blocking, since their
  * module depends on the transfer amount.
  *
+ * Blacklisted ids are read at the destination's finalized block, so an id
+ * whose blacklisting is reorged out is never ignored and a new blacklist entry
+ * takes effect once it is finalized; the ISM graph itself is resolved at the
+ * latest block. `create()` reads every pair's ids this way rather than using
+ * the ids derived with the graph.
+ *
  * A pair's ids are re-read only when one of its messages is queried and
  * `refreshIntervalMs` has passed since its last attempt; each BlacklistIsm is
  * read once per refresh however many pairs use it. BlacklistIsms are
  * append-only, so new ids are added to the pair's set; a failed read keeps the
- * last known ids, which can only miss ids added since, never over-ignore.
+ * last known ids, which can only miss ids added since, never over-ignore. An
+ * RPC without `finalized` block tag support makes every read on its
+ * destination fail, whether the BlacklistIsm enumerates its ids or they are
+ * replayed from its logs.
  */
 export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
   private constructor(
@@ -591,10 +671,13 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
   }
 
   /**
-   * Resolves the BlacklistIsms of every route pair. Throws if any EVM
-   * destination's ISM cannot be derived or if no route pair has a BlacklistIsm
-   * that can block a message. A pair whose domain routing ISM has no module
-   * for the origin is skipped with a warning.
+   * Resolves the BlacklistIsms of every route pair and reads their ids at the
+   * destination's finalized block. Throws if any EVM destination's ISM cannot
+   * be derived, if no route pair has a BlacklistIsm that can block a message,
+   * or if a BlacklistIsm's ids cannot be read at the finalized block, which
+   * includes a destination RPC without `finalized` block tag support. A pair
+   * whose domain routing ISM has no module for the origin is skipped with a
+   * warning.
    */
   static async create(
     inner: IExplorerClient,
@@ -608,6 +691,7 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
       );
     }
 
+    await seedRouteIds(routes, options.multiProvider);
     return new BlacklistIsmMiddleware(inner, options, routes);
   }
 
@@ -659,37 +743,16 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
     }
     if (stale.size === 0) return;
 
-    const reads = new Map<string, BlacklistRead>();
-    for (const route of stale) {
-      route.lastAttemptAt = now;
-      for (const blacklistIsm of route.blacklistIsms) {
-        const key = `${route.destination}:${blacklistIsm}`;
-        const read = reads.get(key) ?? {
-          destination: route.destination,
-          chainName: route.chainName,
-          blacklistIsm,
-          routes: [],
-        };
-        read.routes.push(route);
-        reads.set(key, read);
-      }
-    }
+    for (const route of stale) route.lastAttemptAt = now;
 
     const failed = new Set<RouteBlacklist>();
     await concurrentMap(
       REFRESH_CONCURRENCY,
-      [...reads.values()],
+      groupReads(stale),
       async (read) => {
+        let ids: string[];
         try {
-          const ids = await readBlacklistedIds(
-            read.chainName,
-            read.blacklistIsm,
-            this.options.multiProvider,
-          );
-
-          for (const route of read.routes) {
-            for (const id of ids) route.ids.add(id.toLowerCase());
-          }
+          ids = await readFinalizedIds(this.options.multiProvider, read);
         } catch (error: unknown) {
           read.routes.forEach((route) => failed.add(route));
           const oldestLoadedAt = Math.min(
@@ -704,7 +767,10 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
             },
             BLACKLIST_ISM_REFRESH_FAILED_MESSAGE,
           );
+          return;
         }
+
+        addIds(read, ids);
       },
     );
 

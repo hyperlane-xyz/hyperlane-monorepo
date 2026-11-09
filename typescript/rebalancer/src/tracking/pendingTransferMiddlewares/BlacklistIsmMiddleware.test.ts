@@ -156,7 +156,8 @@ function incidentIsm(
   );
 }
 
-type CallHandler = (data: string) => string;
+type BlockTag = ethers.providers.BlockTag;
+type CallHandler = (data: string, blockTag: BlockTag | undefined) => string;
 
 /** Answers eth_call by contract address and selector. */
 class FakeChain {
@@ -168,11 +169,15 @@ class FakeChain {
   readonly calls: string[] = [];
   /** Origins passed to `module(origin)`, in order. */
   readonly routedOrigins: number[] = [];
+  /** Block tags of every `values()` call, in order. */
+  readonly valuesBlockTags: Array<BlockTag | undefined> = [];
+  /** Thrown by every `values()` call at the finalized block when set. */
+  finalizedError: Error | undefined;
   private readonly handlers = new Map<string, CallHandler>();
   private readonly recipientIsms = new Map<string, string>();
 
   constructor() {
-    Sinon.stub(this.provider, 'call').callsFake(async (tx) => {
+    Sinon.stub(this.provider, 'call').callsFake(async (tx, blockTag) => {
       const { to, data } = await ethers.utils.resolveProperties(tx);
       if (typeof to !== 'string' || typeof data !== 'string') {
         throw new Error('Unexpected call');
@@ -184,7 +189,7 @@ class FakeChain {
       const handler = this.handlers.get(key);
       if (!handler) throw new Error(`Unexpected call ${key}`);
 
-      return handler(data);
+      return handler(data, await blockTag);
     });
   }
 
@@ -259,11 +264,49 @@ class FakeChain {
     this.on(address, selector, () => '0x');
   }
 
-  /** Serves the BlacklistIsm's `values()`, which refreshes read. */
-  blacklist(address: string, ids: string[]): void {
-    this.on(address, VALUES_SELECTOR, () =>
-      blacklistInterface.encodeFunctionResult('values', [ids]),
-    );
+  /**
+   * Serves the BlacklistIsm's `values()`: `ids` at the finalized block and
+   * `latestIds` at the latest one.
+   */
+  blacklist(address: string, ids: string[], latestIds = ids): void {
+    this.on(address, VALUES_SELECTOR, (_data, blockTag) => {
+      this.valuesBlockTags.push(blockTag);
+      if (blockTag === 'finalized') {
+        if (this.finalizedError) throw this.finalizedError;
+        return blacklistInterface.encodeFunctionResult('values', [ids]);
+      }
+      if (blockTag === undefined || blockTag === 'latest') {
+        return blacklistInterface.encodeFunctionResult('values', [latestIds]);
+      }
+
+      throw new Error(`Unexpected block tag ${blockTag}`);
+    });
+  }
+
+  /** Serves `values()` for every BlacklistIsm in `config` with its ids. */
+  blacklistsIn(config: IsmConfig): void {
+    if (typeof config === 'string') return;
+
+    switch (config.type) {
+      case IsmType.BLACKLIST:
+        if ('address' in config && typeof config.address === 'string') {
+          this.blacklist(config.address, config.blacklistedIds);
+        }
+        return;
+      case IsmType.AGGREGATION:
+      case IsmType.STORAGE_AGGREGATION:
+        config.modules.forEach((module) => this.blacklistsIn(module));
+        return;
+      case IsmType.ROUTING:
+      case IsmType.INCREMENTAL_ROUTING:
+      case IsmType.FALLBACK_ROUTING:
+        Object.values(config.domains).forEach((module) =>
+          this.blacklistsIn(module),
+        );
+        return;
+      default:
+        return;
+    }
   }
 }
 
@@ -340,9 +383,18 @@ describe('BlacklistIsmMiddleware', () => {
       .map((call) => [call.thisValue['chain'], call.args[0]]);
   }
 
+  /**
+   * Registers a derived config, with its BlacklistIsms reporting the same ids
+   * at the finalized block.
+   */
+  function derivedIsm(config: DerivedIsmConfig): void {
+    derivedConfigs.set(config.address.toLowerCase(), config);
+    chain.blacklistsIn(config);
+  }
+
   /** Registers a derived config and points the router at it. */
   function routerIsm(router: string, config: DerivedIsmConfig): void {
-    derivedConfigs.set(config.address.toLowerCase(), config);
+    derivedIsm(config);
     chain.recipientIsm(router, config.address);
   }
 
@@ -350,10 +402,7 @@ describe('BlacklistIsmMiddleware', () => {
   function defaultIsmWithBlacklist(): void {
     chain.aggregationIsm(MAILBOX_DEFAULT_ISM, [BLACKLIST_ISM], 1);
     chain.moduleType(BLACKLIST_ISM, MODULE_TYPE.NULL);
-    derivedConfigs.set(
-      BLACKLIST_ISM,
-      blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]),
-    );
+    derivedIsm(blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]));
   }
 
   /** Gives the route a second pair whose ISM can block, so startup succeeds. */
@@ -828,10 +877,7 @@ describe('BlacklistIsmMiddleware', () => {
     chain.domainRoutingIsm(MAILBOX_DEFAULT_ISM, modules);
     chain.aggregationIsm(AGGREGATION_ISM, [MULTISIG_ISM, BLACKLIST_ISM], 2);
     chain.moduleType(BLACKLIST_ISM, MODULE_TYPE.NULL);
-    derivedConfigs.set(
-      BLACKLIST_ISM,
-      blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]),
-    );
+    derivedIsm(blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]));
     const middleware = await createMiddleware();
 
     const ignored = await queryIgnoredIds(middleware, [
@@ -851,10 +897,7 @@ describe('BlacklistIsmMiddleware', () => {
     chain.recipientIsm(ROUTER, MAILBOX_DEFAULT_ISM);
     chain.domainRoutingIsm(MAILBOX_DEFAULT_ISM, { [ARBITRUM]: BLACKLIST_ISM });
     chain.moduleType(BLACKLIST_ISM, MODULE_TYPE.NULL);
-    derivedConfigs.set(
-      BLACKLIST_ISM,
-      blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]),
-    );
+    derivedIsm(blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]));
     const middleware = await createMiddleware();
 
     expect(warn.callCount).to.equal(1);
@@ -904,10 +947,7 @@ describe('BlacklistIsmMiddleware', () => {
     );
     chain.aggregationIsm(MAILBOX_DEFAULT_ISM, [MULTISIG_ISM, BLACKLIST_ISM], 2);
     chain.moduleType(BLACKLIST_ISM, MODULE_TYPE.NULL);
-    derivedConfigs.set(
-      BLACKLIST_ISM,
-      blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]),
-    );
+    derivedIsm(blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]));
     const middleware = await createMiddleware();
 
     const ignored = await queryIgnoredIds(middleware, [
@@ -935,10 +975,7 @@ describe('BlacklistIsmMiddleware', () => {
     chain.moduleType(amountRoutingIsm, MODULE_TYPE.ROUTING);
     chain.missingSelector(amountRoutingIsm, MODULE_SELECTOR);
     chain.moduleType(BLACKLIST_ISM, MODULE_TYPE.NULL);
-    derivedConfigs.set(
-      BLACKLIST_ISM,
-      blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]),
-    );
+    derivedIsm(blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]));
     const middleware = await createMiddleware();
 
     const ignored = await queryIgnoredIds(middleware, [
@@ -991,10 +1028,7 @@ describe('BlacklistIsmMiddleware', () => {
       chain.defaultIsm(otherDefaultIsm, otherMailbox);
       chain.aggregationIsm(otherDefaultIsm, [BLACKLIST_ISM], 1);
       chain.moduleType(BLACKLIST_ISM, MODULE_TYPE.NULL);
-      derivedConfigs.set(
-        BLACKLIST_ISM,
-        blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]),
-      );
+      derivedIsm(blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]));
       const middleware = await createMiddleware();
 
       const ignored = await queryIgnoredIds(middleware, [
@@ -1247,9 +1281,9 @@ describe('BlacklistIsmMiddleware', () => {
 
   it('picks up an id blacklisted after startup once the refresh interval passes', async () => {
     routerIsm(ROUTER, incidentIsm(3, []));
-    chain.blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]);
     const { middleware, callsAfterInit } =
       await createMiddlewareAndCountCalls();
+    chain.blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]);
     const messages = [buildMessage(BLACKLISTED_ID)];
 
     clock.tick(REFRESH_INTERVAL_MS - 1);
@@ -1293,9 +1327,9 @@ describe('BlacklistIsmMiddleware', () => {
 
   it('reads a BlacklistIsm shared by stale pairs once and updates every pair', async () => {
     routerIsm(ROUTER, incidentIsm(3, []));
-    chain.blacklist(BLACKLIST_ISM, [BLACKLISTED_ID, THIRD_ID]);
     const { middleware, callsAfterInit } =
       await createMiddlewareAndCountCalls();
+    chain.blacklist(BLACKLIST_ISM, [BLACKLISTED_ID, THIRD_ID]);
 
     clock.tick(REFRESH_INTERVAL_MS);
     const ignored = await queryIgnoredIds(middleware, [
@@ -1322,12 +1356,12 @@ describe('BlacklistIsmMiddleware', () => {
         3,
       ),
     );
+    const { middleware, callsAfterInit } =
+      await createMiddlewareAndCountCalls();
     chain.blacklist(BLACKLIST_ISM, [CLEAN_ID]);
     chain.on(SECOND_BLACKLIST_ISM, VALUES_SELECTOR, () => {
       throw new Error('rpc unavailable');
     });
-    const { middleware, callsAfterInit } =
-      await createMiddlewareAndCountCalls();
     const messages = [
       buildMessage(BLACKLISTED_ID),
       buildMessage(CLEAN_ID),
@@ -1371,11 +1405,11 @@ describe('BlacklistIsmMiddleware', () => {
 
   it('keeps the last known ids and warns once when a refresh fails', async () => {
     routerIsm(ROUTER, incidentIsm(3));
+    const { middleware, callsAfterInit } =
+      await createMiddlewareAndCountCalls();
     chain.on(BLACKLIST_ISM, VALUES_SELECTOR, () => {
       throw new Error('rpc unavailable');
     });
-    const { middleware, callsAfterInit } =
-      await createMiddlewareAndCountCalls();
     const messages = [buildMessage(BLACKLISTED_ID)];
 
     clock.tick(REFRESH_INTERVAL_MS * 2);
@@ -1412,5 +1446,115 @@ describe('BlacklistIsmMiddleware', () => {
       `${BLACKLIST_ISM}:${VALUES_SELECTOR}`,
       `${BLACKLIST_ISM}:${VALUES_SELECTOR}`,
     ]);
+  });
+
+  it('does not seed an id blacklisted at the latest block but not at the finalized one', async () => {
+    routerIsm(ROUTER, incidentIsm(3));
+    chain.blacklist(BLACKLIST_ISM, [], [BLACKLISTED_ID]);
+    const middleware = await createMiddleware();
+
+    const ignored = await queryIgnoredIds(middleware, [
+      buildMessage(BLACKLISTED_ID),
+    ]);
+
+    expect(ignored).to.deep.equal([]);
+  });
+
+  it('ignores an id only once it is blacklisted at the finalized block', async () => {
+    routerIsm(ROUTER, incidentIsm(3, []));
+    const middleware = await createMiddleware();
+    const messages = [buildMessage(BLACKLISTED_ID)];
+
+    chain.blacklist(BLACKLIST_ISM, [], [BLACKLISTED_ID]);
+    clock.tick(REFRESH_INTERVAL_MS);
+    const unfinalized = await queryIgnoredIds(middleware, messages);
+
+    expect(unfinalized).to.deep.equal([]);
+
+    // Reorged out before finality: latest drops it, finalized never had it.
+    chain.blacklist(BLACKLIST_ISM, [], []);
+    clock.tick(REFRESH_INTERVAL_MS);
+    const reorged = await queryIgnoredIds(middleware, messages);
+
+    expect(reorged).to.deep.equal([]);
+
+    chain.blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]);
+    clock.tick(REFRESH_INTERVAL_MS);
+    const finalized = await queryIgnoredIds(middleware, messages);
+
+    expect(finalized).to.deep.equal([BLACKLISTED_ID]);
+    expect(warn.called).to.be.false;
+  });
+
+  it('reads every BlacklistIsm at the finalized block, at startup and on refresh', async () => {
+    routerIsm(
+      ROUTER,
+      aggregation(
+        AGGREGATION_ISM,
+        [
+          blacklist(BLACKLIST_ISM, [BLACKLISTED_ID]),
+          blacklist(SECOND_BLACKLIST_ISM, [THIRD_ID]),
+        ],
+        2,
+      ),
+    );
+    const middleware = await createMiddleware();
+
+    expect(chain.valuesBlockTags).to.deep.equal(['finalized', 'finalized']);
+
+    clock.tick(REFRESH_INTERVAL_MS);
+    const ignored = await queryIgnoredIds(middleware, [
+      buildMessage(BLACKLISTED_ID),
+      buildMessage(THIRD_ID),
+    ]);
+
+    expect(ignored).to.deep.equal([BLACKLISTED_ID, THIRD_ID]);
+    expect(chain.valuesBlockTags).to.deep.equal([
+      'finalized',
+      'finalized',
+      'finalized',
+      'finalized',
+    ]);
+  });
+
+  it('fails to initialize when a BlacklistIsm cannot be read at the finalized block', async () => {
+    routerIsm(ROUTER, incidentIsm(3));
+    chain.finalizedError = new Error('finalized block tag not supported');
+
+    const result = createMiddleware();
+
+    await expect(result).to.be.rejectedWith(
+      `Failed to read the blacklisted ids of BlacklistIsm ${BLACKLIST_ISM} on domain ${ETHEREUM}: finalized block tag not supported`,
+    );
+  });
+
+  it('keeps the last known ids and warns when a finalized read fails on refresh', async () => {
+    routerIsm(ROUTER, incidentIsm(3));
+    const { middleware, callsAfterInit } =
+      await createMiddlewareAndCountCalls();
+    chain.blacklist(BLACKLIST_ISM, [BLACKLISTED_ID, CLEAN_ID]);
+    chain.finalizedError = new Error('finalized block tag not supported');
+
+    clock.tick(REFRESH_INTERVAL_MS);
+    const ignored = await queryIgnoredIds(middleware, [
+      buildMessage(BLACKLISTED_ID),
+      buildMessage(CLEAN_ID),
+    ]);
+
+    expect(ignored).to.deep.equal([BLACKLISTED_ID]);
+    expect(warn.callCount).to.equal(1);
+    expect(warn.firstCall.args[1]).to.equal(
+      BLACKLIST_ISM_REFRESH_FAILED_MESSAGE,
+    );
+    expect(warn.firstCall.args[0]).to.include({
+      blacklistIsm: BLACKLIST_ISM,
+      destination: ETHEREUM,
+      cachedAgeSecs: 600,
+      error: 'finalized block tag not supported',
+    });
+    expect(chain.calls.slice(callsAfterInit)).to.deep.equal([
+      `${BLACKLIST_ISM}:${VALUES_SELECTOR}`,
+    ]);
+    expect(chain.valuesBlockTags.slice(-1)).to.deep.equal(['finalized']);
   });
 });

@@ -3,7 +3,7 @@ import { ethers, type providers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import { Mailbox__factory } from '@hyperlane-xyz/core';
+import { BlacklistIsm__factory, Mailbox__factory } from '@hyperlane-xyz/core';
 import { type IRegistry, RegistryType } from '@hyperlane-xyz/registry';
 import {
   EvmIsmReader,
@@ -215,10 +215,14 @@ describe('RebalancerContextFactory', () => {
   describe('createActionTracker() — pending transfer middlewares', () => {
     const BLACKLIST_ISM = '0x5555555555555555555555555555555555555555';
     const mailboxInterface = Mailbox__factory.createInterface();
+    const blacklistInterface = BlacklistIsm__factory.createInterface();
 
     const DEFAULT_ISM = '0x6666666666666666666666666666666666666666';
 
-    /** Every router has the BlacklistIsm as its own ISM. */
+    /**
+     * Every router has the BlacklistIsm as its own ISM, which has no
+     * blacklisted ids.
+     */
     function createIsmProvider(): providers.Provider {
       const provider = new ethers.providers.StaticJsonRpcProvider(
         'http://127.0.0.1:1',
@@ -237,6 +241,9 @@ describe('RebalancerContextFactory', () => {
           return mailboxInterface.encodeFunctionResult('defaultIsm', [
             DEFAULT_ISM,
           ]);
+        }
+        if (data.startsWith(blacklistInterface.getSighash('values'))) {
+          return blacklistInterface.encodeFunctionResult('values', [[]]);
         }
         throw new Error(`Unexpected call ${data}`);
       });
