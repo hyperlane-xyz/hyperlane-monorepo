@@ -12,6 +12,11 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact inverse of native PostgreSQL16 package admission in Aleo only.
+ apt_after = '          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64\n'
+ apt_before = '          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client libcurl4t64 libssl3t64\n'
+ if text.count(apt_after) != 1: raise AssertionError('Exact Aleo native PostgreSQL16 install required')
+ text = text.replace(apt_after, apt_before, 1)
  # Exact inverse of the once-only Source Tron admission command before clock controls.
  admission = '          python3 -B -W error zig/integration/multivm_tron_admission_test.py -v\n'
  clock = '          python3 -I -B -W error zig/integration/multivm_tron_clock_test.py -v\n'

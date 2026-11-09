@@ -31,6 +31,12 @@ def write(path,value):
  return pin(path)
 def module(repo,name,relative):
  spec=importlib.util.spec_from_file_location(name,repo/relative);out=importlib.util.module_from_spec(spec);spec.loader.exec_module(out);return out
+def native_psql16(repo):
+ # /usr/bin/psql is Debian's multi-command wrapper; execute the native client.
+ path=Path('/usr/lib/postgresql/16/bin/psql')
+ module(repo,'actual_psql_ELF_admission','zig/bench/native_case_tools.py').validate_elf(path,62)
+ return pin(path)
+
 def source_bound_encrypted_error(value,source):
  unavailable={'schema':1,'status':'ENCRYPTION_UNAVAILABLE'}
  try:
@@ -472,7 +478,7 @@ def execute(policy_path,policy_sha,mode,env):
   run('case-kernel',[python,'-I','-B',repo/'zig/tools/aleo_linux/kernel_delegate.py','--execute','--spec',spec_pin['path'],'--spec-sha',spec_pin['sha256']],4*60)
   kernel_receipt=pin(kernel_output/'result.json');kernel_owner=pin(kernel_output.with_suffix('.owner')/'owner.json');kernel=load(kernel_receipt)
   case=Path('/tmp')/('zac-'+env['GITHUB_RUN_ID']+'-'+env['GITHUB_RUN_ATTEMPT']+'-'+mode.lower())
-  binding={'schema':1,'root_approved':True,'purpose':'aleo-linux-fullcase-metadata-binding-v1','repo':str(repo),'execution_source_commit':head,'runtime_source_commit':authority['runtime_source_commit'],'mode':mode,'run_token':secrets.token_hex(16),'output':str(case),'control':str(root/'control'),'context':context_pin,'sdk_receipt':pin(sdk_root/'build/result.json'),'sdk_owner_receipt':pin(sdk_root/'build.owner/owner.json'),'storage_interop':pin(transport/'accepted-native-rows-interop.json'),'kernel_receipt':kernel_receipt,'kernel_spec':kernel['spec'],'kernel_owner_receipt':kernel_owner,'docker_receipt':docker_receipt,'docker_owner_receipt':docker_owner,'assets':parameter['assets'],'parameter_home':str(parameter_home),'tools':{**tools,'docker':pin(root/'fixture-tools/aleo_linux_sdk/docker_cli.py'),'psql':pin(Path('/usr/bin/psql').resolve(strict=True)),'ps':pin(Path('/usr/bin/ps'))},'http_library':pin(Path('/usr/lib/x86_64-linux-gnu/libcurl.so.4').resolve(strict=True)),'crypto_library':pin(Path('/usr/lib/x86_64-linux-gnu/libcrypto.so.3').resolve(strict=True))}
+  binding={'schema':1,'root_approved':True,'purpose':'aleo-linux-fullcase-metadata-binding-v1','repo':str(repo),'execution_source_commit':head,'runtime_source_commit':authority['runtime_source_commit'],'mode':mode,'run_token':secrets.token_hex(16),'output':str(case),'control':str(root/'control'),'context':context_pin,'sdk_receipt':pin(sdk_root/'build/result.json'),'sdk_owner_receipt':pin(sdk_root/'build.owner/owner.json'),'storage_interop':pin(transport/'accepted-native-rows-interop.json'),'kernel_receipt':kernel_receipt,'kernel_spec':kernel['spec'],'kernel_owner_receipt':kernel_owner,'docker_receipt':docker_receipt,'docker_owner_receipt':docker_owner,'assets':parameter['assets'],'parameter_home':str(parameter_home),'tools':{**tools,'docker':pin(root/'fixture-tools/aleo_linux_sdk/docker_cli.py'),'psql':native_psql16(repo),'ps':pin(Path('/usr/bin/ps'))},'http_library':pin(Path('/usr/lib/x86_64-linux-gnu/libcurl.so.4').resolve(strict=True)),'crypto_library':pin(Path('/usr/lib/x86_64-linux-gnu/libcrypto.so.3').resolve(strict=True))}
   # Never reset the job clock. Fetch fresh API state and retain both observations.
   final_job=job_observation(mode,env);write(root/'job-observation-precase.json',final_job);remaining=require_launch_budget(final_job,time.monotonic_ns());need(require_launch_budget(job,time.monotonic_ns())>=195*60*10**9,'initial observation no longer admits original full-case bound')
   binding_pin=write(root/'actual-binding.json',binding)

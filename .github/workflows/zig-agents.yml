@@ -1305,7 +1305,7 @@ jobs:
         timeout-minutes: 8
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client libcurl4t64 libssl3t64
+          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64
       - name: Exact transport, both interops, fresh SDK/Docker/kernel and dedicated case
         if: steps.authority.outputs.enabled == 'true'
         env:

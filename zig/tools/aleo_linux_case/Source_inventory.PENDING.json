@@ -6,22 +6,22 @@
   "final_execution_source_commit": null,
   "source_policy_paths_function": {
     "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-    "bytes": 49126,
+    "bytes": 49364,
     "sha256": {
       "sha256_hex_chunks": [
-        "9055cea126d795e01e127b2886538213",
-        "bd3b905cad7709231318c3a512cff89f"
+        "32a52201b4d4354e246fc870ad1fbe47",
+        "3b545a8ec5f874963a65c29ae844183d"
       ]
     }
   },
   "source_inventory": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 141913,
+      "bytes": 141916,
       "sha256": {
         "sha256_hex_chunks": [
-          "a5d012343d57509976b968f0e7552cf3",
-          "67ecdb5be476e332d0333273c714d01c"
+          "49d8dc08c195a5f884a15632b9be5701",
+          "30c091dff4b78265a0bf01206fecb4d0"
         ]
       }
     },
@@ -257,11 +257,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-      "bytes": 49126,
+      "bytes": 49364,
       "sha256": {
         "sha256_hex_chunks": [
-          "9055cea126d795e01e127b2886538213",
-          "bd3b905cad7709231318c3a512cff89f"
+          "32a52201b4d4354e246fc870ad1fbe47",
+          "3b545a8ec5f874963a65c29ae844183d"
         ]
       }
     },

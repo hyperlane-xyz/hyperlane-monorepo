@@ -15,6 +15,11 @@ def evaluator():
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
 def ordinary_native_http_workflow(text):
+ # Exact inverse of native PostgreSQL16 package admission in Aleo only.
+ apt_after = '          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64\n'
+ apt_before = '          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client libcurl4t64 libssl3t64\n'
+ if text.count(apt_after) != 1: raise AssertionError('Exact Aleo native PostgreSQL16 install required')
+ text = text.replace(apt_after, apt_before, 1)
  # Exact inverse of the once-only Source Tron admission command before clock controls.
  admission = '          python3 -B -W error zig/integration/multivm_tron_admission_test.py -v\n'
  clock = '          python3 -I -B -W error zig/integration/multivm_tron_clock_test.py -v\n'
@@ -129,6 +134,40 @@ class Policy(unittest.TestCase):
  def test_fixed_child_environment_excludes_auth_proxy_fault_aliases(self):
   env={k:'fixture'for k in ['PATH','GITHUB_WORKSPACE','RUNNER_TEMP','GITHUB_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_REPOSITORY']};env.update(GH_TOKEN='private-marker',HTTPS_PROXY='private-marker',NODE_OPTIONS='private-marker',CONFIG_FILES='private-marker')
   out=m.fixed_environment(env);self.assertNotIn('private-marker',json.dumps(out));self.assertNotIn('HOME',out)
+class NativePsql16(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory(prefix='aleo-psql-pure-');self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name)
+  # Actual existing ELF admission functions; no native executable is invoked.
+  source=REPO/'zig/bench/native_case_tools.py';tree=ast.parse(source.read_bytes());scope={'Path':pathlib.Path,'struct':__import__('struct')}
+  nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'require','regular','validate_elf'}]
+  exec(compile(ast.Module(nodes,type_ignores=[]),str(source),'exec'),scope);self.tools=N(validate_elf=scope['validate_elf'])
+ def elf(self,machine=62):
+  import struct
+  wire=bytearray(1024);wire[:8]=b'\x7fELF\x02\x01\x01\x00';struct.pack_into('<HHIQQ',wire,16,2,machine,1,0x400100,64);struct.pack_into('<HHH',wire,52,64,56,1);struct.pack_into('<IIQQQQQQ',wire,64,1,5,0,0x400000,0,1024,1024,4096);return bytes(wire)
+ def test_actual_binding_uses_native16_ELF_not_resolved_debian_wrapper(self):
+  native=self.root/'usr/lib/postgresql/16/bin/psql';native.parent.mkdir(parents=True);native.write_bytes(self.elf());native.chmod(0o755)
+  wrapper=self.root/'usr/share/postgresql-common/pg_wrapper';wrapper.parent.mkdir(parents=True);wrapper.write_text('#!/usr/bin/perl\n# synthetic never executed\n');bare=self.root/'usr/bin/psql';bare.parent.mkdir(parents=True);bare.symlink_to(wrapper)
+  def path(value):return native if str(value)=='/usr/lib/postgresql/16/bin/psql'else pathlib.Path(value)
+  with mock.patch.object(m,'Path',side_effect=path),mock.patch.object(m,'module',return_value=self.tools)as loader:
+   selected=m.native_psql16(REPO)
+  self.assertEqual(selected,m.pin(native));self.assertNotEqual(selected,m.pin(bare.resolve()));loader.assert_called_once_with(REPO,'actual_psql_ELF_admission','zig/bench/native_case_tools.py')
+  tree=ast.parse(pathlib.Path(m.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');binding=next(n for n in ast.walk(fn)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='binding'for t in n.targets));tools=next(v for k,v in zip(binding.value.keys,binding.value.values)if isinstance(k,ast.Constant)and k.value=='tools');psql=next(v for k,v in zip(tools.keys,tools.values)if isinstance(k,ast.Constant)and k.value=='psql');self.assertEqual(ast.unparse(psql),'native_psql16(repo)')
+  job=(REPO/'.github/workflows/zig-agents.yml').read_text().split('\n  aleo-full-case:',1)[1].split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0];self.assertIn('bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64',job)
+ def test_native16_apt_inverse_is_exact_in_both_existing_workflow_helpers(self):
+  text=(REPO/'.github/workflows/zig-agents.yml').read_text();helper=next(n for n in ast.parse((REPO/'zig/bench/paired_linux_test.py').read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');scope={};exec(compile(ast.Module([helper],type_ignores=[]),'actual paired workflow inverse','exec'),scope)
+  normalized=ordinary_native_http_workflow(text);self.assertEqual(scope['ordinary_native_http_workflow'](text),normalized)
+  line='          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64\n';self.assertEqual(text.count(line),1)
+  for changed in [text.replace(line,''),text.replace(line,line+line),text.replace(line,line.replace('postgresql-client-16','postgresql-client-17'))]:
+   for fn in [ordinary_native_http_workflow,scope['ordinary_native_http_workflow']]:
+    with self.assertRaisesRegex(AssertionError,'Exact Aleo native PostgreSQL16 install required'):fn(changed)
+ def test_wrapper_wrong_arch_nonexecutable_symlink_and_missing_refuse(self):
+  native=self.root/'psql'
+  for label in ['wrapper','arm64','nonexecutable','symlink','missing']:
+   if native.exists()or native.is_symlink():native.unlink()
+   if label!='missing':native.write_bytes(b'#!/usr/bin/perl\n'if label=='wrapper'else self.elf(183 if label=='arm64'else 62));native.chmod(0o644 if label=='nonexecutable'else 0o755)
+   if label=='symlink':target=self.root/'foreign';target.write_bytes(self.elf());target.chmod(0o755);native.unlink();native.symlink_to(target)
+   with self.subTest(label=label),mock.patch.object(m,'Path',side_effect=lambda value:native if str(value)=='/usr/lib/postgresql/16/bin/psql'else pathlib.Path(value)),mock.patch.object(m,'module',return_value=self.tools),self.assertRaises(ValueError):m.native_psql16(REPO)
+
 class ActivatedPolicyFixture(unittest.TestCase):
  def test_real_activation_cannot_turn_negative_policy_fixture_into_authority(self):
   active={**m.FIXED,'root_approved':True,'selected_mode':'ReleaseSafe','runtime_source_commit':'a'*40,'requests':{mode:{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}for mode in m.MODES},'qualified_cohort':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'qualified_docker':{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64},'required_source':[{'path':'not-to-be-read.json','bytes':1,'sha256':'b'*64}]}
