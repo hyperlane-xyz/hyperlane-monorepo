@@ -1201,6 +1201,22 @@ describe('pendingTransferMiddlewares configuration', () => {
       error: /refreshIntervalSecs/,
     },
     {
+      name: 'a misspelled denylist key',
+      middlewares: [
+        {
+          type: 'relayerDenylist',
+          url: 'https://example.com/x.json',
+          refreshIntervalSec: 30,
+        },
+      ],
+      error: /Unrecognized key: "refreshIntervalSec"/,
+    },
+    {
+      name: 'a misspelled blacklistIsm key',
+      middlewares: [{ type: 'blacklistIsm', refreshIntervalSec: 300 }],
+      error: /Unrecognized key: "refreshIntervalSec"/,
+    },
+    {
       name: 'a non-array value',
       middlewares: { blacklistIsm: {} },
       error: /pendingTransferMiddlewares/,

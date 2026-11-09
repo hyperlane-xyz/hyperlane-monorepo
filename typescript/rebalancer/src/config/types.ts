@@ -149,7 +149,7 @@ const DEFAULT_BLACKLIST_ISM_REFRESH_INTERVAL_IN_SECONDS = 600;
 const RELAYER_DENYLIST_URL_PROTOCOLS = ['https:', 'http:', 'file:'];
 
 const RelayerDenylistMiddlewareConfigSchema = z
-  .object({
+  .strictObject({
     type: z.literal(PendingTransferMiddlewareType.RelayerDenylist),
     url: z
       .string()
@@ -180,7 +180,7 @@ const RelayerDenylistMiddlewareConfigSchema = z
   );
 
 const BlacklistIsmMiddlewareConfigSchema = z
-  .object({
+  .strictObject({
     type: z.literal(PendingTransferMiddlewareType.BlacklistIsm),
     refreshIntervalSecs: z
       .number()
