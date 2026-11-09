@@ -453,6 +453,30 @@ class DriverFailureProjection(unittest.TestCase):
 
 
 
+class MigrationQueryProjection(unittest.TestCase):
+ def sources(self):return [m.pin(REPO/'zig/integration/aleo_process.ts')]
+ def observed(self):return {'status':'observed','lineCount':3,'names':['m20230309_000001_create_table_domain','m20261103_000019_scalar_notification_fields','m20230309_000001_create_table_domain'],'unrecognizedLineCount':0,'duplicateNameCount':1}
+ def test_actual_failed_driver_caller_publishes_only_closed_names_and_counts(self):
+  with tempfile.TemporaryDirectory()as directory:
+   case=pathlib.Path(directory).resolve()/'case';path=case/'data/case/result.json';path.parent.mkdir(parents=True)
+   path.write_text(json.dumps({'passed':False,'stage':'scraper-migration-query','errors':['PRIVATE_STDOUT_URI'],'evidence':{'scraper-migration-query':self.observed(),'private':'PRIVATE_STDOUT_URI'}}))
+   result=m.case_failure_diagnostics(case,REPO,self.sources());row=result['records']['driver']['driver_observation'];self.assertEqual(row['migration_query'],self.observed());self.assertEqual(row['last_persisted_stage']['value'],'scraper-migration-query');self.assertNotIn('PRIVATE',json.dumps(result));self.assertFalse(result['native_or_performance_credit'])
+ def test_absent_unavailable_and_original_count_mismatches_are_observations_only(self):
+  source=(REPO/'zig/integration/aleo_process.ts').read_text()
+  self.assertEqual(m.source_bound_migration_query(None,source),{'status':'absent'});self.assertEqual(m.source_bound_migration_query({'status':'unavailable'},source),{'status':'unavailable'})
+  for count in [1,20,21,22,64]:
+   row={'status':'observed','lineCount':count,'names':[],'unrecognizedLineCount':count,'duplicateNameCount':0};self.assertEqual(m.source_bound_migration_query(row,source),row)
+ def test_malformed_extra_nonstring_boolean_oversized_and_private_names_refuse(self):
+  source=(REPO/'zig/integration/aleo_process.ts').read_text()
+  for value in [21,[],{'status':'unavailable','private':'PRIVATE'}, {**self.observed(),'private':'PRIVATE'}, {**self.observed(),'lineCount':True}, {**self.observed(),'lineCount':65}, {**self.observed(),'names':['PRIVATE_URI']}, {**self.observed(),'names':['m20230309_000001_'+('x'*97)]}, {**self.observed(),'unrecognizedLineCount':1}, {**self.observed(),'duplicateNameCount':0}]:
+   with self.subTest(value=value):self.assertEqual(m.source_bound_migration_query(value,source),{'status':'refused'})
+ def test_missing_or_ambiguous_Source_and_changed_admission_refuse(self):
+  source=(REPO/'zig/integration/aleo_process.ts').read_text();row=self.observed()
+  for changed in ['',source+"\nawait save('scraper-migration-query', {});",source.replace('migrationQueryObservation(versions)','unreviewed(versions)')]:
+   self.assertEqual(m.source_bound_migration_query(row,changed),{'status':'refused'})
+  result=m.driver_failure_observation({'passed':False,'errors':[],'evidence':{'scraper-migration-query':row}},REPO,[{**self.sources()[0],'sha256':'0'*64}]);self.assertEqual(result,{'status':'source-refused'})
+
+
 class DriverCaughtErrorProjection(unittest.TestCase):
  def source(self):return (REPO/'zig/integration/aleo_process.ts').read_text()
  def diagnostic(self):

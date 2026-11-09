@@ -3650,6 +3650,8 @@ export async function runAleoProcess(manifest: AleoManifest): Promise<void> {
       pgEnvironment,
       budget.remaining(),
     );
+    const migrationQuery = migrationQueryObservation(versions);
+    await save('scraper-migration-query', migrationQuery);
     requireValue(
       versions.trim().split('\n').length === 21,
       'actual scraper Rust migration catalog differs',
@@ -5075,6 +5077,31 @@ export function evidenceJson(value: unknown): string {
       typeof entry === 'bigint' ? entry.toString() : entry,
     2,
   );
+}
+
+export function migrationQueryObservation(value: unknown):
+  | { status: 'unavailable' }
+  | {
+      status: 'observed';
+      lineCount: number;
+      names: string[];
+      unrecognizedLineCount: number;
+      duplicateNameCount: number;
+    } {
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > 65536)
+    return { status: 'unavailable' };
+  const rows = value.trim().split('\n');
+  if (rows.length > 64) return { status: 'unavailable' };
+  const names = rows.filter((row) =>
+    /^m[0-9]{8}_[0-9]{6}_[a-z0-9_]{1,96}$/.test(row),
+  );
+  return {
+    status: 'observed',
+    lineCount: rows.length,
+    names,
+    unrecognizedLineCount: rows.length - names.length,
+    duplicateNameCount: names.length - new Set(names).size,
+  };
 }
 
 export function sqlDomain(value: unknown): number {

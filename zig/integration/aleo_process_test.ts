@@ -37,6 +37,7 @@ import {
   collectAleoAdminObservations,
   readAleoObserverMetrics,
   type DispatchMessage,
+  migrationQueryObservation,
   sqlDomain,
   sqlTransactionBytes,
   sqlMessageQuery,
@@ -1771,6 +1772,138 @@ void test('Aleo staggered IDs cannot borrow a later ID retirement window', () =>
     () => observeLifecycle(old, [secondRow], messages, included, 631000),
     /630/,
   );
+});
+
+void test('Aleo scraper migration query observation reports actual rows and duplicate names without inventing a catalog', () => {
+  const first = 'm20230309_000001_create_table_domain';
+  const last = 'm20261103_000019_scalar_notification_fields';
+  assert.deepEqual(migrationQueryObservation(`${first}\n${last}\n${first}\n`), {
+    status: 'observed',
+    lineCount: 3,
+    names: [first, last, first],
+    unrecognizedLineCount: 0,
+    duplicateNameCount: 1,
+  });
+  assert.deepEqual(migrationQueryObservation(''), {
+    status: 'observed',
+    lineCount: 1,
+    names: [],
+    unrecognizedLineCount: 1,
+    duplicateNameCount: 0,
+  });
+  const mixed = migrationQueryObservation(
+    `${first}\nPRIVATE_URI_TOKEN\n\n${last}`,
+  );
+  assert.deepEqual(mixed, {
+    status: 'observed',
+    lineCount: 4,
+    names: [first, last],
+    unrecognizedLineCount: 2,
+    duplicateNameCount: 0,
+  });
+  assert.equal(JSON.stringify(mixed).includes('PRIVATE'), false);
+});
+void test('Aleo scraper migration query observation bounds malformed and oversized replies without inspecting objects', () => {
+  let inspected = 0;
+  const hostile = new Proxy(
+    {},
+    {
+      get() {
+        inspected++;
+        throw new Error('PRIVATE');
+      },
+    },
+  );
+  for (const value of [
+    undefined,
+    null,
+    21,
+    hostile,
+    'x'.repeat(65537),
+    'm20230309_000001_domain\n'.repeat(65),
+  ])
+    assert.deepEqual(migrationQueryObservation(value), {
+      status: 'unavailable',
+    });
+  assert.equal(inspected, 0);
+  assert.deepEqual(migrationQueryObservation('m20230309_000001_PRIVATE'), {
+    status: 'observed',
+    lineCount: 1,
+    names: [],
+    unrecognizedLineCount: 1,
+    duplicateNameCount: 0,
+  });
+});
+void test('Aleo scraper migration query is persisted before the original count guard on the actual production path', async () => {
+  const source = await readFile(
+    new URL('./aleo_process.ts', import.meta.url),
+    'utf8',
+  );
+  const start = source.indexOf('    const versions = await command(');
+  const guard = source.indexOf(
+    "      'actual scraper Rust migration catalog differs',",
+    start,
+  );
+  const end = source.indexOf('    );', guard) + 7;
+  assert.ok(start > 0 && guard > start && end > guard);
+  const actual = compileFunction(
+    'return (async () => {\n' +
+      stripTypeScriptTypes(source.slice(start, end)) +
+      '\n})();',
+    [
+      'command',
+      'manifest',
+      'databaseUrl',
+      'pgEnvironment',
+      'budget',
+      'save',
+      'migrationQueryObservation',
+      'requireValue',
+    ],
+  );
+  for (const count of [20, 21, 22]) {
+    const rows = Array.from(
+      { length: count },
+      () => 'm20230309_000001_create_table_domain',
+    ).join('\n');
+    const observed: unknown[] = [];
+    const invoke = () =>
+      actual(
+        async (_path: string, args: string[]) => {
+          assert.deepEqual(args, [
+            '-X',
+            'OWNED_DB',
+            '-At',
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-c',
+            'SELECT version FROM seaql_migrations ORDER BY version',
+          ]);
+          return rows;
+        },
+        { tools: { psql: { path: 'SOURCE_PSQL' } } },
+        'OWNED_DB',
+        {},
+        { remaining: () => 100 },
+        async (stage: string, evidence: unknown) => {
+          observed.push([stage, evidence]);
+        },
+        migrationQueryObservation,
+        (value: unknown, message: string) => {
+          assert.equal(observed.length, 1);
+          assert.ok(value, message);
+        },
+      );
+    if (count === 21) await invoke();
+    else
+      await assert.rejects(
+        invoke,
+        /actual scraper Rust migration catalog differs/,
+      );
+    assert.deepEqual(observed, [
+      ['scraper-migration-query', migrationQueryObservation(rows)],
+    ]);
+  }
 });
 
 void test('Aleo SQL follows actual transaction width and signed-u32 storage without injection', () => {

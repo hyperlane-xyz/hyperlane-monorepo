@@ -74,6 +74,21 @@ def source_bound_caught_error(value,source):
  except BaseException:return {'status':'refused'}
 
 
+def source_bound_migration_query(value,source):
+ if value is None:return {'status':'absent'}
+ try:
+  need(source.count("await save('scraper-migration-query',")==1 and source.count('migrationQueryObservation(versions)')==1 and source.count('export function migrationQueryObservation(')==1,'unique migration observation Source')
+  need(type(value)is dict and value.get('status')in {'observed','unavailable'},'closed migration query status')
+  if value['status']=='unavailable':need(set(value)=={'status'},'closed unavailable query');return {'status':'unavailable'}
+  need(set(value)=={'status','lineCount','names','unrecognizedLineCount','duplicateNameCount'},'closed migration query fields')
+  count=value['lineCount'];names=value['names'];unknown=value['unrecognizedLineCount'];duplicates=value['duplicateNameCount']
+  need(type(count)is int and 1<=count<=64 and type(names)is list and len(names)<=count,'bounded migration rows')
+  need(all(type(n)is str and re.fullmatch(r'm[0-9]{8}_[0-9]{6}_[a-z0-9_]{1,96}',n)for n in names),'safe migration names')
+  need(type(unknown)is int and unknown==count-len(names)and type(duplicates)is int and duplicates==len(names)-len(set(names)),'exact migration counts')
+  return {'status':'observed','lineCount':count,'names':list(names),'unrecognizedLineCount':unknown,'duplicateNameCount':duplicates}
+ except BaseException:return {'status':'refused'}
+
+
 def driver_failure_observation(value,repo,admitted_sources):
  # Text witnesses from failed driver metadata only, never typed exception/stack credit.
  if type(value)is not dict or value.get('passed')is not False:return {'status':'not-failed'}
@@ -125,6 +140,7 @@ def driver_failure_observation(value,repo,admitted_sources):
  classes='Error|TypeError|RangeError|SyntaxError|ReferenceError|AggregateError|AbortError|ValueError|RuntimeError|AssertionError|FileNotFoundError|FileExistsError|PermissionError|OSError|TimeoutError'
  errors=value.get('errors');result={'status':'observed','source':{'path':relative,'bytes':row['bytes'],'sha256':row['sha256']},'last_persisted_stage':observed,'basis':'Pinned Source literal/prefix text only; no actual exception type, OS errno or stack-frame claim.','error_rows':[]}
  evidence=value.get('evidence');caught=evidence.get('caughtErrorDiagnostic')if type(evidence)is dict else None
+ result['migration_query']=source_bound_migration_query(evidence.get('scraper-migration-query')if type(evidence)is dict else None,source)
  result['caught_error']=source_bound_caught_error(caught,source)
  if type(errors)is not list:result['errors_status']='refused';return result
  result.update(errors_status='observed',errors_count=len(errors),errors_truncated=len(errors)>16)
