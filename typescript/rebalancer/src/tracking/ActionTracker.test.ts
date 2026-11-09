@@ -16,7 +16,12 @@ import {
   type ExplorerMessage,
 } from '../utils/ExplorerClient.js';
 
-import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
+import {
+  ActionTracker,
+  type ActionTrackerConfig,
+  TRANSFER_SYNC_ROW_LIMIT_MESSAGE,
+} from './ActionTracker.js';
+import { ExplorerRowLimitError } from './pendingTransferMiddlewares/PendingTransferMiddleware.js';
 import { InMemoryStore } from './store/InMemoryStore.js';
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
@@ -352,6 +357,50 @@ describe('ActionTracker', () => {
       const transfers = await transferStore.getAll();
       expect(transfers).to.have.lengthOf(1);
     });
+
+    interface SyncFailureCase {
+      name: string;
+      error: Error;
+      loggedAsError: boolean;
+    }
+    const syncFailures: SyncFailureCase[] = [
+      {
+        name: 'logs an Explorer row limit failure as an error and rethrows it',
+        error: new ExplorerRowLimitError('row limit', []),
+        loggedAsError: true,
+      },
+      {
+        name: 'rethrows other Explorer failures without an error log',
+        error: new Error('explorer down'),
+        loggedAsError: false,
+      },
+    ];
+    for (const c of syncFailures) {
+      it(c.name, async () => {
+        const logger: Logger = pino({ level: 'silent' });
+        const error = Sinon.spy(logger, 'error');
+        explorerClient.getInflightUserTransfers.rejects(c.error);
+        const tracker = new ActionTracker(
+          transferStore,
+          rebalanceIntentStore,
+          rebalanceActionStore,
+          explorerClient,
+          core,
+          config,
+          logger,
+        );
+
+        await expect(tracker.syncTransfers()).to.be.rejectedWith(c.error);
+
+        expect(
+          error.calledWith(
+            Sinon.match({ error: c.error.message }),
+            TRANSFER_SYNC_ROW_LIMIT_MESSAGE,
+          ),
+        ).to.equal(c.loggedAsError);
+        expect(error.callCount).to.equal(c.loggedAsError ? 1 : 0);
+      });
+    }
 
     it('should mark transfers as complete when delivered', async () => {
       // Pre-create transfer

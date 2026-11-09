@@ -19,6 +19,7 @@ import type {
   CreateRebalanceIntentParams,
   IActionTracker,
 } from './IActionTracker.js';
+import { ExplorerRowLimitError } from './pendingTransferMiddlewares/PendingTransferMiddleware.js';
 import type {
   ActionType,
   IRebalanceActionStore,
@@ -29,6 +30,9 @@ import type {
   RebalanceIntent,
   Transfer,
 } from './types.js';
+
+export const TRANSFER_SYNC_ROW_LIMIT_MESSAGE =
+  'Transfer sync hit the Explorer row limit';
 
 export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
@@ -112,13 +116,24 @@ export class ActionTracker implements IActionTracker {
       excludeTxSenders.push(...this.config.inventorySignerAddresses);
     }
 
-    const inflightMessages = await this.explorerClient.getInflightUserTransfers(
-      {
-        routersByDomain: this.config.routersByDomain,
-        excludeTxSenders,
-      },
-      this.logger,
-    );
+    let inflightMessages: ExplorerMessage[];
+    try {
+      inflightMessages = await this.explorerClient.getInflightUserTransfers(
+        {
+          routersByDomain: this.config.routersByDomain,
+          excludeTxSenders,
+        },
+        this.logger,
+      );
+    } catch (error: unknown) {
+      if (error instanceof ExplorerRowLimitError) {
+        this.logger.error(
+          { error: error.message },
+          TRANSFER_SYNC_ROW_LIMIT_MESSAGE,
+        );
+      }
+      throw error;
+    }
 
     this.logger.debug(
       { count: inflightMessages.length },
