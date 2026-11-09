@@ -12,20 +12,19 @@ pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
 use hyperlane_sealevel_interchain_security_module_interface::MetadataSpecResult;
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::pubkey::Pubkey;
-use solana_sdk::signer::Signer;
 
-use crate::{SealevelKeypair, SealevelProvider};
+use crate::{SealevelProvider, SealevelSigner};
 
 const MAX_SPEC_ITERATIONS: usize = 10;
 
 /// A reference to the composite ISM program on some Sealevel chain.
 #[derive(Debug)]
 pub struct SealevelCompositeIsm {
-    payer: Option<SealevelKeypair>,
+    payer: Option<SealevelSigner>,
     /// Optional identity keypair — the relayer's on-chain identity used by TrustedRelayer ISMs.
     /// Mirrors the `signer` field in `SealevelMailbox`.  Only meaningful when it differs from
     /// `payer`; when absent or equal to `payer`, `trusted_relayer_pubkey` returns `None`.
-    identity: Option<SealevelKeypair>,
+    identity: Option<SealevelSigner>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
     provider: Arc<SealevelProvider>,
@@ -36,8 +35,8 @@ impl SealevelCompositeIsm {
     pub fn new(
         provider: Arc<SealevelProvider>,
         locator: ContractLocator,
-        payer: Option<SealevelKeypair>,
-        identity: Option<SealevelKeypair>,
+        payer: Option<SealevelSigner>,
+        identity: Option<SealevelSigner>,
     ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {

@@ -471,8 +471,8 @@ impl ChainConf {
                     tx_submitter,
                     conf,
                     &locator,
-                    keypair.map(h_sealevel::SealevelKeypair::new),
-                    identity_keypair.map(h_sealevel::SealevelKeypair::new),
+                    keypair,
+                    identity_keypair,
                 )
                 .map(|m| Box::new(m.with_ccs_signer(ccs_signer)) as Box<dyn Mailbox>)
                 .map_err(Into::into)
@@ -1090,7 +1090,7 @@ impl ChainConf {
                     tx_submitter,
                     conf.clone(),
                     &locator,
-                    signer.map(h_sealevel::SealevelKeypair::new),
+                    signer,
                 ));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -1179,9 +1179,7 @@ impl ChainConf {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
-                    provider,
-                    locator,
-                    keypair.map(h_sealevel::SealevelKeypair::new),
+                    provider, locator, keypair,
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -1246,9 +1244,7 @@ impl ChainConf {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
-                    provider,
-                    locator,
-                    keypair.map(h_sealevel::SealevelKeypair::new),
+                    provider, locator, keypair,
                 ));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
@@ -1311,8 +1307,8 @@ impl ChainConf {
                 Ok(h_sealevel::SealevelCompositeIsm::new(
                     provider,
                     locator,
-                    keypair.map(h_sealevel::SealevelKeypair::new),
-                    identity_keypair.map(h_sealevel::SealevelKeypair::new),
+                    keypair,
+                    identity_keypair,
                 ))
             }
             _ => eyre::bail!("SealevelCompositeIsm is only supported on Sealevel chains"),
@@ -1491,7 +1487,7 @@ impl ChainConf {
             let chain_signer: Box<dyn ChainSigner> = match &self.connection {
                 ChainConnectionConf::Ethereum(_) => Box::new(conf.build::<h_eth::Signers>().await?),
                 ChainConnectionConf::Sealevel(_) => {
-                    Box::new(conf.build::<h_sealevel::Keypair>().await?)
+                    Box::new(conf.build::<h_sealevel::SealevelSigner>().await?)
                 }
                 ChainConnectionConf::Cosmos(_) | ChainConnectionConf::CosmosNative(_) => {
                     Box::new(conf.build::<h_cosmos::Signer>().await?)
@@ -1517,7 +1513,7 @@ impl ChainConf {
         self.signer().await
     }
 
-    async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
+    async fn sealevel_signer(&self) -> Result<Option<h_sealevel::SealevelSigner>> {
         self.signer().await
     }
 
@@ -1528,9 +1524,9 @@ impl ChainConf {
     /// `SealevelMailbox`) handle the None case themselves.  This matches the lander path in
     /// `create_identity_keypair`: both return None when identity is absent, so the two paths
     /// always agree on whether a distinct identity key is in use.
-    async fn sealevel_identity_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
+    async fn sealevel_identity_signer(&self) -> Result<Option<h_sealevel::SealevelSigner>> {
         if let Some(conf) = &self.identity {
-            Ok(Some(conf.build::<h_sealevel::Keypair>().await?))
+            Ok(Some(conf.build::<h_sealevel::SealevelSigner>().await?))
         } else {
             Ok(None)
         }

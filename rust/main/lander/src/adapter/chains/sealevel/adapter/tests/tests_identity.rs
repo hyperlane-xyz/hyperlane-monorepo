@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey, signature::Keypair, signer::Signer};
 
 use hyperlane_sealevel::{
-    SealevelKeypair, SealevelProcessPayload, SealevelTransactionFormat, SealevelTxCostEstimate,
-    SealevelTxType,
+    SealevelKeypair, SealevelProcessPayload, SealevelSigner, SealevelTransactionFormat,
+    SealevelTxCostEstimate, SealevelTxType,
 };
 
 use crate::{adapter::AdaptsChain, payload::FullPayload};
@@ -16,7 +16,7 @@ use super::tests_common::{
 };
 
 fn make_adapter_with_identity(
-    identity: SealevelKeypair,
+    identity: SealevelSigner,
     provider: MockSvmProvider,
 ) -> SealevelAdapter {
     let result = {
@@ -146,7 +146,7 @@ fn payload_and_precursor_with_identity_signer(
 async fn test_identity_cosigns_when_account_is_signer() {
     let identity_keypair = Keypair::new();
     let identity_pubkey = identity_keypair.pubkey();
-    let identity = SealevelKeypair::new(identity_keypair);
+    let identity: SealevelSigner = SealevelKeypair::new(identity_keypair).into();
 
     let captured_count = Arc::new(Mutex::new(0usize));
     let provider = mock_provider_capturing_signer_count(identity_pubkey, captured_count.clone());
@@ -169,7 +169,7 @@ async fn test_identity_cosigns_when_account_is_signer() {
 async fn test_identity_does_not_cosign_when_account_is_not_signer() {
     let identity_keypair = Keypair::new();
     let identity_pubkey = identity_keypair.pubkey();
-    let identity = SealevelKeypair::new(identity_keypair);
+    let identity: SealevelSigner = SealevelKeypair::new(identity_keypair).into();
 
     let captured_count = Arc::new(Mutex::new(0usize));
     let provider = mock_provider_capturing_signer_count(identity_pubkey, captured_count.clone());

@@ -16,7 +16,6 @@ use solana_sdk::message::AddressLookupTableAccount;
 use solana_sdk::message::{Message, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_sdk::signer::Signer;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedTransactionWithStatusMeta, UiTransaction,
@@ -36,6 +35,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 
 use crate::alt::{fetch_alt, NonEmptyAltAddresses};
+use crate::async_signer::transaction_signatures;
 use crate::error::HyperlaneSealevelError;
 use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use crate::priority_fee::PriorityFeeOracle;
@@ -43,7 +43,7 @@ use crate::provider::recipient::RecipientProvider;
 use crate::provider::transaction::{parsed_message, txn};
 use crate::tx_type::SealevelTxType;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
-use crate::{ConnectionConf, SealevelKeypair, SealevelTransactionFormat, TransactionSubmitter};
+use crate::{ConnectionConf, SealevelSigner, SealevelTransactionFormat, TransactionSubmitter};
 use hyperlane_core::utils::read_concurrently;
 
 mod recipient;
@@ -90,11 +90,11 @@ pub trait SealevelProviderForLander: Send + Sync {
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &'a SealevelKeypair,
+        payer: &'a SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_addresses: &SealevelTransactionFormat,
-        additional_signers: &'a [&'a SealevelKeypair],
+        additional_signers: &'a [&'a SealevelSigner],
     ) -> ChainResult<SealevelTxType>;
 
     /// Estimates cost for Sealevel instruction.
@@ -102,7 +102,7 @@ pub trait SealevelProviderForLander: Send + Sync {
     async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         alt_addresses: &SealevelTransactionFormat,
@@ -163,11 +163,11 @@ impl SealevelProviderForLander for SealevelProvider {
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &'a SealevelKeypair,
+        payer: &'a SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_addresses: &SealevelTransactionFormat,
-        additional_signers: &'a [&'a SealevelKeypair],
+        additional_signers: &'a [&'a SealevelSigner],
     ) -> ChainResult<SealevelTxType> {
         let instructions = vec![
             // Set the compute unit limit.
@@ -209,17 +209,14 @@ impl SealevelProviderForLander for SealevelProvider {
                 .map_err(ChainCommunicationError::from_other)?;
 
                 let versioned_tx = if sign {
-                    // Build signer list after all awaits to avoid Send issues with &dyn Signer.
-                    let all_signers: Vec<&dyn Signer> =
-                        std::iter::once(payer.keypair() as &dyn Signer)
-                            .chain(
-                                additional_signers
-                                    .iter()
-                                    .map(|k| k.keypair() as &dyn Signer),
-                            )
-                            .collect();
-                    VersionedTransaction::try_new(VersionedMessage::V0(message), &all_signers)
-                        .map_err(ChainCommunicationError::from_other)?
+                    let message = VersionedMessage::V0(message);
+                    let signatures = transaction_signatures(&message, payer, additional_signers)
+                        .await
+                        .map_err(ChainCommunicationError::from_other)?;
+                    VersionedTransaction {
+                        signatures,
+                        message,
+                    }
                 } else {
                     let num_required_signatures = message.header.num_required_signatures as usize;
                     VersionedTransaction {
@@ -232,18 +229,23 @@ impl SealevelProviderForLander for SealevelProvider {
             }
             SealevelTransactionFormat::Legacy => {
                 // No ALT - use pure legacy Transaction (NOT wrapped in VersionedTransaction)
-                let message = Message::new(&instructions, Some(&payer.pubkey()));
+                let message = Message::new_with_blockhash(
+                    &instructions,
+                    Some(&payer.pubkey()),
+                    &recent_blockhash,
+                );
                 let legacy_tx = if sign {
-                    // Build signer list after all awaits to avoid Send issues with &dyn Signer.
-                    let all_signers: Vec<&dyn Signer> =
-                        std::iter::once(payer.keypair() as &dyn Signer)
-                            .chain(
-                                additional_signers
-                                    .iter()
-                                    .map(|k| k.keypair() as &dyn Signer),
-                            )
-                            .collect();
-                    Transaction::new(&all_signers, message, recent_blockhash)
+                    let signatures = transaction_signatures(
+                        &VersionedMessage::Legacy(message.clone()),
+                        payer,
+                        additional_signers,
+                    )
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?;
+                    Transaction {
+                        signatures,
+                        message,
+                    }
                 } else {
                     Transaction::new_unsigned(message)
                 };
@@ -259,7 +261,7 @@ impl SealevelProviderForLander for SealevelProvider {
     async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         alt_addresses: &SealevelTransactionFormat,
@@ -594,17 +596,17 @@ impl SealevelProvider {
     /// Returns `SealevelTxType::Versioned` with ALTs if `alt_addresses` is non-empty,
     /// or `SealevelTxType::Legacy` otherwise.
     ///
-    /// `additional_signers` are extra keypairs that must co-sign the transaction (e.g. the
-    /// identity keypair when a TrustedRelayer ISM is in use). Pass an empty slice when not
+    /// `additional_signers` are extra signers that must co-sign the transaction (e.g. the
+    /// identity signer when a TrustedRelayer ISM is in use). Pass an empty slice when not
     /// needed.
     pub async fn build_estimated_tx_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         alt_addresses: SealevelTransactionFormat,
-        additional_signers: &[&SealevelKeypair],
+        additional_signers: &[&SealevelSigner],
     ) -> ChainResult<SealevelTxType> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -643,7 +645,7 @@ impl SealevelProvider {
             return Ok(tx);
         }
 
-        // Multi-signer path: build unsigned, then sign with all keypairs.
+        // Multi-signer path: build unsigned, then sign with all required signers.
         let unsigned_tx = self
             .create_transaction_for_instruction(
                 compute_units,
@@ -663,17 +665,16 @@ impl SealevelProvider {
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
-        let all_signers: Vec<&dyn Signer> = std::iter::once(payer.keypair() as &dyn Signer)
-            .chain(
-                additional_signers
-                    .iter()
-                    .map(|k| k.keypair() as &dyn Signer),
-            )
-            .collect();
-
         let signed_tx = match unsigned_tx {
             SealevelTxType::Legacy(mut tx) => {
-                tx.sign(&all_signers, recent_blockhash);
+                tx.message.recent_blockhash = recent_blockhash;
+                tx.signatures = transaction_signatures(
+                    &VersionedMessage::Legacy(tx.message.clone()),
+                    payer,
+                    additional_signers,
+                )
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
                 SealevelTxType::Legacy(tx)
             }
             SealevelTxType::Versioned(vtx) => {
@@ -683,8 +684,13 @@ impl SealevelProvider {
                     VersionedMessage::V0(msg) => msg.recent_blockhash = recent_blockhash,
                     VersionedMessage::Legacy(msg) => msg.recent_blockhash = recent_blockhash,
                 }
-                let signed = VersionedTransaction::try_new(message, &all_signers)
+                let signatures = transaction_signatures(&message, payer, additional_signers)
+                    .await
                     .map_err(ChainCommunicationError::from_other)?;
+                let signed = VersionedTransaction {
+                    signatures,
+                    message,
+                };
                 SealevelTxType::Versioned(signed)
             }
         };
@@ -712,7 +718,7 @@ impl SealevelProvider {
     /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
         // If there's no data at all, default to an empty vec.
@@ -1099,7 +1105,7 @@ mod tests {
                 finished: finished.clone(),
                 fail: oracle_failure,
             });
-            let payer = SealevelKeypair::default();
+            let payer = SealevelSigner::default();
             let read = provider.get_estimated_costs_for_instruction(
                 Instruction {
                     program_id: Pubkey::new_unique(),

@@ -5,7 +5,6 @@ use num_traits::cast::FromPrimitive;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::Signer,
 };
 use tracing::warn;
 
@@ -18,12 +17,12 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{SealevelKeypair, SealevelProvider};
+use crate::{SealevelProvider, SealevelSigner};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainSecurityModule {
-    payer: Option<SealevelKeypair>,
+    payer: Option<SealevelSigner>,
     program_id: Pubkey,
     provider: Arc<SealevelProvider>,
 }
@@ -33,7 +32,7 @@ impl SealevelInterchainSecurityModule {
     pub fn new(
         provider: Arc<SealevelProvider>,
         locator: ContractLocator,
-        payer: Option<SealevelKeypair>,
+        payer: Option<SealevelSigner>,
     ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {

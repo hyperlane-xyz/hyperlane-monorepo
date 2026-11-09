@@ -17,7 +17,6 @@ use solana_sdk::{
     message::{v0::Message as MessageV0, Message, VersionedMessage},
     pubkey::Pubkey,
     signature::Signature,
-    signature::Signer,
     transaction::{
         Transaction as SealevelLegacyTransaction,
         VersionedTransaction as SealevelVersionedTransaction,
@@ -32,7 +31,7 @@ use solana_transaction_status::{
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::{ChainResult, HyperlaneDomain, KnownHyperlaneDomain};
 use hyperlane_sealevel::{
-    fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
+    fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelProviderForLander, SealevelSigner,
     SealevelTransactionFormat, SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
@@ -90,17 +89,17 @@ mock! {
             compute_unit_limit: u32,
             compute_unit_price_micro_lamports: u64,
             instruction: SealevelInstruction,
-            payer: &'a SealevelKeypair,
+            payer: &'a SealevelSigner,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
             alt_addresses: &SealevelTransactionFormat,
-            additional_signers: &'a [&'a SealevelKeypair],
+            additional_signers: &'a [&'a SealevelSigner],
         ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
             &self,
             instruction: SealevelInstruction,
-            payer: &SealevelKeypair,
+            payer: &SealevelSigner,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
             alt_addresses: &SealevelTransactionFormat,

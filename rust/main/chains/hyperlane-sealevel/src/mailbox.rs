@@ -26,7 +26,6 @@ use solana_sdk::{
     account::Account,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::Signer as _,
 };
 use tracing::{debug, instrument, warn};
 
@@ -43,8 +42,8 @@ use crate::universal_router_reveal::{
 };
 use crate::utils::sanitize_dynamic_accounts;
 use crate::{
-    ConnectionConf, ProcessAltOverride, SealevelKeypair, SealevelProvider,
-    SealevelProviderForLander, SealevelTransactionFormat,
+    ConnectionConf, ProcessAltOverride, SealevelProvider, SealevelProviderForLander,
+    SealevelSigner, SealevelTransactionFormat,
 };
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -99,7 +98,7 @@ pub struct SealevelMailbox {
     inbox: (Pubkey, u8),
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: Arc<SealevelProvider>,
-    payer: Option<SealevelKeypair>,
+    payer: Option<SealevelSigner>,
     /// Optional identity keypair used as the relayer's on-chain identity (e.g. for
     /// TrustedRelayer ISMs). When set it must differ from `payer`. When absent, no
     /// separate identity co-signer is added; only the fee-payer signature is present.
@@ -110,7 +109,7 @@ pub struct SealevelMailbox {
     /// It is an identity-only keypair — its signature proves relayer identity but
     /// it holds no value. Keeping it empty limits the blast radius if a malicious
     /// ISM program ever obtains a co-signature from this key.
-    signer: Option<SealevelKeypair>,
+    signer: Option<SealevelSigner>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,
     /// ALT addresses for versioned transactions (from config).
@@ -143,8 +142,8 @@ impl SealevelMailbox {
         tx_submitter: Arc<dyn TransactionSubmitter>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
-        payer: Option<SealevelKeypair>,
-        signer: Option<SealevelKeypair>,
+        payer: Option<SealevelSigner>,
+        signer: Option<SealevelSigner>,
     ) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
@@ -462,7 +461,7 @@ impl SealevelMailbox {
         Ok(inbox)
     }
 
-    fn get_payer(&self) -> ChainResult<&SealevelKeypair> {
+    fn get_payer(&self) -> ChainResult<&SealevelSigner> {
         self.payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
@@ -471,7 +470,7 @@ impl SealevelMailbox {
     /// Returns the identity signer only when it is distinct from the payer.
     /// Used to co-sign transactions for ISMs that require the relayer's identity as a signer
     /// (e.g. TrustedRelayer) without conflating fee-payer and identity roles.
-    fn get_signer_if_separate(&self) -> Option<&SealevelKeypair> {
+    fn get_signer_if_separate(&self) -> Option<&SealevelSigner> {
         let signer = self.signer.as_ref()?;
         let payer = self.payer.as_ref()?;
         if signer.pubkey() != payer.pubkey() {
@@ -581,7 +580,7 @@ impl Mailbox for SealevelMailbox {
         let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
-        let additional_signers: Vec<&SealevelKeypair> = self
+        let additional_signers: Vec<&SealevelSigner> = self
             .get_signer_if_separate()
             .filter(|signer| {
                 payload

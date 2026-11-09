@@ -36,9 +36,8 @@ use solana_commitment_config::CommitmentConfig;
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
-    message::Message,
+    message::{Message, VersionedMessage},
     pubkey::Pubkey,
-    signature::Signer,
     transaction::Transaction,
 };
 use solana_transaction_status::TransactionStatus;
@@ -46,8 +45,8 @@ use tokio::sync::OnceCell;
 use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
-    priority_fee::PriorityFeeOracle, rpc::fallback::SealevelFallbackRpcClient, SealevelKeypair,
-    SealevelTxType,
+    async_signer::transaction_signatures, priority_fee::PriorityFeeOracle,
+    rpc::fallback::SealevelFallbackRpcClient, SealevelSigner, SealevelTxType,
 };
 
 const REVEAL_COMPUTE_UNITS: u32 = 600_000;
@@ -377,7 +376,7 @@ pub fn maybe_spawn_reveal(
     config: &UniversalRouterRevealConfig,
     rpc_client: SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-    fee_payer: SealevelKeypair,
+    fee_payer: SealevelSigner,
     ccs_signer: Arc<dyn HyperlaneSigner>,
 ) {
     let body_len = message.body.len();
@@ -657,7 +656,7 @@ pub async fn try_recover_duplicate_commit(
     config: &UniversalRouterRevealConfig,
     rpc_client: &SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-    fee_payer: &SealevelKeypair,
+    fee_payer: &SealevelSigner,
     ccs_signer: &dyn HyperlaneSigner,
 ) -> Result<bool> {
     if message.body.len() != 96 {
@@ -789,7 +788,7 @@ struct RevealContext<'a> {
     recipient: [u8; 32],
     rpc_client: &'a SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-    fee_payer: &'a SealevelKeypair,
+    fee_payer: &'a SealevelSigner,
     ccs_signer: &'a dyn HyperlaneSigner,
     ccs_signature: OnceCell<String>,
     http_client: reqwest::Client,
@@ -957,8 +956,21 @@ async fn send_and_confirm(
         ];
         full_instructions.extend_from_slice(instructions);
 
-        let message = Message::new(&full_instructions, Some(&ctx.fee_payer.pubkey()));
-        let tx = Transaction::new(&[ctx.fee_payer.keypair()], message, blockhash);
+        let message = Message::new_with_blockhash(
+            &full_instructions,
+            Some(&ctx.fee_payer.pubkey()),
+            &blockhash,
+        );
+        let signatures = transaction_signatures(
+            &VersionedMessage::Legacy(message.clone()),
+            ctx.fee_payer,
+            &[],
+        )
+        .await?;
+        let tx = Transaction {
+            signatures,
+            message,
+        };
 
         // skip_preflight=true to avoid BlockhashNotFound race on multi-RPC setups.
         let signature = ctx
