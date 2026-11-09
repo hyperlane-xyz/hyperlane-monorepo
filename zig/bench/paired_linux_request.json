@@ -113,11 +113,11 @@
     },
     {
       "path": "zig/bench/native_case_tools.py",
-      "bytes": 57462,
+      "bytes": 57593,
       "sha256": {
         "sha256_hex_chunks": [
-          "25d180ee7d3b56d4302d16ed18b7ecb3",
-          "240a6c2f378a6e09d3e2ccfe0c1d1705"
+          "5fb2b9b7e621a49153876f5313d7805c",
+          "fc79f9e6a9511cc26588e0c0526ec5b9"
         ]
       }
     },

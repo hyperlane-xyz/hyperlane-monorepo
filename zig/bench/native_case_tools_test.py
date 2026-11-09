@@ -359,6 +359,28 @@ class EvmConsumerControls(unittest.TestCase):
         for rows in [[],[{**row,'status':'SKIP'}],[{**row,'status':'FAIL'}],[row,row],[{**row,'name':'different.test.some other test'}]]:
             with self.subTest(rows=rows),self.assertRaises(ValueError):m.evm_control_test_verdict('ignored',[target],lambda _,rows=rows:{'total':len(rows),'per_test':rows})
 
+    def test_filtered_component_uses_actual_parser_without_full_SDK_census(self):
+        import ast,re,types
+        source=Path(__file__).resolve().parents[1]/'tools/container_check.py'
+        tree=ast.parse(source.read_text());nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='native_test_results' or isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id in {'NATIVE_REQUIRED','NATIVE_SKIP_REASONS'}for t in n.targets)]
+        checker=types.ModuleType('actual_filtered_parser');checker.re=re
+        exec(compile(ast.fix_missing_locations(ast.Module(nodes,type_ignores=[])),str(source),'exec'),checker.__dict__)
+        full_required=checker.NATIVE_REQUIRED;self.assertEqual(len(full_required),36)
+        chunks=['\n'.join(f'{i}/{len(targets)} component.test.{target}...OK'for i,target in enumerate(targets,1))for targets in [m.EVM_CONTROL_TESTS[:2],m.EVM_CONTROL_TESTS[2:]]]
+        for text in chunks:
+            with self.assertRaisesRegex(AssertionError,'required SDK/production regression absent'):checker.native_test_results(text)
+        actual=ast.parse(Path(m.__file__).read_text());main=next(n for n in actual.body if isinstance(n,ast.FunctionDef)and n.name=='evm_control_main')
+        assignments=[n for n in ast.walk(main)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Attribute)and isinstance(t.value,ast.Name)and t.value.id=='checker'and t.attr=='NATIVE_REQUIRED'for t in n.targets)]
+        self.assertEqual(len(assignments),1)
+        exec(compile(ast.fix_missing_locations(ast.Module(assignments,type_ignores=[])),'actual private filtered-parser binding','exec'),{'checker':checker})
+        self.assertEqual(checker.NATIVE_REQUIRED,())
+        for text,targets in zip(chunks,[m.EVM_CONTROL_TESTS[:2],m.EVM_CONTROL_TESTS[2:]]):
+            self.assertEqual(len(m.evm_control_test_verdict(text,targets,checker.native_test_results)['required_OK']),len(targets))
+        for text in [chunks[1].replace('OK','FAIL'),chunks[1].replace('OK','SKIP'),chunks[1].replace('1/1','2/2'),chunks[1]+'\n'+chunks[1],chunks[1].replace(m.EVM_CONTROL_TESTS[2],'different')]:
+            with self.assertRaises((AssertionError,ValueError)):m.evm_control_test_verdict(text,m.EVM_CONTROL_TESTS[2:],checker.native_test_results)
+        checker.NATIVE_REQUIRED=full_required
+        with self.assertRaisesRegex(AssertionError,'required SDK/production regression absent'):checker.native_test_results(chunks[0])
+
     def test_owned_Source_copy_joins_Git_blob_and_hashes_actual_helpers(self):
         import hashlib
         repo=self.root/'repo';names=['zig/src/db_tests.zig','zig/src/agents/indexing/tx_id_native_test.zig','zig/tools/zig.py','zig/tools/bootstrap.py'];listing=[]

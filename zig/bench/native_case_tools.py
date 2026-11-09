@@ -482,6 +482,8 @@ def evm_control_main(argv):
         aout,aerr=run('prepare-and-Anvil',[sys.executable,'-I','-B',str(ROOT/'zig/bench/native_case_tools.py'),'evm-prepare-worker','--manifest',str(worker_path)],maximum=65536)
         tout,terr=run('txid-crash-window',[str(args.output/'txid-tests')],cwd=fixture,extra={'CONTROL_ORACLE_PATH':str(oracle),'CONTROL_ORACLE_SHA256':admitted['ziggy-rocks-oracle']['sha256']},maximum=65536)
         spec=importlib.util.spec_from_file_location('evm_control_parser',ROOT/'zig/tools/container_check.py');checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
+        # Filtered components enforce their own exact targets below; SDK census stays separate.
+        checker.NATIVE_REQUIRED=()
         tests=[evm_control_test_verdict(aout.read_text()+aerr.read_text(),EVM_CONTROL_TESTS[:2],checker.native_test_results),evm_control_test_verdict(tout.read_text()+terr.read_text(),EVM_CONTROL_TESTS[2:],checker.native_test_results)]
         require('CONSUMER_TXID_CRASH_WINDOW_OK'in(tout.read_text()+terr.read_text()),'Actual crash-window completion marker required')
         fixture_result=json.loads((args.output/'prepare-actual.json').read_text());require(set(fixture_result)=={'schema','passed','Anvil_stopped_and_waited','exact_existing_prepare_and_Anvil_tests','fixture_json'}and all(fixture_result[k]is True for k in ['passed','Anvil_stopped_and_waited','exact_existing_prepare_and_Anvil_tests'])and set(fixture_result['fixture_json'])=={'bytes','sha256'},'Actual prepare fixture cleanup missing')
