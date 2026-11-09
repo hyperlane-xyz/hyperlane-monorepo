@@ -11,10 +11,12 @@ build = "build.rs"
 [dependencies]
 eyre = "=0.6.8"
 hyperlane-core = { path = "../../../rust/main/hyperlane-core", default-features = false, features = ["strum"] }
-rand = "0.8.5"
 sha3 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
+
+[dev-dependencies]
+rand = "0.8.5"
 
 [profile.release]
 debug = 0

@@ -57,7 +57,8 @@ implementations always use the same dependencies in the same executable.
 
 The focused suite runs the real packed-tree and builder tests, including
 independent recursive-tree comparison, historical prefixes, chunk boundaries,
-whole-batch capacity rejection, and failure latching. The full relayer/RocksDB
-suite was not run locally because this checkout had under 4 GiB free and no
-reusable agent build. Run the normal relayer suite in CI before merge; this
-harness does not replace it. No agent rollout was performed.
+whole-batch capacity rejection, and failure latching. The actual relayer's
+Merkle and prover tests also passed locally: 21 tests, including both RocksDB
+loader cases. Production relayer Clippy passed with `-D warnings`. The full
+suite remains for CI; this harness does not replace it. No agent rollout was
+performed.
