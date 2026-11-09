@@ -79,16 +79,19 @@ impl PackedMerkle {
             return Ok(());
         }
         for leaf in leaves {
-            self.push_subtrees(*leaf);
+            self.push_subtrees(*leaf)?;
         }
         self.root = self.subtree_root(0, TREE_DEPTH, next_count as u64);
         Ok(())
     }
 
     // Capacity was checked for the entire batch before the first mutation.
-    fn push_subtrees(&mut self, leaf: H256) {
+    fn push_subtrees(&mut self, leaf: H256) -> Result<(), MerkleTreeError> {
         let mut node = leaf;
-        let next_count = self.count + 1;
+        let next_count = self
+            .count
+            .checked_add(1)
+            .ok_or(MerkleTreeError::MerkleTreeFull)?;
         let mut size = next_count;
         for level in &mut self.levels {
             level.push(node);
@@ -107,6 +110,7 @@ impl PackedMerkle {
             size >>= 1;
         }
         self.count = next_count;
+        Ok(())
     }
 
     // Only one branch can contain the incomplete right edge. The recursion
