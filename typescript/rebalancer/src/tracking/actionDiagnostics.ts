@@ -20,6 +20,7 @@ export function getActionHoldReason(action: RebalanceAction): ActionHoldReason {
     return ActionHoldReason.BridgeNotFound;
   if (
     action.messageId ||
+    action.externalExecutionRef ||
     (action.finalizedSourceTxHash === action.txHash && action.txHash)
   )
     return ActionHoldReason.SettlementPending;

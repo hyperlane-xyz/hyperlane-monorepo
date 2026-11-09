@@ -1,5 +1,9 @@
 import { type PopulatedTransaction, ethers, type providers } from 'ethers';
 import Sinon from 'sinon';
+import {
+  MailboxClient__factory,
+  TokenBridgeOft__factory,
+} from '@hyperlane-xyz/core';
 
 import {
   type ChainMap,
@@ -28,6 +32,56 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
+
+/** Read-only bridge identities used by execution preflight tests. */
+export function createMockSettlementProvider(
+  domain: number,
+  oft?: {
+    address: string;
+    eid: number;
+    destinationEid: number;
+    destinationOft: string;
+  },
+) {
+  const provider = new ethers.providers.StaticJsonRpcProvider(
+    'https://rpc.invalid',
+    { chainId: domain, name: 'test' },
+  );
+  const mailboxAbi = MailboxClient__factory.createInterface();
+  const oftAbi = TokenBridgeOft__factory.createInterface();
+  const endpointAbi = new ethers.utils.Interface([
+    'function endpoint() view returns (address)',
+    'function eid() view returns (uint32)',
+    'function peers(uint32) view returns (bytes32)',
+  ]);
+  Sinon.stub(provider, 'call').callsFake(async (request) => {
+    const data = String(await request.data);
+    if (data.startsWith(mailboxAbi.getSighash('mailbox')))
+      return mailboxAbi.encodeFunctionResult('mailbox', [TEST_ADDRESSES.token]);
+    if (data.startsWith(mailboxAbi.getSighash('localDomain')))
+      return mailboxAbi.encodeFunctionResult('localDomain', [domain]);
+    if (oft) {
+      if (data.startsWith(oftAbi.getSighash('oft')))
+        return oftAbi.encodeFunctionResult('oft', [oft.address]);
+      if (data.startsWith(oftAbi.getSighash('hyperlaneDomainToLzEid')))
+        return oftAbi.encodeFunctionResult('hyperlaneDomainToLzEid', [
+          oft.destinationEid,
+        ]);
+      if (data.startsWith(endpointAbi.getSighash('endpoint')))
+        return endpointAbi.encodeFunctionResult('endpoint', [
+          TEST_ADDRESSES.token,
+        ]);
+      if (data.startsWith(endpointAbi.getSighash('eid')))
+        return endpointAbi.encodeFunctionResult('eid', [oft.eid]);
+      if (data.startsWith(endpointAbi.getSighash('peers')))
+        return endpointAbi.encodeFunctionResult('peers', [
+          ethers.utils.hexZeroPad(oft.destinationOft, 32),
+        ]);
+    }
+    throw new Error(`Unexpected settlement preflight call ${data}`);
+  });
+  return provider;
+}
 
 // === Mock Classes ===
 
@@ -263,6 +317,9 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
       (chain: ChainName) => mergedMetadata[chain] ?? {},
     ),
     getProvider: Sinon.stub().returns(mockProvider),
+    getEthersV5Provider: Sinon.stub().callsFake((chain: ChainName) =>
+      createMockSettlementProvider(mergedMetadata[chain]?.domainId ?? 0),
+    ),
     getSigner: Sinon.stub().returns(mockSigner),
     estimateGas: throwOnEstimateGas
       ? Sinon.stub().rejects(throwOnEstimateGas)

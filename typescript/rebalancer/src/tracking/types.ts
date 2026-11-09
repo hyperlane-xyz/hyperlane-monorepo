@@ -99,7 +99,6 @@ export interface RebalanceAction extends TrackedActionBase {
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
   lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed bridge/settlement status
-
 }
 
 // === Type Aliases for Stores ===
