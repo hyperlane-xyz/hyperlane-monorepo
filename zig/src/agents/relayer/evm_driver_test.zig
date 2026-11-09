@@ -1569,3 +1569,87 @@ test "post latest-delivery finality control refusal deadline and corruption erro
         try runtime.rpc.expectDone();
     }
 }
+
+fn expectFinalityRequest(rpc: *const MockRpc, tag: []const u8) !void {
+    const raw = rpc.requests.items[rpc.requests.items.len - 1];
+    var request = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, raw, .{});
+    defer request.deinit();
+    try std.testing.expectEqualStrings("eth_call", request.value.object.get("method").?.string);
+    const params = request.value.object.get("params").?.array.items;
+    try std.testing.expectEqual(@as(usize, 2), params.len);
+    try std.testing.expectEqualStrings(tag, params[1].string);
+}
+
+test "EVM finality external confirmation preserves all five tags and false delivery" {
+    const a = std.testing.allocator;
+    for ([_][]const u8{ "latest", "finalized", "safe", "earliest", "pending" }) |tag| {
+        for ([_]bool{ false, true }) |delivered| {
+            var fixture = try Fixture.init(a);
+            defer fixture.deinit();
+            const steps = [_]Step{
+                .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
+                .{ .method = "eth_call", .result = one_word },
+                .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
+                .{ .method = "eth_call", .result = if (delivered) one_word else zero_word },
+            };
+            var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .tag = tag });
+            defer runtime.deinit();
+            const observed = now();
+            try runtime.actor.beginConfirmation(observed, false);
+            const report = try runtime.stepAt(observed);
+            try std.testing.expectEqual(if (delivered) driver.State.delivered else driver.State.existing_payload, report.state);
+            try std.testing.expectEqual(delivered, runtime.actor.value.stage == .delivered);
+            try expectFinalityRequest(&runtime.rpc, tag);
+            try expectNoEffects(runtime);
+            try runtime.rpc.expectDone();
+        }
+    }
+}
+
+test "EVM finality self receipt preserves all five tags boolean outcome and actual cost" {
+    const a = std.testing.allocator;
+    for ([_][]const u8{ "latest", "finalized", "safe", "earliest", "pending" }) |tag| {
+        for ([_]bool{ false, true }) |delivered| {
+            var fixture = try Fixture.init(a);
+            defer fixture.deinit();
+            const final_steps = [_]Step{
+                .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
+                .{ .method = "eth_call", .result = if (delivered) one_word else zero_word },
+            };
+            const steps = readySteps() ++ final_steps;
+            var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .tag = tag });
+            defer runtime.deinit();
+            const prepared = try runtime.prepareStep();
+            try runtime.associate(&.{prepared.payload.?}, @splat(3), @splat(4), .finalized);
+            runtime.setReceipt(@splat(4), @splat(5), 10, 6_000, 7, true);
+            const report = try runtime.step();
+            try std.testing.expectEqual(if (delivered) driver.State.delivered else driver.State.retried, report.state);
+            try std.testing.expectEqual(delivered, runtime.actor.value.stage == .delivered);
+            const spent = try runtime.store.expenditure(fixture.message.id());
+            try std.testing.expectEqual(@as(u256, 6_000), spent.gas_used);
+            try std.testing.expectEqual(@as(u256, 42_000), spent.tokens_used);
+            try expectFinalityRequest(&runtime.rpc, tag);
+            try runtime.rpc.expectDone();
+        }
+    }
+}
+
+test "EVM finality invalid tag cannot retire an external confirmation" {
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = [_]Step{
+        .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
+        .{ .method = "eth_call", .result = one_word },
+        .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
+    };
+    var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .tag = "Safe" });
+    defer runtime.deinit();
+    const observed = now();
+    try runtime.actor.beginConfirmation(observed, false);
+    try std.testing.expectError(error.InvalidEvmReorgTag, runtime.stepAt(observed));
+    try std.testing.expect(runtime.actor.value.stage != .delivered);
+    try std.testing.expectEqual(@as(u32, 0), runtime.actor.value.retries);
+    try expectNoEffects(runtime);
+    try runtime.rpc.expectDone();
+}

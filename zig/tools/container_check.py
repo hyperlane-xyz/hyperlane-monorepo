@@ -595,6 +595,12 @@ NATIVE_REQUIRED = (
     'Starknet view verify matches released Cairo metadata and message calldata',
     'Starknet view verification refuses malformed booleans trailing felts and remote reverts',
     'production Stark metadata source aggregation requires actual multisig and pausable view verification',
+    'EVM finality five configured tags resolve one numeric nonce snapshot',
+    'EVM finality rejects invalid tags and absent pending block numbers',
+    'EVM finality numeric depth preserves zero and saturating subtraction',
+    'EVM finality external confirmation preserves all five tags and false delivery',
+    'EVM finality self receipt preserves all five tags boolean outcome and actual cost',
+    'EVM finality invalid tag cannot retire an external confirmation',
 )
 
 

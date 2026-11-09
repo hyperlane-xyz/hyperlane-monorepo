@@ -31,24 +31,13 @@ pub const Evm = struct {
         if (self.rpc.options.native_transport == null and !self.allow_std_fixture) return error.NativeLanderTransportRequired;
     }
 
-    fn finalizedTag(self: *Evm, allocator: std.mem.Allocator, height: u64) ![]u8 {
-        return switch (self.reorg) {
-            .blocks => abi.quantityAlloc(allocator, height),
-            .tag => |tag| {
-                if (!std.mem.eql(u8, tag, "finalized")) return error.UnsupportedFinalityTag;
-                return allocator.dupe(u8, "finalized");
-            },
-        };
-    }
-
     fn finalizedHeight(context: *anyopaque) !u64 {
         const self: *Evm = @ptrCast(@alignCast(context));
         try self.transport();
         return switch (self.reorg) {
             .blocks => |blocks| (try self.rpc.blockNumber()) -| blocks,
             .tag => |tag| {
-                if (!std.mem.eql(u8, tag, "finalized")) return error.UnsupportedFinalityTag;
-                var response = try self.rpc.call("eth_getBlockByNumber", .{ "finalized", false });
+                var response = try self.rpc.getBlock(try provider.BlockRef.fromTag(tag));
                 defer response.deinit();
                 return abi.quantity(try provider.string(try types.field(response.value(), "number")));
             },
@@ -61,7 +50,9 @@ pub const Evm = struct {
         const height = try finalizedHeight(context);
         const address = try abi.hexAlloc(self.rpc.allocator, &signer);
         defer self.rpc.allocator.free(address);
-        const tag = try self.finalizedTag(self.rpc.allocator, height);
+        // Pin the nonce query to the resolved snapshot, as the Rust provider
+        // does; a moving tag may advance between the two RPC responses.
+        const tag = try abi.quantityAlloc(self.rpc.allocator, height);
         defer self.rpc.allocator.free(tag);
         var response = try self.rpc.call("eth_getTransactionCount", .{ address, tag });
         defer response.deinit();

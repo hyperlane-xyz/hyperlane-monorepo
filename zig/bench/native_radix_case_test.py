@@ -187,7 +187,15 @@ preparation=importlib.util.module_from_spec(prep_spec);prep_spec.loader.exec_mod
 class PreparationGraphControls(unittest.TestCase):
     setUp=preparation.Controls.setUp
     git=preparation.Controls.git
-    repository=preparation.Controls.repository
+    def repository(self):
+        preparation.Controls.repository(self)
+        diagnostic=preparation.m.load_module('radix_graph_fixture_sources','zig/integration/multivm_diagnostics.py')
+        for name,_,_ in diagnostic.RADIX_SCRAPER_SOURCE:
+            target=self.root/name;target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes((preparation.m.ROOT/name).read_bytes())
+        self.git('add','.')
+        self.git('commit','-qm','fixed SCR Source fixture')
+        return self.git('rev-parse','HEAD')
     fixture_stage=preparation.StageControls.fixture_stage
 
     def build(self,stage_failure=False):
@@ -204,7 +212,7 @@ class PreparationGraphControls(unittest.TestCase):
         for source in(api.ROOT/'zig/integration').glob('multivm_*.py'):
             target=repo/'zig/integration'/source.name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
         metadata=repo/'zig/integration/fixtures/radix-release-v1.0.0.json.gz';metadata.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(api.ROOT/'zig/integration/fixtures/radix-release-v1.0.0.json.gz',metadata)
-        (repo/'rust/main/utils/run-locally').mkdir(parents=True)
+        (repo/'rust/main/utils/run-locally').mkdir(parents=True,exist_ok=True)
         def output(path,value):path.write_text(json.dumps(value));return api.artifact(path)
         request_pin=output(repo/'request.json',request);receipt=output(repo/'receipt.json',{'mock_only':True})
         tools={};template=Path(stage['tools']['docker']['path'])
@@ -293,12 +301,30 @@ class PreparationGraphControls(unittest.TestCase):
         api=self.build();owner=self.owner;output=self.case/'supervision'
         child=SimpleNamespace(pid=12345,returncode=0)
         recovered={'passed':False,'container_absent':False,'recovery_needed':True}
-        with mock.patch.object(owner.sys,'platform','linux'),mock.patch.object(owner.sys,'argv',['owner','--plan',str(self.paths['launch-plan']),'--plan-sha256',api.checksum(self.paths['launch-plan']),'--output',str(output)]),mock.patch.object(owner.shutil,'disk_usage',return_value=SimpleNamespace(free=8*owner.GIB)),mock.patch.object(owner.owner,'enable_subreaper'),mock.patch.object(owner.owner,'stop_owned',side_effect=RuntimeError('injected process cleanup failure')),mock.patch.object(owner.subprocess,'Popen',return_value=child),mock.patch.object(owner.os,'waitid',return_value=SimpleNamespace()),mock.patch.object(owner.signal,'signal'),mock.patch.object(owner,'recover_owned_radix',return_value=recovered)as radix_recovery,mock.patch.object(owner,'recover_owned_pg',return_value={'container_absent':True,'container_id':None})as pg_recovery:
+        with mock.patch.object(owner.sys,'platform','linux'),mock.patch.object(owner.sys,'argv',['owner','--plan',str(self.paths['launch-plan']),'--plan-sha256',api.checksum(self.paths['launch-plan']),'--output',str(output)]),mock.patch.object(owner.shutil,'disk_usage',return_value=SimpleNamespace(free=8*owner.GIB)),mock.patch.object(owner.owner,'enable_subreaper'),mock.patch.object(owner.owner,'stop_owned',side_effect=RuntimeError('injected process cleanup failure')),mock.patch.object(owner.subprocess,'Popen',return_value=child),mock.patch.object(owner.os,'waitid',return_value=SimpleNamespace(),create=True),mock.patch.object(owner.signal,'signal'),mock.patch.object(owner,'recover_owned_radix',return_value=recovered)as radix_recovery,mock.patch.object(owner,'recover_owned_pg',return_value={'container_absent':True,'container_id':None})as pg_recovery:
             with self.assertRaisesRegex(ValueError,'Owned native case failed'):owner.main()
         radix_recovery.assert_called_once();pg_recovery.assert_called_once()
         result=json.loads((output/'result.json').read_text())
         self.assertEqual(result['process_cleanup_error']['type'],'RuntimeError')
         self.assertFalse(result['passed']);self.assertFalse(result['native_case_acceptance'])
+
+    def fixed_scr_refusal(self,changed):
+        api=preparation.m;actual=api.radix_scraper_source_catalog
+        def broken(repo,*args):
+            diagnostic=api.load_module('radix_graph_fixed_source_refusal','zig/integration/multivm_diagnostics.py')
+            target=repo/diagnostic.RADIX_SCRAPER_SOURCE[0][0]
+            if changed:target.write_bytes(target.read_bytes()+b'\n')
+            else:target.unlink()
+            return actual(repo,*args)
+        with mock.patch.object(api,'radix_scraper_source_catalog',side_effect=broken),self.assertRaisesRegex(ValueError,'Fixed SCR Source differs'if changed else'Regular nonsymlink'):
+            self.build()
+        self.assertFalse((self.case/'manifest.json').exists());self.assertFalse((self.case/'launch-plan.json').exists());self.assertFalse((self.case/'execution-approval.json').exists())
+
+    def test_missing_fixed_scr_source_refuses_before_execution_approval(self):
+        self.fixed_scr_refusal(False)
+
+    def test_changed_fixed_scr_source_refuses_before_execution_approval(self):
+        self.fixed_scr_refusal(True)
 
     def test_official_data_refusal_prevents_manifest_approval_or_owner_plan(self):
         with self.assertRaisesRegex(ValueError,'official data admission refused'):self.build(stage_failure=True)

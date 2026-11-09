@@ -46,6 +46,16 @@ pub const BlockRef = union(enum) {
     earliest,
     pending,
 
+    /// Same exact five configured tags as the production Rust provider.
+    pub fn fromTag(value: []const u8) !BlockRef {
+        if (std.mem.eql(u8, value, "latest")) return .latest;
+        if (std.mem.eql(u8, value, "finalized")) return .finalized;
+        if (std.mem.eql(u8, value, "safe")) return .safe;
+        if (std.mem.eql(u8, value, "earliest")) return .earliest;
+        if (std.mem.eql(u8, value, "pending")) return .pending;
+        return error.InvalidEvmReorgTag;
+    }
+
     fn text(self: BlockRef, allocator: Allocator) ![]u8 {
         return switch (self) {
             .number => |n| abi.quantityAlloc(allocator, n),

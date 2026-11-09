@@ -439,10 +439,7 @@ fn finalizedDelivered(client: *evm.RpcClient, message: protocol.Message, config:
     try client.checkChain(config.source.chain_id);
     const block: evm.provider.BlockRef = switch (config.source.reorg) {
         .blocks => |blocks| .{ .number = (try client.blockNumber()) -| blocks },
-        .tag => |tag| blk: {
-            if (!std.mem.eql(u8, tag, "finalized")) return error.UnsupportedFinalityTag;
-            break :blk .finalized;
-        },
+        .tag => |tag| try evm.provider.BlockRef.fromTag(tag),
     };
     return client.delivered(config.source.mailbox[12..32].*, message.id(), block);
 }

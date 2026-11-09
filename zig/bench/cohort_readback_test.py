@@ -447,7 +447,7 @@ class Controls(unittest.TestCase):
             changed=copy.deepcopy(native);mutate(changed)
             with self.assertRaises(api.Refused):api.suite_counts(changed)
     def test_producer_required_native_catalog_and_closed_count(self):
-        required=actual_native_required();self.assertEqual(len(required),30)
+        required=actual_native_required();self.assertEqual(len(required),36)
         self.assertIn('scraper generic raw sequence snapshots dispatch before derived insertion union write',required)
         self.assertIn('Aleo worker forwards explicit public consensus override into actual clean child and preserves absence',required)
         files=sdk_fixture()
@@ -717,7 +717,7 @@ class ExplicitAgentRuntimeControls(unittest.TestCase):
         body=(HERE.parent/'src/ops/metrics.zig').read_bytes();lines=body.splitlines()
         self.assertEqual(len(api.AGENT_RUNTIME_TESTS),2);self.assertEqual(len(set(api.AGENT_RUNTIME_TESTS)),2)
         for name in api.AGENT_RUNTIME_TESTS:self.assertEqual(lines.count(('test "'+name+'" {').encode()),1)
-        self.assertFalse(set(actual_native_required())&set(api.AGENT_RUNTIME_TESTS));self.assertEqual(len(actual_native_required()),30)
+        self.assertFalse(set(actual_native_required())&set(api.AGENT_RUNTIME_TESTS));self.assertEqual(len(actual_native_required()),36)
 
     def test_count_only_and_source_only_are_not_actual_test_observation(self):
         for name in api.AGENT_RUNTIME_TESTS:

@@ -550,7 +550,7 @@ fn retryableCalldata(a: Allocator, mailbox: Address, process: []const u8) ![]u8 
 fn deliveryFinalityBlock(client: *evm.RpcClient, reorg: settings.Reorg) !evm.BlockRef {
     return switch (reorg) {
         .blocks => |depth| .{ .number = (try client.blockNumber()) -| depth },
-        .tag => |tag| if (std.mem.eql(u8, tag, "latest")) .latest else if (std.mem.eql(u8, tag, "finalized")) .finalized else if (std.mem.eql(u8, tag, "safe")) .safe else if (std.mem.eql(u8, tag, "earliest")) .earliest else if (std.mem.eql(u8, tag, "pending")) .pending else error.InvalidEvmReorgTag,
+        .tag => |tag| try evm.BlockRef.fromTag(tag),
     };
 }
 

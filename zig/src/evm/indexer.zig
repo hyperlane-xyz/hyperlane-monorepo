@@ -186,13 +186,7 @@ pub const Indexer = struct {
 
 fn tag(period: objects.ReorgPeriod) !?rpc.BlockRef {
     if (period != .tag) return null;
-    const value = period.tag;
-    if (std.mem.eql(u8, value, "latest")) return .latest;
-    if (std.mem.eql(u8, value, "finalized")) return .finalized;
-    if (std.mem.eql(u8, value, "safe")) return .safe;
-    if (std.mem.eql(u8, value, "earliest")) return .earliest;
-    if (std.mem.eql(u8, value, "pending")) return .pending;
-    return error.InvalidEvmReorgTag;
+    return try rpc.BlockRef.fromTag(period.tag);
 }
 
 fn less(_: void, a: rpc.Log, b: rpc.Log) bool {

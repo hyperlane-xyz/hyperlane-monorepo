@@ -111,3 +111,95 @@ test "loopback estimation serializes access lists" {
     try std.testing.expectEqual(@as(u256, 30), fee.max_fee_per_gas);
     if (failure) |err| return err;
 }
+
+// Captures the actual production Chain RPC boundary without a socket or node.
+const FinalityRpc = struct {
+    steps: []const Step,
+    index: usize = 0,
+
+    fn exchange(self: *FinalityRpc) provider.Exchange {
+        return .{ .context = self, .fetch_fn = fetch };
+    }
+    fn fetch(context: *anyopaque, allocator: std.mem.Allocator, body: []const u8, _: provider.Options) !provider.WireResponse {
+        const self: *FinalityRpc = @ptrCast(@alignCast(context));
+        if (self.index >= self.steps.len) return error.UnexpectedFinalityRpc;
+        const step = self.steps[self.index];
+        self.index += 1;
+        var request = try std.json.parseFromSlice(std.json.Value, allocator, body, .{});
+        defer request.deinit();
+        try std.testing.expectEqualStrings(step.method, request.value.object.get("method").?.string);
+        if (step.expect) |expected| {
+            const params = try std.json.Stringify.valueAlloc(allocator, request.value.object.get("params").?, .{});
+            defer allocator.free(params);
+            try std.testing.expectEqualStrings(expected, params);
+        }
+        const response = try std.fmt.allocPrint(allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":{s}}}", .{ request.value.object.get("id").?.integer, step.result });
+        return .{ .bytes = response, .len = response.len };
+    }
+};
+
+test "EVM finality five configured tags resolve one numeric nonce snapshot" {
+    const a = std.testing.allocator;
+    for ([_][]const u8{ "latest", "finalized", "safe", "earliest", "pending" }) |tag| {
+        const params = try std.fmt.allocPrint(a, "[\"{s}\",false]", .{tag});
+        defer a.free(params);
+        // Preserve the common RPC header validator. Pending may have a null
+        // hash; nonce resolution still consumes only its explicit number.
+        const steps = [_]Step{
+            .{ .method = "eth_getBlockByNumber", .result = if (std.mem.eql(u8, tag, "pending")) "{\"number\":\"0xa\",\"hash\":null,\"parentHash\":\"0x22222222222222222222222222222222" ++ "22222222222222222222222222222222\",\"timestamp\":\"0x1\"}" else "{\"number\":\"0xa\",\"hash\":\"0x11111111111111111111111111111111" ++ "11111111111111111111111111111111\",\"parentHash\":\"0x22222222222222222222222222222222" ++ "22222222222222222222222222222222\",\"timestamp\":\"0x1\"}", .expect = params },
+            .{ .method = "eth_getTransactionCount", .result = "\"0x7\"", .expect = "[\"0x1111111111111111111111111111111111111111\",\"0xa\"]" },
+        };
+        var fixture: FinalityRpc = .{ .steps = &steps };
+        var rpc = try provider.RpcClient.init(a, "http://127.0.0.1:1", .{ .exchange = fixture.exchange() });
+        defer rpc.deinit();
+        var adapter: evm.Evm = .{ .rpc = &rpc, .reorg = .{ .tag = tag }, .allow_std_fixture = true };
+        try std.testing.expectEqual(@as(u256, 7), try adapter.interface().accountNonceFinalized(@splat(0x11)));
+        try std.testing.expectEqual(steps.len, fixture.index);
+    }
+}
+
+test "EVM finality rejects invalid tags and absent pending block numbers" {
+    const a = std.testing.allocator;
+    for ([_][]const u8{ "", "Safe", "LATEST", "0xa", "safe ", "unknown" }) |tag| {
+        var fixture: FinalityRpc = .{ .steps = &.{} };
+        var rpc = try provider.RpcClient.init(a, "http://127.0.0.1:1", .{ .exchange = fixture.exchange() });
+        defer rpc.deinit();
+        var adapter: evm.Evm = .{ .rpc = &rpc, .reorg = .{ .tag = tag }, .allow_std_fixture = true };
+        try std.testing.expectError(error.InvalidEvmReorgTag, adapter.interface().accountNonceFinalized(@splat(0x11)));
+        try std.testing.expectEqual(@as(usize, 0), fixture.index);
+    }
+    for ([_]struct { result: []const u8, failure: anyerror }{
+        .{ .result = "null", .failure = error.InvalidLanderRecord },
+        .{ .result = "{}", .failure = error.RpcResponseDecode },
+        .{ .result = "{\"number\":null,\"hash\":null,\"parentHash\":\"0x22222222222222222222222222222222" ++ "22222222222222222222222222222222\",\"timestamp\":\"0x1\"}", .failure = error.InvalidRpcResult },
+        .{ .result = "{\"number\":true,\"hash\":null,\"parentHash\":\"0x22222222222222222222222222222222" ++ "22222222222222222222222222222222\",\"timestamp\":\"0x1\"}", .failure = error.RpcResponseDecode },
+    }) |bad| {
+        const steps = [_]Step{.{ .method = "eth_getBlockByNumber", .result = bad.result, .expect = "[\"pending\",false]" }};
+        var fixture: FinalityRpc = .{ .steps = &steps };
+        var rpc = try provider.RpcClient.init(a, "http://127.0.0.1:1", .{ .exchange = fixture.exchange() });
+        defer rpc.deinit();
+        var adapter: evm.Evm = .{ .rpc = &rpc, .reorg = .{ .tag = "pending" }, .allow_std_fixture = true };
+        try std.testing.expectError(bad.failure, adapter.interface().accountNonceFinalized(@splat(0x11)));
+        try std.testing.expectEqual(steps.len, fixture.index); // no nonce request
+    }
+}
+
+test "EVM finality numeric depth preserves zero and saturating subtraction" {
+    const a = std.testing.allocator;
+    for ([_]struct { depth: u32, expected: []const u8 }{
+        .{ .depth = 0, .expected = "[\"0x1111111111111111111111111111111111111111\",\"0xa\"]" },
+        .{ .depth = 3, .expected = "[\"0x1111111111111111111111111111111111111111\",\"0x7\"]" },
+        .{ .depth = 20, .expected = "[\"0x1111111111111111111111111111111111111111\",\"0x0\"]" },
+    }) |case| {
+        const steps = [_]Step{
+            .{ .method = "eth_blockNumber", .result = "\"0xa\"", .expect = "[]" },
+            .{ .method = "eth_getTransactionCount", .result = "\"0x7\"", .expect = case.expected },
+        };
+        var fixture: FinalityRpc = .{ .steps = &steps };
+        var rpc = try provider.RpcClient.init(a, "http://127.0.0.1:1", .{ .exchange = fixture.exchange() });
+        defer rpc.deinit();
+        var adapter: evm.Evm = .{ .rpc = &rpc, .reorg = .{ .blocks = case.depth }, .allow_std_fixture = true };
+        try std.testing.expectEqual(@as(u256, 7), try adapter.interface().accountNonceFinalized(@splat(0x11)));
+        try std.testing.expectEqual(steps.len, fixture.index);
+    }
+}
