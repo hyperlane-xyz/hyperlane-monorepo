@@ -1,234 +1,165 @@
 {
   "schema": 1,
   "passed": true,
-  "root_approved": true,
   "Root_actual_cohort_acceptance": true,
-  "scope": "Root acceptance of remote-CI eight-product archive contents and declared Source/receipt coherence; native and timing gates separate",
-  "source_commit": "06e263fe7950e6051502a771646bbcc6d0453369",
-  "run_id": 42480652735,
+  "scope": "Authenticated remote eight-product contents and coherent producer qualification only",
+  "source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
+  "run_id": 42586182471,
   "run_attempt": 1,
-  "all8_same_run_required_product_artifacts": true,
-  "all4_required_jobs_actual_success": [
-    {
-      "name": "full-sdk-native (ReleaseSafe)",
-      "id": 128731636445
-    },
-    {
-      "name": "full-sdk-native (ReleaseFast)",
-      "id": 128731636314
-    },
-    {
-      "name": "native-harness-controls",
-      "id": 128731636434
-    },
-    {
-      "name": "svm-prerequisites",
-      "id": 128731636429
-    }
-  ],
-  "eight_artifacts": {
-    "helper": {
-      "id": 13617434691,
-      "name": "zig-native-harness-controls",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "07c99d0a32412ac845835563f851fe5b",
-          "b02f098829eec0e41769df878fdef0af"
-        ]
-      },
-      "size_in_bytes": 56454544
-    },
-    "radix_reference": {
-      "id": 13618052714,
-      "name": "zig-native-radix-reference-06e263fe7950e6051502a771646bbcc6d0453369",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "ebe9e33496a7a45edbb317a289db1360",
-          "b9389c2a785ef4190effc6ef06f27d96"
-        ]
-      },
-      "size_in_bytes": 3177900
-    },
-    "sdk_fast": {
-      "id": 13618638882,
-      "name": "zig-native-runtime-payload-ReleaseFast",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "3d1ed7734c37411d51d911d9fd0723a9",
-          "31652d5ddbe29ae3557a2fe7d9a8eefc"
-        ]
-      },
-      "size_in_bytes": 55147580
-    },
-    "sdk_safe": {
-      "id": 13618157680,
-      "name": "zig-native-runtime-payload-ReleaseSafe",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "4122805505771247b12e3460d2cafafc",
-          "420c6ba0f9d7de4f1023a2e92a72d631"
-        ]
-      },
-      "size_in_bytes": 52478438
-    },
-    "svm": {
-      "id": 13617328738,
-      "name": "svm-linux-prerequisites-42480652735-1",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "7663a47f9b4c8b3183f2fdbe8e9855d6",
-          "ef86fec8404d12714f7516ff226e3950"
-        ]
-      },
-      "size_in_bytes": 327980659
-    },
-    "tools": {
-      "id": 13617628993,
-      "name": "zig-native-case-tools-06e263fe7950e6051502a771646bbcc6d0453369",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "a761ae8dd358c2a582f6fd0ecd88f706",
-          "9c077476c174bdc3f9780bd5d973fcc6"
-        ]
-      },
-      "size_in_bytes": 20092295
-    },
-    "writer_fast": {
-      "id": 13618773649,
-      "name": "zig-native-interop-writer-ReleaseFast",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "396ffa7fa6235a0ed6fb022663b94880",
-          "695c21ce1abc9a65ed4677f207ac03e2"
-        ]
-      },
-      "size_in_bytes": 4863020
-    },
-    "writer_safe": {
-      "id": 13617569634,
-      "name": "zig-native-interop-writer-ReleaseSafe",
-      "sha256": {
-        "sha256_hex_chunks": [
-          "04cfa37ee2b9f5a9c84be4d8f18c18c9",
-          "cfa019740af31a27f2e6027cbcb20ce0"
-        ]
-      },
-      "size_in_bytes": 5171533
+  "reader_execution_commit": "babf33f3f781e37897e99c62d0806e08af0b7d2f",
+  "reader_run_id": 42598962630,
+  "reader_run_attempt": 1,
+  "inspection_report": {
+    "bytes": 27588,
+    "sha256": {
+      "sha256_hex_chunks": [
+        "dd52ef2fc6e601e74ff84faf51a5424a",
+        "6e312ecbaf08e9d0c3f2e54170b19d07"
+      ]
     }
   },
-  "inspection": {
-    "source_commit": "5548d6d796caa0fd1c4df9ff268cc5d4408214eb",
-    "run_id": 42485828575,
-    "run_attempt": 1,
-    "job_id": 128747356061,
-    "job_conclusion": "success",
-    "artifact_id": 13618873575,
-    "archive_bytes": 6604,
-    "archive_sha256": {
+  "independent_readback": {
+    "bytes": 11644,
+    "sha256": {
       "sha256_hex_chunks": [
-        "99ebf86505ea8b0004a0e401be1ac2a4",
-        "2b74b230dcfb36f8fd9341f1f899e608"
+        "ab3142294ab3bc50c80bc8b59f712879",
+        "3f3a24ae5c59797cb976cd39bb032eab"
       ]
-    },
-    "report": {
-      "bytes": 27256,
+    }
+  },
+  "eight_artifacts": {
+    "sdk_safe": {
+      "id": 13660307486,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
+      "size_in_bytes": 52481326,
       "sha256": {
         "sha256_hex_chunks": [
-          "21af84f565c443795f2555f22e2ca144",
-          "9ea5bd912873c7061d13ee4ad33fbe11"
+          "439ac3e94c66ba4a497b5f3bf0f4f649",
+          "6c8fdb4294ad903fffcd31a6a98163a9"
+        ]
+      }
+    },
+    "sdk_fast": {
+      "id": 13661513116,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 55148093,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "67d7eb9652f60c59a1af2403f0fdb394",
+          "02003397b7104c101101f78c2c7d0494"
+        ]
+      }
+    },
+    "helper": {
+      "id": 13659769342,
+      "name": "zig-native-harness-controls",
+      "size_in_bytes": 56510096,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "bdc7221c07fbde482d2931edcd57d672",
+          "d21449a7d5f25ea4e1fe40db04b75933"
+        ]
+      }
+    },
+    "tools": {
+      "id": 13659838754,
+      "name": "zig-native-case-tools-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
+      "size_in_bytes": 20092495,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "8237aa5ede95c948939598213c493f4e",
+          "0c4be97f1d262565d6ba166346557669"
+        ]
+      }
+    },
+    "writer_safe": {
+      "id": 13660502012,
+      "name": "zig-native-interop-writer-ReleaseSafe",
+      "size_in_bytes": 5171516,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "23bcbfecfc95b1c40cedee62adec4980",
+          "9aeceab45247ffc7a3b73e1e58ae584a"
+        ]
+      }
+    },
+    "writer_fast": {
+      "id": 13661962123,
+      "name": "zig-native-interop-writer-ReleaseFast",
+      "size_in_bytes": 4863021,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "e9cddb589d43d50eaaddfa16aa7e0ccc",
+          "74d8a7b87cb7153ed38814b37b46e749"
+        ]
+      }
+    },
+    "svm": {
+      "id": 13659787719,
+      "name": "svm-linux-prerequisites-42586182471-1",
+      "size_in_bytes": 327982661,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "17dda43c595e2f07a91ed2047811bbb4",
+          "f5f4f54408938ab32bba81e335c1b729"
+        ]
+      }
+    },
+    "radix_reference": {
+      "id": 13660292178,
+      "name": "zig-native-radix-reference-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
+      "size_in_bytes": 3177951,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "f57c0af578b2a2787f1da6667a37ffb6",
+          "ed2aa27b8bcd59e7c08e5e43bb746bd1"
         ]
       }
     }
   },
-  "catalogs": {
-    "sdk_safe": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "d08838b430f9ffa9d8b5cb10e34969ba",
-          "10fea9fcc72baced65eea0d9f89e033e"
-        ]
-      },
-      "expanded_bytes": 157618908,
-      "files": 17
+  "all4_required_jobs_actual_success": [
+    {
+      "conclusion": "success",
+      "id": 129056459488,
+      "name": "full-sdk-native (ReleaseSafe)",
+      "status": "completed"
     },
-    "sdk_fast": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "c060130dcf6dd8495d78d4576187c37f",
-          "28073dc1e596852648cafade5eef01de"
-        ]
-      },
-      "expanded_bytes": 171802156,
-      "files": 17
+    {
+      "conclusion": "success",
+      "id": 129056459510,
+      "name": "full-sdk-native (ReleaseFast)",
+      "status": "completed"
     },
-    "helper": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "137f1a9fc70ec66090a62b333f7a1262",
-          "d23c7b871ec1a04dcc1171117187c825"
-        ]
-      },
-      "expanded_bytes": 254940303,
-      "files": 46
+    {
+      "conclusion": "success",
+      "id": 129056459496,
+      "name": "native-harness-controls",
+      "status": "completed"
     },
-    "tools": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "05e60c478bcfb6d39964886613e53b69",
-          "e55efc254bdd008255feba78f16632e5"
-        ]
-      },
-      "expanded_bytes": 90987650,
-      "files": 14
-    },
-    "writer_safe": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "ed6493b40a4ef76704dcee04e5ffc109",
-          "eab91d515c448b17f3fe72b2cf6f1d52"
-        ]
-      },
-      "expanded_bytes": 14496922,
-      "files": 5
-    },
-    "writer_fast": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "84d04be4348a35fa18ee619a285a083d",
-          "6676caa3a8957392a98d5c032b7c6073"
-        ]
-      },
-      "expanded_bytes": 13664300,
-      "files": 5
-    },
-    "svm": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "2badc2202202f2b40e1c1c4251759bc7",
-          "f51b8e434d10a0996af47a90630157bc"
-        ]
-      },
-      "expanded_bytes": 851719157,
-      "files": 194
-    },
-    "radix_reference": {
-      "catalog_sha256": {
-        "sha256_hex_chunks": [
-          "80d59f90a7f57b206d016de543ae2dea",
-          "624969b38bcd5f683e3b48bc0065767d"
-        ]
-      },
-      "expanded_bytes": 10074530,
-      "files": 11
+    {
+      "conclusion": "success",
+      "id": 129056459762,
+      "name": "svm-prerequisites",
+      "status": "completed"
     }
+  ],
+  "all8_same_run_required_product_artifacts": true,
+  "core607": {
+    "all_policy_Git_blobs_match": true,
+    "policy_map_sha256": {
+      "sha256_hex_chunks": [
+        "35485a26df19b71fd0cc50731883da79",
+        "23d32c9c57ee2602df09eaef6d0acdd4"
+      ]
+    },
+    "source_rows_checked": 607
   },
-  "actual607_Git_and_all_declared_Source_origin_checks": true,
-  "compiled_scopes": {
+  "compiled_cohort": {
     "helper": [
       {
-        "execution_tree": "4c563f7dcd539dd571d095a8fc092547ffbb99b3",
+        "execution_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
         "path": "rust/main",
-        "producer_tree": "4c563f7dcd539dd571d095a8fc092547ffbb99b3",
+        "producer_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
         "worktree_clean_in_scope": true
       },
       {
@@ -240,9 +171,9 @@
     ],
     "runtime": [
       {
-        "execution_tree": "dc94668650849c282b4f3b5c70f41d3e30d3318e",
+        "execution_tree": "e614b3caffedbca95ebba6738221cae6feb6bdf8",
         "path": "zig/src",
-        "producer_tree": "dc94668650849c282b4f3b5c70f41d3e30d3318e",
+        "producer_tree": "e614b3caffedbca95ebba6738221cae6feb6bdf8",
         "worktree_clean_in_scope": true
       },
       {
@@ -266,9 +197,9 @@
     ],
     "tools": [
       {
-        "execution_tree": "4c563f7dcd539dd571d095a8fc092547ffbb99b3",
+        "execution_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
         "path": "rust/main",
-        "producer_tree": "4c563f7dcd539dd571d095a8fc092547ffbb99b3",
+        "producer_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
         "worktree_clean_in_scope": true
       },
       {
@@ -285,314 +216,244 @@
       }
     ]
   },
-  "command_waits": {
-    "actual_calls": 8513,
-    "actual_parent_waits": 8513,
-    "all_calls_actually_waited": true,
-    "failure_count": 0,
-    "gh_startup_diagnostics": {
-      "API_inherited_hard_AS1GiB": true,
-      "API_original_AS512_unchanged": false,
-      "probes": {
-        "AS512": {
-          "actual_parent_wait": true,
-          "cleanup_error_count": 0,
-          "error_class": "GO_VIRTUAL_RESERVATION",
-          "exit_code": 2,
-          "forced_signal": false,
-          "kind": "GH_VERSION_AS512",
-          "peak_child_RSS_bytes": 1753088,
-          "signal": null
+  "helper_readiness_tests": {
+    "explicit_radix_readiness_test_count": 3,
+    "three_explicit_radix_readiness_tests_observed_OK": true
+  },
+  "native_suites": {
+    "sdk_safe": {
+      "explicit_agent_runtime_test_count": 2,
+      "producer_native_required_count": 36,
+      "skip_catalog_sha256": {
+        "sha256_hex_chunks": [
+          "b6f9d9865cf80d7ee66bc995741eef47",
+          "dd32178528e03552bedf3edce9615cf8"
+        ]
+      },
+      "status_counts": {
+        "FAIL": 0,
+        "OK": 1202,
+        "SKIP": 3
+      },
+      "three_recovery_allocation_tests_observed_OK": true,
+      "total": 1205,
+      "two_explicit_agent_runtime_tests_observed_OK": true
+    },
+    "sdk_fast": {
+      "explicit_agent_runtime_test_count": 2,
+      "producer_native_required_count": 36,
+      "skip_catalog_sha256": {
+        "sha256_hex_chunks": [
+          "b6f9d9865cf80d7ee66bc995741eef47",
+          "dd32178528e03552bedf3edce9615cf8"
+        ]
+      },
+      "status_counts": {
+        "FAIL": 0,
+        "OK": 1202,
+        "SKIP": 3
+      },
+      "three_recovery_allocation_tests_observed_OK": true,
+      "total": 1205,
+      "two_explicit_agent_runtime_tests_observed_OK": true
+    }
+  },
+  "inspection_resources": {
+    "actual_streamed_bytes": 1705477147,
+    "elapsed_seconds": 111.668757,
+    "inspector_peak_RSS_bytes": 81920000,
+    "own_downloads_removed": true
+  },
+  "actual_calls_all_waited": 8518,
+  "actual_CPU_receipts": {
+    "sdk_safe": [
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
         },
-        "INHERITED_AS1G": {
-          "actual_parent_wait": true,
-          "cleanup_error_count": 0,
-          "error_class": "NONE",
-          "exit_code": 0,
-          "forced_signal": false,
-          "kind": "GH_VERSION_INHERITED",
-          "peak_child_RSS_bytes": 35926016,
-          "signal": null
-        }
-      },
-      "token_supplied": false
-    },
-    "last_failed_command": null,
-    "raw_argv_stderr_environment_exported": false,
-    "tool_pins": {
-      "gh": {
-        "bytes": 41070752,
-        "sha256": {
+        "receipt_sha256": {
           "sha256_hex_chunks": [
-            "b768184570b12536be4ac1528893f634",
-            "0d1c6a7b40b56ad45bca9cd0e87ad34d"
+            "03ee57d989fc39e12c329669e5de618c",
+            "5f2fc32781263a80d6dac74d4ce65206"
           ]
-        }
+        },
+        "scope": "aleo"
       },
-      "git": {
-        "bytes": 4640352,
-        "sha256": {
+      {
+        "flag_count": 132,
+        "flags_sha256": {
           "sha256_hex_chunks": [
-            "824d5b2fffef332ec7ba053e579659bb",
-            "12f26a0b4747da6f9c6dc0e71d36f235"
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
           ]
-        }
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "c603607ac5162fd237f7cbf73ce31f7f",
+            "5be5556272cdafb9af341c3aed3e3f13"
+          ]
+        },
+        "scope": "native-db"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "76c50960ef6efcbb7ac6e5c09f6ca320",
+            "a679ff04a78989a23f197d8152bdac8c"
+          ]
+        },
+        "scope": "regex"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "3b048e4b27fbcba49400c1d0b9af9d63",
+            "423d7547c1a3d8419e6a1a883ff817f4"
+          ]
+        },
+        "scope": "starknet"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "c145b1227d84ef7d864599358d9118b6",
+            "94e183987c1c2f0f231bca206474ec76"
+          ]
+        },
+        "scope": "url"
       }
-    },
-    "wait_catalog_sha256": {
-      "sha256_hex_chunks": [
-        "a6967b4a2625590d1283737c23e5ebd3",
-        "f4faa13ac3f1692af01973fdc1ea2218"
-      ]
-    }
+    ],
+    "sdk_fast": [
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "e6306446e0097902c09117232d8dbe0b",
+            "293e9085b45b32365a93a2c30ef3d2c1"
+          ]
+        },
+        "scope": "aleo"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "c874e1dd9b298abdcce6fcd29b99bc58",
+            "51644b7b42c61f836ab186c86105a9a5"
+          ]
+        },
+        "scope": "native-db"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "3dbd36f5018a1d7e2e98513e9c80e416",
+            "e09c4695d21d77f5962b0be4de092f14"
+          ]
+        },
+        "scope": "regex"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "0261188d667370e4e7bab9708d02d75b",
+            "15a7eb7041a1b23b37cb85a3d2420f63"
+          ]
+        },
+        "scope": "starknet"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "fcf2184aad97748f4bb7fbaac00fad3e",
+            "2f3c57262b2570dd55731fd719d87f9f"
+          ]
+        },
+        "scope": "url"
+      }
+    ]
   },
-  "SDK_runtime_products": {
-    "ReleaseSafe": {
-      "hyperlane-aleo-vm-worker": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 2804040,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "c2525fecdc17afc5ce375dd9f191d7ac",
-            "594bd99d723fc4ee6575d1d2728e8a6b"
-          ]
-        }
-      },
-      "libziggy_aleo_crypto.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 1110384,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "c89d3905f0534413489a6a75927db7c8",
-            "d9ab44f76453120e454fd861995e6a02"
-          ]
-        }
-      },
-      "libziggy_aleo_vm.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 56817240,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "c6c823fe4431290ec69294c486d962ca",
-            "4601b9f6c6bab9d4fd597b9c4de9f13e"
-          ]
-        }
-      },
-      "libziggy_regex.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 1698128,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "7b235ab5a418a06c2a1589c372eef76a",
-            "3a662f68756e6a169d93e2fc7cce9b43"
-          ]
-        }
-      },
-      "libziggy_starknet_crypto.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 672008,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "cc2e0c004e8942b69ff7f07ab3b949a9",
-            "7459d4ee45713fa1498f4e7b7a494277"
-          ]
-        }
-      },
-      "libziggy_url.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 529920,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "c3295a39f827f43f375d6dc8b618e704",
-            "54e157055ea8b76f02cf0f91a26887f4"
-          ]
-        }
-      },
-      "relayer": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 41799432,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "5ce17d8b761bda1c8dff9bdee9de0225",
-            "e9a58ca4f12a0bc0f3a9082ef79f1038"
-          ]
-        }
-      },
-      "scraper": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 17448800,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "8ce1c17ce2775120053a0f8717ef5b79",
-            "15f7d92af37adb23cc91598b657114da"
-          ]
-        }
-      },
-      "validator": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 34457152,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "6d33f8a6cd21b75a04747627e617040b",
-            "cf37847709ed6ab0e1207c8598ecf85e"
-          ]
-        }
-      }
-    },
-    "ReleaseFast": {
-      "hyperlane-aleo-vm-worker": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 1512680,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "e20ee0ad3f992049230a1ee85200e0d6",
-            "8350b9cb703007c648d502e3cf174307"
-          ]
-        }
-      },
-      "libziggy_aleo_crypto.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 1110384,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "c89d3905f0534413489a6a75927db7c8",
-            "d9ab44f76453120e454fd861995e6a02"
-          ]
-        }
-      },
-      "libziggy_aleo_vm.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 56817240,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "c6c823fe4431290ec69294c486d962ca",
-            "4601b9f6c6bab9d4fd597b9c4de9f13e"
-          ]
-        }
-      },
-      "libziggy_regex.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 1698128,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "7b235ab5a418a06c2a1589c372eef76a",
-            "3a662f68756e6a169d93e2fc7cce9b43"
-          ]
-        }
-      },
-      "libziggy_starknet_crypto.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 672008,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "cc2e0c004e8942b69ff7f07ab3b949a9",
-            "7459d4ee45713fa1498f4e7b7a494277"
-          ]
-        }
-      },
-      "libziggy_url.so": {
-        "ELF_machine": 62,
-        "ELF_type": 3,
-        "bytes": 529920,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "c3295a39f827f43f375d6dc8b618e704",
-            "54e157055ea8b76f02cf0f91a26887f4"
-          ]
-        }
-      },
-      "relayer": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 48601736,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "cfd65480a2b4c5e3c8ac513b0d834604",
-            "d3d2dd7d7ca3b8c6f0d262c8c8590bab"
-          ]
-        }
-      },
-      "scraper": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 20779576,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "247d628f362e64199d70a800b9436ddc",
-            "eb4ef630209a542028634539ea825af7"
-          ]
-        }
-      },
-      "validator": {
-        "ELF_machine": 62,
-        "ELF_type": 2,
-        "bytes": 39798680,
-        "sha256": {
-          "sha256_hex_chunks": [
-            "e47a1c5ba759adabd103e67f3f0a63de",
-            "2cb4bdb981482fd719f7b0b8710303a6"
-          ]
-        }
-      }
-    }
+  "actual_SDK_export_waits": {
+    "sdk_safe": 29,
+    "sdk_fast": 29
   },
-  "qualifications": {
-    "SDK_tests_per_mode": {
-      "OK": 1163,
-      "SKIP": 3,
-      "FAIL": 0
-    },
-    "producer_required_native_cases_each_mode": 22,
-    "helper_census_observed": 76,
-    "SVM_nonfatal_stack_offset_warning_count": 27,
-    "compressed_upstream_SVM_archives_independently_retained": false,
-    "writer_compiler_archives_independently_present": false,
-    "actual_consumer_CPU_superset_checked": false,
-    "all_command_exits_zero_claim": false,
-    "expected_GH_AS512_probe_exit2_retained": true,
-    "Root_Docker_Helm36_separate_receipt": {
-      "bytes": 590,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "b1421e932c90047fddc842206df12395",
-          "aa2283e1dd04c3a7fd58e6f2409d45df"
-        ]
-      }
-    },
-    "acquisition_pipe_finalizer_warning_qualification": {
-      "bytes": 593,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "fae1a9d25a73737e9f66e623b9bcd841",
-          "32b22eb394f1ef19a27e16bda7c937ef"
-        ]
-      }
-    },
-    "first_Root_acceptance_guard_correction": "Initial assertion compared component archive bytes/SHA descriptor with larger policy publisher descriptor and failed before any acceptance write. Correct comparison projects policy size_in_bytes/SHA; source reports unchanged and no second download."
-  },
-  "actual_native_or_timing_acceptance": false,
-  "local_full_archive_possession_claim": false,
-  "kind": "Root-qualified-portable-eight-product-cohort",
+  "expected_AS512_probe_exit2_retained": true,
+  "all_call_exit_zero_claim": false,
+  "native_case_acceptance": false,
+  "timing_acceptance": false,
+  "actual_consumer_CPU_superset_checked": false,
+  "SDK_C42_component_inspected": false,
+  "local_full_product_archive_possession": false,
+  "limitations": [
+    "Producer CPU receipts require actual consumer admission at every native run.",
+    "Product archives inspected remotely; local evidence consists of the bounded tiny report and existing independent SDK-step receipts.",
+    "This accepts producer contents only; no native-case, consumer-CPU, runtime or timing proof."
+  ],
+  "kind": "Root-qualified-portable-D-paired-eight-product-cohort",
   "Root_qualification_fingerprint": {
-    "bytes": 13296,
+    "bytes": 10239,
     "sha256": {
       "sha256_hex_chunks": [
-        "ad3cd030c2efa6a6a3933e5a09b184aa",
-        "38d58db99a325ea4abe8703e75914d5b"
+        "f6b5b0ccd163e2b9dcd697243acdb8e1",
+        "e0147fb27a30e878cfca4067bea9d3c7"
       ]
     }
   }
