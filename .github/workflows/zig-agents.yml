@@ -284,14 +284,14 @@ jobs:
       - name: Install pinned Zig
         run: echo "ZIG=$(python3 zig/tools/bootstrap.py)" >> "$GITHUB_ENV"
       - name: Build exact Rust URL metadata helper
-        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0
+        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0 --cpu-recipe-output "$RUNNER_TEMP/native-url-cpu.json"
       - name: Build pinned RocksDB 10.4.2 archives
         run: |
           mkdir -p zig/bench/results/native-linux
           python3 zig/tools/fixture_pack.py restore-locks
           python3 zig/tools/native_deps.py --restore-only
           cargo +1.98.0 fetch --locked --manifest-path zig/native/rocks/Cargo.toml
-          python3 zig/tools/native_deps.py --offline --jobs "${BUILD_JOBS}" \
+          python3 zig/tools/native_deps.py --cpu-profile x86_64_v3 --git-sha "$GITHUB_SHA" --offline --jobs "${BUILD_JOBS}" \
             --target-dir zig/native/rocks/target-ci \
             --output zig/bench/results/native-linux/deps \
             --format json > zig/bench/results/native-linux/bootstrap.json
@@ -306,14 +306,14 @@ jobs:
       - name: Test native DB and build relayer/validator
         run: |
           python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
-            python3 zig/tools/zig.py build -j"${BUILD_JOBS}" native-db-test relayer validator \
+            python3 zig/tools/zig.py build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" native-db-test relayer validator \
             -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dnative-db-libs=$LIBS" "-Dlibpq-library=$LIBPQ" --summary all
       - name: Test durable directory fsync variants
         run: |
           IFS=',' read -r -a native_libs <<< "$LIBS"
-          python3 zig/tools/zig.py test src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"
+          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"
       - name: Build scraper
-        run: python3 zig/tools/zig.py build -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"
+        run: python3 zig/tools/zig.py build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"
       - name: Compile relayer Bridge Solidity fixtures
         run: |
           python3 zig/integration/relayer_process.py --compile-only
@@ -328,26 +328,26 @@ jobs:
           openssl version
           export HYPERLANE_CURL_LIBRARY=libcurl.so.4
           export HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3
-          python3 zig/tools/zig.py test src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
-          python3 zig/tools/zig.py test src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
+          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
+          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
       - name: Test relayer Bridge fixtures from repository root
         run: |
           mkdir -p zig/bench/results/native-linux
           IFS=',' read -r -a native_libs <<< "$LIBS"
-          python3 zig/tools/zig.py build-exe src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"
+          python3 zig/tools/zig.py build-exe -target x86_64-linux-gnu -mcpu=x86_64_v3 src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"
           cd "$GITHUB_WORKSPACE"
           ./zig/bench/results/native-linux/relayer_bridge_tests
       - name: Test exact Rust regex semantics
         run: |
-          python3 zig/src/ops/tools/locked.py --toolchain 1.98.0
+          python3 zig/src/ops/tools/locked.py --toolchain 1.98.0 --cpu-recipe-output "$RUNNER_TEMP/native-regex-cpu.json"
           export ZIGGY_REGEX_LIBRARY="$PWD/zig/src/ops/regex-native/target/release/libziggy_regex.so"
-          python3 zig/tools/zig.py test src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
+          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc
       - name: Test PostgreSQL 16.15 and all 21 migrations
         run: |
           POSTGRES_IMAGE="postgres:16.15@sha256:${POSTGRES_DIGEST_A}${POSTGRES_DIGEST_B}"
           docker pull "$POSTGRES_IMAGE"
           python3 zig/tools/native_http_tests.py --timeout-seconds 1800 -- \
-            python3 zig/integration/postgres.py --compiler "$ZIG" \
+            python3 zig/integration/postgres.py --cpu-profile x86_64_v3 --compiler "$ZIG" \
             --libpq-library "$LIBPQ" --image "$POSTGRES_IMAGE" \
             --scraper-binary zig/zig-out/bin/scraper \
             --output zig/bench/results/native-linux/postgres

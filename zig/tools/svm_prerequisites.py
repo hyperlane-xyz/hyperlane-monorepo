@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Linux-only SVM prerequisite production. No chain, fixture or agent execution."""
-import argparse,ctypes,gzip,hashlib,json,os,pathlib,posixpath,re,shutil,signal,stat,struct,subprocess,sys,tarfile,time,tomllib,urllib.error,urllib.request
+import argparse,ctypes,importlib.util,gzip,hashlib,json,os,pathlib,posixpath,re,shutil,signal,stat,struct,subprocess,sys,tarfile,time,tomllib,urllib.error,urllib.request
 P=pathlib.Path
 GIB=1024**3
+_CPU_ROOT=P(__file__).resolve().parents[2]
+_CPU_SPEC=importlib.util.spec_from_file_location('svm_host_cpu',_CPU_ROOT/'zig/tools/build_cpu.py')
+cpu=importlib.util.module_from_spec(_CPU_SPEC);_CPU_SPEC.loader.exec_module(cpu)
 PROGRAMS=['mailbox','validator-announce','ism/multisig-ism-message-id','ism/composite-ism','hyperlane-sealevel-token','hyperlane-sealevel-token-native','hyperlane-sealevel-token-collateral','hyperlane-sealevel-token-cross-collateral','hyperlane-sealevel-igp']
 SPL=['spl_token.so','spl_token_2022.so','spl_associated_token_account.so','spl_noop.so']
 # Pinned Linux v1.51 publisher defects: optional LLDB Python helpers point outside
@@ -310,6 +313,9 @@ def stage_sdk_dependencies(sdk,criterion):
  for marker in marker_paths:marker.write_bytes(b'');markers.append(pin(marker))
  return {'criterion_members':inventory(dependency),'markers':markers,'original_sdk_scripts_modified':False,'criterion_native_library_executed':False}
 
+def host_compile_environment(base,cargo,version):
+ return cpu.portable_environment({**base,'CARGO_NET_OFFLINE':'true','PATH':str(cargo.parent)+':/usr/bin:/bin','RUSTUP_TOOLCHAIN':version},tokio_unstable=True)
+
 def sbf_environments(base,platform,host_cargo):
  # Agave --no-rustup-override explicitly supports an RUSTC-selected SBF compiler.
  # Host Cargo1.86 parses the committed workspace; platform Rust still emits SBF.
@@ -408,15 +414,20 @@ def execute(a):
   export=root/'published/programs';export.mkdir()
   for name in expected+SPL:shutil.copyfile(outdir/name,export/name);(export/name).chmod(0o600)
   products={'programs':{p.name:sbf_elf(p)for p in export.iterdir()}}
+  host_recipes=[]
   for name,version,manifest,package,binary,profile in [('client','1.86.0',repo/'rust/sealevel/Cargo.toml','hyperlane-sealevel-client','hyperlane-sealevel-client','debug'),('spl','1.76.0',spl_manifest,'spl-token-cli','spl-token','release')]:
    target=root/'targets'/name;argv=[tool[version],'build','--frozen','--offline','--manifest-path',manifest,'--package',package,'--bin',binary,'--target-dir',target,'-j','2','--message-format=json-render-diagnostics']
    if profile=='release':argv.append('--release')
-   env={**base,'CARGO_NET_OFFLINE':'true','PATH':str(tool[version].parent)+':/usr/bin:/bin','RUSTUP_TOOLCHAIN':version}
-   log=o.run('compile.'+name,compile_command(a.bwrap,root,repo,argv,manifest.parent),manifest.parent,env);actual=target/profile/binary;artifact=cargo_binary(log,package,binary,actual);dest=root/'published'/binary;shutil.copyfile(actual,dest);dest.chmod(0o700);products[name]=elf(dest,62);write(root/'published'/(name+'-cargo-artifact.json'),artifact)
+   env=host_compile_environment(base,tool[version],version)
+   command=compile_command(a.bwrap,root,repo,argv,manifest.parent)
+   recipe=cpu.recipe('rust',list(map(str,command)),env,P(__file__),repo=repo)
+   log=o.run('compile.'+name,command,manifest.parent,env);host_recipes.append(cpu.finish_recipe(recipe,{'actual_parent_wait':o.rows[-1]['actual_wait_observed'],'exit_code':o.rows[-1]['exit_code'],'error':None},repo=repo));actual=target/profile/binary;artifact=cargo_binary(log,package,binary,actual);dest=root/'published'/binary;shutil.copyfile(actual,dest);dest.chmod(0o700);products[name]=elf(dest,62);write(root/'published'/(name+'-cargo-artifact.json'),artifact)
   need([pin(p)for p in locks]==lockpins,'compiler changed lock');need({n:inventory(root/n,owned_sdk_platform=platform if n=='build-sdk'else None)for n in compiler_inputs}==compiler_inputs,'compiler changed asset/tool/source input')
   shutil.copytree(agave,root/'published/agave',symlinks=True);write(root/'published/agave-linux-runtime-members.json',inventory(root/'published/agave'))
   write(root/'published/linux-profile.CANDIDATE.json',{'schema':1,'platform':'linux-x86_64','Root_approved':False,'native_case_admitted':False,'Darwin_profile_not_reused':True,'agave_archive':status['agave_archive'],'platform_archive':status['platform_archive'],'spl_archive':status['spl_archive'],'agave_member_manifest':pin(root/'published/agave-linux-runtime-members.json'),'agave_file_count':sum(row['type']=='file'for row in inventory(root/'published/agave').values()),'platform_member_manifest':pin(root/'published/platform-publisher-members.json'),'platform_debugger_link_omissions':pin(root/'published/platform-debugger-link-omissions.json'),'custom_spl_commit':sha,'custom_spl_tree':tree,'custom_spl_lock_overlay':pin(root/'published/custom-spl-lock-overlay.json'),'program_count':13,'products':products})
   o.tick(True)
+  host_cpu=cpu.make_record('svm-host','shared',head,'amd64',cpu.cpu_flags(P('/proc/cpuinfo').read_text()),{name:{k:products[name][k]for k in ['bytes','sha256']}for name in ['client','spl']},host_recipes)
+  write(root/'published/host-cpu.json',host_cpu)
   write(root/'published/products.json',products);status.update(passed=True,products=products,linux_profile_admitted=False,linux_profile_review_required=True,custom_spl_commit=sha,custom_spl_tree=tree)
  except BaseException as exc:error=public_exception(exc)
  finally:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import http.server
 import json
 import os
@@ -16,6 +17,10 @@ import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
+_CPU_SPEC = importlib.util.spec_from_file_location("container_cpu", ROOT / "zig/tools/build_cpu.py")
+cpu = importlib.util.module_from_spec(_CPU_SPEC)
+_CPU_SPEC.loader.exec_module(cpu)
+
 ROLES = ("relayer", "validator", "scraper")
 POSTGRES_PIN = "postgres:16.15@sha256:" + "933463a6c8eba2b9f5cd414138738cd8" + "d5519cd2c471214c222652f547a66a32"
 PROBE = r'''#include <curl/curl.h>
@@ -674,7 +679,7 @@ def native_suite_command(mode: str, jobs: int, libraries: list[str], root: Path,
             int.from_bytes(header[18:20], "little") != {"x86_64": 62, "aarch64": 183}[machine]):
         raise ValueError("matching Linux libpq shared object required")
     return ["python3", "zig/tools/native_http_tests.py", "--timeout-seconds", "7200", "--",
-            "python3", "zig/tools/zig.py", "--compiler", str(compiler), "test", "src/db_tests.zig", "-O", mode,
+            "python3", "zig/tools/zig.py", "--compiler", str(compiler), "test", "src/db_tests.zig", *(cpu.zig_cpu_args("direct") if machine == "x86_64" else []), "-O", mode,
             "-j" + str(jobs), "-lc", "-lstdc++", str(libpq_library), *libraries]
 
 
@@ -721,6 +726,7 @@ def native_suite(mode: str, jobs: int, output: Path) -> None:
         raise ValueError("absolute installed libpq directory required")
     libpq_library = (pq_directory / "libpq.so.5").resolve(strict=True)
     argv = native_suite_command(mode, jobs, libraries, ROOT, os.uname().machine, libpq_library)
+    recipe = cpu.recipe("zig-direct", argv, env, Path(__file__), repo=ROOT) if os.uname().machine == "x86_64" else None
     result = command(argv, env=env, timeout=7250)
     output.parent.mkdir(parents=True, exist_ok=True)
     log = output.with_suffix(".log")
@@ -732,6 +738,7 @@ def native_suite(mode: str, jobs: int, output: Path) -> None:
     try:
         if result.returncode != 0:
             raise AssertionError("actual full-SDK native suite exited nonzero")
+        if recipe is not None: receipt["test_cpu_recipe"] = cpu.finish_recipe(recipe, {"actual_parent_wait": True, "exit_code": result.returncode, "error": None}, repo=ROOT)
         receipt["tests"] = native_test_results(log.read_text())
         receipt["passed"] = True
     finally:

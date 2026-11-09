@@ -18,6 +18,10 @@ _census_module = importlib.util.module_from_spec(_census_spec)
 _census_spec.loader.exec_module(_census_module)
 functional_allocated = _census_module.functional_allocated
 
+_CPU_SPEC = importlib.util.spec_from_file_location("producer_cpu", Path(__file__).resolve().parents[1] / "tools/build_cpu.py")
+cpu = importlib.util.module_from_spec(_CPU_SPEC)
+_CPU_SPEC.loader.exec_module(cpu)
+
 GIB=1024**3
 ROOT=Path(__file__).resolve().parents[2]
 FEATURES='cosmos cosmosnative sealevel starknet radix tron test-utils memory-profiling'
@@ -36,7 +40,7 @@ def pin(path):
 
 def source():
     names=subprocess.check_output(['git','ls-files','-z','--','rust/main','rust/sealevel'],cwd=ROOT,timeout=10).decode().split('\0')
-    names += ['zig/bench/native_harness_controls.py','zig/bench/native_harness_census.py','zig/bench/cold_matrix_owner.py','.github/workflows/zig-agents.yml','.nvmrc']
+    names += ['zig/bench/native_harness_controls.py','zig/tools/build_cpu.py','zig/bench/native_harness_census.py','zig/bench/cold_matrix_owner.py','.github/workflows/zig-agents.yml','.nvmrc']
     return {n:pin(ROOT/n)for n in names if n and (ROOT/n).is_file() and not(ROOT/n).is_symlink()}
 
 def generated():
@@ -45,7 +49,7 @@ def generated():
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--root',type=Path,required=True);parser.add_argument('--git-sha',required=True);args=parser.parse_args()
     root=args.root.resolve(strict=True)
-    assert os.uname().sysname=='Linux' and root.is_relative_to(Path(os.environ['RUNNER_TEMP']).resolve(strict=True))
+    assert os.uname().sysname=='Linux' and os.uname().machine=='x86_64' and root.is_relative_to(Path(os.environ['RUNNER_TEMP']).resolve(strict=True))
     assert (root/'setup-owned').read_text()==args.git_sha+'\n'
     assert re.fullmatch('[0-9a-f]{40}',args.git_sha)and subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True,timeout=10).strip()==args.git_sha
     assert shutil.disk_usage(root).free>=40*GIB
@@ -54,6 +58,7 @@ def main():
     env={k:os.environ[k]for k in ['PATH','CARGO_HOME','RUSTUP_HOME']if k in os.environ}
     (root/'home').mkdir(exist_ok=True);(root/'tmp').mkdir(exist_ok=True)
     env.update(HOME=str(root/'home'),TMPDIR=str(root/'tmp'),CARGO_TARGET_DIR=str(target),CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_TEST_DEBUG='0',CARGO_BUILD_JOBS='2',CARGO_TERM_COLOR='never')
+    env=cpu.portable_environment(env,tokio_unstable=True)
     cargo=['cargo','+1.98.0'];base=['--locked','--offline','--package','run-locally','--bin','run-locally','--features',FEATURES,'--target-dir',str(target),'-j','2']
     phases=[('compile-construction',cargo+['test',*base,'--no-run','--message-format=json-render-diagnostics'])]
     phases +=[(scope.removesuffix('::').replace('::','-'),cargo+['test',*base,scope,'--','--test-threads=1'])for scope in FILTERS]
@@ -65,6 +70,7 @@ def main():
         for name,argv in phases:
             assert source()==before,'authoritative tracked Source changed'
             assert shutil.disk_usage(root).free>=6*GIB and functional_allocated(root,census)-baseline_alloc<=30*GIB
+            recipe=cpu.recipe('rust',argv,env,Path(__file__),repo=ROOT)
             child=None;known={};groups={};cleanup=None;error=None;peak=0;log=output/(name+'.log');start=time.monotonic()
             try:
                 with log.open('wb')as stream:
@@ -95,6 +101,7 @@ def main():
             assert error is None and child is not None and child.returncode==0 and cleanup and cleanup['clean'],'helper phase/cleanup failed'
             leftovers=[r for r in cleanup.get('owned_present_before_stop',[])if r['pid']!=child.pid]
             assert not leftovers,'helper command left descendants requiring cleanup'
+            row['cpu_recipe']=cpu.finish_recipe(recipe,row,repo=ROOT)
             now_generated=generated()
             assert all(now_generated.get(k)==v for k,v in old_generated.items()),'existing generated compiler input changed'
             old_generated=now_generated
@@ -128,6 +135,8 @@ def main():
         result={'schema':1,'passed':primary is None,'source_commit':args.git_sha,'scope':'Compiled filtered native harness fixtures only; no native-chain/role/SDK-main/600 or timing acceptance','source_unchanged':source()==before,'Source_scope':'Git-tracked authoritative Rust main/sealevel inputs; build.rs-generated ignored ABI outputs recorded separately, preserved after creation','checks':rows,'all_owned_jobs_joined':all(r['actual_parent_wait'] and r['cleanup']['clean'] for r in rows),'products':products,'error':primary,'functional_allocation_census':census,'timing_acceptance':False,'native_case_acceptance':False}
         if primary is None and len(products)!=2:
             result['passed']=False;result['error']={'type':'ArtifactError','message':'both actual Cargo-emitted helper products required'};primary=result['error']
+        if primary is None:
+            result['cpu_contract']=cpu.make_record('helper','shared',args.git_sha,'amd64',cpu.cpu_flags(Path('/proc/cpuinfo').read_text()),{name:{k:row['published'][k]for k in ['bytes','sha256']}for name,row in products.items()},[row['cpu_recipe']for row in rows])
         (output/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     if primary is not None:raise SystemExit(1)
 

@@ -131,6 +131,23 @@ class Reuse(unittest.TestCase):
    worker.update(request=request_pin,input_manifest=input_pin);metadata(files['worker'],worker);owner.update(request=request_pin,worker_receipt={'path':'/old/runner/proof/functional-result.json',**r.size_sha(p.pin(files['worker']),64*1024**2)});metadata(files['owner'],owner);a=h['input_artifact'];o=h['origin'];consumer.update(request=request_pin,input_manifest=input_pin,remote={'id':a['id'],'name':a['name'],'bytes':a['size_in_bytes'],'sha256':a['sha256'],'run_id':o['run_id'],'run_attempt':o['run_attempt'],'source_commit':o['source_commit'],'job_id':o['job_id']});metadata(files['consumer'],consumer)
    payload={path.name:path.read_bytes()for path in files.values()};slot['members']={name:member(path,path.name)for name,path in files.items()};raw=zipped(payload);slot['artifact'].update(size_in_bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest());h['proofs'][i]=slot;zip_rows[slot['artifact']['id']]=raw
   return h,manifest,blobs,zip_rows
+ def test_new_portable_profile_cannot_relabel_old_comparator_build(self):
+  h,value,_,_=self.transport_fixture();root=self.root/'portable-provenance';root.mkdir()
+  # Real original fixture provenance; no SDK/archives/child/compiler is run.
+  legacy={'schema':1,'source_unchanged':True,'source_before':{},'source_after':{},'execution_source_commit':self.commit,'producer_source_commit':self.producer,'baseline':{'baseline_source_commit':p.BASELINE,'build_checkout_commit':self.commit,'compiled_Source_equal':True,'helper_fixture_excluded_by_actual_Cargo_reachability':True,'profile':r.BASELINE_PROFILE,'RUSTFLAGS':p.PROFILE_RUSTFLAGS[r.BASELINE_PROFILE]},'actual_waited_Git_checks':[{'actual_parent_wait':True,'exit_code':0}]}
+  command={'error_type':None,'actual_parent_wait':True,'exit_code':0,'signals':[],'owned_absent':True,'completed_within_original_deadline':True,'completion_check_ns':1,'original_deadline_monotonic_ns':2}
+  def stored(name,body):
+   path=root/name;metadata(path,body);return {**p.pin(path),'path':name}
+  value['source_gate']=stored('gate.json',legacy);value['build_receipt']=stored('build.json',{'passed':True,'fixed_profile':r.BASELINE_PROFILE,'actual_commands':[command]})
+  r.validate_input_provenance(value,root,h)
+  with self.assertRaises(p.Refused):r.validate_input_provenance(value,root,h,p.PORTABLE_PROFILE)
+  value['baseline_profile']=p.PORTABLE_PROFILE
+  with self.assertRaises(p.Refused):r.validate_input_provenance(value,root,h,p.PORTABLE_PROFILE)
+  legacy['baseline'].update(profile=p.PORTABLE_PROFILE,RUSTFLAGS=p.PROFILE_RUSTFLAGS[p.PORTABLE_PROFILE]);value['source_gate']=stored('gate2.json',legacy)
+  value['build_receipt']=stored('build2.json',{'passed':True,'fixed_profile':p.PORTABLE_PROFILE,'actual_commands':[command]})
+  # Final V2-all-scope evidence is added by the shared CPU contract producer.
+  with self.assertRaises(p.Refused):r.validate_input_provenance(value,root,h,p.PORTABLE_PROFILE)
+
  def test_actual_crossrun_reader_relocates_all7_ZIPs_without_oldpath_IO(self):
   self.exercise_transport(False)
  def test_actual_archive_digest_failure_leaves_no_accepted_join(self):

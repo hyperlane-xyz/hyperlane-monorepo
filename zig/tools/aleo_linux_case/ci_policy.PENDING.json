@@ -49,21 +49,21 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 142097,
+      "bytes": 142570,
       "sha256": {
         "sha256_hex_chunks": [
-          "996a463a0b6c082e86c8c957409471de",
-          "fad79803ab0af53c006e866e68dcdf05"
+          "eed469edbae7a1fedf940ddfec89fe26",
+          "db3837d4bcbc4efaf9fd7a7de0449415"
         ]
       }
     },
     {
       "path": "zig/bench/cold_matrix_owner.py",
-      "bytes": 26673,
+      "bytes": 26676,
       "sha256": {
         "sha256_hex_chunks": [
-          "981877a752abfebe0b1e620d2117b579",
-          "c9b89280c222acc0d8bba9c5c93a4435"
+          "ef0614813d14d4f0d5ade1ed4f5b04c9",
+          "0ec736fc5b25563b832bd44090e20fb2"
         ]
       }
     },
@@ -79,11 +79,11 @@
     },
     {
       "path": "zig/bench/native_case_tools.py",
-      "bytes": 57594,
+      "bytes": 59502,
       "sha256": {
         "sha256_hex_chunks": [
-          "7c7a5e99944c13e9d02b45cd14afbb1a",
-          "9cf78b33defff0f0f582ddde73809ca5"
+          "d3371fd57197b124155a4a59364c9413",
+          "b0b1a314794f433228634fa6dae36024"
         ]
       }
     },
@@ -99,11 +99,11 @@
     },
     {
       "path": "zig/bench/native_payload_export.py",
-      "bytes": 15966,
+      "bytes": 16096,
       "sha256": {
         "sha256_hex_chunks": [
-          "6b6b714f6ae24f16dc5efe2da17b2a14",
-          "c25b9d73417be09e390c679eb4fe17a3"
+          "cac98f3526e34c7cca3a130c40bb5a3d",
+          "3d80185cb7dbdc23ef3afda373dacbbf"
         ]
       }
     },
@@ -129,11 +129,11 @@
     },
     {
       "path": "zig/integration/native_case_inputs.py",
-      "bytes": 77186,
+      "bytes": 82604,
       "sha256": {
         "sha256_hex_chunks": [
-          "e1eca4a4d85c9c8f6e2327ba6201c500",
-          "4ebe4ff023d3396d2e30c342b6c6ff1f"
+          "cc9f191358f4810d93ba57560c3b3221",
+          "3fdf8e0dfc5a2366049a3c45aac5a11f"
         ]
       }
     },
@@ -179,11 +179,11 @@
     },
     {
       "path": "zig/tools/aleo_linux/receipts.py",
-      "bytes": 12287,
+      "bytes": 12279,
       "sha256": {
         "sha256_hex_chunks": [
-          "a0dbe1ce96080a0f614605673994727a",
-          "85fa946b49632f27e70223a0afe917a6"
+          "9330fa9b32fec3c37f1fc121c18054dc",
+          "f2d8354c14f997be1731836170fa8706"
         ]
       }
     },
@@ -229,11 +229,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/case_cohort.py",
-      "bytes": 5597,
+      "bytes": 5589,
       "sha256": {
         "sha256_hex_chunks": [
-          "90e0f978ec54ac037599ef868f900388",
-          "3ef9451075e294756a51d6c729f169bb"
+          "0d8ede6f47b3a5adc97594eff47c97e3",
+          "e18ffb871844b26075fbe0cc0a3025c1"
         ]
       }
     },
@@ -579,11 +579,11 @@
     },
     {
       "path": "zig/tools/build_cpu.py",
-      "bytes": 4034,
+      "bytes": 22564,
       "sha256": {
         "sha256_hex_chunks": [
-          "fe3d41c3b47b4d0342a4004c38c71f3a",
-          "64686b914d178385dd08940a4a319c94"
+          "5d5fff2db280f2de0808f20008a8c422",
+          "8565872b871cc173d53fc3c9dad567a4"
         ]
       }
     }

@@ -158,6 +158,12 @@ class OwnedSdkLinkControls(unittest.TestCase):
   self.assertNotEqual(before,m.inventory(self.root/'assets'))
 
 class MatchingCargoControls(unittest.TestCase):
+ def test_host_portable_profile_never_leaks_into_SBF_shared_environment(self):
+  base={'CARGO_HOME':'/owned/cargo','PATH':'/usr/bin:/bin'};before=dict(base)
+  for version in ['1.86.0','1.76.0']:
+   env=m.host_compile_environment(base,pathlib.Path('/owned/rust/bin/cargo'),version);self.assertEqual(env['RUSTFLAGS'],'--cfg tokio_unstable '+m.cpu.RUST_CPU);self.assertEqual(env['CFLAGS'],m.cpu.C_FLAGS);self.assertEqual(env['CXXFLAGS'],m.cpu.C_FLAGS);self.assertEqual(env['RUSTUP_TOOLCHAIN'],version)
+  self.assertEqual(base,before);provision,compile=m.sbf_environments(base,pathlib.Path('/owned/platform'),pathlib.Path('/owned/rust/bin/cargo'));self.assertNotIn('RUSTFLAGS',provision);self.assertNotIn('CFLAGS',compile);self.assertEqual(compile['RUSTC'],'/owned/platform/rust/bin/rustc')
+
  def test_actual_sbf_provision_and_compile_share_all_authority_except_offline(self):
   base={'CARGO_HOME':'/owned/cargo','RUSTUP_HOME':'/owned/rustup','HOME':'/owned/home','TMPDIR':'/owned/tmp','PATH':'/usr/bin:/bin','CARGO_NET_GIT_FETCH_WITH_CLI':'true'}
   provision,compile=m.sbf_environments(base,pathlib.Path('/owned/assets/platform'),pathlib.Path('/owned/rustup/toolchains/1.86.0/bin/cargo'))

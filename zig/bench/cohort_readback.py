@@ -17,6 +17,44 @@ TOOLS=('init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference'
 HELPER_PHASES=('compile-construction','external_agents-tests','external_agents-radix_fixture-tests','external_agents-radix_contracts-tests','program-tests','cosmos-validator_config_tests','starknet-cli-tests','compile-normal','clippy')
 COMPILED_SCOPES={'runtime':('zig/src','zig/native','zig/build.zig','zig/build.zig.zon'),'helper':('rust/main','rust/sealevel'),'tools':('rust/main','rust/sealevel','zig/reference')}
 
+def cpu_api():
+    # Existing trusted Source module; main joins its exact committed body and
+    # checks it again after inspection alongside this reader and workflow.
+    import importlib.util
+    path=Path(__file__).resolve().parents[1]/'tools/build_cpu.py'
+    spec=importlib.util.spec_from_file_location('cohort_build_cpu',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    return module
+
+
+def portable_cpu_facts(value,scope,mode,products,git_source):
+    cpu=cpu_api()
+    need(cpu.profile_from_source(git_source.bytes('zig/tools/build_cpu.py'))==cpu.PROFILE,'CPU_PORTABLE_PRODUCER_SOURCE')
+    cpu.validate(value,scope,mode,PRODUCER,{name:pin['sha256']for name,pin in products.items()})
+    need(value['schema']==2 and all(value['artifacts'][name]['bytes']==pin['bytes']for name,pin in products.items()),'CPU_PORTABLE_ARTIFACT_BYTES')
+    cpu.validate_recipe_sources(value,git_source.bytes)
+    flags=cpu.required_flags(value)
+    return {'CPU_profile':cpu.PROFILE,'required_ISA_flag_count':len(flags),
+            'required_ISA_flags_sha256':sha(canonical(flags)),
+            'compiler_recipe_count':len(value['recipes']),
+            'compiler_recipe_catalog_sha256':sha(canonical(value['recipes'])),
+            'compiler_recipe_Source_verified':True}
+
+
+def optional_cpu_facts(contract,scope,mode,products,git_source):
+    expected=cpu_api().profile_from_source(git_source.bytes('zig/tools/build_cpu.py'))
+    need((contract is not None)==(expected is not None),'CPU_MISSING_OR_RELABELLED_PRODUCER_CONTRACT')
+    return portable_cpu_facts(contract,scope,mode,products,git_source)if contract is not None else{}
+
+
+def complete_cpu_profile(components,git_source):
+    keys=set(PRODUCT_KEYS)
+    need(keys<=set(components),'CPU_COMPLETE_PUBLISHER_SET')
+    profiles={components[key].get('CPU_profile')for key in keys}
+    expected=cpu_api().profile_from_source(git_source.bytes('zig/tools/build_cpu.py'))
+    need(profiles=={expected},'CPU_MIXED_PUBLISHER_PROFILES')
+
+
 class Refused(RuntimeError):
     def __init__(self,code):
         assert re.fullmatch('[A-Z][A-Z0-9_]{0,63}',code)
@@ -331,15 +369,22 @@ def validate_sdk(archive,mode,git_source):
     cpu=[]
     for scope,row in provenance.items():
         path=member_row(archive,row);closed.add(path);value=archive.data(path)
-        need(set(value)=={'schema','scope','mode','source_commit','architecture','flags','artifacts'}and type(value['schema'])is int and value['schema']==1 and value['scope']==scope and value['mode']==mode and value['source_commit']==PRODUCER and value['architecture']=='amd64','SDK_CPU_IDENTITY')
-        flags=value['flags'];need(isinstance(flags,list)and flags and all(isinstance(v,str)and re.fullmatch('[A-Za-z0-9_.+-]+',v)for v in flags)and flags==sorted(set(flags)),'SDK_CPU_FLAGS')
-        need(set(flags)<=set(advertised),'SDK_ADVERTISED_CPU_COVERAGE')
-        need(set(value['artifacts'])==CPU_SCOPES[scope],'SDK_CPU_ARTIFACTS')
-        for key,pin in value['artifacts'].items():need(pin=={'bytes':manifest['artifacts'][key]['bytes'],'sha256':expected[key]},'SDK_CPU_BYTES')
-        cpu.append({'scope':scope,'flag_count':len(flags),'flags_sha256':sha(canonical(flags)),'receipt_sha256':archive.pin(path)['sha256']})
+        profile={}
+        if value.get('schema')==2:
+            profile=portable_cpu_facts(value,scope,mode,{key:manifest['artifacts'][key]for key in CPU_SCOPES[scope]},git_source)
+            flags=value['flags'];required=cpu_api().required_flags(value)
+            need(set(required)<=set(advertised),'SDK_ADVERTISED_CPU_COVERAGE')
+        else:
+            need(set(value)=={'schema','scope','mode','source_commit','architecture','flags','artifacts'}and type(value['schema'])is int and value['schema']==1 and value['scope']==scope and value['mode']==mode and value['source_commit']==PRODUCER and value['architecture']=='amd64','SDK_CPU_IDENTITY')
+            flags=value['flags'];need(isinstance(flags,list)and flags and all(isinstance(v,str)and re.fullmatch('[A-Za-z0-9_.+-]+',v)for v in flags)and flags==sorted(set(flags)),'SDK_CPU_FLAGS')
+            need(set(flags)<=set(advertised),'SDK_ADVERTISED_CPU_COVERAGE')
+            need(set(value['artifacts'])==CPU_SCOPES[scope],'SDK_CPU_ARTIFACTS')
+            for key,pin in value['artifacts'].items():need(pin=={'bytes':manifest['artifacts'][key]['bytes'],'sha256':expected[key]},'SDK_CPU_BYTES')
+        cpu.append({'scope':scope,'flag_count':len(flags),'flags_sha256':sha(canonical(flags)),'receipt_sha256':archive.pin(path)['sha256'],**profile})
+    need({row.get('CPU_profile')for row in cpu}=={cpu_api().profile_from_source(git_source.bytes('zig/tools/build_cpu.py'))},'SDK_MIXED_CPU_PROFILES')
     need(archive.files()==closed,'SDK_CLOSED_MEMBERS')
     suite=suite_counts(native,native_required_tests(git_source));suite.update(explicit_agent_runtime_tests(native,git_source))
-    return {'mode':mode,'source_commit':PRODUCER,'products':product_rows,'native_suite':suite,'CPU_receipts':cpu,'export_actual_waits':len(calls),'export_created_CID_removed':True,'actual_consumer_CPU_superset_checked':False,'SDK_or_native_product_executed_by_reader':False}
+    return {'mode':mode,'source_commit':PRODUCER,'products':product_rows,'native_suite':suite,'CPU_receipts':cpu,'export_actual_waits':len(calls),'export_created_CID_removed':True,'actual_consumer_CPU_superset_checked':False,'SDK_or_native_product_executed_by_reader':False,**({'CPU_profile':cpu[0]['CPU_profile']}if cpu[0].get('CPU_profile')else{})}
 
 RADIX_READINESS_TESTS = ('external_agents::radix_fixture::tests::readiness_read_probe_has_expired_and_delayed_absolute_fences', 'external_agents::radix_fixture::tests::readiness_response_byte_schema_and_http_status_bounds_remain_hard', 'external_agents::radix_fixture::tests::readiness_waits_for_current_read_guard_without_submitting_or_renewing_network_checks')
 
@@ -394,6 +439,10 @@ def validate_helper(archive,git_source):
         need(row['artifact_relative_path']=='products/'+name,'HELPER_PRODUCT_PATH')
         path=member_row(archive,row['published'],row['artifact_relative_path']);need(row['producer']['bytes']==row['published']['bytes']and row['producer']['sha256']==row['published']['sha256'],'HELPER_CARGO_COPY');observed_elf=elf(archive,path)
         out[name]={**archive.pin(path),'ELF_machine':observed_elf['machine']}
+    profile=optional_cpu_facts(result.get('cpu_contract'),'helper','shared',{name:row['published']for name,row in products.items()},git_source)
+    if profile:
+        observed_cpu=cpu_api().cpu_flags(archive.bytes('setup/tools-platform.txt',4*1024**2).decode())
+        need(observed_cpu==result['cpu_contract']['flags'],'HELPER_CPU_RAW_EVIDENCE')
     # The actual producer uploads its entire evidence root: tools/reference
     # duplicates and dependency-stage evidence are intentional members.
     tool_files={'manifest.json','partial.json','plan.json','source-gate.json'}|{'bin/'+n for n in TOOLS}|{n+'.log'for n in ['build-'+n for n in TOOLS]+['test-ziggy-rocks-oracle','test-ziggy-native-rows']}
@@ -403,26 +452,28 @@ def validate_helper(archive,git_source):
     stage={'radix-reference-stage/'+n for n in ['fetch.log','producer-cpuinfo.txt','partial.json','source-gate.json']}|{'setup/tools-platform.txt'}
     need(archive.files()==own|stage|{'native-case-tools/'+n for n in tool_files}|{'native-radix-reference/'+n for n in radix_files},'HELPER_CLOSED_MEMBERS')
     def embedded(prefix,names):return sha(canonical({n:archive.pin(prefix+n)for n in names}))
-    return {'source_commit':PRODUCER,'Source_origin':origins,'actual_phase_waits':len(rows),'actual_test_counts':testcounts,'required_census_names_observed':len(observed),'five_strict_deadline_tests_observed':True,**readiness,'products':out,'product_execution':False,'embedded_tools_catalog_sha256':embedded('native-case-tools/',tool_files),'embedded_radix_catalog_sha256':embedded('native-radix-reference/',radix_files)}
+    return {'source_commit':PRODUCER,'Source_origin':origins,'actual_phase_waits':len(rows),'actual_test_counts':testcounts,'required_census_names_observed':len(observed),'five_strict_deadline_tests_observed':True,**readiness,'products':out,'product_execution':False,'embedded_tools_catalog_sha256':embedded('native-case-tools/',tool_files),'embedded_radix_catalog_sha256':embedded('native-radix-reference/',radix_files),**profile}
 
 def validate_writer(archive,mode,git_source):
     value=archive.data('manifest.json');need(value.get('passed')is True and value.get('source_commit')==PRODUCER and value.get('mode')==mode,'WRITER_IDENTITY')
     need(value.get('writer_executed')is False and value.get('native_case_acceptance')is False and value.get('component_interoperability_acceptance')is False and value.get('input_before')==value.get('input_after'),'WRITER_SOURCE_FENCE')
-    declared=value['input_before'];need(isinstance(declared,list)and len(declared)==10 and len({r.get('path')for r in declared})==10,'WRITER_INPUT_CLOSURE')
+    declared=value['input_before'];need(isinstance(declared,list)and len(declared)==(11 if value.get('cpu_contract')is not None else 10) and len({r.get('path')for r in declared})==len(declared),'WRITER_INPUT_CLOSURE')
     source_rows={}
     for row in declared:
         need(isinstance(row,dict)and set(row)=={'path','bytes','sha256'}and isinstance(row['path'],str)and row['path'].startswith('/')and integer(row['bytes'],1)and digest_text(row['sha256']),'WRITER_INPUT_PIN')
-        for logical in ('zig/src/native_rows_interop_fixture.zig','zig/tools/zig.py'):
+        for logical in ('zig/src/native_rows_interop_fixture.zig','zig/tools/zig.py',*(['zig/tools/build_cpu.py']if value.get('cpu_contract')is not None else[])):
             if row['path'].endswith('/'+logical):source_rows[logical]=row
-    need(len(source_rows)==2,'WRITER_SOURCE_ROWS');origin=origin_rows(source_rows,git_source)
+    need(len(source_rows)==(3 if value.get('cpu_contract')is not None else 2),'WRITER_SOURCE_ROWS');origin=origin_rows(source_rows,git_source)
     cpu=value['cpu'];need(cpu.get('architecture')=='amd64'and isinstance(cpu.get('flags'),list)and cpu['flags']and all(isinstance(v,str)and re.fullmatch('[A-Za-z0-9_.+-]+',v)for v in cpu['flags']),'WRITER_CPU')
     row=value['writer'];need(row.get('path')=='bin/native-rows-writer-'+mode,'WRITER_PATH');name=member_row(archive,row);observed=elf(archive,name)
     need(archive.files()=={'manifest.json',name,'diagnostics/monitor-parent.json','diagnostics/progress.jsonl','diagnostics/result.json'},'WRITER_CLOSED_MEMBERS')
+    profile=optional_cpu_facts(value.get('cpu_contract'),'writer',mode,{'writer':row},git_source)
+    if profile:need(value['cpu_contract']['flags']==cpu['flags'],'WRITER_CPU_RAW_EVIDENCE')
     diagnostic=archive.data('diagnostics/result.json');monitor=archive.data('diagnostics/monitor-parent.json')
     need(type(diagnostic.get('exit_code'))is int and diagnostic['exit_code']==0 and diagnostic.get('primary_error')is None and diagnostic.get('cleanup_error')is None and diagnostic.get('native_or_timing_acceptance')is False and monitor.get('primary_error')is None,'WRITER_ACTUAL_COMPILER_OUTCOME')
     for cleanup in [diagnostic.get('cleanup'),monitor.get('cleanup')]:
         need(isinstance(cleanup,dict)and cleanup.get('actual_parent_wait')is True and type(cleanup.get('exit_code'))is int and cleanup['exit_code']==0 and cleanup.get('clean')is True and cleanup.get('cleanup_confirmed_absent')is True and not cleanup.get('signals')and not cleanup.get('errors'),'WRITER_ACTUAL_CLEAN_WAIT')
-    return {'mode':mode,'source_commit':PRODUCER,'product':archive.pin(name),'ELF_machine':observed['machine'],'Source_origin':origin,'unchanged_declared_compiler_input_count':len(declared),'declared_compiler_input_catalog_sha256':sha(canonical(declared)),'compiler_archive_inputs_independently_present_or_executed_by_reader':False,'CPU_flags_sha256':sha(canonical(cpu['flags'])),'actual_consumer_CPU_superset_checked':False,'writer_executed_by_reader':False}
+    return {'mode':mode,'source_commit':PRODUCER,'product':archive.pin(name),'ELF_machine':observed['machine'],'Source_origin':origin,'unchanged_declared_compiler_input_count':len(declared),'declared_compiler_input_catalog_sha256':sha(canonical(declared)),'compiler_archive_inputs_independently_present_or_executed_by_reader':False,'CPU_flags_sha256':sha(canonical(cpu['flags'])),'actual_consumer_CPU_superset_checked':False,'writer_executed_by_reader':False,**profile}
 
 def validate_tools(archive,git_source):
     constants=literal_constants(git_source.bytes('zig/bench/native_case_tools.py').decode(),{'CANONICAL','LOCKS'})
@@ -448,9 +499,10 @@ def validate_tools(archive,git_source):
         need(row.get('relative_path')=='bin/'+name,'TOOLS_PRODUCT_PATH');path=member_row(archive,row);observed=elf(archive,path)
         need(observed==row['elf']and row['producer']['bytes']==row['bytes']and row['producer']['sha256']==row['sha256'],'TOOLS_ELF_CARGO_COPY')
         products[name]={**archive.pin(path),'ELF_machine':observed['machine'],'ELF_type':observed['type']}
+    profile=optional_cpu_facts(manifest.get('cpu_contract'),'tools','shared',manifest['tools'],git_source)
     closed={'manifest.json','partial.json','plan.json','source-gate.json'}|{'bin/'+n for n in TOOLS}|{r['name']+'.log'for r in rows}
     need(archive.files()==closed,'TOOLS_CLOSED_MEMBERS')
-    return {'source_commit':PRODUCER,'Source_origin':origin,'canonical_lock_origin':lock_origin,'products':products,'actual_phase_waits':len(rows),'canonical_compatibility_Source_exact':True,'product_execution':False}
+    return {'source_commit':PRODUCER,'Source_origin':origin,'canonical_lock_origin':lock_origin,'products':products,'actual_phase_waits':len(rows),'canonical_compatibility_Source_exact':True,'product_execution':False,**profile}
 
 def validate_radix(archive,git_source):
     constants=literal_constants(git_source.bytes('zig/bench/native_radix_reference.py').decode(),{'SCOPES','TESTS','CHECKS','REFERENCE','BIN'})
@@ -477,8 +529,10 @@ def validate_radix(archive,git_source):
     product=manifest['tool'];path=member_row(archive,product,'bin/'+constants['BIN']);observed=elf(archive,path)
     need(observed==product['elf']and product['producer']['bytes']==product['bytes']and product['producer']['sha256']==product['sha256'],'RADIX_CARGO_COPY')
     closed={'manifest.json','partial.json','source-gate.json','producer-cpuinfo.txt','bin/'+constants['BIN']}|{r['name']+'.log'for r in rows}
+    profile=optional_cpu_facts(manifest.get('cpu_contract'),'radix-reference','shared',{'tool':product},git_source)
+    if profile:need(manifest['cpu_contract']['flags']==required,'RADIX_CPU_RAW_EVIDENCE')
     need(archive.files()==closed,'RADIX_CLOSED_MEMBERS')
-    return {'source_commit':PRODUCER,'Source_origin':origin,'actual_phase_waits':len(rows),'actual_five_named_SDK_tests':True,'product':archive.pin(path),'ELF_machine':observed['machine'],'producer_CPU_rows':len(flags),'producer_CPU_flags_sha256':sha(canonical(required)),'actual_consumer_CPU_superset_checked':False,'product_execution':False}
+    return {'source_commit':PRODUCER,'Source_origin':origin,'actual_phase_waits':len(rows),'actual_five_named_SDK_tests':True,'product':archive.pin(path),'ELF_machine':observed['machine'],'producer_CPU_rows':len(flags),'producer_CPU_flags_sha256':sha(canonical(required)),'actual_consumer_CPU_superset_checked':False,'product_execution':False,**profile}
 
 def validate_svm(archive,git_source):
     constants=literal_constants(git_source.bytes('zig/bench/native_svm_assets.py').decode(),{'AGAVE','AGAVE_BYTES','PROGRAMS','ENVIRONMENT'})
@@ -519,8 +573,13 @@ def validate_svm(archive,git_source):
     need(all('rust/sealevel/environments/local-e2e/'+n in source for n in constants['ENVIRONMENT']),'SVM_PUBLIC_ENVIRONMENT_SOURCE')
     metadata={'agave-linux-runtime-members.json','agave-publisher-members.json','client-cargo-artifact.json','compiler-inputs-before.json','criterion-publisher-members.json','custom-spl-commit.json','custom-spl-lock-overlay.json','custom-spl-source-map.json','custom-spl-upstream-source-map.json','custom-spl-upstream.Cargo.lock.gz','linux-profile.CANDIDATE.json','locks-before.json','platform-debugger-link-omissions.json','platform-linkage.json','platform-publisher-members.json','products.json','sbf-tool-authority.json','sdk-dependency-stage.json','spl-cargo-artifact.json','spl-publisher-members.json'}
     closed={'result.json','source-before.json','observations.jsonl','published/hyperlane-sealevel-client','published/spl-token'}|{'published/'+n for n in metadata}|header_names|{'published/agave/'+n for n in agave}|{'published/programs/'+n for n in programs}|log_names
+    profile={}
+    need(('published/host-cpu.json'in archive.files())==(cpu_api().profile_from_source(git_source.bytes('zig/tools/build_cpu.py')) is not None),'SVM_HOST_CPU_CONTRACT')
+    if 'published/host-cpu.json'in archive.files():
+        profile=portable_cpu_facts(archive.data('published/host-cpu.json'),'svm-host','shared',{name:products[name]for name in ('client','spl')},git_source)
+        closed.add('published/host-cpu.json')
     need(archive.files()==closed,'SVM_OUTER_CLOSED_MEMBERS')
-    return {'source_commit':PRODUCER,'Source_origin':origin,'actual_direct_waits':len(commands),'actual_adopted_waits':len(orphans),'no_owner_signals_or_forced_cleanup':True,'closed_Agave_files':len(agave),'closed_Agave_bytes':total,'SBF_machine_counts':{str(k):v for k,v in machines.items()},'nine_actual_header_rows_verified':True,'official_acquisition_receipts':acquisition,'nonfatal_stack_offset_warning_count':warnings,'native_VM_acceptance':False,'product_execution':False}
+    return {'source_commit':PRODUCER,'Source_origin':origin,'actual_direct_waits':len(commands),'actual_adopted_waits':len(orphans),'no_owner_signals_or_forced_cleanup':True,'closed_Agave_files':len(agave),'closed_Agave_bytes':total,'SBF_machine_counts':{str(k):v for k,v in machines.items()},'nine_actual_header_rows_verified':True,'official_acquisition_receipts':acquisition,'nonfatal_stack_offset_warning_count':warnings,'native_VM_acceptance':False,'product_execution':False,**profile}
 
 def file_pin(path,owned=True):
     before=path.lstat();need(stat.S_ISREG(before.st_mode)and not path.is_symlink()and(not owned or before.st_nlink==1),'OWNED_REGULAR_FILE')
@@ -716,6 +775,8 @@ PUBLIC_FACT_KEYS|={'explicit_radix_readiness_test_count','three_explicit_radix_r
 PUBLIC_FACT_KEYS|={'gh_startup_diagnostics','probes','AS512','INHERITED_AS1G','token_supplied','API_original_AS512_unchanged','API_inherited_hard_AS1GiB','last_failed_command','kind','actual_parent_wait','exit_code','signal','error_class','peak_child_RSS_bytes','forced_signal','cleanup_error_count'}
 PUBLIC_STRINGS=set(CPU_SCOPES)|{'ReleaseSafe','ReleaseFast','agave','platform','spl','criterion','completed','success'}|set(REQUIRED_JOBS)|set(artifact_names(0,0).values())|set(n for names in COMPILED_SCOPES.values()for n in names)
 
+PUBLIC_FACT_KEYS|={'CPU_profile','required_ISA_flag_count','required_ISA_flags_sha256','compiler_recipe_count','compiler_recipe_catalog_sha256','compiler_recipe_Source_verified'}
+PUBLIC_STRINGS|={cpu_api().PROFILE}
 PUBLIC_STRINGS|=GH_DIAGNOSTIC_KINDS|GH_ERROR_CLASSES|{'API_JSON','ARTIFACT_ZIP','GIT_READ'}
 
 def public_facts(value):
@@ -780,7 +841,7 @@ def main():
         try:need(head.read_text().strip()==args.execution_source_commit,'EXECUTION_CHECKOUT')
         finally:head.unlink()
         reader_sources={}
-        for logical in ['zig/bench/cohort_readback.py','.github/workflows/zig-agents.yml']:
+        for logical in ['zig/bench/cohort_readback.py','.github/workflows/zig-agents.yml','zig/tools/build_cpu.py']:
             actual=file_pin(args.repo/logical);blob,_=runner.git(['show',args.execution_source_commit+':'+logical])
             try:need(file_pin(blob)==actual,'READER_SOURCE_NOT_COMMITTED')
             finally:blob.unlink()
@@ -805,6 +866,7 @@ def main():
             # original artifact identity/catalog facts have been constructed.
             need(file_pin(download)==actual,'OWN_DOWNLOAD_MUTATION');download.unlink();download=None;guard()
         validate_embedded_components(components)
+        complete_cpu_profile(components,source)
         need(file_pin(args.policy)==policy_pin and file_pin(args.native_request)==case_pin,'INPUT_CHANGED_AFTER_INSPECTION');require_disabled_case(args.native_request.read_bytes())
         for logical,expected in reader_sources.items():need(file_pin(args.repo/logical)==expected,'READER_SOURCE_MUTATION')
         need(file_pin(args.gh,owned=False)==runner.tool_pins['gh']and file_pin(Path('/usr/bin/git'),owned=False)==runner.tool_pins['git'],'SYSTEM_TOOL_MUTATION')

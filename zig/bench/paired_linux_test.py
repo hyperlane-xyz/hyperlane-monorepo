@@ -12,6 +12,47 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the portable native-linux compiler commands; cold/paired remain separately reviewed.
+ portable_after = '        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0 --cpu-recipe-output "$RUNNER_TEMP/native-url-cpu.json"\n'
+ portable_before = '        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '          python3 zig/tools/native_deps.py --cpu-profile x86_64_v3 --git-sha "$GITHUB_SHA" --offline --jobs "${BUILD_JOBS}" \\\n'
+ portable_before = '          python3 zig/tools/native_deps.py --offline --jobs "${BUILD_JOBS}" \\\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '            python3 zig/tools/zig.py build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" native-db-test relayer validator \\\n'
+ portable_before = '            python3 zig/tools/zig.py build -j"${BUILD_JOBS}" native-db-test relayer validator \\\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"\n'
+ portable_before = '          python3 zig/tools/zig.py test src/durable_directory_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}"\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '        run: python3 zig/tools/zig.py build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"\n'
+ portable_before = '        run: python3 zig/tools/zig.py build -j"${BUILD_JOBS}" scraper -Doptimize=ReleaseSafe "-Dgit-sha=$GITHUB_SHA" "-Dlibpq-library=$LIBPQ"\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
+ portable_before = '          python3 zig/tools/zig.py test src/socket_owner_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n          python3 zig/tools/zig.py test src/websocket_delegated_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '          python3 zig/tools/zig.py build-exe -target x86_64-linux-gnu -mcpu=x86_64_v3 src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"\n'
+ portable_before = '          python3 zig/tools/zig.py build-exe src/relayer_bridge_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc -lstdc++ "${native_libs[@]}" -femit-bin="$GITHUB_WORKSPACE/zig/bench/results/native-linux/relayer_bridge_tests"\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '          python3 zig/src/ops/tools/locked.py --toolchain 1.98.0 --cpu-recipe-output "$RUNNER_TEMP/native-regex-cpu.json"\n'
+ portable_before = '          python3 zig/src/ops/tools/locked.py --toolchain 1.98.0\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '          python3 zig/tools/zig.py test -target x86_64-linux-gnu -mcpu=x86_64_v3 src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
+ portable_before = '          python3 zig/tools/zig.py test src/ops_tests.zig -O ReleaseSafe -j"${BUILD_JOBS}" -lc\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
+ portable_after = '            python3 zig/integration/postgres.py --cpu-profile x86_64_v3 --compiler "$ZIG" \\\n'
+ portable_before = '            python3 zig/integration/postgres.py --compiler "$ZIG" \\\n'
+ if text.count(portable_after) != 1: raise AssertionError('Exact once-only portable native-linux compiler command required')
+ text = text.replace(portable_after, portable_before, 1)
  # Exact inverse of the NativeLinux native-db libpq object argument.
  pq_after = '"-Dnative-db-libs=$LIBS" "-Dlibpq-library=$LIBPQ" --summary all'
  pq_before = '"-Dnative-db-libs=$LIBS" --summary all'
@@ -204,11 +245,24 @@ class Controls(unittest.TestCase):
   root=self.root/'input';root.mkdir();payload=root/'public-data';payload.write_bytes(b'public fixture');row={**p.pin(payload),'path':payload.name};flags=['fixture_cpu'];groups={'rust':{n:row for n in p.RUST},'zig':{m:{n:row for n in p.ZIG}for m in p.MODES},'tools':{n:row for n in p.TOOLS},'tool_manifest':row,'evm_oracle':row}
   # Distinct producer metadata is mocked explicitly. Execute the ACTUAL consumer
   # gate through its real required-tool checks; no ELF/main or SDK runs here.
-  names={'anvil','cast','clang','cc','node','pnpm','git','ps','lsof','sh','openssl'};external=p.pin(payload);value={'schema':1,'kind':'paired-linux-inputs-v1','platform':'linux-x86_64','producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'passed':True,'source_unchanged':True,'all_actual_parent_waits':True,'owned_absent':True,'artifacts':groups,'files':[row],'required_cpu_flags':flags,'external':{'tools':{n:external for n in names},'libraries':{}},'repository_fixture_files':[]};manifest=root/'input-manifest.json';manifest.write_text(json.dumps(value));original=p.Path.read_text
+  names={'anvil','cast','clang','cc','node','pnpm','git','ps','lsof','sh','openssl'};external=p.pin(payload);value={'schema':1,'kind':'paired-linux-inputs-v1','platform':'linux-x86_64','producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'baseline_profile':p.LEGACY_PROFILE,'passed':True,'source_unchanged':True,'all_actual_parent_waits':True,'owned_absent':True,'artifacts':groups,'files':[row],'required_cpu_flags':flags,'external':{'tools':{n:external for n in names},'libraries':{}},'repository_fixture_files':[]};manifest=root/'input-manifest.json';manifest.write_text(json.dumps(value));original=p.Path.read_text
   def text(path,*args,**kwargs):return 'flags : fixture_cpu\n'if str(path)=='/proc/cpuinfo'else original(path,*args,**kwargs)
   with mock.patch.object(p.Path,'read_text',text),mock.patch.object(__import__('shutil'),'which',return_value=str(payload)):
    self.assertTrue(p.input_manifest(manifest,root,self.repo,'b'*40)['passed']);del value['external']['tools']['openssl'];manifest.write_text(json.dumps(value))
    with self.assertRaisesRegex(p.Refused,'fixture executable closure'):p.input_manifest(manifest,root,self.repo,'b'*40)
+ def test_manifest_cannot_downgrade_the_admitted_portable_request_to_legacy_profile(self):
+  root=self.root/'profile-input';root.mkdir();payload=root/'public-data';payload.write_bytes(b'public fixture');row={**p.pin(payload),'path':payload.name};flags=['fixture_cpu']
+  groups={'rust':{n:row for n in p.RUST},'zig':{mode:{n:row for n in p.ZIG}for mode in p.MODES},'tools':{n:row for n in p.TOOLS},'tool_manifest':row,'evm_oracle':row}
+  external=p.pin(payload);names={'anvil','cast','clang','cc','node','pnpm','git','ps','lsof','sh','openssl'}
+  value={'schema':1,'kind':'paired-linux-inputs-v1','platform':'linux-x86_64','producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'baseline_profile':p.LEGACY_PROFILE,'passed':True,'source_unchanged':True,'all_actual_parent_waits':True,'owned_absent':True,'artifacts':groups,'files':[row],'required_cpu_flags':flags,'external':{'tools':{n:external for n in names},'libraries':{}},'repository_fixture_files':[]}
+  manifest=root/'input-manifest.json';manifest.write_text(json.dumps(value));original=p.Path.read_text
+  def text(path,*args,**kwargs):return 'flags : fixture_cpu\n'if str(path)=='/proc/cpuinfo'else original(path,*args,**kwargs)
+  with mock.patch.object(p.Path,'read_text',text),mock.patch.object(__import__('shutil'),'which',return_value=str(payload)):
+   self.assertTrue(p.input_manifest(manifest,root,self.repo,'b'*40)['passed'])
+   self.assertTrue(p.input_manifest(manifest,root,self.repo,'b'*40,{'baseline_profile':p.LEGACY_PROFILE})['passed'])
+   with self.assertRaisesRegex(p.Refused,'profile differs from admitted request'):p.input_manifest(manifest,root,self.repo,'b'*40,{'baseline_profile':p.PORTABLE_PROFILE})
+   with self.assertRaisesRegex(p.Refused,'profile differs from admitted request'):p.input_manifest(manifest,root,self.repo,'b'*40,{'required_source':[]})
+
  def test_method_matrix_original_schedule_and_pair_order(self):
   value=p.decode((HERE/'paired_linux_methods.json').read_bytes());rows=value['sequence'];self.assertEqual(len(rows),10)
   for i,row in enumerate(rows):
@@ -483,5 +537,65 @@ class EvmConsumerWorkflowInverseControls(unittest.TestCase):
   path=next(line.strip()[len('path: '):]for line in artifact.splitlines()if line.strip().startswith('path: '))
   self.assertTrue(path.endswith('/public/result.json'));self.assertNotIn('*',path);self.assertNotIn('logs',path)
   self.assertIn('exec env -i ',step);self.assertIn('GH_TOKEN="$GH_TOKEN"',step);self.assertNotIn('printenv',step)
+
+class PortableCpuProvenance(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.repo=Path(self.temp.name).resolve();self.producer='b'*40
+  authority=[]
+  for relative in ['zig/tools/build_cpu.py','zig/bench/paired_linux_inputs.py']:
+   target=self.repo/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/relative).read_bytes());authority.append({**p.pin(target),'path':relative})
+  self.authority={'required_source':authority};self.cpu=p.load_source(self.repo/'zig/tools/build_cpu.py','fixture_actual_portable_policy',self.authority,self.repo)
+  self.env=self.cpu.portable_environment({'PATH':'/bin'},tokio_unstable=True);self.rows=[];recipes={}
+  for name in ['build-rust-three-agent','build-evm-recover-oracle']:
+   argv=['cargo','build','--locked','--offline','--release','--bin',name]
+   pending=self.cpu.recipe('rust',argv,self.env,'zig/bench/paired_linux_inputs.py',self.repo)
+   recipes[name]=self.cpu.finish_recipe(pending,{'actual_parent_wait':True,'exit_code':0},self.repo)
+   self.rows.append({'name':name,'command':argv,'actual_parent_wait':True,'exit_code':0,'error_type':None,'owned_absent':True,'signals':[],'completed_within_original_deadline':True})
+  host=sorted(set(self.cpu.REQUIRED_FLAGS)|{'avx512f'})
+  def record(scope,mode,names):
+   # Synthetic completed recipes exercise the real closed coverage validator;
+   # no compiler is executed and no receipt is published as actual build proof.
+   completed=[]
+   for relative,kind,count in self.cpu.COVERAGE[scope]:
+    target=self.repo/relative
+    if not target.exists():target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/relative).read_bytes())
+    for index in range(count):
+     if kind=='rust':argv=['cargo','build','--bin',scope+str(index)]
+     elif kind=='cc':argv=['c++',*__import__('shlex').split(self.cpu.C_FLAGS),'-c',scope+str(index)+'.cc']
+     elif kind=='zig-build':argv=['zig','build',*self.cpu.zig_cpu_args('build'),'-Dfixture='+str(index)]
+     else:argv=['zig','build-exe',*self.cpu.zig_cpu_args('direct'),scope+str(index)+'.zig']
+     pending=self.cpu.recipe(kind,argv,self.env,relative,self.repo);completed.append(self.cpu.finish_recipe(pending,{'actual_parent_wait':True,'exit_code':0},self.repo))
+   return self.cpu.make_record(scope,mode,self.producer,'amd64',host,{n:{'bytes':1,'sha256':'a'*64}for n in names},completed)
+  self.build={'passed':True,'fixed_profile':p.PORTABLE_PROFILE,'CPU_profile':self.cpu.PROFILE,'CPU_policy_Source':authority[0],'SDK_baked_CPU':{mode:[record(scope,mode,names)for scope,names in self.cpu.SCOPES.items()]for mode in p.MODES},'helper_required_CPU':{mode:list(self.cpu.REQUIRED_FLAGS)for mode in p.MODES},'tools_CPU_contract':record('tools','shared',['init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference']),'writer_CPU_contracts':{label:record('writer',mode,['writer'])for label,mode in [('writer_safe','ReleaseSafe'),('writer_fast','ReleaseFast')]},'comparator_CPU_recipes':recipes,'actual_commands':self.rows,'compile_CPU_flags':host}
+ def checked(self,value):return p.portable_build_provenance(value,self.repo,self.producer,self.authority)
+ def test_portable_all_scope_receipts_keep_host_flags_but_require_only_target_ISA(self):
+  self.assertEqual(self.checked(self.build),list(self.cpu.REQUIRED_FLAGS));self.assertIn('avx512f',self.build['compile_CPU_flags']);self.assertNotIn('avx512f',self.checked(self.build));self.assertEqual(p.BASELINE,'c5202242cc6569da4a858ed7ddbb34170ab696aa')
+ def test_missing_mixed_legacy_and_wrong_producer_scopes_refuse(self):
+  variants=[]
+  v=copy.deepcopy(self.build);v['SDK_baked_CPU']['ReleaseSafe'].pop();variants.append(v)
+  v=copy.deepcopy(self.build);v['SDK_baked_CPU']['ReleaseFast'][0]={'schema':1,'flags':['avx512f']};variants.append(v)
+  v=copy.deepcopy(self.build);v['SDK_baked_CPU']['ReleaseSafe'][0]['source_commit']='d'*40;variants.append(v)
+  v=copy.deepcopy(self.build);del v['helper_required_CPU']['ReleaseFast'];variants.append(v)
+  v=copy.deepcopy(self.build);del v['tools_CPU_contract'];variants.append(v)
+  v=copy.deepcopy(self.build);del v['writer_CPU_contracts']['writer_fast'];variants.append(v)
+  v=copy.deepcopy(self.build);v['writer_CPU_contracts']['writer_safe']['schema']=1;variants.append(v)
+  for value in variants:
+   with self.subTest(value=value),self.assertRaises((p.Refused,ValueError)):self.checked(value)
+ def test_actual_wait_command_hash_and_procedure_Source_cannot_be_fabricated(self):
+  mutations=[lambda v:v['actual_commands'][0].update(actual_parent_wait=False),lambda v:v['actual_commands'][0].update(exit_code=1),lambda v:v['actual_commands'][0]['command'].append('--different'),lambda v:v['actual_commands'].append(copy.deepcopy(v['actual_commands'][0])),lambda v:v['comparator_CPU_recipes']['build-rust-three-agent']['source'].update(sha256='d'*64),lambda v:v['CPU_policy_Source'].update(sha256='d'*64)]
+  for change in mutations:
+   value=copy.deepcopy(self.build);change(value)
+   with self.subTest(change=change),self.assertRaises((p.Refused,ValueError)):self.checked(value)
+  with self.assertRaisesRegex(p.Refused,'authority'):p.portable_build_provenance(self.build,self.repo,self.producer,None)
+  self.assertEqual(p.PROFILE_RUSTFLAGS[p.LEGACY_PROFILE],'--cfg tokio_unstable -Ctarget-cpu=native')
+class PortableNativeLinuxWorkflowInverseControls(unittest.TestCase):
+ def test_actual_native_linux_cpu_commands_are_exact_and_required(self):
+  text=(HERE.parents[1]/'.github/workflows/zig-agents.yml').read_text()
+  function=next(n for n in ast.parse(Path(__file__).read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow')
+  hunks=[ast.literal_eval(n.value)for n in function.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='portable_after'for t in n.targets)]
+  self.assertEqual(len(hunks),10);ordinary_native_http_workflow(text)
+  for hunk in hunks:
+   for changed in [text.replace(hunk,'',1),text+hunk,text.replace(hunk,hunk.replace('python3','python_UNREVIEWED',1),1)]:
+    with self.subTest(hunk=hunk[:80]),self.assertRaises(AssertionError):ordinary_native_http_workflow(changed)
 
 if __name__=='__main__':unittest.main()

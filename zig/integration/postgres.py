@@ -6,6 +6,7 @@ Docker publishes a random port on loopback; the container is removed on exit.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,9 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
+_CPU_SPEC = importlib.util.spec_from_file_location("postgres_fixture_cpu", ROOT / "zig/tools/build_cpu.py")
+cpu = importlib.util.module_from_spec(_CPU_SPEC)
+_CPU_SPEC.loader.exec_module(cpu)
 
 
 def run(args, *, cwd=ROOT, env=None):
@@ -33,6 +37,7 @@ def chunks(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cpu-profile", choices=["production-default", "x86_64_v3"], default="production-default")
     parser.add_argument("--compiler", default=os.environ.get("ZIG", "zig"))
     parser.add_argument("--mode", choices=["ReleaseSafe", "ReleaseFast"], default="ReleaseSafe")
     parser.add_argument("--sdk-root", type=Path)
@@ -50,18 +55,35 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     if not args.process_only and run([args.compiler, "version"]).stdout.strip() != "0.15.2":
         parser.error("Zig0.15.2 required")
-    if not args.migration_bin.exists():
-        built = run(["cargo", f"+{args.rust_toolchain}", "build", "--locked", "--release", "-p", "migration", "--bin", "init-db", "-j", "2"], cwd=ROOT / "rust/main")
+    portable = args.cpu_profile == "x86_64_v3"
+    if portable and (sys.platform != "linux" or os.uname().machine != "x86_64" or args.migration_bin.resolve() != ROOT / "rust/main/target/release/init-db"):
+        parser.error("Portable fixture compilers require Linux x86_64 and their actual Cargo migration output")
+    compiler_environment = cpu.portable_environment(os.environ, tokio_unstable=True) if portable else dict(os.environ)
+    compiler_recipes = []
+    cpu_source = (ROOT / "zig/tools/build_cpu.py").read_bytes() if portable else None
+    if portable or not args.migration_bin.exists():
+        command = ["cargo", f"+{args.rust_toolchain}", "build", "--locked", "--release", "-p", "migration", "--bin", "init-db", "-j", "2"]
+        recipe = cpu.recipe("rust", command, compiler_environment, Path(__file__), repo=ROOT) if portable else None
+        built = run(command, cwd=ROOT / "rust/main", env=compiler_environment)
+        if recipe is not None:
+            if (ROOT / "zig/tools/build_cpu.py").read_bytes() != cpu_source: raise RuntimeError("Portable compiler Source changed")
+            compiler_recipes.append(cpu.finish_recipe(recipe, {"actual_parent_wait": True, "exit_code": built.returncode, "error": None}, repo=ROOT))
         (output / "rust-init-db-build.log").write_text(built.stdout + built.stderr)
     name = f"ziggy-pg-fixture-{os.getpid()}"
     started = False
     with tempfile.TemporaryDirectory(prefix="ziggy-pg-tests-") as folder:
         binary = Path(folder) / "postgres-tests"
         build = [args.compiler, "test", "zig/src/pg_tests.zig", "-O", args.mode, "-j2", "-lc", args.libpq_library, "--test-no-exec", f"-femit-bin={binary}"]
+        if portable: build += cpu.zig_cpu_args("direct")
         if args.sdk_root:
             build += ["--sysroot", args.sdk_root, "-L/usr/lib"]
         if not args.process_only:
-            compiled = run(build)
+            build = [str(value) for value in build]
+            recipe = cpu.recipe("zig-direct", build, compiler_environment, Path(__file__), repo=ROOT) if portable else None
+            compiled = run(build, env=compiler_environment)
+            if recipe is not None:
+                if (ROOT / "zig/tools/build_cpu.py").read_bytes() != cpu_source: raise RuntimeError("Portable compiler Source changed")
+                compiler_recipes.append(cpu.finish_recipe(recipe, {"actual_parent_wait": True, "exit_code": compiled.returncode, "error": None}, repo=ROOT))
             (output / "postgres-test-build.log").write_text(compiled.stdout + compiled.stderr)
         try:
             run(["docker", "run", "--detach", "--rm", "--pull=never", "--name", name,
@@ -139,6 +161,7 @@ SELECT to_regclass('pg_temp.ziggy_fixture_sql_smoke') IS NULL;
             hashes = {path: chunks(hashlib.sha256((ROOT / path).read_bytes()).hexdigest()) for path in source_files}
             result = {
                 "passed": True, "scope": "actual scraper process and explicit server-side SQL smoke on fresh production migrations; native tests not run" if args.process_only else "native libpq and near-head PostgreSQL persistence on actual Rust migrations; not a whole-agent replay",
+                "compiler_CPU_profile": cpu.PROFILE if portable else "production-default", "compiler_recipes": compiler_recipes,
                 "mode": "process-only" if args.process_only else "native-and-optional-process", "native_tests": native_tests, "sql_smoke_cases": sql_cases,
                 "server": version, "client_library": str(args.libpq_library), "docker_image": args.image,
                 "docker_image_digest_chunks": chunks(image_id.removeprefix("sha256:")),

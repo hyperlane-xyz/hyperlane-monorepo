@@ -61,7 +61,7 @@ def owner(args):
  policy.need(result['passed'],'paired owner failed; raw evidence retained')
 
 def worker(args,authority,request_pin):
- value=policy.input_manifest(args.inputs/'input-manifest.json',args.inputs,args.repo,authority['producer_source_commit']);mode=policy.MODES[args.index//3]if args.action=='functional-worker'else None
+ value=policy.input_manifest(args.inputs/'input-manifest.json',args.inputs,args.repo,authority['producer_source_commit'],authority);mode=policy.MODES[args.index//3]if args.action=='functional-worker'else None
  if args.action=='runtime-worker':raise policy.Refused('phase1 timing execution not implemented; no benchmark import')
  policy.need(0<=args.index<6,'six exact functional indices');mode=policy.MODES[args.index//3];kind=policy.KINDS[args.index%3]
  for root in [args.repo/'zig/bench',args.repo/'zig/integration']:policy.need(not(root/'__pycache__').exists(),'no stale local Python cache')

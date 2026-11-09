@@ -104,8 +104,9 @@ class Controls(unittest.TestCase):
     self.assertIn('--offline',row['command']);self.assertIn('--release',row['command']);self.assertEqual(row['command'][row['command'].index('-j')+1],'2');self.assertNotIn('--no-default-features',row['command'])
   runtime=rows[3];self.assertEqual(runtime['cwd'],str(self.repo/'rust/main'));self.assertIn('relayer/aleo,validator/aleo,scraper/aleo',runtime['command']);self.assertIn(str(self.root/'oracle-target'),rows[-1]['command'])
  def test_compile_environment_strips_auth_proxy_wrappers_and_preserves_profile(self):
-  env=m.compile_environment(self.root,{'PATH':'/bin','RUSTUP_HOME':'/staged/rustup','GH_TOKEN':'secret','HTTPS_PROXY':'secret','RUSTC_WRAPPER':'secret','CARGO_PROFILE_RELEASE_DEBUG':'1'})
-  self.assertNotIn('GH_TOKEN',env);self.assertNotIn('HTTPS_PROXY',env);self.assertNotIn('CARGO_PROFILE_RELEASE_DEBUG',env);self.assertEqual(env['RUSTC_WRAPPER'],'');self.assertEqual(env['RUSTFLAGS'],'--cfg tokio_unstable -Ctarget-cpu=native');self.assertEqual(env['CARGO_HOME'],str(self.root/'cargo-home'))
+  cpu=__import__('runpy').run_path(str(REPO/'zig/tools/build_cpu.py'));cpu=types.SimpleNamespace(**cpu)
+  env=m.compile_environment(self.root,{'PATH':'/bin','RUSTUP_HOME':'/staged/rustup','GH_TOKEN':'secret','HTTPS_PROXY':'secret','RUSTC_WRAPPER':'secret','CARGO_PROFILE_RELEASE_DEBUG':'1'},cpu)
+  self.assertNotIn('GH_TOKEN',env);self.assertNotIn('HTTPS_PROXY',env);self.assertNotIn('CARGO_PROFILE_RELEASE_DEBUG',env);self.assertEqual(env['RUSTC_WRAPPER'],'');self.assertEqual(env['RUSTFLAGS'],'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3');self.assertEqual(m.PROFILE,'locked-c520224-production-three-agent-linux-x86_64-v3-v2');self.assertEqual(env['CARGO_HOME'],str(self.root/'cargo-home'))
  def graph(self,helper_kind='dev'):
   packages=[{'id':n,'name':n,'manifest_path':str(self.repo/'rust/main/agents'/n/'Cargo.toml')}for n in ['relayer','validator','scraper']]+[{'id':'core','name':'core','manifest_path':str(self.repo/'rust/main/hyperlane-core/Cargo.toml')},{'id':'helper','name':'run-locally','manifest_path':str(self.repo/'rust/main/utils/run-locally/Cargo.toml')}]
   nodes=[{'id':n,'deps':[{'pkg':'core','dep_kinds':[{'kind':None}]},{'pkg':'helper','dep_kinds':[{'kind':helper_kind}]}]}for n in ['relayer','validator','scraper']]+[{'id':'core','deps':[]},{'id':'helper','deps':[]}]

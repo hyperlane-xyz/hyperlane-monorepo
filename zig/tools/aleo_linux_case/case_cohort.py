@@ -35,7 +35,7 @@ def source_cohort(context_pin, loader_pin, repo, execution_commit, runtime_commi
     producer=module.producer_receipt(Path(value['request']['path']),request,value['producer_receipt'],execution_commit)
     cpu=module.load_module('aleo_current_consumer_cpu','zig/tools/build_cpu.py')
     flags=cpu.cpu_flags(Path('/proc/cpuinfo').read_text(),intersection=True)
-    conservative=cpu.cpu_flags(module.helper_cpu_input(producer).read_text())
+    conservative=module.helper_required_cpu_flags(producer,repo=repo)
     need(set(conservative)<=set(flags),'actual conservative tool CPU not covered')
     sdk_directory=Path(producer['artifacts']['sdk']['directory'])
     sdk_manifest=module.artifact(sdk_directory/'manifest.json')

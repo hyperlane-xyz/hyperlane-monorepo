@@ -230,6 +230,7 @@ def main():
                 raise RuntimeError('2GiB payload cap')
         provenance = {}
         required_flags = set()
+        cpu_records = []
         for scope in sorted(build_cpu.SCOPES):
             destination = args.output / 'build-cpu' / (scope + '.json')
             destination.parent.mkdir(exist_ok=True)
@@ -240,8 +241,10 @@ def main():
             descriptor = pin(destination)
             descriptor['path'] = 'build-cpu/' + destination.name
             provenance[scope] = descriptor
-            required_flags.update(row['flags'])
+            required_flags.update(build_cpu.required_flags(row))
+            cpu_records.append(row)
         result['build_provenance'] = provenance
+        build_cpu.require_same_profile(cpu_records)
         result['required_cpu_flags'] = sorted(required_flags)
         result['consumer_cpu_superset_required'] = True
         result['image_id'] = image_id

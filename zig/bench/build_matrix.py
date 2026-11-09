@@ -8,9 +8,20 @@ compared to Rust's dependency-inclusive cold build as a whole-build speedup.
 """
 import argparse,datetime,hashlib,json,os,pathlib,platform,re,select,shutil,signal,subprocess,time
 import inventory
+import importlib.util
 import cache_reclaim
 import cold_matrix_owner as ownership
 ROOT=inventory.ROOT
+
+def cpu_module():
+ spec=importlib.util.spec_from_file_location('cold_matrix_build_cpu',ROOT/'zig/tools/build_cpu.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+def cpu_configuration(policy,environ,cpu):
+ if policy=='x86_64_v3':
+  if platform.system()!='Linux'or platform.machine()not in{'x86_64','amd64'}:raise ValueError('Portable cold profile requires Linux x86_64')
+  return cpu.portable_environment(environ,tokio_unstable=True),cpu.zig_cpu_args('build')
+ if policy not in{'native','production-default'}:raise ValueError('Unknown cold CPU profile')
+ return dict(environ),['-Dcpu='+('native'if policy=='native'else'baseline')]
 
 def chunk(text):return[text[i:i+32]for i in range(0,len(text),32)]
 # Exact source-tree outputs owned by production build.rs -> utils/abigen.
@@ -135,9 +146,18 @@ def run_phase(phase,base_env,output,expected_source,runtime_floor_bytes,phase_ti
  accounting=phase_accounting(usage,cleanup,known,terminal_before_parent,elapsed)
  row={**phase,'exit_code':None if process is None else process.returncode,'wall_seconds':elapsed,'sampled_process_tree_RSS_peak_bytes':tree_peak,'RSS_samples':samples,'RSS_sample_interval_ms':200,'actual_wait4_usage_available':usage is not None,'exit_wait_method':'pidfd_poll'if platform.system()=='Linux'else'wait4_10ms_poll','disk_guard_triggered':disk_guard,'phase_error':error,'phase_cleanup':cleanup,'source_before_sha256_chunks':before,'source_after_sha256_chunks':after,'source_unchanged':before==after,'generated_bindings_before_sha256_chunks':bindings_before,'generated_bindings_after_sha256_chunks':bindings_after,'generated_bindings_unchanged':bindings_before==bindings_after,'load_before':load_before,'load_after':os.getloadavg(),'free_disk_bytes_before':free_before,'free_disk_bytes_after':shutil.disk_usage(output).free,'log':log.name,'artifacts':[]}
  row.update(accounting)
+ if phase.get('CPU_recipe')is not None and process is not None and process.returncode==0 and error is None and accounting['phase_owned_quiescent']and accounting['phase_rusage_complete']and before==after:
+  row['CPU_recipe']=cpu_module().finish_recipe(phase['CPU_recipe'],{'actual_parent_wait':usage is not None,'exit_code':process.returncode,'error':None},ROOT)
  for artifact in phase.get('artifacts',[]):
   path=pathlib.Path(artifact)
   if path.exists():row['artifacts'].append({'path':str(path),'bytes':path.stat().st_size,'sha256_chunks':inventory.digest(path)})
+ if phase.get('CPU_manifest')is not None and process is not None and process.returncode==0 and error is None and before==after:
+  manifest_path=pathlib.Path(phase['CPU_manifest'])
+  if manifest_path.is_symlink()or not manifest_path.is_file()or manifest_path.stat().st_size>1024**2:raise ValueError('bounded regular native CPU manifest required')
+  manifest=json.loads(manifest_path.read_text());contract=manifest['cpu_contract'];cpu=cpu_module();expected={pathlib.Path(r['path']).name:''.join(r['sha256_chunks'])for r in row['artifacts']}
+  cpu.validate(contract,'native-deps','shared',phase['CPU_source_commit'],expected);cpu.require_same_profile([contract],require_portable=True)
+  if any(contract['artifacts'][pathlib.Path(r['path']).name]['bytes']!=r['bytes']for r in row['artifacts']):raise ValueError('native CPU artifact size differs')
+  cpu.validate_recipe_sources(contract,lambda relative:(ROOT/relative).read_bytes());row['CPU_manifest']={'path':str(manifest_path),'bytes':manifest_path.stat().st_size,'sha256_chunks':inventory.digest(manifest_path)}
  return row
 
 
@@ -186,22 +206,23 @@ def reclaim_phase(cache,phase,all_phases,index):
  return cache_reclaim.reclaim(cache,cache/('sdk-'+group),artifacts)
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',required=True);p.add_argument('--sdk-root',type=pathlib.Path);p.add_argument('--native-db-libs-file',type=pathlib.Path,required=True);p.add_argument('--libpq-library',type=pathlib.Path,required=True);p.add_argument('--toolchain',default='1.98.0');p.add_argument('--jobs',type=int,default=2);p.add_argument('--cpu',choices=['native','production-default'],default='native');p.add_argument('--rust-features',default='');p.add_argument('--native-cold',action='store_true');p.add_argument('--optional-native-sdks',action='store_true');p.add_argument('--execute',action='store_true');p.add_argument('--reclaim-phase-caches',action='store_true',help='Outside timers, preserve runtime artifacts and reclaim generated compiler outputs after their final paired phase');p.add_argument('--min-free-GiB',type=float,default=40);p.add_argument('--runtime-free-GiB',type=float,default=6);p.add_argument('--git-sha');p.add_argument('--phase-timeout-seconds',type=float,default=7200);p.add_argument('--comparison-order',choices=['rust-safe-fast','fast-rust-safe','safe-fast-rust'],default='rust-safe-fast');p.add_argument('--cache-root',type=pathlib.Path);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/build-matrix-plan');args=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',required=True);p.add_argument('--sdk-root',type=pathlib.Path);p.add_argument('--native-db-libs-file',type=pathlib.Path,required=True);p.add_argument('--libpq-library',type=pathlib.Path,required=True);p.add_argument('--toolchain',default='1.98.0');p.add_argument('--jobs',type=int,default=2);p.add_argument('--cpu',choices=['native','production-default','x86_64_v3'],default='native');p.add_argument('--rust-features',default='');p.add_argument('--native-cold',action='store_true');p.add_argument('--optional-native-sdks',action='store_true');p.add_argument('--execute',action='store_true');p.add_argument('--reclaim-phase-caches',action='store_true',help='Outside timers, preserve runtime artifacts and reclaim generated compiler outputs after their final paired phase');p.add_argument('--min-free-GiB',type=float,default=40);p.add_argument('--runtime-free-GiB',type=float,default=6);p.add_argument('--git-sha');p.add_argument('--phase-timeout-seconds',type=float,default=7200);p.add_argument('--comparison-order',choices=['rust-safe-fast','fast-rust-safe','safe-fast-rust'],default='rust-safe-fast');p.add_argument('--cache-root',type=pathlib.Path);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/build-matrix-plan');args=p.parse_args()
  if not 1<=args.jobs<=64:p.error('jobs must be1..64')
  if not 0<args.phase_timeout_seconds<=14400:p.error('phase timeout must be0..14400 seconds')
  if not 0<args.runtime_free_GiB<=args.min_free_GiB:p.error('Runtime floor must be positive and no larger than initial floor')
  if args.git_sha is not None and re.fullmatch('[0-9a-f]{40}',args.git_sha) is None:p.error('git-sha must be exact lower-case 40hex')
+ if args.cpu=='x86_64_v3'and args.git_sha is None:p.error('portable build requires actual procedure git-sha')
  output=args.output.resolve();output.mkdir(parents=True,exist_ok=True);cache=(args.cache_root or ROOT/'zig/bench/.cache'/('build-matrix-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'))).resolve();libraries=[str(pathlib.Path(v.strip()).resolve())for v in args.native_db_libs_file.read_text().replace('\n',',').split(',')if v.strip()]
  if len(libraries)!=7:p.error('seven production RocksDB/compression/ABI archives required')
  setup=[['python3',str(ROOT/'zig/tools/fixture_pack.py'),'restore-locks']]
- if args.native_cold:setup.append(['python3',str(ROOT/'zig/tools/native_deps.py'),'--restore-only'])
+ if args.native_cold:setup.append(['python3',str(ROOT/'zig/tools/native_deps.py'),'--restore-only']+(['--cpu-profile','x86_64_v3','--git-sha',args.git_sha]if args.cpu=='x86_64_v3'else[]))
  # Validator startup always uses the reference URL normalizer, including core
  # images. Every dependency-inclusive or full-SDK trial measures it separately.
  url_cold=args.native_cold or args.optional_native_sdks
  if url_cold:setup.append(['python3',str(ROOT/'zig/src/net/native-url/locked.py'),'--restore-only'])
  if args.optional_native_sdks:
   setup.extend([['python3',str(ROOT/path),'--restore-only']for path in ['zig/src/starknet/testing/locked.py','zig/src/aleo/testing/locked.py','zig/src/ops/tools/locked.py']])
- phases=[];cargo=['cargo',f'+{args.toolchain}','build','--locked','--offline','--release'];rust_flags='--cfg tokio_unstable'+(' -Ctarget-cpu=native'if args.cpu=='native'else'');base_env=dict(os.environ)
+ cpu=cpu_module();phases=[];cargo=['cargo',f'+{args.toolchain}','build','--locked','--offline','--release'];rust_flags='--cfg tokio_unstable'+(' -Ctarget-cpu=native'if args.cpu=='native'else'');base_env=dict(os.environ)
  if args.sdk_root:base_env.update(SDKROOT=str(args.sdk_root.resolve()),MACOSX_DEPLOYMENT_TARGET='11.0')
  cache_env_names={'RUSTC_WRAPPER','RUSTC_WORKSPACE_WRAPPER','CARGO_BUILD_RUSTC_WRAPPER','CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER','CCACHE_DIR','CCACHE_PREFIX','SCCACHE_DIR','SCCACHE_RUSTC_WRAPPER','CARGO_INCREMENTAL'}
  inherited_cache_controls={name:{'present':True,'value_sha256_chunks':chunk(hashlib.sha256(base_env[name].encode()).hexdigest())}for name in sorted(cache_env_names)if name in base_env}
@@ -213,11 +234,19 @@ def main():
  # C/C++ cache tools are disabled; explicit compiler commands naming cache
  # wrappers reject execution rather than being mislabeled compiler-cache-cold.
  base_env.update(RUSTC_WRAPPER='',RUSTC_WORKSPACE_WRAPPER='',CARGO_BUILD_RUSTC_WRAPPER='',CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER='',CCACHE_DISABLE='1',SCCACHE_DISABLE='1')
+ base_env,zig_cpu=cpu_configuration(args.cpu,base_env,cpu)
+ if args.cpu=='x86_64_v3':rust_flags=base_env['RUSTFLAGS']
  compiler_cache_policy={'rust_wrappers_explicitly_empty':True,'ccache_disable':'1','sccache_disable':'1','inherited_cache_controls':inherited_cache_controls,'compiler_environment_signatures':opaque_compilers,'explicit_cache_wrapper_compiler_keys':cache_wrapped_compilers,'no_user_cache_deleted':True}
- def add(name,command,cwd,environment,kind,artifacts=()):phases.append({'name':name,'command':[str(v)for v in command],'cwd':str(cwd),'environment':environment,'cache_state':kind,'artifacts':[str(v)for v in artifacts]})
+ def add(name,command,cwd,environment,kind,artifacts=()):
+  actual=[str(v)for v in command];row={'name':name,'command':actual,'cwd':str(cwd),'environment':environment,'cache_state':kind,'artifacts':[str(v)for v in artifacts]}
+  if args.cpu=='x86_64_v3'and name=='native-sdk-cold':row.update(CPU_manifest=str(native_output/'manifest.json'),CPU_source_commit=args.git_sha)
+  if args.cpu=='x86_64_v3'and name!='native-sdk-cold':
+   actual_env={**base_env,**environment};row['CPU_recipe']=cpu.recipe('zig-build'if name.startswith('zig-')else'rust',actual,actual_env,'zig/bench/build_matrix.py',ROOT)
+  phases.append(row)
  if args.native_cold:
   native_output=cache/'native-sdk';command=['python3',ROOT/'zig/tools/native_deps.py','--offline','--target-dir',cache/'native-target','--output',native_output,'--jobs',args.jobs,'--toolchain',args.toolchain,'--format','libs']
   if args.sdk_root:command+=['--sdk-root',args.sdk_root]
+  if args.cpu=='x86_64_v3':command+=['--cpu-profile','x86_64_v3','--git-sha',args.git_sha]
   add('native-sdk-cold',command,ROOT,{},'fresh standalone native dependency target; downloads excluded', [native_output/name for name in ['libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a']])
   libraries=[str(native_output/v)for v in['libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a']]
  if url_cold:
@@ -236,7 +265,7 @@ def main():
   command=['python3',ROOT/'zig/tools/zig.py','--compiler',args.compiler]
   if args.sdk_root:command+=['--sdk-root',args.sdk_root]
   command+=['build','validator','relayer','scraper','-Doptimize='+mode,'-Dnative-db-libs='+','.join(libraries),'-Dlibpq-library='+str(args.libpq_library.resolve()),'--cache-dir',local,'--global-cache-dir',global_,'--prefix',prefix,'-j'+str(args.jobs)]
-  if args.cpu=='native':command+=['-Dcpu=native']
+  command+=zig_cpu
   if args.git_sha:command+=['-Dgit-sha='+args.git_sha]
   binaries=[prefix/'bin'/role for role in['relayer','validator','scraper']]
   if args.optional_native_sdks:command+=['aleo-vm-worker'];binaries.append(prefix/'bin/hyperlane-aleo-vm-worker')

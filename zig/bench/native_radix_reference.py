@@ -22,12 +22,16 @@ import subprocess
 import sys
 import time
 
+_CPU_SPEC = importlib.util.spec_from_file_location("producer_cpu", Path(__file__).resolve().parents[1] / "tools/build_cpu.py")
+cpu_policy = importlib.util.module_from_spec(_CPU_SPEC)
+_CPU_SPEC.loader.exec_module(cpu_policy)
+
 ROOT = Path(__file__).resolve().parents[2]
 REFERENCE = 'zig/src/radix/reference'
 BIN = 'ziggy-radix-reference'
 SCOPES = [REFERENCE, 'zig/bench/native_radix_reference.py', 'zig/bench/native_radix_reference_test.py',
           'zig/bench/native_case_tools.py', 'zig/bench/native_harness_census.py', 'zig/bench/cold_matrix_owner.py',
-          'zig/bench/native_harness_controls.py', '.github/workflows/zig-agents.yml']
+          'zig/bench/native_harness_controls.py', 'zig/tools/build_cpu.py', '.github/workflows/zig-agents.yml']
 TESTS = ['actual_sdk_notarized_authority_hashes_and_process_fields', 'sdk_signature_truncation_trailing_and_foreign_effects_reject',
          'typed_outputs_use_real_sdk_decode_canonical_reencode', 'byte_argument_is_sdk_vec_encoding_and_validators_are_full_width',
          'input_bounds_duplicate_keys_and_unknown_schema_fail_closed']
@@ -141,6 +145,7 @@ def phases(root, owned, stage):
 
 
 def command(name, argv, env, root, output, deadline, before, repo, owner, census, baseline):
+    recipe=cpu_policy.recipe('rust',argv,env,Path(__file__),repo=ROOT) if name in {'test','build','clippy'} else None
     child, cleanup, error, known, groups = None, None, None, {}, {}
     log = output / (name + '.log')
     peak_rss, peak_growth, minimum_free = 0, 0, None
@@ -182,6 +187,7 @@ def command(name, argv, env, root, output, deadline, before, repo, owner, census
            'peak_tree_RSS_bytes': peak_rss, 'peak_task_growth_bytes': peak_growth, 'minimum_observed_free_bytes': minimum_free}
     row['passed'] = bool(error is None and cleanup and cleanup.get('clean') and row['actual_parent_wait'] and child.returncode == 0
                          and not [r for r in cleanup.get('owned_present_before_stop', []) if r['pid'] != child.pid])
+    if row['passed'] and recipe is not None:row['cpu_recipe']=cpu_policy.finish_recipe(recipe,row,repo=ROOT)
     return row
 
 
@@ -208,7 +214,7 @@ def cargo_product(log, target):
 
 
 def execute(repo, root, commit, stage, minutes):
-    require(sys.platform == 'linux' and platform.machine() in ('x86_64', 'aarch64', 'arm64'), 'Native Linux producer required')
+    require(sys.platform == 'linux' and platform.machine() == 'x86_64', 'Portable Linux x86_64 producer required')
     require(re.fullmatch('[0-9a-f]{40}', commit), 'Exact Source commit required')
     require(root.is_relative_to(Path(os.environ['RUNNER_TEMP']).resolve(strict=True)) and not root.is_symlink(), 'Exact owned runner root required')
     require((root / 'setup-owned').read_text() == commit + '\n', 'Helper setup ownership marker differs')
@@ -247,6 +253,7 @@ def execute(repo, root, commit, stage, minutes):
     cpu['cpuinfo'] = {'relative_path': cpu_path.name, **{k: v for k, v in pin(cpu_path).items() if k != 'path'}}
     env = {k: os.environ[k] for k in ['PATH', 'CARGO_HOME', 'RUSTUP_HOME'] if k in os.environ}
     env.update(HOME=str(root / 'home'), TMPDIR=str(root / 'tmp'), CARGO_TARGET_DIR=str(root / 'target'), CARGO_INCREMENTAL='0', CARGO_PROFILE_DEV_DEBUG='0', CARGO_PROFILE_TEST_DEBUG='0', CARGO_BUILD_JOBS='2', CARGO_TERM_COLOR='never')
+    env=cpu_policy.portable_environment(env,tokio_unstable=True)
     if not stage:
         env['CARGO_NET_OFFLINE'] = 'true'
     deadline = time.monotonic() + minutes * 60
@@ -308,6 +315,7 @@ def execute(repo, root, commit, stage, minutes):
                     'profile': 'dev debug=0; locked offline j2; no inherited RUSTFLAGS; no timing claim', 'tool': product,
                     'source_gate': {'relative_path': gate_path.name, **{k: v for k, v in pin(gate_path).items() if k != 'path'}},
                     'native_case_acceptance': False, 'accepted_reference_component': False, 'timing_acceptance': False}
+        manifest['cpu_contract']=cpu_policy.make_record('radix-reference','shared',commit,'amd64',cpu['required_flags'],{'tool':{k:product[k]for k in ['bytes','sha256']}},[row['cpu_recipe']for row in rows if 'cpu_recipe'in row])
         (evidence / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
 
@@ -321,6 +329,13 @@ def member(base, row, relative):
     actual = pin(path)
     require(actual['bytes'] == row['bytes'] and actual['sha256'] == row['sha256'], 'Artifact member bytes differ')
     return path
+
+
+def validate_cpu_contract(row, scope, mode, producer, artifacts):
+    spec = importlib.util.spec_from_file_location('producer_cpu_admission', ROOT / 'zig/integration/native_case_inputs.py')
+    admission = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(admission)
+    return admission.validate_cpu_contract(row, scope, mode, producer, artifacts, repo=ROOT)
 
 
 def load_manifest(path, expected_sha256, expected_commit, expected_machine, consumer_flags, *, transport_data_only=False):
@@ -348,7 +363,12 @@ def load_manifest(path, expected_sha256, expected_commit, expected_machine, cons
     cpu_path = member(base, gate['cpu']['cpuinfo'], 'producer-cpuinfo.txt')
     observed_cpu = cpu_info(cpu_path)
     require(observed_cpu['required_flags'] == gate['cpu']['required_flags'] and observed_cpu['processor_rows'] == gate['cpu']['processor_rows'], 'CPU flags differ from actual recorded processor metadata')
-    require(gate['cpu']['required_flags'] and set(gate['cpu']['required_flags']) <= set(consumer_flags), 'Consumer CPU is not producer superset')
+    if 'cpu_contract' in manifest:
+        contract=validate_cpu_contract(manifest['cpu_contract'],'radix-reference','shared',expected_commit,{'tool':{k:manifest['tool'][k]for k in ['bytes','sha256']}})
+        require(contract['flags']==observed_cpu['required_flags'],'Actual Radix raw CPU flags differ')
+        require(set(cpu_policy.required_flags(contract))<=set(consumer_flags),'Consumer CPU does not cover portable Radix target')
+    else:
+        require(gate['cpu']['required_flags'] and set(gate['cpu']['required_flags']) <= set(consumer_flags), 'Consumer CPU is not producer superset')
     product = manifest['tool']
     actual = member(base, product, 'bin/' + BIN)
     require(tools.validate_elf(actual, expected_machine, transport_data_only=transport_data_only) == product['elf'], 'Actual reference ELF differs')

@@ -152,6 +152,18 @@ class Controls(unittest.TestCase):
         with mock.patch.object(m.subprocess, 'Popen', side_effect=AssertionError('No implicit execution')):
             return m.load_manifest(path, m.pin(path)['sha256'], self.commit, 62, flags)
 
+    def test_portable_reference_keeps_raw_host_flags_and_requires_only_proven_target_ISA(self):
+        out,gate,manifest=self.fixture();flags=sorted(set(m.cpu_policy.REQUIRED_FLAGS)|{'svm'});path=out/'producer-cpuinfo.txt';path.write_text('processor : 0\nflags : '+' '.join(flags)+'\n');gate['cpu']={'cpuinfo':{'relative_path':path.name,**{k:v for k,v in m.pin(path).items()if k!='path'}},'required_flags':flags,'processor_rows':1}
+        environment=m.cpu_policy.portable_environment({});pending=m.cpu_policy.recipe('rust',['cargo','build','actual-profile-fixture'],environment,Path(m.__file__));completed=m.cpu_policy.finish_recipe(pending,{'actual_parent_wait':True,'exit_code':0})
+        artifacts={'tool':{k:manifest['tool'][k]for k in ['bytes','sha256']}};manifest['cpu_contract']=m.cpu_policy.make_record('radix-reference','shared',self.commit,'amd64',flags,artifacts,[completed])
+        def validate(row,scope,mode,producer,actual):
+            self.assertEqual(actual,artifacts);return m.cpu_policy.validate(row,scope,mode,producer,{n:r['sha256']for n,r in actual.items()})
+        with mock.patch.object(m,'validate_cpu_contract',side_effect=validate)as admitted:
+            self.assertEqual(self.save_load(out,gate,manifest,m.cpu_policy.REQUIRED_FLAGS)['sha256'],manifest['tool']['sha256']);admitted.assert_called_once()
+            self.bad(lambda:self.save_load(out,gate,manifest,[v for v in m.cpu_policy.REQUIRED_FLAGS if v!='avx2']))
+            changed=copy.deepcopy(manifest);changed['cpu_contract']['flags'].remove('svm');self.bad(lambda:self.save_load(out,gate,changed,m.cpu_policy.REQUIRED_FLAGS))
+        legacy=copy.deepcopy(manifest);legacy.pop('cpu_contract');self.bad(lambda:self.save_load(out,gate,legacy,m.cpu_policy.REQUIRED_FLAGS))
+
     def test_optional_manifest_admission_reads_only_no_root_or_native_claim(self):
         out, gate, manifest = self.fixture()
         self.assertEqual(self.save_load(out, gate, manifest)['path'], str((out / 'bin' / m.BIN).resolve(strict=True)))

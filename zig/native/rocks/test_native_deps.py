@@ -66,13 +66,37 @@ class Integrity(unittest.TestCase):
         self.assertEqual(env['SOURCE_DATE_EPOCH'], '0')
         self.assertEqual(env['ZERO_AR_DATE'], '1')
 
+    def test_portable_cpu_is_explicit_after_sanitization_and_direct_CPP_flags(self):
+        with patch.object(helper.platform,'system',return_value='Linux'),patch.object(helper.platform,'machine',return_value='x86_64'),patch.dict(helper.os.environ,{'RUSTFLAGS':'-Ctarget-cpu=native','CARGO_ENCODED_RUSTFLAGS':'PRIVATE','CFLAGS_x86_64_unknown_linux_gnu':'-march=native','CXXFLAGS':'-march=native','ROCKSDB_LIB_DIR':'/foreign'}):
+            env=helper.build_environment(None,cpu_profile='x86_64_v3');flags,_=helper.native_flags(None,'x86_64_v3')
+        self.assertEqual(env['RUSTFLAGS'],helper.cpu.RUST_CPU);self.assertEqual(env['CFLAGS'],helper.cpu.C_FLAGS);self.assertEqual(env['CXXFLAGS'],helper.cpu.C_FLAGS);self.assertEqual(flags,helper.cpu.C_FLAGS.split());self.assertNotIn('CARGO_ENCODED_RUSTFLAGS',env);self.assertNotIn('CFLAGS_x86_64_unknown_linux_gnu',env);self.assertNotIn('ROCKSDB_LIB_DIR',env)
+        with patch.object(helper.platform,'system',return_value='Darwin'),self.assertRaises(ValueError):helper.build_environment(None,cpu_profile='x86_64_v3')
+        with self.assertRaises(ValueError):helper.build_environment(None,cpu_profile='unreviewed')
+
+    def test_portable_shim_and_probe_bind_their_two_actual_CPP_calls_and_waits(self):
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary);source=root/'source';(source/'rocksdb/include').mkdir(parents=True);output=root/'out';output.mkdir();recipes=[];calls=[]
+            args=SimpleNamespace(cxx='c++',ar='ar',sdk_root=None,macos_deployment_target='11.0',cpu_profile='x86_64_v3')
+            def execute(argv,**kwargs):
+                calls.append((argv,kwargs))
+                if argv[0]=='ar':Path(argv[2]).write_bytes(b'!<arch>\n')
+                elif '-o'in argv:Path(argv[argv.index('-o')+1]).write_bytes(b'compiler output fixture')
+                return SimpleNamespace(returncode=0)
+            with patch.object(helper.platform,'system',return_value='Linux'),patch.object(helper.platform,'machine',return_value='x86_64'),patch.object(helper,'source_for',return_value={'path':source}),patch.object(helper.subprocess,'run',side_effect=execute),patch.object(helper.subprocess,'check_output',return_value=json.dumps(helper.EXPECTED_RUNTIME).encode()):
+                shim,observed=helper.compile_shim_and_probe(args,output,[],{},recipes)
+            actual=[argv for argv,_ in calls if argv[0]=='c++'];self.assertEqual(len(actual),2);self.assertEqual(len(recipes),2);self.assertNotEqual(recipes[0]['command_sha256'],recipes[1]['command_sha256']);self.assertEqual(observed,helper.EXPECTED_RUNTIME);self.assertEqual(shim.read_bytes(),b'!<arch>\n')
+            for argv,kwargs in calls:
+                if argv[0]!='c++':continue
+                self.assertEqual([x for x in argv if x.startswith(('-march=','-mtune='))],helper.cpu.C_FLAGS.split());self.assertEqual(kwargs['env']['CXXFLAGS'],helper.cpu.C_FLAGS)
+            self.assertTrue(all(row['actual_parent_wait']is True and row['exit_code']==0 for row in recipes))
+
     def test_import_requires_matching_cargo_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaises(ValueError): helper.import_target(Path(temporary), {})
 
     def test_build_timeout_terminates_compiler_process_group(self):
         with tempfile.TemporaryDirectory() as temporary:
-            args = SimpleNamespace(toolchain='1.98.0', target_dir=Path(temporary)/'target', jobs=1, offline=True, sdk_root=None, macos_deployment_target='11.0', build_timeout=1)
+            args = SimpleNamespace(cpu_profile='production-default',toolchain='1.98.0', target_dir=Path(temporary)/'target', jobs=1, offline=True, sdk_root=None, macos_deployment_target='11.0', build_timeout=1)
             timeout = helper.subprocess.TimeoutExpired(['cargo'], 1)
             with patch.object(helper.subprocess, 'Popen') as start, patch.object(helper.os, 'killpg') as kill:
                 process = start.return_value

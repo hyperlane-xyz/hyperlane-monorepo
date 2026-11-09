@@ -483,4 +483,53 @@ class SvmDiagnosticNodeAdmissionControls(unittest.TestCase):
   with self.assertRaises(ValueError):m.admitted_svm_diagnostic_node(bad,62,elf)
 
 
+
+class PortableHelperCpuControls(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve()
+  self.cpu=m.load_module('portable_input_cpu_fixture','zig/tools/build_cpu.py')
+  self.source=self.root/'zig/bench/native_harness_controls.py';self.source.parent.mkdir(parents=True);self.source.write_bytes(b'actual public fixture caller')
+  env=self.cpu.portable_environment({})
+  self.recipes=[self.cpu.finish_recipe(self.cpu.recipe('rust',['cargo',kind,'--locked'],env,self.source,repo=self.root),{'actual_parent_wait':True,'exit_code':0},repo=self.root)for kind in ('build','test')]
+  self.helper=self.root/'helper';(self.helper/'setup').mkdir(parents=True);platform=self.helper/'setup/tools-platform.txt';platform.write_text('flags: amd_only sse2\n')
+  self.receipt={'producer_source_commit':'ab'*20,'artifacts':{'helper':{'directory':str(self.helper)}},'artifact_pins':{'helper_cpu':m.artifact(platform)}}
+  products={}
+  for name in ('normal','construction'):
+   path=self.helper/'products'/name;path.parent.mkdir(exist_ok=True);path.write_bytes(name.encode());pin=m.artifact(path)
+   products[name]={'artifact_relative_path':'products/'+name,'published':pin,'producer':dict(pin)}
+  self.value={'passed':True,'source_commit':'ab'*20,'source_unchanged':True,'all_owned_jobs_joined':True,'native_case_acceptance':False,'products':products,
+      'checks':[{'actual_parent_wait':True,'exit_code':0,'error':None,'cleanup':{'clean':True}}]}
+  self.value['cpu_contract']=self.cpu.make_record('helper','shared','ab'*20,'amd64',['amd_only','sse2'],{name:{k:row['published'][k]for k in ('bytes','sha256')}for name,row in products.items()},self.recipes)
+  self.save()
+ def save(self):
+  (self.helper/'result.json').write_text(json.dumps(self.value))
+ def git_body(self,wire=None,portable=True):
+  from types import SimpleNamespace
+  def actual(argv,**kwargs):
+   if argv[-1].endswith(':zig/tools/build_cpu.py'):body=('PROFILE = '+repr(self.cpu.PROFILE)).encode()if portable else b'# historical CPU procedure'
+   else:body=self.source.read_bytes()if wire is None else wire
+   return SimpleNamespace(returncode=0,stdout=body,stderr=b'')
+  return mock.patch.object(m.subprocess,'run',side_effect=actual)
+ def test_actual_helper_products_and_producer_recipe_Source_join_before_ISA_admission(self):
+  with self.git_body()as run:
+   self.assertEqual(m.helper_required_cpu_flags(self.receipt,require_portable=True,repo=self.root),list(self.cpu.REQUIRED_FLAGS))
+  self.assertEqual(run.call_args.args[0],['git','show','ab'*20+':zig/bench/native_harness_controls.py'])
+  self.assertEqual(self.value['cpu_contract']['flags'],['amd_only','sse2'])
+  with self.git_body(b'foreign procedure'),self.assertRaisesRegex(ValueError,'Source differs'):m.helper_required_cpu_flags(self.receipt,True,repo=self.root)
+ def test_missing_portable_contract_refused_but_legacy_raw_guard_preserved(self):
+  del self.value['cpu_contract'];self.save()
+  with self.git_body(portable=False):
+   self.assertEqual(m.helper_required_cpu_flags(self.receipt),['amd_only','sse2'])
+   with self.assertRaisesRegex(ValueError,'Portable helper'):m.helper_required_cpu_flags(self.receipt,True)
+  with self.git_body(),self.assertRaisesRegex(ValueError,'differs from admitted producer'):m.helper_required_cpu_flags(self.receipt)
+ def test_actual_bytes_and_raw_host_evidence_cannot_be_relabelled(self):
+  for edit in ('artifact','raw','recipe'):
+   value=copy.deepcopy(self.value)
+   if edit=='artifact':value['cpu_contract']['artifacts']['normal']['bytes']+=1
+   if edit=='raw':value['cpu_contract']['flags']=['sse2']
+   if edit=='recipe':value['cpu_contract']['recipes'].pop()
+   (self.helper/'result.json').write_text(json.dumps(value))
+   with self.git_body(),self.subTest(edit=edit),self.assertRaises(ValueError):m.helper_required_cpu_flags(self.receipt,True,repo=self.root)
+
+
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -281,6 +281,9 @@ class ExistingCompilerTests(unittest.TestCase):
                     header = bytearray(20);header[:7] = b"\x7fELF\x02\x01\x01";header[16:18] = (3).to_bytes(2, "little");header[18:20] = ({"x86_64":62,"aarch64":183}[machine]).to_bytes(2, "little");pq.write_bytes(header)
                     argv = c.native_suite_command(mode, 2, libraries, root, machine, pq)
                     self.assertEqual(argv.count(str(pq)), 1)
+                    if machine=="x86_64":
+                        self.assertEqual(argv[argv.index("-target")+1],"x86_64-linux-gnu");self.assertEqual([v for v in argv if v.startswith("-mcpu=")],["-mcpu=x86_64_v3"])
+                    else:self.assertNotIn("-mcpu=x86_64_v3",argv)
                     self.assertEqual(argv[argv.index("--compiler") + 1], str(compiler))
                     self.assertIn(mode, argv); self.assertIn("src/db_tests.zig", argv)
                     self.assertEqual(argv[-2:], libraries)

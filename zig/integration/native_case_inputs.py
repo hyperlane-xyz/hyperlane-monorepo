@@ -166,7 +166,7 @@ def copy_verified(source, expected, destination, mode):
     return artifact(destination)
 
 
-def sdk_inputs(directory, expected_pin, mode, producer, architecture, available_flags):
+def sdk_inputs(directory, expected_pin, mode, producer, architecture, available_flags, require_portable=False, repo=ROOT):
     manifest = read_json(checked(expected_pin))
     require(Path(expected_pin['path']).resolve() == (directory / 'manifest.json').resolve(), 'SDK manifest path differs')
     require(manifest['passed'] is True and manifest['source_commit'] == producer and manifest['mode'] == mode and manifest['platform'] == 'linux/' + architecture, 'Actual matching SDK source/mode/platform required')
@@ -194,7 +194,11 @@ def sdk_inputs(directory, expected_pin, mode, producer, architecture, available_
         require(path.stat().st_size == row['bytes'] and checksum(path) == row['sha256'], 'Baked CPU receipt changed')
         value = cpu.validate(read_json(path), scope, mode, producer, expected)
         require(all(value['artifacts'][n]['bytes'] == manifest['artifacts'][n]['bytes'] for n in cpu.SCOPES[scope]), 'Baked artifact sizes differ')
+        if value['schema'] == 2:
+            validate_cpu_contract(value, scope, mode, producer, {n: manifest['artifacts'][n] for n in cpu.SCOPES[scope]}, repo)
         compiled.append(value)
+    cpu.require_same_profile(compiled, require_portable)
+    require((compiled[0]['schema'] == 2) == (producer_cpu_profile(repo, producer) == cpu.PROFILE), 'SDK CPU profile differs from admitted producer Source')
     require(cpu.consumer_covers(compiled, architecture, available_flags), 'Consumer CPU does not cover actual compiler host features')
     return manifest, records, compiled
 
@@ -236,6 +240,49 @@ def helper_cpu_input(receipt):
     return checked(expected)
 
 
+def producer_cpu_source(repo, producer, relative):
+    result = subprocess.run(['git', 'show', producer + ':' + relative], cwd=repo, capture_output=True, timeout=15)
+    require(result.returncode == 0 and len(result.stdout) <= 1024**2 and len(result.stderr) <= 32768, 'Admitted producer compiler recipe Source unavailable')
+    return result.stdout
+
+
+def producer_cpu_profile(repo, producer):
+    cpu = load_module('case_producer_cpu_profile', 'zig/tools/build_cpu.py')
+    return cpu.profile_from_source(producer_cpu_source(repo, producer, 'zig/tools/build_cpu.py'))
+
+
+def validate_cpu_contract(row, scope, mode, producer, artifacts, repo=ROOT):
+    cpu = load_module('case_portable_cpu', 'zig/tools/build_cpu.py')
+    require(producer_cpu_profile(repo, producer) == cpu.PROFILE, 'Portable contract cannot relabel legacy producer Source')
+    cpu.validate(row, scope, mode, producer, {name: value['sha256'] for name, value in artifacts.items()})
+    require(row['schema'] == 2 and all(row['artifacts'][name]['bytes'] == value['bytes'] for name, value in artifacts.items()), 'Actual portable CPU artifact bytes differ')
+    cache = {}
+    def source(relative):
+        if relative not in cache:
+            cache[relative] = producer_cpu_source(repo, producer, relative)
+        return cache[relative]
+    cpu.validate_recipe_sources(row, source)
+    return row
+
+
+def helper_required_cpu_flags(receipt, require_portable=False, repo=ROOT):
+    cpu = load_module('case_helper_cpu', 'zig/tools/build_cpu.py')
+    observed = cpu.cpu_flags(helper_cpu_input(receipt).read_text())
+    directory = Path(receipt['artifacts']['helper']['directory'])
+    result = read_json(relative_file(directory, 'result.json'))
+    contract = result.get('cpu_contract')
+    portable = producer_cpu_profile(repo, receipt['producer_source_commit']) == cpu.PROFILE
+    require((contract is not None) == portable, 'Helper CPU profile differs from admitted producer Source')
+    if contract is None:
+        require(not require_portable, 'Portable helper CPU contract required')
+        return observed
+    producer = receipt['producer_source_commit']
+    value, records = helper_inputs(directory, producer)
+    validate_cpu_contract(contract, 'helper', 'shared', producer, {name: pin for name, (_, pin) in records.items()}, repo)
+    require(contract['flags'] == observed, 'Helper raw observed CPU evidence differs')
+    return cpu.required_flags(contract)
+
+
 def helper_cpu_admission_diagnostic(required_flags, available_flags):
     for flags in (required_flags, available_flags):
         require(type(flags) is list and 0 < len(flags) <= 512, 'CPU diagnostic flag count invalid')
@@ -266,11 +313,20 @@ def helper_inputs(directory, producer):
     return value, records
 
 
-def writer_inputs(directory, producer, mode, architecture, available_flags):
+def writer_inputs(directory, producer, mode, architecture, available_flags, require_portable=False, repo=ROOT):
     value = read_json(relative_file(directory, 'manifest.json'))
     require(value['passed'] is True and value['source_commit'] == producer and value['mode'] == mode, 'Actual matching writer compile required')
     require(value['writer_executed'] is False and value['native_case_acceptance'] is False and value['component_interoperability_acceptance'] is False and value['input_before'] == value['input_after'], 'Writer Source/input fence or scope differs')
-    require(value['cpu']['architecture'] == architecture and value['cpu']['flags'] and set(value['cpu']['flags']) <= set(available_flags), 'Writer CPU not covered by consumer')
+    cpu = load_module('case_writer_cpu', 'zig/tools/build_cpu.py')
+    contract = value.get('cpu_contract')
+    require((contract is not None) == (producer_cpu_profile(repo, producer) == cpu.PROFILE), 'Writer CPU profile differs from admitted producer Source')
+    require(not require_portable or contract is not None, 'Portable writer CPU contract required')
+    required = value['cpu']['flags']
+    if contract is not None:
+        validate_cpu_contract(contract, 'writer', mode, producer, {'writer': value['writer']}, repo)
+        require(contract['flags'] == value['cpu']['flags'] and contract['architecture'] == value['cpu']['architecture'], 'Writer raw CPU observation differs')
+        required = cpu.required_flags(contract)
+    require(value['cpu']['architecture'] == architecture and required and set(required) <= set(available_flags), 'Writer CPU not covered by consumer')
     pin = value['writer']
     require(pin['path'] == 'bin/native-rows-writer-' + mode, 'Writer mode/path mismatch')
     path = relative_file(directory, pin['path'])
@@ -288,7 +344,7 @@ def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT
     require(architecture=='amd64'if request['scenario']=='sealevel-composite'else request['postgres']['architecture']==architecture,'Fixture platform differs from actual consumer')
     cpu_module = load_module('case_consumer_cpu', 'zig/tools/build_cpu.py')
     flags = cpu_module.cpu_flags(Path('/proc/cpuinfo').read_text(), intersection=True)
-    helper_flags = cpu_module.cpu_flags(helper_cpu_input(receipt).read_text())
+    helper_flags = helper_required_cpu_flags(receipt, repo=repo)
     if not set(helper_flags) <= set(flags):
         try:
             print(json.dumps(helper_cpu_admission_diagnostic(helper_flags, flags), separators=(',', ':')), flush=True)
@@ -297,20 +353,41 @@ def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT
     require(set(helper_flags) <= set(flags), 'Helper/tools compiler-host CPU not covered by consumer')
     inputs = {k: Path(v['directory']) for k, v in receipt['artifacts'].items()}
     sdk_pin = artifact(relative_file(inputs['sdk'], 'manifest.json'))
-    sdk, sdk_records, compiled = sdk_inputs(inputs['sdk'], sdk_pin, request['mode'], producer, architecture, flags)
+    sdk, sdk_records, compiled = sdk_inputs(inputs['sdk'], sdk_pin, request['mode'], producer, architecture, flags, repo=repo)
     helper, helper_records = helper_inputs(inputs['helper'], producer)
-    writers = {mode: writer_inputs(inputs[key], producer, mode, architecture, flags) for key, mode in [('writer_safe', 'ReleaseSafe'), ('writer_fast', 'ReleaseFast')]}
+    writers = {mode: writer_inputs(inputs[key], producer, mode, architecture, flags, repo=repo) for key, mode in [('writer_safe', 'ReleaseSafe'), ('writer_fast', 'ReleaseFast')]}
     git_evidence = []
     scopes = {family: cohort(repo, producer, execution, family, git_evidence) for family in SCOPES}
     locks = decoded_locks(repo, git_evidence)
     unhydrated_tools = read_json(relative_file(inputs['tools'], 'manifest.json'))
+    portable = compiled[0]['schema'] == 2
+    contracts = [helper.get('cpu_contract'), unhydrated_tools.get('cpu_contract'),
+                 *(value.get('cpu_contract') for value, _ in writers.values())]
+    require(all((contract is not None) == portable for contract in contracts), 'Mixed or missing portable publisher CPU contracts')
+    if portable:
+        validate_cpu_contract(unhydrated_tools['cpu_contract'], 'tools', 'shared', producer, unhydrated_tools['tools'], repo)
+        cpu_module.require_same_profile([*compiled, *contracts], require_portable=True)
+        require(set(cpu_module.required_flags(unhydrated_tools['cpu_contract'])) <= set(flags), 'Tools CPU not covered by consumer')
     radix_reference = None
     if request['scenario']=='radix':
         radix_reference=load_module('hydrate_radix_case','zig/bench/native_radix_case.py').inspect_reference(receipt,request,repo,machine,flags,types.SimpleNamespace(relative_file=relative_file,checksum=checksum,read_json=read_json,artifact=artifact))
+    if radix_reference is not None:
+        contract = read_json(checked(radix_reference['manifest'])).get('cpu_contract')
+        require((contract is not None) == portable, 'Mixed or missing Radix portable CPU contract')
+        if portable:
+            validate_cpu_contract(contract, 'radix-reference', 'shared', producer, {'tool': radix_reference['product']}, repo)
+            require(set(cpu_module.required_flags(contract)) <= set(flags), 'Radix CPU not covered by consumer')
     svm = None
     if request['scenario']in{'sealevel','sealevel-composite'}:
         require(architecture=='amd64','SVM requires actual x86_64 publisher assets')
         svm=load_module('hydrate_svm_case','zig/bench/native_svm_case.py').inspect_receipt(receipt,request,repo)
+        host_path = inputs['svm'] / 'published/host-cpu.json'
+        require((host_path.exists() or host_path.is_symlink()) == portable, 'Mixed or missing SVM portable host CPU contract')
+        if portable:
+            contract = read_json(relative_file(inputs['svm'], 'published/host-cpu.json'))
+            products = read_json(relative_file(inputs['svm'], 'published/products.json'))
+            validate_cpu_contract(contract, 'svm-host', 'shared', producer, {name: products[name] for name in ('client', 'spl')}, repo)
+            require(set(cpu_module.required_flags(contract)) <= set(flags), 'SVM host CPU not covered by consumer')
     copied_bytes = (0 if radix_reference is None else radix_reference['product']['bytes']) + sum(row['bytes'] for _, row in sdk_records.values()) + sum(row['bytes'] for _, row in helper_records.values()) + sum(row['bytes'] for _, (_, row) in writers.values()) + sum(row['bytes'] for row in unhydrated_tools['tools'].values())
     if svm: copied_bytes += sum(v['bytes']for v in svm['inspected']['files'].values()) + sum(v['bytes']for v in svm['environment'].values())
     require(copied_bytes <= request['limits']['maximum_case_allocated_bytes'], 'Owned case product copies exceed reviewed disk cap')

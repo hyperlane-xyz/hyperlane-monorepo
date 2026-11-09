@@ -27,6 +27,45 @@ def fixture():
  receipt=dict(pid=42,start='token',waited_pid=42,status=256,actual_wait4_usage_available=True,rusage=owner.rusage_record(usage()))
  return {42:r},w,dict(clean=True,owned_present_before_stop=[],actual_adopted_child_waits=[receipt])
 def account(k,w,c):return matrix.phase_accounting(usage(2.,.5,8),c,k,w,2.)
+class CpuConfiguration(unittest.TestCase):
+ def test_legacy_choices_explicitly_distinguish_native_from_baseline(self):
+  env={'PATH':'/bin','CFLAGS':'legacy'}
+  self.assertEqual(matrix.cpu_configuration('native',env,None),(env,['-Dcpu=native']))
+  self.assertEqual(matrix.cpu_configuration('production-default',env,None),(env,['-Dcpu=baseline']))
+  self.assertEqual(env,{'PATH':'/bin','CFLAGS':'legacy'})
+  with self.assertRaises(ValueError):matrix.cpu_configuration('unknown',env,None)
+ def test_portable_selection_uses_shared_real_policy_and_platform_fence(self):
+  cpu=matrix.cpu_module();env={'PATH':'/bin','RUSTFLAGS':'-Ctarget-cpu=native','CFLAGS':'-march=native','CXXFLAGS':'-march=native','GH_TOKEN':'not-consumed-by-pure-helper'}
+  with mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'):
+   actual,args=matrix.cpu_configuration('x86_64_v3',env,cpu)
+  self.assertEqual(actual,cpu.portable_environment(env,tokio_unstable=True));self.assertEqual(args,cpu.zig_cpu_args('build'))
+  self.assertNotIn('native',actual['RUSTFLAGS']);self.assertNotIn('native',actual['CFLAGS']);self.assertEqual(env['RUSTFLAGS'],'-Ctarget-cpu=native')
+  for system,machine in [('Darwin','x86_64'),('Linux','aarch64')]:
+   with mock.patch.object(matrix.platform,'system',return_value=system),mock.patch.object(matrix.platform,'machine',return_value=machine),self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3',env,cpu)
+
+class CpuPlans(unittest.TestCase):
+ def plan(self,policy):
+  with tempfile.TemporaryDirectory()as directory:
+   root=pathlib.Path(directory);libraries=root/'libs';libraries.write_text(','.join(str(root/('lib'+str(i)+'.a'))for i in range(7)));pq=root/'libpq.so';pq.write_bytes(b'not executed');output=root/'plan'
+   args=['build_matrix.py','--compiler','never-executed-zig','--native-db-libs-file',str(libraries),'--libpq-library',str(pq),'--cpu',policy,'--git-sha','a'*40,'--native-cold','--optional-native-sdks','--output',str(output)]
+   with mock.patch.object(sys,'argv',args),mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'),mock.patch.object(subprocess,'Popen',side_effect=AssertionError('plan executed child')):
+    matrix.main()
+   return __import__('json').loads((output/'plan.json').read_text())
+ def test_actual_portable_plan_covers_both_Zig_modes_Rust_and_native7_without_wait_credit(self):
+  plan=self.plan('x86_64_v3');cpu=matrix.cpu_module();self.assertEqual(plan['cpu_policy'],'x86_64_v3')
+  native=next(p for p in plan['phases']if p['name']=='native-sdk-cold');self.assertEqual(len(native['artifacts']),7);self.assertEqual(native['command'][native['command'].index('--cpu-profile')+1],'x86_64_v3');self.assertEqual(native['command'][native['command'].index('--git-sha')+1],'a'*40);self.assertTrue(native['CPU_manifest'].endswith('/manifest.json'));self.assertNotIn('CPU_recipe',native)
+  zig=[p for p in plan['phases']if p['name'].startswith('zig-')];self.assertEqual(len(zig),4)
+  for phase in plan['phases']:
+   if phase is native:continue
+   self.assertIsNone(phase['CPU_recipe']['actual_parent_wait']);self.assertIsNone(phase['CPU_recipe']['exit_code'])
+   if phase in zig:self.assertEqual([v for v in phase['command']if v.startswith(('-Dtarget=','-Dcpu='))],cpu.zig_cpu_args('build'))
+   else:self.assertEqual(phase['environment']['RUSTFLAGS'],'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3')
+ def test_actual_production_default_plan_uses_explicit_Zig_baseline(self):
+  plan=self.plan('production-default')
+  for phase in plan['phases']:
+   if phase['name'].startswith('zig-'):self.assertEqual([v for v in phase['command']if v.startswith('-Dcpu=')],['-Dcpu=baseline'])
+   self.assertNotIn('CPU_recipe',phase)
+
 class Accounting(unittest.TestCase):
  def test_terminal_before_parent_and_actual_reap_accepted(self):
   k,w,c=fixture();a=account(k,w,c);self.assertTrue(a['phase_owned_quiescent']);self.assertTrue(a['phase_rusage_complete']);self.assertEqual((a['cpu_user_seconds'],a['cpu_system_seconds']),(3.,.75));self.assertEqual(a['maximum_child_RSS_bytes'],owner.rusage_record(usage())['maximum_child_RSS_bytes'])

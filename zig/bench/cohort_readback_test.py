@@ -49,7 +49,7 @@ def sdk_fixture(mode='ReleaseSafe'):
     add_json('manifest.json',manifest);return files
 
 class SyntheticGit:
-    def __init__(self):self.rows={}
+    def __init__(self):self.rows={'zig/tools/build_cpu.py':b'# Historical V1 CPU procedure fixture'}
     def bytes(self,name):return self.rows[name]
     def digest(self,name):
         body=self.rows[name];return {'bytes':len(body),'sha256':api.sha(body)}
@@ -204,7 +204,7 @@ class Controls(unittest.TestCase):
     def test_actual_current_census_includes_fresh_temporary_and_Stark_Radix_additions(self):
         # Actual committed exporter Source; never import or execute its main.
         raw=(HERE/'native_harness_controls.py').read_bytes()
-        self.assertEqual(api.sha(raw),'71d163a545a06dbd84a8e5609283888e'+'1ad085ea1127e957bb51985e90ce2f3f')
+        self.assertEqual(api.sha(raw),'8624732768af0ca86b0fa57bc24ee4b4'+'db9c17272609bd87fb965434f15f524a')
         required=api.literal_constants(raw.decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
         self.assertEqual(sum(map(len,required.values())),78)
         fresh={'svm_fresh_temporary_objects_do_not_walk_live_ledger_siblings','svm_fresh_temporary_objects_reject_root_or_parent_symlinks','svm_fresh_temporary_objects_reject_non_directory_parent','svm_temporary_objects_are_distinct_fresh_leaves'}
@@ -763,5 +763,100 @@ class ExplicitRadixReadinessWitnesses(unittest.TestCase):
     def test_actual_current_R1_Source_matches_three_sealed_names_not_old76(self):
         path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';source=SyntheticGit();source.rows[path]=(HERE.parents[1]/path).read_bytes();text='\n'.join('test '+name+' ... ok'for name in api.RADIX_READINESS_TESTS);facts=api.explicit_radix_readiness_tests(text,source,{path:source.digest(path)});self.assertEqual(facts['explicit_radix_readiness_test_count'],3)
         required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),78)
+
+
+class PortablePublisherCpuControls(unittest.TestCase):
+    def setUp(self):
+        self.cpu=api.cpu_api();self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve()
+
+    def portable_sdk(self):
+        files=sdk_fixture();git=sdk_source();manifest=json.loads(files['manifest.json'])
+        env=self.cpu.portable_environment({})
+        git.rows['zig/tools/build_cpu.py']=('PROFILE = '+repr(self.cpu.PROFILE)).encode()
+        for scope,descriptor in manifest['build_provenance'].items():
+            old=json.loads(files[descriptor['path']]);recipes=[]
+            for relative,kind,minimum in self.cpu.COVERAGE[scope]:
+                source=self.root/relative;source.parent.mkdir(parents=True,exist_ok=True)
+                wire=('pinned public '+relative).encode();source.write_bytes(wire);git.rows[relative]=wire
+                for index in range(minimum):
+                    if kind=='rust':argv=['cargo','build','--package','fixture'+str(index)]
+                    elif kind=='cc':argv=['c++',*self.cpu.C_FLAGS.split(),'-c','fixture'+str(index)+'.cc']
+                    else:argv=['zig','build',*self.cpu.zig_cpu_args('build'),'-Dfixture='+str(index)]
+                    recipes.append(self.cpu.finish_recipe(self.cpu.recipe(kind,argv,env,source,repo=self.root),{'actual_parent_wait':True,'exit_code':0},repo=self.root))
+            row=self.cpu.make_record(scope,'ReleaseSafe',api.PRODUCER,'amd64',['amd_only','sse2'],old['artifacts'],recipes)
+            wire=json.dumps(row).encode();files[descriptor['path']]=wire;descriptor.update(bytes=len(wire),sha256=api.sha(wire))
+        manifest['required_cpu_flags']=list(self.cpu.REQUIRED_FLAGS)
+        files['manifest.json']=json.dumps(manifest).encode()
+        return files,git
+
+    def inspect(self,files,git):
+        with tempfile.TemporaryDirectory()as root:
+            path=Path(root)/'archive.zip';path.write_bytes(archive_bytes(files.items()));archive=api.Archive(path,Meter())
+            try:return api.validate_sdk(archive,'ReleaseSafe',git)
+            finally:archive.close()
+
+    def test_real_SDK_parser_verifies_all_five_target_scopes_and_producer_Source(self):
+        files,git=self.portable_sdk();value=self.inspect(files,git)
+        self.assertEqual(value['CPU_profile'],self.cpu.PROFILE)
+        self.assertEqual(len(value['CPU_receipts']),5)
+        self.assertTrue(all(row['compiler_recipe_Source_verified']for row in value['CPU_receipts']))
+        self.assertFalse(value['actual_consumer_CPU_superset_checked'])
+        projected=api.public_facts(value);self.assertEqual(projected['CPU_profile'],self.cpu.PROFILE)
+        self.assertNotIn('amd_only',json.dumps(projected))
+        git.rows['zig/src/net/native-url/locked.py']=b'changed producer procedure'
+        with self.assertRaises(ValueError):self.inspect(files,git)
+
+    def test_mixed_or_omitted_SDK_recipes_refuse_despite_matching_archive_hashes(self):
+        for edit in ('missing','mixed','wrongkind','all-V1'):
+            files,git=self.portable_sdk();manifest=json.loads(files['manifest.json']);pin=manifest['build_provenance']['aleo'];row=json.loads(files[pin['path']])
+            if edit=='missing':row['recipes'].pop()
+            if edit=='wrongkind':row['recipes'][0]['kind']='cc'
+            if edit=='all-V1':
+                for descriptor in manifest['build_provenance'].values():
+                    legacy=json.loads(files[descriptor['path']]);legacy={k:v for k,v in legacy.items()if k not in {'target','recipes'}};legacy['schema']=1;legacy['flags']=['sse2']
+                    wire=json.dumps(legacy).encode();files[descriptor['path']]=wire;descriptor.update(bytes=len(wire),sha256=api.sha(wire))
+                row=json.loads(files[pin['path']])
+            if edit=='mixed':row={k:v for k,v in row.items()if k not in {'target','recipes'}};row['schema']=1;row['flags']=['sse2']
+            wire=json.dumps(row).encode();files[pin['path']]=wire;pin.update(bytes=len(wire),sha256=api.sha(wire));files['manifest.json']=json.dumps(manifest).encode()
+            with self.subTest(edit=edit),self.assertRaises((ValueError,api.Refused)):self.inspect(files,git)
+
+    def test_portable_helper_keeps_actual_producer_78_test_census_separate_from_24_CPU_flags(self):
+        files,git=family_fixture('helper')
+        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
+        names={name for group in required.values()for name in group};self.assertEqual(len(names),78)
+        caller='zig/bench/native_harness_controls.py'
+        git.rows[caller]=('REQUIRED_TESTS = '+repr(required)).encode()
+        git.rows['zig/tools/build_cpu.py']=('PROFILE = '+repr(self.cpu.PROFILE)).encode()
+        source=self.root/caller;source.parent.mkdir(parents=True,exist_ok=True);source.write_bytes(git.rows[caller])
+        result=json.loads(files['result.json'])
+        for row in result['checks']:
+            phase=next((key for key in required if key.removesuffix('::').replace('::','-')==row['name']),None)
+            if phase is None:continue
+            actual=list(required[phase]);logged=actual+list(api.RADIX_READINESS_TESTS)if row['name']=='external_agents-radix_fixture-tests'else actual
+            log=('\n'.join('test '+name+' ... ok'for name in logged)+'\ntest result: ok. '+str(len(logged))+' passed; 0 failed; 0 ignored;').encode()
+            files[row['name']+'.log']=log;row['log']={'path':row['name']+'.log','bytes':len(log),'sha256':api.sha(log)}
+            row['actual_tests_passed']=len(logged);row['required_new_tests_observed']=actual
+        environment=self.cpu.portable_environment({})
+        recipes=[self.cpu.finish_recipe(self.cpu.recipe('rust',['cargo',kind,'--locked'],environment,source,repo=self.root),{'actual_parent_wait':True,'exit_code':0},repo=self.root)for kind in ('build','test')]
+        result['cpu_contract']=self.cpu.make_record('helper','shared',api.PRODUCER,'amd64',list(self.cpu.REQUIRED_FLAGS),{name:row['published']for name,row in result['products'].items()},recipes)
+        files['result.json']=json.dumps(result).encode();files['setup/tools-platform.txt']=('flags: '+' '.join(self.cpu.REQUIRED_FLAGS)+'\n').encode()
+        path=self.root/'helper.zip';path.write_bytes(archive_bytes(files.items()));archive=api.Archive(path,Meter())
+        try:value=api.validate_helper(archive,git)
+        finally:archive.close()
+        self.assertEqual(value['required_census_names_observed'],78)
+        self.assertEqual(value['required_ISA_flag_count'],24)
+        self.assertTrue(value['compiler_recipe_Source_verified'])
+
+    def test_complete_eight_publisher_profile_rejects_legacy_or_missing_one(self):
+        values={key:{'CPU_profile':self.cpu.PROFILE}for key in api.PRODUCT_KEYS}
+        source=SyntheticGit();source.rows['zig/tools/build_cpu.py']=('PROFILE = '+repr(self.cpu.PROFILE)).encode()
+        api.complete_cpu_profile(values,source)
+        values['svm']={}
+        with self.assertRaises(api.Refused):api.complete_cpu_profile(values,source)
+        del values['svm']
+        with self.assertRaises(api.Refused):api.complete_cpu_profile(values,source)
+        with self.assertRaises(api.Refused):api.complete_cpu_profile({key:{}for key in api.PRODUCT_KEYS},source)
+        source.rows['zig/tools/build_cpu.py']=b'# actual legacy publisher Source'
+        api.complete_cpu_profile({key:{}for key in api.PRODUCT_KEYS},source)
 
 if __name__=='__main__':unittest.main()

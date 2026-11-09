@@ -124,6 +124,16 @@ class Controls(unittest.TestCase):
         with mock.patch.object(m.subprocess, 'run', side_effect=AssertionError('No implicit subprocess/build')):
             self.assertEqual(set(m.TOOLS), set(self.load(gate, manifest)))
 
+    def test_portable_tools_loader_delegates_actual_four_product_and_Source_binding(self):
+        gate,manifest=self.fixture();environment=m.cpu.portable_environment({},tokio_unstable=True);recipes=[]
+        for name in m.TOOLS:
+            pending=m.cpu.recipe('rust',['cargo','build','--bin',name],environment,Path(m.__file__));recipes.append(m.cpu.finish_recipe(pending,{'actual_parent_wait':True,'exit_code':0}))
+        artifacts={name:{k:row[k]for k in ['bytes','sha256']}for name,row in manifest['tools'].items()};manifest['cpu_contract']=m.cpu.make_record('tools','shared',self.commit,'amd64',list(m.cpu.REQUIRED_FLAGS),artifacts,recipes)
+        with mock.patch.object(m,'validate_cpu_contract',return_value=manifest['cpu_contract'])as admitted:
+            self.assertEqual(set(self.load(gate,manifest)),set(m.TOOLS));admitted.assert_called_once_with(manifest['cpu_contract'],'tools','shared',self.commit,artifacts)
+        with mock.patch.object(m,'validate_cpu_contract',side_effect=ValueError('admitted producer Source or CPU recipe differs')):
+            self.bad(lambda:self.load(gate,manifest))
+
     def test_manifest_digest_and_source_commit_required(self):
         gate, manifest = self.fixture()
         path = self.save(gate, manifest)
@@ -260,7 +270,7 @@ class Controls(unittest.TestCase):
             # The isolated test tmpfs is32MiB; fixture capacity admits the signal
             # path without changing production6GiB guards. Process/owner are real.
             with mock.patch.object(m, 'source', return_value={}), mock.patch.object(m.shutil, 'disk_usage', return_value=mock.Mock(free=8 * m.GIB)):
-                row = m.run_owned(phase, repo, {'PATH': os.environ['PATH']}, self.root, output, time.monotonic() + 6, owner, {}, owner.allocated(self.root))
+                row = m.run_owned(phase, repo, m.cpu.portable_environment({'PATH': os.environ['PATH']}), self.root, output, time.monotonic() + 6, owner, {}, owner.allocated(self.root))
         finally:
             thread.join(timeout=5)
             signal.signal(signal.SIGTERM, old)
@@ -353,7 +363,7 @@ class EvmConsumerControls(unittest.TestCase):
         rows=m.evm_control_commands(Path('/owned/source'),Path('/owned/compiler'), 'ReleaseFast',[str(i)+'.a'for i in range(7)],Path('/owned'))
         self.assertEqual(len(rows),2)
         for row in rows:
-            self.assertIn('test',row);self.assertIn('--test-no-exec',row);self.assertIn('ReleaseFast',row);self.assertIn('-j2',row);self.assertNotIn('cargo',row);self.assertNotIn('build',row)
+            self.assertIn('test',row);self.assertEqual(row[row.index('-target')+1],'x86_64-linux-gnu');self.assertEqual([v for v in row if v.startswith('-mcpu=')],['-mcpu=x86_64_v3']);self.assertIn('--test-no-exec',row);self.assertIn('ReleaseFast',row);self.assertIn('-j2',row);self.assertNotIn('cargo',row);self.assertNotIn('build',row)
         self.assertEqual(rows[0].count('--test-filter'),2);self.assertEqual(rows[1].count('--test-filter'),1)
         for mode,libraries in [('Debug',['a']*7),('ReleaseSafe',['a']*6)]:
             with self.assertRaises(ValueError):m.evm_control_commands(Path('/owned'),Path('/compiler'),mode,libraries,Path('/owned'))
@@ -436,6 +446,101 @@ class EvmConsumerControls(unittest.TestCase):
         tree=ast.parse(Path(m.__file__).read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='evm_control_main');watched=next(n for n in main.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='watched'for t in n.targets));cohort=next(n for n in ast.walk(main)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and n.func.attr=='cohort');self.assertLess(watched.lineno,cohort.lineno)
         constants={n.attr for n in ast.walk(watched)if isinstance(n,ast.Attribute)};self.assertTrue({'SIGINT','SIGTERM','SIGHUP'}<=constants)
 
+
+
+class PortableProducerControls(unittest.TestCase):
+    def load(self,relative,name):
+        spec=importlib.util.spec_from_file_location(name,Path(__file__).resolve().parents[2]/relative);value=importlib.util.module_from_spec(spec)
+        old=sys.path[:]
+        try:sys.path.insert(0,str(Path(spec.origin).parent));spec.loader.exec_module(value)
+        finally:sys.path[:]=old
+        return value
+
+    def test_retained_FFI_actual_Cargo_calls_use_portable_flags_and_only_success_gets_recipe(self):
+        import ast,contextlib,io,types
+        cases=[('zig/src/net/native-url/locked.py','--cpu-recipe-output',1),('zig/src/starknet/testing/locked.py','--cpu-recipe-output',1),('zig/src/aleo/testing/locked.py','--cpu-recipe-directory',2),('zig/src/ops/tools/locked.py','--cpu-recipe-output',1)]
+        for index,(relative,option,count)in enumerate(cases):
+            with self.subTest(Source=relative),tempfile.TemporaryDirectory()as temporary:
+                module=self.load(relative,'portable_FFI_'+str(index));root=Path(temporary);out=root/'recipes'if count==2 else root/'recipe.json'
+                module.restore=mock.Mock(return_value=root/'project')
+                if hasattr(module,'licenses'):module.licenses=mock.Mock(return_value=root/'licenses')
+                argv=['locked.py',option,str(out)]
+                with mock.patch.object(sys,'argv',argv),mock.patch.object(module.platform,'system',return_value='Linux'),mock.patch.object(module.platform,'machine',return_value='x86_64'),mock.patch.dict(os.environ,{'RUSTFLAGS':'-Ctarget-cpu=native','CARGO_ENCODED_RUSTFLAGS':'hostile','CFLAGS_x86_64_unknown_linux_gnu':'-march=native','GH_TOKEN':'NEVER_EXPORTED'},clear=True),mock.patch.object(module.subprocess,'run',return_value=types.SimpleNamespace(returncode=0))as run,contextlib.redirect_stdout(io.StringIO()):
+                    if hasattr(module,'main'):module.main()
+                    else:
+                        block=next(n for n in ast.parse(Path(module.__file__).read_text()).body if isinstance(n,ast.If)and isinstance(n.test,ast.Compare)and any(isinstance(v,ast.Constant)and v.value=='__main__'for v in n.test.comparators));exec(compile(ast.fix_missing_locations(ast.Module(block.body,type_ignores=[])),module.__file__,'exec'),module.__dict__)
+                calls=[call for call in run.call_args_list if call.args[0][0]=='cargo'];self.assertEqual(len(calls),count)
+                for call in calls:
+                    env=call.kwargs['env'];self.assertIn(module.cpu.RUST_CPU,env['RUSTFLAGS']);self.assertEqual(env['CFLAGS'],module.cpu.C_FLAGS);self.assertEqual(env['CXXFLAGS'],module.cpu.C_FLAGS);self.assertNotIn('CARGO_ENCODED_RUSTFLAGS',env);self.assertNotIn('CFLAGS_x86_64_unknown_linux_gnu',env)
+                records=[json.loads(path.read_text())for path in out.iterdir()]if count==2 else[json.loads(out.read_text())];self.assertEqual(len(records),count);self.assertEqual(len({row['command_sha256']for row in records}),count);self.assertTrue(all(row['actual_parent_wait']is True and row['exit_code']==0 for row in records));self.assertNotIn('NEVER_EXPORTED',json.dumps(records))
+
+    def test_retained_FFI_central_Source_drift_cannot_publish_completed_recipe(self):
+        import contextlib,io,types
+        module=self.load('zig/src/net/native-url/locked.py','portable_FFI_source_drift')
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary);out=root/'recipe.json';procedure=root/'cpu-source.py';procedure.write_text('original bounded compiler procedure');module.restore=mock.Mock();module.licenses=mock.Mock(return_value=root/'licenses')
+            def compile(*args,**kwargs):procedure.write_text('changed compiler procedure');return types.SimpleNamespace(returncode=0)
+            with mock.patch.object(sys,'argv',['locked.py','--cpu-recipe-output',str(out)]),mock.patch.object(module.platform,'system',return_value='Linux'),mock.patch.object(module.platform,'machine',return_value='x86_64'),mock.patch.object(module.cpu,'__file__',str(procedure)),mock.patch.object(module.subprocess,'run',side_effect=compile),contextlib.redirect_stdout(io.StringIO()),self.assertRaisesRegex(ValueError,'CPU compiler procedure changed'):module.main()
+            self.assertFalse(out.exists())
+
+    def test_helper_tools_reference_actual_environment_blocks_use_same_public_profile(self):
+        import ast,types
+        for relative,function in [('zig/bench/native_harness_controls.py','main'),('zig/bench/native_case_tools.py','execute'),('zig/bench/native_radix_reference.py','execute')]:
+            path=Path(__file__).resolve().parents[2]/relative;tree=ast.parse(path.read_text());body=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name==function).body;selected=[];collect=False
+            for node in body:
+                if isinstance(node,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='env'for t in node.targets):
+                    if not collect:collect=True
+                if collect:selected.append(node)
+                if collect and isinstance(node,ast.Assign)and isinstance(node.value,ast.Call)and isinstance(node.value.func,ast.Attribute)and node.value.func.attr=='portable_environment':break
+            namespace={'os':types.SimpleNamespace(environ={'PATH':'/bin','CARGO_HOME':'/cargo','RUSTUP_HOME':'/rustup','RUSTFLAGS':'-Ctarget-cpu=native'}),'root':Path('/owned'),'target':Path('/owned/target'),'cpu':m.cpu,'cpu_policy':m.cpu}
+            # Helper mkdir operations are fixture preparation, not part of env semantics.
+            selected=[n for n in selected if not(isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and isinstance(n.value.func,ast.Attribute)and n.value.func.attr=='mkdir')]
+            exec(compile(ast.fix_missing_locations(ast.Module(selected,type_ignores=[])),str(path),'exec'),namespace)
+            self.assertEqual(namespace['env']['RUSTFLAGS'],'--cfg tokio_unstable '+m.cpu.RUST_CPU);self.assertEqual(namespace['env']['CXXFLAGS'],m.cpu.C_FLAGS);self.assertEqual(namespace['env']['CARGO_TARGET_DIR'],'/owned/target')
+
+    def test_Postgres_portable_optin_rebuilds_existing_migration_and_targets_actual_Zig_command(self):
+        import contextlib,io,types
+        module=self.load('zig/integration/postgres.py','portable_Postgres_builder')
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary).resolve();migration=root/'rust/main/target/release/init-db';migration.parent.mkdir(parents=True);migration.write_bytes(b'legacy fixture, never executed');calls=[];central=root/'zig/tools/build_cpu.py';central.parent.mkdir(parents=True);central.write_bytes((Path(__file__).resolve().parents[1]/'tools/build_cpu.py').read_bytes())
+            def execute(argv,**kwargs):
+                calls.append((argv,kwargs))
+                if argv[:2]==['docker','run']:raise RuntimeError('STOP_BEFORE_DATABASE_OR_NATIVE_EXECUTION')
+                return types.SimpleNamespace(returncode=0,stdout='0.15.2\n'if argv[-1]=='version'else'',stderr='')
+            with mock.patch.object(module,'ROOT',root),mock.patch.object(module.sys,'platform','linux'),mock.patch.object(module.os,'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(module.cpu,'recipe',wraps=lambda kind,argv,env,source,repo: m.cpu.recipe(kind,argv,env,Path(__file__).resolve().parents[2]/'zig/integration/postgres.py')),mock.patch.object(module.cpu,'finish_recipe',wraps=lambda recipe,wait,repo:m.cpu.finish_recipe(recipe,wait)),mock.patch.object(sys,'argv',['postgres.py','--cpu-profile','x86_64_v3','--compiler','/fixture/zig','--output',str(root/'out')]),mock.patch.object(module,'run',side_effect=execute),self.assertRaisesRegex(RuntimeError,'STOP_BEFORE_DATABASE'):
+                module.main()
+            cargo=[row for row in calls if row[0][0]=='cargo'];zig=[row for row in calls if 'zig/src/pg_tests.zig'in row[0]];self.assertEqual(len(cargo),1);self.assertEqual(len(zig),1);self.assertIn('init-db',cargo[0][0]);self.assertIn(m.cpu.RUST_CPU,cargo[0][1]['env']['RUSTFLAGS']);self.assertEqual(zig[0][0][zig[0][0].index('-target')+1],'x86_64-linux-gnu');self.assertIn('-mcpu=x86_64_v3',zig[0][0]);self.assertEqual(migration.read_bytes(),b'legacy fixture, never executed')
+
+    def test_actual_Docker_compiler_commands_refuse_unpinned_CPU_and_scope_recorders_require_v2(self):
+        import shlex
+        root=Path(__file__).resolve().parents[2];source=(root/'zig/Dockerfile').read_text()
+        def validate(text):
+            joined=text.replace('\\\n',' ');kinds=[];scopes=[]
+            for segment in joined.split('&&'):
+                marker='python3 zig/tools/build_cpu.py run '
+                if marker in segment:
+                    words=shlex.split(segment.split(marker,1)[1].split('\n',1)[0]);separator=words.index('--');kind=words[words.index('--kind')+1];actual=words[separator+1:];m.cpu.recipe(kind,actual,m.cpu.portable_environment({},tokio_unstable='--tokio-unstable'in words[:separator]),root/'zig/Dockerfile');kinds.append(kind)
+                marker='python3 zig/tools/build_cpu.py --scope '
+                if marker in segment:
+                    words=shlex.split(segment.split(marker,1)[1].split('\n',1)[0]);self.assertEqual(words[words.index('--profile')+1],m.cpu.PROFILE);self.assertIn('--recipe',words);scopes.append(words[0])
+            self.assertEqual(set(scopes),set(m.cpu.SCOPES));self.assertIn('zig-build',kinds);self.assertIn('cc',kinds)
+        validate(source)
+        with self.assertRaises(ValueError):validate(source.replace('-Dcpu=x86_64_v3','-Dcpu=native',1))
+        with self.assertRaises((ValueError,AssertionError)):validate(source.replace('--profile linux-x86_64-v3-v1','',1))
+        self.assertNotIn('/opt/hyperlane-native/cpu-recipes',source);self.assertIn('--cpu-recipe-directory /opt/hyperlane-build-cpu/recipes/native-deps',source)
+
+    def test_native_linux_workflow_profiles_only_actual_builder_commands_and_preserves_source_SBF(self):
+        root=Path(__file__).resolve().parents[2];workflow=(root/'.github/workflows/zig-agents.yml').read_text();body=workflow.split('  native-linux:\n',1)[1].split('  container:\n',1)[0]
+        for line in body.splitlines():
+            if 'python3 zig/tools/zig.py build 'in line:self.assertIn('-Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3',line)
+            if any('python3 zig/tools/zig.py '+kind+' 'in line for kind in ['test','build-exe']):self.assertIn('-target x86_64-linux-gnu -mcpu=x86_64_v3',line)
+        self.assertIn('native_deps.py --cpu-profile x86_64_v3 --git-sha "$GITHUB_SHA"',body);self.assertIn('postgres.py --cpu-profile x86_64_v3',body)
+        import ast
+        actual=ast.parse((root/'zig/tools/svm_prerequisites.py').read_text());sbf=next(n for n in actual.body if isinstance(n,ast.FunctionDef)and n.name=='sbf_environments');self.assertNotIn('portable_environment',ast.dump(sbf));host=next(n for n in actual.body if isinstance(n,ast.FunctionDef)and n.name=='host_compile_environment');self.assertIn('portable_environment',ast.dump(host))
+
+    def test_current_EVM_component_execution_Source_includes_central_CPU_dependency(self):
+        import ast
+        tree=ast.parse(Path(m.__file__).read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='evm_control_main');rows=[n for n in ast.walk(main)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='source_names'for t in n.targets)];self.assertEqual(len(rows),1);names=ast.literal_eval(rows[0].value);self.assertEqual(len(names),9);self.assertEqual(names.count('zig/tools/build_cpu.py'),1)
 
 if __name__ == '__main__':
     unittest.main()

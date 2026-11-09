@@ -11,7 +11,7 @@ from pathlib import Path
 GIB=1024**3
 MODES=('ReleaseSafe','ReleaseFast')
 BASELINE='c5202242cc6569da4a858ed7ddbb34170ab696aa'
-PROFILE='locked-c520224-production-three-agent-linux-v1'
+PROFILE='locked-c520224-production-three-agent-linux-x86_64-v3-v2'
 LIMITS={'maximum_wall_seconds':9000,'maximum_tree_RAM_bytes':16*GIB,'maximum_owned_growth_bytes':30*GIB,'minimum_host_free_bytes':6*GIB,'minimum_initial_free_bytes':40*GIB,'maximum_log_bytes':64*1024**2,'maximum_published_bytes':2*GIB}
 SDK_KEYS={'relayer':'relayer','validator':'validator','scraper':'scraper','hyperlane-aleo-vm-worker':'worker','libziggy_aleo_crypto.so':'aleoCrypto','libziggy_aleo_vm.so':'aleoVm','libziggy_starknet_crypto.so':'starknetCrypto','libziggy_regex.so':'regex','libziggy_url.so':'url'}
 TOOLS={'init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference'}
@@ -109,10 +109,10 @@ def compile_plan(repo,root):
   {'name':'build-evm-recover-oracle','command':cargo+['build','--locked','--offline','--release','--manifest-path',str(repo/'zig/reference/evm/Cargo.toml'),'--target-dir',str(root/'oracle-target'),'-j','2','--message-format=json-render-diagnostics']},
  ]
 
-def compile_environment(root,environ):
+def compile_environment(root,environ,cpu):
  need(all(type(environ.get(k))is str and environ[k]for k in ['PATH','RUSTUP_HOME']),'explicit staged toolchain inputs required')
  need(not(root/'cargo-home/config').exists()and not(root/'cargo-home/config.toml').exists(),'unreviewed Cargo home configuration')
- return {'PATH':environ['PATH'],'RUSTUP_HOME':environ['RUSTUP_HOME'],'HOME':str(root/'home'),'TMPDIR':str(root/'tmp'),'CARGO_HOME':str(root/'cargo-home'),'CARGO_INCREMENTAL':'0','CARGO_BUILD_JOBS':'2','CARGO_TERM_COLOR':'never','RUSTFLAGS':'--cfg tokio_unstable -Ctarget-cpu=native','RUSTC_WRAPPER':'','RUSTC_WORKSPACE_WRAPPER':'','CARGO_BUILD_RUSTC_WRAPPER':'','CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER':'','CCACHE_DISABLE':'1','SCCACHE_DISABLE':'1','LC_ALL':'C.UTF-8','PYTHONNOUSERSITE':'1','PYTHONDONTWRITEBYTECODE':'1'}
+ return cpu.portable_environment({'PATH':environ['PATH'],'RUSTUP_HOME':environ['RUSTUP_HOME'],'HOME':str(root/'home'),'TMPDIR':str(root/'tmp'),'CARGO_HOME':str(root/'cargo-home'),'CARGO_INCREMENTAL':'0','CARGO_BUILD_JOBS':'2','CARGO_TERM_COLOR':'never','RUSTFLAGS':'--cfg tokio_unstable -Ctarget-cpu=native','RUSTC_WRAPPER':'','RUSTC_WORKSPACE_WRAPPER':'','CARGO_BUILD_RUSTC_WRAPPER':'','CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER':'','CCACHE_DISABLE':'1','SCCACHE_DISABLE':'1','LC_ALL':'C.UTF-8','PYTHONNOUSERSITE':'1','PYTHONDONTWRITEBYTECODE':'1'},tokio_unstable=True)
 
 def baseline_reachable_paths(metadata,repo):
  need(type(metadata)is dict and metadata.get('resolve')is not None,'actual Cargo resolved graph required')
@@ -323,14 +323,14 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
   owner.enable_subreaper()
   def interrupted(sig,frame):raise TaskInterrupted('preparation cancelled')
   for sig in [signal.SIGINT,signal.SIGTERM,signal.SIGHUP]:signal.signal(sig,interrupted)
-  prep=Preparation(root,repo,owner,census,deadline);plain=system_environment(root,environ);env=compile_environment(root,environ)
+  prep=Preparation(root,repo,owner,census,deadline);plain=system_environment(root,environ);env=compile_environment(root,environ,cpu)
   git_evidence=[];execution=environ['GITHUB_SHA'];need(api.git(repo,'rev-parse','HEAD',evidence=git_evidence)==execution,'actual execution head differs')
   scopes={name:api.cohort(repo,value['producer_source_commit'],execution,name,git_evidence)for name in api.SCOPES}
   api.decoded_locks(repo,git_evidence)
   locks={name:pin(repo/name)for name in ['rust/main/Cargo.lock','rust/sealevel/Cargo.lock','zig/reference/evm/Cargo.lock']}
   need(gzip.decompress((repo/'zig/reference/evm/Cargo.lock.gz').read_bytes())==(repo/'zig/reference/evm/Cargo.lock').read_bytes(),'EVM oracle canonical lock required')
-  before=tools.source(repo);host_flags=cpu.cpu_flags(Path('/proc/cpuinfo').read_text());available=cpu.cpu_flags(Path('/proc/cpuinfo').read_text(),intersection=True);required=set(host_flags)
-  artifacts={'rust':{},'zig':{},'tools':{},'evm_oracle':None,'tool_manifest':None};transport_receipts={};sdk_provenance={};sdk_manifests={};tools_manifest=None
+  before=tools.source(repo);host_flags=cpu.cpu_flags(Path('/proc/cpuinfo').read_text());available=cpu.cpu_flags(Path('/proc/cpuinfo').read_text(),intersection=True);required=set(cpu.REQUIRED_FLAGS);need(required<=set(available),'portable comparator CPU not covered by actual host')
+  artifacts={'rust':{},'zig':{},'tools':{},'evm_oracle':None,'tool_manifest':None};transport_receipts={};sdk_provenance={};sdk_manifests={};helper_requirements={};writer_contracts={};tools_contract=None;comparator_recipes={};tools_manifest=None
   gh=Path(gh).resolve(strict=True);need(gh.is_file()and os.access(gh,os.X_OK),'explicit admitted GitHub CLI required')
   need(type(environ.get('GH_TOKEN'))is str and environ['GH_TOKEN'],'read-only CI download token required')
   download_env={**plain,'GH_TOKEN':environ['GH_TOKEN']}
@@ -339,9 +339,13 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
    prep.run('fetch-'+mode,[sys.executable,'-I','-B',repo/'zig/bench/native_case_ci.py','--request',selector,'--request-sha256',row['sha256'],'--execution-source-commit',execution,'--repo',repo,'--gh',gh,'--output',target],download_env)
    original=api.load_module('paired_request_wire','zig/bench/native_case_ci.py').read_request(selector)
    receipt=api.producer_receipt(selector,original,api.artifact(target/'producer-receipt.json'),execution);transport_receipts[mode]=receipt
-   flags=cpu.cpu_flags(api.helper_cpu_input(receipt).read_text());need(set(flags)<=set(available),'input VM lacks helper/tools compile CPU');required.update(flags)
-   source=Path(receipt['artifacts']['sdk']['directory']);sdk,records,compiled=api.sdk_inputs(source,api.artifact(source/'manifest.json'),mode,value['producer_source_commit'],'amd64',available)
-   for item in compiled:required.update(item['flags'])
+   flags=api.helper_required_cpu_flags(receipt,require_portable=True,repo=repo);need(set(flags)<=set(available),'input VM lacks helper/tools compile CPU');required.update(flags);helper_requirements[mode]=flags
+   for label,writer_mode in [('writer_safe','ReleaseSafe'),('writer_fast','ReleaseFast')]:
+    writer_manifest,_=api.writer_inputs(Path(receipt['artifacts'][label]['directory']),value['producer_source_commit'],writer_mode,'amd64',available,require_portable=True,repo=repo)
+    writer_contracts[label]=writer_manifest['cpu_contract'];required.update(cpu.required_flags(writer_contracts[label]))
+   source=Path(receipt['artifacts']['sdk']['directory']);sdk,records,compiled=api.sdk_inputs(source,api.artifact(source/'manifest.json'),mode,value['producer_source_commit'],'amd64',available,require_portable=True,repo=repo)
+   for item in compiled:
+    need(item['schema']==2,'new paired profile requires portable SDK receipts');required.update(cpu.required_flags(item))
    executable={row['path']for name,row in sdk['artifacts'].items()if name in{'relayer','validator','scraper','hyperlane-aleo-vm-worker'}}
    names=archive_copy(receipt,'sdk',published/'zig'/mode,prep.guard,executable)
    need(len(names)==len(receipt['artifacts']['sdk']['files']),'SDK closed copied member count')
@@ -349,6 +353,7 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
    sdk_manifests[mode]=relative_pin(published/'zig'/mode/'manifest.json',published);sdk_provenance[mode]=compiled
    if tools_manifest is None:
     source=Path(receipt['artifacts']['tools']['directory']);raw=api.read_json(source/'manifest.json');need(set(raw['tools'])==TOOLS,'exact original four tools required')
+    tools_contract=raw.get('cpu_contract');need(type(tools_contract)is dict and tools_contract.get('schema')==2,'portable tools CPU contract required');api.validate_cpu_contract(tools_contract,'tools','shared',value['producer_source_commit'],raw['tools'],repo);required.update(cpu.required_flags(tools_contract));need(set(cpu.required_flags(tools_contract))<=set(available),'portable tools CPU not covered')
     archive_copy(receipt,'tools',published/'tools',prep.guard,{item['relative_path']for item in raw['tools'].values()})
     tools_manifest=published/'tools/manifest.json';accepted=tools.load_manifest(tools_manifest,digest(tools_manifest),value['producer_source_commit'],62)
     artifacts['tools']={name:relative_pin(Path(row['path']),published)for name,row in accepted.items()};artifacts['tool_manifest']=relative_pin(tools_manifest,published)
@@ -356,7 +361,10 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
   system_paths,versions=staged_tools(prep,plain,env,repo,tools)
   plans=compile_plan(repo,root)
   for phase in plans:
+   pending_cpu=cpu.recipe('rust',phase['command'],env,'zig/bench/paired_linux_inputs.py',repo)if phase['name'].startswith('build-')else None
    row=prep.run(phase['name'],phase['command'],env,cwd=Path(phase.get('cwd',repo)))
+   if pending_cpu is not None:
+    need(final_phase(row),'actual portable comparator compiler completion');comparator_recipes[phase['name']]=cpu.finish_recipe(pending_cpu,row,repo)
    if phase['name']=='runtime-cargo-metadata':
     metadata=read_phase_json(row);reachable=baseline_reachable_paths(metadata,repo)
     need(api.git(repo,'diff','--name-only',BASELINE,execution,'--',*reachable,evidence=git_evidence)=='','actual reachable Rust baseline Source differs')
@@ -386,7 +394,7 @@ def producer_main(request_path,request_sha,repo,root,environ,gh):
    for stream in ['stdout','stderr']:
     dest=provenance/'commands'/(row['name']+'.'+stream);copy_owned(checked(row[stream]),dest,row[stream],prep.guard,0o644);copied[stream]=relative_pin(dest,published)
    command_records.append(copied)
-  build_gate=write(provenance/'build-receipt.json',{'schema':1,'passed':all(final_phase(x)for x in prep.rows),'fixed_profile':PROFILE,'system_tool_resolution':{name:{'invocation_path':system_paths[name]['path']if name=='psql'else shutil.which(name,path=plain['PATH']),'actual_resolved_pin':system_paths[name]}for name in TOOL_NAMES},'actual_commands':command_records,'peak_observed_tree_RAM_bytes':prep.peak,'consumer_CPU_flags':available,'compile_CPU_flags':host_flags,'SDK_baked_CPU':sdk_provenance,'download_receipts':transport_exports,'tool_versions':versions,'native_or_timing_acceptance':False})
+  build_gate=write(provenance/'build-receipt.json',{'schema':1,'passed':all(final_phase(x)for x in prep.rows),'fixed_profile':PROFILE,'system_tool_resolution':{name:{'invocation_path':system_paths[name]['path']if name=='psql'else shutil.which(name,path=plain['PATH']),'actual_resolved_pin':system_paths[name]}for name in TOOL_NAMES},'actual_commands':command_records,'peak_observed_tree_RAM_bytes':prep.peak,'consumer_CPU_flags':available,'compile_CPU_flags':host_flags,'SDK_baked_CPU':sdk_provenance,'CPU_profile':cpu.PROFILE,'CPU_policy_Source':{**pin(repo/'zig/tools/build_cpu.py'),'path':'zig/tools/build_cpu.py'},'comparator_CPU_recipes':comparator_recipes,'helper_required_CPU':helper_requirements,'tools_CPU_contract':tools_contract,'writer_CPU_contracts':writer_contracts,'download_receipts':transport_exports,'tool_versions':versions,'native_or_timing_acceptance':False})
   manifest={'schema':1,'kind':'paired-linux-inputs-v1','platform':'linux-x86_64','passed':False,'source_unchanged':True,'all_actual_parent_waits':all(final_phase(x)for x in prep.rows),'owned_absent':all(x['owned_absent']for x in prep.rows),'producer_source_commit':value['producer_source_commit'],'baseline_source_commit':BASELINE,'execution_source_commit':execution,'request_sha256':request_sha,'baseline_profile':PROFILE,'artifacts':artifacts,'required_cpu_flags':sorted(required),'source_gate':relative_pin(Path(source_gate['path']),published),'build_receipt':relative_pin(Path(build_gate['path']),published),'SDK_manifests':sdk_manifests,'repository_source_files':fixture_sources,'repository_fixture_files':fixtures,'fixture_tools':{},'external':external,'native_or_timing_acceptance':False,'files':[]}
   manifest['files']=[relative_pin(p,published)for p in sorted(published.rglob('*'))if p.is_file()];need(sum(x['bytes']for x in manifest['files'])<=LIMITS['maximum_published_bytes'],'bounded published product closure')
   need(set(artifacts['rust'])=={'relayer','validator','scraper'}and set(artifacts['zig'])==set(MODES)and all(set(v)==set(SDK_KEYS.values())for v in artifacts['zig'].values())and set(artifacts['tools'])==TOOLS and artifacts['evm_oracle']and artifacts['tool_manifest'],'all actual input products required')

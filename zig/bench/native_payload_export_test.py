@@ -82,8 +82,114 @@ class WriterPlanControls(unittest.TestCase):
         import native_interop_writer_export as writer
         root=Path('/work');libs=[Path('/opt/hyperlane-native')/name for name in sorted(writer.ARCHIVES)]
         argv=writer.compile_plan(root,Path('/compiler'),'ReleaseFast',2,libs,Path('/output/writer'))
-        self.assertIn('build-exe',argv);self.assertIn('src/native_rows_interop_fixture.zig',argv);self.assertIn('-j2',argv);self.assertIn('ReleaseFast',argv);self.assertNotIn('run',argv);self.assertFalse(any('bootstrap' in word for word in argv))
+        self.assertIn('build-exe',argv);self.assertEqual(argv[argv.index('-target')+1],'x86_64-linux-gnu');self.assertEqual([v for v in argv if v.startswith('-mcpu=')],['-mcpu=x86_64_v3']);self.assertIn('src/native_rows_interop_fixture.zig',argv);self.assertIn('-j2',argv);self.assertIn('ReleaseFast',argv);self.assertNotIn('run',argv);self.assertFalse(any('bootstrap' in word for word in argv))
         with self.assertRaises(ValueError):writer.compile_plan(root,Path('/compiler'),'ReleaseFast',2,libs[:-1],Path('/output/writer'))
         with self.assertRaises(ValueError):writer.compile_plan(root,Path('/compiler'),'ReleaseSafe',8,libs,Path('/output/writer'))
+
+class PortableCpuControls(unittest.TestCase):
+    def setUp(self):
+        self.cpu=export.build_cpu
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name).resolve()
+        self.source=self.root/'zig/bench/native_harness_controls.py'
+        self.source.parent.mkdir(parents=True);self.source.write_text('# actual test compiler caller\n')
+        self.env=self.cpu.portable_environment({'PATH':'/usr/bin:/bin'})
+
+    def recipe(self, kind='rust', command=None, source=None):
+        command=command or ['cargo','build','--locked','--package','fixture']
+        pending=self.cpu.recipe(kind,command,self.env,source or self.source,repo=self.root)
+        return self.cpu.finish_recipe(pending,{'actual_parent_wait':True,'exit_code':0},repo=self.root)
+
+    def row(self):
+        recipes=[self.recipe(command=['cargo',command,'--locked'])for command in ('build','test')]
+        return self.cpu.make_record('helper','shared','ab'*20,'amd64',['amd_only','sse2'],
+             {name:{'bytes':17,'sha256':hashlib.sha256(name.encode()).hexdigest()}for name in ('normal','construction')},recipes)
+
+    def test_explicit_profile_uses_ISA_not_observed_host_and_real_model_aliases(self):
+        # Pinned Zig0.15.2 x86_64_v3 model: all hardware features, excluding
+        # 64bit (architecture guard) and explicitly named scheduling features.
+        model=['avx2','bmi','bmi2','cmov','cx16','f16c','fma','fxsr','lzcnt',
+               'mmx','movbe','nopl','popcnt','sahf','x87','xsave']
+        aliases={'bmi':'bmi1','lzcnt':'abm','sahf':'lahf_lm','x87':'fpu'}
+        self.assertLessEqual({aliases.get(v,v)for v in model},set(self.cpu.REQUIRED_FLAGS))
+        # Root rustc1.98 --print cfg -Ctarget-cpu=x86-64-v3 ISA rows.
+        rust=['avx','avx2','bmi1','bmi2','cmpxchg16b','f16c','fma','fxsr','lzcnt',
+              'movbe','popcnt','sse','sse2','sse3','sse4.1','sse4.2','ssse3','xsave']
+        aliases.update(cmpxchg16b='cx16',sse3='pni',**{'sse4.1':'sse4_1','sse4.2':'sse4_2'})
+        self.assertLessEqual({aliases.get(v,v)for v in rust},set(self.cpu.REQUIRED_FLAGS))
+        row=self.row();self.assertNotIn('amd_only',self.cpu.required_flags(row))
+        self.assertEqual(row['flags'],['amd_only','sse2'])
+        self.assertTrue(self.cpu.consumer_covers([row],'amd64',list(self.cpu.REQUIRED_FLAGS)))
+        self.assertFalse(self.cpu.consumer_covers([row],'amd64',[v for v in self.cpu.REQUIRED_FLAGS if v!='nopl']))
+        self.assertFalse(self.cpu.consumer_covers([row],'arm64',list(self.cpu.REQUIRED_FLAGS)))
+
+    def test_sanitize_overrides_and_reject_direct_argv_escape(self):
+        dirty={'CC':'cc -march=native','CXX_x86_64_unknown_linux_gnu':'c++ -march=native',
+               'HOST_CFLAGS':'-march=native','CARGO_ENCODED_RUSTFLAGS':'',
+               'CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS':'-Ctarget-cpu=native',
+               'CARGO_BUILD_TARGET':'aarch64-unknown-linux-gnu','RUSTC_WRAPPER':'foreign',
+               'CARGO_PROFILE_DEV_DEBUG':'0','PATH':'/usr/bin:/bin'}
+        clean=self.cpu.portable_environment(dirty,tokio_unstable=True)
+        for key in set(dirty)-{'CARGO_PROFILE_DEV_DEBUG','PATH','RUSTC_WRAPPER'}:self.assertNotIn(key,clean)
+        self.assertEqual(clean['RUSTC_WRAPPER'],'')
+        self.assertEqual(clean['CARGO_PROFILE_DEV_DEBUG'],'0')
+        self.assertEqual(clean['RUSTFLAGS'],'--cfg tokio_unstable '+self.cpu.RUST_CPU)
+        for argv in (['cargo','rustc','--','-Ctarget-cpu=native'],['cargo','build','--config','build.rustflags=[]'],['cargo','build','--target=aarch64-unknown-linux-gnu']):
+            with self.assertRaises(ValueError):self.recipe(command=argv)
+        for key,value in [('CARGO_ENCODED_RUSTFLAGS',''),('CC','cc -march=native'),('CFLAGS_x86_64_unknown_linux_gnu','-march=native')]:
+            env=dict(self.env);env[key]=value
+            with self.assertRaises(ValueError):self.cpu.recipe('rust',['cargo','build'],env,self.source,repo=self.root)
+        with self.assertRaises(ValueError):self.recipe('zig-direct',['zig','test','-target','x86_64-linux-gnu','-mcpu=native'])
+        with self.assertRaises(ValueError):self.recipe('cc',['c++','-march=x86-64-v3','-mtune=generic','-march=native'])
+
+    def test_completed_actual_wait_source_and_complete_scope_coverage(self):
+        import copy
+        row=self.row();self.cpu.validate_recipe_sources(row,lambda path:self.source.read_bytes())
+        with self.assertRaises(ValueError):self.cpu.validate_recipe_sources(row,lambda path:b'foreign caller')
+        for edit in ('missing','duplicate','wrongkind','foreignsource','failedwait','badartifact','wrongprofile'):
+            changed=copy.deepcopy(row)
+            if edit=='missing':changed['recipes'].pop()
+            if edit=='duplicate':changed['recipes'][1]=changed['recipes'][0]
+            if edit=='wrongkind':changed['recipes'][1]['kind']='cc'
+            if edit=='foreignsource':changed['recipes'][1]['source']['path']='zig/unreviewed.py'
+            if edit=='failedwait':changed['recipes'][1]['actual_parent_wait']=False
+            if edit=='badartifact':changed['artifacts']['normal']['bytes']=0
+            if edit=='wrongprofile':changed['target']['zig_cpu']='native'
+            with self.subTest(edit=edit),self.assertRaises(ValueError):self.cpu.required_flags(changed)
+        pending=self.cpu.recipe('rust',['cargo','build'],self.env,self.source,repo=self.root)
+        for wait in ({'actual_parent_wait':False,'exit_code':0},{'actual_parent_wait':True,'exit_code':1},{'actual_parent_wait':True,'exit_code':False}):
+            with self.assertRaises(ValueError):self.cpu.finish_recipe(pending,wait,repo=self.root)
+        self.source.write_text('changed')
+        with self.assertRaises(ValueError):self.cpu.finish_recipe(pending,{'actual_parent_wait':True,'exit_code':0},repo=self.root)
+
+    def test_producer_profile_is_exact_closed_bounded_AST_and_never_legacy_relabel(self):
+        self.assertIsNone(self.cpu.profile_from_source(b'# historical schema1 procedure'))
+        self.assertEqual(self.cpu.profile_from_source(('PROFILE = '+repr(self.cpu.PROFILE)).encode()),self.cpu.PROFILE)
+        for wire in (b'PROFILE="native"',b'PROFILE: str="foreign"',b'from foreign import PROFILE',b'PROFILE="foreign"\nPROFILE="another"',b'x'* (1024**2+1)):
+            with self.subTest(prefix=wire[:32]),self.assertRaises(ValueError):self.cpu.profile_from_source(wire)
+
+    def test_portable_family_refuses_missing_mixed_and_legacy_under_new_profile(self):
+        row=self.row();legacy={'schema':1,'flags':['sse2']}
+        self.assertEqual(self.cpu.require_same_profile([row,row],True),self.cpu.PROFILE)
+        self.assertIsNone(self.cpu.require_same_profile([legacy,legacy]))
+        for rows in ([row,legacy],[row,None],[],[legacy]):
+            with self.assertRaises(ValueError):self.cpu.require_same_profile(rows,True)
+
+    def test_actual_cli_wrapper_records_success_wait_and_preserves_failure(self):
+        from unittest.mock import patch
+        import sys,types
+        output=self.root/'recipe.json'
+        argv=['build_cpu.py','run','--kind','rust','--repo',str(self.root),'--recipe-source',str(self.source),
+              '--recipe-output',str(output),'--','cargo','build','--locked']
+        with patch.object(sys,'argv',argv),patch.object(self.cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=0))as run:
+            self.cpu.run_main()
+        actual=run.call_args;self.assertEqual(actual.args[0],['cargo','build','--locked'])
+        self.assertEqual(actual.kwargs['env']['RUSTFLAGS'],self.cpu.RUST_CPU)
+        self.assertNotIn('start_new_session',actual.kwargs)
+        self.assertEqual(json.loads(output.read_text())['actual_parent_wait'],True)
+        failed=self.root/'failed.json';argv[argv.index(str(output))]=str(failed)
+        with patch.object(sys,'argv',argv),patch.object(self.cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=7)),self.assertRaises(SystemExit)as raised:
+            self.cpu.run_main()
+        self.assertEqual(raised.exception.code,7);self.assertFalse(failed.exists())
 
 if __name__=='__main__':unittest.main()

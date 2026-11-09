@@ -139,7 +139,7 @@ def main():
   try:
    policy.need(sum(i.file_size for i in archive.entries.values())<=8*GIB,'input expansion bound');extract(archive,args.output/'published');archive.finish()
   finally:archive.close()
-  manifest=args.output/'published/input-manifest.json';policy.need(policy.pin(manifest)['sha256']==args.manifest_sha256,'actual once manifest output');value=policy.input_manifest(manifest,args.output/'published',args.repo,authority['producer_source_commit']);policy.need(value.get('execution_source_commit')==args.input_source_commit and value.get('request_sha256')==request_pin['sha256'],'input request/executed Source bound');copied=admit(value,args.output/'published',args.repo,authority,guard)
+  manifest=args.output/'published/input-manifest.json';policy.need(policy.pin(manifest)['sha256']==args.manifest_sha256,'actual once manifest output');value=policy.input_manifest(manifest,args.output/'published',args.repo,authority['producer_source_commit'],authority);policy.need(value.get('execution_source_commit')==args.input_source_commit and value.get('request_sha256')==request_pin['sha256'],'input request/executed Source bound');copied=admit(value,args.output/'published',args.repo,authority,guard)
   for row in authority['required_source']:policy.checked(row,args.repo)
   guard();receipt={'schema':1,'kind':'paired-linux-input-consumer','passed':True,'remote':remote,'input_manifest':policy.pin(manifest),'request':request_pin,'closed_catalog_members':len(value['files']),'fixture_data':copied,'consumer_cpu_and_elf_admitted':True,'tool_manifest_admitted':True,'native18_or_timing_acceptance':False}
  except BaseException as e:

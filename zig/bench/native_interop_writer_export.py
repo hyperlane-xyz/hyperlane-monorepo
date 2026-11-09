@@ -22,7 +22,7 @@ def compile_plan(root, compiler, mode, jobs, libraries, binary):
     if mode not in {'ReleaseSafe', 'ReleaseFast'} or jobs not in {1, 2} or len(libraries) != 7 or {path.name for path in libraries} != ARCHIVES:
         raise ValueError('exact matching-mode seven-archive writer plan required')
     return [sys.executable, str(root / 'zig/tools/zig.py'), '--compiler', str(compiler),
-            'build-exe', 'src/native_rows_interop_fixture.zig', '-O', mode, '-j' + str(jobs),
+            'build-exe', 'src/native_rows_interop_fixture.zig', *build_cpu.zig_cpu_args('direct'), '-O', mode, '-j' + str(jobs),
             '-lc', '-lstdc++', *map(str, libraries), '--cache-dir', '/tmp/writer-cache',
             '--global-cache-dir', '/tmp/writer-global', '-femit-bin=' + str(binary)]
 
@@ -34,7 +34,7 @@ def main():
     parser.add_argument('--git-sha', required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    if platform.system() != 'Linux' or os.environ.get('ZIG_NATIVE_TEST_MODE') != args.mode or re.fullmatch('[0-9a-f]{40}', args.git_sha) is None:
+    if platform.system() != 'Linux' or platform.machine() != 'x86_64' or os.environ.get('ZIG_NATIVE_TEST_MODE') != args.mode or re.fullmatch('[0-9a-f]{40}', args.git_sha) is None:
         raise ValueError('Linux matching image mode/commit required')
     baked = json.loads(Path('/opt/hyperlane-build-cpu/native-db.json').read_text())
     if baked['source_commit'] != args.git_sha or baked['mode'] != args.mode:
@@ -50,8 +50,15 @@ def main():
     libraries = [Path(value) for value in manifest['native_db_libs'].split(',')]
     if any(not path.resolve(strict=True).is_relative_to(Path('/opt/hyperlane-native')) for path in libraries):
         raise ValueError('native archives escaped fixture bundle')
-    inputs = [compiler, *libraries, ROOT / 'zig/src/native_rows_interop_fixture.zig', ROOT / 'zig/tools/zig.py']
+    inputs = [compiler, *libraries, ROOT / 'zig/src/native_rows_interop_fixture.zig', ROOT / 'zig/tools/zig.py', ROOT / 'zig/tools/build_cpu.py']
     before = [pin(path) for path in inputs]
+    archive_products={path.name:{k:pin(path)[k]for k in ['bytes','sha256']}for path in libraries}
+    dependency_cpu=manifest['cpu_contract']
+    build_cpu.validate(dependency_cpu,'native-deps','shared',args.git_sha,{n:r['sha256']for n,r in archive_products.items()})
+    if dependency_cpu['artifacts']!=archive_products:raise ValueError('Portable archive bytes differ')
+    build_cpu.validate_recipe_sources(dependency_cpu,lambda name:(ROOT/name).read_bytes())
+    build_cpu.validate_recipe_sources(baked,lambda name:(ROOT/name).read_bytes())
+    build_cpu.require_same_profile([baked,dependency_cpu],require_portable=True)
     (output / 'bin').mkdir()
     binary = output / 'bin' / ('native-rows-writer-' + args.mode)
     argv = compile_plan(ROOT, compiler, args.mode, args.jobs, libraries, binary)
@@ -59,7 +66,9 @@ def main():
               'argv': argv, 'input_before': before, 'writer_executed': False,
               'native_case_acceptance': False, 'component_interoperability_acceptance': False}
     try:
-        code = native_http_tests.run_command(argv, ROOT, dict(os.environ, TMPDIR='/tmp'), 900, output / 'diagnostics')
+        environment=build_cpu.portable_environment(dict(os.environ,TMPDIR='/tmp'))
+        recipe=build_cpu.recipe('zig-direct',argv,environment,Path(__file__),repo=ROOT)
+        code = native_http_tests.run_command(argv, ROOT, environment, 900, output / 'diagnostics')
         if code != 0:
             raise RuntimeError('writer compiler exited nonzero')
         descriptor = pin(binary)
@@ -67,7 +76,10 @@ def main():
         descriptor['path'] = 'bin/' + binary.name
         binary.chmod(0o755)
         result['writer'] = descriptor
-        result['cpu'] = {'architecture': architecture, 'flags': build_cpu.cpu_flags(Path('/proc/cpuinfo').read_text())}
+        completed_recipe=build_cpu.finish_recipe(recipe,{'actual_parent_wait':True,'exit_code':code,'error':None},repo=ROOT)
+        host_flags=build_cpu.cpu_flags(Path('/proc/cpuinfo').read_text())
+        result['cpu_contract']=build_cpu.make_record('writer',args.mode,args.git_sha,architecture,host_flags,{'writer':{'bytes':descriptor['bytes'],'sha256':descriptor['sha256']}},[completed_recipe])
+        result['cpu'] = {'architecture': architecture, 'flags': host_flags}
         result['input_after'] = [pin(path) for path in inputs]
         if result['input_after'] != before:
             raise RuntimeError('writer compiler/Source/archives changed')

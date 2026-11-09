@@ -26,6 +26,30 @@ import public_proof
 import controller_resources
 
 
+class CpuReceiptAdmission(unittest.TestCase):
+    def test_both_actual_cohort_callers_use_authenticated_required_flags(self):
+        for path in [HERE/'case_cohort.py',HERE.parent/'aleo_linux/receipts.py']:
+            fn=next(n for n in ast.parse(path.read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='source_cohort')
+            first=next(i for i,n in enumerate(fn.body)if isinstance(n,ast.Assign)and any(isinstance(x,ast.Name)and x.id=='cpu'for x in n.targets))
+            last=next(i for i,n in enumerate(fn.body)if isinstance(n,ast.Assign)and any(isinstance(x,ast.Name)and x.id=='sdk_directory'for x in n.targets))
+            source=ast.Module(body=fn.body[first:last],type_ignores=[])
+            calls=[];evidence={'schema':2,'flags':['avx512f','sse2'],'required_flags':['sse2']}
+            class Cpu:
+                def cpu_flags(self,text,intersection=False):
+                    self_outer.assertTrue(intersection);return ['sse2']
+            class Module:
+                def load_module(self,name,relative):
+                    self_outer.assertEqual(relative,'zig/tools/build_cpu.py');return Cpu()
+                def helper_required_cpu_flags(self,receipt,repo):
+                    self_outer.assertEqual(repo,Path('/admitted-producer-repo'));calls.append(receipt);return receipt['required_flags']
+            self_outer=self;space={'module':Module(),'producer':evidence,'repo':Path('/admitted-producer-repo'),'Path':lambda _:types.SimpleNamespace(read_text=lambda:'actual CPU fixture'),'need':specs.need}
+            exec(compile(source,str(path),'exec'),space);self.assertEqual(calls,[evidence]);self.assertEqual(space['conservative'],['sse2'])
+            evidence['required_flags']=['avx512f','sse2']
+            with self.assertRaisesRegex(ValueError,'conservative tool CPU'):exec(compile(source,str(path),'exec'),space)
+            def refuse(_,**kwargs):raise ValueError('invalid authenticated CPU contract')
+            space['module'].helper_required_cpu_flags=refuse
+            with self.assertRaisesRegex(ValueError,'authenticated CPU'):exec(compile(source,str(path),'exec'),space)
+
 class Service(unittest.TestCase):
     def setUp(self):
         self.spec={'schema':1,'purpose':'aleo-linux-case-service-v1','root_approved':True,'run_token':'a'*32}

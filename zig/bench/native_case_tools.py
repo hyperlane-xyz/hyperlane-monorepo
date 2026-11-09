@@ -27,6 +27,10 @@ _census_module = importlib.util.module_from_spec(_census_spec)
 _census_spec.loader.exec_module(_census_module)
 functional_allocated = _census_module.functional_allocated
 
+_CPU_SPEC = importlib.util.spec_from_file_location("producer_cpu", Path(__file__).resolve().parents[1] / "tools/build_cpu.py")
+cpu = importlib.util.module_from_spec(_CPU_SPEC)
+_CPU_SPEC.loader.exec_module(cpu)
+
 ROOT = Path(__file__).resolve().parents[2]
 GIB = 1024 ** 3
 MACHINES = {'x86_64': 62, 'aarch64': 183, 'arm64': 183}
@@ -132,7 +136,7 @@ def verify_locks(repo):
 
 
 def source(repo):
-    names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust/main', 'rust/sealevel', 'zig/reference', 'zig/bench/native_case_tools.py', 'zig/bench/native_case_tools_test.py', 'zig/bench/native_harness_census.py', 'zig/bench/cold_matrix_owner.py', 'zig/integration/native_rows_interop.py'], cwd=repo, timeout=10).decode().split('\0')
+    names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust/main', 'rust/sealevel', 'zig/reference', 'zig/bench/native_case_tools.py', 'zig/bench/native_case_tools_test.py', 'zig/tools/build_cpu.py', 'zig/bench/native_harness_census.py', 'zig/bench/cold_matrix_owner.py', 'zig/integration/native_rows_interop.py'], cwd=repo, timeout=10).decode().split('\0')
     return {n: descriptor(regular(repo / n)) for n in names if n and not n.endswith('Cargo.lock')}
 
 
@@ -150,6 +154,7 @@ def make_plan(root, repo, git_sha):
 
 def run_owned(phase, repo, env, root, output, deadline, owner, source_before, baseline, census=None):
     require(source(repo) == source_before, 'Source changed before tool phase')
+    recipe = cpu.recipe('rust',phase['command'],env,Path(__file__),repo=ROOT)
     log = output / (phase['name'] + '.log')
     child, cleanup, error = None, None, None
     known, groups = {}, {}
@@ -191,6 +196,7 @@ def run_owned(phase, repo, env, root, output, deadline, owner, source_before, ba
             summary = re.search(r'test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored;', log.read_text())
             require(summary and int(summary[1]) >= (3 if phase['tool'] == 'ziggy-rocks-oracle' else 13) and int(summary[2]) == int(summary[3]) == 0, 'Actual tool tests missing/failed/ignored')
             row['actual_tests_passed'] = int(summary[1])
+        row['cpu_recipe'] = cpu.finish_recipe(recipe,row,repo=ROOT)
         row['passed'] = True
     except BaseException as failure:
         row['passed'] = False
@@ -200,7 +206,7 @@ def run_owned(phase, repo, env, root, output, deadline, owner, source_before, ba
 
 
 def execute(root, repo, git_sha, minutes):
-    require(sys.platform == 'linux' and platform.machine() in MACHINES, 'Native Linux producer required')
+    require(sys.platform == 'linux' and platform.machine() == 'x86_64', 'Portable Linux x86_64 producer required')
     require(root.is_relative_to(Path(os.environ['RUNNER_TEMP']).resolve(strict=True)) and not root.is_symlink(), 'Owned runner root required')
     require((root / 'setup-owned').read_text() == git_sha + '\n', 'Setup ownership marker mismatch')
     helper = json.loads((root / 'evidence/result.json').read_text())
@@ -219,6 +225,7 @@ def execute(root, repo, git_sha, minutes):
     (output / 'plan.json').write_text(json.dumps(plan, indent=2) + '\n')
     env = {k: os.environ[k] for k in ('PATH', 'CARGO_HOME', 'RUSTUP_HOME') if k in os.environ}
     env.update(HOME=str(root / 'home'), TMPDIR=str(root / 'tmp'), CARGO_TARGET_DIR=str(root / 'target'), CARGO_INCREMENTAL='0', CARGO_PROFILE_DEV_DEBUG='0', CARGO_PROFILE_TEST_DEBUG='0', CARGO_BUILD_JOBS='2', CARGO_TERM_COLOR='never')
+    env=cpu.portable_environment(env,tokio_unstable=True)
     import cold_matrix_owner as owner
     owner.enable_subreaper()
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
@@ -263,8 +270,16 @@ def execute(root, repo, git_sha, minutes):
     if failure is not None:
         raise SystemExit(1)
     manifest = {'schema': 1, 'kind': 'source-built-linux-native-case-tools', 'source_commit': git_sha, 'platform': {'os': 'linux', 'architecture': platform.machine(), 'elf_machine': MACHINES[platform.machine()], 'byte_order': 'little', 'libc': dict(zip(('name', 'version'), platform.libc_ver()))}, 'profile': plan['cargo_profile'], 'tools': products, 'source_gate': {'relative_path': 'source-gate.json', 'bytes': gate_path.stat().st_size, 'sha256': sha(gate_path)}, 'canonical_compatibility_source': canonical, 'native_chain_acceptance': False, 'storage_interoperability_acceptance': False, 'elapsed600_acceptance': False, 'timing_acceptance': False}
+    manifest['cpu_contract']=cpu.make_record('tools','shared',git_sha,'amd64',cpu.cpu_flags(Path('/proc/cpuinfo').read_text()),{name:{k:row[k]for k in ['bytes','sha256']}for name,row in products.items()},[row['cpu_recipe']for row in rows])
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
+
+
+def validate_cpu_contract(row, scope, mode, producer, artifacts):
+    spec = importlib.util.spec_from_file_location('producer_cpu_admission', ROOT / 'zig/integration/native_case_inputs.py')
+    admission = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(admission)
+    return admission.validate_cpu_contract(row, scope, mode, producer, artifacts, repo=ROOT)
 
 
 def load_manifest(path, expected_sha256, expected_commit, expected_machine):
@@ -308,6 +323,8 @@ def load_manifest(path, expected_sha256, expected_commit, expected_machine):
         require(validate_elf(product, expected_machine) == item['elf'], 'Published ELF descriptor mismatch')
         require(item['producer']['bytes'] == item['bytes'] and item['producer']['sha256'] == item['sha256'], 'Actual Cargo product/copy differs')
         products[name] = descriptor(product)
+    if 'cpu_contract' in manifest:
+        validate_cpu_contract(manifest['cpu_contract'],'tools','shared',expected_commit,{name:{k:manifest['tools'][name][k]for k in ['bytes','sha256']}for name in TOOLS})
     return products
 
 
@@ -398,7 +415,7 @@ def evm_control_validate_archives(output, repo):
 def evm_control_commands(copied, compiler, mode, libraries, output):
     require(mode in {'ReleaseSafe','ReleaseFast'} and len(libraries)==7,'Exact mode/archive arguments required')
     common=[sys.executable,'-I','-B',str(copied/'zig/tools/zig.py'),'--compiler',str(compiler),'test']
-    link=['-O',mode,'-j2','-lc','-lstdc++',*libraries,'--test-no-exec']
+    link=[*cpu.zig_cpu_args('direct'),'-O',mode,'-j2','-lc','-lstdc++',*libraries,'--test-no-exec']
     return [common+['src/consumer_prepare_control.zig',*link,'--test-filter',EVM_CONTROL_TESTS[0],'--test-filter',EVM_CONTROL_TESTS[1],'-femit-bin='+str(output/'prepare-tests')],common+['src/consumer_txid_control.zig',*link,'--test-filter',EVM_CONTROL_TESTS[2],'-femit-bin='+str(output/'txid-tests')]]
 
 
@@ -432,7 +449,7 @@ def evm_control_main(argv):
     for name in ['logs','home','tmp','bin','public']:(args.output/name).mkdir()
     tool_before={n:api.artifact(api.checked(tools[n]))for n in ['anvil','cast']};input_before={'context':descriptor(args.case_root/'hydrated-inputs.json'),'composition':descriptor(args.composition_result),'case':descriptor(case_path),'stage':descriptor(stage_path),'tools':descriptor(args.tools),'oracle':descriptor(oracle),'url':descriptor(url),'gh':descriptor(args.gh)}
     for n,r in tool_before.items():(args.output/'bin'/n).symlink_to(r['path'])
-    source_names=['zig/bench/native_case_tools.py','zig/bench/native_harness_census.py','zig/bench/cold_matrix_owner.py','zig/integration/native_case_inputs.py','zig/integration/evm.py','zig/tools/container_check.py','zig/tools/bootstrap.py','zig/tools/zig.py'];consumer_sources=evm_control_execution_sources(ROOT,args.execution_source_commit,source_names)
+    source_names=['zig/bench/native_case_tools.py','zig/bench/native_harness_census.py','zig/bench/cold_matrix_owner.py','zig/integration/native_case_inputs.py','zig/integration/evm.py','zig/tools/container_check.py','zig/tools/bootstrap.py','zig/tools/zig.py','zig/tools/build_cpu.py'];consumer_sources=evm_control_execution_sources(ROOT,args.execution_source_commit,source_names)
     own_spec=importlib.util.spec_from_file_location('evm_control_owner',ROOT/'zig/bench/cold_matrix_owner.py');owner=importlib.util.module_from_spec(own_spec);own_spec.loader.exec_module(owner);owner.enable_subreaper()
     calls=[];error=None;result={'schema':1,'kind':'post-case-EVM-three-SDK-skip-controls','passed':False,'runtime_source_commit':EVM_CONTROL_PRODUCER,'execution_source_commit':args.execution_source_commit,'mode':mode,'main_native_case_result':input_before['case'],'main600_restart30_clock_modified':False,'native_case_or_performance_acceptance':False,'published_agent_or_SDK_rebuild':False,'calls':calls}
     env={'PATH':str(args.output/'bin')+':/usr/local/bin:/usr/bin:/bin','HOME':str(args.output/'home'),'TMPDIR':str(args.output/'tmp'),'LC_ALL':'C.UTF-8','GITHUB_ACTIONS':'true','HYPERLANE_URL_LIBRARY':str(url)}
@@ -476,7 +493,11 @@ def evm_control_main(argv):
         entries=[descriptor(copied/'zig/src'/n)for n in ['consumer_prepare_control.zig','consumer_txid_control.zig']]
         bootstrap,_=run('compiler-bootstrap',[sys.executable,'-I','-B',str(copied/'zig/tools/bootstrap.py'),'--cache-dir',str(args.output/'compiler')],maximum=65536);compiler=Path(bootstrap.read_text().strip());require(compiler.is_relative_to(args.output/'compiler') and compiler.is_file(),'Owned verified compiler required')
         compiler_pin=descriptor(compiler);commands=evm_control_commands(copied,compiler,mode,libraries,args.output)
-        for index,command in enumerate(commands):run('compile-'+str(index),command)
+        compiler_recipes=[]
+        for index,command in enumerate(commands):
+            recipe=cpu.recipe('zig-direct',command,env,Path(__file__),repo=ROOT)
+            run('compile-'+str(index),command)
+            compiler_recipes.append(cpu.finish_recipe(recipe,{'actual_parent_wait':calls[-1]['actual_parent_wait'],'exit_code':calls[-1]['exit_code'],'error':None},repo=ROOT))
         fixture=args.output/'fixture';fixture.mkdir();rust=fixture/'rust/main/utils/run-locally/src/ethereum/multicall.rs';rust.parent.mkdir(parents=True);shutil.copyfile(copied/'rust/main/utils/run-locally/src/ethereum/multicall.rs',rust);fixture_rust=descriptor(rust);require(fixture_rust['sha256']==source_rows['rust/main/utils/run-locally/src/ethereum/multicall.rs']['sha256'],'Fixture Rust Source copy differs')
         worker={'schema':1,'tools':tool_before,'contracts':evm_control_contracts(stage,ROOT),'test_binary':descriptor(args.output/'prepare-tests'),'fixture_root':str(fixture),'output':str(args.output/'prepare-actual.json')};worker_path=args.output/'prepare-worker.json';worker_path.write_text(json.dumps(worker)+'\n')
         aout,aerr=run('prepare-and-Anvil',[sys.executable,'-I','-B',str(ROOT/'zig/bench/native_case_tools.py'),'evm-prepare-worker','--manifest',str(worker_path)],maximum=65536)
@@ -492,6 +513,7 @@ def evm_control_main(argv):
         require(evm_control_execution_sources(ROOT,args.execution_source_commit,source_names)==consumer_sources and all(descriptor(Path(r['path']))==r for r in input_before.values())and all(descriptor(Path(r['path']))==r for r in tool_before.values())and descriptor(compiler)==compiler_pin,'Postflight component inputs changed')
         require(all(descriptor(copied/n)['sha256']==r['sha256']for n,r in source_rows.items()),'Owned Source copy changed')
         last_census[0]=0.0;guard()
+        result['cpu_contract']=cpu.make_record('evm-controls',mode,args.execution_source_commit,'amd64',cpu.cpu_flags(Path('/proc/cpuinfo').read_text()),{name:{k:descriptor(args.output/name)[k]for k in ['bytes','sha256']}for name in ['prepare-tests','txid-tests']},compiler_recipes)
         result.update(passed=True,published_agent_ELFs_executed=False,admitted_URL_DSO_used=True,admitted_Source_built_oracle_executed=True,required_tests=tests,component_entries=entries,fixture_JSON=fixture_result['fixture_json'],fixture_Rust_Source=fixture_rust,temporary_dependency_ZIP_removed=not archive.exists(),separate_ninth_dependency={**EVM_CONTROL_DEP,'whole_SHA_all_member_CRC':True,'catalog_sha256':hashlib.sha256(json.dumps(dep_catalog,sort_keys=True).encode()).hexdigest()},producer_Source_copy={'files':len(source_rows),'catalog_sha256':hashlib.sha256(json.dumps(source_rows,sort_keys=True).encode()).hexdigest()},consumer_Source={n:{k:v for k,v in r.items()if k!='path'}for n,r in consumer_sources.items()},compiler=compiler_pin,oracle=admitted['ziggy-rocks-oracle'],archive_inputs=[descriptor(Path(x))for x in libraries],main_scope_trees=scopes,all_component_waits_clean=True)
     except BaseException as caught:error=caught;result['error_class']=type(caught).__name__
     finally:
