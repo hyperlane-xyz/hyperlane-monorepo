@@ -18,6 +18,7 @@ import {
   IsmType,
   TokenType,
   type WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigSchema,
   WormholeConsistencyLevel,
   WormholeConsistencyType,
   type WormholeIsmConfig,
@@ -26,7 +27,7 @@ import {
 import { addressToBytes32, assert, type Address } from '@hyperlane-xyz/utils';
 
 import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
-import { writeYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   getDeployedWarpAddress,
@@ -49,6 +50,7 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
+  EXAMPLES_PATH,
   REGISTRY_PATH,
   TEMP_PATH,
   getCombinedWarpRoutePath,
@@ -72,6 +74,29 @@ const VAA_SERVICE_PORT = 3802;
 const VAA_SERVICE_URL = `http://127.0.0.1:${VAA_SERVICE_PORT}/wormhole/getWormholeVaa`;
 // Anvil account #1: distinct from both the deployer and the warp route owner.
 const WORMHOLE_ROUTER_OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const WORMHOLE_WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/wormhole/wormhole-warp-route.yaml`;
+
+interface ExampleChainConfig {
+  hook: HookConfig;
+  interchainSecurityModule: WormholeIsmConfig;
+}
+
+/** Reads the published example through the same schema `warp deploy` uses. */
+function readExampleChainConfigs(): ExampleChainConfig[] {
+  const example = WarpRouteDeployConfigSchema.parse(
+    readYamlOrJson(WORMHOLE_WARP_CONFIG_PATH_EXAMPLE),
+  );
+  return Object.entries(example).map(([chain, config]) => {
+    const { hook, interchainSecurityModule } = config;
+    assert(hook, `Example ${chain} config is missing its hook`);
+    assert(
+      typeof interchainSecurityModule === 'object' &&
+        interchainSecurityModule.type === IsmType.WORMHOLE,
+      `Example ${chain} config must use a ${IsmType.WORMHOLE}`,
+    );
+    return { hook, interchainSecurityModule };
+  });
+}
 
 describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
   this.timeout(10 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -112,27 +137,31 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
     };
   });
 
+  /**
+   * Builds the route from the published example, pointing each leg at the
+   * local Mailbox and mock Wormhole Core.
+   */
   function configFor(
     symbol: string,
-    urls: string[] = ['https://vaa.example/v1'],
+    urls?: string[],
     wrapIsm: (ism: WormholeIsmConfig) => IsmConfig = (ism) => ism,
+    wrapHook: (hook: HookConfig) => HookConfig = (hook) => hook,
   ): WarpRouteDeployConfigMailboxRequired {
+    const examples = readExampleChainConfigs();
+    assert(
+      examples.length === chains.length,
+      `Expected ${chains.length} chains in ${WORMHOLE_WARP_CONFIG_PATH_EXAMPLE}`,
+    );
     const configs: WarpRouteDeployConfigMailboxRequired = {};
     for (const [index, chain] of chains.entries()) {
-      const hook: HookConfig = {
-        type: HookType.AGGREGATION,
-        hooks: [
-          { type: HookType.MAILBOX_DEFAULT },
-          { type: HookType.WORMHOLE },
-        ],
-      };
+      const { hook, interchainSecurityModule: exampleIsm } = examples[index];
       const interchainSecurityModule: WormholeIsmConfig = {
-        type: IsmType.WORMHOLE,
+        type: exampleIsm.type,
         owner: ANVIL_DEPLOYER_ADDRESS,
         core: mocks[chain].core.address,
         wormholeChainId: mocks[chain].wormholeChainId,
-        consistencyLevel: { type: WormholeConsistencyType.Finalized },
-        urls,
+        consistencyLevel: exampleIsm.consistencyLevel,
+        urls: urls ?? exampleIsm.urls,
       };
       configs[chain] = {
         type: index === 0 ? TokenType.native : TokenType.synthetic,
@@ -141,7 +170,7 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
         name: `${symbol} token`,
         symbol,
         decimals: 18,
-        hook,
+        hook: wrapHook(hook),
         interchainSecurityModule: wrapIsm(interchainSecurityModule),
       };
     }
