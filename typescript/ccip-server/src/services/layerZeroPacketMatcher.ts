@@ -117,7 +117,9 @@ export async function resolveLayerZeroReceiveLibrary(
   try {
     await simulateCommit(library);
   } catch (error) {
-    throw new Error(`LayerZero packet is not DVN-ready: ${error}`);
+    throw new Error(`LayerZero packet is not DVN-ready: ${error}`, {
+      cause: error,
+    });
   }
   return library;
 }

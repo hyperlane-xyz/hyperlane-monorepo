@@ -283,10 +283,11 @@ describe('layerZeroPacketMatcher', () => {
 
     expect(selected).to.equal(current);
     expect(simulated).to.deep.equal([current]);
+    const pending = new Error('DVNs pending');
     let error: unknown;
     try {
       await resolveLayerZeroReceiveLibrary(endpoint, query, async () => {
-        throw new Error('DVNs pending');
+        throw pending;
       });
     } catch (caught) {
       error = caught;
@@ -297,6 +298,7 @@ describe('layerZeroPacketMatcher', () => {
         'message',
         'LayerZero packet is not DVN-ready: Error: DVNs pending',
       );
+    expect(error).to.have.property('cause', pending);
   });
 
   it('rejects a receive library the Endpoint does not accept', async () => {
