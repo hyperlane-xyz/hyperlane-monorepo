@@ -76,7 +76,7 @@ export class HyperlaneMessageStatusAdapter implements ITokenBridgeStatusAdapter 
         { messageId, destination: ctx.destination, error },
         'Failed to check Hyperlane message delivery status',
       );
-      return { status: 'pending', ref };
+      throw error;
     }
   }
 }

@@ -1,3 +1,5 @@
+import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
+import { HyperlaneMessageStatusAdapter } from '../bridges/status/HyperlaneMessageStatusAdapter.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -991,6 +993,119 @@ describe('ActionTracker', () => {
   });
 
   describe('syncRebalanceActions', () => {
+    it('retains balance-visible pending evidence through failed and incomplete polls until completion', async () => {
+      const ref = { provider: 'lz_scan', kind: 'lz_scan', data: {} };
+      const pollStatus = Sinon.stub();
+      const statusAdapter: ITokenBridgeStatusAdapter = {
+        kind: 'lz_scan',
+        logger: testLogger,
+        initFromReceipt: async () => ref,
+        pollStatus,
+      };
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[statusAdapter.kind, statusAdapter]]),
+      );
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        externalExecutionRef: ref,
+      });
+      const tags: ConfirmedBlockTags = {
+        chain2: EthJsonRpcBlockParameterTag.Finalized,
+      };
+      pollStatus.resolves({
+        status: 'pending',
+        balanceMayIncludePendingSettlement: true,
+        ref,
+      });
+      expect(await tracker.syncRebalanceActions(tags)).to.equal(true);
+      expect(
+        (await rebalanceActionStore.get(action.id))?.externalExecutionRef?.data
+          .balanceMayIncludePendingSettlement,
+      ).to.equal(true);
+      pollStatus.rejects(new Error('Scan unavailable'));
+      expect(await tracker.syncRebalanceActions(tags)).to.equal(true);
+      pollStatus.resolves({ status: 'pending', ref: { ...ref, data: {} } });
+      expect(await tracker.syncRebalanceActions(tags)).to.equal(true);
+      expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      expect(
+        (await rebalanceActionStore.get(action.id))?.externalExecutionRef?.data
+          .balanceMayIncludePendingSettlement,
+      ).to.equal(true);
+      pollStatus.resolves({
+        status: 'complete',
+        receivingTxHash: '0xdestination',
+      });
+      expect(await tracker.syncRebalanceActions(tags)).to.equal(true);
+      expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+        'complete',
+      );
+      expect(await tracker.syncRebalanceActions(tags)).to.equal(false);
+    });
+
+    it('defers a failed Hyperlane adapter delivery read without releasing its action', async () => {
+      const adapter = new HyperlaneMessageStatusAdapter(testLogger);
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[adapter.kind, adapter]]),
+      );
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        externalExecutionRef: {
+          provider: adapter.kind,
+          kind: adapter.kind,
+          data: { messageId: '0xmessage' },
+        },
+      });
+      mailboxStub.isDelivered.rejects(new Error('solid state unavailable'));
+      expect(
+        await tracker.syncRebalanceActions({
+          chain2: EthJsonRpcBlockParameterTag.Finalized,
+        }),
+      ).to.equal(true);
+      expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      mailboxStub.isDelivered.resolves(false);
+      expect(
+        await tracker.syncRebalanceActions({
+          chain2: EthJsonRpcBlockParameterTag.Finalized,
+        }),
+      ).to.equal(false);
+    });
+
     it('records an LZ ref and completes its parent intent after delivery', async () => {
       const originalRef = {
         provider: TokenBridgeStatusAdapterType.LayerZeroScan,

@@ -1,4 +1,8 @@
-import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import {
+  EthJsonRpcBlockParameterTag,
+  type ChainMap,
+  type Token,
+} from '@hyperlane-xyz/sdk';
 
 import { WrappedError } from '../utils/errors.js';
 
@@ -16,7 +20,11 @@ export enum MonitorEventType {
   Start = 'Start',
 }
 
-export type ConfirmedBlockTag = number | undefined;
+/** EVM uses an exact height; Tron explicitly reads moving solidified state. */
+export type ConfirmedBlockTag =
+  | number
+  | EthJsonRpcBlockParameterTag.Finalized
+  | undefined;
 
 export type ConfirmedBlockTags = ChainMap<ConfirmedBlockTag>;
 

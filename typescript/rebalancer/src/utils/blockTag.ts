@@ -2,7 +2,10 @@ import type { Logger } from 'pino';
 
 import { providers } from 'ethers';
 
-import { type MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import {
+  EthJsonRpcBlockParameterTag,
+  type MultiProtocolProvider,
+} from '@hyperlane-xyz/sdk';
 import { assert, isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
 import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
@@ -10,13 +13,14 @@ import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 const HEX_BLOCK_NUMBER_REGEX = /^0x[0-9a-fA-F]+$/;
 
 /**
- * Get the confirmed block tag for a chain, accounting for reorg period.
- * Resolves named finality tags once so balances and settlement use the same block.
+ * Get the confirmed-state query mode for a chain. EVM named finality resolves
+ * once to an exact height; Tron uses its native moving solidified state.
  *
  * @param multiProvider - Provider registry with chain metadata and ethers access
  * @param chainName - Name of the chain
  * @param logger - Optional logger for warnings
- * @returns A block number, or undefined for a protocol without historical queries
+ * @returns An exact EVM height, the explicit Tron finalized tag, or undefined
+ * for another protocol without historical queries.
  */
 export async function getConfirmedBlockTag(
   multiProvider: Pick<
@@ -29,22 +33,22 @@ export async function getConfirmedBlockTag(
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
 
-    // Undefined means the protocol cannot query a historical EVM snapshot.
-    // Supported chains must never silently substitute a latest-state read.
+    // Undefined identifies protocols without EVM snapshot support. Tron has an
+    // explicit finalized-state mode; neither mode falls back to latest EVM state.
     if (!isEVMLike(metadata.protocol)) return undefined;
 
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
     const provider = multiProvider.getEthersV5Provider(chainName);
-    let solidBlock: number | undefined;
     if (metadata.protocol === ProtocolType.Tron) {
       assert(
         provider instanceof TronJsonRpcProvider,
         `Missing Tron provider for ${chainName}`,
       );
-      solidBlock = await provider.getFinalizedBlockNumber();
+      // Tron cannot query historical contract state. The native Solidity API
+      // provides irreversible state; settlement changes require a fresh balance cycle.
+      return EthJsonRpcBlockParameterTag.Finalized;
     }
     if (typeof reorgPeriod === 'string') {
-      if (solidBlock !== undefined) return solidBlock;
       const block = await provider.getBlock(reorgPeriod);
       assert(
         block && Number.isSafeInteger(block.number) && block.number >= 0,
@@ -75,9 +79,7 @@ export async function getConfirmedBlockTag(
       throw new Error(`Invalid block number for ${chainName}: ${latestBlock}`);
     }
     const confirmedBlock = Math.max(0, latestBlock - reorgPeriod);
-    return solidBlock === undefined
-      ? confirmedBlock
-      : Math.min(confirmedBlock, solidBlock);
+    return confirmedBlock;
   } catch (error) {
     logger?.warn(
       { chain: chainName, error },
