@@ -1032,4 +1032,74 @@ class EvmChildWaitTextControls(unittest.TestCase):
         with mock.patch.object(api.os,'open',side_effect=tracked):value=self.observe(self.header()+self.body(self.CATALOG[0][0]))
         self.assertEqual(len(opened),1);self.assertEqual(value['log_fingerprint'],{'path':str(self.log),'bytes':self.log.stat().st_size,'sha256':hashlib.sha256(self.log.read_bytes()).hexdigest()});self.assertEqual(value['reason_codes'],[]);self.assertIsNone(value['reason_source'])
 
+class RadixSubmitTextControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.sources={}
+        for name in api.RADIX_SUBMIT_SOURCE_SHA:
+            path=self.repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((HERE.parents[1]/name).read_bytes())
+            if name!=api.RADIX_SUBMIT_LOCK:self.sources[name]=api.pin(path)
+        self.lock=api.pin(self.repo/api.RADIX_SUBMIT_LOCK);self.log=self.root/'harness.log'
+    def quote(self,text):return json.dumps(text,ensure_ascii=False)
+    def header(self,site='utils/run-locally/src/radix/cli.rs:143:14'):return("thread 'PRIVATE_THREAD' (42) panicked at "+site+':\n').encode()
+    def response(self,kind='InvalidTransactionError',status=400,details=None,entity=None):
+        if details is None:details='Some('+kind+'(Object {"PRIVATE_TOKEN": String("PRIVATE_DATA")}))'
+        if entity is None:entity='Some(Status4XX(ErrorResponse { code: Some(400), details: '+details+', message: '+self.quote('PRIVATE_MESSAGE https://PRIVATE_URL/?token=PRIVATE')+', trace_id: Some("PRIVATE_TRACE") }))'
+        body='ResponseContent { status: '+str(status)+', content: '+self.quote('PRIVATE_CONTENT status: 599, entity: Some(Status4XX(PRIVATE_SPOOF))')+', entity: '+entity+' }'
+        return 'Other(ResponseError('+self.quote(body)+'))'
+    def body(self,leaf):return('Failed to submit transaction: '+leaf+'\n').encode()
+    def observe(self,wire,sources=None,lock=None):
+        self.log.write_bytes(wire);return api.rust_panic_observation(self.log,self.sources if sources is None else sources,self.repo,radix_client_lock=self.lock if lock is None else lock)
+    def test_direct_all8_details_status_and_private_data_never_published(self):
+        for kind in api.RADIX_GATEWAY_ERRORS:
+            value=self.observe(self.header()+self.body(self.response(kind)));row=value['Radix_submit_error_text'];self.assertEqual(row['collection_status'],'observed');self.assertEqual(row['envelope'],'DIRECT');self.assertEqual(row['leaf_count'],1);leaf=row['errors'][0];self.assertEqual(leaf['http_status_text'],400);self.assertEqual(leaf['gateway_error_type_text'],kind);self.assertEqual(leaf['entity_kind'],'STATUS4XX');self.assertEqual(leaf['details_shape'],'UNTYPED_JSON'if kind=='InvalidTransactionError'else'TYPED');self.assertNotIn('PRIVATE',json.dumps(row));self.assertTrue(row['text_only']);self.assertFalse(row['native_or_timing_or_cleanup_authority']);self.assertEqual(value['reason_codes'],[]);self.assertIsNone(value['reason_source'])
+            for key in ['typed_IO_error_kind','role','pid','primary_signal']:self.assertIsNone(row[key])
+    def test_real_fallback_envelope_mixed_leaf_variants_and_unknown(self):
+        leaves=[self.response(),'Other(ReqwestError(reqwest::Error { kind: Request, source: Some("PRIVATE") }))','Other(Serde(Error("PRIVATE", line: 1, column: 2)))','Other(Io(Custom { kind: Other, error: "PRIVATE" }))','Other(StringError("PRIVATE"))']
+        value=self.observe(self.header()+self.body('RpcClientError(FallbackProvidersFailed(['+', '.join(leaves)+']))'))['Radix_submit_error_text'];self.assertEqual(value['collection_status'],'observed');self.assertEqual(value['envelope'],'FALLBACK_PROVIDERS_FAILED');self.assertEqual([x['variant']for x in value['errors']],['ResponseError','ReqwestError','Serde','Io','UNKNOWN']);self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_entity_none_unknownvalue_and_details_absent_or_foreign_are_closed(self):
+        for entity,expected in [('None','NONE'),('Some(UnknownValue(Object {"PRIVATE": String("InvalidRequestError")}))','UNKNOWN_VALUE')]:
+            value=self.observe(self.header()+self.body(self.response(entity=entity)))['Radix_submit_error_text']['errors'][0];self.assertEqual(value['entity_kind'],expected);self.assertIsNone(value['gateway_error_type_text'])
+        for details in ['None','Some(PRIVATE_FOREIGN(String("InternalServerError")))']:
+            row=self.observe(self.header()+self.body(self.response(details=details)))['Radix_submit_error_text']['errors'][0];self.assertIsNone(row['gateway_error_type_text']);self.assertNotIn('PRIVATE',json.dumps(row))
+    def test_source_lock_absent_changed_and_honestly_rebound_poison_refuse(self):
+        wire=self.header()+self.body(self.response())
+        for name in self.sources:
+            sources={k:v for k,v in self.sources.items()if k!=name};self.assertEqual(self.observe(wire,sources)['Radix_submit_error_text']['reason'],'SOURCE_CONTEXT_UNAVAILABLE')
+            p=self.repo/name;old=p.read_bytes();p.write_bytes(old+b'\n');sources={**self.sources,name:api.pin(p)};self.assertEqual(self.observe(wire,sources)['Radix_submit_error_text']['reason'],'SOURCE_CONTEXT_UNAVAILABLE');p.write_bytes(old)
+        p=self.repo/api.RADIX_SUBMIT_LOCK;old=p.read_bytes();p.write_bytes(old+b'\n');self.assertEqual(self.observe(wire,lock=api.pin(p))['Radix_submit_error_text']['reason'],'SOURCE_CONTEXT_UNAVAILABLE');p.write_bytes(old)
+        self.assertEqual(self.observe(wire,lock={**self.lock,'sha256':'f'*64})['Radix_submit_error_text']['reason'],'SOURCE_CONTEXT_UNAVAILABLE')
+    def test_first_canonical_boundary_oversize_ANSI_and_wrong_path_never_borrow(self):
+        good=self.header()+self.body(self.response())
+        for site in ['utils/run-locally/src/main.rs:825:48','utils/run-locally/src/radix/cli.rs:143:15','/outside/../utils/run-locally/src/radix/cli.rs:143:14','/outside//utils/run-locally/src/radix/cli.rs:143:14','/outside\\utils/run-locally/src/radix/cli.rs:143:14']:
+            row=self.observe(self.header(site)+good)['Radix_submit_error_text'];self.assertEqual(row['collection_status'],'unavailable');self.assertEqual(row['reason'],'FIRST_PANIC_SITE_UNKNOWN')
+        for first in [("thread '"+'x'*129+"' panicked at utils/run-locally/src/main.rs:1:1:\n").encode(),b"thread '' panicked at utils/run-locally/src/main.rs:1:1:\n"]:
+            self.assertEqual(self.observe(first+good)['Radix_submit_error_text']['reason'],'FIRST_PANIC_SITE_UNKNOWN')
+        for first in [b'x'*65537+b'\n',b'\x1b[31m'+self.header('utils/run-locally/src/main.rs:1:1').rstrip()+b'x'*65537+b'\n']:
+            self.assertEqual(self.observe(first+good)['Radix_submit_error_text']['reason'],'LOG_LINE_BOUND')
+        self.assertEqual(self.observe(self.header()+self.header()+self.body(self.response()))['Radix_submit_error_text']['reason'],'EXPECT_BODY_UNAVAILABLE')
+        row=self.observe(b'\x1b[31m'+self.header()+b'\x1b[0m'+self.body(self.response()))['Radix_submit_error_text'];self.assertEqual(row['collection_status'],'observed')
+    def test_structural_spoof_duplicates_status_bounds_and_bad_escapes_fail_closed(self):
+        for status in [399,600,-1,True]:
+            row=self.observe(self.header()+self.body(self.response(status=status)))['Radix_submit_error_text'];self.assertEqual(row['collection_status'],'unavailable');self.assertEqual(row['reason'],'DEBUG_GRAMMAR_UNAVAILABLE')
+        inner='ResponseContent { status: 400, content: "PRIVATE", entity: None, status: 599 }'
+        for leaf in ['Other(ResponseError('+self.quote(inner)+'))','Other(ResponseError("PRIVATE\\q"))','Other(ResponseError("PRIVATE\\u{d800}"))']:
+            self.assertEqual(self.observe(self.header()+self.body(leaf))['Radix_submit_error_text']['collection_status'],'unavailable')
+        entity='Some(UnknownValue(Object {"details": String("Some(InternalServerError(PRIVATE))")}))'
+        row=self.observe(self.header()+self.body(self.response(entity=entity)))['Radix_submit_error_text']['errors'][0];self.assertEqual(row['entity_kind'],'UNKNOWN_VALUE');self.assertIsNone(row['gateway_error_type_text'])
+    def test_fixed_vector_depth_and_harness_single_capture(self):
+        leaf=self.response()
+        for count in [0,9]:
+            row=self.observe(self.header()+self.body('RpcClientError(FallbackProvidersFailed(['+', '.join([leaf]*count)+']))'))['Radix_submit_error_text'];self.assertEqual(row['reason'],'LEAF_BOUND')
+        row=self.observe(self.header()+self.body('RpcClientError(FallbackProvidersFailed(['+', '.join([leaf]*8)+']))'))['Radix_submit_error_text'];self.assertEqual(row['leaf_count'],8)
+        deep='Other(ReqwestError('+('Some('*33)+'"PRIVATE"'+(')'*33)+'))';self.assertEqual(self.observe(self.header()+self.body(deep))['Radix_submit_error_text']['collection_status'],'unavailable')
+        opened=[];original=api.os.open
+        def tracked(path,*args,**kwargs):
+            if Path(path)==self.log:opened.append(path)
+            return original(path,*args,**kwargs)
+        with mock.patch.object(api.os,'open',side_effect=tracked):self.observe(self.header()+self.body(leaf))
+        self.assertEqual(len(opened),1)
+    def test_Rust_string_supported_escapes_and_optional_nonRadix_context(self):
+        self.assertEqual(api.radix_debug_string('"a\\n\\r\\t\\0\\\\\\\"\\x41\\u{1f600}"'),'a\n\r\t\0\\"A😀')
+        self.log.write_bytes(self.header()+self.body(self.response()));value=api.rust_panic_observation(self.log,self.sources,self.repo);self.assertNotIn('Radix_submit_error_text',value);self.assertEqual(value['reason_codes'],[])
+
 if __name__=='__main__':unittest.main()

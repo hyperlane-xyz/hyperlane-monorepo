@@ -1101,4 +1101,29 @@ class SvmFixtureJournalControls(unittest.TestCase):
 
 
 
+class RadixSubmitOwnerControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=Path(api.__file__).resolve().parents[2]
+        names=['rust/main/chains/hyperlane-radix/src/error.rs','rust/main/hyperlane-core/src/error.rs','rust/main/hyperlane-core/src/rpc_clients/error.rs'];self.sources={n:{'path':str(self.repo/n),'bytes':1,'sha256':'c'*64}for n in names};self.lock={'path':str(self.repo/'rust/main/Cargo.lock'),'bytes':1,'sha256':'d'*64};self.plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':self.sources,'diagnostic_radix_client_lock':self.lock,'required_inputs':[*self.sources.values(),self.lock]}
+    def test_admission_requires_fixed_paths_required_inputs_and_original_total(self):
+        self.assertIs(api.admitted_radix_submit_context(self.plan,self.repo),self.lock)
+        for key in ['diagnostic_radix_client_lock','diagnostic_rust_sources']:
+            bad=copy.deepcopy(self.plan);bad.pop(key)
+            with self.assertRaises(ValueError):api.admitted_radix_submit_context(bad,self.repo)
+        bad=copy.deepcopy(self.plan);bad['required_inputs']=list(self.sources.values())
+        with self.assertRaisesRegex(ValueError,'exact required input'):api.admitted_radix_submit_context(bad,self.repo)
+        bad=copy.deepcopy(self.plan);bad['diagnostic_radix_client_lock']['path']='/PRIVATE_PATH'
+        with self.assertRaisesRegex(ValueError,'exact required input'):api.admitted_radix_submit_context(bad,self.repo)
+        bad=copy.deepcopy(self.plan);bad['diagnostic_radix_client_lock']['bytes']=1024**2+1
+        with self.assertRaises(ValueError):api.admitted_radix_submit_context(bad,self.repo)
+    def test_actual_failure_publisher_retains_observation_none_unavailable_and_primary(self):
+        from types import SimpleNamespace
+        for observed in [None,{'collection_status':'unavailable','reason':'SOURCE_CONTEXT_UNAVAILABLE'},{'collection_status':'observed','envelope':'FALLBACK_PROVIDERS_FAILED','errors':[{'variant':'ResponseError','http_status_text':400,'gateway_error_type_text':'InvalidTransactionError'}]}]:
+            log=self.root/'harness.log';log.write_bytes(b'public synthetic capture');result={'error':{'type':'ValueError','message':'PRIVATE_PRIMARY'},'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}]};before=copy.deepcopy(result);rust={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None,'Radix_submit_error_text':observed};method=mock.Mock(return_value=rust);module=SimpleNamespace(rust_panic_observation=method,fixture_failure_observation=mock.Mock(return_value={}))
+            with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics(self.plan,{'scenario':'radix','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},self.root,self.root,result,1)
+            value=json.loads(Path(row['path']).read_text());self.assertIn('Radix_submit_error_text',value);self.assertEqual(value['Radix_submit_error_text'],observed);self.assertIn('radix_client_lock',method.call_args.kwargs);self.assertIs(method.call_args.kwargs['radix_client_lock'],self.lock);self.assertEqual(result,before);self.assertNotIn('PRIVATE',json.dumps(value));self.assertFalse(value['native_or_timing_credit']);Path(row['path']).unlink()
+    def test_load_plan_calls_admission_only_for_Radix(self):
+        import ast
+        tree=ast.parse(Path(api.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='load_plan');calls=[n for n in ast.walk(fn)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='admitted_radix_submit_context'];self.assertEqual(len(calls),1);branch=next(n for n in ast.walk(fn)if isinstance(n,ast.If)and any(c is calls[0]for c in ast.walk(n)));self.assertEqual(ast.unparse(branch.test),"plan['scenario'] == 'radix'")
+
 if __name__=='__main__':unittest.main()

@@ -59,6 +59,20 @@ def admitted_zig_diagnostic_catalog(plan,repo):
 
 
 
+def admitted_radix_submit_context(plan,repo):
+    names=('rust/main/chains/hyperlane-radix/src/error.rs','rust/main/hyperlane-core/src/error.rs','rust/main/hyperlane-core/src/rpc_clients/error.rs')
+    catalog=plan.get('diagnostic_rust_sources',{});lock=plan.get('diagnostic_radix_client_lock')
+    require(isinstance(catalog,dict)and all(name in catalog for name in names),'Fixed Radix error Source contracts required')
+    rows=[*catalog.values(),lock]
+    require(len(rows)<=256,'Original bounded Radix Source count includes lock')
+    total=0
+    for name,row in [*catalog.items(),('rust/main/Cargo.lock',lock)]:
+        require(isinstance(row,dict)and set(row)=={'path','bytes','sha256'}and row['path']==str(repo/name)and type(row['bytes'])is int and 0<row['bytes']<=1024**2 and isinstance(row['sha256'],str)and re.fullmatch('[0-9a-f]{64}',row['sha256'])and row in plan['required_inputs'],'Radix diagnostic Source must be exact required input')
+        total+=row['bytes']
+    require(total<=4*1024**2,'Original bounded Radix Source bytes includes lock')
+    return lock
+
+
 def load_plan(path, expected_sha):
     require(pin(path)['sha256'] == expected_sha, 'Approved launch plan changed')
     plan = json.loads(path.read_text())
@@ -79,6 +93,7 @@ def load_plan(path, expected_sha):
     require(isinstance(plan['required_inputs'], list) and plan['required_inputs'], 'Pinned execution closure required')
     for row in plan['required_inputs']: checked(row)
     if plan['scenario']in{'sealevel','sealevel-composite'}:admitted_zig_diagnostic_catalog(plan,Path(__file__).resolve().parents[2])
+    if plan['scenario']=='radix':admitted_radix_submit_context(plan,Path(__file__).resolve().parents[2])
     for code in [Path(__file__).resolve(),Path(owner.__file__).resolve(),*([Path(__file__).with_name('native_starknet_custody.py').resolve()] if plan['scenario']in{'starknet','radix'} else []),*([Path(__file__).with_name(n).resolve() for n in ['native_radix_custody.py','native_radix_volume.py','native_radix_assets.py','native_radix_case.py','native_radix_reference.py']]if plan['scenario']=='radix'else[]),*([Path(__file__).with_name(n).resolve()for n in ['native_svm_case.py','native_svm_assets.py']]if plan['scenario']in{'sealevel','sealevel-composite'}else[]),*([Path(__file__).with_name(n).resolve()for n in ['native_tron_custody.py','native_tron_assets.py']]if plan['scenario']=='tron'else[])]:
         require(pin(code) in plan['required_inputs'],'Exact owner/shared ownership Source closure missing')
     for row in approval['python_modules'].values(): checked(row)
@@ -759,7 +774,8 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     # Retain both approved boundaries; neither projection grants acceptance.
     rust={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None};log=out/'harness.log'
     if log.exists():
-        rust=diagnostic_module(approval).rust_panic_observation(log,plan.get('diagnostic_rust_sources',{}),Path(__file__).resolve().parents[2])
+        arguments=(log,plan.get('diagnostic_rust_sources',{}),Path(__file__).resolve().parents[2])
+        rust=diagnostic_module(approval).rust_panic_observation(*arguments,**({'radix_client_lock':admitted_radix_submit_context(plan,Path(__file__).resolve().parents[2])}if manifest['scenario']=='radix'and'diagnostic_radix_client_lock'in plan else{}))
     startup=None;observer_log=out/'observer.log'
     waits=result['direct_waits']
     observer_failed=any(row.get('role')=='observer'and row.get('actual_parent_wait')is True and type(row.get('exit_code'))is int and row['exit_code']!=0 for row in waits)
@@ -770,6 +786,7 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     record={'schema':1,'kind':'public-native-failure-observation','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'worker_started_monotonic_ns':started_ns,'observed_after_owned_waits_monotonic_ns':time.monotonic_ns(),'observer_before_stop':result.get('public_diagnostic_before_stop'),'observer_after_stop':observed,'rust_panic_source_locations':rust['sites'],'rust_panic_reason_codes':rust['reason_codes'],'rust_panic_reason_source':rust['reason_source'],'rust_reason_scope':'Static phrase observations only in the next exact Source-bound SVM tempfile expect message; no inferred root cause or native/timing credit.','rust_location_scope':'Only canonical panic-header locations matched to exact pinned Source; no message, thread, payload or inferred execution credit. Unknown/ambiguous paths omitted.','harness_log_fingerprint':rust['log_fingerprint'],'actual_direct_parent_waits':[{k:row[k]for k in ['role','pid','actual_parent_wait','exit_code','observed_monotonic_ns']if k in row}for row in result['direct_waits']],'native_or_timing_credit':False}
     record['observer_startup_source_traceback']=startup
     if manifest['scenario']=='evm':record['EVM_child_wait_text']=rust.get('EVM_child_wait_text')
+    if manifest['scenario']=='radix':record['Radix_submit_error_text']=rust.get('Radix_submit_error_text')
     if manifest['scenario']in{'sealevel','sealevel-composite'}:
         try:
             helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}

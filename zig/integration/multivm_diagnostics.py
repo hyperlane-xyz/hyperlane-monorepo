@@ -163,7 +163,7 @@ def observer_startup_sites(log,modules,directory,entry_script):
     return {'log':{'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()},'frames':frames[-8:],'unapproved_frames_omitted':omitted,'stack_truncated':truncated or len(frames)>8,'recognized_tracebacks':min(tracebacks,8),'native_or_timing_credit':False}
 
 
-def rust_panic_observation(log,sources,repo):
+def rust_panic_observation(log,sources,repo,radix_client_lock=None):
     """One checked capture; approved sites and Source-bound finite reason labels."""
     def capture(path,maximum):
         path=Path(path);info=path.lstat()
@@ -181,9 +181,14 @@ def rust_panic_observation(log,sources,repo):
     approved={};bodies={}
     for name,row in sources.items():
         if len(approved)>=256:break
-        if not re.fullmatch(r'rust/main/utils/run-locally/src/[A-Za-z0-9_./-]+\.rs',name)or'..'in Path(name).parts:continue
+        if not (re.fullmatch(r'rust/main/utils/run-locally/src/[A-Za-z0-9_./-]+\.rs',name)or radix_client_lock is not None and name in RADIX_SUBMIT_SOURCES)or'..'in Path(name).parts:continue
         source=Path(repo)/name;body,actual=capture(source,1024*1024)
         if actual==row:approved[name]=dict(row);bodies[name]=body
+    if radix_client_lock is not None:
+        try:
+            source=Path(repo)/RADIX_SUBMIT_LOCK;body,actual=capture(source,1024*1024)
+            if actual==radix_client_lock:approved[RADIX_SUBMIT_LOCK]=actual;bodies[RADIX_SUBMIT_LOCK]=body
+        except (OSError,ValueError,TypeError):pass
     helper='rust/main/utils/run-locally/src/external_agents.rs';caller='rust/main/utils/run-locally/src/sealevel/warp_route_composite_ism.rs'
     needed=(b'"symlink in owned writable path: {}"',b'"owned parent is not a directory"',b'pub fn svm_tempfile() -> Result<tempfile::NamedTempFile>',b'create_owned_directory(&manifest.task_root, Path::new("tmp"))?;',b'tempfile::NamedTempFile::new_in(root)?;')
     reason_source=helper in bodies and all(value in bodies[helper]for value in needed)
@@ -223,8 +228,197 @@ def rust_panic_observation(log,sources,repo):
                 if trailing:message(trailing)
                 else:await_message=True
     authority={'module':helper,'source':approved[helper],'owned_path_guard_literals_verified':True,'tempfile_directory_and_file_calls_verified':True}if reasons else None
-    return {'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint,'EVM_child_wait_text':evm_child_wait_text_observation(wire,bodies,approved)}
+    return {'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint,'EVM_child_wait_text':evm_child_wait_text_observation(wire,bodies,approved),**({'Radix_submit_error_text':radix_submit_error_text_observation(wire,bodies,approved,radix_client_lock)}if radix_client_lock is not None else{})}
 
+
+
+RADIX_SUBMIT_SOURCES = (
+    'rust/main/chains/hyperlane-radix/src/error.rs',
+    'rust/main/hyperlane-core/src/error.rs',
+    'rust/main/hyperlane-core/src/rpc_clients/error.rs',
+)
+RADIX_SUBMIT_LOCK = 'rust/main/Cargo.lock'
+RADIX_CLIENT_REVISION = '2d284dad4ef48cab302cfa0435c548b54923b7e1'
+RADIX_GATEWAY_ERRORS = frozenset((
+    'AccountLockerNotFoundError', 'EntityNotFoundError', 'InvalidEntityError',
+    'NotSyncedUpError', 'InvalidRequestError', 'InvalidTransactionError',
+    'TransactionNotFoundError', 'InternalServerError',
+))
+
+
+RADIX_SUBMIT_SOURCE_SHA = {
+    'rust/main/utils/run-locally/src/radix/cli.rs': 'e299c8770820273b71d24419a024ae59' + '915fdb2b111348be4dc5ed02f074ef54',
+    'rust/main/chains/hyperlane-radix/src/error.rs': '1c46514e6dfe175000407250465cf3da' + '2af3c75ab287de08392e9de67e76f7e1',
+    'rust/main/hyperlane-core/src/error.rs': '1fabecdb5cdfe68d75c6b847b465fcbe' + '5c3d2530e3e802012a7d2f9554f18458',
+    'rust/main/hyperlane-core/src/rpc_clients/error.rs': '91a65cc7086fbb45123a30130015d859' + '0514f60a46184daf09136f04c4de819e',
+    'rust/main/Cargo.lock': '773987fad52712c3c433427be0bb881f' + '7b87a6c6b4378193c0f637eefcdaf4ee',
+}
+
+class RadixDebugUnavailable(ValueError):
+    pass
+
+
+def radix_debug_string(text):
+    """Decode one bounded Rust Debug String; never return it to a publisher."""
+    if not isinstance(text,str) or not 2<=len(text)<=65536 or text[0]!='"' or text[-1]!='"':raise RadixDebugUnavailable()
+    output=[];i=1
+    while i<len(text)-1:
+        char=text[i];i+=1
+        if char=='"' or ord(char)<32:raise RadixDebugUnavailable()
+        if char!='\\':output.append(char);continue
+        if i>=len(text)-1:raise RadixDebugUnavailable()
+        char=text[i];i+=1
+        escapes={'n':'\n','r':'\r','t':'\t','0':'\0','\\':'\\','"':'"',"'":"'"}
+        if char in escapes:output.append(escapes[char]);continue
+        if char=='x':
+            digits=text[i:i+2]
+            if len(digits)!=2 or re.fullmatch('[0-9a-fA-F]{2}',digits)is None or int(digits,16)>127:raise RadixDebugUnavailable()
+            output.append(chr(int(digits,16)));i+=2;continue
+        if char=='u' and text[i:i+1]=='{':
+            end=text.find('}',i+1,i+9);digits=text[i+1:end]if end>=0 else''
+            if re.fullmatch('[0-9a-fA-F]{1,6}',digits)is None:raise RadixDebugUnavailable()
+            code=int(digits,16)
+            if code>0x10ffff or 0xd800<=code<=0xdfff:raise RadixDebugUnavailable()
+            output.append(chr(code));i=end+1;continue
+        raise RadixDebugUnavailable()
+    return ''.join(output)
+
+
+def radix_debug_parts(text):
+    """Split structural commas only; quoted private data never becomes syntax."""
+    if not isinstance(text,str)or len(text)>65536:raise RadixDebugUnavailable()
+    stack=[];parts=[];start=0;i=0;matching={')':'(',']':'[','}':'{'}
+    while i<len(text):
+        char=text[i]
+        if char=='"':
+            first=i;i+=1
+            while i<len(text):
+                if text[i]=='\\':i+=2;continue
+                if text[i]=='"':break
+                i+=1
+            if i>=len(text):raise RadixDebugUnavailable()
+            radix_debug_string(text[first:i+1]);i+=1;continue
+        if char in '([{':
+            stack.append(char)
+            if len(stack)>32:raise RadixDebugUnavailable()
+        elif char in ')]}':
+            if not stack or stack.pop()!=matching[char]:raise RadixDebugUnavailable()
+        elif char==',' and not stack:
+            parts.append(text[start:i].strip());start=i+1
+            if len(parts)>64:raise RadixDebugUnavailable()
+        i+=1
+    if stack:raise RadixDebugUnavailable()
+    final=text[start:].strip()
+    if final:parts.append(final)
+    elif parts:raise RadixDebugUnavailable()
+    return parts
+
+
+def radix_debug_call(text,name):
+    prefix=name+'('
+    if not text.startswith(prefix)or not text.endswith(')'):raise RadixDebugUnavailable()
+    inner=text[len(prefix):-1];radix_debug_parts(inner);return inner
+
+
+def radix_debug_fields(text,name,fields):
+    prefix=name+' { '
+    if not text.startswith(prefix)or not text.endswith(' }'):raise RadixDebugUnavailable()
+    parts=radix_debug_parts(text[len(prefix):-2])
+    if len(parts)!=len(fields):raise RadixDebugUnavailable()
+    values={}
+    for key,part in zip(fields,parts):
+        if not part.startswith(key+': '):raise RadixDebugUnavailable()
+        values[key]=part[len(key)+2:]
+    return values
+
+
+def radix_submit_debug_leaf(text):
+    inner=radix_debug_call(text,'Other');variant=inner.split('(',1)[0]
+    if variant not in {'ReqwestError','ResponseError','Serde','Io'}:
+        return {'variant':'UNKNOWN','http_status_text':None,'entity_kind':'UNKNOWN','gateway_error_type_text':None,'details_shape':'UNKNOWN','content_fingerprint':None,'message_fingerprint':None}
+    payload=radix_debug_call(inner,variant)
+    row={'variant':variant,'http_status_text':None,'entity_kind':'UNKNOWN','gateway_error_type_text':None,'details_shape':'UNKNOWN','content_fingerprint':None,'message_fingerprint':None}
+    if variant!='ResponseError':return row
+    response=radix_debug_fields(radix_debug_string(payload),'ResponseContent',('status','content','entity'))
+    if re.fullmatch('[45][0-9]{2}',response['status'])is None:raise RadixDebugUnavailable()
+    row['http_status_text']=int(response['status'])
+    def fingerprint(text):
+        wire=text.encode('utf-8');return {'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
+    row['content_fingerprint']=fingerprint(radix_debug_string(response['content']))
+    if response['entity']=='None':row['entity_kind']='NONE';return row
+    entity=radix_debug_call(response['entity'],'Some')
+    if entity.startswith('UnknownValue('):
+        radix_debug_call(entity,'UnknownValue');row['entity_kind']='UNKNOWN_VALUE';return row
+    entity=radix_debug_fields(radix_debug_call(entity,'Status4XX'),'ErrorResponse',('code','details','message','trace_id'))
+    if entity['code']!='None':
+        code=radix_debug_call(entity['code'],'Some')
+        if re.fullmatch('-?(?:0|[1-9][0-9]{0,9})',code)is None or not -(2**31)<=int(code)<2**31:raise RadixDebugUnavailable()
+    if entity['trace_id']!='None':radix_debug_string(radix_debug_call(entity['trace_id'],'Some'))
+    row['entity_kind']='STATUS4XX';row['message_fingerprint']=fingerprint(radix_debug_string(entity['message']))
+    if entity['details']=='None':row['details_shape']='ABSENT';return row
+    detail=radix_debug_call(entity['details'],'Some');kind=detail.split('(',1)[0]
+    if kind not in RADIX_GATEWAY_ERRORS:return row
+    radix_debug_call(detail,kind);row['gateway_error_type_text']=kind
+    row['details_shape']='UNTYPED_JSON'if kind=='InvalidTransactionError'else'TYPED'
+    return row
+
+
+def radix_submit_error_text_observation(wire,bodies,approved,context):
+    """Source-bound Debug text only; no typed exception, endpoint or causal claim."""
+    result={'schema':1,'kind':'public-Radix-submit-error-text','collection_status':'unavailable','reason':'SOURCE_CONTEXT_UNAVAILABLE','envelope':'UNKNOWN','leaf_count':None,'errors':[],'expect_body_fingerprint':None,'Source_contracts':None,'client_revision':None,'text_only':True,'typed_IO_error_kind':None,'role':None,'pid':None,'primary_signal':None,'native_or_timing_or_cleanup_authority':False}
+    caller='rust/main/utils/run-locally/src/radix/cli.rs'
+    if context is None:return result
+    try:
+        names=(caller,*RADIX_SUBMIT_SOURCES,RADIX_SUBMIT_LOCK)
+        for name in names:
+            body=bodies[name]
+            if name not in approved or hashlib.sha256(body).hexdigest()!=RADIX_SUBMIT_SOURCE_SHA[name]:raise RadixDebugUnavailable()
+        if approved[RADIX_SUBMIT_LOCK]!=context:raise RadixDebugUnavailable()
+        if bodies[caller].splitlines()[142]!=b'            .expect("Failed to submit transaction");':raise RadixDebugUnavailable()
+        lock=bodies[RADIX_SUBMIT_LOCK]
+        for package in ('gateway-api-client','gateway-api-client-async'):
+            source=('name = "'+package+'"\nversion = "1.0.0"\nsource = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev='+RADIX_CLIENT_REVISION+'#'+RADIX_CLIENT_REVISION+'"').encode()
+            if lock.count(source)!=1:raise RadixDebugUnavailable()
+        result['Source_contracts']={name:approved[name]for name in names};result['client_revision']=RADIX_CLIENT_REVISION
+    except (KeyError,ValueError,IndexError,TypeError):return result
+    message=None;waiting=False
+    for raw in io.BytesIO(wire):
+        if len(raw)>65536:result['reason']='LOG_LINE_BOUND';return result
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',raw)
+        try:text=clean.decode('utf-8').rstrip('\r\n')
+        except UnicodeError:result['reason']='LOG_ENCODING_UNAVAILABLE';return result
+        header=re.match(r"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ",text)
+        if header is None and text.startswith("thread '"):
+            result['reason']='FIRST_PANIC_SITE_UNKNOWN';return result
+        if header is not None:
+            if waiting:result['reason']='EXPECT_BODY_UNAVAILABLE';return result
+            location=re.match(r'([^:\r\n]{1,4096}):([1-9][0-9]{0,6}):([1-9][0-9]{0,4}):(?:\s|$)',text[header.end():])
+            if location is None:result['reason']='FIRST_PANIC_SITE_UNKNOWN';return result
+            name,line,column=location.groups();parts=name.split('/')
+            canonical='\\'not in name and'\0'not in name and all(x not in {'','.','..'}for x in(parts[1:]if name.startswith('/')else parts))
+            suffix='utils/run-locally/src/radix/cli.rs'
+            if not canonical or not(name==suffix or name=='rust/main/'+suffix or name.endswith('/'+suffix))or(line,column)!=('143','14'):
+                result['reason']='FIRST_PANIC_SITE_UNKNOWN';return result
+            message=text[header.end()+location.end():].strip()
+            if message:break
+            waiting=True
+        elif waiting and text.strip():message=text.strip();break
+    if not message:result['reason']='EXPECT_BODY_UNAVAILABLE';return result
+    raw=message.encode('utf-8');result['expect_body_fingerprint']={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+    prefix='Failed to submit transaction: '
+    if not message.startswith(prefix):result['reason']='EXPECT_PREFIX_UNAVAILABLE';return result
+    try:
+        text=message[len(prefix):]
+        if text.startswith('RpcClientError('):
+            vector=radix_debug_call(radix_debug_call(text,'RpcClientError'),'FallbackProvidersFailed')
+            if not vector.startswith('[')or not vector.endswith(']'):raise RadixDebugUnavailable()
+            leaves=radix_debug_parts(vector[1:-1]);envelope='FALLBACK_PROVIDERS_FAILED'
+        else:leaves=[text];envelope='DIRECT'
+        if not 1<=len(leaves)<=8:result['reason']='LEAF_BOUND';return result
+        rows=[radix_submit_debug_leaf(leaf)for leaf in leaves]
+        result.update(collection_status='observed',reason='SOURCE_BOUND_DEBUG_TEXT',envelope=envelope,leaf_count=len(rows),errors=rows)
+    except (ValueError,UnicodeError,OverflowError):result['reason']='DEBUG_GRAMMAR_UNAVAILABLE'
+    return result
 
 
 def evm_child_wait_text_observation(wire,bodies,approved):

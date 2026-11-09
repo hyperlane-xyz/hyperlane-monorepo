@@ -1,3 +1,4 @@
+import ast
 import gzip,hashlib,importlib.util,json,pathlib,subprocess,tempfile,unittest,os,struct,copy
 from unittest import mock
 spec=importlib.util.spec_from_file_location('inputs',pathlib.Path(__file__).with_name('native_case_inputs.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -7,8 +8,9 @@ class Controls(unittest.TestCase):
  def git(self,*args):return subprocess.check_output(['git',*args],cwd=self.root,text=True,stderr=subprocess.PIPE).strip()
  def repository(self):
   self.git('init','-q');self.git('config','user.name','Fixture');self.git('config','user.email','fixture@example.invalid');self.git('config','core.hooksPath','/dev/null')
-  for n in ['zig/src/root.zig','zig/native/Cargo.toml','zig/build.zig','rust/main/Cargo.toml','rust/sealevel/Cargo.toml','zig/reference/Cargo.toml']:
+  for n in ['zig/src/root.zig','zig/native/Cargo.toml','zig/build.zig','rust/main/Cargo.toml','rust/main/chains/hyperlane-radix/src/error.rs','rust/main/hyperlane-core/src/error.rs','rust/main/hyperlane-core/src/rpc_clients/error.rs','rust/sealevel/Cargo.toml','zig/reference/Cargo.toml']:
    p=self.root/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_text('source fixture')
+  (self.root/'rust/main/Cargo.lock').write_bytes(b'synthetic public Radix client lock')
   p=self.root/'zig/reference/Cargo.lock.gz';p.write_bytes(gzip.compress(b'canonical lock',mtime=0));(p.parent/'Cargo.lock').write_bytes(b'canonical lock');(self.root/'.gitignore').write_text('Cargo.lock\n')
   self.git('add','.');self.git('commit','-qm','fixture initial');return self.git('rev-parse','HEAD')
  def test_ci_only_git_change_preserves_all_three_exact_scopes(self):
@@ -332,5 +334,34 @@ class ZigDiagnosticCatalogControls(unittest.TestCase):
   tree=ast.parse(pathlib.Path(m.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='prepare');calls=[n for n in ast.walk(fn)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='diagnostic_zig_source_catalog'];self.assertEqual(len(calls),1)
   assigned=next(n for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_zig_sources'for t in n.targets));self.assertIsInstance(assigned.value,ast.IfExp);self.assertEqual(ast.literal_eval(assigned.value.test.comparators[0]),{'sealevel','sealevel-composite'})
   updates=[n for n in fn.body if isinstance(n,ast.AugAssign)and isinstance(n.target,ast.Name)and n.target.id=='required'];self.assertTrue(any('list(diagnostic_zig_sources.values())'in ast.unparse(n)for n in updates));plan=next(n.value for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='plan'for t in n.targets));self.assertIn('diagnostic_zig_sources',[k.value for k in plan.keys if isinstance(k,ast.Constant)])
+
+class RadixSubmitCatalogControls(unittest.TestCase):
+ setUp=Controls.setUp
+ def fixture(self):
+  names=['rust/main/chains/hyperlane-radix/src/error.rs','rust/main/hyperlane-core/src/error.rs','rust/main/hyperlane-core/src/rpc_clients/error.rs','rust/main/Cargo.lock']
+  for n in names:
+   p=self.root/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b'public Source fixture')
+  return names
+ def test_fixed_three_plus_lock_actual_descriptors_and_nonmutation(self):
+  names=self.fixture();prior={'rust/main/utils/run-locally/src/radix/cli.rs':{'path':'/prior','bytes':2,'sha256':'a'*64}};before=copy.deepcopy(prior);sources,lock=m.radix_submit_source_catalog(self.root,prior);self.assertEqual(prior,before);self.assertEqual(set(sources),set(prior)|set(names[:-1]));self.assertEqual(lock,m.artifact(self.root/names[-1]))
+  for name in names[:-1]:self.assertEqual(sources[name],m.artifact(self.root/name))
+ def test_original_count_bytes_file_bounds_include_lock(self):
+  self.fixture()
+  for count,size in [(253,1),(0,4*1024**2),(1,1024**2+1)]:
+   prior={f'rust/main/utils/run-locally/src/public{i}.rs':{'path':'/prior','bytes':size,'sha256':'a'*64}for i in range(count)}
+   if count==0:prior={'rust/main/utils/run-locally/src/public.rs':{'path':'/prior','bytes':size,'sha256':'a'*64}}
+   with self.subTest(count=count,size=size),self.assertRaisesRegex(ValueError,'Original bounded'):m.radix_submit_source_catalog(self.root,prior)
+  p=self.root/'rust/main/Cargo.lock';p.write_bytes(b'x'*(1024**2+1))
+  with self.assertRaisesRegex(ValueError,'Original bounded'):m.radix_submit_source_catalog(self.root,{})
+ def test_missing_duplicate_or_symlink_contract_refuses(self):
+  names=self.fixture();p=self.root/names[0]
+  with self.assertRaisesRegex(ValueError,'Duplicate'):m.radix_submit_source_catalog(self.root,{names[0]:m.artifact(p)})
+  p.unlink()
+  with self.assertRaises(ValueError):m.radix_submit_source_catalog(self.root,{})
+  p.symlink_to(self.root/names[-1])
+  with self.assertRaisesRegex(ValueError,'Symlink'):m.radix_submit_source_catalog(self.root,{})
+ def test_prepare_Radix_only_admission_and_existing_required_inputs(self):
+  tree=ast.parse(pathlib.Path(m.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='prepare');calls=[n for n in ast.walk(fn)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='radix_submit_source_catalog'];self.assertEqual(len(calls),1)
+  branch=next(n for n in ast.walk(fn)if isinstance(n,ast.If)and any(c is calls[0]for c in ast.walk(n)));self.assertEqual(ast.unparse(branch.test),"scenario == 'radix'");self.assertIn('[radix_submit_lock]',ast.unparse(fn));self.assertIn("'diagnostic_radix_client_lock': radix_submit_lock",ast.unparse(fn))
 
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -568,6 +568,19 @@ def diagnostic_zig_source_catalog(repo,producer,execution,runtime_scope,evidence
 
 
 
+def radix_submit_source_catalog(repo,sources):
+    """Fixed Radix error contracts; original aggregate Source bound includes lock."""
+    names=('rust/main/chains/hyperlane-radix/src/error.rs','rust/main/hyperlane-core/src/error.rs','rust/main/hyperlane-core/src/rpc_clients/error.rs')
+    catalog=dict(sources)
+    for name in names:
+        require(name not in catalog,'Duplicate Radix diagnostic Source')
+        catalog[name]=artifact(relative_file(repo,name))
+    lock=artifact(relative_file(repo,'rust/main/Cargo.lock'))
+    rows=[*catalog.values(),lock]
+    require(len(rows)<=256 and all(type(row['bytes'])is int and 0<row['bytes']<=1024**2 for row in rows)and sum(row['bytes']for row in rows)<=4*1024**2,'Original bounded diagnostic Source set includes Radix lock')
+    return catalog,lock
+
+
 def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     require(sys.platform == 'linux', 'Linux native preparation only')
     require(checksum(context_path) == context_sha, 'Hydrated context changed')
@@ -668,6 +681,8 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         require(len(diagnostic_rust_sources)<256,'Bounded diagnostic Rust source set')
         row=artifact(relative_file(repo,name));require(row['bytes']<=1024**2,'Bounded diagnostic Rust source file');diagnostic_rust_sources[name]=row
     require(sum(row['bytes']for row in diagnostic_rust_sources.values())<=4*1024**2,'Bounded diagnostic Rust source bytes')
+    radix_submit_lock=None
+    if scenario=='radix':diagnostic_rust_sources,radix_submit_lock=radix_submit_source_catalog(repo,diagnostic_rust_sources)
     diagnostic_zig_sources=diagnostic_zig_source_catalog(repo,context['runtime_source_commit'],context['execution_source_commit'],closure['scopes']['runtime'],evidence)if scenario in{'sealevel','sealevel-composite'}else{}
     write_new(git_log, {'actual_waited_git_calls': evidence, 'decoded_locks': locks})
     write_new(gate_path, {'source_commit': context['execution_source_commit'], 'source_unchanged': True, 'checks': [{'name': 'actual tracked cohort and restored lock recheck before nodes', 'exit_code': 0, 'log': artifact(git_log)}]})
@@ -703,6 +718,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         required += list(stage['radix_assets']['images'].values())
     required += [check['log'] for check in stage['checks']]
     required += list(diagnostic_rust_sources.values()) + list(diagnostic_zig_sources.values())
+    if radix_submit_lock is not None:required += [radix_submit_lock]
     if scenario == 'cosmwasm':
         required += [bundle['archive'], *bundle['files'].values(), artifact(repo / 'zig/bench/native_cw_assets.py')]
     if scenario == 'starknet':
@@ -713,7 +729,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         required += [{'path':str(Path(copied['workspace']['root'])/name),'bytes':row['bytes'],'sha256':row['sha256']}for name,row in copied['workspace']['entries'].items()if row['kind']=='file']
         required += [r for compiler in value['compiler_outputs'].values()for r in compiler['actual_build_info']]
     required += list(read_json(checked(next(c['log'] for c in stage['checks'] if c['name'] == 'system-libraries'))).values())
-    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / ('rust/main' if scenario == 'evm' else 'rust/main/utils/run-locally')), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 1 if scenario in{'sealevel-composite','radix'}else 2 if scenario in{'sealevel','tron'}else 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources,'diagnostic_zig_sources':diagnostic_zig_sources}
+    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / ('rust/main' if scenario == 'evm' else 'rust/main/utils/run-locally')), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 1 if scenario in{'sealevel-composite','radix'}else 2 if scenario in{'sealevel','tron'}else 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources,'diagnostic_zig_sources':diagnostic_zig_sources,**({'diagnostic_radix_client_lock':radix_submit_lock}if radix_submit_lock is not None else{})}
     write_new(paths['launch-plan'], plan)
     return paths
 
