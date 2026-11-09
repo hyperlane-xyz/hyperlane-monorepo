@@ -8,7 +8,11 @@ import { parse, parseAllDocuments, stringify } from 'yaml';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
 import { StrategyFactory } from '@hyperlane-xyz/rebalancer';
-import { Token, WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
+import {
+  MultiProtocolProvider,
+  WarpCore,
+  WarpCoreConfigSchema,
+} from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
@@ -40,7 +44,9 @@ describe('USDT Eclipse production manifest', () => {
       ),
     );
     const tokens = Object.fromEntries(
-      warpCore.tokens.map((token) => [token.chainName, new Token(token)]),
+      WarpCore.FromConfig(new MultiProtocolProvider({}), warpCore).tokens.map(
+        (token) => [token.chainName, token],
+      ),
     );
     // Representative collateral observed during review; live startup is checked
     // separately because balances can change after this fixture was recorded.
