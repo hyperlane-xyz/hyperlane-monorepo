@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "root_approved": false,
+  "root_approved": true,
   "scope": "fresh-eight-product-data-inspection",
   "producer": {
     "source_commit": "a7b3319590295c2a65fbf5b077c05e9ec0b3e127",
