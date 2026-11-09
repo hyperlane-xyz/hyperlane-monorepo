@@ -166,9 +166,9 @@ class RouteControls(unittest.TestCase):
                   if isinstance(node, ast.Assign) and len(node.targets) == 1
                   and isinstance(node.targets[0], ast.Name) and isinstance(node.value, ast.Constant)}
         expected = {
-            'BEFORE_SHA': ('1d2b94b43ef02bcd8e5b92f6548a7faa' '249bf3dd6cee554048876bf9f6904517'),
-            'AFTER_SHA': ('432e398370bca167c8d74482f2536627' 'b14e262b8e0ff157f8d830e3b3b58445'),
-            'PAYLOAD_SHA': ('13bbd6cf1aa17a76bf4d61da93e8524b' 'a9a8f4bf224e9af480810254a8edbcf5'),
+            'BEFORE_SHA': ('637478be8bd7a4eaedf4f94de43e815a' '5ea4f618091477986bbe00e291f77b8e'),
+            'AFTER_SHA': ('ddc00ed8fa3f74914d48129de739adfc' '647d577ae5e7a8b16ef3caa46e401eb1'),
+            'PAYLOAD_SHA': ('287e2a32268789600b0d611a48b4f736' 'f6f3f935e201d7f0891adfc486633de0'),
         }
         self.assertEqual({name: values[name] for name in expected}, expected)
 

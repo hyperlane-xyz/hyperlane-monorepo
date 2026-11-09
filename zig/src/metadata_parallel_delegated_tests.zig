@@ -1935,7 +1935,8 @@ const NativeMetadataSchedule = struct {
         }
         std.debug.print("NATIVE_METADATA_SCHEDULE_FAILURE phase={s} error={s} slots={d} module_type={d} module_replies={d} verify_replies={d} gas_replies={d} verify={d} gas={d} held={d} peak={d} verify_groups={d} gas_groups={d} pressure_checks={d} cached_members={d}\n", .{ @tagName(self.phase), @errorName(err), self.last_slots.total, self.last_slots.module_type, replies[0], replies[1], replies[2], self.last_slots.verify, self.last_slots.gas, self.held_count, self.held_peak, @popCount(self.initial_verify_mask), @popCount(self.gas_mask), self.real_pressure_refusals, @popCount(self.cached_gas_members) });
         for (self.last_slots.rows[0..self.last_slots.total], 0..) |row, index| {
-            std.debug.print("NATIVE_METADATA_SCHEDULE_SLOT index={d} kind={s} member={?d} closed={} taken={}\n", .{ index, @tagName(row.kind), row.member, row.closed, row.taken });
+            const counts: [3]?usize = if (row.member) |member| .{ self.module_responses[member], self.verify_responses[member], self.gas_responses[member] } else @splat(null);
+            std.debug.print("NATIVE_METADATA_SCHEDULE_SLOT index={d} kind={s} member={?d} closed={} taken={} module_replies={?d} verify_replies={?d} gas_replies={?d}\n", .{ index, @tagName(row.kind), row.member, row.closed, row.taken, counts[0], counts[1], counts[2] });
         }
     }
 };
