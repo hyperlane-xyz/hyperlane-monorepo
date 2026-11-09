@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "root_approved": false,
+  "root_approved": true,
   "scenario": "cosmosnative",
   "mode": "ReleaseFast",
   "producer_source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
