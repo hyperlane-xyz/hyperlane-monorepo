@@ -8,6 +8,11 @@ use redact::Secret;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
 
+/// The shortest polling interval a config may set. The interval also sets the near-tip refresh
+/// window of indexing cursors, so a mistyped tiny value would turn into a tight RPC loop; 10 ms is
+/// still well below what fast chains need.
+const MIN_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
 #[allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
 pub use super::super::envs::*;
 
@@ -148,22 +153,32 @@ impl<'v> ValueParser<'v> {
         .into_config_result(|| self.cwp.clone())
     }
 
-    /// Parse a positive duration in seconds, allowing fractional numbers and numeric strings.
-    pub fn parse_duration_seconds(&self) -> ConfigResult<Duration> {
-        // Keep whole-second settings exact even beyond the integer precision of f64.
-        let duration = if let Ok(seconds) = self.parse_u64() {
-            Duration::from_secs(seconds)
-        } else {
-            Duration::try_from_secs_f64(self.parse_f64()?)
-                .context("Expected a duration representable in seconds")
-                .into_config_result(|| self.cwp.clone())?
+    /// Parse a polling interval in seconds, allowing fractional numbers and numeric strings.
+    /// Intervals below [`MIN_POLL_INTERVAL`] are rejected.
+    pub fn parse_poll_interval_seconds(&self) -> ConfigResult<Duration> {
+        let too_short = || {
+            Err(eyre!(
+                "Expected an interval of at least {}s",
+                MIN_POLL_INTERVAL.as_secs_f64()
+            ))
+            .into_config_result(|| self.cwp.clone())
         };
-        // A positive fraction can round to zero at Duration's nanosecond precision.
-        if duration.is_zero() {
-            return Err(eyre!("Expected a duration greater than zero"))
-                .into_config_result(|| self.cwp.clone());
+        // Keep whole-second settings exact even beyond the integer precision of f64.
+        if let Ok(seconds) = self.parse_u64() {
+            return if seconds == 0 {
+                too_short()
+            } else {
+                Ok(Duration::from_secs(seconds))
+            };
         }
-        Ok(duration)
+        let seconds = self.parse_f64()?;
+        // Compare before nanosecond rounding, so the floor matches the SDK schema's `min` exactly.
+        if seconds < MIN_POLL_INTERVAL.as_secs_f64() {
+            return too_short();
+        }
+        Duration::try_from_secs_f64(seconds)
+            .context("Expected a duration representable in seconds")
+            .into_config_result(|| self.cwp.clone())
     }
 
     /// Parse an i64 value allowing for it to be represented as string or number.
@@ -363,7 +378,7 @@ macro_rules! define_basic_parse {
 
 define_basic_parse!(
     parse_u64: u64,
-    parse_duration_seconds: Duration,
+    parse_poll_interval_seconds: Duration,
     parse_i64: i64,
     parse_f64: f64,
     parse_f64_unchecked: f64,

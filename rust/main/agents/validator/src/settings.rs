@@ -230,7 +230,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         let explicit_interval = p
             .chain(&mut err)
             .get_opt_key("interval")
-            .parse_duration_seconds()
+            .parse_poll_interval_seconds()
             .end();
         let chain_interval = p
             .chain(&mut err)
@@ -238,7 +238,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_key(origin_chain_name)
             .get_opt_key("index")
             .get_opt_key("interval")
-            .parse_duration_seconds()
+            .parse_poll_interval_seconds()
             .end();
         let interval = explicit_interval
             .or(chain_interval)
@@ -1007,7 +1007,13 @@ mod test {
             (Some(json!(3)), Some(json!(0.25)), Duration::from_secs(3)),
             (Some(json!("1.5")), Some(json!("0.1")), ms(1500)),
             (None, Some(json!(7)), Duration::from_secs(7)),
-            (Some(json!(u64::MAX)), None, Duration::from_secs(u64::MAX)),
+            (Some(json!(0.01)), None, ms(10)),
+            (None, Some(json!("0.01")), ms(10)),
+            (
+                Some(json!(u64::MAX.to_string())),
+                None,
+                Duration::from_secs(u64::MAX),
+            ),
         ] {
             let case = format!("top={top_level:?} chain={chain_index:?}");
             let settings = parse_with_intervals(top_level, chain_index)
@@ -1017,7 +1023,7 @@ mod test {
     }
 
     /// Invalid values are rejected wherever they appear, even when the other key is valid, so a
-    /// typo never silently falls back to another interval or rounds to a zero wait.
+    /// typo never silently falls back to another interval or becomes a near-zero wait.
     #[test]
     fn interval_rejects_nonpositive_malformed_and_unrepresentable_values() {
         use serde_json::json;
@@ -1030,6 +1036,8 @@ mod test {
             json!("-0.1"),
             json!(1e-10),
             json!("1e-10"),
+            json!(0.009),
+            json!("0.009"),
             json!(1e20),
             json!("1e400"),
             json!("NaN"),
@@ -1038,17 +1046,19 @@ mod test {
             json!("abc"),
             json!(true),
         ] {
-            for (top_level, chain_index) in [
-                (Some(invalid.clone()), None),
-                (Some(invalid.clone()), Some(json!(0.1))),
-                (None, Some(invalid.clone())),
-                (Some(json!(0.1)), Some(invalid.clone())),
+            let top = "config_path: `interval`";
+            let chain = "config_path: `chains.test.index.interval`";
+            for (top_level, chain_index, path) in [
+                (Some(invalid.clone()), None, top),
+                (Some(invalid.clone()), Some(json!(0.1)), top),
+                (None, Some(invalid.clone()), chain),
+                (Some(json!(0.1)), Some(invalid.clone()), chain),
             ] {
                 let case = format!("top={top_level:?} chain={chain_index:?}");
                 let error = parse_with_intervals(top_level, chain_index)
                     .expect_err(&format!("{case} must be rejected"))
                     .to_string();
-                assert!(error.contains("interval"), "{case}: {error}");
+                assert!(error.contains(path), "{case}: {error}");
             }
         }
     }

@@ -249,7 +249,7 @@ fn parse_chain(
         .chain(&mut err)
         .get_opt_key("index")
         .get_opt_key("interval")
-        .parse_duration_seconds()
+        .parse_poll_interval_seconds()
         .end();
     let idle_sleep_duration = configured_interval.unwrap_or(Duration::from_secs(5));
 
@@ -864,14 +864,16 @@ mod test {
         )
     }
 
-    /// `index.interval` stays in seconds but accepts fractions, as a JSON number or an env-style
-    /// string; whole seconds must stay exact across the full u64 range (an f64 detour would round
-    /// large values or overflow `Duration`).
+    /// `index.interval` stays in seconds but accepts fractions down to 10 ms, as a JSON number or
+    /// an env-style string. Whole seconds stay exact beyond f64's integer precision; above
+    /// `i64::MAX` only as strings, since the `config` crate reads larger JSON numbers as f64.
     #[test]
     fn index_interval_accepts_fractional_and_exact_integer_seconds() {
         use serde_json::json;
         let max = Duration::from_secs(u64::MAX);
         for (interval, expected) in [
+            (json!(0.01), Duration::from_millis(10)),
+            (json!("0.01"), Duration::from_millis(10)),
             (json!(0.1), Duration::from_millis(100)),
             (json!("0.1"), Duration::from_millis(100)),
             (json!(0.25), Duration::from_millis(250)),
@@ -882,7 +884,6 @@ mod test {
                 json!(9_007_199_254_740_993u64),
                 Duration::from_secs(9_007_199_254_740_993),
             ),
-            (json!(u64::MAX), max),
             (json!(u64::MAX.to_string()), max),
         ] {
             let config = parse_index_interval(Some(interval.clone()))
@@ -900,8 +901,8 @@ mod test {
         assert_eq!(config.index.configured_interval, None);
     }
 
-    /// Each of these would otherwise become a zero/negative wait (busy loop), a panic in
-    /// `Duration` construction, or a silently different value.
+    /// Each of these would otherwise become a near-zero or negative wait (a tight RPC loop), a
+    /// panic in `Duration` construction, or a silently different value.
     #[test]
     fn index_interval_rejects_nonpositive_malformed_and_unrepresentable_values() {
         use serde_json::json;
@@ -916,6 +917,10 @@ mod test {
             json!("-0.1"),
             json!(1e-10),
             json!("1e-10"),
+            json!(0.009),
+            json!("0.009"),
+            json!(0.0099999),
+            json!(0.009_999_999_999_999_998),
             json!(1e20),
             json!("1e20"),
             json!("1e400"),
@@ -931,7 +936,10 @@ mod test {
             let error = parse_index_interval(Some(interval.clone()))
                 .expect_err(&format!("{interval} must be rejected"))
                 .to_string();
-            assert!(error.contains("interval"), "{interval}: {error}");
+            assert!(
+                error.contains("config_path: `index.interval`"),
+                "{interval}: {error}"
+            );
         }
     }
 

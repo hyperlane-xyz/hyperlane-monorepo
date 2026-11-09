@@ -165,20 +165,9 @@ describe('fractional interval seconds', () => {
     merkleTreeHook: '0x0000000000000000000000000000000000000004',
   };
   const validatorInterval = ValidatorAgentConfigSchema.shape.interval;
-  // Rust rejects intervals rounded to zero nanoseconds and overflows at 2^64 seconds;
+  // Rust rejects intervals below 10 ms and overflows at 2^64 seconds;
   // 2^64 - 2048 is the largest representable double below that upper bound.
-  const valid = [
-    0.1,
-    0.25,
-    1,
-    1.5,
-    7,
-    5e-10,
-    6e-10,
-    0.999e-9,
-    1e-9,
-    2 ** 64 - 2048,
-  ];
+  const valid = [0.01, 0.1, 0.25, 1, 1.5, 7, 2 ** 64 - 2048];
   const invalid: unknown[] = [
     0,
     -0.1,
@@ -190,13 +179,15 @@ describe('fractional interval seconds', () => {
     true,
     null,
     1e-12,
-    4e-10,
-    5e-10 * (1 - Number.EPSILON),
+    5e-10,
+    1e-9,
+    0.009,
+    0.01 * (1 - Number.EPSILON),
     2 ** 64,
     Number.MAX_VALUE,
   ];
 
-  it('accepts positive finite seconds, including fractions, at both fields', () => {
+  it('accepts seconds from 10 ms up, including fractions, at both fields', () => {
     for (const interval of valid) {
       const result = AgentChainMetadataSchema.safeParse({
         ...chain,
@@ -219,7 +210,7 @@ describe('fractional interval seconds', () => {
     expect(validatorInterval.safeParse(undefined).success).to.be.true;
   });
 
-  it('rejects zero, negative, non-finite and non-numeric values at both fields', () => {
+  it('rejects values below 10 ms, non-finite and non-numeric values at both fields', () => {
     for (const interval of invalid) {
       expect(
         AgentChainMetadataSchema.safeParse({ ...chain, index: { interval } })

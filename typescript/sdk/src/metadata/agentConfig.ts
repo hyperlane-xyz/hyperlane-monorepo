@@ -362,15 +362,15 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
           ),
-        // Rust rounds to nanoseconds and stores seconds in u64; reject zero-rounded values and overflow.
+        // Match the agent's poll-interval floor (10 ms) and its u64-seconds Duration range.
         interval: z
           .number()
           .finite()
-          .min(5e-10)
+          .min(0.01)
           .lt(2 ** 64)
           .optional()
           .describe(
-            'How long to wait between polls when idle/caught up, in fractional seconds (e.g. 0.1 for 100 ms). Defaults to 5s.',
+            'How long to wait between polls when idle/caught up, in fractional seconds, at least 0.01 (e.g. 0.1 for 100 ms). Defaults to 5s.',
           ),
       })
       .optional(),
@@ -907,15 +907,15 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),
-  // Match the agent Duration range, including its nanosecond rounding threshold.
+  // Match the agent's poll-interval floor (10 ms) and its u64-seconds Duration range.
   interval: z
     .number()
     .finite()
-    .min(5e-10)
+    .min(0.01)
     .lt(2 ** 64)
     .optional()
     .describe(
-      'How long to wait between checking for new checkpoints in fractional seconds (e.g. 0.1 for 100 ms). Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
+      'How long to wait between checking for new checkpoints in fractional seconds, at least 0.01 (e.g. 0.1 for 100 ms). Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
     ),
   maxSignConcurrency: ZNzUint.max(MAX_SIGN_CONCURRENCY)
     .optional()
