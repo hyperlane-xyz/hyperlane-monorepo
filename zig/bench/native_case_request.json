@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root_approved": true,
-  "scenario": "radix",
+  "scenario": "sealevel",
   "mode": "ReleaseSafe",
   "producer_source_commit": "be13712e0f758ef50bba49a53817ff78b9822124",
   "producer_run_id": 42616231351,
@@ -44,127 +44,17 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "radix_images": {
-      "data_aggregator_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "de7f1efe19f219530da50b9cd6478f78",
-            "2858affd76a6b520b79eba2e1649b05d"
-          ],
-          "prefix": "radixdlt/babylon-ng-data-aggregator@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "eb23d60cb95fa1400f4b9aa430de39b9",
-            "babdc41c3119fd7f4293a354c7f69de2"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-data-aggregator:v1.10.3"
-      },
-      "database_migrations_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "f0bc2f9fbf8ca59a5c221128d3e0c879",
-            "714957a3753fb0ab21e393562196da1c"
-          ],
-          "prefix": "radixdlt/babylon-ng-database-migrations@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "4ec55f7eb0680512f65d3c6844dae05c",
-            "bf5972d8171e0e0944302d60fa2ab50f"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-database-migrations:v1.10.3"
-      },
-      "fullnode": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "4acd3afcb28376c560409fca46b36397",
-            "054b151b62aa2a38cb91fbd48ffbb602"
-          ],
-          "prefix": "radixdlt/babylon-node@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "f04273c2411d89b502aed11552fe83d0",
-            "cb5660d1996ee196adfc7c7a7805955f"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-node:v1.3.0.1"
-      },
-      "gateway_api_image": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "ef7aa39651897ebfbb6b39bbfea2a75c",
-            "a4e04d5ff802a62b8ee4247ca1638676"
-          ],
-          "prefix": "radixdlt/babylon-ng-gateway-api@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "8053a0fa3c5b1c42be1cb3f837b6a55c",
-            "8e92d0618d406bd64b26b8a0365ece65"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "radixdlt/babylon-ng-gateway-api:v1.10.3"
-      },
-      "postgres_db": {
-        "canonical_digest": {
-          "sha256_hex_chunks": [
-            "07ec36ad2d5ab9250f38c8ef749239b6",
-            "62cf15d03c9ddb7167422edbbdf71156"
-          ],
-          "prefix": "postgres@sha256:"
-        },
-        "image_id": {
-          "sha256_hex_chunks": [
-            "ddc12ac7fa27279bfcc41deaccd13682",
-            "91ab7d71ca7cee0420b41f9974e9a468"
-          ],
-          "prefix": "sha256:"
-        },
-        "source_image": "postgres:15.2-alpine"
-      }
-    },
-    "radix_contracts": {
-      "release": "1.0.0",
-      "files": {
-        "hyperlane_radix.rpd": {
-          "bytes": 19071,
-          "sha256": {
-            "sha256_hex_chunks": [
-              "274871ffb45c9db2d78fd0fc5bff7ec8",
-              "9a21907870118303fe35a65bbce5be88"
-            ]
-          }
-        },
-        "hyperlane_radix.wasm": {
-          "bytes": 438167,
-          "sha256": {
-            "sha256_hex_chunks": [
-              "f3dd959d32a2a123dda7744ca9963fd6",
-              "42376e4d60128d24d458474183309336"
-            ]
-          }
-        }
-      },
-      "metadata_bytes": 7865,
-      "metadata_sha256": {
-        "sha256_hex_chunks": [
-          "a90945c1008b267040c4d6eb17c32a9e",
-          "2da0dd414804ca963dfb9bf7d270d7b2"
-        ]
-      }
-    },
-    "radix_reference": {
-      "same_producer_source": true,
-      "actual_sdk_tests": 5,
-      "locked_offline": true
+    "svm_offline": {
+      "schema": 2,
+      "platform": "linux-x86_64",
+      "agave_version": "3.0.14",
+      "platform_tools_version": "v1.51",
+      "spl_release": "2024-08-23",
+      "spl_token_revision": "e101cca",
+      "programs": 13,
+      "agave_files": 85,
+      "source_environment_files": 25,
+      "require_same_producer_source": true
     }
   },
   "artifact_pins": {
@@ -223,14 +113,14 @@
         ]
       }
     },
-    "radix_reference": {
-      "id": 13674406364,
-      "name": "zig-native-radix-reference-be13712e0f758ef50bba49a53817ff78b9822124",
-      "size_in_bytes": 3177992,
+    "svm": {
+      "id": 13673522193,
+      "name": "svm-linux-prerequisites-42616231351-1",
+      "size_in_bytes": 327981000,
       "sha256": {
         "sha256_hex_chunks": [
-          "ba18df6c33e6e8afdbc5e1fafd991762",
-          "d2d7ed640983126a5ef870907eef9a44"
+          "f6666def06ae1d363e23d3ccc7fda136",
+          "427849f826269d0713dadc5b77c9c887"
         ]
       }
     }
