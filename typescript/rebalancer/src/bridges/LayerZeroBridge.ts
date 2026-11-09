@@ -127,7 +127,6 @@ export class LayerZeroBridge implements IExternalBridge {
   readonly logger: Logger;
 
   private readonly metadataByChainId = new Map<number, ChainMetadata>();
-  private readonly metadataByName = new Map<string, ChainMetadata>();
   private readonly maxFeeBps: number;
   private readonly maxEvmNativeValueWei: bigint;
   private readonly maxTronNativeValueSun: bigint;
@@ -169,8 +168,11 @@ export class LayerZeroBridge implements IExternalBridge {
         Number.isSafeInteger(chainId),
         `Invalid chain ID for ${metadata.name}`,
       );
+      assert(
+        !this.metadataByChainId.has(chainId),
+        `Duplicate chain metadata for chain ID ${chainId}`,
+      );
       this.metadataByChainId.set(chainId, metadata);
-      this.metadataByName.set(metadata.name, metadata);
     }
   }
 
@@ -212,8 +214,8 @@ export class LayerZeroBridge implements IExternalBridge {
     privateKeys: Partial<Record<ProtocolType, string>>,
     options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
-    return new TransactionSubmission(options).run(() =>
-      this.executeTransfer(quote, privateKeys, options),
+    return new TransactionSubmission(options).run((observers) =>
+      this.executeTransfer(quote, privateKeys, { ...options, ...observers }),
     );
   }
 

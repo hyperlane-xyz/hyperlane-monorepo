@@ -5,6 +5,8 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import {
+  ChainDisabledReason,
+  ChainStatus,
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
@@ -179,6 +181,47 @@ function params(overrides: Partial<BridgeQuoteParams> = {}): BridgeQuoteParams {
     ...overrides,
   };
 }
+
+describe('LayerZeroBridge chain metadata', () => {
+  it('rejects duplicate enabled chain IDs and ignores disabled duplicates', () => {
+    const metadata = {
+      chainId: 1,
+      domainId: 1,
+      name: 'ethereum',
+      protocol: ProtocolType.Ethereum,
+      rpcUrls: [{ http: 'https://ethereum.example.com' }],
+    };
+    const config = {
+      chainMetadata: {
+        ethereum: metadata,
+        duplicate: { ...metadata, name: 'duplicate', domainId: 2 },
+      },
+      warpRoutes: [{ id: 'USDT/oft', config: CURRENT_ROUTE }],
+    };
+    expect(
+      () => new LayerZeroBridge(config, pino({ level: 'silent' })),
+    ).to.throw('Duplicate chain metadata for chain ID 1');
+    expect(
+      () =>
+        new LayerZeroBridge(
+          {
+            ...config,
+            chainMetadata: {
+              ...config.chainMetadata,
+              duplicate: {
+                ...config.chainMetadata.duplicate,
+                availability: {
+                  status: ChainStatus.Disabled,
+                  reasons: [ChainDisabledReason.Deprecated],
+                },
+              },
+            },
+          },
+          pino({ level: 'silent' }),
+        ),
+    ).not.to.throw();
+  });
+});
 
 async function getRejection(promise: Promise<unknown>): Promise<Error> {
   let caught: unknown;
