@@ -75,9 +75,24 @@ describe('RelayClient', () => {
     expect(init?.headers).to.deep.equal({ 'Content-Type': 'application/json' });
     expect(JSON.parse(String(init?.body))).to.deep.include({
       ...request,
+      refundTo: request.user,
+      explicitDeposit: true,
+      latePaymentSlippageTolerance: '0',
       usePermit: false,
       useDepositAddress: false,
       useMulticallAuthorization: false,
+    });
+  });
+
+  it('returns refunds to the source account when the recipient differs', async () => {
+    const fetch = sinon
+      .stub(globalThis, 'fetch')
+      .resolves(new Response(JSON.stringify(quoteResponse())));
+    const recipient = '0x2222222222222222222222222222222222222222';
+    await new RelayClient().quote({ ...request, recipient });
+    expect(JSON.parse(String(fetch.firstCall.args[1]?.body))).to.include({
+      recipient,
+      refundTo: request.user,
     });
   });
 

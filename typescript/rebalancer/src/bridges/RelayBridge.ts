@@ -304,8 +304,12 @@ export class RelayBridge implements IExternalBridge {
       };
     const identity = TransferIdentitySchema.parse(JSON.parse(transferId));
     RelayHashSchema.parse(txHash);
+    // ActionTracker supplies Hyperlane domains, which need not equal EVM chain IDs.
+    const originChainId = this.multiProvider.getChainId(fromChain);
+    const destinationChainId = this.multiProvider.getChainId(toChain);
     assert(
-      identity.fromChain === fromChain && identity.toChain === toChain,
+      identity.fromChain === originChainId &&
+        identity.toChain === destinationChainId,
       'Relay status chain identity mismatch',
     );
     this.validateChain(fromChain);
@@ -330,8 +334,8 @@ export class RelayBridge implements IExternalBridge {
       };
     }
     assert(
-      status.originChainId === fromChain &&
-        status.destinationChainId === toChain,
+      status.originChainId === originChainId &&
+        status.destinationChainId === destinationChainId,
       'Relay status returned different chains',
     );
     assert(
