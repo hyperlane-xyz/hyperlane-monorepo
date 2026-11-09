@@ -201,14 +201,14 @@ export const LayerZeroV2PathwaySchema = z.object({
   receiveLibrary: LayerZeroV2AddressSchema,
   sendConfig: LayerZeroV2SendConfigSchema,
   receiveConfig: LayerZeroV2ReceiveConfigSchema,
-});
-
-export const LayerZeroV2RemoteRouterSchema = LayerZeroV2PathwaySchema.extend({
-  router: LayerZeroV2AddressSchema,
   /** Effective values after LayerZero applies defaults; informational only. */
   effectiveSendConfig: LayerZeroV2EffectiveSendConfigSchema.optional(),
   /** Effective values after LayerZero applies defaults; informational only. */
   effectiveReceiveConfig: LayerZeroV2EffectiveReceiveConfigSchema.optional(),
+});
+
+export const LayerZeroV2RemoteRouterSchema = LayerZeroV2PathwaySchema.extend({
+  router: LayerZeroV2AddressSchema,
 });
 
 export const LayerZeroV2HookIsmSchema = OwnableSchema.extend({

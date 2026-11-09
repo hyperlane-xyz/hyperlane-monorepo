@@ -26,6 +26,7 @@ import { TokenType } from './config.js';
 import { HookType } from '../hook/types.js';
 import {
   type DerivedIsmConfig,
+  type IsmConfig,
   IsmType,
   type LayerZeroV2IsmConfig,
   type WormholeIsmConfig,
@@ -1154,6 +1155,156 @@ describe('buildWarpRouteDiff', () => {
     });
 
     expect(diff).to.deep.equal({});
+  });
+
+  describe('with a derived LayerZero ISM nested in an aggregation', () => {
+    const LIBRARY = '0x3333333333333333333333333333333333333333';
+    const DVN = '0x4444444444444444444444444444444444444444';
+    const URLS = ['https://packets.example/layerzero'];
+
+    function layerZeroIsm(
+      pathway: LayerZeroV2IsmConfig['pathways'][string],
+    ): LayerZeroV2IsmConfig {
+      return {
+        type: IsmType.LAYER_ZERO_V2,
+        owner: OWNER,
+        endpoint: TOKEN_A,
+        layerZeroDomainId: 30_101,
+        urls: URLS,
+        pathways: { [test2.name]: pathway },
+      };
+    }
+
+    function routeWithIsm(
+      ism: IsmConfig,
+    ): WarpRouteDeployConfigMailboxRequired {
+      const expected = expectedConfig();
+      return {
+        [CHAIN]: {
+          destinationGas: expected[CHAIN].destinationGas,
+          interchainSecurityModule: {
+            type: IsmType.AGGREGATION,
+            threshold: 1,
+            modules: [{ type: IsmType.TEST_ISM }, ism],
+          },
+          mailbox: expected[CHAIN].mailbox,
+          owner: expected[CHAIN].owner,
+          remoteRouters: expected[CHAIN].remoteRouters,
+          token: TOKEN_A,
+          type: TokenType.collateral,
+        },
+      };
+    }
+
+    function derivedRoute(): DerivedWarpRouteDeployConfig {
+      const derivedTestIsm: DerivedIsmConfig = {
+        address: MAILBOX,
+        type: IsmType.TEST_ISM,
+      };
+      const derivedLayerZeroIsm: DerivedIsmConfig = {
+        address: TOKEN_B,
+        type: IsmType.LAYER_ZERO_V2,
+        owner: OWNER,
+        endpoint: TOKEN_A,
+        layerZeroDomainId: 30_101,
+        urls: URLS,
+        pathways: {
+          [test2.name]: {
+            layerZeroDomainId: 30_110,
+            sendLibrary: LIBRARY,
+            receiveLibrary: LIBRARY,
+            sendConfig: {
+              executor: { type: LayerZeroV2ConfigMode.Default },
+              uln: { type: LayerZeroV2ConfigMode.Default },
+            },
+            receiveConfig: {
+              uln: { type: LayerZeroV2ConfigMode.Default },
+            },
+            effectiveSendConfig: {
+              executor: { maxMessageSize: 10_000, executor: LIBRARY },
+              uln: {
+                confirmations: 15n,
+                requiredDVNs: [DVN],
+                optionalDVNs: [],
+                optionalDVNThreshold: 0,
+              },
+            },
+            effectiveReceiveConfig: {
+              uln: {
+                confirmations: 15n,
+                requiredDVNs: [DVN],
+                optionalDVNs: [],
+                optionalDVNThreshold: 0,
+              },
+            },
+          },
+        },
+      };
+      const actual = onChainConfig(zeroAddress);
+      actual[CHAIN].interchainSecurityModule = {
+        address: REAL_HOOK,
+        type: IsmType.AGGREGATION,
+        threshold: 1,
+        modules: [derivedTestIsm, derivedLayerZeroIsm],
+      };
+      return actual;
+    }
+
+    it('ignores the effective configs a default pathway inherits', () => {
+      const diff = buildWarpRouteDiff({
+        onChainWarpConfig: derivedRoute(),
+        warpRouteConfig: routeWithIsm(
+          layerZeroIsm({
+            layerZeroDomainId: 30_110,
+            sendLibrary: LIBRARY,
+            receiveLibrary: LIBRARY,
+            sendConfig: {
+              executor: { type: LayerZeroV2ConfigMode.Default },
+              uln: { type: LayerZeroV2ConfigMode.Default },
+            },
+            receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+          }),
+        ),
+      });
+
+      expect(diff).to.deep.equal({});
+    });
+
+    it('still reports a pathway policy change', () => {
+      const diff = buildWarpRouteDiff({
+        onChainWarpConfig: derivedRoute(),
+        warpRouteConfig: routeWithIsm(
+          layerZeroIsm({
+            layerZeroDomainId: 30_110,
+            sendLibrary: LIBRARY,
+            receiveLibrary: LIBRARY,
+            sendConfig: {
+              executor: { type: LayerZeroV2ConfigMode.Default },
+              uln: {
+                type: LayerZeroV2ConfigMode.Override,
+                confirmations: 15n,
+              },
+            },
+            receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+          }),
+        ),
+      });
+
+      const pathwayDiff = `${CHAIN}.interchainSecurityModule.modules[0].pathways.${test2.name}`;
+      expect(diff).to.have.deep.nested.property(
+        `${pathwayDiff}.sendConfig.uln.type`,
+        {
+          expected: LayerZeroV2ConfigMode.Override,
+          actual: LayerZeroV2ConfigMode.Default,
+        },
+      );
+      expect(diff).to.not.have.nested.property(
+        `${pathwayDiff}.effectiveSendConfig`,
+      );
+      expect(diff).to.not.have.nested.property(
+        `${pathwayDiff}.effectiveReceiveConfig`,
+      );
+    });
   });
 
   it('still flags a genuinely configured (non-zero) on-chain hook when the deploy config omits it', () => {

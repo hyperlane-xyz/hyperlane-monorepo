@@ -733,6 +733,26 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
           receiveLibrary: receiveLibraries[chainA],
           sendConfig: defaultSendConfig(),
           receiveConfig: defaultReceiveConfig(),
+          effectiveSendConfig: {
+            executor: {
+              maxMessageSize: 10_000,
+              executor: sendLibraries[chainA],
+            },
+            uln: {
+              confirmations: 12n,
+              requiredDVNs: [sendLibraries[chainA]],
+              optionalDVNs: [],
+              optionalDVNThreshold: 0,
+            },
+          },
+          effectiveReceiveConfig: {
+            uln: {
+              confirmations: 12n,
+              requiredDVNs: [receiveLibraries[chainA]],
+              optionalDVNs: [],
+              optionalDVNThreshold: 0,
+            },
+          },
         },
       });
     });

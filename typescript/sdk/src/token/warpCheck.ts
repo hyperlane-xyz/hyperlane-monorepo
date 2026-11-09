@@ -65,6 +65,7 @@ import { EvmLayerZeroV2HookIsmModule } from '../layerzero/EvmLayerZeroV2HookIsmM
 import {
   LAYER_ZERO_V2_LEAF_MATCHER,
   buildLayerZeroV2MeshConfig,
+  isLayerZeroV2Ism,
 } from '../layerzero/config.js';
 import {
   DerivedLayerZeroV2HookIsmConfig,
@@ -75,6 +76,7 @@ import {
   collectHybridIsmNodes,
   collectIsmTreeNodes,
   combinedHookIsmNodeAddress,
+  mapIsmTreeNodes,
 } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
@@ -1086,6 +1088,23 @@ function assertTimelockSupportedByProtocols({
   }
 }
 
+/**
+ * Drops the effective configs of every LayerZero ISM pathway. They report the
+ * library defaults a route inherits, which are not part of its desired state.
+ */
+function withoutLayerZeroEffectiveConfigs(ism: IsmConfig): IsmConfig {
+  return mapIsmTreeNodes(ism, isLayerZeroV2Ism, (node) => ({
+    ...node,
+    pathways: objMap(node.pathways, (_chain, pathway) => ({
+      layerZeroDomainId: pathway.layerZeroDomainId,
+      sendLibrary: pathway.sendLibrary,
+      receiveLibrary: pathway.receiveLibrary,
+      sendConfig: pathway.sendConfig,
+      receiveConfig: pathway.receiveConfig,
+    })),
+  }));
+}
+
 export function buildWarpRouteDiff({
   warpRouteConfig,
   onChainWarpConfig,
@@ -1108,6 +1127,19 @@ export function buildWarpRouteDiff({
           },
         };
         return acc;
+      }
+
+      if (expectedDeployedConfig.interchainSecurityModule) {
+        expectedDeployedConfig.interchainSecurityModule =
+          withoutLayerZeroEffectiveConfigs(
+            expectedDeployedConfig.interchainSecurityModule,
+          );
+      }
+      if (currentDeployedConfig.interchainSecurityModule) {
+        currentDeployedConfig.interchainSecurityModule =
+          withoutLayerZeroEffectiveConfigs(
+            currentDeployedConfig.interchainSecurityModule,
+          );
       }
 
       if (typeof expectedDeployedConfig.hook === 'string') {

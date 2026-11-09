@@ -256,6 +256,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           receiveLibrary: remote.receiveLibrary,
           sendConfig: remote.sendConfig,
           receiveConfig: remote.receiveConfig,
+          effectiveSendConfig: remote.effectiveSendConfig,
+          effectiveReceiveConfig: remote.effectiveReceiveConfig,
         },
       ]),
     );
