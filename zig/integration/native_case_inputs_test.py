@@ -335,6 +335,30 @@ class ZigDiagnosticCatalogControls(unittest.TestCase):
   assigned=next(n for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_zig_sources'for t in n.targets));self.assertIsInstance(assigned.value,ast.IfExp);self.assertEqual(ast.literal_eval(assigned.value.test.comparators[0]),{'sealevel','sealevel-composite'})
   updates=[n for n in fn.body if isinstance(n,ast.AugAssign)and isinstance(n.target,ast.Name)and n.target.id=='required'];self.assertTrue(any('list(diagnostic_zig_sources.values())'in ast.unparse(n)for n in updates));plan=next(n.value for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='plan'for t in n.targets));self.assertIn('diagnostic_zig_sources',[k.value for k in plan.keys if isinstance(k,ast.Constant)])
 
+class RelayerStartupCatalogControls(unittest.TestCase):
+ git=ZigDiagnosticCatalogControls.git
+ def setUp(self):
+  ZigDiagnosticCatalogControls.setUp(self);root=pathlib.Path(__file__).resolve().parents[2]
+  import multivm_diagnostics as diagnostic
+  self.diagnostic=diagnostic
+  for name,_,_ in diagnostic.RELAYER_STARTUP_SOURCE:
+   target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((root/name).read_bytes())
+  self.git('add','.');self.git('commit','-qm','fixed relayer Source fixture');self.commit=self.git('rev-parse','HEAD');self.runtime=m.cohort(self.repo,self.commit,self.commit,'runtime');self.evidence=[]
+ def collect_relayer(self):
+  with mock.patch.object(m,'load_module',return_value=self.diagnostic):return m.relayer_startup_source_catalog(self.repo,self.commit,self.commit,self.runtime,self.evidence)
+ def test_fixed23_actual_producer_Git_blob_join_and_no_unbounded_source_set(self):
+  rows=self.collect_relayer();self.assertEqual(len(rows),23);self.assertEqual(set(rows),{name for name,_,_ in self.diagnostic.RELAYER_STARTUP_SOURCE})
+  self.assertTrue(all(m.artifact(self.repo/name)==row for name,row in rows.items()));self.assertTrue(any('rev-parse'in e['argv']for e in self.evidence));self.assertTrue(all(e['actual_parent_wait']for e in self.evidence))
+ def test_dirty_or_replaced_producer_blob_is_refused(self):
+  p=self.repo/'zig/src/evm/provider.zig';wire=p.read_bytes();p.write_bytes(wire+b'\n')
+  with self.assertRaisesRegex(ValueError,'Dirty compiled'):self.collect_relayer()
+  p.write_bytes(wire);real=m.git
+  def wrong(repo,*args,**kwargs):return'0'*40 if args[:1]==('rev-parse',)and len(args)==2 and ':'in args[1]else real(repo,*args,**kwargs)
+  with mock.patch.object(m,'git',side_effect=wrong),self.assertRaisesRegex(ValueError,'producer blob'):self.collect_relayer()
+ def test_prepare_fixed_catalog_is_both_required_and_in_actual_approval(self):
+  fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='prepare');text=ast.unparse(fn)
+  self.assertIn("scenario in {'evm', 'starknet'}",text);self.assertIn("approval['diagnostic_relayer_sources'] = diagnostic_relayer_sources",text);self.assertIn('list(diagnostic_relayer_sources.values())',text)
+
 class RadixSubmitCatalogControls(unittest.TestCase):
  setUp=Controls.setUp
  def fixture(self):

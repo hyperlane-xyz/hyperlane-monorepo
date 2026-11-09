@@ -568,6 +568,22 @@ def diagnostic_zig_source_catalog(repo,producer,execution,runtime_scope,evidence
 
 
 
+def relayer_startup_source_catalog(repo,producer,execution,runtime_scope,evidence):
+    """Fixed transitive startup contracts joined to actual producer Git blobs."""
+    require(cohort(repo,producer,execution,'runtime',evidence)==runtime_scope,'Relayer diagnostic Source cohort differs')
+    diagnostic=load_module('prepare_relayer_startup_diagnostic','zig/integration/multivm_diagnostics.py')
+    require(len(diagnostic.RELAYER_STARTUP_SOURCE)==23,'Exact relayer diagnostic Source contract required')
+    result={};total=0
+    for name,size,digest in diagnostic.RELAYER_STARTUP_SOURCE:
+        require(name not in result and re.fullmatch(r'zig/src/[A-Za-z0-9_./-]+\.zig',name)and'..'not in PurePosixPath(name).parts,'Unique fixed relayer Source path required')
+        row=artifact(relative_file(repo,name));require(row['bytes']==size and 0<size<=1024**2 and row['sha256']==digest,'Fixed relayer Source differs')
+        wire=checked(row).read_bytes();blob=git(repo,'rev-parse',producer+':'+name,evidence=evidence).strip()
+        require(re.fullmatch('[a-f0-9]{40}',blob)and hashlib.sha1(b'blob '+str(len(wire)).encode()+b'\0'+wire).hexdigest()==blob,'Relayer Source differs from producer blob')
+        total+=size;require(total<=4*1024**2,'Original bounded relayer diagnostic Source bytes');result[name]=row
+    require(cohort(repo,producer,execution,'runtime',evidence)==runtime_scope,'Relayer diagnostic Source cohort changed after capture')
+    return result
+
+
 def radix_submit_source_catalog(repo,sources):
     """Fixed Radix error contracts; original aggregate Source bound includes lock."""
     names=('rust/main/chains/hyperlane-radix/src/error.rs','rust/main/hyperlane-core/src/error.rs','rust/main/hyperlane-core/src/rpc_clients/error.rs')
@@ -684,6 +700,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     radix_submit_lock=None
     if scenario=='radix':diagnostic_rust_sources,radix_submit_lock=radix_submit_source_catalog(repo,diagnostic_rust_sources)
     diagnostic_zig_sources=diagnostic_zig_source_catalog(repo,context['runtime_source_commit'],context['execution_source_commit'],closure['scopes']['runtime'],evidence)if scenario in{'sealevel','sealevel-composite'}else{}
+    diagnostic_relayer_sources=relayer_startup_source_catalog(repo,context['runtime_source_commit'],context['execution_source_commit'],closure['scopes']['runtime'],evidence)if scenario in{'evm','starknet'}else{}
     write_new(git_log, {'actual_waited_git_calls': evidence, 'decoded_locks': locks})
     write_new(gate_path, {'source_commit': context['execution_source_commit'], 'source_unchanged': True, 'checks': [{'name': 'actual tracked cohort and restored lock recheck before nodes', 'exit_code': 0, 'log': artifact(git_log)}]})
     tool_gate = read_json(root / 'tools/source-gate.json')
@@ -692,6 +709,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
     build_path = root / 'evidence/accepted-runtime-products.json'
     write_new(build_path, {'source_commit': context['runtime_source_commit'], 'mode': context['mode'], 'passed': True, 'source_unchanged': True, 'runtime_artifacts': artifacts, 'source_identity_scope': 'Actual producer SDK native/runtime receipts and baked CPU product hashes; actual consumer tracked-tree equality and clean working locks. No unrecorded producer pre/post Source fence inferred.', 'producer_receipt': context['producer_receipt'], 'compiled_input_closure': context['compiled_input_closure'], 'native_case_acceptance': False})
     approval = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'mode': context['mode'], 'runtime_artifacts': artifacts, 'verifier_tools': tools, 'verifier_python': python, 'case_inputs': case_pin, 'python_modules': {n: artifact(repo / 'zig/integration' / n) for n in verifier.import_module_closure(scenario)}, 'python_dependencies': {'hpack': stage['hpack']}, 'accepted_runtime_build': artifact(build_path), 'harness': harness, 'native_reader_interoperability': interop_pin, 'source_gates': [artifact(producer_gate_path), artifact(gate_path)], 'compiled_input_closure': context['compiled_input_closure'], 'capacity': {'reviewed': True, **request['limits'], 'minimum_free_bytes': request['limits']['minimum_host_free_bytes']}, 'confirm_seconds': 600, 'finality_grace_seconds': 30, 'family_tools': {}, 'evidence_nodes': {}, **({'local_docker':profile['local_docker'],'source_PG14_tag':request['postgres']['image'],'canonical_PG14_image_id':request['postgres']['image_id'],'postgres_run_token':profile['postgres']['run_token']}if scenario!='sealevel-composite'else{}),'node_ownership_tools':profile['node_ownership_tools'], 'reviewed_policy': context['request'], 'local_stage': stage_pin, 'native_case_acceptance': False}
+    if diagnostic_relayer_sources:approval['diagnostic_relayer_sources']=diagnostic_relayer_sources
     if scenario=='radix':approval.update(radix_localnet=profile['radix_localnet'],radix_daemon=profile['radix_daemon'],fixture_contracts=profile['fixture_contracts'],family_tools=profile['family_tools'],family_tool_acceptance={'radix_reference':radix_acceptance})
     if fixture: approval['fixture_tools'] = fixture
     if scenario in{'sealevel','sealevel-composite'}:approval['svm_assets']=profile['svm_assets']
@@ -717,7 +735,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         required += radix_required + [profile['fixture_contracts']['release_metadata'],*profile['fixture_contracts']['files'].values(),artifact(repo/'zig/bench/native_radix_case.py'),artifact(repo/'zig/bench/native_radix_assets.py'),artifact(repo/'zig/bench/native_radix_custody.py'),artifact(repo/'zig/bench/native_radix_volume.py'),artifact(repo/'zig/bench/native_radix_reference.py'),artifact(repo/'zig/bench/native_starknet_custody.py')]
         required += list(stage['radix_assets']['images'].values())
     required += [check['log'] for check in stage['checks']]
-    required += list(diagnostic_rust_sources.values()) + list(diagnostic_zig_sources.values())
+    required += list(diagnostic_rust_sources.values()) + list(diagnostic_zig_sources.values()) + list(diagnostic_relayer_sources.values())
     if radix_submit_lock is not None:required += [radix_submit_lock]
     if scenario == 'cosmwasm':
         required += [bundle['archive'], *bundle['files'].values(), artifact(repo / 'zig/bench/native_cw_assets.py')]

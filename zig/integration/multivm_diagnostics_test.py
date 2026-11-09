@@ -475,19 +475,62 @@ class RelayerStartupNumericControls(unittest.TestCase):
         repo=HERE.parents[1]
         for relative,_,_ in api.RELAYER_STARTUP_SOURCE:
             target=self.root/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((repo/relative).read_bytes())
-        self.manifest={'scenario':'evm','runtime_source_commit':api.RELAYER_STARTUP_EPOCH}
+        # Synthetic producer/consumer closure; never grants native execution.
+        epoch='1'*40;execution='2'*40
+        log=self.root/'compiled-source-check.json';log.write_text('{}\n')
+        scopes={category:[{'path':path,'producer_tree':None if path=='zig/build.zig.zon'else'3'*40,'current_tree':None if path=='zig/build.zig.zon'else'3'*40,'worktree_unchanged':True}for path in paths]for category,paths in {'runtime':('zig/src','zig/native','zig/build.zig','zig/build.zig.zon'),'helper':('rust/main','rust/sealevel'),'tools':('rust/main','rust/sealevel','zig/reference')}.items()}
+        self.closure={'schema':1,'runtime_source_commit':epoch,'helper_source_commit':epoch,'tools_source_commit':epoch,'execution_source_commit':execution,'source_unchanged':True,'native_case_acceptance':False,'scopes':scopes,'checks':[{'exit_code':0,'log':api.pin(log)}]}
+        self.closure_path=self.root/'compiled-input-closure.json';self.closure_path.write_text(json.dumps(self.closure))
+        self.approval={'root_approved':True,'scenario':'evm','runtime_source_commit':epoch,'execution_source_commit':execution,'compiled_input_closure':api.pin(self.closure_path),'python_modules':self.modules,'diagnostic_relayer_sources':{relative:{'path':str(self.root/relative),'bytes':size,'sha256':digest}for relative,size,digest in api.RELAYER_STARTUP_SOURCE}}
+        self.approval_path=self.root/'approval.json';self.approval_path.write_text(json.dumps(self.approval))
+        self.manifest={'scenario':'evm','runtime_source_commit':epoch,'execution_approval':api.pin(self.approval_path)}
     def sample(self,name='hyperlane_chain_init_latency',extra='role="destination",entity="mailbox",',value='0',chain='selected'):
         return f'{name}{{chain="{chain}",{extra}agent="relayer",hyperlane_baselib_version="3.0.0"}} {value}\n'.encode()
     def test_actual_Source13_and_zero_present_distinguish_absent_family(self):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules);record=probe.project(self.sample(),('selected',),405,1,99)
         self.assertTrue(record['admin_extra_handler_observed']);metric=record['metrics'][0]['metrics'];self.assertEqual(metric['destination_mailbox'],{'family_present':True,'selected_present':True,'series_count':1,'finite_values':[0.0]});self.assertFalse(metric['block_height']['family_present']);self.assertFalse(metric['destination_dispatcher']['selected_present'])
     def test_current_epoch_and_pinned_wildcard_bind_Source_contract(self):
-        self.assertEqual(api.RELAYER_STARTUP_EPOCH,'9badc87e8c2e2f019a1b3453c323a8d89686e43e')
+        self.assertEqual(api.RelayerStartup(self.root,self.manifest,self.modules).epoch,'1'*40)
         service='zig/src/service_main.zig';path=self.root/service;wire=path.read_bytes();needle=b'Address.parseIp4("0.0.0.0", configured.metrics_port)'
         self.assertIn(needle,wire);changed=wire.replace(needle,b'Address.parseIp4("127.0.0.1", configured.metrics_port)');path.write_bytes(changed)
         altered=tuple((name,len(changed),hashlib.sha256(changed).hexdigest())if name==service else(name,size,digest)for name,size,digest in api.RELAYER_STARTUP_SOURCE)
         with mock.patch.object(api,'RELAYER_STARTUP_SOURCE',altered),self.assertRaisesRegex(ValueError,'wildcard metrics bind'):api.RelayerStartup(self.root,self.manifest,self.modules)
         with self.assertRaises(ValueError):api.RelayerStartup(HERE.parents[1],{**self.manifest,'runtime_source_commit':'06e263fe7950e6051502a771646bbcc6d0453369'},self.modules)
+    def test_transitive_catalog_names_are_recovered_only_with_exact_pinned_Source(self):
+        probe=api.RelayerStartup(self.root,self.manifest,self.modules)
+        self.assertEqual(len(probe.sources),23)
+        raw=b'<RLY> warning: task 0 failed: WrongChain\n<RLY> warning: task 3 failed: ReadReplayPassNotActive\n<RLY> warning: task 4 failed: PRIVATE_SENTINEL\n'
+        rows=api.startup_header_projection(raw,probe.sources)['observations']
+        self.assertEqual([r['Source_error_name']for r in rows],['WrongChain','ReadReplayPassNotActive',None]);self.assertTrue(all(r['lane_attribution']is None for r in rows))
+        self.assertNotIn('PRIVATE',json.dumps(rows))
+        old={name:body for name,body in probe.sources.items()if name not in {'zig/src/evm/provider.zig','zig/src/net/read_replay.zig'}}
+        self.assertIsNone(api.startup_header_projection(raw,old)['observations'][0]['Source_error_name'])
+    def test_successor_epoch_requires_actual_admitted_closure_not_an_arbitrary_commit(self):
+        original=copy.deepcopy(self.closure)
+        mutations=[lambda x:x.update(helper_source_commit='4'*40),lambda x:x.update(runtime_source_commit='4'*40),lambda x:x.update(execution_source_commit='4'*40),lambda x:x.update(source_unchanged=False),lambda x:x.update(native_case_acceptance=True),lambda x:x['scopes']['helper'][0].update(current_tree='4'*40),lambda x:x['scopes']['runtime'][0].update(worktree_unchanged=False),lambda x:x['scopes'].pop('tools'),lambda x:x['scopes']['tools'].pop(),lambda x:x.update(checks=[]),lambda x:x['checks'][0].update(exit_code=1)]
+        for mutate in mutations:
+            self.closure=copy.deepcopy(original);mutate(self.closure);self.closure_path.write_text(json.dumps(self.closure));self.approval['compiled_input_closure']=api.pin(self.closure_path);self.approval_path.write_text(json.dumps(self.approval));self.manifest['execution_approval']=api.pin(self.approval_path)
+            with self.subTest(mutation=repr(mutate)),self.assertRaises(ValueError):api.RelayerStartup(self.root,self.manifest,self.modules)
+        self.closure_path.write_text(json.dumps(original));self.approval['compiled_input_closure']=api.pin(self.closure_path)
+        for key in ['compiled_input_closure','diagnostic_relayer_sources']:
+            modified=copy.deepcopy(self.approval);modified.pop(key);self.approval_path.write_text(json.dumps(modified));self.manifest['execution_approval']=api.pin(self.approval_path)
+            with self.subTest(missing=key),self.assertRaises(ValueError):api.RelayerStartup(self.root,self.manifest,self.modules)
+    def test_same_epoch_still_requires_closure_and_cross_bound_module_and_Source_admission(self):
+        valid=copy.deepcopy(self.approval)
+        for change in [lambda x:x.pop('compiled_input_closure'),lambda x:x.update(python_modules={}),lambda x:x.update(runtime_source_commit='4'*40),lambda x:x.update(scenario='starknet'),lambda x:x['diagnostic_relayer_sources'].pop('zig/src/evm/provider.zig'),lambda x:x['diagnostic_relayer_sources']['zig/src/evm/provider.zig'].update(sha256='0'*64)]:
+            modified=copy.deepcopy(valid);change(modified)
+            if 'compiled_input_closure'not in modified:modified['execution_source_commit']=modified['runtime_source_commit']
+            self.approval_path.write_text(json.dumps(modified));self.manifest['execution_approval']=api.pin(self.approval_path)
+            with self.subTest(mutation=repr(change)),self.assertRaises(ValueError):api.RelayerStartup(self.root,self.manifest,self.modules)
+        self.approval_path.write_text(json.dumps(valid));self.manifest['execution_approval']=api.pin(self.approval_path)
+        oversized={'path':str(self.approval_path),'bytes':1024**2+1,'sha256':'0'*64}
+        with self.assertRaises(ValueError):api.RelayerStartup(self.root,{**self.manifest,'execution_approval':oversized},self.modules)
+    def test_new_catalog_and_approval_closure_identity_are_retained_without_new_authority(self):
+        for target in [self.root/'zig/src/evm/provider.zig',self.approval_path,self.closure_path]:
+            before=target.read_bytes();probe=api.RelayerStartup(self.root,self.manifest,self.modules);target.write_bytes(before+b'\n')
+            with self.subTest(path=target.name),self.assertRaises(ValueError):probe.check_sources()
+            target.write_bytes(before)
+
     def test_actual_missing_selected_chain_is_not_invented_zero_or_405(self):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules);record=probe.project(self.sample(chain='other'),('selected',),404,1,99)
         metric=record['metrics'][0]['metrics']['destination_mailbox'];self.assertTrue(metric['family_present']);self.assertFalse(metric['selected_present']);self.assertEqual(metric['series_count'],0);self.assertEqual(metric['finite_values'],[]);self.assertFalse(record['admin_extra_handler_observed'])
@@ -523,7 +566,7 @@ class RelayerStartupNumericControls(unittest.TestCase):
         for key,_ in headers:self.assertEqual(out['counts'][key],2)
         self.assertEqual([out['counts'][key]for key in ['supervised_task_failed','health_warning','agent_stopped']],[0,0,0]);self.assertEqual(len(out['observations']),4)
         for row in out['observations']:self.assertEqual(row['Source_error_name'],'RequestDeadlineExceeded');self.assertEqual(row['error_name_status'],'Source_literal');self.assertIsNone(row['task_index']);self.assertIsNone(row['lane_attribution'])
-        self.assertFalse(value['native_or_timing_or_cleanup_authority']);self.assertEqual(value['Source_epoch'],api.RELAYER_STARTUP_EPOCH)
+        self.assertFalse(value['native_or_timing_or_cleanup_authority']);self.assertEqual(value['Source_epoch'],self.manifest['runtime_source_commit'])
     def test_four_warning_headers_need_exact_once_emitter_in_correct_Source(self):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules)
         rows=[('native_group_rpc_warning','zig/src/agents/relayer_task.zig',b'native submission group RPC'),('relayer_telemetry_warning','zig/src/agents/relayer_task.zig',b'relayer telemetry update failed'),('initialization_metric_warning','zig/src/ops/init_metrics.zig',b'initialization metric update failed'),('critical_metric_warning','zig/src/ops/critical_metrics.zig',b'critical metric update failed')]
@@ -623,8 +666,8 @@ class RelayerStartupProcControls(unittest.TestCase):
         with self.assertRaises(ValueError):self.observe(links=['socket:[1234]']*1025)
     def journal(self,originals=None,owned=None,live=None):
         from types import SimpleNamespace
-        artifact={'path':'/public/relayer','bytes':4,'sha256':'a'*64};manifest={'scenario':'evm','runtime_source_commit':api.RELAYER_STARTUP_EPOCH,'artifacts':{'relayer':artifact}}
-        capture={'role':'relayer','runtime_source_commit':api.RELAYER_STARTUP_EPOCH,'scenario':'evm','harness_pid':42,'metrics_port':9092,'role_chain_names':['one'],'chains':{'one':{'protocol':'ethereum'}}};child={'role':'relayer','pid':43,'parent_pid':42,'os_start_token':'43 42 Mon Jan 1 00:00:00 2026 /public/relayer','executable':artifact}
+        artifact={'path':'/public/relayer','bytes':4,'sha256':'a'*64};manifest={'scenario':'evm','runtime_source_commit':'1'*40,'artifacts':{'relayer':artifact}}
+        capture={'role':'relayer','runtime_source_commit':'1'*40,'scenario':'evm','harness_pid':42,'metrics_port':9092,'role_chain_names':['one'],'chains':{'one':{'protocol':'ethereum'}}};child={'role':'relayer','pid':43,'parent_pid':42,'os_start_token':'43 42 Mon Jan 1 00:00:00 2026 /public/relayer','executable':artifact}
         rows={'effective-role-configs.jsonl':[{'original':x}for x in(originals if originals is not None else[capture])],'owned-children.jsonl':owned if owned is not None else[child]}
         def read(path,maximum):self.assertEqual(maximum,1024**2);return ('\n'.join(json.dumps(x)for x in rows[path.name]).encode(),{})
         return api.startup_selected_role(Path('/public/case'),manifest,{'chain_names':['one']},42,read,lambda _:self.row if live is None else live,lambda _:'/public/relayer',lambda:None),capture,child

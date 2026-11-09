@@ -817,7 +817,17 @@ class RelayerStartupOwnerControls(unittest.TestCase):
         diagnostic=importlib.util.module_from_spec(diagnostic_spec);diagnostic_spec.loader.exec_module(diagnostic)
         from types import SimpleNamespace
         self.diagnostic=diagnostic;self.simple=SimpleNamespace;self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.product=self.root/'relayer';self.product.write_bytes(b'public-fixture-only')
-        repo=Path(api.__file__).resolve().parents[2];here=repo/'zig/integration';self.modules={name:diagnostic.pin(here/name)for name in ['multivm_session.py','multivm_evidence.py']};self.manifest={'scenario':'evm','runtime_source_commit':diagnostic.RELAYER_STARTUP_EPOCH,'artifacts':{'relayer':api.pin(self.product)}}
+        repo=Path(api.__file__).resolve().parents[2];here=repo/'zig/integration';self.modules={name:diagnostic.pin(here/name)for name in ['multivm_session.py','multivm_evidence.py']}
+        # Synthetic producer/consumer closure; never grants native execution.
+        epoch='1'*40;execution='2'*40
+        log=self.root/'compiled-source-check.json';log.write_text('{}\n')
+        scopes={category:[{'path':path,'producer_tree':None if path=='zig/build.zig.zon'else'3'*40,'current_tree':None if path=='zig/build.zig.zon'else'3'*40,'worktree_unchanged':True}for path in paths]for category,paths in {'runtime':('zig/src','zig/native','zig/build.zig','zig/build.zig.zon'),'helper':('rust/main','rust/sealevel'),'tools':('rust/main','rust/sealevel','zig/reference')}.items()}
+        self.closure={'schema':1,'runtime_source_commit':epoch,'helper_source_commit':epoch,'tools_source_commit':epoch,'execution_source_commit':execution,'source_unchanged':True,'native_case_acceptance':False,'scopes':scopes,'checks':[{'exit_code':0,'log':diagnostic.pin(log)}]}
+        self.closure_path=self.root/'compiled-input-closure.json';self.closure_path.write_text(json.dumps(self.closure))
+        self.approval={'root_approved':True,'scenario':'evm','runtime_source_commit':epoch,'execution_source_commit':execution,'compiled_input_closure':diagnostic.pin(self.closure_path),'python_modules':self.modules,'diagnostic_relayer_sources':{relative:{'path':str(repo/relative),'bytes':size,'sha256':digest}for relative,size,digest in diagnostic.RELAYER_STARTUP_SOURCE}}
+        self.approval_path=self.root/'approval.json';self.approval_path.write_text(json.dumps(self.approval))
+        self.manifest={'scenario':'evm','runtime_source_commit':epoch,'execution_approval':diagnostic.pin(self.approval_path)}
+        self.manifest['artifacts']={'relayer':api.pin(self.product)}
         state=diagnostic.RelayerStartup(repo,self.manifest,self.modules);self.context={'module':diagnostic,'state':state,'product':self.product,'product_identity':state.identity(self.product),'latest_probe':{'collection_status':'not_attempted'}}
         self.helper={'pid':42,'ppid':1,'start':'linux-ticks:123','state':'S'};self.role={'pid':43,'ppid':42,'start':'linux-ticks:456','state':'S'};self.code=None;self.harness=self.simple(pid=42,poll=lambda:self.code);self.controller=self.simple(poll=lambda:None);self.now=1000000000;self.calls=[]
         self.body=b'hyperlane_block_height{chain="one",agent="relayer",hyperlane_baselib_version="3.0.0"} 0\n'

@@ -9,6 +9,7 @@ import os
 import re
 import stat
 import threading
+import types
 
 STAGES={'shutdown','capture','preflight','live','before_restart','after_restart','restart','final','sampler','transport','restart_approval','restart_canonical','restart_identity','restart_readiness','restart_checkpoints','restart_continuous'}
 LIMIT=256*1024
@@ -845,7 +846,6 @@ def validate_record(value,modules):
     return value
 
 
-RELAYER_STARTUP_EPOCH = '9badc87e8c2e2f019a1b3453c323a8d89686e43e'
 RELAYER_STARTUP_SOURCE = (
     ('zig/src/service_main.zig', 15166, '6b9101771890b56a5303975c7f1433ea' + 'fc5cacc23b7f548f0d083356d32cca78'),
     ('zig/src/agents/relayer_task.zig', 153439, '768e6eca02149602e28d15caa7955a9c' + '58c7912665c5f49b9ab9da0e81ce9e73'),
@@ -860,6 +860,16 @@ RELAYER_STARTUP_SOURCE = (
     ('zig/src/ops/health_metrics.zig', 2432, 'db829a94c2c6091b39db646c2017948a' + '6d93c09e9462714b781abe13ef11c576'),
     ('zig/src/ops/routes.zig', 1778, '9396bbf0696c0dceed740770a96c8677' + '3bfccac6f03327f108b991c4dcad4037'),
     ('zig/src/ops/admin/api.zig', 39480, '06e58abacaa25a682d9e68ad03b0ab0c' + 'c741228784d0d024726cf36243850d68'),
+    ('zig/src/agents/chain_source.zig', 38677, '1a3a84779465123ae1d35a7b8cf02070' + '8f5444d5e08c1d802b35f2740d3523ee'),
+    ('zig/src/agents/scraper/factory.zig', 4790, '1111dc5800e33ea665c8b869594e2c7b' + 'df38f2a22562c068f3353a4646c0ce73'),
+    ('zig/src/evm/provider.zig', 45778, '57cecc1b0c6675fdf1d1e0f4687cd367' + '211fe7c199de39ef3fd62a543767e24f'),
+    ('zig/src/evm/pool.zig', 108400, '731228e473268d0fb75af269ebec4113' + '78f2a11a4ae2e3a2ebac60e2e82de08d'),
+    ('zig/src/evm/indexer.zig', 11488, '69c67ef2e800054d6386ccd2c2748684' + '566ef25e4b635e4b68c85aebb12d904d'),
+    ('zig/src/net/curl.zig', 49214, '119612ce3f174b10622881ac532b5ec9' + '997f37352efc1e44da8c9a75d11dc6e7'),
+    ('zig/src/net/read_replay.zig', 21043, '31ad6faec0e3e82300b0045a5c9b11c0' + 'cb6637efaf2d295225381fafaf6c0225'),
+    ('zig/src/net/http_replay.zig', 15499, '0c70c6e40b2bd76aef4f96b853427608' + '9108114834b71ad0bee2a8a1959ec872'),
+    ('zig/src/ops/rpc_metrics.zig', 36505, '979925193ffaa3bb4b00bdb8ed48241b' + '37d712ce1a928685d28eb18f342aa56f'),
+    ('zig/src/agents/signer.zig', 7390, '8880ce064eaa40629715df3d6422cebb' + '996fcb5aba4bb008e00ac76870e1110d'),
 )
 
 
@@ -949,7 +959,7 @@ def startup_header_projection(raw, sources):
 class RelayerStartup:
     """Diagnostic state only. Source is captured once; clocks never renewed."""
     def __init__(self,repo,manifest,modules):
-        if manifest.get('scenario')not in{'evm','starknet'}or manifest.get('runtime_source_commit')!=RELAYER_STARTUP_EPOCH:raise ValueError('Exact startup producer epoch required')
+        if manifest.get('scenario')not in{'evm','starknet'}or type(manifest.get('runtime_source_commit'))is not str or not re.fullmatch('[a-f0-9]{40}',manifest['runtime_source_commit']):raise ValueError('Exact startup producer epoch required')
         self.repo=Path(repo);self.sources={};self.source_identities={};self.module_identities={};self.last=None
         for relative,size,digest in RELAYER_STARTUP_SOURCE:
             path=self.repo/relative
@@ -962,6 +972,29 @@ class RelayerStartup:
             row=modules[name];path=Path(row['path']);wire,fingerprint=captured_failure_bytes(path,1024**2)
             if row!={'path':str(path),**fingerprint}or not all(x in wire for x in needles):raise ValueError('Actual capture writer Source differs')
             self.module_identities[path]=self.identity(path)
+            if name=='multivm_evidence.py':evidence_wire=wire;evidence_path=path
+        # Reuse the exact already-approved pure closure validator. A successor
+        # producer is named only by the existing admitted producer/tree receipt.
+        evidence=types.ModuleType('startup_admitted_evidence');evidence.__file__=str(evidence_path)
+        exec(compile(evidence_wire,str(evidence_path),'exec'),evidence.__dict__)
+        def read_bound(row):
+            if type(row)is not dict or set(row)!={'path','bytes','sha256'}or type(row['bytes'])is not int or not 0<row['bytes']<=1024**2 or type(row['path'])is not str or type(row['sha256'])is not str or not re.fullmatch('[a-f0-9]{64}',row['sha256']):raise ValueError('Bounded startup admission descriptor required')
+            path=Path(row['path'])
+            if not path.is_absolute()or path.resolve()!=path:raise ValueError('Canonical startup admission required')
+            wire,actual=captured_failure_bytes(path,1024**2)
+            if row!={'path':str(path),**actual}:raise ValueError('Startup admission bytes changed')
+            self.module_identities[path]=self.identity(path)
+            return json.loads(wire)
+        approval=read_bound(manifest.get('execution_approval'))
+        if approval.get('root_approved')is not True or approval.get('scenario')!=manifest['scenario']or approval.get('runtime_source_commit')!=manifest['runtime_source_commit']or approval.get('python_modules')!=modules:raise ValueError('Startup admission cross-binding differs')
+        closure=read_bound(approval.get('compiled_input_closure'))
+        for check in closure.get('checks',[]):read_bound(check.get('log'))
+        evidence.validate_compiled_input_closure(manifest,approval)
+        admitted=approval.get('diagnostic_relayer_sources')
+        if type(admitted)is not dict or set(admitted)!=set(self.sources):raise ValueError('Exact startup Source admission required')
+        for relative,size,digest in RELAYER_STARTUP_SOURCE:
+            if admitted[relative]!={'path':str(self.repo/relative),'bytes':size,'sha256':digest}:raise ValueError('Startup Source admission differs')
+        self.epoch=manifest['runtime_source_commit']
         self.check_sources()
 
     @staticmethod
@@ -986,7 +1019,7 @@ class RelayerStartup:
     def public(self,harness_log):
         self.check_sources()
         raw,fingerprint=captured_failure_bytes(harness_log,32*1024**2)
-        return {'schema':1,'kind':'public-EVM-Stark-relayer-startup-observation','last_probe':self.last,'fixed_harness_headers':startup_header_projection(raw,self.sources),'harness_log_fingerprint':fingerprint,'Source_epoch':RELAYER_STARTUP_EPOCH,'Source_contracts':[{'path':name,'bytes':size,'sha256_hex_chunks':[digest[:32],digest[32:]]}for name,size,digest in RELAYER_STARTUP_SOURCE],'native_or_timing_or_cleanup_authority':False,'scope':'Bounded read-only observations of an actual owned wildcard relayer listener via fixed numeric loopback.405 only proves installed messages handler;404/absence unknown.0 metric is not absence. No ccipSigners/critical0 readiness, raw labels/address/error/config/env/token or inferred lane.'}
+        return {'schema':1,'kind':'public-EVM-Stark-relayer-startup-observation','last_probe':self.last,'fixed_harness_headers':startup_header_projection(raw,self.sources),'harness_log_fingerprint':fingerprint,'Source_epoch':self.epoch,'Source_contracts':[{'path':name,'bytes':size,'sha256_hex_chunks':[digest[:32],digest[32:]]}for name,size,digest in RELAYER_STARTUP_SOURCE],'native_or_timing_or_cleanup_authority':False,'scope':'Bounded read-only observations of an actual owned wildcard relayer listener via fixed numeric loopback.405 only proves installed messages handler;404/absence unknown.0 metric is not absence. No ccipSigners/critical0 readiness, raw labels/address/error/config/env/token or inferred lane.'}
 
 
 
