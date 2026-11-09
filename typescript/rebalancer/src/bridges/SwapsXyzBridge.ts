@@ -30,7 +30,11 @@ import {
 import { BigNumber, Contract, Wallet, providers, utils } from 'ethers';
 import type { Logger } from 'pino';
 
-import { ExternalBridgeType } from '../config/types.js';
+import {
+  DEFAULT_MAX_SOLANA_TRANSACTION_FEE_LAMPORTS,
+  DEFAULT_SOLANA_TRANSACTION_FEE_WARNING_LAMPORTS,
+  ExternalBridgeType,
+} from '../config/types.js';
 import type {
   BridgeExecutionOptions,
   BridgeQuote,
@@ -85,6 +89,8 @@ export interface SwapsXyzBridgeConfig {
   maxQuoteLossBps?: number;
   maxEvmNativeFeeWei?: bigint;
   maxSolanaNativeSpendLamports?: number;
+  maxSolanaTransactionFeeLamports?: number;
+  solanaTransactionFeeWarningLamports?: number;
   chainMetadata?: ChainMap<ChainMetadata>;
   evmProviderFactory?: (rpcUrl: string) => providers.Provider;
   solanaConnectionFactory?: (rpcUrl: string) => Connection;
@@ -102,6 +108,17 @@ interface TokenAccountSnapshot {
   closeAuthorityOption: number;
   closeAuthority: PublicKey;
   state: number;
+}
+
+export interface SolanaPreparationDiagnostics {
+  transactionFeeLamports: number;
+  maxSolanaTransactionFeeLamports: number;
+  solanaTransactionFeeWarningLamports: number;
+  maxSolanaNativeSpendLamports: number;
+  simulatedSignerDebitLamports: string;
+  computeUnitsConsumed?: number;
+  accountContextSlot: number;
+  simulationContextSlot: number;
 }
 
 export interface SwapsXyzBridgeRoute {
@@ -175,6 +192,8 @@ export class SwapsXyzBridge implements IExternalBridge {
   private readonly evmProviderFactory: (rpcUrl: string) => providers.Provider;
   private readonly solanaConnectionFactory: (rpcUrl: string) => Connection;
   private readonly maxSolanaNativeSpendLamports: number;
+  private readonly maxSolanaTransactionFeeLamports: number;
+  private readonly solanaTransactionFeeWarningLamports: number;
   private readonly registerTxRetryDelayMs: number;
   // Prevent source-account races when movements share a source in one cycle.
   private _executeLock: Promise<void> = Promise.resolve();
@@ -199,6 +218,24 @@ export class SwapsXyzBridge implements IExternalBridge {
       Number.isSafeInteger(maxSolanaNativeSpendLamports) &&
         maxSolanaNativeSpendLamports >= 0,
       'maxSolanaNativeSpendLamports must be a non-negative safe integer',
+    );
+    this.maxSolanaTransactionFeeLamports =
+      config.maxSolanaTransactionFeeLamports ??
+      DEFAULT_MAX_SOLANA_TRANSACTION_FEE_LAMPORTS;
+    this.solanaTransactionFeeWarningLamports =
+      config.solanaTransactionFeeWarningLamports ??
+      DEFAULT_SOLANA_TRANSACTION_FEE_WARNING_LAMPORTS;
+    assert(
+      Number.isSafeInteger(this.maxSolanaTransactionFeeLamports) &&
+        this.maxSolanaTransactionFeeLamports >= 0,
+      'maxSolanaTransactionFeeLamports must be a non-negative safe integer',
+    );
+    assert(
+      Number.isSafeInteger(this.solanaTransactionFeeWarningLamports) &&
+        this.solanaTransactionFeeWarningLamports >= 0 &&
+        this.solanaTransactionFeeWarningLamports <=
+          this.maxSolanaTransactionFeeLamports,
+      'solanaTransactionFeeWarningLamports must be a non-negative safe integer at most maxSolanaTransactionFeeLamports',
     );
     this.logger = logger;
     this.getSlippageBps(); // Validate the bridge-level default at construction.
@@ -762,9 +799,11 @@ export class SwapsXyzBridge implements IExternalBridge {
   }
 
   /** Validate a fresh unsigned payload without keys, approvals or signing. */
-  async prepare(
-    quote: BridgeQuote,
-  ): Promise<{ response: SwapsXyzActionResponse; preparedAt: number }> {
+  async prepare(quote: BridgeQuote): Promise<{
+    response: SwapsXyzActionResponse;
+    preparedAt: number;
+    solanaDiagnostics?: SolanaPreparationDiagnostics;
+  }> {
     this.validateQuoteParams(quote.requestParams);
     const metadata = this.chainMetadataByChainId.get(
       quote.requestParams.fromChain,
@@ -862,11 +901,15 @@ export class SwapsXyzBridge implements IExternalBridge {
     response: SwapsXyzActionResponse;
     preparedAt: number;
     transaction: VersionedTransaction;
+    solanaDiagnostics: SolanaPreparationDiagnostics;
   }> {
-    const preparedAt = Date.now();
+    let preparedAt = Date.now();
     const signer = new PublicKey(quote.requestParams.fromAddress);
     const fresh = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
+      (startedAt) => {
+        preparedAt = startedAt;
+      },
     );
     assert(isSolanaTx(fresh.tx), 'SwapsXyzBridge.execute requires a Solana tx');
     this.validateSolanaActionResponse(fresh, quote);
@@ -922,6 +965,37 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     const { blockhash } = await connection.getLatestBlockhash('confirmed');
     transaction.message.recentBlockhash = blockhash;
+    const fee = await connection.getFeeForMessage(
+      transaction.message,
+      'confirmed',
+    );
+    assert(
+      fee.value !== null,
+      'SwapsXyzBridge.execute could not calculate the Solana transaction fee',
+    );
+    assert(
+      Number.isSafeInteger(fee.value) && fee.value >= 0,
+      'SwapsXyzBridge.execute Solana transaction fee must be a non-negative safe integer',
+    );
+    const feeDiagnostics = {
+      chainId: quote.requestParams.fromChain,
+      transactionFeeLamports: fee.value,
+      maxSolanaTransactionFeeLamports: this.maxSolanaTransactionFeeLamports,
+      solanaTransactionFeeWarningLamports:
+        this.solanaTransactionFeeWarningLamports,
+    };
+    if (fee.value > this.solanaTransactionFeeWarningLamports) {
+      this.logger.warn(
+        feeDiagnostics,
+        'SwapsXyz Solana transaction fee exceeds warning threshold',
+      );
+    } else {
+      this.logger.info(feeDiagnostics, 'SwapsXyz Solana transaction fee');
+    }
+    assert(
+      fee.value <= this.maxSolanaTransactionFeeLamports,
+      `SwapsXyzBridge.execute Solana transaction fee ${fee.value} exceeds maximum ${this.maxSolanaTransactionFeeLamports}`,
+    );
     const simulation = await connection.simulateTransaction(transaction, {
       sigVerify: false,
       commitment: 'confirmed',
@@ -939,15 +1013,8 @@ export class SwapsXyzBridge implements IExternalBridge {
       simulation.value.accounts?.length === writableKeys.length,
       'SwapsXyzBridge.execute Solana simulation did not return every writable account',
     );
-    const fee = await connection.getFeeForMessage(
-      transaction.message,
-      'confirmed',
-    );
-    assert(
-      fee.value !== null,
-      'SwapsXyzBridge.execute could not calculate the Solana transaction fee',
-    );
-    this.validateSolanaAccountEffects(
+
+    const signerDebit = this.validateSolanaAccountEffects(
       quote,
       fresh,
       signer,
@@ -960,7 +1027,22 @@ export class SwapsXyzBridge implements IExternalBridge {
       Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
       'swaps.xyz transaction expired during preparation',
     );
-    return { response: fresh, preparedAt, transaction };
+    return {
+      response: fresh,
+      preparedAt,
+      transaction,
+      solanaDiagnostics: {
+        transactionFeeLamports: fee.value,
+        maxSolanaTransactionFeeLamports: this.maxSolanaTransactionFeeLamports,
+        solanaTransactionFeeWarningLamports:
+          this.solanaTransactionFeeWarningLamports,
+        maxSolanaNativeSpendLamports: this.maxSolanaNativeSpendLamports,
+        simulatedSignerDebitLamports: signerDebit.toString(),
+        computeUnitsConsumed: simulation.value.unitsConsumed,
+        accountContextSlot: preAccounts.context.slot,
+        simulationContextSlot: simulation.context.slot,
+      },
+    };
   }
 
   private async resolveAddressLookupTables(
@@ -1115,7 +1197,7 @@ export class SwapsXyzBridge implements IExternalBridge {
     preAccounts: Array<AccountInfo<Buffer> | null>,
     postAccounts: Array<SimulatedTransactionAccountInfo | null>,
     transactionFeeLamports: number,
-  ): void {
+  ): bigint {
     const sourceMint = new PublicKey(quote.requestParams.fromToken);
     let sourceDebit = 0n;
     let signerLamportDebit: bigint | undefined;
@@ -1220,6 +1302,7 @@ export class SwapsXyzBridge implements IExternalBridge {
         `SwapsXyzBridge.execute Solana source-token debit ${sourceDebit} exceeds exact-output cap ${maxDebit}`,
       );
     }
+    return signerLamportDebit;
   }
 
   private async validateQuoteLoss(
