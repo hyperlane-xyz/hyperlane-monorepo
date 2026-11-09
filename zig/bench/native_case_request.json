@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "tron",
+  "root_approved": true,
+  "scenario": "cosmosnative",
   "mode": "ReleaseSafe",
-  "producer_source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-  "producer_run_id": 42586182471,
+  "producer_source_commit": "be13712e0f758ef50bba49a53817ff78b9822124",
+  "producer_run_id": 42616231351,
   "producer_run_attempt": 1,
   "limits": {
     "maximum_owned_RAM_bytes": 8589934592,
@@ -44,98 +44,72 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "tron_cli": {
-      "schema": 1,
-      "name": "hyperlane",
-      "version": "45.1.0",
-      "node_version": "26.12.1",
-      "pnpm_version": "12.3.0",
-      "full_original_tsconfig": true,
-      "EVM_solc": "0.8.33",
-      "TVM_solc": "0.8.24",
-      "owned_full_package_graph": true
-    },
-    "tron_tre": {
-      "schema": 2,
+    "native_cli": {
+      "name": "hypd",
       "architecture": "amd64",
-      "source_image": {
+      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
+      "bytes": 69488792,
+      "sha256": {
         "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "canonical_digest": {
-        "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "image_id": {
-        "sha256_hex_chunks": [
-          "bf3a2b631ff2a1834530f69fcb90508c",
-          "40970203aa1240b692223308cc90cae0"
-        ],
-        "prefix": "sha256:"
-      },
-      "command": ["./quickstart", "v2.0.0"],
-      "entrypoint": null
+          "90a33bb46f87836675a2f0871d7d122c",
+          "1ecaa8c39014d6c7eae7815fb2e6706e"
+        ]
+      }
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13660307486,
+      "id": 13675526287,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52481326,
+      "size_in_bytes": 52493598,
       "sha256": {
         "sha256_hex_chunks": [
-          "439ac3e94c66ba4a497b5f3bf0f4f649",
-          "6c8fdb4294ad903fffcd31a6a98163a9"
+          "0be6ee98afc2e002121e57d0cf3e915e",
+          "819f5730cd98687e3cf110a25b74254c"
         ]
       }
     },
     "helper": {
-      "id": 13659769342,
+      "id": 13673114797,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56510096,
+      "size_in_bytes": 56509562,
       "sha256": {
         "sha256_hex_chunks": [
-          "bdc7221c07fbde482d2931edcd57d672",
-          "d21449a7d5f25ea4e1fe40db04b75933"
+          "655fd65919fac7a78feb3e4b0473dd4f",
+          "b16567a156132a505ee5ca98b78a101f"
         ]
       }
     },
     "tools": {
-      "id": 13659838754,
-      "name": "zig-native-case-tools-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-      "size_in_bytes": 20092495,
+      "id": 13674305935,
+      "name": "zig-native-case-tools-be13712e0f758ef50bba49a53817ff78b9822124",
+      "size_in_bytes": 20092312,
       "sha256": {
         "sha256_hex_chunks": [
-          "8237aa5ede95c948939598213c493f4e",
-          "0c4be97f1d262565d6ba166346557669"
+          "04b8b8eb1c8204761b0957427f6d6922",
+          "cbbf434a9cae743d34a430df65051dc4"
         ]
       }
     },
     "writer_safe": {
-      "id": 13660502012,
+      "id": 13675536295,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171516,
+      "size_in_bytes": 5177829,
       "sha256": {
         "sha256_hex_chunks": [
-          "23bcbfecfc95b1c40cedee62adec4980",
-          "9aeceab45247ffc7a3b73e1e58ae584a"
+          "857408acee23ef3557bed3d4c1f0fc20",
+          "682a3e733b41fd054ddf51693b2f19f0"
         ]
       }
     },
     "writer_fast": {
-      "id": 13661962123,
+      "id": 13677766665,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4863021,
+      "size_in_bytes": 4871774,
       "sha256": {
         "sha256_hex_chunks": [
-          "e9cddb589d43d50eaaddfa16aa7e0ccc",
-          "74d8a7b87cb7153ed38814b37b46e749"
+          "dc33dcc51a2baadbba7b86a63589af8d",
+          "6fb6fde4756d4ad7d50af4853968628e"
         ]
       }
     }
