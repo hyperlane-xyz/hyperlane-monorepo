@@ -829,7 +829,7 @@ jobs:
           if enabled: module.validate_request(request)
           receipt={'schema':1,'reviewed_request':module.pin(path),'execution_source_commit':os.environ['GITHUB_SHA'],'producer_download_authorized':enabled,'native_case_acceptance':False,'scope':'Producer-input staging only; actual case requires separate hydration/interop/setup/owned-run evidence.'}
           (Path(os.environ['RUNNER_TEMP'])/'native-case-selection'/'selection.json').write_text(json.dumps(receipt,indent=2)+'\n')
-          with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:output.write('enabled='+str(enabled).lower()+'\n');output.write('sha256='+module.pin(path)['sha256']+'\n')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:output.write('enabled='+str(enabled).lower()+'\n');output.write('sha256='+module.pin(path)['sha256']+'\n');output.write('scenario='+(request['scenario'] if enabled else '')+'\n')
           PYTHON
       - name: Inspect an exact producer cohort without granting native execution
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]') && contains(github.event.head_commit.message, '[zig-cohort-readback]') }}
@@ -978,6 +978,33 @@ jobs:
             --execution-source-commit "$GITHUB_SHA" --repo "$GITHUB_WORKSPACE" \
             --output "$RUNNER_TEMP/native-case-composition-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --case-root "/tmp/znc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Run three independent EVM dependency controls after owned case cleanup
+        id: evm_controls
+        if: ${{ success() && steps.request.outputs.enabled == 'true' && steps.request.outputs.scenario == 'evm' }}
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+          exec env -i PATH=/usr/local/bin:/usr/bin:/bin LC_ALL=C.UTF-8 GITHUB_ACTIONS=true GH_TOKEN="$GH_TOKEN" \
+            python3 -I -B zig/bench/native_case_tools.py evm-controls --execute \
+            --repo "$GITHUB_WORKSPACE" --execution-source-commit "$GITHUB_SHA" \
+            --case-root "/tmp/znc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --composition-result "$RUNNER_TEMP/native-case-composition-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/result.json" \
+            --tools "$RUNNER_TEMP/native-case-selection/preinstalled-tools.json" \
+            --gh "$(readlink -f "$(command -v gh)")" \
+            --output "$RUNNER_TEMP/evm-consumer-controls-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Retain only the closed independent EVM control result
+        if: ${{ always() && steps.request.outputs.enabled == 'true' && steps.request.outputs.scenario == 'evm' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: native-evm-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: ${{ runner.temp }}/evm-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}/public/result.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:

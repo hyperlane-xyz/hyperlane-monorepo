@@ -288,5 +288,127 @@ class Controls(unittest.TestCase):
         self.assertFalse(plan['timing_acceptance'])
 
 
+class EvmConsumerControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix='evm-consumer-pure-');self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
+
+    def admission(self):
+        context={'scenario':'evm','mode':'ReleaseSafe','runtime_source_commit':m.EVM_CONTROL_PRODUCER,'execution_source_commit':'e'*40,'phase':'HYDRATED_NOT_EXECUTION_APPROVAL','nodes_started':False,'native_case_acceptance':False}
+        case={'kind':'owned-linux-native-case-result','passed':True,'native_case_acceptance':True,'accepted_inputs_unchanged_after':True,**{k:context[k]for k in ['scenario','mode','runtime_source_commit','execution_source_commit']}}
+        return context,case,{'passed':True,'contract_artifacts':{}}
+
+    def test_requires_actual_completed_matching_EVM_case_before_separate_controls(self):
+        context,case,stage=self.admission();self.assertEqual(m.evm_control_admission(context,case,stage),'ReleaseSafe')
+        for group,key,value in [('context','runtime_source_commit','a'*40),('context','scenario','starknet'),('context','mode','Debug'),('case','passed',False),('case','native_case_acceptance',False),('case','accepted_inputs_unchanged_after',False),('case','mode','ReleaseFast'),('stage','passed',False)]:
+            values={'context':copy.deepcopy(context),'case':copy.deepcopy(case),'stage':copy.deepcopy(stage)};values[group][key]=value
+            with self.subTest(group=group,key=key),self.assertRaises(ValueError):m.evm_control_admission(values['context'],values['case'],values['stage'])
+
+    def archive(self):
+        import zipfile,hashlib
+        path=self.root/'dependency.zip';members={}
+        with zipfile.ZipFile(path,'w',compression=zipfile.ZIP_STORED)as package:
+            for name in sorted(m.EVM_CONTROL_ARCHIVES|{'manifest.json'}):package.writestr('deps/'+name,b'!<arch>\n'+name.encode())
+            package.writestr('zig-out/bin/relayer',b'UNSELECTED_AGENT_NEVER_MATERIALIZED')
+        with zipfile.ZipFile(path)as package:
+            for info in package.infolist():
+                if info.filename.startswith('deps/'):
+                    wire=package.read(info);members[info.filename]={'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest(),'crc32':info.CRC}
+        return path,members
+
+    def test_streams_all_member_CRC_but_materializes_only_exact_static7_and_manifest(self):
+        path,members=self.archive();target=self.root/'selected';rows=m.evm_control_extract_dependencies(path,target,members)
+        self.assertEqual(len(rows),9);self.assertEqual({p.name for p in target.iterdir()},m.EVM_CONTROL_ARCHIVES|{'manifest.json'});self.assertFalse((target/'relayer').exists())
+        self.assertIn('zig-out/bin/relayer',{r['path']for r in rows})
+
+    def test_dependency_missing_duplicate_unsafe_and_declared_identity_refuse(self):
+        import zipfile
+        path,members=self.archive()
+        with zipfile.ZipFile(path)as package:
+            infos=package.infolist()
+            for rows in [infos[:-2]+infos[-1:],infos+[infos[0]],[*infos,zipfile.ZipInfo('../escape')]]:
+                with self.subTest(rows=len(rows)),self.assertRaises(ValueError):m.evm_control_dependency_selection(rows,members)
+            bad=copy.deepcopy(members);bad[next(iter(bad))]['bytes']+=1
+            with self.assertRaises(ValueError):m.evm_control_dependency_selection(infos,bad)
+
+    def test_unselected_agent_CRC_corruption_also_refuses_before_any_execution(self):
+        import zipfile
+        path,members=self.archive()
+        with zipfile.ZipFile(path)as package:info=package.getinfo('zig-out/bin/relayer');offset=info.header_offset+30+len(info.filename.encode())+len(info.extra)
+        wire=bytearray(path.read_bytes());wire[offset]^=1;path.write_bytes(wire)
+        with self.assertRaises(zipfile.BadZipFile):m.evm_control_extract_dependencies(path,self.root/'corrupt',members)
+
+    def test_actual_prepare_fixture_chunk_API_roundtrips_exact_native_dispatch(self):
+        for count in [77,78,100,1024]:
+            wire=bytes(i%256 for i in range(count));value=m.evm_control_fixture_document(wire,'http://127.0.0.1:31337','0x'+'11'*20,'0x'+'22'*20)
+            self.assertIsInstance(value['message'],list);self.assertTrue(all(type(s)is str and len(s)<=32 for s in value['message']));self.assertEqual(bytes.fromhex(''.join(value['message'])[2:]),wire)
+        for wire,url in [(b'x'*76,'http://127.0.0.1:1'),(b'x'*1025,'http://127.0.0.1:1'),(b'x'*77,'http://external.invalid:1'),(b'x'*77,'http://127.0.0.1:70000')]:
+            with self.subTest(wire=len(wire),url=url),self.assertRaises(ValueError):m.evm_control_fixture_document(wire,url,'0x'+'11'*20,'0x'+'22'*20)
+
+    def test_compile_commands_are_test_only_exact_mode_and_private_entrypoints(self):
+        rows=m.evm_control_commands(Path('/owned/source'),Path('/owned/compiler'), 'ReleaseFast',[str(i)+'.a'for i in range(7)],Path('/owned'))
+        self.assertEqual(len(rows),2)
+        for row in rows:
+            self.assertIn('test',row);self.assertIn('--test-no-exec',row);self.assertIn('ReleaseFast',row);self.assertIn('-j2',row);self.assertNotIn('cargo',row);self.assertNotIn('build',row)
+        self.assertEqual(rows[0].count('--test-filter'),2);self.assertEqual(rows[1].count('--test-filter'),1)
+        for mode,libraries in [('Debug',['a']*7),('ReleaseSafe',['a']*6)]:
+            with self.assertRaises(ValueError):m.evm_control_commands(Path('/owned'),Path('/compiler'),mode,libraries,Path('/owned'))
+
+    def test_required_actual_test_OK_cannot_borrow_SKIP_FAIL_missing_or_duplicate(self):
+        target=m.EVM_CONTROL_TESTS[2];row={'name':'consumer.test.'+target,'status':'OK','ordinal':1,'total':1}
+        self.assertEqual(m.evm_control_test_verdict('ignored',[target],lambda _: {'total':1,'per_test':[row]})['required_OK'],[row])
+        for rows in [[],[{**row,'status':'SKIP'}],[{**row,'status':'FAIL'}],[row,row],[{**row,'name':'different.test.some other test'}]]:
+            with self.subTest(rows=rows),self.assertRaises(ValueError):m.evm_control_test_verdict('ignored',[target],lambda _,rows=rows:{'total':len(rows),'per_test':rows})
+
+    def test_owned_Source_copy_joins_Git_blob_and_hashes_actual_helpers(self):
+        import hashlib
+        repo=self.root/'repo';names=['zig/src/db_tests.zig','zig/src/agents/indexing/tx_id_native_test.zig','zig/tools/zig.py','zig/tools/bootstrap.py'];listing=[]
+        for name in names:
+            path=repo/name;path.parent.mkdir(parents=True,exist_ok=True);wire=('source '+name).encode();path.write_bytes(wire);blob=hashlib.sha1(b'blob '+str(len(wire)).encode()+b'\0'+wire).hexdigest();listing.append(('100644 blob '+blob+'\t'+name+'\0').encode())
+        with mock.patch.object(m.subprocess,'check_output',return_value=b''.join(listing)):
+            copied,rows=m.evm_control_copy_source(repo,self.root/'copy','d'*40)
+        self.assertEqual(set(rows),set(names));self.assertTrue(all((copied/n).read_bytes()==(repo/n).read_bytes()for n in names))
+        (repo/names[0]).write_bytes(b'changed')
+        with mock.patch.object(m.subprocess,'check_output',return_value=b''.join(listing)),self.assertRaises(ValueError):m.evm_control_copy_source(repo,self.root/'poison','d'*40)
+
+    def test_contract_inputs_are_actual_stage_pins_and_exact_repository_Source(self):
+        repo=self.root/'repo';artifacts={}
+        for name,source in m.EVM_CONTROL_CONTRACTS.items():
+            logical='solidity/artifacts/'+source+'/'+name+'.json';path=repo/logical;path.parent.mkdir(parents=True);path.write_text(json.dumps({'sourceName':source,'contractName':name,'bytecode':'0x6000'}));artifacts[logical]=m.descriptor(path)
+        stage={'contract_artifacts':artifacts};self.assertEqual(set(m.evm_control_contracts(stage,repo)),set(m.EVM_CONTROL_CONTRACTS))
+        first=next(iter(artifacts));path=Path(artifacts[first]['path']);path.write_text(json.dumps({'sourceName':'foreign.sol','contractName':'Mailbox','bytecode':'0x6000'}));artifacts[first]=m.descriptor(path)
+        with self.assertRaises(ValueError):m.evm_control_contracts(stage,repo)
+
+    def actual_run(self, *, cancel=False, debt=False):
+        import ast
+        from types import SimpleNamespace as N
+        tree=ast.parse(Path(m.__file__).read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='evm_control_main');run=next(n for n in main.body if isinstance(n,ast.FunctionDef)and n.name=='run')
+        output=self.root/'run';output.mkdir();(output/'logs').mkdir();calls=[];stopped=[];child=N(pid=777,returncode=None)
+        def stop(*args,**kwargs):stopped.append(args[0]);child.returncode=-15 if cancel else 0;return {'actual_parent_wait':not debt,'clean':not debt,'cleanup_confirmed_absent':not debt,'signals':[]}
+        namespace={**m.__dict__,'args':N(output=output),'owner':N(stop_owned=stop,processes=lambda:{},owned_processes=lambda *args:{}),'env':{},'calls':calls,'guard':lambda:None,'last_census':[0], 'resource':N(getrusage=lambda _:N(ru_maxrss=0),RUSAGE_SELF=0)}
+        exec(compile(ast.Module([run],type_ignores=[]),'actual-control-owned-run','exec'),namespace)
+        wait=m.ToolInterrupted('simulated SIGTERM')if cancel else N()
+        with mock.patch.object(m.subprocess,'Popen',return_value=child),mock.patch.object(m.os,'waitid',side_effect=wait if cancel else None,return_value=wait),mock.patch.object(m.signal,'signal',return_value=m.signal.SIG_DFL):
+            with self.assertRaises((m.ToolInterrupted,ValueError)):namespace['run']('controlled',['never-executed'])
+        self.assertEqual(stopped,[child]);self.assertEqual(len(calls),1);self.assertFalse(calls[0]['clean']if debt else False)
+        if debt:self.assertFalse(calls[0]['actual_parent_wait'])
+        return tree,main
+
+    def test_actual_run_cancellation_preserves_primary_and_waits_owned_child(self):self.actual_run(cancel=True)
+
+    def test_actual_run_cleanup_debt_cannot_return_positive(self):self.actual_run(debt=True)
+
+    def test_dirty_consumed_orchestrator_refuses_execution_Git_join(self):
+        import hashlib
+        repo=self.root/'repo';name='zig/bench/native_case_tools.py';path=repo/name;path.parent.mkdir(parents=True);wire=b'committed consumer';path.write_bytes(wire);blob=hashlib.sha1(b'blob '+str(len(wire)).encode()+b'\0'+wire).hexdigest();listing=('100644 blob '+blob+'\t'+name+'\0').encode()
+        with mock.patch.object(m.subprocess,'check_output',return_value=listing),mock.patch.object(m.subprocess,'Popen',side_effect=AssertionError('native/API must not run')):
+            self.assertEqual(m.evm_control_execution_sources(repo,'e'*40,[name])[name],m.descriptor(path));path.write_bytes(b'dirty consumer')
+            with self.assertRaisesRegex(ValueError,'Dirty/uncommitted consumer Source'):m.evm_control_execution_sources(repo,'e'*40,[name])
+
+    def test_signal_handler_registration_precedes_first_owned_work(self):
+        import ast
+        tree=ast.parse(Path(m.__file__).read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='evm_control_main');watched=next(n for n in main.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='watched'for t in n.targets));cohort=next(n for n in ast.walk(main)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and n.func.attr=='cohort');self.assertLess(watched.lineno,cohort.lineno)
+        constants={n.attr for n in ast.walk(watched)if isinstance(n,ast.Attribute)};self.assertTrue({'SIGINT','SIGTERM','SIGHUP'}<=constants)
+
+
 if __name__ == '__main__':
     unittest.main()

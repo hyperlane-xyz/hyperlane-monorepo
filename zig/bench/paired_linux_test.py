@@ -12,6 +12,19 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the independently reviewed EVM consumer-control additions.
+ evm_after = '      - name: Run three independent EVM dependency controls after owned case cleanup\n        id: evm_controls\n        if: ${{ success() && steps.request.outputs.enabled == \'true\' && steps.request.outputs.scenario == \'evm\' }}\n        timeout-minutes: 15\n        env:\n          GH_TOKEN: ${{ github.token }}\n        shell: bash\n        run: |\n          set -euo pipefail\n          sudo apt-get update\n          sudo apt-get install -y --no-install-recommends build-essential\n          exec env -i PATH=/usr/local/bin:/usr/bin:/bin LC_ALL=C.UTF-8 GITHUB_ACTIONS=true GH_TOKEN="$GH_TOKEN" \\\n            python3 -I -B zig/bench/native_case_tools.py evm-controls --execute \\\n            --repo "$GITHUB_WORKSPACE" --execution-source-commit "$GITHUB_SHA" \\\n            --case-root "/tmp/znc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \\\n            --composition-result "$RUNNER_TEMP/native-case-composition-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/result.json" \\\n            --tools "$RUNNER_TEMP/native-case-selection/preinstalled-tools.json" \\\n            --gh "$(readlink -f "$(command -v gh)")" \\\n            --output "$RUNNER_TEMP/evm-consumer-controls-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"\n'
+ evm_before = ''
+ if text.count(evm_after) != 1: raise AssertionError('Exact once-only EVM post-case component step required')
+ text = text.replace(evm_after, evm_before, 1)
+ evm_after = "      - name: Retain only the closed independent EVM control result\n        if: ${{ always() && steps.request.outputs.enabled == 'true' && steps.request.outputs.scenario == 'evm' }}\n        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f\n        with:\n          name: native-evm-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}\n          if-no-files-found: warn\n          retention-days: 14\n          path: ${{ runner.temp }}/evm-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}/public/result.json\n"
+ evm_before = ''
+ if text.count(evm_after) != 1: raise AssertionError('Exact once-only EVM closed component artifact required')
+ text = text.replace(evm_after, evm_before, 1)
+ evm_after = "with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:output.write('enabled='+str(enabled).lower()+'\\n');output.write('sha256='+module.pin(path)['sha256']+'\\n');output.write('scenario='+(request['scenario'] if enabled else '')+'\\n')"
+ evm_before = "with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:output.write('enabled='+str(enabled).lower()+'\\n');output.write('sha256='+module.pin(path)['sha256']+'\\n')"
+ if text.count(evm_after) != 1: raise AssertionError('Exact once-only EVM validated scenario metadata required')
+ text = text.replace(evm_after, evm_before, 1)
  # Exact inverse of the isolated diagnostic's three native-http-only hunks.
  only = "(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-http-diagnostic-only]') && contains(github.event.head_commit.message, '[zig-paired-linux]') && !contains(github.event.head_commit.message, '[zig-native-case]') && !contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]'))"
  prefix = '    if: ${{ ' + only + ' || ('
@@ -415,5 +428,39 @@ class FixedPnpmClosure(unittest.TestCase):
    body=re.split(r'\n  [a-z][a-z0-9-]*:\n',text.split('\n  '+name+':',1)[1],maxsplit=1)[0];self.assertNotIn('uses: pnpm/action-setup@',body);step=body.split('      - name: Stage exact official native pnpm12.3.0 outside all measurements\n',1)[1].split('      - ',1)[0];self.assertIn('timeout-minutes: 3',step)
    if gate:self.assertIn('        if: '+gate,step)
    else:self.assertIn('paired_linux.py select --request',step);self.assertIn('needs.paired-linux-inputs.outputs.request_sha256',step)
+
+
+class EvmConsumerWorkflowInverseControls(unittest.TestCase):
+ def current(self):return (HERE.parents[1]/'.github/workflows/zig-agents.yml').read_text()
+ def hunks(self):
+  fn=next(n for n in ast.parse(Path(__file__).read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow')
+  return [ast.literal_eval(n.value)for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='evm_after'for t in n.targets)]
+ def test_each_EVM_hunk_missing_duplicated_or_mutated_refuses_exact_inverse(self):
+  text=self.current();ordinary_native_http_workflow(text);self.assertEqual(len(self.hunks()),3)
+  for index,hunk in enumerate(self.hunks()):
+   for changed in [text.replace(hunk,'',1),text+hunk,text.replace(hunk,hunk+'UNREVIEWED',1)if hunk.endswith('\n')else text.replace(hunk,hunk.replace('scenario=','scenario_UNREVIEWED='),1)]:
+    # A changed line may keep the old hunk as a strict prefix; exercise a real
+    # content change as well, never count unrelated trailing text as accepted.
+    if hunk in changed and changed.count(hunk)==1:
+     changed=text.replace(hunk,hunk.replace(hunk[0],'X',1),1)
+    with self.subTest(hunk=index),self.assertRaises(AssertionError):ordinary_native_http_workflow(changed)
+ def test_EVM_source_predicate_clocks_artifact_and_shared_helpers_are_exact(self):
+  text=self.current();other=HERE.parents[1]/'zig/tools/aleo_linux_case/ci_fullcase_test.py'
+  function=lambda p:next(n for n in ast.parse(p.read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow')
+  self.assertEqual(ast.dump(function(Path(__file__))),ast.dump(function(other)))
+  case=text.split('  native-case-producer-inputs:\n',1)[1].split('\n  aleo-linux-sdk-prerequisite:',1)[0]
+  self.assertIn('    timeout-minutes: 190\n',case);self.assertIn('        timeout-minutes: 142\n',case)
+  start=case.index('      - name: Run three independent EVM dependency controls');end=case.index('      - name: Retain only the closed independent EVM control result',start);step=case[start:end]
+  self.assertLess(case.index('Hydrate, stage prerequisites'),start);self.assertIn('        timeout-minutes: 15\n',step)
+  condition=next(line.strip()[len('if: ${{ '):-len(' }}')]for line in step.splitlines()if line.strip().startswith('if: ${{ '));code=condition.replace('&&',' and ')
+  for success in [False,True]:
+   for enabled in ['false','true']:
+    for scenario in ['evm','radix','']:
+     actual=eval(code,{'__builtins__':{}},{'success':lambda:success,'steps':N(request=N(outputs=N(enabled=enabled,scenario=scenario)))})
+     self.assertEqual(actual,success and enabled=='true'and scenario=='evm')
+  artifact=case[end:case.index('      - uses: actions/upload-artifact@',end)]
+  path=next(line.strip()[len('path: '):]for line in artifact.splitlines()if line.strip().startswith('path: '))
+  self.assertTrue(path.endswith('/public/result.json'));self.assertNotIn('*',path);self.assertNotIn('logs',path)
+  self.assertIn('exec env -i ',step);self.assertIn('GH_TOKEN="$GH_TOKEN"',step);self.assertNotIn('printenv',step)
 
 if __name__=='__main__':unittest.main()
