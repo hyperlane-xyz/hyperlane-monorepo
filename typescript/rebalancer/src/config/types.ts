@@ -44,6 +44,7 @@ export enum ExternalBridgeType {
   LayerZero = 'layerzero',
   SwapsXyz = 'swapsxyz',
   Relay = 'relay',
+  ElysiumNative = 'elysiumNative',
 }
 
 /** Rules for physical inventory movements, independent of strategy route direction. */
@@ -261,12 +262,18 @@ export const RelayBridgeConfigSchema = z.strictObject({
   maxQuoteLossBps: z.number().int().min(0).max(10_000).default(100),
 });
 
+export const ElysiumNativeBridgeConfigSchema = z.object({
+  /** Native HYPE prepaid for child delivery; parent transaction gas is separate. */
+  maxNativeValueWei: z.coerce.bigint().positive().optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   debridge: DeBridgeBridgeConfigSchema.optional(),
   layerzero: LayerZeroBridgeConfigSchema.optional(),
   swapsxyz: SwapsXyzBridgeConfigSchema.optional(),
   relay: RelayBridgeConfigSchema.optional(),
+  elysiumNative: ElysiumNativeBridgeConfigSchema.optional(),
 });
 
 export const PendingTransferMiddlewareType = {

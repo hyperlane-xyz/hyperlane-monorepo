@@ -21,6 +21,8 @@ import {
   type StrategyConfig,
   StrategyConfigSchema,
   SwapsXyzBridgeConfigSchema,
+  ElysiumNativeBridgeConfigSchema,
+  RebalancerConfigSchema,
   getAllBridges,
   getInventoryRouteChainNames,
   InventoryRoutesConfigSchema,
@@ -1687,4 +1689,45 @@ describe('pendingTransferMiddlewares configuration', () => {
         .that.does.not.include('hunter2');
     });
   }
+});
+
+describe('Elysium native bridge configuration', () => {
+  it('requires an explicit configuration when the adapter is selected', () => {
+    const config = {
+      warpRouteId: 'USDC/test',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          hyperevm: {
+            weighted: { weight: 1, tolerance: 0 },
+            executionType: ExecutionType.Inventory,
+            externalBridge: ExternalBridgeType.ElysiumNative,
+          },
+        },
+      },
+      inventorySigners: {
+        ethereum: '0x1111111111111111111111111111111111111111',
+      },
+    };
+    expect(RebalancerConfigSchema.safeParse(config).success).to.equal(false);
+    const parsed = RebalancerConfigSchema.parse({
+      ...config,
+      externalBridges: {
+        elysiumNative: { maxNativeValueWei: '10000000000000000' },
+      },
+    });
+    expect(parsed.externalBridges?.elysiumNative?.maxNativeValueWei).to.equal(
+      10_000_000_000_000_000n,
+    );
+  });
+
+  it('uses the default budget when omitted and rejects nonpositive budgets', () => {
+    expect(ElysiumNativeBridgeConfigSchema.parse({})).to.deep.equal({});
+    for (const maxNativeValueWei of ['0', '-1']) {
+      expect(
+        ElysiumNativeBridgeConfigSchema.safeParse({ maxNativeValueWei })
+          .success,
+      ).to.equal(false);
+    }
+  });
 });

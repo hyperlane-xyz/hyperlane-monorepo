@@ -774,6 +774,19 @@ export class RebalancerContextFactory {
           }
           break;
         }
+        case ExternalBridgeType.ElysiumNative: {
+          const nativeConfig = externalBridges?.elysiumNative;
+          if (nativeConfig) {
+            const { ElysiumNativeBridge } =
+              await import('../bridges/ElysiumNativeBridge.js');
+            registry[ExternalBridgeType.ElysiumNative] =
+              new ElysiumNativeBridge(
+                { ...nativeConfig, chainMetadata: bridgeChainMetadata },
+                this.logger,
+              );
+          }
+          break;
+        }
         case ExternalBridgeType.SwapsXyz: {
           const swapsxyzConfig = externalBridges?.swapsxyz;
           if (swapsxyzConfig) {
