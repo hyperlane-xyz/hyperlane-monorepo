@@ -20,10 +20,12 @@ import {
   LayerZeroV2ConfigMode,
   OnchainHookType,
   TokenType,
+  WarpRouteDeployConfigSchema,
   WormholeConsistencyType,
   proxyAdmin,
 } from '@hyperlane-xyz/sdk';
 import type {
+  HookConfig,
   IsmConfig,
   LayerZeroV2IsmConfig,
   MultiProvider,
@@ -34,7 +36,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
-import { writeYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   getDeployedWarpAddress,
@@ -55,6 +57,7 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  EXAMPLES_PATH,
   REGISTRY_PATH,
   TEMP_PATH,
   getCombinedWarpRoutePath,
@@ -75,6 +78,36 @@ const PACKET_SERVICE_PORT = 3_803;
 const COMBINED_SERVICE_PORT = 3_804;
 // Anvil account #1: distinct from the deployer, which keeps the warp route.
 const LAYERZERO_ROUTER_OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const LAYERZERO_WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/layerzero/layerzero-warp-route.yaml`;
+
+interface ExampleChainConfig {
+  hook: HookConfig;
+  interchainSecurityModule: LayerZeroV2IsmConfig;
+  pathway: LayerZeroV2IsmConfig['pathways'][string];
+}
+
+/** Reads the published example through the same schema `warp deploy` uses. */
+function readExampleChainConfigs(): ExampleChainConfig[] {
+  const example = WarpRouteDeployConfigSchema.parse(
+    readYamlOrJson(LAYERZERO_WARP_CONFIG_PATH_EXAMPLE),
+  );
+  return Object.entries(example).map(([chain, config]) => {
+    const { hook, interchainSecurityModule } = config;
+    assert(hook, `Example ${chain} config is missing its hook`);
+    assert(
+      typeof interchainSecurityModule === 'object' &&
+        interchainSecurityModule.type === IsmType.LAYER_ZERO_V2,
+      `Example ${chain} config must use a ${IsmType.LAYER_ZERO_V2}`,
+    );
+    const pathways = Object.values(interchainSecurityModule.pathways);
+    assert(
+      pathways.length === 1,
+      `Example ${chain} config must have exactly one pathway`,
+    );
+    const [pathway] = pathways;
+    return { hook, interchainSecurityModule, pathway };
+  });
+}
 
 interface LayerZeroMocks {
   endpoint: Address;
@@ -171,9 +204,10 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
     chain: string,
     remotes: string[],
     urls: string[],
+    example: ExampleChainConfig,
   ): LayerZeroV2IsmConfig {
     return {
-      type: IsmType.LAYER_ZERO_V2,
+      type: example.interchainSecurityModule.type,
       owner: ANVIL_DEPLOYER_ADDRESS,
       endpoint: endpoints[chain],
       layerZeroDomainId: eids[chain],
@@ -185,22 +219,24 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
             layerZeroDomainId: eids[remote],
             sendLibrary: sendLibraries[chain],
             receiveLibrary: receiveLibraries[chain],
-            sendConfig: {
-              executor: { type: LayerZeroV2ConfigMode.Default },
-              uln: { type: LayerZeroV2ConfigMode.Default },
-            },
-            receiveConfig: { uln: { type: LayerZeroV2ConfigMode.Default } },
+            sendConfig: example.pathway.sendConfig,
+            receiveConfig: example.pathway.receiveConfig,
           },
         ]),
       ),
     };
   }
 
+  /**
+   * Builds the route from the published example, pointing each leg at the
+   * local Mailbox and mock LayerZero Endpoint and libraries. Chains beyond the
+   * example's legs reuse its first leg.
+   */
   function configFor(
     symbol: string,
     {
       routeChains = chains,
-      urls = ['http://127.0.0.1:3000/layerzero/getLayerZeroPacket'],
+      urls,
       wrapIsm = (ism) => ism,
     }: {
       routeChains?: string[];
@@ -208,8 +244,14 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
       wrapIsm?: (ism: LayerZeroV2IsmConfig) => IsmConfig;
     } = {},
   ): WarpRouteDeployConfigMailboxRequired {
+    const examples = readExampleChainConfigs();
+    assert(
+      examples.length === chains.length,
+      `Expected ${chains.length} chains in ${LAYERZERO_WARP_CONFIG_PATH_EXAMPLE}`,
+    );
     const configs: WarpRouteDeployConfigMailboxRequired = {};
     for (const [index, chain] of routeChains.entries()) {
+      const example = index < examples.length ? examples[index] : examples[0];
       const remotes = routeChains.filter((remote) => remote !== chain);
       configs[chain] = {
         type: index === 0 ? TokenType.native : TokenType.synthetic,
@@ -218,14 +260,15 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
         name: `${symbol} token`,
         symbol,
         decimals: 18,
-        hook: {
-          type: HookType.AGGREGATION,
-          hooks: [
-            { type: HookType.MAILBOX_DEFAULT },
-            { type: HookType.LAYER_ZERO_V2 },
-          ],
-        },
-        interchainSecurityModule: wrapIsm(layerZeroIsm(chain, remotes, urls)),
+        hook: example.hook,
+        interchainSecurityModule: wrapIsm(
+          layerZeroIsm(
+            chain,
+            remotes,
+            urls ?? example.interchainSecurityModule.urls,
+            example,
+          ),
+        ),
       };
     }
     return configs;
@@ -892,6 +935,7 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
       );
     }
     const serviceUrl = `http://127.0.0.1:${COMBINED_SERVICE_PORT}`;
+    const examples = readExampleChainConfigs();
     const config: WarpRouteDeployConfigMailboxRequired = {};
     for (const [index, chain] of chains.entries()) {
       const wormholeIsm: WormholeIsmConfig = {
@@ -926,6 +970,7 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
               chain,
               chains.filter((remote) => remote !== chain),
               [`${serviceUrl}/layerzero/getLayerZeroPacket`],
+              examples[index],
             ),
           ],
         },
