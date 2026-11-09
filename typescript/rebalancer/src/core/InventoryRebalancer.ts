@@ -677,6 +677,28 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.logger,
     );
     const { minViableTransfer } = costs;
+
+    // Early exit: If remaining amount is below minViableTransfer, complete the intent
+    // This prevents infinite loops when the remaining amount is too small to economically bridge
+    if (requestedLocalAmount < minViableTransfer) {
+      this.logger.info(
+        {
+          intentId: intent.id,
+          amount: requestedLocalAmount.toString(),
+          minViableTransfer: minViableTransfer.toString(),
+        },
+        'Remaining amount below minViableTransfer, completing intent with acceptable loss',
+      );
+
+      await this.actionTracker.completeRebalanceIntent(intent.id);
+
+      return {
+        route,
+        success: true,
+        reason: 'completed_with_acceptable_loss',
+      };
+    }
+
     let maxTransferable = costs.maxTransferable;
 
     if (!isNativeTokenStandard(sourceToken.standard)) {
@@ -787,27 +809,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       },
       'Calculated max transferable amount with cost-based threshold',
     );
-
-    // Early exit: If remaining amount is below minViableTransfer, complete the intent
-    // This prevents infinite loops when the remaining amount is too small to economically bridge
-    if (requestedLocalAmount < minViableTransfer) {
-      this.logger.info(
-        {
-          intentId: intent.id,
-          amount: requestedLocalAmount.toString(),
-          minViableTransfer: minViableTransfer.toString(),
-        },
-        'Remaining amount below minViableTransfer, completing intent with acceptable loss',
-      );
-
-      await this.actionTracker.completeRebalanceIntent(intent.id);
-
-      return {
-        route,
-        success: true,
-        reason: 'completed_with_acceptable_loss',
-      };
-    }
 
     // Swap the route for executeTransferRemote: destination → origin
     // This ensures transferRemote is called FROM destination, ADDING collateral there
@@ -951,6 +952,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       };
     }
 
+    // Prefund the remaining intent, including costs, even when current capacity
+    // only permits a partial deposit. Future capacity refill can use this inventory
+    // without paying the fixed cost of another external bridge movement.
     // Create bridge plans using destination-local output amounts.
     const shortfall =
       requestedLocalAmount > availableInventory
