@@ -39,6 +39,7 @@
     "start:dev": "tsx src/service.ts"
   },
   "dependencies": {
+    "@arbitrum/sdk": "catalog:",
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/metrics": "workspace:*",

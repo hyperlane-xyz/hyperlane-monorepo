@@ -381,6 +381,32 @@ describe('RebalancerContextFactory', () => {
       expect(registry.relay).to.have.property('defaultSlippage', 0.001);
     });
 
+    it('initializes the Elysium native adapter with its configured HYPE budget', async () => {
+      const factory = await factoryWithBridges({
+        elysiumNative: { maxNativeValueWei: 123n },
+      });
+      for (const { name, chainId } of [
+        { name: 'hyperevm', chainId: 999 },
+        { name: 'elysium', chainId: 99901 },
+      ]) {
+        factory['multiProvider'].metadata[name] = {
+          name,
+          chainId,
+          domainId: chainId,
+          protocol: ProtocolType.Ethereum,
+          rpcUrls: [{ http: 'https://rpc.example.invalid' }],
+        };
+      }
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.elysiumNative?.externalBridgeId).to.equal(
+        ExternalBridgeType.ElysiumNative,
+      );
+      expect(registry.elysiumNative).to.have.property(
+        'maxNativeValueWei',
+        123n,
+      );
+    }).timeout(10_000);
+
     it('returns no bridges when no external bridge is configured', async () => {
       const factory = await factoryWithBridges();
       expect(await factory['buildExternalBridgeRegistry']()).to.deep.equal({});
