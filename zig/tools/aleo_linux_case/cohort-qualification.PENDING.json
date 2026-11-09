@@ -3,116 +3,116 @@
   "passed": true,
   "Root_actual_cohort_acceptance": true,
   "scope": "Authenticated remote eight-product contents and coherent producer qualification only",
-  "source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-  "run_id": 42586182471,
+  "source_commit": "be13712e0f758ef50bba49a53817ff78b9822124",
+  "run_id": 42616231351,
   "run_attempt": 1,
-  "reader_execution_commit": "babf33f3f781e37897e99c62d0806e08af0b7d2f",
-  "reader_run_id": 42598962630,
+  "reader_execution_commit": "b6ec65485fb7530c41476a19147dc3d081445d81",
+  "reader_run_id": 42625490512,
   "reader_run_attempt": 1,
   "inspection_report": {
     "bytes": 27588,
     "sha256": {
       "sha256_hex_chunks": [
-        "dd52ef2fc6e601e74ff84faf51a5424a",
-        "6e312ecbaf08e9d0c3f2e54170b19d07"
+        "ad3b3da680c23d8b4e7de9923448971c",
+        "a991a4d9e79fae1a11bd3eff1889da3a"
       ]
     }
   },
   "independent_readback": {
-    "bytes": 11644,
+    "bytes": 11643,
     "sha256": {
       "sha256_hex_chunks": [
-        "ab3142294ab3bc50c80bc8b59f712879",
-        "3f3a24ae5c59797cb976cd39bb032eab"
+        "8f7d5f5e20bf0f2bb6ae73d7475b7591",
+        "781d2538ed440f10eecdb860cad1bf21"
       ]
     }
   },
   "eight_artifacts": {
     "sdk_safe": {
-      "id": 13660307486,
+      "id": 13675526287,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52481326,
+      "size_in_bytes": 52493598,
       "sha256": {
         "sha256_hex_chunks": [
-          "439ac3e94c66ba4a497b5f3bf0f4f649",
-          "6c8fdb4294ad903fffcd31a6a98163a9"
+          "0be6ee98afc2e002121e57d0cf3e915e",
+          "819f5730cd98687e3cf110a25b74254c"
         ]
       }
     },
     "sdk_fast": {
-      "id": 13661513116,
+      "id": 13677816891,
       "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 55148093,
+      "size_in_bytes": 55167557,
       "sha256": {
         "sha256_hex_chunks": [
-          "67d7eb9652f60c59a1af2403f0fdb394",
-          "02003397b7104c101101f78c2c7d0494"
+          "873db452fb2a4b120d7a05f2320211a7",
+          "d0ae42dd9f4bae8eb1713cf547a3c27b"
         ]
       }
     },
     "helper": {
-      "id": 13659769342,
+      "id": 13673114797,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56510096,
+      "size_in_bytes": 56509562,
       "sha256": {
         "sha256_hex_chunks": [
-          "bdc7221c07fbde482d2931edcd57d672",
-          "d21449a7d5f25ea4e1fe40db04b75933"
+          "655fd65919fac7a78feb3e4b0473dd4f",
+          "b16567a156132a505ee5ca98b78a101f"
         ]
       }
     },
     "tools": {
-      "id": 13659838754,
-      "name": "zig-native-case-tools-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-      "size_in_bytes": 20092495,
+      "id": 13674305935,
+      "name": "zig-native-case-tools-be13712e0f758ef50bba49a53817ff78b9822124",
+      "size_in_bytes": 20092312,
       "sha256": {
         "sha256_hex_chunks": [
-          "8237aa5ede95c948939598213c493f4e",
-          "0c4be97f1d262565d6ba166346557669"
+          "04b8b8eb1c8204761b0957427f6d6922",
+          "cbbf434a9cae743d34a430df65051dc4"
         ]
       }
     },
     "writer_safe": {
-      "id": 13660502012,
+      "id": 13675536295,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171516,
+      "size_in_bytes": 5177829,
       "sha256": {
         "sha256_hex_chunks": [
-          "23bcbfecfc95b1c40cedee62adec4980",
-          "9aeceab45247ffc7a3b73e1e58ae584a"
+          "857408acee23ef3557bed3d4c1f0fc20",
+          "682a3e733b41fd054ddf51693b2f19f0"
         ]
       }
     },
     "writer_fast": {
-      "id": 13661962123,
+      "id": 13677766665,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4863021,
+      "size_in_bytes": 4871774,
       "sha256": {
         "sha256_hex_chunks": [
-          "e9cddb589d43d50eaaddfa16aa7e0ccc",
-          "74d8a7b87cb7153ed38814b37b46e749"
+          "dc33dcc51a2baadbba7b86a63589af8d",
+          "6fb6fde4756d4ad7d50af4853968628e"
         ]
       }
     },
     "svm": {
-      "id": 13659787719,
-      "name": "svm-linux-prerequisites-42586182471-1",
-      "size_in_bytes": 327982661,
+      "id": 13673522193,
+      "name": "svm-linux-prerequisites-42616231351-1",
+      "size_in_bytes": 327981000,
       "sha256": {
         "sha256_hex_chunks": [
-          "17dda43c595e2f07a91ed2047811bbb4",
-          "f5f4f54408938ab32bba81e335c1b729"
+          "f6666def06ae1d363e23d3ccc7fda136",
+          "427849f826269d0713dadc5b77c9c887"
         ]
       }
     },
     "radix_reference": {
-      "id": 13660292178,
-      "name": "zig-native-radix-reference-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-      "size_in_bytes": 3177951,
+      "id": 13674406364,
+      "name": "zig-native-radix-reference-be13712e0f758ef50bba49a53817ff78b9822124",
+      "size_in_bytes": 3177992,
       "sha256": {
         "sha256_hex_chunks": [
-          "f57c0af578b2a2787f1da6667a37ffb6",
-          "ed2aa27b8bcd59e7c08e5e43bb746bd1"
+          "ba18df6c33e6e8afdbc5e1fafd991762",
+          "d2d7ed640983126a5ef870907eef9a44"
         ]
       }
     }
@@ -120,25 +120,25 @@
   "all4_required_jobs_actual_success": [
     {
       "conclusion": "success",
-      "id": 129056459488,
+      "id": 129156662585,
       "name": "full-sdk-native (ReleaseSafe)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 129056459510,
+      "id": 129156662750,
       "name": "full-sdk-native (ReleaseFast)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 129056459496,
+      "id": 129156662519,
       "name": "native-harness-controls",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 129056459762,
+      "id": 129156661949,
       "name": "svm-prerequisites",
       "status": "completed"
     }
@@ -148,8 +148,8 @@
     "all_policy_Git_blobs_match": true,
     "policy_map_sha256": {
       "sha256_hex_chunks": [
-        "35485a26df19b71fd0cc50731883da79",
-        "23d32c9c57ee2602df09eaef6d0acdd4"
+        "a6f5aad2d2c33d3e4fa12a2164e66b0c",
+        "41146e914d429ac29d1361872161f5f1"
       ]
     },
     "source_rows_checked": 607
@@ -171,9 +171,9 @@
     ],
     "runtime": [
       {
-        "execution_tree": "e614b3caffedbca95ebba6738221cae6feb6bdf8",
+        "execution_tree": "283dddf7d0d960a8da122373cea959845f403511",
         "path": "zig/src",
-        "producer_tree": "e614b3caffedbca95ebba6738221cae6feb6bdf8",
+        "producer_tree": "283dddf7d0d960a8da122373cea959845f403511",
         "worktree_clean_in_scope": true
       },
       {
@@ -183,9 +183,9 @@
         "worktree_clean_in_scope": true
       },
       {
-        "execution_tree": "1d4994bcfdec43cffb18d16cd6691ccdee321378",
+        "execution_tree": "99c967d7ac7fd2c9632bff55ba90a6a5d87718cd",
         "path": "zig/build.zig",
-        "producer_tree": "1d4994bcfdec43cffb18d16cd6691ccdee321378",
+        "producer_tree": "99c967d7ac7fd2c9632bff55ba90a6a5d87718cd",
         "worktree_clean_in_scope": true
       },
       {
@@ -223,7 +223,7 @@
   "native_suites": {
     "sdk_safe": {
       "explicit_agent_runtime_test_count": 2,
-      "producer_native_required_count": 36,
+      "producer_native_required_count": 49,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
           "b6f9d9865cf80d7ee66bc995741eef47",
@@ -232,16 +232,16 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1202,
+        "OK": 1224,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1205,
+      "total": 1227,
       "two_explicit_agent_runtime_tests_observed_OK": true
     },
     "sdk_fast": {
       "explicit_agent_runtime_test_count": 2,
-      "producer_native_required_count": 36,
+      "producer_native_required_count": 49,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
           "b6f9d9865cf80d7ee66bc995741eef47",
@@ -250,18 +250,18 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1202,
+        "OK": 1224,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1205,
+      "total": 1227,
       "two_explicit_agent_runtime_tests_observed_OK": true
     }
   },
   "inspection_resources": {
-    "actual_streamed_bytes": 1705477147,
-    "elapsed_seconds": 111.668757,
-    "inspector_peak_RSS_bytes": 81920000,
+    "actual_streamed_bytes": 1705821655,
+    "elapsed_seconds": 110.724941,
+    "inspector_peak_RSS_bytes": 81911808,
     "own_downloads_removed": true
   },
   "actual_calls_all_waited": 8518,
@@ -277,8 +277,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "03ee57d989fc39e12c329669e5de618c",
-            "5f2fc32781263a80d6dac74d4ce65206"
+            "031138e89034cd5e8b86c703a3e35675",
+            "8a7a29d29c2ce663b00d65cfe233da0b"
           ]
         },
         "scope": "aleo"
@@ -293,8 +293,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "c603607ac5162fd237f7cbf73ce31f7f",
-            "5be5556272cdafb9af341c3aed3e3f13"
+            "60b54e82a6dac539aa34d44e82b1c3b8",
+            "c878912c601a6b2993bb420e5157fdbf"
           ]
         },
         "scope": "native-db"
@@ -309,8 +309,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "76c50960ef6efcbb7ac6e5c09f6ca320",
-            "a679ff04a78989a23f197d8152bdac8c"
+            "3c183bd1b5f989624c4a077d0c0702cb",
+            "2f2b07c4af374f928b403a6dd0836b77"
           ]
         },
         "scope": "regex"
@@ -325,8 +325,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "3b048e4b27fbcba49400c1d0b9af9d63",
-            "423d7547c1a3d8419e6a1a883ff817f4"
+            "0ccbc0bb637e9a29bf1571bddd7c0c7c",
+            "3a195b6ecbb0e621674d1e8fd00bcd40"
           ]
         },
         "scope": "starknet"
@@ -341,8 +341,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "c145b1227d84ef7d864599358d9118b6",
-            "94e183987c1c2f0f231bca206474ec76"
+            "d8f5f1af87f5cd66430e4e64426168b0",
+            "ee7e8072455e58846bfcab92f17c095a"
           ]
         },
         "scope": "url"
@@ -359,8 +359,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "e6306446e0097902c09117232d8dbe0b",
-            "293e9085b45b32365a93a2c30ef3d2c1"
+            "81faf44a85a14d1468b3fb48ed4a21f4",
+            "8282ef61b01ba10253c5f5eb55add027"
           ]
         },
         "scope": "aleo"
@@ -375,8 +375,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "c874e1dd9b298abdcce6fcd29b99bc58",
-            "51644b7b42c61f836ab186c86105a9a5"
+            "85d721a671a4456107ef9ca7f68d0e7f",
+            "8d14e6ea5a7adffe749716f9ec5e8418"
           ]
         },
         "scope": "native-db"
@@ -391,8 +391,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "3dbd36f5018a1d7e2e98513e9c80e416",
-            "e09c4695d21d77f5962b0be4de092f14"
+            "dcc6bac90296c1df6eef44a0886f34bf",
+            "34ab5173a6a9a9acc1d0130b87d93759"
           ]
         },
         "scope": "regex"
@@ -407,8 +407,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "0261188d667370e4e7bab9708d02d75b",
-            "15a7eb7041a1b23b37cb85a3d2420f63"
+            "b45cf7c32f87ce317d5ebc4df88e5661",
+            "422f1a2c2877a08b6e648dd460e3d3e0"
           ]
         },
         "scope": "starknet"
@@ -423,8 +423,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "fcf2184aad97748f4bb7fbaac00fad3e",
-            "2f3c57262b2570dd55731fd719d87f9f"
+            "3f03a10afafb15cd6e40002927d3ae4b",
+            "293f34cd24787c6b48f2d7a7e93eed01"
           ]
         },
         "scope": "url"
@@ -447,13 +447,13 @@
     "Product archives inspected remotely; local evidence consists of the bounded tiny report and existing independent SDK-step receipts.",
     "This accepts producer contents only; no native-case, consumer-CPU, runtime or timing proof."
   ],
-  "kind": "Root-qualified-portable-Dc0e9-eight-product-cohort",
+  "kind": "Root-qualified-portable-Gbe13-eight-product-cohort",
   "Root_qualification_fingerprint": {
     "bytes": 10239,
     "sha256": {
       "sha256_hex_chunks": [
-        "f6b5b0ccd163e2b9dcd697243acdb8e1",
-        "e0147fb27a30e878cfca4067bea9d3c7"
+        "863a2a19d37e0f601b6bb3461b8aa787",
+        "c1a0df35a35d4a432dab53919e53a935"
       ]
     }
   }

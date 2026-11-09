@@ -3,15 +3,15 @@
   "schema": 1,
   "kind": "aleo-linux-fullcase-ci-policy-v1",
   "root_approved": false,
-  "runtime_source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
+  "runtime_source_commit": "be13712e0f758ef50bba49a53817ff78b9822124",
   "requests": {
     "ReleaseSafe": {
       "path": "zig/tools/aleo_linux_case/transport-ReleaseSafe.PENDING.json",
       "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "8f87a8b86d6dfd7a39c7cf3791a9d477",
-          "8b754db6d0c24db808ef2edeb28198d6"
+          "c091ea46ffc251a416bfcc2108aa1859",
+          "6659259235c6c22580ecf2ebc984cc03"
         ]
       }
     },
@@ -20,8 +20,8 @@
       "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "9d0e8c690917c3ad497431419ac0ef34",
-          "e74fb9d06a989873c97ff39046d68f86"
+          "9d1fab535d4ac7fb1b66f330a2ad4a7b",
+          "8c57289cd6385bf5b961faddf392ab88"
         ]
       }
     }
@@ -31,8 +31,8 @@
     "bytes": 12966,
     "sha256": {
       "sha256_hex_chunks": [
-        "cebd9dfb738f8a5dd5057b8acba76110",
-        "09fbf475afa5fab72be8918986efaad1"
+        "561e48a7f1ecc134aeabf51c3d450414",
+        "ace7a1491f48684989c79bbc00cc6e43"
       ]
     }
   },
