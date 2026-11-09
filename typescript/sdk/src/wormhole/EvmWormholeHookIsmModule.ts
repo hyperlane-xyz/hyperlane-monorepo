@@ -358,6 +358,7 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
 
     const addresses: ChainMap<Address> = {};
     const fresh = new Set<ChainName>();
+    const replaced = new Set<ChainName>();
     for (const chain of chains) {
       const existing = existingAddresses[chain];
       if (existing) {
@@ -373,6 +374,7 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
           { chain, existing },
           'Replacing Wormhole hook/ISM because an immutable changed',
         );
+        replaced.add(chain);
       }
 
       addresses[chain] = await EvmWormholeHookIsmModule.deployRouter(
@@ -385,6 +387,19 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
       logger.info(
         { chain, address: addresses[chain] },
         'Deployed Wormhole hook/ISM router',
+      );
+    }
+
+    if (replaced.size > 0) {
+      logger.warn(
+        {
+          replaced: Array.from(replaced).map((chain) => ({
+            chain,
+            previous: existingAddresses[chain],
+            replacement: addresses[chain],
+          })),
+        },
+        'Messages dispatched through a replaced Wormhole hook/ISM router cannot be verified once its replacement is installed. Pause transfers on the affected routes and wait until every pending message is delivered before submitting the returned transactions.',
       );
     }
 
