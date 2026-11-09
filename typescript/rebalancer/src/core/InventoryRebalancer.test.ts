@@ -26,7 +26,10 @@ import {
   DEFAULT_MOVEMENT_STALENESS_MS,
   ExternalBridgeType,
 } from '../config/types.js';
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type {
+  BridgeQuoteParams,
+  IExternalBridge,
+} from '../interfaces/IExternalBridge.js';
 import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import { createMockBridgeQuote } from '../test/lifiMocks.js';
 import { ActionTracker } from '../tracking/ActionTracker.js';
@@ -364,6 +367,7 @@ describe('InventoryRebalancer E2E', () => {
       destination: SOLANA_DOMAIN,
       amount: 10000000000n,
       executionMethod: 'inventory',
+      externalBridge: ExternalBridgeType.LiFi,
       createdAt: now,
       updatedAt: now,
       ...overrides,
@@ -481,6 +485,40 @@ describe('InventoryRebalancer E2E', () => {
         );
       });
     }
+
+    it('polls the recorded physical provider after policy changes', async () => {
+      config.inventoryRoutes = {
+        [ARBITRUM_CHAIN]: {
+          [SOLANA_CHAIN]: { externalBridge: ExternalBridgeType.DeBridge },
+        },
+      };
+      await inventoryRebalancer.rebalance([createTestRoute()]);
+      const [action] = await tracker.getInProgressActions();
+      assert(action, 'Expected a submitted movement');
+      expect(action.externalBridgeId).to.equal(ExternalBridgeType.DeBridge);
+      const [intent] = await tracker.getActiveRebalanceIntents();
+      expect(intent.externalBridge).to.equal(ExternalBridgeType.LiFi);
+      config.inventoryRoutes = {
+        [ARBITRUM_CHAIN]: {
+          [SOLANA_CHAIN]: {
+            enabled: false,
+            externalBridge: ExternalBridgeType.LiFi,
+          },
+        },
+      };
+      bridge.getStatus.resolves({
+        status: 'complete',
+        receivingTxHash: 'destination-hash',
+        receivedAmount: action.amount,
+      });
+      await tracker.syncInventoryMovementActions({
+        [ExternalBridgeType.DeBridge]: bridge,
+      });
+      expect(bridge.getStatus.calledOnce).to.equal(true);
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'complete',
+      );
+    });
 
     it('keeps repeated not_found reserved beyond movement staleness and intent TTL', async () => {
       await inventoryRebalancer.rebalance([route()]);
@@ -2262,6 +2300,266 @@ describe('InventoryRebalancer E2E', () => {
       warpCore.tokens.push(baseToken);
 
       multiProvider.getSigner = Sinon.stub().returns(TEST_WALLET);
+    });
+
+    describe('physical inventory routes', () => {
+      const requestedAmount = 10n ** 18n;
+      let selectedBridge: IExternalBridge;
+      const quoteFor = async (params: BridgeQuoteParams) => {
+        const amount = params.fromAmount ?? params.toAmount;
+        assert(amount !== undefined, 'Expected quote input or output');
+        return createMockBridgeQuote({
+          fromAmount: amount,
+          toAmount: amount,
+          toAmountMin: amount,
+          requestParams: params,
+        });
+      };
+
+      beforeEach(() => {
+        createTestIntent({ amount: requestedAmount });
+        bridge.quote.callsFake(quoteFor);
+        bridge.execute.resolves({
+          txHash: 'default-provider-source',
+          fromChain: BASE_DOMAIN,
+          toChain: SOLANA_DOMAIN,
+        });
+        selectedBridge = {
+          externalBridgeId: ExternalBridgeType.DeBridge,
+          logger: testLogger,
+          quote: Sinon.stub().callsFake(quoteFor),
+          execute: Sinon.stub().resolves({
+            txHash: 'selected-provider-source',
+            fromChain: ARBITRUM_DOMAIN,
+            toChain: SOLANA_DOMAIN,
+          }),
+          getStatus: Sinon.stub().resolves({ status: 'pending' }),
+        };
+        inventoryRebalancer['externalBridgeRegistry'][
+          ExternalBridgeType.DeBridge
+        ] = selectedBridge;
+        inventoryRebalancer.setInventoryBalances({
+          [ARBITRUM_CHAIN]: requestedAmount * 2n,
+          [BASE_CHAIN]: requestedAmount * 10n,
+          [SOLANA_CHAIN]: 0n,
+        });
+      });
+
+      it('preserves largest-capacity selection when no physical policy is configured', async () => {
+        await inventoryRebalancer.rebalance([
+          createTestRoute({ amount: requestedAmount }),
+        ]);
+        expect(bridge.execute.callCount).to.equal(1);
+        expect(
+          bridge.execute.firstCall.args[0].requestParams.fromChain,
+        ).to.equal(BASE_DOMAIN);
+        expect(
+          actionTracker.createRebalanceAction.firstCall.args[0]
+            .externalBridgeId,
+        ).to.equal(ExternalBridgeType.LiFi);
+      });
+
+      it('prefers a neutral funded source and records its selected provider', async () => {
+        config.inventoryRoutes = {
+          [ARBITRUM_CHAIN]: {
+            [SOLANA_CHAIN]: {
+              externalBridge: ExternalBridgeType.DeBridge,
+              priority: 1,
+            },
+          },
+        };
+        // The economic origin is Base; physical inventory comes from Arbitrum.
+        createTestIntent({ origin: BASE_DOMAIN, amount: requestedAmount });
+        await inventoryRebalancer.rebalance([
+          createTestRoute({ origin: BASE_CHAIN, amount: requestedAmount }),
+        ]);
+        expect(bridge.execute.callCount).to.equal(0);
+        expect(actionTracker.createRebalanceAction.callCount).to.equal(1);
+        expect(
+          actionTracker.createRebalanceAction.firstCall.args[0],
+        ).to.include({
+          origin: ARBITRUM_DOMAIN,
+          destination: SOLANA_DOMAIN,
+          externalBridgeId: ExternalBridgeType.DeBridge,
+        });
+      });
+
+      it('funds the preferred source first and uses the default provider for the remainder', async () => {
+        config.inventoryRoutes = {
+          [ARBITRUM_CHAIN]: {
+            [SOLANA_CHAIN]: {
+              externalBridge: ExternalBridgeType.DeBridge,
+              priority: 1,
+            },
+          },
+        };
+        const preferredBalance = requestedAmount / 4n;
+        inventoryRebalancer.setInventoryBalances({
+          [ARBITRUM_CHAIN]: preferredBalance,
+          [BASE_CHAIN]: requestedAmount * 10n,
+          [SOLANA_CHAIN]: 0n,
+        });
+        await inventoryRebalancer.rebalance([
+          createTestRoute({ amount: requestedAmount }),
+        ]);
+        const actions = actionTracker.createRebalanceAction
+          .getCalls()
+          .map((call) => call.args[0]);
+        expect(actions.length).to.equal(2);
+        const preferred = actions.find(
+          (action) => action.origin === ARBITRUM_DOMAIN,
+        );
+        const remainder = actions.find(
+          (action) => action.origin === BASE_DOMAIN,
+        );
+        assert(
+          preferred && remainder,
+          'Expected both physical funding sources',
+        );
+        expect(preferred).to.include({
+          externalBridgeId: ExternalBridgeType.DeBridge,
+          amount: preferredBalance,
+        });
+        expect(remainder.externalBridgeId).to.equal(ExternalBridgeType.LiFi);
+        expect(remainder.amount < requestedAmount).to.equal(true);
+      });
+
+      it('skips a zero-balance preferred source without creating an intermediate hop', async () => {
+        config.inventoryRoutes = {
+          [ARBITRUM_CHAIN]: {
+            [SOLANA_CHAIN]: {
+              externalBridge: ExternalBridgeType.DeBridge,
+              priority: 1,
+            },
+          },
+        };
+        inventoryRebalancer.setInventoryBalances({
+          [ARBITRUM_CHAIN]: 0n,
+          [BASE_CHAIN]: requestedAmount * 10n,
+          [SOLANA_CHAIN]: 0n,
+        });
+        await inventoryRebalancer.rebalance([
+          createTestRoute({ amount: requestedAmount }),
+        ]);
+        expect(actionTracker.createRebalanceAction.callCount).to.equal(1);
+        expect(
+          actionTracker.createRebalanceAction.firstCall.args[0],
+        ).to.include({
+          origin: BASE_DOMAIN,
+          destination: SOLANA_DOMAIN,
+          externalBridgeId: ExternalBridgeType.LiFi,
+        });
+      });
+
+      it('uses another source when the preferred provider cannot quote without switching that pair', async () => {
+        config.inventoryRoutes = {
+          [ARBITRUM_CHAIN]: {
+            [SOLANA_CHAIN]: {
+              externalBridge: ExternalBridgeType.DeBridge,
+              priority: 1,
+            },
+          },
+        };
+        selectedBridge.quote = Sinon.stub().rejects(
+          new Error('No quote for preferred source'),
+        );
+        await inventoryRebalancer.rebalance([
+          createTestRoute({ amount: requestedAmount }),
+        ]);
+        expect(
+          bridge.quote
+            .getCalls()
+            .every((call) => call.args[0].fromChain === BASE_DOMAIN),
+        ).to.equal(true);
+        expect(actionTracker.createRebalanceAction.callCount).to.equal(1);
+        expect(
+          actionTracker.createRebalanceAction.firstCall.args[0],
+        ).to.include({
+          origin: BASE_DOMAIN,
+          externalBridgeId: ExternalBridgeType.LiFi,
+        });
+      });
+
+      it('does not quote or send an explicitly disabled physical source pair', async () => {
+        config.inventoryRoutes = {
+          [BASE_CHAIN]: { [SOLANA_CHAIN]: { enabled: false } },
+        };
+        await inventoryRebalancer.rebalance([
+          createTestRoute({ amount: requestedAmount }),
+        ]);
+        expect(
+          bridge.quote
+            .getCalls()
+            .every((call) => call.args[0].fromChain !== BASE_DOMAIN),
+        ).to.equal(true);
+        expect(actionTracker.createRebalanceAction.callCount).to.equal(1);
+        expect(
+          actionTracker.createRebalanceAction.firstCall.args[0].origin,
+        ).to.equal(ARBITRUM_DOMAIN);
+      });
+
+      for (const change of ['disable', 'provider'] as const) {
+        it(`rejects a ${change} change after capacity planning`, async () => {
+          config.inventoryRoutes = {
+            [ARBITRUM_CHAIN]: { [SOLANA_CHAIN]: { enabled: false } },
+          };
+          bridge.quote.callsFake(async (params) => {
+            const quote = await quoteFor(params);
+            if (params.toAmount !== undefined) {
+              config.inventoryRoutes = {
+                [BASE_CHAIN]: {
+                  [SOLANA_CHAIN]:
+                    change === 'disable'
+                      ? { enabled: false }
+                      : { externalBridge: ExternalBridgeType.DeBridge },
+                },
+              };
+            }
+            return quote;
+          });
+          const [result] = await inventoryRebalancer.rebalance([
+            createTestRoute({ amount: requestedAmount }),
+          ]);
+          expect(result.success).to.equal(false);
+          expect(result.error).to.include(
+            change === 'disable' ? 'is disabled' : 'provider changed',
+          );
+          expect(bridge.execute.callCount).to.equal(0);
+          expect(actionTracker.createRebalanceAction.callCount).to.equal(0);
+        });
+      }
+
+      it('resolves physical overrides when continuing an intent with a different default provider', async () => {
+        const intent = createTestIntent({
+          status: 'in_progress',
+          amount: requestedAmount,
+        });
+        config.inventoryRoutes = {
+          [ARBITRUM_CHAIN]: {
+            [SOLANA_CHAIN]: {
+              externalBridge: ExternalBridgeType.DeBridge,
+              priority: 1,
+            },
+          },
+        };
+        actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+          {
+            intent,
+            remaining: requestedAmount,
+            completedAmount: 0n,
+            hasInflightMovement: false,
+            hasInflightDeposit: false,
+          },
+        ]);
+        await inventoryRebalancer.rebalance([]);
+        expect(actionTracker.createRebalanceIntent.called).to.equal(false);
+        expect(actionTracker.createRebalanceAction.callCount).to.equal(1);
+        expect(
+          actionTracker.createRebalanceAction.firstCall.args[0]
+            .externalBridgeId,
+        ).to.equal(ExternalBridgeType.DeBridge);
+        expect(bridge.execute.callCount).to.equal(0);
+      });
     });
 
     it('bridges from multiple sources in parallel', async () => {

@@ -7,6 +7,7 @@ import type { InventorySignerConfig } from '../core/InventoryRebalancer.js';
 import {
   type ExternalBridgesConfigSchema,
   type PendingTransferMiddlewareConfig,
+  type InventoryRoutesConfig,
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
@@ -25,6 +26,7 @@ export class RebalancerConfig {
     >,
     public readonly externalBridges?: ExternalBridgesConfig,
     public readonly pendingTransferMiddlewares?: PendingTransferMiddlewareConfig[],
+    public readonly inventoryRoutes?: InventoryRoutesConfig,
   ) {}
 
   /**
@@ -47,6 +49,7 @@ export class RebalancerConfig {
       inventorySigners,
       externalBridges,
       pendingTransferMiddlewares,
+      inventoryRoutes,
     } = validationResult.data;
 
     const chainNames = getStrategyChainNames(strategy);
@@ -61,6 +64,7 @@ export class RebalancerConfig {
       inventorySigners,
       externalBridges,
       pendingTransferMiddlewares,
+      inventoryRoutes,
     );
   }
 }

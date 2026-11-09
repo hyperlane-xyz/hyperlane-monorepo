@@ -24,9 +24,12 @@ export {
   DEFAULT_INTENT_TTL_S,
   ExecutionType,
   ExternalBridgeType,
+  getInventoryRouteChainNames,
   getStrategyChainConfig,
   getStrategyChainNames,
   PendingTransferMiddlewareType,
+  InventoryRouteConfigSchema,
+  InventoryRoutesConfigSchema,
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
   RebalancerMinAmountConfigSchema,
@@ -39,6 +42,7 @@ export {
   TokenBridgeStatusAdapterType,
 } from './config/types.js';
 export type {
+  InventoryRoutesConfig,
   MinAmountStrategyConfig,
   PendingTransferMiddlewareConfig,
   RebalancerConfig as RebalancerConfigType,
