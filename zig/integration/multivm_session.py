@@ -80,6 +80,7 @@ def successful_tron_rest_exchange(field,endpoint,request,response):
     An empty lookup, uppercase Error, failed contract, mutation/broadcast or
     unknown REST shape contributes no success; the native verifier stays strict.
     """
+    field={'customwalleturls':'walleturls','customwalletsolidityurls':'walletsolidityurls'}.get(field,field)
     roots={'walleturls':'http://127.0.0.1:9090/wallet','walletsolidityurls':'http://127.0.0.1:9090/walletsolidity'}
     if field not in roots or endpoint!=roots[field]or not isinstance(request,dict)or not isinstance(response,dict)or not response:return False
     if any(key.lower()=='error'or key in{'code','message'}for key in response):return False

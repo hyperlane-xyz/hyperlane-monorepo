@@ -1304,7 +1304,7 @@ RADIX_SCRAPER_SOURCE = (
     ('zig/src/ops/metrics_schema.zig', 36606, '3294839328444cead6812c8f47778466' + 'b3ee07b0c8822c20ee236d993193ebb0'),
     ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),
     ('zig/src/agents/scraper/task.zig', 35102, '39d5f45671dd6a155b20f05373fb592c' + '49c4ad9801da513d0bbc7edbe2ca2303'),
-    ('zig/src/agents/scraper/radix.zig', 14286, 'e171e3992c68993e622e261bb97b9212' + '1428c374b9c9e80b89dea52ecdd3190d'),
+    ('zig/src/agents/scraper/radix.zig', 20076, '425e8aaede59d36cd26d8f15a9b9e9ec' + '27dfee54e8b3ce1e95b24ba415e027db'),
     ('zig/src/agents/scraper/setup.zig', 2232, 'ae1dc00f49f09da514b6819bdf5966f6' + '6a5cfcfac56ab5bfadf0478202392740'),
     ('zig/src/radix/provider.zig', 13805, '504d4ac521c66909288b0a8803ba52bb' + '4cc95cd1d12f95a5e0fa2c4b26405bd5'),
     ('zig/src/radix/events.zig', 7269, '73859ce4e38b30ecd6621d6efd036650' + '236843f110a8e76dfb9a23e1e43d6e28'),

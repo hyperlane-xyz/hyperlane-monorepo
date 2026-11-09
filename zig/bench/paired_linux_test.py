@@ -12,6 +12,11 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the once-only Source Tron admission command before clock controls.
+ admission = '          python3 -B -W error zig/integration/multivm_tron_admission_test.py -v\n'
+ clock = '          python3 -I -B -W error zig/integration/multivm_tron_clock_test.py -v\n'
+ if text.count(admission) != 1 or text.count(admission + clock) != 1: raise AssertionError('Exact once-only Tron admission before clock required')
+ text = text.replace(admission, '', 1)
  # Exact inverse of the independently reviewed EVM consumer-control additions.
  evm_after = '      - name: Run three independent EVM dependency controls after owned case cleanup\n        id: evm_controls\n        if: ${{ success() && steps.request.outputs.enabled == \'true\' && steps.request.outputs.scenario == \'evm\' }}\n        timeout-minutes: 15\n        env:\n          GH_TOKEN: ${{ github.token }}\n        shell: bash\n        run: |\n          set -euo pipefail\n          sudo apt-get update\n          sudo apt-get install -y --no-install-recommends build-essential\n          exec env -i PATH=/usr/local/bin:/usr/bin:/bin LC_ALL=C.UTF-8 GITHUB_ACTIONS=true GH_TOKEN="$GH_TOKEN" \\\n            python3 -I -B zig/bench/native_case_tools.py evm-controls --execute \\\n            --repo "$GITHUB_WORKSPACE" --execution-source-commit "$GITHUB_SHA" \\\n            --case-root "/tmp/znc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \\\n            --composition-result "$RUNNER_TEMP/native-case-composition-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/result.json" \\\n            --tools "$RUNNER_TEMP/native-case-selection/preinstalled-tools.json" \\\n            --gh "$(readlink -f "$(command -v gh)")" \\\n            --output "$RUNNER_TEMP/evm-consumer-controls-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"\n'
  evm_before = ''

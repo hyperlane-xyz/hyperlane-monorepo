@@ -601,6 +601,8 @@ NATIVE_REQUIRED = (
     'EVM finality external confirmation preserves all five tags and false delivery',
     'EVM finality self receipt preserves all five tags boolean outcome and actual cost',
     'EVM finality invalid tag cannot retire an external confirmation',
+    'scraper Radix Gateway watermark bounds latest and finalized headers while explicit heights remain exact',
+    'scraper Radix lagging Gateway bounds zero cutover and indexing without relabeling Core counter snapshots',
 )
 
 

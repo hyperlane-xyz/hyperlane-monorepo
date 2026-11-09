@@ -37,4 +37,23 @@ class Clock(unittest.TestCase):
   for req,value in[(self.request(),{'Error':'failure'}),(self.request('gettransactioninfobyid',{'value':'11'*32}),{})]:session.observe('anvil1','validator','walletsolidityurls','http://127.0.0.1:9090/walletsolidity',req,value,200,200,{'wire':b'public fixture'})
   self.assertEqual(session.successful_activity,{});session.observe('anvil1','validator','walletsolidityurls','http://127.0.0.1:9090/walletsolidity',self.request(),self.block(),200,300,{'wire':b'public fixture'});self.assertEqual(session.successful_activity[('validator','anvil1')],{'request_started_monotonic_ns':100,'response_received_monotonic_ns':300})
   session.observe('anvil1','validator','walletsolidityurls','http://127.0.0.1:9090/walletsolidity',self.request(),{'Error':'later failure'},200,400,{'wire':b'public fixture'});self.assertEqual(session.successful_activity[('validator','anvil1')]['response_received_monotonic_ns'],300)
+ def test_source_wallet_override_aliases_require_identical_typed_owned_replies(self):
+  for alias,base,path in [('customwalleturls','walleturls','wallet'),('customwalletsolidityurls','walletsolidityurls','walletsolidity')]:
+   endpoint='http://127.0.0.1:9090/'+path;req=self.request();req['start']='POST /'+path+'/getnowblock HTTP/1.1'
+   with self.subTest(alias=alias):
+    self.assertTrue(successful_tron_rest_exchange(alias,endpoint,req,self.block()))
+    self.assertEqual(successful_tron_rest_exchange(alias,endpoint,req,self.block()),successful_tron_rest_exchange(base,endpoint,req,self.block()))
+    for value in [{},{'Error':'failure'},{'blockID':'ab'*32},dict(self.block(),code='FAILED')]:self.assertFalse(successful_tron_rest_exchange(alias,endpoint,req,value))
+    for bad_endpoint in ['http://outside.invalid:9090/'+path,'http://127.0.0.1:9091/'+path,'http://127.0.0.1:9090/jsonrpc']:self.assertFalse(successful_tron_rest_exchange(alias,bad_endpoint,req,self.block()))
+    bad=dict(req,start='POST /'+path+'/broadcasttransaction HTTP/1.1');self.assertFalse(successful_tron_rest_exchange(alias,endpoint,bad,self.block()))
+    bad=dict(req,start='POST /'+path+'/getnowblock?private HTTP/1.1');self.assertFalse(successful_tron_rest_exchange(alias,endpoint,bad,self.block()))
+  for field in ['customrpcurls','customgrpcurls','customgatewayurls','privatewalleturls']:self.assertFalse(successful_tron_rest_exchange(field,'http://127.0.0.1:9090/walletsolidity',self.request(),self.block()))
+ def test_actual_observe_callback_updates_known_aliases_only_after_HTTP200_typed_success(self):
+  session=Session.__new__(Session);session.manifest={'scenario':'tron'};session.lock=threading.RLock();session.activity={};session.successful_activity={};session.append=lambda *a:None;session.family=None;session._wallet=lambda *a:None
+  for alias,path in [('customwalleturls','wallet'),('customwalletsolidityurls','walletsolidity')]:
+   endpoint='http://127.0.0.1:9090/'+path;req=self.request();req['start']='POST /'+path+'/getnowblock HTTP/1.1';key=('validator',alias)
+   for status,value in [(500,self.block()),(200,{'Error':'failure'}),(200,{})]:session.observe(alias,'validator',alias,endpoint,req,value,status,200,{'wire':b'public fixture'})
+   self.assertNotIn(key,session.successful_activity)
+   session.observe(alias,'validator',alias,endpoint,req,self.block(),200,300,{'wire':b'public fixture'});self.assertEqual(session.successful_activity[key],{'request_started_monotonic_ns':100,'response_received_monotonic_ns':300})
+   session.observe(alias,'validator',alias,endpoint,req,{'Error':'later'},200,400,{'wire':b'public fixture'});self.assertEqual(session.successful_activity[key]['response_received_monotonic_ns'],300)
 if __name__=='__main__':unittest.main(verbosity=2)

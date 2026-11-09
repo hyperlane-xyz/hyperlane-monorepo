@@ -912,6 +912,7 @@ jobs:
           python3 -I -B -W error zig/bench/native_tron_test.py -v
           python3 -I -B -W error zig/bench/native_tron_integration_test.py -v
           python3 -I -B -W error zig/bench/native_tron_composition_test.py -v
+          python3 -B -W error zig/integration/multivm_tron_admission_test.py -v
           python3 -I -B -W error zig/integration/multivm_tron_clock_test.py -v
           python3 -I -B -W error zig/integration/multivm_starknet_peers_test.py -v
           python3 -I -B zig/bench/native_cw_assets_test.py -v

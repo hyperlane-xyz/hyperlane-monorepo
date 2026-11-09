@@ -278,8 +278,12 @@ def validate_docker_approval(manifest, case, approval):
 
 def validate_tron_chain_authorities(chain):
     expected={'rpcurls':'http://127.0.0.1:9090/jsonrpc','walleturls':'http://127.0.0.1:9090/wallet','walletsolidityurls':'http://127.0.0.1:9090/walletsolidity'}
-    require(set(chain)&ENDPOINT_FIELDS==set(expected),'Source TRE must have exactly JSONRPC/wallet/walletsolidity fields')
-    for field,endpoint in expected.items():require(urls(chain[field])==[endpoint],'Source TRE9090 authority/path/fallback differs')
+    # with_tron_wallet_env supplies these two real loader overrides as well as
+    # the generated base arrays. Keep both authorities visible and intercepted.
+    aliases={'customwalleturls':'walleturls','customwalletsolidityurls':'walletsolidityurls'}
+    fields=set(chain)&ENDPOINT_FIELDS
+    require(set(expected)<=fields<=set(expected)|set(aliases),'Source TRE must have exactly known JSONRPC/wallet/walletsolidity fields')
+    for field in fields:require(urls(chain[field])==[expected[aliases.get(field,field)]],'Source TRE9090 authority/path/fallback differs')
     require(str(chain.get('chainid'))=='3360022319'and str(chain.get('domainid'))in{'1212538670','1212538671'},'Source TRE native chain/domain differs')
 
 

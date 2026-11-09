@@ -41,8 +41,8 @@ pub const Adapter = struct {
         const self = cast(context);
         const height = switch (selector) {
             .height => |height| height,
-            .latest => try self.client.coreState(),
-            .safe, .finalized => try self.client.finalizedState(),
+            .latest => (try self.client.gatewayState()).state_version,
+            .safe, .finalized => @min(try self.client.finalizedState(), (try self.client.gatewayState()).state_version),
         };
         var response = try self.client.call(self.client.gateway, "/stream/transactions", .{ .at_ledger_state = .{ .state_version = height }, .limit_per_page = 1 });
         defer response.deinit();
@@ -85,7 +85,9 @@ pub const Adapter = struct {
         const tips = (try tipCounts(context)).?;
         var height: u64 = std.math.maxInt(u64);
         for (tips) |tip| height = @min(height, tip.tip);
-        return height;
+        // Core counters retain their actual snapshot; Gateway owns availability
+        // of the transaction history needed to prove this indexing boundary.
+        return @min(height, (try cast(context).client.gatewayState()).state_version);
     }
     fn emptyAnchor(context: *anyopaque) !?src.Header {
         const tips = (try tipCounts(context)).?;
@@ -240,4 +242,88 @@ pub const Adapter = struct {
 test "scraper Radix concrete source binds actual Core and Gateway callbacks" {
     var adapter: Adapter = .{ .client = undefined, .contracts = undefined, .domain = 1 };
     _ = adapter.interface();
+}
+
+const LagFixture = struct {
+    core: u64 = 20535,
+    gateway: u64 = 20464,
+    count: u32 = 0,
+    last_selector: ?u64 = null,
+    counter_reads: usize = 0,
+    stream_reads: usize = 0,
+    fn transport(self: *LagFixture) @import("../../cloud/http.zig").Transport {
+        return .{ .context = self, .send_fn = send };
+    }
+    fn send(context: *anyopaque, allocator: std.mem.Allocator, request: @import("../../cloud/http.zig").Request) !@import("../../cloud/http.zig").Response {
+        const self: *LagFixture = @ptrCast(@alignCast(context));
+        var status: u16 = 200;
+        const wire = if (std.mem.endsWith(u8, request.url, "/status/network-status"))
+            try std.fmt.allocPrint(allocator, "{{\"current_state_identifier\":{{\"state_version\":{d}}}}}", .{self.core})
+        else if (std.mem.endsWith(u8, request.url, "/status/gateway-status"))
+            try std.fmt.allocPrint(allocator, "{{\"ledger_state\":{{\"network\":\"mainnet\",\"state_version\":{d},\"epoch\":1}}}}", .{self.gateway})
+        else if (std.mem.endsWith(u8, request.url, "/transaction/call-preview")) blk: {
+            self.counter_reads += 1;
+            var body = try std.json.parseFromSlice(std.json.Value, allocator, request.body.?, .{});
+            defer body.deinit();
+            // Existing Core count reads stay at their truthful current snapshot.
+            try std.testing.expect(body.value.object.get("at_ledger_state") == null);
+            var encoded: [6]u8 = .{ 0x5c, 9, 0, 0, 0, 0 };
+            std.mem.writeInt(u32, encoded[2..6], self.count, .little);
+            var hex: [12]u8 = undefined;
+            hex = std.fmt.bytesToHex(encoded, .lower);
+            break :blk try std.fmt.allocPrint(allocator, "{{\"status\":\"Succeeded\",\"at_ledger_state\":{{\"state_version\":{d}}},\"output\":{{\"hex\":\"{s}\"}}}}", .{ self.core, hex });
+        } else if (std.mem.endsWith(u8, request.url, "/stream/transactions")) blk: {
+            self.stream_reads += 1;
+            var body = try std.json.parseFromSlice(std.json.Value, allocator, request.body.?, .{});
+            defer body.deinit();
+            const height = try json.uint(try json.field(try json.field(body.value, "at_ledger_state"), "state_version"));
+            self.last_selector = height;
+            try std.testing.expectEqual(@as(u64, 1), try json.uint(try json.field(body.value, "limit_per_page")));
+            if (height > self.gateway) {
+                status = 400;
+                break :blk try allocator.dupe(u8, "{\"type\":\"InvalidRequestError\"}");
+            }
+            break :blk try std.fmt.allocPrint(allocator, "{{\"ledger_state\":{{\"network\":\"mainnet\",\"state_version\":{d},\"epoch\":1,\"proposer_round_timestamp\":\"2026-11-09T00:00:00Z\"}},\"items\":[{{\"state_version\":{d}}}]}}", .{ height, height });
+        } else return error.UnexpectedRadixLagFixtureRoute;
+        return .{ .allocator = allocator, .bytes = wire, .status = status };
+    }
+    fn adapter(self: *LagFixture, confirmations: u32) Adapter {
+        return .{ .client = .{ .allocator = std.testing.allocator, .transport = self.transport(), .core = .{ .url = "http://core.invalid" }, .gateway = .{ .url = "http://gateway.invalid" }, .network = .mainnet, .confirmations = confirmations }, .contracts = .{ .mailbox = .{0} ** 32, .hook = .{0} ** 32, .paymaster = .{0} ** 32 }, .domain = 1 };
+    }
+};
+test "scraper Radix Gateway watermark bounds latest and finalized headers while explicit heights remain exact" {
+    var fixture: LagFixture = .{};
+    var adapter = fixture.adapter(10);
+    const source = adapter.interface();
+    try std.testing.expectEqual(fixture.gateway, (try source.header(.latest)).height);
+    try std.testing.expectEqual(fixture.gateway, (try source.header(.safe)).height);
+    try std.testing.expectEqual(fixture.gateway, (try source.header(.finalized)).height);
+    fixture.gateway = 20534;
+    try std.testing.expectEqual(@as(u64, 20525), (try source.header(.safe)).height);
+    try std.testing.expectEqual(@as(u64, 20400), (try source.header(.{ .height = 20400 })).height);
+    try std.testing.expectError(error.RadixHttpStatus, source.header(.{ .height = 20535 }));
+    try std.testing.expectEqual(@as(?u64, 20535), fixture.last_selector);
+}
+test "scraper Radix lagging Gateway bounds zero cutover and indexing without relabeling Core counter snapshots" {
+    var fixture: LagFixture = .{};
+    var adapter = fixture.adapter(0);
+    const source = adapter.interface();
+    const tips = (try source.tipCounts()).?;
+    for (tips) |tip| {
+        try std.testing.expectEqual(@as(?u32, 0), tip.count);
+        try std.testing.expectEqual(fixture.core, tip.tip);
+    }
+    try std.testing.expectEqual(@as(usize, 4), fixture.counter_reads);
+    try std.testing.expectEqual(@as(?u64, fixture.gateway), try source.indexingTip());
+    try std.testing.expectEqual(fixture.gateway, (try source.emptyAnchor()).?.height);
+    try std.testing.expectEqual(@as(?u64, fixture.gateway), fixture.last_selector);
+    fixture.gateway = fixture.core + 10;
+    try std.testing.expectEqual(@as(?u64, fixture.core), try source.indexingTip());
+    fixture.count = 1;
+    try source.beginCycle();
+    try std.testing.expect((try source.emptyAnchor()) == null);
+    // Single-stream consumers retain the actual Core count and its real version.
+    const single = try source.streamTip(3);
+    try std.testing.expectEqual(@as(?u32, 1), single.count);
+    try std.testing.expectEqual(fixture.core, single.tip);
 }
