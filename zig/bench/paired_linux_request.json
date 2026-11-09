@@ -283,11 +283,11 @@
     },
     {
       "path": "zig/integration/native_case_inputs.py",
-      "bytes": 77185,
+      "bytes": 77186,
       "sha256": {
         "sha256_hex_chunks": [
-          "e6cad13033ddfa687b3c3d0b879a88c9",
-          "67b714538606af26e2455fa161f38559"
+          "e1eca4a4d85c9c8f6e2327ba6201c500",
+          "4ebe4ff023d3396d2e30c342b6c6ff1f"
         ]
       }
     },

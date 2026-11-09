@@ -432,7 +432,7 @@ def public_profile(scenario):
         chains=['starknettest23448593','starknettest23448594']
         return {'schema':1,'scenario':scenario,'chain_names':chains,
                 'domain_names':dict(zip(('23448593','23448594'),chains)),
-                'initial_corpus':{'dispatches':10,'deliveries':10,'zero_insertions':0,'failed_body':0,'double_insertions':0},
+                'initial_corpus':{'dispatches':10,'deliveries':10,'zero_insertions':0,'failed_body':0,'double_insertions':10},
                 'additional_refused_dispatches':0,'payments_supported':False,
                 'validator_addresses':dict.fromkeys(chains,'0x15d34aaf54267db7d7c367839aaf71a00a2c6a65'),
                 'relayer_addresses':dict.fromkeys(chains,'0x064b48806902a367c8598f4f95c305e8' 'c1a1acba5f082d294a43793113115691')}

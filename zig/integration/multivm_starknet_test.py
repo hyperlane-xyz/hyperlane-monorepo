@@ -42,7 +42,7 @@ def transaction(calldata=None):
 
 def case():
     names = ["starknettest23448593", "starknettest23448594"]
-    return {"chain_names": names, "domain_names": {str(23448593 + i): name for i, name in enumerate(names)}, "relayer_addresses": {name: api.ACCOUNT for name in names}, "validator_addresses": {name: "0x" + "11" * 20 for name in names}, "initial_corpus": {"dispatches": 10, "deliveries": 10, "failed_body": 0, "zero_insertions": 0, "double_insertions": 0}, "additional_refused_dispatches": 0}
+    return {"chain_names": names, "domain_names": {str(23448593 + i): name for i, name in enumerate(names)}, "relayer_addresses": {name: api.ACCOUNT for name in names}, "validator_addresses": {name: "0x" + "11" * 20 for name in names}, "initial_corpus": {"dispatches": 10, "deliveries": 10, "failed_body": 0, "zero_insertions": 0, "double_insertions": 10}, "additional_refused_dispatches": 0}
 
 
 def quote(weights):
@@ -67,7 +67,7 @@ class MemorySession:
             decoder.finish()
             self.messages.append(parsed)
             dispatch = self.event(self.names[0], "Dispatch", words(int(api.ACCOUNT, 16)) + [hex(23448594)] + words(9) + message(nonce))
-            others = [self.event(self.names[0], "DispatchId", words(int(parsed["id"], 16))), self.event(self.names[0], "InsertedIntoTree", words(int(parsed["id"], 16)) + [hex(nonce)], hook=True)]
+            others = [self.event(self.names[0], "DispatchId", words(int(parsed["id"], 16))), self.event(self.names[0], "InsertedIntoTree", words(int(parsed["id"], 16)) + [hex(2 * nonce)], hook=True), self.event(self.names[0], "InsertedIntoTree", words(int(parsed["id"], 16)) + [hex(2 * nonce + 1)], hook=True)]
             tx = transaction();tx["transaction_hash"] = hex(1000 + nonce)
             self.add_transaction(self.names[0], tx, [dispatch] + others, 2)
         for ordinal, subset in enumerate([self.messages[:4], self.messages[4:]]):
@@ -276,10 +276,33 @@ class PureTests(unittest.TestCase):
         result = adapter.collect(session, 10, "initial")
         self.assertEqual(len(result["messages"]), 10)
         self.assertEqual([len(row["proof"]["message_ids"]) for row in result["native_delivery_transactions"]], [4, 6])
-        self.assertTrue(all(row["dispatch_log_index"] == 0 and row["insertions"] == [row["nonce"]] and not row["payments"] for row in result["messages"]))
+        self.assertTrue(all(row["dispatch_log_index"] == 0 and row["insertions"] == [2 * row["nonce"], 2 * row["nonce"] + 1] and not row["payments"] for row in result["messages"]))
         self.assertEqual(result["actual_chain_ids"], dict(zip(session.names, ["0x64", "0x65"])))
         self.assertEqual(adapter.collect(session, 10, "after_restart"), result)
         self.assertTrue(any(method == "starknet_call" and "block_number" in params["block_id"] for _, method, params in session.requests))
+
+    def test_source_double_hook_requires_exact_two_distinct_canonical_insertions_per_message(self):
+        session=MemorySession();adapter=api.Adapter({"scenario":"starknet"},case());snapshot=adapter.collect(session,10,"initial")
+        self.assertEqual(sorted(index for row in snapshot["messages"] for index in row["insertions"]),list(range(20)))
+        self.assertTrue(all(len(row["insertion_metadata"])==2 for row in snapshot["messages"]))
+        for count in (0,1,3):
+            bad=case();bad["initial_corpus"]["double_insertions"]=count
+            with self.assertRaises(ValueError):api.Adapter({"scenario":"starknet"},bad).validate_case()
+
+    def test_double_hook_missing_extra_duplicate_index_wrong_emitter_and_DispatchId_refuse(self):
+        changes={
+            "missing insertion":lambda rows:rows.pop(3),
+            "third insertion":lambda rows:rows.append(copy.deepcopy(rows[2])),
+            "repeated index":lambda rows:rows[3].update(data=copy.deepcopy(rows[2]["data"])),
+            "wrong emitter":lambda rows:rows[3].update(from_address="0x999"),
+            "wrong message":lambda rows:rows[3].update(data=words(99)+["0x1"]),
+            "missing DispatchId":lambda rows:rows.pop(1),
+            "repeated DispatchId":lambda rows:rows.append(copy.deepcopy(rows[1])),
+            "global sequence gap":lambda rows:rows[3].update(data=rows[3]["data"][:2]+["0x14"]),
+        }
+        for name,change in changes.items():
+            session=MemorySession();first=next(iter(session.receipts.values()));change(first["events"])
+            with self.subTest(name=name),self.assertRaises(ValueError):api.Adapter({"scenario":"starknet"},case()).collect(session,10,"initial")
 
     def test_collection_rejects_noncanonical_receipts_repeated_ids_and_foreign_calls(self):
         def bad_receipt(s): next(iter(s.receipts.values()))["block_hash"] = "0x999"
@@ -366,7 +389,7 @@ class PureTests(unittest.TestCase):
             for row in result:
                 for obj in row["published_bytes"]:
                     raw=pathlib.Path(obj["path"]).read_bytes();self.assertEqual(obj["bytes"],len(raw));self.assertEqual(obj["sha256"],hashlib.sha256(raw).hexdigest())
-            path=pathlib.Path(root)/session.names[0]/"9_with_id.json";original=path.read_text();bad=json.loads(original);bad["value"]["checkpoint"]["merkle_tree_hook_address"]=api.full("0x99");path.write_text(json.dumps(bad))
+            path=pathlib.Path(root)/session.names[0]/"19_with_id.json";original=path.read_text();bad=json.loads(original);bad["value"]["checkpoint"]["merkle_tree_hook_address"]=api.full("0x99");path.write_text(json.dumps(bad))
             with mock.patch.object(api,"recover_signature",return_value="0x"+"11"*20),self.assertRaises(ValueError):adapter.checkpoints(session,snapshot)
             path.write_text(original)
             with mock.patch.object(api,"recover_signature",return_value="0x"+"22"*20),self.assertRaises(ValueError):adapter.checkpoints(session,snapshot)
@@ -379,11 +402,11 @@ class PureTests(unittest.TestCase):
             queries.append((name,sql))
             if "FROM message m" in sql:
                 message=next(row for row in snapshot["messages"] if row["id"][2:] in sql)
-                return f'1|0|0|0|{message["nonce"]}'
+                return f'1|0|0|0|{2 * message["nonce"]},{2 * message["nonce"] + 1}'
             return "1"
         session.query_sql=query
         result=adapter.sql(session,snapshot)
-        self.assertEqual(len(result),10);self.assertEqual(len(queries),50)
+        self.assertEqual(len(result),10);self.assertEqual(len(queries),60)
         self.assertEqual({name for name,_ in queries},set(session.names))
         self.assertTrue(all('JOIN "transaction"' in sql and "decode(" in sql for _,sql in queries))
         session.query_sql=lambda name,sql:query(name,sql) if "FROM message m" in sql else "0"
@@ -438,12 +461,13 @@ class PureTests(unittest.TestCase):
                     nonce=message["nonce"];is_delivery=kind=="delivery";name=session.names[int(is_delivery)];block_height=3 if is_delivery else 2
                     tx_index=int(nonce>=4) if is_delivery else nonce;identity=api.full(hex(2000+tx_index if is_delivery else 1000+nonce));event_index=(nonce if nonce<4 else nonce-4) if is_delivery else (2 if kind=="insertion" else 0)
                     address="0x4" if kind=="insertion" else ("0x3" if is_delivery else "0x2")
-                    database.execute(f'INSERT INTO {table} VALUES(?,?,?,?,?,?,?,?)',(session.chains[name]["domainid"],bytes.fromhex(message["id"][2:]),bytes.fromhex(api.full(session.block(name,block_height)["block_hash"])[2:]),block_height,bytes.fromhex(identity[2:]),tx_index,event_index,bytes.fromhex(api.full(address)[26:])))
+                    for exact_index in ([2,3] if kind=="insertion" else [event_index]):
+                        database.execute(f'INSERT INTO {table} VALUES(?,?,?,?,?,?,?,?)',(session.chains[name]["domainid"],bytes.fromhex(message["id"][2:]),bytes.fromhex(api.full(session.block(name,block_height)["block_hash"])[2:]),block_height,bytes.fromhex(identity[2:]),tx_index,exact_index,bytes.fromhex(api.full(address)[26:])))
             def query(name,text):
                 if " e JOIN " in text:return str(database.execute(text).fetchone()[0])
                 if "FROM message m" in text:
                     message=next(row for row in session.messages if row["id"][2:] in text)
-                    return f'1|0|0|0|{message["nonce"]}'
+                    return f'1|0|0|0|{2 * message["nonce"]},{2 * message["nonce"] + 1}'
                 return "1"
             session.query_sql=query
             self.assertEqual(len(adapter.sql(session,snapshot)),10)

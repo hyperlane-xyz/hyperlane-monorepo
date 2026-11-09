@@ -988,8 +988,11 @@ class Session:
         if not any(record.get("chain")==row["chain"] and record.get("endpoint_field")==row["field"] and record.get("upstream")==row["healthy_fallback"] for row in definitions):return
         # Called AFTER the unchanged family observer accepts the parsed wire.
         request,response=record.get("request"),record.get("response")
-        if not isinstance(request,dict) or not isinstance(response,dict) or response.get("jsonrpc")!="2.0" or request.get("jsonrpc")!="2.0" or "error" in response or "result" not in response:return
-        if type(request.get("id")) not in (int,str) or type(response.get("id")) is not type(request["id"]) or response["id"]!=request["id"] or not isinstance(request.get("method"),str) or not request["method"].startswith("starknet_"):return
+        if not successful_json_rpc_exchange(request,response):return
+        requests=request if isinstance(request,list)else[request]
+        responses=response if isinstance(response,list)else[response]
+        by_id={(type(row["id"]),row["id"]):row for row in responses}
+        if not any(row["method"].startswith("starknet_") and "result" in by_id[type(row["id"]),row["id"]] for row in requests):return
         received=record["received_monotonic_ns"];require(type(received) is int and received>0,"actual Starknet healthy fallback receive clock required")
         key=(record["role"],record["chain"],record["endpoint_field"],record["upstream"])
         self.starknet_healthy_rpc_fallbacks[key]=max(received,self.starknet_healthy_rpc_fallbacks.get(key,0))
@@ -1226,6 +1229,12 @@ class Session:
         final = [row for row in rows if row.get("purpose") == purpose]
         initial_count = self.initial["capture_count"]
         configured = Counter(row["original"]["role"] for row in self.captures[:initial_count])
+        retired = [row for row in rows if row.get("purpose") == "intentional_reorg"]
+        if retired or self.manifest["scenario"] == "evm" and purpose == "final":
+            require(self.manifest["scenario"] == "evm" and len(retired) == 1 and retired[0].get("role") == "validator", "Source EVM reorg must retire exactly one validator")
+            if purpose == "final":
+                require(configured["validator"] > 1, "Source EVM reorg cannot remove every validator")
+                configured.subtract({"validator": 1})
         # The Source composite scenario configures no scraper. Other scenarios
         # still require all three roles, including every configured validator.
         expected_roles = {"relayer", "validator"} if self.manifest["scenario"] == "sealevel-composite" else {"relayer", "validator", "scraper"}

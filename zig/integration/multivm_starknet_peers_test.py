@@ -13,6 +13,7 @@ try:
     sys.path.insert(0,str(Path(__file__).resolve().parent))
     import multivm_evidence as evidence
     import multivm_session as sessions
+    import multivm_starknet as stark
 finally:
     sys.path[:]=saved_path
 
@@ -130,6 +131,39 @@ class StarknetPeerTests(unittest.TestCase):
         value.captures.append({'captured_monotonic_ns':200,'original':value.captures[0]['original']})
         with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
         value.record_starknet_rpc_recovery(self.healthy(220));value.record_starknet_rpc_recovery(self.healthy(150));value.require_starknet_peer_recovery()
+
+    def healthy_batch(self, clock=120):
+        record=self.healthy(clock)
+        record["request"]=[record["request"], {"jsonrpc":"2.0","id":"12","method":"starknet_blockNumber","params":[]}]
+        record["response"]=[{"jsonrpc":"2.0","id":"12","error":{"code":-32000,"message":"synthetic pending"}}, record["response"]]
+        return record
+
+    def test_actual_session_observe_matched_mixed_batch_recovers_without_positive_receipt_credit(self):
+        value=self.session();value.failure(self.notice());record=self.healthy_batch()
+        value.family=stark.Adapter(value.manifest,value.case);value.activity={};value.successful_activity={}
+        request={"json":record["request"],"wire":sessions.json.dumps(record["request"]).encode(),"requested_monotonic_ns":115,"start":"POST / HTTP/1.1"};response={"wire":sessions.json.dumps(record["response"]).encode()}
+        with mock.patch.object(sessions.multivm_diagnostics,"note_success"):
+            value.observe(record["chain"],record["role"],record["endpoint_field"],record["upstream"],request,record["response"],200,120,response)
+        value.require_starknet_peer_recovery();self.assertEqual(value.lifecycle.first,{})
+        self.assertEqual(value.family.receipt_members,{});self.assertEqual(value.failures,[])
+
+    def test_batch_recovery_rejects_unmatched_duplicate_typed_error_only_or_foreign_success(self):
+        changes=[lambda r:r["response"].pop(),lambda r:r["response"][0].update(id=13),lambda r:r["request"][0].update(id=True),lambda r:r["response"][1].update(id="12"),lambda r:r["response"][1].update(jsonrpc="1.0"),lambda r:r["response"][1].update(error={"code":-1,"message":"error plus result"}),lambda r:r["response"][1].pop("result"),lambda r:r["request"][0].update(method="foreign_method"),lambda r:r.update(status=500),lambda r:r.update(upstream="http://127.0.0.1:5070"),lambda r:r.update(role="validator")]
+        for change in changes:
+            value=self.session();value.failure(self.notice());record=self.healthy_batch();change(record)
+            value.record_starknet_rpc_recovery(record)
+            with self.assertRaisesRegex(ValueError,"no fresh actual healthy fallback"):value.require_starknet_peer_recovery()
+            self.assertEqual(value.lifecycle.first,{})
+
+    def test_batch_recovery_preserves_notice_and_new_capture_freshness(self):
+        value=self.session();value.failure(self.notice());value.record_starknet_rpc_recovery(self.healthy_batch());value.require_starknet_peer_recovery()
+        value.failure(self.notice(130))
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy_batch(140));value.require_starknet_peer_recovery()
+        value.captures.append({"captured_monotonic_ns":200,"original":value.captures[0]["original"]})
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy_batch(220));value.record_starknet_rpc_recovery(self.healthy_batch(150));value.require_starknet_peer_recovery()
+        self.assertEqual(value.lifecycle.first,{})
 
     def test_cross_case_or_positive_receipt_notice_rejects(self):
         for change in [lambda row:row.update(positive_receipt_credit=True),lambda row:row.update(error_type='TimeoutError'),lambda row:row['context'].update(case_inputs_sha256='b'*64),lambda row:row['context'].update(phase='response_parse')]:

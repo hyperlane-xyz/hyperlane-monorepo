@@ -1302,19 +1302,58 @@ class ParentWaitTests(unittest.TestCase):
                 with self.subTest(mutation=mutate), self.assertRaises(ValueError):
                     session.role_launch_epochs(changed)
 
+    def evm_retired_fixture(self, root):
+        session, _, _ = self.fixture(root, "evm")
+        roles = ["relayer", "validator", "validator", "validator", "scraper"]
+        captured = roles + roles + ["relayer"]
+        session.initial = {"capture_count": len(roles)}
+        session.captures = [{"original": {"role": role}} for role in captured]
+        launches, exits = [], []
+        for ordinal, role in enumerate(captured):
+            launch = {"pid": ordinal + 100, "parent_pid": 90, "role": role, "executable": session.manifest["artifacts"][role], "os_start_token": "actual-start-" + str(ordinal)}
+            purpose = "same_db_restart" if ordinal < 5 else "intentional_restart" if ordinal == 5 else "intentional_reorg" if ordinal == 7 else "final"
+            planned = purpose.startswith("intentional_")
+            launches.append(launch)
+            exits.append(dict(launch, purpose=purpose, parent_wait_completed=True, success=not planned, already_exited=False, forced_kill=False, exit_code=None if planned else 0, signal=9 if planned else None, planned_exit=planned))
+        return session, launches, exits
+
     def test_intentional_source_kill_has_separate_planned_nonclean_receipt(self):
         with tempfile.TemporaryDirectory(prefix="ziggy-parent-wait-planned-") as directory:
-            session, launches, exits = self.fixture(pathlib.Path(directory), "evm")
-            launch = dict(launches[0], pid=999, os_start_token="extra-original-relayer")
-            launches.append(launch)
-            session.captures.append({"original": {"role": "relayer"}})
-            exits.append(dict(launch, purpose="intentional_reorg", parent_wait_completed=True, success=False, already_exited=False, forced_kill=False, exit_code=None, signal=9, planned_exit=True))
+            session, launches, exits = self.evm_retired_fixture(pathlib.Path(directory))
             self.write(session, launches, exits)
             self.assertEqual(session.parent_wait_proofs(), exits)
-            exits[-1]["planned_exit"] = False
+            next(row for row in exits if row["purpose"] == "intentional_reorg")["planned_exit"] = False
             self.write(session, launches, exits)
             with self.assertRaisesRegex(ValueError, "planned parent kill/wait"):
                 session.parent_wait_proofs()
+
+    def test_evm_final_census_accounts_only_actual_planned_validator_retirement(self):
+        with tempfile.TemporaryDirectory(prefix="ziggy-evm-final-census-") as directory:
+            session, launches, exits = self.evm_retired_fixture(pathlib.Path(directory))
+            self.write(session, launches, exits)
+            self.assertEqual(session.parent_wait_proofs(), exits)
+            self.assertEqual(session.parent_wait_proofs("same_db_restart"), exits)
+            self.assertEqual(len(exits), 11)
+            self.assertEqual(sum(row["purpose"] == "final" for row in exits), 4)
+            self.assertEqual(sum(row["purpose"] == "same_db_restart" for row in exits), 5)
+
+    def test_evm_missing_foreign_duplicate_or_unplanned_retirement_cannot_change_final_census(self):
+        changes = {
+            "missing retirement": lambda s, l, e: next(row for row in e if row["purpose"] == "intentional_reorg").update(purpose="final", success=True, exit_code=0, signal=None),
+            "wrong role": lambda s, l, e: next(row for row in e if row["purpose"] == "intentional_reorg").update(role="relayer"),
+            "foreign family": lambda s, l, e: s.manifest.update(scenario="tron"),
+            "missing final": lambda s, l, e: e.pop(),
+            "duplicate retirement": lambda s, l, e: e.append(copy.deepcopy(next(row for row in e if row["purpose"] == "intentional_reorg"))),
+            "unplanned": lambda s, l, e: next(row for row in e if row["purpose"] == "intentional_reorg").update(planned_exit=False),
+            "wrong signal": lambda s, l, e: next(row for row in e if row["purpose"] == "intentional_reorg").update(signal=15),
+            "wrong epoch": lambda s, l, e: next(row for row in e if row["purpose"] == "intentional_reorg").update(os_start_token="foreign"),
+            "changed executable": lambda s, l, e: next(row for row in e if row["purpose"] == "intentional_reorg").update(executable={"path":"/foreign","bytes":1,"sha256":"b"*64}),
+        }
+        for name, change in changes.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory(prefix="ziggy-evm-retirement-negative-") as directory:
+                session, launches, exits = self.evm_retired_fixture(pathlib.Path(directory))
+                change(session, launches, exits);self.write(session, launches, exits)
+                with self.assertRaises(ValueError):session.parent_wait_proofs()
 
 
 class CheckpointPublicationTests(unittest.TestCase):

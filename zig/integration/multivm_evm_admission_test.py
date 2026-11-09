@@ -7,11 +7,18 @@ import importlib.util
 import pathlib
 import unittest
 from unittest import mock
+import multivm_runtime_test as runtime_controls
 
 HERE = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("multivm_evm_admission", HERE / "multivm_process.py")
 api = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(api)
+
+
+# This existing CI entrypoint discovers only the pure parent-wait class, not
+# RuntimeTests or the explicit-loopback transport classes in its module.
+class EvmSourceParentWaitTests(runtime_controls.ParentWaitTests):
+    pass
 
 
 class EvmAdmission(unittest.TestCase):

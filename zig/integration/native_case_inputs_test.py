@@ -109,6 +109,12 @@ class HelperCpuAdmissionDiagnosticControls(unittest.TestCase):
   for available in [['PRIVATE\nvalue'],['/private/path'],[1],[],['x']*513]:
    with self.assertRaises(ValueError):m.helper_cpu_admission_diagnostic(['avx2'],available)
 
+class StarknetSourceProfileControls(unittest.TestCase):
+ def test_starknet_two_same_merkle_hooks_are_honest_double_insertion_corpus(self):
+  profile=m.public_profile('starknet');self.assertEqual(profile['initial_corpus'],{'dispatches':10,'deliveries':10,'zero_insertions':0,'failed_body':0,'double_insertions':10})
+  self.assertFalse(profile['payments_supported']);self.assertEqual(profile['additional_refused_dispatches'],0)
+  self.assertEqual(m.public_profile('evm')['initial_corpus'],{'dispatches':31,'deliveries':20,'zero_insertions':10,'failed_body':1,'double_insertions':10})
+
 class IsolatedImports(unittest.TestCase):
  def test_real_consumer_modules_load_under_isolated_python_with_path_restored(self):
   import sys

@@ -254,7 +254,7 @@ class Adapter:
         require(self.manifest.get("scenario") == "starknet", "wrong Starknet scenario")
         require(len(self.case["chain_names"]) == 2 and len(set(self.case["chain_names"])) == 2, "Source two-node scenario required")
         require(set(self.case["domain_names"].values()) == set(self.case["chain_names"]) and {int(v) for v in self.case["domain_names"]} == DOMAINS, "Source Starknet domain set differs")
-        require(self.case["initial_corpus"] == {"dispatches": 10, "deliveries": 10, "failed_body": 0, "zero_insertions": 0, "double_insertions": 0}, "Source Starknet workload differs")
+        require(self.case["initial_corpus"] == {"dispatches": 10, "deliveries": 10, "failed_body": 0, "zero_insertions": 0, "double_insertions": 10}, "Source Starknet workload differs")
         require(self.case.get("additional_refused_dispatches", 0) == 0, "Source Starknet has no extra reorg dispatch corpus")
         require(set(self.case["relayer_addresses"]) == set(self.case["chain_names"]) and all(full(v) == full(ACCOUNT) for v in self.case["relayer_addresses"].values()), "Source actual public Stark account differs")
         require(set(self.case["validator_addresses"]) == set(self.case["chain_names"]), "expected checkpoint validators missing")
@@ -453,11 +453,11 @@ class Adapter:
                         if leaf == message["id"]:
                             insertions.append(index)
                             insertion_metadata.append(self._event_metadata(name, chain, proof, event_index, row))
-                require(dispatch_ids.count(message["id"]) == 1 and len(insertions) == 1, "canonical DispatchId/insertion missing or repeated")
+                require(dispatch_ids.count(message["id"]) == 1 and len(insertions) == len(set(insertions)) == 2, "canonical DispatchId/two distinct insertions missing or repeated")
                 message.update(origin_chain=name, dispatch_transaction=identity, dispatch_block=event["block_number"], dispatch_log_index=matched[0][0], dispatch_metadata=self._event_metadata(name, chain, proof, matched[0][0], proof["receipt"]["events"][matched[0][0]]), insertions=insertions, insertion_metadata=insertion_metadata, payments=[], payment_metadata=[])
                 messages.append(message)
         require(len(messages) == 10 and len({row["id"] for row in messages}) == 10 and all(row["origin"] == min(DOMAINS) and row["destination"] == max(DOMAINS) for row in messages), "Source one-way dispatch corpus differs")
-        require(sorted(row["nonce"] for row in messages) == list(range(10)) and sorted(index for row in messages for index in row["insertions"]) == list(range(10)), "Source dispatch/insertion stream differs")
+        require(sorted(row["nonce"] for row in messages) == list(range(10)) and sorted(index for row in messages for index in row["insertions"]) == list(range(20)), "Source dispatch/insertion stream differs")
         delivered_by_id, transactions = {}, []
         for name, chain in chains.items():
             height = self._height(session, name, chain)
