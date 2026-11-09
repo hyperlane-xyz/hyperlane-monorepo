@@ -614,6 +614,11 @@ NATIVE_REQUIRED = (
     'scraper ordinary head source errors retry past grace and healthy head clears critical health',
     'scraper partial head publication retains counters and critical health until genuine recovery',
     'scraper explicit published reorg and critical invariant errors still halt all lanes',
+    'Radix gas event scales gas whole units retains payment attos and validates emitter',
+    'Radix gas resource Reference rejects String wrong kind and schema name',
+    'scraper head publishes raw dispatch without claiming enriched messages',
+    'scraper reconciliation publishes committed rows excluding failed insertions and replay',
+    'scraper committed dispatch survives metric refusal without duplicate insertion or synthetic recount',
 )
 
 

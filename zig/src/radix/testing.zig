@@ -202,11 +202,36 @@ test "Radix gas event scales gas whole units retains payment attos and validates
     const component = (try bytes(allocator, try json.string(try json.field(fixture, "component"))))[0..30].*;
     var text: [160]u8 = undefined;
     const encoded = try address.encode(.mainnet, "component", &component, &text);
-    const data = try std.fmt.allocPrint(allocator, "{{\"name\":\"GasPayment\",\"emitter\":{{\"type\":\"Method\",\"entity\":{{\"entity_address\":\"{s}\"}}}},\"data\":{{\"kind\":\"Tuple\",\"type_name\":\"GasPayment\",\"fields\":[{{\"kind\":\"Bytes\",\"hex\":\"{s}\"}},{{\"kind\":\"U32\",\"value\":\"2000\"}},{{\"kind\":\"Decimal\",\"value\":\"150000.99\"}},{{\"kind\":\"Decimal\",\"value\":\"0.25\"}},{{\"kind\":\"String\",\"value\":\"resource_rdx_fixture\"}},{{\"kind\":\"U32\",\"value\":\"3\"}}]}}}}", .{ encoded, "11" ** 32 });
+    const data = try std.fmt.allocPrint(allocator, "{{\"name\":\"GasPayment\",\"emitter\":{{\"type\":\"Method\",\"entity\":{{\"entity_address\":\"{s}\"}}}},\"data\":{{\"kind\":\"Tuple\",\"type_name\":\"GasPayment\",\"fields\":[{{\"kind\":\"Bytes\",\"hex\":\"{s}\"}},{{\"kind\":\"U32\",\"value\":\"2000\"}},{{\"kind\":\"Decimal\",\"value\":\"150000.99\"}},{{\"kind\":\"Decimal\",\"value\":\"0.25\"}},{{\"kind\":\"Reference\",\"value\":\"resource_rdx_fixture\"}},{{\"kind\":\"U32\",\"value\":\"3\"}}]}}}}", .{ encoded, "11" ** 32 });
     const parsed = (try std.json.parseFromSlice(std.json.Value, allocator, data, .{})).value;
     var event = (try events.parse(std.testing.allocator, .mainnet, component, parsed)).?;
     defer event.deinit();
     try std.testing.expectEqual(@as(u256, 150000), event.event.gas_payment.gas_amount);
     try std.testing.expectEqual(@as(u256, 250000000000000000), event.event.gas_payment.payment);
+    try std.testing.expectEqualStrings("resource_rdx_fixture", event.event.gas_payment.resource);
+    try std.testing.expectEqual(@as(u32, 2000), event.event.gas_payment.destination);
+    try std.testing.expectEqual(@as(u32, 3), event.event.gas_payment.sequence);
     try std.testing.expectEqual(@as(?events.Parsed, null), try events.parse(std.testing.allocator, .mainnet, .{0} ** 30, parsed));
+}
+
+test "Radix gas resource Reference rejects String wrong kind and schema name" {
+    const events = @import("events.zig");
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const fixture = (try @import("../testing/fixture.zig").parse(std.json.Value, allocator, @embedFile("fixtures/sdk.json.gz"), .{})).value;
+    const component = (try bytes(allocator, try json.string(try json.field(fixture, "component"))))[0..30].*;
+    var text: [160]u8 = undefined;
+    const encoded = try address.encode(.mainnet, "component", &component, &text);
+    const rejected = [_]struct { kind: []const u8, field_name: []const u8, expected: anyerror }{
+        .{ .kind = "String", .field_name = "resource_address", .expected = error.WrongRadixEventFieldKind },
+        .{ .kind = "Bytes", .field_name = "resource_address", .expected = error.WrongRadixEventFieldKind },
+        .{ .kind = "Decimal", .field_name = "resource_address", .expected = error.WrongRadixEventFieldKind },
+        .{ .kind = "Reference", .field_name = "other_resource", .expected = error.WrongRadixEventSchema },
+    };
+    for (rejected) |item| {
+        const data = try std.fmt.allocPrint(allocator, "{{\"name\":\"GasPayment\",\"emitter\":{{\"type\":\"Method\",\"entity\":{{\"entity_address\":\"{s}\"}}}},\"data\":{{\"kind\":\"Tuple\",\"type_name\":\"GasPayment\",\"fields\":[{{\"kind\":\"Bytes\",\"hex\":\"{s}\"}},{{\"kind\":\"U32\",\"value\":\"2000\"}},{{\"kind\":\"Decimal\",\"value\":\"150000.99\"}},{{\"kind\":\"Decimal\",\"value\":\"0.25\"}},{{\"kind\":\"{s}\",\"field_name\":\"{s}\",\"value\":\"resource_rdx_fixture\"}},{{\"kind\":\"U32\",\"value\":\"3\"}}]}}}}", .{ encoded, "11" ** 32, item.kind, item.field_name });
+        const parsed = (try std.json.parseFromSlice(std.json.Value, allocator, data, .{})).value;
+        try std.testing.expectError(item.expected, events.parse(allocator, .mainnet, component, parsed));
+    }
 }

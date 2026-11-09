@@ -103,7 +103,7 @@ pub fn parse(allocator: std.mem.Allocator, network: address.Network, contract: [
         3 => blk: {
             const gas = try decimalAttos(try json.string(try json.field(try eventField(fields, 2, "Decimal", "gas_amount"), "value")));
             const payment = try decimalAttos(try json.string(try json.field(try eventField(fields, 3, "Decimal", "payment"), "value")));
-            break :blk .{ .gas_payment = .{ .id = try hashField(alloc, fields, 0, "message_id"), .destination = try u32Field(fields, 1, "destination_domain"), .gas_amount = if (gas < 0) 0 else @as(u192, @intCast(gas)) / 1000000000000000000, .payment = if (payment < 0) 0 else @intCast(payment), .resource = try alloc.dupe(u8, try json.string(try json.field(try eventField(fields, 4, "String", "resource_address"), "value"))), .sequence = try u32Field(fields, 5, "sequence") } };
+            break :blk .{ .gas_payment = .{ .id = try hashField(alloc, fields, 0, "message_id"), .destination = try u32Field(fields, 1, "destination_domain"), .gas_amount = if (gas < 0) 0 else @as(u192, @intCast(gas)) / 1000000000000000000, .payment = if (payment < 0) 0 else @intCast(payment), .resource = try alloc.dupe(u8, try json.string(try json.field(try eventField(fields, 4, "Reference", "resource_address"), "value"))), .sequence = try u32Field(fields, 5, "sequence") } };
         },
     };
     return .{ .arena = arena, .event = event };

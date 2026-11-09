@@ -83,6 +83,7 @@ test {
     _ = @import("configured_svm_unavailable_tests.zig");
     _ = @import("starknet_chain_id_tests.zig");
     _ = @import("starknet/testing.zig");
+    _ = @import("radix/testing.zig");
     _ = @import("svm_scraper_log_index_tests.zig");
     _ = @import("cosmos_compat_default_tests.zig");
 }

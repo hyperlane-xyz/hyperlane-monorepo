@@ -193,9 +193,12 @@ const Lane = struct {
         if (update.critical or source_critical) self.chain.critical.record(self.criticalReason());
         const names = [_][]const u8{ "message_dispatch", "message_delivery", "gas_payment", "merkle_tree_insertion" };
         var work: u64 = 0;
-        for (result.published, names) |count, name| {
+        for (result.published, names, 0..) |count, name, index| {
             work +|= count;
-            try self.metric("hyperlane_contract_sync_stored_events", &.{ name, self.chain.configured.name }, .{ .add_int = count });
+            // Confirmation publishes raw rows before receipt enrichment. Keep
+            // its counter separate from newly inserted reconciled messages.
+            const stored_name = if (index == 0) "raw_message_dispatch" else name;
+            try self.metric("hyperlane_contract_sync_stored_events", &.{ stored_name, self.chain.configured.name }, .{ .add_int = count });
             try self.metric("hyperlane_contract_sync_block_height", &.{ name, self.chain.configured.name }, .{ .set_int = std.math.cast(i64, result.indexed) orelse std.math.maxInt(i64) });
         }
         return .{ .work = work, .next_delay_ms = update.delay_ms };
@@ -301,7 +304,7 @@ const Lane = struct {
         defer db.deinit();
         const elapsed = ((try pg.nowNs()) -| retained.started_ns) / std.time.ns_per_ms;
         const completed_seconds = std.math.cast(i64, (retained.times.unix_ms +| elapsed) / 1000) orelse return error.InvalidClock;
-        const result = try reconcile.finish(db.store, self.chain.configured.contracts.mailbox, &retained.plan, &self.backoff, completed_seconds);
+        const result = try self.finishReconciledPage(db.store, &retained.plan, completed_seconds);
         const completed_now = retained.times.monotonic_ms +| elapsed;
         switch (retained.selected) {
             .retry => {},
@@ -314,6 +317,14 @@ const Lane = struct {
         retained.plan.deinit();
         self.reconcile_page = null;
         return .{ .work = result.stored_count, .next_delay_ms = self.schedule.?.nextDelay(completed_now, self.backoff.nextDelay(completed_seconds)) };
+    }
+    fn finishReconciledPage(self: *Lane, store: anytype, plan: *reconcile.Plan, completed_seconds: i64) !reconcile.PageResult {
+        const result = try reconcile.finish(store, self.chain.configured.contracts.mailbox, plan, &self.backoff, completed_seconds);
+        // storeMessages returns only new rows after its successful transaction
+        // commit. Publish before later fallible schedule/telemetry bookkeeping;
+        // retries/upsert updates and failed commits are not additional messages.
+        try self.metric("hyperlane_contract_sync_stored_events", &.{ "message_dispatch_reconciled", self.chain.configured.name }, .{ .add_int = result.stored_count });
+        return result;
     }
     fn sameChain(self: *Lane, _: supervisor.Times, io: pg.IoOptions) !supervisor.Report {
         if (self.ccr_page != null) return self.completeSameChain(io);
@@ -586,15 +597,21 @@ test "scraper head control and allocation errors cannot create or reset source f
 }
 
 fn headTestMetric(registry: *metrics.Registry, name: []const u8) !u64 {
+    const data_type = if (std.mem.eql(u8, name, "hyperlane_contract_sync_stored_events{")) "raw_message_dispatch" else "message_dispatch";
+    return (try publicationTestMetric(registry, name, data_type)) orelse error.MissingHeadPublicationMetric;
+}
+fn publicationTestMetric(registry: *metrics.Registry, name: []const u8, data_type: []const u8) !?u64 {
     const text = try registry.render(std.testing.allocator);
     defer std.testing.allocator.free(text);
+    var label_buffer: [128]u8 = undefined;
+    const label = try std.fmt.bufPrint(&label_buffer, "data_type=\"{s}\"", .{data_type});
     var lines = std.mem.splitScalar(u8, text, '\n');
     while (lines.next()) |line| {
-        if (!std.mem.startsWith(u8, line, name) or std.mem.indexOf(u8, line, "data_type=\"message_dispatch\"") == null) continue;
+        if (!std.mem.startsWith(u8, line, name) or std.mem.indexOf(u8, line, label) == null) continue;
         const at = std.mem.lastIndexOfScalar(u8, line, ' ') orelse return error.InvalidSample;
-        return std.fmt.parseInt(u64, line[at + 1 ..], 10);
+        return try std.fmt.parseInt(u64, line[at + 1 ..], 10);
     }
-    return error.MissingHeadPublicationMetric;
+    return null;
 }
 fn headTestOutcome(failed: bool) runtime.Outcome {
     return .{ .more = false, .ingestion_failed = failed, .ingestion_error = if (failed) error.SvmBlockUnavailable else null, .indexed = 10, .confirmed = 9, .published = if (failed) .{ 2, 3, 4, 5 } else .{0} ** 4 };
@@ -669,4 +686,113 @@ test "scraper explicit published reorg and critical invariant errors still halt 
         try std.testing.expectEqual(supervisor.FailureAction.halt_all, TaskSet.classify(failure));
         try std.testing.expect(chain.critical.reasons != 0);
     }
+}
+
+const ReconciledMetricStore = struct {
+    committed: [2]bool = .{ false, true },
+    fail_commit: bool = false,
+    pub fn knownTransaction(_: *@This(), _: enrich.Meta) !?i64 {
+        return 1;
+    }
+    pub fn storeMessages(self: *@This(), _: src.Hash, messages: []const storage.Storable) !u64 {
+        if (self.fail_commit) return error.InjectedScraperCommitFailure;
+        var next = self.committed;
+        var inserted: u64 = 0;
+        for (messages) |row| {
+            const index = std.math.cast(usize, row.message.nonce -| 1) orelse return error.InvalidFixtureNonce;
+            if (row.message.nonce == 0 or index >= next.len) return error.InvalidFixtureNonce;
+            if (!next[index]) inserted += 1;
+            next[index] = true;
+        }
+        self.committed = next;
+        return inserted;
+    }
+};
+fn reconciledMetricRows() [2]storage.RawDispatch {
+    var rows: [2]storage.RawDispatch = undefined;
+    for (&rows, 0..) |*row, index| {
+        const message: @import("../../protocol/root.zig").Message = .{ .nonce = @intCast(index + 1), .origin = 1, .destination = 2, .body = "fixture" };
+        row.* = .{ .id = @intCast(index + 1), .created_seconds = 0, .message_id = message.id(), .message = message, .meta = .{ .block_number = 1, .block_hash = .{3} ** 32, .tx_hash = .{4} ** 64 } };
+    }
+    return rows;
+}
+test "scraper head publishes raw dispatch without claiming enriched messages" {
+    const a = std.testing.allocator;
+    const registry = try metrics.Registry.init(a, .scraper, .{ .base_version = "fixture" });
+    defer registry.deinit();
+    var configured: types.Chain = undefined;
+    configured.name = "dispatch-publication-fixture";
+    configured.contracts.mailbox = .{1} ** 32;
+    var chain: Chain = .{ .configured = &configured, .writer = undefined, .routers = undefined };
+    var owner: TaskSet = undefined;
+    owner.options = .{ .curl_library = "unused", .metrics = registry };
+    var native: service.Native = undefined;
+    native.worker = .{ .allocator = a, .source = undefined, .store = undefined, .options = .{ .period = .{ .blocks = 0 }, .chunk_size = 1 } };
+    var pooled: service.Pooled = undefined;
+    pooled.native = &native;
+    var lane: Lane = .{ .owner = &owner, .chain = &chain, .kind = .head, .head_service = &pooled, .backoff = .{ .allocator = a } };
+    defer lane.backoff.deinit();
+    const published: runtime.Outcome = .{ .more = false, .ingestion_failed = false, .indexed = 10, .confirmed = 9, .published = .{ 2, 3, 4, 5 } };
+    try std.testing.expectEqual(@as(u64, 14), (try lane.headReport(published, 0)).work);
+    try std.testing.expectEqual(@as(?u64, 2), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "raw_message_dispatch"));
+    try std.testing.expectEqual(@as(?u64, null), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch"));
+    try std.testing.expectEqual(@as(?u64, null), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch_reconciled"));
+    try std.testing.expectEqual(@as(?u64, 10), try publicationTestMetric(registry, "hyperlane_contract_sync_block_height{", "message_dispatch"));
+    var zero = published;
+    zero.published = .{0} ** 4;
+    try std.testing.expectEqual(@as(u64, 0), (try lane.headReport(zero, 1)).work);
+    try std.testing.expectEqual(@as(?u64, 2), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "raw_message_dispatch"));
+}
+test "scraper reconciliation publishes committed rows excluding failed insertions and replay" {
+    const a = std.testing.allocator;
+    const registry = try metrics.Registry.init(a, .scraper, .{ .base_version = "fixture" });
+    defer registry.deinit();
+    var configured: types.Chain = undefined;
+    configured.name = "failed-dispatch-fixture";
+    configured.contracts.mailbox = .{1} ** 32;
+    var chain: Chain = .{ .configured = &configured, .writer = undefined, .routers = undefined };
+    var owner: TaskSet = undefined;
+    owner.options = .{ .curl_library = "unused", .metrics = registry };
+    var lane: Lane = .{ .owner = &owner, .chain = &chain, .kind = .reconciliation, .backoff = .{ .allocator = a } };
+    defer lane.backoff.deinit();
+    const rows = reconciledMetricRows();
+    var plan: reconcile.Plan = .{ .arena = std.heap.ArenaAllocator.init(a), .rows = &rows, .eligible = &.{ true, true }, .requests = &.{} };
+    defer plan.deinit();
+    var store: ReconciledMetricStore = .{ .fail_commit = true };
+    try std.testing.expectError(error.InjectedScraperCommitFailure, lane.finishReconciledPage(&store, &plan, 0));
+    try std.testing.expect(!store.committed[0]);
+    try std.testing.expectEqual(@as(?u64, null), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch_reconciled"));
+    store.fail_commit = false;
+    const first = try lane.finishReconciledPage(&store, &plan, 1);
+    try std.testing.expectEqual(@as(usize, 2), first.attempted_count);
+    try std.testing.expectEqual(@as(u64, 1), first.stored_count);
+    try std.testing.expectEqual(@as(?u64, 1), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch_reconciled"));
+    try std.testing.expectEqual(@as(u64, 0), (try lane.finishReconciledPage(&store, &plan, 2)).stored_count);
+    try std.testing.expectEqual(@as(?u64, 1), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch_reconciled"));
+    try std.testing.expectEqual(@as(?u64, null), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "raw_message_dispatch"));
+}
+test "scraper committed dispatch survives metric refusal without duplicate insertion or synthetic recount" {
+    const a = std.testing.allocator;
+    const registry = try metrics.Registry.init(a, .scraper, .{ .base_version = "fixture", .max_series = 1 });
+    defer registry.deinit();
+    try registry.update("hyperlane_contract_sync_stored_events", &.{ "raw_message_dispatch", "bounded-dispatch-fixture" }, .{ .add_int = 2 });
+    var configured: types.Chain = undefined;
+    configured.name = "bounded-dispatch-fixture";
+    configured.contracts.mailbox = .{1} ** 32;
+    var chain: Chain = .{ .configured = &configured, .writer = undefined, .routers = undefined };
+    var owner: TaskSet = undefined;
+    owner.options = .{ .curl_library = "unused", .metrics = registry };
+    var lane: Lane = .{ .owner = &owner, .chain = &chain, .kind = .reconciliation, .backoff = .{ .allocator = a } };
+    defer lane.backoff.deinit();
+    const rows = reconciledMetricRows();
+    var plan: reconcile.Plan = .{ .arena = std.heap.ArenaAllocator.init(a), .rows = &rows, .eligible = &.{ true, true }, .requests = &.{} };
+    defer plan.deinit();
+    var store: ReconciledMetricStore = .{};
+    try std.testing.expectError(error.MetricSeriesLimit, lane.finishReconciledPage(&store, &plan, 0));
+    try std.testing.expect(store.committed[0]);
+    try std.testing.expect(try registry.remove("hyperlane_contract_sync_stored_events", &.{ "raw_message_dispatch", "bounded-dispatch-fixture" }));
+    try std.testing.expectEqual(@as(u64, 0), (try lane.finishReconciledPage(&store, &plan, 1)).stored_count);
+    // Counters are not transactional with PG: a failed observation may
+    // undercount, but cannot turn a replay/update into a new stored message.
+    try std.testing.expectEqual(@as(?u64, 0), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch_reconciled"));
 }
