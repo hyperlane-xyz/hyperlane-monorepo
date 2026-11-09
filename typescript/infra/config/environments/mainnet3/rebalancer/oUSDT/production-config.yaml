@@ -47,6 +47,9 @@ strategy:
         celo:
           executionType: inventory
           externalBridge: swapsxyz
+        ethereum:
+          executionType: inventory
+          externalBridge: layerzero
         tron:
           bridge: '0x9323793FB9a071ce5fE839079925c0e39f37170F'
           statusAdapter:
@@ -99,3 +102,6 @@ strategy:
             destinationOft: '0x77652D5aba086137b595875263FC200182919B92'
         celo:
           enabled: false
+        ethereum:
+          executionType: inventory
+          externalBridge: layerzero

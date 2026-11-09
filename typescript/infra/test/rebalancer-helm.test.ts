@@ -557,6 +557,12 @@ describe('oUSDT production manifest', () => {
       expect(adapter).not.to.have.property('destinationRecipient');
     }
     expect(chains.ethereum.externalBridge).to.equal('layerzero');
+    for (const origin of ['arbitrum', 'tron']) {
+      expect(chains[origin].override.ethereum).to.deep.equal({
+        executionType: 'inventory',
+        externalBridge: 'layerzero',
+      });
+    }
     expect(chains.ethereum.override.celo.externalBridge).to.equal('swapsxyz');
     expect(chains.celo.override.tron.enabled).to.equal(false);
     expect(chains.tron.override.celo.enabled).to.equal(false);

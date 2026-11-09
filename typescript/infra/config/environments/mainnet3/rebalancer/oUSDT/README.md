@@ -39,8 +39,11 @@ collateral once. Ethereum must retain its 345,000 minimum and 365,000 target;
 Arbitrum, Celo and Tron each retain 1,000/3,000. Aggregate collateral must be
 strictly above the 374,000 aggregate target. Halt if insufficient.
 
-The route uses USDT/OFT inventory from Ethereum, movable collateral from
-Arbitrum and Tron, and swaps.xyz for Celo. The Celo-to-Tron and Tron-to-Celo
+Economic routes into Ethereum from Arbitrum or Tron use USDT/OFT inventory through
+LayerZero. Ethereum's router does not support movable collateral and is not
+enrolled as a movable-collateral recipient. Arbitrum-to-Tron and Tron-to-Arbitrum
+retain movable collateral; Ethereum-origin routes use inventory, and Celo uses
+swaps.xyz. The Celo-to-Tron and Tron-to-Celo
 `enabled: false` overrides suppress economic strategy proposals. Physical
 inventory sourcing for another enabled proposal can still move inventory between
 Celo and Tron when the provider returns a valid quote. All provider quote-loss
