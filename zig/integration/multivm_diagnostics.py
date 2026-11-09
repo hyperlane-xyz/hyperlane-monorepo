@@ -223,7 +223,88 @@ def rust_panic_observation(log,sources,repo):
                 if trailing:message(trailing)
                 else:await_message=True
     authority={'module':helper,'source':approved[helper],'owned_path_guard_literals_verified':True,'tempfile_directory_and_file_calls_verified':True}if reasons else None
-    return {'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint}
+    return {'sites':output,'reason_codes':sorted(reasons),'reason_source':authority,'log_fingerprint':fingerprint,'EVM_child_wait_text':evm_child_wait_text_observation(wire,bodies,approved)}
+
+
+
+def evm_child_wait_text_observation(wire,bodies,approved):
+    """One already verified capture. Static text is not typed error/origin proof."""
+    result={'schema':1,'kind':'public-EVM-child-wait-text-observation','collection_status':'unavailable','classification':'UNKNOWN','guard_text_code':None,'reason':'SOURCE_CONTEXT_UNAVAILABLE','caller_line':825,'caller_column':48,'Source_contracts':None,'typed_IO_error_kind':None,'role':None,'pid':None,'primary_signal':None,'text_only':True,'native_or_timing_or_cleanup_authority':False}
+    main='rust/main/utils/run-locally/src/main.rs';helper='rust/main/utils/run-locally/src/external_agents.rs'
+    def section(body,start,end):
+        if body.count(start)!=1:raise ValueError('Unique Source context required')
+        first=body.index(start);last=body.find(end,first+len(start))
+        if last<0:raise ValueError('Bounded Source context required')
+        return body[first:last]
+    try:
+        caller=bodies[main];fixture=bodies[helper]
+        if main not in approved or helper not in approved:raise ValueError('Admitted Source required')
+        line=b'        if let Some(status) = child.try_wait().unwrap() {'
+        if caller.splitlines()[824]!=line or line.index(b'unwrap')+1!=48:raise ValueError('Exact caller required')
+        check=section(caller,b'fn long_running_processes_exited_check(state: &mut State) -> bool {',b'\npub fn report_test_result(')
+        if check.count(line)!=1 or b'for (name, (child, _)) in state.agents.iter_mut() {'not in check or b'crate::external_agents::TrackedChild,'not in section(caller,b'struct State {',b'\nimpl State {'):raise ValueError('Exact tracked caller required')
+        wrapper=section(fixture,b'    pub fn try_wait(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {',b'\n    pub fn retain_restart(')
+        expected=b'''    pub fn try_wait(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {
+        if let Some(fixture) = &self.fixture {
+            let state = fixture
+                .processes
+                .lock()
+                .map_err(|_| std::io::Error::other("fixture monitor poisoned"))?;
+            if let Some(error) = &state.failure {
+                return Err(std::io::Error::other(error.clone()));
+            }
+        }
+        self.child.try_wait()
+    }'''
+        if wrapper!=expected:raise ValueError('Exact wrapper required')
+        monitor=section(fixture,b'impl EvmFixtureOwnership {',b'\nimpl Drop for EvmFixtureOwnership {')
+        contracts=[b'initial.failure = Some(format!("{error:#}"));',b'let result = fixture_process_snapshot(&ps, group).and_then(|rows| {',b'observe_fixture_processes(&mut state, &rows, group, &allowed)',b'state.failure = Some(format!("{error:#}"));']
+        if not all(x in monitor for x in contracts):raise ValueError('Exact monitor required')
+        ownership=section(fixture,b'fn observe_fixture_processes(',b'\nimpl EvmFixtureOwnership {')
+        snapshot=section(fixture,b'fn fixture_process_snapshot(',b'\nfn signal_fixture_process(')
+        # Every phrase is bound to its real guard context, not a global string.
+        catalog=[
+            (b'fixture monitor poisoned','FIXTURE_MONITOR_POISONED_TEXT',wrapper,[b'.map_err(|_| std::io::Error::other("fixture monitor poisoned"))?;']),
+            (b'fixture PID/start/parent changed','FIXTURE_IDENTITY_CHANGED_TEXT',ownership,[b'old.parent_pid == row.1 && old.group_pid == row.2 && old.start == row.3,\n                "fixture PID/start/parent changed"']),
+            (b'fixture descendant executable not approved','FIXTURE_EXECUTABLE_UNAPPROVED_TEXT',ownership,[b'.find(|a| a.path == actual)\n                .ok_or_else(|| eyre::eyre!("fixture descendant executable not approved"))?;']),
+            (b'fixture descendant count exceeds bound','FIXTURE_DESCENDANT_BOUND_TEXT',ownership,[b'known || state.known.len() < 256,\n                "fixture descendant count exceeds bound"']),
+            (b'unknown fixture group member has no observed parent lineage','FIXTURE_LINEAGE_UNOBSERVED_TEXT',ownership,[b'rest.len() < before,\n            "unknown fixture group member has no observed parent lineage"']),
+            (b'fixture process snapshot timeout','FIXTURE_SNAPSHOT_TIMEOUT_TEXT',snapshot,[b'Instant::now() < deadline,\n                "fixture process snapshot timeout"']),
+            (b'fixture process snapshot output limit','FIXTURE_SNAPSHOT_OUTPUT_BOUND_TEXT',snapshot,[b'captured.metadata()?.len() <= 4 * 1024 * 1024,\n                "fixture process snapshot output limit"',b'bytes.len() <= 4 * 1024 * 1024,\n        "fixture process snapshot output limit"']),
+            (b'fixture process snapshot failed','FIXTURE_SNAPSHOT_FAILED_TEXT',snapshot,[b'ensure!(status.success(), "fixture process snapshot failed");']),
+        ]
+        if not all(context.count(fragment)==1 for _,_,context,fragments in catalog for fragment in fragments):raise ValueError('Exact guard contexts required')
+    except (KeyError,IndexError,ValueError):return result
+    result['Source_contracts']={key:{'bytes':approved[name]['bytes'],'sha256':approved[name]['sha256']}for key,name in [('caller',main),('fixture',helper)]}
+    result['reason']='NO_MAIN825_WINDOW';pending=False
+    def body_observation(body):
+        result.update(collection_status='observed',reason='NO_FIXED_GUARD_TEXT')
+        try:body.decode('utf8','strict')
+        except UnicodeError:result['reason']='MESSAGE_ENCODING_UNAVAILABLE';return result
+        if not body.startswith(b'called `Result::unwrap()` on an `Err` value: '):result['reason']='NOT_UNWRAP_TEXT';return result
+        labels={label for phrase,label,_,_ in catalog if phrase in body}
+        if len(labels)==1:result.update(classification='FIXTURE_MONITOR_GUARD_TEXT',guard_text_code=next(iter(labels)),reason=None)
+        elif len(labels)>1:result['reason']='AMBIGUOUS_FIXED_GUARD_TEXT'
+        return result
+    for raw in io.BytesIO(wire):
+        if len(raw)>65536:
+            result['reason']='LOG_LINE_BOUND';return result
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',raw)
+        header=re.match(rb"^thread '[^'\r\n]{1,128}'(?: \([0-9]{1,20}\))? panicked at ",clean)
+        if pending:
+            if not clean.strip():continue
+            if header is not None or clean.startswith(b'<')or clean.startswith(b'backtrace:')or clean.startswith(b'stack backtrace:'):result['reason']='NEXT_HEADER_BEFORE_MESSAGE';return result
+            return body_observation(clean.strip())
+        if header is None:continue
+        # Only the FIRST canonical panic can qualify; later teardown cannot lend it.
+        match=re.fullmatch(rb'([^:\r\n]{1,4096}):([0-9]{1,7}):([0-9]{1,5}):([^\r\n]*)[\r\n]*',clean[header.end():])
+        if match is None:return result
+        path,line,column,tail=match.groups();relative=b'utils/run-locally/src/main.rs';full=b'rust/main/'+relative
+        canonical=path in {relative,full}or path.startswith(b'/')and not any(part in {b'',b'.',b'..'}for part in path[1:].split(b'/'))and b'\\'not in path and b'\x00'not in path and(path.endswith(b'/'+relative)or path.endswith(b'/'+full))
+        if not canonical or int(line)!=825 or int(column)!=48:return result
+        if tail.strip():return body_observation(tail.strip())
+        pending=True;result['reason']='MESSAGE_NOT_RETAINED'
+    return result
 
 
 

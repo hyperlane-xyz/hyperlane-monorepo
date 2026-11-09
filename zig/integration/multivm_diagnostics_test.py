@@ -178,7 +178,7 @@ class Controls(unittest.TestCase):
     def test_panic_reason_codes_require_source_bound_SVM_message_and_never_export_body(self):
         repo,helper,caller,sources,log,header=self.reason_fixture();message='Failed to create temp ISM config: symlink in owned writable path: PRIVATE-PATH; owned parent is not a directory; No space left on device; Permission denied; File exists; https://user:PRIVATE-TOKEN@invalid; PRIVATE-KEY-ARGV-ENV'
         log.write_text(header+message+'\n');value=api.rust_panic_observation(log,sources,repo)
-        self.assertEqual(value['reason_codes'],['IO_FILE_EXISTS','IO_NO_SPACE_LEFT','IO_PERMISSION_DENIED','OWNED_PARENT_NOT_DIRECTORY','OWNED_PATH_SYMLINK']);self.assertEqual(value['reason_source'],{'module':str(helper.relative_to(repo)),'source':api.pin(helper),'owned_path_guard_literals_verified':True,'tempfile_directory_and_file_calls_verified':True});self.assertEqual(len(value['sites']),1);self.assertEqual(value['log_fingerprint'],{'path':str(log),'bytes':log.stat().st_size,'sha256':hashlib.sha256(log.read_bytes()).hexdigest()});self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn('https://',json.dumps(value));self.assertEqual(set(value),{'sites','reason_codes','reason_source','log_fingerprint'})
+        self.assertEqual(value['reason_codes'],['IO_FILE_EXISTS','IO_NO_SPACE_LEFT','IO_PERMISSION_DENIED','OWNED_PARENT_NOT_DIRECTORY','OWNED_PATH_SYMLINK']);self.assertEqual(value['reason_source'],{'module':str(helper.relative_to(repo)),'source':api.pin(helper),'owned_path_guard_literals_verified':True,'tempfile_directory_and_file_calls_verified':True});self.assertEqual(len(value['sites']),1);self.assertEqual(value['log_fingerprint'],{'path':str(log),'bytes':log.stat().st_size,'sha256':hashlib.sha256(log.read_bytes()).hexdigest()});self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn('https://',json.dumps(value));self.assertEqual(set(value),{'sites','reason_codes','reason_source','log_fingerprint','EVM_child_wait_text'})
 
     def test_actual_new_Source_tempfile_allocator_has_sites_without_old_chain_reason_authority(self):
         repo=Path(__file__).resolve().parents[2];helper=repo/'rust/main/utils/run-locally/src/external_agents.rs';caller=repo/'rust/main/utils/run-locally/src/sealevel/warp_route_composite_ism.rs';sources={str(p.relative_to(repo)):api.pin(p)for p in [helper,caller]}
@@ -966,5 +966,70 @@ class TronCaughtCauseControls(unittest.TestCase):
         def changed(state):self.source.write_bytes(self.source.read_bytes()+b'\n');return original(state)
         with mock.patch.object(api.TronCLIProjection,'public',changed):value=self.observe(self.record())
         self.assertEqual(value['caught_cause'],{'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_CHANGED'})
+
+
+class EvmChildWaitTextControls(unittest.TestCase):
+    CATALOG=(('fixture monitor poisoned','FIXTURE_MONITOR_POISONED_TEXT'),('fixture PID/start/parent changed','FIXTURE_IDENTITY_CHANGED_TEXT'),('fixture descendant executable not approved','FIXTURE_EXECUTABLE_UNAPPROVED_TEXT'),('fixture descendant count exceeds bound','FIXTURE_DESCENDANT_BOUND_TEXT'),('unknown fixture group member has no observed parent lineage','FIXTURE_LINEAGE_UNOBSERVED_TEXT'),('fixture process snapshot timeout','FIXTURE_SNAPSHOT_TIMEOUT_TEXT'),('fixture process snapshot output limit','FIXTURE_SNAPSHOT_OUTPUT_BOUND_TEXT'),('fixture process snapshot failed','FIXTURE_SNAPSHOT_FAILED_TEXT'))
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.sources={}
+        for name in ['rust/main/utils/run-locally/src/main.rs','rust/main/utils/run-locally/src/external_agents.rs']:
+            p=self.repo/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((HERE.parents[1]/name).read_bytes());self.sources[name]=api.pin(p)
+        self.main=self.repo/'rust/main/utils/run-locally/src/main.rs';self.helper=self.repo/'rust/main/utils/run-locally/src/external_agents.rs';self.log=self.root/'harness.log'
+    def header(self,site='utils/run-locally/src/main.rs:825:48'):return ("thread 'PRIVATE_THREAD' (42) panicked at "+site+':\n').encode()
+    def body(self,phrase):return ('called `Result::unwrap()` on an `Err` value: Custom { kind: Other, error: "'+phrase+' PRIVATE_KEY /PRIVATE_PATH https://PRIVATE_URL/?token=PRIVATE_TOKEN" }\n').encode()
+    def observe(self,wire,sources=None):
+        self.log.write_bytes(wire);return api.rust_panic_observation(self.log,self.sources if sources is None else sources,self.repo)
+    def test_all8_actual_Source_guard_text_only_and_poison_overlap_no_origin_claim(self):
+        for phrase,code in self.CATALOG:
+            value=self.observe(self.header()+self.body(phrase));row=value['EVM_child_wait_text'];self.assertEqual(row['collection_status'],'observed');self.assertEqual(row['classification'],'FIXTURE_MONITOR_GUARD_TEXT');self.assertEqual(row['guard_text_code'],code);self.assertIsNone(row['reason']);self.assertTrue(row['text_only']);self.assertFalse(row['native_or_timing_or_cleanup_authority']);self.assertEqual((row['caller_line'],row['caller_column']),(825,48))
+            for key in ['typed_IO_error_kind','role','pid','primary_signal']:self.assertIsNone(row[key])
+            self.assertEqual(value['reason_codes'],[]);self.assertIsNone(value['reason_source']);self.assertEqual(len(value['sites']),1)
+            for secret in ['PRIVATE',str(self.root),'https://']:self.assertNotIn(secret,json.dumps(row))
+        self.assertGreater(self.helper.read_bytes().count(b'"fixture monitor poisoned"'),1);self.assertEqual(self.helper.read_bytes().count(b'"fixture process snapshot output limit"'),2)
+    def test_same_line_next_nonempty_ANSI_and_full_canonical_Source_paths(self):
+        phrase=self.CATALOG[0][0]
+        for site in ['utils/run-locally/src/main.rs:825:48','rust/main/utils/run-locally/src/main.rs:825:48','/build/rust/main/utils/run-locally/src/main.rs:825:48']:
+            for wire in [self.header(site)+b'\n \n'+self.body(phrase),self.header(site).rstrip(b'\n')+b' '+self.body(phrase),b'\x1b[31m'+self.header(site)+b'\x1b[0m'+self.body(phrase)]:
+                with self.subTest(site=site):self.assertEqual(self.observe(wire)['EVM_child_wait_text']['guard_text_code'],'FIXTURE_MONITOR_POISONED_TEXT')
+    def test_wrong_immediate_site_column_otherframes_and_second_location_never_borrow(self):
+        phrase=self.CATALOG[0][0];later=b' utils/run-locally/src/main.rs:825:48: '+self.body(phrase)
+        cases=[self.header('/build/../rust/main/utils/run-locally/src/main.rs:825:48')+self.body(phrase),self.header('/build//rust/main/utils/run-locally/src/main.rs:825:48')+self.body(phrase),self.header('/build/\\rust/main/utils/run-locally/src/main.rs:825:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:830:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:825:47')+self.body(phrase),self.header('/outside/foreign.rs:825:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:2:1').rstrip(b'\n')+later,self.header('/outside/foreign.rs:2:1').rstrip(b'\n')+later,self.header('/outside/foreign.rs:1:1')+self.body('unknown')+self.header()+self.body(phrase),b'not '+self.header()+self.body(phrase),b'    at utils/run-locally/src/main.rs:825:48\n'+self.body(phrase)]
+        for wire in cases:
+            with self.subTest(wire_bytes=len(wire)):self.assertIsNone(self.observe(wire)['EVM_child_wait_text']['guard_text_code'])
+    def test_window_closes_on_next_panic_header_unrelated_body_teardown_and_eof(self):
+        phrase=self.CATALOG[0][0];cases=[self.header(),self.header()+self.header()+self.body(phrase),self.header()+b'<E2E> external fixture stop failed: '+self.body(phrase),self.header()+b'stack backtrace:\n'+self.body(phrase),self.header()+b'external fixture cleanup failed: '+self.body(phrase),self.header()+b'ordinary unrelated body\n'+self.body(phrase)]
+        for wire in cases:
+            with self.subTest(bytes=len(wire)):self.assertIsNone(self.observe(wire)['EVM_child_wait_text']['guard_text_code'])
+        row=self.observe(self.header()+self.body(phrase)+self.header()+self.body(self.CATALOG[1][0]))['EVM_child_wait_text'];self.assertEqual(row['guard_text_code'],'FIXTURE_MONITOR_POISONED_TEXT')
+    def test_unknown_standard_IO_multilabel_encoding_and_oversize_stay_unknown(self):
+        bodies=[self.body('No child processes (os error 10)'),self.body('Permission denied'),self.body('unknown private reason'),self.body(self.CATALOG[0][0]+'; '+self.CATALOG[1][0]),self.body(self.CATALOG[0][0])+b' '+b'x'*65536]
+        for body in bodies[:4]+[self.body(self.CATALOG[0][0]).rstrip(b'\n')+b'x'*65536+b'\n',self.body(self.CATALOG[0][0]).replace(b'Custom',b'Custom\xff')]:
+            with self.subTest(bytes=len(body)):
+                row=self.observe(self.header()+body)['EVM_child_wait_text'];self.assertEqual(row['classification'],'UNKNOWN');self.assertIsNone(row['guard_text_code']);self.assertIsNone(row['typed_IO_error_kind']);self.assertIsNone(row['primary_signal']);self.assertNotIn('PRIVATE',json.dumps(row))
+        self.assertEqual(self.observe(self.header()+self.body(self.CATALOG[0][0]+'; '+self.CATALOG[0][0]))['EVM_child_wait_text']['guard_text_code'],'FIXTURE_MONITOR_POISONED_TEXT')
+    def test_missing_unadmitted_changed_wrapper_monitor_and_caller_Source_refuse(self):
+        wire=self.header()+self.body(self.CATALOG[0][0])
+        for missing in self.sources:
+            sources={k:v for k,v in self.sources.items()if k!=missing};self.assertEqual(self.observe(wire,sources)['EVM_child_wait_text']['reason'],'SOURCE_CONTEXT_UNAVAILABLE')
+        original=self.helper.read_bytes()
+        for token in [b'self.child.try_wait()',b'return Err(std::io::Error::other(error.clone()));',b'initial.failure = Some(format!("{error:#}"));',b'state.failure = Some(format!("{error:#}"));']:
+            self.helper.write_bytes(original.replace(token,b'PUBLIC_DIFFERENT_SOURCE',1));sources={**self.sources,str(self.helper.relative_to(self.repo)):api.pin(self.helper)};self.assertEqual(self.observe(wire,sources)['EVM_child_wait_text']['reason'],'SOURCE_CONTEXT_UNAVAILABLE')
+        self.helper.write_bytes(original);self.main.write_bytes(self.main.read_bytes().replace(b'child.try_wait().unwrap()',b'child.try_wait().expect("PUBLIC_OTHER")'));sources={**self.sources,str(self.main.relative_to(self.repo)):api.pin(self.main)};self.assertEqual(self.observe(wire,sources)['EVM_child_wait_text']['reason'],'SOURCE_CONTEXT_UNAVAILABLE')
+    def test_guard_literal_or_fragment_elsewhere_cannot_replace_actual_guard_context(self):
+        original=self.helper.read_bytes();phrase=b'fixture descendant executable not approved';fragment=b'.find(|a| a.path == actual)\n                .ok_or_else(|| eyre::eyre!("fixture descendant executable not approved"))?;'
+        self.assertIn(fragment,original);self.helper.write_bytes(original.replace(phrase,b'PUBLIC_DIFFERENT_GUARD')+b'\n// out-of-context data only\n'+fragment+b'\n');sources={**self.sources,str(self.helper.relative_to(self.repo)):api.pin(self.helper)}
+        row=self.observe(self.header()+self.body(phrase.decode()),sources)['EVM_child_wait_text'];self.assertEqual(row['reason'],'SOURCE_CONTEXT_UNAVAILABLE');self.assertIsNone(row['guard_text_code'])
+    def test_oversized_ANSI_first_foreign_panic_cannot_borrow_later_main825(self):
+        foreign=b"\x1b[31mthread 'PRIVATE_FIRST' (43) panicked at /outside/foreign.rs:2:1: "+b'x'*65536+b'\x1b[0m\n'
+        for first in [foreign,b'PRIVATE_LONG_UNCLASSIFIABLE_LINE'+b'x'*65536+b'\n']:
+            value=self.observe(first+self.header()+self.body(self.CATALOG[0][0]));row=value['EVM_child_wait_text'];self.assertEqual(row['classification'],'UNKNOWN');self.assertEqual(row['collection_status'],'unavailable');self.assertEqual(row['reason'],'LOG_LINE_BOUND');self.assertIsNone(row['guard_text_code']);self.assertIsNone(row['primary_signal']);self.assertNotIn('PRIVATE',json.dumps(row))
+
+    def test_single_verified_log_capture_and_old_SVM_reason_fields_remain_separate(self):
+        opened=[];original=api.os.open
+        def tracked(path,*args,**kwargs):
+            if Path(path)==self.log:opened.append(path)
+            return original(path,*args,**kwargs)
+        with mock.patch.object(api.os,'open',side_effect=tracked):value=self.observe(self.header()+self.body(self.CATALOG[0][0]))
+        self.assertEqual(len(opened),1);self.assertEqual(value['log_fingerprint'],{'path':str(self.log),'bytes':self.log.stat().st_size,'sha256':hashlib.sha256(self.log.read_bytes()).hexdigest()});self.assertEqual(value['reason_codes'],[]);self.assertIsNone(value['reason_source'])
 
 if __name__=='__main__':unittest.main()
