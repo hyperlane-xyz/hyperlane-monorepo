@@ -426,11 +426,20 @@ def public_profile(scenario):
             'native_limits': {c: {'maximum_fee': str(2**128-1), 'maximum_gas': str(2**64-1)} for c in chains}}
 
 
+
+def admitted_svm_diagnostic_node(stage,machine,elf_admission):
+    row=stage['diagnostic_node']
+    require(isinstance(row,dict)and set(row)=={'path','bytes','sha256'},'Exact separate diagnostic Node descriptor required')
+    path=checked(row,executable=True)
+    elf_admission.validate_elf(path,machine)
+    return row
+
+
 def validate_stage(stage, context, request):
     keys = {'schema', 'passed', 'execution_source_commit', 'scenario', 'source_before', 'source_after', 'checks', 'tools', 'contract_artifacts', 'hpack', 'registry', 'explicit_environment'}
     if context['scenario'] == 'cosmwasm': keys |= {'wasm_bundle', 'static_cli'}
     if context['scenario'] == 'starknet': keys |= {'starknet_assets'}
-    if context['scenario']in{'sealevel','sealevel-composite'}: keys |= {'svm_assets'}
+    if context['scenario']in{'sealevel','sealevel-composite'}: keys |= {'svm_assets','diagnostic_node'}
     if context['scenario'] == 'radix': keys |= {'radix_assets'}
     if context['scenario']=='tron':keys|={'tron_assets'}
     require(set(stage) == keys and stage['schema'] == 1 and stage['passed'] is True, 'Exact successful local-stage receipt required')
@@ -453,6 +462,8 @@ def validate_stage(stage, context, request):
                 require(prefix.startswith(b'#!'), 'Existing pnpm launcher must be a pinned script or exact native ELF')
         else:
             elf_admission.validate_elf(path, machine)
+    if context['scenario']in{'sealevel','sealevel-composite'}:
+        admitted_svm_diagnostic_node(stage,machine,elf_admission)
     for row in stage['contract_artifacts'].values(): checked(row)
     required = {'cast', 'docker', 'psql', 'ps', 'lsof'}
     required |= {'anvil', 'node', 'pnpm_launcher', 'pnpm_native', 'sh', 'esbuild'} if context['scenario'] == 'evm' else {'node','pnpm_launcher','pnpm_native','sh'}if context['scenario']=='tron'else (set() if context['scenario']in{'radix','sealevel','sealevel-composite'} else {'native_cli'})
@@ -735,6 +746,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         required += radix_required + [profile['fixture_contracts']['release_metadata'],*profile['fixture_contracts']['files'].values(),artifact(repo/'zig/bench/native_radix_case.py'),artifact(repo/'zig/bench/native_radix_assets.py'),artifact(repo/'zig/bench/native_radix_custody.py'),artifact(repo/'zig/bench/native_radix_volume.py'),artifact(repo/'zig/bench/native_radix_reference.py'),artifact(repo/'zig/bench/native_starknet_custody.py')]
         required += list(stage['radix_assets']['images'].values())
     required += [check['log'] for check in stage['checks']]
+    if scenario in{'sealevel','sealevel-composite'}:required.append(stage['diagnostic_node'])
     required += list(diagnostic_rust_sources.values()) + list(diagnostic_zig_sources.values()) + list(diagnostic_relayer_sources.values())
     if radix_submit_lock is not None:required += [radix_submit_lock]
     if scenario == 'cosmwasm':
@@ -747,7 +759,7 @@ def prepare(context_path, context_sha, interop_pin, stage_pin, repo=ROOT):
         required += [{'path':str(Path(copied['workspace']['root'])/name),'bytes':row['bytes'],'sha256':row['sha256']}for name,row in copied['workspace']['entries'].items()if row['kind']=='file']
         required += [r for compiler in value['compiler_outputs'].values()for r in compiler['actual_build_info']]
     required += list(read_json(checked(next(c['log'] for c in stage['checks'] if c['name'] == 'system-libraries'))).values())
-    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / ('rust/main' if scenario == 'evm' else 'rust/main/utils/run-locally')), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 1 if scenario in{'sealevel-composite','radix'}else 2 if scenario in{'sealevel','tron'}else 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources,'diagnostic_zig_sources':diagnostic_zig_sources,**({'diagnostic_radix_client_lock':radix_submit_lock}if radix_submit_lock is not None else{})}
+    plan = {'schema': 1, 'root_approved': True, 'scenario': scenario, 'manifestArtifact': artifact(paths['manifest']), 'harnessArtifact': harness, 'harness_argv': argv, 'harness_cwd': str(repo / ('rust/main' if scenario == 'evm' else 'rust/main/utils/run-locally')), 'explicit_environment': env, 'required_inputs': required, 'lsofArtifact': stage['tools']['lsof'], **LIMITS, 'confirm_seconds': 600, 'grace_seconds': 30, 'clean_fixture_parent_waits_required': 1 if scenario in{'sealevel-composite','radix'}else 2 if scenario in{'sealevel','tron'}else 3, 'reviewed_policy': context['request'], 'runtime_source_commit': context['runtime_source_commit'], 'execution_source_commit': context['execution_source_commit'], 'native_case_acceptance': False,'diagnostic_rust_sources':diagnostic_rust_sources,'diagnostic_zig_sources':diagnostic_zig_sources,**({'diagnostic_node':stage['diagnostic_node']}if scenario in{'sealevel','sealevel-composite'}else{}),**({'diagnostic_radix_client_lock':radix_submit_lock}if radix_submit_lock is not None else{})}
     write_new(paths['launch-plan'], plan)
     return paths
 

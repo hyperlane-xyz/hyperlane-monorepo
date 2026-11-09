@@ -558,7 +558,57 @@ def zig_role_source_frames(raw,prefixes,catalog,repo):
 
 
 
-def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,zig_sources):
+
+def svm_private_windows(raw,sources,repo,scenario,check=lambda:None):
+    """Private Source-tagged bytes only; never a PID/epoch or error attribution."""
+    if scenario not in {'sealevel','sealevel-composite'}or not isinstance(raw,bytes)or len(raw)>32*1024**2:raise ValueError('Bounded SVM capture required')
+    root='rust/main/utils/run-locally/src/'
+    contracts={root+'program.rs':[b'let mut reader = BufReader::new(output).lines();',b'println!("<{prefix}> {line}");'],root+'sealevel/solana.rs':[b'args.spawn("SOL", None)'],root+'sealevel/mod.rs':[b'scraper_env.spawn("SCR", None)']}
+    for name,needles in contracts.items():
+        check()
+        path=Path(repo)/name;body,fingerprint=captured_failure_bytes(path,1024**2)
+        if sources.get(name)!={'path':str(path),**fingerprint}or any(body.count(needle)!=1 for needle in needles):raise ValueError('SVM prefix Source changed')
+    # Physical-line anchors only. Prefix writer is uncolored; payload ANSI/bytes stay private.
+    prefix={tag:bytearray()for tag in ('SOL','SCR')};tail={tag:bytearray()for tag in prefix};sizes=dict.fromkeys(prefix,0);oversized=0
+    for line in io.BytesIO(raw):
+        check()
+        if len(line)>65536:oversized=min(2**32-1,oversized+1);continue
+        for tag in prefix:
+            marker=b'<'+tag.encode()+b'> '
+            if not line.startswith(marker)or tag=='SCR'and scenario=='sealevel-composite':continue
+            sizes[tag]+=len(line);room=4096-len(prefix[tag]);prefix[tag].extend(line[:room]);tail[tag].extend(line);del tail[tag][:-4096]
+    windows=[];plain=bytearray()
+    for tag in ('SOL','SCR'):
+        # Remove overlap in short streams, preserving byte-exact prefix then suffix.
+        suffix=bytes(tail[tag])[max(0,len(prefix[tag])+len(tail[tag])-sizes[tag]):]
+        for position,wire in [('first',bytes(prefix[tag])),('tail',suffix)]:
+            windows.append({'tag':tag,'position':position,'bytes':len(wire)});plain.extend(wire)
+    check()
+    if len(plain)>16384:raise ValueError('SVM private window bound')
+    return bytes(plain),{'windows':windows,'oversized_lines_omitted':oversized,'scope':'Fixed Source-tagged merged pipe bytes; no unique PID/epoch/typed exception claim.'}
+
+
+SVM_ENCRYPTION_KEY_ID = '8bab6daee3714c8284aa166219000493'+'8b0a5dfb10dea336372e4b11f51e0655'
+SVM_ENCRYPTION_SCRIPT = "'use strict';\nconst fs=require('node:fs'),crypto=require('node:crypto');\nif(process.version!=='v26.12.1')process.exit(2);\nconst chunks=[];let total=0;const buffer=Buffer.alloc(4096);\nfor(;;){const n=fs.readSync(0,buffer,0,buffer.length,null);if(!n)break;total+=n;if(total>16384)process.exit(2);chunks.push(Buffer.from(buffer.subarray(0,n)));}\nconst plain=Buffer.concat(chunks);if(!plain.length)process.exit(2);\nconst key=crypto.createPublicKey('-----BEGIN PUBLIC KEY-----\\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxe5zq7ZGiGgBvSAtT+hX\\nS4ezY8xH8aOO3+8YcQSe7p0v/l6TFKQjHcyJxDClozTxFtowMRXmR6dMb014MS7r\\ny7pu0OITH8o/WWUCc0nUodtU1WH/lHaEOw1Q1mE24Im25YZYpMUzNXCfia9YHB3R\\nn1+grv9Ii9334GsUMBCwgb/XK6Sql3Nx/fKsjBC5pyaC28ErrGHIf5pU79RYoUUR\\nkcF4FEOcUoczsFDy/AvwFM2fH64QFDxOfoty/lpROhQIcTKwX/IKDnnPleHa4V0O\\nSv/YdavwPK9ffZ+b7GDLEhJhhu6akSfhR/SjXrDOGAYMs9vRliztUearu6aDKVNq\\nHVt0+X72NyT2BAzZ0WW/U0BrKBSWCJtzzdrYGlmWZaDnw5ewDmHuAeW+FTP2VBEJ\\ntGaXqeNLnrnnJ28cxbHd6MecqUbSl9S5FIVfvahkyAM9mOdvPdKri3NyRQwPatqv\\nhefBMiQ2r7gKRKzXcrsyZM+9CoTiB/ZJY8cZdDOo/cEai3nMN7ZWoFlCqZ33j/OM\\npWBlD9TyMYb1Xlz2+zX1TrB/UhbFfASBghgZiIDpOmpwjFf8pQyvydhSVf4iiEMf\\nYoGk4zaFR/5sH46x2jJl7DfJGvk9y/O/30LOGbvN493ayrG9DBT52PX8i1RT7+DZ\\nXG9dTcSWOCb847U28lDwtxsCAwEAAQ==\\n-----END PUBLIC KEY-----\\n'),der=key.export({type:'spki',format:'der'});\nif(crypto.createHash('sha256').update(der).digest('hex')!=='8bab6daee3714c8284aa166219000493'+'8b0a5dfb10dea336372e4b11f51e0655')process.exit(2);\nlet limits=null;if(process.platform==='linux'){const fd=fs.openSync('/proc/self/limits','r');const b=Buffer.alloc(4097);let n;try{n=fs.readSync(fd,b,0,b.length,null);}finally{fs.closeSync(fd);}if(n>4096)process.exit(2);const text=b.subarray(0,n).toString('ascii');limits={};for(const [name,label,unit] of [['address_space','Max address space','bytes'],['open_files','Max open files','files']]){const match=text.match(new RegExp('^'+label+' +([0-9]+|unlimited) +([0-9]+|unlimited) +'+unit+' *$','m'));if(!match)process.exit(2);limits[name]=match.slice(1).map(value=>{if(value==='unlimited')return null;const number=Number(value);if(!Number.isSafeInteger(number)||number<0)process.exit(2);return number;});}}\nconst blocks=[];for(let i=0;i<plain.length;i+=384){const cipher=crypto.publicEncrypt({key,padding:crypto.constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256',oaepLabel:Buffer.from('ziggy-private-failure-v1','ascii')},plain.subarray(i,i+384));if(cipher.length!==512||blocks.length>=43)process.exit(2);blocks.push(cipher.toString('base64'));}\nprocess.stdout.write(JSON.stringify({schema:1,key_id:'8bab6daee3714c8284aa166219000493'+'8b0a5dfb10dea336372e4b11f51e0655',blocks,limits}));\n"
+
+
+def svm_encrypted_blocks(wire,plaintext_bytes):
+    """Strict public ciphertext-only child protocol; unknown fields never pass."""
+    if not isinstance(wire,bytes)or len(wire)>32768 or type(plaintext_bytes)is not int or not 0<plaintext_bytes<=16384:raise ValueError('Bounded encrypted SVM response required')
+    value=startup_unique_json(wire.decode('ascii','strict'))
+    if set(value)!={'schema','key_id','blocks','limits'}or type(value['schema'])is not int or value['schema']!=1 or value['key_id']!=SVM_ENCRYPTION_KEY_ID or not isinstance(value['blocks'],list)or len(value['blocks'])!=(plaintext_bytes+383)//384 or len(value['blocks'])>43:raise ValueError('Exact encrypted SVM block count/key required')
+    limits=value['limits']
+    if limits is not None:
+        if not isinstance(limits,dict)or set(limits)!={'address_space','open_files'}:raise ValueError('Closed numeric child limits required')
+        if any(not isinstance(pair,list)or len(pair)!=2 or any(v is not None and(type(v)is not int or not 0<=v<=2**53-1)for v in pair)for pair in limits.values()):raise ValueError('Numeric child limits required')
+    for block in value['blocks']:
+        if not isinstance(block,str)or len(block)!=684:raise ValueError('Fixed RSA block required')
+        cipher=base64.b64decode(block,validate=True)
+        if len(cipher)!=512 or base64.b64encode(cipher).decode()!=block:raise ValueError('Canonical RSA block required')
+    return value
+
+
+def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,zig_sources,private_capture=None):
     """Existing Source parent receipts and finite role-log flags, no new probe."""
     if manifest['scenario']not in {'sealevel','sealevel-composite'}or type(parent_pid)is not int or parent_pid<=0:raise ValueError('Actual SVM harness identity required')
     case=Path(case)
@@ -654,6 +704,9 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,z
     except Exception:
         logs.extend({'role':role,'fixed_log':'harness.log prefix '+prefix,'status':'unavailable','exact_pid_or_epoch_attribution':False}for prefix,role in harness_prefixes.items())
     else:
+        if private_capture is not None:
+            try:private_capture(raw)
+            except Exception:pass
         source_frames=zig_role_source_frames(raw,harness_prefixes,zig_sources,repo)
         logs.extend({'role':role,'fixed_log':'harness.log prefix '+prefix,'status':'captured',**fingerprint,'finite_observed_flags':flags(raw,prefix.encode()),'stream_scope':'merged_prefixed_stdout_and_stderr','Source_frames':source_frames.get(prefix,[]),'exact_pid_or_epoch_attribution':False}for prefix,role in harness_prefixes.items())
     return {'schema':1,'kind':'public-SVM-role-failure-observation','writer_sources':writer_sources,'owned_child_journal':owned_pin,'parent_exit_journal':exit_pin,'roles':public,'fixed_role_logs':logs,'scope':'Actual existing parent wait records joined to admitted owned-child epochs/products. Fixed role files contain stdout only; harness prefixes merge stdout and stderr. Finite flags and bounded admitted Zig coordinates; no std/foreign frames, stderr-only or original metrics HTTP/error attribution. Logs may contain multiple role epochs. Zig relative coordinates are matched to admitted captured Source; no function/address/rawpath/message or unforgeable execution claim.','native_or_timing_or_cleanup_authority':False}

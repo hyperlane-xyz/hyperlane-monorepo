@@ -49,6 +49,14 @@ def module(name,relative):
     return value
 
 
+
+def svm_diagnostic_node_receipt(tools,original_rows):
+    """Carry the already verified host Node separately from the five SVM tools."""
+    row=pin(tools['node'])
+    require(row==original_rows['node'],'Original diagnostic Node changed')
+    return {'diagnostic_node':row}
+
+
 def build_commands(repo,tools,stage):
     """Exact Source-equivalent build order; no turbo, prebuild or fetch hooks."""
     pnpm,node,forge,sh=(str(tools[name]) for name in ('pnpm','node','forge','sh'))
@@ -440,7 +448,7 @@ def main():
             require(args.hydrated_inputs is not None and pin(args.hydrated_inputs)['sha256']==args.hydrated_inputs_sha256,'Exact hydrated SVM context required')
             context=json.loads(args.hydrated_inputs.read_text());require(context['scenario']==request['scenario']and context['execution_source_commit']==args.execution_source_commit and context['request']==pin(args.request),'SVM context/source/request differs')
             value=context['svm_prerequisites'];module('setup_svm_case','zig/bench/native_svm_case.py').check_inspection(value,request,args.repo)
-            result['svm_assets']=value;final_tools.update({name:pin(tools[name])for name in ('cast','docker','psql','ps','lsof')});registry.update({'path':None,'commit':None})
+            result['svm_assets']=value;result.update(svm_diagnostic_node_receipt(tools,tool_rows));final_tools.update({name:pin(tools[name])for name in ('cast','docker','psql','ps','lsof')});registry.update({'path':None,'commit':None})
         elif is_radix:
             files={}
             for name,expected in rx_assets.CONTRACTS.items():

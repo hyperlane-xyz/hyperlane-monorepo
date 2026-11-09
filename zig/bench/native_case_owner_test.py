@@ -1136,4 +1136,117 @@ class RadixSubmitOwnerControls(unittest.TestCase):
         import ast
         tree=ast.parse(Path(api.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='load_plan');calls=[n for n in ast.walk(fn)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='admitted_radix_submit_context'];self.assertEqual(len(calls),1);branch=next(n for n in ast.walk(fn)if isinstance(n,ast.If)and any(c is calls[0]for c in ast.walk(n)));self.assertEqual(ast.unparse(branch.test),"plan['scenario'] == 'radix'")
 
+
+class SvmEncryptedWindowOwnerControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve()
+        source=Path(api.__file__).resolve().parents[1]/'integration/multivm_diagnostics.py';spec=importlib.util.spec_from_file_location('svm_window_diag',source);self.module=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.module)
+        self.node=self.root/'node';self.node.write_bytes(b'\x7fELF\x02\x01'+b'0'*58);self.node.chmod(0o755);row=api.pin(self.node)
+        self.plan={'diagnostic_node':row,'required_inputs':[row]};self.plain=b'PRIVATE\xff\x00';self.selection={'windows':[{'tag':t,'position':position,'bytes':len(self.plain)if i==0 else 0}for i,(t,position)in enumerate([('SOL','first'),('SOL','tail'),('SCR','first'),('SCR','tail')])],'oversized_lines_omitted':0,'scope':'fixed'}
+        (self.root/'helper-launch.json').write_text(json.dumps({'helper_pid':42,'helper_start':'linux-ticks:1'}))
+        self.result={'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101},{'role':'observer','pid':43,'actual_parent_wait':True,'exit_code':0}],'_svm_diagnostic_roles':[{'pid':50,'os_start_token_sha256':hashlib.sha256(b'linux-ticks:2').hexdigest()}],'error':{'message':'PRIMARY_PRIVATE'},'passed':False}
+        self.original=copy.deepcopy(self.result)
+    def run_probe(self,rows=None,**changes):
+        module=changes.pop('module',self.module);end=changes.pop('end',time.monotonic_ns()+5_000_000_000)
+        with mock.patch.object(api.sys,'platform','linux'),mock.patch.object(api.owner,'proc_fallback',return_value={}if rows is None else rows),mock.patch.object(api.owner,'_linux_row',return_value={'pid':123456789,'sid':123456789,'pgid':123456789,'start':'linux-ticks:900'}):
+            return api.svm_encrypt_failure_windows(changes.get('plan',self.plan),module,changes.get('plain',self.plain),changes.get('selection',self.selection),self.root,self.result,end)
+    def test_known_descendant_group_birth_and_expired_refuse_before_child(self):
+        self.result['_svm_diagnostic_roles'][0]['os_start_token_sha256']=hashlib.sha256(b'50 42 Mon Nov 9 00:00:00 2026 relayer').hexdigest();self.original=copy.deepcopy(self.result)
+        known={'pid':50,'sid':999,'pgid':999,'start':'linux-ticks:2'}
+        for row in [known,{**known,'pid':51,'sid':42},{**known,'pid':51,'pgid':43}]:
+            with mock.patch.object(api.subprocess,'Popen')as popen:
+                value=self.run_probe({row['pid']:row});self.assertEqual(value['collection_status'],'unavailable');popen.assert_not_called()
+        with mock.patch.object(api.subprocess,'Popen')as popen:
+            self.assertEqual(self.run_probe(end=0)['collection_status'],'unavailable');popen.assert_not_called()
+        self.assertEqual(self.result,self.original)
+    def test_changed_node_missing_descriptor_and_private_metadata_refuse(self):
+        for plan in [{'required_inputs':[]},{'diagnostic_node':{**self.plan['diagnostic_node'],'sha256':'a'*64},'required_inputs':[self.plan['diagnostic_node']]}]:
+            with mock.patch.object(api.subprocess,'Popen')as popen:self.assertEqual(self.run_probe(plan=plan)['collection_status'],'unavailable');popen.assert_not_called()
+        bad=copy.deepcopy(self.selection);bad['windows'][0]['private']='PRIVATE'
+        with mock.patch.object(api.subprocess,'Popen')as popen:self.assertEqual(self.run_probe(selection=bad)['collection_status'],'unavailable');popen.assert_not_called()
+    def fake_child(self,wire,returncode=0):
+        read_in,write_in=os.pipe();read_out,write_out=os.pipe();os.write(write_out,wire);os.close(write_out);self.addCleanup(os.close,read_in)
+        child=mock.Mock();child.pid=123456789;child.stdin=os.fdopen(write_in,'wb',buffering=0);child.stdout=os.fdopen(read_out,'rb',buffering=0);child.poll.return_value=returncode;child.wait.return_value=returncode;self.addCleanup(child.stdin.close);self.addCleanup(child.stdout.close);return child
+    def test_actual_owned_pipe_protocol_clean_environment_and_primary_preserved(self):
+        import base64
+        payload={'schema':1,'key_id':self.module.SVM_ENCRYPTION_KEY_ID,'blocks':[base64.b64encode(b'x'*512).decode()],'limits':{name:[None if value==api.resource.RLIM_INFINITY else value for value in api.resource.getrlimit(kind)]for name,kind in [('address_space',api.resource.RLIMIT_AS),('open_files',api.resource.RLIMIT_NOFILE)]}};child=self.fake_child(json.dumps(payload).encode())
+        with mock.patch.dict(os.environ,{'FOREIGN_CREDENTIAL_SENTINEL':'PRIVATE'},clear=False),mock.patch.object(api.subprocess,'Popen',return_value=child)as popen:
+            value=self.run_probe();self.assertEqual(value['collection_status'],'encrypted');self.assertTrue(value['actual_parent_wait']);self.assertEqual(value['child_exit_code'],0)
+            args,kwargs=popen.call_args;self.assertEqual(kwargs['env'],{'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8'});self.assertEqual(kwargs['stderr'],subprocess.DEVNULL);self.assertTrue(kwargs['start_new_session']);self.assertNotIn('PRIVATE',str(args));self.assertEqual(args[0][-1],self.module.SVM_ENCRYPTION_SCRIPT)
+        self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(self.result,self.original)
+    def test_nonzero_unknown_output_cancellation_and_trickle_preserve_primary(self):
+        for wire,code in [(b'PRIVATE',0),(b'{}',2)]:
+            child=self.fake_child(wire,code)
+            with mock.patch.object(api.subprocess,'Popen',return_value=child):value=self.run_probe();self.assertEqual(value['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))
+        child=self.fake_child(b'',None);child.wait.return_value=-9
+        with mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.select,'select',side_effect=KeyboardInterrupt('PRIVATE')),mock.patch.object(api.os,'killpg')as kill:
+            self.assertEqual(self.run_probe()['collection_status'],'unavailable');kill.assert_called_once_with(child.pid,api.signal.SIGKILL);child.wait.assert_called()
+        child=self.fake_child(b'',None);child.wait.return_value=-9;clock=[0]
+        def now():clock[0]+=10_000_000;return clock[0]
+        with mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.select,'select',return_value=([],[],[])),mock.patch.object(api.time,'monotonic_ns',side_effect=now),mock.patch.object(api.os,'killpg')as kill:
+            value=self.run_probe(end=3_000_000_000);self.assertEqual(value['collection_status'],'unavailable');kill.assert_called_once();self.assertLess(clock[0],3_100_000_000)
+        self.assertEqual(self.result,self.original)
+    def test_actual_worker_supplies_original_deadline_to_optional_publisher(self):
+        import ast,inspect,textwrap
+        tree=ast.parse(textwrap.dedent(inspect.getsource(api.worker)))
+        calls=[n for n in ast.walk(tree)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='write_public_failure_diagnostics']
+        self.assertEqual(len(calls),1);binding=[k.value for k in calls[0].keywords if k.arg=='original_deadline_ns'];self.assertEqual(len(binding),1);self.assertIsInstance(binding[0],ast.Attribute);self.assertEqual(binding[0].attr,'original_deadline_ns');self.assertIsInstance(binding[0].value,ast.Name);self.assertEqual(binding[0].value.id,'args')
+    def test_late_wait_and_kill_failures_never_publish_candidate_ciphertext(self):
+        import base64
+        wire=json.dumps({'schema':1,'key_id':self.module.SVM_ENCRYPTION_KEY_ID,'blocks':[base64.b64encode(b'x'*512).decode()],'limits':{name:[None if value==api.resource.RLIM_INFINITY else value for value in api.resource.getrlimit(kind)]for name,kind in [('address_space',api.resource.RLIMIT_AS),('open_files',api.resource.RLIMIT_NOFILE)]}}).encode()
+        child=self.fake_child(wire);child.wait.side_effect=[0,subprocess.TimeoutExpired('PRIVATE',.1)]
+        with mock.patch.object(api.subprocess,'Popen',return_value=child):
+            value=self.run_probe();self.assertEqual(value['collection_status'],'unavailable');self.assertTrue(value['owned_cleanup_debt']);self.assertNotIn('blocks',value)
+        child=self.fake_child(b'',None)
+        with mock.patch.object(api.subprocess,'Popen',return_value=child),mock.patch.object(api.select,'select',side_effect=KeyboardInterrupt('PRIVATE')),mock.patch.object(api.os,'killpg',side_effect=OSError('PRIVATE')):
+            value=self.run_probe();self.assertEqual(value['collection_status'],'unavailable');self.assertTrue(value['owned_cleanup_debt']);self.assertFalse(value['actual_parent_wait']);self.assertNotIn('PRIVATE',json.dumps(value))
+        self.assertEqual(self.result,self.original)
+    def test_actual_publisher_retains_ciphertext_only_and_original_verdict(self):
+        case=self.root/'case';case.mkdir();out=self.root/'worker';out.mkdir();(out/'harness.log').write_bytes(b'<SOL> PRIVATE\n')
+        module=mock.Mock();module.rust_panic_observation.return_value={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None};module.svm_private_windows.return_value=(self.plain,self.selection)
+        def observe(*args,**kwargs):kwargs['private_capture'](b'<SOL> PRIVATE\n');return {'roles':self.result['_svm_diagnostic_roles']}
+        module.role_failure_observation.side_effect=observe
+        proof={'schema':1,'collection_status':'encrypted','blocks':['ciphertext-only'],'native_or_timing_or_cleanup_authority':False}
+        plan={**self.plan,'execution_source_commit':'a'*40,'diagnostic_rust_sources':{},'diagnostic_zig_sources':{}};manifest={'scenario':'sealevel','mode':'ReleaseSafe','runtime_source_commit':'b'*40}
+        with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module),mock.patch.object(api,'svm_fixture_wait_observation',return_value={'status':'unavailable'}),mock.patch.object(api,'svm_encrypt_failure_windows',return_value=proof)as encrypt:
+            descriptor=api.write_public_failure_diagnostics(plan,manifest,{},case,out,self.result,1,original_deadline_ns=time.monotonic_ns()+9_000_000_000)
+            value=json.loads(Path(descriptor['path']).read_bytes());self.assertEqual(value['SVM_encrypted_fixture_windows'],proof);self.assertFalse(value['native_or_timing_credit']);encrypt.assert_called_once()
+        self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(self.result,self.original)
+
+
+@unittest.skipUnless(sys.platform=='linux','Requires actual Linux /proc and CI-pinned Node26; no Mac ownership claim')
+class SvmEncryptedLinuxComponentControls(unittest.TestCase):
+    def test_actual_node26_owned_pipes_limits_wait_absence_small_max_exit_and_deadline(self):
+        import shutil
+        import types
+        with tempfile.TemporaryDirectory(prefix='synthetic-svm-cipher-component-')as directory:
+            root=Path(directory).resolve();repo=Path(api.__file__).resolve().parents[2]
+            spec=importlib.util.spec_from_file_location('linux_svm_component_diagnostics',repo/'zig/integration/multivm_diagnostics.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+            # Test-only local admission; never a case/tool-stage/native acceptance receipt.
+            node=Path(shutil.which('node')or'/absent').resolve(strict=True);descriptor=api.pin(node)
+            elf_spec=importlib.util.spec_from_file_location('linux_svm_component_elf',repo/'zig/bench/native_case_tools.py');elf=importlib.util.module_from_spec(elf_spec);elf_spec.loader.exec_module(elf)
+            elf.validate_elf(node,{'x86_64':62,'aarch64':183}[os.uname().machine])
+            helper=subprocess.Popen([sys.executable,'-I','-B','-c','pass'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+            try:
+                birth=api.owner._linux_row(helper.pid);self.assertIsNotNone(birth);status=helper.wait(timeout=2);self.assertEqual(status,0)
+            finally:
+                if helper.poll()is None:helper.kill();helper.wait(timeout=1)
+            (root/'helper-launch.json').write_text(json.dumps({'helper_pid':helper.pid,'helper_start':birth['start']}))
+            plan={'diagnostic_node':descriptor,'required_inputs':[descriptor]};result={'direct_waits':[{'role':'harness','pid':helper.pid,'actual_parent_wait':True,'exit_code':status}],'_svm_diagnostic_roles':[],'passed':False,'error':{'message':'SYNTHETIC_COMPONENT_PRIMARY'}}
+            original=copy.deepcopy(result);limits_before={name:api.resource.getrlimit(kind)for name,kind in [('address_space',api.resource.RLIMIT_AS),('open_files',api.resource.RLIMIT_NOFILE)]};rows=[]
+            def selection(data):return {'windows':[{'tag':tag,'position':position,'bytes':min(4096,max(0,len(data)-4096*i))}for i,(tag,position)in enumerate([('SOL','first'),('SOL','tail'),('SCR','first'),('SCR','tail')])],'oversized_lines_omitted':0,'scope':'SYNTHETIC component bytes only'}
+            for length in (17,16384):
+                data=bytes((i*127+255)%256 for i in range(length));started=time.monotonic_ns();end=started+5_000_000_000
+                value=api.svm_encrypt_failure_windows(plan,module,data,selection(data),root,result,end)
+                self.assertEqual(value['collection_status'],'encrypted');self.assertEqual(len(value['blocks']),(length+383)//384);self.assertTrue(value['actual_parent_wait']);self.assertEqual(value['child_exit_code'],0);self.assertTrue(value['owned_group_absent_after_wait']);self.assertLess(value['finished_monotonic_ns'],end);self.assertEqual(value['actual_child_resource_limits']['address_space'],value['parent_resource_limits_at_launch']['address_space'])
+                rows.append({k:v for k,v in value.items()if k not in {'blocks','windows','scope'}})
+            # Same actual owner, Node executable and unchanged limits; only fixed test script differs.
+            for script,seconds in [('process.exit(2)',3),('process.stdin.resume();setInterval(()=>{},1000)',2.5)]:
+                test_module=types.SimpleNamespace(SVM_ENCRYPTION_SCRIPT=script,svm_encrypted_blocks=module.svm_encrypted_blocks,captured_failure_bytes=module.captured_failure_bytes)
+                start=time.monotonic_ns();value=api.svm_encrypt_failure_windows(plan,test_module,b'SYNTHETIC',selection(b'SYNTHETIC'),root,result,start+int(seconds*1e9))
+                self.assertEqual(value['collection_status'],'unavailable');self.assertTrue(value['actual_parent_wait']);self.assertFalse(value['owned_cleanup_debt']);self.assertLess(time.monotonic_ns()-start,int(seconds*1e9));rows.append(value)
+            expired=api.svm_encrypt_failure_windows(plan,module,b'SYNTHETIC',selection(b'SYNTHETIC'),root,result,0);self.assertEqual(expired['collection_status'],'unavailable');self.assertIsNone(expired['actual_parent_wait'])
+            self.assertEqual(result,original);self.assertEqual({name:api.resource.getrlimit(kind)for name,kind in [('address_space',api.resource.RLIMIT_AS),('open_files',api.resource.RLIMIT_NOFILE)]},limits_before)
+            print(json.dumps({'kind':'SYNTHETIC-Linux-Node26-owned-encryption-component','native_or_case_or_timing_authority':False,'node_sha256':descriptor['sha256'],'node_bytes':descriptor['bytes'],'child_observations':rows,'no_parent_limits_changed':True,'root_private_key_read':False},sort_keys=True))
+
 if __name__=='__main__':unittest.main()

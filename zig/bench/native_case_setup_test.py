@@ -139,4 +139,21 @@ class SetupTests(unittest.TestCase):
         rows=api.build_commands(self.root,{**self.tools,'pnpm':self.root/'owned/pnpm-native'},self.root/'stage')
         self.assertEqual(rows[0]['argv'][0],str(self.root/'owned/pnpm-native'));self.assertIn('--frozen-lockfile',rows[0]['argv']);self.assertIn('--ignore-scripts',rows[0]['argv']);self.assertIn('--config.manage-package-manager-versions=false',rows[0]['argv'])
 
+
+class SvmDiagnosticNodeReceiptControls(unittest.TestCase):
+    def test_separate_receipt_binds_original_node_and_preserves_five_tools(self):
+        with tempfile.TemporaryDirectory()as root:
+            node=Path(root)/'node';node.write_bytes(b'public synthetic tool');node.chmod(0o755)
+            tools={'node':node};original={'node':api.pin(node)};five=dict.fromkeys(('cast','docker','psql','ps','lsof'),{'path':'/fixture'})
+            before=copy.deepcopy(five);row=api.svm_diagnostic_node_receipt(tools,original)
+            self.assertEqual(row,{'diagnostic_node':original['node']});self.assertEqual(five,before)
+            node.write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'Original diagnostic Node'):api.svm_diagnostic_node_receipt(tools,original)
+    def test_symlink_and_missing_original_descriptor_refused(self):
+        with tempfile.TemporaryDirectory()as root:
+            target=Path(root)/'tool';target.write_bytes(b'tool');link=Path(root)/'node';link.symlink_to(target)
+            with self.assertRaises(ValueError):api.svm_diagnostic_node_receipt({'node':link},{'node':api.pin(target)})
+            with self.assertRaises(KeyError):api.svm_diagnostic_node_receipt({'node':target},{})
+
+
 if __name__=='__main__':unittest.main()

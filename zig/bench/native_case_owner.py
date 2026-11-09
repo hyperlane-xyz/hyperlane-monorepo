@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import re
+import resource
+import select
 import shutil
 import signal
 import stat
@@ -767,7 +769,100 @@ def svm_fixture_wait_observation(case, manifest, plan, case_inputs, parent, appr
     return {'schema':1,'kind':'public-SVM-fixture-parent-wait-observation','collection_status':'observed','writer_Source':{'relative_path':name,**fingerprint},'journal':journal,'rows':rows,'native_or_timing_or_cleanup_authority':False,'scope':'Existing Source ChildExit journal observed after owned waits, including failed helper; exact admitted executable and helper parent join only, no independent kernel replay, child success or native acceptance claim.'}
 
 
-def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None,case_inputs=None):
+
+def svm_encrypt_failure_windows(plan,module,plain,selection,out,result,end_ns):
+    """One optional owned ciphertext child; no primary/verdict or limit mutation."""
+    child=None;wire=bytearray();sent=0;waited=False;candidate=None;cleanup_ok=False;cleanup_debt=False;birth=None;started=time.monotonic_ns()
+    work_end_ns=end_ns-900_000_000 if type(end_ns)is int else 0
+    unavailable={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+    def check(reserve_ns=0):
+        require(type(end_ns)is int and time.monotonic_ns()+reserve_ns<work_end_ns,'Original private diagnostic budget expired')
+    try:
+        check(600_000_000)
+        require(sys.platform=='linux'and isinstance(plain,bytes)and 0<len(plain)<=16384,'Linux bounded private diagnostic required')
+        require(set(selection)=={'windows','oversized_lines_omitted','scope'}and type(selection['oversized_lines_omitted'])is int and 0<=selection['oversized_lines_omitted']<2**32,'Closed window metadata required')
+        windows=selection['windows'];require(isinstance(windows,list)and len(windows)==4,'Fixed four windows required')
+        for row,(tag,position)in zip(windows,[('SOL','first'),('SOL','tail'),('SCR','first'),('SCR','tail')]):require(isinstance(row,dict)and set(row)=={'tag','position','bytes'}and row['tag']==tag and row['position']==position and type(row['bytes'])is int and 0<=row['bytes']<=4096,'Fixed window framing required')
+        require(sum(row['bytes']for row in windows)==len(plain),'Window bytes differ')
+        waits=result['direct_waits'];helpers={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
+        require(len(helpers)==1,'Actual helper wait required')
+        launch,_=module.captured_failure_bytes(out/'helper-launch.json',4096);launch=json.loads(launch)
+        require(set(launch)=={'helper_pid','helper_start'}and launch['helper_pid']==next(iter(helpers))and isinstance(launch['helper_start'],str),'Captured helper birth required')
+        # Existing bounded Linux fallback (8192 rows / .5s), no ambient ps process.
+        rows=owner.proc_fallback();check(100_000_000)
+        anchors={row['pid']for row in waits if row.get('actual_parent_wait')is True and row.get('role')in{'harness','harness-cleanup','observer'}}
+        roles=result.get('_svm_diagnostic_roles',())
+        require(isinstance(roles,list),'Captured actual role identities required')
+        for row in rows.values():
+            require(row['sid']not in anchors and row['pgid']not in anchors,'Known helper/observer group remains')
+            for role in roles:
+                require(row['pid']!=role['pid'],'Known role PID remains; PS and Linux start tokens are incomparable')
+        require(not any(row['pid']==launch['helper_pid']and row['start']==launch['helper_start']for row in rows.values()),'Helper birth remains')
+        descriptor=plan['diagnostic_node'];require(descriptor in plan['required_inputs']and set(descriptor)=={'path','bytes','sha256'},'Admitted diagnostic Node required')
+        node=Path(descriptor['path']);before=node.lstat();require(node.is_absolute()and node.resolve()==node and stat.S_ISREG(before.st_mode)and before.st_nlink==1 and os.access(node,os.X_OK)and 0<before.st_size<=512*1024**2 and before.st_size==descriptor['bytes'],'Bounded regular diagnostic Node required')
+        fd=os.open(node,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK);digest=hashlib.sha256();header=b''
+        identity=lambda row:(row.st_dev,row.st_ino,row.st_size,row.st_mtime_ns,row.st_nlink)
+        try:
+            require(identity(os.fstat(fd))==identity(before),'Node changed before capture')
+            with os.fdopen(fd,'rb',closefd=False)as stream:
+                while True:
+                    check(100_000_000);block=stream.read(1024**2)
+                    if not block:break
+                    if not header:header=block[:64]
+                    digest.update(block)
+            require(identity(os.fstat(fd))==identity(before)==identity(node.lstat())and digest.hexdigest()==descriptor['sha256'],'Node identity changed')
+        finally:os.close(fd)
+        require(len(header)==64 and header[:6]==b'\x7fELF\x02\x01','Admitted Linux Node ELF required')
+        limits={name:[None if value==resource.RLIM_INFINITY else value for value in resource.getrlimit(kind)]for name,kind in [('address_space',resource.RLIMIT_AS),('open_files',resource.RLIMIT_NOFILE)]}
+        check(100_000_000)
+        child=subprocess.Popen([str(node),'--no-addons','-e',module.SVM_ENCRYPTION_SCRIPT],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8'},start_new_session=True)
+        birth=owner._linux_row(child.pid)
+        require(birth is not None and birth['pid']==child.pid and birth['sid']==child.pid and birth['pgid']==child.pid,'Actual diagnostic child birth/session required')
+        os.set_blocking(child.stdin.fileno(),False);os.set_blocking(child.stdout.fileno(),False)
+        while True:
+            check(50_000_000)
+            readers=[child.stdout];writers=[child.stdin]if sent<len(plain)else[]
+            ready_read,ready_write,_=select.select(readers,writers,[],min(.01,max(0,(work_end_ns-time.monotonic_ns()-50_000_000)/1e9)))
+            if ready_write:
+                try:sent+=os.write(child.stdin.fileno(),memoryview(plain)[sent:])
+                except BlockingIOError:pass
+                if sent==len(plain):child.stdin.close()
+            if ready_read:
+                try:block=os.read(child.stdout.fileno(),32769-len(wire))
+                except BlockingIOError:continue
+                if block:wire.extend(block);require(len(wire)<=32768,'Bounded ciphertext response required')
+                elif child.poll()is not None:break
+            if child.poll()is not None and not ready_read:break
+        code=child.wait(timeout=max(0,(work_end_ns-time.monotonic_ns())/1e9));waited=True;check()
+        require(code==0 and sent==len(plain),'Diagnostic child failed')
+        value=module.svm_encrypted_blocks(bytes(wire),len(plain));require(sum(row['bytes']for row in selection['windows'])==len(plain),'Window framing changed')
+        require(value['limits']is not None and value['limits']['address_space']==limits['address_space'],'Actual child AS differs from unchanged inherited parent cap')
+        require(identity(node.lstat())==identity(before),'Diagnostic Node changed after execution')
+        candidate={'schema':1,'collection_status':'encrypted','key_id':value['key_id'],'windows':selection['windows'],'oversized_lines_omitted':selection['oversized_lines_omitted'],'chunk_bytes':384,'ciphertext_block_bytes':512,'blocks':value['blocks'],'actual_parent_wait':True,'child_exit_code':code,'parent_resource_limits_at_launch':limits,'actual_child_resource_limits':value['limits'],'started_monotonic_ns':started,'finished_monotonic_ns':time.monotonic_ns(),'scope':'Private fixed Source-tagged merged pipe windows encrypted to Root; no unique PID/epoch/typed error or cause claim. Known groups/role identities absent at pre-probe snapshot only.','native_or_timing_or_cleanup_authority':False}
+    except BaseException:candidate=None
+    finally:
+        if child is not None:
+            try:
+                if child.poll()is None:os.killpg(child.pid,signal.SIGKILL)
+                child.wait(timeout=max(0,(end_ns-time.monotonic_ns())/1e9));waited=True
+                require(time.monotonic_ns()+550_000_000<end_ns,'Diagnostic cleanup snapshot reserve expired')
+                rows=owner.proc_fallback()
+                require(time.monotonic_ns()<end_ns and not any(row['sid']==child.pid or row['pgid']==child.pid for row in rows.values()),'Diagnostic group absence not established')
+                cleanup_ok=True
+            except BaseException:cleanup_debt=True
+            for stream in (child.stdin,child.stdout):
+                try:stream.close()
+                except Exception:cleanup_ok=False;cleanup_debt=True
+    if candidate is not None and cleanup_ok and waited and birth is not None:
+        candidate['child_identity']={'pid':child.pid,'linux_start_token_sha256':hashlib.sha256(birth['start'].encode()).hexdigest()}
+        candidate['owned_group_absent_after_wait']=True;candidate['finished_monotonic_ns']=time.monotonic_ns()
+        if candidate['finished_monotonic_ns']<end_ns:return candidate
+    return {**unavailable,'actual_parent_wait':waited if child is not None else None,'owned_cleanup_debt':cleanup_debt}
+
+
+def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,started_ns,startup_context=None,radix_transport=None,case_inputs=None,original_deadline_ns=None):
+    private_end_ns=min(original_deadline_ns,time.monotonic_ns()+5_000_000_000)if type(original_deadline_ns)is int else 0
+    selected=[]
     observed=snapshot_public_diagnostics(case,approval,out,'public-observer-diagnostics.json')
     value=None if observed is None else json.loads(checked(observed['artifact']).read_text())
     # Observer transport errors can accompany Rust fixture failure/teardown.
@@ -788,11 +883,16 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
     if manifest['scenario']=='evm':record['EVM_child_wait_text']=rust.get('EVM_child_wait_text')
     if manifest['scenario']=='radix':record['Radix_submit_error_text']=rust.get('Radix_submit_error_text')
     if manifest['scenario']in{'sealevel','sealevel-composite'}:
+        module=diagnostic_module(approval)
+        def private_capture(raw):
+            def check_private():require(time.monotonic_ns()<private_end_ns,'Original private diagnostic budget expired')
+            selected.append(module.svm_private_windows(raw,plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],manifest['scenario'],check_private))
         try:
             helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
             require(len(helper_pids)==1,'One actual SVM helper parent required for failure projection')
-            record['SVM_role_failure']=diagnostic_module(approval).role_failure_observation(case,manifest,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log,plan['diagnostic_zig_sources'])
+            record['SVM_role_failure']=diagnostic_module(approval).role_failure_observation(case,manifest,next(iter(helper_pids)),plan['diagnostic_rust_sources'],Path(__file__).resolve().parents[2],log,plan['diagnostic_zig_sources'],private_capture=private_capture)
         except Exception:record['SVM_role_failure']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        record['SVM_encrypted_fixture_windows']={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
         try:
             helper_pids={row['pid']for row in waits if row.get('role')in{'harness','harness-cleanup'}and row.get('actual_parent_wait')is True}
             require(len(helper_pids)==1,'One actual SVM fixture helper parent required')
@@ -814,6 +914,11 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
         try:
             require(radix_transport is not None,'Radix transport diagnostic unavailable');record['Radix_transport']=radix_transport['state'].public()
         except Exception:record['Radix_transport']={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+    if manifest['scenario']in{'sealevel','sealevel-composite'}:
+        if len(selected)==1 and len(json.dumps(record,sort_keys=True,separators=(',',':')).encode())<=512*1024-40*1024:
+            private_result={**result,'_svm_diagnostic_roles':record.get('SVM_role_failure',{}).get('roles')}
+            record['SVM_encrypted_fixture_windows']=svm_encrypt_failure_windows(plan,module,*selected[0],out,private_result,private_end_ns)
+        selected.clear()
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')
@@ -1176,7 +1281,7 @@ def worker(args, plan, manifest, inputs, approval):
             for signum,handler in old.items():signal.signal(signum,handler)
             result['forced_cleanup']=forced
             if not result['passed']:
-                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context,radix_transport,inputs)
+                try:result['public_failure_diagnostics']=write_public_failure_diagnostics(plan,manifest,approval,case,out,result,worker_started_ns,startup_context,radix_transport,inputs,original_deadline_ns=args.original_deadline_ns)
                 except Exception as diagnostic_error:result['public_diagnostic_write_error']={'type':type(diagnostic_error).__name__}
             (out/'worker-result.json').write_text(json.dumps(result,indent=2)+'\n')
     require(result['passed'],'Native worker failed; retain original result')

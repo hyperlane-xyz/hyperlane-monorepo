@@ -395,4 +395,22 @@ class RadixSubmitCatalogControls(unittest.TestCase):
   tree=ast.parse(pathlib.Path(m.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='prepare');calls=[n for n in ast.walk(fn)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='radix_submit_source_catalog'];self.assertEqual(len(calls),1)
   branch=next(n for n in ast.walk(fn)if isinstance(n,ast.If)and any(c is calls[0]for c in ast.walk(n)));self.assertEqual(ast.unparse(branch.test),"scenario == 'radix'");self.assertIn('[radix_submit_lock]',ast.unparse(fn));self.assertIn("'diagnostic_radix_client_lock': radix_submit_lock",ast.unparse(fn))
 
+
+class SvmDiagnosticNodeAdmissionControls(unittest.TestCase):
+ setUp=StageControls.setUp
+ tearDown=StageControls.tearDown
+ git=StageControls.git
+ repository=StageControls.repository
+ fixture_stage=StageControls.fixture_stage
+ def test_separate_actual_elf_descriptor_and_poison_refusal(self):
+  stage,_,_=self.fixture_stage('cosmosnative');stage['diagnostic_node']=stage['tools']['native_cli'];before=copy.deepcopy(stage['tools'])
+  elf=m.load_module('diagnostic_node_elf','zig/bench/native_case_tools.py')
+  self.assertEqual(m.admitted_svm_diagnostic_node(stage,62,elf),stage['diagnostic_node']);self.assertEqual(stage['tools'],before)
+  bad=copy.deepcopy(stage);bad['diagnostic_node']['sha256']='f'*64
+  with self.assertRaises(ValueError):m.admitted_svm_diagnostic_node(bad,62,elf)
+  with self.assertRaises(ValueError):m.admitted_svm_diagnostic_node(stage,183,elf)
+  bad=copy.deepcopy(stage);bad['diagnostic_node']['ambient']='PRIVATE'
+  with self.assertRaises(ValueError):m.admitted_svm_diagnostic_node(bad,62,elf)
+
+
 if __name__=='__main__':unittest.main(verbosity=2)

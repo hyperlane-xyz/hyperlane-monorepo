@@ -1226,4 +1226,45 @@ class RadixSubmitTextControls(unittest.TestCase):
         self.assertEqual(api.radix_debug_string('"a\\n\\r\\t\\0\\\\\\\"\\x41\\u{1f600}"'),'a\n\r\t\0\\"A😀')
         self.log.write_bytes(self.header()+self.body(self.response()));value=api.rust_panic_observation(self.log,self.sources,self.repo);self.assertNotIn('Radix_submit_error_text',value);self.assertEqual(value['reason_codes'],[])
 
+
+class SvmPrivateWindowControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.repo=Path(self.temp.name);self.sources={}
+        bodies={'program.rs':b'let mut reader = BufReader::new(output).lines();\nprintln!("<{prefix}> {line}");','sealevel/solana.rs':b'args.spawn("SOL", None)','sealevel/mod.rs':b'scraper_env.spawn("SCR", None)'}
+        for suffix,body in bodies.items():
+            name='rust/main/utils/run-locally/src/'+suffix;path=self.repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(body);self.sources[name]=api.pin(path)
+    def select(self,raw,scenario='sealevel'):return api.svm_private_windows(raw,self.sources,self.repo,scenario)
+    def test_fixed_physical_tags_deduplicated_overlap_and_private_bytes(self):
+        raw=b'<SOL> \x1b[31mPRIVATE\xff\x00\n<SCR> private-key-text\n';plain,meta=self.select(raw)
+        self.assertEqual(plain,raw);self.assertEqual([r['bytes']for r in meta['windows']],[len(raw.splitlines(True)[0]),0,len(raw.splitlines(True)[1]),0]);self.assertNotIn('PRIVATE',json.dumps(meta));self.assertNotIn('sha256',json.dumps(meta))
+        plain,meta=self.select(raw,'sealevel-composite');self.assertEqual(plain,raw.splitlines(True)[0]);self.assertEqual([r['bytes']for r in meta['windows']][2:],[0,0])
+    def test_global_window_bound_43_not44_and_exact_tail(self):
+        sol=b''.join(b'<SOL> '+bytes([65+i%26])*80+b'\n'for i in range(200));scr=sol.replace(b'<SOL>',b'<SCR>')
+        plain,meta=self.select(sol+scr);self.assertEqual(len(plain),16384);self.assertEqual((len(plain)+383)//384,43);self.assertEqual([r['bytes']for r in meta['windows']],[4096]*4);self.assertEqual(plain,sol[:4096]+sol[-4096:]+scr[:4096]+scr[-4096:])
+    def test_lookalikes_oversize_source_poison_and_absolute_check(self):
+        raw=b' <SOL> foreign\n\x1b[31m<SOL> foreign\n<RLY> <SOL> foreign\n<SOLX> foreign\n<SOL> '+b'x'*65536+b'\n'
+        plain,meta=self.select(raw);self.assertEqual(plain,b'');self.assertEqual(meta['oversized_lines_omitted'],1)
+        next(iter(self.sources.values()))['sha256']='f'*64
+        with self.assertRaises(ValueError):self.select(b'<SOL> PRIVATE\n')
+        calls=[]
+        def expired():calls.append(1);raise TimeoutError('PRIVATE')
+        with self.assertRaises(TimeoutError):api.svm_private_windows(b'<SOL> x\n',self.sources,self.repo,'sealevel',expired)
+        self.assertEqual(len(calls),1)
+    def test_strict_cipher_protocol_rejects_unknown_plaintext_and_count(self):
+        block=base64.b64encode(b'x'*512).decode();good={'schema':1,'key_id':api.SVM_ENCRYPTION_KEY_ID,'blocks':[block]*43,'limits':None};wire=json.dumps(good).encode();self.assertEqual(api.svm_encrypted_blocks(wire,16384),good)
+        for bad in [{**good,'plaintext':'PRIVATE'},{**good,'blocks':[block]*44},{**good,'key_id':'f'*64},{**good,'schema':True},{**good,'blocks':['PRIVATE']*43}]:
+            with self.assertRaises((ValueError,TypeError)):api.svm_encrypted_blocks(json.dumps(bad).encode(),16384)
+        with self.assertRaises(ValueError):api.svm_encrypted_blocks(b'{"schema":1,"schema":1}',1)
+    def test_actual_role_capture_callback_reuses_same_harness_read(self):
+        fixture=RoleFailureProjectionControls('test_actual_signal_parent_receipt_join_and_finite_panic_flags_never_publish_private_fields')
+        fixture.setUp();self.addCleanup(fixture.doCleanups);seen=[];original=api.captured_failure_bytes;reads=[]
+        def read(path,maximum):
+            if Path(path)==fixture.log:reads.append(maximum)
+            return original(path,maximum)
+        with mock.patch.object(api,'captured_failure_bytes',side_effect=read):value=api.role_failure_observation(fixture.case,fixture.manifest,42,fixture.sources,fixture.repo,fixture.log,fixture.zig_sources,private_capture=seen.append)
+        self.assertEqual(reads,[32*1024**2]);self.assertEqual(seen,[fixture.log.read_bytes()]);self.assertNotIn('DO-NOT-EXPORT',json.dumps(value))
+        def broken(raw):raise ValueError('PRIVATE')
+        again=api.role_failure_observation(fixture.case,fixture.manifest,42,fixture.sources,fixture.repo,fixture.log,fixture.zig_sources,private_capture=broken);self.assertEqual(value,again)
+
+
 if __name__=='__main__':unittest.main()
