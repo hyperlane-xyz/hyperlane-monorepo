@@ -329,23 +329,14 @@ export interface LocalVaaService {
   close: () => Promise<void>;
 }
 
-export interface WormholeServiceRoute {
-  core: Address;
-  wormholeChainId: number;
-  router: Address;
-}
-
 /** ccip-server env that configures the `wormhole` module against an upstream. */
 export function wormholeServiceEnv({
   upstreamUrl,
-  routes,
 }: {
   upstreamUrl: string;
-  routes: Record<string, WormholeServiceRoute>;
 }): Record<string, string> {
   return {
     WORMHOLE_VAA_URLS: upstreamUrl,
-    WORMHOLE_ROUTES: JSON.stringify(routes),
     WORMHOLE_VAA_MAX_ATTEMPTS: '3',
     WORMHOLE_VAA_RETRY_DELAY_MS: '250',
   };
@@ -353,21 +344,20 @@ export function wormholeServiceEnv({
 
 /**
  * Starts the real `WormholeVaaService` by running the ccip-server with only the
- * `wormhole` module enabled.
+ * `wormhole` module enabled. The service discovers each route on chain from
+ * the requesting router.
  */
 export async function startWormholeVaaService({
   port,
   upstreamUrl,
-  routes,
 }: {
   port: number;
   upstreamUrl: string;
-  routes: Record<string, WormholeServiceRoute>;
 }): Promise<LocalVaaService> {
   const { baseUrl, close } = await startCcipServer({
     port,
     modules: ['wormhole'],
-    env: wormholeServiceEnv({ upstreamUrl, routes }),
+    env: wormholeServiceEnv({ upstreamUrl }),
   });
 
   return { url: `${baseUrl}/wormhole/getWormholeVaa`, close };

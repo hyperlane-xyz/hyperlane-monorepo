@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { assert, sleep } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   PrometheusMetrics,
@@ -11,12 +11,8 @@ import {
 import { ParsedVaa, formatVaaId, parseVaa } from './wormholeVaaMatcher.js';
 
 export interface WormholeVaaFetcherConfig {
-  /** Redundant Wormholescan-compatible base URLs, tried in order. */
-  urls: Array<string>;
   timeoutMs: number;
   maxResponseBytes: number;
-  maxAttempts: number;
-  baseRetryDelayMs: number;
 }
 
 /** Signals that Guardians have not signed yet; the relayer should retry later. */
@@ -27,78 +23,45 @@ export class VaaPendingError extends Error {
   }
 }
 
+/** An endpoint's origin and path, without credentials or query parameters. */
+export function redactEndpointUrl(url: string): string {
+  const parsed = new URL(url);
+  return `${parsed.origin}${parsed.pathname.replace(/\/$/, '')}`;
+}
+
 /**
- * Fetches signed VAAs from redundant public endpoints.
+ * Fetches a signed VAA from one Wormholescan-compatible endpoint in a single
+ * request.
  *
  * The upstream is untrusted: only the decoded VAA bytes are used, never the
- * surrounding response metadata.
+ * surrounding response metadata. Callers check the decoded VAA against the
+ * publication it should attest to.
  */
 export class WormholeVaaFetcher {
   constructor(
     private readonly serviceName: string,
     private readonly config: WormholeVaaFetcherConfig,
-  ) {
-    assert(config.urls.length > 0, 'At least one VAA endpoint is required');
-  }
+  ) {}
 
   async fetchVaa(
+    baseUrl: string,
     emitterChainId: number,
     emitterAddress: string,
     sequence: string,
     logger: Logger,
   ): Promise<{ encodedVaa: string; vaa: ParsedVaa }> {
     const vaaId = formatVaaId(emitterChainId, emitterAddress, sequence);
-
-    let lastPending: VaaPendingError | undefined;
-    for (let attempt = 0; attempt < this.config.maxAttempts; attempt++) {
-      for (const url of this.config.urls) {
-        try {
-          const encodedVaa = await this.fetchOnce(url, vaaId, logger);
-          const vaa = parseVaa(encodedVaa);
-          const servedVaaId = formatVaaId(
-            vaa.emitterChainId,
-            vaa.emitterAddress,
-            vaa.sequence,
-          );
-          assert(
-            servedVaaId === vaaId,
-            `Endpoint served VAA ${servedVaaId} instead of ${vaaId}`,
-          );
-          logger.info(
-            { vaaId, guardianSetIndex: vaa.guardianSetIndex, attempt },
-            'Fetched signed VAA',
-          );
-          return { encodedVaa, vaa };
-        } catch (error) {
-          if (error instanceof VaaPendingError) {
-            lastPending = error;
-            continue;
-          }
-          // Endpoint-level failure: try the next endpoint, then the next attempt.
-          logger.warn(
-            { vaaId, url, error: errorMessage(error) },
-            'VAA endpoint failed',
-          );
-        }
-      }
-
-      if (attempt + 1 < this.config.maxAttempts) {
-        await sleep(this.backoffMs(attempt));
-      }
-    }
-
-    PrometheusMetrics.logUnhandledError(
-      this.serviceName,
-      UnhandledErrorReason.WORMHOLE_VAA_UNAVAILABLE,
+    const encodedVaa = await this.fetchOnce(baseUrl, vaaId, logger);
+    const vaa = parseVaa(encodedVaa);
+    logger.info(
+      {
+        vaaId,
+        url: redactEndpointUrl(baseUrl),
+        guardianSetIndex: vaa.guardianSetIndex,
+      },
+      'Fetched signed VAA',
     );
-    if (lastPending) throw lastPending;
-    throw new Error(`Unable to fetch VAA ${vaaId} from any endpoint`);
-  }
-
-  /** Exponential backoff with jitter, so retries do not synchronize. */
-  private backoffMs(attempt: number): number {
-    const base = this.config.baseRetryDelayMs * 2 ** attempt;
-    return base + Math.floor(Math.random() * this.config.baseRetryDelayMs);
+    return { encodedVaa, vaa };
   }
 
   private async fetchOnce(
@@ -135,7 +98,10 @@ export class WormholeVaaFetcher {
     if (encoded === undefined) {
       // A well-formed response with no VAA yet is a pending attestation, not a
       // permanent failure.
-      logger.info({ vaaId, url }, 'Endpoint has no VAA yet');
+      logger.info(
+        { vaaId, url: redactEndpointUrl(baseUrl) },
+        'Endpoint has no VAA yet',
+      );
       throw new VaaPendingError(vaaId);
     }
 
@@ -199,8 +165,4 @@ export function decodeBase64OrHex(value: string): string {
   const bytes = Buffer.from(value, 'base64');
   assert(bytes.length > 0, 'Endpoint returned an empty VAA');
   return ethers.utils.hexlify(bytes);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

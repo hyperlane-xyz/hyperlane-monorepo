@@ -610,16 +610,6 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
       const service = await startWormholeVaaService({
         port: VAA_SERVICE_PORT,
         upstreamUrl: upstream.url,
-        routes: Object.fromEntries(
-          chains.map((chain) => [
-            chain,
-            {
-              core: mocks[chain].core.address,
-              wormholeChainId: mocks[chain].wormholeChainId,
-              router: routers[chain],
-            },
-          ]),
-        ),
       });
       try {
         const multiProvider = await getMultiProvider();

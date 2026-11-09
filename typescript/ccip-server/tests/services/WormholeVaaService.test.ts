@@ -4,16 +4,20 @@ import { pino } from 'pino';
 import { Registry } from 'prom-client';
 import sinon from 'sinon';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { WormholeVaaHookIsm__factory } from '@hyperlane-xyz/core';
+import { ModuleType, MultiProvider, OnchainHookType } from '@hyperlane-xyz/sdk';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { WormholeVaaFetcher } from '../../src/services/WormholeVaaFetcher.js';
 import {
-  WormholeChainConfigSchema,
   WormholeVaaService,
   type WormholeVaaServiceConfig,
 } from '../../src/services/WormholeVaaService.js';
-import { initializeMetrics } from '../../src/utils/prometheus.js';
+import {
+  PrometheusMetrics,
+  UnhandledErrorReason,
+  initializeMetrics,
+} from '../../src/utils/prometheus.js';
 import {
   LOG_MESSAGE_PUBLISHED_ABI,
   WORMHOLE_PAYLOAD_MAGIC,
@@ -42,21 +46,74 @@ const NONCE = 3;
 const SEQUENCE = '11';
 const CONSISTENCY_LEVEL = 15;
 const TX_HASH = `0x${'ab'.repeat(32)}`;
+const VAA_URL = 'https://example.test';
 
 const iface = new ethers.utils.Interface(LOG_MESSAGE_PUBLISHED_ABI);
 
-const ROUTES = {
-  [ORIGIN_CHAIN]: {
-    core: ORIGIN_CORE,
-    wormholeChainId: WH_ORIGIN,
-    router: ORIGIN_ROUTER,
-  },
-  [DESTINATION_CHAIN]: {
-    core: DESTINATION_CORE,
-    wormholeChainId: WH_DESTINATION,
-    router: DESTINATION_ROUTER,
-  },
+const routerInterface = WormholeVaaHookIsm__factory.createInterface();
+
+interface RouterState {
+  localDomain: number;
+  core: string;
+  wormholeChainId: number;
+  hookType: number;
+  remoteDomain: number;
+  remoteRouter: string;
+  remoteWormholeChainId: number;
+}
+
+const ORIGIN_ROUTER_STATE: RouterState = {
+  localDomain: ORIGIN_DOMAIN,
+  core: ORIGIN_CORE,
+  wormholeChainId: WH_ORIGIN,
+  hookType: OnchainHookType.WORMHOLE,
+  remoteDomain: DESTINATION_DOMAIN,
+  remoteRouter: DESTINATION_ROUTER,
+  remoteWormholeChainId: WH_DESTINATION,
 };
+
+const DESTINATION_ROUTER_STATE: RouterState = {
+  localDomain: DESTINATION_DOMAIN,
+  core: DESTINATION_CORE,
+  wormholeChainId: WH_DESTINATION,
+  hookType: OnchainHookType.WORMHOLE,
+  remoteDomain: ORIGIN_DOMAIN,
+  remoteRouter: ORIGIN_ROUTER,
+  remoteWormholeChainId: WH_ORIGIN,
+};
+
+function routerStates(
+  origin: RouterState = ORIGIN_ROUTER_STATE,
+  destination: RouterState = DESTINATION_ROUTER_STATE,
+): Record<string, RouterState> {
+  return {
+    [ORIGIN_ROUTER.toLowerCase()]: origin,
+    [DESTINATION_ROUTER.toLowerCase()]: destination,
+  };
+}
+
+function routerCall(router: RouterState, data: string): string {
+  const call = routerInterface.parseTransaction({ data });
+  const results: Record<string, Array<unknown>> = {
+    wormholeCoreBridge: [router.core],
+    localDomain: [router.localDomain],
+    wormholeChainId: [router.wormholeChainId],
+    hookType: [router.hookType],
+    moduleType: [ModuleType.CCIP_READ],
+    routers: [addressToBytes32(router.remoteRouter)],
+    remoteRouterConfigs: [
+      router.remoteWormholeChainId,
+      {
+        consistencyLevel: CONSISTENCY_LEVEL,
+        customBaseConsistencyLevel: 0,
+        additionalBlocks: 0,
+      },
+    ],
+  };
+  const result = results[call.name];
+  assert(result, `Unexpected router call ${call.name}`);
+  return routerInterface.encodeFunctionResult(call.functionFragment, result);
+}
 
 function buildMessage(): string {
   return ethers.utils.solidityPack(
@@ -193,17 +250,39 @@ interface Harness extends ServiceHarness {
   fetchVaa: sinon.SinonStub;
 }
 
+interface ServiceOptions {
+  routers?: Record<string, RouterState>;
+  vaaUrls?: Array<string>;
+  maxAttempts?: number;
+}
+
 function buildService(
   entries: Array<{ address: string; topics: Array<string>; data: string }>,
   vaaFetcher: WormholeVaaServiceConfig['vaaFetcher'],
+  {
+    routers = routerStates(),
+    vaaUrls = [VAA_URL],
+    maxAttempts = 1,
+  }: ServiceOptions = {},
 ): ServiceHarness {
   const provider = new ethers.providers.JsonRpcProvider('http://127.0.0.1:1');
   const getTransactionReceipt = sinon
     .stub(provider, 'getTransactionReceipt')
     .resolves(toReceipt(entries));
+  sinon.stub(provider, 'call').callsFake(async (transaction) => {
+    const { to, data } = await ethers.utils.resolveProperties(transaction);
+    assert(
+      typeof to === 'string' && typeof data === 'string',
+      'Malformed eth_call',
+    );
+    const router = routers[to.toLowerCase()];
+    assert(router, `Unexpected eth_call to ${to}`);
+    return routerCall(router, data);
+  });
 
   const multiProvider = sinon.createStubInstance(MultiProvider);
   multiProvider.getProvider.returns(provider);
+  multiProvider.tryGetProvider.returns(provider);
   multiProvider.tryGetChainName.callsFake((domain) =>
     domain === ORIGIN_DOMAIN
       ? ORIGIN_CHAIN
@@ -217,7 +296,9 @@ function buildService(
   const service = new WormholeVaaService({
     serviceName: 'wormhole',
     multiProvider,
-    routes: ROUTES,
+    vaaUrls,
+    maxAttempts,
+    baseRetryDelayMs: 1,
     vaaFetcher,
     hyperlaneService: {
       getOriginTransactionHashByMessageId: explorerLookup,
@@ -230,6 +311,7 @@ function buildService(
 function harness(
   entries: Array<{ address: string; topics: Array<string>; data: string }>,
   vaa: string,
+  options: ServiceOptions = {},
 ): Harness {
   const fetchVaa = sinon.stub();
   fetchVaa.resolves({ encodedVaa: vaa, vaa: parseVaa(vaa) });
@@ -237,9 +319,21 @@ function harness(
   const { service, getTransactionReceipt, explorerLookup } = buildService(
     entries,
     { fetchVaa },
+    options,
   );
 
   return { service, getTransactionReceipt, fetchVaa, explorerLookup };
+}
+
+function realFetcher(): WormholeVaaFetcher {
+  return new WormholeVaaFetcher('wormhole', {
+    timeoutMs: 1_000,
+    maxResponseBytes: 65_536,
+  });
+}
+
+function vaaUrlFor(baseUrl: string, sequence = SEQUENCE): string {
+  return `${baseUrl}/api/v1/vaas/${WH_ORIGIN}/${'00'.repeat(12)}${'11'.repeat(20)}/${sequence}`;
 }
 
 function vaaResponse(encodedVaa: string): Response {
@@ -257,23 +351,6 @@ describe('WormholeVaaService', () => {
   before(() => initializeMetrics(new Registry()));
   afterEach(() => sinon.restore());
 
-  it('rejects zero Core and router addresses in route configuration', () => {
-    const validRoute = ROUTES[ORIGIN_CHAIN];
-
-    expect(
-      WormholeChainConfigSchema.safeParse({
-        ...validRoute,
-        core: ethers.constants.AddressZero,
-      }).success,
-    ).to.equal(false);
-    expect(
-      WormholeChainConfigSchema.safeParse({
-        ...validRoute,
-        router: ethers.constants.AddressZero,
-      }).success,
-    ).to.equal(false);
-  });
-
   it('returns the raw VAA bytes for a matching publication', async () => {
     const message = buildMessage();
     const messageId = ethers.utils.keccak256(message);
@@ -281,7 +358,12 @@ describe('WormholeVaaService', () => {
     const vaa = encodeVaa(payload);
     const { service } = harness([publicationLog(payload)], vaa);
 
-    const result = await service.getWormholeVaa(message, TX_HASH, logger);
+    const result = await service.getWormholeVaa(
+      message,
+      DESTINATION_ROUTER,
+      TX_HASH,
+      logger,
+    );
 
     expect(result).to.equal(vaa);
   });
@@ -294,7 +376,7 @@ describe('WormholeVaaService', () => {
       encodeVaa(payload),
     );
 
-    await service.getWormholeVaa(message, TX_HASH, logger);
+    await service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger);
 
     expect(getTransactionReceipt.calledOnceWith(TX_HASH)).to.be.true;
     expect(explorerLookup.called).to.be.false;
@@ -308,7 +390,12 @@ describe('WormholeVaaService', () => {
       encodeVaa(payload),
     );
 
-    await service.getWormholeVaa(message, undefined, logger);
+    await service.getWormholeVaa(
+      message,
+      DESTINATION_ROUTER,
+      undefined,
+      logger,
+    );
 
     expect(explorerLookup.calledOnce).to.be.true;
     expect(getTransactionReceipt.calledOnceWith(TX_HASH)).to.be.true;
@@ -322,9 +409,10 @@ describe('WormholeVaaService', () => {
       encodeVaa(payload),
     );
 
-    await service.getWormholeVaa(message, TX_HASH, logger);
+    await service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger);
 
-    const [chainId, emitter, sequence] = fetchVaa.firstCall.args;
+    const [url, chainId, emitter, sequence] = fetchVaa.firstCall.args;
+    expect(url).to.equal(VAA_URL);
     expect(chainId).to.equal(WH_ORIGIN);
     expect(emitter).to.equal(addressToBytes32(ORIGIN_ROUTER));
     expect(sequence).to.equal(SEQUENCE);
@@ -338,7 +426,7 @@ describe('WormholeVaaService', () => {
     );
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
       'No Wormhole publication',
     );
   });
@@ -352,7 +440,7 @@ describe('WormholeVaaService', () => {
     );
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
       'No Wormhole publication',
     );
   });
@@ -366,7 +454,7 @@ describe('WormholeVaaService', () => {
     );
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
       'No Wormhole publication',
     );
   });
@@ -382,7 +470,12 @@ describe('WormholeVaaService', () => {
       vaa,
     );
 
-    const result = await service.getWormholeVaa(message, TX_HASH, logger);
+    const result = await service.getWormholeVaa(
+      message,
+      DESTINATION_ROUTER,
+      TX_HASH,
+      logger,
+    );
 
     expect(result).to.equal(vaa);
   });
@@ -396,7 +489,7 @@ describe('WormholeVaaService', () => {
     );
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
       'Ambiguous receipt',
     );
   });
@@ -408,7 +501,7 @@ describe('WormholeVaaService', () => {
     const { service } = harness([publicationLog(payload)], encodeVaa(tampered));
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
       'VAA payload does not match',
     );
   });
@@ -421,21 +514,19 @@ describe('WormholeVaaService', () => {
     const fetchStub = sinon.stub(globalThis, 'fetch');
     fetchStub.onCall(0).resolves(vaaResponse(tampered));
     fetchStub.onCall(1).resolves(vaaResponse(vaa));
-    const vaaFetcher = new WormholeVaaFetcher('wormhole', {
-      urls: ['https://example.test'],
-      timeoutMs: 1_000,
-      maxResponseBytes: 65_536,
-      maxAttempts: 1,
-      baseRetryDelayMs: 1,
-    });
-    const { service } = buildService([publicationLog(payload)], vaaFetcher);
-    const vaaUrl = `https://example.test/api/v1/vaas/2/${'00'.repeat(12)}${'11'.repeat(20)}/11`;
+    const { service } = buildService([publicationLog(payload)], realFetcher());
+    const vaaUrl = vaaUrlFor(VAA_URL);
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
       'VAA payload does not match',
     );
-    const result = await service.getWormholeVaa(message, TX_HASH, logger);
+    const result = await service.getWormholeVaa(
+      message,
+      DESTINATION_ROUTER,
+      TX_HASH,
+      logger,
+    );
 
     expect(result).to.equal(vaa);
     expect(fetchStub.callCount).to.equal(2);
@@ -452,8 +543,8 @@ describe('WormholeVaaService', () => {
     );
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
-      'does not match origin',
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
+      `Endpoint served VAA ${WH_DESTINATION}/`,
     );
   });
 
@@ -470,17 +561,316 @@ describe('WormholeVaaService', () => {
         '0x',
       ],
     );
-    const { service } = harness(
+    const { service, getTransactionReceipt } = harness(
       [],
       encodeVaa(buildPayload(ethers.utils.id('x'))),
     );
 
     await expectRejection(
-      service.getWormholeVaa(message, TX_HASH, logger),
-      'No Wormhole route configured',
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
+      'Unknown Hyperlane origin domain 999999',
     );
+    expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  it('rejects a request without a CCIP sender', async () => {
+    const message = buildMessage();
+    const payload = buildPayload(ethers.utils.keccak256(message));
+    const { service, getTransactionReceipt } = harness(
+      [publicationLog(payload)],
+      encodeVaa(payload),
+    );
+
+    await expectRejection(
+      service.getWormholeVaa(message, undefined, TX_HASH, logger),
+      'Invalid Wormhole CCIP sender',
+    );
+    expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  it('rejects a CCIP sender that is not the destination router', async () => {
+    const message = buildMessage();
+    const payload = buildPayload(ethers.utils.keccak256(message));
+    const { service, getTransactionReceipt } = harness(
+      [publicationLog(payload)],
+      encodeVaa(payload),
+    );
+
+    await expectRejection(
+      service.getWormholeVaa(message, ORIGIN_ROUTER, TX_HASH, logger),
+      `Wormhole router ${ORIGIN_ROUTER} reports Hyperlane domain ${ORIGIN_DOMAIN}; expected ${DESTINATION_DOMAIN}`,
+    );
+    expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  it('rejects a CCIP sender that is not a Wormhole hook', async () => {
+    const message = buildMessage();
+    const payload = buildPayload(ethers.utils.keccak256(message));
+    const { service, getTransactionReceipt } = harness(
+      [publicationLog(payload)],
+      encodeVaa(payload),
+      {
+        routers: routerStates(ORIGIN_ROUTER_STATE, {
+          localDomain: DESTINATION_DOMAIN,
+          core: DESTINATION_CORE,
+          wormholeChainId: WH_DESTINATION,
+          hookType: OnchainHookType.ROUTING,
+          remoteDomain: ORIGIN_DOMAIN,
+          remoteRouter: ORIGIN_ROUTER,
+          remoteWormholeChainId: WH_ORIGIN,
+        }),
+      },
+    );
+
+    await expectRejection(
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
+      `Contract ${DESTINATION_ROUTER} on domain ${DESTINATION_DOMAIN} is not a Wormhole hook`,
+    );
+    expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  it('rejects an origin router that enrolls a different destination', async () => {
+    const message = buildMessage();
+    const payload = buildPayload(ethers.utils.keccak256(message));
+    const { service, getTransactionReceipt } = harness(
+      [publicationLog(payload)],
+      encodeVaa(payload),
+      {
+        routers: routerStates({
+          localDomain: ORIGIN_DOMAIN,
+          core: ORIGIN_CORE,
+          wormholeChainId: WH_ORIGIN,
+          hookType: OnchainHookType.WORMHOLE,
+          remoteDomain: DESTINATION_DOMAIN,
+          remoteRouter: '0x5555555555555555555555555555555555555555',
+          remoteWormholeChainId: WH_DESTINATION,
+        }),
+      },
+    );
+
+    await expectRejection(
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
+      `Wormhole routers are not reciprocally enrolled for ${ORIGIN_DOMAIN} -> ${DESTINATION_DOMAIN}`,
+    );
+    expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  it('rejects routers whose Wormhole chain IDs disagree', async () => {
+    const message = buildMessage();
+    const payload = buildPayload(ethers.utils.keccak256(message));
+    const { service, getTransactionReceipt } = harness(
+      [publicationLog(payload)],
+      encodeVaa(payload),
+      {
+        routers: routerStates(ORIGIN_ROUTER_STATE, {
+          localDomain: DESTINATION_DOMAIN,
+          core: DESTINATION_CORE,
+          wormholeChainId: WH_DESTINATION,
+          hookType: OnchainHookType.WORMHOLE,
+          remoteDomain: ORIGIN_DOMAIN,
+          remoteRouter: ORIGIN_ROUTER,
+          remoteWormholeChainId: 7,
+        }),
+      },
+    );
+
+    await expectRejection(
+      service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
+      `Wormhole chain IDs are inconsistent for ${ORIGIN_DOMAIN} -> ${DESTINATION_DOMAIN}`,
+    );
+    expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  describe('with redundant VAA endpoints', () => {
+    const FIRST_URL = 'https://a.example.test';
+    const SECOND_URL = 'https://b.example.test';
+    const CREDENTIALED_SECOND_URL = 'https://user:secret@b.example.test';
+
+    /** Serves each endpoint by base URL, so parallel requests can race. */
+    function stubEndpoints(
+      endpoints: Record<string, () => Promise<Response>>,
+    ): sinon.SinonStub {
+      return sinon.stub(globalThis, 'fetch').callsFake(async (input) => {
+        assert(typeof input === 'string', 'Expected a string request URL');
+        const endpoint = Object.entries(endpoints).find(([baseUrl]) =>
+          input.startsWith(`${baseUrl}/`),
+        );
+        assert(endpoint, `Unexpected request to ${input}`);
+        const [, respond] = endpoint;
+        return respond();
+      });
+    }
+
+    const notFound = async () => new Response('{}', { status: 404 });
+    const unavailable = async () =>
+      new Response('unavailable', { status: 503 });
+
+    function lookup(vaaUrls: Array<string>, maxAttempts = 1) {
+      const message = buildMessage();
+      const payload = buildPayload(ethers.utils.keccak256(message));
+      const { service } = buildService(
+        [publicationLog(payload)],
+        realFetcher(),
+        { vaaUrls, maxAttempts },
+      );
+      return {
+        payload,
+        run: () =>
+          service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
+      };
+    }
+
+    it('returns a matching VAA while another endpoint hangs', async () => {
+      const { payload, run } = lookup([FIRST_URL, SECOND_URL]);
+      const vaa = encodeVaa(payload);
+      const fetchStub = stubEndpoints({
+        [FIRST_URL]: () => new Promise<Response>(() => {}),
+        [SECOND_URL]: async () => vaaResponse(vaa),
+      });
+
+      const result = await run();
+
+      expect(result).to.equal(vaa);
+      expect(fetchStub.args.map(([url]) => url)).to.have.members([
+        vaaUrlFor(FIRST_URL),
+        vaaUrlFor(SECOND_URL),
+      ]);
+    });
+
+    it('skips an endpoint whose VAA locator does not match the request', async () => {
+      const { payload, run } = lookup([FIRST_URL, SECOND_URL]);
+      const vaa = encodeVaa(payload);
+      stubEndpoints({
+        [FIRST_URL]: async () =>
+          vaaResponse(encodeVaa(payload, { sequence: '12' })),
+        [SECOND_URL]: async () => vaaResponse(vaa),
+      });
+
+      expect(await run()).to.equal(vaa);
+    });
+
+    it('moves on when an endpoint serves the right locator with a mismatched body', async () => {
+      const { payload, run } = lookup([FIRST_URL, SECOND_URL]);
+      const vaa = encodeVaa(payload);
+      const tampered = encodeVaa(buildPayload(ethers.utils.id('tampered')));
+      stubEndpoints({
+        [FIRST_URL]: async () => vaaResponse(tampered),
+        [SECOND_URL]: async () => vaaResponse(vaa),
+      });
+      const logUnhandledError = sinon.spy(
+        PrometheusMetrics,
+        'logUnhandledError',
+      );
+
+      const result = await run();
+
+      expect(result).to.equal(vaa);
+      expect(logUnhandledError.called).to.be.false;
+    });
+
+    it('names every endpoint when all of them serve a mismatched VAA', async () => {
+      const { run } = lookup([FIRST_URL, CREDENTIALED_SECOND_URL]);
+      const tampered = encodeVaa(buildPayload(ethers.utils.id('tampered')));
+      stubEndpoints({
+        [FIRST_URL]: async () => vaaResponse(tampered),
+        [CREDENTIALED_SECOND_URL]: async () => vaaResponse(tampered),
+      });
+      const logUnhandledError = sinon.spy(
+        PrometheusMetrics,
+        'logUnhandledError',
+      );
+
+      const error = await rejectionOf(run());
+
+      expect(error).to.include(
+        `${FIRST_URL}: VAA payload does not match the published payload`,
+      );
+      expect(error).to.include(
+        `${SECOND_URL}: VAA payload does not match the published payload`,
+      );
+      expect(error).not.to.include('secret');
+      expect(logUnhandledError.args).to.deep.equal([
+        ['wormhole', UnhandledErrorReason.WORMHOLE_VAA_MISMATCH],
+      ]);
+    });
+
+    it('reports an unavailable VAA when only some endpoints serve a mismatched VAA', async () => {
+      const { run } = lookup([FIRST_URL, SECOND_URL]);
+      const tampered = encodeVaa(buildPayload(ethers.utils.id('tampered')));
+      stubEndpoints({
+        [FIRST_URL]: async () => vaaResponse(tampered),
+        [SECOND_URL]: unavailable,
+      });
+      const logUnhandledError = sinon.spy(
+        PrometheusMetrics,
+        'logUnhandledError',
+      );
+
+      const error = await rejectionOf(run());
+
+      expect(error).to.include(
+        `${FIRST_URL}: VAA payload does not match the published payload`,
+      );
+      expect(error).to.include(`${SECOND_URL}: VAA endpoint returned 503`);
+      expect(logUnhandledError.args).to.deep.equal([
+        ['wormhole', UnhandledErrorReason.WORMHOLE_VAA_UNAVAILABLE],
+      ]);
+    });
+
+    it('reports a pending VAA when one endpoint has none yet and another fails', async () => {
+      const { run } = lookup([FIRST_URL, SECOND_URL]);
+      const fetchStub = stubEndpoints({
+        [FIRST_URL]: notFound,
+        [SECOND_URL]: unavailable,
+      });
+
+      await expectRejection(run(), 'is pending Guardian signatures');
+      expect(fetchStub.callCount).to.equal(2);
+    });
+
+    it('retries every endpoint while the VAA stays pending', async () => {
+      const { run } = lookup([FIRST_URL, SECOND_URL], 3);
+      const fetchStub = stubEndpoints({
+        [FIRST_URL]: notFound,
+        [SECOND_URL]: notFound,
+      });
+
+      await expectRejection(run(), 'is pending Guardian signatures');
+      expect(fetchStub.callCount).to.equal(6);
+    });
+
+    it('returns the VAA once a pending endpoint serves it', async () => {
+      const { payload, run } = lookup([FIRST_URL], 3);
+      const vaa = encodeVaa(payload);
+      const fetchStub = sinon.stub(globalThis, 'fetch');
+      fetchStub.onCall(0).callsFake(notFound);
+      fetchStub.onCall(1).resolves(vaaResponse(vaa));
+
+      expect(await run()).to.equal(vaa);
+      expect(fetchStub.callCount).to.equal(2);
+    });
+
+    it('does not retry when no endpoint reports the VAA as pending', async () => {
+      const { run } = lookup([FIRST_URL, SECOND_URL], 3);
+      const fetchStub = stubEndpoints({
+        [FIRST_URL]: unavailable,
+        [SECOND_URL]: unavailable,
+      });
+
+      await expectRejection(run(), `${FIRST_URL}: VAA endpoint returned 503`);
+      expect(fetchStub.callCount).to.equal(2);
+    });
   });
 });
+
+async function rejectionOf(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  expect.fail('Expected the lookup to reject');
+}
 
 async function expectRejection(
   promise: Promise<unknown>,

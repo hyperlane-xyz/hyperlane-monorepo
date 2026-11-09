@@ -6,6 +6,7 @@ import { Registry } from 'prom-client';
 import sinon from 'sinon';
 
 import {
+  VaaPendingError,
   WormholeVaaFetcher,
   type WormholeVaaFetcherConfig,
 } from '../../src/services/WormholeVaaFetcher.js';
@@ -13,6 +14,8 @@ import { initializeMetrics } from '../../src/utils/prometheus.js';
 
 const logger = pino({ enabled: false });
 const emitterAddress = `0x${'11'.repeat(32)}`;
+const BASE_URL = 'https://example.test';
+const VAA_URL = `${BASE_URL}/api/v1/vaas/3/${'11'.repeat(32)}/1`;
 
 chai.use(chaiAsPromised);
 
@@ -38,11 +41,8 @@ function config(
   overrides: Partial<WormholeVaaFetcherConfig> = {},
 ): WormholeVaaFetcherConfig {
   return {
-    urls: ['https://example.test'],
     timeoutMs: 1_000,
     maxResponseBytes: 65_536,
-    maxAttempts: 1,
-    baseRetryDelayMs: 1,
     ...overrides,
   };
 }
@@ -52,26 +52,48 @@ describe('WormholeVaaFetcher', () => {
 
   afterEach(() => sinon.restore());
 
-  it('skips an endpoint whose VAA locator does not match the request', async () => {
-    const fetchStub = sinon.stub(globalThis, 'fetch');
-    fetchStub.onCall(0).resolves(responseFor(2));
-    fetchStub.onCall(1).resolves(responseFor(1));
-    const fetcher = new WormholeVaaFetcher(
-      'wormhole-test',
-      config({ urls: ['https://a.example.test', 'https://b.example.test'] }),
-    );
+  it('fetches the VAA from the endpoint in one request', async () => {
+    const fetchStub = sinon.stub(globalThis, 'fetch').resolves(responseFor(1));
+    const fetcher = new WormholeVaaFetcher('wormhole-test', config());
 
-    const result = await fetcher.fetchVaa(3, emitterAddress, '1', logger);
+    const result = await fetcher.fetchVaa(
+      BASE_URL,
+      3,
+      emitterAddress,
+      '1',
+      logger,
+    );
 
     expect(result.encodedVaa).to.equal(encodeVaa(1));
     expect(result.vaa.sequence).to.equal('1');
-    expect(fetchStub.callCount).to.equal(2);
-    expect(fetchStub.firstCall.args[0]).to.equal(
-      `https://a.example.test/api/v1/vaas/3/${'11'.repeat(32)}/1`,
+    expect(fetchStub.callCount).to.equal(1);
+    expect(fetchStub.firstCall.args[0]).to.equal(VAA_URL);
+  });
+
+  it('reports a pending VAA when the endpoint has none yet', async () => {
+    const fetchStub = sinon
+      .stub(globalThis, 'fetch')
+      .resolves(new Response('{}', { status: 404 }));
+    const fetcher = new WormholeVaaFetcher('wormhole-test', config());
+
+    await expect(
+      fetcher.fetchVaa(BASE_URL, 3, emitterAddress, '1', logger),
+    ).to.be.rejectedWith(VaaPendingError);
+    expect(fetchStub.callCount).to.equal(1);
+  });
+
+  it('does not retry a failing endpoint', async () => {
+    const fetchStub = sinon
+      .stub(globalThis, 'fetch')
+      .resolves(new Response('unavailable', { status: 503 }));
+    const fetcher = new WormholeVaaFetcher('wormhole-test', config());
+
+    await expect(
+      fetcher.fetchVaa(BASE_URL, 3, emitterAddress, '1', logger),
+    ).to.be.rejectedWith(
+      `VAA endpoint returned 503 for 3/${'11'.repeat(32)}/1`,
     );
-    expect(fetchStub.secondCall.args[0]).to.equal(
-      `https://b.example.test/api/v1/vaas/3/${'11'.repeat(32)}/1`,
-    );
+    expect(fetchStub.callCount).to.equal(1);
   });
 
   it('rejects a chunked response as soon as it exceeds the byte limit', async () => {
@@ -92,8 +114,10 @@ describe('WormholeVaaFetcher', () => {
       config({ maxResponseBytes: 16 }),
     );
     await expect(
-      fetcher.fetchVaa(3, emitterAddress, '1', logger),
-    ).to.be.rejectedWith('Unable to fetch VAA');
+      fetcher.fetchVaa(BASE_URL, 3, emitterAddress, '1', logger),
+    ).to.be.rejectedWith(
+      `VAA response for 3/${'11'.repeat(32)}/1 exceeds 16 bytes`,
+    );
     expect(canceled).to.equal(true);
   });
 
@@ -112,7 +136,9 @@ describe('WormholeVaaFetcher', () => {
       config({ maxResponseBytes: 16 }),
     );
     await expect(
-      fetcher.fetchVaa(3, emitterAddress, '1', logger),
-    ).to.be.rejectedWith('Unable to fetch VAA');
+      fetcher.fetchVaa(BASE_URL, 3, emitterAddress, '1', logger),
+    ).to.be.rejectedWith(
+      `VAA response for 3/${'11'.repeat(32)}/1 exceeds 16 bytes`,
+    );
   });
 });

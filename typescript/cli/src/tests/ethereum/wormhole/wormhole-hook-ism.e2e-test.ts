@@ -258,18 +258,6 @@ describe('hyperlane wormhole hook/ISM e2e tests', function () {
       service = await startWormholeVaaService({
         port: VAA_SERVICE_PORT,
         upstreamUrl: upstream.url,
-        routes: {
-          [CHAIN_NAME_2]: {
-            core: mocks[CHAIN_NAME_2].core.address,
-            wormholeChainId: WH_CHAIN_ID_2,
-            router: routers[CHAIN_NAME_2],
-          },
-          [CHAIN_NAME_3]: {
-            core: mocks[CHAIN_NAME_3].core.address,
-            wormholeChainId: WH_CHAIN_ID_3,
-            router: routers[CHAIN_NAME_3],
-          },
-        },
       });
     });
 

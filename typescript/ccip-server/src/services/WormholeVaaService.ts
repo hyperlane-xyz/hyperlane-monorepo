@@ -2,9 +2,12 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { IWormholeVaaService__factory } from '@hyperlane-xyz/core';
+import {
+  IWormholeVaaService__factory,
+  WormholeVaaHookIsm__factory,
+} from '@hyperlane-xyz/core';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert, parseMessage } from '@hyperlane-xyz/utils';
+import { assert, parseMessage, sleep } from '@hyperlane-xyz/utils';
 
 import type { CcipApp } from '../http.js';
 import {
@@ -23,44 +26,22 @@ import {
   ServiceConfigWithMultiProvider,
 } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
-import { WormholeVaaFetcher } from './WormholeVaaFetcher.js';
 import {
+  VaaPendingError,
+  WormholeVaaFetcher,
+  redactEndpointUrl,
+} from './WormholeVaaFetcher.js';
+import {
+  type ParsedVaa,
+  type WormholePublication,
   assertVaaMatchesPublication,
   findMatchingWormholePublication,
+  formatVaaId,
 } from './wormholeVaaMatcher.js';
-
-/**
- * Per-chain Wormhole route data.
- *
- * These are deployment facts, not defaults: the official Core proxy for the
- * environment, that chain's Wormhole chain ID, and the enrolled Hyperlane
- * router. Supplying them explicitly is what lets the service reject a lookalike
- * publication instead of scanning every log in a receipt.
- */
-export const WormholeChainConfigSchema = z.object({
-  core: z
-    .string()
-    .refine(ethers.utils.isAddress, 'core must be an address')
-    .refine(
-      (address) => address !== ethers.constants.AddressZero,
-      'core must not be the zero address',
-    ),
-  wormholeChainId: z.number().int().positive().max(65_535),
-  router: z
-    .string()
-    .refine(ethers.utils.isAddress, 'router must be an address')
-    .refine(
-      (address) => address !== ethers.constants.AddressZero,
-      'router must not be the zero address',
-    ),
-});
-
-export type WormholeChainConfig = z.infer<typeof WormholeChainConfigSchema>;
-
-export const WormholeRoutesSchema = z.record(
-  z.string(),
-  WormholeChainConfigSchema,
-);
+import {
+  type WormholeChainConfig,
+  resolveWormholeRoutes,
+} from './wormholeRouteResolver.js';
 
 const CommaSeparatedUrls = z
   .string()
@@ -72,21 +53,6 @@ const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
   /** Comma-separated Wormholescan-compatible base URLs. */
   WORMHOLE_VAA_URLS: CommaSeparatedUrls,
-  /** JSON object keyed by chain name; see `WormholeChainConfigSchema`. */
-  WORMHOLE_ROUTES: z
-    .string()
-    .transform((value, ctx) => {
-      try {
-        return JSON.parse(value);
-      } catch {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'WORMHOLE_ROUTES must be valid JSON',
-        });
-        return z.NEVER;
-      }
-    })
-    .pipe(WormholeRoutesSchema),
   WORMHOLE_VAA_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   WORMHOLE_VAA_MAX_BYTES: z.coerce.number().int().positive().default(65_536),
   WORMHOLE_VAA_MAX_ATTEMPTS: z.coerce.number().int().positive().default(4),
@@ -97,6 +63,30 @@ const EnvSchema = z.object({
     .default(1_000),
 });
 
+const VaaEndpointFailure = {
+  Pending: 'pending',
+  Unavailable: 'unavailable',
+  Mismatch: 'mismatch',
+} as const;
+type VaaEndpointFailure =
+  (typeof VaaEndpointFailure)[keyof typeof VaaEndpointFailure];
+
+/** Why one endpoint did not produce a matching VAA in one round. */
+class VaaEndpointError extends Error {
+  constructor(
+    readonly url: string,
+    readonly failure: VaaEndpointFailure,
+    readonly reason: unknown,
+  ) {
+    super(
+      `${redactEndpointUrl(url)}: ${
+        reason instanceof Error ? reason.message : String(reason)
+      }`,
+    );
+    this.name = 'VaaEndpointError';
+  }
+}
+
 /** The one `HyperlaneService` capability this service needs. */
 export interface OriginTransactionResolver {
   getOriginTransactionHashByMessageId(
@@ -106,7 +96,11 @@ export interface OriginTransactionResolver {
 }
 
 export interface WormholeVaaServiceConfig extends ServiceConfigWithMultiProvider {
-  routes: Record<string, WormholeChainConfig>;
+  /** Redundant Wormholescan-compatible base URLs, queried in parallel. */
+  vaaUrls: Array<string>;
+  /** Rounds over every endpoint while a VAA is pending Guardian signatures. */
+  maxAttempts: number;
+  baseRetryDelayMs: number;
   vaaFetcher: Pick<WormholeVaaFetcher, 'fetchVaa'>;
   hyperlaneService: OriginTransactionResolver;
 }
@@ -122,7 +116,9 @@ export interface WormholeVaaServiceConfig extends ServiceConfigWithMultiProvider
  */
 export class WormholeVaaService extends BaseService {
   private readonly multiProvider: MultiProvider;
-  private readonly routes: Record<string, WormholeChainConfig>;
+  private readonly vaaUrls: Array<string>;
+  private readonly maxAttempts: number;
+  private readonly baseRetryDelayMs: number;
   private readonly vaaFetcher: Pick<WormholeVaaFetcher, 'fetchVaa'>;
   private readonly hyperlaneService: OriginTransactionResolver;
 
@@ -133,13 +129,12 @@ export class WormholeVaaService extends BaseService {
     return new WormholeVaaService({
       serviceName,
       multiProvider,
-      routes: env.WORMHOLE_ROUTES,
+      vaaUrls: env.WORMHOLE_VAA_URLS,
+      maxAttempts: env.WORMHOLE_VAA_MAX_ATTEMPTS,
+      baseRetryDelayMs: env.WORMHOLE_VAA_RETRY_DELAY_MS,
       vaaFetcher: new WormholeVaaFetcher(serviceName, {
-        urls: env.WORMHOLE_VAA_URLS,
         timeoutMs: env.WORMHOLE_VAA_TIMEOUT_MS,
         maxResponseBytes: env.WORMHOLE_VAA_MAX_BYTES,
-        maxAttempts: env.WORMHOLE_VAA_MAX_ATTEMPTS,
-        baseRetryDelayMs: env.WORMHOLE_VAA_RETRY_DELAY_MS,
       }),
       hyperlaneService: new HyperlaneService(
         serviceName,
@@ -150,8 +145,15 @@ export class WormholeVaaService extends BaseService {
 
   constructor(config: WormholeVaaServiceConfig) {
     super(config);
+    assert(config.vaaUrls.length > 0, 'At least one VAA endpoint is required');
+    assert(
+      config.maxAttempts > 0,
+      'At least one VAA lookup attempt is required',
+    );
     this.multiProvider = config.multiProvider;
-    this.routes = config.routes;
+    this.vaaUrls = config.vaaUrls;
+    this.maxAttempts = config.maxAttempts;
+    this.baseRetryDelayMs = config.baseRetryDelayMs;
     this.vaaFetcher = config.vaaFetcher;
     this.hyperlaneService = config.hyperlaneService;
   }
@@ -161,12 +163,18 @@ export class WormholeVaaService extends BaseService {
     app.get<AbiRoute>(
       `${prefix}/getWormholeVaa/:sender/:callData.json`,
       ABI_ROUTE_OPTIONS,
-      createAbiHandler(
-        IWormholeVaaService__factory,
-        'getWormholeVaa',
-        (message: string, logger: Logger) =>
-          this.getWormholeVaa(message, undefined, logger),
-      ),
+      async (request, reply) =>
+        createAbiHandler(
+          IWormholeVaaService__factory,
+          'getWormholeVaa',
+          (message: string, logger: Logger) =>
+            this.getWormholeVaa(
+              message,
+              request.params.sender,
+              undefined,
+              logger,
+            ),
+        )(request, reply),
     );
 
     // CCIP-read spec: POST /getWormholeVaa
@@ -180,11 +188,12 @@ export class WormholeVaaService extends BaseService {
           ethers.utils.isHexString(rawTxHash, 32)
             ? rawTxHash
             : undefined;
+        const requestRouter = request.body?.sender;
         return createAbiHandler(
           IWormholeVaaService__factory,
           'getWormholeVaa',
           (message: string, logger: Logger) =>
-            this.getWormholeVaa(message, originTxHash, logger),
+            this.getWormholeVaa(message, requestRouter, originTxHash, logger),
         )(request, reply);
       },
     );
@@ -192,6 +201,7 @@ export class WormholeVaaService extends BaseService {
 
   async getWormholeVaa(
     message: string,
+    requestRouter: unknown,
     originTxHash: string | undefined,
     logger: Logger,
   ): Promise<string> {
@@ -209,8 +219,12 @@ export class WormholeVaaService extends BaseService {
       'Processing Wormhole VAA request',
     );
 
-    const origin = this.routeFor(parsed.origin, log);
-    const destination = this.routeFor(parsed.destination, log);
+    const { origin, destination } = await this.routesFor(
+      parsed.origin,
+      parsed.destination,
+      requestRouter,
+      log,
+    );
 
     const txHash = await this.resolveOriginTxHash(originTxHash, messageId, log);
 
@@ -227,26 +241,11 @@ export class WormholeVaaService extends BaseService {
       nonce: parsed.nonce,
     });
 
-    const { encodedVaa, vaa } = await this.vaaFetcher.fetchVaa(
-      origin.wormholeChainId,
-      ethers.utils.hexZeroPad(origin.router, 32),
-      publication.sequence,
+    const { encodedVaa, vaa } = await this.fetchMatchingVaa(
+      origin,
+      publication,
       log,
     );
-
-    // Never trust the endpoint's own metadata; re-check the decoded VAA.
-    try {
-      assertVaaMatchesPublication(vaa, publication, {
-        emitterChainId: origin.wormholeChainId,
-        originRouter: ethers.utils.hexZeroPad(origin.router, 32),
-      });
-    } catch (error) {
-      PrometheusMetrics.logUnhandledError(
-        this.config.serviceName,
-        UnhandledErrorReason.WORMHOLE_VAA_MISMATCH,
-      );
-      throw error;
-    }
 
     log.info(
       {
@@ -263,18 +262,209 @@ export class WormholeVaaService extends BaseService {
     return encodedVaa;
   }
 
-  private routeFor(domain: number, logger: Logger): WormholeChainConfig {
-    const chainName = this.multiProvider.tryGetChainName(domain);
-    const route = chainName ? this.routes[chainName] : undefined;
-    if (!route) {
+  private async routesFor(
+    originDomain: number,
+    destinationDomain: number,
+    requestRouter: unknown,
+    logger: Logger,
+  ): Promise<{
+    origin: WormholeChainConfig;
+    destination: WormholeChainConfig;
+  }> {
+    try {
+      assert(
+        typeof requestRouter === 'string' &&
+          ethers.utils.isAddress(requestRouter),
+        'Invalid Wormhole CCIP sender',
+      );
+      const originChain = this.multiProvider.tryGetChainName(originDomain);
+      const destinationChain =
+        this.multiProvider.tryGetChainName(destinationDomain);
+      assert(originChain, `Unknown Hyperlane origin domain ${originDomain}`);
+      assert(
+        destinationChain,
+        `Unknown Hyperlane destination domain ${destinationDomain}`,
+      );
+      assert(
+        this.multiProvider.tryGetProvider(originChain) !== null,
+        `Hyperlane origin domain ${originDomain} has no configured RPC provider`,
+      );
+      assert(
+        this.multiProvider.tryGetProvider(destinationChain) !== null,
+        `Hyperlane destination domain ${destinationDomain} has no configured RPC provider`,
+      );
+      return await resolveWormholeRoutes(
+        originDomain,
+        destinationDomain,
+        requestRouter,
+        (router, domain) =>
+          WormholeVaaHookIsm__factory.connect(
+            router,
+            this.multiProvider.getProvider(domain),
+          ),
+      );
+    } catch (error) {
       PrometheusMetrics.logUnhandledError(
         this.config.serviceName,
         UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED,
       );
-      logger.error({ domain, chainName }, 'No Wormhole route configured');
-      throw new Error(`No Wormhole route configured for domain ${domain}`);
+      logger.error(
+        {
+          originDomain,
+          destinationDomain,
+          requestRouter,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Unable to resolve Wormhole route',
+      );
+      throw error;
     }
-    return route;
+  }
+
+  /**
+   * Queries every endpoint in parallel and returns the first VAA that matches
+   * the publication, so one slow endpoint cannot hold up the others. Rounds
+   * repeat with backoff only while some endpoint reports the VAA as pending.
+   */
+  private async fetchMatchingVaa(
+    origin: WormholeChainConfig,
+    publication: WormholePublication,
+    logger: Logger,
+  ): Promise<{ encodedVaa: string; vaa: ParsedVaa }> {
+    const originRouter = ethers.utils.hexZeroPad(origin.router, 32);
+    const vaaId = formatVaaId(
+      origin.wormholeChainId,
+      originRouter,
+      publication.sequence,
+    );
+
+    for (let attempt = 0; ; attempt++) {
+      let failures: VaaEndpointError[];
+      try {
+        return await Promise.any(
+          this.vaaUrls.map((url) =>
+            this.fetchFromEndpoint(url, {
+              origin,
+              originRouter,
+              publication,
+              vaaId,
+              logger,
+            }),
+          ),
+        );
+      } catch (error) {
+        assert(
+          error instanceof AggregateError,
+          `Unexpected VAA lookup failure for ${vaaId}`,
+        );
+        failures = error.errors.filter(
+          (failure): failure is VaaEndpointError =>
+            failure instanceof VaaEndpointError,
+        );
+        assert(
+          failures.length === this.vaaUrls.length,
+          `Unexpected VAA endpoint failure for ${vaaId}`,
+        );
+      }
+
+      const pending = failures.find(
+        ({ failure }) => failure === VaaEndpointFailure.Pending,
+      );
+      if (pending && attempt + 1 < this.maxAttempts) {
+        await sleep(this.backoffMs(attempt));
+        continue;
+      }
+
+      PrometheusMetrics.logUnhandledError(
+        this.config.serviceName,
+        failures.every(({ failure }) => failure === VaaEndpointFailure.Mismatch)
+          ? UnhandledErrorReason.WORMHOLE_VAA_MISMATCH
+          : UnhandledErrorReason.WORMHOLE_VAA_UNAVAILABLE,
+      );
+      if (pending?.reason instanceof VaaPendingError) throw pending.reason;
+      throw new Error(
+        `No endpoint served a VAA matching ${vaaId}: ${failures
+          .map(({ message }) => message)
+          .join('; ')}`,
+      );
+    }
+  }
+
+  private async fetchFromEndpoint(
+    url: string,
+    {
+      origin,
+      originRouter,
+      publication,
+      vaaId,
+      logger,
+    }: {
+      origin: WormholeChainConfig;
+      originRouter: string;
+      publication: WormholePublication;
+      vaaId: string;
+      logger: Logger;
+    },
+  ): Promise<{ encodedVaa: string; vaa: ParsedVaa }> {
+    let fetched: { encodedVaa: string; vaa: ParsedVaa };
+    try {
+      fetched = await this.vaaFetcher.fetchVaa(
+        url,
+        origin.wormholeChainId,
+        originRouter,
+        publication.sequence,
+        logger,
+      );
+    } catch (error) {
+      const failure =
+        error instanceof VaaPendingError
+          ? VaaEndpointFailure.Pending
+          : VaaEndpointFailure.Unavailable;
+      const endpointError = new VaaEndpointError(url, failure, error);
+      if (failure === VaaEndpointFailure.Unavailable) {
+        logger.warn(
+          { vaaId, error: endpointError.message },
+          'VAA endpoint failed',
+        );
+      }
+      throw endpointError;
+    }
+
+    // Never trust the endpoint's own metadata; re-check the decoded VAA.
+    try {
+      const { vaa } = fetched;
+      const servedVaaId = formatVaaId(
+        vaa.emitterChainId,
+        vaa.emitterAddress,
+        vaa.sequence,
+      );
+      assert(
+        servedVaaId === vaaId,
+        `Endpoint served VAA ${servedVaaId} instead of ${vaaId}`,
+      );
+      assertVaaMatchesPublication(vaa, publication, {
+        emitterChainId: origin.wormholeChainId,
+        originRouter,
+      });
+      return fetched;
+    } catch (error) {
+      const endpointError = new VaaEndpointError(
+        url,
+        VaaEndpointFailure.Mismatch,
+        error,
+      );
+      logger.warn(
+        { vaaId, error: endpointError.message },
+        'VAA endpoint served a VAA that does not match the publication',
+      );
+      throw endpointError;
+    }
+  }
+
+  /** Exponential backoff with jitter, so retries do not synchronize. */
+  private backoffMs(attempt: number): number {
+    const base = this.baseRetryDelayMs * 2 ** attempt;
+    return base + Math.floor(Math.random() * this.baseRetryDelayMs);
   }
 
   private findPublication(
