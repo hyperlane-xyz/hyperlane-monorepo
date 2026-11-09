@@ -3,7 +3,8 @@ warpRouteId: ETH/viction
 # Deployment stays monitor-only until rollout validation is complete.
 deployment:
   monitorOnly: true
-  imageTag: d267369-20261020-150802
+  imageTag: 6b6ba43-20261109-162727
+  imageDigest: sha256:9d05ca392342aa976e271b367cb752c9b6c554284e3b2dffc5cf6e4e30ba9032
   registryCommit: a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
