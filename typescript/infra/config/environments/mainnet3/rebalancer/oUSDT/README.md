@@ -6,8 +6,9 @@ registry commit, and persisted monitor-only mode. A digest takes precedence over
 the shared image and credential defaults. Deployment metadata is stripped from
 the runtime ConfigMap.
 
-The checked-in image is the archived baseline, **not a rollout candidate**. Build
-the branch tip after review and update both image references before rollout.
+The checked-in image was built from the shared stack tip and is pinned by digest.
+It remains a monitor-only validation candidate. Complete the gates below before
+enabling execution.
 
 From `typescript/infra`, render a manifest without cluster queries or mutations:
 
@@ -27,7 +28,7 @@ resolved image digest, ConfigMap and `/state/tracking` files. Revision 5's saved
 manifest uses the generic swaps.xyz secret; the live mapping is
 `mainnet3-swapsxyz-api-key-ousdt`. Do not run an unqualified Helm rollback.
 
-Reconcile the ten stored user transfers against their destination routers'
+Reconcile all stored user transfers against their destination routers'
 mailboxes. Separately prove every rebalancer-owned source submission is settled
 or definitively unbroadcast. Ambiguity blocks replacement. The selected action
 tracker is in memory: `intentTTL: 1209600` neither survives restart nor permits
