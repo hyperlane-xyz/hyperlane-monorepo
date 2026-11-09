@@ -454,5 +454,99 @@ class PureTests(unittest.TestCase):
                     database.execute("ROLLBACK TO wrong_coordinate");database.execute("RELEASE wrong_coordinate")
 
 
+class PreconfirmedObserverControls(unittest.TestCase):
+    def setUp(self):
+        # Actual Session callback/recording methods, with only I/O replaced by RAM.
+        import threading
+        import multivm_session as sessions
+        self.sessions = sessions
+        self.memory = MemorySession()
+        self.session = sessions.Session.__new__(sessions.Session)
+        self.session.lock = threading.RLock()
+        self.session.manifest = {"scenario": "starknet"}
+        self.session.family = api.Adapter(self.session.manifest, case())
+        self.session.captures = copy.deepcopy(self.memory.captures)
+        self.session.captures[0]["captured_monotonic_ns"] = 1
+        self.session.captures[0]["original"]["role_chain_names"] = self.memory.names
+        self.session.keccak = self.memory.keccak
+        self.session.self_transactions = set(self.memory.self_transactions)
+        self.session.broadcasts = list(self.memory.broadcasts)
+        self.session.activity = {}
+        self.session.failures = []
+        self.session.lifecycle = sessions.Lifecycle()
+        self.records = []
+        self.session.append = lambda name, row: self.records.append((name, row))
+        self.session.diagnostic = lambda *args: None
+        self.name = self.memory.names[1]
+        self.identities = sorted(identity for name, identity in self.memory.self_transactions if name == self.name)
+        for target in ["socket.socket", "subprocess.Popen", "ctypes.CDLL", "threading.Thread.start"]:
+            patcher = mock.patch(target, side_effect=AssertionError("external effect"))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def receipt(self, index=0):
+        return dict(copy.deepcopy(self.memory.receipts[self.name, self.identities[index]]), type="INVOKE")
+
+    def observe(self, receipts, now=100):
+        requests = [{"jsonrpc": "2.0", "id": index, "method": "starknet_getTransactionReceipt", "params": {"transaction_hash": row["transaction_hash"]}} for index, row in enumerate(receipts)]
+        responses = [{"jsonrpc": "2.0", "id": index, "result": row} for index, row in enumerate(receipts)]
+        request = {"requested_monotonic_ns": now - 1, "wire": json.dumps(requests).encode(), "json": requests, "start": "POST / HTTP/1.1"}
+        response = {"wire": json.dumps(responses).encode()}
+        # Same failure boundary as TransparentProxy._connection: observer errors
+        # are retained independently while the original response still passes.
+        try:
+            self.session.observe(self.name, "relayer", "rpcurls", "https://fixture", request, responses, 200, now, response)
+        except Exception as error:
+            self.session.failure(type(error).__name__ + ": " + str(error))
+
+    def test_actual_session_pending_then_mined_receipt_does_not_poison_observer_or_start_600_early(self):
+        for missing_hash in [True, False]:
+            with self.subTest(missing_hash=missing_hash):
+                pending = self.receipt()
+                pending["type"] = "DECLARE" if missing_hash else "INVOKE"
+                if missing_hash: pending.pop("block_hash")
+                else: pending["block_hash"] = None
+                self.observe([pending], 100)
+                self.assertEqual(self.session.failures, [])
+                self.assertEqual(self.session.lifecycle.first, {})
+                self.assertEqual(self.session.family.receipt_members, {})
+        mined = self.receipt()
+        self.observe([mined], 200)
+        self.assertEqual(self.session.failures, [])
+        ids = self.session.family._receipt_ids(self.session, mined, self.memory.chains[self.name])
+        self.assertEqual(set(self.session.lifecycle.first), {(self.name, item) for item in ids})
+        self.assertTrue(all(row["first_positive_monotonic_ns"] == 200 for row in self.session.lifecycle.first.values()))
+        self.assertEqual(self.session.family.receipt_members[self.name, self.identities[0]], ids)
+        self.assertEqual(self.sessions.OBSERVER_POLICY["retirement_observed_age_seconds"], [600, 630])
+        self.observe([pending], 250)
+        self.assertTrue(all(row["first_positive_monotonic_ns"] == 200 for row in self.session.lifecycle.first.values()))
+
+    def test_actual_session_batch_defers_only_pending_sibling_and_canonical_proof_stays_required(self):
+        pending, mined = self.receipt(0), self.receipt(1)
+        pending.pop("block_hash")
+        self.observe([pending, mined])
+        self.assertEqual(self.session.failures, [])
+        self.assertNotIn((self.name, self.identities[0]), self.session.family.receipt_members)
+        self.assertIn((self.name, self.identities[1]), self.session.family.receipt_members)
+        self.assertTrue(all(row["transaction_hash"] == self.identities[1] for row in self.session.lifecycle.first.values()))
+        # The independent canonical receipt verifier never accepts a hashless row.
+        self.memory.receipts[self.name, self.identities[0]] = pending
+        with self.assertRaises((KeyError, ValueError)):
+            self.session.family._receipt(self.memory, self.name, self.identities[0], 8)
+
+    def test_pending_deferral_rejects_malformed_block_metadata_instead_of_swallowing_errors(self):
+        mutations = [lambda row: row.pop("block_number"), lambda row: row.__setitem__("block_number", True), lambda row: row.__setitem__("block_number", -1), lambda row: row.__setitem__("block_number", 2 ** 64), lambda row: row.__setitem__("block_hash", "bad"), lambda row: row.__setitem__("block_hash", 0), lambda row: row.__setitem__("events", None)]
+        for mutate in mutations:
+            with self.subTest(mutate=mutate):
+                bad = self.receipt()
+                bad.pop("block_hash")
+                mutate(bad)
+                self.session.failures.clear()
+                self.observe([bad])
+                self.assertTrue(self.session.failures)
+                self.assertEqual(self.session.lifecycle.first, {})
+                self.assertEqual(self.session.family.receipt_members, {})
+
+
 if __name__ == "__main__":
     unittest.main()

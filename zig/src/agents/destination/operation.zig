@@ -14,6 +14,46 @@ const Hash = types.Hash;
 const prefix = "zig_native_destination_operation_v1/";
 const history_prefix = "zig_native_destination_operation_history_v1/";
 const expenditure_prefix = "zig_native_destination_expenditure_v1/";
+const finalized_transaction_prefix = "zig_native_finalized_transaction_v1/";
+/// Lock order: origin Store mutex(es), then this shared marker mutex. The marker
+/// namespace is independent of origin: one native transaction on a destination
+/// is counted once even when multiple origin actors share its receipt.
+pub var finalized_transaction_mutex: std.Thread.Mutex = .{};
+pub const FinalizedWrite = struct { destination: u32, receipt: types.Receipt, committed: *bool };
+pub const FinalizationTestFault = struct {
+    pub var before_commit: std.atomic.Value(bool) = .init(false);
+    pub var after_commit: std.atomic.Value(bool) = .init(false);
+};
+/// The caller holds finalized_transaction_mutex through its sync batch commit.
+/// This stages only an authenticated transaction receipt marker, never a metric
+/// or an accounting value. Old operation JSON and all Rust rows stay unchanged.
+pub fn stageFinalizedTransaction(a: A, database: *db.rocks.Database, batch: *db.rocks.Batch, destination: u32, receipt: types.Receipt) !bool {
+    if (!receipt.finalized) return error.FinalizedNativeReceiptRequired;
+    var key: [finalized_transaction_prefix.len + 4 + 1 + 64]u8 = undefined;
+    @memcpy(key[0..finalized_transaction_prefix.len], finalized_transaction_prefix);
+    std.mem.writeInt(u32, key[finalized_transaction_prefix.len..][0..4], destination, .big);
+    const start = finalized_transaction_prefix.len + 4;
+    const count: usize = switch (receipt.identity) {
+        .hash256 => |value| blk: {
+            key[start] = 0;
+            @memcpy(key[start + 1 ..][0..32], &value);
+            break :blk start + 1 + 32;
+        },
+        .signature512 => |value| blk: {
+            key[start] = 1;
+            @memcpy(key[start + 1 ..][0..64], &value);
+            break :blk start + 1 + 64;
+        },
+    };
+    if (try database.get(a, key[0..count])) |old| {
+        defer a.free(old);
+        if (!std.mem.eql(u8, old, &.{1})) return error.InvalidNativeFinalizationMarker;
+        return false;
+    }
+    try batch.put(key[0..count], &.{1});
+    return true;
+}
+
 pub const Times = compatibility.Times;
 pub const Options = struct {
     id: Hash,
@@ -406,11 +446,21 @@ pub const Operation = struct {
         _ = try next.apply(.{ .already_delivered = .{ .finalized = finalized, .now_ms = now.monotonic_ms } });
         try self.persist(next, self.intent, self.authorization, self.signed, now, .{ .Confirm = if (self.signed == null) .AlreadySubmitted else .SubmittedBySelf });
     }
-    /// Native receipt accounting is idempotent across replay/crash. Its marker
-    /// and Rust aggregate commit atomically before delivered/retirement state.
+    pub const ReceiptCommit = struct { transaction: bool = false, expenditure: bool = false };
+    /// Existing accounting callers do not emit transaction observations. In
+    /// particular, a Stark batch has one transaction and several member costs.
     pub fn recordExpenditure(self: *Operation, receipt: types.Receipt) !bool {
-        if (self.options.kind != .process) return false;
-        const spent = receipt.expenditure orelse return false;
+        if (receipt.expenditure == null) return false;
+        return (try self.recordReceipt(receipt, null)).expenditure;
+    }
+    /// Newly committed actual finalized receipt, independent of fee availability.
+    /// The out-latch is set after sync commit, including commit-outcome-unknown
+    /// errors, so a borrowed caller can report it after all database locks unwind.
+    pub fn recordFinalizedReceipt(self: *Operation, receipt: types.Receipt, committed: *bool) !ReceiptCommit {
+        return self.recordReceipt(receipt, committed);
+    }
+    fn recordReceipt(self: *Operation, receipt: types.Receipt, finalized_committed: ?*bool) !ReceiptCommit {
+        if (self.options.kind != .process) return .{};
         const signed = self.signed orelse return error.InvalidNativeOperation;
         if (!receipt.finalized or !types.Identity.eql(signed.identity, receipt.identity)) return error.FinalizedNativeReceiptRequired;
         var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -431,29 +481,41 @@ pub const Operation = struct {
         };
         var marker: std.ArrayList(u8) = .empty;
         defer marker.deinit(a);
-        try marker.append(a, if (signed.identity == .hash256) 0 else 1);
-        switch (signed.identity) {
-            .hash256 => |id| try marker.appendSlice(a, &id),
-            .signature512 => |id| try marker.appendSlice(a, &id),
+        if (receipt.expenditure) |spent| {
+            try marker.append(a, if (signed.identity == .hash256) 0 else 1);
+            switch (signed.identity) {
+                .hash256 => |id| try marker.appendSlice(a, &id),
+                .signature512 => |id| try marker.appendSlice(a, &id),
+            }
+            try marker.appendSlice(a, try db.codec.encode(a, db.codec.GasExpenditureData{ .gas_used = spent.gas_used, .tokens_used = spent.tokens_used }));
         }
-        const encoded_spent = try db.codec.encode(a, db.codec.GasExpenditureData{ .gas_used = spent.gas_used, .tokens_used = spent.tokens_used });
-        try marker.appendSlice(a, encoded_spent);
         self.store.mutex.lock();
         defer self.store.mutex.unlock();
+        if (finalized_committed != null) finalized_transaction_mutex.lock();
+        defer if (finalized_committed != null) finalized_transaction_mutex.unlock();
         const current = try self.store.typed.get(a, prefix, &self.options.id);
         if ((current == null) != (self.row == null) or (current != null and !std.mem.eql(u8, current.?, self.row.?)) or !std.meta.eql(try self.store.status(self.options.id), self.status_row)) return error.StaleNativeOperationOwner;
-        if (try self.store.typed.get(a, expenditure_prefix, key[0..key_len])) |old| {
-            if (!std.mem.eql(u8, old, marker.items)) return error.ConflictingNativeExpenditure;
-            return false;
-        }
-        const old = try self.store.expenditure(self.options.id);
-        const total = try db.codec.encode(a, db.codec.GasExpenditureData{ .gas_used = old.gas_used +| spent.gas_used, .tokens_used = old.tokens_used +| spent.tokens_used });
         var batch = try self.store.typed.batch(a);
         defer batch.deinit();
-        try batch.put(db.keys.Table.gas_expenditure_for_message_id.prefix(), &self.options.id, total);
-        try batch.put(expenditure_prefix, key[0..key_len], marker.items);
+        var result: ReceiptCommit = .{};
+        if (finalized_committed != null) result.transaction = try stageFinalizedTransaction(a, self.store.typed.database, &batch.batch, self.options.destination, receipt);
+        if (receipt.expenditure) |spent| {
+            if (try self.store.typed.get(a, expenditure_prefix, key[0..key_len])) |old| {
+                if (!std.mem.eql(u8, old, marker.items)) return error.ConflictingNativeExpenditure;
+            } else {
+                const old = try self.store.expenditure(self.options.id);
+                const total = try db.codec.encode(a, db.codec.GasExpenditureData{ .gas_used = old.gas_used +| spent.gas_used, .tokens_used = old.tokens_used +| spent.tokens_used });
+                try batch.put(db.keys.Table.gas_expenditure_for_message_id.prefix(), &self.options.id, total);
+                try batch.put(expenditure_prefix, key[0..key_len], marker.items);
+                result.expenditure = true;
+            }
+        }
+        if (!result.transaction and !result.expenditure) return result;
+        if (@import("builtin").is_test and finalized_committed != null) if (FinalizationTestFault.before_commit.swap(false, .acq_rel)) return error.InjectedNativeFinalizationCommitFailure;
         try batch.commitSync();
-        return true;
+        if (finalized_committed) |latch| latch.* = latch.* or result.transaction;
+        if (@import("builtin").is_test and finalized_committed != null) if (FinalizationTestFault.after_commit.swap(false, .acq_rel)) return error.NativeFinalizationCommitOutcomeUnknown;
+        return result;
     }
     pub fn dropNonContract(self: *Operation, now: Times) !void {
         if (self.options.kind != .process or self.signed != null) return error.ProcessOperationRequired;
@@ -709,6 +771,7 @@ pub const GroupJournalWrite = struct {
     release_nonce: bool = false,
     nonce_reservation: ?Hash = null,
     detached_nonce: bool = false,
+    finalization: ?FinalizedWrite = null,
 };
 pub const GroupTransition = union(enum) {
     replace_ready: struct { prepared: []const *const types.Prepared, previous_digests: []const Hash },
@@ -776,6 +839,15 @@ pub fn commitGroup(a: A, actors: []const *Operation, transition: GroupTransition
             stores[count].mutex.unlock();
         }
     }
+    if (journal.finalization) |observed| {
+        if (transition != .confirming and transition != .failed) return error.InvalidNativeGroup;
+        if (!observed.receipt.finalized) return error.FinalizedNativeReceiptRequired;
+        for (actors) |actor| {
+            if (actor.options.destination != observed.destination or actor.signed == null or !types.Identity.eql(actor.signed.?.identity, observed.receipt.identity)) return error.FinalizedNativeReceiptRequired;
+        }
+        finalized_transaction_mutex.lock();
+    }
+    defer if (journal.finalization != null) finalized_transaction_mutex.unlock();
     const nonce_key = try db.keys.scoped(temporary, journal.store.domain_name, group_current_prefix, "");
     if (journal.manage_nonce) {
         const owner = try journal.store.database.get(temporary, nonce_key);
@@ -808,6 +880,7 @@ pub fn commitGroup(a: A, actors: []const *Operation, transition: GroupTransition
     var batch = try journal.store.database.batch();
     defer batch.deinit();
     try batch.put(journal_key, journal.value);
+    const finalized_new = if (journal.finalization) |observed| try stageFinalizedTransaction(temporary, journal.store.database, &batch, observed.destination, observed.receipt) else false;
     if (journal.manage_nonce) {
         if (journal.release_nonce) {
             const owner = try journal.store.database.get(temporary, nonce_key);
@@ -828,6 +901,7 @@ pub fn commitGroup(a: A, actors: []const *Operation, transition: GroupTransition
     }
     if (@import("builtin").is_test) if (GroupTestFault.before_commit.swap(false, .acq_rel)) return error.InjectedNativeGroupCommitFailure;
     try batch.commitSync();
+    if (journal.finalization) |observed| observed.committed.* = observed.committed.* or finalized_new;
     if (@import("builtin").is_test) if (GroupTestFault.after_commit.swap(false, .acq_rel)) return error.NativeGroupCommitOutcomeUnknown;
     for (snapshots[0..initialized]) |*snapshot| snapshot.apply();
 }

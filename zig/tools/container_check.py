@@ -603,6 +603,17 @@ NATIVE_REQUIRED = (
     'EVM finality invalid tag cannot retire an external confirmation',
     'scraper Radix Gateway watermark bounds latest and finalized headers while explicit heights remain exact',
     'scraper Radix lagging Gateway bounds zero cutover and indexing without relabeling Core counter snapshots',
+    'Native finalized metric Driver receipt without fees reaches registry once across reopen',
+    'Native finalized metric counts failed transaction and preserves primary commit error',
+    'Native finalized metric excludes foreign and nonfinal receipts',
+    'native finalized Lane callback preserves destination registry contract',
+    'native finalized transaction marker deduplicates cross origin stores without inventing expenditure',
+    'native finalized receipt commit faults preserve marker and actual fee atomicity across restart',
+    'native group finality shares its journal batch and counts one transaction for two origin members',
+    'native finalized transaction key keeps full signature tail tag and destination namespace',
+    'scraper ordinary head source errors retry past grace and healthy head clears critical health',
+    'scraper partial head publication retains counters and critical health until genuine recovery',
+    'scraper explicit published reorg and critical invariant errors still halt all lanes',
 )
 
 

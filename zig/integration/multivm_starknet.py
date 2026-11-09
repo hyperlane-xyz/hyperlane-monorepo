@@ -326,10 +326,17 @@ class Adapter:
                 identity = full(value["transaction_hash"])
                 require(isinstance(params, dict) and full(params["transaction_hash"]) == identity, "observed receipt hash differs")
                 ids = self._receipt_ids(session, value, chain)
+                # Source ReceiptBlock::PreConfirmed has a number but no hash.
+                # It is activity, never a mined inclusion/canonical member proof.
+                height = bounded(value.get("block_number"), 64, "observed receipt height")
+                if value.get("block_hash") is None:
+                    require(isinstance(value.get("events"), list) and len(value["events"]) <= MAX_EVENTS, "observed preconfirmed receipt events differ")
+                    continue
+                block_hash = full(value["block_hash"])
                 self.receipt_members[(event["chain"], identity)] = ids
                 if (event["chain"], identity) in session.self_transactions:
                     for message_id in ids:
-                        session.record_inclusion(event["chain"], message_id, identity, event["received_monotonic_ns"], {"block_number": value["block_number"], "block_hash": full(value["block_hash"]), "kind": "observed_native_receipt"})
+                        session.record_inclusion(event["chain"], message_id, identity, event["received_monotonic_ns"], {"block_number": height, "block_hash": block_hash, "kind": "observed_native_receipt"})
             elif method == "starknet_call" and isinstance(value, list) and len(value) == 1 and felt(value[0]) == 1:
                 require(isinstance(params, dict), "native call parameters differ")
                 call = params.get("request", {})

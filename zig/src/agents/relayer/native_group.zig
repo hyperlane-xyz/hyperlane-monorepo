@@ -128,6 +128,12 @@ pub const Journal = struct {
         try self.write(record, actors, .{ .retired = .{ .consumed = consumed, .proofs = proofs } }, now);
     }
     pub fn failed(self: *const Journal, observed: Record, actors: []const *op.Operation, receipt: types.Receipt, now: op.Times) !void {
+        return self.failedInner(observed, actors, receipt, now, null);
+    }
+    pub fn failedWithFinalization(self: *const Journal, observed: Record, actors: []const *op.Operation, receipt: types.Receipt, now: op.Times, committed: *bool) !void {
+        return self.failedInner(observed, actors, receipt, now, committed);
+    }
+    fn failedInner(self: *const Journal, observed: Record, actors: []const *op.Operation, receipt: types.Receipt, now: op.Times, committed: ?*bool) !void {
         if (!receipt.finalized or receipt.success or receipt.identity != .hash256) return error.FinalizedNativeFailureRequired;
         var arena = std.heap.ArenaAllocator.init(self.arena.child_allocator);
         defer arena.deinit();
@@ -137,7 +143,7 @@ pub const Journal = struct {
         record.retirement = null;
         record.receipt_finalized = true;
         record.failed_receipt = .{ .identity = try hex.hexAlloc(a, &receipt.identity.hash256), .height = receipt.height, .block_hash = try hex.hexAlloc(a, &receipt.block_hash) };
-        try self.write(record, actors, .{ .failed = receipt }, now);
+        if (committed) |latch| try self.writeWithFinalization(record, actors, .{ .failed = receipt }, now, receipt, latch) else try self.write(record, actors, .{ .failed = receipt }, now);
     }
     pub fn signedValue(self: *const Journal, a: A) !types.Signed {
         const value = self.record.signed orelse return error.UnsignedNativeGroup;
@@ -147,10 +153,19 @@ pub const Journal = struct {
         return types.Signed.init(a, .{ .hash256 = try hex.fixedHex(32, self.record.identity.?) }, bytes);
     }
     pub fn write(self: *const Journal, record: Record, actors: []const *op.Operation, transition: op.GroupTransition, now: op.Times) !void {
+        return self.writeInner(record, actors, transition, now, null);
+    }
+    pub fn writeWithFinalization(self: *const Journal, record: Record, actors: []const *op.Operation, transition: op.GroupTransition, now: op.Times, receipt: types.Receipt, committed: *bool) !void {
+        if (!record.receipt_finalized or actors.len == 0 or record.identity == null) return error.FinalizedNativeReceiptRequired;
+        const identity: types.Identity = .{ .hash256 = try hex.fixedHex(32, record.identity.?) };
+        if (!types.Identity.eql(identity, receipt.identity)) return error.FinalizedNativeReceiptRequired;
+        return self.writeInner(record, actors, transition, now, .{ .destination = actors[0].options.destination, .receipt = receipt, .committed = committed });
+    }
+    fn writeInner(self: *const Journal, record: Record, actors: []const *op.Operation, transition: op.GroupTransition, now: op.Times, finalization: ?op.FinalizedWrite) !void {
         const a = self.arena.child_allocator;
         const wire = try std.json.Stringify.valueAlloc(a, record, .{});
         defer a.free(wire);
-        try op.commitGroup(a, actors, transition, .{ .store = self.store, .id = self.id, .expected = self.wire, .value = wire, .manage_nonce = true, .release_nonce = record.phase == .included or record.phase == .retired, .nonce_reservation = if (record.phase == .retired) try self.nonce() else null, .detached_nonce = record.phase == .retired and self.record.phase == .included }, now);
+        try op.commitGroup(a, actors, transition, .{ .store = self.store, .id = self.id, .expected = self.wire, .value = wire, .manage_nonce = true, .release_nonce = record.phase == .included or record.phase == .retired, .nonce_reservation = if (record.phase == .retired) try self.nonce() else null, .detached_nonce = record.phase == .retired and self.record.phase == .included, .finalization = finalization }, now);
     }
 };
 

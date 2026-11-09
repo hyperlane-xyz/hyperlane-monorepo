@@ -15,6 +15,7 @@ pub const Fixture = struct {
     directory: std.testing.TmpDir,
     path: []u8,
     database: db.rocks.Database,
+    database_open: bool = false,
     stores: [2]Store,
     actors: [2]*op.Operation,
     options: [2]op.Options,
@@ -27,6 +28,7 @@ pub const Fixture = struct {
         errdefer a.destroy(self);
         self.* = undefined;
         self.allocator = a;
+        self.database_open = false;
         self.actor_count = 0;
         self.replacement_count = 0;
         self.directory = std.testing.tmpDir(.{});
@@ -36,6 +38,7 @@ pub const Fixture = struct {
         self.path = try std.fs.path.join(a, &.{ base, "group" });
         errdefer a.free(self.path);
         self.database = try db.rocks.Database.open(a, self.path, .{});
+        self.database_open = true;
         errdefer self.database.deinit();
         errdefer {
             for (self.replacements[0..self.replacement_count]) |*value| value.deinit();
@@ -64,8 +67,8 @@ pub const Fixture = struct {
     pub fn deinit(self: *Fixture) void {
         const a = self.allocator;
         for (&self.replacements) |*value| value.deinit();
-        for (self.actors) |actor| actor.deinit();
-        self.database.deinit();
+        for (self.actors[0..self.actor_count]) |actor| actor.deinit();
+        if (self.database_open) self.database.deinit();
         a.free(self.path);
         self.directory.cleanup();
         a.destroy(self);
@@ -82,6 +85,19 @@ pub const Fixture = struct {
             const fresh = try op.Operation.open(self.allocator, store, options, .{ .unix_ms = 2000, .monotonic_ms = 7 });
             slot.*.deinit();
             slot.* = fresh;
+        }
+    }
+    pub fn reopenDatabase(self: *Fixture) !void {
+        for (self.actors) |actor| actor.deinit();
+        self.actor_count = 0;
+        self.database.deinit();
+        self.database_open = false;
+        self.database = try db.rocks.Database.open(self.allocator, self.path, .{});
+        self.database_open = true;
+        for (&self.stores, &self.actors, self.options, 0..) |*store, *slot, options, index| {
+            store.* = Store.init(self.allocator, &self.database, if (index == 0) "origin-a" else "origin-b");
+            slot.* = try op.Operation.open(self.allocator, store, options, .{ .unix_ms = 2000, .monotonic_ms = 7 });
+            self.actor_count += 1;
         }
     }
     pub fn checkLinks(self: *Fixture) !void {
@@ -224,4 +240,136 @@ test "native group retirement rejects wrong account missing absence and differen
             try std.testing.expectEqual(@as(u32, 0), actor.value.retries);
         }
     }
+}
+
+fn signedFinalityFixture(a: A) !*Fixture {
+    const fixture = try Fixture.init(a);
+    errdefer fixture.deinit();
+    try fixture.replace();
+    var signed = try types.Signed.init(a, .{ .hash256 = @splat(8) }, "public signed transaction");
+    defer signed.deinit();
+    try op.commitGroup(a, &fixture.actors, .{ .signed = &signed }, fixture.journal(prepared_record, signed_record, .preserve), now);
+    return fixture;
+}
+fn finalityReceipt(success: bool) types.Receipt {
+    return .{ .identity = .{ .hash256 = @splat(8) }, .block_hash = @splat(9), .height = 20, .success = success, .finalized = true };
+}
+test "native finalized transaction marker deduplicates cross origin stores without inventing expenditure" {
+    const a = std.testing.allocator;
+    const fixture = try signedFinalityFixture(a);
+    defer fixture.deinit();
+    var committed = false;
+    var receipt = finalityReceipt(true);
+    receipt.finalized = false;
+    try std.testing.expectError(error.FinalizedNativeReceiptRequired, fixture.actors[0].recordFinalizedReceipt(receipt, &committed));
+    receipt.finalized = true;
+    receipt.identity.hash256[0] = 7;
+    try std.testing.expectError(error.FinalizedNativeReceiptRequired, fixture.actors[0].recordFinalizedReceipt(receipt, &committed));
+    try std.testing.expect(!committed);
+    receipt = finalityReceipt(false); // Failed execution is still one finalized transaction.
+    const first = try fixture.actors[0].recordFinalizedReceipt(receipt, &committed);
+    try std.testing.expect(first.transaction and committed and !first.expenditure);
+    committed = false;
+    const second = try fixture.actors[1].recordFinalizedReceipt(receipt, &committed);
+    try std.testing.expect(!second.transaction and !committed and !second.expenditure);
+    for (fixture.actors) |actor| {
+        const expenditure = try actor.store.expenditure(actor.options.id);
+        try std.testing.expectEqual(@as(u256, 0), expenditure.gas_used);
+        try std.testing.expectEqual(@as(u256, 0), expenditure.tokens_used);
+    }
+    receipt.expenditure = .{ .gas_used = 3, .tokens_used = 7 };
+    const late_fee = try fixture.actors[0].recordFinalizedReceipt(receipt, &committed);
+    try std.testing.expect(!late_fee.transaction and late_fee.expenditure and !committed);
+    try fixture.reopenDatabase();
+    try std.testing.expect(!(try fixture.actors[0].recordFinalizedReceipt(receipt, &committed)).transaction);
+    try std.testing.expect(!committed);
+    // A new Registry after restart is not synthetically seeded from old markers.
+}
+test "native finalized receipt commit faults preserve marker and actual fee atomicity across restart" {
+    const a = std.testing.allocator;
+    const fixture = try signedFinalityFixture(a);
+    defer fixture.deinit();
+    var receipt = finalityReceipt(true);
+    receipt.expenditure = .{ .gas_used = 3, .tokens_used = 7 };
+    var committed = false;
+    op.FinalizationTestFault.before_commit.store(true, .release);
+    defer op.FinalizationTestFault.before_commit.store(false, .release);
+    try std.testing.expectError(error.InjectedNativeFinalizationCommitFailure, fixture.actors[0].recordFinalizedReceipt(receipt, &committed));
+    try std.testing.expect(!committed);
+    try std.testing.expectEqual(@as(u256, 0), (try fixture.stores[0].expenditure(fixture.options[0].id)).gas_used);
+    try fixture.reopen();
+    op.FinalizationTestFault.after_commit.store(true, .release);
+    defer op.FinalizationTestFault.after_commit.store(false, .release);
+    try std.testing.expectError(error.NativeFinalizationCommitOutcomeUnknown, fixture.actors[0].recordFinalizedReceipt(receipt, &committed));
+    try std.testing.expect(committed);
+    try std.testing.expectEqual(@as(u256, 3), (try fixture.stores[0].expenditure(fixture.options[0].id)).gas_used);
+    try std.testing.expectEqual(@as(u256, 7), (try fixture.stores[0].expenditure(fixture.options[0].id)).tokens_used);
+    try fixture.reopen();
+    committed = false;
+    const replay = try fixture.actors[0].recordFinalizedReceipt(receipt, &committed);
+    try std.testing.expect(!committed and !replay.transaction and !replay.expenditure);
+    receipt.expenditure.?.tokens_used = 8;
+    try std.testing.expectError(error.ConflictingNativeExpenditure, fixture.actors[0].recordFinalizedReceipt(receipt, &committed));
+}
+test "native group finality shares its journal batch and counts one transaction for two origin members" {
+    const a = std.testing.allocator;
+    const fixture = try signedFinalityFixture(a);
+    defer fixture.deinit();
+    var committed = false;
+    var journal = fixture.journal(signed_record, "{\"phase\":\"included\"}", .preserve);
+    journal.finalization = .{ .destination = 9, .receipt = finalityReceipt(true), .committed = &committed };
+    journal.finalization.?.receipt.identity.hash256[0] = 6;
+    try std.testing.expectError(error.FinalizedNativeReceiptRequired, op.commitGroup(a, &fixture.actors, .{ .confirming = .{ .unix_ms = 601000, .delay_ms = 600000 } }, journal, now));
+    try std.testing.expect(!committed);
+    journal.finalization.?.receipt = finalityReceipt(true);
+    op.GroupTestFault.before_commit.store(true, .release);
+    defer op.GroupTestFault.before_commit.store(false, .release);
+    try std.testing.expectError(error.InjectedNativeGroupCommitFailure, op.commitGroup(a, &fixture.actors, .{ .confirming = .{ .unix_ms = 601000, .delay_ms = 600000 } }, journal, now));
+    try std.testing.expect(!committed);
+    try fixture.reopen();
+    op.GroupTestFault.after_commit.store(true, .release);
+    defer op.GroupTestFault.after_commit.store(false, .release);
+    try std.testing.expectError(error.NativeGroupCommitOutcomeUnknown, op.commitGroup(a, &fixture.actors, .{ .confirming = .{ .unix_ms = 601000, .delay_ms = 600000 } }, journal, now));
+    try std.testing.expect(committed);
+    try fixture.reopen();
+    for (fixture.actors) |actor| try std.testing.expect(actor.current_status == .Confirm);
+    const actual = (try journal.store.get(a, op.group_record_prefix, &group_id)).?;
+    defer a.free(actual);
+    try std.testing.expectEqualStrings(journal.value, actual);
+    committed = false;
+    // Same transaction observed through either origin after the group commit
+    // cannot create another marker, even though each origin owns a Store mutex.
+    for (fixture.actors) |actor| try std.testing.expect(!(try actor.recordFinalizedReceipt(finalityReceipt(true), &committed)).transaction);
+    try std.testing.expect(!committed);
+}
+
+fn commitFinalityKey(a: A, database: *db.rocks.Database, destination: u32, receipt: types.Receipt) !bool {
+    op.finalized_transaction_mutex.lock();
+    defer op.finalized_transaction_mutex.unlock();
+    var batch = try database.batch();
+    defer batch.deinit();
+    const fresh = try op.stageFinalizedTransaction(a, database, &batch, destination, receipt);
+    if (fresh) try batch.commitSync();
+    return fresh;
+}
+test "native finalized transaction key keeps full signature tail tag and destination namespace" {
+    const a = std.testing.allocator;
+    const fixture = try signedFinalityFixture(a);
+    defer fixture.deinit();
+    var receipt = finalityReceipt(true);
+    receipt.identity = .{ .signature512 = @splat(8) };
+    try std.testing.expect(try commitFinalityKey(a, &fixture.database, 9, receipt));
+    try std.testing.expect(!try commitFinalityKey(a, &fixture.database, 9, receipt));
+    receipt.identity.signature512[63] = 7;
+    try std.testing.expect(try commitFinalityKey(a, &fixture.database, 9, receipt));
+    receipt.identity = .{ .hash256 = @splat(8) };
+    try std.testing.expect(try commitFinalityKey(a, &fixture.database, 9, receipt));
+    try std.testing.expect(try commitFinalityKey(a, &fixture.database, 10, receipt));
+    try fixture.reopenDatabase();
+    try std.testing.expect(!try commitFinalityKey(a, &fixture.database, 9, receipt));
+    try std.testing.expect(!try commitFinalityKey(a, &fixture.database, 10, receipt));
+    receipt.identity = .{ .signature512 = @splat(8) };
+    try std.testing.expect(!try commitFinalityKey(a, &fixture.database, 9, receipt));
+    receipt.identity.signature512[63] = 7;
+    try std.testing.expect(!try commitFinalityKey(a, &fixture.database, 9, receipt));
 }

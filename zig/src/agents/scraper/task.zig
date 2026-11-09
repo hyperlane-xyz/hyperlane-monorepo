@@ -56,6 +56,7 @@ const Lane = struct {
     backoff: reconcile.Backoff,
     ccr_lane: ?ccr.Lane = null,
     failures: runtime.FailureStreak = .{},
+    head_healthy: bool = false,
     receipt_batch: ?ReceiptBatch = null,
     receipt_page: ?enrich.Page = null,
     receipt_linked: u64 = 0,
@@ -147,8 +148,7 @@ const Lane = struct {
         };
         if (report) |value| {
             self.attempt_deadline_ns = null;
-            _ = self.failures.record(false, times.monotonic_ms, 60000);
-            self.initialized();
+            self.completed(times);
             return value;
         } else |err| {
             if (err == error.PendingReadIo) return err;
@@ -157,6 +157,12 @@ const Lane = struct {
             self.attempt_deadline_ns = null;
             return self.failed(err, times);
         }
+    }
+    fn completed(self: *Lane, times: supervisor.Times) void {
+        // Partial publication does not prove that the head has recovered.
+        if (self.kind == .head and !self.head_healthy) return;
+        _ = self.failures.record(false, times.monotonic_ms, 60000);
+        self.initialized();
     }
     fn failed(self: *Lane, err: anyerror, times: supervisor.Times) anyerror {
         std.log.warn("scraper chain={s} lane={s} failed={s}", .{ self.chain.configured.name, @tagName(self.kind), @errorName(err) });
@@ -171,7 +177,6 @@ const Lane = struct {
         if (err == error.ScraperPublishedReorg or err == error.ScraperCriticalFailure) self.chain.critical.record(self.criticalReason());
         if (self.kind == .head and self.head_service != null and self.failures.record(true, times.monotonic_ms, 60000)) {
             self.chain.critical.record(self.criticalReason());
-            return error.ScraperCriticalFailure;
         }
         return err;
     }
@@ -179,8 +184,13 @@ const Lane = struct {
         const resources = self.resources.?;
         if (self.head_service == null) self.head_service = try service.Pooled.init(self.owner.allocator, self.owner.database, try resources.source(), self.chain.configured, self.chain.writer, self.owner.options.db_timeout_ms, io);
         const result = try self.head_service.?.headCycle(io);
-        const update = self.head_service.?.native.worker.delayAfter(result, times.monotonic_ms);
-        if (update.critical) return error.ScraperCriticalFailure;
+        return self.headReport(result, times.monotonic_ms);
+    }
+    fn headReport(self: *Lane, result: runtime.Outcome, now_ms: u64) !supervisor.Report {
+        const update = self.head_service.?.native.worker.delayAfter(result, now_ms);
+        self.head_healthy = !result.ingestion_failed;
+        const source_critical = if (result.ingestion_failed) self.failures.record(true, now_ms, 60000) else false;
+        if (update.critical or source_critical) self.chain.critical.record(self.criticalReason());
         const names = [_][]const u8{ "message_dispatch", "message_delivery", "gas_payment", "merkle_tree_insertion" };
         var work: u64 = 0;
         for (result.published, names) |count, name| {
@@ -570,7 +580,93 @@ test "scraper head control and allocation errors cannot create or reset source f
         // A control event must not reset an already existing genuine streak.
         try std.testing.expectEqual(error.RpcHttpStatus, lane.failed(error.RpcHttpStatus, .{ .unix_ms = 70000, .monotonic_ms = 70000 }));
         try std.testing.expectEqual(control, lane.failed(control, .{ .unix_ms = 100000, .monotonic_ms = 100000 }));
-        try std.testing.expectEqual(error.ScraperCriticalFailure, lane.failed(error.RpcHttpStatus, .{ .unix_ms = 130000, .monotonic_ms = 130000 }));
+        try std.testing.expectEqual(error.RpcHttpStatus, lane.failed(error.RpcHttpStatus, .{ .unix_ms = 130000, .monotonic_ms = 130000 }));
         chain.critical = .{};
+    }
+}
+
+fn headTestMetric(registry: *metrics.Registry, name: []const u8) !u64 {
+    const text = try registry.render(std.testing.allocator);
+    defer std.testing.allocator.free(text);
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |line| {
+        if (!std.mem.startsWith(u8, line, name) or std.mem.indexOf(u8, line, "data_type=\"message_dispatch\"") == null) continue;
+        const at = std.mem.lastIndexOfScalar(u8, line, ' ') orelse return error.InvalidSample;
+        return std.fmt.parseInt(u64, line[at + 1 ..], 10);
+    }
+    return error.MissingHeadPublicationMetric;
+}
+fn headTestOutcome(failed: bool) runtime.Outcome {
+    return .{ .more = false, .ingestion_failed = failed, .ingestion_error = if (failed) error.SvmBlockUnavailable else null, .indexed = 10, .confirmed = 9, .published = if (failed) .{ 2, 3, 4, 5 } else .{0} ** 4 };
+}
+test "scraper ordinary head source errors retry past grace and healthy head clears critical health" {
+    for ([_]anyerror{ error.SvmBlockUnavailable, error.RpcHttpStatus }) |failure| {
+        const registry = try metrics.Registry.init(std.testing.allocator, .scraper, .{ .base_version = "fixture" });
+        defer registry.deinit();
+        var configured: types.Chain = undefined;
+        configured.name = "retry-head-fixture";
+        var chain: Chain = .{ .configured = &configured, .writer = undefined, .routers = undefined, .critical = .{ .registry = registry, .chain = configured.name }, .initialized_mask = .init(15) };
+        chain.critical.started();
+        var owner: TaskSet = undefined;
+        owner.options = .{ .curl_library = "unused", .metrics = registry };
+        var native: service.Native = undefined;
+        native.worker = .{ .allocator = std.testing.allocator, .source = undefined, .store = undefined, .options = .{ .period = .{ .blocks = 0 }, .chunk_size = 1, .poll_ms = 1000 } };
+        var pooled: service.Pooled = undefined;
+        pooled.native = &native;
+        var lane: Lane = .{ .owner = &owner, .chain = &chain, .kind = .head, .head_service = &pooled, .backoff = .{ .allocator = std.testing.allocator } };
+        try std.testing.expectEqual(failure, lane.failed(failure, .{ .unix_ms = 1000, .monotonic_ms = 1000 }));
+        try std.testing.expectEqual(failure, lane.failed(failure, .{ .unix_ms = 62000, .monotonic_ms = 62000 }));
+        try std.testing.expectEqual(supervisor.FailureAction.retry, TaskSet.classify(failure));
+        try std.testing.expectEqual(@as(?u8, 1), try criticalSample(registry));
+        _ = try lane.headReport(headTestOutcome(false), 63000);
+        lane.completed(.{ .unix_ms = 63000, .monotonic_ms = 63000 });
+        try std.testing.expectEqual(@as(?u8, 0), try criticalSample(registry));
+        try std.testing.expect(lane.failures.since_ms == null);
+        try std.testing.expectEqual(failure, lane.failed(failure, .{ .unix_ms = 64000, .monotonic_ms = 64000 }));
+        try std.testing.expectEqual(@as(?u8, 0), try criticalSample(registry));
+    }
+}
+test "scraper partial head publication retains counters and critical health until genuine recovery" {
+    const registry = try metrics.Registry.init(std.testing.allocator, .scraper, .{ .base_version = "fixture" });
+    defer registry.deinit();
+    var configured: types.Chain = undefined;
+    configured.name = "partial-head-fixture";
+    var chain: Chain = .{ .configured = &configured, .writer = undefined, .routers = undefined, .critical = .{ .registry = registry, .chain = configured.name }, .initialized_mask = .init(15) };
+    chain.critical.started();
+    var owner: TaskSet = undefined;
+    owner.options = .{ .curl_library = "unused", .metrics = registry };
+    var native: service.Native = undefined;
+    native.worker = .{ .allocator = std.testing.allocator, .source = undefined, .store = undefined, .options = .{ .period = .{ .blocks = 0 }, .chunk_size = 1, .poll_ms = 1000 } };
+    var pooled: service.Pooled = undefined;
+    pooled.native = &native;
+    var lane: Lane = .{ .owner = &owner, .chain = &chain, .kind = .head, .head_service = &pooled, .backoff = .{ .allocator = std.testing.allocator } };
+    // An error followed by partial publications is one uninterrupted unhealthy head.
+    try std.testing.expectEqual(error.SvmBlockUnavailable, lane.failed(error.SvmBlockUnavailable, .{ .unix_ms = 1000, .monotonic_ms = 1000 }));
+    for ([_]u64{ 30000, 62000 }) |now| {
+        const report = try lane.headReport(headTestOutcome(true), now);
+        lane.completed(.{ .unix_ms = now, .monotonic_ms = now });
+        try std.testing.expectEqual(@as(u64, 14), report.work);
+        try std.testing.expect(!report.halt and report.next_delay_ms != null);
+    }
+    try std.testing.expectEqual(@as(?u8, 1), try criticalSample(registry));
+    try std.testing.expectEqual(@as(u64, 4), try headTestMetric(registry, "hyperlane_contract_sync_stored_events{"));
+    try std.testing.expectEqual(@as(u64, 10), try headTestMetric(registry, "hyperlane_contract_sync_block_height{"));
+    try std.testing.expect(!lane.head_healthy);
+    _ = try lane.headReport(headTestOutcome(false), 63000);
+    lane.completed(.{ .unix_ms = 63000, .monotonic_ms = 63000 });
+    try std.testing.expectEqual(@as(?u8, 0), try criticalSample(registry));
+    try std.testing.expect(lane.head_healthy);
+    try std.testing.expectEqual(@as(u64, 4), try headTestMetric(registry, "hyperlane_contract_sync_stored_events{"));
+}
+test "scraper explicit published reorg and critical invariant errors still halt all lanes" {
+    var configured: types.Chain = undefined;
+    configured.name = "invariant-head-fixture";
+    var chain: Chain = .{ .configured = &configured, .writer = undefined, .routers = undefined, .initialized_mask = .init(15) };
+    var pooled: service.Pooled = undefined;
+    var lane: Lane = .{ .owner = undefined, .chain = &chain, .kind = .head, .head_service = &pooled, .backoff = .{ .allocator = std.testing.allocator } };
+    for ([_]anyerror{ error.ScraperPublishedReorg, error.ScraperCriticalFailure }) |failure| {
+        try std.testing.expectEqual(failure, lane.failed(failure, .{ .unix_ms = 0, .monotonic_ms = 0 }));
+        try std.testing.expectEqual(supervisor.FailureAction.halt_all, TaskSet.classify(failure));
+        try std.testing.expect(chain.critical.reasons != 0);
     }
 }

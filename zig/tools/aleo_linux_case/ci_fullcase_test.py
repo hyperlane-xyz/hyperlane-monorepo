@@ -15,6 +15,12 @@ def evaluator():
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
 def ordinary_native_http_workflow(text):
+ # Exact inverse of once-only EVM and Stark adapter controls before peer controls.
+ evm = '          python3 -B -W error zig/integration/multivm_evm_admission_test.py -v\n'
+ stark = '          python3 -I -B -W error zig/integration/multivm_starknet_test.py -v\n'
+ peers = '          python3 -I -B -W error zig/integration/multivm_starknet_peers_test.py -v\n'
+ if text.count(evm) != 1 or text.count(stark) != 1 or text.count(evm + stark + peers) != 1: raise AssertionError('Exact once-only EVM/Stark adapter block before peer controls required')
+ text = text.replace(evm + stark, '', 1)
  # Exact inverse of native PostgreSQL16 package admission in Aleo only.
  apt_after = '          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64\n'
  apt_before = '          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client libcurl4t64 libssl3t64\n'

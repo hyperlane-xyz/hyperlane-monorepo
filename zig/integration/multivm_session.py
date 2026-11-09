@@ -958,7 +958,14 @@ class Session:
         endpoint = effective("rpcurls", "customrpcurls")
         if self.manifest["scenario"] == "tron":
             return TronEvidence(self.manifest, endpoint, effective("walleturls", "customwalleturls"), effective("walletsolidityurls", "customwalletsolidityurls"))
-        return EvmEvidence(self.manifest, endpoint, reorg_depth=chain.get("blocks", {}).get("reorgperiod", 0))
+        depth = chain.get("blocks", {}).get("reorgperiod", 0)
+        # Native config layering retains environment/CLI values as strings.
+        if type(depth) is str and re.fullmatch("[0-9]+", depth):
+            decimal = depth.lstrip("0") or "0"
+            require(len(decimal) <= 10, "invalid configured EVM finality depth")
+            depth = int(decimal)
+        require(type(depth) is int and 0 <= depth < 2**32, "invalid configured EVM finality depth")
+        return EvmEvidence(self.manifest, endpoint, reorg_depth=depth)
 
     def record_cw_grpc_recovery(self, record):
         # Called only AFTER the existing strict H2 and family observer accept it.

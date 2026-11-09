@@ -606,6 +606,10 @@ pub const Lane = struct {
             };
         }
     }
+    fn nativeFinalized(context: *anyopaque) void {
+        const self: *Lane = @ptrCast(@alignCast(context));
+        if (self.lander_metrics) |*adapter| adapter.record(.finalized_transaction) catch |err| self.telemetryFailure(err);
+    }
     fn markConfirmed(self: *Lane, item: *Active) void {
         if (item.confirmed) return;
         item.confirmed = true;
@@ -892,6 +896,9 @@ pub const Lane = struct {
         return self.updateGroupJournal(journal, frame, null);
     }
     fn updateGroupJournal(self: *Lane, journal: *const native_group.Journal, frame: *const GroupFrame, replacement: ?[]const u8) !void {
+        return self.updateGroupJournalInner(journal, frame, replacement, null);
+    }
+    fn updateGroupJournalInner(self: *Lane, journal: *const native_group.Journal, frame: *const GroupFrame, replacement: ?[]const u8, finalization: ?destination.operation.FinalizedWrite) !void {
         // Only this destination owner writes this namespace. A header update
         // preserves every member/nonce; retirement archives settled ownership.
         var arena = std.heap.ArenaAllocator.init(self.owner.allocator);
@@ -923,6 +930,8 @@ pub const Lane = struct {
                 stores[remaining].mutex.unlock();
             }
         }
+        if (finalization != null) destination.operation.finalized_transaction_mutex.lock();
+        defer if (finalization != null) destination.operation.finalized_transaction_mutex.unlock();
         const current = try journal.store.get(a, destination.operation.group_record_prefix, &journal.id);
         if (current == null or !std.mem.eql(u8, current.?, journal.wire)) return error.StaleNativeGroupOwner;
         var batch = try journal.store.database.batch();
@@ -946,7 +955,15 @@ pub const Lane = struct {
             if (link == null or !std.mem.eql(u8, link.?, &journal.id)) return error.NativeGroupMemberNotOwned;
             if (replacement == null) try batch.delete(try @import("../db/keys.zig").scoped(a, actor.store.typed.domain_name, destination.operation.group_link_prefix, &actor.options.id));
         }
+        if (finalization) |observed| {
+            if (replacement == null or observed.destination != self.chain.domain or !observed.receipt.finalized) return error.FinalizedNativeReceiptRequired;
+            var signed = try journal.signedValue(a);
+            defer signed.deinit();
+            if (!destination.types.Identity.eql(signed.identity, observed.receipt.identity)) return error.FinalizedNativeReceiptRequired;
+        }
+        const finalized_new = if (finalization) |observed| try destination.operation.stageFinalizedTransaction(a, journal.store.database, &batch, observed.destination, observed.receipt) else false;
         try batch.commitSync();
+        if (finalization) |observed| observed.committed.* = observed.committed.* or finalized_new;
         if (replacement == null) {
             for (frame.actors[0..frame.count]) |actor| {
                 self.releaseGroupSender(actor.options.id);
@@ -1033,6 +1050,8 @@ pub const Lane = struct {
         return .retired;
     }
     fn advanceSignedGroup(self: *Lane, journal: *const native_group.Journal, frame: *const GroupFrame, fallback: operation.Times, cancel: *const std.atomic.Value(bool)) !u64 {
+        var finalized_committed = false;
+        defer if (finalized_committed) nativeFinalized(self);
         const factory = self.native_destination.?;
         if (journal.record.phase != .signed and journal.record.phase != .included) return error.InvalidNativeGroup;
         const members = try self.owner.allocator.alloc(destination.types.Prepared, frame.count);
@@ -1070,7 +1089,7 @@ pub const Lane = struct {
             if (whole.finalized) next.canonical_receipt = .{ .identity = journal.record.identity.?, .height = whole.height, .block_hash = try @import("../evm/codecs.zig").hexAlloc(evidence_arena.allocator(), &whole.block_hash), .success = whole.success };
             if (whole.finalized and !whole.success) {
                 next.observation_epoch = self.native_group_epoch;
-                try journal.failed(next, frame.actors[0..frame.count], whole, observed);
+                if (self.lander_metrics != null) try journal.failedWithFinalization(next, frame.actors[0..frame.count], whole, observed, &finalized_committed) else try journal.failed(next, frame.actors[0..frame.count], whole, observed);
                 return 1;
             }
             if (settled and whole.finalized and journal.record.phase == .included and journal.record.canonical_receipt != null) {
@@ -1087,7 +1106,8 @@ pub const Lane = struct {
                 next.included_unix_ms = included_at.unix_ms;
                 next.observation_epoch = if (whole.success) self.native_group_epoch else null;
                 const transition: destination.operation.GroupTransition = if (whole.success) .{ .confirming = .{ .unix_ms = included_at.unix_ms +| frame.actors[0].options.policy.confirm_delay_ms, .delay_ms = frame.actors[0].options.policy.confirm_delay_ms } } else .{ .signed = &signed };
-                journal.write(next, frame.actors[0..frame.count], transition, included_at) catch |commit_error| {
+                const written = if (whole.finalized and self.lander_metrics != null) journal.writeWithFinalization(next, frame.actors[0..frame.count], transition, included_at, whole, &finalized_committed) else journal.write(next, frame.actors[0..frame.count], transition, included_at);
+                written catch |commit_error| {
                     if (whole.success) {
                         var recovered = native_group.Journal.load(self.owner.allocator, journal.store, journal.id) catch return commit_error;
                         defer if (recovered) |*value| value.deinit();
@@ -1106,7 +1126,7 @@ pub const Lane = struct {
             if (whole.finalized and (!journal.record.receipt_finalized or canonical_changed)) {
                 const wire = try std.json.Stringify.valueAlloc(self.owner.allocator, next, .{});
                 defer self.owner.allocator.free(wire);
-                try self.updateGroupJournal(journal, frame, wire);
+                try self.updateGroupJournalInner(journal, frame, wire, if (self.lander_metrics != null) .{ .destination = self.chain.domain, .receipt = whole, .committed = &finalized_committed } else null);
                 return 1;
             }
             return 0;
@@ -1688,7 +1708,7 @@ pub const Lane = struct {
             if (bytes.len != 32) return error.InvalidNativeGroup;
             item.native_group_id = bytes[0..32].*;
         } else item.native_group_id = null;
-        const driver: native_driver.Driver = .{ .options = .{ .group_owned = group_link != null, .submit_via_group = self.chain.protocol == .starknet, .prepare_allowed = prepare_allowed, .observation_clock = self.owner.options.observation_clock, .maximum_gas = maximum, .signer_gate = .{ .context = &sender, .check_fn = Sender.check }, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null } };
+        const driver: native_driver.Driver = .{ .options = .{ .finalized_observer = if (self.lander_metrics != null) .{ .context = self, .observe_fn = nativeFinalized } else null, .group_owned = group_link != null, .submit_via_group = self.chain.protocol == .starknet, .prepare_allowed = prepare_allowed, .observation_clock = self.owner.options.observation_clock, .maximum_gas = maximum, .signer_gate = .{ .context = &sender, .check_fn = Sender.check }, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null } };
         // A ready operation is popped before quote/sign RPCs. Suspended submit
         // work stays outside the preparation threshold until it is requeued.
         if (native_driver.queuedForSubmission(actor) and actor.value.next_attempt_ms <= times.monotonic_ms) item.native_submit_inflight = true;
@@ -2572,4 +2592,23 @@ test "relayer queue gauge destination aggregation normalizes Unknown context onl
         }
     }
     try std.testing.expectEqual(@as(usize, 2), matched);
+}
+
+test "native finalized Lane callback preserves destination registry contract" {
+    const a = std.testing.allocator;
+    const registry = try metrics.Registry.init(a, .relayer, .{ .base_version = "fixture" });
+    defer registry.deinit();
+    var lane: Lane = undefined;
+    lane.lander_metrics = .{ .registry = registry, .destination = "native-destination" };
+    lane.telemetry_failures = .init(0);
+    Lane.nativeFinalized(&lane);
+    const wire = try registry.render(a);
+    defer a.free(wire);
+    try std.testing.expect(std.mem.indexOf(u8, wire, "hyperlane_lander_finalized_transactions{destination=\"native-destination\"} 1\n") != null);
+    try std.testing.expectEqual(@as(u64, 0), lane.telemetry_failures.load(.monotonic));
+    lane.lander_metrics = null;
+    Lane.nativeFinalized(&lane); // Disabled telemetry is not a transaction event.
+    const unchanged = try registry.render(a);
+    defer a.free(unchanged);
+    try std.testing.expectEqualStrings(wire, unchanged);
 }

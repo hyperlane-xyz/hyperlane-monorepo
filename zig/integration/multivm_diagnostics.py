@@ -914,7 +914,7 @@ def validate_record(value,modules):
 
 RELAYER_STARTUP_SOURCE = (
     ('zig/src/service_main.zig', 15166, '6b9101771890b56a5303975c7f1433ea' + 'fc5cacc23b7f548f0d083356d32cca78'),
-    ('zig/src/agents/relayer_task.zig', 160623, 'a27894b0d66c8f7e65134cdcaa544f6e' + 'd7b79d4e98ab95ca56e0f5e8fe9a388c'),
+    ('zig/src/agents/relayer_task.zig', 163776, '2161d89399ec666ff1bf66a2f577004e' + '8f5d78a2e6588e6e61a33c4798307dbd'),
     ('zig/src/runtime/lane_owner.zig', 10263, '694159949d9c7b67cba9e4514812dc7e' + 'e3ab2f284afdf5c3336704522d7d722b'),
     ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),
     ('zig/src/agents/origin_tasks.zig', 20356, '26b7a93daddea7e5866499a9bb685aaa' + '9e3ffbbb4e59a79eb425f8db5be566d3'),
@@ -1303,7 +1303,7 @@ RADIX_SCRAPER_SOURCE = (
     ('zig/src/ops/critical_metrics.zig', 5138, 'a7e1125be31ca9dd320659188f6a438f' + '176dd0a7035ab23c13a865709bbabec8'),
     ('zig/src/ops/metrics_schema.zig', 36606, '3294839328444cead6812c8f47778466' + 'b3ee07b0c8822c20ee236d993193ebb0'),
     ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),
-    ('zig/src/agents/scraper/task.zig', 35102, '39d5f45671dd6a155b20f05373fb592c' + '49c4ad9801da513d0bbc7edbe2ca2303'),
+    ('zig/src/agents/scraper/task.zig', 41945, 'c2b58098923ed19e033d223741ab984c' + '16c2ac31956eac5c0143218f30d77ba3'),
     ('zig/src/agents/scraper/radix.zig', 20076, '425e8aaede59d36cd26d8f15a9b9e9ec' + '27dfee54e8b3ce1e95b24ba415e027db'),
     ('zig/src/agents/scraper/setup.zig', 2232, 'ae1dc00f49f09da514b6819bdf5966f6' + '6a5cfcfac56ab5bfadf0478202392740'),
     ('zig/src/radix/provider.zig', 13805, '504d4ac521c66909288b0a8803ba52bb' + '4cc95cd1d12f95a5e0fa2c4b26405bd5'),

@@ -30,7 +30,15 @@ pub const PendingDelay = struct {
         return self.delay_ms_fn(self.context);
     }
 };
-pub const Options = struct { submit_via_group: bool = false, group_owned: bool = false, prepare_allowed: bool = true, pending_delay: ?PendingDelay = null, maximum_gas: ?u256 = null, signer_gate: ?SignerGate = null, jitter: u64 = 0, observation_clock: ?@import("../operation.zig").ObservationClock = null };
+pub const FinalizedObserver = struct {
+    context: *anyopaque,
+    /// Borrows stable lane state; no allocation/error can replace the driver result.
+    observe_fn: *const fn (*anyopaque) void,
+    pub fn observe(self: FinalizedObserver) void {
+        self.observe_fn(self.context);
+    }
+};
+pub const Options = struct { finalized_observer: ?FinalizedObserver = null, submit_via_group: bool = false, group_owned: bool = false, prepare_allowed: bool = true, pending_delay: ?PendingDelay = null, maximum_gas: ?u256 = null, signer_gate: ?SignerGate = null, jitter: u64 = 0, observation_clock: ?@import("../operation.zig").ObservationClock = null };
 pub const State = enum { backpressured, idle, denied, not_contract, retried, prepared, signed, broadcast, reconciled, retired, delivered };
 pub const Report = struct { state: State, reason: ?Reason = null, failure: ?anyerror = null, denial: ?policy_module.Denial = null, expenditure: ?destination.types.Expenditure = null };
 const Accounting = struct { paid: ?gas.Payment, spent: gas.Expenditure };
@@ -163,6 +171,10 @@ pub const Driver = struct {
         }
     }
     fn reconcile(self: Driver, a: A, factory: *Factory, actor: *Actor, policy: *policy_module.Policy, message: protocol.Message, clock: Clock, now: Times) !Report {
+        var finalized_committed = false;
+        // A later payload/callback error cannot hide a transaction observation
+        // that already committed. This defer runs after Operation releases locks.
+        defer if (finalized_committed) if (self.options.finalized_observer) |observer| observer.observe();
         const signed = if (actor.signed) |*value| value else return error.NativeDriverStateMismatch;
         var prepared_value = try destination.types.Prepared.restore(a, actor.intent orelse return error.MissingNativePreparedIntent);
         defer prepared_value.deinit();
@@ -183,7 +195,12 @@ pub const Driver = struct {
         if (receipt) |value| {
             if (!destination.types.Identity.eql(value.identity, signed.identity)) return error.WrongNativeReceipt;
             if (value.success) try beginConfirmation(factory, actor, message, clock, observed_at);
-            if (value.finalized and try actor.recordExpenditure(value)) expenditure = value.expenditure;
+            if (value.finalized) {
+                if (self.options.finalized_observer != null and !self.options.group_owned and !self.options.submit_via_group) {
+                    const committed = try actor.recordFinalizedReceipt(value, &finalized_committed);
+                    if (committed.expenditure) expenditure = value.expenditure;
+                } else if (try actor.recordExpenditure(value)) expenditure = value.expenditure;
+            }
         }
         if (delivered and actor.value.confirmationReady(observed_at.monotonic_ms) and !actor.value.confirmationReady(delivery_observed_at.monotonic_ms)) {
             // Receipt I/O may cross the deadline. A delivery read obtained

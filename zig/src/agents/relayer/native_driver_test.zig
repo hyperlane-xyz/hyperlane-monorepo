@@ -41,6 +41,20 @@ fn word(a: std.mem.Allocator, value: u256) ![]u8 {
     return std.json.Stringify.valueAlloc(a, .{ .result = .{ .result = true }, .constant_result = [_][]const u8{text[2..]} }, .{});
 }
 test "Native destination driver orders source gates gas allowance durable sign restart reconciliation and final external delivery" {
+    try nativeFinalityExercise(.delivery_only);
+}
+test "Native finalized metric Driver receipt without fees reaches registry once across reopen" {
+    try nativeFinalityExercise(.success);
+}
+test "Native finalized metric counts failed transaction and preserves primary commit error" {
+    try nativeFinalityExercise(.failure);
+    try nativeFinalityExercise(.commit_fault);
+}
+test "Native finalized metric excludes foreign and nonfinal receipts" {
+    try nativeFinalityExercise(.foreign);
+    try nativeFinalityExercise(.nonfinal);
+}
+fn nativeFinalityExercise(mode: enum { delivery_only, success, failure, commit_fault, foreign, nonfinal }) !void {
     const a = std.testing.allocator;
     var temp = std.testing.tmpDir(.{});
     defer temp.cleanup();
@@ -108,7 +122,16 @@ test "Native destination driver orders source gates gas allowance durable sign r
     var policy = try policy_module.Policy.init(a, .{ .gas_payment_enforcement = &.{.{ .matching_list = &.{}, .policy = .{ .minimum = 1 } }} }, null, null);
     defer policy.deinit();
     var gate: SenderGate = .{};
-    const driver: driver_module.Driver = .{ .options = .{ .maximum_gas = 5000, .signer_gate = .{ .context = &gate, .check_fn = SenderGate.check } } };
+    const registry = try @import("../../ops/metrics.zig").Registry.init(a, .relayer, .{ .base_version = "fixture" });
+    defer registry.deinit();
+    var adapter: @import("../../ops/lander_metrics.zig").Adapter = .{ .registry = registry, .destination = "native-destination" };
+    const Observe = struct {
+        fn finalized(context_ptr: *anyopaque) void {
+            const metric: *@import("../../ops/lander_metrics.zig").Adapter = @ptrCast(@alignCast(context_ptr));
+            metric.record(.finalized_transaction) catch unreachable;
+        }
+    };
+    const driver: driver_module.Driver = .{ .options = .{ .finalized_observer = .{ .context = &adapter, .observe_fn = Observe.finalized }, .maximum_gas = 5000, .signer_gate = .{ .context = &gate, .check_fn = SenderGate.check } } };
     var history: History = .{};
     const now: destination.operation.Times = .{ .unix_ms = 1000000, .monotonic_ms = 0 };
     const clock: destination.Clock = .{ .unix_ms = now.unix_ms, .deadline_ns = (try @import("../scraper/receipts_evm.zig").nowNs()) + 10 * std.time.ns_per_s };
@@ -143,10 +166,73 @@ test "Native destination driver orders source gates gas allowance durable sign r
     try std.testing.expectEqual(@as(usize, 2), gate.cached_calls);
     try std.testing.expect(!try store.processed(message.nonce));
     const later: destination.operation.Times = .{ .unix_ms = now.unix_ms + 600000, .monotonic_ms = 600000 };
+    if (mode != .delivery_only) {
+        const identity_hex = try @import("../../evm/codecs.zig").hexAlloc(a, &identity.hash256);
+        defer a.free(identity_hex);
+        const wrong_hex = try @import("../../evm/codecs.zig").hexAlloc(a, &([_]u8{0x77} ** 32));
+        defer a.free(wrong_hex);
+        const receipt_body = try std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = provider.jsonrpc.next_id, .result = .{ .transactionHash = if (mode == .foreign) wrong_hex else identity_hex, .blockNumber = "0x5", .blockHash = block_hex, .status = if (mode == .failure) "0x0" else "0x1" } }, .{});
+        defer a.free(receipt_body);
+        // No gasUsed/effectiveGasPrice: the genuine finalized receipt must count
+        // without inventing a zero fee or requiring expenditure information.
+        const lower_block = try std.json.Stringify.valueAlloc(a, .{ .blockID = "00" ** 7 ++ "04" ++ "00" ** 24, .block_header = .{ .raw_data = .{ .number = @as(u32, 4), .timestamp = @as(u64, 1000000) } } }, .{});
+        defer a.free(lower_block);
+        var steps = [_]@import("../../cloud/testing.zig").Step{
+            .{ .method = .POST, .suffix = "/triggerconstantcontract", .response = absent },
+            .{ .method = .POST, .suffix = "/rpc", .response = receipt_body },
+            .{ .method = .POST, .suffix = "/getnowblock", .response = if (mode == .nonfinal) lower_block else block },
+            .{ .method = .POST, .suffix = "/getblockbynum", .response = block },
+        };
+        network.steps = steps[0..if (mode == .foreign) @as(usize, 3) else if (mode == .nonfinal) @as(usize, 3) else @as(usize, 4)];
+        network.index = 0;
+        if (mode == .commit_fault) {
+            destination.operation.FinalizationTestFault.after_commit.store(true, .release);
+            defer destination.operation.FinalizationTestFault.after_commit.store(false, .release);
+            try std.testing.expectError(error.NativeFinalizationCommitOutcomeUnknown, held_driver.step(a, &factory, actor, &history, &policy, message, clock, later));
+        } else {
+            const report = try held_driver.step(a, &factory, actor, &history, &policy, message, clock, later);
+            try std.testing.expectEqual(if (mode == .failure) driver_module.State.retired else driver_module.State.reconciled, report.state);
+            if (mode == .foreign) try std.testing.expectEqual(error.WrongTronReceipt, report.failure.?) else try std.testing.expect(report.failure == null);
+        }
+        try network.expectDone();
+        const expected_metric = mode != .foreign and mode != .nonfinal;
+        {
+            const wire = try registry.render(a);
+            defer a.free(wire);
+            try std.testing.expectEqual(expected_metric, std.mem.indexOf(u8, wire, "hyperlane_lander_finalized_transactions{destination=\"native-destination\"} 1\n") != null);
+            if (!expected_metric) try std.testing.expect(std.mem.indexOf(u8, wire, "hyperlane_lander_finalized_transactions{") == null);
+        }
+        try std.testing.expect(!try store.processed(message.nonce));
+        try std.testing.expectEqual(@as(u256, 0), (try store.expenditure(message.id())).gas_used);
+        if (mode == .success or mode == .commit_fault) {
+            actor.deinit();
+            actor_live = false;
+            actor = try destination.operation.Operation.open(a, &store, options, later);
+            actor_live = true;
+            const replay_body = try std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = provider.jsonrpc.next_id, .result = .{ .transactionHash = identity_hex, .blockNumber = "0x5", .blockHash = block_hex, .status = "0x1" } }, .{});
+            defer a.free(replay_body);
+            steps[1].response = replay_body;
+            network.index = 0;
+            const replay = try held_driver.step(a, &factory, actor, &history, &policy, message, clock, later);
+            try std.testing.expectEqual(driver_module.State.reconciled, replay.state);
+            try std.testing.expect(replay.failure == null);
+            try network.expectDone();
+            const wire = try registry.render(a);
+            defer a.free(wire);
+            try std.testing.expect(std.mem.indexOf(u8, wire, "hyperlane_lander_finalized_transactions{destination=\"native-destination\"} 1\n") != null);
+            try std.testing.expect(std.mem.indexOf(u8, wire, "hyperlane_lander_finalized_transactions{destination=\"native-destination\"} 2\n") == null);
+        }
+        return;
+    }
     try std.testing.expectEqual(driver_module.State.delivered, (try held_driver.step(a, &factory, actor, &history, &policy, message, clock, later)).state);
     try std.testing.expect(try store.processed(message.nonce));
     try std.testing.expect((try store.pendingAtOrAfter(message.destination, 0)) == null);
     try network.expectDone();
+    const negative_wire = try registry.render(a);
+    defer a.free(negative_wire);
+    try std.testing.expect(std.mem.indexOf(u8, negative_wire, "hyperlane_lander_finalized_transactions{") == null);
+    try std.testing.expectEqual(driver_module.State.delivered, (try held_driver.step(a, &factory, actor, &history, &policy, message, clock, later)).state);
+    try network.expectDone(); // Historical delivery cannot synthesize a final receipt.
     var unpaid = message;
     unpaid.nonce = 1;
     _ = try store.storeMessage(unpaid, 11, null);

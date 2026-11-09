@@ -365,7 +365,7 @@ class EvmConsumerControls(unittest.TestCase):
         tree=ast.parse(source.read_text());nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='native_test_results' or isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id in {'NATIVE_REQUIRED','NATIVE_SKIP_REASONS'}for t in n.targets)]
         checker=types.ModuleType('actual_filtered_parser');checker.re=re
         exec(compile(ast.fix_missing_locations(ast.Module(nodes,type_ignores=[])),str(source),'exec'),checker.__dict__)
-        full_required=checker.NATIVE_REQUIRED;self.assertEqual(len(full_required),38)
+        full_required=checker.NATIVE_REQUIRED;self.assertEqual(len(full_required),49)
         chunks=['\n'.join(f'{i}/{len(targets)} component.test.{target}...OK'for i,target in enumerate(targets,1))for targets in [m.EVM_CONTROL_TESTS[:2],m.EVM_CONTROL_TESTS[2:]]]
         for text in chunks:
             with self.assertRaisesRegex(AssertionError,'required SDK/production regression absent'):checker.native_test_results(text)
