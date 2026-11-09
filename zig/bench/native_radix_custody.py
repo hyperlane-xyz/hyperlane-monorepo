@@ -683,6 +683,7 @@ class Custody:
         self.last_inspected_service = None
         self.service_observation_unavailable = False
         self.missing_inspection_observation = None
+        self.publisher_birth_failure = None
         self.publisher_rows, self.publisher_network = {}, None
 
     def public_observation(self):
@@ -690,6 +691,7 @@ class Custody:
                 'last_inspected_service': self.last_inspected_service,
                 'fullnode_memory': json.loads(json.dumps(self.memory_observation)),
                 'missing_inspection': json.loads(json.dumps(self.missing_inspection_observation)),
+                'publisher_birth_failure': json.loads(json.dumps(self.publisher_birth_failure)),
                 'readiness_passed_services': sorted(self.ready),
                 'services': [json.loads(json.dumps(self.service_states[name])) for name in SERVICES if name in self.service_states]}
 
@@ -842,7 +844,16 @@ class Custody:
             state = row['State']
             require(type(state.get('Pid')) is int and state['Pid'] > 0 and state.get('Running') is True and state.get('OOMKilled') is False, 'Live Radix publisher endpoint required')
             live = kernel_row(state['Pid'])
-            require(live is not None and live.get('pid') == state['Pid'] and live.get('state') != 'Z' and isinstance(live.get('start'), str) and re.fullmatch('linux-ticks:[1-9][0-9]{0,23}', live['start']), 'Actual Radix publisher process birth required')
+            # Failure-only finite operands from the existing single process read.
+            # No extra read, raw PID/start/state or transport/admission authority.
+            valid_birth = live is not None and live.get('pid') == state['Pid'] and live.get('state') != 'Z' and isinstance(live.get('start'), str) and re.fullmatch('linux-ticks:[1-9][0-9]{0,23}', live['start'])
+            if not valid_birth:
+                self.publisher_birth_failure = {'schema': 1, 'service': service, 'process_observed': live is not None,
+                                                'pid_matches': live is not None and live.get('pid') == state['Pid'],
+                                                'zombie_observed': live is not None and live.get('state') == 'Z',
+                                                'valid_start_token': live is not None and isinstance(live.get('start'), str) and re.fullmatch('linux-ticks:[1-9][0-9]{0,23}', live['start']) is not None,
+                                                'native_or_transport_or_cleanup_authority': False}
+            require(valid_birth, 'Actual Radix publisher process birth required')
             endpoints = row['NetworkSettings']['Networks']
             require(set(endpoints) == {self.network}, 'Sole Radix publisher network required')
             endpoint = endpoints[self.network]

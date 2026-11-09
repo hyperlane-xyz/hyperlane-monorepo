@@ -609,6 +609,29 @@ class PublisherControls(unittest.TestCase):
         publisher.targets=self.custody.publisher_targets(self.processes.get)
         return publisher
 
+    def test_refused_birth_projects_only_existing_read_finite_operands(self):
+        self.ready_snapshot();original=copy.deepcopy(self.processes);calls=len(self.docker.calls)
+        expected={'missing':(False,False,False,False),'foreign':(True,False,False,True),'zombie':(True,True,True,True),'invalid token':(True,True,False,False)}
+        for service in m.PUBLISH_ROUTES:
+            pid=self.custody.publisher_rows[service]['State']['Pid']
+            for mutation,operands in expected.items():
+                self.processes=copy.deepcopy(original)
+                if mutation=='missing':self.processes.pop(pid)
+                elif mutation=='foreign':self.processes[pid]['pid']=999999
+                elif mutation=='zombie':self.processes[pid]['state']='Z'
+                else:self.processes[pid]['start']='PRIVATE-DO-NOT-EXPORT'
+                reads=[]
+                def lookup(value):reads.append(value);return self.processes.get(value)
+                with self.subTest(service=service,mutation=mutation),self.assertRaisesRegex(ValueError,'Actual Radix publisher process birth required'):
+                    self.custody.publisher_targets(lookup)
+                record=self.custody.public_observation()['publisher_birth_failure']
+                self.assertEqual(record,{'schema':1,'service':service,'process_observed':operands[0],'pid_matches':operands[1],'zombie_observed':operands[2],'valid_start_token':operands[3],'native_or_transport_or_cleanup_authority':False})
+                self.assertEqual(reads.count(pid),1);self.assertEqual(calls,len(self.docker.calls))
+                wire=json.dumps(record);self.assertNotIn('PRIVATE',wire);self.assertNotIn('linux-ticks',wire);self.assertNotIn(str(pid),wire);self.assertLess(len(wire),512)
+                record['service']='foreign';self.assertEqual(self.custody.public_observation()['publisher_birth_failure']['service'],service)
+        self.processes=original;self.custody.publisher_birth_failure=None
+        self.assertIsNotNone(self.custody.publisher_targets(self.processes.get));self.assertIsNone(self.custody.public_observation()['publisher_birth_failure'])
+
     def socket(self, incoming=(), sent_limit=65536):
         class Stream:
             def __init__(self):self.incoming=list(incoming);self.sent=bytearray();self.shutdowns=[];self.closed=False;self.options=[];self.accepted=[]

@@ -747,8 +747,19 @@ def late_invariant_observation(scenario,sources,repo,harness_log):
         ('SCRAPER_DELIVERY_COUNT',b'Scraper has scraped {} delivered messages, expected {}',rb'Scraper has scraped '+count+rb' delivered messages, expected '+count,'u32'),
         ('RELAYER_CHECK_ENTERED',b'Checking relayer termination invariants',rb'Checking relayer termination invariants','u32'),
         ('SCRAPER_CHECK_ENTERED',b'Checking scraper termination invariants',rb'Checking scraper termination invariants','u32'),
+        ('PROVIDER_REQUEST_COUNT',b'hyperlane_request_count {} count, expected {}',rb'hyperlane_request_count '+count+rb' count, expected '+count,'u32'),
+        ('PROVIDER_CREATED_COUNT',b'Provider created count: {}',rb'Provider created count: '+count,'u32'),
+        ('PROVIDER_CREATED_TOO_LOW',b'hyperlane_provider_create_count only has {} count, expected at least {}',rb'hyperlane_provider_create_count only has '+count+rb' count, expected at least '+count,'u32'),
+        ('PROVIDER_METADATA_COUNT',b'hyperlane_metadata_build_count only has {} count, expected at least {}',rb'hyperlane_metadata_build_count only has '+count+rb' count, expected at least '+count,'u32'),
     ]
     if not all(b'"'+literal+b'"'in bodies['invariants/termination_invariants.rs']for _,literal,_,_ in specs):raise ValueError('Exact termination log literals required')
+    if scenario=='sealevel':
+        name=root+'sealevel/sealevel_termination_invariants.rs';path=Path(repo)/name;body,fingerprint=captured_failure_bytes(path,1024**2)
+        if sources[name]!={'path':str(path),**fingerprint}:raise ValueError('SVM termination diagnostic Source changed')
+        checked[name]=sources[name]
+        stages=[('SVM_SOLANA_TERMINATION_NOT_MET',b'Solana termination invariants not met'),('SVM_PROVIDER2_NOT_MET',b'Provider metrics invariants not met for sealeveltest2'),('SVM_PROVIDER3_NOT_MET',b'Provider metrics invariants not met for sealeveltest3')]
+        if not all(b'log!("'+literal+b'")'in body for _,literal in stages):raise ValueError('Exact SVM termination log literals required')
+        specs.extend((code,literal,re.escape(literal),'u32')for code,literal in stages)
     if b'log!("Error checking e2e invariants: {}", e)'not in bodies['main.rs']or b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)'not in bodies['logging.rs']:raise ValueError('Exact helper log writer required')
     wire,fingerprint=captured_failure_bytes(harness_log,32*1024**2);rows={};scanned=0;oversized=0
     patterns=[(code,re.compile(pattern),kind)for code,_,pattern,kind in specs]

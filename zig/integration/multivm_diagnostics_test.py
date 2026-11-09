@@ -390,7 +390,7 @@ class LateInvariantObservationControls(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.repo=Path(self.tmp.name).resolve();self.sources={}
         actual=Path(__file__).resolve().parents[2]
-        for suffix in ['invariants/termination_invariants.rs','main.rs','logging.rs']:
+        for suffix in ['invariants/termination_invariants.rs','main.rs','logging.rs','sealevel/sealevel_termination_invariants.rs']:
             name='rust/main/utils/run-locally/src/'+suffix;target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((actual/name).read_bytes());self.sources[name]=api.pin(target)
         self.log=self.repo/'harness.log'
     def observe(self,wire,scenario='tron'):
@@ -420,6 +420,18 @@ class LateInvariantObservationControls(unittest.TestCase):
         def tracked(path,*args,**kwargs):opened.append(str(path));return real(path,*args,**kwargs)
         with mock.patch.object(api.os,'open',side_effect=tracked),self.assertRaises(ValueError):api.late_invariant_observation('tron',self.sources,self.repo,self.log)
         self.assertNotIn(str(self.log),opened)
+    def test_provider_numeric_forms_and_SVM_failure_frontiers_are_fixed_not_inferred(self):
+        phrases=[b'hyperlane_request_count 2 count, expected 6',b'Provider created count: 2',b'hyperlane_provider_create_count only has 2 count, expected at least 6',b'hyperlane_metadata_build_count only has 3 count, expected at least 6',b'Solana termination invariants not met',b'Provider metrics invariants not met for sealeveltest2',b'Provider metrics invariants not met for sealeveltest3']
+        wire=b''.join(b'<E2E> '+line+b'\n'for line in phrases);value=self.observe(wire,'sealevel');rows={row['code']:row for row in value['observations']};self.assertEqual(set(rows),{'PROVIDER_REQUEST_COUNT','PROVIDER_CREATED_COUNT','PROVIDER_CREATED_TOO_LOW','PROVIDER_METADATA_COUNT','SVM_SOLANA_TERMINATION_NOT_MET','SVM_PROVIDER2_NOT_MET','SVM_PROVIDER3_NOT_MET'});self.assertEqual(rows['PROVIDER_CREATED_TOO_LOW']['latest']['values'],[2,6]);self.assertEqual(rows['PROVIDER_CREATED_COUNT']['latest']['values'],[2]);self.assertEqual(rows['SVM_PROVIDER2_NOT_MET']['latest']['values'],[]);self.assertEqual(len(value['writer_sources']),4);self.assertFalse(value['native_or_timing_or_cleanup_authority'])
+        for scenario in ['evm','tron','sealevel-composite']:
+            value=self.observe(wire,scenario);self.assertEqual(len(value['observations']),4);self.assertEqual(len(value['writer_sources']),3);self.assertTrue(all(not row['code'].startswith('SVM_')for row in value['observations']))
+    def test_new_forms_refuse_unknown_chain_suffix_numeric_overflow_and_changed_SVM_Source(self):
+        poison=[b'Provider created count: -1',b'Provider created count: 4294967296',b'hyperlane_request_count 1 count, expected 6 PRIVATE_KEY',b'Provider metrics invariants not met for PRIVATE_CHAIN',b'Provider metrics invariants not met for sealeveltest2 PRIVATE',b'<RLY> Provider created count: 2']
+        value=self.observe(b''.join(b'<E2E> '+line+b'\n'for line in poison),'sealevel');self.assertEqual(value['observations'],[]);self.assertNotIn('PRIVATE',json.dumps(value))
+        name='rust/main/utils/run-locally/src/sealevel/sealevel_termination_invariants.rs';path=self.repo/name;path.write_bytes(path.read_bytes().replace(b'Solana termination invariants not met',b'PRIVATE_SVM_FAILURE'))
+        with self.assertRaises(ValueError):self.observe(b'<E2E> Solana termination invariants not met\n','sealevel')
+        self.sources[name]=api.pin(path)
+        with self.assertRaises(ValueError):self.observe(b'<E2E> Solana termination invariants not met\n','sealevel')
 
 
 class FixtureFailureDiscriminatorControls(unittest.TestCase):
