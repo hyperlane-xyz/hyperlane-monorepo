@@ -1179,6 +1179,7 @@ const NativeMetadataServer = struct {
     stop: std.atomic.Value(bool) = .init(false),
     failure: ?anyerror = null,
     thread: ?std.Thread = null,
+    schedule: ?*NativeMetadataSchedule = null,
     hits: [16]std.atomic.Value(usize) = @splat(.init(0)),
     stalled: [4096]std.net.Stream = undefined,
     stalled_count: usize = 0,
@@ -1212,12 +1213,15 @@ const NativeMetadataServer = struct {
     fn serve(self: *NativeMetadataServer) void {
         self.run() catch |err| {
             self.failure = err;
+            if (self.schedule) |schedule| schedule.failure(err);
         };
     }
 
     fn run(self: *NativeMetadataServer) !void {
+        defer if (self.schedule) |schedule| schedule.clear();
         defer for (self.stalled[0..self.stalled_count]) |stream| stream.close();
         while (!self.stop.load(.acquire)) {
+            if (self.schedule) |schedule| try schedule.progress();
             var descriptor = [_]std.posix.pollfd{.{ .fd = self.listener.stream.handle, .events = std.posix.POLL.IN, .revents = 0 }};
             if (try std.posix.poll(&descriptor, 10) == 0) continue;
             const connection = try self.listener.accept();
@@ -1276,16 +1280,13 @@ const NativeMetadataServer = struct {
         }
         const response = try metadataRpcResponse(std.heap.page_allocator, body);
         defer std.heap.page_allocator.free(response);
-        var header_buffer: [160]u8 = undefined;
-        const header = try std.fmt.bufPrint(&header_buffer, "HTTP/1.1 200 Fixture\r\nContent-Type: application/json\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{response.len});
-        stream.writeAll(header) catch |err| switch (err) {
-            error.BrokenPipe, error.ConnectionResetByPeer => return,
-            else => return err,
-        };
-        stream.writeAll(response) catch |err| switch (err) {
-            error.BrokenPipe, error.ConnectionResetByPeer => return,
-            else => return err,
-        };
+        if (self.schedule) |schedule| {
+            if (try schedule.capture(stream, body, response)) {
+                retained = true;
+                return;
+            }
+        }
+        if (try writeMetadataResponse(stream, response)) if (self.schedule) |schedule| schedule.sent(try NativeMetadataSchedule.call(body));
     }
 };
 
@@ -1713,4 +1714,337 @@ test "early threshold discards uncancellable leaf completion without a terminal 
     try drain(root, &fixture);
     try std.testing.expect(!fixture.clock_expired.load(.acquire));
     try std.testing.expectEqual(@as(usize, 0), recorder.event_count);
+}
+
+// Test-only response barriers. All backpressure is produced by the real shared
+// Pool's four occupied sessions, never by an injected PendingReadIo/error.
+const NativeMetadataSchedule = struct {
+    const Phase = enum { collect_verify, gas_boundary, release_selected_gas };
+    const Kind = enum { other, module_type, verify, gas };
+    const Call = struct { kind: Kind, member: ?usize = null };
+    const Held = struct { stream: std.net.Stream, response: []u8, call: Call };
+    const Slots = struct { total: usize = 0, verify: usize = 0, gas: usize = 0, other: usize = 0 };
+
+    runtime: *Pool,
+    timer: std.time.Timer,
+    abort: std.atomic.Value(bool) = .init(false),
+    phase: Phase = .collect_verify,
+    held: [64]Held = undefined,
+    held_count: usize = 0,
+    held_peak: usize = 0,
+    initial_verify_mask: u16 = 0,
+    release_verify_mask: u16 = 0,
+    gas_mask: u16 = 0,
+    held_verify_counts: [16]usize = @splat(0),
+    held_gas_counts: [16]usize = @splat(0),
+    module_responses: [16]usize = @splat(0),
+    verify_responses: [16]usize = @splat(0),
+    gas_responses: [16]usize = @splat(0),
+    real_pressure_refusals: usize = 0,
+    cached_gas_members: u16 = 0,
+    last_slots: Slots = .{},
+
+    fn bit(member: usize) u16 {
+        return @as(u16, 1) << @as(u4, @intCast(member));
+    }
+
+    fn call(body: []const u8) !Call {
+        const parsed = try std.json.parseFromSlice(std.json.Value, std.heap.page_allocator, body, .{});
+        defer parsed.deinit();
+        const object = parsed.value.object;
+        const method = object.get("method").?.string;
+        if (!std.mem.eql(u8, method, "eth_call") and !std.mem.eql(u8, method, "eth_estimateGas")) return .{ .kind = .other };
+        const request = object.get("params").?.array.items[0].object;
+        const address = try evm.codecs.fixedHex(20, request.get("to").?.string);
+        for (address[0..19]) |byte| if (byte != 0) return error.FixtureUnexpectedScheduledAddress;
+        if (address[19] == 0) return .{ .kind = .other };
+        if (address[19] > 16) return error.FixtureUnexpectedScheduledAddress;
+        const member: usize = address[19] - 1;
+        if (std.mem.eql(u8, method, "eth_estimateGas")) return .{ .kind = .gas, .member = member };
+        const data = request.get("data").?.string;
+        const module = try evm.codecs.hexAlloc(std.heap.page_allocator, &evm.codecs.selector("moduleType()"));
+        defer std.heap.page_allocator.free(module);
+        if (std.mem.eql(u8, data, module)) return .{ .kind = .module_type, .member = member };
+        const verify = try evm.codecs.hexAlloc(std.heap.page_allocator, &evm.codecs.selector("verify(bytes,bytes)"));
+        defer std.heap.page_allocator.free(verify);
+        return .{ .kind = if (std.mem.startsWith(u8, data, verify)) .verify else .other, .member = member };
+    }
+
+    fn capture(self: *NativeMetadataSchedule, stream: std.net.Stream, body: []const u8, response: []const u8) !bool {
+        const request = try call(body);
+        if (request.member) |member| {
+            var hold = false;
+            if (request.kind == .verify) {
+                if (self.phase == .collect_verify) {
+                    self.initial_verify_mask |= bit(member);
+                    if (@popCount(self.initial_verify_mask) > 4) return error.FixtureTooManyInitialVerifyGroups;
+                    self.held_verify_counts[member] += 1;
+                    hold = true;
+                } else if (self.phase == .gas_boundary and self.initial_verify_mask & bit(member) != 0 and self.release_verify_mask & bit(member) == 0) hold = true;
+            } else if (request.kind == .gas) {
+                // Each member is an ISM address decoded from actual calldata,
+                // not one of the sixteen transport URL path indices.
+                if (self.module_responses[member] != 8 or self.verify_responses[member] != 8) return error.FixtureGasBeforeCachedReads;
+                if (self.phase != .release_selected_gas) {
+                    self.cached_gas_members |= bit(member);
+                    self.gas_mask |= bit(member);
+                    self.held_gas_counts[member] += 1;
+                    hold = true;
+                } else {
+                    // Only the two actually gated children may win. Other
+                    // healthy gas replies stay owned until real cancellation.
+                    hold = self.gas_mask & bit(member) == 0;
+                }
+            }
+            if (hold) {
+                if (self.held_count == self.held.len) return error.FixtureScheduleReplyLimit;
+                const owned = try std.heap.page_allocator.dupe(u8, response);
+                self.held[self.held_count] = .{ .stream = stream, .response = owned, .call = request };
+                self.held_count += 1;
+                self.held_peak = @max(self.held_peak, self.held_count);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    fn sent(self: *NativeMetadataSchedule, request: Call) void {
+        const member = request.member orelse return;
+        switch (request.kind) {
+            .module_type => self.module_responses[member] += 1,
+            .verify => self.verify_responses[member] += 1,
+            .gas => self.gas_responses[member] += 1,
+            .other => {},
+        }
+    }
+
+    fn inspectSlots(self: *NativeMetadataSchedule) !Slots {
+        self.runtime.mutex.lock();
+        defer self.runtime.mutex.unlock();
+        var result: Slots = .{};
+        for (self.runtime.sessions) |entry| if (entry) |session| {
+            result.total += 1;
+            const request = try call(session.original.body);
+            switch (request.kind) {
+                .verify => result.verify += 1,
+                .gas => result.gas += 1,
+                else => result.other += 1,
+            }
+        };
+        return result;
+    }
+
+    fn pressure(self: *NativeMetadataSchedule, verify: usize, gas: usize) !void {
+        self.last_slots = try self.inspectSlots();
+        if (self.last_slots.total != 4 or self.last_slots.verify != verify or self.last_slots.gas != gas or self.last_slots.other != 0) return error.FixtureUnexpectedRealPoolState;
+        // The mutex is released before calling the Pool. The live held HTTP
+        // replies prevent these four real sessions completing across this call.
+        const selector = try evm.codecs.hexAlloc(std.heap.page_allocator, &evm.codecs.selector("moduleType()"));
+        defer std.heap.page_allocator.free(selector);
+        const probe = try std.fmt.allocPrint(std.heap.page_allocator, "{{\"jsonrpc\":\"2.0\",\"id\":99999,\"method\":\"eth_call\",\"params\":[{{\"to\":\"0x0000000000000000000000000000000000000001\",\"data\":\"{s}\"}},\"0x2a\"]}}", .{selector});
+        defer std.heap.page_allocator.free(probe);
+        if (self.runtime.submit(probe, 20000, 20000, 16384)) |handle| {
+            self.runtime.cancel(handle);
+            return error.FixtureExpectedRealPoolPressure;
+        } else |err| {
+            if (err != error.RpcPoolSessionsFull) return err;
+            self.real_pressure_refusals += 1;
+        }
+    }
+
+    fn flush(self: *NativeMetadataSchedule) !void {
+        var index: usize = 0;
+        while (index < self.held_count) {
+            const item = self.held[index];
+            const release = (self.phase == .release_selected_gas and (item.call.kind == .verify or (item.call.kind == .gas and self.gas_mask & bit(item.call.member.?) != 0))) or (self.phase == .gas_boundary and item.call.kind == .verify and self.release_verify_mask & bit(item.call.member.?) != 0);
+            if (!release) {
+                index += 1;
+                continue;
+            }
+            self.held_count -= 1;
+            self.held[index] = self.held[self.held_count];
+            defer item.stream.close();
+            defer std.heap.page_allocator.free(item.response);
+            if (try writeMetadataResponse(item.stream, item.response)) self.sent(item.call);
+        }
+    }
+
+    fn progress(self: *NativeMetadataSchedule) !void {
+        if (self.phase == .release_selected_gas) return self.flush();
+        if (self.timer.read() > 5 * std.time.ns_per_s) return error.FixtureScheduleBarrierTimeout;
+        if (self.phase == .collect_verify and @popCount(self.initial_verify_mask) == 4) {
+            var ready = true;
+            for (0..16) |member| {
+                if (self.initial_verify_mask & bit(member) != 0 and self.held_verify_counts[member] != 8) ready = false;
+            }
+            if (ready) {
+                try self.pressure(4, 0);
+                for (0..16) |member| {
+                    if (self.initial_verify_mask & bit(member) != 0 and @popCount(self.release_verify_mask) < 2) self.release_verify_mask |= bit(member);
+                }
+                self.phase = .gas_boundary;
+            }
+        } else if (self.phase == .gas_boundary and @popCount(self.gas_mask) == 2) {
+            var ready = true;
+            for (0..16) |member| {
+                if (self.gas_mask & bit(member) != 0 and self.held_gas_counts[member] != 8) ready = false;
+            }
+            if (ready) {
+                try self.pressure(2, 2);
+                self.phase = .release_selected_gas;
+            }
+        }
+        try self.flush();
+    }
+
+    fn clear(self: *NativeMetadataSchedule) void {
+        for (self.held[0..self.held_count]) |item| {
+            item.stream.close();
+            std.heap.page_allocator.free(item.response);
+        }
+        self.held_count = 0;
+    }
+
+    fn failure(self: *NativeMetadataSchedule, err: anyerror) void {
+        self.abort.store(true, .release);
+        self.last_slots = self.inspectSlots() catch self.last_slots;
+        std.debug.print("NATIVE_METADATA_SCHEDULE_FAILURE phase={s} error={s} slots={d} verify={d} gas={d} held={d} peak={d} verify_groups={d} gas_groups={d} pressure_checks={d} cached_members={d}\n", .{ @tagName(self.phase), @errorName(err), self.last_slots.total, self.last_slots.verify, self.last_slots.gas, self.held_count, self.held_peak, @popCount(self.initial_verify_mask), @popCount(self.gas_mask), self.real_pressure_refusals, @popCount(self.cached_gas_members) });
+    }
+};
+
+fn writeMetadataResponse(stream: std.net.Stream, response: []const u8) !bool {
+    var header_buffer: [160]u8 = undefined;
+    const header = try std.fmt.bufPrint(&header_buffer, "HTTP/1.1 200 Fixture\r\nContent-Type: application/json\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{response.len});
+    stream.writeAll(header) catch |err| switch (err) {
+        error.BrokenPipe, error.ConnectionResetByPeer => return false,
+        else => return err,
+    };
+    stream.writeAll(response) catch |err| switch (err) {
+        error.BrokenPipe, error.ConnectionResetByPeer => return false,
+        else => return err,
+    };
+    return true;
+}
+
+fn waitNativeMetadataPoolDrain(runtime: *Pool) !void {
+    var timer = try std.time.Timer.start();
+    while (true) {
+        runtime.mutex.lock();
+        const empty = for (runtime.sessions) |entry| {
+            if (entry != null) break false;
+        } else true;
+        if (empty) {
+            // No submitters remain after drainExecutor; the owner has retired
+            // every peer/native handle before clearing each protected slot.
+            runtime.mutex.unlock();
+            return;
+        }
+        runtime.mutex.unlock();
+        if (timer.read() > 5 * std.time.ns_per_s) return error.FixturePoolDrainTimeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
+
+test "native shared Pool preserves cached verification across deterministic four slot gas pressure and drains" {
+    const allocator = std.testing.allocator;
+    const library = try pool_fixture.nativeLibrary(allocator);
+    defer allocator.free(library);
+    var server = try NativeMetadataServer.init();
+    var server_live = false;
+    var server_closed = false;
+    defer if (!server_closed) {
+        if (server_live) server.deinit() else server.listener.deinit();
+    };
+    var owned_urls: [16][]u8 = undefined;
+    var urls: [16][]const u8 = undefined;
+    for (&owned_urls, &urls, 0..) |*owned, *url, index| {
+        owned.* = try server.url(allocator, index);
+        url.* = owned.*;
+    }
+    defer for (&owned_urls) |url| allocator.free(url);
+    var observer: MetadataPoolObserver = .{};
+    const runtime = try Pool.start(allocator, .{
+        .library_path = library,
+        .observer = observer.interface(),
+        .urls = &urls,
+        .strategy = .{ .quorum = .{ .threshold = 8, .max_attempts = 1, .retry_delay_ms = 1 } },
+        .max_sessions = 4,
+        .max_concurrent = 128,
+        .max_pending = 512,
+        .max_response_bytes = 16384,
+        .max_request_bytes = 16384,
+        .max_reserved_bytes = 64 * 1024 * 1024,
+    });
+    var runtime_live = true;
+    defer if (runtime_live) runtime.deinit();
+    var schedule: NativeMetadataSchedule = .{ .runtime = runtime, .timer = try std.time.Timer.start() };
+    server.schedule = &schedule;
+    try server.start();
+    server_live = true;
+    // Stop/join the server before the Pool is freed on every error path too.
+    defer if (!server_closed) {
+        server.deinit();
+        server_closed = true;
+        server_live = false;
+    };
+    const root = try parallel.Root.start(allocator, .{ .max_retained_jobs = 128 });
+    defer root.deinit();
+    var client = try evm.RpcClient.init(allocator, urls[0], .{
+        .async_pool = runtime,
+        .exchange = .{ .context = runtime, .fetch_fn = blockingPoolExchange },
+        .max_response_bytes = 16384,
+        .timeout_ms = 20000,
+        .connect_timeout_ms = 20000,
+    });
+    var client_live = true;
+    defer if (client_live) client.deinit();
+    var origin: evm_source.LocalOrigin = .{ .allocator = allocator, .leaves = &.{}, .stores = &.{} };
+    var source: evm_source.Source(evm_source.LocalOrigin) = .{ .allocator = allocator, .client = &client, .block_number = 42, .origin = &origin };
+    var builder: metadata.Builder(@TypeOf(source)) = .{ .allocator = allocator, .source = &source, .executor = &root.executor, .cancel = &schedule.abort };
+    const encoded = builder.build(@splat(0), message()) catch |err| {
+        schedule.abort.store(true, .release);
+        server.deinit();
+        server_closed = true;
+        server_live = false;
+        // Server-owned proof fields are stable only after its thread joins.
+        schedule.failure(err);
+        try server.check();
+        return err;
+    };
+    defer allocator.free(encoded);
+    const decoded = try protocol.metadata.Aggregation.decode(encoded, 16);
+    var selected: usize = 0;
+    var selected_mask: u16 = 0;
+    for (0..16) |index| {
+        if ((try decoded.metadataAt(index)) != null) {
+            selected += 1;
+            selected_mask |= NativeMetadataSchedule.bit(index);
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 2), selected);
+    try drainExecutor(root);
+    try waitNativeMetadataPoolDrain(runtime);
+    try observer.expectClean();
+    // Join before reading schedule's server-owned non-atomic proof fields.
+    server.deinit();
+    server_live = false;
+    server_closed = true;
+    // Pool.deinit joins the real native owner and asserts retained response
+    // accounting is zero, after the logical jobs and all slots have drained.
+    client.deinit();
+    client_live = false;
+    runtime.deinit();
+    runtime_live = false;
+    try std.testing.expectEqual(NativeMetadataSchedule.Phase.release_selected_gas, schedule.phase);
+    try std.testing.expectEqual(@as(usize, 2), schedule.real_pressure_refusals);
+    try std.testing.expectEqual(schedule.gas_mask, selected_mask);
+    for (0..16) |member| {
+        if (selected_mask & NativeMetadataSchedule.bit(member) == 0) continue;
+        try std.testing.expectEqual(@as(usize, 8), schedule.module_responses[member]);
+        try std.testing.expectEqual(@as(usize, 8), schedule.verify_responses[member]);
+        try std.testing.expectEqual(@as(usize, 8), schedule.gas_responses[member]);
+    }
+    try std.testing.expectEqual(@as(usize, 2), @as(usize, @popCount(schedule.cached_gas_members)));
+    try std.testing.expectEqual(@as(usize, 0), schedule.held_count);
+    try server.check();
 }

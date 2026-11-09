@@ -20,12 +20,12 @@ import threading
 
 TARGET = 'zig/src/metadata_parallel_delegated_tests.zig'
 PAYLOAD = 'zig/tools/fixtures/native_http_312_diagnostic.zig.gz'
-BEFORE_SHA = ('847b82fed784d3fe4848229f7e091bd7'
-              '7a46e60780bf48a5f8238390894567e5')
-AFTER_SHA = ('4211efa9749ab94206f02338cc7e87be'
-              'c9106b5dcbf6dfb7c15c901bc78560c0')
-PAYLOAD_SHA = ('e09fdca6b6a999fc893042cea32afb52'
-              'fd38a49941783409bbd8d7fd65b82bd8')
+BEFORE_SHA = ('28033a92d8e7d0758af4ab5ccebff3fa'
+              '6a6976ce7e07afda5a5a1f24b6dc719f')
+AFTER_SHA = ('ac6eeca7465c780766b8e7ae021073b3'
+              '3be5e4df0ab304731c7470ef1fa1d769')
+PAYLOAD_SHA = ('3d6bcdfd4d684d240c835c24025f42d6'
+              'a1b36304ea8aa4f80bbe272550f91599')
 FILTER = 'native Pool yields eight stalled peers and verifies healthy EVM children three times'
 MARKER = '[zig-native-http-diagnostic]'
 ONLY_MARKER = '[zig-native-http-diagnostic-only]'
