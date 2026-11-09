@@ -664,12 +664,7 @@ impl MessageState {
                 message["failure"] = json!({"stage": "prepare", "reason": value["type"]});
                 None
             }
-            Activity::ValidatorStorage { validator, .. } => {
-                // Keep these message-level until storage discovery supplies a node context.
-                self.current
-                    .insert(format!("validator:{validator:#x}"), value);
-                return Ok(());
-            }
+            Activity::ValidatorStorage { .. } => return Ok(()),
             // Preserve useful observations from non-tree paths, without repeated payloads.
             _ => {
                 self.current
@@ -699,7 +694,7 @@ impl MessageState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message_activity::{CheckpointSummary, Outcome, Stage, ValidatorStorageState};
+    use crate::message_activity::{CheckpointSummary, Outcome, Stage};
     use hyperlane_base::CheckpointSigner;
     use hyperlane_core::{
         ConfirmReason, ModuleType, PendingOperationStatus, ReprepareReason, SubmissionStage, H160,
@@ -1148,14 +1143,6 @@ mod tests {
             &states,
             &[
                 validators(2),
-                event(
-                    None,
-                    Activity::ValidatorStorage {
-                        validator: H256::repeat_byte(2),
-                        states: vec![ValidatorStorageState::LoadFailed],
-                        usable: false,
-                    },
-                ),
                 metadata("root", Some("Could not fetch metadata")),
             ],
         )
@@ -1164,14 +1151,6 @@ mod tests {
         let recovered = project(
             &states,
             &[
-                event(
-                    None,
-                    Activity::ValidatorStorage {
-                        validator: H256::repeat_byte(2),
-                        states: vec![],
-                        usable: true,
-                    },
-                ),
                 checkpoint_for(
                     "b",
                     10,
