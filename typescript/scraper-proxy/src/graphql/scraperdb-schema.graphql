@@ -309,9 +309,15 @@ type SignatureProgress {
   index: bigint
   root: String
   collected: Int
+  signers: [CheckpointSigner!]
   "Signatures required for this ISM, not the total number of validators."
   threshold: Int!
   unavailable: [UnavailableSignature!]!
+}
+
+type CheckpointSigner {
+  validator: String!
+  location: String
 }
 
 type UnavailableSignature {

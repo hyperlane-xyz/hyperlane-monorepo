@@ -703,6 +703,12 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
               index: 3,
               root: 'checkpoint-root',
               collected: 1,
+              signers: [
+                {
+                  validator: 'validator-a',
+                  location: 's3://validator-bucket/us-east-1/checkpoints',
+                },
+              ],
               threshold: 2,
               unavailable: [],
             },
@@ -727,7 +733,7 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
         query: `{
       message_diagnostics(message_id: "${id}") { relayers {
         phase tree_root modules { node_id ism children { node_id ism } selected_children
-          signatures { collection_id collected threshold }
+          signatures { collection_id collected signers { validator location } threshold }
           offchain_read { state attempt }
         }
       }}
@@ -740,6 +746,12 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
     assert.equal(progress.tree_root, 'root');
     assert.equal(progress.modules[0].signatures.collection_id, null);
     assert.equal(progress.modules[0].signatures.collected, 1);
+    assert.deepEqual(progress.modules[0].signatures.signers, [
+      {
+        validator: 'validator-a',
+        location: 's3://validator-bucket/us-east-1/checkpoints',
+      },
+    ]);
     assert.equal(progress.modules[0].offchain_read.attempt, null);
     stream.subscribe('127.0.0.1', [id], (frame, complete) => {
       frames.push(frame);

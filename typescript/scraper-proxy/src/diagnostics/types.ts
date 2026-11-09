@@ -19,6 +19,7 @@ export type SignatureProgress = {
   index?: number | null;
   root?: string | null;
   collected?: number | null;
+  signers?: { validator: string; location?: string | null }[];
   threshold: number;
   unavailable: { validator: string; reason: string }[];
 };

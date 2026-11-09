@@ -37,6 +37,13 @@ fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<Observa
     )
 }
 
+fn checkpoint_signer(validator: u8, location: Option<&str>) -> CheckpointSigner {
+    CheckpointSigner {
+        validator: H256::repeat_byte(validator),
+        location: location.map(str::to_owned),
+    }
+}
+
 #[tokio::test]
 async fn admission_scans_do_not_replay_diagnostics() {
     use hyperlane_base::broadcast::IndexingNotification;
@@ -268,10 +275,9 @@ fn checkpoint_collections_are_distinct_and_bound_to_message() {
         let observer = reporter.checkpoint_observer(&message, Some(H256::repeat_byte(7)), 2);
         observer.observe(CheckpointObservation::Fetching { index: 12 });
         observer.observe(CheckpointObservation::Signature {
-            validator: H256::repeat_byte(1),
             index: 12,
             root: H256::repeat_byte(2),
-            collected: 1,
+            signers: vec![checkpoint_signer(1, Some("s3://validator-1"))],
         });
         observer.report();
     }
@@ -286,6 +292,13 @@ fn checkpoint_collections_are_distinct_and_bound_to_message() {
     );
     assert_eq!(first["activity"]["threshold"], 2);
     assert_eq!(first["activity"]["summary"]["collected"], 1);
+    assert_eq!(
+        first["activity"]["summary"]["signers"]
+            .as_array()
+            .expect("signer list")
+            .len(),
+        1
+    );
 }
 
 // Requires an empty disposable database and a superuser test login, to exercise
@@ -421,10 +434,9 @@ fn checkpoint_range_walk_emits_one_bounded_summary() {
     for index in (0..10_000).rev() {
         observer.observe(CheckpointObservation::Fetching { index });
         observer.observe(CheckpointObservation::Signature {
-            validator: H256::repeat_byte(1),
             index,
             root: H256::repeat_byte(2),
-            collected: 1,
+            signers: vec![checkpoint_signer(1, None)],
         });
         observer.observe(CheckpointObservation::Unavailable {
             validator: H256::repeat_byte(3),
@@ -458,10 +470,11 @@ fn checkpoint_summary_never_combines_roots_or_indices() {
     observer.observe(CheckpointObservation::Fetching { index: 12 });
     for (root, collected) in [(1, 2), (2, 1)] {
         observer.observe(CheckpointObservation::Signature {
-            validator: H256::repeat_byte(root),
             index: 12,
             root: H256::repeat_byte(root),
-            collected,
+            signers: (0..collected)
+                .map(|offset| checkpoint_signer(root + offset as u8, None))
+                .collect(),
         });
     }
     assert_eq!(observer.summary.lock().collected, 2);
@@ -478,6 +491,51 @@ fn checkpoint_summary_never_combines_roots_or_indices() {
     assert_eq!(json["activity"]["summary"]["index"], 11);
     assert_eq!(json["activity"]["summary"]["collected"], 0);
     assert!(json["activity"]["summary"]["root"].is_null());
+}
+
+#[test]
+fn checkpoint_summary_tracks_signers_for_the_selected_root() {
+    let (reporter, mut receiver) = reporter(1);
+    let observer = reporter.checkpoint_observer(&HyperlaneMessage::default(), None, 3);
+    observer.observe(CheckpointObservation::Fetching { index: 12 });
+    for (root, signers) in [
+        (1, vec![checkpoint_signer(1, Some("s3://validator-1"))]),
+        (2, vec![checkpoint_signer(2, Some("gs://validator-2"))]),
+        (
+            2,
+            vec![
+                checkpoint_signer(2, Some("gs://validator-2")),
+                checkpoint_signer(3, Some("s3://validator-3")),
+            ],
+        ),
+    ] {
+        observer.observe(CheckpointObservation::Signature {
+            index: 12,
+            root: H256::repeat_byte(root),
+            signers,
+        });
+    }
+    observer.report();
+    let json = serde_json::to_value(receiver.try_recv().expect("checkpoint event"))
+        .expect("serialize event");
+    let signers = json["activity"]["summary"]["signers"]
+        .as_array()
+        .expect("signer list");
+    assert_eq!(
+        json["activity"]["summary"]["root"],
+        serde_json::to_value(H256::repeat_byte(2)).unwrap()
+    );
+    assert_eq!(signers.len(), 2);
+    assert_eq!(
+        signers[0]["validator"],
+        serde_json::to_value(H256::repeat_byte(2)).unwrap()
+    );
+    assert_eq!(signers[0]["location"], "gs://validator-2");
+    assert_eq!(
+        signers[1]["validator"],
+        serde_json::to_value(H256::repeat_byte(3)).unwrap()
+    );
+    assert_eq!(signers[1]["location"], "s3://validator-3");
 }
 
 #[test]
@@ -533,10 +591,9 @@ fn checkpoint_summary_separates_discovery_failures_in_both_completion_orders() {
         }
         observer.observe(CheckpointObservation::Fetching { index: 12 });
         observer.observe(CheckpointObservation::Signature {
-            validator: H256::repeat_byte(1),
             index: 12,
             root: H256::repeat_byte(2),
-            collected: 1,
+            signers: vec![checkpoint_signer(1, None)],
         });
         if !discovery_finishes_first {
             observer.observe(discovery_failure());
