@@ -5,7 +5,7 @@ const provider = @import("radix/provider.zig");
 const address = @import("radix/address.zig");
 const mock = @import("cloud/testing.zig");
 const A = std.mem.Allocator;
-const Mode = enum { success, missing, failed, wrong_hash, wrong_height, reorg, bad_metadata, empty };
+const Mode = enum { success, missing, failed, wrong_hash, wrong_height, reorg, bad_metadata, bad_resource_kind, empty };
 fn radixBatch(a: A, mode: Mode) !src.Batch {
     var arena = std.heap.ArenaAllocator.init(a);
     defer arena.deinit();
@@ -27,7 +27,7 @@ fn radixBatch(a: A, mode: Mode) !src.Batch {
     else if (mode == .empty)
         try memory.dupe(u8, "[]")
     else
-        try std.fmt.allocPrint(memory, "[{{\"name\":\"Other\"}},{{\"name\":\"GasPayment\",\"emitter\":{{\"type\":\"Method\",\"entity\":{{\"entity_address\":\"{s}\"}}}},\"data\":{{\"kind\":\"Tuple\",\"fields\":[{{\"kind\":\"Bytes\",\"hex\":\"{s}\"}},{{\"kind\":\"U32\",\"value\":2000}},{{\"kind\":\"Decimal\",\"value\":\"1000\"}},{{\"kind\":\"Decimal\",\"value\":\"2500\"}},{{\"kind\":\"String\",\"value\":\"resource\"}},{{\"kind\":\"U32\",\"value\":9}}]}}}},{{\"name\":\"InsertedIntoTreeEvent\",\"emitter\":{{\"type\":\"Method\",\"entity\":{{\"entity_address\":\"{s}\"}}}},\"data\":{{\"kind\":\"Tuple\",\"fields\":[{{\"kind\":\"Bytes\",\"hex\":\"{s}\"}},{{\"kind\":\"U32\",\"value\":9}}]}}}}]", .{ paymaster, "22" ** 32, hook, "11" ** 32 });
+        try std.fmt.allocPrint(memory, "[{{\"name\":\"Other\"}},{{\"name\":\"GasPayment\",\"emitter\":{{\"type\":\"Method\",\"entity\":{{\"entity_address\":\"{s}\"}}}},\"data\":{{\"kind\":\"Tuple\",\"fields\":[{{\"kind\":\"Bytes\",\"hex\":\"{s}\"}},{{\"kind\":\"U32\",\"value\":2000}},{{\"kind\":\"Decimal\",\"value\":\"1000\"}},{{\"kind\":\"Decimal\",\"value\":\"2500\"}},{{\"kind\":\"{s}\",\"value\":\"resource\"}},{{\"kind\":\"U32\",\"value\":9}}]}}}},{{\"name\":\"InsertedIntoTreeEvent\",\"emitter\":{{\"type\":\"Method\",\"entity\":{{\"entity_address\":\"{s}\"}}}},\"data\":{{\"kind\":\"Tuple\",\"fields\":[{{\"kind\":\"Bytes\",\"hex\":\"{s}\"}},{{\"kind\":\"U32\",\"value\":9}}]}}}}]", .{ paymaster, "22" ** 32, if (mode == .bad_resource_kind) "String" else "Reference", hook, "11" ** 32 });
     const transaction = if (mode == .missing)
         try memory.dupe(u8, "")
     else
@@ -93,6 +93,7 @@ test "Radix transaction companion rejects missing failed wrong identity height a
     try std.testing.expectError(error.WrongRadixStateVersion, radixBatch(a, .wrong_height));
     try std.testing.expectError(error.WrongRadixStateVersion, radixBatch(a, .reorg));
     try std.testing.expectError(error.InvalidBech32Length, radixBatch(a, .bad_metadata));
+    try std.testing.expectError(error.WrongRadixEventFieldKind, radixBatch(a, .bad_resource_kind));
     var script: mock.Mock = .{ .steps = &.{} };
     const client: provider.Client = .{ .allocator = a, .transport = script.transport(), .core = undefined, .gateway = undefined, .network = .mainnet, .confirmations = 0 };
     var adapter: Adapter = .{ .client = client, .contracts = undefined, .domain = 1000 };
