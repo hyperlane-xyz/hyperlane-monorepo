@@ -226,6 +226,14 @@ function loadFailure(error: unknown): DenylistLoadFailure {
  * transaction signer. A denied depositor whose transaction another account
  * paid for (e.g. a sponsored Sealevel transfer) is therefore not ignored and
  * stays reserved.
+ *
+ * The relayer also skips its signer check, so it may deliver a message this
+ * middleware ignores for its `origin_tx_sender` alone, when no dispatch tx
+ * hash is stored (Cosmos block-level events, an old DB backlog, a zero hash),
+ * the origin tx is not found (pruned or reorged out), the sender is zero
+ * (Radix, Aleo) or the lookup keeps failing for about 8 minutes
+ * (rust/main/agents/relayer/src/msg/pending_message.rs and
+ * runtime_denylist.rs).
  */
 export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
   private lastAttemptAt: number;
