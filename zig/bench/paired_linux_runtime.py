@@ -14,7 +14,7 @@ import time
 import types
 
 MODES=('ReleaseSafe','ReleaseFast')
-METHODS_SHA='815f6a9adc9cc078e909ffc77ed86761'+'ce5734d6082ae380f49899edbd1b56d3'
+METHODS_SHA='6216aa2fe42f2a2ac69bc9ee36dbeff0'+'698d891b0b6bb26406d73505df36b2c0'
 METHOD_ROWS=(('validator','ReleaseSafe','majority'),('validator','ReleaseSafe','fallback'),('validator','ReleaseFast','majority'),('validator','ReleaseFast','fallback'),('scraper','ReleaseSafe','single'),('scraper','ReleaseFast','single'),('relayer','ReleaseSafe','singleton-maxBatch1'),('relayer','ReleaseFast','singleton-maxBatch1'),('relayer','ReleaseSafe','genuine-batch-cap4'),('relayer','ReleaseFast','genuine-batch-cap4'))
 ORDER=[name for sample in range(5)for name in(['rust','zig']if sample%2==0 else['zig','rust'])]
 LOADS=(('paired_runtime_cpu','zig/tools/build_cpu.py'),('inventory','zig/bench/inventory.py'),('cold_matrix_owner','zig/bench/cold_matrix_owner.py'),('native_harness_controls','zig/bench/native_harness_controls.py'),('native_case_tools','zig/bench/native_case_tools.py'),('evm','zig/integration/evm.py'),('zig.integration.validator','zig/integration/validator.py'),('validator','zig/bench/validator.py'),('relayer_process','zig/integration/relayer_process.py'),('relayer','zig/bench/relayer.py'),('scraper','zig/bench/scraper.py'),('paired_linux_postgres','zig/bench/paired_linux_postgres.py'))

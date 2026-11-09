@@ -183,11 +183,11 @@
     },
     {
       "path": "zig/bench/paired_linux_methods.json",
-      "bytes": 11405,
+      "bytes": 11229,
       "sha256": {
         "sha256_hex_chunks": [
-          "815f6a9adc9cc078e909ffc77ed86761",
-          "ce5734d6082ae380f49899edbd1b56d3"
+          "6216aa2fe42f2a2ac69bc9ee36dbeff0",
+          "698d891b0b6bb26406d73505df36b2c0"
         ]
       }
     },

@@ -92,11 +92,11 @@ class Request(Fixture):
             if change=='wrongproducer':doc['producer_source_commit']='c'*40
             value=copy.deepcopy(base);value['native18_qualification']=self.document('native18_qualification.json',doc)
             with self.subTest(change=change),self.assertRaises(c.Refused):self.admit(value)
-    def test_current_native_case_must_be_false_and_immutable_methods_actual815(self):
+    def test_current_native_case_must_be_false_and_immutable_committed_methods(self):
         _,value=self.enabled();self.file('zig/bench/native_case_request.json',b'{"root_approved":true}')
         value['required_source']=[self.file(r['path'],b'{"root_approved":true}')if r['path']=='zig/bench/native_case_request.json'else r for r in value['required_source']]
         with self.assertRaisesRegex(c.Refused,'selector'):self.admit(value)
-        self.assertEqual(len((REPO/'zig/bench/paired_linux_methods.json').read_bytes()),11405);self.assertEqual(hashlib.sha256((REPO/'zig/bench/paired_linux_methods.json').read_bytes()).hexdigest(),c.METHODS_SHA)
+        self.assertEqual(len((REPO/'zig/bench/paired_linux_methods.json').read_bytes()),11229);self.assertEqual(hashlib.sha256((REPO/'zig/bench/paired_linux_methods.json').read_bytes()).hexdigest(),c.METHODS_SHA)
     def test_captured_metadata_replacement_and_nonfinite_duplicate_rejected(self):
         row=self.document('fixed.json',{'root_approved':False});(self.repo/'fixed.json').write_text('{"root_approved":true}')
         with self.assertRaises(c.Refused):c.data(row,self.repo)
