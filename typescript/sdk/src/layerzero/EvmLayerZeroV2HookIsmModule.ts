@@ -7,6 +7,7 @@ import {
   assert,
   eqAddress,
   deepEquals,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 import { Contract, constants } from 'ethers';
 
@@ -241,6 +242,7 @@ export class EvmLayerZeroV2HookIsmModule {
     existingAddresses: ChainMap<Address> = {},
     contractVerifier?: ContractVerifier,
   ): Promise<LayerZeroV2MeshReconciliation> {
+    const logger = rootLogger.child({ module: 'EvmLayerZeroV2HookIsmModule' });
     const mesh = Object.fromEntries(
       Object.entries(inputMesh).map(([chain, config]) => [
         chain,
@@ -287,6 +289,7 @@ export class EvmLayerZeroV2HookIsmModule {
 
     const addresses: ChainMap<Address> = {};
     const fresh = new Set<ChainName>();
+    const replaced = new Set<ChainName>();
     for (const chain of chains) {
       const existing = existingAddresses[chain];
       if (existing) {
@@ -304,6 +307,7 @@ export class EvmLayerZeroV2HookIsmModule {
           addresses[chain] = existing;
           continue;
         }
+        replaced.add(chain);
       }
       addresses[chain] = await this.deployRouter(
         multiProvider,
@@ -313,6 +317,20 @@ export class EvmLayerZeroV2HookIsmModule {
       );
       fresh.add(chain);
     }
+
+    if (replaced.size > 0) {
+      logger.warn(
+        {
+          replaced: Array.from(replaced).map((chain) => ({
+            chain,
+            previous: existingAddresses[chain],
+            replacement: addresses[chain],
+          })),
+        },
+        'Messages dispatched through a replaced LayerZero hook/ISM router cannot be verified once its replacement is installed: their packets name the previous router as sender or receiver, so verification reverts with WrongPacketSender or WrongPacketReceiver. Pause transfers on the affected routes and wait until every pending message is delivered before submitting the returned transactions.',
+      );
+    }
+
     const resolved = this.withDeployedRouters(mesh, addresses);
     const transactions: ChainMap<AnnotatedEV5Transaction[]> = {};
     for (const chain of chains) {
