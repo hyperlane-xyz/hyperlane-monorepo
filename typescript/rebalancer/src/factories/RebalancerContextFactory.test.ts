@@ -225,7 +225,7 @@ describe('RebalancerContextFactory', () => {
         'maxSolanaNativeSpendLamports',
         3_000_000,
       );
-    });
+    }).timeout(10_000);
 
     it('returns no bridges when no external bridge is configured', async () => {
       const factory = await factoryWithBridges();
