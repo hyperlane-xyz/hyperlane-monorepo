@@ -21,18 +21,52 @@ export class TransactionSubmissionError extends Error {
   }
 }
 
+const submissionStateOrder: Record<TransactionSubmissionState, number> = {
+  not_submitted: 0,
+  unknown: 1,
+  submitted: 2,
+};
+
 /** Tracks one transaction through preparation, broadcast and confirmation. */
 export class TransactionSubmission {
   private state: TransactionSubmissionState = 'not_submitted';
   private txHash?: string;
+  private readonly observers: Required<TransactionSubmissionOptions>;
 
-  constructor(private readonly options: TransactionSubmissionOptions = {}) {}
+  constructor(options: TransactionSubmissionOptions = {}) {
+    this.observers = {
+      onSubmissionAttempt: async (txHash) => {
+        // Recording failure must prevent the delegated broadcast too.
+        await options.onSubmissionAttempt?.(txHash);
+        if (this.state === 'not_submitted') this.state = 'unknown';
+        this.txHash ??= txHash;
+      },
+      onSubmitted: async (txHash) => {
+        this.state = 'submitted';
+        this.txHash ??= txHash;
+        await options.onSubmitted?.(txHash);
+      },
+    };
+  }
 
-  async run<T>(operation: () => Promise<T>): Promise<T> {
+  /** Pass these observers to delegated send helpers to retain their identity. */
+  async run<T>(
+    operation: (observers: TransactionSubmissionOptions) => Promise<T>,
+  ): Promise<T> {
     try {
-      return await operation();
+      return await operation(this.observers);
     } catch (error) {
-      if (error instanceof TransactionSubmissionError) throw error;
+      if (error instanceof TransactionSubmissionError) {
+        const state =
+          submissionStateOrder[this.state] >
+          submissionStateOrder[error.submissionState]
+            ? this.state
+            : error.submissionState;
+        const txHash = this.txHash ?? error.txHash;
+        if (state === error.submissionState && txHash === error.txHash)
+          throw error;
+        throw new TransactionSubmissionError(error, state, txHash);
+      }
       throw new TransactionSubmissionError(error, this.state, this.txHash);
     }
   }
@@ -44,14 +78,10 @@ export class TransactionSubmission {
   ): Promise<T> {
     return this.run(async () => {
       // Failure to record the attempt must abort before the broadcast RPC.
-      await this.options.onSubmissionAttempt?.(signedTxHash);
-      this.txHash = signedTxHash;
-      this.state = 'unknown';
+      await this.observers.onSubmissionAttempt(signedTxHash);
       const response = await send();
-      this.txHash = hashOf(response);
-      this.state = 'submitted';
       // Even a callback failure after this point must preserve source identity.
-      await this.options.onSubmitted?.(this.txHash);
+      await this.observers.onSubmitted(hashOf(response));
       return response;
     });
   }

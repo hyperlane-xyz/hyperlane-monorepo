@@ -89,3 +89,105 @@ describe('TransactionSubmission', () => {
     expect(error.txHash).to.equal('source-hash');
   });
 });
+
+describe('delegated TransactionSubmission observers', () => {
+  async function capture(operation: Promise<unknown>) {
+    try {
+      await operation;
+    } catch (error) {
+      if (error instanceof TransactionSubmissionError) return error;
+      throw error;
+    }
+    throw new Error('Expected a submission failure');
+  }
+
+  it('retains a successful nested send through a later plain failure without external observers', async () => {
+    const error = await capture(
+      new TransactionSubmission().run(async (observers) => {
+        await new TransactionSubmission(observers).submit(
+          async () => 'source-hash',
+          String,
+        );
+        throw new Error('post-send processing failed');
+      }),
+    );
+    expect(error.submissionState).to.equal('submitted');
+    expect(error.txHash).to.equal('source-hash');
+  });
+
+  it('does not downgrade an acknowledged identity after a hashless attempt or nested preparation error', async () => {
+    const seen: string[] = [];
+    const error = await capture(
+      new TransactionSubmission({
+        onSubmitted: (hash) => {
+          seen.push(hash);
+        },
+      }).run(async (observers) => {
+        await new TransactionSubmission(observers).submit(
+          async () => 'source-hash',
+          String,
+        );
+        await observers.onSubmissionAttempt?.();
+        throw new TransactionSubmissionError(
+          new Error('later preparation'),
+          'not_submitted',
+        );
+      }),
+    );
+    expect(error.submissionState).to.equal('submitted');
+    expect(error.txHash).to.equal('source-hash');
+    expect(seen).to.deep.equal(['source-hash']);
+  });
+
+  it('retains a delegated ambiguous hash but never broadcasts when the outer attempt callback fails', async () => {
+    let sent = false;
+    const error = await capture(
+      new TransactionSubmission({
+        onSubmissionAttempt: () => {
+          throw new Error('record failed');
+        },
+      }).run(async (observers) => {
+        return new TransactionSubmission(observers).submit(
+          async () => {
+            sent = true;
+            return 'hash';
+          },
+          String,
+          'signed-hash',
+        );
+      }),
+    );
+    expect(error.submissionState).to.equal('not_submitted');
+    expect(sent).to.equal(false);
+    const ambiguous = await capture(
+      new TransactionSubmission().run(async (observers) => {
+        return new TransactionSubmission(observers).submit(
+          async () => {
+            throw new Error('lost response');
+          },
+          String,
+          'signed-hash',
+        );
+      }),
+    );
+    expect(ambiguous.submissionState).to.equal('unknown');
+    expect(ambiguous.txHash).to.equal('signed-hash');
+  });
+
+  it('retains nested submitted identity when the external callback throws', async () => {
+    const error = await capture(
+      new TransactionSubmission({
+        onSubmitted: () => {
+          throw new Error('record failed');
+        },
+      }).run(async (observers) => {
+        return new TransactionSubmission(observers).submit(
+          async () => 'source-hash',
+          String,
+        );
+      }),
+    );
+    expect(error.submissionState).to.equal('submitted');
+    expect(error.txHash).to.equal('source-hash');
+  });
+});
