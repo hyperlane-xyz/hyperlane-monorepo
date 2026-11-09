@@ -3,8 +3,8 @@ import hashlib,sys,types
 from pathlib import Path
 SHARED=Path(__file__).resolve().parent.parent/'aleo_linux'
 SDK=Path(__file__).resolve().parent.parent/'aleo_linux_sdk'
-CLI_SHA=('da45c9b012545b307b6425246d7b9586' '86195be5402ad08542f615984cdb262b')
-EXPECTED={'receipts':('a0dbe1ce96080a0f614605673994727a' '85fa946b49632f27e70223a0afe917a6'),'loopback_bridge':('ca2a8372d7f25db7a16dc7636da34585' '5d979004ea9f3290dc88a0ae8ac9fdbd'),'docker_gate':('a3a14dbd57dbaefdbc57a1b3af2f3124' '7824e973ce08d09efe8affc37b800a91')}
+CLI_SHA=('7e53d7cdef0217b1da3201e55a2abc41' 'd6be7aeb8078e5d22c48cb28fcf2157b')
+EXPECTED={'receipts':('9330fa9b32fec3c37f1fc121c18054dc' 'f2d8354c14f997be1731836170fa8706'),'loopback_bridge':('ca2a8372d7f25db7a16dc7636da34585' '5d979004ea9f3290dc88a0ae8ac9fdbd'),'docker_gate':('a3a14dbd57dbaefdbc57a1b3af2f3124' '7824e973ce08d09efe8affc37b800a91')}
 _OWNED={}
 def load_exact_source(path,digest,name):
  path=Path(path)

@@ -24,7 +24,7 @@ def _reviewed_module(name,path,digest):
     try:exec(compile(raw,str(path),'exec'),module.__dict__)
     except BaseException:sys.modules.pop(name,None);raise
     return module
-_reviewed_module('receipts',KERNEL/'receipts.py',('a0dbe1ce96080a0f614605673994727a' '85fa946b49632f27e70223a0afe917a6'))
+_reviewed_module('receipts',KERNEL/'receipts.py',('9330fa9b32fec3c37f1fc121c18054dc' 'f2d8354c14f997be1731836170fa8706'))
 _reviewed_module('docker_gate',HERE/'docker_gate.py',('a3a14dbd57dbaefdbc57a1b3af2f3124' '7824e973ce08d09efe8affc37b800a91'))
 from receipts import decode, need
 from docker_gate import container_templates, WholeSocket, request_reply_deadline

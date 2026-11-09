@@ -117,6 +117,40 @@ class Tests(unittest.TestCase):
     self.assertEqual(ns['_reviewed_module'](name,path,hashlib.sha256(path.read_bytes()).hexdigest()).answer,2)
     with self.assertRaisesRegex(ValueError,'foreign preloaded'):ns['_reviewed_module'](name,path,hashlib.sha256(path.read_bytes()).hexdigest())
    finally:sys.modules.pop(name,None)
+ def test_actual_sibling_and_CLI_transitive_Source_pins_are_current_and_tamper_refuses(self):
+  import ast,hashlib,types
+  import sibling_imports
+  expected=sibling_imports.EXPECTED
+  self.assertEqual(set(expected),{'receipts','loopback_bridge','docker_gate'})
+  for name,digest in expected.items():
+   path=(sibling_imports.SDK if name=='docker_gate'else sibling_imports.SHARED)/(name+'.py')
+   self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),digest,name)
+  cli=sibling_imports.SDK/'docker_cli.py';wire=cli.read_bytes()
+  self.assertEqual(hashlib.sha256(wire).hexdigest(),sibling_imports.CLI_SHA)
+  tree=ast.parse(wire);function=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='_reviewed_module')
+  calls=[n for n in tree.body if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and isinstance(n.value.func,ast.Name)and n.value.func.id=='_reviewed_module']
+  self.assertEqual([ast.literal_eval(n.value.args[0])for n in calls],['receipts','docker_gate'])
+  for n in calls:
+   name=ast.literal_eval(n.value.args[0]);self.assertEqual(ast.literal_eval(n.value.args[2]),expected[name])
+  original_read=pathlib.Path.read_bytes
+  # Execute the actual checked CLI header against the actual regular sibling
+  # Source. Each attempt restores existing module ownership before returning.
+  for changed in (None,'receipts','docker_gate'):
+   saved={name:sys.modules.pop(name,None)for name in ('receipts','docker_gate')}
+   ns={'hashlib':hashlib,'Path':pathlib.Path,'types':types,'sys':sys,'KERNEL':sibling_imports.SHARED,'HERE':sibling_imports.SDK}
+   def read(path):
+    raw=original_read(path)
+    return raw+b'\n'if changed is not None and path.name==changed+'.py'else raw
+   try:
+    with mock.patch.object(pathlib.Path,'read_bytes',read):
+     if changed is None:exec(compile(ast.Module(body=[function,*calls],type_ignores=[]),'<actual reviewed CLI header>','exec'),ns)
+     else:
+      with self.assertRaisesRegex(ValueError,'reviewed CLI dependency changed'):exec(compile(ast.Module(body=[function,*calls],type_ignores=[]),'<actual reviewed CLI header>','exec'),ns)
+    if changed is None:self.assertTrue(all(name in sys.modules for name in ('receipts','docker_gate')))
+   finally:
+    for name,value in saved.items():
+     sys.modules.pop(name,None)
+     if value is not None:sys.modules[name]=value
  def test_signal_failure_still_waits_actual_child_and_closes_pidfd(self):
   import time
   child=mock.Mock(pid=123);child.poll.return_value=None;child.wait.return_value=0;result={'passed':True};lease=mock.Mock()
