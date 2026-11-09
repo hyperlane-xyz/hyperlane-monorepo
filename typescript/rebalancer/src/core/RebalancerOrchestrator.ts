@@ -201,8 +201,13 @@ export class RebalancerOrchestrator {
       );
       // The supplied monitor event was sampled before this sync. Settlement can
       // change balances after that snapshot; never replace those credits with a second movement.
+      // A message discovered and completed within this sync was absent from before.
       return (
-        completedMovements > 0 || before.some((action) => !after.has(action.id))
+        syncResults.some(
+          (result) => result.status === 'fulfilled' && result.value === true,
+        ) ||
+        completedMovements > 0 ||
+        before.some((action) => !after.has(action.id))
       );
     } catch (error) {
       this.logger.warn(

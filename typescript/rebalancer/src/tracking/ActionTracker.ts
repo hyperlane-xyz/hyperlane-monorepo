@@ -121,7 +121,9 @@ export class ActionTracker implements IActionTracker {
 
   // === Sync Operations ===
 
-  async syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void> {
+  async syncTransfers(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<boolean> {
     this.logger.debug('Syncing transfers');
 
     // Build list of addresses to exclude (rebalancer + optional inventory signer)
@@ -157,6 +159,7 @@ export class ActionTracker implements IActionTracker {
     let newTransfers = 0;
     let completedTransfers = 0;
     let ignoredTransfers = 0;
+    let requiresFreshBalances = false;
 
     for (const msg of inflightMessages) {
       const transfer = await this.transferStore.get(msg.msg_id);
@@ -232,6 +235,7 @@ export class ActionTracker implements IActionTracker {
       if (delivered) {
         await this.transferStore.update(transfer.id, { status: 'complete' });
         completedTransfers++;
+        requiresFreshBalances ||= typeof blockTag !== 'number';
         this.logger.debug({ id: transfer.id }, 'Transfer completed');
       }
     }
@@ -246,6 +250,7 @@ export class ActionTracker implements IActionTracker {
       },
       'Transfers synced',
     );
+    return requiresFreshBalances;
   }
 
   async syncRebalanceIntents(): Promise<void> {
@@ -309,13 +314,14 @@ export class ActionTracker implements IActionTracker {
 
   async syncRebalanceActions(
     confirmedBlockTags?: ConfirmedBlockTags,
-  ): Promise<void> {
+  ): Promise<boolean> {
     this.logger.debug('Syncing rebalance actions');
 
     let discoveredActions = 0;
     let completedActions = 0;
     let ignoredActions = 0;
     let ignoredInProgressActions = 0;
+    let requiresFreshBalances = false;
 
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
@@ -369,6 +375,7 @@ export class ActionTracker implements IActionTracker {
       if (delivered) {
         await this.completeRebalanceAction(action.id);
         completedActions++;
+        requiresFreshBalances ||= typeof blockTag !== 'number';
         this.logger.debug({ id: action.id }, 'RebalanceAction completed');
       } else if (
         action.type === 'rebalance_message' &&
@@ -391,6 +398,7 @@ export class ActionTracker implements IActionTracker {
       },
       'Actions synced',
     );
+    return requiresFreshBalances;
   }
 
   // === Transfer Queries ===
@@ -1112,7 +1120,7 @@ export class ActionTracker implements IActionTracker {
         { messageId, destination, error },
         'Failed to check message delivery status',
       );
-      return false;
+      throw error;
     }
   }
 

@@ -34,16 +34,18 @@ export class MockActionTracker implements IActionTracker {
 
   // === Sync Operations (no-ops in simulation) ===
 
-  async syncTransfers(): Promise<void> {
+  async syncTransfers(): Promise<boolean> {
     // No-op: simulation manages state directly via callbacks
+    return false;
   }
 
   async syncRebalanceIntents(): Promise<void> {
     // No-op: simulation manages state directly
   }
 
-  async syncRebalanceActions(): Promise<void> {
+  async syncRebalanceActions(): Promise<boolean> {
     // No-op: simulation manages state directly
+    return false;
   }
 
   async syncInventoryMovementActions(): Promise<{

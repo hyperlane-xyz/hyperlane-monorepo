@@ -87,9 +87,9 @@ function createMockActionTracker(): TestActionTracker {
     completeRebalanceIntent: Sinon.stub().resolves(),
     cancelRebalanceIntent: Sinon.stub().resolves(),
     failRebalanceIntent: Sinon.stub().resolves(),
-    syncTransfers: Sinon.stub().resolves(),
+    syncTransfers: Sinon.stub().resolves(false),
     syncRebalanceIntents: Sinon.stub().resolves(),
-    syncRebalanceActions: Sinon.stub().resolves(),
+    syncRebalanceActions: Sinon.stub().resolves(false),
     syncInventoryMovementActions: Sinon.stub().resolves({
       completed: 0,
       failed: 0,
@@ -679,6 +679,61 @@ describe('RebalancerOrchestrator', () => {
   });
 
   describe('fresh balances after settlement', () => {
+    it('preserves compatibility with custom trackers returning void', async () => {
+      const actionTracker = createMockActionTracker();
+      actionTracker.syncTransfers = async () => {};
+      actionTracker.syncRebalanceActions.callsFake(async () => {});
+      const strategy = createMockStrategy();
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        actionTracker,
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [],
+      });
+      await orchestrator.executeCycle(createMonitorEvent());
+      expect(strategy.getRebalancingRoutes.calledOnce).to.equal(true);
+    });
+
+    for (const kind of ['transfer', 'action']) {
+      it(`refreshes balances after a newly discovered ${kind} completes during synchronization`, async () => {
+        const actionTracker = createMockActionTracker();
+        const sync = Sinon.stub().resolves(false);
+        sync.onFirstCall().resolves(true);
+        if (kind === 'transfer') actionTracker.syncTransfers = sync;
+        else actionTracker.syncRebalanceActions = sync;
+        // No pre-existing actions: before/after store comparison cannot detect this.
+        const strategy = createMockStrategy();
+        strategy.getRebalancingRoutes.returns([
+          {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 100n,
+            executionType: ExecutionType.MovableCollateral,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+        ]);
+        const rebalancer = createMockRebalancer();
+        const orchestrator = new RebalancerOrchestrator({
+          strategy,
+          actionTracker,
+          inflightContextAdapter: createMockInflightContextAdapter(),
+          rebalancerConfig: createMockRebalancerConfig(),
+          logger: testLogger,
+          rebalancers: [rebalancer],
+        });
+
+        await orchestrator.executeCycle(createMonitorEvent());
+        expect(strategy.getRebalancingRoutes.called).to.equal(false);
+        expect(rebalancer.rebalance.called).to.equal(false);
+
+        await orchestrator.executeCycle(createMonitorEvent());
+        expect(strategy.getRebalancingRoutes.calledOnce).to.equal(true);
+        expect(rebalancer.rebalance.calledOnce).to.equal(true);
+      });
+    }
+
     it('defers the current snapshot after source failure reconciliation and retries on the next cycle', async () => {
       const inventory = createMockInventoryRebalancer();
       const actionTracker = createMockActionTracker();
@@ -800,8 +855,8 @@ describe('RebalancerOrchestrator', () => {
         throw new Error('sync not started');
       };
       actionTracker.syncTransfers = () =>
-        new Promise<void>((resolve) => {
-          finish = resolve;
+        new Promise<boolean>((resolve) => {
+          finish = () => resolve(false);
         });
       actionTracker.syncRebalanceActions.rejects(
         new Error('Explorer unavailable'),
