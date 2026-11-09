@@ -4,7 +4,9 @@ import { constants } from 'ethers';
 import {
   DefaultHook__factory,
   ERC20__factory,
+  IPostDispatchHook__factory,
   MailboxClient__factory,
+  NetFlowRateLimitedHookIsm__factory,
   ProxyAdmin__factory,
   StaticAggregationHook__factory,
   StaticAggregationIsm__factory,
@@ -16,6 +18,7 @@ import {
   HookType,
   type IsmConfig,
   IsmType,
+  OnchainHookType,
   TokenType,
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
@@ -618,6 +621,151 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
 
       const check = await hyperlaneWarpCheck(ownerRouteId);
       expect(check.exitCode, check.stdout).to.equal(0);
+    });
+
+    it('hands a NetFlow hybrid and the Wormhole router sharing one aggregation to their owners', async () => {
+      const hybridSymbol = `${symbol}H`;
+      const hybridConfigPath = `${TEMP_PATH}/wormhole-vaa-hybrid-warp.yaml`;
+      const hybridRouteId = getWarpRouteId(hybridSymbol, chains);
+      const hybridWarpCorePath = getCombinedWarpRoutePath(hybridSymbol, chains);
+      const meshConfig = configFor(
+        hybridSymbol,
+        undefined,
+        (ism) => ({
+          type: IsmType.AGGREGATION,
+          threshold: 3,
+          modules: [
+            { type: IsmType.TRUSTED_RELAYER, relayer: ANVIL_DEPLOYER_ADDRESS },
+            {
+              type: IsmType.NET_FLOW_RATE_LIMITED,
+              thresholdBps: 500,
+              duration: 86400n,
+              owner: E2E_TEST_BURN_ADDRESS,
+            },
+            {
+              type: ism.type,
+              owner: WORMHOLE_ROUTER_OWNER,
+              core: ism.core,
+              wormholeChainId: ism.wormholeChainId,
+              consistencyLevel: ism.consistencyLevel,
+              urls: ism.urls,
+            },
+          ],
+        }),
+        () => ({
+          type: HookType.AGGREGATION,
+          hooks: [
+            {
+              type: HookType.NET_FLOW_RATE_LIMITED,
+              thresholdBps: 500,
+              duration: 86400n,
+              owner: E2E_TEST_BURN_ADDRESS,
+            },
+            { type: HookType.WORMHOLE },
+          ],
+        }),
+      );
+      const hybridConfig: WarpRouteDeployConfigMailboxRequired =
+        Object.fromEntries(
+          Object.entries(meshConfig).map(([chain, chainConfig]) => [
+            chain,
+            { ...chainConfig, owner: E2E_TEST_BURN_ADDRESS },
+          ]),
+        );
+      writeYamlOrJson(hybridConfigPath, hybridConfig);
+
+      const deployResult = await hyperlaneWarpDeploy(
+        hybridConfigPath,
+        hybridRouteId,
+      );
+      expect(deployResult.exitCode).to.equal(0);
+
+      const multiProvider = await getMultiProvider();
+      const installed: Record<string, { hook: Address; ism: Address }> = {};
+      const routers: Record<string, Address> = {};
+      for (const chain of chains) {
+        const provider = multiProvider.getProvider(chain);
+        const client = MailboxClient__factory.connect(
+          getDeployedWarpAddress(chain, hybridWarpCorePath),
+          provider,
+        );
+        const [hook, ism] = await Promise.all([
+          client.hook(),
+          client.interchainSecurityModule(),
+        ]);
+        installed[chain] = { hook, ism };
+        expect(await client.owner()).to.equal(E2E_TEST_BURN_ADDRESS);
+
+        const childHooks = await StaticAggregationHook__factory.connect(
+          hook,
+          provider,
+        ).hooks('0x');
+        const [modules] = await StaticAggregationIsm__factory.connect(
+          ism,
+          provider,
+        ).modulesAndThreshold('0x');
+        expect(childHooks).to.have.length(2);
+        expect(modules).to.have.length(3);
+        for (const child of childHooks) {
+          expect(modules).to.include(child);
+        }
+
+        const childTypes = await Promise.all(
+          childHooks.map((child) =>
+            IPostDispatchHook__factory.connect(child, provider).hookType(),
+          ),
+        );
+        const wormholeRouter =
+          childHooks[childTypes.indexOf(OnchainHookType.WORMHOLE)];
+        const hybrid = childHooks.find((child) => child !== wormholeRouter);
+        assert(wormholeRouter, `Missing Wormhole router on ${chain}`);
+        assert(hybrid, `Missing NetFlow hybrid on ${chain}`);
+        routers[chain] = wormholeRouter;
+
+        expect(
+          await NetFlowRateLimitedHookIsm__factory.connect(
+            hybrid,
+            provider,
+          ).owner(),
+        ).to.equal(E2E_TEST_BURN_ADDRESS);
+        expect(
+          await WormholeVaaHookIsm__factory.connect(
+            wormholeRouter,
+            provider,
+          ).owner(),
+        ).to.equal(WORMHOLE_ROUTER_OWNER);
+      }
+
+      for (const chain of chains) {
+        const remote = chain === CHAIN_NAME_2 ? CHAIN_NAME_3 : CHAIN_NAME_2;
+        const derived = await new EvmWormholeHookIsmReader(
+          multiProvider,
+          chain,
+        ).deriveWormholeConfig(routers[chain]);
+        expect(Object.keys(derived.remoteRouters)).to.have.members([remote]);
+        expect(derived.remoteRouters[remote].router.toLowerCase()).to.equal(
+          routers[remote].toLowerCase(),
+        );
+      }
+
+      const check = await hyperlaneWarpCheck(hybridRouteId);
+      expect(check.exitCode, check.stdout).to.equal(0);
+      const apply = await hyperlaneWarpApply(hybridRouteId);
+      expect(apply.exitCode).to.equal(0);
+      expect(apply.stdout).to.include(
+        'Warp config is the same as target. No updates needed.',
+      );
+
+      for (const chain of chains) {
+        const client = MailboxClient__factory.connect(
+          getDeployedWarpAddress(chain, hybridWarpCorePath),
+          multiProvider.getProvider(chain),
+        );
+        expect(await client.hook()).to.equal(installed[chain].hook);
+        expect(await client.interchainSecurityModule()).to.equal(
+          installed[chain].ism,
+        );
+      }
     });
 
     it('delivers a warp transfer over Wormhole through the lookup service', async () => {
