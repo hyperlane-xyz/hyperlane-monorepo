@@ -3,15 +3,15 @@
   "schema": 1,
   "kind": "aleo-linux-fullcase-ci-policy-v1",
   "root_approved": false,
-  "runtime_source_commit": "9badc87e8c2e2f019a1b3453c323a8d89686e43e",
+  "runtime_source_commit": "f453948ae31c1fadb35e10c87577e73a39350103",
   "requests": {
     "ReleaseSafe": {
       "path": "zig/tools/aleo_linux_case/transport-ReleaseSafe.PENDING.json",
       "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "feb82d28cee8060266fb6f01eef2d49a",
-          "dde1c7ab75aa3af32bc76d856115b545"
+          "8c05190793dc357b5574594cacfe8a99",
+          "dc86961408d1b14c02d847885d327763"
         ]
       }
     },
@@ -20,19 +20,19 @@
       "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "a4bc4dca624889314ca6582727fd3ce0",
-          "a733205381e29f826fa8568bb434943a"
+          "5ee6cdf07579f1bbb4dc1c5c55ed5757",
+          "9a6692f3012e1fcde6107bed4b0e22c9"
         ]
       }
     }
   },
   "qualified_cohort": {
     "path": "zig/tools/aleo_linux_case/cohort-qualification.PENDING.json",
-    "bytes": 12823,
+    "bytes": 12965,
     "sha256": {
       "sha256_hex_chunks": [
-        "f7af34e2c8d465da288dde8f310dfbbe",
-        "9d04aff0d4422cfa6899b2f8cb17623a"
+        "a1efb40180716eb6910dbe72af5c4ca8",
+        "91489ee1937d8ac81fb9cb1e2d032493"
       ]
     }
   },
