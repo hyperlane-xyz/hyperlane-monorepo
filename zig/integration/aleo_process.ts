@@ -1675,6 +1675,8 @@ export async function deployAleoDomain(
   remote: AleoDomain,
 ): Promise<DeployedAleoDomain> {
   const sdk = await import('../../typescript/aleo-sdk/dist/index.js');
+  const { addressToBytes32 } =
+    await import('../../typescript/utils/dist/index.js');
   const { AltVM } = await import('../../typescript/provider-sdk/dist/index.js');
   const { ArtifactState } =
     await import('../../typescript/provider-sdk/dist/artifact.js');
@@ -1820,10 +1822,11 @@ export async function deployAleoDomain(
         destination.domain.domain === remote.domain,
         'unexpected remote Aleo domain',
       );
+      const remoteRouter = addressToBytes32(destination.warpAddress);
       const config = {
         ...warp.config,
         remoteRouters: {
-          [remote.domain]: { address: destination.warpAddress },
+          [remote.domain]: { address: remoteRouter },
         },
         destinationGas: { [remote.domain]: '100000' },
       };
@@ -1834,7 +1837,7 @@ export async function deployAleoDomain(
         .read(warp.deployed.address);
       requireValue(
         observedWarp.config.remoteRouters[remote.domain]?.address ===
-          destination.warpAddress &&
+          remoteRouter &&
           observedWarp.config.destinationGas[remote.domain] === '100000',
         'Aleo warp remote router differs',
       );

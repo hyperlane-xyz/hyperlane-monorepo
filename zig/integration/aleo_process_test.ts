@@ -592,6 +592,252 @@ void test('Aleo role environment is explicit and has no proof or ambient environ
     assert.equal(environment[name], undefined);
 });
 
+async function aleoRouterLinkFixture() {
+  // Actual utilities only. No Aleo SDK/proving client is imported or instantiated.
+  const utilities = await import('../../typescript/utils/dist/addresses.js');
+  const helper = await readFile(
+    new URL('../../typescript/aleo-sdk/src/utils/helper.ts', import.meta.url),
+    'utf8',
+  );
+  const transactions = await readFile(
+    new URL('../../typescript/aleo-sdk/src/warp/warp-tx.ts', import.meta.url),
+    'utf8',
+  );
+  const queries = await readFile(
+    new URL(
+      '../../typescript/aleo-sdk/src/warp/provider-query.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const driver = await readFile(
+    new URL('./aleo_process.ts', import.meta.url),
+    'utf8',
+  );
+  function sdkFunction(source: string, name: string, asynchronous = false) {
+    const start = source.indexOf(
+      `export ${asynchronous ? 'async ' : ''}function ${name}(`,
+    );
+    assert.ok(start >= 0);
+    const end = source.indexOf('\n}\n', start);
+    assert.ok(end > start);
+    return stripTypeScriptTypes(
+      source.slice(start, end + 2).replace(/^export /, ''),
+    );
+  }
+  const fillArray = compileFunction(
+    sdkFunction(helper, 'fillArray') + '\nreturn fillArray;',
+  )();
+  const arrayToPlaintext = compileFunction(
+    sdkFunction(helper, 'arrayToPlaintext') + '\nreturn arrayToPlaintext;',
+  )();
+  const fromAleoAddress = compileFunction(
+    sdkFunction(helper, 'fromAleoAddress') + '\nreturn fromAleoAddress;',
+    ['isValidAddressAleo', 'assert'],
+  )(utilities.isValidAddressAleo, assert.ok);
+  let enrollmentBytes = Buffer.alloc(0);
+  const enroll = compileFunction(
+    sdkFunction(transactions, 'getEnrollRemoteRouterTx') +
+      '\nreturn getEnrollRemoteRouterTx;',
+    ['Buffer', 'strip0x', 'fillArray', 'arrayToPlaintext', 'fromAleoAddress'],
+  )(
+    {
+      from(value: string, encoding: BufferEncoding) {
+        enrollmentBytes = Buffer.from(value, encoding);
+        return enrollmentBytes;
+      },
+    },
+    utilities.strip0x,
+    fillArray,
+    arrayToPlaintext,
+    fromAleoAddress,
+  );
+  const remoteRouters = compileFunction(
+    sdkFunction(queries, 'getRemoteRouters', true) +
+      '\nreturn getRemoteRouters;',
+    ['fromAleoAddress', 'assert', 'ensure0x'],
+  )(fromAleoAddress, assert.ok, utilities.ensure0x);
+  const bytes = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
+  const bareAddress = utilities.bytesToAddressAleo(bytes);
+  const warpAddress = 'fixture_remote.aleo/' + bareAddress;
+  const localAddress = 'fixture_local.aleo/' + bareAddress;
+  const expected = utilities.addressToBytes32(warpAddress);
+  assert.match(expected, /^0x[0-9a-f]{64}$/);
+  assert.equal(utilities.addressToBytes32(bareAddress), expected);
+  const remote = { domain: 1234 };
+  let readGas = '100000';
+  let tamper = false;
+  let inputRouter = '';
+  let enrollmentInput = '';
+  let updates = 0;
+  const sent: unknown[] = [];
+  const writer = {
+    async update(value: {
+      config: { remoteRouters: Record<number, { address: string }> };
+    }) {
+      updates++;
+      inputRouter = value.config.remoteRouters[remote.domain].address;
+      const transaction = enroll(
+        localAddress,
+        remote.domain,
+        inputRouter,
+        '100000',
+      );
+      enrollmentInput = transaction.inputs[1];
+      return [transaction];
+    },
+  };
+  const reader = {
+    async read() {
+      // Source SDK reader consumes the recipient bytes represented by the actual
+      // enrollment input. This is a mapping readback stub, not an Aleo decoder.
+      const recipient = new Uint8Array(32);
+      recipient.set(enrollmentBytes);
+      assert.equal(
+        enrollmentInput,
+        arrayToPlaintext(Array.from(recipient, (b) => `${b}u8`)),
+      );
+      if (tamper) recipient[0] ^= 1;
+      const sdk = {
+        Plaintext: {
+          fromString(value: string) {
+            assert.equal(value, 'SYNTHETIC_MAPPING_RECORD');
+            return {
+              toObject: () => ({
+                domain: remote.domain,
+                recipient: Array.from(recipient),
+                gas: readGas,
+              }),
+            };
+          },
+        },
+      };
+      const client = {
+        getProgramMappingValue: async (_program: string, mapping: string) =>
+          mapping === 'remote_router_length'
+            ? '1u32'
+            : 'SYNTHETIC_MAPPING_RECORD',
+        getProgramMappingPlaintext: async () => 'SYNTHETIC_ROUTER_KEY',
+      };
+      const observed = await remoteRouters(sdk, client, localAddress);
+      return {
+        config: {
+          remoteRouters: observed,
+          destinationGas: { [remote.domain]: observed[remote.domain].gas },
+        },
+      };
+    },
+  };
+  const start = driver.indexOf(
+    '    async link(destination) {',
+    driver.indexOf('export async function deployAleoDomain('),
+  );
+  const end = driver.indexOf('\n    },\n  };\n}', start);
+  assert.ok(start >= 0 && end > start);
+  const factory = compileFunction(
+    'return {\n' + driver.slice(start, end) + '\n} };',
+    [
+      'addressToBytes32',
+      'remote',
+      'warp',
+      'warpWriter',
+      'artifactSigner',
+      'warps',
+      'AltVM',
+      'requireValue',
+    ],
+  );
+  const linked = factory(
+    utilities.addressToBytes32,
+    remote,
+    {
+      config: { remoteRouters: {}, destinationGas: {} },
+      deployed: { address: localAddress },
+    },
+    writer,
+    {
+      sendAndConfirmTransaction: async (value: unknown) => {
+        sent.push(value);
+      },
+    },
+    { createReader: () => reader },
+    { TokenType: { native: 'native' } },
+    (value: unknown, message: string) => {
+      if (!value) throw new Error(message);
+    },
+  );
+  return {
+    linked,
+    warpAddress,
+    expected,
+    bareAddress,
+    sent,
+    evidence: () => ({
+      inputRouter,
+      decodedBytes: enrollmentBytes.length,
+      enrollmentInput,
+      updates,
+    }),
+    wrongGas: () => {
+      readGas = '99999';
+    },
+    wrongRecipient: () => {
+      tamper = true;
+    },
+  };
+}
+
+void test('Aleo warp link uses SDK bytes32 enrollment and exact SDK reader roundtrip', async () => {
+  const fixture = await aleoRouterLinkFixture();
+  await fixture.linked.link({
+    domain: { domain: 1234 },
+    warpAddress: fixture.warpAddress,
+  });
+  assert.equal(fixture.evidence().inputRouter, fixture.expected);
+  assert.equal(fixture.evidence().decodedBytes, 32);
+  assert.ok(!/^\[0u8(?:,0u8){31}\]$/.test(fixture.evidence().enrollmentInput));
+  assert.equal(fixture.sent.length, 1);
+  const bare = await aleoRouterLinkFixture();
+  await bare.linked.link({
+    domain: { domain: 1234 },
+    warpAddress: bare.bareAddress,
+  });
+  assert.equal(bare.evidence().inputRouter, bare.expected);
+  assert.equal(bare.evidence().decodedBytes, 32);
+});
+
+void test('Aleo warp link retains domain gas and exact recipient guards', async () => {
+  const wrongDomain = await aleoRouterLinkFixture();
+  await assert.rejects(
+    wrongDomain.linked.link({
+      domain: { domain: 4321 },
+      warpAddress: wrongDomain.warpAddress,
+    }),
+    /unexpected remote Aleo domain/,
+  );
+  assert.equal(wrongDomain.evidence().updates, 0);
+  for (const corrupt of ['gas', 'recipient']) {
+    const fixture = await aleoRouterLinkFixture();
+    if (corrupt === 'gas') fixture.wrongGas();
+    else fixture.wrongRecipient();
+    await assert.rejects(
+      fixture.linked.link({
+        domain: { domain: 1234 },
+        warpAddress: fixture.warpAddress,
+      }),
+      /Aleo warp remote router differs/,
+    );
+  }
+  const invalid = await aleoRouterLinkFixture();
+  await assert.rejects(
+    invalid.linked.link({
+      domain: { domain: 1234 },
+      warpAddress: 'not-an-address',
+    }),
+  );
+  assert.equal(invalid.evidence().updates, 0);
+});
+
 void test('Aleo SDK deployment proof bypass is scoped and execution reconnect enables proofs', async () => {
   const names = [
     'ALEO_SKIP_PROOFS',
