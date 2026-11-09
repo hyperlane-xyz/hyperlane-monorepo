@@ -342,7 +342,6 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             );
                             continue;
                         };
-
                         // If this is a LocalStorage based checkpoint syncer and it's not
                         // allowed, ignore it
                         if !self.allow_local_checkpoint_syncers
@@ -377,7 +376,15 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                                 states: states.into_iter().collect(),
                                 usable: true,
                             });
-                            return Ok(Some((*validator, syncer)));
+                            let location = if matches!(
+                                &config,
+                                CheckpointSyncerConf::LocalStorage { .. }
+                            ) {
+                                "local".to_owned()
+                            } else {
+                                storage_location.clone()
+                            };
+                            return Ok(Some((*validator, syncer, location)));
                         }
                     }
                     warn!(
@@ -406,14 +413,17 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .flatten() // Flatten Option<_>
             .collect::<Vec<_>>();
 
-        for (validator, checkpoint_syncer) in checkpoint_syncers_results {
+        let mut selected_locations = HashMap::new();
+        for (validator, checkpoint_syncer, location) in checkpoint_syncers_results {
             checkpoint_syncers.insert(validator.into(), checkpoint_syncer);
+            selected_locations.insert(validator.into(), location);
         }
 
         Ok(MultisigCheckpointSyncer::new(
             checkpoint_syncers,
             app_context.map(|ctx| (self.metrics.clone(), ctx)),
-        ))
+        )
+        .with_storage_locations(selected_locations))
     }
 
     fn get_signer(&self) -> Option<&Signers> {

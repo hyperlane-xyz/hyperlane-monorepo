@@ -331,15 +331,6 @@ impl MessageState {
                 }
                 node["signatures"] = signatures;
             }
-            node["validator_storage"] = json!(node["validators"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|validator| self
-                    .current
-                    .get(&format!("validator:{}", validator.as_str()?))
-                    .cloned())
-                .collect::<Vec<_>>());
             if let Some(fields) = node.as_object_mut() {
                 fields.remove("discovery");
             }
@@ -709,6 +700,7 @@ impl MessageState {
 mod tests {
     use super::*;
     use crate::message_activity::{CheckpointSummary, Outcome, Stage, ValidatorStorageState};
+    use hyperlane_base::CheckpointSigner;
     use hyperlane_core::{
         ConfirmReason, ModuleType, PendingOperationStatus, ReprepareReason, SubmissionStage, H160,
     };
@@ -747,6 +739,22 @@ mod tests {
         )
     }
     fn checkpoint(collection: &str, index: u32, collected: usize) -> ObservationEvent {
+        checkpoint_for(
+            collection,
+            index,
+            (1..=u8::try_from(collected).expect("small signer count"))
+                .map(|validator| CheckpointSigner {
+                    validator: H256::repeat_byte(validator),
+                    location: None,
+                })
+                .collect(),
+        )
+    }
+    fn checkpoint_for(
+        collection: &str,
+        index: u32,
+        signers: Vec<CheckpointSigner>,
+    ) -> ObservationEvent {
         event(
             Some("root"),
             Activity::Checkpoint {
@@ -756,7 +764,8 @@ mod tests {
                 summary: CheckpointSummary {
                     index: Some(index),
                     root: Some(H256::repeat_byte(1)),
-                    collected,
+                    collected: signers.len(),
+                    signers,
                     ..Default::default()
                 },
             },
@@ -1113,7 +1122,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_changes_invalidate_quorum_and_storage_recovery_is_preserved() {
+    async fn validator_changes_invalidate_quorum_and_signer_location_is_preserved() {
         let states = ActivityState::new(None);
         let validators = |v| {
             event(
@@ -1152,10 +1161,6 @@ mod tests {
         )
         .await;
         assert!(snapshot(&updates)["modules"][0].get("signatures").is_none());
-        assert_eq!(
-            snapshot(&updates)["modules"][0]["validator_storage"][0]["usable"],
-            false
-        );
         let recovered = project(
             &states,
             &[
@@ -1167,13 +1172,21 @@ mod tests {
                         usable: true,
                     },
                 ),
+                checkpoint_for(
+                    "b",
+                    10,
+                    vec![CheckpointSigner {
+                        validator: H256::repeat_byte(2),
+                        location: Some("s3://validator-bucket/us-east-1/checkpoints".into()),
+                    }],
+                ),
                 metadata("root", None),
             ],
         )
         .await;
         assert_eq!(
-            snapshot(&recovered)["modules"][0]["validator_storage"][0]["usable"],
-            true
+            snapshot(&recovered)["modules"][0]["signatures"]["signers"][0]["location"],
+            "s3://validator-bucket/us-east-1/checkpoints"
         );
     }
 

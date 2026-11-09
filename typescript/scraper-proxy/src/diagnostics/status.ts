@@ -44,6 +44,14 @@ const snapshotModule = z.looseObject({
       index: count.nullish(),
       root: z.string().nullish(),
       collected: count.nullish(),
+      signers: z
+        .array(
+          z.object({
+            validator: z.string(),
+            location: z.string().nullish(),
+          }),
+        )
+        .optional(),
       threshold: count,
       unavailable: z.array(
         z.object({ validator: z.string(), reason: z.string() }),

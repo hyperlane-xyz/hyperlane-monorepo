@@ -30,16 +30,14 @@ pub enum CheckpointObservation {
         /// Requested checkpoint index.
         index: u32,
     },
-    /// A verified signature, counted separately for each index and root.
+    /// Verified signatures for one index and root, stopping at quorum.
     Signature {
-        /// Recovered validator address.
-        validator: H256,
         /// Checkpoint index.
         index: u32,
         /// Signed root.
         root: H256,
-        /// Matching signatures collected so far, stopping at quorum.
-        collected: usize,
+        /// Verified signers for this root and the storage used to fetch each signature.
+        signers: Vec<CheckpointSigner>,
     },
     /// A failed read does not imply that a validator is down.
     Unavailable {
@@ -50,6 +48,15 @@ pub enum CheckpointObservation {
         /// Safe classification; never contains storage URLs or raw errors.
         reason: CheckpointUnavailableReason,
     },
+}
+
+/// A verified checkpoint signer and its validator-announced storage location.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct CheckpointSigner {
+    /// Recovered validator address.
+    pub validator: H256,
+    /// Public storage URL selected for this validator; local storage is `local`.
+    pub location: Option<String>,
 }
 
 /// Public failure classifications without external error text.
@@ -85,12 +92,20 @@ pub struct MultisigCheckpointSyncer {
     metrics: Option<(Arc<CoreMetrics>, String)>, // first arg is the metrics, second is the app context
     #[new(default)]
     observer: Option<Arc<dyn CheckpointObserver>>,
+    #[new(default)]
+    storage_locations: HashMap<H160, String>,
 }
 
 impl MultisigCheckpointSyncer {
     /// Attach an observer scoped to this metadata build, not the pooled syncers.
     pub fn with_observer(mut self, observer: Arc<dyn CheckpointObserver>) -> Self {
         self.observer = Some(observer);
+        self
+    }
+
+    /// Attach the public storage location selected for each validator.
+    pub fn with_storage_locations(mut self, storage_locations: HashMap<H160, String>) -> Self {
+        self.storage_locations = storage_locations;
         self
     }
 
@@ -397,12 +412,28 @@ impl MultisigCheckpointSyncer {
 
             // Count the number of signatures for this signed checkpoint
             let signature_count = signed_checkpoints.len();
-            self.observe(CheckpointObservation::Signature {
-                validator,
-                index,
-                root,
-                collected: signature_count,
-            });
+            if self.observer.is_some() {
+                let mut signer_indices = signed_checkpoints
+                    .iter()
+                    .map(|(validator_index, _)| *validator_index)
+                    .collect::<Vec<_>>();
+                signer_indices.sort_unstable();
+                let signers = signer_indices
+                    .into_iter()
+                    .map(|validator_index| {
+                        let validator = validators[validator_index];
+                        CheckpointSigner {
+                            validator,
+                            location: self.storage_locations.get(&H160::from(validator)).cloned(),
+                        }
+                    })
+                    .collect();
+                self.observe(CheckpointObservation::Signature {
+                    index,
+                    root,
+                    signers,
+                });
+            }
             debug!(
                 validator = format!("{:#x}", validator),
                 index = index,
@@ -943,8 +974,14 @@ mod test {
             })
             .collect::<Vec<_>>();
         let observations = Arc::new(Observations::default());
-        let multisig_syncer =
-            MultisigCheckpointSyncer::new(syncers, None).with_observer(observations.clone());
+        let storage_locations = validator_addresses
+            .iter()
+            .enumerate()
+            .map(|(index, validator)| (H160::from(*validator), format!("s3://validator-{index}")))
+            .collect();
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None)
+            .with_storage_locations(storage_locations)
+            .with_observer(observations.clone());
 
         let start = tokio::time::Instant::now();
         let result = multisig_syncer
@@ -972,15 +1009,40 @@ mod test {
                 CheckpointObservation::Signature {
                     index,
                     root,
-                    collected,
+                    signers,
                     ..
-                } => Some((*index, *root, *collected)),
+                } => Some((*index, *root, signers.len())),
                 _ => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(
             counts,
             vec![(1000, checkpoint.root, 1), (1000, checkpoint.root, 2)]
+        );
+        let signers = observations
+            .0
+            .lock()
+            .expect("observation lock")
+            .iter()
+            .filter_map(|event| match event {
+                CheckpointObservation::Signature { signers, .. } => Some(signers),
+                _ => None,
+            })
+            .last()
+            .cloned()
+            .expect("signature observation");
+        assert_eq!(
+            signers,
+            vec![
+                CheckpointSigner {
+                    validator: validator_addresses[1],
+                    location: Some("s3://validator-1".into()),
+                },
+                CheckpointSigner {
+                    validator: validator_addresses[2],
+                    location: Some("s3://validator-2".into()),
+                },
+            ]
         );
         let expected = generate_multisig_signed_checkpoint(&validators[1..], checkpoint).await;
         assert_eq!(result, expected);
