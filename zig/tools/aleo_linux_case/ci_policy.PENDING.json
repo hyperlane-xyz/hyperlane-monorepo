@@ -109,21 +109,21 @@
     },
     {
       "path": "zig/integration/aleo_process.ts",
-      "bytes": 185538,
+      "bytes": 188696,
       "sha256": {
         "sha256_hex_chunks": [
-          "45f4013827a4b47beb4f507820338205",
-          "0a6c94660ad465ddf2b4bc578a8eb8e0"
+          "e11bad3428365ed7bdfbfee7041fe9c2",
+          "a898ad9b0886c684e956b6d8cd6ab936"
         ]
       }
     },
     {
       "path": "zig/integration/aleo_process_test.ts",
-      "bytes": 82824,
+      "bytes": 89392,
       "sha256": {
         "sha256_hex_chunks": [
-          "e47f11ec0d073a51c8d22841567efba4",
-          "7f0d7d19b1bdf1c486903db34e51fb39"
+          "defeeaf80be485fceb471d759f11d4f7",
+          "1ed725aaca972a70ac3e1b1248f10e0b"
         ]
       }
     },
@@ -289,11 +289,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-      "bytes": 45921,
+      "bytes": 47599,
       "sha256": {
         "sha256_hex_chunks": [
-          "244dfb7742e87a67bc7ae5ec1274296e",
-          "9eb28c9244640965c680abb65172ba3a"
+          "14163c3febe13ea94990c371f5cc1c86",
+          "3217d182d7fd7e63aec50c45809fac02"
         ]
       }
     },
