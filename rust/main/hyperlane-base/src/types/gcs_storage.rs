@@ -8,6 +8,7 @@ use hyperlane_core::{
 };
 use std::fmt;
 use tracing::{error, info, instrument};
+use url::Url;
 use ya_gcp::AuthFlow;
 
 mod client;
@@ -271,6 +272,10 @@ impl CheckpointSyncer for GcsStorageClient {
         location
     }
 
+    fn checkpoint_location(&self, index: u32) -> Option<String> {
+        public_checkpoint_location(&self.announcement_location(), index)
+    }
+
     /// Write the reorg status to this syncer
     #[instrument(skip(self, reorg_event))]
     async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()> {
@@ -303,6 +308,33 @@ impl CheckpointSyncer for GcsStorageClient {
         self.fetch_reorg_status_at(&self.object_path(REORG_FLAG_KEY))
             .await
     }
+}
+
+fn public_checkpoint_location(location: &str, index: u32) -> Option<String> {
+    let location = Url::parse(location).ok()?;
+    if !location.username().is_empty()
+        || location.password().is_some()
+        || location.query().is_some()
+        || location.fragment().is_some()
+    {
+        return None;
+    }
+    let bucket = location.host_str()?;
+    let mut path = location
+        .path_segments()?
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if path.last() == Some(&ANNOUNCEMENT_KEY) {
+        path.pop();
+    }
+    let filename = GcsStorageClient::get_checkpoint_key(index);
+    path.push(filename.as_str());
+    Url::parse(&format!(
+        "https://storage.googleapis.com/{bucket}/{}",
+        path.join("/")
+    ))
+    .ok()
+    .map(Into::into)
 }
 
 impl GcsStorageClient {
@@ -375,6 +407,29 @@ async fn object_path_is_unprefixed_without_a_folder() {
     assert_eq!(
         client.announcement_location(),
         "gs://test-bucket/gcsAnnouncementKey"
+    );
+}
+
+#[test]
+fn checkpoint_location_is_public_https() {
+    assert_eq!(
+        public_checkpoint_location("gs://test-bucket/sepolia/gcsAnnouncementKey", 5).as_deref(),
+        Some("https://storage.googleapis.com/test-bucket/sepolia/checkpoint_5_with_id.json")
+    );
+    assert_eq!(
+        public_checkpoint_location("gs://test-bucket/gcsAnnouncementKey", 5).as_deref(),
+        Some("https://storage.googleapis.com/test-bucket/checkpoint_5_with_id.json")
+    );
+    assert_eq!(
+        public_checkpoint_location(
+            "gs://test-bucket/sepolia?token=secret/gcsAnnouncementKey#fragment",
+            5,
+        ),
+        None
+    );
+    assert_eq!(
+        public_checkpoint_location("gs://user:secret@test-bucket/gcsAnnouncementKey", 5),
+        None
     );
 }
 
