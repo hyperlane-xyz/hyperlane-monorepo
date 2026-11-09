@@ -7,7 +7,7 @@ from pathlib import Path,PurePosixPath
 GIB=1024**3
 REPOSITORY='hyperlane-xyz/hyperlane-monorepo'
 BRANCH='feat/zig-agent-rewrite'
-PRODUCER='bcd97e71ce727edb4527d07757f6a2d4230c4378'  # Read-only inspection stays disabled until all eight publisher pins are approved.
+PRODUCER='9badc87e8c2e2f019a1b3453c323a8d89686e43e'  # Read-only inspection stays disabled until all eight publisher pins are approved.
 REQUIRED_JOBS=('full-sdk-native (ReleaseSafe)','full-sdk-native (ReleaseFast)','native-harness-controls','svm-prerequisites')
 PRODUCT_KEYS=('sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference')
 LIMITS={'wall_seconds':1800,'cleanup_seconds':60,'inspector_RAM_bytes':GIB,'child_RAM_bytes':512*1024**2,'owned_disk_bytes':8*GIB,'host_free_bytes':6*GIB,'maximum_archive_bytes':4*GIB,'compressed_total_bytes':16*GIB,'streamed_total_bytes':24*GIB,'member_count':100000,'central_directory_bytes':32*1024**2,'metadata_bytes':64*1024**2,'report_bytes':2*1024**2}
@@ -292,6 +292,24 @@ def suite_counts(native,producer_required=()):
         need(len(matches)==1 and matches[0]['status']=='OK','PRODUCER_NATIVE_REQUIRED_TESTS')
     return {'total':tests['total'],'status_counts':counts,'skip_catalog_sha256':sha(canonical(tests['skipped'])),'three_recovery_allocation_tests_observed_OK':True,'producer_native_required_count':len(producer_required)}
 
+AGENT_RUNTIME_TESTS=(
+    'explicit agent Tokio runtime zero families preserve role labels help types and laziness',
+    'explicit agent Tokio startup allocation failures propagate without leaks and constructor stays bounded lazy',
+)
+
+
+def explicit_agent_runtime_tests(native,git_source):
+    # Separate reader qualification, never relabel producer NATIVE_REQUIRED24.
+    source=git_source.bytes('zig/src/ops/metrics.zig')
+    need(type(source)is bytes and len(source)<=16*1024**2,'AGENT_RUNTIME_TEST_SOURCE')
+    lines=source.splitlines()
+    for name in AGENT_RUNTIME_TESTS:
+        need(lines.count(('test "'+name+'" {').encode())==1,'AGENT_RUNTIME_TEST_SOURCE')
+        matches=[row for row in native['tests']['per_test']if row['name'].endswith('.test.'+name)]
+        need(len(matches)==1 and matches[0]['status']=='OK','AGENT_RUNTIME_TESTS')
+    return {'explicit_agent_runtime_test_count':len(AGENT_RUNTIME_TESTS),'two_explicit_agent_runtime_tests_observed_OK':True}
+
+
 def validate_sdk(archive,mode,git_source):
     manifest=archive.data('manifest.json')
     need(manifest.get('passed')is True and manifest.get('source_commit')==PRODUCER and manifest.get('mode')==mode and manifest.get('platform')=='linux/amd64','SDK_IDENTITY')
@@ -320,7 +338,8 @@ def validate_sdk(archive,mode,git_source):
         for key,pin in value['artifacts'].items():need(pin=={'bytes':manifest['artifacts'][key]['bytes'],'sha256':expected[key]},'SDK_CPU_BYTES')
         cpu.append({'scope':scope,'flag_count':len(flags),'flags_sha256':sha(canonical(flags)),'receipt_sha256':archive.pin(path)['sha256']})
     need(archive.files()==closed,'SDK_CLOSED_MEMBERS')
-    return {'mode':mode,'source_commit':PRODUCER,'products':product_rows,'native_suite':suite_counts(native,native_required_tests(git_source)),'CPU_receipts':cpu,'export_actual_waits':len(calls),'export_created_CID_removed':True,'actual_consumer_CPU_superset_checked':False,'SDK_or_native_product_executed_by_reader':False}
+    suite=suite_counts(native,native_required_tests(git_source));suite.update(explicit_agent_runtime_tests(native,git_source))
+    return {'mode':mode,'source_commit':PRODUCER,'products':product_rows,'native_suite':suite,'CPU_receipts':cpu,'export_actual_waits':len(calls),'export_created_CID_removed':True,'actual_consumer_CPU_superset_checked':False,'SDK_or_native_product_executed_by_reader':False}
 
 def validate_helper(archive,git_source):
     result=archive.data('result.json');need(result.get('passed')is True and result.get('source_commit')==PRODUCER and result.get('source_unchanged')is True and result.get('all_owned_jobs_joined')is True and result.get('error')is None and result.get('native_case_acceptance')is False,'HELPER_GATE')
@@ -665,6 +684,7 @@ def remote_inventory(runner,policy):
     return validate_remote(policy,run,collections['jobs'],collections['artifacts'])
 
 PUBLIC_FACT_KEYS=set(('mode source_commit products native_suite CPU_receipts export_actual_waits export_created_CID_removed actual_consumer_CPU_superset_checked SDK_or_native_product_executed_by_reader Source_origin actual_phase_waits actual_test_counts required_census_names_observed five_strict_deadline_tests_observed product_execution product ELF_machine ELF_type unchanged_declared_compiler_input_count declared_compiler_input_catalog_sha256 compiler_archive_inputs_independently_present_or_executed_by_reader CPU_flags_sha256 writer_executed_by_reader canonical_lock_origin canonical_compatibility_Source_exact actual_five_named_SDK_tests producer_CPU_rows producer_CPU_flags_sha256 actual_direct_waits actual_adopted_waits no_owner_signals_or_forced_cleanup closed_Agave_files closed_Agave_bytes SBF_machine_counts nine_actual_header_rows_verified official_acquisition_receipts nonfatal_stack_offset_warning_count native_VM_acceptance count catalog_sha256 all_declared_rows_match_producer_Git bytes sha256 total status_counts skip_catalog_sha256 three_recovery_allocation_tests_observed_OK scope flag_count flags_sha256 receipt_sha256 asset publisher_digest original_acquisition_receipt_matches_pinned_source compressed_original_independently_present_in_readback files expanded_bytes archive catalog actual_calls actual_parent_waits all_calls_actually_waited failure_count wait_catalog_sha256 tool_pins raw_argv_stderr_environment_exported path producer_tree execution_tree worktree_clean_in_scope source_rows_checked policy_map_sha256 all_policy_Git_blobs_match inspector_peak_RSS_bytes actual_streamed_bytes elapsed_seconds own_downloads_removed actual_remote_inventory_verified compiled_cohort core607 command_waits inspection_resources remote run_id run_attempt required_jobs artifacts id name size_in_bytes status conclusion whole_workflow_success_claim reader_sources committed_execution_sources_unchanged').split())|SDK_NAMES|set(TOOLS)|set(PRODUCT_KEYS)|set(REQUIRED_JOBS)|set(HELPER_PHASES)|{'producer_native_required_count','embedded_tools_catalog_sha256','embedded_radix_catalog_sha256','embedded_duplicate_catalogs_match_separate_artifacts','symlink_count','normal','construction','OK','SKIP','FAIL','247','263','gh','git','runtime','helper','tools'}
+PUBLIC_FACT_KEYS|={'explicit_agent_runtime_test_count','two_explicit_agent_runtime_tests_observed_OK'}
 PUBLIC_FACT_KEYS|={'gh_startup_diagnostics','probes','AS512','INHERITED_AS1G','token_supplied','API_original_AS512_unchanged','API_inherited_hard_AS1GiB','last_failed_command','kind','actual_parent_wait','exit_code','signal','error_class','peak_child_RSS_bytes','forced_signal','cleanup_error_count'}
 PUBLIC_STRINGS=set(CPU_SCOPES)|{'ReleaseSafe','ReleaseFast','agave','platform','spl','criterion','completed','success'}|set(REQUIRED_JOBS)|set(artifact_names(0,0).values())|set(n for names in COMPILED_SCOPES.values()for n in names)
 

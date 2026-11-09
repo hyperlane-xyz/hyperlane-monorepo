@@ -40,7 +40,7 @@ def sdk_fixture(mode='ReleaseSafe'):
         path='payload/'+('lib/'if name.startswith('lib')else'bin/')+name;body=elf_bytes(kind=3,library=True)if name.startswith('lib')else elf_bytes()
         files[path]=body;digests[name]=hashlib.sha256(body).hexdigest();artifacts[name]={'path':path,'bytes':len(body),'sha256':digests[name]}
     required=['readonly signed recovery allocation failure on every read path leaves Manual signed accounting and canonical bytes unchanged','readonly signed recovery every grouped allocation failure preserves journal nonce current owner member and signed rows','native group guards committed creation followed by load OOM remains durably owned and recoverable']
-    required+=list(actual_native_required())
+    required+=list(actual_native_required())+list(api.AGENT_RUNTIME_TESTS)
     tests={'total':len(required),'per_test':[{'ordinal':i,'total':len(required),'name':'synthetic.test.'+name,'status':'OK'}for i,name in enumerate(required,1)],'skipped':{}}
     native=add_json('receipts/native.json',{'passed':True,'mode':mode,'exit_code':0,'artifact_sha256':digests,'tests':tests});runtime=add_json('receipts/runtime.json',{'passed':True,'artifact_sha256':digests})
     cpu={}
@@ -60,7 +60,9 @@ def actual_native_required():
     return ast.literal_eval(row.value)
 
 def sdk_source(required=None):
-    source=SyntheticGit();source.rows['zig/tools/container_check.py']=('NATIVE_REQUIRED = '+repr(actual_native_required()if required is None else required)).encode();return source
+    source=SyntheticGit();source.rows['zig/tools/container_check.py']=('NATIVE_REQUIRED = '+repr(actual_native_required()if required is None else required)).encode()
+    source.rows['zig/src/ops/metrics.zig']=b''.join(('test "'+name+'" {\n}\n').encode()for name in api.AGENT_RUNTIME_TESTS)
+    return source
 
 def family_fixture(family):
     # Deliberately small SYNTHETIC producer records. Actual C43 archives remain
@@ -323,17 +325,18 @@ class Controls(unittest.TestCase):
         self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
     def test_current_policy_binding_and_synthetic_unbound_future_pins_refuse(self):
         policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
-        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42519960947,'run_attempt':1})
+        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42532107058,'run_attempt':1})
         # Parse either a reviewed complete READONLY policy or its inert precursor;
         # this test grants no approval and does not require live activation.
         self.assertIs(api.validate_policy(policy),policy['root_approved'])
         unbound=copy.deepcopy(self.policy);unbound['jobs']=dict.fromkeys(api.REQUIRED_JOBS);unbound['artifacts']=dict.fromkeys(api.PRODUCT_KEYS);unbound['core607']=None
         self.assertFalse(api.validate_policy(unbound));unbound['root_approved']=True
         with self.assertRaisesRegex(api.Refused,'POLICY_JOBS'):api.validate_policy(unbound)
-    def test_reader_is_bound_to_bcd_and_historical06_policy_cannot_authorize(self):
-        self.assertEqual(api.PRODUCER,'bcd97e71ce727edb4527d07757f6a2d4230c4378')
-        historical=copy.deepcopy(self.policy);historical['root_approved']=True;historical['producer']['source_commit']='06e263fe7950e6051502a771646bbcc6d0453369'
-        with self.assertRaisesRegex(api.Refused,'POLICY_PRODUCER'):api.validate_policy(historical)
+    def test_reader_is_bound_to_9bad_and_historical_producers_cannot_authorize(self):
+        self.assertEqual(api.PRODUCER,'9badc87e8c2e2f019a1b3453c323a8d89686e43e')
+        for producer in ('bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
+            historical=copy.deepcopy(self.policy);historical['root_approved']=True;historical['producer']['source_commit']=producer
+            with self.subTest(producer=producer),self.assertRaisesRegex(api.Refused,'POLICY_PRODUCER'):api.validate_policy(historical)
     def test_missing_future_or_malformed_policy_never_authorizes(self):
         self.policy['root_approved']=True
         for mutate in [lambda p:p['producer'].__setitem__('source_commit','0'*40),lambda p:p['artifacts']['helper'].__setitem__('id',None),lambda p:p.__setitem__('root_approved',1),lambda p:p['limits'].__setitem__('host_free_bytes',0)]:
@@ -416,7 +419,7 @@ class Controls(unittest.TestCase):
         result=api.literal_constants(source,{'SCOPES','ASSETS'});self.assertEqual(result['SCOPES'],['x','y']);self.assertEqual(result['ASSETS']['b']['bytes'],2)
         with self.assertRaises(api.Refused):api.literal_constants('X=unknown()\n',{'X'})
     def test_native_suite_failure_duplicate_rows_or_missing_recovery_controls_refuse(self):
-        files=sdk_fixture();native=json.loads(files['receipts/native.json']);self.assertEqual(api.suite_counts(native)['total'],3+len(actual_native_required()))
+        files=sdk_fixture();native=json.loads(files['receipts/native.json']);self.assertEqual(api.suite_counts(native)['total'],3+len(actual_native_required())+2)
         for mutate in [lambda r:r['tests']['per_test'][0].__setitem__('status','FAIL'),lambda r:r['tests']['per_test'][0].__setitem__('ordinal',True),lambda r:r['tests']['per_test'][0].__setitem__('name','other')]:
             changed=copy.deepcopy(native);mutate(changed)
             with self.assertRaises(api.Refused):api.suite_counts(changed)
@@ -632,5 +635,71 @@ class GhStartupDiagnostics(unittest.TestCase):
         self.assertLess(startup.lineno,remote.lineno)
         disabled=next(n for n in ast.walk(main)if isinstance(n,ast.If)and isinstance(n.test,ast.UnaryOp)and isinstance(n.test.operand,ast.Name)and n.test.operand.id=='enabled')
         self.assertLess(disabled.end_lineno,startup.lineno)
+
+
+
+class ExplicitAgentRuntimeControls(unittest.TestCase):
+    zip=Controls.zip
+
+    def inspect(self,mode='ReleaseSafe',edit=None,source=None):
+        files=sdk_fixture(mode);native=json.loads(files['receipts/native.json'])
+        if edit is not None:edit(native)
+        rows=native['tests']['per_test'];native['tests']['total']=len(rows)
+        for ordinal,row in enumerate(rows,1):row.update(ordinal=ordinal,total=len(rows))
+        body=json.dumps(native,sort_keys=True).encode();files['receipts/native.json']=body
+        manifest=json.loads(files['manifest.json']);manifest['inputs']['native'].update(bytes=len(body),sha256=api.sha(body));files['manifest.json']=json.dumps(manifest,sort_keys=True).encode()
+        return self.zip(list(files.items()),lambda archive,*_:api.validate_sdk(archive,mode,sdk_source()if source is None else source))
+
+    def test_both_modes_keep_producer24_and_export_exit1_with_separate_two_OK_public_facts(self):
+        for mode in ('ReleaseSafe','ReleaseFast'):
+            with self.subTest(mode=mode):
+                result=self.inspect(mode);suite=result['native_suite'];self.assertEqual(suite['total'],29);self.assertEqual(suite['producer_native_required_count'],24);self.assertEqual(suite['explicit_agent_runtime_test_count'],2);self.assertIs(suite['two_explicit_agent_runtime_tests_observed_OK'],True)
+                self.assertEqual(result['export_actual_waits'],2);self.assertIs(result['SDK_or_native_product_executed_by_reader'],False);self.assertIs(result['actual_consumer_CPU_superset_checked'],False)
+                public=api.public_facts({'native_suite':{**suite,'PRIVATE_UNKNOWN':'PRIVATE_VALUE'}});self.assertIn('explicit_agent_runtime_test_count',public['native_suite']);self.assertIn('two_explicit_agent_runtime_tests_observed_OK',public['native_suite']);self.assertEqual(public['native_suite']['explicit_agent_runtime_test_count'],2);self.assertIs(public['native_suite']['two_explicit_agent_runtime_tests_observed_OK'],True);self.assertNotIn('PRIVATE',json.dumps(public))
+                self.assertTrue(all(name not in json.dumps(public)for name in api.AGENT_RUNTIME_TESTS))
+
+    def test_each_new_test_missing_FAIL_or_valid_SKIP_refuses_in_both_modes(self):
+        for mode in ('ReleaseSafe','ReleaseFast'):
+            for name in api.AGENT_RUNTIME_TESTS:
+                for status in ('missing','FAIL','SKIP'):
+                    def edit(native):
+                        rows=native['tests']['per_test'];target=next(r for r in rows if r['name']=='synthetic.test.'+name)
+                        if status=='missing':rows.remove(target)
+                        else:target['status']=status
+                        if status=='SKIP':native['tests']['skipped']={target['name']:'synthetic reviewed skip'}
+                    with self.subTest(mode=mode,name=name,status=status),self.assertRaisesRegex(api.Refused,'NATIVE_SUITE_OUTCOME'if status=='FAIL'else'^AGENT_RUNTIME_TESTS$'):self.inspect(mode,edit)
+
+    def test_duplicate_module_suffix_and_lookalike_names_cannot_borrow_OK(self):
+        for name in api.AGENT_RUNTIME_TESTS:
+            def duplicate(native):native['tests']['per_test'].append({'name':'other_module.test.'+name,'status':'OK'})
+            with self.subTest(name=name,variant='duplicate'),self.assertRaisesRegex(api.Refused,'^AGENT_RUNTIME_TESTS$'):self.inspect(edit=duplicate)
+            for replacement in ['synthetic.test.prefix'+name,'synthetic.test.'+name+' suffix']:
+                def lookalike(native):next(row for row in native['tests']['per_test']if row['name']=='synthetic.test.'+name)['name']=replacement
+                with self.subTest(name=name,variant=replacement),self.assertRaisesRegex(api.Refused,'^AGENT_RUNTIME_TESTS$'):self.inspect(edit=lookalike)
+
+    def test_required_names_must_exist_as_unique_complete_producer_Source_declarations(self):
+        for name in api.AGENT_RUNTIME_TESTS:
+            line=('test "'+name+'" {').encode()
+            for variant in ('missing','duplicate','substring','comment','invalid_type'):
+                source=sdk_source();path='zig/src/ops/metrics.zig';wire=source.rows[path]
+                if variant=='missing':wire=wire.replace(line,b'test "unrelated" {')
+                elif variant=='duplicate':wire+=line+b'\n}\n'
+                elif variant=='substring':wire=wire.replace(line,b'// '+line+b' trailing')
+                elif variant=='comment':wire=wire.replace(line,b'// '+line)
+                else:wire=None
+                source.rows[path]=wire
+                with self.subTest(name=name,variant=variant),self.assertRaisesRegex(api.Refused,'^AGENT_RUNTIME_TEST_SOURCE$'):self.inspect(source=source)
+
+    def test_actual_current_producer_metrics_has_two_exact_literals_without_extending_native24(self):
+        body=(HERE.parent/'src/ops/metrics.zig').read_bytes();lines=body.splitlines()
+        self.assertEqual(len(api.AGENT_RUNTIME_TESTS),2);self.assertEqual(len(set(api.AGENT_RUNTIME_TESTS)),2)
+        for name in api.AGENT_RUNTIME_TESTS:self.assertEqual(lines.count(('test "'+name+'" {').encode()),1)
+        self.assertFalse(set(actual_native_required())&set(api.AGENT_RUNTIME_TESTS));self.assertEqual(len(actual_native_required()),24)
+
+    def test_count_only_and_source_only_are_not_actual_test_observation(self):
+        for name in api.AGENT_RUNTIME_TESTS:
+            def same_count(native):next(row for row in native['tests']['per_test']if row['name']=='synthetic.test.'+name)['name']='unrelated.test.public_control'
+            with self.subTest(name=name),self.assertRaisesRegex(api.Refused,'^AGENT_RUNTIME_TESTS$'):self.inspect(edit=same_count)
+
 
 if __name__=='__main__':unittest.main()
