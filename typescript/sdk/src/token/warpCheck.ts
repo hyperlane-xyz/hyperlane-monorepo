@@ -56,7 +56,10 @@ import {
   scalesEqual,
   verifyScale,
 } from '../utils/decimals.js';
-import { collectHybridIsmNodes } from '../utils/ism.js';
+import {
+  collectHybridIsmNodes,
+  combinedHookIsmNodeAddress,
+} from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
 import {
@@ -1211,18 +1214,6 @@ export function buildWormholeRemoteRouterDiff(
     }
   }
   return diff;
-}
-
-function combinedHookIsmNodeAddress(
-  chain: ChainName,
-  node: HookConfig | IsmConfig,
-): Address {
-  if (typeof node === 'string') return node;
-  assert(
-    'address' in node && typeof node.address === 'string',
-    `Derived ${node.type} on ${chain} is missing its address`,
-  );
-  return node.address;
 }
 
 function combinedHookIsmCountDiff(addresses: Address[]): ObjectDiffLeaf {

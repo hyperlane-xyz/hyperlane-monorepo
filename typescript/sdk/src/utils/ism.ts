@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
+import type { HookConfig } from '../hook/types.js';
 import { TokenType } from '../token/config.js';
 import {
   CompositeIsmNodeConfig,
@@ -20,6 +21,7 @@ import {
   NetFlowRateLimitedHookIsmConfig,
   WormholeIsmConfig,
 } from '../ism/types.js';
+import type { ChainName } from '../types.js';
 
 type ChainAddresses = Record<string, string>;
 
@@ -506,6 +508,19 @@ export function resolveCombinedHookIsmNodesToAddress(
   address: Address,
 ): IsmConfig {
   return mapCombinedHookIsmNodes(ismConfig, () => address);
+}
+
+/** The deployed address of a combined hook/ISM node read from chain. */
+export function combinedHookIsmNodeAddress(
+  chain: ChainName,
+  node: HookConfig | IsmConfig,
+): Address {
+  if (typeof node === 'string') return node;
+  assert(
+    'address' in node && typeof node.address === 'string',
+    `Derived ${node.type} on ${chain} is missing its address`,
+  );
+  return node.address;
 }
 
 export function collapseMatchingCombinedHookIsmNodes(

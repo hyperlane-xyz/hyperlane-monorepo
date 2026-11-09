@@ -58,11 +58,10 @@ import { tokenFeeInputToFeeConfig } from '../fee/feeConfigMapping.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import {
-  collectHookTreeNodes,
   hookTreeContainsRateLimited,
   isCombinedHookIsmHookNode,
   isHybridHookNode,
-  mapHybridHookNodes,
+  mapHookTreeNodes,
 } from '../hook/utils.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
@@ -89,8 +88,6 @@ import { MAX_GAS_OVERHEAD, TokenType, gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
-  derivedHookAddress,
-  derivedIsmAddress,
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -102,12 +99,12 @@ import { throwIfNotMissingSelector } from '../utils/contract.js';
 import {
   canonicalizeRemoteIsms,
   collectHybridIsmNodes,
-  collectIsmTreeNodes,
+  combinedHookIsmNodeAddress,
   extractIsmAndHookFactoryAddresses,
   isCombinedHookIsmNode,
   isHybridIsmNode,
   ismTreeContainsRateLimited,
-  mapHybridIsmNodes,
+  mapIsmTreeNodes,
   resolveDelayedFlowRemoteIsms,
   setRateLimitedIsmRecipient,
 } from '../utils/ism.js';
@@ -2025,16 +2022,10 @@ export async function enrollCrossChainRouters(
           const actualConfig = await evmWarpModule.read();
           const targetOwner = resolvedConfigMap[currentChain].owner;
           // Combined hook/ISMs other than flow-control hybrids are configured
-          // and handed over by their own mesh deployment, so describe the
-          // router's hook and ISM by address and leave them untouched here.
-          const hasMeshHook = collectHookTreeNodes(
-            actualConfig.hook,
-            isCombinedHookIsmHookNode,
-          ).some((node) => !isHybridHookNode(node));
-          const hasMeshIsm = collectIsmTreeNodes(
-            actualConfig.interchainSecurityModule,
-            isCombinedHookIsmNode,
-          ).some((node) => !isHybridIsmNode(node));
+          // and handed over by their own mesh deployment, so describe those
+          // nodes by address and leave them untouched here.
+          const { hook: actualHook, interchainSecurityModule: actualIsm } =
+            actualConfig;
           const expectedConfig: HypTokenRouterConfig = {
             ...actualConfig,
             owner: targetOwner,
@@ -2042,23 +2033,25 @@ export async function enrollCrossChainRouters(
             // the deployer until this final pass. Describe their common target
             // owner on both config surfaces so EvmWarpModule can transfer them
             // together after enrollment.
-            interchainSecurityModule: hasMeshIsm
-              ? derivedIsmAddress(actualConfig)
-              : typeof actualConfig.interchainSecurityModule === 'object' &&
-                  actualConfig.interchainSecurityModule
-                ? mapHybridIsmNodes(
-                    actualConfig.interchainSecurityModule,
-                    (node) => ({ ...node, owner: targetOwner }),
+            interchainSecurityModule:
+              typeof actualIsm === 'object' && actualIsm
+                ? mapIsmTreeNodes(actualIsm, isCombinedHookIsmNode, (node) =>
+                    isHybridIsmNode(node)
+                      ? { ...node, owner: targetOwner }
+                      : combinedHookIsmNodeAddress(currentChain, node),
                   )
-                : actualConfig.interchainSecurityModule,
-            hook: hasMeshHook
-              ? derivedHookAddress(actualConfig)
-              : typeof actualConfig.hook === 'object' && actualConfig.hook
-                ? mapHybridHookNodes(actualConfig.hook, (node) => ({
-                    ...node,
-                    owner: targetOwner,
-                  }))
-                : actualConfig.hook,
+                : actualIsm,
+            hook:
+              typeof actualHook === 'object' && actualHook
+                ? mapHookTreeNodes(
+                    actualHook,
+                    isCombinedHookIsmHookNode,
+                    (node) =>
+                      isHybridHookNode(node)
+                        ? { ...node, owner: targetOwner }
+                        : combinedHookIsmNodeAddress(currentChain, node),
+                  )
+                : actualHook,
             // Deploy set the ProxyAdmin owner to the intermediate deployer owner
             // so post-deploy enrollment could be self-signed. actualConfig reads
             // that live (deployer) owner, so carry the configured owner through
