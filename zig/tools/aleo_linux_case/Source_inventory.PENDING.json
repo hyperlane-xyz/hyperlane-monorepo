@@ -2,7 +2,7 @@
   "schema": 1,
   "kind": "private-fullAleo-strict-Source-inventory",
   "root_approved": true,
-  "observed_planning_head": "30bc59f18f9db2b1d3590412e13dde3cf7716d36",
+  "observed_planning_head": "5966a1cbddce447fd74eced14ad8414217b83afa",
   "final_execution_source_commit": null,
   "source_policy_paths_function": {
     "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
