@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import json
 import hashlib
+import base64
 import ast
 import sys
 import tempfile
@@ -405,15 +406,24 @@ class FixtureFailureDiscriminatorControls(unittest.TestCase):
         self.log.write_text(self.header(self.program,self.pline)+body);source=self.repo/self.program;source.write_bytes(source.read_bytes()+b'// changed Source')
         with self.assertRaises(ValueError):self.observe()
     def test_Radix_exact_panic_guard_and_parent_client_status_are_independent_observations(self):
-        self.manifest['scenario']='radix';self.log.write_text(self.header(self.radix,self.rline)+'actual owned Radix localnet: owned Radix Core/Gateway startup deadline\n');self.save_journal([self.journal()]);value=self.observe();self.assertEqual(value['panic_observations'][0]['category'],'CORE_GATEWAY_STARTUP_DEADLINE');row=value['client_waits']['rows'][0];self.assertEqual(row['category'],'COMPOSE_UP');self.assertEqual(row['exit_code'],17);self.assertEqual(row['elapsed_monotonic_ns'],123);self.assertTrue(row['actual_parent_wait']);self.assertFalse(value['native_or_timing_or_cleanup_authority']);wire=json.dumps(value)
+        self.manifest['scenario']='radix';self.log.write_text(self.header(self.radix,self.rline)+'actual owned Radix localnet: owned Radix Core/Gateway startup deadline; phase=gateway-read, status=HttpStatus(500)\n');self.save_journal([self.journal()]);value=self.observe();self.assertEqual(value['panic_observations'][0]['category'],'CORE_GATEWAY_STARTUP_DEADLINE');row=value['client_waits']['rows'][0];self.assertEqual(row['category'],'COMPOSE_UP');self.assertEqual(row['exit_code'],17);self.assertEqual(row['elapsed_monotonic_ns'],123);self.assertTrue(row['actual_parent_wait']);self.assertFalse(value['native_or_timing_or_cleanup_authority']);wire=json.dumps(value)
         for secret in ['PRIVATE_ARG','PRIVATE_TOKEN','EXTERNAL_ERROR','linux-ticks:22']:self.assertNotIn(secret,wire)
         self.assertEqual(value['client_waits']['journal']['bytes'],(self.case/'evidence/radix-client-parent-waits.jsonl').stat().st_size)
+    def test_Radix_current_deadline_requires_closed_phase_status_and_exact_Source_format(self):
+        self.manifest['scenario']='radix'
+        prefix='actual owned Radix localnet: owned Radix Core/Gateway startup deadline'
+        for suffix in ['', '; phase=PRIVATE, status=HttpStatus(500)', '; phase=gateway-read, status=PRIVATE', '; phase=gateway-read, status=HttpStatus(500) PRIVATE', '; phase={}, status={:?}', '; phase=gateway-read, status=HttpStatus(999)']:
+            self.log.write_text(self.header(self.radix,self.rline)+prefix+suffix+'\n');value=self.observe();self.assertEqual(value['panic_observations'],[]);self.assertNotIn('PRIVATE',json.dumps(value))
+        for phase in ['startup','core-status','gateway-status','gateway-read']:
+            for status in ['Pending','Transport','BodyBound','Schema','Deadline','HttpStatus(201)','HttpStatus(500)']:
+                self.log.write_text(self.header(self.radix,self.rline)+prefix+f'; phase={phase}, status={status}\n');self.assertEqual(self.observe()['panic_observations'][0]['category'],'CORE_GATEWAY_STARTUP_DEADLINE')
+
     def test_Radix_unknown_private_error_cannot_borrow_later_static_guard(self):
         self.manifest['scenario']='radix'
-        for text in ['actual owned Radix localnet: PRIVATE owned Radix Core/Gateway startup deadline','actual owned Radix localnet: PRIVATE_ERROR\nstack backtrace:\nowned Radix Core/Gateway startup deadline']:
+        for text in ['actual owned Radix localnet: PRIVATE owned Radix Core/Gateway startup deadline; phase=gateway-read, status=HttpStatus(500)','actual owned Radix localnet: PRIVATE_ERROR\nstack backtrace:\nowned Radix Core/Gateway startup deadline; phase=gateway-read, status=HttpStatus(500)']:
             self.log.write_text(self.header(self.radix,self.rline)+text+'\n');value=self.observe();self.assertEqual(value['panic_observations'],[]);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(value['client_waits']['status'],'absent')
     def test_Radix_parent_tool_birth_mode_bool_and_duplicate_journals_refuse_observation_only(self):
-        self.manifest['scenario']='radix';self.log.write_text(self.header(self.radix,self.rline)+'actual owned Radix localnet: owned Radix Core/Gateway startup deadline\n')
+        self.manifest['scenario']='radix';self.log.write_text(self.header(self.radix,self.rline)+'actual owned Radix localnet: owned Radix Core/Gateway startup deadline; phase=gateway-read, status=HttpStatus(500)\n')
         for extra in [{'parent_pid':43},{'pid':True},{'os_start_token':None},{'mode':'ReleaseFast'},{'executable':{}},{'parent_wait_completed':False},{'exit_code':True},{'signal':9},{'success':0},{'success':True}]:
             self.save_journal([self.journal(**extra)]);value=self.observe();self.assertEqual(value['client_waits'],{'status':'unavailable'});self.assertEqual(value['panic_observations'][0]['category'],'CORE_GATEWAY_STARTUP_DEADLINE')
         row=self.journal();self.save_journal([row,row]);self.assertEqual(self.observe()['client_waits'],{'status':'unavailable'})
@@ -435,7 +445,7 @@ class FixtureFailureDiscriminatorControls(unittest.TestCase):
         self.manifest['scenario']='radix'
         for inline in [False,True]:
             header=self.header(self.radix,self.rline).rstrip('\n')if inline else self.header(self.radix,self.rline)
-            self.log.write_text(header+'actual owned Radix localnet: PRIVATE_UNKNOWN_ERROR\nowned Radix Core/Gateway startup deadline\n')
+            self.log.write_text(header+'actual owned Radix localnet: PRIVATE_UNKNOWN_ERROR\nowned Radix Core/Gateway startup deadline; phase=gateway-read, status=HttpStatus(500)\n')
             value=self.observe();self.assertEqual(value['panic_observations'],[]);self.assertNotIn('PRIVATE_UNKNOWN_ERROR',json.dumps(value))
         self.manifest['scenario']='tron';self.log.write_text(self.header(self.program,self.pline)+'PRIVATE_UNKNOWN_ERROR\n'+self.program_body(['hyperlane','core','deploy']));self.assertEqual(self.observe()['panic_observations'],[])
 
@@ -981,20 +991,24 @@ class TronCaughtCauseControls(unittest.TestCase):
     def setUp(self):
         self.f=TronCLIAdmittedProjectionControls();self.f.setUp();self.addCleanup(self.f.doCleanups)
         self.source=self.f.f.repo/'zig/bench/native_tron_assets.py';self.source.parent.mkdir(parents=True);self.source.write_bytes((Path(__file__).resolve().parents[1]/'bench/native_tron_assets.py').read_bytes())
-        constants={node.targets[0].id:ast.literal_eval(node.value)for node in ast.parse(self.source.read_bytes()).body if isinstance(node,ast.Assign)and len(node.targets)==1 and isinstance(node.targets[0],ast.Name)and node.targets[0].id in {'CLI_CAUSE_INSERT','CLI_CATCH_BODY'}}
-        self.f.entry.write_bytes(b'try { fixture(); }\ncatch (error) {\n'+constants['CLI_CAUSE_INSERT']+constants['CLI_CATCH_BODY']+b'\n}\n');row=api.pin(self.f.entry);self.f.required=[row if r['path']==str(self.f.entry)else r for r in self.f.required]+[api.pin(self.source)];self.f.inputs['tron_tre']['cli_entrypoint']=row;self.f.f.approval['tron_tre']=copy.deepcopy(self.f.inputs['tron_tre'])
-    def record(self,**changes):
-        value={'schema':1,'native_error':True,'class':'TypeError','code':'ERR_INVALID_ARG_TYPE','stack':'NOT_READ_NO_GETTERS'};value.update(changes);return self.f.line('HYPERLANE_TRON_CAUGHT_V1 '+json.dumps(value,separators=(',',':')))
+        names={'CLI_CAUSE_INSERT','CLI_CATCH_BODY','CLI_ORIGINAL_OPEN','CLI_ORIGINAL_END','CLI_CATCH_OBSERVER','CLI_CAUSE_KEY_ID'}
+        constants={node.targets[0].id:ast.literal_eval(node.value)for node in ast.parse(self.source.read_bytes()).body if isinstance(node,ast.Assign)and len(node.targets)==1 and isinstance(node.targets[0],ast.Name)and node.targets[0].id in names};self.key_id=constants['CLI_CAUSE_KEY_ID']
+        self.f.entry.write_bytes(b"import _args from 'yargs';\n"+constants['CLI_CAUSE_INSERT']+constants['CLI_ORIGINAL_OPEN']+b'\n'+constants['CLI_ORIGINAL_END']+b'\n}\ncatch (error) {'+constants['CLI_CATCH_OBSERVER']+b'\n'+constants['CLI_CATCH_BODY']+b'\n}\n');row=api.pin(self.f.entry);self.f.required=[row if r['path']==str(self.f.entry)else r for r in self.f.required]+[api.pin(self.source)];self.f.inputs['tron_tre']['cli_entrypoint']=row;self.f.f.approval['tron_tre']=copy.deepcopy(self.f.inputs['tron_tre'])
+    def payload(self,**changes):
+        cipher=bytes(range(256))*2;value={'schema':1,'status':'ENCRYPTED_PREFIX','key_id':self.key_id,'prefix_bytes':85,'truncated':False,'ciphertext_base64':base64.b64encode(cipher).decode('ascii'),'ciphertext_sha256':hashlib.sha256(cipher).hexdigest()};value.update(changes);return value
+    def record(self,**changes):return self.f.line('HYPERLANE_TRON_ENCRYPTED_V1 '+json.dumps(self.payload(**changes),separators=(',',':')))
     def observe(self,body):return self.f.observe(self.f.log(body))['CLI_failure']
     def test_source_bound_closed_caught_record_preserves_existing_primary(self):
-        value=self.observe(self.record()+self.f.line('Error: PRIVATE_MESSAGE https://PRIVATE_URL/?token=PRIVATE_TOKEN'));cause=value['caught_cause'];self.assertEqual(cause['collection_status'],'observed');self.assertEqual(cause['reported_standard_class'],'TypeError');self.assertEqual(cause['own_data_code'],'ERR_INVALID_ARG_TYPE');self.assertTrue(cause['native_error_object']);self.assertFalse(cause['typed_exception_or_root_cause_claim']);self.assertEqual(len(value['error_header_fingerprints']),1)
+        value=self.observe(self.record()+self.f.line('Error: PRIVATE_MESSAGE https://PRIVATE_URL/?token=PRIVATE_TOKEN'));cause=value['caught_cause'];self.assertEqual(cause['collection_status'],'observed');self.assertEqual(cause['encrypted_prefix'],self.payload());self.assertFalse(cause['typed_exception_or_root_cause_claim']);self.assertEqual(len(value['error_header_fingerprints']),1)
         public=json.dumps(value)
         for secret in ['PRIVATE_MESSAGE','PRIVATE_URL','PRIVATE_TOKEN',str(self.f.case)]:self.assertNotIn(secret,public)
-    def test_non_native_and_unknown_code_have_no_invented_type(self):
-        cause=self.observe(self.record(native_error=False,**{'class':'UNKNOWN','code':None}))['caught_cause'];self.assertFalse(cause['native_error_object']);self.assertEqual(cause['reported_standard_class'],'UNKNOWN');self.assertIsNone(cause['own_data_code'])
-        self.assertEqual(self.observe(self.record(code=None))['caught_cause']['collection_status'],'observed')
+        for key in ['reported_standard_class','own_data_code','role','pid','signal']:self.assertNotIn(key,cause)
+    def test_unavailable_zero_maximum_prefix_and_no_invented_type(self):
+        value=self.f.line('HYPERLANE_TRON_ENCRYPTED_V1 '+json.dumps({'schema':1,'status':'ENCRYPTION_UNAVAILABLE'}));self.assertEqual(self.observe(value)['caught_cause'],{'collection_status':'unavailable','reason':'ENCRYPTION_UNAVAILABLE'})
+        for count in [0,384]:self.assertEqual(self.observe(self.record(prefix_bytes=count,truncated=True))['caught_cause']['encrypted_prefix']['prefix_bytes'],count)
     def test_unknown_payload_types_fields_duplicate_or_oversized_never_publish(self):
-        cases=[self.record(code='PRIVATE_CODE'),self.record(**{'class':'PRIVATE_CLASS'}),self.record(schema=True),self.record(native_error=1),self.record(stack='PRIVATE_STACK'),self.record(native_error=False),self.record(extra='PRIVATE_VALUE'),self.record()*2,self.f.line('HYPERLANE_TRON_CAUGHT_V1 '+('x'*4097)),self.f.line('HYPERLANE_TRON_CAUGHT_V1 {"schema":1,"schema":1}')]
+        payload=self.payload();alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';wire=payload['ciphertext_base64'];noncanonical=wire[:-2]+alphabet[alphabet.index(wire[-2])+1]+'='
+        cases=[self.record(key_id='0'*64),self.record(schema=True),self.record(prefix_bytes=True),self.record(prefix_bytes=-1),self.record(prefix_bytes=385),self.record(truncated=1),self.record(ciphertext_base64='A'*684),self.record(ciphertext_base64=noncanonical),self.record(ciphertext_sha256='0'*64),self.record(extra='PRIVATE_VALUE'),self.record()*2,self.f.line('HYPERLANE_TRON_ENCRYPTED_V1 '+('x'*4097)),self.f.line('HYPERLANE_TRON_ENCRYPTED_V1 {"schema":1,"schema":1}')]
         for wire in cases:
             with self.subTest(size=len(wire)):
                 value=self.observe(wire);self.assertEqual(value['caught_cause']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))

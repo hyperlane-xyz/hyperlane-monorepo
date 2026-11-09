@@ -1490,28 +1490,52 @@ def read_graph(row):
 
 
 # One closed diagnostic protocol; only the owned copied entrypoint is derived.
-CLI_CAUSE_MARKER = 'HYPERLANE_TRON_CAUGHT_V1 '
-CLI_CAUSE_CLASSES = ('Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError', 'URIError', 'EvalError', 'AggregateError', 'UNKNOWN')
-CLI_CAUSE_CODES = ('ENOENT', 'EACCES', 'EPERM', 'ENOSPC', 'EMFILE', 'ENFILE', 'EAI_AGAIN', 'ENOTFOUND', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED', 'ERR_INVALID_ARG_TYPE', 'ERR_INVALID_ARG_VALUE', 'ERR_INVALID_URL', 'ERR_UNKNOWN_FILE_EXTENSION', 'ERR_DLOPEN_FAILED', 'ERR_REQUIRE_ESM', 'INVALID_ARGUMENT', 'CALL_EXCEPTION', 'UNSUPPORTED_OPERATION', 'NETWORK_ERROR', 'SERVER_ERROR', 'TIMEOUT', 'BAD_DATA', 'UNKNOWN_ERROR')
-CLI_CAUSE_INSERT = b'    // Owned Tron failure-only derivative; never read message/stack/getters/toJSON.\n    try {\n        let nativeError = false, caughtClass = \'UNKNOWN\', caughtCode = null;\n        try {\n            nativeError = process.getBuiltinModule(\'node:util\').types.isNativeError(error);\n            if (nativeError) {\n                const prototype = Object.getPrototypeOf(error);\n                for (const [kind, name] of [[Error,\'Error\'],[TypeError,\'TypeError\'],[RangeError,\'RangeError\'],[ReferenceError,\'ReferenceError\'],[SyntaxError,\'SyntaxError\'],[URIError,\'URIError\'],[EvalError,\'EvalError\'],[AggregateError,\'AggregateError\']]) {\n                    if (prototype === kind.prototype) { caughtClass = name; break; }\n                }\n                const descriptor = Object.getOwnPropertyDescriptor(error, \'code\');\n                const code = descriptor && Object.hasOwn(descriptor, \'value\') ? descriptor.value : null;\n                if (typeof code === \'string\' && ["ENOENT","EACCES","EPERM","ENOSPC","EMFILE","ENFILE","EAI_AGAIN","ENOTFOUND","ECONNREFUSED","ECONNRESET","ETIMEDOUT","ERR_MODULE_NOT_FOUND","MODULE_NOT_FOUND","ERR_PACKAGE_PATH_NOT_EXPORTED","ERR_INVALID_ARG_TYPE","ERR_INVALID_ARG_VALUE","ERR_INVALID_URL","ERR_UNKNOWN_FILE_EXTENSION","ERR_DLOPEN_FAILED","ERR_REQUIRE_ESM","INVALID_ARGUMENT","CALL_EXCEPTION","UNSUPPORTED_OPERATION","NETWORK_ERROR","SERVER_ERROR","TIMEOUT","BAD_DATA","UNKNOWN_ERROR"].includes(code)) caughtCode = code;\n            }\n        } catch (_) {}\n        // Same synchronous writer as the original following errorRed call.\n        // All variable strings come only from the closed catalogs above.\n        errorRed(\'HYPERLANE_TRON_CAUGHT_V1 \' + \'{"schema":1,"native_error":\' + (nativeError ? \'true\' : \'false\') + \',"class":"\' + caughtClass + \'","code":\' + (caughtCode === null ? \'null\' : \'"\' + caughtCode + \'"\') + \',"stack":"NOT_READ_NO_GETTERS"}\');\n    } catch (_) {}\n'
+CLI_CAUSE_MARKER = 'HYPERLANE_TRON_ENCRYPTED_V1 '
+CLI_CAUSE_KEY_ID = '8bab6daee3714c8284aa166219000493' '8b0a5dfb10dea336372e4b11f51e0655'
+CLI_CAUSE_INSERT = b'let __ziggySeen = false; function __ziggyObserve(message, error) { if (__ziggySeen) return; __ziggySeen = true; let row = {schema:1,status:\'ENCRYPTION_UNAVAILABLE\'}; try { if (typeof message !== \'string\') { if (!process.getBuiltinModule(\'node:util\').types.isNativeError(error)) throw 0; const d = Object.getOwnPropertyDescriptor(error, \'message\'); if (!d || !Object.hasOwn(d, \'value\') || typeof d.value !== \'string\') throw 0; message = d.value; } const c = process.getBuiltinModule(\'node:crypto\'); const key = c.createPublicKey("-----BEGIN PUBLIC KEY-----\\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxe5zq7ZGiGgBvSAtT+hX\\nS4ezY8xH8aOO3+8YcQSe7p0v/l6TFKQjHcyJxDClozTxFtowMRXmR6dMb014MS7r\\ny7pu0OITH8o/WWUCc0nUodtU1WH/lHaEOw1Q1mE24Im25YZYpMUzNXCfia9YHB3R\\nn1+grv9Ii9334GsUMBCwgb/XK6Sql3Nx/fKsjBC5pyaC28ErrGHIf5pU79RYoUUR\\nkcF4FEOcUoczsFDy/AvwFM2fH64QFDxOfoty/lpROhQIcTKwX/IKDnnPleHa4V0O\\nSv/YdavwPK9ffZ+b7GDLEhJhhu6akSfhR/SjXrDOGAYMs9vRliztUearu6aDKVNq\\nHVt0+X72NyT2BAzZ0WW/U0BrKBSWCJtzzdrYGlmWZaDnw5ewDmHuAeW+FTP2VBEJ\\ntGaXqeNLnrnnJ28cxbHd6MecqUbSl9S5FIVfvahkyAM9mOdvPdKri3NyRQwPatqv\\nhefBMiQ2r7gKRKzXcrsyZM+9CoTiB/ZJY8cZdDOo/cEai3nMN7ZWoFlCqZ33j/OM\\npWBlD9TyMYb1Xlz2+zX1TrB/UhbFfASBghgZiIDpOmpwjFf8pQyvydhSVf4iiEMf\\nYoGk4zaFR/5sH46x2jJl7DfJGvk9y/O/30LOGbvN493ayrG9DBT52PX8i1RT7+DZ\\nXG9dTcSWOCb847U28lDwtxsCAwEAAQ==\\n-----END PUBLIC KEY-----\\n"); const bounded = Buffer.from(message.slice(0,384),\'utf8\'); let end = Math.min(bounded.length,384); if (end < bounded.length) while (end > 0 && (bounded[end]&0xc0) === 0x80) --end; const cipher = c.publicEncrypt({key,padding:c.constants.RSA_PKCS1_OAEP_PADDING,oaepHash:\'sha256\',oaepLabel:Buffer.from(\'ziggy-private-failure-v1\',\'ascii\')},bounded.subarray(0,end)); if (cipher.length !== 512) throw 0; row = {schema:1,status:\'ENCRYPTED_PREFIX\',key_id:"8bab6daee3714c8284aa166219000493"+"8b0a5dfb10dea336372e4b11f51e0655",prefix_bytes:end,truncated:message.length>384||end<bounded.length,ciphertext_base64:cipher.toString(\'base64\'),ciphertext_sha256:c.createHash(\'sha256\').update(cipher).digest(\'hex\')}; } catch (_) {} try { errorRed(\'HYPERLANE_TRON_ENCRYPTED_V1 \'+JSON.stringify(row)); } catch (_) {} } function __ziggyWrap(parser) { try { const usage = parser.getInternalMethods().getUsageInstance(), original = usage.fail; usage.fail = function(...args) { __ziggyObserve(args[0],args[1]); return Reflect.apply(original,this,args); }; } catch (_) {} return parser; } function yargs(...args) { return __ziggyWrap(Reflect.apply(_args,undefined,args)); } '
 CLI_CATCH_BODY = b"    errorRed('Error: ' + error.message);\n    process.exit(1);"
+CLI_ORIGINAL_OPEN = b'try {\n    await yargs(process.argv.slice(2))'
+CLI_ORIGINAL_END = b'.showHelpOnFail(false).argv;'
+CLI_CATCH_OBSERVER = b' __ziggyObserve(undefined, error);'
+CLI_YARGS_ROOT = 'node_modules/.pnpm/yargs@17.7.3/node_modules/yargs'
+CLI_YARGS_SOURCE_PINS = {'node_modules/.pnpm/yargs@17.7.3/node_modules/yargs/package.json': {'bytes': 3136, 'sha256': '357c9c2e7725d86a137de13fa68441f8' '8a750b5083313cc1482a7969bcb81584'}, 'node_modules/.pnpm/yargs@17.7.3/node_modules/yargs/index.mjs': {'bytes': 231, 'sha256': 'fd2aefd1b3f63590505375fd2ff6409a' '86d95529690d9ff1515adefca686311b'}, 'node_modules/.pnpm/yargs@17.7.3/node_modules/yargs/build/lib/usage.js': {'bytes': 21402, 'sha256': '31faaa7aa61e5a57a2cac5a269b773aa' '8b1fcab2db7cac2f8252396f3ccc2f5e'}, 'node_modules/.pnpm/yargs@17.7.3/node_modules/yargs/build/lib/command.js': {'bytes': 19368, 'sha256': '6249ffd299e16a1e531ccff13a23aed7' 'b7eef37e20b6e6ab7f254413aece6ca6'}, 'node_modules/.pnpm/yargs@17.7.3/node_modules/yargs/build/lib/yargs-factory.js': {'bytes': 77635, 'sha256': '05326932b431801d7459d5b14b21f73f' '13ebd74a8a74e9b7b8cec5f99ba14819'}}
+
 
 
 def cli_failure_derivative(original):
     require(type(original)is bytes and 0<len(original)<=1024**2,'Bounded original CLI entry required')
-    require(CLI_CAUSE_INSERT not in original and original.count(CLI_CATCH_BODY)==1,'One unchanged original CLI catch required')
+    require(b'__ziggy'not in original and b'_args'not in original and original.count(CLI_CATCH_BODY)==1,'One unchanged original CLI catch required')
     variants=[b'} catch (error) {\n'+CLI_CATCH_BODY+b'\n}',b'}\ncatch (error) {\n'+CLI_CATCH_BODY+b'\n}']
-    require(sum(original.count(v)for v in variants)==1,'Exact CLI outer catch shape required')
-    derived=original.replace(CLI_CATCH_BODY,CLI_CAUSE_INSERT+CLI_CATCH_BODY,1)
-    require(len(derived)<=1024**2 and derived.replace(CLI_CAUSE_INSERT,b'',1)==original,'Exact bounded derivative inverse required')
+    imports=[line for line in original.splitlines()if line in {b"import yargs from 'yargs';",b'import yargs from "yargs";'}]
+    require(sum(original.count(v)for v in variants)==1 and len(imports)==1 and original.count(CLI_ORIGINAL_OPEN)==1 and original.count(CLI_ORIGINAL_END)==1,'Exact original awaited Yargs/catch shape required')
+    catch=b'catch (error) {\n'+CLI_CATCH_BODY;observed=b'catch (error) {'+CLI_CATCH_OBSERVER+b'\n'+CLI_CATCH_BODY
+    derived=original.replace(imports[0],imports[0].replace(b'yargs from',b'_args from'),1).replace(CLI_ORIGINAL_OPEN,CLI_CAUSE_INSERT+CLI_ORIGINAL_OPEN,1).replace(catch,observed,1)
+    restored=derived.replace(CLI_CAUSE_INSERT,b'',1).replace(imports[0].replace(b'yargs from',b'_args from'),imports[0],1).replace(observed,catch,1)
+    require(b'\n'not in CLI_CAUSE_INSERT and len(CLI_CAUSE_INSERT)<=4096 and 0<len(derived)-len(original)<=4096 and len(derived)<=1024**2 and restored==original,'Exact bounded line-preserving derivative inverse required')
     return derived
 
 
+def cli_yargs_admitted(value):
+    root=Path(value['root']);entries=value['entries'];alias='typescript/cli/node_modules/yargs';link=entries.get(alias)
+    require(type(link)is dict and link.get('kind')=='symlink'and link.get('resolved')==CLI_YARGS_ROOT and (root/alias).is_symlink()and (root/alias).resolve(strict=True)==root/CLI_YARGS_ROOT,'CLI import must resolve exact admitted Yargs17.7.3')
+    for name,expected in CLI_YARGS_SOURCE_PINS.items():
+        row=entries.get(name);path=root/name
+        require(type(row)is dict and row.get('kind')=='file'and all(row.get(key)==expected[key]for key in ('bytes','sha256')),'Reviewed Yargs Source missing from admitted graph')
+        require(not path.is_symlink()and path.resolve(strict=True)==path and not any(parent.is_symlink()for parent in path.parents if parent.is_relative_to(root)),'Canonical admitted Yargs Source required')
+        with path.open('rb')as stream:
+            before=os.fstat(stream.fileno());require(stat.S_ISREG(before.st_mode)and before.st_size==expected['bytes'],'Reviewed Yargs Source body changed');wire=stream.read(expected['bytes']+1);after=os.fstat(stream.fileno())
+        stable=lambda info:(info.st_dev,info.st_ino,info.st_mode,info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+        require(stable(before)==stable(after)and len(wire)==expected['bytes']and hashlib.sha256(wire).hexdigest()==expected['sha256'],'Reviewed Yargs Source body changed')
+
+
 def cli_derivative_entry(value):
+    cli_yargs_admitted(value)
     relative='typescript/cli/dist/cli.js';row=value['entries'][relative];path=Path(value['root'])/relative
     require(row['kind']=='file'and 0<row['bytes']<=1024**2,'Exact original graph CLI entry required')
     require(pin(path)['sha256']==row['sha256']and pin(path)['bytes']==row['bytes'],'Original graph CLI entry changed')
-    return cli_failure_derivative(path.read_bytes())
+    original=path.read_bytes()
+    require(sum(line in {b"import yargs from 'yargs';",b'import yargs from \"yargs\";'}for line in original.splitlines())==1,'Exact CLI Yargs package import required')
+    return cli_failure_derivative(original)
 
 
 def cli_derivative_growth(value,fragment):
@@ -1583,7 +1607,7 @@ def materialize(value,destination,existing_case_allocated,case_cap):
             require(not path.is_symlink(),'CLI data/dist may not introduce link parents')
             if path.is_file()and str(path.relative_to(destination))not in MUTABLE_REGISTRY:immutable.append(pin(path))
     immutable.append(pin(destination/'package.json'))
-    return {'schema':1,'root':str(destination),'workspace':copied,'diagnostic_derivative':{'kind':'Tron-catch-only-diagnostic-v1','original_entrypoint':pin(workspace/'typescript/cli/dist/cli.js'),'original_message_and_exit_flow_preserved':True},'entrypoint':pin(destination/'dist/cli.js'),'immutable_files':immutable,'mutable_registry_slots':[str(destination/name)for name in MUTABLE_REGISTRY],'native_case_acceptance':False}
+    return {'schema':1,'root':str(destination),'workspace':copied,'diagnostic_derivative':{'kind':'Tron-encrypted-failure-diagnostic-v1','original_entrypoint':pin(workspace/'typescript/cli/dist/cli.js'),'original_message_and_exit_flow_preserved':True},'entrypoint':pin(destination/'dist/cli.js'),'immutable_files':immutable,'mutable_registry_slots':[str(destination/name)for name in MUTABLE_REGISTRY],'native_case_acceptance':False}
 
 
 def verify_materialized(value):
@@ -1591,7 +1615,7 @@ def verify_materialized(value):
     require((root/'node_modules').is_symlink()and os.readlink(root/'node_modules')=='.workspace/typescript/cli/node_modules','Owned CLI dependency alias changed')
     checked(value['entrypoint'])
     original=Path(value['workspace']['root'])/'typescript/cli/dist/cli.js'
-    require(value['diagnostic_derivative']=={'kind':'Tron-catch-only-diagnostic-v1','original_entrypoint':pin(original),'original_message_and_exit_flow_preserved':True},'Exact derivative provenance required')
+    require(value['diagnostic_derivative']=={'kind':'Tron-encrypted-failure-diagnostic-v1','original_entrypoint':pin(original),'original_message_and_exit_flow_preserved':True},'Exact derivative provenance required')
     require(0<value['entrypoint']['bytes']<=1024**2 and Path(value['entrypoint']['path'])==root/'dist/cli.js'and (root/'dist/cli.js').read_bytes()==cli_derivative_entry(value['workspace']),'Only exact original-graph catch derivative admitted')
     for row in value['immutable_files']:checked(row)
     require(value['mutable_registry_slots']==[str(root/name)for name in MUTABLE_REGISTRY],'Only the two Source registry address files may mutate')

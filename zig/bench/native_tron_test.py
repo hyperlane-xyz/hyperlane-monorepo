@@ -1,5 +1,5 @@
 """Pure Linux Tron assets/closure controls; no SDK/CLI/native/network execution."""
-import copy,importlib.util,json,os,pathlib,struct,tempfile,unittest
+import copy,hashlib,importlib.util,json,os,pathlib,struct,tempfile,unittest
 from unittest import mock
 spec=importlib.util.spec_from_file_location('native_tron_assets',pathlib.Path(__file__).with_name('native_tron_assets.py'));a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
 class Assets(unittest.TestCase):
@@ -7,6 +7,8 @@ class Assets(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name).resolve()
   # Pure small-copy fixtures model ample capacity; production6GiB checks stay real.
   usage=__import__('shutil').disk_usage(self.root);capacity=mock.patch.object(a.shutil,'disk_usage',return_value=type(usage)(usage.total,usage.used,8*a.GIB));capacity.start();self.addCleanup(capacity.stop)
+  # Hermetic synthetic Source bodies; real reviewed byte joins are component-reviewed separately.
+  self.yargs_fixture={name:('SYNTHETIC-YARGS-CONTROL '+name).encode()for name in a.CLI_YARGS_SOURCE_PINS};source_pins=mock.patch.object(a,'CLI_YARGS_SOURCE_PINS',{name:{'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}for name,wire in self.yargs_fixture.items()});source_pins.start();self.addCleanup(source_pins.stop)
  def policy(self,arch='amd64'):
   return {'tron_cli':dict(a.CLI_POLICY),'tron_tre':{'schema':2,'architecture':arch,'source_image':a.SOURCE_IMAGE,'canonical_digest':a.SOURCE_IMAGE,'image_id':a.IMAGE_IDS[arch],'command':a.COMMAND,'entrypoint':None}}
  def image(self,arch='amd64'):
@@ -15,7 +17,7 @@ class Assets(unittest.TestCase):
   repo=self.root/'workspace';repo.mkdir();(repo/'node_modules').mkdir()
   for name in a.PACKAGE_ROOTS:
    path=repo/name;path.mkdir(parents=True,exist_ok=True);(path/'package.json').write_text(json.dumps({'name':'@fixture/'+path.name}))
-  for name,data in [('typescript/cli/dist/cli.js',b"try { publicFixture(); }\ncatch (error) {\n    errorRed('Error: ' + error.message);\n    process.exit(1);\n}\n"),('solidity/dist/tron/typechain/factories/index.js',b'// actual fixture output'),('solidity/dist/buildArtifact.json',b'{}')]:
+  for name,data in [('typescript/cli/dist/cli.js',b"import yargs from 'yargs';\ntry {\n    await yargs(process.argv.slice(2))\n        .showHelpOnFail(false).argv;\n}\ncatch (error) {\n    errorRed('Error: ' + error.message);\n    process.exit(1);\n}\n"),('solidity/dist/tron/typechain/factories/index.js',b'// actual fixture output'),('solidity/dist/buildArtifact.json',b'{}')]:
    path=repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
   cli=repo/'typescript/cli';(cli/'node_modules').mkdir();(cli/'src').mkdir();(cli/'src/version.ts').write_text("export const VERSION = '45.1.0';\n");(cli/'package.json').write_text(json.dumps({'name':'@hyperlane-xyz/cli','version':'45.1.0','scripts':{'hyperlane':'node ./dist/cli.js'}}));(repo/'package.json').write_text(json.dumps({'packageManager':'pnpm@12.3.0'}));(repo/'.nvmrc').write_text('26.12.1\n')
   for i,name in enumerate(['anvil1','anvil2']):
@@ -25,6 +27,9 @@ class Assets(unittest.TestCase):
    if not path.exists():
     if name in{'vectors','scripts','patches'}:path.mkdir()
     else:path.write_text('fixture root data')
+  for name,wire in self.yargs_fixture.items():
+   path=repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(wire)
+  (cli/'node_modules/yargs').symlink_to('../../../'+a.CLI_YARGS_ROOT)
   (repo/'node_modules/internal').symlink_to('../typescript/sdk');return repo
  def graph(self):return a.graph(self.workspace(),list(a.PACKAGE_ROOTS),'amd64')
  def test_exact_official_both_platforms(self):
@@ -280,10 +285,10 @@ class Assets(unittest.TestCase):
    with mock.patch.object(a,'pin',side_effect=AssertionError('Unknown path must not inspect borrowed loaders')):self.assertFalse(a.unselected_prebuild_data(repo,name,policy,0o644,bytes.fromhex(policy['header20_hex']),'amd64'))
  def test_catch_derivative_is_unique_fullfile_inverse_and_original_graph_unchanged(self):
   value=self.graph();source=pathlib.Path(value['root'])/'typescript/cli/dist/cli.js';original=source.read_bytes();derived=a.cli_derivative_entry(value)
-  self.assertEqual(derived.replace(a.CLI_CAUSE_INSERT,b'',1),original);self.assertEqual(derived.count(a.CLI_CAUSE_INSERT),1);self.assertIn(a.CLI_CAUSE_INSERT+a.CLI_CATCH_BODY,derived)
+  self.assertEqual(derived.replace(a.CLI_CAUSE_INSERT,b'',1).replace(b'import _args from',b'import yargs from',1).replace(b'catch (error) {'+a.CLI_CATCH_OBSERVER+b'\n'+a.CLI_CATCH_BODY,b'catch (error) {\n'+a.CLI_CATCH_BODY,1),original);self.assertEqual(derived.count(a.CLI_CAUSE_INSERT),1);self.assertIn(a.CLI_CATCH_OBSERVER+b'\n'+a.CLI_CATCH_BODY,derived);self.assertEqual(original.splitlines()[0].replace(b'yargs from',b'_args from'),derived.splitlines()[0]);self.assertIn(a.CLI_ORIGINAL_OPEN,derived);self.assertIn(a.CLI_ORIGINAL_END,derived);self.assertLessEqual(len(derived)-len(original),4096)
   out=a.materialize(value,self.root/'derivative',0,8*a.GIB);self.assertEqual(pathlib.Path(out['entrypoint']['path']).read_bytes(),derived);self.assertEqual(source.read_bytes(),original);self.assertEqual((pathlib.Path(out['workspace']['root'])/'typescript/cli/dist/cli.js').read_bytes(),original);a.verify_materialized(out);receipt=self.root/'materialized.json';receipt.write_text(json.dumps(out));a.read_materialized(a.pin(receipt))
  def test_catch_missing_duplicate_changed_or_already_instrumented_refused(self):
-  original=b"try { publicFixture(); }\ncatch (error) {\n"+a.CLI_CATCH_BODY+b"\n}\n"
+  original=b"import yargs from 'yargs';\n"+a.CLI_ORIGINAL_OPEN+b'\n        '+a.CLI_ORIGINAL_END+b'\n}\ncatch (error) {\n'+a.CLI_CATCH_BODY+b'\n}\n'
   for bad in [b'no catch',original+original,original.replace(b'error.message',b'error.reason'),a.cli_failure_derivative(original),original.replace(b'catch (error)',b'catch (other)')]:
    with self.subTest(size=len(bad)),self.assertRaises(ValueError):a.cli_failure_derivative(bad)
   with self.assertRaises(ValueError):a.cli_failure_derivative(original+b'x'*1024**2)
@@ -301,6 +306,36 @@ class Assets(unittest.TestCase):
   fragment=os.statvfs(self.root).f_frsize;copy=a.copy_charge(value,fragment);cap=8*a.GIB;existing=cap-2*a.GIB-copy+1
   with self.assertRaises(ValueError):a.materialize(value,self.root/'one-byte-over',existing,cap)
   self.assertFalse((self.root/'one-byte-over').exists())
+
+class YargsAdmission(unittest.TestCase):
+ setUp=Assets.setUp
+ workspace=Assets.workspace
+ graph=Assets.graph
+ def test_each_missing_changed_or_honestly_rehashed_reviewed_Source_refuses(self):
+  value=self.graph();root=pathlib.Path(value['root']);a.cli_yargs_admitted(value)
+  for name in a.CLI_YARGS_SOURCE_PINS:
+   bad=copy.deepcopy(value);bad['entries'].pop(name)
+   with self.assertRaises(ValueError):a.cli_derivative_entry(bad)
+   bad=copy.deepcopy(value);bad['entries'][name]['sha256']='0'*64
+   with self.assertRaises(ValueError):a.cli_derivative_entry(bad)
+   path=root/name;old=path.read_bytes();path.write_bytes(old+b'FOREIGN');row=a.pin(path);bad=copy.deepcopy(value);bad['entries'][name].update(bytes=row['bytes'],sha256=row['sha256'])
+   with self.assertRaises(ValueError):a.cli_derivative_entry(bad)
+   path.write_bytes(old)
+ def test_unresolved_wrong_alias_or_uncaptured_body_cannot_borrow_reviewed_files(self):
+  value=self.graph();root=pathlib.Path(value['root']);alias='typescript/cli/node_modules/yargs'
+  for row in [None,{'kind':'directory'},{'kind':'symlink','resolved':'node_modules/internal'}]:
+   bad=copy.deepcopy(value)
+   if row is None:bad['entries'].pop(alias)
+   else:bad['entries'][alias]=row
+   with self.assertRaises(ValueError):a.cli_derivative_entry(bad)
+  path=root/alias;path.unlink();path.symlink_to('../../../typescript/sdk')
+  with self.assertRaises(ValueError):a.cli_derivative_entry(value)
+ def test_exact_package_import_cannot_borrow_unused_yargs_files(self):
+  value=self.graph();path=pathlib.Path(value['root'])/'typescript/cli/dist/cli.js';wire=path.read_bytes().replace(b"import yargs from 'yargs';",b"import yargs from '/FOREIGN/yargs.mjs';");path.write_bytes(wire);row=a.pin(path);value['entries']['typescript/cli/dist/cli.js'].update(bytes=row['bytes'],sha256=row['sha256'])
+  with self.assertRaisesRegex(ValueError,'Exact CLI Yargs package import'):a.cli_derivative_entry(value)
+ def test_reviewed_Source_body_rechecked_before_each_derivative(self):
+  value=self.graph();name=next(iter(a.CLI_YARGS_SOURCE_PINS));path=pathlib.Path(value['root'])/name;wire=path.read_bytes();path.write_bytes(bytes([wire[0]^1])+wire[1:])
+  with self.assertRaisesRegex(ValueError,'Source body changed'):a.cli_derivative_entry(value)
 
 class LockedPackageBatch(unittest.TestCase):
  # Published archives are exhaustively audited outside this test. These tests

@@ -556,12 +556,12 @@ class CaseOwnerTests(unittest.TestCase):
         module.role_failure_observation.assert_not_called();self.assertEqual(json.loads(Path(row['path']).read_bytes())['SVM_role_failure']['collection_status'],'unavailable');self.assertIs(result['error'],primary)
 
 
-    def test_EVM825_actual_failure_publisher_retains_separate_text_guard_and_primary(self):
+    def test_EVM828_actual_failure_publisher_retains_separate_text_guard_and_primary(self):
         case,out,approval,module,recorder,token,state=self.public_diagnostic_fixture();recorder.finish(token,{**state,'observed_monotonic_ns':120},'exception',RuntimeError('PRIVATE_OBSERVER'))
         repo=self.root/'evm-repo';sources={}
         for name in ['rust/main/utils/run-locally/src/main.rs','rust/main/utils/run-locally/src/external_agents.rs']:
             p=repo/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((Path(__file__).resolve().parents[2]/name).read_bytes());sources[name]=api.pin(p)
-        (out/'harness.log').write_bytes(b"thread 'PRIVATE_THREAD' (42) panicked at utils/run-locally/src/main.rs:825:48:\ncalled `Result::unwrap()` on an `Err` value: Custom { kind: Other, error: \"fixture descendant executable not approved PRIVATE_KEY /PRIVATE_PATH\" }\n")
+        (out/'harness.log').write_bytes(b"thread 'PRIVATE_THREAD' (42) panicked at utils/run-locally/src/main.rs:828:48:\ncalled `Result::unwrap()` on an `Err` value: Custom { kind: Other, error: \"fixture descendant executable not approved PRIVATE_KEY /PRIVATE_PATH\" }\n")
         primary=RuntimeError('PRIVATE_PRIMARY');result={'direct_waits':[{'role':'harness','pid':42,'actual_parent_wait':True,'exit_code':101}],'error':primary,'passed':False};manifest={'runtime_source_commit':'a'*40,'scenario':'evm','mode':'ReleaseSafe'};plan={'execution_source_commit':'b'*40,'diagnostic_rust_sources':sources}
         with mock.patch.object(api,'__file__',str(repo/'zig/bench/native_case_owner.py')):row=api.write_public_failure_diagnostics(plan,manifest,approval,case,out,result,90)
         value=json.loads(Path(row['path']).read_bytes());self.assertIn('EVM_child_wait_text',value);observed=value['EVM_child_wait_text'];self.assertIsInstance(observed,dict);self.assertEqual(observed['guard_text_code'],'FIXTURE_EXECUTABLE_UNAPPROVED_TEXT');self.assertTrue(observed['text_only']);self.assertEqual(value['rust_panic_reason_codes'],[]);self.assertIsNone(value['rust_panic_reason_source']);self.assertIn('SVM tempfile',value['rust_reason_scope']);self.assertEqual(value['actual_direct_parent_waits'],result['direct_waits']);self.assertIs(result['error'],primary);self.assertFalse(result['passed']);self.assertFalse(value['native_or_timing_credit']);self.assertNotIn('PRIVATE',json.dumps(value));self.assertLess(row['bytes'],512*1024)

@@ -1,6 +1,7 @@
 """Bounded public observer diagnostics; no messages, request data or proof credit."""
 from pathlib import Path
 import ast
+import base64
 import copy
 import hashlib
 import io
@@ -688,7 +689,8 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
             markers[b'<E2E> Deploying core contracts to '+chain+b'...']='CORE_DEPLOY_'+ordinal+'_ENTERED';markers[b'<E2E> Deployed core contracts to '+chain]='CORE_DEPLOY_'+ordinal+'_RETURNED'
     else:
         if b'panic!("actual owned Radix localnet: {error:#}")'not in bodies[caller]or b'"radix-client-parent-waits.jsonl"'not in bodies[fixture]or b'super::append_fixture_observation'not in bodies[fixture]or b'fn append_fixture_observation('not in bodies[root+'external_agents.rs']:raise ValueError('Exact Radix failure writer contract missing')
-        literals={b'owned Radix Core/Gateway startup deadline':'CORE_GATEWAY_STARTUP_DEADLINE',b'Radix Core readiness belongs to another native network':'CORE_NETWORK_MISMATCH',b'Radix Gateway readiness has no local committed ledger':'GATEWAY_LEDGER_MISSING',b'Radix Docker command exceeded time/output bound':'DOCKER_TIME_OR_OUTPUT_BOUND',b'Radix Docker output bound':'DOCKER_OUTPUT_BOUND',b'Radix fixture network is not owned and isolated from external networks':'NETWORK_CUSTODY_GUARD',b'Radix Compose service coverage differs':'SERVICE_COVERAGE_GUARD',b'actual Radix service resource bounds differ':'SERVICE_RESOURCE_GUARD',b'Radix container owner/image differs':'CONTAINER_CUSTODY_GUARD',b'Radix inspect coverage differs':'INSPECT_COVERAGE_GUARD',b'Radix service container replaced':'CONTAINER_REPLACED_GUARD'}
+        startup_format=b'owned Radix Core/Gateway startup deadline; phase={}, status={:?}'
+        literals={startup_format:'CORE_GATEWAY_STARTUP_DEADLINE',b'Radix Core readiness belongs to another native network':'CORE_NETWORK_MISMATCH',b'Radix Gateway readiness has no local committed ledger':'GATEWAY_LEDGER_MISSING',b'Radix Docker command exceeded time/output bound':'DOCKER_TIME_OR_OUTPUT_BOUND',b'Radix Docker output bound':'DOCKER_OUTPUT_BOUND',b'Radix fixture network is not owned and isolated from external networks':'NETWORK_CUSTODY_GUARD',b'Radix Compose service coverage differs':'SERVICE_COVERAGE_GUARD',b'actual Radix service resource bounds differ':'SERVICE_RESOURCE_GUARD',b'Radix container owner/image differs':'CONTAINER_CUSTODY_GUARD',b'Radix inspect coverage differs':'INSPECT_COVERAGE_GUARD',b'Radix service container replaced':'CONTAINER_REPLACED_GUARD'}
         guards={literal:category for literal,category in literals.items()if b'"'+literal+b'"'in bodies[fixture]}
         if len(guards)!=len(literals)or b'"Radix Docker command failed ({status})"'not in bodies[fixture]:raise ValueError('Radix static guard Source changed')
     result={'schema':1,'kind':'public-fixed-fixture-failure-observation','scenario':scenario,'writer_sources':checked_sources,'harness_log_fingerprint':log_pin,'last_seen_stage':None,'panic_observations':[],'client_waits':None,'native_or_timing_or_cleanup_authority':False,'scope':'Source marker and finite panic-category observations only. Last seen is not stage success. No arbitrary error/command text, numeric Program status, root-cause, direct container wait or proof claim.'}
@@ -703,7 +705,8 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
             if body.startswith(b'actual owned Radix localnet:'):body=body[len(b'actual owned Radix localnet:'):].strip()
             body=re.sub(rb'^[0-9]{1,2}: ',b'',body)
             label=guards.get(body)
-            if label is not None:return {'category':label}
+            if label is not None and body!=startup_format:return {'category':label}
+            if startup_format in guards and re.fullmatch(rb'owned Radix Core/Gateway startup deadline; phase=(?:startup|core-status|gateway-status|gateway-read), status=(?:Pending|Transport|BodyBound|Schema|Deadline|HttpStatus\([1-5][0-9]{2}\))',body):return {'category':'CORE_GATEWAY_STARTUP_DEADLINE'}
             if re.fullmatch(rb'Radix Docker command failed \(exit status: [0-9]{1,3}\)',body):return {'category':'DOCKER_NONZERO_STATUS'}
             return None
         prefix=b'Command returned non-zero exit code: '
@@ -1432,6 +1435,17 @@ def tron_cli_unavailable(reason,frontier):
     return {'collection_status':'unavailable','discard_reason':reason,'frontier':frontier,'native_or_timing_or_cleanup_authority':False,'scope':'Finite collector frontier only; no retained CLI cause, raw error or execution authority.'}
 
 
+def tron_encrypted_prefix(value,key_id):
+    if type(value)is not dict or type(value.get('schema'))is not int or value['schema']!=1:raise ValueError('Closed encrypted CLI schema required')
+    if set(value)=={'schema','status'}and value['status']=='ENCRYPTION_UNAVAILABLE':return dict(value)
+    if set(value)!={'schema','status','key_id','prefix_bytes','truncated','ciphertext_base64','ciphertext_sha256'}or value['status']!='ENCRYPTED_PREFIX'or value['key_id']!=key_id or type(value['prefix_bytes'])is not int or not 0<=value['prefix_bytes']<=384 or type(value['truncated'])is not bool:raise ValueError('Closed encrypted CLI prefix required')
+    wire=value['ciphertext_base64']
+    if type(wire)is not str or len(wire)!=684:raise ValueError('Fixed encrypted CLI encoding required')
+    cipher=base64.b64decode(wire,validate=True)
+    if len(cipher)!=512 or base64.b64encode(cipher).decode('ascii')!=wire or type(value['ciphertext_sha256'])is not str or re.fullmatch('[0-9a-f]{64}',value['ciphertext_sha256'])is None or hashlib.sha256(cipher).hexdigest()!=value['ciphertext_sha256']:raise ValueError('Fixed encrypted CLI fingerprint required')
+    return dict(value)
+
+
 class TronCLIProjection:
     """One existing harness scan. Text/Source coordinates are not execution proof."""
     def __init__(self,case,inputs,approval,required_inputs,bodies,sources,repo):
@@ -1459,14 +1473,16 @@ class TronCLIProjection:
             source=Path(repo)/'zig/bench/native_tron_assets.py';raw,source_pin=captured_failure_bytes(source,1024**2)
             matches=[row for row in required_inputs if row.get('path')==str(source)]
             if not matches or any(row!={'path':str(source),**source_pin}for row in matches):raise ValueError('Preadmitted CLI diagnostic Source required')
-            names={'CLI_CAUSE_MARKER','CLI_CAUSE_CLASSES','CLI_CAUSE_CODES','CLI_CAUSE_INSERT'};constants={}
+            names={'CLI_CAUSE_MARKER','CLI_CAUSE_KEY_ID','CLI_CAUSE_INSERT','CLI_ORIGINAL_OPEN','CLI_ORIGINAL_END','CLI_CATCH_OBSERVER','CLI_CATCH_BODY'};constants={}
             for node in ast.parse(raw).body:
                 if isinstance(node,ast.Assign)and len(node.targets)==1 and isinstance(node.targets[0],ast.Name)and node.targets[0].id in names:
                     if node.targets[0].id in constants:raise ValueError('Unique CLI diagnostic constant required')
                     constants[node.targets[0].id]=ast.literal_eval(node.value)
-            if set(constants)!=names or constants['CLI_CAUSE_MARKER']!='HYPERLANE_TRON_CAUGHT_V1 'or type(constants['CLI_CAUSE_INSERT'])is not bytes or not 0<len(constants['CLI_CAUSE_INSERT'])<=4096 or wire.count(constants['CLI_CAUSE_INSERT'])!=1:raise ValueError('Exact catch derivative Source required')
-            for key in ['CLI_CAUSE_CLASSES','CLI_CAUSE_CODES']:
-                if type(constants[key])is not tuple or not 0<len(constants[key])<=64 or len(set(constants[key]))!=len(constants[key])or any(type(v)is not str or re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',v)is None for v in constants[key]):raise ValueError('Closed CLI diagnostic catalog required')
+            if set(constants)!=names or constants['CLI_CAUSE_MARKER']!='HYPERLANE_TRON_ENCRYPTED_V1 'or type(constants['CLI_CAUSE_KEY_ID'])is not str or re.fullmatch('[0-9a-f]{64}',constants['CLI_CAUSE_KEY_ID'])is None or type(constants['CLI_CAUSE_INSERT'])is not bytes or not 0<len(constants['CLI_CAUSE_INSERT'])<=4096:raise ValueError('Exact encrypted derivative Source required')
+            for key in ['CLI_CAUSE_INSERT','CLI_ORIGINAL_OPEN','CLI_ORIGINAL_END']:
+                if type(constants[key])is not bytes or not constants[key]or wire.count(constants[key])!=1:raise ValueError('One exact CLI derivative required')
+            if type(constants['CLI_CATCH_OBSERVER'])is not bytes or type(constants['CLI_CATCH_BODY'])is not bytes or wire.count(constants['CLI_CATCH_OBSERVER']+b'\n'+constants['CLI_CATCH_BODY'])!=1:raise ValueError('Original catch fallback required')
+            if sum(line in {b"import _args from 'yargs';",b'import _args from \"yargs\";'}for line in wire.splitlines())!=1:raise ValueError('Exact delegated Yargs import required')
             self.cause_contract={**constants,'pin':source_pin};self.cause_identity=RelayerStartup.identity(source);self.cause_path=source
         except Exception:self.cause_reason='DIAGNOSTIC_SOURCE_UNAVAILABLE'
 
@@ -1521,16 +1537,15 @@ class TronCLIProjection:
             except Exception:return
         try:message=text.decode('utf8','strict').strip()
         except UnicodeError:return
-        if message.startswith('HYPERLANE_TRON_CAUGHT_V1 '):
+        if message.startswith('HYPERLANE_TRON_ENCRYPTED_V1 '):
             self.cause_seen+=1
             if self.cause_seen!=1:self.cause=None;self.cause_reason='AMBIGUOUS_DIAGNOSTIC_RECORD';return
             if self.cause_contract is None:return
             try:
                 if len(text)>4096:raise ValueError('CLI diagnostic record bound')
-                value=startup_unique_json(message[len('HYPERLANE_TRON_CAUGHT_V1 '):])
-                if set(value)!={'schema','native_error','class','code','stack'}or type(value['schema'])is not int or value['schema']!=1 or type(value['native_error'])is not bool or value['class']not in self.cause_contract['CLI_CAUSE_CLASSES']or value['stack']!='NOT_READ_NO_GETTERS'or not(value['code']is None or type(value['code'])is str and value['code']in self.cause_contract['CLI_CAUSE_CODES']):raise ValueError('Closed CLI cause record required')
-                if not value['native_error']and(value['class']!='UNKNOWN'or value['code']is not None):raise ValueError('Non-error cause must be unknown')
-                self.cause={'collection_status':'observed','native_error_object':value['native_error'],'reported_standard_class':value['class'],'own_data_code':value['code'],'stack_status':value['stack'],'log_line':line,'typed_exception_or_root_cause_claim':False};self.cause_reason=None
+                value=startup_unique_json(message[len('HYPERLANE_TRON_ENCRYPTED_V1 '):]);encrypted=tron_encrypted_prefix(value,self.cause_contract['CLI_CAUSE_KEY_ID'])
+                if encrypted['status']=='ENCRYPTION_UNAVAILABLE':self.cause=None;self.cause_reason='ENCRYPTION_UNAVAILABLE'
+                else:self.cause={'collection_status':'observed','encrypted_prefix':encrypted,'log_line':line,'typed_exception_or_root_cause_claim':False};self.cause_reason=None
             except Exception:self.cause=None;self.cause_reason='INVALID_DIAGNOSTIC_RECORD'
             return
         fixed={
@@ -1580,4 +1595,4 @@ class TronCLIProjection:
         if self.join_count and RelayerStartup.identity(Path(self.join_source['source']['path']))!=self.join_identity:raise ValueError('Helper join Source changed before publication')
         caught=self.cause or{'collection_status':'unavailable','reason':self.cause_reason}
         if self.cause_contract is not None and RelayerStartup.identity(self.cause_path)!=self.cause_identity:caught={'collection_status':'unavailable','reason':'DIAGNOSTIC_SOURCE_CHANGED'}
-        return {'schema':1,'kind':'public-Tron-CLI-failure-text-observation','caught_cause':caught,'caught_cause_scope':'Fixed catch-only derivative marker on the original errorRed writer. No message/stack/getter/toJSON access or unique PID/typed exception/root-cause credit.','frontier':self.frontier,'source_capture_failures':self.source_capture_failures,'known_join_cascade_count':self.join_count,'known_join_Source':{'module':self.join_source['module'],'line':82,'column':23,'source_bytes':self.join_source['source']['bytes'],'source_sha256':self.join_source['source']['sha256']}if self.join_count else None,'collection_status':'observed','window':{'stage':'CORE_DEPLOY_FIRST_ENTERED','start_log_line':self.start_line,'end_log_line':self.end_line,'matched_Source_panic_category':'HYPERLANE_CORE_DEPLOY'},'prefix_kind':'admitted_pnpm_native_basename','last_seen_header':self.last_header,'error_header_fingerprints':self.headers,'emitted_JS_coordinates':self.frames,'unadmitted_coordinates_omitted':self.unadmitted,'frame_candidates_truncated':self.frame_attempts_truncated,'CLI_pipe_read_error_observed':self.pipe_error,'CLI_numeric_status':None,'native_or_timing_or_cleanup_authority':False,'scope':'Exact prefixed text within one Source first-deploy/panic window only. Source bytes/UTF16 coordinates matched existing admitted JS descriptors, not unique execution/PIDepoch/typed exception or parent wait. Original CLI catch prints message only; derivative adds only closed class/code observations; absent stack/unknown text stays unknown. No TS/sourcemap claim, function/address/rawpath/key/URL/argv/env/body/error text.'}
+        return {'schema':1,'kind':'public-Tron-CLI-failure-text-observation','caught_cause':caught,'caught_cause_scope':'Fixed encrypted-prefix marker on the original errorRed writer; original usage.fail delegate and outer catch preserved. Primitive/own-DATA message only, no stack/getter/toJSON access or unique PID/typed exception/root-cause credit.','frontier':self.frontier,'source_capture_failures':self.source_capture_failures,'known_join_cascade_count':self.join_count,'known_join_Source':{'module':self.join_source['module'],'line':82,'column':23,'source_bytes':self.join_source['source']['bytes'],'source_sha256':self.join_source['source']['sha256']}if self.join_count else None,'collection_status':'observed','window':{'stage':'CORE_DEPLOY_FIRST_ENTERED','start_log_line':self.start_line,'end_log_line':self.end_line,'matched_Source_panic_category':'HYPERLANE_CORE_DEPLOY'},'prefix_kind':'admitted_pnpm_native_basename','last_seen_header':self.last_header,'error_header_fingerprints':self.headers,'emitted_JS_coordinates':self.frames,'unadmitted_coordinates_omitted':self.unadmitted,'frame_candidates_truncated':self.frame_attempts_truncated,'CLI_pipe_read_error_observed':self.pipe_error,'CLI_numeric_status':None,'native_or_timing_or_cleanup_authority':False,'scope':'Exact prefixed text within one Source first-deploy/panic window only. Source bytes/UTF16 coordinates matched existing admitted JS descriptors, not unique execution/PIDepoch/typed exception or parent wait. Original CLI output/error/exit flow preserved; derivative adds only bounded RSA-OAEP ciphertext. Plaintext and underlying cause remain unavailable here. No TS/sourcemap claim, function/address/rawpath/key/URL/argv/env/body/error text.'}
