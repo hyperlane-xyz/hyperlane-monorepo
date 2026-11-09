@@ -1,16 +1,26 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { type Logger, pino } from 'pino';
 import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_MOVEMENT_STALENESS_MS,
   ExternalBridgeType,
 } from '../config/types.js';
+import {
+  ID_A,
+  ID_B,
+  ID_C,
+  buildMessage,
+} from '../test/pendingTransferMiddlewareMocks.js';
 import {
   ExplorerClient,
   type ExplorerMessage,
@@ -22,6 +32,7 @@ import {
   TRANSFER_SYNC_ROW_LIMIT_MESSAGE,
 } from './ActionTracker.js';
 import { ExplorerRowLimitError } from './pendingTransferMiddlewares/PendingTransferMiddleware.js';
+import { RelayerDenylistMiddleware } from './pendingTransferMiddlewares/RelayerDenylistMiddleware.js';
 import { InMemoryStore } from './store/InMemoryStore.js';
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
@@ -735,6 +746,189 @@ describe('ActionTracker', () => {
     });
   });
 
+  describe('with a relayer denylist middleware', () => {
+    let dir: string;
+    let denylistPath: string;
+
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), 'action-tracker-denylist-'));
+      denylistPath = join(dir, 'denylist.json');
+      writeDenylist([]);
+      explorerClient.getInflightRebalanceActions.resolves([
+        buildMessage(ID_A),
+        buildMessage(ID_B),
+        buildMessage(ID_C),
+      ]);
+    });
+
+    afterEach(() => {
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    function writeDenylist(messageIds: string[]): void {
+      writeFileSync(
+        denylistPath,
+        JSON.stringify({
+          rules: messageIds.map((messageId) => ({
+            reason: 'settled',
+            addedBy: 'tester',
+            match: { messageId },
+          })),
+        }),
+      );
+    }
+
+    async function createDenylistTracker(): Promise<ActionTracker> {
+      const middleware = await RelayerDenylistMiddleware.create(
+        explorerClient,
+        { url: pathToFileURL(denylistPath).href, refreshIntervalMs: 0 },
+        testLogger,
+      );
+
+      return new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        middleware,
+        core,
+        {
+          routersByDomain: config.routersByDomain,
+          isIgnoredTransfer: (id) => middleware.isIgnored(id),
+          isIgnoredRebalanceAction: (id) =>
+            middleware.isIgnoredRebalanceAction(id),
+          bridges: config.bridges,
+          rebalancerAddress: config.rebalancerAddress,
+          intentTTL: config.intentTTL,
+        },
+        testLogger,
+      );
+    }
+
+    async function activeIntentMessageIds(
+      tracker: ActionTracker,
+    ): Promise<string[]> {
+      const actions = await rebalanceActionStore.getAll();
+      const intents = await tracker.getActiveRebalanceIntents();
+
+      return intents.map((intent) => {
+        const action = actions.find((a) => a.intentId === intent.id);
+        assert(action?.messageId, `Missing action for intent ${intent.id}`);
+        return action.messageId;
+      });
+    }
+
+    it('does not recover denylisted rebalance messages at startup', async () => {
+      writeDenylist([ID_A, ID_B]);
+      const tracker = await createDenylistTracker();
+
+      await tracker.initialize();
+
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions.map((a) => a.id)).to.deep.equal([ID_C]);
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents.map((i) => [i.status, i.amount])).to.deep.equal([
+        ['in_progress', 100n],
+      ]);
+      expect(await activeIntentMessageIds(tracker)).to.deep.equal([ID_C]);
+    });
+
+    it('stops counting a tracked rebalance message once it is denylisted without changing its status', async () => {
+      const tracker = await createDenylistTracker();
+      await tracker.initialize();
+      expect(await activeIntentMessageIds(tracker)).to.have.members([
+        ID_A,
+        ID_B,
+        ID_C,
+      ]);
+
+      writeDenylist([ID_A]);
+      mailboxStub.isDelivered.resetHistory();
+      await tracker.syncRebalanceActions();
+
+      expect(await activeIntentMessageIds(tracker)).to.have.members([
+        ID_B,
+        ID_C,
+      ]);
+      const ignoredAction = await rebalanceActionStore.get(ID_A);
+      assert(ignoredAction, 'Expected the ignored action to stay stored');
+      expect(ignoredAction.status).to.equal('in_progress');
+      expect(
+        (await rebalanceIntentStore.get(ignoredAction.intentId))?.status,
+      ).to.equal('in_progress');
+      expect(mailboxStub.isDelivered.calledWith(ID_A)).to.be.true;
+    });
+
+    it('completes a denylisted rebalance message the relayer still delivers', async () => {
+      const tracker = await createDenylistTracker();
+      await tracker.initialize();
+      writeDenylist([ID_A]);
+      mailboxStub.isDelivered.callsFake(async (id: string) => id === ID_A);
+
+      await tracker.syncRebalanceActions();
+
+      const action = await rebalanceActionStore.get(ID_A);
+      assert(action, 'Expected the delivered action to stay stored');
+      expect(action.status).to.equal('complete');
+      expect(
+        (await rebalanceIntentStore.get(action.intentId))?.status,
+      ).to.equal('complete');
+    });
+
+    it('still fails a denylisted rebalance message past the intent TTL', async () => {
+      await rebalanceIntentStore.save({
+        id: 'expired-intent',
+        status: 'in_progress',
+        origin: 42161,
+        destination: 1,
+        amount: 100n,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      await rebalanceActionStore.save({
+        id: ID_A,
+        type: 'rebalance_message',
+        status: 'in_progress',
+        intentId: 'expired-intent',
+        messageId: ID_A,
+        origin: 42161,
+        destination: 1,
+        amount: 100n,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      writeDenylist([ID_A]);
+      const tracker = await createDenylistTracker();
+      await tracker.syncRebalanceActions();
+      expect(await activeIntentMessageIds(tracker)).to.have.members([
+        ID_B,
+        ID_C,
+      ]);
+
+      await tracker.syncRebalanceIntents();
+
+      expect((await rebalanceActionStore.get(ID_A))?.status).to.equal('failed');
+      expect(
+        (await rebalanceIntentStore.get('expired-intent'))?.status,
+      ).to.equal('failed');
+    });
+
+    it('counts a rebalance message again once its rule is removed', async () => {
+      writeDenylist([ID_A, ID_B]);
+      const tracker = await createDenylistTracker();
+      await tracker.initialize();
+      expect(await activeIntentMessageIds(tracker)).to.deep.equal([ID_C]);
+
+      writeDenylist([]);
+      await tracker.syncRebalanceActions();
+
+      expect(await activeIntentMessageIds(tracker)).to.have.members([
+        ID_A,
+        ID_B,
+        ID_C,
+      ]);
+    });
+  });
+
   describe('syncInventoryMovementActions', () => {
     it('stores pending status on in-progress movement', async () => {
       await rebalanceActionStore.save({
@@ -915,6 +1109,125 @@ describe('ActionTracker', () => {
       const result = await tracker.getActiveRebalanceIntents();
       expect(result).to.have.lengthOf(1);
       expect(result[0].id).to.equal('intent-2');
+    });
+
+    describe('with an ignored-rebalance-action predicate', () => {
+      const ignoredIds = new Set(['0xignored1', '0xignored2']);
+
+      function createTracker(
+        isIgnoredRebalanceAction?: (messageId: string) => boolean,
+      ): ActionTracker {
+        return new ActionTracker(
+          transferStore,
+          rebalanceIntentStore,
+          rebalanceActionStore,
+          explorerClient,
+          core,
+          {
+            routersByDomain: config.routersByDomain,
+            isIgnoredRebalanceAction,
+            bridges: config.bridges,
+            rebalancerAddress: config.rebalancerAddress,
+            intentTTL: config.intentTTL,
+          },
+          testLogger,
+        );
+      }
+
+      async function saveIntent(
+        id: string,
+        executionMethod?: 'movable_collateral' | 'inventory',
+      ): Promise<void> {
+        await rebalanceIntentStore.save({
+          id,
+          status: 'in_progress',
+          origin: 1,
+          destination: 2,
+          amount: 300n,
+          executionMethod,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+
+      async function saveAction(
+        id: string,
+        intentId: string,
+        type: 'rebalance_message' | 'inventory_deposit',
+        status: 'in_progress' | 'complete',
+      ): Promise<void> {
+        await rebalanceActionStore.save({
+          id,
+          type,
+          status,
+          intentId,
+          messageId: id,
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+
+      it('drops only intents whose in-progress messages are all ignored', async () => {
+        await saveIntent('all-ignored', 'movable_collateral');
+        await saveAction(
+          '0xignored1',
+          'all-ignored',
+          'rebalance_message',
+          'in_progress',
+        );
+        await saveAction(
+          '0xdone',
+          'all-ignored',
+          'rebalance_message',
+          'complete',
+        );
+        await saveIntent('mixed');
+        await saveAction(
+          '0xignored2',
+          'mixed',
+          'rebalance_message',
+          'in_progress',
+        );
+        await saveAction('0xkept', 'mixed', 'rebalance_message', 'in_progress');
+        await saveIntent('no-actions', 'movable_collateral');
+
+        const result = await createTracker((id) =>
+          ignoredIds.has(id),
+        ).getActiveRebalanceIntents();
+
+        expect(result.map((i) => [i.id, i.amount])).to.have.deep.members([
+          ['mixed', 300n],
+          ['no-actions', 300n],
+        ]);
+      });
+
+      it('leaves inventory intents and their retry state untouched', async () => {
+        await saveIntent('inventory', 'inventory');
+        await saveAction(
+          '0xignored1',
+          'inventory',
+          'inventory_deposit',
+          'in_progress',
+        );
+
+        const withoutPredicate = createTracker();
+        const withPredicate = createTracker((id) => ignoredIds.has(id));
+
+        expect(
+          (await withPredicate.getActiveRebalanceIntents()).map((i) => i.id),
+        ).to.deep.equal(['inventory']);
+        expect(
+          await withPredicate.getPartiallyFulfilledInventoryIntents(),
+        ).to.deep.equal(
+          await withoutPredicate.getPartiallyFulfilledInventoryIntents(),
+        );
+        expect(
+          await withPredicate.getPartiallyFulfilledInventoryIntents(),
+        ).to.have.lengthOf(1);
+      });
     });
   });
 

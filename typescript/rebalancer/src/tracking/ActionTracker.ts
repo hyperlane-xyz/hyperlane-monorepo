@@ -37,6 +37,7 @@ export const TRANSFER_SYNC_ROW_LIMIT_MESSAGE =
 export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   isIgnoredTransfer?: (messageId: string) => boolean; // True when a pending-transfer middleware ignored the message on the latest Explorer query
+  isIgnoredRebalanceAction?: (messageId: string) => boolean; // Same, for the latest rebalance action query
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
@@ -401,7 +402,27 @@ export class ActionTracker implements IActionTracker {
   async getActiveRebalanceIntents(): Promise<RebalanceIntent[]> {
     // Only return in_progress intents - their origin tx is confirmed
     // so simulation only needs to add to destination (origin already deducted on-chain)
-    return this.rebalanceIntentStore.getByStatus('in_progress');
+    const intents = await this.rebalanceIntentStore.getByStatus('in_progress');
+    const isIgnored = this.config.isIgnoredRebalanceAction;
+    if (!isIgnored) return intents;
+
+    const actions = await this.rebalanceActionStore.getByStatus('in_progress');
+    const ignoredIntentIds = new Set<string>();
+    const countedIntentIds = new Set<string>();
+    for (const action of actions) {
+      if (!action.messageId) continue;
+      if (isIgnored(action.messageId)) ignoredIntentIds.add(action.intentId);
+      else countedIntentIds.add(action.intentId);
+    }
+
+    // Ignored actions keep their status, so the intent counts again once a
+    // middleware stops ignoring its message, e.g. when a deny rule expires.
+    return intents.filter(
+      (intent) =>
+        intent.executionMethod === 'inventory' ||
+        !ignoredIntentIds.has(intent.id) ||
+        countedIntentIds.has(intent.id),
+    );
   }
 
   async getRebalanceIntentsByDestination(
