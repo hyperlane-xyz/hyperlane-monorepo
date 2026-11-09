@@ -23,7 +23,12 @@ import {
   isMissingSelectorCallException,
   isRevertData,
 } from '@hyperlane-xyz/sdk/utils/contract';
-import { assert, concurrentMap, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  concurrentMap,
+  LogLevel,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { PendingTransferMiddlewareType } from '../../config/types.js';
 import type {
@@ -37,7 +42,10 @@ import { normalizeMessageId } from './types.js';
 const REFRESH_CONCURRENCY = 3;
 
 export const BLACKLIST_ISM_REFRESH_FAILED_MESSAGE =
-  'BlacklistIsm refresh failed, keeping last known blacklisted ids';
+  "BlacklistIsm refresh failed, keeping the destination's last known BlacklistIsms and ids";
+
+export const BLACKLIST_ISM_NO_BLOCKING_ROUTES_MESSAGE =
+  'No route pair has a BlacklistIsm that can block a message after refresh, ignoring no pending transfers';
 
 /**
  * The ISM rejects every message from the origin, because a routing ISM it
@@ -64,8 +72,6 @@ interface RouteBlacklist {
   readonly chainName: string;
   readonly blacklistIsms: readonly string[];
   readonly ids: Set<string>;
-  loadedAt: number;
-  lastAttemptAt: number;
 }
 
 /** One BlacklistIsm read on a destination, shared by the pairs using it. */
@@ -474,19 +480,92 @@ async function readRecipientIsmBlacklists(
 }
 
 /**
- * Resolves every (origin, destination) pair with an EVM destination to the
- * BlacklistIsms that reject its messages on their own, with no ids yet.
+ * Resolves the pairs with one EVM destination to the BlacklistIsms that reject
+ * their messages on their own and reads their ids at the finalized block.
+ */
+async function resolveDestinationRoutes(
+  options: BlacklistIsmMiddlewareOptions,
+  destination: number,
+  logger: Logger,
+  resolvedLevel: LogLevel.Info | LogLevel.Debug,
+): Promise<Map<string, RouteBlacklist>> {
+  const { multiProvider } = options;
+  const router = options.routersByDomain[destination];
+  const origins = Object.keys(options.routersByDomain)
+    .map(Number)
+    .filter((origin) => origin !== destination);
+  const routes = new Map<string, RouteBlacklist>();
+
+  let resolved: Array<[number, ResolvedBlacklists]>;
+  try {
+    resolved = await readRecipientIsmBlacklists(
+      options,
+      destination,
+      router,
+      origins,
+    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to resolve the ISM of router ${router} on domain ${destination}: ${message}`,
+    );
+  }
+
+  for (const [origin, sufficient] of resolved) {
+    if (!(sufficient instanceof Set)) {
+      logger.warn(
+        {
+          router,
+          destination,
+          origin,
+          routingIsm: sufficient.unroutedRoutingIsm,
+        },
+        'Routing ISM has no module for origin, skipping BlacklistIsm check for this route pair',
+      );
+      continue;
+    }
+
+    if (sufficient.size === 0) {
+      logger.debug(
+        { origin, destination, router },
+        'No BlacklistIsm can block messages on this route pair, skipping',
+      );
+      continue;
+    }
+
+    const route: RouteBlacklist = {
+      destination,
+      chainName: multiProvider.getChainName(destination),
+      blacklistIsms: [...sufficient],
+      ids: new Set(),
+    };
+    routes.set(routeKey(origin, destination), route);
+    logger[resolvedLevel](
+      { origin, destination, router, blacklistIsms: route.blacklistIsms },
+      'Resolved BlacklistIsms for pending transfer middleware',
+    );
+  }
+
+  await seedRouteIds(routes, multiProvider);
+  return routes;
+}
+
+/**
+ * Resolves every pair with an EVM destination and reads its ids. With no
+ * `previous` routes, at startup, any destination's failure throws; on refresh,
+ * a destination that fails keeps its `previous` routes and ids.
  */
 async function resolveRouteBlacklists(
   options: BlacklistIsmMiddlewareOptions,
   logger: Logger,
+  previous?: ReadonlyMap<string, RouteBlacklist>,
 ): Promise<Map<string, RouteBlacklist>> {
-  const { multiProvider } = options;
-  const domains = Object.keys(options.routersByDomain).map(Number);
   const routes = new Map<string, RouteBlacklist>();
 
-  for (const destination of domains) {
-    if (multiProvider.getProtocol(destination) !== ProtocolType.Ethereum) {
+  for (const destination of Object.keys(options.routersByDomain).map(Number)) {
+    if (
+      options.multiProvider.getProtocol(destination) !== ProtocolType.Ethereum
+    ) {
       logger.debug(
         { destination },
         'Skipping BlacklistIsm resolution for non-EVM destination',
@@ -494,61 +573,30 @@ async function resolveRouteBlacklists(
       continue;
     }
 
-    const router = options.routersByDomain[destination];
-    const origins = domains.filter((origin) => origin !== destination);
-
-    let resolved: Array<[number, ResolvedBlacklists]>;
+    let resolved: Iterable<[string, RouteBlacklist]>;
     try {
-      resolved = await readRecipientIsmBlacklists(
+      resolved = await resolveDestinationRoutes(
         options,
         destination,
-        router,
-        origins,
+        logger,
+        previous ? LogLevel.Debug : LogLevel.Info,
       );
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Failed to resolve the ISM of router ${router} on domain ${destination}: ${message}`,
+      if (!previous) throw error;
+
+      logger.warn(
+        {
+          destination,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        BLACKLIST_ISM_REFRESH_FAILED_MESSAGE,
+      );
+      resolved = [...previous].filter(
+        ([, route]) => route.destination === destination,
       );
     }
 
-    for (const [origin, sufficient] of resolved) {
-      if (!(sufficient instanceof Set)) {
-        logger.warn(
-          {
-            router,
-            destination,
-            origin,
-            routingIsm: sufficient.unroutedRoutingIsm,
-          },
-          'Routing ISM has no module for origin, skipping BlacklistIsm check for this route pair',
-        );
-        continue;
-      }
-
-      if (sufficient.size === 0) {
-        logger.debug(
-          { origin, destination, router },
-          'No BlacklistIsm can block messages on this route pair, skipping',
-        );
-        continue;
-      }
-
-      const now = Date.now();
-      const route: RouteBlacklist = {
-        destination,
-        chainName: multiProvider.getChainName(destination),
-        blacklistIsms: [...sufficient],
-        ids: new Set(),
-        loadedAt: now,
-        lastAttemptAt: now,
-      };
-      routes.set(routeKey(origin, destination), route);
-      logger.info(
-        { origin, destination, router, blacklistIsms: route.blacklistIsms },
-        'Resolved BlacklistIsms for pending transfer middleware',
-      );
-    }
+    for (const [key, route] of resolved) routes.set(key, route);
   }
 
   return routes;
@@ -637,35 +685,36 @@ async function seedRouteIds(
  * `create()` resolves each destination router's ISM for every origin of the
  * route and keeps, per (origin, destination) pair, only those BlacklistIsms
  * and the union of their blacklisted ids. A custom router ISM is derived in
- * full once with `EvmIsmReader`; the mailbox default ISM, which routers
- * without one use and which mailbox default ISM wrappers and fallback routing
- * ISMs defer to through their own mailbox, is read only along each origin's
- * branch, deriving only the ISMs that can be a BlacklistIsm. ISMs are never re-read, so restart the
- * rebalancer after changing a router's ISM, the mailbox default ISM or a
- * routing ISM. Amount routing ISMs are treated as never blocking, since their
- * module depends on the transfer amount.
+ * full with `EvmIsmReader`; the mailbox default ISM, which routers without one
+ * use and which mailbox default ISM wrappers and fallback routing ISMs defer
+ * to through their own mailbox, is read only along each origin's branch,
+ * deriving only the ISMs that can be a BlacklistIsm. Amount routing ISMs are
+ * treated as never blocking, since their module depends on the transfer
+ * amount.
  *
- * Blacklisted ids are read at the destination's finalized block, so an id
- * whose blacklisting is reorged out is never ignored and a new blacklist entry
- * takes effect once it is finalized; the ISM graph itself is resolved at the
- * latest block. `create()` reads every pair's ids this way rather than using
- * the ids derived with the graph.
+ * Once `refreshIntervalMs` has passed since the last attempt, the next query
+ * repeats this resolution and replaces the pairs, so a changed router ISM,
+ * mailbox default ISM or routing ISM takes effect without a restart. The ISM
+ * graph is resolved at the latest block. Each destination is refreshed on its
+ * own: one whose resolution or id read fails keeps its previous pairs and ids,
+ * and a refresh that finds no pair that can block ignores nothing.
  *
- * A pair's ids are re-read only when one of its messages is queried and
- * `refreshIntervalMs` has passed since its last attempt; each BlacklistIsm is
- * read once per refresh however many pairs use it. BlacklistIsms are
- * append-only, so new ids are added to the pair's set; a failed read keeps the
- * last known ids, which can only miss ids added since, never over-ignore. An
- * RPC without `finalized` block tag support makes every read on its
- * destination fail, whether the BlacklistIsm enumerates its ids or they are
- * replayed from its logs.
+ * Blacklisted ids are read at the destination's finalized block, once per
+ * BlacklistIsm however many pairs use it, so an id whose blacklisting is
+ * reorged out is never ignored and a new blacklist entry takes effect once it
+ * is finalized; the ids derived with the graph are not used. An RPC without
+ * `finalized` block tag support makes every read on its destination fail,
+ * whether the BlacklistIsm enumerates its ids or they are replayed from its
+ * logs.
  */
 export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
+  private lastAttemptAt = Date.now();
+
   private constructor(
     inner: IExplorerClient,
     private readonly options: BlacklistIsmMiddlewareOptions,
     /** Pairs with at least one BlacklistIsm that rejects on its own. */
-    private readonly routes: ReadonlyMap<string, RouteBlacklist>,
+    private routes: ReadonlyMap<string, RouteBlacklist>,
   ) {
     super(inner, PendingTransferMiddlewareType.BlacklistIsm);
   }
@@ -677,7 +726,7 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
    * or if a BlacklistIsm's ids cannot be read at the finalized block, which
    * includes a destination RPC without `finalized` block tag support. A pair
    * whose domain routing ISM has no module for the origin is skipped with a
-   * warning.
+   * warning. Later refreshes repeat this per destination but never throw.
    */
   static async create(
     inner: IExplorerClient,
@@ -691,7 +740,6 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
       );
     }
 
-    await seedRouteIds(routes, options.multiProvider);
     return new BlacklistIsmMiddleware(inner, options, routes);
   }
 
@@ -699,7 +747,7 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
     messages: ExplorerMessage[],
     logger: Logger,
   ): Promise<Map<string, string>> {
-    await this.refreshStaleRoutes(messages, logger);
+    await this.refreshIfStale(logger);
 
     const ignored = new Map<string, string>();
     for (const msg of messages) {
@@ -719,63 +767,18 @@ export class BlacklistIsmMiddleware extends PendingTransferMiddleware {
     return ignored;
   }
 
-  /**
-   * Re-reads the BlacklistIsms of the stale pairs that have a message in this
-   * batch, reading each BlacklistIsm once. A failed read is logged once, with
-   * the cache age of the oldest pair it leaves stale.
-   */
-  private async refreshStaleRoutes(
-    messages: ExplorerMessage[],
-    logger: Logger,
-  ): Promise<void> {
+  private async refreshIfStale(logger: Logger): Promise<void> {
     const now = Date.now();
-    const stale = new Set<RouteBlacklist>();
-    for (const msg of messages) {
-      const route = this.routes.get(
-        routeKey(msg.origin_domain_id, msg.destination_domain_id),
-      );
-      if (
-        route &&
-        now - route.lastAttemptAt >= this.options.refreshIntervalMs
-      ) {
-        stale.add(route);
-      }
-    }
-    if (stale.size === 0) return;
+    if (now - this.lastAttemptAt < this.options.refreshIntervalMs) return;
 
-    for (const route of stale) route.lastAttemptAt = now;
-
-    const failed = new Set<RouteBlacklist>();
-    await concurrentMap(
-      REFRESH_CONCURRENCY,
-      groupReads(stale),
-      async (read) => {
-        let ids: string[];
-        try {
-          ids = await readFinalizedIds(this.options.multiProvider, read);
-        } catch (error: unknown) {
-          read.routes.forEach((route) => failed.add(route));
-          const oldestLoadedAt = Math.min(
-            ...read.routes.map((route) => route.loadedAt),
-          );
-          logger.warn(
-            {
-              blacklistIsm: read.blacklistIsm,
-              destination: read.destination,
-              cachedAgeSecs: Math.floor((now - oldestLoadedAt) / 1000),
-              error: error instanceof Error ? error.message : String(error),
-            },
-            BLACKLIST_ISM_REFRESH_FAILED_MESSAGE,
-          );
-          return;
-        }
-
-        addIds(read, ids);
-      },
+    this.lastAttemptAt = now;
+    this.routes = await resolveRouteBlacklists(
+      this.options,
+      logger,
+      this.routes,
     );
-
-    for (const route of stale) {
-      if (!failed.has(route)) route.loadedAt = now;
+    if (this.routes.size === 0) {
+      logger.warn(BLACKLIST_ISM_NO_BLOCKING_ROUTES_MESSAGE);
     }
   }
 }

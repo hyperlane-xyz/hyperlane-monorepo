@@ -188,11 +188,11 @@ const BlacklistIsmMiddlewareConfigSchema = z
       .positive()
       .default(DEFAULT_BLACKLIST_ISM_REFRESH_INTERVAL_IN_SECONDS)
       .describe(
-        "Minimum seconds between re-reads of a route pair's BlacklistIsm ids.",
+        'Minimum seconds between refreshes, which re-resolve the router ISMs and re-read their BlacklistIsm ids.',
       ),
   })
   .describe(
-    'Ignores messages a BlacklistIsm in the destination router ISM rejects. Router ISMs are read once at startup, so restart after changing them; startup fails if no route pair has a BlacklistIsm that can block.',
+    'Ignores messages a BlacklistIsm in the destination router ISM rejects. Router ISMs are re-resolved on each refresh, and a destination whose refresh fails keeps its previous BlacklistIsms and ids; startup fails if no route pair has a BlacklistIsm that can block.',
   );
 
 const PendingTransferMiddlewareConfigSchema = z.discriminatedUnion('type', [
