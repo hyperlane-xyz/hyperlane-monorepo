@@ -6,6 +6,29 @@ Allocation can reassign earlier choices to use available enabled pairs, includin
 
 The flag does not cancel an existing intent, restrict manual execution, or prohibit every physical inventory hop. An economic A-to-B inventory proposal may bridge inventory from C to B, then call `transferRemote` from B to A to lock collateral on B and release it on A. Configuration changes take effect when the service reloads through deployment.
 
+## Physical inventory movements
+
+`inventoryRoutes` controls the actual source and destination of inventory wallet movements. It is separate from strategy route controls: an economic Arbitrum-to-Base proposal can use inventory on Optimism to fund Base, then call `transferRemote` from Base to Arbitrum.
+
+```yaml
+inventoryRoutes:
+  arbitrum:
+    base:
+      externalBridge: debridge
+      priority: 1
+  optimism:
+    base:
+      enabled: false
+```
+
+Each exact source-to-destination entry accepts `enabled`, `externalBridge`, and `priority`. Omitted pairs remain enabled and use the economic route's provider. Omitted priority is zero; higher priorities consume their available funding capacity first, then equal-priority sources are ordered by destination output capacity. Priority allocates funding; independent source transactions may still execute in parallel. If the preferred source cannot fund the full shortfall, other permitted sources fund the remainder. No alternative provider is tried for the same pair.
+
+Explicitly disabled pairs are excluded before quotes and checked again before a new movement is submitted. The configured provider is used for capacity quotes, execution, and settlement tracking. Continued intents resolve physical pair policy for new movements; already-submitted movements retain their recorded provider for status polling. Disabling a pair does not cancel or stop tracking a submitted transfer. Existing inventory already on the deficit chain can still be deposited.
+
+Pair endpoints must exist in the warp route with collateral-backed tokens and matching inventory signer configuration. They are monitored even if they have no strategy surplus or deficit. This supports funded neutral sources; it does not create dependent intermediate hops through empty wallets.
+
+Unknown pair fields, self-directed movements, invalid priorities, and unconfigured providers are rejected. Existing configurations without `inventoryRoutes` retain their behavior. Policy changes take effect on service redeployment, using the existing in-memory action tracking.
+
 ## Persisting observation mode
 
 Infra configuration can persist observation mode outside the runtime configuration:
