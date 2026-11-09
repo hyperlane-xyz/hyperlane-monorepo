@@ -20,6 +20,7 @@ import type {
   IExplorerClient,
   UserTransferQueryParams,
 } from '../../utils/ExplorerClient.js';
+import { REBALANCE_PARAMS } from '../../test/pendingTransferMiddlewareMocks.js';
 
 import { PENDING_TRANSFER_MIDDLEWARE_FAILED_MESSAGE } from './PendingTransferMiddleware.js';
 import {
@@ -121,7 +122,7 @@ describe('RelayerDenylistMiddleware', () => {
   let explorerMessages: ExplorerMessage[];
   const inner: IExplorerClient = {
     getInflightUserTransfers: async () => explorerMessages,
-    getInflightRebalanceActions: async () => [],
+    getInflightRebalanceActions: async () => explorerMessages,
   };
   let logger: Logger;
   let warn: Sinon.SinonSpy;
@@ -221,6 +222,41 @@ describe('RelayerDenylistMiddleware', () => {
         'Ignoring pending transfer',
       ),
     ).to.be.true;
+  });
+
+  it('ignores the rebalance messages the rules deny apart from transfers', async () => {
+    writeDenylist(denylistFor([MESSAGE_ID]));
+    const middleware = await createMiddleware();
+
+    const kept = await middleware.getInflightRebalanceActions(
+      REBALANCE_PARAMS,
+      logger,
+    );
+
+    expect(kept.map((msg) => msg.msg_id)).to.deep.equal([OTHER_MESSAGE_ID]);
+    expect(middleware.isIgnoredRebalanceAction(MESSAGE_ID)).to.be.true;
+    expect(middleware.isIgnored(MESSAGE_ID)).to.be.false;
+  });
+
+  it('starts and stops ignoring a rebalance message as refreshes add and remove its rule', async () => {
+    writeDenylist(denylistFor([]));
+    const middleware = await createMiddleware();
+    const keptIds = async (): Promise<string[]> =>
+      (
+        await middleware.getInflightRebalanceActions(REBALANCE_PARAMS, logger)
+      ).map((msg) => msg.msg_id);
+
+    expect(await keptIds()).to.deep.equal([MESSAGE_ID, OTHER_MESSAGE_ID]);
+
+    writeDenylist(denylistFor([OTHER_MESSAGE_ID]));
+    clock.tick(REFRESH_INTERVAL_MS);
+    expect(await keptIds()).to.deep.equal([MESSAGE_ID]);
+    expect(middleware.isIgnoredRebalanceAction(OTHER_MESSAGE_ID)).to.be.true;
+
+    writeDenylist(denylistFor([]));
+    clock.tick(REFRESH_INTERVAL_MS);
+    expect(await keptIds()).to.deep.equal([MESSAGE_ID, OTHER_MESSAGE_ID]);
+    expect(middleware.isIgnoredRebalanceAction(OTHER_MESSAGE_ID)).to.be.false;
   });
 
   it('loads the denylist over https', async () => {

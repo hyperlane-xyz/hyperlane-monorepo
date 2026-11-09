@@ -23,6 +23,8 @@ export interface PendingTransferMiddlewares {
   client: IExplorerClient;
   /** Set only when at least one middleware is configured. */
   isIgnoredTransfer?: (messageId: string) => boolean;
+  /** Set only when at least one middleware is configured. */
+  isIgnoredRebalanceAction?: (messageId: string) => boolean;
 }
 
 function createMiddleware(
@@ -81,5 +83,7 @@ export async function buildPendingTransferMiddlewares(
   return {
     client,
     isIgnoredTransfer: (messageId) => client.isIgnored(messageId),
+    isIgnoredRebalanceAction: (messageId) =>
+      client.isIgnoredRebalanceAction(messageId),
   };
 }

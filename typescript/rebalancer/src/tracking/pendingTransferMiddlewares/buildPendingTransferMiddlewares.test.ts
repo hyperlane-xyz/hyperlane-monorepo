@@ -18,6 +18,7 @@ import {
   ID_B,
   ID_C,
   PARAMS,
+  REBALANCE_PARAMS,
   StubExplorerClient,
   buildMessage,
 } from '../../test/pendingTransferMiddlewareMocks.js';
@@ -52,6 +53,7 @@ describe('buildPendingTransferMiddlewares', () => {
 
     expect(result.client).to.equal(inner);
     expect(result.isIgnoredTransfer).to.equal(undefined);
+    expect(result.isIgnoredRebalanceAction).to.equal(undefined);
   });
 
   it('builds layers in config order and unions their ignored ids', async () => {
@@ -92,9 +94,15 @@ describe('buildPendingTransferMiddlewares', () => {
       const queryLogger: Logger = pino({ level: 'silent' });
       const info = Sinon.spy(queryLogger, 'info');
 
-      const { client, isIgnoredTransfer } =
+      inner.rebalanceActions = [buildMessage(ID_B), buildMessage(ID_C)];
+
+      const { client, isIgnoredTransfer, isIgnoredRebalanceAction } =
         await buildPendingTransferMiddlewares(inner, configs, deps);
       const result = await client.getInflightUserTransfers(PARAMS, queryLogger);
+      const rebalanceActions = await client.getInflightRebalanceActions(
+        REBALANCE_PARAMS,
+        queryLogger,
+      );
 
       expect(result.map((msg) => msg.msg_id)).to.deep.equal([ID_C]);
 
@@ -116,6 +124,14 @@ describe('buildPendingTransferMiddlewares', () => {
       expect(isIgnoredTransfer(ID_A)).to.be.true;
       expect(isIgnoredTransfer(ID_B)).to.be.true;
       expect(isIgnoredTransfer(ID_C)).to.be.false;
+
+      expect(rebalanceActions.map((msg) => msg.msg_id)).to.deep.equal([ID_C]);
+      assert(
+        isIgnoredRebalanceAction,
+        'Expected an ignored-rebalance-action predicate',
+      );
+      expect(isIgnoredRebalanceAction(ID_B)).to.be.true;
+      expect(isIgnoredRebalanceAction(ID_C)).to.be.false;
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

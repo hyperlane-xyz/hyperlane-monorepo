@@ -16,6 +16,7 @@ import {
   ID_B,
   ID_C,
   PARAMS,
+  REBALANCE_PARAMS,
   StubExplorerClient,
   buildMessage,
 } from '../../test/pendingTransferMiddlewareMocks.js';
@@ -495,4 +496,169 @@ describe('PendingTransferMiddleware Explorer paging', () => {
       ]);
     });
   });
+});
+
+class RebalanceFilteringMiddleware extends StaticMiddleware {
+  protected override readonly ignoresRebalanceActions = true;
+}
+
+/** Holds each query open until the test resolves it. */
+class DeferredExplorerClient implements IExplorerClient {
+  private resolveTransfers?: (messages: ExplorerMessage[]) => void;
+  private resolveRebalanceActions?: (messages: ExplorerMessage[]) => void;
+
+  getInflightUserTransfers(): Promise<ExplorerMessage[]> {
+    return new Promise((resolve) => {
+      this.resolveTransfers = resolve;
+    });
+  }
+
+  getInflightRebalanceActions(): Promise<ExplorerMessage[]> {
+    return new Promise((resolve) => {
+      this.resolveRebalanceActions = resolve;
+    });
+  }
+
+  respondToTransfers(messages: ExplorerMessage[]): void {
+    assert(this.resolveTransfers, 'No pending user transfer query');
+    this.resolveTransfers(messages);
+  }
+
+  respondToRebalanceActions(messages: ExplorerMessage[]): void {
+    assert(this.resolveRebalanceActions, 'No pending rebalance action query');
+    this.resolveRebalanceActions(messages);
+  }
+}
+
+describe('PendingTransferMiddleware rebalance action queries', () => {
+  let logger: Logger;
+  let info: Sinon.SinonSpy;
+  let inner: StubExplorerClient;
+
+  beforeEach(() => {
+    logger = pino({ level: 'silent' });
+    info = Sinon.spy(logger, 'info');
+    inner = new StubExplorerClient([buildMessage(ID_A)]);
+    inner.rebalanceActions = [buildMessage(ID_B), buildMessage(ID_C)];
+  });
+
+  it('drops ignored rebalance messages and tracks them apart from transfers', async () => {
+    const client = new RebalanceFilteringMiddleware(inner, 'denylist', [ID_B]);
+
+    const result = await client.getInflightRebalanceActions(
+      REBALANCE_PARAMS,
+      logger,
+    );
+
+    expect(result.map((msg) => msg.msg_id)).to.deep.equal([ID_C]);
+    expect(client.isIgnoredRebalanceAction(ID_B)).to.be.true;
+    expect(client.isIgnoredRebalanceAction(ID_C)).to.be.false;
+    expect(client.isIgnored(ID_B)).to.be.false;
+  });
+
+  it('reports rebalance messages an inner middleware ignored through an outer one that does not filter them', async () => {
+    const innerLayer = new RebalanceFilteringMiddleware(inner, 'denylist', [
+      ID_B,
+    ]);
+    const outerLayer = new StaticMiddleware(innerLayer, 'other', [ID_C]);
+
+    const result = await outerLayer.getInflightRebalanceActions(
+      REBALANCE_PARAMS,
+      logger,
+    );
+
+    expect(result.map((msg) => msg.msg_id)).to.deep.equal([ID_C]);
+    expect(outerLayer.isIgnoredRebalanceAction(ID_B)).to.be.true;
+    expect(outerLayer.isIgnoredRebalanceAction(ID_C)).to.be.false;
+  });
+
+  it('does not raise the transfer limit by ignored rebalance messages', async () => {
+    const client = new RebalanceFilteringMiddleware(inner, 'denylist', [
+      ID_B,
+      ID_C,
+    ]);
+
+    await client.getInflightRebalanceActions(REBALANCE_PARAMS, logger);
+    await client.getInflightUserTransfers(PARAMS, logger);
+
+    expect(
+      inner.userTransferParams.map((params) => params.limit),
+    ).to.deep.equal([100]);
+  });
+
+  it('logs each ignored rebalance message once until it stops being ignored', async () => {
+    const client = new RebalanceFilteringMiddleware(inner, 'denylist', [ID_B]);
+
+    await client.getInflightRebalanceActions(REBALANCE_PARAMS, logger);
+    await client.getInflightRebalanceActions(REBALANCE_PARAMS, logger);
+
+    expect(info.callCount).to.equal(1);
+    expect(info.firstCall.args).to.deep.equal([
+      {
+        msgId: ID_B,
+        origin: 42161,
+        destination: 1,
+        amount: '100',
+        middleware: 'denylist',
+        reason: 'denylist reason',
+      },
+      'Ignoring pending rebalance message',
+    ]);
+
+    client.ignoredIds = [];
+    const result = await client.getInflightRebalanceActions(
+      REBALANCE_PARAMS,
+      logger,
+    );
+
+    expect(result).to.have.lengthOf(2);
+    expect(client.isIgnoredRebalanceAction(ID_B)).to.be.false;
+    expect(info.callCount).to.equal(2);
+    expect(info.secondCall.args[1]).to.equal(
+      'Pending rebalance message no longer ignored',
+    );
+  });
+
+  interface ConcurrentQueryCase {
+    name: string;
+    transferFinishesFirst: boolean;
+  }
+  const concurrentCases: ConcurrentQueryCase[] = [
+    { name: 'the transfer query finishes first', transferFinishesFirst: true },
+    {
+      name: 'the rebalance query finishes first',
+      transferFinishesFirst: false,
+    },
+  ];
+  for (const c of concurrentCases) {
+    it(`keeps both queries' ignored messages when they overlap and ${c.name}`, async () => {
+      const explorer = new DeferredExplorerClient();
+      const client = new RebalanceFilteringMiddleware(explorer, 'denylist', [
+        ID_A,
+        ID_B,
+      ]);
+
+      const transfers = client.getInflightUserTransfers(PARAMS, logger);
+      const rebalanceActions = client.getInflightRebalanceActions(
+        REBALANCE_PARAMS,
+        logger,
+      );
+      if (c.transferFinishesFirst) {
+        explorer.respondToTransfers([buildMessage(ID_A)]);
+        expect(await transfers).to.deep.equal([]);
+        explorer.respondToRebalanceActions([buildMessage(ID_B)]);
+        expect(await rebalanceActions).to.deep.equal([]);
+      } else {
+        explorer.respondToRebalanceActions([buildMessage(ID_B)]);
+        expect(await rebalanceActions).to.deep.equal([]);
+        explorer.respondToTransfers([buildMessage(ID_A)]);
+        expect(await transfers).to.deep.equal([]);
+      }
+
+      expect(client.isIgnored(ID_A)).to.be.true;
+      expect(client.isIgnored(ID_B)).to.be.false;
+      expect(client.isIgnoredRebalanceAction(ID_B)).to.be.true;
+      expect(client.isIgnoredRebalanceAction(ID_A)).to.be.false;
+    });
+  }
 });

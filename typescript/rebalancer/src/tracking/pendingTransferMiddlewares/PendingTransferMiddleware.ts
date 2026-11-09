@@ -12,6 +12,13 @@ import {
 
 import { normalizeMessageId } from './types.js';
 
+const PendingMessageKind = {
+  Transfer: 'transfer',
+  RebalanceMessage: 'rebalance message',
+} as const;
+type PendingMessageKind =
+  (typeof PendingMessageKind)[keyof typeof PendingMessageKind];
+
 export const PENDING_TRANSFER_MIDDLEWARE_FAILED_MESSAGE =
   'Pending transfer middleware failed, keeping all messages';
 
@@ -55,9 +62,15 @@ export class ExplorerRowLimitError extends Error {
  * Only messages within the returned page are evaluated: a tracked transfer
  * that falls outside it is not re-checked and stays reserved, as without
  * middlewares.
+ *
+ * A middleware that sets `ignoresRebalanceActions` also drops the rebalance
+ * messages it ignores. That query is filtered once, without re-asking for
+ * more rows, and its ignored messages are tracked apart from the transfers'.
  */
 export abstract class PendingTransferMiddleware implements IExplorerClient {
+  protected readonly ignoresRebalanceActions: boolean = false;
   private lastIgnored = new Map<string, string>();
+  private lastIgnoredRebalanceActions = new Map<string, string>();
 
   protected constructor(
     private readonly inner: IExplorerClient,
@@ -83,6 +96,21 @@ export abstract class PendingTransferMiddleware implements IExplorerClient {
     return (
       this.inner instanceof PendingTransferMiddleware &&
       this.inner.isIgnored(messageId)
+    );
+  }
+
+  /**
+   * Whether this middleware or any inner middleware ignored the message on
+   * the latest rebalance action query.
+   */
+  isIgnoredRebalanceAction(messageId: string): boolean {
+    if (this.lastIgnoredRebalanceActions.has(normalizeMessageId(messageId))) {
+      return true;
+    }
+
+    return (
+      this.inner instanceof PendingTransferMiddleware &&
+      this.inner.isIgnoredRebalanceAction(messageId)
     );
   }
 
@@ -136,39 +164,13 @@ export abstract class PendingTransferMiddleware implements IExplorerClient {
       );
     }
 
-    const ignored = new Map<string, string>();
-    const kept: ExplorerMessage[] = [];
-    for (const msg of messages) {
-      const id = normalizeMessageId(msg.msg_id);
-      const reason = found.get(id);
-
-      if (reason === undefined) {
-        kept.push(msg);
-        if (this.lastIgnored.has(id)) {
-          logger.info(
-            { msgId: msg.msg_id, middleware: this.name },
-            'Pending transfer no longer ignored',
-          );
-        }
-        continue;
-      }
-
-      ignored.set(id, reason);
-      if (this.lastIgnored.get(id) !== reason) {
-        logger.info(
-          {
-            msgId: msg.msg_id,
-            origin: msg.origin_domain_id,
-            destination: msg.destination_domain_id,
-            amount: this.parseAmount(msg, logger),
-            middleware: this.name,
-            reason,
-          },
-          'Ignoring pending transfer',
-        );
-      }
-    }
-
+    const { kept, ignored } = this.groupByIgnored(
+      messages,
+      found,
+      this.lastIgnored,
+      PendingMessageKind.Transfer,
+      logger,
+    );
     this.lastIgnored = ignored;
 
     if (overflow) {
@@ -198,11 +200,74 @@ export abstract class PendingTransferMiddleware implements IExplorerClient {
     }
   }
 
-  getInflightRebalanceActions(
+  async getInflightRebalanceActions(
     params: RebalanceActionQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]> {
-    return this.inner.getInflightRebalanceActions(params, logger);
+    const messages = await this.inner.getInflightRebalanceActions(
+      params,
+      logger,
+    );
+    if (!this.ignoresRebalanceActions) return messages;
+
+    const found = await this.findIgnoredSafely(messages, logger);
+    const { kept, ignored } = this.groupByIgnored(
+      messages,
+      found,
+      this.lastIgnoredRebalanceActions,
+      PendingMessageKind.RebalanceMessage,
+      logger,
+    );
+    this.lastIgnoredRebalanceActions = ignored;
+
+    return kept;
+  }
+
+  /**
+   * Groups `messages` into kept and ignored by the `found` reasons, logging
+   * each message whose ignored state changed since `previous`.
+   */
+  private groupByIgnored(
+    messages: ExplorerMessage[],
+    found: Map<string, string>,
+    previous: Map<string, string>,
+    kind: PendingMessageKind,
+    logger: Logger,
+  ): { kept: ExplorerMessage[]; ignored: Map<string, string> } {
+    const ignored = new Map<string, string>();
+    const kept: ExplorerMessage[] = [];
+    for (const msg of messages) {
+      const id = normalizeMessageId(msg.msg_id);
+      const reason = found.get(id);
+
+      if (reason === undefined) {
+        kept.push(msg);
+        if (previous.has(id)) {
+          logger.info(
+            { msgId: msg.msg_id, middleware: this.name },
+            `Pending ${kind} no longer ignored`,
+          );
+        }
+        continue;
+      }
+
+      ignored.set(id, reason);
+      if (previous.get(id) !== reason) {
+        logger.info(
+          {
+            msgId: msg.msg_id,
+            origin: msg.origin_domain_id,
+            destination: msg.destination_domain_id,
+            amount: this.parseAmount(msg, logger),
+            middleware: this.name,
+            reason,
+          },
+          `Ignoring pending ${kind}`,
+        );
+      }
+    }
+
+    return { kept, ignored };
   }
 
   private parseAmount(msg: ExplorerMessage, logger: Logger): string | null {

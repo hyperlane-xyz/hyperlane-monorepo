@@ -19,6 +19,12 @@ export const PARAMS: UserTransferQueryParams = {
   excludeTxSenders: ['0x995a921d333029512aa166885856c8af760e9381'],
 };
 
+export const REBALANCE_PARAMS: RebalanceActionQueryParams = {
+  bridges: ['0x867a19a5b257bcb99e1840de2ef852268efd5e46'],
+  routersByDomain: PARAMS.routersByDomain,
+  rebalancerAddress: '0x995a921d333029512aa166885856c8af760e9381',
+};
+
 export function buildMessage(msgId: string): ExplorerMessage {
   return {
     msg_id: msgId,
@@ -38,7 +44,7 @@ export function buildMessage(msgId: string): ExplorerMessage {
 
 export class StubExplorerClient implements IExplorerClient {
   readonly userTransferParams: UserTransferQueryParams[] = [];
-  readonly rebalanceActions = [buildMessage(ID_C)];
+  rebalanceActions: ExplorerMessage[] = [buildMessage(ID_C)];
 
   constructor(public userTransfers: ExplorerMessage[]) {}
 

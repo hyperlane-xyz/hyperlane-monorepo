@@ -270,8 +270,12 @@ async function loadInitialRules(
  * (Radix, Aleo) or the lookup keeps failing for about 8 minutes
  * (rust/main/agents/relayer/src/msg/pending_message.rs and
  * runtime_denylist.rs).
+ *
+ * The rebalancer's own rebalance messages are checked too, so a denied one is
+ * not counted as incoming collateral.
  */
 export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
+  protected override readonly ignoresRebalanceActions = true;
   private lastAttemptAt: number;
 
   private constructor(
