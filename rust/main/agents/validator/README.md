@@ -143,8 +143,11 @@ using stored insertions. Roots are calculated only at sampled indices.
 
 In lightweight mode, no idle count/root polling or websocket RPC freshness probes
 run once caught up.
-Pending insertions are retried at the configured interval. Websocket notifications
-cannot bypass this RPC interval, including on errors. Each endpoint receives one
+New durably stored WebSocket insertions trigger independent checkpoint verification
+immediately, coalescing progress received before each RPC round. Repeated hints without
+new insertions and pending finality checks retain the configured retry interval;
+failed consensus reads also retain their backoff even if more insertions arrive.
+Single/fallback RPC failures retain the provider retry policy. Each endpoint receives one
 checkpoint-method read per attempt, shared by a batch of insertions, with a 20-second
 timeout per endpoint, including deferred WebSocket connection setup. Responses
 are verified progressively: signing advances as soon as enough roots match local
