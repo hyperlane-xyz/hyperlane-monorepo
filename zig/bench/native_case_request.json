@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "tron",
-  "mode": "ReleaseSafe",
+  "root_approved": true,
+  "scenario": "cosmosnative",
+  "mode": "ReleaseFast",
   "producer_source_commit": "f453948ae31c1fadb35e10c87577e73a39350103",
   "producer_run_id": 42549077977,
   "producer_run_attempt": 1,
@@ -44,54 +44,28 @@
       "wheel_bytes": 34246
     },
     "registry_commit": null,
-    "tron_cli": {
-      "schema": 1,
-      "name": "hyperlane",
-      "version": "45.1.0",
-      "node_version": "26.12.1",
-      "pnpm_version": "12.3.0",
-      "full_original_tsconfig": true,
-      "EVM_solc": "0.8.33",
-      "TVM_solc": "0.8.24",
-      "owned_full_package_graph": true
-    },
-    "tron_tre": {
-      "schema": 2,
+    "native_cli": {
+      "name": "hypd",
       "architecture": "amd64",
-      "source_image": {
+      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
+      "bytes": 69488792,
+      "sha256": {
         "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "canonical_digest": {
-        "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "image_id": {
-        "sha256_hex_chunks": [
-          "bf3a2b631ff2a1834530f69fcb90508c",
-          "40970203aa1240b692223308cc90cae0"
-        ],
-        "prefix": "sha256:"
-      },
-      "command": ["./quickstart", "v2.0.0"],
-      "entrypoint": null
+          "90a33bb46f87836675a2f0871d7d122c",
+          "1ecaa8c39014d6c7eae7815fb2e6706e"
+        ]
+      }
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13644779178,
-      "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52486714,
+      "id": 13646732238,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 55151174,
       "sha256": {
         "sha256_hex_chunks": [
-          "f0588251bcb8b6d7824e17281ab17d16",
-          "8635dec5e360795683b78dfc4ef11e07"
+          "9db29061a20cc3fe08388f46d5cd07b2",
+          "f3d82f0a19c7eee449759007db73c774"
         ]
       }
     },
