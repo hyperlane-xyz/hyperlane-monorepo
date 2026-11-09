@@ -1364,8 +1364,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     typedTx: WarpTypedTransaction,
     options?: TransactionSubmissionOptions,
   ): Promise<{ txHash: string }> {
-    return new TransactionSubmission(options).run(() =>
-      this.sendInventoryTx(chain, typedTx, options),
+    return new TransactionSubmission(options).run((observers) =>
+      this.sendInventoryTx(chain, typedTx, { ...options, ...observers }),
     );
   }
 
