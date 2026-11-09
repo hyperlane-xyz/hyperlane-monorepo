@@ -328,6 +328,7 @@ export const RebalancerConfigSchema = z
       )
       .transform((val) => val * 1_000),
   })
+  .strict()
   .transform((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used
     if (config.strategy.length > 1) {
