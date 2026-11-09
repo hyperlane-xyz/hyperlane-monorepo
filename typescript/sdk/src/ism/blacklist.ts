@@ -1,11 +1,15 @@
+import { providers } from 'ethers';
 import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { BlacklistIsm__factory } from '@hyperlane-xyz/core';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { EthJsonRpcBlockParameterTag } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
+import { buildBlockTagOverrides } from '../token/adapters/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
 
@@ -29,6 +33,49 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
     name: 'MessageBlacklisted',
   }),
 );
+
+const HEX_QUANTITY_REGEX = /^0x(0|[1-9a-f][0-9a-f]*)$/i;
+
+/**
+ * Resolves a block tag to a block number with one raw `eth_getBlockByNumber`
+ * request. ethers' `getBlock` is avoided because, for a named tag the RPC
+ * answers with `null`, it keeps polling instead of failing.
+ */
+async function resolveBlockNumber(
+  chain: ChainNameOrId,
+  provider: providers.Provider,
+  blockTag: number | EthJsonRpcBlockParameterTag,
+): Promise<number> {
+  if (typeof blockTag === 'number') return blockTag;
+
+  const params = [blockTag, false];
+  let block: unknown;
+  if (provider instanceof HyperlaneSmartProvider) {
+    block = await provider.sendReadRpc('eth_getBlockByNumber', params);
+  } else if (provider instanceof providers.JsonRpcProvider) {
+    block = await provider.send('eth_getBlockByNumber', params);
+  } else {
+    throw new Error(
+      `Cannot resolve block tag "${blockTag}" on chain ${chain}: the provider does not support raw RPC requests`,
+    );
+  }
+
+  assert(
+    typeof block === 'object' && block !== null && 'number' in block,
+    `Block tag "${blockTag}" not supported by RPC provider for chain ${chain}`,
+  );
+  const { number } = block;
+  assert(
+    typeof number === 'string' && HEX_QUANTITY_REGEX.test(number),
+    `Invalid block number for block tag "${blockTag}" on chain ${chain}: ${String(number)}`,
+  );
+  const blockNumber = parseInt(number, 16);
+  assert(
+    Number.isSafeInteger(blockNumber),
+    `Invalid block number for block tag "${blockTag}" on chain ${chain}: ${number}`,
+  );
+  return blockNumber;
+}
 
 /**
  * Reads the blacklisted message IDs of a Blacklist ISM.
@@ -76,20 +123,26 @@ const MESSAGE_BLACKLISTED_EVENT_SELECTOR = toEventSelector(
  * receipt establishes it. That bound is passed explicitly to the log reader, so
  * an explorer log failure can still fall back to RPC without replacing the
  * bound with one derived by bisecting historical `eth_getCode` responses.
+ *
+ * `blockTag` reads the set as of that block instead of the latest one: it is
+ * passed to `values()`, and the log replay stops at it, resolving a named tag
+ * such as `finalized` to its block number first. A Blacklist ISM the explorer
+ * reports as deployed after that block had no entries at it, so its set is [].
  */
 export async function readBlacklistedIds(
   chain: ChainNameOrId,
   address: Address,
   multiProvider: MultiProvider,
   eventLogsReader?: EvmEventLogsReader,
+  blockTag?: number | EthJsonRpcBlockParameterTag,
 ): Promise<string[]> {
-  const blacklistIsm = BlacklistIsm__factory.connect(
-    address,
-    multiProvider.getProvider(chain),
-  );
+  const provider = multiProvider.getProvider(chain);
+  const blacklistIsm = BlacklistIsm__factory.connect(address, provider);
 
   try {
-    return normalizeBlacklistedIds(await blacklistIsm.values());
+    return normalizeBlacklistedIds(
+      await blacklistIsm.values(buildBlockTagOverrides(blockTag)),
+    );
   } catch (error) {
     throwIfNotMissingSelector(error);
     logger.debug(
@@ -104,11 +157,17 @@ export async function readBlacklistedIds(
   try {
     const fromBlock =
       await logsReader.getContractDeploymentBlockFromExplorer(address);
-    const logs = await logsReader.getLogsByTopic({
+    const query: Parameters<EvmEventLogsReader['getLogsByTopic']>[0] = {
       contractAddress: address,
       eventTopic: MESSAGE_BLACKLISTED_EVENT_SELECTOR,
       fromBlock,
-    });
+    };
+    if (blockTag !== undefined) {
+      const toBlock = await resolveBlockNumber(chain, provider, blockTag);
+      if (toBlock < fromBlock) return [];
+      query.toBlock = toBlock;
+    }
+    const logs = await logsReader.getLogsByTopic(query);
 
     const events = parseEventLogs({
       abi: BlacklistIsm__factory.abi,
