@@ -2,7 +2,7 @@
   "schema": 1,
   "kind": "private-fullAleo-strict-Source-inventory",
   "root_approved": true,
-  "observed_planning_head": "acf9188a09dbf628f9344651b3d6dfc3b622b4bf",
+  "observed_planning_head": "d44744e9ed3b57b21dec936342cfb2c048267990",
   "final_execution_source_commit": null,
   "source_policy_paths_function": {
     "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
@@ -97,11 +97,11 @@
     },
     {
       "path": "zig/integration/native_case_inputs.py",
-      "bytes": 71359,
+      "bytes": 73183,
       "sha256": {
         "sha256_hex_chunks": [
-          "1578c5afa614258e1abf0947254b95bf",
-          "f2cf5fcfcd3680f797e4963c89f34c49"
+          "4f6b62a86bcd406464036853ce0d0212",
+          "b3acf9fb4812fb728f2f5c4ba27c2f7c"
         ]
       }
     },
