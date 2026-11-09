@@ -348,16 +348,16 @@ class Controls(unittest.TestCase):
         self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
     def test_current_policy_binding_and_synthetic_unbound_future_pins_refuse(self):
         policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
-        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42549077977,'run_attempt':1})
+        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42574074422,'run_attempt':1})
         # Parse either a reviewed complete READONLY policy or its inert precursor;
         # this test grants no approval and does not require live activation.
         self.assertIs(api.validate_policy(policy),policy['root_approved'])
         unbound=copy.deepcopy(self.policy);unbound['jobs']=dict.fromkeys(api.REQUIRED_JOBS);unbound['artifacts']=dict.fromkeys(api.PRODUCT_KEYS);unbound['core607']=None
         self.assertFalse(api.validate_policy(unbound));unbound['root_approved']=True
         with self.assertRaisesRegex(api.Refused,'POLICY_JOBS'):api.validate_policy(unbound)
-    def test_reader_is_bound_to_f453_and_historical_producers_cannot_authorize(self):
-        self.assertEqual(api.PRODUCER,'f453948ae31c1fadb35e10c87577e73a39350103')
-        for producer in ('9badc87e8c2e2f019a1b3453c323a8d89686e43e','bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
+    def test_reader_is_bound_to_C56e7_and_historical_producers_cannot_authorize(self):
+        self.assertEqual(api.PRODUCER,'56e791042c3be1b5adf944a9095fc7a4245204a0')
+        for producer in ('f453948ae31c1fadb35e10c87577e73a39350103','9badc87e8c2e2f019a1b3453c323a8d89686e43e','bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
             historical=copy.deepcopy(self.policy);historical['root_approved']=True;historical['producer']['source_commit']=producer
             with self.subTest(producer=producer),self.assertRaisesRegex(api.Refused,'POLICY_PRODUCER'):api.validate_policy(historical)
     def test_missing_future_or_malformed_policy_never_authorizes(self):

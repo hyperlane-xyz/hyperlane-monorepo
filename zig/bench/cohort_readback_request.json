@@ -1,104 +1,104 @@
 {
   "schema": 1,
-  "root_approved": true,
+  "root_approved": false,
   "scope": "fresh-eight-product-data-inspection",
   "producer": {
-    "source_commit": "f453948ae31c1fadb35e10c87577e73a39350103",
-    "run_id": 42549077977,
+    "source_commit": "56e791042c3be1b5adf944a9095fc7a4245204a0",
+    "run_id": 42574074422,
     "run_attempt": 1
   },
   "jobs": {
-    "full-sdk-native (ReleaseSafe)": 128940378775,
-    "full-sdk-native (ReleaseFast)": 128940378799,
-    "native-harness-controls": 128940378869,
-    "svm-prerequisites": 128940378461
+    "full-sdk-native (ReleaseSafe)": 129017742970,
+    "full-sdk-native (ReleaseFast)": 129017742927,
+    "native-harness-controls": 129017742869,
+    "svm-prerequisites": 129017742837
   },
   "artifacts": {
     "sdk_safe": {
-      "id": 13644779178,
+      "id": 13655766769,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52486714,
+      "size_in_bytes": 52489918,
       "sha256": {
         "sha256_hex_chunks": [
-          "f0588251bcb8b6d7824e17281ab17d16",
-          "8635dec5e360795683b78dfc4ef11e07"
+          "0951f91fe6c65ed652053c3fafafc6f4",
+          "83b221ec19f55b671c0caa13dd5615ea"
         ]
       }
     },
     "sdk_fast": {
-      "id": 13646732238,
+      "id": 13656473717,
       "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 55151174,
+      "size_in_bytes": 55154390,
       "sha256": {
         "sha256_hex_chunks": [
-          "9db29061a20cc3fe08388f46d5cd07b2",
-          "f3d82f0a19c7eee449759007db73c774"
+          "03e42370fcf6ff2d27d039266df1ecc2",
+          "4f5840bcdf0183bbdb45e5fb4a5df1b9"
         ]
       }
     },
     "helper": {
-      "id": 13645795593,
+      "id": 13655681273,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56492368,
+      "size_in_bytes": 56509727,
       "sha256": {
         "sha256_hex_chunks": [
-          "9f01fa82bae5c56a347cea705fc15abe",
-          "0afc382b64d9079407901c8e65c5a227"
+          "dca049be4f21501a1695fd3f2bce96e6",
+          "29d33254411c178890b723511588a93e"
         ]
       }
     },
     "tools": {
-      "id": 13645158595,
-      "name": "zig-native-case-tools-f453948ae31c1fadb35e10c87577e73a39350103",
-      "size_in_bytes": 20092677,
+      "id": 13654959635,
+      "name": "zig-native-case-tools-56e791042c3be1b5adf944a9095fc7a4245204a0",
+      "size_in_bytes": 20092406,
       "sha256": {
         "sha256_hex_chunks": [
-          "cf069b9258b14ee760907e871ba8ce73",
-          "fabdaca1a274509921e1a55328d89879"
+          "9c20274f42605a92835fdd756a359126",
+          "7f9b4fb44f4a224498b392e641bf111d"
         ]
       }
     },
     "writer_safe": {
-      "id": 13644704351,
+      "id": 13655697161,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171535,
+      "size_in_bytes": 5171530,
       "sha256": {
         "sha256_hex_chunks": [
-          "73e7dcecbadfc0bbf97fb3a9f1130eb3",
-          "83589e81a85c40e0fa016b809f157d29"
+          "027b026b246007a71ed6f024ee623fcf",
+          "9073f64441d954cba7b62acbc75e1be3"
         ]
       }
     },
     "writer_fast": {
-      "id": 13646433693,
+      "id": 13656334454,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4863022,
+      "size_in_bytes": 4863021,
       "sha256": {
         "sha256_hex_chunks": [
-          "5f12d92b3a7591d5ff9edd98acb43fc2",
-          "810a104f650836502135b9dfe346117a"
+          "6ff795cccc0bda3a3120397d8b62c079",
+          "d207cda58a89ddb44b7d7d43b564abde"
         ]
       }
     },
     "svm": {
-      "id": 13644214109,
-      "name": "svm-linux-prerequisites-42549077977-1",
-      "size_in_bytes": 327980781,
+      "id": 13654692306,
+      "name": "svm-linux-prerequisites-42574074422-1",
+      "size_in_bytes": 327980369,
       "sha256": {
         "sha256_hex_chunks": [
-          "be975cbb82e678d03adc1f4804491aa5",
-          "f66a1e832eec99b1951a3e4b991228e3"
+          "47c6a50b5b4c0c6ec3fc152c622c381c",
+          "94e3412976a3c5eae914bda0d5e4c63a"
         ]
       }
     },
     "radix_reference": {
-      "id": 13645461709,
-      "name": "zig-native-radix-reference-f453948ae31c1fadb35e10c87577e73a39350103",
-      "size_in_bytes": 3177918,
+      "id": 13655123721,
+      "name": "zig-native-radix-reference-56e791042c3be1b5adf944a9095fc7a4245204a0",
+      "size_in_bytes": 3177998,
       "sha256": {
         "sha256_hex_chunks": [
-          "4185af7737e10d4029f83ac74b234f7e",
-          "4cc72618d10f9101ae0254ab1032aac0"
+          "5dd61bcdef3a810195770b06c3c4aef9",
+          "373b886d251a3f4bcb136eb9f7a908d4"
         ]
       }
     }
@@ -402,11 +402,11 @@
       }
     },
     "zig/src/agents/destination/source_metadata.zig": {
-      "bytes": 33860,
+      "bytes": 33837,
       "sha256": {
         "sha256_hex_chunks": [
-          "b41277c81d78666c97d4a3fc8918d15b",
-          "cc8d4ffa6b15377f1ab40d1e293a4059"
+          "9cd5940097670a8f55fb53d2d01583ee",
+          "b179f4ab9b8800bfe37647e6c8f009d6"
         ]
       }
     },
@@ -420,11 +420,11 @@
       }
     },
     "zig/src/agents/destination/source_metadata_testing.zig": {
-      "bytes": 25128,
+      "bytes": 32416,
       "sha256": {
         "sha256_hex_chunks": [
-          "183bfc271fcab8da32370829572937b9",
-          "71adbba38a15b817c269cf5aad7c0de6"
+          "cb298d16b811ddb6cd2e0f39b079c0d9",
+          "8ce03d078dbaa3a1a029602fd5c6f7bf"
         ]
       }
     },
@@ -1023,11 +1023,11 @@
       }
     },
     "zig/src/agents/relayer_task.zig": {
-      "bytes": 153439,
+      "bytes": 160623,
       "sha256": {
         "sha256_hex_chunks": [
-          "768e6eca02149602e28d15caa7955a9c",
-          "58c7912665c5f49b9ab9da0e81ce9e73"
+          "a27894b0d66c8f7e65134cdcaa544f6e",
+          "d7b79d4e98ab95ca56e0f5e8fe9a388c"
         ]
       }
     },
@@ -2805,11 +2805,11 @@
       }
     },
     "zig/src/db_tests.zig": {
-      "bytes": 3786,
+      "bytes": 3827,
       "sha256": {
         "sha256_hex_chunks": [
-          "ae6b833ed0385abac4d38affd80ee902",
-          "d7ea044b208174edd44aa797fc8045aa"
+          "c4e645572bd047f814679652afb48918",
+          "21b8837fdc3e27354771e348c5c1632e"
         ]
       }
     },
@@ -5001,11 +5001,11 @@
       }
     },
     "zig/src/starknet/contracts.zig": {
-      "bytes": 12742,
+      "bytes": 13003,
       "sha256": {
         "sha256_hex_chunks": [
-          "daea5df31971af97897ba139ca9aa2dc",
-          "aa75e3be11e4474959a08656205e9dd6"
+          "a6cb47b3db1012a8d5a873bebd9b9354",
+          "4e196d96691b805b3cd7fa15d30d8546"
         ]
       }
     },
@@ -5055,11 +5055,11 @@
       }
     },
     "zig/src/starknet/testing.zig": {
-      "bytes": 24233,
+      "bytes": 27955,
       "sha256": {
         "sha256_hex_chunks": [
-          "c472c756f3798f1416068ad2141dd021",
-          "05603eff891012b350a0067c980a5ee1"
+          "f3f8c22e82fac59fa359a8139a8ef7cc",
+          "5864da389f0e27431ab9c4acd5d54167"
         ]
       }
     },
