@@ -162,10 +162,12 @@ fn run_locally_warp_route_composite_ism() {
 
     let ledger_dir =
         crate::external_agents::svm_tempdir().expect("Failed to create solana ledger dir");
+    let ledger_path = ledger_dir.path().to_path_buf();
+    state.data.push(Box::new(ledger_dir));
     let validator_result = start_solana_test_validator(
         solana_cli_tools_path.clone(),
         built_programs.clone(),
-        ledger_dir.as_ref().to_path_buf(),
+        ledger_path,
     )
     .join();
     state.push_agent(validator_result.validator);

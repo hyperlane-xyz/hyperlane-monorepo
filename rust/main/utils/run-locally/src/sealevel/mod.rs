@@ -257,11 +257,13 @@ fn run_locally() {
 
     let solana_ledger_dir =
         crate::external_agents::svm_tempdir().expect("Failed to create solana ledger dir");
+    let solana_ledger_path = solana_ledger_dir.path().to_path_buf();
+    state.data.push(Box::new(solana_ledger_dir));
     let (solana_config_path, sealeveltest2_alt) = {
         let start_solana_validator = start_solana_test_validator(
             solana_cli_tools_path.clone(),
             hyperlane_solana_programs_path.clone(),
-            solana_ledger_dir.as_ref().to_path_buf(),
+            solana_ledger_path,
         );
 
         let result = start_solana_validator.join();
