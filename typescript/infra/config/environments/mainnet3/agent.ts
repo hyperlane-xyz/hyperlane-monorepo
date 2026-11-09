@@ -115,7 +115,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: true,
+    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
     mantra: true,
@@ -189,7 +189,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: true,
+    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
     mantra: true,
@@ -263,7 +263,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: true,
+    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
     mantra: true,
