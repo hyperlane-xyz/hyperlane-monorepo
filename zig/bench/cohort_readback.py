@@ -7,7 +7,7 @@ from pathlib import Path,PurePosixPath
 GIB=1024**3
 REPOSITORY='hyperlane-xyz/hyperlane-monorepo'
 BRANCH='feat/zig-agent-rewrite'
-PRODUCER='9badc87e8c2e2f019a1b3453c323a8d89686e43e'  # Read-only inspection stays disabled until all eight publisher pins are approved.
+PRODUCER='f453948ae31c1fadb35e10c87577e73a39350103'  # Read-only inspection stays disabled until all eight publisher pins are approved.
 REQUIRED_JOBS=('full-sdk-native (ReleaseSafe)','full-sdk-native (ReleaseFast)','native-harness-controls','svm-prerequisites')
 PRODUCT_KEYS=('sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference')
 LIMITS={'wall_seconds':1800,'cleanup_seconds':60,'inspector_RAM_bytes':GIB,'child_RAM_bytes':512*1024**2,'owned_disk_bytes':8*GIB,'host_free_bytes':6*GIB,'maximum_archive_bytes':4*GIB,'compressed_total_bytes':16*GIB,'streamed_total_bytes':24*GIB,'member_count':100000,'central_directory_bytes':32*1024**2,'metadata_bytes':64*1024**2,'report_bytes':2*1024**2}
@@ -341,14 +341,41 @@ def validate_sdk(archive,mode,git_source):
     suite=suite_counts(native,native_required_tests(git_source));suite.update(explicit_agent_runtime_tests(native,git_source))
     return {'mode':mode,'source_commit':PRODUCER,'products':product_rows,'native_suite':suite,'CPU_receipts':cpu,'export_actual_waits':len(calls),'export_created_CID_removed':True,'actual_consumer_CPU_superset_checked':False,'SDK_or_native_product_executed_by_reader':False}
 
+RADIX_READINESS_TESTS = ('external_agents::radix_fixture::tests::readiness_read_probe_has_expired_and_delayed_absolute_fences', 'external_agents::radix_fixture::tests::readiness_response_byte_schema_and_http_status_bounds_remain_hard', 'external_agents::radix_fixture::tests::readiness_waits_for_current_read_guard_without_submitting_or_renewing_network_checks')
+
+
+def explicit_radix_readiness_tests(text,git_source,origins):
+    # Exact current producer Rust test-item layout; separate from old census.
+    path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs'
+    need(path in origins,'RADIX_READINESS_TEST_SOURCE')
+    source=git_source.bytes(path)
+    need(type(source)is bytes and 0<len(source)<=1024**2,'RADIX_READINESS_TEST_SOURCE')
+    lines=source.splitlines();log_lines=text.splitlines()
+    for name in RADIX_READINESS_TESTS:
+        short=name.removeprefix('external_agents::radix_fixture::tests::')
+        need(re.fullmatch('[a-z][a-z0-9_]{0,127}',short)is not None,'RADIX_READINESS_TEST_SOURCE')
+        declarations=[i for i,line in enumerate(lines)if line==('    fn '+short+'() {').encode()]
+        need(len(declarations)==1,'RADIX_READINESS_TEST_SOURCE');i=declarations[0]-1;attributes=[]
+        while i>=0:
+            line=lines[i].strip()
+            if not line or line.startswith(b'//'):i-=1;continue
+            if line.startswith(b'#['):attributes.append(line);i-=1;continue
+            break
+        need(attributes==[b'#[test]']and i>=0 and lines[i]in{b'    }',b'mod tests {'},'RADIX_READINESS_TEST_SOURCE')
+        prefix='test '+name+' ... ';observed=[line for line in log_lines if line.startswith(prefix)]
+        need(observed==[prefix+'ok'],'RADIX_READINESS_TESTS')
+    return {'explicit_radix_readiness_test_count':len(RADIX_READINESS_TESTS),'three_explicit_radix_readiness_tests_observed_OK':True}
+
+
 def validate_helper(archive,git_source):
     result=archive.data('result.json');need(result.get('passed')is True and result.get('source_commit')==PRODUCER and result.get('source_unchanged')is True and result.get('all_owned_jobs_joined')is True and result.get('error')is None and result.get('native_case_acceptance')is False,'HELPER_GATE')
     need(archive.data('job-status.json').get('primary_job_status')=='success','HELPER_PRIMARY_STATUS')
     source=archive.data('authoritative-source.json');origins=origin_rows(source,git_source)
-    required=literal_constants(git_source.bytes('zig/bench/native_harness_controls.py').decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];observed=set();testcounts={}
+    required=literal_constants(git_source.bytes('zig/bench/native_harness_controls.py').decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];observed=set();testcounts={};readiness={}
     rows=result.get('checks');need(isinstance(rows,list)and [r.get('name')for r in rows]==list(HELPER_PHASES),'HELPER_PHASES')
     for row in rows:
         clean_wait(row);logname=Path(row['log']['path']).name;need(logname==row['name']+'.log','HELPER_LOG_PATH');member_row(archive,row['log'],logname);text=archive.bytes(logname,8*1024**2).decode()
+        if row['name']=='external_agents-radix_fixture-tests':readiness=explicit_radix_readiness_tests(text,git_source,source)
         count=row.get('actual_tests_passed')
         if count is not None:
             need(integer(count,1),'HELPER_TEST_COUNT');match=re.search(r'test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored;',text)
@@ -376,7 +403,7 @@ def validate_helper(archive,git_source):
     stage={'radix-reference-stage/'+n for n in ['fetch.log','producer-cpuinfo.txt','partial.json','source-gate.json']}|{'setup/tools-platform.txt'}
     need(archive.files()==own|stage|{'native-case-tools/'+n for n in tool_files}|{'native-radix-reference/'+n for n in radix_files},'HELPER_CLOSED_MEMBERS')
     def embedded(prefix,names):return sha(canonical({n:archive.pin(prefix+n)for n in names}))
-    return {'source_commit':PRODUCER,'Source_origin':origins,'actual_phase_waits':len(rows),'actual_test_counts':testcounts,'required_census_names_observed':len(observed),'five_strict_deadline_tests_observed':True,'products':out,'product_execution':False,'embedded_tools_catalog_sha256':embedded('native-case-tools/',tool_files),'embedded_radix_catalog_sha256':embedded('native-radix-reference/',radix_files)}
+    return {'source_commit':PRODUCER,'Source_origin':origins,'actual_phase_waits':len(rows),'actual_test_counts':testcounts,'required_census_names_observed':len(observed),'five_strict_deadline_tests_observed':True,**readiness,'products':out,'product_execution':False,'embedded_tools_catalog_sha256':embedded('native-case-tools/',tool_files),'embedded_radix_catalog_sha256':embedded('native-radix-reference/',radix_files)}
 
 def validate_writer(archive,mode,git_source):
     value=archive.data('manifest.json');need(value.get('passed')is True and value.get('source_commit')==PRODUCER and value.get('mode')==mode,'WRITER_IDENTITY')
@@ -685,6 +712,7 @@ def remote_inventory(runner,policy):
 
 PUBLIC_FACT_KEYS=set(('mode source_commit products native_suite CPU_receipts export_actual_waits export_created_CID_removed actual_consumer_CPU_superset_checked SDK_or_native_product_executed_by_reader Source_origin actual_phase_waits actual_test_counts required_census_names_observed five_strict_deadline_tests_observed product_execution product ELF_machine ELF_type unchanged_declared_compiler_input_count declared_compiler_input_catalog_sha256 compiler_archive_inputs_independently_present_or_executed_by_reader CPU_flags_sha256 writer_executed_by_reader canonical_lock_origin canonical_compatibility_Source_exact actual_five_named_SDK_tests producer_CPU_rows producer_CPU_flags_sha256 actual_direct_waits actual_adopted_waits no_owner_signals_or_forced_cleanup closed_Agave_files closed_Agave_bytes SBF_machine_counts nine_actual_header_rows_verified official_acquisition_receipts nonfatal_stack_offset_warning_count native_VM_acceptance count catalog_sha256 all_declared_rows_match_producer_Git bytes sha256 total status_counts skip_catalog_sha256 three_recovery_allocation_tests_observed_OK scope flag_count flags_sha256 receipt_sha256 asset publisher_digest original_acquisition_receipt_matches_pinned_source compressed_original_independently_present_in_readback files expanded_bytes archive catalog actual_calls actual_parent_waits all_calls_actually_waited failure_count wait_catalog_sha256 tool_pins raw_argv_stderr_environment_exported path producer_tree execution_tree worktree_clean_in_scope source_rows_checked policy_map_sha256 all_policy_Git_blobs_match inspector_peak_RSS_bytes actual_streamed_bytes elapsed_seconds own_downloads_removed actual_remote_inventory_verified compiled_cohort core607 command_waits inspection_resources remote run_id run_attempt required_jobs artifacts id name size_in_bytes status conclusion whole_workflow_success_claim reader_sources committed_execution_sources_unchanged').split())|SDK_NAMES|set(TOOLS)|set(PRODUCT_KEYS)|set(REQUIRED_JOBS)|set(HELPER_PHASES)|{'producer_native_required_count','embedded_tools_catalog_sha256','embedded_radix_catalog_sha256','embedded_duplicate_catalogs_match_separate_artifacts','symlink_count','normal','construction','OK','SKIP','FAIL','247','263','gh','git','runtime','helper','tools'}
 PUBLIC_FACT_KEYS|={'explicit_agent_runtime_test_count','two_explicit_agent_runtime_tests_observed_OK'}
+PUBLIC_FACT_KEYS|={'explicit_radix_readiness_test_count','three_explicit_radix_readiness_tests_observed_OK'}
 PUBLIC_FACT_KEYS|={'gh_startup_diagnostics','probes','AS512','INHERITED_AS1G','token_supplied','API_original_AS512_unchanged','API_inherited_hard_AS1GiB','last_failed_command','kind','actual_parent_wait','exit_code','signal','error_class','peak_child_RSS_bytes','forced_signal','cleanup_error_count'}
 PUBLIC_STRINGS=set(CPU_SCOPES)|{'ReleaseSafe','ReleaseFast','agave','platform','spl','criterion','completed','success'}|set(REQUIRED_JOBS)|set(artifact_names(0,0).values())|set(n for names in COMPILED_SCOPES.values()for n in names)
 

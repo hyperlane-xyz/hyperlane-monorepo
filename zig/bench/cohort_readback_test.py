@@ -81,10 +81,12 @@ def family_fixture(family):
     if family=='helper':
         required={'synthetic':['fixture.checker_deadline_'+str(i)for i in range(5)],'starknet::cli::tests::':['starknet::cli::tests::invoke_and_send_tx_reject_failed_cli_status','starknet::cli::tests::invoke_and_send_tx_accept_successful_cli_status']}
         source('zig/bench/native_harness_controls.py',('REQUIRED_TESTS = '+repr(required)).encode())
-        origin={'rust/main/fixture.rs':source('rust/main/fixture.rs')};data('authoritative-source.json',origin);data('job-status.json',{'primary_job_status':'success'})
+        readiness_path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';readiness_source=b'mod tests {\n'+b''.join(('    #[test]\n    fn '+name.rsplit('::',1)[1]+'() {\n    }\n').encode()for name in api.RADIX_READINESS_TESTS)+b'}\n'
+        origin={'rust/main/fixture.rs':source('rust/main/fixture.rs'),readiness_path:source(readiness_path,readiness_source)};data('authoritative-source.json',origin);data('job-status.json',{'primary_job_status':'success'})
         checks=[clean(name)for name in api.HELPER_PHASES]
         names=required['synthetic'];checks[1]['actual_tests_passed']=5;checks[1]['required_new_tests_observed']=names;checks[1]['log']=body(checks[1]['name']+'.log',('\n'.join('test '+n+' ... ok'for n in names)+'\ntest result: ok. 5 passed; 0 failed; 0 ignored;').encode())
         stark=next(row for row in checks if row['name']=='starknet-cli-tests');names=required['starknet::cli::tests::'];stark['actual_tests_passed']=2;stark['required_new_tests_observed']=names;stark['log']=body(stark['name']+'.log',('\n'.join('test '+n+' ... ok'for n in names)+'\ntest result: ok. 2 passed; 0 failed; 0 ignored;').encode())
+        readiness=next(row for row in checks if row['name']=='external_agents-radix_fixture-tests');readiness['actual_tests_passed']=3;readiness['required_new_tests_observed']=[];readiness['log']=body(readiness['name']+'.log',('\n'.join('test '+name+' ... ok'for name in api.RADIX_READINESS_TESTS)+'\ntest result: ok. 3 passed; 0 failed; 0 ignored;').encode())
         products={}
         for name in ['normal','construction']:
             row=executable('products/'+name);products[name]={'published':{k:row[k]for k in ['bytes','sha256']},'artifact_relative_path':'products/'+name,'producer':{k:row[k]for k in ['bytes','sha256']}}
@@ -325,16 +327,16 @@ class Controls(unittest.TestCase):
         self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
     def test_current_policy_binding_and_synthetic_unbound_future_pins_refuse(self):
         policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
-        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42532107058,'run_attempt':1})
+        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42549077977,'run_attempt':1})
         # Parse either a reviewed complete READONLY policy or its inert precursor;
         # this test grants no approval and does not require live activation.
         self.assertIs(api.validate_policy(policy),policy['root_approved'])
         unbound=copy.deepcopy(self.policy);unbound['jobs']=dict.fromkeys(api.REQUIRED_JOBS);unbound['artifacts']=dict.fromkeys(api.PRODUCT_KEYS);unbound['core607']=None
         self.assertFalse(api.validate_policy(unbound));unbound['root_approved']=True
         with self.assertRaisesRegex(api.Refused,'POLICY_JOBS'):api.validate_policy(unbound)
-    def test_reader_is_bound_to_9bad_and_historical_producers_cannot_authorize(self):
-        self.assertEqual(api.PRODUCER,'9badc87e8c2e2f019a1b3453c323a8d89686e43e')
-        for producer in ('bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
+    def test_reader_is_bound_to_f453_and_historical_producers_cannot_authorize(self):
+        self.assertEqual(api.PRODUCER,'f453948ae31c1fadb35e10c87577e73a39350103')
+        for producer in ('9badc87e8c2e2f019a1b3453c323a8d89686e43e','bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
             historical=copy.deepcopy(self.policy);historical['root_approved']=True;historical['producer']['source_commit']=producer
             with self.subTest(producer=producer),self.assertRaisesRegex(api.Refused,'POLICY_PRODUCER'):api.validate_policy(historical)
     def test_missing_future_or_malformed_policy_never_authorizes(self):
@@ -701,5 +703,44 @@ class ExplicitAgentRuntimeControls(unittest.TestCase):
             def same_count(native):next(row for row in native['tests']['per_test']if row['name']=='synthetic.test.'+name)['name']='unrelated.test.public_control'
             with self.subTest(name=name),self.assertRaisesRegex(api.Refused,'^AGENT_RUNTIME_TESTS$'):self.inspect(edit=same_count)
 
+
+class ExplicitRadixReadinessWitnesses(unittest.TestCase):
+    zip=Controls.zip
+    def inspect(self,edit_log=None,edit_source=None,remove_source=False,remove_log=False):
+        files,source=family_fixture('helper');path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';name='external_agents-radix_fixture-tests.log'
+        if edit_source is not None:
+            source.rows[path]=edit_source(source.rows[path]);origins=json.loads(files['authoritative-source.json'])
+            if type(source.rows[path])is bytes:origins[path]=source.digest(path)
+            files['authoritative-source.json']=json.dumps(origins).encode()
+        if remove_source:
+            origins=json.loads(files['authoritative-source.json']);origins.pop(path);files['authoritative-source.json']=json.dumps(origins).encode()
+        if edit_log is not None:
+            files[name]=edit_log(files[name]);result=json.loads(files['result.json']);row=next(row for row in result['checks']if row['name']=='external_agents-radix_fixture-tests');row['log'].update(bytes=len(files[name]),sha256=api.sha(files[name]));files['result.json']=json.dumps(result).encode()
+        if remove_log:files.pop(name)
+        return self.zip(list(files.items()),lambda archive,*_:api.validate_helper(archive,source))
+    def test_three_exact_logs_and_producer_declarations_add_only_closed_facts(self):
+        row=self.inspect();self.assertIn('explicit_radix_readiness_test_count',row);self.assertIn('three_explicit_radix_readiness_tests_observed_OK',row);self.assertEqual(row['explicit_radix_readiness_test_count'],3);self.assertTrue(row['three_explicit_radix_readiness_tests_observed_OK']);self.assertEqual(row['required_census_names_observed'],7);self.assertTrue(row['five_strict_deadline_tests_observed'])
+        public=api.public_facts({'helper':row,'PRIVATE':'PRIVATE_SECRET'});self.assertIn('explicit_radix_readiness_test_count',public['helper']);self.assertIn('three_explicit_radix_readiness_tests_observed_OK',public['helper']);self.assertEqual(public['helper']['explicit_radix_readiness_test_count'],3);self.assertTrue(public['helper']['three_explicit_radix_readiness_tests_observed_OK']);self.assertNotIn('PRIVATE',json.dumps(public));self.assertTrue(all(name not in json.dumps(public)for name in api.RADIX_READINESS_TESTS))
+    def test_each_missing_nonOK_duplicate_and_lookalike_log_cannot_borrow_success(self):
+        for name in api.RADIX_READINESS_TESTS:
+            exact=('test '+name+' ... ok').encode()
+            for replacement in [b'not a test',exact.replace(b' ... ok',b' ... FAILED'),exact.replace(b' ... ok',b' ... ignored'),exact+b'\n'+exact,b'prefix '+exact,exact+b' suffix',exact.replace(name.encode(),('prefix::'+name).encode())]:
+                with self.subTest(name=name,replacement_kind=replacement[-20:]),self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TESTS$'):self.inspect(edit_log=lambda wire:wire.replace(exact,replacement))
+    def test_each_absent_commented_duplicate_ignored_or_wrong_Source_item_refuses(self):
+        for name in api.RADIX_READINESS_TESTS:
+            definition=('    fn '+name.rsplit('::',1)[1]+'() {').encode();block=b'    #[test]\n'+definition
+            variants=[lambda wire:wire.replace(definition,definition.replace(b'fn ',b'fn prefix_')),lambda wire:wire.replace(definition,b'    //'+definition.strip()),lambda wire:wire+block+b'\n    }\n',lambda wire:wire.replace(block,b'    #[ignore]\n'+block),lambda wire:wire.replace(block,b'    #[ignore = "reason"]\n\n    // separation\n'+block),lambda wire:wire.replace(block,b'    #[test]\n    #[ignore]\n'+definition),lambda wire:wire.replace(block,b'    #[cfg_attr(test, ignore)]\n'+block),lambda wire:wire.replace(block,b'/*\n'+block+b'\n*/')]
+            for index,edit in enumerate(variants):
+                with self.subTest(name=name,variant=index),self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TEST_SOURCE$'):self.inspect(edit_source=edit)
+        with self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TEST_SOURCE$'):self.inspect(remove_source=True)
+        with self.assertRaises(api.Refused):self.inspect(remove_log=True)
+    def test_Source_or_count_without_actual_rows_cannot_qualify(self):
+        with self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TESTS$'):self.inspect(edit_log=lambda wire:b'test result: ok. 3 passed; 0 failed; 0 ignored;')
+        files,source=family_fixture('helper');path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs'
+        for value in [None,b'x'*(1024**2+1)]:
+            with self.subTest(value_type=type(value).__name__),self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TEST_SOURCE$'):api.explicit_radix_readiness_tests('',N(bytes=lambda name:value),{path:{}})
+    def test_actual_current_R1_Source_matches_three_sealed_names_not_old76(self):
+        path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';source=SyntheticGit();source.rows[path]=(HERE.parents[1]/path).read_bytes();text='\n'.join('test '+name+' ... ok'for name in api.RADIX_READINESS_TESTS);facts=api.explicit_radix_readiness_tests(text,source,{path:source.digest(path)});self.assertEqual(facts['explicit_radix_readiness_test_count'],3)
+        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),76)
 
 if __name__=='__main__':unittest.main()
