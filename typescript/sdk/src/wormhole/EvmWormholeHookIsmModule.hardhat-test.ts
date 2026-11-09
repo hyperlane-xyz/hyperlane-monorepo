@@ -272,6 +272,64 @@ describe('EvmWormholeHookIsmModule', () => {
     });
   });
 
+  it('unenrolls a remote router whose domain is outside the registry', async () => {
+    const [chain, remote] = chains;
+    const input = routeConfig();
+    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    const addresses = await EvmWormholeHookIsmModule.deployMesh(
+      multiProvider,
+      mesh,
+    );
+    const router = WormholeVaaHookIsm__factory.connect(
+      addresses[chain],
+      multiProvider.getSigner(chain),
+    );
+    await multiProvider.handleTx(
+      chain,
+      router[
+        'enrollRemoteRouters((uint32,bytes32,uint16,uint8,uint8,uint16)[])'
+      ]([
+        {
+          domainId: 10_003,
+          domainIsm: addressToBytes32(randomAddress()),
+          wormholeChainId: 1,
+          expectedConsistencyLevel: 32,
+          expectedCustomBaseConsistencyLevel: 0,
+          expectedAdditionalBlocks: 0,
+        },
+      ]),
+    );
+    const target = EvmWormholeHookIsmModule.withDeployedRouters(
+      mesh,
+      addresses,
+    )[chain];
+    const module = new EvmWormholeHookIsmModule(multiProvider, {
+      chain,
+      config: target,
+      addresses: { deployedRouter: addresses[chain], mailbox: target.mailbox },
+    });
+
+    const transactions = await module.update(target);
+
+    expect(transactions).to.have.length(1);
+    const [unenroll] = transactions;
+    assert(unenroll.data, 'Missing unenroll calldata');
+    const [domainId] = router.interface.decodeFunctionData(
+      'unenrollRemoteRouter',
+      unenroll.data,
+    );
+    expect(domainId).to.equal(10_003);
+
+    await multiProvider.sendTransaction(chain, unenroll);
+
+    const derived = await new EvmWormholeHookIsmReader(
+      multiProvider,
+      chain,
+    ).deriveWormholeConfig(addresses[chain]);
+    expect(Object.keys(derived.remoteRouters)).to.have.members([remote]);
+    expect(await module.update(target)).to.deep.equal([]);
+  });
+
   it('deploys, enrolls, materializes, and reuses a mesh', async () => {
     const input = routeConfig();
     const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
