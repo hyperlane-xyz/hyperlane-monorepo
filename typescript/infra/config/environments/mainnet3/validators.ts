@@ -59,100 +59,34 @@ export const validatorChainConfig = (
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   const configs: ValidatorBaseChainConfigMap = {
-    elysium: {
-      interval: DEFAULT_VALIDATOR_INTERVAL,
-      reorgPeriod: getReorgPeriod('elysium'),
-      validators: validatorsConfig(
-        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
-        'elysium',
-      ),
-    },
-    tempo: {
-      interval: DEFAULT_VALIDATOR_INTERVAL,
-      reorgPeriod: getReorgPeriod('tempo'),
-      validators: validatorsConfig(
-        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
-        'tempo',
-      ),
-    },
-    celo: {
+    abstract: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('celo'),
+      reorgPeriod: getReorgPeriod('abstract'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'celo',
+        'abstract',
       ),
     },
-    ethereum: {
-      interval: validatorInterval(context),
-      reorgPeriod: validatorReorgPeriod(context, 'ethereum'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
-        },
-        'ethereum',
-      ),
-    },
-    avalanche: {
+    aleo: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('avalanche'),
+      reorgPeriod: getReorgPeriod('aleo'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'avalanche',
+        'aleo',
       ),
     },
-    worldchain: {
+    apechain: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('worldchain'),
+      reorgPeriod: getReorgPeriod('apechain'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'worldchain',
-      ),
-    },
-    xlayer: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('xlayer'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-        },
-        'xlayer',
-      ),
-    },
-    polygon: {
-      interval: validatorInterval(context),
-      reorgPeriod: validatorReorgPeriod(context, 'polygon'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
-        },
-        'polygon',
-      ),
-    },
-    bsc: {
-      interval: validatorInterval(context),
-      reorgPeriod: validatorReorgPeriod(context, 'bsc'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
-        },
-        'bsc',
+        'apechain',
       ),
     },
     arbitrum: {
@@ -167,26 +101,25 @@ export const validatorChainConfig = (
         'arbitrum',
       ),
     },
-    optimism: {
+    arc: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('optimism'),
+      reorgPeriod: getReorgPeriod('arc'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'optimism',
+        'arc',
       ),
     },
-    gnosis: {
+    avalanche: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('gnosis'),
+      reorgPeriod: getReorgPeriod('avalanche'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'gnosis',
+        'avalanche',
       ),
     },
     base: {
@@ -212,48 +145,58 @@ export const validatorChainConfig = (
         'bob',
       ),
     },
-    fraxtal: {
+    bsc: {
+      interval: validatorInterval(context),
+      reorgPeriod: validatorReorgPeriod(context, 'bsc'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
+        },
+        'bsc',
+      ),
+    },
+    celestia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('fraxtal'),
+      reorgPeriod: getReorgPeriod('celestia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'celestia',
+      ),
+    },
+    celo: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('celo'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'fraxtal',
+        'celo',
       ),
     },
-    linea: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('linea'),
+    citrea: {
+      interval: validatorInterval(context),
+      reorgPeriod: validatorReorgPeriod(context, 'citrea'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
-        'linea',
+        'citrea',
       ),
     },
-    mantle: {
+    coti: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('mantle'),
+      reorgPeriod: getReorgPeriod('coti'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [],
         },
-        'mantle',
-      ),
-    },
-    solanamainnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('solanamainnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [''],
-        },
-        'solanamainnet',
+        'coti',
       ),
     },
     eclipsemainnet: {
@@ -267,36 +210,189 @@ export const validatorChainConfig = (
         'eclipsemainnet',
       ),
     },
-    paradex: {
+    eden: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('paradex'),
+      reorgPeriod: getReorgPeriod('eden'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
-        'paradex',
+        'eden',
       ),
     },
-    viction: {
+    electroneum: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('viction'),
+      reorgPeriod: getReorgPeriod('electroneum'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'electroneum',
+      ),
+    },
+    elysium: {
+      interval: DEFAULT_VALIDATOR_INTERVAL,
+      reorgPeriod: getReorgPeriod('elysium'),
+      validators: validatorsConfig(
+        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
+        'elysium',
+      ),
+    },
+    eni: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('eni'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'eni',
+      ),
+    },
+    ethereum: {
+      interval: validatorInterval(context),
+      reorgPeriod: validatorReorgPeriod(context, 'ethereum'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
+        },
+        'ethereum',
+      ),
+    },
+    fluent: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('fluent'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'fluent',
+      ),
+    },
+    fraxtal: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('fraxtal'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'viction',
+        'fraxtal',
       ),
     },
-    mode: {
+    galactica: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('mode'),
+      reorgPeriod: getReorgPeriod('galactica'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'galactica',
+      ),
+    },
+    gnosis: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('gnosis'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'mode',
+        'gnosis',
+      ),
+    },
+    hyperevm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('hyperevm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+        },
+        'hyperevm',
+      ),
+    },
+    igra: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('igra'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'igra',
+      ),
+    },
+    ink: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('ink'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'ink',
+      ),
+    },
+    katana: {
+      interval: validatorInterval(context),
+      reorgPeriod: validatorReorgPeriod(context, 'katana'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
+        },
+        'katana',
+      ),
+    },
+    kiichain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('kiichain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'kiichain',
+      ),
+    },
+    krown: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('krown'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'krown',
+      ),
+    },
+    kyve: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('kyve'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'kyve',
+      ),
+    },
+    lazai: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('lazai'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'lazai',
+      ),
+    },
+    linea: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('linea'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+        },
+        'linea',
       ),
     },
     lisk: {
@@ -321,25 +417,25 @@ export const validatorChainConfig = (
         'lukso',
       ),
     },
-    metis: {
+    mantle: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('metis'),
+      reorgPeriod: getReorgPeriod('mantle'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.ReleaseCandidate]: [],
         },
-        'metis',
+        'mantle',
       ),
     },
-    apechain: {
+    mantra: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('apechain'),
+      reorgPeriod: getReorgPeriod('mantra'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
-        'apechain',
+        'mantra',
       ),
     },
     metal: {
@@ -352,24 +448,190 @@ export const validatorChainConfig = (
         'metal',
       ),
     },
-    unichain: {
+    metis: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('unichain'),
+      reorgPeriod: getReorgPeriod('metis'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [''],
         },
-        'unichain',
+        'metis',
       ),
     },
-    ink: {
+    mitosis: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('ink'),
+      reorgPeriod: getReorgPeriod('mitosis'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
-        'ink',
+        'mitosis',
+      ),
+    },
+    mocachain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mocachain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'mocachain',
+      ),
+    },
+    mode: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mode'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+        },
+        'mode',
+      ),
+    },
+    monad: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('monad'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'monad',
+      ),
+    },
+    nesa: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nesa'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'nesa',
+      ),
+    },
+    nesachain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nesachain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'nesachain',
+      ),
+    },
+    nexus: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nexus'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'nexus',
+      ),
+    },
+    optimism: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('optimism'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+        },
+        'optimism',
+      ),
+    },
+    paradex: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('paradex'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'paradex',
+      ),
+    },
+    plasma: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('plasma'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'plasma',
+      ),
+    },
+    polygon: {
+      interval: validatorInterval(context),
+      reorgPeriod: validatorReorgPeriod(context, 'polygon'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
+        },
+        'polygon',
+      ),
+    },
+    pulsechain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('pulsechain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'pulsechain',
+      ),
+    },
+    radix: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('radix'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'radix',
+      ),
+    },
+    robinhood: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('robinhood'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'robinhood',
+      ),
+    },
+    solanamainnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solanamainnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [''],
+        },
+        'solanamainnet',
+      ),
+    },
+    solaxy: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solaxy'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'solaxy',
+      ),
+    },
+    somnia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('somnia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'somnia',
       ),
     },
     soneium: {
@@ -392,16 +654,6 @@ export const validatorChainConfig = (
         'sonic',
       ),
     },
-    abstract: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('abstract'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'abstract',
-      ),
-    },
     sonicsvm: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sonicsvm'),
@@ -410,6 +662,16 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'sonicsvm',
+      ),
+    },
+    stable: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('stable'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'stable',
       ),
     },
     starknet: {
@@ -432,247 +694,22 @@ export const validatorChainConfig = (
         'subtensor',
       ),
     },
-    hyperevm: {
+    tea: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('hyperevm'),
+      reorgPeriod: getReorgPeriod('tea'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'hyperevm',
+        'tea',
       ),
     },
-    coti: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('coti'),
+    tempo: {
+      interval: DEFAULT_VALIDATOR_INTERVAL,
+      reorgPeriod: getReorgPeriod('tempo'),
       validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'coti',
-      ),
-    },
-    kyve: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('kyve'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'kyve',
-      ),
-    },
-    katana: {
-      interval: validatorInterval(context),
-      reorgPeriod: validatorReorgPeriod(context, 'katana'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
-        },
-        'katana',
-      ),
-    },
-    solaxy: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('solaxy'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'solaxy',
-      ),
-    },
-    galactica: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('galactica'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'galactica',
-      ),
-    },
-    celestia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('celestia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'celestia',
-      ),
-    },
-    mitosis: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('mitosis'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'mitosis',
-      ),
-    },
-    radix: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('radix'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'radix',
-      ),
-    },
-    pulsechain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('pulsechain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'pulsechain',
-      ),
-    },
-    plasma: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('plasma'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'plasma',
-      ),
-    },
-    electroneum: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('electroneum'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'electroneum',
-      ),
-    },
-    zerogravity: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('zerogravity'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'zerogravity',
-      ),
-    },
-    mantra: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('mantra'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'mantra',
-      ),
-    },
-    monad: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('monad'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'monad',
-      ),
-    },
-    somnia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('somnia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'somnia',
-      ),
-    },
-    lazai: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('lazai'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'lazai',
-      ),
-    },
-    stable: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('stable'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'stable',
-      ),
-    },
-    aleo: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('aleo'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'aleo',
-      ),
-    },
-    citrea: {
-      interval: validatorInterval(context),
-      reorgPeriod: validatorReorgPeriod(context, 'citrea'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
-        },
-        'citrea',
-      ),
-    },
-    eni: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('eni'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'eni',
-      ),
-    },
-    krown: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('krown'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'krown',
-      ),
-    },
-    eden: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('eden'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'eden',
-      ),
-    },
-    igra: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('igra'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'igra',
+        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
+        'tempo',
       ),
     },
     tron: {
@@ -685,94 +722,57 @@ export const validatorChainConfig = (
         'tron',
       ),
     },
-    mocachain: {
+    unichain: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('mocachain'),
+      reorgPeriod: getReorgPeriod('unichain'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
-        'mocachain',
+        'unichain',
       ),
     },
-    fluent: {
+    viction: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('fluent'),
+      reorgPeriod: getReorgPeriod('viction'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'fluent',
+        'viction',
       ),
     },
-    kiichain: {
+    worldchain: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('kiichain'),
+      reorgPeriod: getReorgPeriod('worldchain'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'kiichain',
+        'worldchain',
       ),
     },
-    nesa: {
+    xlayer: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('nesa'),
+      reorgPeriod: getReorgPeriod('xlayer'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
-        'nesa',
+        'xlayer',
       ),
     },
-    nexus: {
+    zerogravity: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('nexus'),
+      reorgPeriod: getReorgPeriod('zerogravity'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
-        'nexus',
-      ),
-    },
-    robinhood: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('robinhood'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'robinhood',
-      ),
-    },
-    tea: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('tea'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'tea',
-      ),
-    },
-    arc: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('arc'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'arc',
-      ),
-    },
-    nesachain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('nesachain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'nesachain',
+        'zerogravity',
       ),
     },
   };

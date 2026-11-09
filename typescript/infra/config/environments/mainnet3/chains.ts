@@ -82,15 +82,15 @@ export const tokenPriceOverrides: ChainMap<string> = {
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
+  bsc: {
+    transactionOverrides: {
+      gasPrice: 1 * 10 ** 8, // 0.1 gwei
+    },
+  },
   kyve: {
     gasPrice: {
       amount: '63.0',
       denom: 'ukyve',
-    },
-  },
-  bsc: {
-    transactionOverrides: {
-      gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
   sei: {
