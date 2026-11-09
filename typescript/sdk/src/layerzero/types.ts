@@ -73,6 +73,12 @@ const LayerZeroV2DvnListSchema = z
 const LayerZeroV2UlnOverrideSchema = z
   .object({
     type: z.literal(LayerZeroV2ConfigMode.Override),
+    /**
+     * Block confirmations the DVNs wait for. `0` requires zero confirmations
+     * and is written as LayerZero's NIL value, so it does not inherit the
+     * library default. Omitting the field, or using `type: default` for the
+     * whole ULN config, inherits the library default instead.
+     */
     confirmations: ZBigNumberish.refine(
       (value) => value <= MAX_UINT64,
       'confirmations must fit uint64',
