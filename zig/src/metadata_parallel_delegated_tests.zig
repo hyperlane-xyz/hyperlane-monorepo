@@ -1720,13 +1720,14 @@ test "early threshold discards uncancellable leaf completion without a terminal 
 // Pool's four occupied sessions, never by an injected PendingReadIo/error.
 const NativeMetadataSchedule = struct {
     const Phase = enum { collect_verify, gas_boundary, release_selected_gas };
-    const Kind = enum { other, module_type, verify, gas };
+    const Kind = enum { other, root_module_type, root_members, module_type, verify, gas };
     const Call = struct { kind: Kind, member: ?usize = null };
     const Held = struct { stream: std.net.Stream, response: []u8, call: Call };
-    const Slots = struct { total: usize = 0, verify: usize = 0, gas: usize = 0, other: usize = 0 };
+    const Slot = struct { kind: Kind = .other, member: ?usize = null, closed: bool = false, taken: bool = false };
+    const Slots = struct { total: usize = 0, module_type: usize = 0, verify: usize = 0, gas: usize = 0, other: usize = 0, rows: [4]Slot = @splat(.{}) };
 
     runtime: *Pool,
-    timer: std.time.Timer,
+    timer: ?std.time.Timer = null,
     abort: std.atomic.Value(bool) = .init(false),
     phase: Phase = .collect_verify,
     held: [64]Held = undefined,
@@ -1757,7 +1758,16 @@ const NativeMetadataSchedule = struct {
         const request = object.get("params").?.array.items[0].object;
         const address = try evm.codecs.fixedHex(20, request.get("to").?.string);
         for (address[0..19]) |byte| if (byte != 0) return error.FixtureUnexpectedScheduledAddress;
-        if (address[19] == 0) return .{ .kind = .other };
+        if (address[19] == 0) {
+            if (!std.mem.eql(u8, method, "eth_call")) return .{ .kind = .other };
+            const data = request.get("data").?.string;
+            const module = try evm.codecs.hexAlloc(std.heap.page_allocator, &evm.codecs.selector("moduleType()"));
+            defer std.heap.page_allocator.free(module);
+            if (std.mem.eql(u8, data, module)) return .{ .kind = .root_module_type };
+            const members = try evm.codecs.hexAlloc(std.heap.page_allocator, &evm.codecs.selector("modulesAndThreshold(bytes)"));
+            defer std.heap.page_allocator.free(members);
+            return .{ .kind = if (std.mem.startsWith(u8, data, members)) .root_members else .other };
+        }
         if (address[19] > 16) return error.FixtureUnexpectedScheduledAddress;
         const member: usize = address[19] - 1;
         if (std.mem.eql(u8, method, "eth_estimateGas")) return .{ .kind = .gas, .member = member };
@@ -1776,6 +1786,8 @@ const NativeMetadataSchedule = struct {
             var hold = false;
             if (request.kind == .verify) {
                 if (self.phase == .collect_verify) {
+                    // Bound held replies, not server/thread startup or discovery.
+                    if (self.timer == null) self.timer = try std.time.Timer.start();
                     self.initial_verify_mask |= bit(member);
                     if (@popCount(self.initial_verify_mask) > 4) return error.FixtureTooManyInitialVerifyGroups;
                     self.held_verify_counts[member] += 1;
@@ -1814,7 +1826,7 @@ const NativeMetadataSchedule = struct {
             .module_type => self.module_responses[member] += 1,
             .verify => self.verify_responses[member] += 1,
             .gas => self.gas_responses[member] += 1,
-            .other => {},
+            else => {},
         }
     }
 
@@ -1823,9 +1835,14 @@ const NativeMetadataSchedule = struct {
         defer self.runtime.mutex.unlock();
         var result: Slots = .{};
         for (self.runtime.sessions) |entry| if (entry) |session| {
-            result.total += 1;
+            if (result.total == result.rows.len) return error.FixtureUnexpectedPoolSize;
             const request = try call(session.original.body);
+            result.rows[result.total] = .{ .kind = request.kind, .member = request.member, .closed = session.closed.load(.acquire), .taken = session.taken.load(.acquire) };
+            result.total += 1;
             switch (request.kind) {
+                .module_type => {
+                    result.module_type += 1;
+                },
                 .verify => result.verify += 1,
                 .gas => result.gas += 1,
                 else => result.other += 1,
@@ -1871,7 +1888,9 @@ const NativeMetadataSchedule = struct {
 
     fn progress(self: *NativeMetadataSchedule) !void {
         if (self.phase == .release_selected_gas) return self.flush();
-        if (self.timer.read() > 5 * std.time.ns_per_s) return error.FixtureScheduleBarrierTimeout;
+        if (self.timer) |*timer| {
+            if (timer.read() > 5 * std.time.ns_per_s) return error.FixtureScheduleBarrierTimeout;
+        }
         if (self.phase == .collect_verify and @popCount(self.initial_verify_mask) == 4) {
             var ready = true;
             for (0..16) |member| {
@@ -1908,7 +1927,16 @@ const NativeMetadataSchedule = struct {
     fn failure(self: *NativeMetadataSchedule, err: anyerror) void {
         self.abort.store(true, .release);
         self.last_slots = self.inspectSlots() catch self.last_slots;
-        std.debug.print("NATIVE_METADATA_SCHEDULE_FAILURE phase={s} error={s} slots={d} verify={d} gas={d} held={d} peak={d} verify_groups={d} gas_groups={d} pressure_checks={d} cached_members={d}\n", .{ @tagName(self.phase), @errorName(err), self.last_slots.total, self.last_slots.verify, self.last_slots.gas, self.held_count, self.held_peak, @popCount(self.initial_verify_mask), @popCount(self.gas_mask), self.real_pressure_refusals, @popCount(self.cached_gas_members) });
+        var replies = [_]usize{ 0, 0, 0 };
+        for (self.module_responses, self.verify_responses, self.gas_responses) |module, verify, gas| {
+            replies[0] += module;
+            replies[1] += verify;
+            replies[2] += gas;
+        }
+        std.debug.print("NATIVE_METADATA_SCHEDULE_FAILURE phase={s} error={s} slots={d} module_type={d} module_replies={d} verify_replies={d} gas_replies={d} verify={d} gas={d} held={d} peak={d} verify_groups={d} gas_groups={d} pressure_checks={d} cached_members={d}\n", .{ @tagName(self.phase), @errorName(err), self.last_slots.total, self.last_slots.module_type, replies[0], replies[1], replies[2], self.last_slots.verify, self.last_slots.gas, self.held_count, self.held_peak, @popCount(self.initial_verify_mask), @popCount(self.gas_mask), self.real_pressure_refusals, @popCount(self.cached_gas_members) });
+        for (self.last_slots.rows[0..self.last_slots.total], 0..) |row, index| {
+            std.debug.print("NATIVE_METADATA_SCHEDULE_SLOT index={d} kind={s} member={?d} closed={} taken={}\n", .{ index, @tagName(row.kind), row.member, row.closed, row.taken });
+        }
     }
 };
 
@@ -1977,7 +2005,7 @@ test "native shared Pool preserves cached verification across deterministic four
     });
     var runtime_live = true;
     defer if (runtime_live) runtime.deinit();
-    var schedule: NativeMetadataSchedule = .{ .runtime = runtime, .timer = try std.time.Timer.start() };
+    var schedule: NativeMetadataSchedule = .{ .runtime = runtime };
     server.schedule = &schedule;
     try server.start();
     server_live = true;
