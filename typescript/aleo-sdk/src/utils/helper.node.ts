@@ -216,7 +216,12 @@ constructor:
     name:
       Object.keys(programRegistry).find((r) => {
         if (r === 'hyp_native') {
-          return p.id() === `${prefix}_warp_token_credits.aleo`;
+          return (
+            p.id() ===
+            (skipSuffixes
+              ? `${prefix}_native.aleo`
+              : `${prefix}_warp_token_credits.aleo`)
+          );
         }
         if (
           (r === 'hyp_collateral' || r === 'hyp_synthetic') &&
