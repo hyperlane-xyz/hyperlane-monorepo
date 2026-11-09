@@ -1311,7 +1311,7 @@ RADIX_SCRAPER_SOURCE = (
     ('zig/src/radix/sbor.zig', 11342, 'bf22610337733294df42cf51a7a60dbf' + '904feaa0767940bc9022739468862e84'),
     ('rust/main/utils/run-locally/src/radix/mod.rs', 17600, '7792d33957b75fee20925e56d82e7332' + '95310c575cddbed10c9ff59d65fc6461'),
     ('rust/main/utils/run-locally/src/program.rs', 18930, 'fd74db13536484d524e31b2188b6ef0a' + 'c8713422d0a63bf0eba7f60186751510'),
-    ('rust/main/utils/run-locally/src/external_agents.rs', 344201, '4e4e35ec1e99157134413c6da1ccefba' + '00754a04008eff545b8b4eccea915567'),
+    ('rust/main/utils/run-locally/src/external_agents.rs', 344200, 'c1ef18a47e540e6575b64835806e78d5' + 'ed936c5fc9f5e5f713dd53dffa99d7d7'),
     ('rust/main/utils/run-locally/src/main.rs', 30900, 'a8e847063664cec776617dace03309dc' + 'e2ebe9c8cd5798108fe8c487d9ac0aaf'),
 )
 

@@ -2071,7 +2071,7 @@ fn tron_cli_program_with(
     Ok(crate::program::Program::default()
         .bin(fixture.pnpm.path)
         .working_dir(directory)
-        .cmd("--config.verify-deps-before-run=false"))
+        .flag("config.verify-deps-before-run=false"))
 }
 
 // Fixed native container teardown. Callers first authorize exact case labels,
