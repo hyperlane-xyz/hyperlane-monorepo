@@ -309,8 +309,8 @@ class EvmConsumerControls(unittest.TestCase):
 
     def test_requires_actual_completed_matching_EVM_case_before_separate_controls(self):
         context,case,stage=self.admission();self.assertEqual(m.evm_control_admission(context,case,stage),'ReleaseSafe')
-        # Historical dependency producers cannot authorize the fresh G case.
-        for historical in ('c0e9b16f5f5361dbbc45260d0316ed8a03b80857','7fdbe182301e92ee7aaed7d82d679e52cffcd8f4','14c854379a86c74f36bd8f25f3b56c1fc3eed562'):
+        # Historical dependency producers cannot authorize the fresh W case.
+        for historical in ('be13712e0f758ef50bba49a53817ff78b9822124','c0e9b16f5f5361dbbc45260d0316ed8a03b80857','7fdbe182301e92ee7aaed7d82d679e52cffcd8f4','14c854379a86c74f36bd8f25f3b56c1fc3eed562'):
             old_context,old_case,old_stage=self.admission()
             old_context['runtime_source_commit']=historical;old_case['runtime_source_commit']=historical
             with self.subTest(historical=historical),self.assertRaises(ValueError):m.evm_control_admission(old_context,old_case,old_stage)

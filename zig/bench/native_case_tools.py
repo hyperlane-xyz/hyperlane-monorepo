@@ -329,17 +329,17 @@ def load_manifest(path, expected_sha256, expected_commit, expected_machine):
 
 
 # Separately bounded, post-case verification. Never changes the main case verdict.
-EVM_CONTROL_PRODUCER = 'be13712e0f758ef50bba49a53817ff78b9822124'
-EVM_CONTROL_DEP = {'run_id':42616231351,'attempt':1,'job_id':129156662280,'artifact_id':13674680088,'bytes':54447004,'sha256':'c7c9994438971078bacec6fb9fe450a2'+'3dc8c1c28358cce9010690ba647144b3'}
+EVM_CONTROL_PRODUCER = 'a7b3319590295c2a65fbf5b077c05e9ec0b3e127'
+EVM_CONTROL_DEP = {'run_id':42714540346,'attempt':1,'job_id':129492537828,'artifact_id':13719195678,'bytes':54124483,'sha256':'23f05feb52fe21a38122c904d42cb760'+'ce2858774a425949743105bf429df3e5'}
 EVM_CONTROL_DEP_MEMBERS = {
-    'bench/results/native-linux/deps/manifest.json': {'bytes': 47264, 'sha256': '2fe99a45b7cddb4c905e49a681288c8f'+'94c70185af5bae9b821420f10e85d841', 'crc32': 1031476441},
-    'bench/results/native-linux/deps/libbz2.a': {'bytes': 98372, 'sha256': '1e8ea6bf4921b72e7a124871dea1fedd'+'44294e772b86493167659a8ecf5a7099', 'crc32': 2947682447},
-    'bench/results/native-linux/deps/liblz4.a': {'bytes': 280398, 'sha256': '5373e1164b51360b26927547a6eb60e4'+'c6e1faaf8ba5c33c271d993c70e5a8a8', 'crc32': 3288941629},
-    'bench/results/native-linux/deps/librocksdb.a': {'bytes': 41039754, 'sha256': 'a4aef700ca575e129b90957ef1cabf08'+'f32b2a9fa6d3b2c55262f34ecb345b6b', 'crc32': 3011795726},
-    'bench/results/native-linux/deps/libsnappy.a': {'bytes': 88362, 'sha256': 'a26ca82d3b6bdba7fb3ab64263331d08'+'83c8061d9a5815dec53cf6969d31eb1f', 'crc32': 3407305056},
-    'bench/results/native-linux/deps/libz.a': {'bytes': 127706, 'sha256': 'c491b0cb12305ffd976d758d75639fc1'+'2f794f23b215cf52d202a6389dd5925f', 'crc32': 1319065503},
-    'bench/results/native-linux/deps/libziggy_rocks_abi.a': {'bytes': 3998, 'sha256': 'f76d36de3c69b4546caaf5c50e53d03e'+'f536f868f28bbd33f62581be9ea87721', 'crc32': 477090955},
-    'bench/results/native-linux/deps/libzstd.a': {'bytes': 1580688, 'sha256': '0d899ad672087767e86598c5035fb544'+'b939215332227781de292c73f839c5c8', 'crc32': 2360028687},
+    'bench/results/native-linux/deps/libbz2.a': {'bytes': 99164, 'sha256': 'b7f015e8e160ac2dfc1a4413771b3bf1'+'f0acdd200e6245a50e0ac3bb55ad11a8', 'crc32': 1489836117},
+    'bench/results/native-linux/deps/liblz4.a': {'bytes': 302550, 'sha256': '75eaf72d208bea02ed5e92c662844bd3'+'88e5cb518b8653fff7f203cebb58080e', 'crc32': 1889339944},
+    'bench/results/native-linux/deps/librocksdb.a': {'bytes': 40944322, 'sha256': '2a6e409c8286d22f450529f5f11e3d51'+'a8e9a753634c6c401f110fdce8e8438e', 'crc32': 2378478871},
+    'bench/results/native-linux/deps/libsnappy.a': {'bytes': 90074, 'sha256': 'd683584d0edeb635e3b5674d7a1ebd1b'+'25b5b935d5acc1342e2f78105ead36ce', 'crc32': 2399089470},
+    'bench/results/native-linux/deps/libz.a': {'bytes': 132194, 'sha256': '4b7d62fe404f4f4a06f2bb5a860d4e77'+'86a4056f42fda6989b8c21d6814e65a4', 'crc32': 1160046960},
+    'bench/results/native-linux/deps/libziggy_rocks_abi.a': {'bytes': 3998, 'sha256': 'f719c8c4ca28245c74e6b33159ea4f6e'+'bc4967fb44c628a0d89a1cd746bf6202', 'crc32': 2337018755},
+    'bench/results/native-linux/deps/libzstd.a': {'bytes': 1564248, 'sha256': 'c4745efa7d2ad163de0291ebd40c0cba'+'4ecbe7c410ac73fc1799edeae0f2819d', 'crc32': 1942127412},
+    'bench/results/native-linux/deps/manifest.json': {'bytes': 53493, 'sha256': '5839f8bbffe96a43b8372a0ab17c7f33'+'60248ca5d858c2766a69b76982f5fe65', 'crc32': 933926285},
 }
 EVM_CONTROL_ARCHIVES = {'libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a'}
 EVM_CONTROL_TESTS = ('local Anvil Multicall3 returns positional allowFailure results','opt-in loopback prepares actual repo Solidity without delivery or nonce mutation','consumer portable transaction-ID crash window repairs reopened dispatch and actual Source Rust decoder agrees')
@@ -350,7 +350,7 @@ EVM_PREPARE_ENTRY = 'test { _ = @import("evm_prepare_delegated_tests.zig"); _ = 
 
 def evm_control_admission(context, case, stage):
     require(context.get('scenario')=='evm' and context.get('mode') in {'ReleaseSafe','ReleaseFast'},'EVM mode only')
-    require(context.get('runtime_source_commit')==EVM_CONTROL_PRODUCER and re.fullmatch('[0-9a-f]{40}',context.get('execution_source_commit','')),'Exact G runtime/current execution required')
+    require(context.get('runtime_source_commit')==EVM_CONTROL_PRODUCER and re.fullmatch('[0-9a-f]{40}',context.get('execution_source_commit','')),'Exact W runtime/current execution required')
     require(context.get('phase')=='HYDRATED_NOT_EXECUTION_APPROVAL' and context.get('nodes_started') is False and context.get('native_case_acceptance') is False,'Original hydrated context required')
     require(case.get('kind')=='owned-linux-native-case-result' and case.get('passed') is True and case.get('native_case_acceptance') is True and case.get('accepted_inputs_unchanged_after') is True,'Successful completed main case required')
     require(all(case.get(k)==context[k] for k in ['runtime_source_commit','execution_source_commit','scenario','mode']),'Main case/context identity differs')
@@ -443,7 +443,7 @@ def evm_control_main(argv):
     require(composition['passed'] is True and composition['native_case_acceptance'] is True,'No component before successful main composition')
     mode=evm_control_admission(context,case,stage);require(context['execution_source_commit']==args.execution_source_commit,'Execution binding differs')
     git_rows=[];scopes={n:api.cohort(ROOT,EVM_CONTROL_PRODUCER,args.execution_source_commit,n,git_rows)for n in api.SCOPES}
-    admitted=load_manifest(api.checked(context['tool_manifest']),context['tool_manifest']['sha256'],EVM_CONTROL_PRODUCER,62);require(admitted==context['tools'],'Actual G tool admission differs')
+    admitted=load_manifest(api.checked(context['tool_manifest']),context['tool_manifest']['sha256'],EVM_CONTROL_PRODUCER,62);require(admitted==context['tools'],'Actual W tool admission differs')
     oracle=api.checked(admitted['ziggy-rocks-oracle']);url=api.checked(context['runtime_artifacts']['url']);tools=json.loads(args.tools.read_text());require(args.gh.is_absolute() and args.gh.is_file() and os.access(args.gh,os.X_OK),'Explicit gh required')
     args.output.mkdir(mode=0o700)
     for name in ['logs','home','tmp','bin','public']:(args.output/name).mkdir()
@@ -524,7 +524,7 @@ def evm_control_main(argv):
 
 def evm_control_copy_source(repo, copied, producer):
     scopes=['zig/src','zig/native','zig/build.zig','zig/build.zig.zon','rust/main/utils/run-locally/src/ethereum/multicall.rs','zig/tools/zig.py','zig/tools/bootstrap.py']
-    raw=subprocess.check_output(['git','ls-tree','-r','-z',producer,'--',*scopes],cwd=repo,timeout=15);require(len(raw)<=2*1024**2,'Bounded G Source tree listing')
+    raw=subprocess.check_output(['git','ls-tree','-r','-z',producer,'--',*scopes],cwd=repo,timeout=15);require(len(raw)<=2*1024**2,'Bounded W Source tree listing')
     rows={};total=0;copied.mkdir(mode=0o700)
     for item in raw.split(b'\0'):
         if not item:continue
@@ -533,7 +533,7 @@ def evm_control_copy_source(repo, copied, producer):
         wire=regular(repo/name).read_bytes();total+=len(wire);require(len(rows)<2048 and len(wire)<=4*1024**2 and total<=64*1024**2,'Bounded owned D Source copy')
         require(hashlib.sha1(b'blob '+str(len(wire)).encode()+b'\0'+wire).hexdigest()==blob,'D Source body differs from actual Git object')
         path=copied/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(wire);path.chmod(0o444);rows[name]={'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest(),'producer_blob':blob}
-    require('zig/src/db_tests.zig'in rows and 'zig/src/agents/indexing/tx_id_native_test.zig'in rows,'Exact actual G test graph required')
+    require('zig/src/db_tests.zig'in rows and 'zig/src/agents/indexing/tx_id_native_test.zig'in rows,'Exact actual W test graph required')
     return copied,rows
 
 
