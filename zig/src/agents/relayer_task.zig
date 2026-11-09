@@ -356,8 +356,7 @@ pub const Lane = struct {
         if (self.telemetry_failures.fetchAdd(1, .monotonic) == 0) std.log.warn("relayer telemetry update failed: {s}", .{@errorName(err)});
     }
     fn appEqual(left: ?[]const u8, right: ?[]const u8) bool {
-        if (left == null or right == null) return left == null and right == null;
-        return std.mem.eql(u8, left.?, right.?);
+        return std.mem.eql(u8, left orelse "Unknown", right orelse "Unknown");
     }
     fn queueForStatus(status: db_json.Status) relayer_metrics.Queue {
         if (status == .Confirm) return .confirm_queue;
@@ -368,7 +367,7 @@ pub const Lane = struct {
         const adapter = self.metricAdapter(item.origin_index) orelse return;
         var count: u64 = 0;
         for (self.active.items) |candidate| {
-            if (candidate.metric_active and candidate.origin_index == item.origin_index and std.meta.eql(candidate.metric_status, status) and appEqual(candidate.metric_app_context, item.metric_app_context)) count +|= 1;
+            if (candidate.metric_active and std.meta.eql(candidate.metric_status, status) and appEqual(candidate.metric_app_context, item.metric_app_context)) count +|= 1;
         }
         adapter.setQueueLength(queueForStatus(status), status, item.metric_app_context, count) catch |err| self.telemetryFailure(err);
     }
@@ -2463,3 +2462,114 @@ pub const NativeTests = if (@import("builtin").is_test) struct {
         return lane.originSenderGate(state, origin_index, message, clock, cached_only);
     }
 } else struct {};
+
+test "relayer queue gauge destination aggregation spans origins and preserves statuses" {
+    const a = std.testing.allocator;
+    for ([_]bool{ false, true }) |reverse| {
+        const registry = try metrics.Registry.init(a, .relayer, .{ .base_version = "fixture" });
+        defer registry.deinit();
+        const tracker = try relayer_metrics.WaitTracker.init(a, registry, .{ .max_active = 16, .max_bytes = 16384 });
+        defer tracker.deinit();
+        const left = try relayer_metrics.Adapter.init(a, tracker, "origin-left", "destination");
+        defer left.deinit();
+        const right = try relayer_metrics.Adapter.init(a, tracker, "origin-right", "destination");
+        defer right.deinit();
+        var per_origin = [_]OriginLane{ .{ .metrics = left }, .{ .metrics = right } };
+        var owner: TaskSet = undefined;
+        var lane: Lane = .{ .owner = &owner, .chain = undefined, .origins = &per_origin, .control = undefined, .worker = undefined };
+        const message: protocol.Message = .{ .version = 3, .nonce = 0, .origin = 1, .destination = 3, .sender = @splat(1), .recipient = @splat(2), .body = "public" };
+        var active: [6]Active = undefined;
+        for (&active, 0..) |*item, index| {
+            item.* = .{ .origin_index = if (index < 3) 0 else 1, .message = .{ .allocator = a, .bytes = undefined, .value = message }, .retained_bytes = 0 };
+            item.message.value.origin = if (index < 3) 1 else 2;
+            item.message.value.nonce = @intCast(index);
+        }
+        active[5].metric_status = .ReadyToSubmit;
+        var pointers: [6]*Active = undefined;
+        for (&pointers, &active) |*pointer, *item| pointer.* = item;
+        lane.active.items = &pointers;
+        const Metric = struct {
+            fn read(r: *metrics.Registry, context: []const u8, status: []const u8) !u64 {
+                const wire = try r.render(std.testing.allocator);
+                defer std.testing.allocator.free(wire);
+                var lines = std.mem.splitScalar(u8, wire, '\n');
+                var found: ?u64 = null;
+                var context_storage: [128]u8 = undefined;
+                var status_storage: [128]u8 = undefined;
+                const selected_context = try std.fmt.bufPrint(&context_storage, "app_context=\"{s}\"", .{context});
+                const selected_status = try std.fmt.bufPrint(&status_storage, "operation_status=\"{s}\"", .{status});
+                while (lines.next()) |line| {
+                    if (!std.mem.startsWith(u8, line, "hyperlane_submitter_queue_length{")) continue;
+                    if (std.mem.indexOf(u8, line, "remote=\"destination\"") == null or std.mem.indexOf(u8, line, selected_context) == null or std.mem.indexOf(u8, line, selected_status) == null) continue;
+                    try std.testing.expect(found == null);
+                    const space = std.mem.lastIndexOfScalar(u8, line, ' ') orelse return error.MissingQueueValue;
+                    found = try std.fmt.parseInt(u64, line[space + 1 ..], 10);
+                }
+                return found orelse error.MissingQueueSample;
+            }
+        };
+        const first = if (reverse) &active[3] else &active[0];
+        const second = if (reverse) &active[0] else &active[3];
+        lane.syncQueueStatus(first, .FirstPrepareAttempt);
+        try std.testing.expectEqual(@as(u64, 5), try Metric.read(registry, "Unknown", "FirstPrepareAttempt"));
+        lane.syncQueueStatus(second, .FirstPrepareAttempt);
+        try std.testing.expectEqual(@as(u64, 5), try Metric.read(registry, "Unknown", "FirstPrepareAttempt"));
+        lane.syncQueueStatus(&active[5], .ReadyToSubmit);
+        try std.testing.expectEqual(@as(u64, 1), try Metric.read(registry, "Unknown", "ReadyToSubmit"));
+        // Actual transition updates both old and new destination/status keys.
+        lane.syncActiveMetrics(&active[0], .ReadyToSubmit);
+        try std.testing.expectEqual(@as(u64, 4), try Metric.read(registry, "Unknown", "FirstPrepareAttempt"));
+        try std.testing.expectEqual(@as(u64, 2), try Metric.read(registry, "Unknown", "ReadyToSubmit"));
+        // Removing either origin's active item updates the same shared gauge.
+        lane.finishActiveMetrics(&active[3], .ended);
+        try std.testing.expectEqual(@as(u64, 3), try Metric.read(registry, "Unknown", "FirstPrepareAttempt"));
+        lane.syncQueueStatus(&active[1], .FirstPrepareAttempt);
+        try std.testing.expectEqual(@as(u64, 3), try Metric.read(registry, "Unknown", "FirstPrepareAttempt"));
+    }
+}
+
+test "relayer queue gauge destination aggregation normalizes Unknown context only" {
+    const a = std.testing.allocator;
+    const registry = try metrics.Registry.init(a, .relayer, .{ .base_version = "fixture" });
+    defer registry.deinit();
+    const tracker = try relayer_metrics.WaitTracker.init(a, registry, .{ .max_active = 8, .max_bytes = 16384 });
+    defer tracker.deinit();
+    const left = try relayer_metrics.Adapter.init(a, tracker, "origin-left", "destination");
+    defer left.deinit();
+    const right = try relayer_metrics.Adapter.init(a, tracker, "origin-right", "destination");
+    defer right.deinit();
+    var per_origin = [_]OriginLane{ .{ .metrics = left }, .{ .metrics = right } };
+    var owner: TaskSet = undefined;
+    var lane: Lane = .{ .owner = &owner, .chain = undefined, .origins = &per_origin, .control = undefined, .worker = undefined };
+    const message: protocol.Message = .{ .version = 3, .nonce = 0, .origin = 1, .destination = 3, .sender = @splat(1), .recipient = @splat(2), .body = "public" };
+    var unknown = "Unknown".*;
+    var other = "other-context".*;
+    var active = [_]Active{
+        .{ .origin_index = 0, .message = .{ .allocator = a, .bytes = undefined, .value = message }, .retained_bytes = 0 },
+        .{ .origin_index = 1, .message = .{ .allocator = a, .bytes = undefined, .value = message }, .retained_bytes = 0, .metric_app_context = &unknown },
+        .{ .origin_index = 1, .message = .{ .allocator = a, .bytes = undefined, .value = message }, .retained_bytes = 0, .metric_app_context = &other },
+    };
+    for (&active, 0..) |*item, index| {
+        item.message.value.origin = if (index == 0) 1 else 2;
+        item.message.value.nonce = @intCast(index);
+    }
+    var pointers = [_]*Active{ &active[0], &active[1], &active[2] };
+    lane.active.items = &pointers;
+    for ([_]*Active{ &active[0], &active[1], &active[2] }) |item| lane.syncQueueStatus(item, .FirstPrepareAttempt);
+    const wire = try registry.render(a);
+    defer a.free(wire);
+    var lines = std.mem.splitScalar(u8, wire, '\n');
+    var matched: usize = 0;
+    while (lines.next()) |line| {
+        if (!std.mem.startsWith(u8, line, "hyperlane_submitter_queue_length{")) continue;
+        const value = line[(std.mem.lastIndexOfScalar(u8, line, ' ') orelse return error.MissingQueueValue) + 1 ..];
+        if (std.mem.indexOf(u8, line, "app_context=\"Unknown\"") != null) {
+            try std.testing.expectEqualStrings("2", value);
+            matched += 1;
+        } else if (std.mem.indexOf(u8, line, "app_context=\"other-context\"") != null) {
+            try std.testing.expectEqualStrings("1", value);
+            matched += 1;
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 2), matched);
+}
