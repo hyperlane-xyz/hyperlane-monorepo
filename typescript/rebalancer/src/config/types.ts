@@ -41,6 +41,7 @@ export enum ExternalBridgeType {
   DeBridge = 'debridge',
   LayerZero = 'layerzero',
   SwapsXyz = 'swapsxyz',
+  Relay = 'relay',
 }
 
 export enum TokenBridgeStatusAdapterType {
@@ -223,11 +224,18 @@ export const SwapsXyzBridgeConfigSchema = z
     },
   );
 
+export const RelayBridgeConfigSchema = z.strictObject({
+  apiUrl: z.string().url().startsWith('https://').optional(),
+  defaultSlippage: z.number().min(0).max(0.1).default(0.001),
+  maxQuoteLossBps: z.number().int().min(0).max(10_000).default(100),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   debridge: DeBridgeBridgeConfigSchema.optional(),
   layerzero: LayerZeroBridgeConfigSchema.optional(),
   swapsxyz: SwapsXyzBridgeConfigSchema.optional(),
+  relay: RelayBridgeConfigSchema.optional(),
 });
 
 export const PendingTransferMiddlewareType = {
@@ -571,7 +579,9 @@ export const RebalancerConfigSchema = z
             (externalBridge === ExternalBridgeType.LayerZero &&
               config.externalBridges?.layerzero !== undefined) ||
             (externalBridge === ExternalBridgeType.SwapsXyz &&
-              config.externalBridges?.swapsxyz !== undefined);
+              config.externalBridges?.swapsxyz !== undefined) ||
+            (externalBridge === ExternalBridgeType.Relay &&
+              config.externalBridges?.relay !== undefined);
           if (!isConfigured) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
