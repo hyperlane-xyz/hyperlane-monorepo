@@ -34,13 +34,7 @@ export class ReceiptWaitTimeoutError extends Error {
   }
 }
 
-export function isReceiptWaitTimeoutError(
-  error: unknown,
-): error is ReceiptWaitTimeoutError {
-  return error instanceof ReceiptWaitTimeoutError;
-}
-
-/** Own the provider's bounded waiter so its transaction listener is removed on timeout. */
+/** Preserve transaction replacement handling; fall back to the provider waiter. */
 export async function waitForReceiptWithTimeout(
   waiter:
     | Pick<providers.Provider, 'waitForTransaction'>
@@ -53,15 +47,16 @@ export async function waitForReceiptWithTimeout(
     // ethers v5 implements wait(confirmations, timeout), although its public
     // TransactionResponse type omits timeout. Use that bounded waiter to keep
     // replacement detection. TronTransactionResponse implements the same form.
-    const receipt =
-      'wait' in waiter
-        ? await (
-            waiter.wait as (
-              confirmations: number,
-              timeout: number,
-            ) => Promise<providers.TransactionReceipt>
-          ).call(waiter, 1, timeoutMs)
-        : await waiter.waitForTransaction(options.txHash, 1, timeoutMs);
+    let receipt: providers.TransactionReceipt;
+    if ('wait' in waiter) {
+      const wait: (
+        confirmations?: number,
+        timeout?: number,
+      ) => Promise<providers.TransactionReceipt> = waiter.wait;
+      receipt = await wait.call(waiter, 1, timeoutMs);
+    } else {
+      receipt = await waiter.waitForTransaction(options.txHash, 1, timeoutMs);
+    }
     assert(
       receipt.status === 1,
       `${options.operation} transaction failed: ${options.txHash}`,

@@ -8,7 +8,6 @@ import {
   type TransactionSubmissionOptions,
   ensure0x,
   isNullish,
-  retryAsync,
   sleep,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -270,58 +269,146 @@ export class TronTransactionBuilder extends TronWeb {
     evmTx: TransactionRequest,
     timeoutMs = this.confirmationTimeoutMs,
   ): Promise<providers.TransactionReceipt | null> {
-    const txid = strip0x(txHash);
-
-    // ethers v5 `waitForTransaction(hash, 0)` resolves immediately: the receipt
-    // if the tx is already mined, otherwise `null` for a still-pending tx.
-    // MultiProvider.handleTx relies on this non-blocking probe before deciding
-    // whether to wait for inclusion, so `wait(0)` must not enter the poll loop.
-    if (confirmations < 1) {
-      const info = await retryAsync(
-        () => this.trx.getUnconfirmedTransactionInfo(txid),
-        5,
-        500,
-      );
-      if (info?.id && info.blockNumber) {
-        // A mined tx must surface its on-chain failure even on the wait(0)
-        // probe, matching ethers, whose wait(0) throws CALL_EXCEPTION on a
-        // status-0 receipt (only a still-pending tx resolves null).
-        assertTronReceiptSuccess(info, this, txid);
-        return this.buildReceipt(info, 1, evmTx);
-      }
-      return null;
-    }
-
+    const controller = new AbortController();
     const deadline = isNullish(timeoutMs) ? undefined : Date.now() + timeoutMs;
-    while (isNullish(deadline) || Date.now() < deadline) {
-      const info = await retryAsync(
-        () => this.trx.getUnconfirmedTransactionInfo(txid),
-        5,
-        500,
+    const timeoutError = Object.assign(
+      new Error(
+        `Tron transaction ${strip0x(txHash)} not confirmed within ${timeoutMs}ms`,
+      ),
+      { code: 'TIMEOUT', transactionHash: txHash },
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const poll = this.pollForTransactionReceipt(
+        txHash,
+        confirmations,
+        evmTx,
+        controller.signal,
+        deadline,
+      );
+      if (isNullish(timeoutMs)) return await poll;
+      const expired = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => {
+            controller.abort(timeoutError);
+            reject(timeoutError);
+          },
+          Math.max(0, timeoutMs),
+        );
+      });
+      return await Promise.race([poll, expired]);
+    } catch (error) {
+      if (deadline !== undefined && Date.now() >= deadline) throw timeoutError;
+      throw error;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      controller.abort(timeoutError);
+    }
+  }
+
+  private async pollForTransactionReceipt(
+    txHash: string,
+    confirmations: number,
+    evmTx: TransactionRequest,
+    signal: AbortSignal,
+    deadline?: number,
+  ): Promise<providers.TransactionReceipt | null> {
+    const txid = strip0x(txHash);
+    for (;;) {
+      signal.throwIfAborted();
+      const info = await this.receiptRequest<Types.TransactionInfo>(
+        'wallet/gettransactioninfobyid',
+        { value: txid },
+        'post',
+        signal,
+        deadline,
       );
       if (info?.id && info.blockNumber) {
         const currentBlock =
           confirmations > 1
-            ? await retryAsync(() => this.trx.getCurrentBlock(), 5, 500)
+            ? await this.receiptRequest<Types.Block>(
+                'wallet/getnowblock',
+                {},
+                'get',
+                signal,
+                deadline,
+              )
             : undefined;
         const actualConfirmations =
           (currentBlock?.block_header.raw_data.number ?? info.blockNumber) -
           info.blockNumber +
           1;
-        if (actualConfirmations >= confirmations) {
-          // Only finalize success/failure once the requested depth is reached,
-          // so a reorgable on-chain failure is not rejected prematurely at a
-          // single confirmation when the caller asked for more.
+        if (confirmations < 1 || actualConfirmations >= confirmations) {
           assertTronReceiptSuccess(info, this, txid);
-          return this.buildReceipt(info, actualConfirmations, evmTx);
+          return this.buildReceipt(
+            info,
+            Math.max(1, actualConfirmations),
+            evmTx,
+            signal,
+            deadline,
+          );
         }
       }
-      await sleep(this.confirmationPollMs);
+      // Preserve ethers' single-probe semantics for wait(0).
+      if (confirmations < 1) return null;
+      await sleep(this.receiptDelay(this.confirmationPollMs, deadline));
     }
-    throw Object.assign(
-      new Error(`Tron transaction ${txid} not confirmed within ${timeoutMs}ms`),
-      { code: 'TIMEOUT' },
-    );
+  }
+
+  private receiptDelay(delay: number, deadline?: number): number {
+    return deadline === undefined
+      ? delay
+      : Math.max(0, Math.min(delay, deadline - Date.now()));
+  }
+
+  /** Per-request options leave shared transport headers, auth and timeouts intact. */
+  private async receiptRequest<T>(
+    url: string,
+    payload: Record<string, unknown>,
+    method: 'get' | 'post',
+    signal: AbortSignal,
+    deadline?: number,
+  ): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      signal.throwIfAborted();
+      if (deadline !== undefined && Date.now() >= deadline) {
+        throw Object.assign(new Error('Receipt deadline reached'), {
+          code: 'TIMEOUT',
+        });
+      }
+      try {
+        const remaining =
+          deadline === undefined
+            ? undefined
+            : Math.max(1, deadline - Date.now());
+        const response = await this.fullNode.instance.request<T>({
+          url,
+          method,
+          ...(method === 'post' ? { data: payload } : { params: payload }),
+          signal,
+          ...(remaining === undefined
+            ? {}
+            : {
+                timeout:
+                  this.fullNode.timeout > 0
+                    ? Math.min(remaining, this.fullNode.timeout)
+                    : remaining,
+              }),
+        });
+        signal.throwIfAborted();
+        if (deadline !== undefined && Date.now() >= deadline) {
+          throw Object.assign(new Error('Receipt deadline reached'), {
+            code: 'TIMEOUT',
+          });
+        }
+        return response.data;
+      } catch (error) {
+        signal.throwIfAborted();
+        if (attempt >= 4 || (deadline !== undefined && Date.now() >= deadline))
+          throw error;
+        await sleep(this.receiptDelay(500 * 2 ** attempt, deadline));
+      }
+    }
   }
 
   /** Convert a Tron `41`-prefixed (or bare) hex address to a checksummed EVM address. */
@@ -337,12 +424,21 @@ export class TronTransactionBuilder extends TronWeb {
     info: Types.TransactionInfo,
     confirmations: number,
     evmTx: TransactionRequest,
+    signal: AbortSignal,
+    deadline?: number,
   ): Promise<providers.TransactionReceipt> {
-    const block = await retryAsync(
-      () => this.trx.getBlockByNumber(info.blockNumber),
-      5,
-      500,
+    assert(
+      Number.isInteger(info.blockNumber) && info.blockNumber >= 0,
+      'Invalid block number provided',
     );
+    const block = await this.receiptRequest<Types.Block>(
+      'wallet/getblockbynum',
+      { num: info.blockNumber },
+      'post',
+      signal,
+      deadline,
+    );
+    assert(Object.keys(block).length > 0, 'Block not found');
     return this.toEthersReceipt(
       info,
       confirmations,

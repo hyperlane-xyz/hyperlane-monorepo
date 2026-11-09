@@ -1,5 +1,8 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { mock } from 'node:test';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 import { BigNumber, constants, utils, Wallet } from 'ethers';
 
 import {
@@ -66,8 +69,19 @@ function makeBuilder(
 }
 
 function injectTrx(builder: TronTransactionBuilder, trx: TrxDouble): void {
-  // CAST: overwrite the builder's private `trx` field with a minimal double.
-  (builder as unknown as { trx: TrxDouble }).trx = trx;
+  mock.method(builder.fullNode.instance, 'request', async (config: unknown) => {
+    assert(
+      typeof config === 'object' && config !== null && 'url' in config,
+      'Expected receipt request config',
+    );
+    if (config.url === 'wallet/gettransactioninfobyid')
+      return { data: await trx.getUnconfirmedTransactionInfo() };
+    if (config.url === 'wallet/getnowblock' && trx.getCurrentBlock)
+      return { data: await trx.getCurrentBlock() };
+    if (config.url === 'wallet/getblockbynum' && trx.getBlockByNumber)
+      return { data: await trx.getBlockByNumber() };
+    throw new Error(`Unexpected receipt endpoint ${config.url}`);
+  });
 }
 
 const blockByNumber = async (): Promise<BlockInfo> => ({ blockID: BLOCK_HASH });
@@ -420,5 +434,157 @@ describe('TronWallet submission boundary', () => {
     expect(caught).to.be.instanceOf(TransactionSubmissionError);
     expect(caught).to.include({ submissionState: 'not_submitted' });
     expect(order).to.deep.equal(['sign']);
+  });
+});
+
+describe('Tron receipt deadlines', () => {
+  afterEach(() => mock.restoreAll());
+
+  function requestSignal(config: unknown): AbortSignal {
+    assert(
+      typeof config === 'object' &&
+        config !== null &&
+        'signal' in config &&
+        config.signal instanceof AbortSignal,
+      'Expected per-wait abort signal',
+    );
+    return config.signal;
+  }
+
+  it('ends a wait even when the transport ignores abort and never starts another request', async () => {
+    const builder = makeBuilder();
+    let signal: AbortSignal | undefined;
+    let requests = 0;
+    mock.method(builder.fullNode.instance, 'request', (config: unknown) => {
+      requests++;
+      signal = requestSignal(config);
+      return new Promise(() => {});
+    });
+    const started = Date.now();
+    const error: unknown = await buildResponse(builder)
+      .wait(1, 20)
+      .catch((error: unknown) => error);
+    assert(error instanceof Error && 'code' in error, 'Expected typed timeout');
+    expect(error.code).to.equal('TIMEOUT');
+    expect(error.message).to.include(TXID);
+    expect(Date.now() - started).to.be.lessThan(500);
+    expect(signal?.aborted).to.equal(true);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(requests).to.equal(1);
+  });
+
+  it('stops retry backoff at the deadline', async () => {
+    const builder = makeBuilder();
+    let requests = 0;
+    mock.method(builder.fullNode.instance, 'request', async () => {
+      requests++;
+      throw new Error('RPC unavailable');
+    });
+    await expect(buildResponse(builder).wait(1, 20)).to.be.rejectedWith(
+      'not confirmed within 20ms',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(requests).to.equal(1);
+  });
+
+  it('includes receipt block lookup in the same deadline', async () => {
+    const builder = makeBuilder();
+    let requests = 0;
+    let blockSignal: AbortSignal | undefined;
+    mock.method(
+      builder.fullNode.instance,
+      'request',
+      async (config: unknown) => {
+        requests++;
+        if (requests === 1)
+          return {
+            data: {
+              id: TXID,
+              blockNumber: 123,
+              receipt: { result: 'SUCCESS' },
+            },
+          };
+        blockSignal = requestSignal(config);
+        return new Promise(() => {});
+      },
+    );
+    await expect(buildResponse(builder).wait(1, 20)).to.be.rejectedWith(
+      'not confirmed within 20ms',
+    );
+    expect(requests).to.equal(2);
+    expect(blockSignal?.aborted).to.equal(true);
+  });
+
+  it('keeps simultaneous waits independent', async () => {
+    const builder = makeBuilder();
+    let requests = 0;
+    let longSignal: AbortSignal | undefined;
+    mock.method(
+      builder.fullNode.instance,
+      'request',
+      async (config: unknown) => {
+        requests++;
+        if (requests === 1) return new Promise(() => {});
+        if (requests === 2) {
+          longSignal = requestSignal(config);
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          return {
+            data: {
+              id: TXID,
+              blockNumber: 123,
+              receipt: { result: 'SUCCESS' },
+            },
+          };
+        }
+        return { data: { blockID: BLOCK_HASH } };
+      },
+    );
+    const response = buildResponse(builder);
+    const short = expect(response.wait(1, 10)).to.be.rejectedWith(
+      'not confirmed within 10ms',
+    );
+    const long = response.wait(1, 500);
+    await short;
+    expect(longSignal?.aborted).to.equal(false);
+    expect((await long).transactionHash).to.equal(`0x${TXID}`);
+  });
+
+  it('cancels the actual Axios request while preserving custom RPC headers', async () => {
+    let header: string | string[] | undefined;
+    let closed = false;
+    const server = createServer((request, response) => {
+      header = request.headers['x-receipt-test'];
+      response.on('close', () => {
+        closed = true;
+      });
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    assert(
+      address && typeof address === 'object',
+      'Expected listening test server',
+    );
+    const builder = new TronTransactionBuilder(
+      `http://127.0.0.1:${address.port}`,
+      ADDRESS,
+      undefined,
+      { 'x-receipt-test': 'preserved' },
+    );
+    const originalTimeout = builder.fullNode.timeout;
+    try {
+      await expect(buildResponse(builder).wait(1, 100)).to.be.rejectedWith(
+        'not confirmed within 100ms',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(header).to.equal('preserved');
+      expect(closed).to.equal(true);
+      expect(builder.fullNode.timeout).to.equal(originalTimeout);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
   });
 });

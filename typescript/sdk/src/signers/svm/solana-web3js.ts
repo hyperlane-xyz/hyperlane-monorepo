@@ -65,7 +65,7 @@ export interface SvmSignerConfig {
   pollingDelayMs?: number;
   /** Commitment level for confirmation (default: 'confirmed') */
   commitment?: TransactionConfirmationStatus;
-  /** Whether to automatically resubmit on blockhash expiry (default: true) */
+  /** @deprecated Fresh blockhash resubmission is unsafe after broadcast; true is rejected. */
   enableBlockhashResubmit?: boolean;
   /** Whether to retry on RPC errors during polling (default: true) */
   retryOnRpcErrors?: boolean;
@@ -125,7 +125,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       maxConfirmationAttempts: config?.maxConfirmationAttempts ?? 30,
       pollingDelayMs: config?.pollingDelayMs ?? 1000,
       commitment: config?.commitment ?? 'confirmed',
-      enableBlockhashResubmit: config?.enableBlockhashResubmit ?? true,
+      enableBlockhashResubmit: config?.enableBlockhashResubmit ?? false,
       retryOnRpcErrors: config?.retryOnRpcErrors ?? true,
     };
   }
@@ -197,7 +197,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   }
 
   /**
-   * Sign and confirm transaction with blockhash resubmit on expiry
+   * Sign once and retain that identity through confirmation uncertainty
    */
   private async signAndConfirm(
     transaction: Transaction | VersionedTransaction,
@@ -205,15 +205,18 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     options?: SendTransactionOptions,
   ): Promise<string> {
     const submission = new TransactionSubmission(options);
-    const observed = !!(options?.onSubmissionAttempt || options?.onSubmitted);
     const execute = async () => {
       assert(
-        !observed || options?.enableBlockhashResubmit !== true,
-        'Observed Solana submissions cannot re-sign with a new blockhash',
+        !(
+          options?.enableBlockhashResubmit ??
+          this.config.enableBlockhashResubmit
+        ),
+        'Automatic Solana blockhash resubmission is unsupported; use false to preserve one transaction identity',
       );
       // Get initial blockhash
-      const { blockhash, lastValidBlockHeight } =
-        await this.svmProvider.getLatestBlockhash(this.config.commitment);
+      const { blockhash } = await this.svmProvider.getLatestBlockhash(
+        this.config.commitment,
+      );
 
       if (transaction instanceof VersionedTransaction) {
         stampVersionedBlockhash(transaction, blockhash);
@@ -246,71 +249,33 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
           : signedTx.signature;
       assert(rawSignature, 'Signed Solana transaction has no payer signature');
       const signedSignature = bufferToBase58(Buffer.from(rawSignature));
-      const signature =
-        options?.onSubmissionAttempt || options?.onSubmitted
-          ? await submission.submit(
-              () => this.sendRawTransaction(signedTx),
-              (hash) => {
-                assert(
-                  hash === signedSignature,
-                  'Solana RPC returned a different transaction signature',
-                );
-                return signedSignature;
-              },
-              signedSignature,
-            )
-          : await this.sendRawTransaction(signedTx);
-
-      // Poll for confirmation with optional resubmit
-      const result = await this.pollForConfirmation(
-        signature,
-        signedTx,
-        lastValidBlockHeight,
-        extraSigners,
-        observed ? false : options?.enableBlockhashResubmit,
+      const signature = await submission.submit(
+        () => this.sendRawTransaction(signedTx),
+        (hash) => {
+          assert(
+            hash === signedSignature,
+            'Solana RPC returned a different transaction signature',
+          );
+          return signedSignature;
+        },
+        signedSignature,
       );
-
-      return result;
+      return this.pollForConfirmation(signature);
     };
-    return options?.onSubmissionAttempt || options?.onSubmitted
-      ? submission.run(execute)
-      : execute();
+    return submission.run(execute);
   }
 
   /**
-   * Poll for transaction confirmation with blockhash expiry handling
+   * Poll only the original signature. Absence or expiry cannot prove it never landed.
    */
-  private async pollForConfirmation(
-    initialSignature: string,
-    transaction: Transaction | VersionedTransaction,
-    lastValidBlockHeight: number,
-    extraSigners?: Keypair[],
-    enableBlockhashResubmit = this.config.enableBlockhashResubmit,
-  ): Promise<string> {
-    let signature = initialSignature;
+  private async pollForConfirmation(signature: string): Promise<string> {
     let attempts = 0;
-    let currentLastValidBlockHeight = lastValidBlockHeight;
 
     while (attempts < this.config.maxConfirmationAttempts) {
       await sleep(this.config.pollingDelayMs);
       attempts++;
 
       try {
-        // Check and handle blockhash expiry
-        const resubmitResult = enableBlockhashResubmit
-          ? await this.checkAndResubmitIfExpired(
-              signature,
-              transaction,
-              currentLastValidBlockHeight,
-              extraSigners,
-            )
-          : null;
-        if (resubmitResult) {
-          signature = resubmitResult.signature;
-          currentLastValidBlockHeight = resubmitResult.lastValidBlockHeight;
-          continue;
-        }
-
         // Check if transaction is confirmed
         const isConfirmed = await this.checkTransactionConfirmation(signature);
         if (isConfirmed) {
@@ -341,53 +306,6 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     throw new Error(
       `Transaction confirmation timeout after ${this.config.maxConfirmationAttempts} attempts`,
     );
-  }
-
-  /**
-   * Check if blockhash expired and resubmit transaction if needed
-   * Returns new signature and lastValidBlockHeight if resubmitted, null otherwise
-   */
-  private async checkAndResubmitIfExpired(
-    signature: string,
-    transaction: Transaction | VersionedTransaction,
-    lastValidBlockHeight: number,
-    extraSigners?: Keypair[],
-  ): Promise<{ signature: string; lastValidBlockHeight: number } | null> {
-    const currentBlockHeight = await this.svmProvider.getBlockHeight();
-    if (currentBlockHeight <= lastValidBlockHeight) {
-      return null; // Blockhash still valid
-    }
-
-    this.logger.warn(
-      `Blockhash expired at block ${lastValidBlockHeight}, current ${currentBlockHeight}. Resubmitting...`,
-    );
-
-    // Get fresh blockhash and resubmit
-    const { blockhash, lastValidBlockHeight: newLastValid } =
-      await this.svmProvider.getLatestBlockhash(this.config.commitment);
-
-    if (transaction instanceof VersionedTransaction) {
-      stampVersionedBlockhash(transaction, blockhash);
-      for (const signer of extraSigners ?? []) {
-        transaction.sign([signer]);
-      }
-    } else {
-      transaction.recentBlockhash = blockhash;
-      for (const signer of extraSigners ?? []) {
-        transaction.partialSign(signer);
-      }
-    }
-
-    const signedTx = await this.signer.signTransaction(transaction);
-
-    const newSignature = await this.sendRawTransaction(signedTx);
-
-    this.logger.info(`Resubmitted with signature: ${newSignature}`);
-
-    return {
-      signature: newSignature,
-      lastValidBlockHeight: newLastValid,
-    };
   }
 
   /**

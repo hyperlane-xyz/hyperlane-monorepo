@@ -265,6 +265,12 @@
       }
     },
     {
+      "files": ["typescript/tron-sdk/src/**/*.test.ts"],
+      "rules": {
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
       "files": [
         "typescript/utils/src/fs/**/*.ts",
         "typescript/sdk/src/**/*.test.ts",

@@ -4,6 +4,7 @@ import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
 import {
   TransactionSubmission,
   type TransactionSubmissionOptions,
+  assert,
 } from '@hyperlane-xyz/utils';
 
 /** Submit without waiting for confirmation, exposing the actual broadcast boundary. */
@@ -13,9 +14,9 @@ export async function submitEvmLikeTransaction(
   options?: TransactionSubmissionOptions,
 ): Promise<providers.TransactionResponse> {
   const submission = new TransactionSubmission(options);
-  return submission.run(async () => {
+  return submission.run(async (observers) => {
     if (signer instanceof TronWallet)
-      return signer.sendTransaction(transaction, options ?? {});
+      return signer.sendTransaction(transaction, observers);
     if (
       options &&
       signer instanceof Wallet &&
@@ -23,8 +24,7 @@ export async function submitEvmLikeTransaction(
     ) {
       const populated = await signer.populateTransaction(transaction);
       const signed = await signer.signTransaction(populated);
-      if (!signer.provider)
-        throw new Error('Transaction signer has no provider');
+      assert(signer.provider, 'Transaction signer has no provider');
       const provider = signer.provider;
       return submission.submit(
         () => provider.sendTransaction(signed),

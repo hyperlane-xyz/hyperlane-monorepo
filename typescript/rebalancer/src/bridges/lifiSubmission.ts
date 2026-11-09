@@ -128,7 +128,13 @@ export class LiFiSubmission {
               this.approval = undefined;
               this.confirmedApproval = undefined;
             }
-            const [raw] = request.params as [string];
+            assert(
+              Array.isArray(request.params) &&
+                request.params.length === 1 &&
+                typeof request.params[0] === 'string',
+              'LiFi raw transaction must be a single encoded string',
+            );
+            const raw = request.params[0];
             const tx = ethers.utils.parseTransaction(raw);
             assert(
               tx.chainId === chainId,

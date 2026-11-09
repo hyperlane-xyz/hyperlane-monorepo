@@ -37,7 +37,6 @@ import { LiFiSubmission } from './lifiSubmission.js';
 
 const TRAILING_ZEROES_REGEX = /\.?0+$/;
 const API_KEY_REGEX = /apiKey=[^&]+/;
-const TRANSACTION_LINK_REGEX = /\/tx\/([^/]+)/;
 
 /**
  * LiFi API base URL for REST endpoints.
@@ -522,8 +521,9 @@ export class LiFiBridge implements IExternalBridge {
       const toChain = route.toChainId;
       const fromProtocol = this.getProtocolTypeForChainId(fromChain);
       const sourceProtocol = fromProtocol ?? ProtocolType.Ethereum;
+      const sourceKey = privateKeys[sourceProtocol];
       assert(
-        privateKeys[sourceProtocol],
+        sourceKey,
         `Missing private key for source chain protocol ${sourceProtocol}`,
       );
 
@@ -548,12 +548,10 @@ export class LiFiBridge implements IExternalBridge {
       this._executeLock = acquired;
       await prev;
 
-      let executedRoute!: RouteExtended;
-
       try {
         this.configureLiFiProvider(
           sourceProtocol,
-          privateKeys[sourceProtocol]!,
+          sourceKey,
           fromChain,
           fromRpcUrl,
           submission,
@@ -561,7 +559,7 @@ export class LiFiBridge implements IExternalBridge {
         );
 
         // Execute route with update callbacks
-        executedRoute = await executeRoute(route, {
+        await executeRoute(route, {
           disableMessageSigning: true,
           // Update callback for route progress
           updateRouteHook: (updatedRoute: RouteExtended) => {
@@ -585,24 +583,10 @@ export class LiFiBridge implements IExternalBridge {
         'LiFi bridge transaction executed',
       );
 
-      // Extract transfer ID if available (some bridges provide this)
-      let transferId: string | undefined;
-      const processes = executedRoute.steps[0]?.execution?.process;
-      const txInfo = processes?.find((p) => p.txHash === txHash);
-      if (txInfo && 'lifiExplorerLink' in txInfo) {
-        // Extract transfer ID from explorer link if available
-        const link = (txInfo as { lifiExplorerLink?: string }).lifiExplorerLink;
-        const match = link?.match(TRANSACTION_LINK_REGEX);
-        if (match) {
-          transferId = match[1];
-        }
-      }
-
       return {
         txHash,
         fromChain,
         toChain,
-        transferId,
       };
     });
   }

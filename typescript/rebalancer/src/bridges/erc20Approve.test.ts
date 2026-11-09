@@ -293,6 +293,7 @@ describe('approval submission boundaries', () => {
   it('publishes approval identity before receipt polling and clears it only after confirmation', async () => {
     const h = harness();
     const txHash = `0x${'ab'.repeat(32)}`;
+    let waited = false;
     h.send.resolves({
       hash: txHash,
       confirmations: 0,
@@ -302,15 +303,17 @@ describe('approval submission boundaries', () => {
       data: '0x',
       value: ethers.constants.Zero,
       chainId: 1,
-      wait: async () => testReceipt(txHash, 1),
-    });
-    h.wait.callsFake(async () => {
-      expect(h.onApproval.lastCall.args[0].txHash).to.equal(txHash);
-      return testReceipt(txHash, 1);
+      wait: async () => {
+        expect(h.onApproval.lastCall.args[0].txHash).to.equal(txHash);
+        waited = true;
+        return testReceipt(txHash, 1);
+      },
     });
     await approveErc20IfNeeded(h.signer, token, spender, 25n, logger, {
       onApproval: h.onApproval,
     });
+    expect(waited).to.equal(true);
+    expect(h.wait.called).to.equal(false);
     expect(h.onApproval.lastCall.args[0]).to.equal(undefined);
   });
 });

@@ -102,7 +102,7 @@ export interface MultiProviderOptions {
 }
 
 export interface SendTransactionOptions extends TransactionSubmissionOptions {
-  /** Disabled for observed submissions; explicitly enabling it with observers is rejected. */
+  /** @deprecated Automatic re-signing can duplicate a landed transaction; true is rejected. */
   enableBlockhashResubmit?: boolean;
   /**
    * Number of confirmations to wait for, or a block tag like "finalized" or "safe".
