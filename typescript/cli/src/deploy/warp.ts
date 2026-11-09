@@ -245,6 +245,7 @@ export async function runWarpRouteDeploy({
   const effectiveWarpDeployConfig = await materializeNewWormholeMesh(
     multiProvider,
     warpDeployConfig,
+    apiKeys,
   );
   deploymentParams.warpDeployConfig = effectiveWarpDeployConfig;
 
@@ -353,15 +354,23 @@ export async function runWarpRouteDeploy({
 async function materializeNewWormholeMesh(
   multiProvider: MultiProvider,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  apiKeys: ChainMap<string>,
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
   const pairs = pairWormholeConfigs(warpDeployConfig);
   if (Object.keys(pairs).length === 0) return warpDeployConfig;
 
   logBlue('Deploying and enrolling combined Wormhole hook/ISM routers...');
   const mesh = buildWormholeMeshConfig(warpDeployConfig, pairs);
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
   const addresses = await EvmWormholeHookIsmModule.deployMesh(
     multiProvider,
     mesh,
+    contractVerifier,
   );
   return materializeWormholeWarpConfig(warpDeployConfig, addresses);
 }
@@ -595,6 +604,7 @@ export async function runWarpRouteApply(
     context.multiProvider,
     warpDeployConfig,
     warpCoreConfig,
+    apiKeys,
   );
   const effectiveParams: WarpApplyParams = {
     ...params,
@@ -669,6 +679,7 @@ async function materializeWormholeMeshForApply(
   multiProvider: MultiProvider,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
+  apiKeys: ChainMap<string>,
 ): Promise<{
   config: WarpRouteDeployConfigMailboxRequired;
   transactions: ChainMap<TypedAnnotatedTransaction[]>;
@@ -721,10 +732,17 @@ async function materializeWormholeMeshForApply(
 
   logBlue('Reconciling combined Wormhole hook/ISM routers...');
   const mesh = buildWormholeMeshConfig(warpDeployConfig, pairs);
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
   const result = await EvmWormholeHookIsmModule.reconcileMesh(
     multiProvider,
     mesh,
     existingWormholeRouters,
+    contractVerifier,
   );
   return {
     config: materializeWormholeWarpConfig(warpDeployConfig, result.addresses),

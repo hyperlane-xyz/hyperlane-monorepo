@@ -13,6 +13,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  ContractVerifier,
   type DerivedTokenRouterConfig,
   EvmWarpModule,
   EvmWarpRouteReader,
@@ -911,6 +912,9 @@ describe('runWarpRouteApply', () => {
         expect(reconcileMesh.firstCall.args[2]).to.deep.equal({
           [TestChainName.test1]: WORMHOLE_HOOK_ISM,
         });
+        expect(reconcileMesh.firstCall.args[3]).to.be.instanceOf(
+          ContractVerifier,
+        );
       });
     }
   });
