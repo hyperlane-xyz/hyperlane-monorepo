@@ -2,11 +2,13 @@ import { expect } from 'chai';
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { pino } from 'pino';
 import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
-import { WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
+import { StrategyFactory } from '@hyperlane-xyz/rebalancer';
+import { Token, WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
@@ -36,6 +38,22 @@ describe('USDT Eclipse production manifest', () => {
           'utf8',
         ),
       ),
+    );
+    const tokens = Object.fromEntries(
+      warpCore.tokens.map((token) => [token.chainName, new Token(token)]),
+    );
+    // Representative collateral observed during review; live startup is checked
+    // separately because balances can change after this fixture was recorded.
+    const construct = (collateral: bigint) =>
+      StrategyFactory.createStrategy(
+        loaded.config.strategy,
+        tokens,
+        collateral,
+        pino({ level: 'silent' }),
+      );
+    expect(() => construct(78_772_614_144n)).not.to.throw();
+    expect(() => construct(74_999_999_999n)).to.throw(
+      'Consider reducing the targets',
     );
     const getWarpRoute = Sinon.stub(
       GithubRegistry.prototype,
@@ -130,6 +148,8 @@ describe('USDT Eclipse production manifest', () => {
         maxQuoteLossBps: 50,
         maxEvmNativeFeeWei: '10000000000000000',
         maxTronNativeFeeSun: 20000000,
+        maxSolanaTransactionFeeLamports: 10000000,
+        solanaTransactionFeeWarningLamports: 1000000,
         maxSolanaNativeSpendLamports: 10000000,
       },
     });
@@ -147,7 +167,7 @@ describe('USDT Eclipse production manifest', () => {
           total + runtime.strategy.chains[chain].minAmount.target,
         0,
       ),
-    ).to.equal(90000);
+    ).to.equal(75000);
     for (const chain of strategyChains)
       expect(runtime.strategy.chains[chain].externalBridge).to.equal(
         'swapsxyz',
