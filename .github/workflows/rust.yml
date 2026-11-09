@@ -112,9 +112,14 @@ jobs:
           fi
         working-directory: ./rust/main
 
-      # Codecov can't parse llvm-cov's raw JSON export; reuse the run for an lcov report.
+      # Preserve the Lander threshold above, then merge coverage from its signers.
+      - name: Include Sealevel unit tests in coverage
+        run: cargo llvm-cov --package hyperlane-sealevel --lib --no-report
+        working-directory: ./rust/main
+
+      # Codecov can't parse llvm-cov's raw JSON export; reuse both test runs.
       - name: Generate lcov report
-        run: cargo llvm-cov report --package lander --lcov --output-path lcov.info
+        run: cargo llvm-cov report --package lander --package hyperlane-sealevel --lcov --output-path lcov.info
         working-directory: ./rust/main
 
       - name: Upload coverage to Codecov
