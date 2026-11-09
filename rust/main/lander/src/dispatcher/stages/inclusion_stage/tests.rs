@@ -249,6 +249,8 @@ async fn test_processing_included_txs() {
     mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Included));
+    mock_adapter.expect_tx_ready_for_resubmission().never();
+    mock_adapter.expect_submit().never();
 
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
