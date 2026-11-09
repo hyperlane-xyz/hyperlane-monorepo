@@ -508,7 +508,7 @@ class RelayerStartupNumericControls(unittest.TestCase):
         with self.assertRaises(ValueError):api.RelayerStartup(HERE.parents[1],{**self.manifest,'runtime_source_commit':'06e263fe7950e6051502a771646bbcc6d0453369'},self.modules)
     def test_transitive_catalog_names_are_recovered_only_with_exact_pinned_Source(self):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules)
-        self.assertEqual(len(probe.sources),23)
+        self.assertEqual(len(probe.sources),28)
         raw=b'<RLY> warning: task 0 failed: WrongChain\n<RLY> warning: task 3 failed: ReadReplayPassNotActive\n<RLY> warning: task 4 failed: PRIVATE_SENTINEL\n'
         rows=api.startup_header_projection(raw,probe.sources)['observations']
         self.assertEqual([r['Source_error_name']for r in rows],['WrongChain','ReadReplayPassNotActive',None]);self.assertTrue(all(r['lane_attribution']is None for r in rows))
@@ -561,7 +561,7 @@ class RelayerStartupNumericControls(unittest.TestCase):
         with self.assertRaises(ValueError):api.RelayerStartup(HERE.parents[1],self.manifest,bad)
     def test_exact_header_known_literal_unknown_and_foreign_prefix_do_not_leak(self):
         sources={'public.zig':b'error.OutOfMemory; error.RpcFailed'};raw=b'<RLY> warning: task 2 failed: OutOfMemory\n<RLY> warn: Common health metric update failed: PRIVATE_SENTINEL\n<RLY> error: agent stopped: RpcFailed\n<VL1> warning: task 3 failed: RpcFailed\n<RLY> warning: task 256 failed: RpcFailed\n<RLY> warning: task 1 failed: SECRET/full/path\n'
-        out=api.startup_header_projection(raw,sources);self.assertEqual(out['counts'],{'supervised_task_failed':1,'health_warning':1,'agent_stopped':1,'native_group_rpc_warning':0,'relayer_telemetry_warning':0,'initialization_metric_warning':0,'critical_metric_warning':0});self.assertEqual(out['observations'][0]['task_index'],2);self.assertEqual(out['observations'][0]['Source_error_name'],'OutOfMemory');self.assertIsNone(out['observations'][1]['Source_error_name']);self.assertNotIn('PRIVATE',json.dumps(out));self.assertNotIn('SECRET',json.dumps(out));self.assertTrue(all(r['lane_attribution']is None for r in out['observations']))
+        out=api.startup_header_projection(raw,sources);self.assertEqual(out['counts'],{'supervised_task_failed':1,'health_warning':1,'agent_stopped':1,'native_group_rpc_warning':0,'relayer_telemetry_warning':0,'initialization_metric_warning':0,'critical_metric_warning':0,'origin_range_fetch_warning':0});self.assertEqual(out['observations'][0]['task_index'],2);self.assertEqual(out['observations'][0]['Source_error_name'],'OutOfMemory');self.assertIsNone(out['observations'][1]['Source_error_name']);self.assertNotIn('PRIVATE',json.dumps(out));self.assertNotIn('SECRET',json.dumps(out));self.assertTrue(all(r['lane_attribution']is None for r in out['observations']))
     def test_wholeprobe_limit_and_source_mutation_before_publication_refuse(self):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules)
         for start,end in [(0,1),(2,1),(1,500000002)]:
@@ -606,6 +606,73 @@ class RelayerStartupNumericControls(unittest.TestCase):
         probe=api.RelayerStartup(self.root,self.manifest,self.modules);log=self.root/'warning.log';log.write_bytes(b'<RLY> warning: native submission group RPC: RequestDeadlineExceeded\n');source=self.root/'zig/src/agents/relayer_task.zig';source.write_bytes(source.read_bytes()+b'\n')
         with self.assertRaisesRegex(ValueError,'Source identity changed'):probe.public(log)
 
+
+
+class RelayerPipelineControls(unittest.TestCase):
+    def metric(self,name,labels,value=1):
+        labels={**labels,'agent':'relayer','hyperlane_baselib_version':'3.0.0'}
+        return (name+'{'+','.join(key+'='+json.dumps(value)for key,value in labels.items())+'} '+str(value)+'\n').encode()
+    def project(self,raw,chains=('one','two')):return api.startup_metric_projection(raw,chains)
+    def test_pinned_actual_schema_and_emitters_match_the_closed_family_shapes(self):
+        import re
+        source=(HERE.parents[1]/'zig/src/ops/metrics_schema.zig').read_text()
+        emitters=b''.join((HERE.parents[1]/path).read_bytes()for path in ['zig/src/ops/indexing_metrics.zig','zig/src/ops/relayer_metrics.zig'])
+        for family,labels in api.STARTUP_PIPELINE_LABELS.items():
+            line=next(line for line in source.splitlines()if '.name = "'+family+'"'in line)
+            self.assertRegex(line,r'\.kind = \.int_(?:counter|gauge),')
+            shape=re.search(r'\.labels = &\.\{([^}]+)\}',line)[1]
+            self.assertEqual(tuple(re.findall(r'"([A-Za-z_]+)"',shape)),labels)
+            self.assertIn(('"'+family+'"').encode(),emitters)
+        self.assertIn(b'.set_int = integer(value.delay_ms / 1000)',emitters)
+    def test_actual_fixed_targets_emit_only_numeric_ordinals_and_known_group_names(self):
+        raw=b''
+        for key,(family,identity,required)in api.STARTUP_PIPELINE_TARGETS.items():
+            labels={name:('one'if name=='origin'else'two'if name in {'chain','remote'}else'PRIVATE_CONTEXT'if name=='app_context'else'Retry(PRIVATE_STATUS)'if name=='operation_status'else'')for name in api.STARTUP_PIPELINE_LABELS[family]}
+            labels.update(required);raw+=self.metric(family,labels,2)
+        result=self.project(raw);pipeline=result[1]['pipeline'];self.assertEqual(len(pipeline),21)
+        for key in api.STARTUP_PIPELINE_TARGETS:
+            self.assertTrue(pipeline[key]['family_present']);self.assertTrue(pipeline[key]['selected_present']);self.assertEqual(pipeline[key]['finite_values'],[2]);self.assertEqual(pipeline[key]['series_count'],1);self.assertEqual(pipeline[key]['aggregation'],'sum')
+        public=json.dumps(result)
+        for private in ['PRIVATE','"one"','"two"','app_context','operation_status','origin="','remote="']:self.assertNotIn(private,public)
+    def test_zero_absent_foreign_chain_and_origin_never_become_invented_counts(self):
+        family='hyperlane_contract_sync_stored_events';zero=self.metric(family,{'data_type':'dispatched_messages','chain':'one'},0)
+        rows=self.project(zero);self.assertEqual(rows[0]['pipeline']['origin_dispatch_stored']['finite_values'],[0]);self.assertTrue(rows[0]['pipeline']['origin_dispatch_stored']['selected_present'])
+        self.assertTrue(rows[1]['pipeline']['origin_dispatch_stored']['family_present']);self.assertFalse(rows[1]['pipeline']['origin_dispatch_stored']['selected_present']);self.assertEqual(rows[1]['pipeline']['origin_dispatch_stored']['finite_values'],[]);self.assertFalse(rows[0]['pipeline']['metadata_success']['family_present'])
+        foreign=self.metric('hyperlane_metadata_build_count',{'origin':'PRIVATE_ORIGIN','remote':'one','app_context':'PRIVATE','status':'failure'},9)
+        out=self.project(foreign);self.assertTrue(out[0]['pipeline']['metadata_failure']['family_present']);self.assertFalse(out[0]['pipeline']['metadata_failure']['selected_present']);self.assertNotIn('PRIVATE',json.dumps(out))
+    def test_actual_queue_and_metadata_groups_sum_contexts_without_exporting_labels(self):
+        raw=b''.join(self.metric('hyperlane_submitter_queue_length',{'remote':'two','queue_name':'prepare_queue','operation_status':status,'app_context':context},count)for status,context,count in [('ReadyToSubmit','PRIVATE_A',3),('Retry(PRIVATE_STATUS)','PRIVATE_B',4)])
+        raw+=self.metric('hyperlane_metadata_build_count',{'origin':'one','remote':'two','app_context':'PRIVATE_A','status':'failure'},5)+self.metric('hyperlane_metadata_build_count',{'origin':'two','remote':'two','app_context':'PRIVATE_B','status':'failure'},7)
+        out=self.project(raw);self.assertEqual(out[1]['pipeline']['queue_prepare']['finite_values'],[7]);self.assertEqual(out[1]['pipeline']['queue_prepare']['series_count'],2);self.assertEqual(out[1]['pipeline']['metadata_failure']['finite_values'],[12]);self.assertEqual(out[1]['pipeline']['metadata_failure']['series_count'],2);self.assertNotIn('PRIVATE',json.dumps(out))
+    def test_integer_nonnegative_duplicate_enum_shape_and_aggregate_overflow_refuse(self):
+        family='hyperlane_operations_processed_count';labels={'chain':'one','phase':'prepared','app_context':'PRIVATE_A'}
+        cases=[self.metric(family,labels,value)for value in [-1,'0.25','NaN','Inf','9007199254740993']]
+        row=self.metric(family,labels);cases += [row+row,self.metric(family,{**labels,'phase':'PRIVATE'}),self.metric(family,{**labels,'foreign_label':'PRIVATE'}),self.metric(family,{'chain':'one','phase':'prepared'}),self.metric(family,labels,2**53)+self.metric(family,{**labels,'app_context':'PRIVATE_B'},1)]
+        for raw in cases:
+            with self.subTest(bytes=len(raw)),self.assertRaises(ValueError):self.project(raw)
+    def test_original_per_group16_and_global512_and_body1MiB_bounds_survive(self):
+        family='hyperlane_operations_processed_count'
+        def row(index,chain='one'):return self.metric(family,{'chain':chain,'phase':'confirmed','app_context':'PRIVATE_'+str(index)},1)
+        sixteen=b''.join(row(i)for i in range(16));value=self.project(sixteen)[0]['pipeline']['operations_confirmed'];self.assertEqual(value['series_count'],16);self.assertEqual(value['finite_values'],[16])
+        with self.assertRaises(ValueError):self.project(sixteen+row(16))
+        foreign=b''.join(row(i,'foreign'+str(i))for i in range(512));out=self.project(foreign);self.assertFalse(out[0]['pipeline']['operations_confirmed']['selected_present'])
+        with self.assertRaises(ValueError):self.project(foreign+row(512,'foreign512'))
+        with self.assertRaises(ValueError):self.project(b'x'*(1024**2+1))
+    def test_source_bound_range_fetch_warning_is_stream_only_not_domain_or_task(self):
+        repo=HERE.parents[1];name='zig/src/agents/indexing/source.zig';source=(repo/name).read_bytes();sources={name:source,'errors.zig':b'error.RpcError; error.InvalidCairoBytes'}
+        raw=b'<RLY> warning: origin dispatch range fetch failed; retry in 5000ms: RpcError\n<RLY> warn: origin insertion range fetch failed; retry in 300000ms: InvalidCairoBytes\n<RLY> warning: origin gas range fetch failed; retry in 10000ms: PRIVATE_SENTINEL\n'
+        out=api.startup_header_projection(raw,sources);self.assertEqual(out['counts']['origin_range_fetch_warning'],3);self.assertEqual(out['counts']['supervised_task_failed'],0);self.assertEqual([v['stream']for v in out['observations']],['dispatch','insertion','gas']);self.assertEqual([v['retry_delay_ms']for v in out['observations']],[5000,300000,10000]);self.assertEqual([v['Source_error_name']for v in out['observations']],['RpcError','InvalidCairoBytes',None])
+        for row in out['observations']:self.assertIsNone(row['task_index']);self.assertIsNone(row['lane_attribution']);self.assertNotIn('chain_index',row)
+        self.assertNotIn('PRIVATE',json.dumps(out))
+    def test_missing_duplicate_changed_emitter_foreign_malformed_and_oversize_refuse_new_header_only(self):
+        name='zig/src/agents/indexing/source.zig';source=(HERE.parents[1]/name).read_bytes();valid=b'<RLY> warning: origin dispatch range fetch failed; retry in 5000ms: RpcError\n'
+        for body in [b'',source+source,source.replace(b'origin {s} range fetch failed;',b'changed {s} range fetch failed;')]:self.assertEqual(api.startup_header_projection(valid,{name:body})['counts']['origin_range_fetch_warning'],0)
+        bad=[valid.replace(b'<RLY>',b'<SCR>'),valid.replace(b'origin dispatch',b'origin PRIVATE'),valid.replace(b'5000ms',b'0ms'),valid.replace(b'5000ms',b'05000ms'),valid.replace(b'5000ms',b'300001ms'),valid.replace(b'RpcError',b'PRIVATE/error'),valid.rstrip()+b' suffix\n',valid.rstrip()+b'x'*16384+b'\n']
+        self.assertEqual(api.startup_header_projection(b''.join(bad),{name:source})['counts']['origin_range_fetch_warning'],0)
+        ansi=b'\x1b[31m'+valid.rstrip()+b'\x1b[0m\n';self.assertEqual(api.startup_header_projection(ansi,{name:source})['counts']['origin_range_fetch_warning'],1)
+    def test_warning_count_survives_original16_rows_without_error_or_stream_label_leak(self):
+        name='zig/src/agents/indexing/source.zig';source=(HERE.parents[1]/name).read_bytes();raw=b''.join(('<RLY> warning: origin dispatch range fetch failed; retry in '+str(i)+'ms: PRIVATE_'+str(i)+'\n').encode()for i in range(1,20))
+        out=api.startup_header_projection(raw,{name:source});self.assertEqual(out['counts']['origin_range_fetch_warning'],19);self.assertEqual(len(out['observations']),16);self.assertTrue(all(v['Source_error_name']is None for v in out['observations']));self.assertNotIn('PRIVATE',json.dumps(out))
 
 
 class RelayerStartupHTTPControls(unittest.TestCase):

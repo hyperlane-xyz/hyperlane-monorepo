@@ -873,7 +873,43 @@ RELAYER_STARTUP_SOURCE = (
     ('zig/src/net/http_replay.zig', 15499, '0c70c6e40b2bd76aef4f96b853427608' + '9108114834b71ad0bee2a8a1959ec872'),
     ('zig/src/ops/rpc_metrics.zig', 36505, '979925193ffaa3bb4b00bdb8ed48241b' + '37d712ce1a928685d28eb18f342aa56f'),
     ('zig/src/agents/signer.zig', 7390, '8880ce064eaa40629715df3d6422cebb' + '996fcb5aba4bb008e00ac76870e1110d'),
+    ('zig/src/ops/indexing_metrics.zig', 4601, '95d5b7d01177904ebe9983586833822e' + '4c6ec989c7762319ede62cb2ac653a0e'),
+    ('zig/src/ops/relayer_metrics.zig', 17895, '9193285896d1c115b72bf3b8809fc05a' + '856500e4e56b8cb3212810c0633e1c88'),
+    ('zig/src/agents/indexing/source.zig', 40323, 'bc650fd3b96b012ca5004f05ef2e1450' + 'f8e269a6415171e0189fd99a8d6a921c'),
+    ('zig/src/starknet/events.zig', 12139, '2f9a8655565f56f9524f76f3b8cd403d' + '298c8e98a29c902df623d2705d19c86e'),
+    ('zig/src/starknet/codec.zig', 8476, '2ce49b9e85a5aa854418329737a1a36d' + '126e3df3b1446691fed66875128ea489'),
 )
+
+
+STARTUP_PIPELINE_TARGETS = {
+    **{f'origin_{stream}_{metric}':(family,'chain',{'data_type':kind})
+       for stream,kind in [('dispatch','dispatched_messages'),('insertion','merkle_tree_hook')]
+       for metric,family in [('stored','hyperlane_contract_sync_stored_events'),('fetch_retries','hyperlane_contract_sync_fetch_retries'),('backoff_seconds','hyperlane_contract_sync_fetch_backoff_seconds')]},
+    **{f'origin_{stream}_{metric}':(family,'chain',{'event_type':kind,**({'cursor_type':'forward_sequenced'}if metric=='current_sequence'else{})})
+       for stream,kind in [('dispatch','hyperlane_message'),('insertion','merkle_tree_insertion')]
+       for metric,family in [('current_sequence','hyperlane_cursor_current_sequence'),('max_sequence','hyperlane_cursor_max_sequence')]},
+    **{f'queue_{kind}':('hyperlane_submitter_queue_length','remote',{'queue_name':kind+'_queue'})for kind in ['prepare','submit','confirm']},
+    **{f'metadata_{status}':('hyperlane_metadata_build_count','remote',{'status':status})for status in ['success','failure']},
+    'metadata_wait_active':('hyperlane_metadata_wait_active','remote',{}),
+    **{f'operations_{phase}':('hyperlane_operations_processed_count','chain',{'phase':phase})for phase in ['prepared','submitted','confirmed','failed','dropped']},
+}
+STARTUP_PIPELINE_LABELS = {
+    **{name:('data_type','chain')for name in ['hyperlane_contract_sync_stored_events','hyperlane_contract_sync_fetch_retries','hyperlane_contract_sync_fetch_backoff_seconds']},
+    'hyperlane_cursor_current_sequence':('event_type','chain','cursor_type'),
+    'hyperlane_cursor_max_sequence':('event_type','chain'),
+    'hyperlane_submitter_queue_length':('remote','queue_name','operation_status','app_context'),
+    'hyperlane_metadata_build_count':('app_context','origin','remote','status'),
+    'hyperlane_metadata_wait_active':('app_context','origin','remote'),
+    'hyperlane_operations_processed_count':('app_context','phase','chain'),
+}
+STARTUP_PIPELINE_ENUMS = {
+    'data_type':frozenset(['dispatched_messages','merkle_tree_hook','gas_payments']),
+    'event_type':frozenset(['hyperlane_message','merkle_tree_insertion','interchain_gas_payment']),
+    'cursor_type':frozenset(['forward_sequenced','backward_sequenced','forward_rate_limited']),
+    'queue_name':frozenset(['prepare_queue','submit_queue','confirm_queue']),
+    'status':frozenset(['success','failure']),
+    'phase':frozenset(['prepared','submitted','confirmed','failed','dropped']),
+}
 
 
 def startup_metric_projection(raw, chains):
@@ -882,7 +918,7 @@ def startup_metric_projection(raw, chains):
     import decimal
     if not isinstance(raw,bytes) or len(raw)>1024**2 or not isinstance(chains,tuple) or not 0<len(chains)<=8 or len(set(chains))!=len(chains) or any(not isinstance(x,str) or re.fullmatch('[A-Za-z0-9_-]{1,64}',x)is None for x in chains):raise ValueError('Bounded selected startup metrics required')
     targets={'destination_mailbox':('hyperlane_chain_init_latency',{'role':'destination','entity':'mailbox'}),'destination_dispatcher':('hyperlane_chain_init_latency',{'role':'destination','entity':'dispatcher_and_entrypoint'}),'block_height':('hyperlane_block_height',{}),'wallet_balance':('hyperlane_wallet_balance',{'wallet_name':'relayer'}),'critical_error':('hyperlane_critical_error',{})}
-    families={name:False for name,_ in targets.values()};samples={};seen=set()
+    families={name:False for name,_ in targets.values()};families.update({name:False for name,_,_ in STARTUP_PIPELINE_TARGETS.values()});samples={};pipeline={};seen=set()
     for line in raw.decode('utf8','strict').splitlines():
         if not line or line.startswith('#'):continue
         if len(line)>16384:raise ValueError('Bounded startup metric line required')
@@ -909,6 +945,19 @@ def startup_metric_projection(raw, chains):
         number=float(exact)
         if not math.isfinite(number):raise ValueError('Nonfinite startup metric')
         if labels.get('agent')!='relayer' or labels.get('hyperlane_baselib_version')!='3.0.0':raise ValueError('Startup metric Source base labels differ')
+        if family in STARTUP_PIPELINE_LABELS:
+            if set(labels)!=set(STARTUP_PIPELINE_LABELS[family])|{'agent','hyperlane_baselib_version'}:raise ValueError('Closed startup pipeline labels required')
+            if any(key in labels and labels[key]not in allowed for key,allowed in STARTUP_PIPELINE_ENUMS.items()):raise ValueError('Closed startup pipeline enum required')
+            if exact<0 or exact!=exact.to_integral_value():raise ValueError('Nonnegative integer startup pipeline metric required')
+            value=int(exact)
+            for index,chain in enumerate(chains):
+                for key,(name,identity,required)in STARTUP_PIPELINE_TARGETS.items():
+                    if name!=family or labels.get(identity)!=chain or not all(labels.get(k)==v for k,v in required.items()):continue
+                    if 'origin'in labels and labels['origin']not in chains:continue
+                    values=pipeline.setdefault((index,key),[])
+                    if len(values)>=16 or sum(values)+value>2**53:raise ValueError('Bounded startup pipeline count and sum required')
+                    values.append(value)
+            continue
         for index,chain in enumerate(chains):
             if labels.get('chain')!=chain:continue
             for key,(name,required)in targets.items():
@@ -916,7 +965,7 @@ def startup_metric_projection(raw, chains):
                     values=samples.setdefault((index,key),[])
                     if len(values)>=16:raise ValueError('Bounded selected startup samples required')
                     values.append(number)
-    return [{'chain_index':index,'metrics':{key:{'family_present':families[name],'selected_present':bool(samples.get((index,key))),'series_count':len(samples.get((index,key),[])),'finite_values':samples.get((index,key),[])}for key,(name,_)in targets.items()}}for index in range(len(chains))]
+    return [{'chain_index':index,'metrics':{key:{'family_present':families[name],'selected_present':bool(samples.get((index,key))),'series_count':len(samples.get((index,key),[])),'finite_values':samples.get((index,key),[])}for key,(name,_)in targets.items()},'pipeline':{key:{'family_present':families[name],'selected_present':bool(pipeline.get((index,key))),'series_count':len(pipeline.get((index,key),[])),'aggregation':'sum','finite_values':[sum(pipeline[index,key])]if(index,key)in pipeline else[]}for key,(name,_,_)in STARTUP_PIPELINE_TARGETS.items()}}for index in range(len(chains))]
 
 
 def startup_header_projection(raw, sources):
@@ -926,7 +975,7 @@ def startup_header_projection(raw, sources):
     for source in sources.values():
         known.update(x.decode()for x in re.findall(rb'\berror\.([A-Za-z][A-Za-z0-9_]{0,63})\b',source))
     if len(known)>2048:raise ValueError('Bounded Source error-name catalog required')
-    # These emitters are already in the hash-captured Source13 epoch. They
+    # These emitters are in the hash-captured startup Source catalog. They
     # swallow recoverable/optional errors, so no supervisor failure is implied.
     warnings=(
         ('native_group_rpc_warning','zig/src/agents/relayer_task.zig',b'native submission group RPC'),
@@ -935,12 +984,15 @@ def startup_header_projection(raw, sources):
         ('critical_metric_warning','zig/src/ops/critical_metrics.zig',b'critical metric update failed'),
     )
     armed=[(kind,header)for kind,path,header in warnings if sources.get(path,b'').count(b'std.log.warn("'+header+b': {s}", .{@errorName(err)})')==1]
-    rows=[];counts={'supervised_task_failed':0,'health_warning':0,'agent_stopped':0,**{kind:0 for kind,_,_ in warnings}}
+    origin_source=sources.get('zig/src/agents/indexing/source.zig',b'')
+    origin_emitter=b'std.log.warn("origin {s} range fetch failed; retry in {d}ms: {s}", .{ @tagName(stream), delay, @errorName(err) });'
+    origin_armed=origin_source.count(origin_emitter)==1
+    rows=[];counts={'supervised_task_failed':0,'health_warning':0,'agent_stopped':0,**{kind:0 for kind,_,_ in warnings},'origin_range_fetch_warning':0}
     for line in io.BytesIO(raw):
         if len(line)>16384:continue
         clean=re.sub(rb'\x1b\[[0-9;]*m',b'',line).strip()
         match=re.fullmatch(rb'<RLY> (?:warning|warn): task ([0-9]{1,3}) failed: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
-        kind=None;index=None;name=None
+        kind=None;index=None;name=None;origin_observation={}
         if match is not None and int(match[1])<=255:kind='supervised_task_failed';index=int(match[1]);name=match[2].decode()
         else:
             match=re.fullmatch(rb'<RLY> (?:warning|warn): Common health metric update failed: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
@@ -952,9 +1004,13 @@ def startup_header_projection(raw, sources):
             for candidate,header in armed:
                 match=re.fullmatch(rb'<RLY> (?:warning|warn): '+re.escape(header)+rb': ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
                 if match is not None:kind=candidate;name=match[1].decode();break
+        if kind is None and origin_armed:
+            match=re.fullmatch(rb'<RLY> (?:warning|warn): origin (dispatch|insertion|gas) range fetch failed; retry in ([1-9][0-9]{0,5})ms: ([A-Za-z][A-Za-z0-9_]{0,63})',clean)
+            if match is not None and int(match[2])<=300000:
+                kind='origin_range_fetch_warning';name=match[3].decode();origin_observation={'stream':match[1].decode(),'retry_delay_ms':int(match[2])}
         if kind is not None:
             counts[kind]=min(2**32-1,counts[kind]+1)
-            row={'header':kind,'task_index':index,'Source_error_name':name if name in known else None,'error_name_status':'Source_literal'if name in known else'unknown','lane_attribution':None}
+            row={'header':kind,'task_index':index,'Source_error_name':name if name in known else None,'error_name_status':'Source_literal'if name in known else'unknown','lane_attribution':None,**origin_observation}
             if row not in rows and len(rows)<16:rows.append(row)
     return {'counts':counts,'observations':rows,'scope':'Fixed RLY-prefixed text only; no typed exception, task-to-lane, unique PID/epoch or readiness claim.'}
 

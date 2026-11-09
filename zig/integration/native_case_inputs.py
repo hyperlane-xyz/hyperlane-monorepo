@@ -572,7 +572,7 @@ def relayer_startup_source_catalog(repo,producer,execution,runtime_scope,evidenc
     """Fixed transitive startup contracts joined to actual producer Git blobs."""
     require(cohort(repo,producer,execution,'runtime',evidence)==runtime_scope,'Relayer diagnostic Source cohort differs')
     diagnostic=load_module('prepare_relayer_startup_diagnostic','zig/integration/multivm_diagnostics.py')
-    require(len(diagnostic.RELAYER_STARTUP_SOURCE)==23,'Exact relayer diagnostic Source contract required')
+    require(len(diagnostic.RELAYER_STARTUP_SOURCE)==28,'Exact relayer diagnostic Source contract required')
     result={};total=0
     for name,size,digest in diagnostic.RELAYER_STARTUP_SOURCE:
         require(name not in result and re.fullmatch(r'zig/src/[A-Za-z0-9_./-]+\.zig',name)and'..'not in PurePosixPath(name).parts,'Unique fixed relayer Source path required')
