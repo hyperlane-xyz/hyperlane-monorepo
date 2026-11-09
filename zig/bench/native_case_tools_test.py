@@ -299,6 +299,11 @@ class EvmConsumerControls(unittest.TestCase):
 
     def test_requires_actual_completed_matching_EVM_case_before_separate_controls(self):
         context,case,stage=self.admission();self.assertEqual(m.evm_control_admission(context,case,stage),'ReleaseSafe')
+        # Historical dependency producers cannot authorize the fresh G case.
+        for historical in ('c0e9b16f5f5361dbbc45260d0316ed8a03b80857','7fdbe182301e92ee7aaed7d82d679e52cffcd8f4','14c854379a86c74f36bd8f25f3b56c1fc3eed562'):
+            old_context,old_case,old_stage=self.admission()
+            old_context['runtime_source_commit']=historical;old_case['runtime_source_commit']=historical
+            with self.subTest(historical=historical),self.assertRaises(ValueError):m.evm_control_admission(old_context,old_case,old_stage)
         for group,key,value in [('context','runtime_source_commit','a'*40),('context','scenario','starknet'),('context','mode','Debug'),('case','passed',False),('case','native_case_acceptance',False),('case','accepted_inputs_unchanged_after',False),('case','mode','ReleaseFast'),('stage','passed',False)]:
             values={'context':copy.deepcopy(context),'case':copy.deepcopy(case),'stage':copy.deepcopy(stage)};values[group][key]=value
             with self.subTest(group=group,key=key),self.assertRaises(ValueError):m.evm_control_admission(values['context'],values['case'],values['stage'])

@@ -312,10 +312,10 @@ def load_manifest(path, expected_sha256, expected_commit, expected_machine):
 
 
 # Separately bounded, post-case verification. Never changes the main case verdict.
-EVM_CONTROL_PRODUCER = 'c0e9b16f5f5361dbbc45260d0316ed8a03b80857'
-EVM_CONTROL_DEP = {'run_id':42586182471,'attempt':1,'job_id':129056459211,'artifact_id':13659718239,'bytes':54429150,'sha256':'4e10f04206d17a1d6da03b18d8b3428d'+'49ee58b1d8fad901a0ba30ce4029a737'}
+EVM_CONTROL_PRODUCER = 'be13712e0f758ef50bba49a53817ff78b9822124'
+EVM_CONTROL_DEP = {'run_id':42616231351,'attempt':1,'job_id':129156662280,'artifact_id':13674680088,'bytes':54447004,'sha256':'c7c9994438971078bacec6fb9fe450a2'+'3dc8c1c28358cce9010690ba647144b3'}
 EVM_CONTROL_DEP_MEMBERS = {
-    'bench/results/native-linux/deps/manifest.json': {'bytes': 47262, 'sha256': '770cfe845a24c45f98be79ee86809adb'+'f2c6ad08929b34eb30d3e2bf603f632a', 'crc32': 184744825},
+    'bench/results/native-linux/deps/manifest.json': {'bytes': 47264, 'sha256': '2fe99a45b7cddb4c905e49a681288c8f'+'94c70185af5bae9b821420f10e85d841', 'crc32': 1031476441},
     'bench/results/native-linux/deps/libbz2.a': {'bytes': 98372, 'sha256': '1e8ea6bf4921b72e7a124871dea1fedd'+'44294e772b86493167659a8ecf5a7099', 'crc32': 2947682447},
     'bench/results/native-linux/deps/liblz4.a': {'bytes': 280398, 'sha256': '5373e1164b51360b26927547a6eb60e4'+'c6e1faaf8ba5c33c271d993c70e5a8a8', 'crc32': 3288941629},
     'bench/results/native-linux/deps/librocksdb.a': {'bytes': 41039754, 'sha256': 'a4aef700ca575e129b90957ef1cabf08'+'f32b2a9fa6d3b2c55262f34ecb345b6b', 'crc32': 3011795726},
@@ -333,7 +333,7 @@ EVM_PREPARE_ENTRY = 'test { _ = @import("evm_prepare_delegated_tests.zig"); _ = 
 
 def evm_control_admission(context, case, stage):
     require(context.get('scenario')=='evm' and context.get('mode') in {'ReleaseSafe','ReleaseFast'},'EVM mode only')
-    require(context.get('runtime_source_commit')==EVM_CONTROL_PRODUCER and re.fullmatch('[0-9a-f]{40}',context.get('execution_source_commit','')),'Exact D runtime/current execution required')
+    require(context.get('runtime_source_commit')==EVM_CONTROL_PRODUCER and re.fullmatch('[0-9a-f]{40}',context.get('execution_source_commit','')),'Exact G runtime/current execution required')
     require(context.get('phase')=='HYDRATED_NOT_EXECUTION_APPROVAL' and context.get('nodes_started') is False and context.get('native_case_acceptance') is False,'Original hydrated context required')
     require(case.get('kind')=='owned-linux-native-case-result' and case.get('passed') is True and case.get('native_case_acceptance') is True and case.get('accepted_inputs_unchanged_after') is True,'Successful completed main case required')
     require(all(case.get(k)==context[k] for k in ['runtime_source_commit','execution_source_commit','scenario','mode']),'Main case/context identity differs')
@@ -426,7 +426,7 @@ def evm_control_main(argv):
     require(composition['passed'] is True and composition['native_case_acceptance'] is True,'No component before successful main composition')
     mode=evm_control_admission(context,case,stage);require(context['execution_source_commit']==args.execution_source_commit,'Execution binding differs')
     git_rows=[];scopes={n:api.cohort(ROOT,EVM_CONTROL_PRODUCER,args.execution_source_commit,n,git_rows)for n in api.SCOPES}
-    admitted=load_manifest(api.checked(context['tool_manifest']),context['tool_manifest']['sha256'],EVM_CONTROL_PRODUCER,62);require(admitted==context['tools'],'Actual D tool admission differs')
+    admitted=load_manifest(api.checked(context['tool_manifest']),context['tool_manifest']['sha256'],EVM_CONTROL_PRODUCER,62);require(admitted==context['tools'],'Actual G tool admission differs')
     oracle=api.checked(admitted['ziggy-rocks-oracle']);url=api.checked(context['runtime_artifacts']['url']);tools=json.loads(args.tools.read_text());require(args.gh.is_absolute() and args.gh.is_file() and os.access(args.gh,os.X_OK),'Explicit gh required')
     args.output.mkdir(mode=0o700)
     for name in ['logs','home','tmp','bin','public']:(args.output/name).mkdir()
@@ -502,7 +502,7 @@ def evm_control_main(argv):
 
 def evm_control_copy_source(repo, copied, producer):
     scopes=['zig/src','zig/native','zig/build.zig','zig/build.zig.zon','rust/main/utils/run-locally/src/ethereum/multicall.rs','zig/tools/zig.py','zig/tools/bootstrap.py']
-    raw=subprocess.check_output(['git','ls-tree','-r','-z',producer,'--',*scopes],cwd=repo,timeout=15);require(len(raw)<=2*1024**2,'Bounded D Source tree listing')
+    raw=subprocess.check_output(['git','ls-tree','-r','-z',producer,'--',*scopes],cwd=repo,timeout=15);require(len(raw)<=2*1024**2,'Bounded G Source tree listing')
     rows={};total=0;copied.mkdir(mode=0o700)
     for item in raw.split(b'\0'):
         if not item:continue
@@ -511,7 +511,7 @@ def evm_control_copy_source(repo, copied, producer):
         wire=regular(repo/name).read_bytes();total+=len(wire);require(len(rows)<2048 and len(wire)<=4*1024**2 and total<=64*1024**2,'Bounded owned D Source copy')
         require(hashlib.sha1(b'blob '+str(len(wire)).encode()+b'\0'+wire).hexdigest()==blob,'D Source body differs from actual Git object')
         path=copied/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(wire);path.chmod(0o444);rows[name]={'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest(),'producer_blob':blob}
-    require('zig/src/db_tests.zig'in rows and 'zig/src/agents/indexing/tx_id_native_test.zig'in rows,'Exact actual D test graph required')
+    require('zig/src/db_tests.zig'in rows and 'zig/src/agents/indexing/tx_id_native_test.zig'in rows,'Exact actual G test graph required')
     return copied,rows
 
 
