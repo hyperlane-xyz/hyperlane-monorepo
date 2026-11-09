@@ -1,3 +1,5 @@
+import type { Logger } from 'pino';
+
 import {
   TransactionSubmissionError,
   type TransactionSubmissionState,
@@ -25,16 +27,21 @@ export async function trackActionSubmission<T>(
   >,
   actionId: string,
   execute: (options: BridgeExecutionOptions) => Promise<T>,
+  logger?: Pick<Logger, 'error'>,
 ): Promise<T> {
   let submissionState: TransactionSubmissionState = 'not_submitted';
   let pendingApproval: PendingApproval | undefined;
+  let sourceTxHash: string | undefined;
   const recordSubmission = async (
     state: TransactionSubmissionState,
     txHash?: string,
   ) => {
     const advances =
       submissionStateOrder[state] >= submissionStateOrder[submissionState];
-    if (advances) submissionState = state;
+    if (advances) {
+      submissionState = state;
+      if (txHash) sourceTxHash = txHash;
+    }
     await tracker.updateRebalanceActionExecution(actionId, {
       submissionState,
       ...(advances && txHash ? { txHash } : {}),
@@ -82,6 +89,17 @@ export async function trackActionSubmission<T>(
     }
     if (submissionState === 'not_submitted' && !pendingApproval)
       await tracker.failRebalanceAction(actionId);
+    else
+      logger?.error(
+        {
+          actionId,
+          submissionState,
+          txHash: sourceTxHash,
+          pendingApproval,
+          error,
+        },
+        'Submission unresolved; action remains reserved until reconciliation',
+      );
     throw error;
   }
 }

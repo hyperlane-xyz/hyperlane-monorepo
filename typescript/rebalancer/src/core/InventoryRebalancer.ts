@@ -1648,6 +1648,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
             await options.onTransferId?.(result.transferId);
           return result;
         },
+        this.logger,
       );
 
       this.logger.info(

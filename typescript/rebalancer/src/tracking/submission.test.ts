@@ -26,6 +26,29 @@ describe('action submission tracking', () => {
     throw new Error('Expected rejection');
   }
 
+  it('logs unresolved hashless submission errors without releasing the action', async () => {
+    const t = tracker();
+    const logger = { error: sinon.stub() };
+    const error = new Error('lost source response');
+    await rejection(
+      trackActionSubmission(
+        t,
+        'action',
+        async () => {
+          throw error;
+        },
+        logger,
+      ),
+    );
+    expect(t.failRebalanceAction.called).to.equal(false);
+    expect(logger.error.calledOnce).to.equal(true);
+    expect(logger.error.firstCall.args[0]).to.include({
+      actionId: 'action',
+      submissionState: 'unknown',
+      error,
+    });
+  });
+
   it('releases an action when preparation proves no submission occurred', async () => {
     const t = tracker();
     const error = new TransactionSubmissionError(

@@ -737,7 +737,6 @@ export class ActionTracker implements IActionTracker {
     this.logger.debug('Syncing inventory movement actions');
 
     let completed = 0;
-    let failed = 0;
 
     // Get all in-progress inventory_movement actions
     const inProgressActions =
@@ -802,7 +801,7 @@ export class ActionTracker implements IActionTracker {
           await this.rebalanceActionStore.update(action.id, {
             lastBridgeStatus: 'failed',
           });
-          this.logger.warn(
+          this.logger.error(
             {
               actionId: action.id,
               txHash: action.txHash,
@@ -813,7 +812,6 @@ export class ActionTracker implements IActionTracker {
         } else if (status.status === 'pending') {
           await this.rebalanceActionStore.update(action.id, {
             lastBridgeStatus: 'pending',
-            nonPendingSince: undefined,
           });
           this.logger.debug(
             {
@@ -826,7 +824,6 @@ export class ActionTracker implements IActionTracker {
         } else if (status.status === 'not_found') {
           await this.rebalanceActionStore.update(action.id, {
             lastBridgeStatus: 'not_found',
-            nonPendingSince: action.nonPendingSince ?? Date.now(),
           });
           this.logger.debug(
             {
@@ -837,13 +834,13 @@ export class ActionTracker implements IActionTracker {
           );
         }
       } catch (error) {
-        this.logger.debug(
+        this.logger.error(
           {
             actionId: action.id,
             txHash: action.txHash,
-            error: (error as Error).message,
+            error,
           },
-          'Failed to get inventory movement status',
+          'Failed to get inventory movement status; action remains reserved',
         );
       }
     }
@@ -852,14 +849,14 @@ export class ActionTracker implements IActionTracker {
       this.logger.info(
         {
           completed,
-          failed,
-          pending: inventoryMovements.length - completed - failed,
+          reserved: inventoryMovements.length - completed,
         },
         'Inventory movements synced',
       );
     }
 
-    return { completed, failed };
+    // A provider failure is not proof that its source funds are available again.
+    return { completed, failed: 0 };
   }
 
   // === Debug Helpers ===

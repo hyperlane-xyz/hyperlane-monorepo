@@ -1054,10 +1054,9 @@ describe('ActionTracker', () => {
       const action = await rebalanceActionStore.get('action-not-found');
       expect(action?.status).to.equal('in_progress');
       expect(action?.lastBridgeStatus).to.equal('not_found');
-      expect(action?.nonPendingSince).to.be.a('number');
     });
 
-    it('clears nonPendingSince when status returns to pending', async () => {
+    it('updates the observed bridge status when it returns to pending', async () => {
       await rebalanceActionStore.save({
         id: 'action-back-to-pending',
         type: 'inventory_movement',
@@ -1069,7 +1068,6 @@ describe('ActionTracker', () => {
         txHash: '0xtx-back-pending',
         externalBridgeId: ExternalBridgeType.LiFi,
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - 60_000,
         createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
         updatedAt: Date.now(),
       });
@@ -1081,40 +1079,8 @@ describe('ActionTracker', () => {
 
       const action = await rebalanceActionStore.get('action-back-to-pending');
       expect(action?.lastBridgeStatus).to.equal('pending');
-      expect(action?.nonPendingSince).to.be.undefined;
     });
 
-    it('preserves existing nonPendingSince on repeated not_found polls', async () => {
-      const originalNonPendingSince = Date.now() - 120_000;
-      await rebalanceActionStore.save({
-        id: 'action-repeated-not-found',
-        type: 'inventory_movement',
-        status: 'in_progress',
-        intentId: 'intent-1',
-        origin: 1,
-        destination: 2,
-        amount: 100n,
-        txHash: '0xtx-repeated',
-        externalBridgeId: ExternalBridgeType.LiFi,
-        lastBridgeStatus: 'not_found',
-        nonPendingSince: originalNonPendingSince,
-        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
-        updatedAt: Date.now(),
-      });
-
-      const getStatus = Sinon.stub().resolves({ status: 'not_found' });
-      await tracker.syncInventoryMovementActions({
-        lifi: { getStatus } as any,
-      });
-
-      const action = await rebalanceActionStore.get(
-        'action-repeated-not-found',
-      );
-      expect(action?.nonPendingSince).to.equal(originalNonPendingSince);
-    });
-  });
-
-  describe('getInProgressTransfers', () => {
     it('should return only in_progress transfers', async () => {
       await transferStore.save({
         id: 'transfer-1',
@@ -1645,7 +1611,6 @@ describe('ActionTracker', () => {
         type: 'inventory_movement',
         status: 'in_progress',
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
         intentId: 'intent-stale-movement',
         origin: 1,
         destination: 2,
@@ -1751,7 +1716,6 @@ describe('ActionTracker', () => {
         type: 'inventory_movement',
         status: 'in_progress',
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - 60_000, // only 1 min ago
         intentId: 'intent-recent-not-found',
         origin: 1,
         destination: 2,
@@ -1789,7 +1753,6 @@ describe('ActionTracker', () => {
         type: 'inventory_movement',
         status: 'in_progress',
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
         intentId: 'intent-mixed-movements',
         origin: 1,
         destination: 2,
