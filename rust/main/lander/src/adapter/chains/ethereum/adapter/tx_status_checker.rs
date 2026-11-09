@@ -17,7 +17,9 @@ fn block_number_to_tx_status(
         (Some(block), Some(finalized)) if finalized as u64 >= block.as_u64() => {
             TransactionStatus::Finalized
         }
-        (Some(_), Some(_)) => TransactionStatus::Included,
+        // A receipt with a block proves inclusion even if the independent
+        // finalized-height read failed. Keep polling finality without resending.
+        (Some(_), _) => TransactionStatus::Included,
         _ => TransactionStatus::Mempool,
     }
 }
@@ -31,7 +33,7 @@ async fn read_finalized_block(
         Err(err) => {
             warn!(
                 ?err,
-                "Error checking block finality. Assuming tx is in mempool since we got tx receipt"
+                "Error checking block finality. Keeping tx included since we got tx receipt"
             );
             None
         }
@@ -320,13 +322,65 @@ mod tests {
             });
         let provider: Arc<dyn EvmProviderForLander> = Arc::new(mock);
         let txs = transactions(16, 1);
-        for expected in [TransactionStatus::Mempool, TransactionStatus::Finalized] {
+        for expected in [TransactionStatus::Included, TransactionStatus::Finalized] {
             let statuses = get_tx_statuses(&provider, &txs, &EthereumReorgPeriod::Blocks(15)).await;
             assert!(statuses
                 .into_iter()
                 .all(|status| status.unwrap() == expected));
         }
         assert_eq!(calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn single_hash_keeps_inclusion_when_finality_is_unavailable() {
+        let mut mock = MockEvmProvider::new();
+        mock.expect_get_transaction_receipt()
+            .times(1)
+            .returning(|hash| Ok(Some(test_tx_receipt(hash.into(), Some(1.into())))));
+        mock.expect_get_finalized_block_number()
+            .times(1)
+            .returning(|_| {
+                Err(hyperlane_core::ChainCommunicationError::CustomError(
+                    "finality unavailable".into(),
+                ))
+            });
+        let provider: Arc<dyn EvmProviderForLander> = Arc::new(mock);
+        let hash = hyperlane_core::H256::from_low_u64_be(1).into();
+        let status = get_tx_hash_status(&provider, hash, &EthereumReorgPeriod::Blocks(15))
+            .await
+            .unwrap();
+        assert_eq!(status, TransactionStatus::Included);
+    }
+
+    #[tokio::test]
+    async fn receipt_is_rechecked_after_finality_failure() {
+        let receipt_calls = Arc::new(AtomicUsize::new(0));
+        let mut mock = MockEvmProvider::new();
+        mock.expect_get_transaction_receipt()
+            .times(2)
+            .returning(move |hash| {
+                if receipt_calls.fetch_add(1, Ordering::Relaxed) == 0 {
+                    Ok(Some(test_tx_receipt(hash.into(), Some(1.into()))))
+                } else {
+                    Ok(None)
+                }
+            });
+        mock.expect_get_finalized_block_number()
+            .times(1)
+            .returning(|_| {
+                Err(hyperlane_core::ChainCommunicationError::CustomError(
+                    "finality unavailable".into(),
+                ))
+            });
+        let provider: Arc<dyn EvmProviderForLander> = Arc::new(mock);
+        let txs = transactions(1, 1);
+        for expected in [
+            TransactionStatus::Included,
+            TransactionStatus::PendingInclusion,
+        ] {
+            let statuses = get_tx_statuses(&provider, &txs, &EthereumReorgPeriod::Blocks(15)).await;
+            assert_eq!(statuses.into_iter().next().unwrap().unwrap(), expected);
+        }
     }
 
     /// When the transaction was sent to network, but failed
