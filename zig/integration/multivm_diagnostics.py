@@ -424,7 +424,7 @@ def radix_submit_error_text_observation(wire,bodies,approved,context):
 
 def evm_child_wait_text_observation(wire,bodies,approved):
     """One already verified capture. Static text is not typed error/origin proof."""
-    result={'schema':1,'kind':'public-EVM-child-wait-text-observation','collection_status':'unavailable','classification':'UNKNOWN','guard_text_code':None,'reason':'SOURCE_CONTEXT_UNAVAILABLE','caller_line':825,'caller_column':48,'Source_contracts':None,'typed_IO_error_kind':None,'role':None,'pid':None,'primary_signal':None,'text_only':True,'native_or_timing_or_cleanup_authority':False}
+    result={'schema':1,'kind':'public-EVM-child-wait-text-observation','collection_status':'unavailable','classification':'UNKNOWN','guard_text_code':None,'reason':'SOURCE_CONTEXT_UNAVAILABLE','caller_line':828,'caller_column':48,'Source_contracts':None,'typed_IO_error_kind':None,'role':None,'pid':None,'primary_signal':None,'text_only':True,'native_or_timing_or_cleanup_authority':False}
     main='rust/main/utils/run-locally/src/main.rs';helper='rust/main/utils/run-locally/src/external_agents.rs'
     def section(body,start,end):
         if body.count(start)!=1:raise ValueError('Unique Source context required')
@@ -435,7 +435,7 @@ def evm_child_wait_text_observation(wire,bodies,approved):
         caller=bodies[main];fixture=bodies[helper]
         if main not in approved or helper not in approved:raise ValueError('Admitted Source required')
         line=b'        if let Some(status) = child.try_wait().unwrap() {'
-        if caller.splitlines()[824]!=line or line.index(b'unwrap')+1!=48:raise ValueError('Exact caller required')
+        if caller.splitlines()[827]!=line or line.index(b'unwrap')+1!=48:raise ValueError('Exact caller required')
         check=section(caller,b'fn long_running_processes_exited_check(state: &mut State) -> bool {',b'\npub fn report_test_result(')
         if check.count(line)!=1 or b'for (name, (child, _)) in state.agents.iter_mut() {'not in check or b'crate::external_agents::TrackedChild,'not in section(caller,b'struct State {',b'\nimpl State {'):raise ValueError('Exact tracked caller required')
         wrapper=section(fixture,b'    pub fn try_wait(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {',b'\n    pub fn retain_restart(')
@@ -471,7 +471,7 @@ def evm_child_wait_text_observation(wire,bodies,approved):
         if not all(context.count(fragment)==1 for _,_,context,fragments in catalog for fragment in fragments):raise ValueError('Exact guard contexts required')
     except (KeyError,IndexError,ValueError):return result
     result['Source_contracts']={key:{'bytes':approved[name]['bytes'],'sha256':approved[name]['sha256']}for key,name in [('caller',main),('fixture',helper)]}
-    result['reason']='NO_MAIN825_WINDOW';pending=False
+    result['reason']='NO_MAIN828_WINDOW';pending=False
     def body_observation(body):
         result.update(collection_status='observed',reason='NO_FIXED_GUARD_TEXT')
         try:body.decode('utf8','strict')
@@ -496,7 +496,7 @@ def evm_child_wait_text_observation(wire,bodies,approved):
         if match is None:return result
         path,line,column,tail=match.groups();relative=b'utils/run-locally/src/main.rs';full=b'rust/main/'+relative
         canonical=path in {relative,full}or path.startswith(b'/')and not any(part in {b'',b'.',b'..'}for part in path[1:].split(b'/'))and b'\\'not in path and b'\x00'not in path and(path.endswith(b'/'+relative)or path.endswith(b'/'+full))
-        if not canonical or int(line)!=825 or int(column)!=48:return result
+        if not canonical or int(line)!=828 or int(column)!=48:return result
         if tail.strip():return body_observation(tail.strip())
         pending=True;result['reason']='MESSAGE_NOT_RETAINED'
     return result

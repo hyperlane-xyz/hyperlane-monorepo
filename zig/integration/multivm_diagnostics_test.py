@@ -1018,25 +1018,25 @@ class EvmChildWaitTextControls(unittest.TestCase):
         for name in ['rust/main/utils/run-locally/src/main.rs','rust/main/utils/run-locally/src/external_agents.rs']:
             p=self.repo/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes((HERE.parents[1]/name).read_bytes());self.sources[name]=api.pin(p)
         self.main=self.repo/'rust/main/utils/run-locally/src/main.rs';self.helper=self.repo/'rust/main/utils/run-locally/src/external_agents.rs';self.log=self.root/'harness.log'
-    def header(self,site='utils/run-locally/src/main.rs:825:48'):return ("thread 'PRIVATE_THREAD' (42) panicked at "+site+':\n').encode()
+    def header(self,site='utils/run-locally/src/main.rs:828:48'):return ("thread 'PRIVATE_THREAD' (42) panicked at "+site+':\n').encode()
     def body(self,phrase):return ('called `Result::unwrap()` on an `Err` value: Custom { kind: Other, error: "'+phrase+' PRIVATE_KEY /PRIVATE_PATH https://PRIVATE_URL/?token=PRIVATE_TOKEN" }\n').encode()
     def observe(self,wire,sources=None):
         self.log.write_bytes(wire);return api.rust_panic_observation(self.log,self.sources if sources is None else sources,self.repo)
     def test_all8_actual_Source_guard_text_only_and_poison_overlap_no_origin_claim(self):
         for phrase,code in self.CATALOG:
-            value=self.observe(self.header()+self.body(phrase));row=value['EVM_child_wait_text'];self.assertEqual(row['collection_status'],'observed');self.assertEqual(row['classification'],'FIXTURE_MONITOR_GUARD_TEXT');self.assertEqual(row['guard_text_code'],code);self.assertIsNone(row['reason']);self.assertTrue(row['text_only']);self.assertFalse(row['native_or_timing_or_cleanup_authority']);self.assertEqual((row['caller_line'],row['caller_column']),(825,48))
+            value=self.observe(self.header()+self.body(phrase));row=value['EVM_child_wait_text'];self.assertEqual(row['collection_status'],'observed');self.assertEqual(row['classification'],'FIXTURE_MONITOR_GUARD_TEXT');self.assertEqual(row['guard_text_code'],code);self.assertIsNone(row['reason']);self.assertTrue(row['text_only']);self.assertFalse(row['native_or_timing_or_cleanup_authority']);self.assertEqual((row['caller_line'],row['caller_column']),(828,48))
             for key in ['typed_IO_error_kind','role','pid','primary_signal']:self.assertIsNone(row[key])
             self.assertEqual(value['reason_codes'],[]);self.assertIsNone(value['reason_source']);self.assertEqual(len(value['sites']),1)
             for secret in ['PRIVATE',str(self.root),'https://']:self.assertNotIn(secret,json.dumps(row))
         self.assertGreater(self.helper.read_bytes().count(b'"fixture monitor poisoned"'),1);self.assertEqual(self.helper.read_bytes().count(b'"fixture process snapshot output limit"'),2)
     def test_same_line_next_nonempty_ANSI_and_full_canonical_Source_paths(self):
         phrase=self.CATALOG[0][0]
-        for site in ['utils/run-locally/src/main.rs:825:48','rust/main/utils/run-locally/src/main.rs:825:48','/build/rust/main/utils/run-locally/src/main.rs:825:48']:
+        for site in ['utils/run-locally/src/main.rs:828:48','rust/main/utils/run-locally/src/main.rs:828:48','/build/rust/main/utils/run-locally/src/main.rs:828:48']:
             for wire in [self.header(site)+b'\n \n'+self.body(phrase),self.header(site).rstrip(b'\n')+b' '+self.body(phrase),b'\x1b[31m'+self.header(site)+b'\x1b[0m'+self.body(phrase)]:
                 with self.subTest(site=site):self.assertEqual(self.observe(wire)['EVM_child_wait_text']['guard_text_code'],'FIXTURE_MONITOR_POISONED_TEXT')
     def test_wrong_immediate_site_column_otherframes_and_second_location_never_borrow(self):
-        phrase=self.CATALOG[0][0];later=b' utils/run-locally/src/main.rs:825:48: '+self.body(phrase)
-        cases=[self.header('/build/../rust/main/utils/run-locally/src/main.rs:825:48')+self.body(phrase),self.header('/build//rust/main/utils/run-locally/src/main.rs:825:48')+self.body(phrase),self.header('/build/\\rust/main/utils/run-locally/src/main.rs:825:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:830:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:825:47')+self.body(phrase),self.header('/outside/foreign.rs:825:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:2:1').rstrip(b'\n')+later,self.header('/outside/foreign.rs:2:1').rstrip(b'\n')+later,self.header('/outside/foreign.rs:1:1')+self.body('unknown')+self.header()+self.body(phrase),b'not '+self.header()+self.body(phrase),b'    at utils/run-locally/src/main.rs:825:48\n'+self.body(phrase)]
+        phrase=self.CATALOG[0][0];later=b' utils/run-locally/src/main.rs:828:48: '+self.body(phrase)
+        cases=[self.header('utils/run-locally/src/main.rs:825:48')+self.body(phrase),self.header('/build/../rust/main/utils/run-locally/src/main.rs:828:48')+self.body(phrase),self.header('/build//rust/main/utils/run-locally/src/main.rs:828:48')+self.body(phrase),self.header('/build/\\rust/main/utils/run-locally/src/main.rs:828:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:830:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:828:47')+self.body(phrase),self.header('/outside/foreign.rs:828:48')+self.body(phrase),self.header('utils/run-locally/src/main.rs:2:1').rstrip(b'\n')+later,self.header('/outside/foreign.rs:2:1').rstrip(b'\n')+later,self.header('/outside/foreign.rs:1:1')+self.body('unknown')+self.header()+self.body(phrase),b'not '+self.header()+self.body(phrase),b'    at utils/run-locally/src/main.rs:828:48\n'+self.body(phrase)]
         for wire in cases:
             with self.subTest(wire_bytes=len(wire)):self.assertIsNone(self.observe(wire)['EVM_child_wait_text']['guard_text_code'])
     def test_window_closes_on_next_panic_header_unrelated_body_teardown_and_eof(self):
@@ -1062,7 +1062,7 @@ class EvmChildWaitTextControls(unittest.TestCase):
         original=self.helper.read_bytes();phrase=b'fixture descendant executable not approved';fragment=b'.find(|a| a.path == actual)\n                .ok_or_else(|| eyre::eyre!("fixture descendant executable not approved"))?;'
         self.assertIn(fragment,original);self.helper.write_bytes(original.replace(phrase,b'PUBLIC_DIFFERENT_GUARD')+b'\n// out-of-context data only\n'+fragment+b'\n');sources={**self.sources,str(self.helper.relative_to(self.repo)):api.pin(self.helper)}
         row=self.observe(self.header()+self.body(phrase.decode()),sources)['EVM_child_wait_text'];self.assertEqual(row['reason'],'SOURCE_CONTEXT_UNAVAILABLE');self.assertIsNone(row['guard_text_code'])
-    def test_oversized_ANSI_first_foreign_panic_cannot_borrow_later_main825(self):
+    def test_oversized_ANSI_first_foreign_panic_cannot_borrow_later_main828(self):
         foreign=b"\x1b[31mthread 'PRIVATE_FIRST' (43) panicked at /outside/foreign.rs:2:1: "+b'x'*65536+b'\x1b[0m\n'
         for first in [foreign,b'PRIVATE_LONG_UNCLASSIFIABLE_LINE'+b'x'*65536+b'\n']:
             value=self.observe(first+self.header()+self.body(self.CATALOG[0][0]));row=value['EVM_child_wait_text'];self.assertEqual(row['classification'],'UNKNOWN');self.assertEqual(row['collection_status'],'unavailable');self.assertEqual(row['reason'],'LOG_LINE_BOUND');self.assertIsNone(row['guard_text_code']);self.assertIsNone(row['primary_signal']);self.assertNotIn('PRIVATE',json.dumps(row))
