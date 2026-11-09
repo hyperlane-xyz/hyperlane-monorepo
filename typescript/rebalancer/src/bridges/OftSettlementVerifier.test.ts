@@ -414,6 +414,32 @@ describe('OftSettlementVerifier', () => {
     ).to.equal('complete');
   });
 
+  it('preserves the default Tron receipt depth and rejects invalid confirmations', async () => {
+    const provider = Sinon.createStubInstance(TronJsonRpcProvider);
+    provider.getFinalizedBlockNumber.resolves(100);
+    stubResponse({ data: [createMessage()] });
+    const ctx: OftDestinationContext = {
+      provider,
+      blockTag: EthJsonRpcBlockParameterTag.Finalized,
+    };
+    const verifier = createAdapter();
+    for (const confirmations of [31, Number.NaN]) {
+      provider.getTransactionReceipt.resolves(
+        createDestinationReceipt({ confirmations }),
+      );
+      expect(await verifier.pollStatus(createRef(), ctx)).to.include({
+        status: 'pending',
+        balanceMayIncludePendingSettlement: true,
+      });
+    }
+    provider.getTransactionReceipt.resolves(
+      createDestinationReceipt({ confirmations: 32 }),
+    );
+    expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
+      'complete',
+    );
+  });
+
   it('does not mark an unsolid or mismatched receipt as reflected in finalized balances', async () => {
     const provider = Sinon.createStubInstance(TronJsonRpcProvider);
     provider.getFinalizedBlockNumber.resolves(99);

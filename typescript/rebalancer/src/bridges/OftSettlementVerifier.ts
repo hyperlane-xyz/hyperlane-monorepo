@@ -488,7 +488,9 @@ export class OftSettlementVerifier {
         return { verified: false };
       }
 
-      const reorgPeriod = blocks?.reorgPeriod;
+      const reorgPeriod =
+        blocks?.reorgPeriod ??
+        (provider instanceof TronJsonRpcProvider ? 32 : undefined);
       const finalityTag =
         typeof ctx.blockTag === 'string'
           ? ctx.blockTag
@@ -524,10 +526,11 @@ export class OftSettlementVerifier {
       });
       if (matchingEvents.length !== 1) return { verified: false };
       const requiredConfirmations = Math.max(
+        1,
         minimumConfirmations,
         typeof reorgPeriod === 'number' ? reorgPeriod : 1,
       );
-      if (receipt.confirmations < requiredConfirmations) {
+      if (!(receipt.confirmations >= requiredConfirmations)) {
         return {
           verified: false,
           balanceMayIncludePendingSettlement:
