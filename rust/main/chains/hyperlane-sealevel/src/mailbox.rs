@@ -105,10 +105,9 @@ pub struct SealevelMailbox {
     /// TrustedRelayer ISMs that require a *separate* identity signature will not work
     /// unless this is set.
     ///
-    /// IMPORTANT: Do NOT fund this address with SOL, tokens, or any other assets.
-    /// It is an identity-only keypair — its signature proves relayer identity but
-    /// it holds no value. Keeping it empty limits the blast radius if a malicious
-    /// ISM program ever obtains a co-signature from this key.
+    /// IMPORTANT: Use a dedicated identity with no SOL and no authority over token
+    /// accounts or other assets. A recipient-selected ISM receives its signer
+    /// privilege and can use it to move assets, even when KMS holds the private key.
     signer: Option<SealevelSigner>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,

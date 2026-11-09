@@ -972,6 +972,14 @@ async fn send_and_confirm(
             message,
         };
 
+        if !ctx.rpc_client.is_blockhash_valid(blockhash).await? {
+            warn!(
+                send_attempt,
+                label, "Blockhash expired while signing; retrying"
+            );
+            continue;
+        }
+
         // skip_preflight=true to avoid BlockhashNotFound race on multi-RPC setups.
         let signature = ctx
             .rpc_client

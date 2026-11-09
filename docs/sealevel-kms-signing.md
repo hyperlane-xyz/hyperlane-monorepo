@@ -29,8 +29,11 @@ raw data rather than a digest. See [supported algorithms](https://docs.cloud.goo
 
 `identity` is optional. Configure it only when the application requires a
 separate on-chain relayer identity, and enroll the corresponding public key in
-that application. The fee payer's public key still needs SOL for transaction
-fees. An identity equal to the payer is deduplicated.
+that application. Use a dedicated identity key that holds no SOL and controls
+no token accounts or other assets. A recipient-selected ISM can use its
+[signer privilege through CPI](https://solana.com/docs/core/cpi) to move assets
+it controls, even when KMS holds the private key.
+The fee payer is separate and still needs SOL for transaction fees.
 
 Credentials come from Application Default Credentials, such as the agent's GKE
 Workload Identity. Grant that identity `roles/cloudkms.signerVerifier` on the
@@ -55,6 +58,8 @@ failure never falls back to a local private key.
 Read-only transaction simulation remains unsigned and does not request KMS
 signatures. Payer and co-signer coverage is checked before transaction signing;
 signatures are assembled in the message's required static account-key order.
+Signed transactions check blockhash freshness after signing and re-sign all
+required accounts with a new blockhash if it expired, with at most three attempts.
 
 The separate `ccsSigner` configuration still signs EVM-style CCS requests and
 therefore requires its existing secp256k1 signer. It is not the Sealevel fee

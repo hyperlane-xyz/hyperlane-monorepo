@@ -218,6 +218,7 @@ mod tests {
         let signatures = transaction_signatures(&message, &payer, &[&second, &first])
             .await
             .unwrap();
+        assert_eq!(signatures.len(), 3);
         for (key, signature) in message.static_account_keys().iter().zip(signatures) {
             assert!(verify_signature(key, &message.serialize(), &signature));
         }
