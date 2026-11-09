@@ -130,6 +130,39 @@ describe('RelayClient', () => {
     expect(() => RelayQuoteResponseSchema.parse(amount)).to.throw();
   });
 
+  it('normalizes absent failure sentinels while preserving real failure reasons', async () => {
+    const fetch = sinon.stub(globalThis, 'fetch');
+    fetch.onFirstCall().resolves(
+      new Response(
+        JSON.stringify({
+          status: RelayStatus.Pending,
+          failReason: 'N/A',
+          refundFailReason: 'N/A',
+        }),
+      ),
+    );
+    fetch.onSecondCall().resolves(
+      new Response(
+        JSON.stringify({
+          status: RelayStatus.Failure,
+          failReason: 'SLIPPAGE',
+          refundFailReason: 'AMOUNT_TOO_LOW_TO_REFUND',
+        }),
+      ),
+    );
+    const client = new RelayClient();
+    expect(await client.getStatus(requestId)).to.deep.equal({
+      status: RelayStatus.Pending,
+      failReason: undefined,
+      refundFailReason: undefined,
+    });
+    expect(await client.getStatus(requestId)).to.deep.equal({
+      status: RelayStatus.Failure,
+      failReason: 'SLIPPAGE',
+      refundFailReason: 'AMOUNT_TOO_LOW_TO_REFUND',
+    });
+  });
+
   it('propagates structured route errors without logging credentials or payloads', async () => {
     sinon.stub(globalThis, 'fetch').resolves(
       new Response(
