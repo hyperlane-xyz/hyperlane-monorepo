@@ -4942,15 +4942,23 @@ if (!isMainThread) {
 
 function recordCommitments(value: unknown, depth = 0): string[] {
   requireValue(depth <= 128, 'actual block nesting exceeds bound');
-  if (typeof value === 'string')
-    return /^cm1[a-z0-9]+$/.test(value) ? [value] : [];
   if (Array.isArray(value))
     return value.flatMap((entry) => recordCommitments(entry, depth + 1));
-  return isObject(value)
-    ? Object.values(value).flatMap((entry) =>
-        recordCommitments(entry, depth + 1),
-      )
-    : [];
+  if (!isObject(value)) return [];
+  return Object.entries(value).flatMap(([name, entry]) => {
+    if (name !== 'outputs' || !Array.isArray(entry))
+      return recordCommitments(entry, depth + 1);
+    // snarkVM Output::Record serializes its Field commitment as the output id.
+    // Other Field values (headers, checksums and plaintext hashes) are not records.
+    return entry.flatMap((output) =>
+      isObject(output) &&
+      output.type === 'record' &&
+      typeof output.id === 'string' &&
+      /^(?:0|[1-9][0-9]*)field$/.test(output.id)
+        ? [output.id]
+        : [],
+    );
+  });
 }
 
 /** Exact labels; absence remains null. Wrong-label or malformed samples never count. */

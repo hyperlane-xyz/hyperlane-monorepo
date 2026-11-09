@@ -3150,3 +3150,173 @@ void test('Aleo encrypted SDK collector bounds conversion before allocating mess
   assert.equal(failures.get(primary)?.prefix_bytes, 384);
   assert.equal(primary.message, 'PRIVATE_PRIMARY');
 });
+
+async function actualRecordCommitmentFunctions() {
+  const source = await readFile(
+    new URL('./aleo_process.ts', import.meta.url),
+    'utf8',
+  );
+  const start = source.indexOf('function recordCommitments(');
+  const end = source.indexOf('\n}\n', start);
+  assert.ok(start >= 0 && end > start);
+  const requireValue = (value: unknown, message: string) =>
+    assert.ok(value, message);
+  const isObject = (value: unknown) =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+  const records = compileFunction(
+    stripTypeScriptTypes(source.slice(start, end + 2)) +
+      '\nreturn recordCommitments;',
+    ['requireValue', 'isObject'],
+  )(requireValue, isObject);
+  const probeStart = source.indexOf(
+    '      const genesis = await getJson(`${base}/block/0`, budget);',
+  );
+  const probeEnd = source.indexOf('      capabilities.push({', probeStart);
+  assert.ok(probeStart >= 0 && probeEnd > probeStart);
+  const probe = compileFunction(
+    'return (async () => {\n' +
+      stripTypeScriptTypes(source.slice(probeStart, probeEnd)) +
+      '\nreturn statePath;\n})();',
+    [
+      'getJson',
+      'base',
+      'budget',
+      'recordCommitments',
+      'requireValue',
+      'isObject',
+    ],
+  );
+  return { records, probe, requireValue, isObject };
+}
+
+// Source-shaped snarkVM Output::Record JSON: commitment is id:Field, distinct
+// from the checksum Field and record ciphertext. No captured genesis is claimed.
+const commitmentBlock = {
+  header: {
+    metadata: { height: 0 },
+    misleading: '999field',
+    candidate: { type: 'record', id: '998field' },
+  },
+  transactions: [
+    {
+      status: 'accepted',
+      type: 'execute',
+      index: 0,
+      transaction: {
+        type: 'execute',
+        execution: {
+          transitions: [
+            {
+              program: 'credits.aleo',
+              function: 'transfer_public_to_private',
+              outputs: [
+                {
+                  type: 'record',
+                  id: '123field',
+                  checksum: '456field',
+                  value: 'record1fixture',
+                },
+                { type: 'public', id: '789field', value: '1u64' },
+                { type: 'record', id: '321field', checksum: '654field' },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  ],
+};
+
+void test('Aleo record commitment parser selects only typed record output Field ids', async () => {
+  const { records } = await actualRecordCommitmentFunctions();
+  assert.deepEqual(records(commitmentBlock), ['123field', '321field']);
+  assert.deepEqual(
+    records({
+      outputs: [{ type: 'record', id: '0field', checksum: '1field' }],
+    }),
+    ['0field'],
+  );
+});
+
+void test('Aleo record commitment parser ignores arbitrary fields and non-record outputs', async () => {
+  const { records } = await actualRecordCommitmentFunctions();
+  assert.deepEqual(
+    records({
+      header: { commitment: '7field', id: '8field', value: 'cm1legacy' },
+      outputs: [
+        { type: 'record', id: 'cm1legacy', checksum: '9field' },
+        { type: 'record', id: '01field' },
+        { type: 'record', id: '-1field' },
+        { type: 'record', id: '1_field' },
+        { type: 'record', id: '1field.private' },
+        { type: 'record', id: 123 },
+        { type: 'record', checksum: '10field' },
+        { type: 'external_record', id: '11field' },
+        { type: 'private', id: '12field' },
+        { type: 'future', id: '13field' },
+        null,
+        '14field',
+      ],
+    }),
+    [],
+  );
+  let nested: unknown = { outputs: [] };
+  for (let depth = 0; depth < 130; depth++) nested = { child: nested };
+  assert.throws(() => records(nested), /actual block nesting exceeds bound/);
+});
+
+void test('Aleo record commitment capability still requires actual state-path response', async () => {
+  const { records, probe, requireValue, isObject } =
+    await actualRecordCommitmentFunctions();
+  const calls: string[] = [];
+  const response = { path: 'synthetic-state-path-response' };
+  const getJson = async (path: string) => {
+    calls.push(path);
+    if (path === 'http://fixture/testnet/block/0') return commitmentBlock;
+    assert.equal(path, 'http://fixture/testnet/statePath/123field');
+    return response;
+  };
+  assert.equal(
+    await probe(
+      getJson,
+      'http://fixture/testnet',
+      {},
+      records,
+      requireValue,
+      isObject,
+    ),
+    response,
+  );
+  assert.deepEqual(calls, [
+    'http://fixture/testnet/block/0',
+    'http://fixture/testnet/statePath/123field',
+  ]);
+  await assert.rejects(
+    probe(
+      async (path: string) =>
+        path.endsWith('/block/0') ? commitmentBlock : null,
+      'http://fixture/testnet',
+      {},
+      records,
+      requireValue,
+      isObject,
+    ),
+    /actual state-path API unavailable/,
+  );
+  const missingCalls: string[] = [];
+  await assert.rejects(
+    probe(
+      async (path: string) => {
+        missingCalls.push(path);
+        return { header: { id: '123field' }, transactions: [] };
+      },
+      'http://fixture/testnet',
+      {},
+      records,
+      requireValue,
+      isObject,
+    ),
+    /actual devnode genesis exposes no record/,
+  );
+  assert.deepEqual(missingCalls, ['http://fixture/testnet/block/0']);
+});
