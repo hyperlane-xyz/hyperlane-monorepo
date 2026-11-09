@@ -81,9 +81,13 @@ export async function resolveChains(
     case CommandType.ISM_DEPLOY:
     case CommandType.ISM_READ:
     case CommandType.HOOK_DEPLOY:
-    case CommandType.HOOK_APPLY:
     case CommandType.HOOK_READ:
       return resolveChain(argv);
+    case CommandType.HOOK_APPLY:
+      return resolveHookApplyChains({
+        chain: argv.chain,
+        strategy: argv.strategy,
+      });
     case CommandType.ICA_DEPLOY:
       return resolveIcaDeployChains(argv);
     default:
@@ -216,6 +220,22 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
   const chains = argv.chain ? [argv.chain] : [];
   assert(chains.length !== 0, 'No chains found set in parameters');
   return chains;
+}
+
+async function resolveHookApplyChains(argv: {
+  chain: ChainName;
+  strategy?: string;
+}): Promise<ChainName[]> {
+  const chains = new Set(await resolveChain(argv));
+  if (argv.strategy) {
+    const strategy = readChainSubmissionStrategy(argv.strategy)[argv.chain];
+    if (strategy) {
+      for (const chain of getSubmitterChains(strategy.submitter)) {
+        chains.add(chain);
+      }
+    }
+  }
+  return Array.from(chains);
 }
 
 async function resolveWarpConfigChains(
