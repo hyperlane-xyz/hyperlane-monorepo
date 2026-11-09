@@ -1,3 +1,9 @@
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { expect } from 'chai';
 
 import { SwapsXyzPreflightRequestSchema } from './preflightSwapsXyz.js';
@@ -46,5 +52,28 @@ describe('SwapsXyzPreflightRequestSchema', () => {
         privateKey: 'not-accepted',
       }).success,
     ).to.equal(false);
+  });
+});
+
+describe('preflightSwapsXyz script entrypoint', () => {
+  it('runs through a symlink instead of silently skipping main', async function () {
+    this.timeout(15_000);
+    const directory = await mkdtemp(join(tmpdir(), 'swaps-preflight-'));
+    try {
+      const link = join(directory, 'preflight.ts');
+      await symlink(
+        fileURLToPath(new URL('./preflightSwapsXyz.ts', import.meta.url)),
+        link,
+      );
+      const result = spawnSync(process.execPath, ['--import', 'tsx', link], {
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+      expect(result.error).to.equal(undefined);
+      expect(result.status).to.equal(1);
+      expect(result.stderr).to.include('Required: --request request.json');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

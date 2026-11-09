@@ -1,5 +1,5 @@
+import { realpathSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
 
 if (
   process.argv[1] &&
-  fileURLToPath(import.meta.url) === resolve(process.argv[1])
+  fileURLToPath(import.meta.url) === realpathSync(process.argv[1])
 ) {
   main().catch((error: unknown) => {
     console.error(safeErrorMessage(error));
