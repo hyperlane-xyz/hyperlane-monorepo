@@ -17,7 +17,7 @@ def cpu_module():
  spec=importlib.util.spec_from_file_location('cold_matrix_build_cpu',ROOT/'zig/tools/build_cpu.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 def cpu_configuration(policy,environ,cpu):
- if policy=='x86_64_v3':
+ if policy=='x86_64_v3_pclmul':
   if platform.system()!='Linux'or platform.machine()not in{'x86_64','amd64'}:raise ValueError('Portable cold profile requires Linux x86_64')
   return cpu.portable_environment(environ,tokio_unstable=True),cpu.zig_cpu_args('build')
  if policy not in{'native','production-default'}:raise ValueError('Unknown cold CPU profile')
@@ -206,16 +206,16 @@ def reclaim_phase(cache,phase,all_phases,index):
  return cache_reclaim.reclaim(cache,cache/('sdk-'+group),artifacts)
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',required=True);p.add_argument('--sdk-root',type=pathlib.Path);p.add_argument('--native-db-libs-file',type=pathlib.Path,required=True);p.add_argument('--libpq-library',type=pathlib.Path,required=True);p.add_argument('--toolchain',default='1.98.0');p.add_argument('--jobs',type=int,default=2);p.add_argument('--cpu',choices=['native','production-default','x86_64_v3'],default='native');p.add_argument('--rust-features',default='');p.add_argument('--native-cold',action='store_true');p.add_argument('--optional-native-sdks',action='store_true');p.add_argument('--execute',action='store_true');p.add_argument('--reclaim-phase-caches',action='store_true',help='Outside timers, preserve runtime artifacts and reclaim generated compiler outputs after their final paired phase');p.add_argument('--min-free-GiB',type=float,default=40);p.add_argument('--runtime-free-GiB',type=float,default=6);p.add_argument('--git-sha');p.add_argument('--phase-timeout-seconds',type=float,default=7200);p.add_argument('--comparison-order',choices=['rust-safe-fast','fast-rust-safe','safe-fast-rust'],default='rust-safe-fast');p.add_argument('--cache-root',type=pathlib.Path);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/build-matrix-plan');args=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--compiler',required=True);p.add_argument('--sdk-root',type=pathlib.Path);p.add_argument('--native-db-libs-file',type=pathlib.Path,required=True);p.add_argument('--libpq-library',type=pathlib.Path,required=True);p.add_argument('--toolchain',default='1.98.0');p.add_argument('--jobs',type=int,default=2);p.add_argument('--cpu',choices=['native','production-default','x86_64_v3_pclmul'],default='native');p.add_argument('--rust-features',default='');p.add_argument('--native-cold',action='store_true');p.add_argument('--optional-native-sdks',action='store_true');p.add_argument('--execute',action='store_true');p.add_argument('--reclaim-phase-caches',action='store_true',help='Outside timers, preserve runtime artifacts and reclaim generated compiler outputs after their final paired phase');p.add_argument('--min-free-GiB',type=float,default=40);p.add_argument('--runtime-free-GiB',type=float,default=6);p.add_argument('--git-sha');p.add_argument('--phase-timeout-seconds',type=float,default=7200);p.add_argument('--comparison-order',choices=['rust-safe-fast','fast-rust-safe','safe-fast-rust'],default='rust-safe-fast');p.add_argument('--cache-root',type=pathlib.Path);p.add_argument('--output',type=pathlib.Path,default=ROOT/'zig/bench/results/build-matrix-plan');args=p.parse_args()
  if not 1<=args.jobs<=64:p.error('jobs must be1..64')
  if not 0<args.phase_timeout_seconds<=14400:p.error('phase timeout must be0..14400 seconds')
  if not 0<args.runtime_free_GiB<=args.min_free_GiB:p.error('Runtime floor must be positive and no larger than initial floor')
  if args.git_sha is not None and re.fullmatch('[0-9a-f]{40}',args.git_sha) is None:p.error('git-sha must be exact lower-case 40hex')
- if args.cpu=='x86_64_v3'and args.git_sha is None:p.error('portable build requires actual procedure git-sha')
+ if args.cpu=='x86_64_v3_pclmul'and args.git_sha is None:p.error('portable build requires actual procedure git-sha')
  output=args.output.resolve();output.mkdir(parents=True,exist_ok=True);cache=(args.cache_root or ROOT/'zig/bench/.cache'/('build-matrix-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'))).resolve();libraries=[str(pathlib.Path(v.strip()).resolve())for v in args.native_db_libs_file.read_text().replace('\n',',').split(',')if v.strip()]
  if len(libraries)!=7:p.error('seven production RocksDB/compression/ABI archives required')
  setup=[['python3',str(ROOT/'zig/tools/fixture_pack.py'),'restore-locks']]
- if args.native_cold:setup.append(['python3',str(ROOT/'zig/tools/native_deps.py'),'--restore-only']+(['--cpu-profile','x86_64_v3','--git-sha',args.git_sha]if args.cpu=='x86_64_v3'else[]))
+ if args.native_cold:setup.append(['python3',str(ROOT/'zig/tools/native_deps.py'),'--restore-only']+(['--cpu-profile','x86_64_v3_pclmul','--git-sha',args.git_sha]if args.cpu=='x86_64_v3_pclmul'else[]))
  # Validator startup always uses the reference URL normalizer, including core
  # images. Every dependency-inclusive or full-SDK trial measures it separately.
  url_cold=args.native_cold or args.optional_native_sdks
@@ -235,18 +235,18 @@ def main():
  # wrappers reject execution rather than being mislabeled compiler-cache-cold.
  base_env.update(RUSTC_WRAPPER='',RUSTC_WORKSPACE_WRAPPER='',CARGO_BUILD_RUSTC_WRAPPER='',CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER='',CCACHE_DISABLE='1',SCCACHE_DISABLE='1')
  base_env,zig_cpu=cpu_configuration(args.cpu,base_env,cpu)
- if args.cpu=='x86_64_v3':rust_flags=base_env['RUSTFLAGS']
+ if args.cpu=='x86_64_v3_pclmul':rust_flags=base_env['RUSTFLAGS']
  compiler_cache_policy={'rust_wrappers_explicitly_empty':True,'ccache_disable':'1','sccache_disable':'1','inherited_cache_controls':inherited_cache_controls,'compiler_environment_signatures':opaque_compilers,'explicit_cache_wrapper_compiler_keys':cache_wrapped_compilers,'no_user_cache_deleted':True}
  def add(name,command,cwd,environment,kind,artifacts=()):
   actual=[str(v)for v in command];row={'name':name,'command':actual,'cwd':str(cwd),'environment':environment,'cache_state':kind,'artifacts':[str(v)for v in artifacts]}
-  if args.cpu=='x86_64_v3'and name=='native-sdk-cold':row.update(CPU_manifest=str(native_output/'manifest.json'),CPU_source_commit=args.git_sha)
-  if args.cpu=='x86_64_v3'and name!='native-sdk-cold':
+  if args.cpu=='x86_64_v3_pclmul'and name=='native-sdk-cold':row.update(CPU_manifest=str(native_output/'manifest.json'),CPU_source_commit=args.git_sha)
+  if args.cpu=='x86_64_v3_pclmul'and name!='native-sdk-cold':
    actual_env={**base_env,**environment};row['CPU_recipe']=cpu.recipe('zig-build'if name.startswith('zig-')else'rust',actual,actual_env,'zig/bench/build_matrix.py',ROOT)
   phases.append(row)
  if args.native_cold:
   native_output=cache/'native-sdk';command=['python3',ROOT/'zig/tools/native_deps.py','--offline','--target-dir',cache/'native-target','--output',native_output,'--jobs',args.jobs,'--toolchain',args.toolchain,'--format','libs']
   if args.sdk_root:command+=['--sdk-root',args.sdk_root]
-  if args.cpu=='x86_64_v3':command+=['--cpu-profile','x86_64_v3','--git-sha',args.git_sha]
+  if args.cpu=='x86_64_v3_pclmul':command+=['--cpu-profile','x86_64_v3_pclmul','--git-sha',args.git_sha]
   add('native-sdk-cold',command,ROOT,{},'fresh standalone native dependency target; downloads excluded', [native_output/name for name in ['libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a']])
   libraries=[str(native_output/v)for v in['libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a']]
  if url_cold:

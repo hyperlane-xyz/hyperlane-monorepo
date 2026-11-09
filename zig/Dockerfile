@@ -39,14 +39,14 @@ RUN rustc +1.98.0 --version \
 
 FROM build-base AS native-url
 RUN python3 zig/src/net/native-url/locked.py --toolchain 1.98.0 --cpu-recipe-output /opt/hyperlane-build-cpu/recipes/url.json \
-    && python3 zig/tools/build_cpu.py --scope url --profile linux-x86_64-v3-v1 --recipe /opt/hyperlane-build-cpu/recipes/url.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+    && python3 zig/tools/build_cpu.py --scope url --profile linux-x86_64-v3-pclmul-v1 --recipe /opt/hyperlane-build-cpu/recipes/url.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
         --artifact libziggy_url.so=/work/zig/src/net/native-url/target/release/libziggy_url.so \
         --output /opt/hyperlane-build-cpu/url.json
 
 FROM build-base AS native-db
 COPY --from=native-url /work/zig/src/net/native-url/target/release/libziggy_url.so /opt/hyperlane-url/libziggy_url.so
 ENV HYPERLANE_URL_LIBRARY=/opt/hyperlane-url/libziggy_url.so
-RUN python3 zig/tools/native_deps.py --cpu-profile x86_64_v3 --cpu-recipe-directory /opt/hyperlane-build-cpu/recipes/native-deps --git-sha "${GIT_SHA}" --offline --jobs "${BUILD_JOBS}" \
+RUN python3 zig/tools/native_deps.py --cpu-profile x86_64_v3_pclmul --cpu-recipe-directory /opt/hyperlane-build-cpu/recipes/native-deps --git-sha "${GIT_SHA}" --offline --jobs "${BUILD_JOBS}" \
         --target-dir /work/zig/native/rocks/target-container \
         --output /opt/hyperlane-native --format json \
     && ZIG="$(python3 zig/tools/bootstrap.py)" \
@@ -58,16 +58,16 @@ RUN python3 zig/tools/native_deps.py --cpu-profile x86_64_v3 --cpu-recipe-direct
     && HYPERLANE_CURL_LIBRARY=libcurl.so.4 HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3 \
         python3 zig/tools/build_cpu.py run --kind zig-build --recipe-source zig/Dockerfile --recipe-output /opt/hyperlane-build-cpu/recipes/roles.json -- \
         python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
-        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" native-db-test relayer validator \
+        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" native-db-test relayer validator \
         -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" "-Dlibpq-library=${LIBPQ}" --summary all \
     && python3 zig/tools/build_cpu.py run --kind zig-build --recipe-source zig/Dockerfile --recipe-output /opt/hyperlane-build-cpu/recipes/scraper.json -- \
-        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" scraper \
+        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" scraper \
         -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dlibpq-library=${LIBPQ}" \
     && python3 zig/tools/container_check.py write-probe --output /tmp/native-runtime-probe.c \
     && python3 zig/tools/build_cpu.py run --kind cc --recipe-source zig/Dockerfile --recipe-output /opt/hyperlane-build-cpu/recipes/runtime-probe.json -- \
-        cc -march=x86-64-v3 -mtune=generic -O2 -Wall -Wextra -Werror /tmp/native-runtime-probe.c \
+        cc -march=x86-64-v3 -mtune=generic -mpclmul -O2 -Wall -Wextra -Werror /tmp/native-runtime-probe.c \
         -I/usr/include/postgresql -lcurl -lpq -lcrypto -o /opt/hyperlane-native-runtime-probe \
-    && python3 zig/tools/build_cpu.py --scope native-db --profile linux-x86_64-v3-v1 \
+    && python3 zig/tools/build_cpu.py --scope native-db --profile linux-x86_64-v3-pclmul-v1 \
         --recipe /opt/hyperlane-build-cpu/recipes/native-deps/0.json --recipe /opt/hyperlane-build-cpu/recipes/native-deps/1.json --recipe /opt/hyperlane-build-cpu/recipes/native-deps/2.json \
         --recipe /opt/hyperlane-build-cpu/recipes/roles.json --recipe /opt/hyperlane-build-cpu/recipes/scraper.json --recipe /opt/hyperlane-build-cpu/recipes/runtime-probe.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
         --artifact relayer=/work/zig/zig-out/bin/relayer \
@@ -85,12 +85,12 @@ RUN python3 zig/src/starknet/testing/locked.py --toolchain 1.98.0 --cpu-recipe-o
     && export HYPERLANE_STARKNET_CRYPTO_LIBRARY=/work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so \
         HYPERLANE_CURL_LIBRARY=libcurl.so.4 HYPERLANE_LIBCRYPTO_LIBRARY=libcrypto.so.3 \
     && python3 zig/tools/build_cpu.py run --kind zig-direct --recipe-source zig/Dockerfile --recipe-output /opt/hyperlane-build-cpu/recipes/starknet-test.json -- \
-        python3 zig/tools/zig.py --compiler "${ZIG}" test src/starknet_batch_tests.zig -target x86_64-linux-gnu -mcpu=x86_64_v3 -O "${ZIG_MODE}" -j"${BUILD_JOBS}" -lc --test-filter Starknet \
+        python3 zig/tools/zig.py --compiler "${ZIG}" test src/starknet_batch_tests.zig -target x86_64-linux-gnu -mcpu=x86_64_v3+pclmul -O "${ZIG_MODE}" -j"${BUILD_JOBS}" -lc --test-filter Starknet \
     && python3 zig/tools/native_http_tests.py --timeout-seconds 3600 -- \
         python3 zig/tools/build_cpu.py run --kind zig-build --recipe-source zig/Dockerfile --recipe-output /opt/hyperlane-build-cpu/recipes/starknet-db-test.json -- \
-        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" native-db-test \
+        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" native-db-test \
         -Doptimize="${ZIG_MODE}" "-Dgit-sha=${GIT_SHA}" "-Dnative-db-libs=${LIBS}" "-Dlibpq-library=${LIBPQ}" --summary all \
-    && python3 zig/tools/build_cpu.py --scope starknet --profile linux-x86_64-v3-v1 --recipe /opt/hyperlane-build-cpu/recipes/starknet.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+    && python3 zig/tools/build_cpu.py --scope starknet --profile linux-x86_64-v3-pclmul-v1 --recipe /opt/hyperlane-build-cpu/recipes/starknet.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
         --artifact libziggy_starknet_crypto.so=/work/zig/src/starknet/native-crypto/target/release/libziggy_starknet_crypto.so \
         --output /opt/hyperlane-build-cpu/starknet.json
 
@@ -98,8 +98,8 @@ FROM native-db AS native-aleo
 RUN python3 zig/src/aleo/testing/locked.py --toolchain 1.98.0 --cpu-recipe-directory /opt/hyperlane-build-cpu/recipes/aleo \
     && ZIG="$(python3 zig/tools/bootstrap.py)" \
     && python3 zig/tools/build_cpu.py run --kind zig-build --recipe-source zig/Dockerfile --recipe-output /opt/hyperlane-build-cpu/recipes/worker.json -- \
-        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3 -j"${BUILD_JOBS}" aleo-vm-worker -Doptimize="${ZIG_MODE}" \
-    && python3 zig/tools/build_cpu.py --scope aleo --profile linux-x86_64-v3-v1 --recipe /opt/hyperlane-build-cpu/recipes/aleo/native-crypto.json --recipe /opt/hyperlane-build-cpu/recipes/aleo/native-vm.json --recipe /opt/hyperlane-build-cpu/recipes/worker.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+        python3 zig/tools/zig.py --compiler "${ZIG}" build -Dtarget=x86_64-linux-gnu -Dcpu=x86_64_v3+pclmul -j"${BUILD_JOBS}" aleo-vm-worker -Doptimize="${ZIG_MODE}" \
+    && python3 zig/tools/build_cpu.py --scope aleo --profile linux-x86_64-v3-pclmul-v1 --recipe /opt/hyperlane-build-cpu/recipes/aleo/native-crypto.json --recipe /opt/hyperlane-build-cpu/recipes/aleo/native-vm.json --recipe /opt/hyperlane-build-cpu/recipes/worker.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
         --artifact libziggy_aleo_crypto.so=/work/zig/src/aleo/native-crypto/target/release/libziggy_aleo_crypto.so \
         --artifact libziggy_aleo_vm.so=/work/zig/src/aleo/native-vm/target/release/libziggy_aleo_vm.so \
         --artifact hyperlane-aleo-vm-worker=/work/zig/zig-out/bin/hyperlane-aleo-vm-worker \
@@ -107,7 +107,7 @@ RUN python3 zig/src/aleo/testing/locked.py --toolchain 1.98.0 --cpu-recipe-direc
 
 FROM native-db AS native-regex
 RUN python3 zig/src/ops/tools/locked.py --toolchain 1.98.0 --cpu-recipe-output /opt/hyperlane-build-cpu/recipes/regex.json \
-    && python3 zig/tools/build_cpu.py --scope regex --profile linux-x86_64-v3-v1 --recipe /opt/hyperlane-build-cpu/recipes/regex.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
+    && python3 zig/tools/build_cpu.py --scope regex --profile linux-x86_64-v3-pclmul-v1 --recipe /opt/hyperlane-build-cpu/recipes/regex.json --mode "${ZIG_MODE}" --git-sha "${GIT_SHA}" \
         --artifact libziggy_regex.so=/work/zig/src/ops/regex-native/target/release/libziggy_regex.so \
         --output /opt/hyperlane-build-cpu/regex.json
 

@@ -1,11 +1,11 @@
 # Linux CPU profiles
 
-New paired benchmarks use `locked-c520224-production-three-agent-linux-x86_64-v3-v2`.
-Both implementations and rebuilt native dependencies target x86-64-v3:
+New paired benchmarks use `locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-v3`.
+Both implementations and rebuilt native dependencies target x86-64-v3 with PCLMUL:
 
-- Rust: `-Ctarget-cpu=x86-64-v3`.
-- Zig: Linux x86-64 with `x86_64_v3`.
-- C and C++: `-march=x86-64-v3 -mtune=generic`.
+- Rust: `-Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq`.
+- Zig: Linux x86-64 with `x86_64_v3+pclmul`.
+- C and C++: `-march=x86-64-v3 -mtune=generic -mpclmul`.
 
 `zig/tools/build_cpu.py` records the actual compiler command, selected compiler
 environment, successful parent wait, source digest, and output digests. Consumers

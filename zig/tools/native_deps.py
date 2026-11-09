@@ -164,7 +164,7 @@ def build_environment(sdk: Path | None, deployment: str | None = None, cpu_profi
             raise ValueError("--sdk-root must name an installed macOS SDK")
         env["SDKROOT"] = str(sdk)
         env["BINDGEN_EXTRA_CLANG_ARGS"] = "-isysroot " + shlex.quote(str(sdk))
-    if cpu_profile == "x86_64_v3":
+    if cpu_profile == "x86_64_v3_pclmul":
         if platform.system() != "Linux" or platform.machine() != "x86_64":
             raise ValueError("Portable native dependencies require Linux x86_64")
         env = cpu.portable_environment(env)
@@ -182,7 +182,7 @@ def build_native(args, output: Path) -> tuple[dict, dict]:
     if args.offline:
         command.append("--offline")
     environment = build_environment(args.sdk_root, args.macos_deployment_target, args.cpu_profile)
-    recipe = cpu.recipe("rust", command, environment, Path(__file__), repo=ROOT) if args.cpu_profile == "x86_64_v3" else None
+    recipe = cpu.recipe("rust", command, environment, Path(__file__), repo=ROOT) if args.cpu_profile == "x86_64_v3_pclmul" else None
     start = time.monotonic()
     with log.open("w") as stdout, diagnostics.open("w") as stderr:
         process = subprocess.Popen(command, cwd=PROJECT, env=environment,
@@ -310,7 +310,7 @@ def native_flags(sdk: Path | None, cpu_profile: str = "production-default") -> t
         return (["-isysroot", str(sdk)] if sdk else []), ["-lc++", "-lpthread"]
     if platform.system() == "Linux":
         flags = []
-        if cpu_profile == "x86_64_v3":
+        if cpu_profile == "x86_64_v3_pclmul":
             if platform.machine() != "x86_64":
                 raise ValueError("Portable native C/C++ requires Linux x86_64")
             flags = shlex.split(cpu.portable_environment({})["CXXFLAGS"])
@@ -332,7 +332,7 @@ def compile_shim_and_probe(args, output: Path, archives: list[Path], sources: di
     common = compiler + ["-std=c++17", "-O2", "-fPIC", "-DNDEBUG", "-I", str(include), "-I", str(PROJECT)] + flags
     environment = build_environment(args.sdk_root, args.macos_deployment_target, args.cpu_profile)
     command = common + ["-c", str(PROJECT / "abi.cc"), "-o", str(object_file)]
-    recipe = cpu.recipe("cc", command, environment, Path(__file__), repo=ROOT) if args.cpu_profile == "x86_64_v3" else None
+    recipe = cpu.recipe("cc", command, environment, Path(__file__), repo=ROOT) if args.cpu_profile == "x86_64_v3_pclmul" else None
     completed = subprocess.run(command, check=True, timeout=120, env=environment)
     if recipe is not None:
         if recipes is None: raise ValueError("Portable dependency recipe collector required")
@@ -345,7 +345,7 @@ def compile_shim_and_probe(args, output: Path, archives: list[Path], sources: di
     probe = output / "native-probe"
     link_system = [flag for flag in system if flag not in {"-lc++", "-lstdc++"}]
     command = common + [str(PROJECT / "probe.cc"), str(shim), *map(str, archives), *link_system, "-o", str(probe)]
-    recipe = cpu.recipe("cc", command, environment, Path(__file__), repo=ROOT) if args.cpu_profile == "x86_64_v3" else None
+    recipe = cpu.recipe("cc", command, environment, Path(__file__), repo=ROOT) if args.cpu_profile == "x86_64_v3_pclmul" else None
     with (output / "native-probe-build.log").open("w") as diagnostics:
         completed = subprocess.run(command, check=True, timeout=180, stdout=diagnostics, stderr=diagnostics, env=environment)
     if recipe is not None:
@@ -376,7 +376,7 @@ def preserve_licenses(sources: dict, output: Path) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--toolchain", default="1.98.0")
-    parser.add_argument("--cpu-profile", choices=["production-default", "x86_64_v3"], default="production-default")
+    parser.add_argument("--cpu-profile", choices=["production-default", "x86_64_v3_pclmul"], default="production-default")
     parser.add_argument("--cpu-recipe-directory", type=Path, help="Optional fresh build-only recipe directory; not added to published archive inventory")
     parser.add_argument("--git-sha", help="Actual producer commit required for portable CPU receipts")
     parser.add_argument("--target-dir", type=Path, default=PROJECT / "target")
@@ -411,12 +411,12 @@ def main() -> int:
     args.output.mkdir(parents=True, exist_ok=True)
     metadata = cargo_metadata(args.toolchain, args.offline)
     sources = verify_sources(metadata, pins)
-    if args.cpu_recipe_directory is not None and args.cpu_profile != "x86_64_v3":
+    if args.cpu_recipe_directory is not None and args.cpu_profile != "x86_64_v3_pclmul":
         raise ValueError("Recipe directory requires the explicit portable profile")
-    if args.cpu_profile == "x86_64_v3" and (args.from_rust_target or not args.git_sha or re.fullmatch("[0-9a-f]{40}", args.git_sha) is None):
+    if args.cpu_profile == "x86_64_v3_pclmul" and (args.from_rust_target or not args.git_sha or re.fullmatch("[0-9a-f]{40}", args.git_sha) is None):
         raise ValueError("Portable native dependencies require a fresh build and actual producer commit")
     dirs, build = import_target(args.from_rust_target, sources) if args.from_rust_target else build_native(args, args.output)
-    recipes = [build.pop("cpu_recipe")] if args.cpu_profile == "x86_64_v3" else []
+    recipes = [build.pop("cpu_recipe")] if args.cpu_profile == "x86_64_v3_pclmul" else []
     archives = []
     archive_records = []
     for name, libraries in NATIVE.items():
@@ -456,7 +456,7 @@ def main() -> int:
             "build_requirements": ["Python3.11+", "Cargo/rustc" + args.toolchain, "C/C++17 compiler", "ar", "libclang", "platform SDK/system headers"]},
         "source_packages": [{"name": info["name"], "version": info["version"], "license": info["license"],
             "sha256_chunks": chunks(info["checksum"]), "features": info["features"]} for name, info in sorted(sources.items())]}
-    if args.cpu_profile == "x86_64_v3":
+    if args.cpu_profile == "x86_64_v3_pclmul":
         if Path(cpu.__file__).read_bytes() != cpu_source_before: raise ValueError("CPU compiler procedure changed")
         if args.cpu_recipe_directory is not None:
             recipe_directory = args.cpu_recipe_directory

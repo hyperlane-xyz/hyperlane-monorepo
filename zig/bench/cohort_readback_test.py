@@ -820,7 +820,7 @@ class PortablePublisherCpuControls(unittest.TestCase):
             wire=json.dumps(row).encode();files[pin['path']]=wire;pin.update(bytes=len(wire),sha256=api.sha(wire));files['manifest.json']=json.dumps(manifest).encode()
             with self.subTest(edit=edit),self.assertRaises((ValueError,api.Refused)):self.inspect(files,git)
 
-    def test_portable_helper_keeps_actual_producer_78_test_census_separate_from_24_CPU_flags(self):
+    def test_portable_helper_keeps_actual_producer_78_test_census_separate_from_25_CPU_flags(self):
         files,git=family_fixture('helper')
         required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
         names={name for group in required.values()for name in group};self.assertEqual(len(names),78)
@@ -844,7 +844,7 @@ class PortablePublisherCpuControls(unittest.TestCase):
         try:value=api.validate_helper(archive,git)
         finally:archive.close()
         self.assertEqual(value['required_census_names_observed'],78)
-        self.assertEqual(value['required_ISA_flag_count'],24)
+        self.assertEqual(value['required_ISA_flag_count'],25)
         self.assertTrue(value['compiler_recipe_Source_verified'])
 
     def test_complete_eight_publisher_profile_rejects_legacy_or_missing_one(self):

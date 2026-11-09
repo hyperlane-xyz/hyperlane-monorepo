@@ -46,17 +46,18 @@ def validate_v1(row, scope, mode, commit, expected):
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PROFILE = 'linux-x86_64-v3-v1'
-# ISA-only Linux names for the pinned x86_64_v3 model and its dependencies.
-# Linux calls SSE3 pni, BMI bmi1, LZCNT abm, SAHF lahf_lm, and x87 fpu.
+PROFILE = 'linux-x86_64-v3-pclmul-v1'
+# ISA-only Linux names for the pinned x86_64_v3 model plus explicit PCLMUL.
+# Pinned RocksDB10.4.2 CRC compilation requires PCLMUL independently of GCC v3.
+# Linux calls SSE3 pni, BMI bmi1, LZCNT abm, SAHF lahf_lm, x87 fpu, and pclmul pclmulqdq.
 REQUIRED_FLAGS = tuple(sorted(('cmov', 'cx8', 'cx16', 'fpu', 'fxsr', 'mmx', 'sse', 'sse2',
                                'pni', 'ssse3', 'sse4_1', 'sse4_2', 'popcnt', 'lahf_lm',
-                               'avx', 'avx2', 'bmi1', 'bmi2', 'f16c', 'fma', 'abm', 'movbe', 'nopl', 'xsave')))
-RUST_CPU = '-Ctarget-cpu=x86-64-v3'
-C_FLAGS = '-march=x86-64-v3 -mtune=generic'
-TARGET = {'profile': PROFILE, 'zig_target': 'x86_64-linux-gnu', 'zig_cpu': 'x86_64_v3',
-          'rust_target': 'x86_64-unknown-linux-gnu', 'rust_cpu': 'x86-64-v3',
-          'cc_cpu': 'x86-64-v3', 'required_flags': list(REQUIRED_FLAGS)}
+                               'avx', 'avx2', 'bmi1', 'bmi2', 'f16c', 'fma', 'abm', 'movbe', 'nopl', 'pclmulqdq', 'xsave')))
+RUST_CPU = '-Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq'
+C_FLAGS = '-march=x86-64-v3 -mtune=generic -mpclmul'
+TARGET = {'profile': PROFILE, 'zig_target': 'x86_64-linux-gnu', 'zig_cpu': 'x86_64_v3+pclmul',
+          'rust_target': 'x86_64-unknown-linux-gnu', 'rust_cpu': 'x86-64-v3', 'rust_features': ['pclmulqdq'],
+          'cc_cpu': 'x86-64-v3', 'cc_features': ['pclmul'], 'required_flags': list(REQUIRED_FLAGS)}
 EXTRA_SCOPES = {'writer', 'helper', 'tools', 'radix-reference', 'svm-host', 'native-deps', 'evm-controls'}
 EXTRA_ARTIFACTS = {
     'writer': {'writer'}, 'helper': {'normal', 'construction'},
@@ -103,9 +104,9 @@ def portable_environment(environment, tokio_unstable=False):
 
 def zig_cpu_args(kind):
     if kind == 'build':
-        return ['-Dtarget=x86_64-linux-gnu', '-Dcpu=x86_64_v3']
+        return ['-Dtarget=x86_64-linux-gnu', '-Dcpu=x86_64_v3+pclmul']
     if kind == 'direct':
-        return ['-target', 'x86_64-linux-gnu', '-mcpu=x86_64_v3']
+        return ['-target', 'x86_64-linux-gnu', '-mcpu=x86_64_v3+pclmul']
     raise ValueError('fixed Zig command kind required')
 
 
@@ -159,11 +160,11 @@ def recipe(kind, argv, environment, source_path, repo=ROOT):
             raise ValueError('exact portable Zig build target required')
         flags['argv'] = expected
     elif kind == 'zig-direct':
-        if any(v.startswith('-target=') for v in argv) or argv.count('-target') != 1 or argv[argv.index('-target') + 1:argv.index('-target') + 2] != ['x86_64-linux-gnu'] or [v for v in argv if v.startswith('-mcpu')] != ['-mcpu=x86_64_v3']:
+        if any(v.startswith('-target=') for v in argv) or argv.count('-target') != 1 or argv[argv.index('-target') + 1:argv.index('-target') + 2] != ['x86_64-linux-gnu'] or [v for v in argv if v.startswith('-mcpu')] != ['-mcpu=x86_64_v3+pclmul']:
             raise ValueError('exact portable Zig direct target required')
         flags['argv'] = zig_cpu_args('direct')
     elif kind == 'cc':
-        if [v for v in argv if v.startswith(('-march=', '-mtune='))] != shlex.split(C_FLAGS):
+        if [v for v in argv if v.startswith(('-march=', '-mtune=', '-mpclmul', '-mno-pclmul'))] != shlex.split(C_FLAGS):
             raise ValueError('exact portable C/C++ argv required')
         flags['argv'] = shlex.split(C_FLAGS)
     return {'kind': kind, 'source': _source_pin(source_path, repo), 'flags': flags,

@@ -34,14 +34,16 @@ class CpuConfiguration(unittest.TestCase):
   self.assertEqual(matrix.cpu_configuration('production-default',env,None),(env,['-Dcpu=baseline']))
   self.assertEqual(env,{'PATH':'/bin','CFLAGS':'legacy'})
   with self.assertRaises(ValueError):matrix.cpu_configuration('unknown',env,None)
+  with self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3',env,None)
  def test_portable_selection_uses_shared_real_policy_and_platform_fence(self):
   cpu=matrix.cpu_module();env={'PATH':'/bin','RUSTFLAGS':'-Ctarget-cpu=native','CFLAGS':'-march=native','CXXFLAGS':'-march=native','GH_TOKEN':'not-consumed-by-pure-helper'}
   with mock.patch.object(matrix.platform,'system',return_value='Linux'),mock.patch.object(matrix.platform,'machine',return_value='x86_64'):
-   actual,args=matrix.cpu_configuration('x86_64_v3',env,cpu)
+   actual,args=matrix.cpu_configuration('x86_64_v3_pclmul',env,cpu)
   self.assertEqual(actual,cpu.portable_environment(env,tokio_unstable=True));self.assertEqual(args,cpu.zig_cpu_args('build'))
+  self.assertEqual(cpu.PROFILE,'linux-x86_64-v3-pclmul-v1');self.assertIn('pclmulqdq',cpu.REQUIRED_FLAGS);self.assertEqual(actual['CFLAGS'],'-march=x86-64-v3 -mtune=generic -mpclmul');self.assertEqual(args,['-Dtarget=x86_64-linux-gnu','-Dcpu=x86_64_v3+pclmul'])
   self.assertNotIn('native',actual['RUSTFLAGS']);self.assertNotIn('native',actual['CFLAGS']);self.assertEqual(env['RUSTFLAGS'],'-Ctarget-cpu=native')
   for system,machine in [('Darwin','x86_64'),('Linux','aarch64')]:
-   with mock.patch.object(matrix.platform,'system',return_value=system),mock.patch.object(matrix.platform,'machine',return_value=machine),self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3',env,cpu)
+   with mock.patch.object(matrix.platform,'system',return_value=system),mock.patch.object(matrix.platform,'machine',return_value=machine),self.assertRaises(ValueError):matrix.cpu_configuration('x86_64_v3_pclmul',env,cpu)
 
 class CpuPlans(unittest.TestCase):
  def plan(self,policy):
@@ -52,14 +54,14 @@ class CpuPlans(unittest.TestCase):
     matrix.main()
    return __import__('json').loads((output/'plan.json').read_text())
  def test_actual_portable_plan_covers_both_Zig_modes_Rust_and_native7_without_wait_credit(self):
-  plan=self.plan('x86_64_v3');cpu=matrix.cpu_module();self.assertEqual(plan['cpu_policy'],'x86_64_v3')
-  native=next(p for p in plan['phases']if p['name']=='native-sdk-cold');self.assertEqual(len(native['artifacts']),7);self.assertEqual(native['command'][native['command'].index('--cpu-profile')+1],'x86_64_v3');self.assertEqual(native['command'][native['command'].index('--git-sha')+1],'a'*40);self.assertTrue(native['CPU_manifest'].endswith('/manifest.json'));self.assertNotIn('CPU_recipe',native)
+  plan=self.plan('x86_64_v3_pclmul');cpu=matrix.cpu_module();self.assertEqual(plan['cpu_policy'],'x86_64_v3_pclmul')
+  native=next(p for p in plan['phases']if p['name']=='native-sdk-cold');self.assertEqual(len(native['artifacts']),7);self.assertEqual(native['command'][native['command'].index('--cpu-profile')+1],'x86_64_v3_pclmul');self.assertEqual(native['command'][native['command'].index('--git-sha')+1],'a'*40);self.assertTrue(native['CPU_manifest'].endswith('/manifest.json'));self.assertNotIn('CPU_recipe',native)
   zig=[p for p in plan['phases']if p['name'].startswith('zig-')];self.assertEqual(len(zig),4)
   for phase in plan['phases']:
    if phase is native:continue
    self.assertIsNone(phase['CPU_recipe']['actual_parent_wait']);self.assertIsNone(phase['CPU_recipe']['exit_code'])
    if phase in zig:self.assertEqual([v for v in phase['command']if v.startswith(('-Dtarget=','-Dcpu='))],cpu.zig_cpu_args('build'))
-   else:self.assertEqual(phase['environment']['RUSTFLAGS'],'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3')
+   else:self.assertEqual(phase['environment']['RUSTFLAGS'],'--cfg tokio_unstable -Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq')
  def test_actual_production_default_plan_uses_explicit_Zig_baseline(self):
   plan=self.plan('production-default')
   for phase in plan['phases']:

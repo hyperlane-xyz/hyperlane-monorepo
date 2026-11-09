@@ -49,21 +49,21 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 142570,
+      "bytes": 142633,
       "sha256": {
         "sha256_hex_chunks": [
-          "eed469edbae7a1fedf940ddfec89fe26",
-          "db3837d4bcbc4efaf9fd7a7de0449415"
+          "95ecf0374b1ffabdf4f4f67c80561db2",
+          "0207ddc031a1cbb460fce759e3bd1aeb"
         ]
       }
     },
     {
       "path": "zig/bench/cold_matrix_owner.py",
-      "bytes": 26676,
+      "bytes": 26683,
       "sha256": {
         "sha256_hex_chunks": [
-          "ef0614813d14d4f0d5ade1ed4f5b04c9",
-          "0ec736fc5b25563b832bd44090e20fb2"
+          "7edb586d6b51d08d280fa8a7b223472d",
+          "da2d8661116b5d0d81c2e322d661d70c"
         ]
       }
     },
@@ -579,11 +579,11 @@
     },
     {
       "path": "zig/tools/build_cpu.py",
-      "bytes": 22564,
+      "bytes": 22833,
       "sha256": {
         "sha256_hex_chunks": [
-          "5d5fff2db280f2de0808f20008a8c422",
-          "8565872b871cc173d53fc3c9dad567a4"
+          "a547ec119154f666a2963965f38aaa9e",
+          "b9059310b3ef63677071ec51d8d3a312"
         ]
       }
     }

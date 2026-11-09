@@ -82,7 +82,7 @@ class WriterPlanControls(unittest.TestCase):
         import native_interop_writer_export as writer
         root=Path('/work');libs=[Path('/opt/hyperlane-native')/name for name in sorted(writer.ARCHIVES)]
         argv=writer.compile_plan(root,Path('/compiler'),'ReleaseFast',2,libs,Path('/output/writer'))
-        self.assertIn('build-exe',argv);self.assertEqual(argv[argv.index('-target')+1],'x86_64-linux-gnu');self.assertEqual([v for v in argv if v.startswith('-mcpu=')],['-mcpu=x86_64_v3']);self.assertIn('src/native_rows_interop_fixture.zig',argv);self.assertIn('-j2',argv);self.assertIn('ReleaseFast',argv);self.assertNotIn('run',argv);self.assertFalse(any('bootstrap' in word for word in argv))
+        self.assertIn('build-exe',argv);self.assertEqual(argv[argv.index('-target')+1],'x86_64-linux-gnu');self.assertEqual([v for v in argv if v.startswith('-mcpu=')],['-mcpu=x86_64_v3+pclmul']);self.assertIn('src/native_rows_interop_fixture.zig',argv);self.assertIn('-j2',argv);self.assertIn('ReleaseFast',argv);self.assertNotIn('run',argv);self.assertFalse(any('bootstrap' in word for word in argv))
         with self.assertRaises(ValueError):writer.compile_plan(root,Path('/compiler'),'ReleaseFast',2,libs[:-1],Path('/output/writer'))
         with self.assertRaises(ValueError):writer.compile_plan(root,Path('/compiler'),'ReleaseSafe',8,libs,Path('/output/writer'))
 
@@ -106,15 +106,15 @@ class PortableCpuControls(unittest.TestCase):
              {name:{'bytes':17,'sha256':hashlib.sha256(name.encode()).hexdigest()}for name in ('normal','construction')},recipes)
 
     def test_explicit_profile_uses_ISA_not_observed_host_and_real_model_aliases(self):
-        # Pinned Zig0.15.2 x86_64_v3 model: all hardware features, excluding
+        # Pinned Zig0.15.2 x86_64_v3 model plus explicit pclmul: hardware features, excluding
         # 64bit (architecture guard) and explicitly named scheduling features.
         model=['avx2','bmi','bmi2','cmov','cx16','f16c','fma','fxsr','lzcnt',
-               'mmx','movbe','nopl','popcnt','sahf','x87','xsave']
-        aliases={'bmi':'bmi1','lzcnt':'abm','sahf':'lahf_lm','x87':'fpu'}
+               'mmx','movbe','nopl','popcnt','sahf','x87','xsave','pclmul']
+        aliases={'bmi':'bmi1','lzcnt':'abm','sahf':'lahf_lm','x87':'fpu','pclmul':'pclmulqdq'}
         self.assertLessEqual({aliases.get(v,v)for v in model},set(self.cpu.REQUIRED_FLAGS))
-        # Root rustc1.98 --print cfg -Ctarget-cpu=x86-64-v3 ISA rows.
+        # Rust target model ISA plus the explicit +pclmulqdq feature (Root metadata probe required).
         rust=['avx','avx2','bmi1','bmi2','cmpxchg16b','f16c','fma','fxsr','lzcnt',
-              'movbe','popcnt','sse','sse2','sse3','sse4.1','sse4.2','ssse3','xsave']
+              'movbe','popcnt','sse','sse2','sse3','sse4.1','sse4.2','ssse3','xsave','pclmulqdq']
         aliases.update(cmpxchg16b='cx16',sse3='pni',**{'sse4.1':'sse4_1','sse4.2':'sse4_2'})
         self.assertLessEqual({aliases.get(v,v)for v in rust},set(self.cpu.REQUIRED_FLAGS))
         row=self.row();self.assertNotIn('amd_only',self.cpu.required_flags(row))
@@ -161,6 +161,26 @@ class PortableCpuControls(unittest.TestCase):
             with self.assertRaises(ValueError):self.cpu.finish_recipe(pending,wait,repo=self.root)
         self.source.write_text('changed')
         with self.assertRaises(ValueError):self.cpu.finish_recipe(pending,{'actual_parent_wait':True,'exit_code':0},repo=self.root)
+
+    def test_explicit_pclmul_is_required_across_Rust_Zig_C_and_consumer_flags(self):
+        import copy
+        self.assertEqual(self.cpu.PROFILE,'linux-x86_64-v3-pclmul-v1')
+        self.assertEqual(len(self.cpu.REQUIRED_FLAGS),25);self.assertIn('pclmulqdq',self.cpu.REQUIRED_FLAGS)
+        self.assertEqual(self.env['RUSTFLAGS'],'-Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq')
+        self.assertEqual(self.env['CFLAGS'],'-march=x86-64-v3 -mtune=generic -mpclmul')
+        self.assertEqual(self.cpu.zig_cpu_args('direct'),['-target','x86_64-linux-gnu','-mcpu=x86_64_v3+pclmul'])
+        self.assertEqual(self.cpu.zig_cpu_args('build'),['-Dtarget=x86_64-linux-gnu','-Dcpu=x86_64_v3+pclmul'])
+        self.assertFalse(self.cpu.consumer_covers([self.row()],'amd64',[v for v in self.cpu.REQUIRED_FLAGS if v!='pclmulqdq']))
+        # Failed H V3-only records and recipes remain historical, never relabelled.
+        row=self.row();row['target']['profile']='linux-x86_64-v3-v1'
+        with self.assertRaises(ValueError):self.cpu.required_flags(row)
+        oldenv=dict(self.env);oldenv['RUSTFLAGS']='-Ctarget-cpu=x86-64-v3'
+        with self.assertRaises(ValueError):self.cpu.recipe('rust',['cargo','build'],oldenv,self.source,repo=self.root)
+        with self.assertRaises(ValueError):self.recipe('zig-direct',['zig','test','-target','x86_64-linux-gnu','-mcpu=x86_64_v3'])
+        with self.assertRaises(ValueError):self.recipe('zig-build',['zig','build','-Dtarget=x86_64-linux-gnu','-Dcpu=x86_64_v3'])
+        with self.assertRaises(ValueError):self.recipe('cc',['c++','-march=x86-64-v3','-mtune=generic','-c','fixture.cc'])
+        with self.assertRaises(ValueError):self.recipe('cc',['c++',*self.cpu.C_FLAGS.split(),'-mno-pclmul','-c','fixture.cc'])
+        self.recipe('cc',['c++',*self.cpu.C_FLAGS.split(),'-c','fixture.cc'])
 
     def test_producer_profile_is_exact_closed_bounded_AST_and_never_legacy_relabel(self):
         self.assertIsNone(self.cpu.profile_from_source(b'# historical schema1 procedure'))
