@@ -365,6 +365,35 @@ describe('ActionTracker', () => {
       send_occurred_at: null,
     });
 
+    it('reports settlement discovered and completed within the same synchronization', async () => {
+      explorerClient.getInflightRebalanceActions.resolves([
+        makeMessage('0xmsg1', '0xtx1'),
+      ]);
+      mailboxStub.isDelivered.resolves(true);
+
+      expect(await tracker.syncRebalanceActions()).to.equal(true);
+      expect((await rebalanceActionStore.getAll())[0].status).to.equal(
+        'complete',
+      );
+      expect(await tracker.syncRebalanceActions()).to.equal(false);
+    });
+
+    it('keeps a numeric snapshot usable when a newly discovered action completes at that block', async () => {
+      explorerClient.getInflightRebalanceActions.resolves([
+        makeMessage('0xmsg1', '0xtx1'),
+      ]);
+      mailboxStub.isDelivered.resolves(true);
+      expect(await tracker.syncRebalanceActions({ chain2: 123 })).to.equal(
+        false,
+      );
+      expect((await rebalanceActionStore.getAll())[0].status).to.equal(
+        'complete',
+      );
+      expect(
+        mailboxStub.isDelivered.calledOnceWithExactly('0xmsg1', 123),
+      ).to.equal(true);
+    });
+
     it('indexes the store once for a batch and deduplicates new identities', async () => {
       const messages = Array.from({ length: 100 }, (_, i) =>
         makeMessage(`0xmsg${i}`, `0xtx${i}`),
@@ -419,6 +448,87 @@ describe('ActionTracker', () => {
   });
 
   describe('syncTransfers', () => {
+    it('reports a newly discovered transfer completed after balances were sampled', async () => {
+      const message: ExplorerMessage = {
+        msg_id: '0xmsg1',
+        origin_domain_id: 1,
+        destination_domain_id: 2,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        origin_tx_hash: '0xtx1',
+        origin_tx_sender: '0xuser1',
+        origin_tx_recipient: '0xrouter1',
+        is_delivered: false,
+        message_body: `0x${'0'.repeat(126)}64`,
+        send_occurred_at: null,
+      };
+      explorerClient.getInflightUserTransfers.resolves([message]);
+      mailboxStub.isDelivered.resolves(true);
+
+      expect(await tracker.syncTransfers()).to.equal(true);
+      expect((await transferStore.get('0xmsg1'))?.status).to.equal('complete');
+      expect(await tracker.syncTransfers()).to.equal(false);
+    });
+
+    it('keeps a numeric snapshot usable after user delivery at the same block', async () => {
+      await transferStore.save({
+        id: '0xmsg1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      mailboxStub.isDelivered.resolves(true);
+      expect(await tracker.syncTransfers({ chain2: 123 })).to.equal(false);
+      expect((await transferStore.get('0xmsg1'))?.status).to.equal('complete');
+      expect(
+        mailboxStub.isDelivered.calledOnceWithExactly('0xmsg1', 123),
+      ).to.equal(true);
+    });
+
+    for (const type of ['transfer', 'action']) {
+      it(`rejects an incomplete ${type} delivery check without releasing its reservation`, async () => {
+        const transfer: Transfer = {
+          id: '0xmsg1',
+          status: 'in_progress',
+          messageId: '0xmsg1',
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        const failure = new Error('Finalized state unavailable');
+        mailboxStub.isDelivered.rejects(failure);
+        if (type === 'transfer') {
+          await transferStore.save(transfer);
+          await expect(tracker.syncTransfers()).to.be.rejectedWith(failure);
+          expect((await transferStore.get(transfer.id))?.status).to.equal(
+            'in_progress',
+          );
+        } else {
+          await rebalanceActionStore.save({
+            ...transfer,
+            type: 'rebalance_message',
+            intentId: 'intent-1',
+          });
+          await expect(tracker.syncRebalanceActions()).to.be.rejectedWith(
+            failure,
+          );
+          expect(
+            (await rebalanceActionStore.get(transfer.id))?.status,
+          ).to.equal('in_progress');
+        }
+      });
+    }
+
     it('should create new transfers from Explorer messages', async () => {
       const inflightMessages: ExplorerMessage[] = [
         {
