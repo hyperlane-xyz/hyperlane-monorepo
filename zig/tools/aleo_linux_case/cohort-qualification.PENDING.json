@@ -3,116 +3,116 @@
   "passed": true,
   "Root_actual_cohort_acceptance": true,
   "scope": "Authenticated remote eight-product contents and coherent producer qualification only",
-  "source_commit": "bcd97e71ce727edb4527d07757f6a2d4230c4378",
-  "run_id": 42519960947,
+  "source_commit": "9badc87e8c2e2f019a1b3453c323a8d89686e43e",
+  "run_id": 42532107058,
   "run_attempt": 1,
-  "reader_execution_commit": "c623341b43494999948e60c0f0a88d0e83d303db",
-  "reader_run_id": 42525375918,
+  "reader_execution_commit": "cd13e53032124dac0eb02fddefdf578ff94807ef",
+  "reader_run_id": 42538203936,
   "reader_run_attempt": 1,
   "inspection_report": {
-    "bytes": 27256,
+    "bytes": 27476,
     "sha256": {
       "sha256_hex_chunks": [
-        "36c1e12aadb53fc143f74ab3a4a9d11a",
-        "c472ce4491f4d54c00ef6871d8736119"
+        "84618eae282fb265d2d1b6b6834591f6",
+        "20ff86339c3a2ff3c1e1536ec1b1adab"
       ]
     }
   },
   "independent_readback": {
-    "bytes": 12190,
+    "bytes": 17177,
     "sha256": {
       "sha256_hex_chunks": [
-        "1728364b04adabff238c1bf099179396",
-        "76f930fb48c1f9935a1e052fb8bd4ef1"
+        "b3872db0bc66eeab411b58b97a502d1a",
+        "68e0986fc098044e7b632a708e89b231"
       ]
     }
   },
   "eight_artifacts": {
     "sdk_safe": {
-      "id": 13634021268,
+      "id": 13638846249,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52486006,
+      "size_in_bytes": 52486705,
       "sha256": {
         "sha256_hex_chunks": [
-          "08bd0cb1f95f4bfc72d56770f968bb3d",
-          "daa537b7b51895c04d52bd36d16dfe48"
+          "c06111d1b296ffc1c95d35a79913f320",
+          "d688922080c82ad43863cd0f4a64d27e"
         ]
       }
     },
     "sdk_fast": {
-      "id": 13634802174,
+      "id": 13639692425,
       "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 55151810,
+      "size_in_bytes": 55151174,
       "sha256": {
         "sha256_hex_chunks": [
-          "3b34592ab92c082d9aa298a97a7796d7",
-          "dd255a6c36d7c9010f0892659e19cc59"
+          "7a282272ee891355476f308af96e95a0",
+          "e76a2904975892e5884cc99b9304c18b"
         ]
       }
     },
     "helper": {
-      "id": 13633846345,
+      "id": 13637893225,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56454294,
+      "size_in_bytes": 56454188,
       "sha256": {
         "sha256_hex_chunks": [
-          "3eb4df18030b407ef40590acb22837df",
-          "76835edb3600951d0f242e56c4b467d1"
+          "a497e4f96ebac7c4db309f84ce5aab48",
+          "24d8e888d71d89ce92b0bf32bf893c83"
         ]
       }
     },
     "tools": {
-      "id": 13633418003,
-      "name": "zig-native-case-tools-bcd97e71ce727edb4527d07757f6a2d4230c4378",
-      "size_in_bytes": 20092360,
+      "id": 13638266962,
+      "name": "zig-native-case-tools-9badc87e8c2e2f019a1b3453c323a8d89686e43e",
+      "size_in_bytes": 20092394,
       "sha256": {
         "sha256_hex_chunks": [
-          "93ddf24205b838eb3f072d25e16de89c",
-          "473a35e01c20c4f7b7785a6fb197e688"
+          "f04139f1078246606854cbb01bb02f87",
+          "bbae5f0093630fe9dd2bea4ad20843bc"
         ]
       }
     },
     "writer_safe": {
-      "id": 13633702503,
+      "id": 13638433644,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171531,
+      "size_in_bytes": 5171533,
       "sha256": {
         "sha256_hex_chunks": [
-          "2990748e83c39dbd51fd3fa88e079244",
-          "458cf55129a7404c76674403e9a62dc3"
+          "9e95b27f01992bb2b1f60c8b0fe3f180",
+          "7e01824c81ff373278a32fe9da8a5a15"
         ]
       }
     },
     "writer_fast": {
-      "id": 13635121097,
+      "id": 13639154834,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4863042,
+      "size_in_bytes": 4863041,
       "sha256": {
         "sha256_hex_chunks": [
-          "ade353dc56b8afa7054a8a8a0d52b0bb",
-          "ee78ad7b2d8ff7234e30b0061fb86255"
+          "5479fcdfa89d9e5e82d2535d59704318",
+          "0ebf132c6f91d55c75412a7095bcb2ae"
         ]
       }
     },
     "svm": {
-      "id": 13632749981,
-      "name": "svm-linux-prerequisites-42519960947-1",
-      "size_in_bytes": 327983622,
+      "id": 13638331880,
+      "name": "svm-linux-prerequisites-42532107058-1",
+      "size_in_bytes": 327983228,
       "sha256": {
         "sha256_hex_chunks": [
-          "ec624f8f957c918eaa9add8004d2fc7c",
-          "8c55d4ddf5cc5b800c05e68aaf2170fb"
+          "e5bb03f69177ceee9b0be52af0c3835b",
+          "6781da32f423690398922efbed16af05"
         ]
       }
     },
     "radix_reference": {
-      "id": 13633368611,
-      "name": "zig-native-radix-reference-bcd97e71ce727edb4527d07757f6a2d4230c4378",
-      "size_in_bytes": 3177939,
+      "id": 13637609682,
+      "name": "zig-native-radix-reference-9badc87e8c2e2f019a1b3453c323a8d89686e43e",
+      "size_in_bytes": 3177950,
       "sha256": {
         "sha256_hex_chunks": [
-          "a3f44934d64f385622001fa1869e27c2",
-          "cfbb8c64a1a395e5357198fce6f3da0c"
+          "67a74440c7ae175642fc91f3784f09f9",
+          "c97c7d4a8f6ce10f30c25ed3f03920ed"
         ]
       }
     }
@@ -120,25 +120,25 @@
   "all4_required_jobs_actual_success": [
     {
       "conclusion": "success",
-      "id": 128851076822,
+      "id": 128888351138,
       "name": "full-sdk-native (ReleaseSafe)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 128851076460,
+      "id": 128888351255,
       "name": "full-sdk-native (ReleaseFast)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 128851076648,
+      "id": 128888351242,
       "name": "native-harness-controls",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 128851076268,
+      "id": 128888351184,
       "name": "svm-prerequisites",
       "status": "completed"
     }
@@ -148,8 +148,8 @@
     "all_policy_Git_blobs_match": true,
     "policy_map_sha256": {
       "sha256_hex_chunks": [
-        "7b5463efe15d41d9881a5bc7e834b5d1",
-        "0dab44067d38b9dcc74a221e8f353a38"
+        "3dc696491b7c5efe3393fee2d6bb615f",
+        "13f24ed23a288fa943caf08d44c13f31"
       ]
     },
     "source_rows_checked": 607
@@ -171,9 +171,9 @@
     ],
     "runtime": [
       {
-        "execution_tree": "385893471feb6c7bedc24214a11802c10952d840",
+        "execution_tree": "54ec50c2ee13582551d42581dbc29959e6c54c3d",
         "path": "zig/src",
-        "producer_tree": "385893471feb6c7bedc24214a11802c10952d840",
+        "producer_tree": "54ec50c2ee13582551d42581dbc29959e6c54c3d",
         "worktree_clean_in_scope": true
       },
       {
@@ -218,6 +218,7 @@
   },
   "native_suites": {
     "sdk_safe": {
+      "explicit_agent_runtime_test_count": 2,
       "producer_native_required_count": 24,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
@@ -227,13 +228,15 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1181,
+        "OK": 1183,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1184
+      "total": 1186,
+      "two_explicit_agent_runtime_tests_observed_OK": true
     },
     "sdk_fast": {
+      "explicit_agent_runtime_test_count": 2,
       "producer_native_required_count": 24,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
@@ -243,20 +246,191 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1181,
+        "OK": 1183,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1184
+      "total": 1186,
+      "two_explicit_agent_runtime_tests_observed_OK": true
     }
   },
   "inspection_resources": {
-    "actual_streamed_bytes": 1704770480,
-    "elapsed_seconds": 110.133467,
-    "inspector_peak_RSS_bytes": 81690624,
+    "actual_streamed_bytes": 1704826859,
+    "elapsed_seconds": 119.331943,
+    "inspector_peak_RSS_bytes": 81780736,
     "own_downloads_removed": true
   },
-  "actual_calls_all_waited": 8515,
+  "actual_calls_all_waited": 8516,
+  "actual_CPU_receipts": {
+    "sdk_safe": [
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "7168ca7dd079782c5445aa9f8d750028",
+            "298ae92256fb97ff7e03735ced866e24"
+          ]
+        },
+        "scope": "aleo"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "9424d2290b984ffb3b062db601dc0b4e",
+            "d8e11f7fe4a5ff4155212f1023c33ffe"
+          ]
+        },
+        "scope": "native-db"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "3e3b2189e10c75994650f0b2f69f29bd",
+            "73695ffeab4f49ca3c707a89be57f5dd"
+          ]
+        },
+        "scope": "regex"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "25fdf32714ace433514c84fad94745bd",
+            "0a2bc2eee3929e8086f7d5ee0c69c623"
+          ]
+        },
+        "scope": "starknet"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "1d96e06d1528d5e750cfac18b2e8155e",
+            "f2e70b47bb1f23f62fdfac498df5b155"
+          ]
+        },
+        "scope": "url"
+      }
+    ],
+    "sdk_fast": [
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "9baabc7e4ae84507d6be9f34b8d66886",
+            "10817d4176f7327539630b135d173ff2"
+          ]
+        },
+        "scope": "aleo"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "82d3e2c7085cd33eee758fc01d4b7938",
+            "f2d42a048a47244c5ed3f97e67d07a99"
+          ]
+        },
+        "scope": "native-db"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "e9a8071da31276a75f1f4c9ea2a86597",
+            "46d1cc4a613e5dbed80f09a5f6dabc65"
+          ]
+        },
+        "scope": "regex"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "18dd80a4dc0c69471c4542256d52d2ab",
+            "42ac0e68ac67b085da1790b9c868a89c"
+          ]
+        },
+        "scope": "starknet"
+      },
+      {
+        "flag_count": 132,
+        "flags_sha256": {
+          "sha256_hex_chunks": [
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
+          ]
+        },
+        "receipt_sha256": {
+          "sha256_hex_chunks": [
+            "158f9ee28ef176eef9c25c02f9e499bc",
+            "eb8f21d0f6d06a559cb5cda70acdcaf1"
+          ]
+        },
+        "scope": "url"
+      }
+    ]
+  },
+  "actual_SDK_export_waits": {
+    "sdk_safe": 29,
+    "sdk_fast": 29
+  },
   "expected_AS512_probe_exit2_retained": true,
   "all_call_exit_zero_claim": false,
   "native_case_acceptance": false,
@@ -266,16 +440,16 @@
   "local_full_product_archive_possession": false,
   "limitations": [
     "Producer CPU receipts require actual consumer admission at every native run.",
-    "All product contents inspected remotely; locally acquired only tiny report ZIP.",
-    "SVM stack warnings retained; native18 and dedicated Aleo and timings remain unaccepted."
+    "Product archives inspected remotely; local evidence consists of the bounded tiny report and existing independent SDK-step receipts.",
+    "This accepts producer contents only; no native-case, consumer-CPU, runtime or timing proof."
   ],
-  "kind": "Root-qualified-portable-bcd-eight-product-cohort",
+  "kind": "Root-qualified-portable-9bad-eight-product-cohort",
   "Root_qualification_fingerprint": {
-    "bytes": 7133,
+    "bytes": 10113,
     "sha256": {
       "sha256_hex_chunks": [
-        "752922415c23c941b30437ab2a457495",
-        "3eb716a970fd8de9efa1211a9d64de92"
+        "20f0c9c053e78fca7ea2496b64377495",
+        "9fc30a1ec7fa6903f11773952c36d2bd"
       ]
     }
   }
