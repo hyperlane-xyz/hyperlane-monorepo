@@ -554,10 +554,13 @@ class Adapter:
 
     def native_rows(self, session, snapshot, rows, baseline):
         messages = {row["id"]: row for row in snapshot["deliverable_messages"]}
+        relayers = [row["original"] for row in session.captures if row["original"]["role"] == "relayer"]
+        require(relayers, "actual native relayer configuration capture missing")
+        chains = relayers[-1]["chains"]
         results = []
         for row in rows:
             message, operation = messages[row["id"]], row["operation"]
-            origin, destination = session.chain_config(message["origin_chain"]), session.chain_config(message["delivery_chain"])
+            origin, destination = chains[message["origin_chain"]], chains[message["delivery_chain"]]
             authority = operation["authority"]
             expected = {"protocol": "sealevel", "origin": message["origin"], "destination": message["destination"], "mailbox": h(key(destination["mailbox"])), "chain_id": str(destination["chainid"]), "origin_hook": h(key(origin["merkletreehook"])), "operation_id": message["id"], "generation": operation["generation"], "kind": "process", "target": None}
             require(authority == expected and operation["nonce"] == message["nonce"] and operation["stage"] == "delivered" and operation["identity"] == {"kind": "signature512", "hex": message["delivery_transaction"]}, "actual native operation authority/identity differs")

@@ -249,5 +249,71 @@ class CanonicalBoundary(unittest.TestCase):
                     adapter._transaction(session, "fixture", signature)
 
 
+
+class RelayerConfigurationBoundary(unittest.TestCase):
+    """Configuration/ALT boundary only; transaction verification is stubbed.
+
+    A sentinel at the next account read proves strict ALT checks completed.
+    These fixtures supply no native signature or full-composite acceptance.
+    """
+    class AccountBoundaryReached(Exception):
+        pass
+
+    def fixture(self):
+        origin_name, destination_name = "sealeveltest1", "sealeveltest2"
+        mailbox, hook, payer = bytes([34]) * 32, bytes([17]) * 32, bytes([85]) * 32
+        table, route_table, rogue = bytes([102]) * 32, bytes([119]) * 32, bytes([153]) * 32
+        origin = {"merkletreehook": svm.b58encode(hook)}
+        destination = {"mailbox": svm.b58encode(mailbox), "chainid": "13376", "mailboxprocessalts": json.dumps([svm.b58encode(table), svm.b58encode(route_table)])}
+        chains = {origin_name: origin, destination_name: destination}
+        relayer = {"original": {"role": "relayer", "chains": chains}}
+        validator_chains = copy.deepcopy(chains)
+        # A later validator neither knows nor authorizes the relayer's ALTs.
+        validator_chains[destination_name]["mailboxprocessalts"] = [svm.b58encode(rogue), svm.b58encode(route_table)]
+        validator = {"original": {"role": "validator", "chains": validator_chains}}
+        class Session:
+            captures = []
+            def chain_config(self, name):
+                return [row["original"]["chains"][name] for row in self.captures][-1]
+        session = Session()
+        recipient = svm.key("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH")
+        fallback = svm.key("4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1")
+        addresses = [bytes([170]) * 32 for _ in range(11)]
+        addresses[0], addresses[4], addresses[8] = recipient, bytes([136]) * 32, fallback
+        message = {"id": "0x" + "33" * 32, "nonce": 0, "origin": 13375, "destination": 13376, "origin_chain": origin_name, "delivery_chain": destination_name, "delivery_transaction": "0x" + "44" * 64, "recipient": svm.h(recipient)}
+        authority = {"protocol": "sealevel", "origin": 13375, "destination": 13376, "mailbox": svm.h(mailbox), "chain_id": "13376", "origin_hook": svm.h(hook), "operation_id": message["id"], "generation": 7, "kind": "process", "target": None}
+        operation = {"authority": authority, "nonce": 0, "stage": "delivered", "identity": {"kind": "signature512", "hex": message["delivery_transaction"]}, "generation": 7}
+        decoded = {"payer": payer, "signatures": [bytes(64)], "lookups": [{"table": table}, {"table": route_table}]}
+        proof = {"decoded": decoded, "lookup_addresses": {svm.h(route_table): addresses}}
+        adapter = svm.Adapter({"scenario": "sealevel-composite"}, {"relayer_addresses": {destination_name: svm.b58encode(payer)}})
+        adapter._transaction = lambda *_: proof
+        def account_boundary(*_):
+            raise self.AccountBoundaryReached("strict relayer ALT checks completed")
+        adapter._account = account_boundary
+        snapshot = {"deliverable_messages": [message]}
+        return adapter, session, snapshot, [{"id": message["id"], "operation": operation}], relayer, validator, proof, rogue
+
+    def test_native_composite_ALTs_follow_latest_relayer_for_both_role_orders(self):
+        for validator_last in (False, True):
+            adapter, session, snapshot, rows, relayer, validator, _, _ = self.fixture()
+            stale_relayer = copy.deepcopy(relayer)
+            stale_relayer["original"]["chains"]["sealeveltest2"]["mailboxprocessalts"] = []
+            session.captures = [stale_relayer] + ([relayer, validator] if validator_last else [validator, relayer])
+            with self.subTest(validator_last=validator_last), self.assertRaisesRegex(self.AccountBoundaryReached, "strict relayer ALT"):
+                adapter.native_rows(session, snapshot, rows, None)
+
+    def test_validator_ALT_cannot_authorize_rogue_relayer_transaction_lookup(self):
+        adapter, session, snapshot, rows, relayer, validator, proof, rogue = self.fixture()
+        session.captures = [relayer, validator]
+        proof["decoded"]["lookups"][0]["table"] = rogue
+        with self.assertRaisesRegex(ValueError, "signed ALT not configured"):
+            adapter.native_rows(session, snapshot, rows, None)
+
+    def test_native_rows_require_explicit_relayer_capture(self):
+        adapter, session, snapshot, rows, _, validator, _, _ = self.fixture()
+        session.captures = [validator]
+        with self.assertRaisesRegex(ValueError, "relayer configuration capture missing"):
+            adapter.native_rows(session, snapshot, rows, None)
+
 if __name__ == "__main__":
     unittest.main()
