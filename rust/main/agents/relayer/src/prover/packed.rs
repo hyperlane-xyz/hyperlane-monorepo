@@ -63,9 +63,30 @@ impl PackedMerkle {
     }
 
     pub(super) fn push(&mut self, leaf: H256) -> Result<(), MerkleTreeError> {
-        if self.count as u64 >= 1_u64 << TREE_DEPTH {
+        self.push_batch(std::slice::from_ref(&leaf))
+    }
+
+    // Intermediate roots are not observed while the builder holds its write
+    // lock. Retain every completed subtree, but calculate the root only once.
+    pub(super) fn push_batch(&mut self, leaves: &[H256]) -> Result<(), MerkleTreeError> {
+        let Some(next_count) = self.count.checked_add(leaves.len()) else {
+            return Err(MerkleTreeError::MerkleTreeFull);
+        };
+        if next_count as u64 > 1_u64 << TREE_DEPTH {
             return Err(MerkleTreeError::MerkleTreeFull);
         }
+        if leaves.is_empty() {
+            return Ok(());
+        }
+        for leaf in leaves {
+            self.push_subtrees(*leaf)?;
+        }
+        self.root = self.subtree_root(0, TREE_DEPTH, next_count as u64);
+        Ok(())
+    }
+
+    // Capacity was checked for the entire batch before the first mutation.
+    fn push_subtrees(&mut self, leaf: H256) -> Result<(), MerkleTreeError> {
         let mut node = leaf;
         let next_count = self
             .count
@@ -89,7 +110,6 @@ impl PackedMerkle {
             size >>= 1;
         }
         self.count = next_count;
-        self.root = self.subtree_root(0, TREE_DEPTH, self.count as u64);
         Ok(())
     }
 
@@ -242,6 +262,63 @@ mod tests {
             packed.subtree_root(0, TREE_DEPTH, 1_u64 << TREE_DEPTH),
             H256::repeat_byte(0x42)
         );
+    }
+
+    #[test]
+    fn batches_preserve_every_historical_prefix() {
+        let mut rng = StdRng::seed_from_u64(0x62617463686573);
+        let leaves: Vec<_> = (0..257).map(|_| H256(rng.gen())).collect();
+        for batch_size in [1, 2, 7, 31, 32, 33, 255, 256, 257] {
+            let mut packed = PackedMerkle::default();
+            let mut incremental = IncrementalMerkle::default();
+            for batch in leaves.chunks(batch_size) {
+                packed.push_batch(batch).unwrap();
+                for leaf in batch {
+                    incremental.ingest(*leaf);
+                }
+                assert_eq!(packed.count(), incremental.count());
+                assert_eq!(packed.root(), incremental.root());
+            }
+            let mut reference = MerkleTree::create(&[], TREE_DEPTH);
+            for (root_index, leaf) in leaves.iter().enumerate() {
+                reference.push_leaf(*leaf, TREE_DEPTH).unwrap();
+                for leaf_index in [0, root_index / 2, root_index] {
+                    let proof = packed.prove(leaf_index, root_index);
+                    assert_eq!(proof, reference.prove_against_current(leaf_index));
+                    assert_eq!(proof.root(), reference.hash());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn batch_capacity_error_does_not_append_a_partial_prefix() {
+        let mut packed = PackedMerkle::default();
+        packed.push(H256::repeat_byte(0x11)).unwrap();
+        let root = packed.root();
+        let capacity = usize::try_from(1_u64 << TREE_DEPTH).unwrap_or(usize::MAX);
+        packed.count = capacity - 1;
+        assert_eq!(
+            packed.push_batch(&[H256::repeat_byte(0x22), H256::repeat_byte(0x33)]),
+            Err(MerkleTreeError::MerkleTreeFull)
+        );
+        assert_eq!(packed.count(), capacity - 1);
+        assert_eq!(packed.root(), root);
+        assert_eq!(packed.levels[0].len, 1);
+        assert_eq!(packed.levels[0].get(0), H256::repeat_byte(0x11));
+    }
+
+    #[test]
+    fn empty_batch_preserves_the_tree() {
+        let mut packed = PackedMerkle::default();
+        packed.push_batch(&[]).unwrap();
+        assert_eq!(packed.count(), 0);
+        assert_eq!(packed.root(), ZERO_HASHES[TREE_DEPTH]);
+        packed.push(H256::repeat_byte(0x11)).unwrap();
+        let root = packed.root();
+        packed.push_batch(&[]).unwrap();
+        assert_eq!(packed.count(), 1);
+        assert_eq!(packed.root(), root);
     }
 
     #[test]
