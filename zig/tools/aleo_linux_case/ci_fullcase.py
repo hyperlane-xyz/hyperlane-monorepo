@@ -3,7 +3,7 @@
 The cosmosnative request authorizes producer hydration only. Separate full-case
 policy authorizes Aleo's original workload/clock after actual prerequisite checks.
 """
-import argparse, ast, base64, datetime, email.utils, hashlib, http.client, importlib.util, json, os, re, secrets, shutil, signal, subprocess, sys, time
+import argparse, ast, base64, datetime, email.utils, hashlib, http.client, importlib.util, json, os, re, secrets, shutil, signal, stat, subprocess, sys, time
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 MODES=('ReleaseSafe','ReleaseFast')
@@ -169,6 +169,67 @@ def driver_failure_observation(value,repo,admitted_sources):
   if body in guard_rows and guard_rows[body][1]:public.update(classification=guard_rows[body][0],source_literal_line=guard_rows[body][1])
   elif command and body.startswith('owned command failed: '):public.update(classification='OWNED_COMMAND_FAILED',source_literal_line=command)
  return result
+
+def hydration_failure_observation(log,repo,admitted_sources):
+ # This is optional failed-child text, never CPU/exception/execution authority.
+ unavailable={'status':'unavailable'}
+ try:
+  relative='zig/integration/native_case_inputs.py';path=Path(repo)/relative
+  need(type(admitted_sources)is list and len(admitted_sources)<=128,'admitted hydration Source required')
+  rows=[row for row in admitted_sources if type(row)is dict and row.get('path')==str(path)];need(len(rows)==1,'unique hydration Source required');row=rows[0]
+  need(type(row.get('bytes'))is int and 0<row['bytes']<=1024**2,'bounded hydration Source required');checked(row)
+  def capture(target,maximum):
+   target=Path(target);before=target.lstat();identity=lambda s:(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_nlink)
+   need(stat.S_ISREG(before.st_mode)and before.st_nlink==1 and before.st_size<=maximum and not target.is_symlink(),'bounded regular hydration log required')
+   fd=os.open(target,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+   try:
+    need(identity(os.fstat(fd))==identity(before),'hydration capture changed')
+    with os.fdopen(fd,'rb',closefd=False)as stream:raw=stream.read(maximum+1)
+    need(len(raw)==before.st_size and len(raw)<=maximum and identity(os.fstat(fd))==identity(before)==identity(target.lstat()),'hydration capture changed')
+    return raw
+   finally:os.close(fd)
+  source=capture(path,1024**2);need(len(source)==row['bytes']and hashlib.sha256(source).hexdigest()==row['sha256'],'hydration Source differs')
+  tree=ast.parse(source);helpers=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='helper_cpu_admission_diagnostic'];need(len(helpers)==1,'unique CPU diagnostic helper required');helper=helpers[0]
+  # Reuse only the reviewed pure flag-record function, never import NativeInputs.
+  expected_function='e8554e1b80d38a768701d5cf40aaf162'+'51d412599421b743a9e57c43382c4030'
+  need(hashlib.sha256(ast.get_source_segment(source.decode('utf8'),helper).encode()).hexdigest()==expected_function,'CPU diagnostic helper Source differs')
+  scope={'__builtins__':{name:value for name,value in [('type',type),('list',list),('str',str),('len',len),('all',all),('sorted',sorted),('set',set)]},'require':need,'json':json,'re':re}
+  exec(compile(ast.Module([helper],type_ignores=[]),'<admitted-pure-CPU-diagnostic>','exec'),scope)
+  guards={}
+  for node in ast.walk(tree):
+   if isinstance(node,ast.Call)and isinstance(node.func,ast.Name)and node.func.id=='require'and len(node.args)>=2 and isinstance(node.args[1],ast.Constant)and type(node.args[1].value)is str:guards.setdefault(node.args[1].value,[]).append(node.lineno)
+  raw=capture(log,1024**2);lines=raw.splitlines();cpu=[];traces=[];frames=None
+  frame_pattern=re.compile(r'^  File "'+re.escape(str(path))+r'", line ([1-9][0-9]{0,6}), in [A-Za-z_<>][A-Za-z_<>0-9]{0,127}$')
+  classes={'ValueError','AssertionError','RuntimeError','TypeError','KeyError','FileNotFoundError','PermissionError','OSError','TimeoutError'}
+  for line in lines:
+   if len(line)>65536:frames=None;continue
+   if line.startswith(b'{"schema":1,"kind":"native-case-helper-cpu-admission",'):
+    try:
+     need(len(line)<=32768,'CPU record bound');text=line.decode('ascii');value=decode(text)
+     need(type(value)is dict and set(value)=={'schema','kind','required_flags','available_flags','missing_flags','required_count','available_count','missing_count','admitted'},'closed CPU record')
+     need(all(type(value[k])is int for k in ['schema','required_count','available_count','missing_count'])and value['schema']==1 and value['kind']=='native-case-helper-cpu-admission'and value['admitted']is False,'typed CPU record')
+     expected=scope['helper_cpu_admission_diagnostic'](value['required_flags'],value['available_flags'])
+     need(value==expected and json.dumps(expected,separators=(',',':'))==text,'CPU record differs from actual helper');cpu.append(expected)
+    except (ValueError,TypeError,KeyError,UnicodeError):pass
+   if line==b'Traceback (most recent call last):':frames=[];continue
+   if frames is None:continue
+   try:text=line.decode('ascii')
+   except UnicodeError:frames=None;continue
+   match=frame_pattern.fullmatch(text)
+   if match:
+    point=int(match[1])
+    if 0<point<=len(source.splitlines())and len(frames)<8:frames.append({'line':point})
+    continue
+   match=re.fullmatch(r'([A-Za-z]+):(?: (.*))?',text)
+   if match:
+    if frames and match[1]in classes:
+     locations=[n for n in guards.get(match[2],[])if any(frame['line']==n for frame in frames)]
+     traces.append({'error_class':match[1],'NativeInputs_frames':list(frames),'Source_guard':{'category':'STATIC_NATIVE_INPUTS_REQUIRE','line':locations[0]}if match[1]=='ValueError'and len(locations)==1 else None})
+    frames=None
+  need(len(cpu)<=1 and len(traces)<=1 and(cpu or traces),'unique exact hydration observation required')
+  return {'schema':1,'kind':'aleo-closed-hydration-failure-observation','status':'observed','source':{'path':relative,'bytes':row['bytes'],'sha256':row['sha256'],'cpu_helper_function_sha256':expected_function},'CPU_diagnostic':{'status':'observed','record':cpu[0]}if cpu else{'status':'unavailable'},'trace':traces[0]if traces else None,'native_or_timing_or_CPU_admission_authority':False,'scope':'Bounded failed hydrate log text only. Exact pure Source CPU record reconstruction and canonical NativeInputs coordinates/closed class/Source guard line; no raw log, path, argv, environment or error suffix.'}
+ except BaseException:return unavailable
+
 
 def case_failure_diagnostics(case,repo,admitted_sources=None):
  # Fixed metadata leaves only. Raw error strings, argv, tokens, Docker replies,
@@ -498,6 +559,9 @@ def execute(policy_path,policy_sha,mode,env):
   except BaseException:unchanged=False
   summary={'schema':1,'kind':'aleo-fullcase-ci-composition-v1','mode':mode,'passed':error is None and case is not None and (root/'public/public-final-proof.json').is_file()and unchanged,'error_type':error,'policy':authority_pin,'execution_source_commit':env['GITHUB_SHA'],'runtime_source_commit':authority['runtime_source_commit'],'source_unchanged':unchanged,'proof_owner_crossbound':crossbound,'command_waits':[{'name':r['name'],'pid':r.get('pid'),'actual_parent_wait':r['actual_parent_wait'],'exit_code':r.get('exit_code'),'signals':r['signals'],'cleanup_errors':r['cleanup_errors'],**{k:r.get(k)for k in ('started_monotonic_ns','maximum_wall_seconds','original_deadline_ns','completion_check_ns')}}for r in cmd.rows],'native_acceptance_requires_Root_readback':True,'performance_credit':False}
   summary['passed']=final_pass(summary)and summary['passed']
+  if error is not None and cmd.rows and cmd.rows[-1]['name']=='hydrate'and not(cmd.rows[-1]['actual_parent_wait']is True and cmd.rows[-1].get('exit_code')==0 and not cmd.rows[-1]['signals']and not cmd.rows[-1]['cleanup_errors']and phase_fence(cmd.rows[-1])):
+   try:summary['hydrate_failure_observation']=hydration_failure_observation(root/'hydrate.private.log',repo,authority['required_source'])
+   except BaseException:summary['hydrate_failure_observation']={'status':'unavailable'}
   if error is not None and case is not None:
    try:write(root/'public/full-case-failure-diagnostics.json',case_failure_diagnostics(case,repo,authority['required_source']))
    except BaseException as caught:summary['failure_diagnostics_error_type']=type(caught).__name__

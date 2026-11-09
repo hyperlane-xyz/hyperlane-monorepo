@@ -521,6 +521,53 @@ class DriverFailureProjection(unittest.TestCase):
 
 
 
+class HydrationFailureObservation(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve();self.repo=self.root/'repo';self.source=self.repo/'zig/integration/native_case_inputs.py';self.source.parent.mkdir(parents=True);self.source.write_bytes((REPO/'zig/integration/native_case_inputs.py').read_bytes());self.sources=[m.pin(self.source)];self.log=self.root/'hydrate.private.log'
+  self.tree=ast.parse(self.source.read_bytes());helper=next(n for n in self.tree.body if isinstance(n,ast.FunctionDef)and n.name=='helper_cpu_admission_diagnostic');self.pure={'require':m.need,'json':json,'re':re};exec(compile(ast.Module([helper],type_ignores=[]),'<actual-pure-CPU-helper>','exec'),self.pure)
+  self.guard='Helper/tools compiler-host CPU not covered by consumer';self.guard_line=next(n.lineno for n in ast.walk(self.tree)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='require'and len(n.args)>1 and isinstance(n.args[1],ast.Constant)and n.args[1].value==self.guard);self.require_line=next(i for i,line in enumerate(self.source.read_text().splitlines(),1)if line.strip()=='raise ValueError(message)')
+ def cpu(self):return self.pure['helper_cpu_admission_diagnostic'](['avx','avx512f'],['avx'])
+ def trace(self,message=None,path=None,line=None,kind='ValueError'):
+  return f'Traceback (most recent call last):\n  File "{path or self.source}", line {line or self.guard_line}, in hydrate\n    require(...)\n  File "{path or self.source}", line {self.require_line}, in require\n    raise ValueError(message)\n{kind}: {message or self.guard}\n'
+ def observe(self,wire):
+  self.log.write_bytes(wire);return m.hydration_failure_observation(self.log,self.repo,self.sources)
+ def test_exact_actual_CPU_record_trace_and_Source_guard_are_closed(self):
+  record=self.cpu();value=self.observe(json.dumps(record,separators=(',',':')).encode()+b'\n'+self.trace().encode());self.assertEqual(value['status'],'observed');self.assertEqual(value['CPU_diagnostic'],{'status':'observed','record':record});self.assertEqual(value['trace']['error_class'],'ValueError');self.assertEqual(value['trace']['Source_guard'],{'category':'STATIC_NATIVE_INPUTS_REQUIRE','line':self.guard_line});self.assertEqual(value['trace']['NativeInputs_frames'],[{'line':self.guard_line},{'line':self.require_line}]);self.assertFalse(value['native_or_timing_or_CPU_admission_authority']);self.assertNotIn(str(self.root),json.dumps(value));self.assertLess(len(json.dumps(value)),40000)
+ def test_CPU_record_requires_exact_types_counts_sorted_flags_and_canonical_JSON(self):
+  variants=[]
+  for update in [{'schema':True},{'required_count':True},{'missing_count':0},{'missing_flags':[]},{'required_flags':['avx512f','avx']},{'available_flags':['PRIVATE/URL']},{'admitted':True},{'private':'PRIVATE_TOKEN'}]:variants.append({**self.cpu(),**update})
+  for value in variants:
+   with self.subTest(update=value):self.assertEqual(self.observe(json.dumps(value,separators=(',',':')).encode()+b'\n'),{'status':'unavailable'})
+  line=json.dumps(self.cpu(),separators=(',',':'))
+  for wire in [line.replace('"avx"','"\\u0061vx"'),line.replace('"schema":1','"schema":1,"schema":1'),'PRIVATE_PREFIX'+line,line+'PRIVATE_SUFFIX',line+'\n'+line]:
+   with self.subTest(wire=wire[:80]):self.assertEqual(self.observe(wire.encode()),{'status':'unavailable'})
+ def test_unknown_error_suffix_and_foreign_frames_are_never_exported(self):
+  value=self.observe(self.trace('PRIVATE_TOKEN https://private.invalid/SECRET').encode());self.assertEqual(value['CPU_diagnostic'],{'status':'unavailable'});self.assertIsNone(value['trace']['Source_guard']);self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn('https',json.dumps(value))
+  for trace in [self.trace(path='/FOREIGN/'+str(self.source)),self.trace(kind='PrivateError'),'ValueError: '+self.guard+'\n']:
+   self.assertEqual(self.observe(trace.encode()),{'status':'unavailable'})
+  value=self.observe(self.trace(line=self.guard_line+1).encode());self.assertIsNone(value['trace']['Source_guard'])
+ def test_Source_pins_pure_helper_body_and_duplicate_traces_refuse(self):
+  self.log.write_text(self.trace());bad=[dict(self.sources[0],sha256='0'*64)]
+  self.assertEqual(m.hydration_failure_observation(self.log,self.repo,bad),{'status':'unavailable'});self.assertEqual(m.hydration_failure_observation(self.log,self.repo,self.sources*2),{'status':'unavailable'})
+  self.assertEqual(self.observe((self.trace()+self.trace()).encode()),{'status':'unavailable'})
+  self.source.write_bytes(self.source.read_bytes().replace(b"'native-case-helper-cpu-admission'",b"'PRIVATE_CPU_KIND'"));self.sources=[m.pin(self.source)];self.assertEqual(self.observe(json.dumps(self.cpu(),separators=(',',':')).encode()),{'status':'unavailable'})
+ def test_log_symlink_oversize_and_CPU_line_bound_do_not_read_raw_fallback(self):
+  self.log.symlink_to(self.source);self.assertEqual(m.hydration_failure_observation(self.log,self.repo,self.sources),{'status':'unavailable'});self.log.unlink()
+  with self.log.open('wb')as stream:stream.truncate(1024**2+1)
+  opened=[];real=m.os.open
+  def tracked(path,*args,**kwargs):opened.append(str(path));return real(path,*args,**kwargs)
+  with mock.patch.object(m.os,'open',side_effect=tracked):self.assertEqual(m.hydration_failure_observation(self.log,self.repo,self.sources),{'status':'unavailable'})
+  self.assertNotIn(str(self.log),opened)
+  self.assertEqual(self.observe(b'{"schema":1,"kind":"native-case-helper-cpu-admission",'+b' '*32768+b'}\n'),{'status':'unavailable'})
+ def test_actual_finally_hook_only_failed_hydrate_and_preserves_primary_rows(self):
+  tree=ast.parse(pathlib.Path(m.__file__).read_bytes());execute=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');node=next(n for n in ast.walk(execute)if isinstance(n,ast.If)and any(isinstance(x,ast.Call)and isinstance(x.func,ast.Name)and x.func.id=='hydration_failure_observation'for x in ast.walk(n)))
+  row={'name':'hydrate','actual_parent_wait':True,'exit_code':1,'signals':[],'cleanup_errors':[],'started_monotonic_ns':100,'original_deadline_ns':300*10**9+100,'maximum_wall_seconds':300,'completion_check_ns':101};primary='ValueError';projection={'status':'unavailable'}
+  for changed,error,called in [(row,primary,True),({**row,'exit_code':0},primary,False),({**row,'name':'fetch'},primary,False),({**row,'name':'full-case'},primary,False),(row,None,False)]:
+   rows=[copy.deepcopy(changed)];before=copy.deepcopy(rows);summary={'passed':False};callback=mock.Mock(return_value=projection);context={'error':error,'cmd':type('CommandFixture',(),{'rows':rows})(),'summary':summary,'root':self.root,'repo':self.repo,'authority':{'required_source':self.sources},'hydration_failure_observation':callback,'phase_fence':m.phase_fence}
+   exec(compile(ast.Module([node],type_ignores=[]),'<actual-hydration-finally-hook>','exec'),context);self.assertEqual(callback.call_count,int(called));self.assertEqual(rows,before);self.assertEqual(context['error'],error);self.assertFalse(summary['passed'])
+   if called:self.assertEqual(summary['hydrate_failure_observation'],projection);callback.assert_called_once_with(self.root/'hydrate.private.log',self.repo,self.sources)
+
+
 class MigrationQueryProjection(unittest.TestCase):
  def sources(self):return [m.pin(REPO/'zig/integration/aleo_process.ts')]
  def observed(self):return {'status':'observed','lineCount':3,'names':['m20230309_000001_create_table_domain','m20261103_000019_scalar_notification_fields','m20230309_000001_create_table_domain'],'unrecognizedLineCount':0,'duplicateNameCount':1}

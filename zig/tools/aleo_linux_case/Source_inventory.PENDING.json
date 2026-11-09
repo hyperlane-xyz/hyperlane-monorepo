@@ -6,11 +6,11 @@
   "final_execution_source_commit": null,
   "source_policy_paths_function": {
     "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-    "bytes": 49364,
+    "bytes": 55359,
     "sha256": {
       "sha256_hex_chunks": [
-        "32a52201b4d4354e246fc870ad1fbe47",
-        "3b545a8ec5f874963a65c29ae844183d"
+        "a7f5fa3c63e9f2ea3e3b55631763fad2",
+        "1fefd996fb4552377d4655163a0e1407"
       ]
     }
   },
@@ -257,11 +257,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-      "bytes": 49364,
+      "bytes": 55359,
       "sha256": {
         "sha256_hex_chunks": [
-          "32a52201b4d4354e246fc870ad1fbe47",
-          "3b545a8ec5f874963a65c29ae844183d"
+          "a7f5fa3c63e9f2ea3e3b55631763fad2",
+          "1fefd996fb4552377d4655163a0e1407"
         ]
       }
     },
