@@ -191,7 +191,8 @@ function createMockContextFactory(
     }),
     createStrategy: async () => strategy,
     createMonitor: () => monitor,
-    createMetrics: async () => overrides.metrics ?? ({} as Metrics),
+    createMetrics: async () =>
+      overrides.metrics ?? Sinon.createStubInstance(Metrics),
     createActionTracker: async () => ({
       tracker: actionTracker,
       adapter: inflightAdapter,
@@ -713,6 +714,7 @@ describe('RebalancerService', () => {
         recordRebalancerFailure,
         recordIntentCreated: Sinon.stub(),
         processToken: Sinon.stub().resolves(),
+        observeInFlightActions: Sinon.stub(),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
@@ -805,6 +807,7 @@ describe('RebalancerService', () => {
         recordRebalancerFailure,
         recordIntentCreated: Sinon.stub(),
         processToken: Sinon.stub().resolves(),
+        observeInFlightActions: Sinon.stub(),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
@@ -914,6 +917,7 @@ describe('RebalancerService', () => {
         recordRebalancerFailure,
         recordIntentCreated: Sinon.stub(),
         processToken: Sinon.stub().resolves(),
+        observeInFlightActions: Sinon.stub(),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
@@ -1096,7 +1100,7 @@ describe('RebalancerService', () => {
     });
 
     it('should create metrics when withMetrics is enabled', async () => {
-      const metrics = {} as Metrics;
+      const metrics = Sinon.createStubInstance(Metrics);
       const contextFactory = createMockContextFactory({ metrics });
       const createMetricsSpy = Sinon.spy(contextFactory, 'createMetrics');
 

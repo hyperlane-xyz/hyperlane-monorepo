@@ -171,10 +171,15 @@ export class RebalancerOrchestrator {
     try {
       const before = await this.actionTracker.getInProgressActions();
       let completedMovements = 0;
-      await Promise.all([
+      const syncResults = await Promise.allSettled([
         this.actionTracker.syncTransfers(confirmedBlockTags),
         this.actionTracker.syncRebalanceActions(confirmedBlockTags),
       ]);
+      const errors = syncResults.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : [],
+      );
+      if (errors.length > 0)
+        throw new AggregateError(errors, 'Tracker synchronization failed');
 
       // Sync inventory movement actions via external bridge API
       if (this.externalBridgeRegistry) {
@@ -189,7 +194,6 @@ export class RebalancerOrchestrator {
       // released by TTL while their latest delivery state is still being fetched.
       await this.actionTracker.syncRebalanceIntents();
 
-      await this.actionTracker.logStoreContents();
       const after = new Set(
         (await this.actionTracker.getInProgressActions()).map(
           (action) => action.id,
@@ -206,6 +210,12 @@ export class RebalancerOrchestrator {
         'ActionTracker sync failed; execution deferred',
       );
       return true;
+    } finally {
+      try {
+        await this.actionTracker.logStoreContents();
+      } catch (error) {
+        this.logger.error({ error }, 'Local action diagnostics failed');
+      }
     }
   }
 

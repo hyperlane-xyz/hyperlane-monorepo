@@ -2,7 +2,6 @@ import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
-import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import {
   ProtocolType,
@@ -16,6 +15,11 @@ import type {
   ExplorerMessage,
   IExplorerClient,
 } from '../utils/ExplorerClient.js';
+import { isReceiptFinalized } from '../utils/receiptFinality.js';
+import {
+  BLOCKED_ACTION_WARNING_AGE_MS,
+  getActionHoldReason,
+} from './actionDiagnostics.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
 import type {
@@ -46,7 +50,7 @@ export interface ActionTrackerConfig {
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
-  intentTTL: number; // Expiry for uncommitted intents; alert threshold for reserved source work.
+  intentTTL: number; // Expiry for uncommitted intents; never a release deadline for reserved work.
 }
 
 enum SourceTransactionOutcome {
@@ -908,28 +912,15 @@ export class ActionTracker implements IActionTracker {
     const receipt = await provider.getTransactionReceipt(txHash);
     if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
       return SourceTransactionOutcome.Pending;
-    const blocks = mp.getChainMetadata(origin).blocks;
-    // Match the monitor's conservative default when no reorg policy is configured.
-    const finality = blocks?.reorgPeriod ?? 32;
-    const minimumConfirmations = Math.max(
-      blocks?.confirmations ?? 1,
-      typeof finality === 'number' ? finality : 1,
-      1,
-    );
-    if (!(receipt.confirmations >= minimumConfirmations))
+    if (
+      !(await isReceiptFinalized(
+        provider,
+        receipt,
+        mp.getChainMetadata(origin).blocks,
+        protocol,
+      ))
+    )
       return SourceTransactionOutcome.Pending;
-    if (protocol === ProtocolType.Tron) {
-      assert(
-        provider instanceof TronJsonRpcProvider,
-        'Tron reconciliation requires a finalized-block provider',
-      );
-      if (receipt.blockNumber > (await provider.getFinalizedBlockNumber()))
-        return SourceTransactionOutcome.Pending;
-    } else if (typeof finality === 'string') {
-      const confirmedBlock = await provider.getBlock(finality);
-      if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number)
-        return SourceTransactionOutcome.Pending;
-    }
     return receipt.status === 0
       ? SourceTransactionOutcome.Failed
       : SourceTransactionOutcome.Succeeded;
@@ -938,15 +929,20 @@ export class ActionTracker implements IActionTracker {
   private async reconcileFailedSource(
     action: RebalanceAction,
   ): Promise<boolean> {
-    if (!action.txHash) return false;
+    if (!action.txHash || action.finalizedSourceTxHash === action.txHash)
+      return false;
     try {
-      if (
-        (await this.getSourceTransactionOutcome(
-          action.origin,
-          action.txHash,
-        )) !== SourceTransactionOutcome.Failed
-      )
+      const outcome = await this.getSourceTransactionOutcome(
+        action.origin,
+        action.txHash,
+      );
+      if (outcome === SourceTransactionOutcome.Succeeded) {
+        await this.rebalanceActionStore.update(action.id, {
+          finalizedSourceTxHash: action.txHash,
+        });
         return false;
+      }
+      if (outcome !== SourceTransactionOutcome.Failed) return false;
       await this.failReconciledAction(action);
       this.logger.info(
         { actionId: action.id, txHash: action.txHash },
@@ -1035,7 +1031,7 @@ export class ActionTracker implements IActionTracker {
     // Log each action separately
     for (const a of inProgressActions) {
       const ageMs = Date.now() - a.createdAt;
-      if (ageMs > this.config.intentTTL) {
+      if (ageMs > BLOCKED_ACTION_WARNING_AGE_MS) {
         this.logger.warn(
           {
             actionId: a.id,
@@ -1043,6 +1039,7 @@ export class ActionTracker implements IActionTracker {
             origin: a.origin,
             destination: a.destination,
             ageMs,
+            holdReason: getActionHoldReason(a),
             txHash: a.txHash,
             pendingApproval: a.pendingApproval,
             submissionState: a.submissionState,
@@ -1050,7 +1047,7 @@ export class ActionTracker implements IActionTracker {
             externalBridgeTransferId: a.externalBridgeTransferId,
             lastBridgeStatus: a.lastBridgeStatus,
           },
-          'Action blocked beyond intentTTL; reconcile before retry or restart',
+          'Action blocked beyond warning age; reconcile before retry or restart',
         );
       }
       this.logger.info(
