@@ -288,7 +288,7 @@ class ZigDiagnosticCatalogControls(unittest.TestCase):
  def test_actual_Git_blob_join_produces_exact_catalog_and_serialized_consumer_frames(self):
   import ast
   fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='prepare');assignment=next(n for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_zig_sources'for t in n.targets));addition=next(n for n in fn.body if isinstance(n,ast.AugAssign)and isinstance(n.target,ast.Name)and n.target.id=='required'and 'diagnostic_rust_sources'in ast.unparse(n));plan_literal=next(n.value for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='plan'for t in n.targets));plan_value=next(v for k,v in zip(plan_literal.keys,plan_literal.values)if isinstance(k,ast.Constant)and k.value=='diagnostic_zig_sources')
-  env=dict(m.__dict__,repo=self.repo,context={'runtime_source_commit':self.commit,'execution_source_commit':self.commit},closure={'scopes':{'runtime':self.runtime}},scenario='sealevel',evidence=self.evidence,diagnostic_rust_sources={},required=[]);exec(compile(ast.fix_missing_locations(ast.Module(body=[assignment,addition],type_ignores=[])),str(m.__file__),'exec'),env);catalog=eval(compile(ast.Expression(body=plan_value),str(m.__file__),'eval'),env)
+  env=dict(m.__dict__,repo=self.repo,context={'runtime_source_commit':self.commit,'execution_source_commit':self.commit},closure={'scopes':{'runtime':self.runtime}},scenario='sealevel',evidence=self.evidence,diagnostic_rust_sources={},diagnostic_relayer_sources={},required=[]);exec(compile(ast.fix_missing_locations(ast.Module(body=[assignment,addition],type_ignores=[])),str(m.__file__),'exec'),env);catalog=eval(compile(ast.Expression(body=plan_value),str(m.__file__),'eval'),env)
   self.assertEqual(set(catalog),{'zig/src/root.zig'});row=catalog['zig/src/root.zig'];self.assertEqual(row,m.artifact(self.repo/'zig/src/root.zig'));self.assertIn(row,env['required']);self.assertTrue(any('ls-tree'in r['argv']for r in self.evidence));self.assertTrue(all(r['actual_parent_wait']for r in self.evidence))
   path=self.repo/'catalog.json';path.write_text(json.dumps({'diagnostic_zig_sources':catalog,'required_inputs':env['required']}));decoded_plan=json.loads(path.read_text());decoded=decoded_plan['diagnostic_zig_sources'];base=pathlib.Path(__file__).resolve().parents[1]
   spec=importlib.util.spec_from_file_location('catalog_consumer_diag',base/'integration/multivm_diagnostics.py');diag=importlib.util.module_from_spec(spec);spec.loader.exec_module(diag)
@@ -339,7 +339,7 @@ class RelayerStartupCatalogControls(unittest.TestCase):
  git=ZigDiagnosticCatalogControls.git
  def setUp(self):
   ZigDiagnosticCatalogControls.setUp(self);root=pathlib.Path(__file__).resolve().parents[2]
-  import multivm_diagnostics as diagnostic
+  spec=importlib.util.spec_from_file_location('relayer_catalog_diagnostic',pathlib.Path(__file__).with_name('multivm_diagnostics.py'));diagnostic=importlib.util.module_from_spec(spec);spec.loader.exec_module(diagnostic)
   self.diagnostic=diagnostic
   for name,_,_ in diagnostic.RELAYER_STARTUP_SOURCE:
    target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((root/name).read_bytes())
