@@ -3,7 +3,7 @@
 The cosmosnative request authorizes producer hydration only. Separate full-case
 policy authorizes Aleo's original workload/clock after actual prerequisite checks.
 """
-import argparse, ast, datetime, email.utils, hashlib, http.client, importlib.util, json, os, re, secrets, shutil, signal, subprocess, sys, time
+import argparse, ast, base64, datetime, email.utils, hashlib, http.client, importlib.util, json, os, re, secrets, shutil, signal, subprocess, sys, time
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 MODES=('ReleaseSafe','ReleaseFast')
@@ -31,6 +31,22 @@ def write(path,value):
  return pin(path)
 def module(repo,name,relative):
  spec=importlib.util.spec_from_file_location(name,repo/relative);out=importlib.util.module_from_spec(spec);spec.loader.exec_module(out);return out
+def source_bound_encrypted_error(value,source):
+ unavailable={'schema':1,'status':'ENCRYPTION_UNAVAILABLE'}
+ try:
+  need(type(value)is dict and type(value.get('schema'))is int and value['schema']==1,'closed encrypted diagnostic schema')
+  if set(value)=={'schema','status'}and value['status']=='ENCRYPTION_UNAVAILABLE':return unavailable
+  need(set(value)=={'schema','status','key_id','prefix_bytes','truncated','ciphertext_base64','ciphertext_sha256'}and value['status']=='ENCRYPTED_PREFIX','closed encrypted prefix')
+  ids=re.findall(r"export const ALEO_DIAGNOSTIC_KEY_ID\s*=\s*'([0-9a-f]{32})'\s*\+\s*'([0-9a-f]{32})';",source)
+  need(len(ids)==1 and type(value['key_id'])is str and value['key_id']==''.join(ids[0]),'fixed Source diagnostic public key')
+  need(type(value['prefix_bytes'])is int and 0<=value['prefix_bytes']<=384 and type(value['truncated'])is bool,'bounded encrypted prefix metadata')
+  wire=value['ciphertext_base64'];need(type(wire)is str and len(wire)==684,'fixed ciphertext encoding')
+  cipher=base64.b64decode(wire,validate=True)
+  need(len(cipher)==512 and base64.b64encode(cipher).decode('ascii')==wire,'canonical RSA4096 ciphertext')
+  need(type(value['ciphertext_sha256'])is str and re.fullmatch('[0-9a-f]{64}',value['ciphertext_sha256'])and hashlib.sha256(cipher).hexdigest()==value['ciphertext_sha256'],'ciphertext fingerprint')
+  return dict(value)
+ except BaseException:return unavailable
+
 def source_bound_caught_error(value,source):
  if value is None:return {'status':'not-recorded'}
  try:
@@ -50,11 +66,11 @@ def source_bound_caught_error(value,source):
     need(1<=frame['column']<=len(lines[frame['line']-1].encode('utf-16-le'))//2+1,'Source frame column bound')
     checked_frames.append({'line':frame['line'],'column':frame['column']})
    return {'attempted_boundary':row['attempted_boundary'],'error_class':row['error_class'],'error_code':row['error_code'],'driver_frames':checked_frames}
-  need(type(value)is dict and set(value)=={'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker'}and type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-source-bound-caught-error-v1','closed caught diagnostic')
+  need(type(value)is dict and set(value)in({'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker'},{'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker','encrypted_sdk_error'})and type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-source-bound-caught-error-v1','closed caught diagnostic')
   result=point({k:value[k]for k in ['attempted_boundary','error_class','error_code','driver_frames']});worker=value['worker']
   if worker is not None:
    worker=point(worker);need(worker['attempted_boundary'].startswith('sdk-worker-'),'worker boundary contract')
-  return {'status':'observed',**result,'worker':worker,'basis':'Finite caught properties and stack-frame text observed by pinned driver; frames match only admitted aleo_process.ts. No underlying SDK/OS root-cause or Zig execution claim.'}
+  return {'status':'observed',**result,'worker':worker,**({'encrypted_sdk_error':source_bound_encrypted_error(value['encrypted_sdk_error'],source)}if'encrypted_sdk_error'in value else{}),'basis':'Finite caught properties and stack-frame text observed by pinned driver; frames match only admitted aleo_process.ts. No underlying SDK/OS root-cause or Zig execution claim.'}
  except BaseException:return {'status':'refused'}
 
 

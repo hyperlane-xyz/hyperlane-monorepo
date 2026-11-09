@@ -1,5 +1,5 @@
 """Pure composition/route checks. No SDK/VM/process/network entry is invoked."""
-import ast,copy,datetime,hashlib,importlib.util,itertools,json,pathlib,re,subprocess,tempfile,time,unittest
+import ast,base64,copy,datetime,hashlib,importlib.util,itertools,json,pathlib,re,subprocess,tempfile,time,unittest
 from types import SimpleNamespace as N
 from unittest import mock
 HERE=pathlib.Path(__file__).resolve().parent
@@ -485,5 +485,33 @@ class DriverCaughtErrorProjection(unittest.TestCase):
   with tempfile.TemporaryDirectory()as directory:
    repo=pathlib.Path(directory).resolve();source=repo/'zig/integration/aleo_process.ts';source.parent.mkdir(parents=True);source.write_text(self.source());row=m.pin(source);source.write_text(self.source()+'\nchanged')
    result=m.driver_failure_observation({'passed':False,'errors':['PRIVATE'],'evidence':{'caughtErrorDiagnostic':self.diagnostic()}},repo,[row]);self.assertEqual(result,{'status':'source-refused'})
+
+class EncryptedDriverFailureProjection(unittest.TestCase):
+ source=DriverCaughtErrorProjection.source
+ diagnostic=DriverCaughtErrorProjection.diagnostic
+ def cipher(self):
+  ids=re.findall(r"export const ALEO_DIAGNOSTIC_KEY_ID\s*=\s*'([0-9a-f]{32})'\s*\+\s*'([0-9a-f]{32})';",self.source());self.assertEqual(len(ids),1)
+  cipher=bytes(range(256))*2
+  return {'schema':1,'status':'ENCRYPTED_PREFIX','key_id':''.join(ids[0]),'prefix_bytes':85,'truncated':False,'ciphertext_base64':base64.b64encode(cipher).decode('ascii'),'ciphertext_sha256':hashlib.sha256(cipher).hexdigest()}
+ def test_ciphertext_is_retained_by_actual_public_driver_writer_without_primary_or_plaintext_change(self):
+  with tempfile.TemporaryDirectory()as directory:
+   root=pathlib.Path(directory).resolve();repo=root/'repo';source=repo/'zig/integration/aleo_process.ts';source.parent.mkdir(parents=True);source.write_text(self.source())
+   for name in ['case_delegate.py','case_supervisor.py','inner.py']:
+    target=repo/'zig/tools/aleo_linux_case'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((REPO/'zig/tools/aleo_linux_case'/name).read_bytes())
+   case=root/'case';driver=case/'data/case/result.json';driver.parent.mkdir(parents=True);diagnostic=self.diagnostic();baseline={'passed':False,'stage':'actual-runtime-preflight','errors':['PRIVATE_PRIMARY'],'evidence':{'caughtErrorDiagnostic':diagnostic}}
+   before=m.driver_failure_observation(baseline,repo,[m.pin(source)]);record=self.cipher();diagnostic['encrypted_sdk_error']=record;driver.write_text(json.dumps(baseline));public=m.case_failure_diagnostics(case,repo,[m.pin(source)]);after=public['records']['driver']['driver_observation'];self.assertEqual(after['caught_error']['encrypted_sdk_error'],record)
+   reduced=copy.deepcopy(after);del reduced['caught_error']['encrypted_sdk_error'];self.assertEqual(reduced,before);self.assertNotIn('PRIVATE',json.dumps(public));self.assertFalse(public['native_or_performance_credit'])
+ def test_malformed_optional_cipher_is_unavailable_but_original_caught_fields_survive(self):
+  record=self.cipher();alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';noncanonical=record['ciphertext_base64'][:-2]+alphabet[alphabet.index(record['ciphertext_base64'][-2])+1]+'=';cases=[None,{},dict(record,PRIVATE='PRIVATE_VALUE'),dict(record,ciphertext_base64=noncanonical)]
+  for key,value in [('schema',True),('status','PRIVATE'),('key_id','0'*64),('prefix_bytes',True),('prefix_bytes',-1),('prefix_bytes',385),('truncated',1),('ciphertext_base64','A'*684),('ciphertext_base64',record['ciphertext_base64'][:-1]+'A'),('ciphertext_sha256','0'*64),('ciphertext_sha256','PRIVATE')]:cases.append(dict(record,**{key:value}))
+  for value in cases:
+   with self.subTest(optional_type=type(value).__name__):
+    diagnostic=self.diagnostic();diagnostic['encrypted_sdk_error']=value;point=m.source_bound_caught_error(diagnostic,self.source());self.assertEqual(point['status'],'observed');self.assertEqual(point['worker'],self.diagnostic()['worker']);self.assertEqual(point['encrypted_sdk_error'],{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'});self.assertNotIn('PRIVATE',json.dumps(point))
+ def test_zero_maximum_prefix_source_key_binding_and_absent_optional_shape(self):
+  for length in [0,384]:
+   row=dict(self.cipher(),prefix_bytes=length,truncated=True);self.assertEqual(m.source_bound_encrypted_error(row,self.source()),row)
+  row=self.cipher();self.assertEqual(m.source_bound_encrypted_error(row,self.source()+self.source()),{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'})
+  self.assertEqual(m.source_bound_encrypted_error({'schema':1,'status':'ENCRYPTION_UNAVAILABLE'},self.source()),{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'})
+  self.assertNotIn('encrypted_sdk_error',m.source_bound_caught_error(self.diagnostic(),self.source()))
 
 if __name__=='__main__':unittest.main(verbosity=2)

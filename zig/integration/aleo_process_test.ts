@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import {
+  constants,
+  createHash,
+  generateKeyPairSync,
+  privateDecrypt,
+} from 'node:crypto';
 import {
   chmod,
   mkdtemp,
@@ -20,6 +25,8 @@ import { stripTypeScriptTypes } from 'node:module';
 
 import {
   captureAleoFailureDiagnostic,
+  retainAleoEncryptedSdkFailure,
+  ALEO_DIAGNOSTIC_KEY_ID,
   retainAleoIsolateFailure,
   OwnedChild,
   OwnedChildError,
@@ -2452,6 +2459,7 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
       'requireValue',
       'fixtureError',
       'retainAleoIsolateFailure',
+      'retainAleoEncryptedSdkFailure',
       'sdkNativeConsensusHeights',
     ],
   );
@@ -2482,6 +2490,10 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
       return 1;
     }
   }
+  const testKeys = generateKeyPairSync('rsa', { modulusLength: 4096 });
+  const testPublic = testKeys.publicKey
+    .export({ type: 'spki', format: 'pem' })
+    .toString();
   const isolate = factory(
     FakeWorker,
     URL,
@@ -2498,6 +2510,8 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
     (value: unknown) => assert.ok(value),
     (value: unknown) => (value instanceof Error ? value : new Error('fixture')),
     retainAleoIsolateFailure,
+    (error: Error, message: unknown) =>
+      retainAleoEncryptedSdkFailure(error, message, testPublic),
     sdkNativeConsensusHeights,
   );
   let caught: unknown;
@@ -2523,6 +2537,21 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
   assert.equal(observed.worker?.error_code, 'EACCES');
   assert.deepEqual(observed.worker?.driver_frames, [{ line: 1, column: 1 }]);
   assert.ok(!JSON.stringify(observed).includes('PRIVATE'));
+  const encrypted = observed.encrypted_sdk_error;
+  assert.equal(encrypted?.status, 'ENCRYPTED_PREFIX');
+  assert.ok(encrypted && typeof encrypted.ciphertext_base64 === 'string');
+  assert.equal(
+    privateDecrypt(
+      {
+        key: testKeys.privateKey,
+        padding: constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha256',
+        oaepLabel: Buffer.from('ziggy-private-failure-v1', 'ascii'),
+      },
+      Buffer.from(encrypted.ciphertext_base64, 'base64'),
+    ).toString('utf8'),
+    childError.message,
+  );
   const mainAt = source.indexOf(
     '  } catch (error) {\n    progress.evidence.caughtErrorDiagnostic',
   );
@@ -2692,4 +2721,186 @@ void test('Aleo actual NativeWorker constructor captures only explicit native co
     if (before === undefined) delete process.env.CONSENSUS_VERSION_HEIGHTS;
     else process.env.CONSENSUS_VERSION_HEIGHTS = before;
   }
+});
+
+void test('Aleo encrypted SDK prefix bounded UTF8 roundtrips only with test key and correct label', () => {
+  const keys = generateKeyPairSync('rsa', { modulusLength: 4096 });
+  const publicPem = keys.publicKey
+    .export({ type: 'spki', format: 'pem' })
+    .toString();
+  for (const message of [
+    'PRIVATE_'.padEnd(48, 'x'),
+    'PRIVATE_'.padEnd(85, 'y'),
+    '',
+    '😀'.repeat(150),
+    'a'.repeat(383) + '😀END',
+    'a'.repeat(385),
+  ]) {
+    const error = new Error(message);
+    retainAleoEncryptedSdkFailure(error, message, publicPem);
+    const row = captureAleoFailureDiagnostic(
+      error,
+      'sdk-deployment',
+    ).encrypted_sdk_error;
+    assert.equal(row?.status, 'ENCRYPTED_PREFIX');
+    assert.ok(row && typeof row.ciphertext_base64 === 'string');
+    const cipher = Buffer.from(row.ciphertext_base64, 'base64');
+    assert.equal(cipher.length, 512);
+    const plain = privateDecrypt(
+      {
+        key: keys.privateKey,
+        padding: constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha256',
+        oaepLabel: Buffer.from('ziggy-private-failure-v1', 'ascii'),
+      },
+      cipher,
+    );
+    assert.ok(plain.length <= 384);
+    assert.equal(row.prefix_bytes, plain.length);
+    assert.ok(Buffer.from(plain.toString('utf8')).equals(plain));
+    assert.ok(message.startsWith(plain.toString('utf8')));
+    assert.equal(row.truncated, Buffer.byteLength(message, 'utf8') > 384);
+    assert.equal(
+      row.ciphertext_sha256,
+      createHash('sha256').update(cipher).digest('hex'),
+    );
+    assert.equal(
+      row.key_id,
+      createHash('sha256')
+        .update(keys.publicKey.export({ type: 'spki', format: 'der' }))
+        .digest('hex'),
+    );
+    assert.ok(!JSON.stringify(row).includes('PRIVATE_'));
+    assert.ok(
+      !Object.keys(row).some((name) => /message|plaintext|stack/.test(name)),
+    );
+    assert.throws(() =>
+      privateDecrypt(
+        {
+          key: keys.privateKey,
+          padding: constants.RSA_PKCS1_OAEP_PADDING,
+          oaepHash: 'sha256',
+          oaepLabel: Buffer.from('wrong-label'),
+        },
+        cipher,
+      ),
+    );
+    cipher[0] ^= 1;
+    assert.throws(() =>
+      privateDecrypt(
+        {
+          key: keys.privateKey,
+          padding: constants.RSA_PKCS1_OAEP_PADDING,
+          oaepHash: 'sha256',
+          oaepLabel: Buffer.from('ziggy-private-failure-v1', 'ascii'),
+        },
+        cipher,
+      ),
+    );
+  }
+});
+
+void test('Aleo encrypted SDK collector avoids getters and preserves primary on unavailable encryption', () => {
+  const original = new Error('PRIVATE_PRIMARY');
+  let calls = 0;
+  const hostile = new Proxy(
+    {},
+    {
+      get() {
+        calls++;
+        throw original;
+      },
+      getOwnPropertyDescriptor() {
+        calls++;
+        throw original;
+      },
+    },
+  );
+  retainAleoEncryptedSdkFailure(original, hostile);
+  assert.equal(calls, 0);
+  assert.equal(original.message, 'PRIVATE_PRIMARY');
+  assert.deepEqual(
+    captureAleoFailureDiagnostic(original, 'sdk-deployment')
+      .encrypted_sdk_error,
+    { schema: 1, status: 'ENCRYPTION_UNAVAILABLE' },
+  );
+  retainAleoEncryptedSdkFailure(
+    original,
+    'PRIVATE_PRIMARY',
+    'not a public key',
+  );
+  assert.deepEqual(
+    captureAleoFailureDiagnostic(original, 'sdk-deployment')
+      .encrypted_sdk_error,
+    { schema: 1, status: 'ENCRYPTION_UNAVAILABLE' },
+  );
+  assert.equal(original.message, 'PRIVATE_PRIMARY');
+  const clean = new Error('PRIVATE_ROOT_KEY');
+  retainAleoEncryptedSdkFailure(clean, clean.message);
+  const row = captureAleoFailureDiagnostic(
+    clean,
+    'sdk-deployment',
+  ).encrypted_sdk_error;
+  assert.equal(row?.key_id, ALEO_DIAGNOSTIC_KEY_ID);
+  assert.equal(row?.prefix_bytes, 16);
+  assert.ok(!JSON.stringify(row).includes('PRIVATE'));
+  assert.equal(
+    captureAleoFailureDiagnostic(new Error('unchanged'), 'sdk-deployment')
+      .encrypted_sdk_error,
+    undefined,
+  );
+});
+
+void test('Aleo encrypted SDK collector bounds conversion before allocating message bytes', async () => {
+  const source = await readFile(
+    new URL('./aleo_process.ts', import.meta.url),
+    'utf8',
+  );
+  const start = source.indexOf(
+    'export function retainAleoEncryptedSdkFailure(',
+  );
+  const end = source.indexOf('interface AleoFailurePoint {', start);
+  assert.ok(start > 0 && end > start);
+  const factory = compileFunction(
+    stripTypeScriptTypes(
+      source.slice(start, end).replace('export function ', 'function '),
+    ) + '\nreturn retainAleoEncryptedSdkFailure;',
+    [
+      'createPublicKey',
+      'createHash',
+      'publicEncrypt',
+      'constants',
+      'Buffer',
+      'encryptedSdkFailures',
+      'ALEO_DIAGNOSTIC_PUBLIC_KEY',
+      'ALEO_DIAGNOSTIC_OAEP_LABEL',
+    ],
+  );
+  const failures = new WeakMap();
+  let converted = 0;
+  const collector = factory(
+    () => ({ export: () => Buffer.from('test-only-public-DER') }),
+    createHash,
+    (_options: unknown, wire: Buffer) => {
+      assert.ok(wire.length <= 384);
+      return Buffer.alloc(512);
+    },
+    constants,
+    {
+      from(value: string, encoding: BufferEncoding) {
+        assert.ok(value.length <= 384);
+        converted++;
+        return Buffer.from(value, encoding);
+      },
+    },
+    failures,
+    'test-only-public',
+    'ziggy-private-failure-v1',
+  );
+  const primary = new Error('PRIVATE_PRIMARY');
+  collector(primary, 'PRIVATE_'.repeat(10000));
+  assert.equal(converted, 2);
+  assert.equal(failures.get(primary)?.status, 'ENCRYPTED_PREFIX');
+  assert.equal(failures.get(primary)?.prefix_bytes, 384);
+  assert.equal(primary.message, 'PRIVATE_PRIMARY');
 });

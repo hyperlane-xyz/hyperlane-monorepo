@@ -1,5 +1,10 @@
 /** Actual Aleo daemon fixture. Importing this module starts no SDK or process. */
-import { createHash } from 'node:crypto';
+import {
+  constants,
+  createHash,
+  createPublicKey,
+  publicEncrypt,
+} from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import {
   lstat,
@@ -176,6 +181,80 @@ export const ALEO_FAILURE_CODES: readonly string[] = Object.freeze([
   'ERR_OUT_OF_RANGE',
   'ERR_INVALID_URL',
 ]);
+export const ALEO_DIAGNOSTIC_KEY_ID =
+  '8bab6daee3714c8284aa166219000493' + '8b0a5dfb10dea336372e4b11f51e0655';
+const ALEO_DIAGNOSTIC_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxe5zq7ZGiGgBvSAtT+hX
+S4ezY8xH8aOO3+8YcQSe7p0v/l6TFKQjHcyJxDClozTxFtowMRXmR6dMb014MS7r
+y7pu0OITH8o/WWUCc0nUodtU1WH/lHaEOw1Q1mE24Im25YZYpMUzNXCfia9YHB3R
+n1+grv9Ii9334GsUMBCwgb/XK6Sql3Nx/fKsjBC5pyaC28ErrGHIf5pU79RYoUUR
+kcF4FEOcUoczsFDy/AvwFM2fH64QFDxOfoty/lpROhQIcTKwX/IKDnnPleHa4V0O
+Sv/YdavwPK9ffZ+b7GDLEhJhhu6akSfhR/SjXrDOGAYMs9vRliztUearu6aDKVNq
+HVt0+X72NyT2BAzZ0WW/U0BrKBSWCJtzzdrYGlmWZaDnw5ewDmHuAeW+FTP2VBEJ
+tGaXqeNLnrnnJ28cxbHd6MecqUbSl9S5FIVfvahkyAM9mOdvPdKri3NyRQwPatqv
+hefBMiQ2r7gKRKzXcrsyZM+9CoTiB/ZJY8cZdDOo/cEai3nMN7ZWoFlCqZ33j/OM
+pWBlD9TyMYb1Xlz2+zX1TrB/UhbFfASBghgZiIDpOmpwjFf8pQyvydhSVf4iiEMf
+YoGk4zaFR/5sH46x2jJl7DfJGvk9y/O/30LOGbvN493ayrG9DBT52PX8i1RT7+DZ
+XG9dTcSWOCb847U28lDwtxsCAwEAAQ==
+-----END PUBLIC KEY-----
+`;
+const ALEO_DIAGNOSTIC_OAEP_LABEL = 'ziggy-private-failure-v1';
+interface AleoEncryptedFailurePrefix {
+  schema: 1;
+  status: 'ENCRYPTED_PREFIX' | 'ENCRYPTION_UNAVAILABLE';
+  key_id?: string;
+  prefix_bytes?: number;
+  truncated?: boolean;
+  ciphertext_base64?: string;
+  ciphertext_sha256?: string;
+}
+const encryptedSdkFailures = new WeakMap<Error, AleoEncryptedFailurePrefix>();
+
+export function retainAleoEncryptedSdkFailure(
+  error: Error,
+  message: unknown,
+  publicPem: string = ALEO_DIAGNOSTIC_PUBLIC_KEY,
+): void {
+  // Failure-only optional observation; no message/stack/getter introspection.
+  try {
+    if (typeof message !== 'string')
+      throw new Error('Primitive message required');
+    const key = createPublicKey(publicPem);
+    const keyId = createHash('sha256')
+      .update(key.export({ type: 'spki', format: 'der' }))
+      .digest('hex');
+    const bounded = Buffer.from(message.slice(0, 384), 'utf8');
+    let end = Math.min(bounded.length, 384);
+    if (end < bounded.length)
+      while (end > 0 && (bounded[end] & 0xc0) === 0x80) --end;
+    const ciphertext = publicEncrypt(
+      {
+        key,
+        padding: constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha256',
+        oaepLabel: Buffer.from(ALEO_DIAGNOSTIC_OAEP_LABEL, 'ascii'),
+      },
+      bounded.subarray(0, end),
+    );
+    if (ciphertext.length !== 512)
+      throw new Error('Fixed RSA ciphertext required');
+    encryptedSdkFailures.set(error, {
+      schema: 1,
+      status: 'ENCRYPTED_PREFIX',
+      key_id: keyId,
+      prefix_bytes: end,
+      truncated: message.length > 384 || end < bounded.length,
+      ciphertext_base64: ciphertext.toString('base64'),
+      ciphertext_sha256: createHash('sha256').update(ciphertext).digest('hex'),
+    });
+  } catch {
+    encryptedSdkFailures.set(error, {
+      schema: 1,
+      status: 'ENCRYPTION_UNAVAILABLE',
+    });
+  }
+}
+
 interface AleoFailurePoint {
   attempted_boundary: string;
   error_class: string;
@@ -186,6 +265,7 @@ interface AleoFailureDiagnostic extends AleoFailurePoint {
   schema: 1;
   kind: 'aleo-source-bound-caught-error-v1';
   worker: AleoFailurePoint | null;
+  encrypted_sdk_error?: AleoEncryptedFailurePrefix;
 }
 const isolateFailurePoints = new WeakMap<Error, AleoFailurePoint>();
 
@@ -270,6 +350,8 @@ export function captureAleoFailureDiagnostic(
   try {
     if (!(error instanceof Error)) return point;
     point.worker = isolateFailurePoints.get(error) ?? null;
+    const encrypted = encryptedSdkFailures.get(error);
+    if (encrypted !== undefined) point.encrypted_sdk_error = encrypted;
     point.error_class = 'OTHER_ERROR';
     if (ALEO_FAILURE_CLASSES.includes(error.name))
       point.error_class = error.name;
@@ -4652,7 +4734,9 @@ async function sdkIsolate(
         try {
           const row = object(value, 'actual SDK isolate reply');
           if (row.error !== undefined) {
-            const failure = new Error(text(row.error, 'SDK error'));
+            const message = text(row.error, 'SDK error');
+            const failure = new Error(message);
+            retainAleoEncryptedSdkFailure(failure, message);
             retainAleoIsolateFailure(failure, row.diagnostic);
             reject(failure);
           } else {
