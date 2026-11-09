@@ -12,13 +12,13 @@ observation/receipt timestamps and structured activity data. Storage is best eff
 | Retries | Status, reason, count, next attempt, retry limit and drops |
 | ISMs | Metadata build results, module types, routed children, aggregation members/threshold and verified count |
 | Validators | Validator sets and thresholds |
-| Signatures | One summary per completed collection: indices attempted, latest advertised indices and discovery failures, best matching signer addresses with announced storage URL/count/root at the last attempted index, and exact-checkpoint unavailable validators |
+| Signatures | One summary per completed collection: indices attempted, latest advertised indices and discovery failures, best matching signer addresses with exact HTTPS checkpoint object URL/count/root at the last attempted index, and exact-checkpoint unavailable validators |
 | Merkle data | Missing tree/leaf, leaf/highest-known index, proof failures and root mismatches |
 | CCIP / CCTP | First pending response, final outcome/attempt count per endpoint, HTTP status, timeouts and response failures |
 | Delivery | ISM verification outcomes, simulation/payload failures, typed chain errors, transaction outcomes/hashes, confirmation failures and delivery completion |
 
 RPC URLs, credentials, local storage paths, raw errors, message bodies, metadata and
-signature bytes are excluded. Validator-announced storage URLs omit credentials,
+signature bytes are excluded. Checkpoint object URLs omit credentials,
 queries and fragments; local storage is reported as `local`. Offchain success means
 metadata was received, not verified.
 

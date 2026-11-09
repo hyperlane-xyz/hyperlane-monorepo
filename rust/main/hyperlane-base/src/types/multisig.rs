@@ -36,7 +36,7 @@ pub enum CheckpointObservation {
         index: u32,
         /// Signed root.
         root: H256,
-        /// Verified signers for this root and the storage used to fetch each signature.
+        /// Verified signers for this root and each exact checkpoint object location.
         signers: Vec<CheckpointSigner>,
     },
     /// A failed read does not imply that a validator is down.
@@ -50,12 +50,12 @@ pub enum CheckpointObservation {
     },
 }
 
-/// A verified checkpoint signer and its validator-announced storage location.
+/// A verified checkpoint signer and its checkpoint object location.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CheckpointSigner {
     /// Recovered validator address.
     pub validator: H256,
-    /// Public storage URL selected for this validator; local storage is `local`.
+    /// Exact public checkpoint object URL; local storage is `local`.
     pub location: Option<String>,
 }
 
@@ -92,20 +92,12 @@ pub struct MultisigCheckpointSyncer {
     metrics: Option<(Arc<CoreMetrics>, String)>, // first arg is the metrics, second is the app context
     #[new(default)]
     observer: Option<Arc<dyn CheckpointObserver>>,
-    #[new(default)]
-    storage_locations: HashMap<H160, String>,
 }
 
 impl MultisigCheckpointSyncer {
     /// Attach an observer scoped to this metadata build, not the pooled syncers.
     pub fn with_observer(mut self, observer: Arc<dyn CheckpointObserver>) -> Self {
         self.observer = Some(observer);
-        self
-    }
-
-    /// Attach the public storage location selected for each validator.
-    pub fn with_storage_locations(mut self, storage_locations: HashMap<H160, String>) -> Self {
-        self.storage_locations = storage_locations;
         self
     }
 
@@ -424,7 +416,10 @@ impl MultisigCheckpointSyncer {
                         let validator = validators[validator_index];
                         CheckpointSigner {
                             validator,
-                            location: self.storage_locations.get(&H160::from(validator)).cloned(),
+                            location: self
+                                .checkpoint_syncers
+                                .get(&H160::from(validator))
+                                .and_then(|syncer| syncer.checkpoint_location(index)),
                         }
                     })
                     .collect();
@@ -576,6 +571,7 @@ mod test {
         delay: Duration,
         latest_index: Option<u32>,
         checkpoint: Option<SignedCheckpointWithMessageId>,
+        checkpoint_location: Option<String>,
         activity: Arc<FetchActivity>,
     }
 
@@ -629,6 +625,10 @@ mod test {
 
         fn announcement_location(&self) -> String {
             "test".to_string()
+        }
+
+        fn checkpoint_location(&self, _index: u32) -> Option<String> {
+            self.checkpoint_location.clone()
         }
 
         async fn write_reorg_status(&self, _: &ReorgEvent) -> Result<()> {
@@ -960,6 +960,9 @@ mod test {
                 delay,
                 latest_index: validator.latest_index,
                 checkpoint: Some(signed_checkpoint),
+                checkpoint_location: Some(format!(
+                    "https://validator-{validator_index}.example/checkpoint_1000_with_id.json"
+                )),
                 activity: Arc::new(FetchActivity::default()),
             };
             let key = H160::from_str(&validator.public_key).unwrap();
@@ -974,14 +977,8 @@ mod test {
             })
             .collect::<Vec<_>>();
         let observations = Arc::new(Observations::default());
-        let storage_locations = validator_addresses
-            .iter()
-            .enumerate()
-            .map(|(index, validator)| (H160::from(*validator), format!("s3://validator-{index}")))
-            .collect();
-        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None)
-            .with_storage_locations(storage_locations)
-            .with_observer(observations.clone());
+        let multisig_syncer =
+            MultisigCheckpointSyncer::new(syncers, None).with_observer(observations.clone());
 
         let start = tokio::time::Instant::now();
         let result = multisig_syncer
@@ -1036,11 +1033,15 @@ mod test {
             vec![
                 CheckpointSigner {
                     validator: validator_addresses[1],
-                    location: Some("s3://validator-1".into()),
+                    location: Some(
+                        "https://validator-1.example/checkpoint_1000_with_id.json".into(),
+                    ),
                 },
                 CheckpointSigner {
                     validator: validator_addresses[2],
-                    location: Some("s3://validator-2".into()),
+                    location: Some(
+                        "https://validator-2.example/checkpoint_1000_with_id.json".into(),
+                    ),
                 },
             ]
         );
@@ -1090,6 +1091,7 @@ mod test {
                     },
                     latest_index: None,
                     checkpoint: Some(signed),
+                    checkpoint_location: None,
                     activity: activity.clone(),
                 }),
             );
@@ -1162,6 +1164,7 @@ mod test {
                     delay,
                     latest_index: None,
                     checkpoint: signed,
+                    checkpoint_location: None,
                     activity: activity.clone(),
                 }),
             );

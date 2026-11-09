@@ -310,6 +310,10 @@ where
         self.inner.announcement_location()
     }
 
+    fn checkpoint_location(&self, index: u32) -> Option<String> {
+        self.inner.checkpoint_location(index)
+    }
+
     async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()> {
         self.inner.write_reorg_status(reorg_event).await
     }
@@ -500,6 +504,12 @@ mod tests {
             "test".to_string()
         }
 
+        fn checkpoint_location(&self, index: u32) -> Option<String> {
+            Some(format!(
+                "https://example.com/checkpoint_{index}_with_id.json"
+            ))
+        }
+
         async fn write_reorg_status(&self, _reorg_event: &ReorgEvent) -> Result<()> {
             Ok(())
         }
@@ -538,6 +548,24 @@ mod tests {
 
     fn validator(signer: &Signers) -> H256 {
         H256::from(signer.eth_address())
+    }
+
+    #[test]
+    fn forwards_checkpoint_location() {
+        let signer = test_signer();
+        let (inner, _) = CountingCheckpointSyncer::new(Vec::new());
+        let syncer = CachedCheckpointSyncer::new(
+            Box::new(inner),
+            LocalCache::new("test-cache"),
+            "testorigin".to_owned(),
+            validator(&signer),
+            "test".to_owned(),
+        );
+
+        assert_eq!(
+            syncer.checkpoint_location(10).as_deref(),
+            Some("https://example.com/checkpoint_10_with_id.json")
+        );
     }
 
     #[tokio::test]
