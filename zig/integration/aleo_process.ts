@@ -1742,8 +1742,8 @@ export async function deployAleoDomain(
         overhead: { [remote.domain]: 50000 },
         oracleConfig: {
           [remote.domain]: {
-            tokenExchangeRate: '1000000000000000000',
-            gasPrice: '1000000000',
+            tokenExchangeRate: '10000000000',
+            gasPrice: '1',
           },
         },
       },

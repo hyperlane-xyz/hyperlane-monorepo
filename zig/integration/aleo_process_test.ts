@@ -1935,6 +1935,114 @@ void test('Aleo SQL follows actual transaction width and signed-u32 storage with
     ),
   );
 });
+void test('Aleo fixture IGP quote uses native microcredit units within unchanged dispatch budget', async () => {
+  const source = await readFile(
+    new URL('./aleo_process.ts', import.meta.url),
+    'utf8',
+  );
+  const igpStart = source.indexOf('  const [igp] = await hooks');
+  const igpEnd = source.indexOf(
+    '  for (const transaction of await mailboxWriter.update(',
+    igpStart,
+  );
+  assert.ok(igpStart >= 0 && igpEnd > igpStart);
+  let igpRequest:
+    | {
+        config: {
+          overhead: Record<number, number>;
+          oracleConfig: Record<
+            number,
+            { tokenExchangeRate: string; gasPrice: string }
+          >;
+        };
+      }
+    | undefined;
+  const remote = { domain: 3999999999 };
+  const buildIgp = compileFunction(
+    'return (async () => {\n' + source.slice(igpStart, igpEnd) + '\n})();',
+    ['hooks', 'AltVM', 'signer', 'remote'],
+  );
+  await buildIgp(
+    {
+      createWriter: () => ({
+        create: async (value: NonNullable<typeof igpRequest>) => {
+          igpRequest = value;
+          return [{}];
+        },
+      }),
+    },
+    { HookType: { INTERCHAIN_GAS_PAYMASTER: 'fixture-igp-type' } },
+    { getSignerAddress: () => 'fixture-owner' },
+    remote,
+  );
+  assert.ok(igpRequest);
+  const workerStart = source.indexOf(
+    "      attemptedBoundary = 'sdk-worker-dispatch';",
+  );
+  const dispatchStart = source.indexOf(
+    '      const tx = await signer.getRemoteTransferTransaction({',
+    workerStart,
+  );
+  const dispatchEnd = source.indexOf(
+    '      const receipt = await signer.sendAndConfirmTransaction(tx);',
+    dispatchStart,
+  );
+  assert.ok(
+    workerStart >= 0 &&
+      dispatchStart > workerStart &&
+      dispatchEnd > dispatchStart,
+  );
+  let dispatchRequest:
+    | { gasLimit: string; maxFee: { denom: string; amount: string } }
+    | undefined;
+  const dispatch = compileFunction(
+    'return (async () => {\n' +
+      source.slice(dispatchStart, dispatchEnd) +
+      '\n})();',
+    ['signer', 'text', 'hex32', 'job', 'destination'],
+  );
+  await dispatch(
+    {
+      getSignerAddress: () => 'fixture-owner',
+      getRemoteTransferTransaction: async (
+        value: NonNullable<typeof dispatchRequest>,
+      ) => {
+        dispatchRequest = value;
+        return {};
+      },
+    },
+    (value: string) => value,
+    (value: string) => value,
+    { token: 'fixture-token', recipient: 'fixture-recipient' },
+    remote.domain,
+  );
+  assert.ok(dispatchRequest);
+  const oracle = igpRequest.config.oracleConfig[remote.domain];
+  const overhead = igpRequest.config.overhead[remote.domain];
+  assert.ok(oracle);
+  assert.equal(overhead, 50000);
+  assert.equal(dispatchRequest.gasLimit, '100000');
+  assert.deepEqual(dispatchRequest.maxFee, {
+    denom: 'credits',
+    amount: '10000000',
+  });
+  // Independent integer model of the pinned SDK/contract exchange-rate scale.
+  // Rust Aleo reports paid microcredits as gas units and gas_price = 1.
+  const quote =
+    ((BigInt(dispatchRequest.gasLimit) + BigInt(overhead)) *
+      BigInt(oracle.gasPrice) *
+      BigInt(oracle.tokenExchangeRate)) /
+    10n ** 10n;
+  assert.ok(quote > 0n, 'real nonzero IGP payment required');
+  assert.ok(quote <= 0xffffffffffffffffn, 'IGP payment must fit contract u64');
+  assert.ok(
+    quote <= BigInt(dispatchRequest.maxFee.amount),
+    'quote must fit unchanged real dispatch budget',
+  );
+  assert.equal(quote, 150000n);
+  assert.equal(BigInt(oracle.tokenExchangeRate), 10n ** 10n);
+  assert.equal(BigInt(oracle.gasPrice), 1n);
+});
 void test('Aleo fixture domain readback orders signed integer IDs rather than projected text', () => {
   for (const ids of [
     [3999999998, 3999999999],
