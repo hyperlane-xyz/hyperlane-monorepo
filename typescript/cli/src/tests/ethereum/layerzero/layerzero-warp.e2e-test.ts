@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 
 import {
   ERC20__factory,
+  IPostDispatchHook__factory,
   LayerZeroV2HookIsm__factory,
   Mailbox__factory,
   MailboxClient__factory,
@@ -17,7 +18,9 @@ import {
   HookType,
   IsmType,
   LayerZeroV2ConfigMode,
+  OnchainHookType,
   TokenType,
+  WormholeConsistencyType,
   proxyAdmin,
 } from '@hyperlane-xyz/sdk';
 import type {
@@ -25,6 +28,7 @@ import type {
   LayerZeroV2IsmConfig,
   MultiProvider,
   WarpRouteDeployConfigMailboxRequired,
+  WormholeIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 import type { Address } from '@hyperlane-xyz/utils';
@@ -56,8 +60,19 @@ import {
   getCombinedWarpRoutePath,
   getWarpRouteId,
 } from '../consts.js';
+import {
+  WH_CHAIN_ID_2,
+  WH_CHAIN_ID_3,
+  type WormholeChainFixture,
+  deployWormholeMocks,
+  readPublications,
+  signPublicationVaa,
+  startVaaUpstream,
+  wormholeServiceEnv,
+} from '../wormhole/fixtures.js';
 
 const PACKET_SERVICE_PORT = 3_803;
+const COMBINED_SERVICE_PORT = 3_804;
 // Anvil account #1: distinct from the deployer, which keeps the warp route.
 const LAYERZERO_ROUTER_OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
@@ -854,6 +869,194 @@ describe('warp deploy with LayerZero V2 combined hook/ISM', function () {
       expect(balanceAfter.sub(balanceBefore).toString()).to.equal('2');
     } finally {
       await service.close();
+    }
+  });
+
+  it('delivers a warp transfer over Wormhole and LayerZero in one aggregation', async () => {
+    const symbol = 'LZWH';
+    const configPath = `${TEMP_PATH}/layerzero-wormhole-send-warp.yaml`;
+    const routeId = getWarpRouteId(symbol, chains);
+    const warpCorePath = getCombinedWarpRoutePath(symbol, chains);
+    const [origin, destination] = chains;
+    const wormholeChainIds: Record<string, number> = {
+      [CHAIN_NAME_2]: WH_CHAIN_ID_2,
+      [CHAIN_NAME_3]: WH_CHAIN_ID_3,
+    };
+    const multiProvider = await getMultiProvider();
+    const wormholeMocks: Record<string, WormholeChainFixture> = {};
+    for (const chain of chains) {
+      wormholeMocks[chain] = await deployWormholeMocks(
+        multiProvider,
+        chain,
+        wormholeChainIds[chain],
+      );
+    }
+    const serviceUrl = `http://127.0.0.1:${COMBINED_SERVICE_PORT}`;
+    const config: WarpRouteDeployConfigMailboxRequired = {};
+    for (const [index, chain] of chains.entries()) {
+      const wormholeIsm: WormholeIsmConfig = {
+        type: IsmType.WORMHOLE,
+        owner: ANVIL_DEPLOYER_ADDRESS,
+        core: wormholeMocks[chain].core.address,
+        wormholeChainId: wormholeMocks[chain].wormholeChainId,
+        consistencyLevel: { type: WormholeConsistencyType.Finalized },
+        urls: [`${serviceUrl}/wormhole/getWormholeVaa`],
+      };
+      config[chain] = {
+        type: index === 0 ? TokenType.native : TokenType.synthetic,
+        owner: ANVIL_DEPLOYER_ADDRESS,
+        mailbox: mailboxes[chain],
+        name: `${symbol} token`,
+        symbol,
+        decimals: 18,
+        hook: {
+          type: HookType.AGGREGATION,
+          hooks: [
+            { type: HookType.MAILBOX_DEFAULT },
+            { type: HookType.WORMHOLE },
+            { type: HookType.LAYER_ZERO_V2 },
+          ],
+        },
+        interchainSecurityModule: {
+          type: IsmType.AGGREGATION,
+          threshold: 2,
+          modules: [
+            wormholeIsm,
+            layerZeroIsm(
+              chain,
+              chains.filter((remote) => remote !== chain),
+              [`${serviceUrl}/layerzero/getLayerZeroPacket`],
+            ),
+          ],
+        },
+      };
+    }
+    writeYamlOrJson(configPath, config);
+
+    const deploy = await hyperlaneWarpDeploy(configPath, routeId);
+    expect(deploy.exitCode).to.equal(0);
+
+    const routers: Record<string, { wormhole: Address; layerZero: Address }> =
+      {};
+    for (const chain of chains) {
+      const provider = multiProvider.getProvider(chain);
+      const client = MailboxClient__factory.connect(
+        getDeployedWarpAddress(chain, warpCorePath),
+        provider,
+      );
+      const [hook, ism] = await Promise.all([
+        client.hook(),
+        client.interchainSecurityModule(),
+      ]);
+      const [modules, threshold] = await StaticAggregationIsm__factory.connect(
+        ism,
+        provider,
+      ).modulesAndThreshold('0x');
+      const children = await StaticAggregationHook__factory.connect(
+        hook,
+        provider,
+      ).hooks('0x');
+      expect(threshold).to.equal(2);
+      expect(modules).to.have.length(2);
+      expect(children).to.have.length(3);
+      const routersByHookType = new Map<number, Address>();
+      for (const module of modules) {
+        expect(children.map((child) => child.toLowerCase())).to.include(
+          module.toLowerCase(),
+        );
+        routersByHookType.set(
+          await IPostDispatchHook__factory.connect(module, provider).hookType(),
+          module,
+        );
+      }
+      const wormholeRouter = routersByHookType.get(OnchainHookType.WORMHOLE);
+      const layerZeroRouter = routersByHookType.get(OnchainHookType.LAYER_ZERO);
+      assert(wormholeRouter, `Missing Wormhole router on ${chain}`);
+      assert(layerZeroRouter, `Missing LayerZero router on ${chain}`);
+      routers[chain] = { wormhole: wormholeRouter, layerZero: layerZeroRouter };
+    }
+
+    const check = await hyperlaneWarpCheck(routeId);
+    expect(check.exitCode, check.stdout).to.equal(0);
+    const apply = await hyperlaneWarpApply(routeId);
+    expect(apply.exitCode).to.equal(0);
+    expect(apply.stdout).to.include(
+      'Warp config is the same as target. No updates needed.',
+    );
+
+    const signedVaas = new Map<string, string>();
+    const upstream = await startVaaUpstream((vaaId) => signedVaas.get(vaaId));
+    try {
+      const service = await startCcipServer({
+        port: COMBINED_SERVICE_PORT,
+        modules: ['wormhole', 'layerzero'],
+        env: wormholeServiceEnv({ upstreamUrl: upstream.url }),
+      });
+      try {
+        const syntheticToken = ERC20__factory.connect(
+          getDeployedWarpAddress(destination, warpCorePath),
+          multiProvider.getProvider(destination),
+        );
+        const balanceBefore = await syntheticToken.balanceOf(
+          ANVIL_DEPLOYER_ADDRESS,
+        );
+
+        const send = await hyperlaneWarpSendRelay({
+          origin,
+          destination,
+          warpRouteId: routeId,
+          relay: false,
+          value: 2,
+          quick: true,
+        });
+        expect(send.exitCode).to.equal(0);
+
+        const mailbox = Mailbox__factory.connect(
+          mailboxes[origin],
+          multiProvider.getProvider(origin),
+        );
+        const dispatched = await mailbox.queryFilter(
+          mailbox.filters.Dispatch(
+            getDeployedWarpAddress(origin, warpCorePath),
+          ),
+        );
+        expect(dispatched).to.have.length(1);
+        const dispatchTx = dispatched[0].transactionHash;
+        const publications = await readPublications(
+          multiProvider,
+          origin,
+          dispatchTx,
+          wormholeMocks[origin].core,
+        );
+        expect(publications).to.have.length(1);
+        const [publication] = publications;
+        signPublicationVaa(signedVaas, {
+          wormholeChainId: wormholeMocks[origin].wormholeChainId,
+          router: routers[origin].wormhole,
+          publication,
+        });
+
+        const relayed = await hyperlaneStatus({
+          origin,
+          dispatchTx,
+          relay: true,
+          key: ANVIL_KEY,
+        }).nothrow();
+        expect(
+          relayed.exitCode,
+          `self-relay failed:\n${relayed.stdout}\n${relayed.stderr}`,
+        ).to.equal(0);
+
+        const balanceAfter = await syntheticToken.balanceOf(
+          ANVIL_DEPLOYER_ADDRESS,
+        );
+        expect(balanceAfter.sub(balanceBefore).toString()).to.equal('2');
+        expect(upstream.requestCount()).to.be.greaterThan(0);
+      } finally {
+        await service.close();
+      }
+    } finally {
+      await upstream.close();
     }
   });
 });
