@@ -1309,6 +1309,7 @@ const MetadataPoolObserver = struct {
     upstream_failures: std.atomic.Value(usize) = .init(0),
     request_failures: std.atomic.Value(usize) = .init(0),
     attempt_timeouts: std.atomic.Value(usize) = .init(0),
+    trace: ?*NativeMetadataTrace = null,
 
     fn interface(self: *MetadataPoolObserver) @import("evm/pool.zig").Observer {
         return .{ .context = self, .event_fn = record };
@@ -1316,6 +1317,7 @@ const MetadataPoolObserver = struct {
 
     fn record(context: *anyopaque, event: @import("evm/pool.zig").Event) void {
         const self: *MetadataPoolObserver = @ptrCast(@alignCast(context));
+        if (self.trace) |trace| trace.record(event);
         switch (event.kind) {
             .upstream_completed => {
                 if (!event.success and !event.cancelled) _ = self.upstream_failures.fetchAdd(1, .acq_rel);
@@ -1718,15 +1720,83 @@ test "early threshold discards uncancellable leaf completion without a terminal 
 
 // Test-only response barriers. All backpressure is produced by the real shared
 // Pool's four occupied sessions, never by an injected PendingReadIo/error.
+const NativeMetadataTrace = struct {
+    const Row = struct {
+        id: u64 = 0,
+        started: bool = false,
+        succeeded: bool = false,
+        failed: bool = false,
+        upstream_success: u16 = 0,
+        upstream_failure: u16 = 0,
+        upstream_cancelled: u16 = 0,
+    };
+    const Snapshot = struct { row: Row = .{}, found: bool = false, overflow: bool = false };
+    mutex: std.Thread.Mutex = .{},
+    rows: [64]Row = @splat(.{}),
+    used: usize = 0,
+    overflow: bool = false,
+
+    fn record(self: *NativeMetadataTrace, event: @import("evm/pool.zig").Event) void {
+        switch (event.kind) {
+            .request_started, .request_succeeded, .request_failed, .upstream_completed => {},
+            else => return,
+        }
+        // Zero identifies observations not associated with an admitted session.
+        if (event.session_id == 0) return;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        const row = for (self.rows[0..self.used]) |*candidate| {
+            if (candidate.id == event.session_id) break candidate;
+        } else fresh: {
+            if (self.used == self.rows.len) {
+                self.overflow = true;
+                return;
+            }
+            const entry = &self.rows[self.used];
+            self.used += 1;
+            entry.id = event.session_id;
+            break :fresh entry;
+        };
+        switch (event.kind) {
+            .request_started => row.started = true,
+            .request_succeeded => row.succeeded = true,
+            .request_failed => row.failed = true,
+            .upstream_completed => {
+                const endpoint = event.endpoint_index orelse {
+                    self.overflow = true;
+                    return;
+                };
+                if (endpoint >= 16) {
+                    self.overflow = true;
+                    return;
+                }
+                const bit = @as(u16, 1) << @as(u4, @intCast(endpoint));
+                if (event.cancelled) row.upstream_cancelled |= bit else if (event.success) row.upstream_success |= bit else row.upstream_failure |= bit;
+            },
+            else => unreachable,
+        }
+    }
+
+    fn snapshot(self: *NativeMetadataTrace, id: u64) Snapshot {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        for (self.rows[0..self.used]) |row| {
+            if (row.id == id) return .{ .row = row, .found = true, .overflow = self.overflow };
+        }
+        return .{ .overflow = self.overflow };
+    }
+};
+
 const NativeMetadataSchedule = struct {
     const Phase = enum { collect_verify, gas_boundary, release_selected_gas };
     const Kind = enum { other, root_module_type, root_members, module_type, verify, gas };
     const Call = struct { kind: Kind, member: ?usize = null };
     const Held = struct { stream: std.net.Stream, response: []u8, call: Call };
-    const Slot = struct { kind: Kind = .other, member: ?usize = null, closed: bool = false, taken: bool = false };
+    const Slot = struct { id: u64 = 0, kind: Kind = .other, member: ?usize = null, finished: bool = false, closed: bool = false, taken: bool = false };
     const Slots = struct { total: usize = 0, module_type: usize = 0, verify: usize = 0, gas: usize = 0, other: usize = 0, rows: [4]Slot = @splat(.{}) };
 
     runtime: *Pool,
+    trace: ?*NativeMetadataTrace = null,
     timer: ?std.time.Timer = null,
     abort: std.atomic.Value(bool) = .init(false),
     phase: Phase = .collect_verify,
@@ -1837,7 +1907,11 @@ const NativeMetadataSchedule = struct {
         for (self.runtime.sessions) |entry| if (entry) |session| {
             if (result.total == result.rows.len) return error.FixtureUnexpectedPoolSize;
             const request = try call(session.original.body);
-            result.rows[result.total] = .{ .kind = request.kind, .member = request.member, .closed = session.closed.load(.acquire), .taken = session.taken.load(.acquire) };
+            // Same Pool -> Session lock order as Pool.poll; no trace lock here.
+            session.mutex.lock();
+            const finished = session.finished;
+            session.mutex.unlock();
+            result.rows[result.total] = .{ .id = session.id, .kind = request.kind, .member = request.member, .finished = finished, .closed = session.closed.load(.acquire), .taken = session.taken.load(.acquire) };
             result.total += 1;
             switch (request.kind) {
                 .module_type => {
@@ -1936,7 +2010,12 @@ const NativeMetadataSchedule = struct {
         std.debug.print("NATIVE_METADATA_SCHEDULE_FAILURE phase={s} error={s} slots={d} module_type={d} module_replies={d} verify_replies={d} gas_replies={d} verify={d} gas={d} held={d} peak={d} verify_groups={d} gas_groups={d} pressure_checks={d} cached_members={d}\n", .{ @tagName(self.phase), @errorName(err), self.last_slots.total, self.last_slots.module_type, replies[0], replies[1], replies[2], self.last_slots.verify, self.last_slots.gas, self.held_count, self.held_peak, @popCount(self.initial_verify_mask), @popCount(self.gas_mask), self.real_pressure_refusals, @popCount(self.cached_gas_members) });
         for (self.last_slots.rows[0..self.last_slots.total], 0..) |row, index| {
             const counts: [3]?usize = if (row.member) |member| .{ self.module_responses[member], self.verify_responses[member], self.gas_responses[member] } else @splat(null);
-            std.debug.print("NATIVE_METADATA_SCHEDULE_SLOT index={d} kind={s} member={?d} closed={} taken={} module_replies={?d} verify_replies={?d} gas_replies={?d}\n", .{ index, @tagName(row.kind), row.member, row.closed, row.taken, counts[0], counts[1], counts[2] });
+            std.debug.print("NATIVE_METADATA_SCHEDULE_SLOT index={d} id={d} kind={s} member={?d} finished={} closed={} taken={} module_replies={?d} verify_replies={?d} gas_replies={?d}\n", .{ index, row.id, @tagName(row.kind), row.member, row.finished, row.closed, row.taken, counts[0], counts[1], counts[2] });
+            // Pool/Session snapshot locks have been released before trace lookup.
+            if (self.trace) |trace| {
+                const observed = trace.snapshot(row.id);
+                std.debug.print("NATIVE_METADATA_SCHEDULE_TRACE id={d} found={} overflow={} started={} succeeded={} failed={} upstream_success={x} upstream_failure={x} upstream_cancelled={x}\n", .{ row.id, observed.found, observed.overflow, observed.row.started, observed.row.succeeded, observed.row.failed, observed.row.upstream_success, observed.row.upstream_failure, observed.row.upstream_cancelled });
+            }
         }
     }
 };
@@ -1991,7 +2070,8 @@ test "native shared Pool preserves cached verification across deterministic four
         url.* = owned.*;
     }
     defer for (&owned_urls) |url| allocator.free(url);
-    var observer: MetadataPoolObserver = .{};
+    var trace: NativeMetadataTrace = .{};
+    var observer: MetadataPoolObserver = .{ .trace = &trace };
     const runtime = try Pool.start(allocator, .{
         .library_path = library,
         .observer = observer.interface(),
@@ -2006,7 +2086,7 @@ test "native shared Pool preserves cached verification across deterministic four
     });
     var runtime_live = true;
     defer if (runtime_live) runtime.deinit();
-    var schedule: NativeMetadataSchedule = .{ .runtime = runtime };
+    var schedule: NativeMetadataSchedule = .{ .runtime = runtime, .trace = &trace };
     server.schedule = &schedule;
     try server.start();
     server_live = true;
