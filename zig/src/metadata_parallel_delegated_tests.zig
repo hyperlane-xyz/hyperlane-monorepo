@@ -35,6 +35,8 @@ const Fixture = struct {
     message_id_index: ?usize = null,
     pending_from: ?usize = null,
     awaiting_message_id: bool = false,
+    gate_nested_fallback: bool = false,
+    awaiting_leaf_entries: std.atomic.Value(usize) = .init(0),
     signed: ?objects.SignedCheckpoint = null,
     validator: Address = @splat(1),
     validator_count: usize = 1,
@@ -190,6 +192,7 @@ const Source = struct {
     pub fn verifyCandidate(self: *Source, address: Address, _: protocol.Message, _: []const u8) !metadata.Verification {
         if (self.cancel.load(.acquire)) return error.RequestCancelled;
         const index: usize = address[19] - 1;
+        if (self.fixture.gate_nested_fallback and index == 33 and self.fixture.awaiting_leaf_entries.load(.acquire) < 2) return error.PendingReadIo;
         if (self.fixture.pending_verify_index == index and self.fixture.verify_calls.fetchAdd(1, .acq_rel) < self.fixture.pending_verify_passes) return error.PendingReadIo;
         if (self.fixture.pending_verify and !self.fixture.verify_ready[index].swap(true, .acq_rel)) return error.PendingReadIo;
         if (self.fixture.invalid_verify == index) return .{ .valid = false };
@@ -216,7 +219,10 @@ const Source = struct {
     }
 
     pub fn leafIndex(self: *Source, _: [32]u8) !?u32 {
-        if (self.fixture.awaiting_message_id) return error.AwaitingValidatorSignatures;
+        if (self.fixture.awaiting_message_id) {
+            if (self.fixture.gate_nested_fallback) _ = self.fixture.awaiting_leaf_entries.fetchAdd(1, .acq_rel);
+            return error.AwaitingValidatorSignatures;
+        }
         return 0;
     }
 
@@ -957,6 +963,7 @@ test "nested fast path fallback counts a fresh build rather than a replay" {
         .nested_threshold = 1,
         .message_id_index = 32,
         .awaiting_message_id = true,
+        .gate_nested_fallback = true,
     };
     var cancel = std.atomic.Value(bool).init(false);
     var source: Source = .{ .allocator = allocator, .fixture = &fixture, .cancel = &cancel };
@@ -964,6 +971,7 @@ test "nested fast path fallback counts a fresh build rather than a replay" {
     const encoded = try builder.build(@splat(0), message());
     defer allocator.free(encoded);
     try std.testing.expectEqual(@as(usize, 5), builder.visited);
+    try std.testing.expectEqual(@as(usize, 2), fixture.awaiting_leaf_entries.load(.acquire));
     try drain(root, &fixture);
 }
 
