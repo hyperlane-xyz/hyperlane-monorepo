@@ -9,6 +9,7 @@ import {
   DenylistLoadError,
   DenylistLoadFailure,
   findDenyReason,
+  findMessageIdDenyReason,
   parseDenylistAddress,
   parseDenylistFile,
   parseRfc3339,
@@ -1077,5 +1078,143 @@ describe('relayerDenylistRules', () => {
       expect(performance.now() - start).to.be.lessThan(1000);
       expect(reason).to.equal(undefined);
     });
+  });
+
+  describe('findMessageIdDenyReason', () => {
+    interface MessageIdCase {
+      name: string;
+      rule: Record<string, unknown>;
+      messageId: string;
+      denied: boolean;
+    }
+    const cases: MessageIdCase[] = [
+      {
+        name: 'messageId rule matches its message',
+        rule: { match: { messageId: MESSAGE_ID } },
+        messageId: MESSAGE_ID,
+        denied: true,
+      },
+      {
+        name: 'messageId rule matches an uppercase id',
+        rule: { match: { messageId: MESSAGE_ID } },
+        messageId: MESSAGE_ID.toUpperCase().replace('0X', '0x'),
+        denied: true,
+      },
+      {
+        name: 'uppercase messageId rule matches a lowercase id',
+        rule: {
+          match: { messageId: MESSAGE_ID.toUpperCase().replace('0X', '0x') },
+        },
+        messageId: MESSAGE_ID,
+        denied: true,
+      },
+      {
+        name: 'messageId rule ignores other messages',
+        rule: { match: { messageId: MESSAGE_ID } },
+        messageId: OTHER_MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'unexpired messageId rule matches',
+        rule: {
+          expiresAt: '2026-11-05T00:00:00Z',
+          match: { messageId: MESSAGE_ID },
+        },
+        messageId: MESSAGE_ID,
+        denied: true,
+      },
+      {
+        name: 'expired messageId rule does not match',
+        rule: {
+          expiresAt: '2026-11-03T00:00:00Z',
+          match: { messageId: MESSAGE_ID },
+        },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'messageId rule with an originDomain does not apply',
+        rule: { match: { messageId: MESSAGE_ID, originDomain: 42161 } },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'messageId rule with a senderAddress does not apply',
+        rule: {
+          match: { messageId: MESSAGE_ID, senderAddress: ORIGIN_ROUTER },
+        },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'messageId rule with a destinationDomain does not apply',
+        rule: { match: { messageId: MESSAGE_ID, destinationDomain: 1 } },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'messageId rule with a recipientAddress does not apply',
+        rule: {
+          match: {
+            messageId: MESSAGE_ID,
+            recipientAddress: DESTINATION_ROUTER,
+          },
+        },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'messageId rule with a bodyRegex does not apply',
+        rule: { match: { messageId: MESSAGE_ID, bodyRegex: '.*' } },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'destinationDomain rule does not apply',
+        rule: { match: { destinationDomain: 1 } },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'route rule does not apply',
+        rule: {
+          match: {
+            originDomain: 42161,
+            senderAddress: ORIGIN_ROUTER,
+            destinationDomain: 1,
+            recipientAddress: DESTINATION_ROUTER,
+          },
+        },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+      {
+        name: 'address rule does not apply',
+        rule: { address: MESSAGE_ID },
+        messageId: MESSAGE_ID,
+        denied: false,
+      },
+    ];
+    for (const c of cases) {
+      it(c.name, () => {
+        const rules = parseDenylistFile(
+          rulesFile([
+            {
+              reason: BASE_RULE.reason,
+              addedBy: BASE_RULE.addedBy,
+              expiresAt: c.rule.expiresAt,
+              match: c.rule.match,
+              address: c.rule.address,
+            },
+          ]),
+        );
+
+        const reason = findMessageIdDenyReason(rules, c.messageId, NOW);
+
+        expect(reason).to.equal(
+          c.denied ? 'test (added by tester)' : undefined,
+        );
+      });
+    }
   });
 });

@@ -125,7 +125,10 @@ describe('buildPendingTransferMiddlewares', () => {
       expect(isIgnoredTransfer(ID_B)).to.be.true;
       expect(isIgnoredTransfer(ID_C)).to.be.false;
 
-      expect(rebalanceActions.map((msg) => msg.msg_id)).to.deep.equal([ID_C]);
+      expect(rebalanceActions.map((msg) => msg.msg_id)).to.deep.equal([
+        ID_B,
+        ID_C,
+      ]);
       assert(
         isIgnoredRebalanceAction,
         'Expected an ignored-rebalance-action predicate',

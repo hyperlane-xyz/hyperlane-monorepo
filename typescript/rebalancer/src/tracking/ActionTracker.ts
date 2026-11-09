@@ -37,7 +37,7 @@ export const TRANSFER_SYNC_ROW_LIMIT_MESSAGE =
 export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   isIgnoredTransfer?: (messageId: string) => boolean; // True when a pending-transfer middleware ignored the message on the latest Explorer query
-  isIgnoredRebalanceAction?: (messageId: string) => boolean; // Same, for the latest rebalance action query
+  isIgnoredRebalanceAction?: (messageId: string) => boolean; // True when a pending-transfer middleware ignores the rebalance message
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
@@ -92,6 +92,7 @@ export class ActionTracker implements IActionTracker {
 
     // 2. For each message, create synthetic intent + action
     for (const msg of inflightMessages) {
+      if (this.isIgnoredRebalanceMessage(msg)) continue;
       await this.recoverAction(msg);
     }
 
@@ -297,6 +298,8 @@ export class ActionTracker implements IActionTracker {
 
     let discoveredActions = 0;
     let completedActions = 0;
+    let ignoredActions = 0;
+    let ignoredInProgressActions = 0;
 
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
@@ -318,8 +321,11 @@ export class ActionTracker implements IActionTracker {
 
     for (const msg of inflightMessages) {
       const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
+      if (existingAction) continue;
 
-      if (!existingAction) {
+      if (this.isIgnoredRebalanceMessage(msg)) {
+        ignoredActions++;
+      } else {
         this.logger.info(
           {
             msgId: msg.msg_id,
@@ -358,6 +364,11 @@ export class ActionTracker implements IActionTracker {
         await this.completeRebalanceAction(action.id);
         completedActions++;
         this.logger.debug({ id: action.id }, 'RebalanceAction completed');
+      } else if (
+        action.type === 'rebalance_message' &&
+        this.config.isIgnoredRebalanceAction?.(action.messageId)
+      ) {
+        ignoredInProgressActions++;
       }
     }
 
@@ -368,6 +379,8 @@ export class ActionTracker implements IActionTracker {
       {
         discovered: discoveredActions,
         completed: completedActions,
+        ignored: ignoredActions,
+        ignoredInProgress: ignoredInProgressActions,
         inProgress: inProgressCount,
       },
       'Actions synced',
@@ -406,6 +419,8 @@ export class ActionTracker implements IActionTracker {
     const isIgnored = this.config.isIgnoredRebalanceAction;
     if (!isIgnored) return intents;
 
+    // A movable-collateral intent has one message action: the Rebalancer
+    // creates one per route and recoverAction one per message.
     const actions = await this.rebalanceActionStore.getByStatus('in_progress');
     const ignoredIntentIds = new Set<string>();
     const countedIntentIds = new Set<string>();
@@ -977,6 +992,20 @@ export class ActionTracker implements IActionTracker {
       );
       return false;
     }
+  }
+
+  private isIgnoredRebalanceMessage(msg: ExplorerMessage): boolean {
+    if (!this.config.isIgnoredRebalanceAction?.(msg.msg_id)) return false;
+
+    this.logger.debug(
+      {
+        msgId: msg.msg_id,
+        origin: msg.origin_domain_id,
+        destination: msg.destination_domain_id,
+      },
+      'Not recovering ignored rebalance message',
+    );
+    return true;
   }
 
   private async recoverAction(msg: ExplorerMessage): Promise<void> {

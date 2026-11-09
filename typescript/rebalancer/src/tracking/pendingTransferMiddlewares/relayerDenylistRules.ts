@@ -909,3 +909,26 @@ export function findDenyReason(
           bodyContainsAddress(msg.message_body, rule.bodyAddress))),
   )?.reason;
 }
+
+/**
+ * Returns the reason of the first active `match` rule that sets only
+ * `messageId` and lists the message. Other rules are ignored.
+ */
+export function findMessageIdDenyReason(
+  rules: DenylistRules,
+  messageId: string,
+  nowMs: number,
+): string | undefined {
+  const id = normalizeMessageId(messageId);
+
+  return rules.matchRules.find(
+    (rule) =>
+      !isExpired(rule.expiresAt, nowMs) &&
+      rule.messageIds?.has(id) &&
+      rule.originDomains === undefined &&
+      rule.senders === undefined &&
+      rule.destinationDomains === undefined &&
+      rule.recipients === undefined &&
+      rule.bodyRegex === undefined,
+  )?.reason;
+}

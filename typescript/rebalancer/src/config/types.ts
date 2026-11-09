@@ -176,7 +176,7 @@ const RelayerDenylistMiddlewareConfigSchema = z
       .describe('Seconds between denylist re-fetches.'),
   })
   .describe(
-    'Ignores messages the relayer runtime denylist blocks. Startup retries a failed fetch twice and fails if every attempt fails or the file is invalid.',
+    'Ignores messages the relayer runtime denylist blocks. Startup retries a failed fetch twice and fails if every attempt fails or the file is invalid. Only messageId-only rules apply to rebalance messages: deny one only after its funds settled another way, since a denied rebalance stops counting as incoming collateral until its rule is removed or expires.',
   );
 
 const BlacklistIsmMiddlewareConfigSchema = z

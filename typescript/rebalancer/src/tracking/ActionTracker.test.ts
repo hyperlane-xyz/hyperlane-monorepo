@@ -765,15 +765,17 @@ describe('ActionTracker', () => {
       rmSync(dir, { recursive: true, force: true });
     });
 
-    function writeDenylist(messageIds: string[]): void {
+    function writeDenylist(
+      messageIds: string[],
+      matches: Record<string, unknown>[] = [],
+    ): void {
       writeFileSync(
         denylistPath,
         JSON.stringify({
-          rules: messageIds.map((messageId) => ({
-            reason: 'settled',
-            addedBy: 'tester',
-            match: { messageId },
-          })),
+          rules: [
+            ...messageIds.map((messageId) => ({ messageId })),
+            ...matches,
+          ].map((match) => ({ reason: 'settled', addedBy: 'tester', match })),
         }),
       );
     }
@@ -910,6 +912,46 @@ describe('ActionTracker', () => {
       expect(
         (await rebalanceIntentStore.get('expired-intent'))?.status,
       ).to.equal('failed');
+    });
+
+    it('keeps ignoring a denylisted rebalance message pushed off the Explorer page', async () => {
+      const tracker = await createDenylistTracker();
+      await tracker.initialize();
+      writeDenylist([ID_A]);
+      await tracker.syncRebalanceActions();
+      expect(await activeIntentMessageIds(tracker)).to.not.include(ID_A);
+
+      const newerIds = Array.from(
+        { length: 100 },
+        (_, i) => `0x${(i + 1).toString(16).padStart(64, '0')}`,
+      );
+      explorerClient.getInflightRebalanceActions.resolves(
+        newerIds.map((id) => buildMessage(id)),
+      );
+      await tracker.syncRebalanceActions();
+
+      const countedIds = await activeIntentMessageIds(tracker);
+      expect(countedIds).to.not.include(ID_A);
+      expect(countedIds).to.include.members([ID_B, ID_C, ...newerIds]);
+
+      writeDenylist([]);
+      await tracker.syncRebalanceActions();
+
+      expect(await activeIntentMessageIds(tracker)).to.include(ID_A);
+    });
+
+    it('keeps recovering and counting rebalance messages a broad rule denies', async () => {
+      writeDenylist([], [{ destinationDomain: 1 }, { originDomain: 42161 }]);
+      const tracker = await createDenylistTracker();
+
+      await tracker.initialize();
+      await tracker.syncRebalanceActions();
+
+      expect(await activeIntentMessageIds(tracker)).to.have.members([
+        ID_A,
+        ID_B,
+        ID_C,
+      ]);
     });
 
     it('counts a rebalance message again once its rule is removed', async () => {

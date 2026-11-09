@@ -8,6 +8,7 @@ import { PendingTransferMiddlewareType } from '../../config/types.js';
 import type {
   ExplorerMessage,
   IExplorerClient,
+  RebalanceActionQueryParams,
 } from '../../utils/ExplorerClient.js';
 
 import { PendingTransferMiddleware } from './PendingTransferMiddleware.js';
@@ -17,6 +18,7 @@ import {
   DenylistLoadFailure,
   type DenylistRules,
   findDenyReason,
+  findMessageIdDenyReason,
   parseDenylistFile,
 } from './relayerDenylistRules.js';
 import { normalizeMessageId } from './types.js';
@@ -271,11 +273,12 @@ async function loadInitialRules(
  * (rust/main/agents/relayer/src/msg/pending_message.rs and
  * runtime_denylist.rs).
  *
- * The rebalancer's own rebalance messages are checked too, so a denied one is
- * not counted as incoming collateral.
+ * Only `match` rules that set nothing but `messageId` apply to the
+ * rebalancer's own rebalance messages, which then stop counting as incoming
+ * collateral. Deny a rebalance message only once its funds settled another
+ * way; otherwise the rebalancer sends a replacement.
  */
 export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
-  protected override readonly ignoresRebalanceActions = true;
   private lastAttemptAt: number;
   private refreshing?: Promise<void>;
 
@@ -351,6 +354,22 @@ export class RelayerDenylistMiddleware extends PendingTransferMiddleware {
     }
 
     return ignored;
+  }
+
+  override isIgnoredRebalanceAction(messageId: string): boolean {
+    return (
+      findMessageIdDenyReason(this.rules, messageId, Date.now()) !==
+        undefined || super.isIgnoredRebalanceAction(messageId)
+    );
+  }
+
+  // Keeps the rules `isIgnoredRebalanceAction` reads fresh; rows pass through.
+  override async getInflightRebalanceActions(
+    params: RebalanceActionQueryParams,
+    logger: Logger,
+  ): Promise<ExplorerMessage[]> {
+    await this.refreshIfStale(logger);
+    return super.getInflightRebalanceActions(params, logger);
   }
 
   private refreshIfStale(logger: Logger): Promise<void> {

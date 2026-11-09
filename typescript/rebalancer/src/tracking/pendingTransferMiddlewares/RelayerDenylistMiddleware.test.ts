@@ -224,39 +224,82 @@ describe('RelayerDenylistMiddleware', () => {
     ).to.be.true;
   });
 
-  it('ignores the rebalance messages the rules deny apart from transfers', async () => {
-    writeDenylist(denylistFor([MESSAGE_ID]));
+  it('passes rebalance messages through and checks them against message-id rules only', async () => {
+    const unseenId = `0x${'ab'.repeat(32)}`;
+    writeDenylist(
+      JSON.stringify({
+        rules: [
+          {
+            reason: 'settled',
+            addedBy: 'tester',
+            match: { messageId: [MESSAGE_ID, unseenId] },
+          },
+          {
+            reason: 'paused',
+            addedBy: 'tester',
+            match: { destinationDomain: 1 },
+          },
+        ],
+      }),
+    );
     const middleware = await createMiddleware();
 
-    const kept = await middleware.getInflightRebalanceActions(
+    const rows = await middleware.getInflightRebalanceActions(
       REBALANCE_PARAMS,
       logger,
     );
 
-    expect(kept.map((msg) => msg.msg_id)).to.deep.equal([OTHER_MESSAGE_ID]);
+    expect(rows.map((msg) => msg.msg_id)).to.deep.equal([
+      MESSAGE_ID,
+      OTHER_MESSAGE_ID,
+    ]);
     expect(middleware.isIgnoredRebalanceAction(MESSAGE_ID)).to.be.true;
+    expect(middleware.isIgnoredRebalanceAction(unseenId)).to.be.true;
+    expect(middleware.isIgnoredRebalanceAction(OTHER_MESSAGE_ID)).to.be.false;
     expect(middleware.isIgnored(MESSAGE_ID)).to.be.false;
   });
 
-  it('starts and stops ignoring a rebalance message as refreshes add and remove its rule', async () => {
+  it('starts and stops ignoring a rebalance message as rebalance queries refresh its rule', async () => {
     writeDenylist(denylistFor([]));
     const middleware = await createMiddleware();
-    const keptIds = async (): Promise<string[]> =>
+    const rowIds = async (): Promise<string[]> =>
       (
         await middleware.getInflightRebalanceActions(REBALANCE_PARAMS, logger)
       ).map((msg) => msg.msg_id);
 
-    expect(await keptIds()).to.deep.equal([MESSAGE_ID, OTHER_MESSAGE_ID]);
+    expect(middleware.isIgnoredRebalanceAction(OTHER_MESSAGE_ID)).to.be.false;
 
     writeDenylist(denylistFor([OTHER_MESSAGE_ID]));
     clock.tick(REFRESH_INTERVAL_MS);
-    expect(await keptIds()).to.deep.equal([MESSAGE_ID]);
+    expect(await rowIds()).to.deep.equal([MESSAGE_ID, OTHER_MESSAGE_ID]);
     expect(middleware.isIgnoredRebalanceAction(OTHER_MESSAGE_ID)).to.be.true;
 
     writeDenylist(denylistFor([]));
     clock.tick(REFRESH_INTERVAL_MS);
-    expect(await keptIds()).to.deep.equal([MESSAGE_ID, OTHER_MESSAGE_ID]);
+    expect(await rowIds()).to.deep.equal([MESSAGE_ID, OTHER_MESSAGE_ID]);
     expect(middleware.isIgnoredRebalanceAction(OTHER_MESSAGE_ID)).to.be.false;
+  });
+
+  it('stops ignoring a rebalance message once its rule expires', async () => {
+    writeDenylist(
+      JSON.stringify({
+        rules: [
+          {
+            reason: 'settled',
+            addedBy: 'tester',
+            expiresAt: '2026-11-04T00:00:01Z',
+            match: { messageId: MESSAGE_ID },
+          },
+        ],
+      }),
+    );
+    const middleware = await createMiddleware();
+
+    expect(middleware.isIgnoredRebalanceAction(MESSAGE_ID)).to.be.true;
+
+    clock.tick(1_000);
+
+    expect(middleware.isIgnoredRebalanceAction(MESSAGE_ID)).to.be.false;
   });
 
   it('loads the denylist over https', async () => {
@@ -392,7 +435,7 @@ describe('RelayerDenylistMiddleware', () => {
     const middleware = await createMiddleware(URL_WITH_TOKEN);
     clock.tick(REFRESH_INTERVAL_MS);
 
-    const [transfers, rebalanceActions] = await Promise.all([
+    const [transfers] = await Promise.all([
       middleware.getInflightUserTransfers(PARAMS, logger),
       middleware.getInflightRebalanceActions(REBALANCE_PARAMS, logger),
     ]);
@@ -400,9 +443,7 @@ describe('RelayerDenylistMiddleware', () => {
     expect(transfers.map((msg) => msg.msg_id)).to.deep.equal([
       OTHER_MESSAGE_ID,
     ]);
-    expect(rebalanceActions.map((msg) => msg.msg_id)).to.deep.equal([
-      OTHER_MESSAGE_ID,
-    ]);
+    expect(middleware.isIgnoredRebalanceAction(MESSAGE_ID)).to.be.true;
     expect(fetchStub.callCount).to.equal(2);
   });
 
