@@ -4,7 +4,10 @@ import { z } from 'zod';
 
 import { assert, eqAddress, isAddressEvm } from '@hyperlane-xyz/utils';
 
-import type { ChainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  EthJsonRpcBlockParameterTag,
+  type ChainMetadata,
+} from '@hyperlane-xyz/sdk';
 import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
@@ -33,7 +36,13 @@ export interface OftSettlementRef {
 }
 
 export type OftSettlementStatus =
-  | { status: 'pending'; substatus?: string; ref?: OftSettlementRef }
+  | {
+      status: 'pending';
+      substatus?: string;
+      ref?: OftSettlementRef;
+      /** A solid receipt is reflected in balances but still awaits configured depth. */
+      balanceMayIncludePendingSettlement?: boolean;
+    }
   | { status: 'complete'; receivingTxHash: string; ref: OftSettlementRef };
 
 export interface OftDestinationContext {
@@ -309,9 +318,9 @@ export class OftSettlementVerifier {
     } catch (error) {
       this.logger.warn(
         { guid, originTxHash: data.originTxHash, error },
-        'LayerZero Scan lookup failed; treating settlement as pending',
+        'LayerZero Scan lookup failed; settlement verification unavailable',
       );
-      return { status: 'pending', ref: this.refreshRef(ref, data, now) };
+      throw error;
     }
 
     const messages = response.data ?? response.messages ?? [];
@@ -399,15 +408,25 @@ export class OftSettlementVerifier {
       composeSatisfied &&
       receivingTxHash
     ) {
-      if (
-        await this.verifyDestinationReceipt(receivingTxHash, data, message, ctx)
-      ) {
+      const proof = await this.verifyDestinationReceipt(
+        receivingTxHash,
+        data,
+        message,
+        ctx,
+      );
+      if (proof.verified) {
         return { status: 'complete', receivingTxHash, ref: refreshed };
+      }
+      if (proof.balanceMayIncludePendingSettlement) {
+        refreshed.data.balanceMayIncludePendingSettlement = true;
       }
       return {
         status: 'pending',
         substatus: 'DESTINATION_RECEIPT_UNVERIFIED',
         ref: refreshed,
+        ...(refreshed.data.balanceMayIncludePendingSettlement === true
+          ? { balanceMayIncludePendingSettlement: true }
+          : {}),
       };
     }
 
@@ -426,7 +445,10 @@ export class OftSettlementVerifier {
     data: LzScanRefData,
     message: LayerZeroMessage,
     ctx: OftDestinationContext,
-  ): Promise<boolean> {
+  ): Promise<{
+    verified: boolean;
+    balanceMayIncludePendingSettlement?: boolean;
+  }> {
     if (
       !data.guid ||
       data.sourceEid === undefined ||
@@ -434,7 +456,7 @@ export class OftSettlementVerifier {
       !data.destinationRecipient ||
       !data.amountReceivedLD
     ) {
-      return false;
+      return { verified: false };
     }
     const {
       guid,
@@ -449,22 +471,21 @@ export class OftSettlementVerifier {
       const receipt = await provider.getTransactionReceipt(
         normalizeTxHash(receivingTxHash),
       );
-      if (!receipt || receipt.status !== 1) return false;
+      if (!receipt || receipt.status !== 1) return { verified: false };
       if (
         provider instanceof TronJsonRpcProvider &&
         receipt.blockNumber > (await provider.getFinalizedBlockNumber())
       )
-        return false;
+        return { verified: false };
 
       const blocks = ctx.blocks;
       const minimumConfirmations = blocks?.confirmations ?? 1;
-      if (receipt.confirmations < minimumConfirmations) return false;
 
       if (
         typeof ctx.blockTag === 'number' &&
         receipt.blockNumber > ctx.blockTag
       ) {
-        return false;
+        return { verified: false };
       }
 
       const reorgPeriod = blocks?.reorgPeriod;
@@ -477,15 +498,8 @@ export class OftSettlementVerifier {
       if (finalityTag && !(provider instanceof TronJsonRpcProvider)) {
         const confirmedBlock = await provider.getBlock(finalityTag);
         if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number) {
-          return false;
+          return { verified: false };
         }
-      }
-
-      if (
-        typeof reorgPeriod === 'number' &&
-        receipt.confirmations < reorgPeriod
-      ) {
-        return false;
       }
 
       const matchingEvents = receipt.logs.filter((log) => {
@@ -508,13 +522,26 @@ export class OftSettlementVerifier {
           return false;
         }
       });
-      return matchingEvents.length === 1;
+      if (matchingEvents.length !== 1) return { verified: false };
+      const requiredConfirmations = Math.max(
+        minimumConfirmations,
+        typeof reorgPeriod === 'number' ? reorgPeriod : 1,
+      );
+      if (receipt.confirmations < requiredConfirmations) {
+        return {
+          verified: false,
+          balanceMayIncludePendingSettlement:
+            provider instanceof TronJsonRpcProvider &&
+            ctx.blockTag === EthJsonRpcBlockParameterTag.Finalized,
+        };
+      }
+      return { verified: true };
     } catch (error) {
       this.logger.warn(
         { receivingTxHash, destination: data.destination, error },
         'Failed to verify LayerZero destination receipt',
       );
-      return false;
+      throw error;
     }
   }
 

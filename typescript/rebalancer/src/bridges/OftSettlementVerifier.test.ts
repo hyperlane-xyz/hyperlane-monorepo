@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { ethers, type providers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
@@ -12,6 +13,8 @@ import {
   type OftDestinationContext,
   type OftSettlementRef,
 } from './OftSettlementVerifier.js';
+
+chai.use(chaiAsPromised);
 
 const logger = pino({ level: 'silent' });
 const GUID = `0x${'11'.repeat(32)}`;
@@ -309,14 +312,14 @@ describe('OftSettlementVerifier', () => {
     expect((await adapter.pollStatus(ref, context)).status).to.equal('pending');
   });
 
-  it('keeps settlement pending when the destination receipt provider times out', async () => {
+  it('reports incomplete verification when the destination receipt provider times out', async () => {
     stubResponse({ data: [createMessage()] });
     const context = createPollContext(null, {
       receiptError: new Error('provider timeout'),
     });
-    expect(
-      (await createAdapter().pollStatus(createRef(), context)).status,
-    ).to.equal('pending');
+    await expect(
+      createAdapter().pollStatus(createRef(), context),
+    ).to.be.rejectedWith('provider timeout');
   });
 
   it('rejects OFTSent events not bound to the configured route', async () => {
@@ -369,8 +372,8 @@ describe('OftSettlementVerifier', () => {
     provider.getFinalizedBlockNumber.rejects(
       new Error('solid head unavailable'),
     );
-    expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
-      'pending',
+    await expect(verifier.pollStatus(createRef(), ctx)).to.be.rejectedWith(
+      'solid head unavailable',
     );
     provider.getFinalizedBlockNumber.resolves(100);
     expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
@@ -381,6 +384,58 @@ describe('OftSettlementVerifier', () => {
     );
     expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
       'pending',
+    );
+  });
+
+  it('marks a proven solid receipt as balance-visible while configured depth remains pending', async () => {
+    const provider = Sinon.createStubInstance(TronJsonRpcProvider);
+    provider.getFinalizedBlockNumber.resolves(100);
+    provider.getTransactionReceipt.resolves(
+      createDestinationReceipt({ confirmations: 19 }),
+    );
+    stubResponse({ data: [createMessage()] });
+    const ctx: OftDestinationContext = {
+      provider,
+      blockTag: EthJsonRpcBlockParameterTag.Finalized,
+      blocks: { confirmations: 1, reorgPeriod: 20 },
+    };
+    const verifier = createAdapter();
+    const pending = await verifier.pollStatus(createRef(), ctx);
+    expect(pending).to.include({
+      status: 'pending',
+      balanceMayIncludePendingSettlement: true,
+    });
+    expect(pending.ref?.data.balanceMayIncludePendingSettlement).to.equal(true);
+    provider.getTransactionReceipt.resolves(
+      createDestinationReceipt({ confirmations: 20 }),
+    );
+    expect(
+      (await verifier.pollStatus(pending.ref ?? createRef(), ctx)).status,
+    ).to.equal('complete');
+  });
+
+  it('does not mark an unsolid or mismatched receipt as reflected in finalized balances', async () => {
+    const provider = Sinon.createStubInstance(TronJsonRpcProvider);
+    provider.getFinalizedBlockNumber.resolves(99);
+    provider.getTransactionReceipt.resolves(
+      createDestinationReceipt({ confirmations: 19 }),
+    );
+    stubResponse({ data: [createMessage()] });
+    const ctx: OftDestinationContext = {
+      provider,
+      blockTag: EthJsonRpcBlockParameterTag.Finalized,
+      blocks: { confirmations: 1, reorgPeriod: 20 },
+    };
+    const verifier = createAdapter();
+    expect(await verifier.pollStatus(createRef(), ctx)).not.to.have.property(
+      'balanceMayIncludePendingSettlement',
+    );
+    provider.getFinalizedBlockNumber.resolves(100);
+    provider.getTransactionReceipt.resolves(
+      createDestinationReceipt({ guid: OTHER_GUID, confirmations: 19 }),
+    );
+    expect(await verifier.pollStatus(createRef(), ctx)).not.to.have.property(
+      'balanceMayIncludePendingSettlement',
     );
   });
 
@@ -660,7 +715,7 @@ describe('OftSettlementVerifier', () => {
     });
   });
 
-  it('treats 404, malformed responses, and API outages as pending', async () => {
+  it('keeps 404 pending but reports malformed responses and API outages as incomplete', async () => {
     stubResponse({}, 404);
     expect(
       (await createAdapter().pollStatus(createRef(), createPollContext()))
@@ -669,17 +724,14 @@ describe('OftSettlementVerifier', () => {
 
     Sinon.restore();
     stubResponse({ data: [{ status: 'DELIVERED' }] });
-    expect(
-      (await createAdapter().pollStatus(createRef(), createPollContext()))
-        .status,
-    ).to.equal('pending');
+    await expect(createAdapter().pollStatus(createRef(), createPollContext()))
+      .to.be.rejected;
 
     Sinon.restore();
     Sinon.stub(globalThis, 'fetch').rejects(new Error('temporary outage'));
-    expect(
-      (await createAdapter().pollStatus(createRef(), createPollContext()))
-        .status,
-    ).to.equal('pending');
+    await expect(
+      createAdapter().pollStatus(createRef(), createPollContext()),
+    ).to.be.rejectedWith('temporary outage');
   });
 
   it('queries LayerZero Scan by exact GUID', async () => {
@@ -710,7 +762,7 @@ describe('OftSettlementVerifier', () => {
     expect(status.status).to.equal('complete');
   });
 
-  it('aborts timed-out API requests and remains pending', async () => {
+  it('aborts timed-out API requests and reports incomplete verification', async () => {
     const fetchStub = Sinon.stub(globalThis, 'fetch').callsFake(
       async (_input, init) =>
         new Promise<Response>((_resolve, reject) => {
@@ -720,15 +772,16 @@ describe('OftSettlementVerifier', () => {
         }),
     );
 
-    const status = await createAdapter({
-      requestTimeoutMs: 1,
-    }).pollStatus(createRef(), createPollContext());
-
+    await expect(
+      createAdapter({ requestTimeoutMs: 1 }).pollStatus(
+        createRef(),
+        createPollContext(),
+      ),
+    ).to.be.rejected;
     expect(fetchStub.calledOnce).to.equal(true);
-    expect(status.status).to.equal('pending');
   });
 
-  it('bounds stalled Scan response bodies that ignore abort and remains pending', async () => {
+  it('bounds stalled Scan response bodies and reports incomplete verification', async () => {
     const clock = Sinon.useFakeTimers();
     const fetchStub = Sinon.stub(globalThis, 'fetch').callsFake(
       async () => new Response(new ReadableStream()),
@@ -739,9 +792,9 @@ describe('OftSettlementVerifier', () => {
       retryDelayMs: 10,
     }).pollStatus(createRef(), createPollContext());
 
+    const rejected = expect(result).to.be.rejected;
     await clock.runAllAsync();
-
-    expect((await result).status).to.equal('pending');
+    await rejected;
     expect(fetchStub.callCount).to.equal(3);
     expect(clock.now).to.equal(330);
     for (const call of fetchStub.getCalls()) {
