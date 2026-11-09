@@ -535,12 +535,57 @@ class PreconfirmedObserverControls(unittest.TestCase):
             self.session.family._receipt(self.memory, self.name, self.identities[0], 8)
 
     def test_pending_deferral_rejects_malformed_block_metadata_instead_of_swallowing_errors(self):
-        mutations = [lambda row: row.pop("block_number"), lambda row: row.__setitem__("block_number", True), lambda row: row.__setitem__("block_number", -1), lambda row: row.__setitem__("block_number", 2 ** 64), lambda row: row.__setitem__("block_hash", "bad"), lambda row: row.__setitem__("block_hash", 0), lambda row: row.__setitem__("events", None)]
+        mutations = [lambda row: (row.pop("block_number"), row.__setitem__("block_hash", "0x123")), lambda row: row.__setitem__("block_number", True), lambda row: row.__setitem__("block_number", -1), lambda row: row.__setitem__("block_number", 2 ** 64), lambda row: row.__setitem__("block_hash", "bad"), lambda row: row.__setitem__("block_hash", 0), lambda row: row.__setitem__("events", None)]
         for mutate in mutations:
             with self.subTest(mutate=mutate):
                 bad = self.receipt()
                 bad.pop("block_hash")
                 mutate(bad)
+                self.session.failures.clear()
+                self.observe([bad])
+                self.assertTrue(self.session.failures)
+                self.assertEqual(self.session.lifecycle.first, {})
+                self.assertEqual(self.session.family.receipt_members, {})
+
+
+    def test_actual_session_legacy_pending_batch_defers_until_complete_without_poison_or_early_clock(self):
+        pending, mined = self.receipt(0), self.receipt(1)
+        pending.pop("block_number")
+        pending.pop("block_hash")
+        pending["type"] = "DECLARE"
+        self.observe([pending, mined], 100)
+        self.assertEqual(self.session.failures, [])
+        self.assertNotIn((self.name, self.identities[0]), self.session.family.receipt_members)
+        self.assertIn((self.name, self.identities[1]), self.session.family.receipt_members)
+        self.assertTrue(all(row["transaction_hash"] == self.identities[1] for row in self.session.lifecycle.first.values()))
+        complete = self.receipt(0)
+        self.observe([complete], 200)
+        self.assertEqual(self.session.failures, [])
+        self.assertIn((self.name, self.identities[0]), self.session.family.receipt_members)
+        ids = self.session.family._receipt_ids(self.session, complete, self.memory.chains[self.name])
+        self.assertTrue(all(self.session.lifecycle.first[self.name, item]["first_positive_monotonic_ns"] == 200 for item in ids))
+        self.assertEqual(self.sessions.OBSERVER_POLICY["retirement_observed_age_seconds"], [600, 630])
+        # Canonical independent collection still rejects a pending receipt.
+        self.memory.receipts[self.name, self.identities[0]] = pending
+        with self.assertRaises((KeyError, ValueError)):
+            self.session.family._receipt(self.memory, self.name, self.identities[0], 8)
+
+    def test_legacy_pending_deferral_keeps_present_partial_null_invalid_and_foreign_receipts_strict(self):
+        for defect in ["number_null", "number_bool", "number_hex", "number_negative", "number_overflow", "hash_null", "hash_only", "events_null", "events_large", "foreign_hash"]:
+            with self.subTest(defect=defect):
+                bad = self.receipt()
+                bad.pop("block_number")
+                bad.pop("block_hash")
+                if defect == "number_null": bad["block_number"] = None
+                elif defect == "number_bool": bad["block_number"] = True
+                elif defect == "number_hex": bad["block_number"] = "0x1"
+                elif defect == "number_negative": bad["block_number"] = -1
+                elif defect == "number_overflow": bad["block_number"] = 2 ** 64
+                elif defect == "hash_null": bad["block_hash"] = None
+                elif defect == "hash_only": bad["block_hash"] = "0x123"
+                elif defect == "events_null": bad["events"] = None
+                elif defect == "events_large": bad["events"] = bad["events"] * (api.MAX_EVENTS + 1)
+                else: bad["transaction_hash"] = "bad"
                 self.session.failures.clear()
                 self.observe([bad])
                 self.assertTrue(self.session.failures)

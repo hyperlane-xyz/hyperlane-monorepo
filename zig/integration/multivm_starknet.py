@@ -326,6 +326,11 @@ class Adapter:
                 identity = full(value["transaction_hash"])
                 require(isinstance(params, dict) and full(params["transaction_hash"]) == identity, "observed receipt hash differs")
                 ids = self._receipt_ids(session, value, chain)
+                # Pinned devnet0.4.2 serializes pending receipts without either
+                # optional block field. Activity cannot prove mined inclusion.
+                if "block_number" not in value and "block_hash" not in value:
+                    require(isinstance(value.get("events"), list) and len(value["events"]) <= MAX_EVENTS, "observed pending receipt events differ")
+                    continue
                 # Source ReceiptBlock::PreConfirmed has a number but no hash.
                 # It is activity, never a mined inclusion/canonical member proof.
                 height = bounded(value.get("block_number"), 64, "observed receipt height")

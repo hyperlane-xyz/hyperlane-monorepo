@@ -5147,7 +5147,7 @@ export function domainSeedSql(manifest: AleoManifest): string {
     .join('\n');
 }
 export function domainReadbackSql(manifest: AleoManifest): string {
-  return `SELECT id::text,name,native_token,chain_id::text,is_test_net::text,is_deprecated::text FROM domain WHERE id IN (${manifest.domains.map((row) => sqlDomain(row.domain)).join(',')}) ORDER BY id;`;
+  return `SELECT id::text,name,native_token,chain_id::text,is_test_net::text,is_deprecated::text FROM domain WHERE id IN (${manifest.domains.map((row) => sqlDomain(row.domain)).join(',')}) ORDER BY domain.id;`;
 }
 export function requireDomainRows(value: string, manifest: AleoManifest): void {
   const expected = manifest.domains

@@ -779,4 +779,113 @@ class PublisherControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'publisher failed'):p.check()
 
 
+class MemoryControls(unittest.TestCase):
+    def setUp(self):
+        import time
+        self.base = Controls(); self.base.setUp(); self.addCleanup(self.base.doCleanups)
+        self.base.launch(['fullnode']); self.base.custody.observe()
+        self.row = self.base.row('fullnode'); self.row['State']['Pid'] = 12345
+        self.base.custody.observe()  # Refresh the inspected DTO after assigning the fixture init PID.
+        self.proc = self.base.case / 'memory-proc'; self.cg = self.base.case / 'memory-cgroup'
+        self.process = self.proc / '12345'; self.process.mkdir(parents=True)
+        self.group = self.cg / 'system.slice' / ('docker-' + self.row['Id'] + '.scope'); self.group.mkdir(parents=True)
+        self.stat(123)
+        (self.process / 'cgroup').write_text('0::/system.slice/docker-' + self.row['Id'] + '.scope\n')
+        (self.process / 'status').write_text('Name:\tPRIVATE_NOT_PUBLISHED\nVmRSS:\t4 kB\nThreads:\t2\n')
+        for name, value in {'memory.max': str(1536*m.MIB)+'\n', 'memory.current':'1024\n', 'memory.peak':'2048\n', 'memory.stat':'anon 128\nfile 256\nkernel 64\nslab 32\nsock 16\npagetables 8\nprivate_kernel_counter 999\n', 'memory.events':'low 0\nhigh 0\nmax 3\noom 0\noom_kill 0\n'}.items():
+            (self.group/name).write_text(value)
+        self.end = time.monotonic_ns()+500_000_000
+    def stat(self, birth):
+        (self.process/'stat').write_bytes(b'12345 (private comm) '+b' '.join([b'S']+[b'0']*18+[str(birth).encode()])+b'\n')
+    def sample(self, previous=None, **kwargs):
+        return m.fullnode_memory_sample(self.row,self.base.custody.project,self.base.fixture,previous,self.end,lambda:False,proc_root=self.proc,cgroup_root=self.cg,**kwargs)
+    def patched_observe(self):
+        from unittest import mock
+        original=m.fullnode_memory_sample
+        with mock.patch.object(m,'fullnode_memory_sample',side_effect=lambda *a:original(*a,proc_root=self.proc,cgroup_root=self.cg)):
+            self.base.custody.observe_memory(self.end,lambda:False)
+    def test_owned_numeric_first_latest_peaks_no_extra_calls_or_private_fields(self):
+        calls=len(self.base.docker.calls);self.patched_observe()
+        record=self.base.custody.public_observation()['fullnode_memory']
+        self.assertEqual(record['sample_count'],1);self.assertEqual(record['latest']['numeric']['anon_bytes'],128);self.assertEqual(record['latest']['numeric']['init_rss_bytes'],4096)
+        self.assertNotIn('private_kernel_counter_bytes',record['latest']['numeric'])
+        (self.group/'memory.current').write_text('512\n');(self.group/'memory.stat').write_text('anon 256\nfile 64\n');self.patched_observe()
+        record=self.base.custody.public_observation()['fullnode_memory'];self.assertEqual(record['sample_count'],2)
+        self.assertEqual(record['first']['numeric']['current_bytes'],1024);self.assertEqual(record['latest']['numeric']['current_bytes'],512);self.assertEqual(record['operand_peaks']['current_bytes'],1024);self.assertEqual(record['operand_peaks']['anon_bytes'],256)
+        self.assertEqual(calls,len(self.base.docker.calls));wire=json.dumps(record)
+        for forbidden in ['PRIVATE',self.row['Id'],str(self.proc),str(self.cg),'12345','linux-ticks']:self.assertNotIn(forbidden,wire)
+        self.assertLess(len(wire),8192);record['first']['numeric']['current_bytes']=0
+        self.assertEqual(self.base.custody.public_observation()['fullnode_memory']['first']['numeric']['current_bytes'],1024)
+    def test_foreign_ownership_pid_and_cgroup_refuse_before_unrelated_reads(self):
+        from unittest import mock
+        original=copy.deepcopy(self.row)
+        for group,key,value in [('Config',m.TOKEN_LABEL,'cd'*16),('State','Pid',True)]:
+            self.row.clear();self.row.update(copy.deepcopy(original))
+            if group=='Config':self.row[group]['Labels'][key]=value
+            else:self.row[group][key]=value
+            with self.subTest(group=group),mock.patch.object(m,'_memory_directory',side_effect=AssertionError('MUST_NOT_READ')),self.assertRaises(ValueError):self.sample()
+        self.row.clear();self.row.update(original)
+        for path in ['/system.slice/docker-'+'f'*64+'.scope','/system.slice/../docker-'+self.row['Id']+'.scope','//docker-'+self.row['Id']+'.scope','/docker-'+self.row['Id']+'.scope/child']:
+            (self.process/'cgroup').write_text('0::'+path+'\n')
+            with self.subTest(path=path),self.assertRaises(ValueError):self.sample()
+    def test_symlink_ancestor_leaf_and_hardlink_cannot_escape_numeric_roots(self):
+        import os
+        leaf=self.group/'memory.current';leaf.unlink();outside=self.base.case/'foreign-number';outside.write_text('1024\n');leaf.symlink_to(outside)
+        with self.assertRaises(OSError):self.sample()
+        leaf.unlink();os.link(outside,leaf)
+        with self.assertRaises(ValueError):self.sample()
+        leaf.unlink();leaf.write_text('1024\n')
+        parent=self.cg/'system.slice';parent.rename(self.cg/'real-slice');parent.symlink_to(self.cg/'real-slice',target_is_directory=True)
+        with self.assertRaises(OSError):self.sample()
+    def test_numeric_duplicate_private_malformed_and_combined_read_bound_refuse(self):
+        for name,wire in [('memory.current','-1\n'),('memory.current','18446744073709551616\n'),('memory.max',str(2048*m.MIB)+'\n'),('memory.events','oom 0\noom 1\noom_kill 0\n'),('memory.stat','anon private\nfile 1\n'),('memory.stat','anon 1\nfile 1\n'+'unknown 1\n'*257),('memory.stat','x'*65537)]:
+            path=self.group/name;original=path.read_bytes();path.write_text(wire)
+            with self.subTest(name=name,wire=len(wire)),self.assertRaises(ValueError):self.sample()
+            path.write_bytes(original)
+        (self.group/'memory.peak').unlink();_,sample=self.sample();self.assertNotIn('peak_bytes',sample['numeric'])
+    def test_PID_birth_cgroup_and_directory_mutations_cannot_publish_a_sample(self):
+        from unittest import mock
+        read=m._memory_read
+        for defect in ['birth','cgroup','directory']:
+            with self.subTest(defect=defect):
+                self.stat(123);cgroup=(self.process/'cgroup').read_bytes();changed=[False]
+                def mutate(fd,name,context):
+                    value=read(fd,name,context)
+                    if name=='memory.current'and not changed[0]:
+                        changed[0]=True
+                        if defect=='birth':self.stat(124)
+                        elif defect=='cgroup':(self.process/'cgroup').write_text('0::/docker-'+'f'*64+'.scope\n')
+                        else:self.group.rename(self.group.with_name('old-group'));self.group.mkdir()
+                    return value
+                with mock.patch.object(m,'_memory_read',side_effect=mutate),self.assertRaises((ValueError,FileNotFoundError)):self.sample()
+                (self.process/'cgroup').write_bytes(cgroup)
+    def test_expired_cancelled_or_missing_reads_preserve_prior_and_never_fail_case(self):
+        from unittest import mock
+        self.patched_observe();before=copy.deepcopy(self.base.custody.memory_observation)
+        for end,cancel in [(0,lambda:False),(self.end,lambda:True)]:
+            with mock.patch.object(m,'fullnode_memory_sample',side_effect=AssertionError('PRIVATE_NO_READ')):
+                self.base.custody.observe_memory(end,cancel)
+            after=self.base.custody.public_observation()['fullnode_memory'];self.assertEqual(after['first'],before['first']);self.assertEqual(after['latest'],before['latest']);self.assertEqual(after['sample_count'],1);self.assertEqual(after['collection_status'],'unavailable');self.assertEqual(after['latest_probe']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(after))
+        identity,_=self.sample();self.stat(125)
+        with self.assertRaisesRegex(ValueError,'identity changed'):self.sample(identity)
+        self.base.custody.observe()  # Existing healthy readiness remains independent.
+    def test_deadline_or_cancel_mid_read_closes_descriptors_without_positive(self):
+        from unittest import mock
+        opened=set();realopen=m.os.open;realclose=m.os.close;checks=[0]
+        def opened_fd(*a,**kw):
+            result=realopen(*a,**kw);opened.add(result);return result
+        def closed_fd(fd):opened.discard(fd);return realclose(fd)
+        def cancelled():checks[0]+=1;return checks[0]>12
+        with mock.patch.object(m.os,'open',side_effect=opened_fd),mock.patch.object(m.os,'close',side_effect=closed_fd),self.assertRaises(ValueError):
+            m.fullnode_memory_sample(self.row,self.base.custody.project,self.base.fixture,None,self.end,cancelled,proc_root=self.proc,cgroup_root=self.cg)
+        self.assertEqual(opened,set())
+    def test_owner_uses_same_shared_fence_before_existing_probes(self):
+        import ast
+        source=ast.parse(Path(__file__).with_name('native_case_owner.py').read_bytes());worker=next(n for n in source.body if isinstance(n,ast.FunctionDef)and n.name=='worker')
+        calls=[n for n in ast.walk(worker)if isinstance(n,ast.Call)and isinstance(n.func,ast.Attribute)and n.func.attr=='observe_memory'];self.assertEqual(len(calls),1);call=calls[0]
+        self.assertEqual(ast.unparse(call.args[0]),'diagnostic_end');self.assertEqual(len(call.args),2)
+        original=next(n for n in ast.walk(worker)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_end'for t in n.targets));transport=next(n for n in ast.walk(worker)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='observe_radix_transport')
+        self.assertLess(original.lineno,call.lineno);self.assertLess(call.lineno,transport.lineno);self.assertIn('args.original_deadline_ns',ast.unparse(original.value));self.assertIn('500000000',ast.unparse(original.value))
+
+
 if __name__=='__main__':unittest.main()

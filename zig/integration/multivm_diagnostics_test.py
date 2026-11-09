@@ -386,6 +386,42 @@ class RoleFailureProjectionControls(unittest.TestCase):
         self.sources[self.names[3]]=api.pin(target)
         with self.assertRaisesRegex(ValueError,'Source role journal/log contract'):self.observe()
 
+class LateInvariantObservationControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.repo=Path(self.tmp.name).resolve();self.sources={}
+        actual=Path(__file__).resolve().parents[2]
+        for suffix in ['invariants/termination_invariants.rs','main.rs','logging.rs']:
+            name='rust/main/utils/run-locally/src/'+suffix;target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((actual/name).read_bytes());self.sources[name]=api.pin(target)
+        self.log=self.repo/'harness.log'
+    def observe(self,wire,scenario='tron'):
+        self.log.write_bytes(wire);return api.late_invariant_observation(scenario,self.sources,self.repo,self.log)
+    def test_exact_Source_counts_numeric_first_latest_and_error_prefix_only(self):
+        phrases=[b'Relayer has 2 gas payment events, expected at least 4',b'highest tree index does not match messages sent. got 3 expected 4',b'Expected starting relayer balance to be greater than ending relayer balance, but got 1000000 <= 1000000',b'hyperlane_lander_finalized_transactions is zero, expected at least one',b'hyperlane_lander_building_stage_queue_length 1 count, expected 0',b'hyperlane_lander_inclusion_stage_pool_length 1 count, expected 0',b'hyperlane_lander_finality_stage_pool_length 1 count, expected 0',b'hyperlane_lander_dropped_payloads 4 count, expected less than 4',b'hyperlane_lander_dropped_transactions 3 count, expected less than 0',b'hyperlane_lander_mismatched_nonce 1 count, expected 0',b'hyperlane_lander_transaction_submissions 5 count',b'Scraper has scraped 2 dispatched messages, expected 4',b'Scraper has scraped 2 raw message dispatches, expected 4',b'Scraper has scraped 2 gas payments, expected 4',b'Scraper has scraped 2 delivered messages, expected 4',b'Checking relayer termination invariants',b'Checking scraper termination invariants',b'Error checking e2e invariants: PRIVATE_KEY_URL_ERROR',b'Relayer has 3 gas payment events, expected at least 4']
+        value=self.observe(b''.join(b'<E2E> '+line+b'\n'for line in phrases));rows={row['code']:row for row in value['observations']};self.assertEqual(len(rows),18);self.assertEqual(rows['RELAYER_GAS_PAYMENT_COUNT'],{'code':'RELAYER_GAS_PAYMENT_COUNT','count':2,'first':{'log_line':1,'values':[2,4]},'latest':{'log_line':19,'values':[3,4]}});self.assertEqual(rows['RELAYER_BALANCE_NOT_DECREASED']['latest']['values'],[1000000.0,1000000.0]);self.assertEqual(rows['INVARIANT_ERROR_PREFIX_ONLY']['latest']['values'],[]);self.assertNotIn('PRIVATE',json.dumps(value));self.assertFalse(value['native_or_timing_or_cleanup_authority']);self.assertLess(len(json.dumps(value)),16384)
+    def test_wrong_prefix_suffix_number_and_oversized_lines_never_export_text(self):
+        phrase=b'Relayer has 2 gas payment events, expected at least 4'
+        poisoned=[phrase,b'<RLY> <E2E> '+phrase,b' <E2E> '+phrase,b'<E2E> '+phrase+b' PRIVATE_TOKEN',b'<E2E> Relayer has -1 gas payment events, expected at least 4',b'<E2E> Relayer has 4294967296 gas payment events, expected at least 4',b'<E2E> Expected starting relayer balance to be greater than ending relayer balance, but got NaN <= 1',b'<E2E> Expected starting relayer balance to be greater than ending relayer balance, but got 1e999 <= 1',b'<E2E> '+b'PRIVATE_'*10000]
+        value=self.observe(b'\n'.join(poisoned)+b'\n');self.assertEqual(value['observations'],[]);self.assertEqual(value['oversized_lines_omitted'],1);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(value['collection_status'],'observed')
+        for scenario in ['evm','sealevel','sealevel-composite','tron']:
+            value=self.observe(b'\x1b[32m<E2E> '+phrase+b'\x1b[0m\r\n',scenario);self.assertEqual(value['observations'][0]['first']['values'],[2,4])
+    def test_Source_pin_and_literal_changes_refuse_without_raw_fallback(self):
+        self.log.write_bytes(b'<E2E> Checking relayer termination invariants\n');name='rust/main/utils/run-locally/src/invariants/termination_invariants.rs';path=self.repo/name;old=path.read_bytes();path.write_bytes(old.replace(b'Relayer has {} gas payment events',b'PRIVATE has {} gas payment events'))
+        with self.assertRaises(ValueError):api.late_invariant_observation('tron',self.sources,self.repo,self.log)
+        self.sources[name]=api.pin(path)
+        with self.assertRaises(ValueError):api.late_invariant_observation('tron',self.sources,self.repo,self.log)
+        path.write_bytes(old);self.sources[name]=api.pin(path)
+        with self.assertRaises(ValueError):api.late_invariant_observation('radix',self.sources,self.repo,self.log)
+    def test_existing_capture_bounds_and_symlinks_refuse_before_log_read(self):
+        self.log.write_bytes(b'PRIVATE_SECRET');self.log.unlink();self.log.symlink_to(self.repo/'rust/main/utils/run-locally/src/main.rs')
+        with self.assertRaises(ValueError):api.late_invariant_observation('tron',self.sources,self.repo,self.log)
+        self.log.unlink()
+        with self.log.open('wb')as stream:stream.truncate(32*1024**2+1)
+        opened=[];real=api.os.open
+        def tracked(path,*args,**kwargs):opened.append(str(path));return real(path,*args,**kwargs)
+        with mock.patch.object(api.os,'open',side_effect=tracked),self.assertRaises(ValueError):api.late_invariant_observation('tron',self.sources,self.repo,self.log)
+        self.assertNotIn(str(self.log),opened)
+
+
 class FixtureFailureDiscriminatorControls(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.case=Path(self.temp.name).resolve();(self.case/'evidence').mkdir();self.repo=self.case/'repo';self.repo.mkdir();self.sources={}

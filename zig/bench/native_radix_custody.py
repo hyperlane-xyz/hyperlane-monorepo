@@ -13,6 +13,7 @@ import re
 import select
 import selectors
 import socket
+import stat
 import subprocess
 import threading
 import time
@@ -524,6 +525,140 @@ class LoopbackPublisher:
         return {'error_class': self.error, 'schema': 1, 'kind': 'owned-Radix-loopback-publisher', 'routes': ['fullnode', 'gateway_api_image'], 'accepted_connections': self.accepted, 'refused_connections': self.refused, 'forwarded_bytes': self.forwarded, 'maximum_active_connections': self.maximum_active, 'connection_limit': 32, 'buffer_bytes_per_direction': 65536, 'actual_thread_joined': self.thread is not None, 'all_owned_sockets_closed': not self.close_failed, 'new_processes': 0, 'native_or_parent_wait_credit': False, 'scope': 'Fixed loopback byte relay to owned internal endpoints; Docker identity checked at ordinary custody cadence, process births checked before nonblocking IO.'}
 
 
+# Failure diagnosis only: these bounded host reads never grant process custody.
+def _memory_fence(context):
+    require(not context['cancelled']() and context['clock']() < context['end'], 'Memory diagnostic deadline/cancel')
+
+
+def _memory_directory(root, parts, context):
+    require(root.is_absolute() and len(root.parts) + len(parts) <= 32, 'Memory diagnostic root shape')
+    names = [*root.parts[1:], *parts]
+    require(all(type(p) is str and re.fullmatch(r'[A-Za-z0-9_.:-]{1,255}', p) and p not in {'.', '..'} for p in names), 'Memory diagnostic directory shape')
+    descriptor = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for part in names:
+            _memory_fence(context)
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _memory_read(directory, name, context):
+    _memory_fence(context)
+    require(name in {'stat', 'status', 'cgroup', 'memory.current', 'memory.peak', 'memory.max', 'memory.stat', 'memory.events'}, 'Fixed memory diagnostic file required')
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
+    try:
+        before = os.fstat(descriptor)
+        require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, 'Memory diagnostic regular single-link file required')
+        wire = os.read(descriptor, context['remaining'] + 1)
+        require(len(wire) <= context['remaining'], 'Memory diagnostic total64KiB bound')
+        context['remaining'] -= len(wire)
+        after = os.fstat(descriptor)
+        require((before.st_dev, before.st_ino) == (after.st_dev, after.st_ino), 'Memory diagnostic file changed')
+        _memory_fence(context)
+        return wire
+    finally:
+        os.close(descriptor)
+
+
+def _memory_uint(value):
+    require(type(value) is bytes and re.fullmatch(rb'(?:0|[1-9][0-9]{0,19})\n?', value) is not None, 'Memory diagnostic unsigned integer required')
+    number = int(value)
+    require(number <= 2 ** 64 - 1, 'Memory diagnostic integer range')
+    return number
+
+
+def _memory_fields(wire, allowed):
+    require(len(wire) <= 65536 and 0 < len(wire.splitlines()) <= 256, 'Memory diagnostic row bound')
+    rows = {}
+    for line in wire.splitlines():
+        pair = line.split()
+        require(len(pair) == 2 and re.fullmatch(rb'[a-z_]{1,64}', pair[0]) is not None, 'Memory diagnostic numeric row shape')
+        # Unknown kernel counters are discarded, never used as public labels.
+        if pair[0] in allowed:
+            require(pair[0] not in rows, 'Duplicate memory diagnostic counter')
+            rows[pair[0]] = _memory_uint(pair[1])
+    return rows
+
+
+def _memory_process_stat(wire, pid):
+    require(len(wire) <= 65536, 'Memory diagnostic process bound')
+    prefix, separator, tail = wire.rpartition(b') ')
+    require(separator and prefix.split(b'(', 1)[0].strip() == str(pid).encode(), 'Memory diagnostic process PID differs')
+    fields = tail.split()
+    require(len(fields) > 19 and fields[0] not in {b'Z', b'X', b'x'}, 'Memory diagnostic process not live')
+    start = _memory_uint(fields[19])
+    require(start > 0, 'Memory diagnostic process birth absent')
+    return start
+
+
+def _memory_cgroup(wire, cid):
+    require(len(wire) <= 4096 and wire.count(b'\n') <= 1 and wire.startswith(b'0::/'), 'Unified memory cgroup required')
+    raw = wire.removeprefix(b'0::').rstrip(b'\n').decode('ascii')
+    parts = raw.split('/')[1:]
+    require(0 < len(parts) <= 16 and all(re.fullmatch(r'[A-Za-z0-9_.:-]{1,255}', p) and p not in {'.', '..'} for p in parts), 'Memory cgroup path shape')
+    require(parts[-1] in {cid, 'docker-' + cid + '.scope'}, 'Memory cgroup not exact owned CID')
+    return parts
+
+
+def fullnode_memory_sample(row, project, fixture, previous_identity, end, cancelled, *, proc_root=Path('/proc'), cgroup_root=Path('/sys/fs/cgroup'), clock=time.monotonic_ns):
+    """One non-atomic numeric sample. No Docker, network, command line or environment."""
+    context = {'end': end, 'cancelled': cancelled, 'clock': clock, 'remaining': 65536}
+    _memory_fence(context)
+    service, cid = ownership(row, project, fixture)
+    state = row.get('State', {})
+    require(service == 'fullnode' and state.get('Running') is True and state.get('OOMKilled') is False and type(state.get('Pid')) is int and state['Pid'] > 0, 'Live owned fullnode memory diagnostic required')
+    pid = state['Pid']
+    descriptors = []
+    try:
+        process = _memory_directory(proc_root, [str(pid)], context); descriptors.append(process)
+        birth = _memory_process_stat(_memory_read(process, 'stat', context), pid)
+        cgroup_wire = _memory_read(process, 'cgroup', context)
+        parts = _memory_cgroup(cgroup_wire, cid)
+        group = _memory_directory(cgroup_root, parts, context); descriptors.append(group)
+        group_stat = os.fstat(group)
+        identity = (cid, pid, birth, group_stat.st_dev, group_stat.st_ino)
+        require(previous_identity is None or identity == previous_identity, 'Memory diagnostic identity changed')
+        require(_memory_uint(_memory_read(group, 'memory.max', context)) == SERVICES['fullnode'][0] * MIB, 'Memory diagnostic cgroup cap differs')
+        values = {'current_bytes': _memory_uint(_memory_read(group, 'memory.current', context))}
+        try:
+            values['peak_bytes'] = _memory_uint(_memory_read(group, 'memory.peak', context))
+        except FileNotFoundError:
+            pass  # Older cgroup2 kernels may omit only this optional counter.
+        fields = _memory_fields(_memory_read(group, 'memory.stat', context), {b'anon', b'file', b'kernel', b'slab', b'sock', b'pagetables'})
+        require(b'anon' in fields and b'file' in fields, 'Memory diagnostic anon/file absent')
+        values.update({key.decode() + '_bytes': value for key, value in fields.items()})
+        events = _memory_fields(_memory_read(group, 'memory.events', context), {b'max', b'oom', b'oom_kill'})
+        require(b'oom' in events and b'oom_kill' in events, 'Memory diagnostic OOM counters absent')
+        values.update({'event_' + key.decode(): value for key, value in events.items()})
+        # This PID is Docker's inspected container init, not a claimed JVM PID.
+        status = _memory_read(process, 'status', context)
+        require(len(status.splitlines()) <= 256, 'Memory diagnostic status row bound')
+        for key, public in [(b'VmRSS', 'init_rss_bytes'), (b'Threads', 'init_threads')]:
+            matches = [line.split(b':', 1)[1].strip() for line in status.splitlines() if line.startswith(key + b':')]
+            require(len(matches) == 1, 'Memory diagnostic init status absent/duplicate')
+            value = matches[0]
+            if key == b'VmRSS':
+                require(value.endswith(b' kB'), 'Memory diagnostic RSS unit differs')
+                values[public] = _memory_uint(value[:-3]) * 1024
+                require(values[public] <= 2 ** 64 - 1, 'Memory diagnostic RSS range')
+            else:
+                values[public] = _memory_uint(value)
+        require(_memory_process_stat(_memory_read(process, 'stat', context), pid) == birth and _memory_read(process, 'cgroup', context) == cgroup_wire, 'Memory diagnostic PID/cgroup changed during read')
+        again = _memory_directory(cgroup_root, parts, context); descriptors.append(again)
+        after = os.fstat(again)
+        require((group_stat.st_dev, group_stat.st_ino) == (after.st_dev, after.st_ino), 'Memory diagnostic directory changed during read')
+        _memory_fence(context)
+        return identity, {'observed_monotonic_ns': clock(), 'numeric': values}
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
 class Custody:
     def __init__(self, case, pid, start, fixture, output, call, volume_sample=None):
         require(isinstance(start, str) and start.startswith('linux-ticks:'), 'Actual Linux helper birth token required')
@@ -542,6 +677,8 @@ class Custody:
         self.maximum_volume_bytes = 0
         self.volume_sample = volume_sample
         self.last_volume_observation = None
+        self.memory_identity = None
+        self.memory_observation = {'schema': 1, 'collection_status': 'unavailable', 'sample_count': 0, 'first': None, 'latest': None, 'operand_peaks': {}, 'latest_probe': {'collection_status': 'unavailable', 'reason': 'NOT_OBSERVED'}, 'scope': 'Non-atomic owned fullnode cgroup numbers; init RSS is not JVM heap; no cleanup, native or performance authority.', 'effective_JVM_flags': None}
         self.service_states = {}
         self.last_inspected_service = None
         self.service_observation_unavailable = False
@@ -551,9 +688,34 @@ class Custody:
     def public_observation(self):
         return {'schema': 1, 'collection_status': 'unavailable' if self.service_observation_unavailable else 'available', 'scope': 'Owned service State before readiness checks; no log bodies or native acceptance credit.',
                 'last_inspected_service': self.last_inspected_service,
+                'fullnode_memory': json.loads(json.dumps(self.memory_observation)),
                 'missing_inspection': json.loads(json.dumps(self.missing_inspection_observation)),
                 'readiness_passed_services': sorted(self.ready),
                 'services': [json.loads(json.dumps(self.service_states[name])) for name in SERVICES if name in self.service_states]}
+
+    def observe_memory(self, deadline_ns, cancelled):
+        # Caller passes the existing shared diagnostic fence, never a new allowance.
+        try:
+            require(type(deadline_ns) is int and callable(cancelled), 'Memory diagnostic fence required')
+            require(not cancelled() and time.monotonic_ns() < deadline_ns, 'Memory diagnostic deadline/cancel')
+            row = self.publisher_rows.get('fullnode')
+            require(row is not None, 'Current custody fullnode row missing')
+            service, cid = ownership(row, self.project, self.fixture, self.seen.get('fullnode'))
+            require(service == 'fullnode' and self.ready.get(service) == cid, 'Current ready fullnode custody required')
+            identity, sample = fullnode_memory_sample(row, self.project, self.fixture, self.memory_identity, deadline_ns, cancelled)
+            previous = self.memory_observation
+            require(previous['sample_count'] < 1000000, 'Memory diagnostic sample bound')
+            peaks = dict(previous['operand_peaks'])
+            for key, value in sample['numeric'].items():
+                peaks[key] = max(peaks.get(key, 0), value)
+            candidate = {**previous, 'collection_status': 'available', 'sample_count': previous['sample_count'] + 1, 'first': previous['first'] or sample, 'latest': sample, 'operand_peaks': peaks, 'latest_probe': {'collection_status': 'available'}}
+            require(len(json.dumps(candidate, separators=(',', ':')).encode()) <= 8192, 'Memory diagnostic public8KiB bound')
+            require(not cancelled() and time.monotonic_ns() < deadline_ns, 'Memory diagnostic deadline/cancel')
+            self.memory_identity, self.memory_observation = identity, candidate
+        except Exception:
+            # Optional diagnostics never change the original readiness/primary result.
+            self.memory_observation['collection_status'] = 'unavailable'
+            self.memory_observation['latest_probe'] = {'collection_status': 'unavailable', 'reason': 'OWNERSHIP_READ_SHAPE_OR_BUDGET_UNAVAILABLE'}
 
     def failed_fullnode_log_target(self):
         # This exact CID/image/project/token was authenticated by inspect_container

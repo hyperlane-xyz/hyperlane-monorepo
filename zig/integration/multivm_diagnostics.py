@@ -718,6 +718,63 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,z
 
 
 
+def late_invariant_observation(scenario,sources,repo,harness_log):
+    """Fixed helper text and numeric fields only; never a metric or PID proof."""
+    if scenario not in {'evm','sealevel','sealevel-composite','tron'}:raise ValueError('Shared termination helper scenario required')
+    root='rust/main/utils/run-locally/src/';checked={};bodies={}
+    for suffix in ['invariants/termination_invariants.rs','main.rs','logging.rs']:
+        name=root+suffix;path=Path(repo)/name;body,fingerprint=captured_failure_bytes(path,1024**2)
+        if sources[name]!={'path':str(path),**fingerprint}:raise ValueError('Termination diagnostic Source changed')
+        checked[name]=sources[name];bodies[suffix]=body
+    # Each regex is anchored to the actual Rust log literal; no freeform suffix
+    # or caller-provided label is returned. Integer arguments are Rust u32.
+    count=rb'([0-9]{1,10})';number=rb'([0-9]{1,16}(?:\.[0-9]{1,16})?(?:[eE][+-]?[0-9]{1,3})?)'
+    specs=[
+        ('RELAYER_GAS_PAYMENT_COUNT',b'Relayer has {} gas payment events, expected at least {}',rb'Relayer has '+count+rb' gas payment events, expected at least '+count,'u32'),
+        ('RELAYER_MERKLE_SEQUENCE_COUNT',b'highest tree index does not match messages sent. got {} expected {}',rb'highest tree index does not match messages sent\. got '+count+rb' expected '+count,'u32'),
+        ('RELAYER_BALANCE_NOT_DECREASED',b'Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}',rb'Expected starting relayer balance to be greater than ending relayer balance, but got '+number+rb' <= '+number,'balance'),
+        ('LANDER_FINALIZED_ZERO',b'hyperlane_lander_finalized_transactions is zero, expected at least one',rb'hyperlane_lander_finalized_transactions is zero, expected at least one','u32'),
+        ('LANDER_BUILDING_QUEUE',b'hyperlane_lander_building_stage_queue_length {} count, expected {}',rb'hyperlane_lander_building_stage_queue_length '+count+rb' count, expected '+count,'u32'),
+        ('LANDER_INCLUSION_POOL',b'hyperlane_lander_inclusion_stage_pool_length {} count, expected {}',rb'hyperlane_lander_inclusion_stage_pool_length '+count+rb' count, expected '+count,'u32'),
+        ('LANDER_FINALITY_POOL',b'hyperlane_lander_finality_stage_pool_length {} count, expected {}',rb'hyperlane_lander_finality_stage_pool_length '+count+rb' count, expected '+count,'u32'),
+        ('LANDER_DROPPED_PAYLOADS',b'hyperlane_lander_dropped_payloads {} count, expected less than {}',rb'hyperlane_lander_dropped_payloads '+count+rb' count, expected less than '+count,'u32'),
+        ('LANDER_DROPPED_TRANSACTIONS',b'hyperlane_lander_dropped_transactions {} count, expected less than {}',rb'hyperlane_lander_dropped_transactions '+count+rb' count, expected less than '+count,'u32'),
+        ('LANDER_MISMATCHED_NONCE',b'hyperlane_lander_mismatched_nonce {} count, expected {}',rb'hyperlane_lander_mismatched_nonce '+count+rb' count, expected '+count,'u32'),
+        ('LANDER_SUBMISSIONS',b'hyperlane_lander_transaction_submissions {} count',rb'hyperlane_lander_transaction_submissions '+count+rb' count','u32'),
+        ('SCRAPER_DISPATCH_COUNT',b'Scraper has scraped {} dispatched messages, expected {}',rb'Scraper has scraped '+count+rb' dispatched messages, expected '+count,'u32'),
+        ('SCRAPER_RAW_DISPATCH_COUNT',b'Scraper has scraped {} raw message dispatches, expected {}',rb'Scraper has scraped '+count+rb' raw message dispatches, expected '+count,'u32'),
+        ('SCRAPER_GAS_PAYMENT_COUNT',b'Scraper has scraped {} gas payments, expected {}',rb'Scraper has scraped '+count+rb' gas payments, expected '+count,'u32'),
+        ('SCRAPER_DELIVERY_COUNT',b'Scraper has scraped {} delivered messages, expected {}',rb'Scraper has scraped '+count+rb' delivered messages, expected '+count,'u32'),
+        ('RELAYER_CHECK_ENTERED',b'Checking relayer termination invariants',rb'Checking relayer termination invariants','u32'),
+        ('SCRAPER_CHECK_ENTERED',b'Checking scraper termination invariants',rb'Checking scraper termination invariants','u32'),
+    ]
+    if not all(b'"'+literal+b'"'in bodies['invariants/termination_invariants.rs']for _,literal,_,_ in specs):raise ValueError('Exact termination log literals required')
+    if b'log!("Error checking e2e invariants: {}", e)'not in bodies['main.rs']or b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)'not in bodies['logging.rs']:raise ValueError('Exact helper log writer required')
+    wire,fingerprint=captured_failure_bytes(harness_log,32*1024**2);rows={};scanned=0;oversized=0
+    patterns=[(code,re.compile(pattern),kind)for code,_,pattern,kind in specs]
+    for raw in io.BytesIO(wire):
+        scanned+=1
+        if len(raw)>65536:oversized+=1;continue
+        clean=re.sub(rb'\x1b\[[0-9;]*m',b'',raw).rstrip(b'\r\n')
+        if not clean.startswith(b'<E2E> '):continue
+        text=clean[6:];code=None;values=[]
+        if text.startswith(b'Error checking e2e invariants: '):code='INVARIANT_ERROR_PREFIX_ONLY'
+        else:
+            for label,pattern,kind in patterns:
+                match=pattern.fullmatch(text)
+                if match is None:continue
+                values=[float(v)if kind=='balance'else int(v)for v in match.groups()]
+                if any(not 0<=v<=(2**53-1 if kind=='balance'else 2**32-1)for v in values):break
+                code=label;break
+        if code is None:continue
+        observation={'log_line':scanned,'values':values}
+        if code not in rows:rows[code]={'code':code,'count':0,'first':observation}
+        row=rows[code];row['count']+=1;row['latest']=observation
+    # Source and log captures are observations only; no metric HTTP/PID/clock,
+    # stage success, native acceptance, timeout extension or cleanup authority.
+    return {'schema':1,'kind':'public-fixed-late-invariant-observation','collection_status':'observed','writer_sources':checked,'harness_log_fingerprint':fingerprint,'lines_scanned':scanned,'oversized_lines_omitted':oversized,'observations':[rows[k]for k in sorted(rows)],'native_or_timing_or_cleanup_authority':False,'scope':'Exact Source-defined E2E helper text, counts and first/latest numeric fields only. Error prefix count omits all suffix text. No direct metric sample, unique PID/epoch, stage success, root cause or proof claim.'}
+
+
 def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,harness_log,case_inputs=None,required_inputs=(),private_capture=None):
     """Fixed Source markers and actual client status only; no external text."""
     scenario=manifest['scenario']

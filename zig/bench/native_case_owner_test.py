@@ -523,6 +523,18 @@ class CaseOwnerTests(unittest.TestCase):
         module.role_failure_observation.assert_not_called();self.assertEqual(json.loads(Path(row['path']).read_bytes())['SVM_role_failure']['collection_status'],'unavailable')
 
 
+    def test_late_invariant_projection_is_failure_only_optional_and_preserves_primary(self):
+        from types import SimpleNamespace
+        for scenario in ['evm','sealevel','sealevel-composite','tron','radix']:
+            for failed in [False,True]:
+                case=self.root/('late-'+scenario+str(failed));case.mkdir();out=case/'worker';out.mkdir();primary={'type':'RuntimeError','message':'PRIVATE_PRIMARY'};result={'error':primary,'direct_waits':[{'role':'harness-cleanup','pid':42,'actual_parent_wait':True,'exit_code':-15}]};sources={'fixed-source':'fixed-pin'};projected={'schema':1,'collection_status':'observed','observations':[],'native_or_timing_or_cleanup_authority':False};method=mock.Mock(side_effect=ValueError('PRIVATE_COLLECTOR')if failed else None,return_value=projected);module=SimpleNamespace(late_invariant_observation=method)
+                with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):descriptor=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':sources},{'scenario':scenario,'mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},case,out,result,90)
+                value=json.loads(Path(descriptor['path']).read_bytes())
+                if scenario=='radix':method.assert_not_called();self.assertNotIn('late_termination_invariants',value)
+                else:
+                    method.assert_called_once_with(scenario,sources,Path(api.__file__).resolve().parents[2],out/'harness.log');self.assertEqual(value['late_termination_invariants'],{'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}if failed else projected)
+                self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'][0]['exit_code'],-15);self.assertFalse(value['native_or_timing_credit']);self.assertNotIn('PRIVATE',json.dumps(value));self.assertLess(descriptor['bytes'],512*1024)
+
     def test_actual_fixture_failure_publisher_preserves_primary_and_uses_one_actual_parent(self):
         from types import SimpleNamespace
         for scenario in ['radix','tron']:
@@ -923,10 +935,12 @@ class RadixTransportOwnerControls(unittest.TestCase):
         self.assertEqual(len(observed),1)
     def test_actual_worker_cadence_begin_capture_observe_then_HTTP_no_newclient(self):
         import ast
-        tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None');calls=[];code=[None];harness=self.simple(poll=lambda:code[0]);state=self.simple(begin_custody=lambda:calls.append('begin'));radix=self.simple(observe=lambda:calls.append('ordinary_custody'))
+        tree=ast.parse(Path(api.__file__).read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None');calls=[];code=[None];harness=self.simple(poll=lambda:code[0]);state=self.simple(begin_custody=lambda:calls.append('begin'));radix=self.simple(observe=lambda:calls.append('ordinary_custody'));memory=[]
+        def observe_memory(deadline,cancelled):self.assertFalse(cancelled());memory.append(cancelled);calls.append(('memory',deadline))
+        radix.observe_memory=observe_memory
         def done(_):code[0]=101
-        env={'harness':harness,'controller':self.simple(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':radix,'radix_publisher':None,'radix_transport':{'state':state},'radix_scraper':None,'observe_radix_scraper':lambda *args:calls.append('SCR_metrics'),'observe_radix_transport':lambda *args:calls.append('Radix_HTTP'),'startup_context':None,'observe_relayer_startup':lambda *args:None,'manifest':self.manifest,'inputs':{},'case':self.root,'helper_row':{},'args':self.simple(original_deadline_ns=3_000_000_000),'time':self.simple(monotonic=lambda:1,monotonic_ns=lambda:1_000_000_000,sleep=done)}
-        exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-Radix-inspection-loop>','exec'),env);self.assertEqual(calls,['PG','begin','ordinary_custody','Radix_HTTP','SCR_metrics']);self.assertEqual(env['next_inspect'],2)
+        env={'harness':harness,'controller':self.simple(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':radix,'radix_publisher':None,'radix_transport':{'state':state},'radix_scraper':None,'observe_radix_scraper':lambda *args:calls.append(('SCR_metrics',args[-1])),'observe_radix_transport':lambda *args:calls.append(('Radix_HTTP',args[-1])),'startup_context':None,'observe_relayer_startup':lambda *args:None,'manifest':self.manifest,'inputs':{},'case':self.root,'helper_row':{},'args':self.simple(original_deadline_ns=3_000_000_000),'time':self.simple(monotonic=lambda:1,monotonic_ns=lambda:1_000_000_000,sleep=done)}
+        exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-Radix-inspection-loop>','exec'),env);self.assertEqual(calls,['PG','begin','ordinary_custody',('memory',1_500_000_000),('Radix_HTTP',1_500_000_000),('SCR_metrics',1_500_000_000)]);self.assertEqual(env['next_inspect'],2);self.assertEqual(len(memory),1);self.assertTrue(memory[0]())
     def test_actual_failure_publisher_preserves_primary_and_finite_only(self):
         context=self.arm();(self.root/'harness.log').write_bytes(b'');result={'direct_waits':[],'error':{'type':'ValueError','message':'PRIMARY_PRIVATE'}};original=copy.deepcopy(result)
         with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=self.diag):row=api.write_public_failure_diagnostics(self.plan,self.manifest,{},self.root,self.root,result,1,None,context)
@@ -973,12 +987,13 @@ class RadixPublisherOwnerControls(unittest.TestCase):
     def test_actual_loop_checks_pump_before_custody_then_updates_after_custody(self):
         import types
         ast,worker=self.worker();loop=next(n for n in ast.walk(worker)if isinstance(n,ast.While)and ast.unparse(n.test)=='harness.poll() is None')
-        calls=[];code=[None];harness=types.SimpleNamespace(poll=lambda:code[0])
+        calls=[];code=[None];harness=types.SimpleNamespace(poll=lambda:code[0]);memory=[]
+        def observe_memory(deadline,cancelled):self.assertFalse(cancelled());memory.append(cancelled);calls.append(('memory',deadline))
         publisher=types.SimpleNamespace(check=lambda:calls.append('pump_check'),observe=lambda:calls.append('new_lease'))
         def done(value):self.assertEqual(value,.1);code[0]=0
-        env={'harness':harness,'controller':types.SimpleNamespace(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':types.SimpleNamespace(observe=lambda:calls.append('ordinary_custody')),'radix_publisher':publisher,'radix_transport':None,'radix_scraper':None,'observe_radix_scraper':lambda *args:calls.append('SCR_metrics'),'observe_radix_transport':lambda *args:calls.append('diagnostic_HTTP'),'observe_relayer_startup':lambda *args:None,'startup_context':None,'manifest':{},'inputs':{},'case':None,'helper_row':{},'args':types.SimpleNamespace(original_deadline_ns=3_000_000_000),'time':types.SimpleNamespace(monotonic=lambda:1,monotonic_ns=lambda:1_000_000_000,sleep=done)}
+        env={'harness':harness,'controller':types.SimpleNamespace(poll=lambda:None),'require':api.require,'deadline':3,'next_inspect':0,'inspect':lambda:calls.append('PG'),'radix':types.SimpleNamespace(observe=lambda:calls.append('ordinary_custody'),observe_memory=observe_memory),'radix_publisher':publisher,'radix_transport':None,'radix_scraper':None,'observe_radix_scraper':lambda *args:calls.append(('SCR_metrics',args[-1])),'observe_radix_transport':lambda *args:calls.append(('diagnostic_HTTP',args[-1])),'observe_relayer_startup':lambda *args:None,'startup_context':None,'manifest':{},'inputs':{},'case':None,'helper_row':{},'args':types.SimpleNamespace(original_deadline_ns=3_000_000_000),'time':types.SimpleNamespace(monotonic=lambda:1,monotonic_ns=lambda:1_000_000_000,sleep=done)}
         exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-publisher-worker-loop>','exec'),env)
-        self.assertEqual(calls,['pump_check','PG','ordinary_custody','new_lease','diagnostic_HTTP','SCR_metrics']);self.assertEqual(env['next_inspect'],2)
+        self.assertEqual(calls,['pump_check','PG','ordinary_custody','new_lease',('memory',1_500_000_000),('diagnostic_HTTP',1_500_000_000),('SCR_metrics',1_500_000_000)]);self.assertEqual(env['next_inspect'],2);self.assertEqual(len(memory),1);self.assertTrue(memory[0]())
         publisher.check=mock.Mock(side_effect=ValueError('closed-publisher-failed'));code[0]=None;calls.clear()
         with self.assertRaisesRegex(ValueError,'publisher-failed'):exec(compile(ast.Module(body=[loop],type_ignores=[]),'<actual-publisher-loop-failure>','exec'),env)
         self.assertEqual(calls,[])
@@ -1203,14 +1218,14 @@ class SvmEncryptedWindowOwnerControls(unittest.TestCase):
         self.assertEqual(self.result,self.original)
     def test_actual_publisher_retains_ciphertext_only_and_original_verdict(self):
         case=self.root/'case';case.mkdir();out=self.root/'worker';out.mkdir();(out/'harness.log').write_bytes(b'<SOL> PRIVATE\n')
-        module=mock.Mock();module.rust_panic_observation.return_value={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None};module.svm_private_windows.return_value=(self.plain,self.selection)
+        module=mock.Mock();module.late_invariant_observation.return_value={'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False};module.rust_panic_observation.return_value={'sites':[],'reason_codes':[],'reason_source':None,'log_fingerprint':None};module.svm_private_windows.return_value=(self.plain,self.selection)
         def observe(*args,**kwargs):kwargs['private_capture'](b'<SOL> PRIVATE\n');return {'roles':self.result['_svm_diagnostic_roles']}
         module.role_failure_observation.side_effect=observe
         proof={'schema':1,'collection_status':'encrypted','blocks':['ciphertext-only'],'native_or_timing_or_cleanup_authority':False}
         plan={**self.plan,'execution_source_commit':'a'*40,'diagnostic_rust_sources':{},'diagnostic_zig_sources':{}};manifest={'scenario':'sealevel','mode':'ReleaseSafe','runtime_source_commit':'b'*40}
         with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module),mock.patch.object(api,'svm_fixture_wait_observation',return_value={'status':'unavailable'}),mock.patch.object(api,'svm_encrypt_failure_windows',return_value=proof)as encrypt:
             descriptor=api.write_public_failure_diagnostics(plan,manifest,{},case,out,self.result,1,original_deadline_ns=time.monotonic_ns()+9_000_000_000)
-            value=json.loads(Path(descriptor['path']).read_bytes());self.assertEqual(value['SVM_encrypted_fixture_windows'],proof);self.assertFalse(value['native_or_timing_credit']);encrypt.assert_called_once()
+            value=json.loads(Path(descriptor['path']).read_bytes());self.assertEqual(value['SVM_encrypted_fixture_windows'],proof);self.assertFalse(value['native_or_timing_credit']);self.assertEqual(value['late_termination_invariants'],{'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False});module.late_invariant_observation.assert_called_once();encrypt.assert_called_once()
         self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(self.result,self.original)
 
 
@@ -1353,11 +1368,12 @@ class RadixScraperOwnerControls(unittest.TestCase):
     def test_actual_worker_AST_shares_transport_budget_and_arms_SCR_before_GO(self):
         import ast
         source=Path(api.__file__).read_text();tree=ast.parse(source);worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');branch=next(n for n in ast.walk(worker)if isinstance(n,ast.If)and ast.unparse(n.test)=='radix is not None'and any(isinstance(x,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_end'for t in x.targets)for x in n.body))
-        calls=[]
+        calls=[];memory=[];code=[None]
+        def observe_memory(deadline,cancelled):self.assertFalse(cancelled());memory.append(cancelled);calls.append(('memory',deadline))
         from types import SimpleNamespace
-        context={'time':SimpleNamespace(monotonic_ns=lambda:10),'args':SimpleNamespace(original_deadline_ns=300),'radix_transport':{'state':SimpleNamespace(begin_custody=lambda:calls.append('begin'))},'radix':SimpleNamespace(observe=lambda:calls.append('custody')),'radix_publisher':SimpleNamespace(observe=lambda:calls.append('publisher')),'radix_scraper':object(),'manifest':{},'inputs':{},'case':object(),'harness':object(),'controller':object(),'helper_row':{},'observe_radix_transport':lambda *args:calls.append(('transport',args[-1])),'observe_radix_scraper':lambda *args:calls.append(('scraper',args[-1]))}
+        context={'time':SimpleNamespace(monotonic_ns=lambda:10),'args':SimpleNamespace(original_deadline_ns=300),'radix_transport':{'state':SimpleNamespace(begin_custody=lambda:calls.append('begin'))},'radix':SimpleNamespace(observe=lambda:calls.append('custody'),observe_memory=observe_memory),'radix_publisher':SimpleNamespace(observe=lambda:calls.append('publisher')),'radix_scraper':object(),'manifest':{},'inputs':{},'case':object(),'harness':SimpleNamespace(poll=lambda:code[0]),'controller':SimpleNamespace(poll=lambda:None),'helper_row':{},'observe_radix_transport':lambda *args:calls.append(('transport',args[-1])),'observe_radix_scraper':lambda *args:calls.append(('scraper',args[-1]))}
         exec(compile(ast.Module(body=branch.body,type_ignores=[]),'actual-worker-cadence','exec'),context)
-        self.assertEqual(calls,['begin','custody','publisher',('transport',300),('scraper',300)])
+        self.assertEqual(calls,['begin','custody','publisher',('memory',300),('transport',300),('scraper',300)]);self.assertEqual(len(memory),1);code[0]=101;self.assertTrue(memory[0]())
         self.assertEqual(source.count('radix_scraper=arm_radix_scraper('),1);self.assertIn('radix_scraper=radix_scraper',source)
     def test_actual_failure_writer_keeps_optional_field_without_primary_or_wait_changes(self):
         from types import SimpleNamespace

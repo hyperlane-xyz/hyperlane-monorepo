@@ -42,6 +42,7 @@ import {
   sqlTransactionBytes,
   sqlMessageQuery,
   domainSeedSql,
+  domainReadbackSql,
   requireDomainRows,
   requireOwnedPostgresUri,
   AleoProxy,
@@ -1933,6 +1934,41 @@ void test('Aleo SQL follows actual transaction width and signed-u32 storage with
       raw,
     ),
   );
+});
+void test('Aleo fixture domain readback orders signed integer IDs rather than projected text', () => {
+  for (const ids of [
+    [3999999998, 3999999999],
+    [2147483648, 2147483649],
+  ]) {
+    const input = fixture();
+    const manifest = parseAleoManifest({
+      ...input,
+      domains: input.domains.map((row, index) => ({
+        ...row,
+        domain: ids[index],
+      })),
+    });
+    // PostgreSQL resolves bare ORDER BY id to the projected id::text alias.
+    // Qualify the input column so numeric SQL order matches strict readback.
+    assert.equal(
+      domainReadbackSql(manifest),
+      `SELECT id::text,name,native_token,chain_id::text,is_test_net::text,is_deprecated::text FROM domain WHERE id IN (${ids.map(sqlDomain).join(',')}) ORDER BY domain.id;`,
+    );
+    const rows = manifest.domains.map((row) => ({
+      id: sqlDomain(row.domain),
+      value: `${sqlDomain(row.domain)}|${row.name}|ALEO|1|true|false`,
+    }));
+    const numeric = [...rows].sort((a, b) => a.id - b.id);
+    const lexical = [...rows].sort((a, b) =>
+      String(a.id) < String(b.id) ? -1 : 1,
+    );
+    requireDomainRows(numeric.map((row) => row.value).join('\n'), manifest);
+    assert.throws(
+      () =>
+        requireDomainRows(lexical.map((row) => row.value).join('\n'), manifest),
+      /owned fixture domain metadata missing or conflicting/,
+    );
+  }
 });
 void test('Aleo fixture domain DML is only two exact metadata rows with conflict readback', () => {
   const manifest = parseAleoManifest(fixture());
