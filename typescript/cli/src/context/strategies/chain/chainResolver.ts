@@ -4,13 +4,17 @@ import {
 } from '@hyperlane-xyz/rebalancer';
 import {
   type ChainName,
-  type DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
-  EvmCoreModule,
+  EvmCoreReader,
   TxSubmitterType,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  isEVMLike,
+  symmetricDifference,
+} from '@hyperlane-xyz/utils';
 
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
@@ -29,6 +33,7 @@ import {
   resolveWarpRouteId,
 } from '../../../utils/warp.js';
 import { requestAndSaveApiKeys } from '../../apiKeys.js';
+import { type CommandContext } from '../../types.js';
 
 /**
  * Resolves chains based on command type.
@@ -73,7 +78,12 @@ export async function resolveChains(
     case CommandType.SUBMIT:
       return resolveSubmitChains(argv);
     case CommandType.CORE_APPLY:
-      return resolveCoreApplyChains(argv);
+      return resolveCoreApplyChains({
+        chain: argv.chain,
+        config: argv.config,
+        strategy: argv.strategy,
+        context: argv.context,
+      });
     case CommandType.CORE_DEPLOY:
       return resolveCoreDeployChains(argv);
     case CommandType.CORE_READ:
@@ -465,42 +475,60 @@ async function resolveRelayerChains(
   return Array.from(chains);
 }
 
-async function resolveCoreApplyChains(
-  argv: Record<string, any>,
-): Promise<ChainName[]> {
+async function resolveCoreApplyChains(argv: {
+  chain: ChainName;
+  config: string;
+  strategy?: string;
+  context: Pick<CommandContext, 'registry' | 'multiProvider'>;
+}): Promise<ChainName[]> {
   try {
     const config = readCoreDeployConfigs(argv.config);
+    const { multiProvider, registry } = argv.context;
+    const chains = new Set<ChainName>([argv.chain]);
 
-    if (!config?.interchainAccountRouter) {
-      return [argv.chain];
-    }
-
-    const addresses = await argv.context.registry.getChainAddresses(argv.chain);
-    const coreAddresses = DeployedCoreAddressesSchema.parse(
-      addresses,
-    ) as DeployedCoreAddresses;
-
-    const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
-
-    switch (protocolType) {
-      case ProtocolType.Tron:
-      case ProtocolType.Ethereum: {
-        const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
-          chain: argv.chain,
-          config,
-          addresses: coreAddresses,
-        });
-
-        const transactions = await evmCoreModule.update(config);
-
-        return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
-          (chainId) => argv.context.multiProvider.getChainName(chainId),
+    if (
+      config.interchainAccountRouter &&
+      isEVMLike(multiProvider.getProtocol(argv.chain))
+    ) {
+      const coreAddresses = DeployedCoreAddressesSchema.parse(
+        await registry.getChainAddresses(argv.chain),
+      );
+      const reader = new EvmCoreReader(multiProvider, argv.chain);
+      // Discovery runs before signer initialization; read ICA enrollment deltas.
+      const actual = await reader.deriveCoreConfig({
+        mailbox: coreAddresses.mailbox,
+        interchainAccountRouter: coreAddresses.interchainAccountRouter,
+      });
+      const actualRouters = actual.interchainAccountRouter?.remoteRouters;
+      if (actualRouters) {
+        const changedDomains = symmetricDifference(
+          new Set(Object.keys(actualRouters)),
+          new Set(
+            Object.keys(config.interchainAccountRouter.remoteRouters ?? {}),
+          ),
         );
-      }
-      default: {
-        return [argv.chain];
+        for (const domain of changedDomains) {
+          chains.add(multiProvider.getChainName(domain));
+        }
       }
     }
+
+    if (argv.strategy) {
+      const strategy = readChainSubmissionStrategy(argv.strategy);
+      // Only these chains receive transactions. Newly discovered submitter
+      // origins must not pull in unrelated strategy entries of their own.
+      for (const chain of Array.from(chains)) {
+        const chainStrategy = strategy[chain];
+        if (chainStrategy) {
+          for (const submitterChain of getSubmitterChains(
+            chainStrategy.submitter,
+          )) {
+            chains.add(submitterChain);
+          }
+        }
+      }
+    }
+    return Array.from(chains);
   } catch (error) {
     throw new Error(`Failed to resolve core apply chains`, {
       cause: error,
