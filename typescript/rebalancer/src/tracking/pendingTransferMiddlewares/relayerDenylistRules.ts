@@ -9,6 +9,7 @@ import {
   addressToBytes32,
   addressToBytesCosmos,
   addressToBytesRadix,
+  assert,
   isNullish,
   isValidAddressCosmos,
   padBytesToLength,
@@ -182,11 +183,12 @@ const DenylistRuleSchema = z
     message: '`matchBody` is only valid on an `address` rule',
   });
 
+// Rust's `str::parse::<u32>` accepts a leading `+` and leading zeros.
 const DomainValueSchema = z.union([
   z.number().int().nonnegative().max(U32_MAX),
   z
     .string()
-    .regex(/^\d+$/, 'domain must be a decimal integer')
+    .regex(/^\+?\d+$/, 'domain must be a decimal integer')
     .transform(Number)
     .pipe(z.number().max(U32_MAX)),
 ]);
@@ -790,6 +792,31 @@ function parseRule(raw: unknown, rules: DenylistRules): void {
   }
 }
 
+/** The third `JSON.parse` reviver argument; `source` is set on primitives. */
+interface JsonReviverContext {
+  source?: string;
+}
+
+/**
+ * serde_json reads `1.0`, `1e3` and `-0` as floats, which the relayer rejects
+ * wherever the file allows a number, but `JSON.parse` returns integers for them.
+ */
+function rejectNonIntegerLiterals(
+  _key: string,
+  value: unknown,
+  context?: JsonReviverContext,
+): unknown {
+  if (typeof value !== 'number') return value;
+
+  const source = context?.source;
+  assert(source !== undefined, 'JSON.parse does not expose number source text');
+  if (!/^(0|[1-9]\d*)$/.test(source)) {
+    throw new Error(`number \`${source}\` is not a non-negative integer`);
+  }
+
+  return value;
+}
+
 /**
  * Parses a runtime denylist file. Throws a `DenylistLoadError` if any rule is
  * invalid. Expired rules are kept and skipped at match time.
@@ -797,7 +824,7 @@ function parseRule(raw: unknown, rules: DenylistRules): void {
 export function parseDenylistFile(text: string): DenylistRules {
   let json: unknown;
   try {
-    json = JSON.parse(text);
+    json = JSON.parse(text, rejectNonIntegerLiterals);
   } catch (error: unknown) {
     throw new DenylistLoadError(
       DenylistLoadFailure.InvalidFile,

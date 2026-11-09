@@ -613,6 +613,56 @@ describe('relayerDenylistRules', () => {
       });
     }
 
+    /** Raw text, since `JSON.stringify` would rewrite `1.0` as `1`. */
+    function domainFile(literal: string): string {
+      return `{"rules":[{"reason":"r","addedBy":"a","match":{"originDomain":${literal}}}]}`;
+    }
+
+    // The relayer's serde parser, for both a single domain and a list.
+    const acceptedDomains: Array<[string, number]> = [
+      ['"+5"', 5],
+      ['"007"', 7],
+      ['4294967295', 4294967295],
+      ['"4294967295"', 4294967295],
+    ];
+    for (const [literal, domain] of acceptedDomains) {
+      for (const value of [literal, `[${literal}]`]) {
+        it(`accepts the domain ${value}`, () => {
+          const rules = parseDenylistFile(domainFile(value));
+
+          expect([...(rules.matchRules[0].originDomains ?? [])]).to.deep.equal([
+            domain,
+          ]);
+        });
+      }
+    }
+
+    const rejectedDomains: Array<[string, RegExp]> = [
+      ['1.0', /^Invalid denylist JSON: number `1\.0` is not/],
+      ['1e3', /^Invalid denylist JSON: number `1e3` is not/],
+      ['1E3', /^Invalid denylist JSON: number `1E3` is not/],
+      ['-1', /^Invalid denylist JSON: number `-1` is not/],
+      ['-0', /^Invalid denylist JSON: number `-0` is not/],
+      ['4294967296', /^Invalid denylist rule at index 0: match.originDomain: /],
+      [
+        '"4294967296"',
+        /^Invalid denylist rule at index 0: match.originDomain: /,
+      ],
+      ['"-0"', /^Invalid denylist rule at index 0: match.originDomain: /],
+      ['"+"', /^Invalid denylist rule at index 0: match.originDomain: /],
+      ['"1.0"', /^Invalid denylist rule at index 0: match.originDomain: /],
+    ];
+    for (const [literal, message] of rejectedDomains) {
+      for (const value of [literal, `[${literal}]`]) {
+        it(`rejects the domain ${value}`, () => {
+          const error = captureLoadError(domainFile(value));
+
+          expect(error.failure).to.equal(DenylistLoadFailure.InvalidFile);
+          expect(error.message).to.match(message);
+        });
+      }
+    }
+
     const acceptedBodyRegexes: Array<[string, string]> = [
       ['a named group', '(?<n>ab)'],
       ['a P-named group', '(?P<n>ab)'],
