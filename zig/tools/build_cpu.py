@@ -362,5 +362,101 @@ def run_main():
         stream.write(json.dumps(completed, indent=2) + '\n')
 
 
+def docker_command(command, machine):
+    """Keep portable AMD argv exact; restore only the closed Docker ARM defaults."""
+    command = list(command)
+    if machine == 'x86_64':
+        return command, False
+    if machine != 'aarch64' or command[:1] != ['python3'] or len(command) < 2:
+        raise ValueError('unsupported Docker compiler architecture or command')
+
+    def remove_pair(words, option, expected=None, repeated=False):
+        count = 0
+        while option in words:
+            position = words.index(option)
+            if position + 1 == len(words) or expected is not None and words[position + 1] != expected:
+                raise ValueError('Docker portable option differs')
+            value = words[position + 1]
+            if expected is None and not value.startswith('/opt/hyperlane-build-cpu/recipes/'):
+                raise ValueError('Docker recipe output differs')
+            del words[position:position + 2]
+            count += 1
+        if not count or not repeated and count != 1:
+            raise ValueError('missing or duplicate Docker portable option')
+
+    loaders = {'zig/src/net/native-url/locked.py': '--cpu-recipe-output',
+               'zig/src/ops/tools/locked.py': '--cpu-recipe-output',
+               'zig/src/starknet/testing/locked.py': '--cpu-recipe-output',
+               'zig/src/aleo/testing/locked.py': '--cpu-recipe-directory'}
+    if command[1] in loaders:
+        remove_pair(command, loaders[command[1]])
+    elif command[1] == 'zig/tools/native_deps.py':
+        remove_pair(command, '--cpu-profile', 'x86_64_v3_pclmul_native_abi')
+        remove_pair(command, '--cpu-recipe-directory')
+    elif command[1] == 'zig/tools/build_cpu.py' and command[2:3] != ['run']:
+        remove_pair(command, '--profile', PROFILE)
+        remove_pair(command, '--recipe', repeated=True)
+    elif command[1:3] == ['zig/tools/build_cpu.py', 'run']:
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument('--kind', choices=sorted(KINDS), required=True)
+        parser.add_argument('--recipe-source', choices=['zig/Dockerfile'], required=True)
+        parser.add_argument('--recipe-output', required=True)
+        parser.add_argument('--tokio-unstable', action='store_true')
+        parser.add_argument('command', nargs=argparse.REMAINDER)
+        args = parser.parse_args(command[3:])
+        if not args.recipe_output.startswith('/opt/hyperlane-build-cpu/recipes/') or args.command[:1] != ['--']:
+            raise ValueError('Docker recipe command differs')
+        command = args.command[1:]
+        if args.kind in {'zig-build', 'zig-direct'}:
+            if args.tokio_unstable:
+                raise ValueError('unexpected Docker tokio option')
+            flags = zig_cpu_args('build' if args.kind == 'zig-build' else 'direct')
+            # Exact current flags only. Old profiles, duplicates and overrides refuse.
+            for flag in flags:
+                if command.count(flag) != 1:
+                    raise ValueError('Docker Zig CPU arguments differ')
+                command.remove(flag)
+            if any(word.startswith(('-Dcpu=', '-Dtarget=', '-mcpu=', '-target')) for word in command):
+                raise ValueError('foreign Docker Zig target override')
+        elif args.kind == 'cc':
+            if command[:1] != ['cc'] or args.tokio_unstable:
+                raise ValueError('Docker C compiler differs')
+            for flag in C_FLAGS.split():
+                if command.count(flag) != 1:
+                    raise ValueError('Docker C CPU arguments differ')
+                command.remove(flag)
+            if any(word.startswith(('-march', '-mtune', '-mpclmul', '-mno-pclmul')) for word in command):
+                raise ValueError('foreign Docker C target override')
+        elif command[:4] != ['cargo', '+1.98.0', 'build', '--locked'] or not args.tokio_unstable:
+            raise ValueError('Docker migration compiler differs')
+        return command, args.tokio_unstable
+    else:
+        raise ValueError('unknown Docker compiler entrypoint')
+    if any(word.startswith(('--cpu-', '--profile', '--recipe')) for word in command[2:]):
+        raise ValueError('unconsumed Docker portable option')
+    return command, False
+
+
+def docker_main():
+    # The running target container determines architecture, never a caller ARG.
+    machine = platform.machine()
+    if platform.system() != 'Linux' or platform.libc_ver()[0] != 'glibc' or machine not in {'x86_64', 'aarch64'}:
+        raise ValueError('Docker native GNU Linux architecture required')
+    if sys.argv[2:3] != ['--']:
+        raise ValueError('Docker command delimiter required')
+    command, tokio = docker_command(sys.argv[3:], machine)
+    if machine == 'x86_64':
+        require_native_linux_host()
+    environment = dict(os.environ)
+    if tokio:
+        environment['RUSTFLAGS'] = '--cfg tokio_unstable'
+    # Same group/streams and exit semantics as run_main; no receipt is copied.
+    result = subprocess.run(command, env=environment)
+    if result.returncode:
+        raise SystemExit(result.returncode if result.returncode > 0 else 128 - result.returncode)
+
+
 if __name__ == '__main__':
-    run_main() if sys.argv[1:2] == ['run'] else main()
+    if sys.argv[1:2] == ['docker']: docker_main()
+    elif sys.argv[1:2] == ['run']: run_main()
+    else: main()

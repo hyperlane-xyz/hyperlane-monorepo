@@ -17,11 +17,11 @@
   "source_inventory": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 142585,
+      "bytes": 147618,
       "sha256": {
         "sha256_hex_chunks": [
-          "7f10d54e337d79c5cf74f2d15e68f78f",
-          "307be79dee7f078d8d1ea3bcb06eed6a"
+          "607f98f74b8b96c00cf21b2c0502809d",
+          "212cffda4be64eb4edc3661874290ecd"
         ]
       }
     },
@@ -547,11 +547,11 @@
     },
     {
       "path": "zig/tools/build_cpu.py",
-      "bytes": 23314,
+      "bytes": 28517,
       "sha256": {
         "sha256_hex_chunks": [
-          "9e6c357c1715eef1198c6b917bb31d86",
-          "e96a64e1c73d457c042255379e686ce3"
+          "119553084f30825016cc98f4ce38ec5a",
+          "c96fc58642fcdf9db733d415b5048b1a"
         ]
       }
     }

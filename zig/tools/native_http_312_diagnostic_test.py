@@ -1,6 +1,7 @@
 """Socket/process-free diagnostic custody and route controls; no Zig compilation."""
 import importlib.util
 import ast
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -277,7 +278,7 @@ class DecisiveSourceAndRouteControls(unittest.TestCase):
         tree=ast.parse((repo/'zig/tools/aleo_linux/kernel_only_test.py').read_bytes())
         ns={'re':re};exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='conditions'],type_ignores=[]),'actual-condition-reader','exec'),ns)
         paired=ast.parse((repo/'zig/bench/paired_linux_test.py').read_bytes());method=next(n for cls in paired.body if isinstance(cls,ast.ClassDef)and cls.name=='Workflow'for n in cls.body if isinstance(n,ast.FunctionDef)and n.name=='evaluate')
-        scope={'re':re,'N':N};exec(compile(ast.Module(body=[method],type_ignores=[]),'actual-condition-evaluator','exec'),scope)
+        scope={'re':re,'N':N,'hashlib':hashlib};exec(compile(ast.Module(body=[method],type_ignores=[]),'actual-condition-evaluator','exec'),scope)
         inverse=next(n for n in paired.body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');exec(compile(ast.Module(body=[inverse],type_ignores=[]),'exact-reviewed-workflow-inverse','exec'),scope)
         text=(repo/'.github/workflows/zig-agents.yml').read_text()
         return text,ns['conditions'],lambda rows,**kw:scope['evaluate'](None,rows,**kw),scope['ordinary_native_http_workflow']

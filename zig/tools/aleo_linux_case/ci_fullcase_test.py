@@ -15,6 +15,17 @@ def evaluator():
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
 def ordinary_native_http_workflow(text):
+ # Exact SVM-only distro profile setup inverse; no other workflow changes normalize.
+ svm_start = '      - name: Load distro bwrap user namespace policy\n'
+ svm_next = '      - name: Check prerequisite owner controls\n'
+ if text.count(svm_start) != 1 or text.count(svm_next) != 1: raise AssertionError('Exact once-only SVM profile setup required')
+ begin = text.index(svm_start); end = text.index(svm_next, begin)
+ if hashlib.sha256(text[begin:end].encode()).hexdigest() != '1f174656330548bdf7bbcbf63744a61a' '82324a8899622a9f599c428a4e8ad436': raise AssertionError('Exact reviewed SVM profile setup bytes required')
+ text = text[:begin] + text[end:]
+ svm_after = '            pkg-config protobuf-compiler bubblewrap git ca-certificates python3 \\\n            apparmor=4.0.1really4.0.1-0ubuntu0.24.04.9 apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9\n'
+ svm_before = '            pkg-config protobuf-compiler bubblewrap git ca-certificates python3\n'
+ if text.count(svm_after) != 1: raise AssertionError('Exact pinned SVM AppArmor package install required')
+ text = text.replace(svm_after, svm_before, 1)
  # Exact inverse of the portable native-linux compiler commands; cold/paired remain separately reviewed.
  portable_after = '        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0 --cpu-recipe-output "$RUNNER_TEMP/native-url-cpu.json"\n'
  portable_before = '        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0\n'
@@ -206,7 +217,7 @@ class NativePsql16(unittest.TestCase):
   tree=ast.parse(pathlib.Path(m.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='execute');binding=next(n for n in ast.walk(fn)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='binding'for t in n.targets));tools=next(v for k,v in zip(binding.value.keys,binding.value.values)if isinstance(k,ast.Constant)and k.value=='tools');psql=next(v for k,v in zip(tools.keys,tools.values)if isinstance(k,ast.Constant)and k.value=='psql');self.assertEqual(ast.unparse(psql),'native_psql16(repo)')
   job=(REPO/'.github/workflows/zig-agents.yml').read_text().split('\n  aleo-full-case:',1)[1].split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0];self.assertIn('bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64',job)
  def test_native16_apt_inverse_is_exact_in_both_existing_workflow_helpers(self):
-  text=(REPO/'.github/workflows/zig-agents.yml').read_text();helper=next(n for n in ast.parse((REPO/'zig/bench/paired_linux_test.py').read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');scope={};exec(compile(ast.Module([helper],type_ignores=[]),'actual paired workflow inverse','exec'),scope)
+  text=(REPO/'.github/workflows/zig-agents.yml').read_text();helper=next(n for n in ast.parse((REPO/'zig/bench/paired_linux_test.py').read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');scope={'hashlib':hashlib};exec(compile(ast.Module([helper],type_ignores=[]),'actual paired workflow inverse','exec'),scope)
   normalized=ordinary_native_http_workflow(text);self.assertEqual(scope['ordinary_native_http_workflow'](text),normalized)
   line='          sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64\n';self.assertEqual(text.count(line),1)
   for changed in [text.replace(line,''),text.replace(line,line+line),text.replace(line,line.replace('postgresql-client-16','postgresql-client-17'))]:

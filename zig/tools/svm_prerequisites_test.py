@@ -573,4 +573,79 @@ class UserNamespacePolicyControls(unittest.TestCase):
     with mock.patch.object(m.os,'open',side_effect=lambda _path,flags:original(fixture,flags)):
      self.assertEqual(set(m.user_namespace_policy().values()),{expected})
 
+class NobleBwrapPolicySetupControls(unittest.TestCase):
+ PROFILE_WIRE = b"# This profile allows almost everything and only exists to allow\n# bwrap to work on a system with user namespace restrictions\n# being enforced.\n# bwrap is allowed access to user namespaces and capabilities\n# within the user namespace, but its children do not have\n# capabilities, blocking bwrap from being able to be used to\n# arbitrarily by-pass the user namespace restrictions.\n#\n# Note: the bwrap child is stacked against the bwrap profile due to\n# bwraps use of no-new-privs\n\n# disabled by default as it can break some use cases on a system that\n# doesn't have or has disable user namespace restrictions for unconfined\n# use aa-enforce to enable it\n\nabi <abi/4.0>,\n\ninclude <tunables/global>\n\nprofile bwrap /usr/bin/bwrap flags=(attach_disconnected) {\n  allow capability,\n  # not allow all, to allow for pix stack\n  # sadly we have to allow  m every where to allow children to work under\n  # stacking.\n  allow file rwlkm /{**,},\n  allow network,\n  allow unix,\n  allow ptrace,\n  allow signal,\n  allow mqueue,\n  allow io_uring,\n  allow userns,\n  allow mount,\n  allow umount,\n  allow pivot_root,\n  allow dbus,\n  allow px /** -> bwrap//&unpriv_bwrap,\n\n  # the local include should not be used without understanding the userns\n  # restriction.\n  # Site-specific additions and overrides. See local/README for details.\n  include if exists <local/bwrap-userns-restrict>\n}\n\nprofile unpriv_bwrap flags=(attach_disconnected) {\n  # not allow all, to allow for pix stack\n  allow file rwlkm /{**,},\n  allow network,\n  allow unix,\n  allow ptrace,\n  allow signal,\n  allow mqueue,\n  allow io_uring,\n  allow userns,\n  allow mount,\n  allow umount,\n  allow pivot_root,\n  allow dbus,\n\n  allow pix /** -> &unpriv_bwrap,\n\n  audit deny capability,\n\n  # the local include should not be used without understanding the userns\n  # restriction.\n  # Site-specific additions and overrides. See local/README for details.\n  include if exists <local/unpriv_bwrap>\n}\n"
+ def setup_source(self):
+  import textwrap
+  workflow=(pathlib.Path(__file__).resolve().parents[2]/'.github/workflows/zig-agents.yml').read_text()
+  start='      - name: Load distro bwrap user namespace policy\n';end='      - name: Check prerequisite owner controls\n'
+  block=workflow.split(start,1)[1].split(end,1)[0]
+  source=block.split("          python3 -I -B - <<'PY'\n",1)[1].rsplit('          PY\n',1)[0]
+  ns={'__name__':'policy_setup_fixture'};exec(compile(textwrap.dedent(source),'<actual-WF-SVM-profile-setup>','exec'),ns);return ns,workflow
+ def invoke(self,poison=None):
+  ns,_=self.setup_source();wire=self.PROFILE_WIRE;self.assertEqual(hashlib.sha256(wire).hexdigest(),ns['PROFILE_SHA']);self.assertEqual(len(wire),ns['PROFILE_BYTES'])
+  files={ns['PROFILE']:wire,'/sys/module/apparmor/parameters/enabled':b'Y\n','/proc/sys/kernel/unprivileged_userns_clone':b'1\n','/proc/sys/kernel/apparmor_restrict_unprivileged_userns':b'1\n'};calls=[];loaded=False
+  if poison=='source':files[ns['PROFILE']]=b'foreign'
+  if poison=='local':files['/etc/apparmor.d/local/unpriv_bwrap']=b'allow capability,\n'
+  if poison=='target':files[ns['TARGET']]=b'conflicting policy'
+  if poison=='policy':files['/proc/sys/kernel/apparmor_restrict_unprivileged_userns']=b'0\n'
+  def regular(path,cap):
+   if path not in files:raise FileNotFoundError('unavailable fixed fixture')
+   value=files[path];self.assertLessEqual(len(value),cap);return value
+  def command(argv):
+   nonlocal loaded
+   calls.append(argv)
+   if argv[0]=='/usr/bin/dpkg-query':
+    self.assertEqual(argv[1:3],['-W','-f=${Version}']);self.assertIn(argv[3],['apparmor','apparmor-profiles']);return (ns['VERSION']if poison!='version'else'foreign').encode()
+   self.assertEqual(argv[:2],['/usr/bin/sudo','-n'])
+   if argv[2]=='/usr/bin/install':self.assertEqual(argv[3:],['-o','root','-g','root','-m','0644','--',ns['PROFILE'],ns['TARGET']]);files[ns['TARGET']]=wire;return b''
+   if argv[2]=='/usr/sbin/apparmor_parser':self.assertEqual(argv[3:],['--replace',ns['TARGET']]);loaded=True;return b''
+   self.assertEqual(argv[2:],['/usr/bin/head','-c','1048576','/sys/kernel/security/apparmor/profiles']);self.assertTrue(loaded)
+   if poison=='late_policy':files['/proc/sys/kernel/apparmor_restrict_unprivileged_userns']=b'0\n'
+   return b'bwrap (complain)\nunpriv_bwrap (enforce)\n'if poison=='loaded'else b'bwrap (enforce)\nunpriv_bwrap (enforce)\n'
+  ns.update(regular=regular,command=command)
+  if poison:
+   with self.assertRaises(ValueError):ns['configure_profile']()
+   if poison in {'source','local','target','policy','version'}:self.assertFalse(any(x[0]=='/usr/bin/sudo'for x in calls))
+   return
+  result=ns['configure_profile']();self.assertEqual(result['policy_before'],result['policy_after']);self.assertEqual(set(result['policy_after'].values()),{1});self.assertTrue(result['bwrap_enforced']and result['unpriv_bwrap_enforced']);self.assertFalse(result['global_restriction_disabled']);self.assertEqual(len(calls),5);return result
+ def test_actual_WF_setup_uses_exact_distro_policy_and_keeps_global_restriction(self):
+  self.assertEqual(self.invoke()['profile_sha256'],hashlib.sha256(self.PROFILE_WIRE).hexdigest())
+  self.assertIn(b'audit deny capability,',self.PROFILE_WIRE);self.assertNotIn(b'flags=(unconfined)',self.PROFILE_WIRE)
+ def test_foreign_package_profile_override_global_policy_or_unenforced_readback_refuses(self):
+  for poison in ['source','local','target','policy','version','loaded','late_policy']:
+   with self.subTest(poison=poison):self.invoke(poison)
+ def test_policy_regular_reads_are_bounded_and_refuse_symlinks_directories_and_oversize(self):
+  ns,_=self.setup_source()
+  with tempfile.TemporaryDirectory()as temp:
+   root=pathlib.Path(temp);path=root/'value';path.write_bytes(b'1\n');self.assertEqual(ns['regular'](str(path),32),b'1\n');alias=root/'alias';alias.symlink_to(path)
+   for candidate,cap in [(alias,32),(root,32),(path,1)]:
+    with self.subTest(candidate=candidate,cap=cap),self.assertRaises((ValueError,OSError)):ns['regular'](str(candidate),cap)
+ def test_fixed_sysfs_PAGE_SIZE_hint_keeps_actual_8byte_cap_and_identity_checks(self):
+  from types import SimpleNamespace
+  ns,_=self.setup_source();system='/sys/module/apparmor/parameters/enabled';original_open=ns['os'].open;original_stat=ns['os'].fstat
+  with tempfile.TemporaryDirectory()as temp:
+   target=pathlib.Path(temp)/'value'
+   for content,changed,path,accepted in [(b'Y\n',False,system,True),(b'Y\n1234567',False,system,False),(b'Y\n',True,system,False),(b'Y\n',False,str(target),False)]:
+    target.write_bytes(content);count=[0]
+    def opening(request,flags):self.assertEqual(request,path);return original_open(target,flags)
+    def info(fd):
+     row=original_stat(fd);count[0]+=1
+     return SimpleNamespace(st_mode=row.st_mode,st_dev=row.st_dev,st_ino=row.st_ino+(1 if changed and count[0]>1 else 0),st_size=4096,st_mtime_ns=row.st_mtime_ns)
+    with mock.patch.object(ns['os'],'open',side_effect=opening),mock.patch.object(ns['os'],'fstat',side_effect=info):
+     if accepted:self.assertEqual(ns['regular'](path,8),b'Y\n')
+     else:
+      with self.assertRaises(ValueError):ns['regular'](path,8)
+ def test_both_exact_workflow_inverses_preserve_the_original_full_golden_and_refuse_poison(self):
+  import ast,re
+  _,workflow=self.setup_source();root=pathlib.Path(__file__).resolve().parents[2];functions=[]
+  start='      - name: Load distro bwrap user namespace policy\n';end='      - name: Check prerequisite owner controls\n';block=start+workflow.split(start,1)[1].split(end,1)[0]
+  for name in ['zig/bench/paired_linux_test.py','zig/tools/aleo_linux_case/ci_fullcase_test.py']:
+   fn=next(n for n in ast.parse((root/name).read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');functions.append(ast.dump(fn,include_attributes=False));scope={'hashlib':hashlib,'re':re};exec(compile(ast.Module(body=[fn],type_ignores=[]),'<actual-reviewed-workflow-inverse>','exec'),scope);inverse=scope['ordinary_native_http_workflow']
+   self.assertEqual(hashlib.sha256(inverse(workflow).encode()).hexdigest(),'0b8e744f14610dbe5330fe5371b5bd35' '1950bd4e8a9c9edc4be0cee176a208e7')
+   for changed in [workflow.replace(block,'',1),workflow.replace(block,block+block,1),workflow.replace('--replace','--remove',1),workflow.replace('apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9','apparmor-profiles=foreign',1),workflow.replace("b'1', b'1\\n'","b'0', b'0\\n'",1)]:
+    self.assertNotEqual(changed,workflow)
+    with self.assertRaises(AssertionError):inverse(changed)
+  self.assertEqual(functions[0],functions[1])
+
 if __name__=='__main__':unittest.main()

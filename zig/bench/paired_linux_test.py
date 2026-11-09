@@ -12,6 +12,17 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact SVM-only distro profile setup inverse; no other workflow changes normalize.
+ svm_start = '      - name: Load distro bwrap user namespace policy\n'
+ svm_next = '      - name: Check prerequisite owner controls\n'
+ if text.count(svm_start) != 1 or text.count(svm_next) != 1: raise AssertionError('Exact once-only SVM profile setup required')
+ begin = text.index(svm_start); end = text.index(svm_next, begin)
+ if hashlib.sha256(text[begin:end].encode()).hexdigest() != '1f174656330548bdf7bbcbf63744a61a' '82324a8899622a9f599c428a4e8ad436': raise AssertionError('Exact reviewed SVM profile setup bytes required')
+ text = text[:begin] + text[end:]
+ svm_after = '            pkg-config protobuf-compiler bubblewrap git ca-certificates python3 \\\n            apparmor=4.0.1really4.0.1-0ubuntu0.24.04.9 apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9\n'
+ svm_before = '            pkg-config protobuf-compiler bubblewrap git ca-certificates python3\n'
+ if text.count(svm_after) != 1: raise AssertionError('Exact pinned SVM AppArmor package install required')
+ text = text.replace(svm_after, svm_before, 1)
  # Exact inverse of the portable native-linux compiler commands; cold/paired remain separately reviewed.
  portable_after = '        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0 --cpu-recipe-output "$RUNNER_TEMP/native-url-cpu.json"\n'
  portable_before = '        run: python3 zig/src/net/native-url/locked.py --toolchain 1.98.0\n'

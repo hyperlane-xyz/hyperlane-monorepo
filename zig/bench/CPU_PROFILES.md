@@ -17,6 +17,9 @@ GNU libc detection. The CPU remains explicit. The receipts normalize ISA
 requirements; they do not promise compatibility with every glibc version.
 Container linkage and actual consumer ELF/runtime checks remain required.
 
+ARM64 Docker builds retain native compiler defaults and schema1 CPU records.
+They are outside this x86-64 benchmark profile.
+
 Historical v1 records retain their original full-host feature-subset check. Do
 not relabel their artifacts or reuse their timings under the new profile. Rebuild
 the complete producer cohort and measure both implementations again. The Rust

@@ -236,4 +236,66 @@ class PortableCpuControls(unittest.TestCase):
                 self.cpu.run_main()
             run.assert_not_called();self.assertFalse(output.exists())
 
+class DockerArchitectureControls(unittest.TestCase):
+    def commands(self):
+        import shlex
+        docker=(Path(__file__).resolve().parents[1]/'Dockerfile').read_text()
+        rows=[]
+        for line in docker.replace('\\\n',' ').splitlines():
+            words=shlex.split(line,comments=True)
+            marker=['python3','zig/tools/build_cpu.py','docker','--']
+            for i in range(len(words)-3):
+                if words[i:i+4]==marker:
+                    end=words.index('&&',i+4)if'&&'in words[i+4:]else len(words)
+                    rows.append(words[i+4:end])
+        return rows
+
+    def test_actual_Docker_AMD_commands_are_exact_and_ARM_native_defaults_keep_all_stages(self):
+        rows=self.commands();self.assertEqual(len(rows),17)
+        cpu=export.build_cpu
+        for words in rows:
+            with self.subTest(entry=words[:4]):
+                self.assertEqual(cpu.docker_command(words,'x86_64'),(words,False))
+                arm,tokio=cpu.docker_command(words,'aarch64')
+                self.assertTrue(arm)
+                self.assertFalse(any(x.startswith(('--cpu-','--profile','--recipe','-Dcpu=','-mcpu=','-march=','-mtune='))or x=='-mpclmul'for x in arm))
+                self.assertNotIn('-target',arm);self.assertNotIn('-Dtarget=native',arm)
+                self.assertNotEqual(arm[1:3],['zig/tools/build_cpu.py','run'])
+                if tokio:self.assertEqual(arm[:4],['cargo','+1.98.0','build','--locked'])
+        self.assertEqual(sum(cpu.docker_command(x,'aarch64')[1]for x in rows),1)
+        # The ARM recorder uses existing schema1 main; it never consumes a recipe.
+        recorders=[cpu.docker_command(x,'aarch64')[0]for x in rows if'--scope'in x]
+        self.assertEqual({x[x.index('--scope')+1]for x in recorders},set(cpu.SCOPES))
+        self.assertEqual(len(recorders),5)
+
+    def test_ARM_refuses_unknown_arch_entrypoint_stale_profiles_duplicate_and_foreign_flags(self):
+        cpu=export.build_cpu;rows=self.commands()
+        for machine in ('arm64','AMD64','ppc64le',''):
+            with self.subTest(machine=machine),self.assertRaises(ValueError):cpu.docker_command(rows[0],machine)
+        poisoned=[['python3','foreign.py'],['python3','zig/tools/native_deps.py','--cpu-profile','x86_64_v3','--cpu-recipe-directory','/opt/hyperlane-build-cpu/recipes/native-deps']]
+        for words in rows:
+            if'--profile'in words:
+                bad=words.copy();bad[bad.index('--profile')+1]='linux-x86_64-v3-pclmul-v1';poisoned.append(bad)
+            if'--kind'in words and words[words.index('--kind')+1]in{'zig-build','zig-direct'}:
+                bad=words+['-Dcpu=native'];poisoned.append(bad)
+                bad=words.copy();index=next(i for i,x in enumerate(bad)if x.startswith(('-Dcpu=','-mcpu=')));bad.append(bad[index]);poisoned.append(bad)
+        for words in poisoned:
+            with self.subTest(words=words[:5]),self.assertRaises((ValueError,SystemExit)):cpu.docker_command(words,'aarch64')
+
+    def test_actual_Docker_dispatch_host_fence_wait_status_and_migration_environment(self):
+        from unittest.mock import patch
+        import sys,types
+        cpu=export.build_cpu;words=next(x for x in self.commands()if'--tokio-unstable'in x)
+        for machine in ('x86_64','aarch64'):
+            with patch.object(cpu.platform,'system',return_value='Linux'),patch.object(cpu.platform,'machine',return_value=machine),patch.object(cpu.platform,'libc_ver',return_value=('glibc','2.36')),patch.object(cpu.os,'environ',{'PATH':'fixed','RUSTFLAGS':'original'}),patch.object(sys,'argv',['build_cpu.py','docker','--',*words]),patch.object(cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=0))as run:
+                cpu.docker_main()
+            expected,tokio=cpu.docker_command(words,machine)
+            self.assertEqual(run.call_args.args,(expected,));self.assertEqual(run.call_args.kwargs,{'env':{'PATH':'fixed','RUSTFLAGS':'--cfg tokio_unstable'if tokio else'original'}})
+        for system,machine,libc in [('Darwin','aarch64',''),('Linux','ppc64le','glibc'),('Linux','aarch64','musl')]:
+            with patch.object(cpu.platform,'system',return_value=system),patch.object(cpu.platform,'machine',return_value=machine),patch.object(cpu.platform,'libc_ver',return_value=(libc,'')),patch.object(sys,'argv',['build_cpu.py','docker','--',*words]),patch.object(cpu.subprocess,'run')as run,self.assertRaises(ValueError):cpu.docker_main()
+            run.assert_not_called()
+        for code,expected in [(7,7),(-15,143)]:
+            with patch.object(cpu.platform,'system',return_value='Linux'),patch.object(cpu.platform,'machine',return_value='aarch64'),patch.object(cpu.platform,'libc_ver',return_value=('glibc','2.36')),patch.object(sys,'argv',['build_cpu.py','docker','--',*words]),patch.object(cpu.subprocess,'run',return_value=types.SimpleNamespace(returncode=code)),self.assertRaises(SystemExit)as raised:cpu.docker_main()
+            self.assertEqual(raised.exception.code,expected)
+
 if __name__=='__main__':unittest.main()
