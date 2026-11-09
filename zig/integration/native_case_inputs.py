@@ -236,6 +236,22 @@ def helper_cpu_input(receipt):
     return checked(expected)
 
 
+def helper_cpu_admission_diagnostic(required_flags, available_flags):
+    for flags in (required_flags, available_flags):
+        require(type(flags) is list and 0 < len(flags) <= 512, 'CPU diagnostic flag count invalid')
+        require(all(type(flag) is str and re.fullmatch('[A-Za-z0-9_.+-]{1,64}', flag) for flag in flags), 'CPU diagnostic flag name invalid')
+        require(flags == sorted(set(flags)), 'CPU diagnostic flags must be sorted and unique')
+    missing = sorted(set(required_flags) - set(available_flags))
+    require(missing, 'CPU diagnostic requires failed admission')
+    record = {'schema': 1, 'kind': 'native-case-helper-cpu-admission',
+              'required_flags': required_flags, 'available_flags': available_flags,
+              'missing_flags': missing, 'required_count': len(required_flags),
+              'available_count': len(available_flags), 'missing_count': len(missing),
+              'admitted': False}
+    require(len(json.dumps(record, separators=(',', ':')).encode('ascii')) <= 32768, 'CPU diagnostic JSON exceeds bound')
+    return record
+
+
 def helper_inputs(directory, producer):
     value = read_json(relative_file(directory, 'result.json'))
     require(value['passed'] is True and value['source_commit'] == producer and value['source_unchanged'] is True and value['all_owned_jobs_joined'] is True and value['native_case_acceptance'] is False, 'Actual immutable helper compile/control gate required')
@@ -273,6 +289,11 @@ def hydrate(request_path, request_sha, receipt_pin, execution, output, repo=ROOT
     cpu_module = load_module('case_consumer_cpu', 'zig/tools/build_cpu.py')
     flags = cpu_module.cpu_flags(Path('/proc/cpuinfo').read_text(), intersection=True)
     helper_flags = cpu_module.cpu_flags(helper_cpu_input(receipt).read_text())
+    if not set(helper_flags) <= set(flags):
+        try:
+            print(json.dumps(helper_cpu_admission_diagnostic(helper_flags, flags), separators=(',', ':')), flush=True)
+        except (OSError, ValueError):
+            pass  # Optional diagnostic must preserve the original admission refusal.
     require(set(helper_flags) <= set(flags), 'Helper/tools compiler-host CPU not covered by consumer')
     inputs = {k: Path(v['directory']) for k, v in receipt['artifacts'].items()}
     sdk_pin = artifact(relative_file(inputs['sdk'], 'manifest.json'))

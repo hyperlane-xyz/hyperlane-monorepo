@@ -71,6 +71,44 @@ class HelperCpuControls(unittest.TestCase):
   value=self.receipt();alternate=self.root/'same-cpu.txt';alternate.write_bytes(pathlib.Path(value['artifact_pins']['helper_cpu']['path']).read_bytes());value['artifact_pins']['helper_cpu']=m.artifact(alternate)
   with self.assertRaisesRegex(ValueError,'actual extracted producer'):m.helper_cpu_input(value)
 
+class HelperCpuAdmissionDiagnosticControls(unittest.TestCase):
+ def actual_guard(self, required, available):
+  fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='hydrate')
+  refusal=next(i for i,n in enumerate(fn.body)if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and isinstance(n.value.func,ast.Name)and n.value.func.id=='require'and len(n.value.args)>1 and isinstance(n.value.args[1],ast.Constant)and n.value.args[1].value=='Helper/tools compiler-host CPU not covered by consumer')
+  nodes=fn.body[refusal-1:refusal+1];self.assertIsInstance(nodes[0],ast.If)
+  env=dict(m.__dict__,helper_flags=required,flags=available)
+  exec(compile(ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[])),str(m.__file__),'exec'),env)
+ def test_actual_refusal_prints_only_closed_flag_difference_and_preserves_primary(self):
+  with mock.patch('builtins.print')as output:
+   with self.assertRaisesRegex(ValueError,'^Helper/tools compiler-host CPU not covered by consumer$'):self.actual_guard(['avx2','sse2'],['sse2'])
+  output.assert_called_once();args,kwargs=output.call_args;self.assertEqual(kwargs,{'flush':True});self.assertEqual(len(args),1)
+  row=json.loads(args[0]);self.assertEqual(set(row),{'schema','kind','required_flags','available_flags','missing_flags','required_count','available_count','missing_count','admitted'})
+  self.assertEqual(row,{'schema':1,'kind':'native-case-helper-cpu-admission','required_flags':['avx2','sse2'],'available_flags':['sse2'],'missing_flags':['avx2'],'required_count':2,'available_count':1,'missing_count':1,'admitted':False})
+  self.assertTrue(args[0].isascii());self.assertLessEqual(len(args[0].encode('ascii')),32768)
+ def test_covered_flags_no_diagnostic_and_original_guard_passes(self):
+  with mock.patch('builtins.print')as output:self.actual_guard(['sse2'],['avx2','sse2'])
+  output.assert_not_called()
+ def test_invalid_names_types_counts_or_order_never_exported_and_primary_retained(self):
+  for required in [['PRIVATE\nvalue'],['/private/path'],['token=value'],['é'],['x'*65],[1],[],['x']*513,['x','x'],['sse2','avx2']]:
+   with self.subTest(required=type(required[0]).__name__ if required else 'empty'),mock.patch('builtins.print')as output:
+    with self.assertRaises(ValueError):m.helper_cpu_admission_diagnostic(required,['sse2'])
+    if required and all(type(v)is str for v in required)and not set(required)<= {'sse2'}:
+     with self.assertRaisesRegex(ValueError,'^Helper/tools compiler-host CPU not covered by consumer$'):self.actual_guard(required,['sse2'])
+   output.assert_not_called()
+ def test_total_serialized_bound_refuses_without_export(self):
+  required=sorted('r'+str(i).zfill(3)+'x'*60 for i in range(512));available=sorted('a'+str(i).zfill(3)+'x'*60 for i in range(512))
+  with self.assertRaisesRegex(ValueError,'JSON exceeds bound'):m.helper_cpu_admission_diagnostic(required,available)
+  with mock.patch('builtins.print')as output:
+   with self.assertRaisesRegex(ValueError,'^Helper/tools compiler-host CPU not covered by consumer$'):self.actual_guard(required,available)
+  output.assert_not_called()
+ def test_stdout_failure_cannot_mask_primary(self):
+  with mock.patch('builtins.print',side_effect=OSError('SYNTHETIC stdout closed')):
+   with self.assertRaisesRegex(ValueError,'^Helper/tools compiler-host CPU not covered by consumer$'):self.actual_guard(['avx2'],['sse2'])
+ def test_no_missing_flags_or_invalid_available_cannot_make_diagnostic(self):
+  with self.assertRaisesRegex(ValueError,'failed admission'):m.helper_cpu_admission_diagnostic(['sse2'],['sse2'])
+  for available in [['PRIVATE\nvalue'],['/private/path'],[1],[],['x']*513]:
+   with self.assertRaises(ValueError):m.helper_cpu_admission_diagnostic(['avx2'],available)
+
 class IsolatedImports(unittest.TestCase):
  def test_real_consumer_modules_load_under_isolated_python_with_path_restored(self):
   import sys
