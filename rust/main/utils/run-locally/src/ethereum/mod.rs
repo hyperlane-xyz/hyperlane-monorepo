@@ -15,6 +15,9 @@ use crate::utils::{as_task, get_ts_infra_path, get_workspace_path, AgentHandles,
 pub mod ethereum_termination_invariants;
 mod multicall;
 
+// All three logical Hyperlane domains share one physical Anvil chain.
+pub const ANVIL_CHAIN_ID: &str = "31337";
+
 #[apply(as_task)]
 pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     log!("Installing typescript dependencies...");
@@ -47,7 +50,10 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
             .join();
     }
     log!("Launching anvil...");
-    let anvil_args = Program::new("anvil").flag("silent").filter_logs(|_| false); // for now do not keep any of the anvil logs
+    let anvil_args = Program::new("anvil")
+        .flag("silent")
+        .arg("chain-id", ANVIL_CHAIN_ID)
+        .filter_logs(|_| false); // for now do not keep any of the anvil logs
     let mut anvil = anvil_args.spawn("ETH", None);
 
     sleep(Duration::from_secs(10));

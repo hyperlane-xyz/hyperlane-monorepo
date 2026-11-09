@@ -2568,7 +2568,10 @@ fn configure_evm_fixture(
         .map(|a| a.to_string_lossy().into_owned())
         .collect();
     match kind {
-        "anvil" => ensure!(args == ["--silent"], "Anvil Source arguments differ"),
+        "anvil" => ensure!(
+            args == ["--silent", "--chain-id", crate::ethereum::ANVIL_CHAIN_ID],
+            "Anvil Source arguments differ"
+        ),
         "postgres" => ensure!(
             Some(args) == postgres_arguments_at(Some(manifest), std::process::id())?,
             "PG fixture arguments differ"
@@ -7352,7 +7355,7 @@ mod tests {
     #[test]
     fn evm_fixture_group_selection_is_only_exact_long_running_source_commands() {
         let mut command = Command::new("anvil");
-        command.arg("--silent");
+        command.args(["--silent", "--chain-id", crate::ethereum::ANVIL_CHAIN_ID]);
         assert_eq!(
             evm_fixture_kind(&command, Path::new("/tools/anvil")),
             Some("anvil")
@@ -7377,11 +7380,16 @@ mod tests {
         let m = evm_tools_fixture(root.path(), &binary);
         let tool = evm_fixture_tools(&m).unwrap()["anvil"].clone();
         let mut command = Command::new(&tool.path);
-        command.arg("--silent");
+        command.args(["--silent", "--chain-id", crate::ethereum::ANVIL_CHAIN_ID]);
         configure_evm_fixture(&mut command, &tool.path, &m).unwrap();
         let mut command = Command::new(&tool.path);
         command.args(["--host", "0.0.0.0"]);
         assert!(configure_evm_fixture(&mut command, &tool.path, &m).is_err());
+        for args in [vec!["--silent"], vec!["--silent", "--chain-id", "31338"]] {
+            let mut command = Command::new(&tool.path);
+            command.args(args);
+            assert!(configure_evm_fixture(&mut command, &tool.path, &m).is_err());
+        }
     }
     fn model_fixture_process(binary: &Artifact) -> (FixtureProcesses, Vec<FixtureSnapshot>) {
         let mut state = FixtureProcesses::default();
