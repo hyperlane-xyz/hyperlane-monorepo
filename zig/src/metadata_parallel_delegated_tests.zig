@@ -1133,7 +1133,8 @@ fn rpcResult(allocator: A, id: i64, result: []const u8) ![]u8 {
     return std.fmt.allocPrint(allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":\"0x{s}\"}}", .{ id, result });
 }
 
-fn metadataRpcResponse(allocator: A, body: []const u8) ![]u8 {
+fn metadataRpcResponse(allocator: A, body: []const u8, member_count: usize) ![]u8 {
+    if (member_count != 4 and member_count != 16) return error.FixtureInvalidMemberCount;
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body, .{});
     defer parsed.deinit();
     const object = parsed.value.object;
@@ -1164,8 +1165,8 @@ fn metadataRpcResponse(allocator: A, body: []const u8) ![]u8 {
         defer result.deinit(allocator);
         try appendWord(&result, allocator, 64);
         try appendWord(&result, allocator, 2);
-        try appendWord(&result, allocator, 16);
-        for (1..17) |index| try appendWord(&result, allocator, index);
+        try appendWord(&result, allocator, member_count);
+        for (1..member_count + 1) |index| try appendWord(&result, allocator, index);
         return rpcResult(allocator, id, result.items);
     }
     const verify_selector = try evm.codecs.hexAlloc(allocator, &evm.codecs.selector("verify(bytes,bytes)"));
@@ -1180,6 +1181,7 @@ const NativeMetadataServer = struct {
     failure: ?anyerror = null,
     thread: ?std.Thread = null,
     schedule: ?*NativeMetadataSchedule = null,
+    member_count: usize = 16,
     hits: [16]std.atomic.Value(usize) = @splat(.init(0)),
     stalled: [4096]std.net.Stream = undefined,
     stalled_count: usize = 0,
@@ -1278,7 +1280,7 @@ const NativeMetadataServer = struct {
             retained = true;
             return;
         }
-        const response = try metadataRpcResponse(std.heap.page_allocator, body);
+        const response = try metadataRpcResponse(std.heap.page_allocator, body, self.member_count);
         defer std.heap.page_allocator.free(response);
         if (self.schedule) |schedule| {
             if (try schedule.capture(stream, body, response)) {
@@ -2055,9 +2057,12 @@ fn waitNativeMetadataPoolDrain(runtime: *Pool) !void {
 
 test "native shared Pool preserves cached verification across deterministic four slot gas pressure and drains" {
     const allocator = std.testing.allocator;
+    // Four ISM children; all sixteen transport URLs remain below unchanged.
+    const member_count = 4;
     const library = try pool_fixture.nativeLibrary(allocator);
     defer allocator.free(library);
     var server = try NativeMetadataServer.init();
+    server.member_count = member_count;
     var server_live = false;
     var server_closed = false;
     defer if (!server_closed) {
@@ -2121,10 +2126,10 @@ test "native shared Pool preserves cached verification across deterministic four
         return err;
     };
     defer allocator.free(encoded);
-    const decoded = try protocol.metadata.Aggregation.decode(encoded, 16);
+    const decoded = try protocol.metadata.Aggregation.decode(encoded, member_count);
     var selected: usize = 0;
     var selected_mask: u16 = 0;
-    for (0..16) |index| {
+    for (0..member_count) |index| {
         if ((try decoded.metadataAt(index)) != null) {
             selected += 1;
             selected_mask |= NativeMetadataSchedule.bit(index);
