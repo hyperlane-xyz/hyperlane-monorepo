@@ -24,7 +24,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
-import { ZBigNumberish } from '../../metadata/customZodTypes.js';
+import { ZUint32 } from '../../metadata/customZodTypes.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
@@ -47,12 +47,7 @@ import {
 const stringFromDecimalNumber = (num: bigint | number) =>
   shortString.decodeShortString(ensure0x(num.toString(16)));
 
-const StarknetDomainsSchema = ZBigNumberish.refine(
-  (domain) => domain >= 0n && domain < 2n ** 32n,
-  'Starknet domain must fit in a uint32',
-)
-  .transform(Number)
-  .array();
+const StarknetDomainsSchema = ZUint32.array();
 
 export class StarknetTokenAdapter
   extends BaseStarknetAdapter

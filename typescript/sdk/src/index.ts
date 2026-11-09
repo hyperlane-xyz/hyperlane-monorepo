@@ -499,7 +499,12 @@ export {
   RpcUrl,
   RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
-export { ZBigNumberish, ZChainName, ZHash } from './metadata/customZodTypes.js';
+export {
+  ZBigNumberish,
+  ZChainName,
+  ZHash,
+  ZUint32,
+} from './metadata/customZodTypes.js';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,

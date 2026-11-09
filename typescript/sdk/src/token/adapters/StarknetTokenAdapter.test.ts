@@ -53,7 +53,7 @@ describe('StarknetHypTokenAdapter Cairo response normalization', () => {
   it('rejects out-of-range decoded domains instead of rounding or accepting them', async () => {
     const adapter = setup({ domains: ['0x1', '0x100000000'] });
     await rejects(adapter.getDomains(), (error: unknown) => {
-      expect(String(error)).to.include('Starknet domain must fit in a uint32');
+      expect(String(error)).to.include('Value must fit in a uint32');
       return true;
     });
   });
