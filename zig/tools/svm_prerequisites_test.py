@@ -530,4 +530,47 @@ class AuthenticatedPublicErrorControls(unittest.TestCase):
    self.assertTrue(any(isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='public_exception'for n in ast.walk(handler)))
    self.assertFalse(any(isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='str'and n.args and isinstance(n.args[0],ast.Name)and n.args[0].id=='exc'for n in ast.walk(handler)))
 
+class UserNamespacePolicyControls(unittest.TestCase):
+ def observe(self,wire,mode=None,changed=False,read_error=None):
+  import stat
+  from types import SimpleNamespace
+  calls=[];closed=[];states=[0]
+  regular=SimpleNamespace(st_mode=stat.S_IFREG|0o444,st_dev=1,st_ino=2,st_size=0,st_mtime_ns=3)
+  def opening(path,flags):calls.append((path,flags));return 101+len(calls)
+  def info(fd):
+   states[0]+=1;v=SimpleNamespace(**regular.__dict__)
+   if mode is not None:v.st_mode=mode
+   if changed and states[0]%2==0:v.st_ino=9
+   return v
+  def reading(fd,size):
+   self.assertEqual(size,33)
+   if read_error is not None:raise read_error
+   return wire
+  with mock.patch.object(m.os,'open',side_effect=opening),mock.patch.object(m.os,'fstat',side_effect=info),mock.patch.object(m.os,'read',side_effect=reading),mock.patch.object(m.os,'close',side_effect=lambda fd:closed.append(fd)):
+   result=m.user_namespace_policy()
+  self.assertEqual([v[0]for v in calls],['/proc/sys/kernel/unprivileged_userns_clone','/proc/sys/kernel/apparmor_restrict_unprivileged_userns'])
+  self.assertTrue(all(flags==m.os.O_RDONLY|m.os.O_CLOEXEC|m.os.O_NOFOLLOW for _,flags in calls));self.assertEqual(closed,[102,103]);return result
+ def test_exact_two_bounded_readonly_numeric_observations(self):
+  for wire,value in [(b'0\n',0),(b'1\n',1),(b'2147483647\n',2147483647)]:
+   with self.subTest(wire=wire):self.assertEqual(set(self.observe(wire).values()),{value})
+ def test_malformed_nonASCII_oversized_or_out_of_range_is_unavailable(self):
+  for wire in [b'',b'-1\n',b'+1\n',b'01\n',b'1 PRIVATE',b'2147483648\n',b'9'*33,b'\xff\n',b'1\nextra',b' 1\n']:
+   with self.subTest(wire=wire):self.assertEqual(set(self.observe(wire).values()),{None})
+ def test_nonregular_and_changed_identity_are_unavailable(self):
+  import stat
+  self.assertEqual(set(self.observe(b'1\n',mode=stat.S_IFLNK|0o777).values()),{None})
+  self.assertEqual(set(self.observe(b'1\n',changed=True).values()),{None})
+ def test_open_or_read_errors_are_optional_and_raw_details_never_export(self):
+  for error in [FileNotFoundError('PRIVATE'),PermissionError('PRIVATE'),OSError('PRIVATE')]:
+   with mock.patch.object(m.os,'open',side_effect=error),mock.patch.object(m.os,'close')as close:
+    result=m.user_namespace_policy();self.assertEqual(set(result.values()),{None});self.assertNotIn('PRIVATE',json.dumps(result));close.assert_not_called()
+  self.assertEqual(set(self.observe(b'',read_error=PermissionError('PRIVATE')).values()),{None})
+ def test_actual_regular_file_and_symlink_refusal(self):
+  original=m.os.open
+  with tempfile.TemporaryDirectory()as temp:
+   root=pathlib.Path(temp);path=root/'value';path.write_bytes(b'1\n');link=root/'alias';link.symlink_to(path)
+   for fixture,expected in [(path,1),(link,None)]:
+    with mock.patch.object(m.os,'open',side_effect=lambda _path,flags:original(fixture,flags)):
+     self.assertEqual(set(m.user_namespace_policy().values()),{expected})
+
 if __name__=='__main__':unittest.main()

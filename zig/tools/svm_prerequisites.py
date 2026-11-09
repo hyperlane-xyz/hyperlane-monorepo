@@ -345,6 +345,29 @@ def final_acceptance(status):
   and all(isinstance(row,dict)and row.get('actual_wait_observed') is True
    and type(row.get('exit_code'))is int and row['exit_code']==0 for row in rows))
 
+def user_namespace_policy():
+ # Optional finite host observation only; never an admission waiver or setting.
+ result={}
+ for name in ('unprivileged_userns_clone','apparmor_restrict_unprivileged_userns'):
+  value=None;fd=None
+  try:
+   fd=os.open('/proc/sys/kernel/'+name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+   before=os.fstat(fd)
+   if not stat.S_ISREG(before.st_mode):raise ValueError('nonregular sysctl')
+   wire=os.read(fd,33);after=os.fstat(fd)
+   identity=lambda row:(row.st_dev,row.st_ino,row.st_mode,row.st_size,row.st_mtime_ns)
+   if len(wire)>32 or identity(before)!=identity(after)or re.fullmatch(rb'(0|[1-9][0-9]{0,9})\n?',wire)is None:raise ValueError('unavailable numeric sysctl')
+   parsed=int(wire)
+   if parsed>2**31-1:raise ValueError('numeric sysctl bound')
+   value=parsed
+  except (OSError,ValueError):pass
+  finally:
+   if fd is not None:
+    try:os.close(fd)
+    except OSError:pass
+  result[name]=value
+ return result
+
 def execute(a):
  need(sys.platform=='linux'and os.uname().machine=='x86_64','Linux x86_64 only');repo=a.repo.resolve();root=a.output.absolute();need(a.output.is_absolute()and root==root.resolve()and '..'not in root.parts,'canonical absolute output required');need(root.parent.is_dir()and not root.exists()and not root.is_symlink(),'exclusive output required');need(shutil.disk_usage(root.parent).free>=40*GIB,'40GiB staged-free admission')
  root.mkdir(mode=0o700)
@@ -353,7 +376,7 @@ def execute(a):
  base={'PATH':'/usr/bin:/bin','HOME':str(root/'home'),'CARGO_HOME':str(root/'cargo'),'RUSTUP_HOME':str(root/'rustup'),'TMPDIR':str(root/'tmp'),'CARGO_BUILD_JOBS':'2','CARGO_NET_RETRY':'0','CARGO_NET_GIT_FETCH_WITH_CLI':'true','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null','GIT_TERMINAL_PROMPT':'0','RUSTUP_AUTO_INSTALL':'0','LC_ALL':'C.UTF-8'}
  for n in ['home','cargo','rustup','tmp','assets','published','targets','tools']:(root/n).mkdir()
  try:
-  status['host']={'uname':list(os.uname()),'boot_id':P('/proc/sys/kernel/random/boot_id').read_text().strip()};status['system_tools']={name:system_pin(P(name).resolve())for name in [a.bwrap,'/usr/bin/git','/usr/bin/clang','/usr/bin/cc']};o.run('provision.dpkg-readback',['/usr/bin/dpkg-query','-W'],root,base)
+  status['host']={'uname':list(os.uname()),'boot_id':P('/proc/sys/kernel/random/boot_id').read_text().strip(),'user_namespace_policy':user_namespace_policy()};status['system_tools']={name:system_pin(P(name).resolve())for name in [a.bwrap,'/usr/bin/git','/usr/bin/clang','/usr/bin/cc']};o.run('provision.dpkg-readback',['/usr/bin/dpkg-query','-W'],root,base)
   head=o.run('provision.source-head',['/usr/bin/git','rev-parse','HEAD'],repo,base).read_text().strip();need(re.fullmatch('[0-9a-f]{40}',head)is not None,'invalid checkout commit');status['checkout_commit']=head
   clean=o.run('provision.source-status',['/usr/bin/git','status','--porcelain=v1','--untracked-files=no'],repo,base).read_bytes();need(not clean,'tracked Source is dirty before provisioning')
   listing=o.run('provision.source-files',['/usr/bin/git','ls-files','-z','--recurse-submodules'],repo,base).read_bytes();names=[n.decode()for n in listing.split(b'\0')if n];need(len(names)==len(set(names)),'duplicate tracked Source');before={n:source_row(repo,n)for n in names};write(root/'source-before.json',before)
