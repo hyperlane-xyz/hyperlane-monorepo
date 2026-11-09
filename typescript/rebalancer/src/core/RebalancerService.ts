@@ -194,6 +194,11 @@ export class RebalancerService {
       this.logger.info('ActionTracker initialized');
     }
 
+    const actionTracker = this.actionTracker;
+    this.metrics?.observeInFlightActions(() =>
+      actionTracker.getInProgressActions(),
+    );
+
     // Create rebalancers (both movableCollateral and inventory if configured)
     let rebalancers: IRebalancer[] = [];
     let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};

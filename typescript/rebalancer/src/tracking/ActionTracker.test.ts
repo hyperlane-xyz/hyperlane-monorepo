@@ -1157,6 +1157,36 @@ describe('ActionTracker', () => {
       return { intent, action };
     }
 
+    it('memoizes finalized source success for the exact hash while preserving its reservation', async () => {
+      const { action } = await reserveSource(
+        'inventory_movement',
+        'source-hash',
+      );
+      const receipt = Sinon.stub().resolves({
+        status: 1,
+        blockNumber: 1,
+        confirmations: 32,
+      });
+      core.multiProvider.getProtocol = Sinon.stub().returns(
+        ProtocolType.Ethereum,
+      );
+      core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
+        getTransactionReceipt: receipt,
+      });
+      core.multiProvider.getChainMetadata = Sinon.stub().returns({});
+      await tracker.syncRebalanceActions();
+      await tracker.syncRebalanceActions();
+      expect(receipt.callCount).to.equal(1);
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      await tracker.updateRebalanceActionExecution(action.id, {
+        txHash: 'new-source-hash',
+      });
+      await tracker.syncRebalanceActions();
+      expect(receipt.callCount).to.equal(2);
+    });
+
     for (const protocol of [ProtocolType.Ethereum, ProtocolType.Tron]) {
       for (const type of [
         'rebalance_message',
@@ -1466,7 +1496,7 @@ describe('ActionTracker', () => {
         'source-hash',
       );
       await rebalanceActionStore.update(action.id, {
-        createdAt: Date.now() - config.intentTTL - 1000,
+        createdAt: Date.now() - 3_600_000 - 1000,
         lastBridgeStatus: 'failed',
       });
       const logger = pino({ level: 'silent' });

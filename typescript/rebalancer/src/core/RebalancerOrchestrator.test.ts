@@ -792,6 +792,47 @@ describe('RebalancerOrchestrator', () => {
   });
 
   describe('syncActionTracker() Error Handling', () => {
+    it('drains concurrent synchronization and logs local state after Explorer rejects', async () => {
+      const actionTracker = createMockActionTracker();
+      const diagnostics = Sinon.stub().resolves();
+      actionTracker.logStoreContents = diagnostics;
+      let finish: () => void = () => {
+        throw new Error('sync not started');
+      };
+      actionTracker.syncTransfers = () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      actionTracker.syncRebalanceActions.rejects(
+        new Error('Explorer unavailable'),
+      );
+      const strategy = createMockStrategy();
+      const rebalancer = createMockRebalancer();
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        actionTracker,
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [rebalancer],
+      });
+      let completed = false;
+      const cycle = orchestrator
+        .executeCycle(createMonitorEvent())
+        .then((result) => {
+          completed = true;
+          return result;
+        });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(completed).to.equal(false);
+      expect(diagnostics.called).to.equal(false);
+      finish();
+      await cycle;
+      expect(diagnostics.calledOnce).to.equal(true);
+      expect(rebalancer.rebalance.called).to.equal(false);
+      expect(strategy.getRebalancingRoutes.called).to.equal(false);
+    });
+
     it('should defer execution when tracker sync fails', async () => {
       const strategy = createMockStrategy();
       strategy.getRebalancingRoutes.returns([]);

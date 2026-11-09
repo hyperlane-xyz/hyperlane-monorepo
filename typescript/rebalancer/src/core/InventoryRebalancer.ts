@@ -1315,6 +1315,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           }
         }
       },
+      this.logger,
     );
 
     const messageId = transferTxHash

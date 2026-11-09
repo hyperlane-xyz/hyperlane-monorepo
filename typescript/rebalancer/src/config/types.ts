@@ -290,7 +290,7 @@ export const RebalancerConfigSchema = z
       .positive()
       .default(DEFAULT_INTENT_TTL_S)
       .describe(
-        'Max age in seconds before in-progress intent is expired. Default 14 days.',
+        'Max age in seconds for uncommitted intents. Reserved source work never expires automatically. Default 14 days.',
       )
       .transform((val) => val * 1_000),
   })

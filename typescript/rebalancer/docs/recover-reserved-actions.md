@@ -4,7 +4,26 @@ Action state and origin allowance locks are in memory. Restarting discards exter
 
 The rebalancer automatically releases work only when preparation proves the primary was never submitted, its pending approval has finalized, or its primary transaction has finalized with an execution error. EVM and Tron use configured finality; Solana requires finalized signature status. Inventory resumes the remaining amount of its existing intent. Execution waits for a new balance snapshot after reconciliation changes action state.
 
-`intentTTL` is an alert threshold for source-started actions, not permission to retry. Alert on `Action blocked beyond intentTTL; reconcile before retry or restart`. Logs include age, origin/destination, action and intent IDs, source hash, approval identity, bridge identity, and latest bridge status. One reserved inventory movement or deposit blocks new inventory work in that rebalancer instance.
+`intentTTL` expires only uncommitted intents. It is not an alert threshold or permission to retry source-started work. Local diagnostics warn after one hour and include age, origin/destination, action and intent IDs, source hash, approval identity, bridge identity, and latest bridge status. One reserved inventory movement or deposit blocks new inventory work in that rebalancer instance.
+
+Prometheus collects `hyperlane_rebalancer_oldest_inflight_action_age_seconds` and `hyperlane_rebalancer_inflight_actions` from local action state on every scrape, independently of RPC, balance-poll and Explorer synchronization. Labels are limited to warp route, origin/destination domains, action type, and the held reason. Action IDs and hashes remain in logs only. A restart loses local action state and can clear these metrics without resolving source effects; alert silence after restart is not recovery evidence.
+
+Initial operator alert targets (separate from transaction validity and reservation expiry):
+
+```yaml
+- alert: RebalancerActionReserved
+  expr: hyperlane_rebalancer_oldest_inflight_action_age_seconds > 3600
+  for: 10m
+  labels:
+    severity: warning
+- alert: RebalancerActionReservedCritical
+  expr: hyperlane_rebalancer_oldest_inflight_action_age_seconds > 21600
+  for: 15m
+  labels:
+    severity: critical
+```
+
+These one-hour/six-hour thresholds detect sustained operational stalls before day-scale incidents; they are initial response targets, not measured bridge settlement guarantees. Tune legitimately slow routes with explicit route-specific alert rules. Before activation, the deployment owner must install these rules, route notifications to the rebalancer on-call, and verify a synthetic held action triggers the warning. Metrics and example rules in this repository alone do not install production alerts. Monitor scrape availability separately. Alerting never fails an action or permits a second send.
 
 For actions that remain reserved:
 
@@ -18,7 +37,7 @@ Automatic Solana-expiry recovery, verified refund recovery, and durable restart 
 
 ## Operational follow-ups
 
-The following improvements are separate work before live activation:
+The following availability and gas-efficiency improvements remain separate follow-ups; they do not relax the reservation rules above:
 
 - **Estimation retry backoff.** Add bounded, per-route, in-memory backoff after a proven estimation failure and successful allowance cleanup. Apply the delay before the next approval, preserving exact approval, estimation, submission and cleanup ordering. Unresolved approval or source outcomes must continue blocking their origin independently of the backoff. Cover repeated failures, eventual retry, reset after success and unaffected routes in regression tests.
 - **Explorer outage reconciliation.** Separate discovery of inflight transfers from reconciliation of known actions. Drain concurrent synchronization before finishing a cycle and continue independent reconciliation when Explorer discovery fails. Keep new submissions blocked while discovery is incomplete, and require a fresh balance snapshot after settlement changes. Test a failed discovery alongside successful reconciliation, no overlapping synchronization across cycles, and submission resumption only after complete discovery and fresh balances.
