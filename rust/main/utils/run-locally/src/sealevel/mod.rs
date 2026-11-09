@@ -53,6 +53,22 @@ pub(super) const SEALEVEL_VALIDATOR_KEYS: &[&str] =
 
 type DynPath = Box<dyn AsRef<Path>>;
 
+pub(crate) const SEALEVEL_SCRAPER_METRICS_PORTS: [&str; 3] = [SCRAPER_METRICS_PORT, "9097", "9098"];
+const SEALEVEL_SCRAPER_CHAINS: [&str; 3] = ["sealeveltest1", "sealeveltest2", "sealeveltest3"];
+
+pub(crate) fn scraper_programs(base: &Program) -> [(&'static str, String, Program); 3] {
+    std::array::from_fn(|index| {
+        let chain = SEALEVEL_SCRAPER_CHAINS[index];
+        let database_url = format!("postgresql://postgres:47221c18c610@localhost:5432/{chain}");
+        let program = base
+            .clone()
+            .hyp_env("METRICSPORT", SEALEVEL_SCRAPER_METRICS_PORTS[index])
+            .hyp_env("DB", database_url.clone())
+            .hyp_env("CHAINSTOSCRAPE", chain);
+        (chain, database_url, program)
+    })
+}
+
 #[allow(dead_code)]
 fn run_locally() {
     crate::external_agents::initialize_for("sealevel");
@@ -161,18 +177,9 @@ fn run_locally() {
         log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
-    let scraper_env = common_agent_env
+    let scraper_base = common_agent_env
         .bin(concat_path(&workspace_path, "target/debug/scraper"))
-        .working_dir(&workspace_path)
-        .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
-        .hyp_env(
-            "DB",
-            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
-        )
-        .hyp_env(
-            "CHAINSTOSCRAPE",
-            "sealeveltest1,sealeveltest2,sealeveltest3",
-        );
+        .working_dir(&workspace_path);
 
     let mut state = State::default();
 
@@ -273,12 +280,30 @@ fn run_locally() {
 
     crate::utils::wait_for_postgres();
 
-    log!("Init postgres db...");
-    Program::new(concat_path(&workspace_path, "target/debug/init-db"))
-        .working_dir(&workspace_path)
-        .run()
-        .join();
-    state.push_agent(scraper_env.spawn("SCR", None));
+    // The three logical domains share one validator and its block hashes.
+    // The production block table identifies hashes globally, so retain each
+    // logical chain's scraper rows in its own database, as in the EVM fixture.
+    for ((chain, database_url, scraper_env), scraper_name) in scraper_programs(&scraper_base)
+        .into_iter()
+        .zip(["SCR1", "SCR2", "SCR3"])
+    {
+        Program::new("docker")
+            .cmd("exec")
+            .cmd(crate::external_agents::resource_name(
+                "scraper-testnet-postgres",
+            ))
+            .cmd("createdb")
+            .arg("username", "postgres")
+            .cmd(chain)
+            .run()
+            .join();
+        Program::new(concat_path(&workspace_path, "target/debug/init-db"))
+            .working_dir(&workspace_path)
+            .env("DATABASE_URL", &database_url)
+            .run()
+            .join();
+        state.push_agent(scraper_env.spawn(scraper_name, None));
+    }
 
     // Send messages BEFORE agents start (test backward indexing cursor)
     // Half to sealeveltest2 (will use versioned tx with ALT)

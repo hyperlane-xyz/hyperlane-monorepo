@@ -16,11 +16,22 @@ SERVICES = {
 }
 RELEASE_URL = 'https://github.com/hyperlane-xyz/hyperlane-radix/releases/tag/v1.0.0'
 DOWNLOAD = 'https://github.com/hyperlane-xyz/hyperlane-radix/releases/download/v1.0.0/'
+ASSET_API_URLS = {
+    'hyperlane_radix.rpd': 'https://api.github.com/repos/hyperlane-xyz/hyperlane-radix/releases/assets/288442788',
+    'hyperlane_radix.wasm': 'https://api.github.com/repos/hyperlane-xyz/hyperlane-radix/releases/assets/288442791',
+}
 
 
 def require(value, message):
     if not value:
         raise ValueError(message)
+
+
+def contract_download(name):
+    """Fixed official transport; browser URL remains release-origin metadata."""
+    require(type(name) is str and name in CONTRACTS, 'Unknown Radix public contract')
+    return {'release_origin_url': DOWNLOAD + name, 'url': ASSET_API_URLS[name],
+            'accept': 'application/octet-stream', **CONTRACTS[name]}
 
 
 def pin(path):

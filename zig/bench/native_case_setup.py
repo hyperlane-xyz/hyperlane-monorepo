@@ -358,6 +358,7 @@ def main():
     commands=build_commands(args.repo,planned_tools,args.output)if is_evm or is_tron else []
     if is_tron:commands=tr_setup.build_commands(args.repo,planned_tools,args.output,{'packages':PACKAGES,'commands':commands})
     plan={'schema':1,'root_approved_for_setup_only':True,'execution_source_commit':args.execution_source_commit,'scenario':request['scenario'],'limits':LIMITS,'commands':commands,'native_case_acceptance':False,'SDK_or_helper_rebuild':False}
+    if is_radix:plan['radix_contract_downloads']={name:rx_assets.contract_download(name)for name in rx_assets.CONTRACTS}
     if not args.execute:
         print(json.dumps(plan,indent=2));return
     require(sys.platform=='linux' and os.environ.get('GITHUB_ACTIONS')=='true' and args.repo==ROOT,'Actual setup uses this CI checkout only; no local or cross-checkout package/build execution')
@@ -452,8 +453,8 @@ def main():
         elif is_radix:
             files={}
             for name,expected in rx_assets.CONTRACTS.items():
-                path=args.output/name
-                run('download-radix-'+name,[str(tools['curl']),'--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--tlsv1.2','--location','--fail','--silent','--show-error','--max-time','60','--max-filesize',str(expected['bytes']),'--output',str(path),rx_assets.DOWNLOAD+name])
+                path=args.output/name;source=plan['radix_contract_downloads'][name]
+                run('download-radix-'+name,[str(tools['curl']),'--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--tlsv1.2','--location','--fail','--silent','--show-error','--max-time','60','--max-filesize',str(expected['bytes']),'--header','Accept: '+source['accept'],'--output',str(path),source['url']])
                 require({k:pin(path)[k] for k in ('bytes','sha256')}==expected,'Radix public contract download differs')
                 files[name]=pin(path)
             metadata=args.repo/'zig/integration/fixtures/radix-release-v1.0.0.json.gz'

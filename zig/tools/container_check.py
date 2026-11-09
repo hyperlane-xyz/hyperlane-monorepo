@@ -589,6 +589,12 @@ NATIVE_REQUIRED = (
     "Aleo actual proof worker OS sandbox forbids loopback network connections",
     'scraper generic raw sequence snapshots dispatch before derived insertion union write',
     'Aleo worker forwards explicit public consensus override into actual clean child and preserves absence',
+    'relayer queue gauge destination aggregation spans origins and preserves statuses',
+    'relayer queue gauge destination aggregation normalizes Unknown context only',
+    'Starknet full-felt metadata source verifies through actual read-only entrypoint without invented gas',
+    'Starknet view verify matches released Cairo metadata and message calldata',
+    'Starknet view verification refuses malformed booleans trailing felts and remote reverts',
+    'production Stark metadata source aggregation requires actual multisig and pausable view verification',
 )
 
 

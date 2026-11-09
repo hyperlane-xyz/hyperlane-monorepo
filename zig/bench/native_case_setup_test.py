@@ -140,6 +140,39 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(rows[0]['argv'][0],str(self.root/'owned/pnpm-native'));self.assertIn('--frozen-lockfile',rows[0]['argv']);self.assertIn('--ignore-scripts',rows[0]['argv']);self.assertIn('--config.manage-package-manager-versions=false',rows[0]['argv'])
 
 
+class RadixOfficialAssetAPIControls(unittest.TestCase):
+    def assets(self):
+        spec=importlib.util.spec_from_file_location('radix_official_route_assets',Path(__file__).with_name('native_radix_assets.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+    def test_both_fixed_API_routes_match_original_official_release_identity_and_pins(self):
+        import gzip
+        assets=self.assets();repo=Path(__file__).resolve().parents[2];metadata=json.loads(gzip.decompress((repo/'zig/integration/fixtures/radix-release-v1.0.0.json.gz').read_bytes()))
+        self.assertEqual(metadata['id'],243888469);self.assertEqual(set(assets.ASSET_API_URLS),set(assets.CONTRACTS))
+        for name,expected in assets.CONTRACTS.items():
+            row=next(x for x in metadata['assets']if x['name']==name);source=assets.contract_download(name)
+            self.assertEqual(source,{'release_origin_url':row['browser_download_url'],'url':row['url'],'accept':'application/octet-stream',**expected});self.assertEqual(source['bytes'],row['size']);self.assertEqual('sha256:'+source['sha256'],row['digest'])
+            source['url']='https://foreign.invalid/private';self.assertEqual(assets.contract_download(name)['url'],row['url'])
+        for name in ['../hyperlane_radix.rpd','scrypto-binary.zip','hyperlane_radix.rpd?credential=PRIVATE',None,[]]:
+            with self.subTest(name=name),self.assertRaises(ValueError):assets.contract_download(name)
+    def test_actual_Radix_setup_branch_uses_declared_API_header_and_original_curl_bounds(self):
+        import ast
+        assets=self.assets();tree=ast.parse(Path(api.__file__).read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='main')
+        declaration=next(n for n in ast.walk(main)if isinstance(n,ast.If)and ast.unparse(n.test)=='is_radix'and len(n.body)==1 and isinstance(n.body[0],ast.Assign)and 'radix_contract_downloads'in ast.unparse(n.body[0]));branch=next(n for n in ast.walk(main)if isinstance(n,ast.If)and ast.unparse(n.test)=='is_radix'and any(isinstance(x,ast.Constant)and x.value=='Radix public contract download differs'for x in ast.walk(n)))
+        with tempfile.TemporaryDirectory()as tmp:
+            root=Path(tmp).resolve();commands=[];plan={};result={};final_tools={};registry={};tools={k:root/k for k in ['curl','cast','docker','psql','ps','lsof']}
+            def pin(path):
+                path=Path(path);return {'path':str(path),**assets.CONTRACTS.get(path.name,{'bytes':1,'sha256':'a'*64})}
+            scope={'is_radix':True,'rx_assets':assets,'plan':plan,'args':SimpleNamespace(output=root,repo=root),'tools':tools,'run':lambda name,argv:commands.append((name,argv)),'require':api.require,'pin':pin,'result':result,'radix_image_logs':{},'final_tools':final_tools,'registry':registry}
+            with mock.patch.object(assets,'materialize_contracts',return_value={'synthetic':True}):
+                exec(compile(ast.Module(body=[declaration],type_ignores=[]),'actual-Radix-download-plan','exec'),scope);exec(compile(ast.Module(body=branch.body,type_ignores=[]),'actual-Radix-download-branch','exec'),scope)
+            self.assertEqual(len(commands),2);self.assertEqual(set(plan['radix_contract_downloads']),set(assets.CONTRACTS))
+            for (phase,argv),(name,expected)in zip(commands,assets.CONTRACTS.items()):
+                source=plan['radix_contract_downloads'][name];self.assertEqual(phase,'download-radix-'+name)
+                original=[str(tools['curl']),'--proto','=https','--proto-redir','=https','--noproxy','*','--connect-timeout','15','--tlsv1.2','--location','--fail','--silent','--show-error','--max-time','60','--max-filesize',str(expected['bytes']),'--output',str(root/name),assets.DOWNLOAD+name]
+                self.assertEqual(argv[-1],source['url']);self.assertIn('--header',argv);self.assertEqual(argv[argv.index('--header')+1],'Accept: application/octet-stream')
+                inverse=list(argv);i=inverse.index('--header');del inverse[i:i+2];inverse[-1]=source['release_origin_url'];self.assertEqual(inverse,original)
+            self.assertEqual(registry,{'path':None,'commit':None});self.assertNotIn('native_case_acceptance',result)
+
+
 class SvmDiagnosticNodeReceiptControls(unittest.TestCase):
     def test_separate_receipt_binds_original_node_and_preserves_five_tools(self):
         with tempfile.TemporaryDirectory()as root:

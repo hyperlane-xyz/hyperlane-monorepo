@@ -2050,7 +2050,15 @@ pub fn tron_cli_directory() -> Result<Option<PathBuf>> {
 }
 #[cfg(feature = "tron")]
 pub fn tron_cli_program(directory: &Path) -> Result<crate::program::Program> {
-    let Some(manifest) = get()? else {
+    tron_cli_program_with(get()?, directory)
+}
+
+#[cfg(feature = "tron")]
+fn tron_cli_program_with(
+    manifest: Option<&Manifest>,
+    directory: &Path,
+) -> Result<crate::program::Program> {
+    let Some(manifest) = manifest else {
         return Ok(crate::program::Program::new("pnpm").working_dir(directory));
     };
     let fixture = tron_devnet_fixture(manifest)?;
@@ -2058,9 +2066,12 @@ pub fn tron_cli_program(directory: &Path) -> Result<crate::program::Program> {
         directory == fixture.cli_directory,
         "TRE CLI working directory differs"
     );
+    // The owned CLI dependency graph was completely verified before execution.
+    // pnpm must run the original script without implicitly reinstalling it.
     Ok(crate::program::Program::default()
         .bin(fixture.pnpm.path)
-        .working_dir(directory))
+        .working_dir(directory)
+        .cmd("--config.verify-deps-before-run=false"))
 }
 
 // Fixed native container teardown. Callers first authorize exact case labels,
@@ -5863,6 +5874,44 @@ mod tests {
             assert!(super::svm_listeners(42, raw, true).is_err());
         }
     }
+    #[cfg(feature = "sealevel")]
+    #[test]
+    fn svm_scraper_programs_isolate_logical_domains_and_metrics() {
+        let base = crate::program::Program::new(std::env::current_exe().unwrap())
+            .hyp_env("LOG_FORMAT", "compact");
+        let programs = crate::sealevel::scraper_programs(&base);
+        let mut databases = std::collections::BTreeSet::new();
+        let mut ports = std::collections::BTreeSet::new();
+        for ((chain, database_url, program), (expected_chain, expected_port)) in
+            programs.into_iter().zip([
+                ("sealeveltest1", "9093"),
+                ("sealeveltest2", "9097"),
+                ("sealeveltest3", "9098"),
+            ])
+        {
+            let command = program.create_command();
+            let environment: std::collections::BTreeMap<_, _> = command
+                .get_envs()
+                .map(|(key, value)| (key.to_str().unwrap(), value.unwrap().to_str().unwrap()))
+                .collect();
+            assert_eq!(chain, expected_chain);
+            assert_eq!(environment["HYP_CHAINSTOSCRAPE"], expected_chain);
+            assert_eq!(environment["HYP_METRICSPORT"], expected_port);
+            assert_eq!(environment["HYP_LOG_FORMAT"], "compact");
+            assert_eq!(environment["HYP_DB"], database_url);
+            let parsed = url::Url::parse(&database_url).unwrap();
+            assert_eq!(parsed.host_str(), Some("localhost"));
+            assert_eq!(parsed.port(), Some(5432));
+            assert_eq!(parsed.path(), format!("/{expected_chain}"));
+            assert!(!environment["HYP_CHAINSTOSCRAPE"].contains(','));
+            assert_eq!(command.get_args().count(), 0);
+            assert!(databases.insert(database_url));
+            assert!(ports.insert(environment["HYP_METRICSPORT"].to_owned()));
+        }
+        assert_eq!(databases.len(), 3);
+        assert_eq!(ports.len(), 3);
+    }
+
     #[test]
     fn svm_listener_command_requests_actual_descriptor_field() {
         for udp in [false, true] {
@@ -8204,6 +8253,40 @@ setInterval(()=>{{}},1000);"#,
         let spec = tron_devnet_fixture(&m).unwrap();
         (m, spec)
     }
+    #[test]
+    #[cfg(feature = "tron")]
+    fn tron_cli_frozen_graph_option_precedes_original_script_arguments() {
+        let root = tempfile::tempdir().unwrap();
+        let (manifest, fixture) = tron_approved_fixture(root.path());
+        let command = tron_cli_program_with(Some(&manifest), &fixture.cli_directory)
+            .unwrap()
+            .cmd("hyperlane")
+            .cmd("core")
+            .cmd("deploy")
+            .arg("chain", "anvil1")
+            .create_command();
+        assert_eq!(command.get_program(), fixture.pnpm.path.as_os_str());
+        assert_eq!(
+            command.get_current_dir(),
+            Some(fixture.cli_directory.as_path())
+        );
+        assert_eq!(
+            command
+                .get_args()
+                .map(|arg| arg.to_str().unwrap())
+                .collect::<Vec<_>>(),
+            [
+                "--config.verify-deps-before-run=false",
+                "hyperlane",
+                "core",
+                "deploy",
+                "--chain",
+                "anvil1"
+            ]
+        );
+        assert!(tron_cli_program_with(Some(&manifest), root.path()).is_err());
+    }
+
     #[test]
     #[cfg(feature = "tron")]
     fn tron_external_arguments_bind_source_env_image_loopback_and_caps() {

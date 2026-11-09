@@ -567,7 +567,7 @@ def svm_private_windows(raw,sources,repo,scenario,check=lambda:None):
     """Private Source-tagged bytes only; never a PID/epoch or error attribution."""
     if scenario not in {'sealevel','sealevel-composite'}or not isinstance(raw,bytes)or len(raw)>32*1024**2:raise ValueError('Bounded SVM capture required')
     root='rust/main/utils/run-locally/src/'
-    contracts={root+'program.rs':[b'let mut reader = BufReader::new(output).lines();',b'println!("<{prefix}> {line}");'],root+'sealevel/solana.rs':[b'args.spawn("SOL", None)'],root+'sealevel/mod.rs':[b'scraper_env.spawn("SCR", None)']}
+    contracts={root+'program.rs':[b'let mut reader = BufReader::new(output).lines();',b'println!("<{prefix}> {line}");'],root+'sealevel/solana.rs':[b'args.spawn("SOL", None)'],root+'sealevel/mod.rs':[b'.zip(["SCR1", "SCR2", "SCR3"])',b'scraper_env.spawn(scraper_name, None)']}
     for name,needles in contracts.items():
         check()
         path=Path(repo)/name;body,fingerprint=captured_failure_bytes(path,1024**2)
@@ -578,8 +578,8 @@ def svm_private_windows(raw,sources,repo,scenario,check=lambda:None):
         check()
         if len(line)>65536:oversized=min(2**32-1,oversized+1);continue
         for tag in prefix:
-            marker=b'<'+tag.encode()+b'> '
-            if not line.startswith(marker)or tag=='SCR'and scenario=='sealevel-composite':continue
+            markers=(b'<SOL> ',)if tag=='SOL'else(b'<SCR1> ',b'<SCR2> ',b'<SCR3> ')
+            if not any(line.startswith(marker)for marker in markers)or tag=='SCR'and scenario=='sealevel-composite':continue
             sizes[tag]+=len(line);room=4096-len(prefix[tag]);prefix[tag].extend(line[:room]);tail[tag].extend(line);del tail[tag][:-4096]
     windows=[];plain=bytearray()
     for tag in ('SOL','SCR'):
@@ -643,6 +643,7 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,z
         if row!={'path':str(source),**fingerprint}:raise ValueError('Role journal or log writer Source changed')
         writer_sources[name]=dict(row);bodies[name]=body
     needles={helper:[b'pub struct OwnedChild',b'struct ChildExit',b'.join("parent-child-exits.jsonl")',b'impl Drop for TrackedChild'],program:[b'format!("{log_prefix}-output.log")',b'println!("<{prefix}> {line}")',b'log!("Error reading from output for {}: {}", prefix, e)'],logging:[b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)'],main:[b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")'],caller:[b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))']}
+    if manifest['scenario']=='sealevel':needles[caller].extend([b'.zip(["SCR1", "SCR2", "SCR3"])',b'scraper_env.spawn(scraper_name, None)'])
     if not all(needle in bodies[name]for name,values in needles.items()for needle in values):raise ValueError('Exact Source role journal/log contract missing')
     owned,owned_pin=lines('evidence/owned-children.jsonl');exits,exit_pin=lines('evidence/parent-child-exits.jsonl')
     roles={'relayer','validator'}if manifest['scenario']=='sealevel-composite'else{'relayer','validator','scraper'}
@@ -702,7 +703,7 @@ def role_failure_observation(case,manifest,parent_pid,sources,repo,harness_log,z
         try:
             raw,fingerprint=captured_failure_bytes(target,32*1024**2);logs.append({'role':role,'fixed_log':relative,'status':'captured',**fingerprint,'finite_observed_flags':flags(raw),'exact_pid_or_epoch_attribution':False})
         except Exception:logs.append({'role':role,'fixed_log':relative,'status':'unavailable','exact_pid_or_epoch_attribution':False})
-    harness_prefixes={**prefixes,**({'SCR':'scraper'}if manifest['scenario']=='sealevel'else{})}
+    harness_prefixes={**prefixes,**({prefix:'scraper'for prefix in ('SCR1','SCR2','SCR3')}if manifest['scenario']=='sealevel'else{})}
     harness_prefixes={prefix:role for prefix,role in harness_prefixes.items()if any(row['role']==role for row in owned)}
     try:raw,fingerprint=captured_failure_bytes(harness_log,32*1024**2)
     except Exception:
@@ -1297,7 +1298,6 @@ def startup_selected_role(case,manifest,inputs,parent_pid,read,kernel_row,read_e
     check();return candidates[0],captures[0],port
 
 
-RADIX_SCRAPER_EPOCH = 'f453948ae31c1fadb35e10c87577e73a39350103'
 RADIX_SCRAPER_SOURCE = (
     ('zig/src/service_main.zig', 15166, '6b9101771890b56a5303975c7f1433ea' + 'fc5cacc23b7f548f0d083356d32cca78'),
     ('zig/src/ops/critical_metrics.zig', 5138, 'a7e1125be31ca9dd320659188f6a438f' + '176dd0a7035ab23c13a865709bbabec8'),
@@ -1311,7 +1311,7 @@ RADIX_SCRAPER_SOURCE = (
     ('zig/src/radix/sbor.zig', 11342, 'bf22610337733294df42cf51a7a60dbf' + '904feaa0767940bc9022739468862e84'),
     ('rust/main/utils/run-locally/src/radix/mod.rs', 17600, '7792d33957b75fee20925e56d82e7332' + '95310c575cddbed10c9ff59d65fc6461'),
     ('rust/main/utils/run-locally/src/program.rs', 18930, 'fd74db13536484d524e31b2188b6ef0a' + 'c8713422d0a63bf0eba7f60186751510'),
-    ('rust/main/utils/run-locally/src/external_agents.rs', 340745, '081efe58801ebbec38076745952e0b61' + '590d5e45ae4d4b422168e23a2b6d4adb'),
+    ('rust/main/utils/run-locally/src/external_agents.rs', 344201, '4e4e35ec1e99157134413c6da1ccefba' + '00754a04008eff545b8b4eccea915567'),
     ('rust/main/utils/run-locally/src/main.rs', 30900, 'a8e847063664cec776617dace03309dc' + 'e2ebe9c8cd5798108fe8c487d9ac0aaf'),
 )
 
@@ -1373,7 +1373,7 @@ def radix_scraper_headers(raw, sources):
 class RadixScraper:
     """One captured Source epoch; first/latest diagnostic operands, no authority."""
     def __init__(self,repo,manifest,modules):
-        if manifest.get('scenario')!='radix'or manifest.get('runtime_source_commit')!=RADIX_SCRAPER_EPOCH:raise ValueError('Exact SCR producer epoch required')
+        if manifest.get('scenario')!='radix'or type(manifest.get('runtime_source_commit'))is not str or re.fullmatch('[a-f0-9]{40}',manifest['runtime_source_commit'])is None:raise ValueError('Exact SCR producer epoch required')
         self.repo=Path(repo);self.sources={};self.identities={};self.first=None;self.last=None;self.latest_probe={'collection_status':'not_attempted'}
         for name,size,digest in RADIX_SCRAPER_SOURCE:
             path=self.repo/name
@@ -1388,6 +1388,29 @@ class RadixScraper:
             row=modules[name];path=Path(row['path']);wire,actual=captured_failure_bytes(path,1024**2)
             if row!={'path':str(path),**actual}or any(needle not in wire for needle in needles):raise ValueError('SCR capture writer changed')
             self.identities[path]=RelayerStartup.identity(path)
+            if name=='multivm_evidence.py':evidence_wire=wire;evidence_path=path
+        # Same admitted pure closure validator as RelayerStartup. No guessed
+        # future commit or unbound same-epoch shortcut may arm diagnostics.
+        evidence=types.ModuleType('radix_admitted_evidence');evidence.__file__=str(evidence_path)
+        exec(compile(evidence_wire,str(evidence_path),'exec'),evidence.__dict__)
+        def read_bound(row):
+            if type(row)is not dict or set(row)!={'path','bytes','sha256'}or type(row['bytes'])is not int or not 0<row['bytes']<=1024**2 or type(row['path'])is not str or type(row['sha256'])is not str or re.fullmatch('[a-f0-9]{64}',row['sha256'])is None:raise ValueError('Bounded SCR admission descriptor required')
+            path=Path(row['path'])
+            if not path.is_absolute()or path.resolve()!=path:raise ValueError('Canonical SCR admission required')
+            wire,actual=captured_failure_bytes(path,1024**2)
+            if row!={'path':str(path),**actual}:raise ValueError('SCR admission bytes changed')
+            self.identities[path]=RelayerStartup.identity(path)
+            return json.loads(wire)
+        approval=read_bound(manifest.get('execution_approval'))
+        if approval.get('root_approved')is not True or approval.get('scenario')!='radix'or approval.get('runtime_source_commit')!=manifest['runtime_source_commit']or approval.get('python_modules')!=modules:raise ValueError('SCR admission cross-binding differs')
+        closure=read_bound(approval.get('compiled_input_closure'))
+        for check in closure.get('checks',[]):read_bound(check.get('log'))
+        evidence.validate_compiled_input_closure(manifest,approval)
+        admitted=approval.get('diagnostic_radix_scraper_sources')
+        if type(admitted)is not dict or set(admitted)!=set(self.sources):raise ValueError('Exact SCR Source admission required')
+        for relative,size,digest in RADIX_SCRAPER_SOURCE:
+            if admitted[relative]!={'path':str(self.repo/relative),'bytes':size,'sha256':digest}:raise ValueError('SCR Source admission differs')
+        self.epoch=manifest['runtime_source_commit']
         self.check_sources()
     def check_sources(self):
         if any(RelayerStartup.identity(path)!=identity for path,identity in self.identities.items()):raise ValueError('SCR Source identity changed')
@@ -1402,7 +1425,7 @@ class RadixScraper:
         self.check_sources();return radix_scraper_headers(raw,self.sources)
     def public(self,headers):
         self.check_sources()
-        return {'schema':1,'collection_status':'observed','Source_epoch':RADIX_SCRAPER_EPOCH,'Source_contracts':[{'path':n,'bytes':z,'sha256_hex_chunks':[h[:32],h[32:]]}for n,z,h in RADIX_SCRAPER_SOURCE],'first_probe':self.first,'last_probe':self.last,'latest_probe':self.latest_probe,'fixed_harness_headers':headers if headers is not None else{'collection_status':'unavailable'},'native_or_timing_or_cleanup_authority':False,'scope':'Fixed owned SCR9093 read-only metric operands.0 differs from absence. No raw labels/messages or typed exception, actual parent-wait or native acceptance authority.'}
+        return {'schema':1,'collection_status':'observed','Source_epoch':self.epoch,'Source_contracts':[{'path':n,'bytes':z,'sha256_hex_chunks':[h[:32],h[32:]]}for n,z,h in RADIX_SCRAPER_SOURCE],'first_probe':self.first,'last_probe':self.last,'latest_probe':self.latest_probe,'fixed_harness_headers':headers if headers is not None else{'collection_status':'unavailable'},'native_or_timing_or_cleanup_authority':False,'scope':'Fixed owned SCR9093 read-only metric operands.0 differs from absence. No raw labels/messages or typed exception, actual parent-wait or native acceptance authority.'}
 
 
 def radix_selected_scraper(case,manifest,inputs,parent_pid,read,kernel_row,read_executable,check):
@@ -1491,7 +1514,7 @@ def radix_rpc_failure_observation(case,manifest,approval,plan,inputs,parent_pid,
             for child in value:finite(child,depth+1)
     def uint(value):return value if type(value)is int and 0<=value<2**64 else None
     check();state.check_sources();root=Path(case)
-    if root!=Path(manifest['task_root'])or not root.is_absolute()or root.is_symlink()or root.resolve(strict=True)!=root or manifest.get('scenario')!='radix'or plan.get('scenario')!='radix'or plan.get('root_approved')is not True or manifest.get('implementation')!='zig'or manifest.get('runtime_source_commit')!=RADIX_SCRAPER_EPOCH or type(parent_pid)is not int or not 0<parent_pid<2**31:raise ValueError('Exact owned Radix case required')
+    if root!=Path(manifest['task_root'])or not root.is_absolute()or root.is_symlink()or root.resolve(strict=True)!=root or manifest.get('scenario')!='radix'or plan.get('scenario')!='radix'or plan.get('root_approved')is not True or manifest.get('implementation')!='zig'or manifest.get('runtime_source_commit')!=state.epoch or type(parent_pid)is not int or not 0<parent_pid<2**31:raise ValueError('Exact owned Radix case required')
     if startup_unique_json(bound(plan['manifestArtifact'],1024**2,True))!=manifest or startup_unique_json(bound(manifest['execution_approval'],1024**2,True))!=approval or startup_unique_json(bound(manifest['case_inputs'],1024**2,True))!=inputs:raise ValueError('RPC case/control context differs')
     if approval.get('root_approved')is not True or approval.get('scenario')!='radix'or approval.get('runtime_source_commit')!=manifest['runtime_source_commit']or approval.get('execution_source_commit')!=plan['execution_source_commit']:raise ValueError('RPC approval differs')
     module_bodies={}

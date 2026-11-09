@@ -12,8 +12,9 @@ use crate::{
     },
     logging::log,
     sealevel::{
-        solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_EXPECTED_SEALEVELTEST2,
-        SOL_MESSAGES_EXPECTED_SEALEVELTEST3, SOL_MESSAGES_WITH_NON_MATCHING_IGP,
+        solana::*, SEALEVEL_SCRAPER_METRICS_PORTS, SOL_MESSAGES_EXPECTED,
+        SOL_MESSAGES_EXPECTED_SEALEVELTEST2, SOL_MESSAGES_EXPECTED_SEALEVELTEST3,
+        SOL_MESSAGES_WITH_NON_MATCHING_IGP,
     },
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
     RELAYER_METRICS_PORT,
@@ -93,7 +94,7 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    if !scraper_termination_invariants_met(params, &[crate::SCRAPER_METRICS_PORT])? {
+    if !scraper_termination_invariants_met(params, &SEALEVEL_SCRAPER_METRICS_PORTS)? {
         log!("Scraper termination invariants not met");
         return Ok(false);
     }

@@ -180,15 +180,36 @@ class Controls(unittest.TestCase):
         result=json.loads(files['result.json']);row=next(x for x in result['checks']if x['name']=='starknet-cli-tests');row['actual_tests_passed']=None;row['required_new_tests_observed']=[];wrong=dict(files);wrong['result.json']=json.dumps(result).encode()
         with self.assertRaises(api.Refused):inspect(wrong)
 
+    def test_new_helper_regressions_require_actual_OK_log_and_cannot_borrow_census(self):
+        fresh=['external_agents::tests::svm_scraper_programs_isolate_logical_domains_and_metrics','external_agents::tests::tron_cli_frozen_graph_option_precedes_original_script_arguments']
+        actual=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
+        self.assertEqual(actual['external_agents::tests::'][-2:],fresh)
+        for absent in [None,*fresh]:
+            for nonOK in ([None]if absent is None else ['missing','SKIP','FAILED']):
+                files,source=family_fixture('helper')
+                required=api.literal_constants(source.bytes('zig/bench/native_harness_controls.py').decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];required['external_agents::tests::']=fresh
+                source.rows['zig/bench/native_harness_controls.py']=('REQUIRED_TESTS = '+repr(required)).encode()
+                result=json.loads(files['result.json']);row=next(x for x in result['checks']if x['name']=='external_agents-tests')
+                names=row['required_new_tests_observed']+fresh
+                if nonOK=='missing':names=[name for name in names if name!=absent]
+                row['required_new_tests_observed']=names;row['actual_tests_passed']=len(names)
+                log='\n'.join('test '+name+' ... '+(nonOK if name==absent and nonOK in {'SKIP','FAILED'}else'ok')for name in names)+'\ntest result: ok. '+str(len(names))+' passed; 0 failed; 0 ignored;'
+                wire=log.encode();files['external_agents-tests.log']=wire;row['log'].update(bytes=len(wire),sha256=api.sha(wire));files['result.json']=json.dumps(result).encode()
+                def inspect():return self.zip(list(files.items()),lambda archive,*_:api.validate_helper(archive,source))
+                with self.subTest(name=absent,status=nonOK):
+                    if absent is None:self.assertEqual(inspect()['actual_test_counts']['external_agents-tests'],7)
+                    else:
+                        with self.assertRaisesRegex(api.Refused,'HELPER_REQUIRED_CENSUS'if nonOK=='missing'else'HELPER_REQUIRED_TEST_LOG'):inspect()
+
     def test_actual_current_census_includes_fresh_temporary_and_Stark_Radix_additions(self):
         # Actual committed exporter Source; never import or execute its main.
         raw=(HERE/'native_harness_controls.py').read_bytes()
-        self.assertEqual(api.sha(raw),'89d788374a505d0ed645401f521aaa265'+'8962203b0191c27e9191a78edd330f7')
+        self.assertEqual(api.sha(raw),'71d163a545a06dbd84a8e5609283888e'+'1ad085ea1127e957bb51985e90ce2f3f')
         required=api.literal_constants(raw.decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
-        self.assertEqual(sum(map(len,required.values())),76)
+        self.assertEqual(sum(map(len,required.values())),78)
         fresh={'svm_fresh_temporary_objects_do_not_walk_live_ledger_siblings','svm_fresh_temporary_objects_reject_root_or_parent_symlinks','svm_fresh_temporary_objects_reject_non_directory_parent','svm_temporary_objects_are_distinct_fresh_leaves'}
         self.assertTrue({'external_agents::tests::'+n for n in fresh}<=set(required['external_agents::tests::']))
-        self.assertEqual(len(required['external_agents::tests::']),54)
+        self.assertEqual(len(required['external_agents::tests::']),56)
         self.assertEqual(len(required['external_agents::radix_fixture::tests::']),14)
         self.assertEqual(len(required['starknet::cli::tests::']),2)
         self.assertEqual(len(required['external_agents::radix_contracts::tests::']),6)
@@ -426,7 +447,7 @@ class Controls(unittest.TestCase):
             changed=copy.deepcopy(native);mutate(changed)
             with self.assertRaises(api.Refused):api.suite_counts(changed)
     def test_producer_required_native_catalog_and_closed_count(self):
-        required=actual_native_required();self.assertEqual(len(required),24)
+        required=actual_native_required();self.assertEqual(len(required),30)
         self.assertIn('scraper generic raw sequence snapshots dispatch before derived insertion union write',required)
         self.assertIn('Aleo worker forwards explicit public consensus override into actual clean child and preserves absence',required)
         files=sdk_fixture()
@@ -652,10 +673,10 @@ class ExplicitAgentRuntimeControls(unittest.TestCase):
         manifest=json.loads(files['manifest.json']);manifest['inputs']['native'].update(bytes=len(body),sha256=api.sha(body));files['manifest.json']=json.dumps(manifest,sort_keys=True).encode()
         return self.zip(list(files.items()),lambda archive,*_:api.validate_sdk(archive,mode,sdk_source()if source is None else source))
 
-    def test_both_modes_keep_producer24_and_export_exit1_with_separate_two_OK_public_facts(self):
+    def test_both_modes_keep_producer_catalog_and_export_exit1_with_separate_two_OK_public_facts(self):
         for mode in ('ReleaseSafe','ReleaseFast'):
             with self.subTest(mode=mode):
-                result=self.inspect(mode);suite=result['native_suite'];self.assertEqual(suite['total'],29);self.assertEqual(suite['producer_native_required_count'],24);self.assertEqual(suite['explicit_agent_runtime_test_count'],2);self.assertIs(suite['two_explicit_agent_runtime_tests_observed_OK'],True)
+                result=self.inspect(mode);suite=result['native_suite'];self.assertEqual(suite['total'],len(actual_native_required())+3+len(api.AGENT_RUNTIME_TESTS));self.assertEqual(suite['producer_native_required_count'],len(actual_native_required()));self.assertEqual(suite['explicit_agent_runtime_test_count'],2);self.assertIs(suite['two_explicit_agent_runtime_tests_observed_OK'],True)
                 self.assertEqual(result['export_actual_waits'],2);self.assertIs(result['SDK_or_native_product_executed_by_reader'],False);self.assertIs(result['actual_consumer_CPU_superset_checked'],False)
                 public=api.public_facts({'native_suite':{**suite,'PRIVATE_UNKNOWN':'PRIVATE_VALUE'}});self.assertIn('explicit_agent_runtime_test_count',public['native_suite']);self.assertIn('two_explicit_agent_runtime_tests_observed_OK',public['native_suite']);self.assertEqual(public['native_suite']['explicit_agent_runtime_test_count'],2);self.assertIs(public['native_suite']['two_explicit_agent_runtime_tests_observed_OK'],True);self.assertNotIn('PRIVATE',json.dumps(public))
                 self.assertTrue(all(name not in json.dumps(public)for name in api.AGENT_RUNTIME_TESTS))
@@ -692,11 +713,11 @@ class ExplicitAgentRuntimeControls(unittest.TestCase):
                 source.rows[path]=wire
                 with self.subTest(name=name,variant=variant),self.assertRaisesRegex(api.Refused,'^AGENT_RUNTIME_TEST_SOURCE$'):self.inspect(source=source)
 
-    def test_actual_current_producer_metrics_has_two_exact_literals_without_extending_native24(self):
+    def test_actual_current_producer_metrics_has_two_exact_literals_separate_from_required_catalog(self):
         body=(HERE.parent/'src/ops/metrics.zig').read_bytes();lines=body.splitlines()
         self.assertEqual(len(api.AGENT_RUNTIME_TESTS),2);self.assertEqual(len(set(api.AGENT_RUNTIME_TESTS)),2)
         for name in api.AGENT_RUNTIME_TESTS:self.assertEqual(lines.count(('test "'+name+'" {').encode()),1)
-        self.assertFalse(set(actual_native_required())&set(api.AGENT_RUNTIME_TESTS));self.assertEqual(len(actual_native_required()),24)
+        self.assertFalse(set(actual_native_required())&set(api.AGENT_RUNTIME_TESTS));self.assertEqual(len(actual_native_required()),30)
 
     def test_count_only_and_source_only_are_not_actual_test_observation(self):
         for name in api.AGENT_RUNTIME_TESTS:
@@ -741,6 +762,6 @@ class ExplicitRadixReadinessWitnesses(unittest.TestCase):
             with self.subTest(value_type=type(value).__name__),self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TEST_SOURCE$'):api.explicit_radix_readiness_tests('',N(bytes=lambda name:value),{path:{}})
     def test_actual_current_R1_Source_matches_three_sealed_names_not_old76(self):
         path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';source=SyntheticGit();source.rows[path]=(HERE.parents[1]/path).read_bytes();text='\n'.join('test '+name+' ... ok'for name in api.RADIX_READINESS_TESTS);facts=api.explicit_radix_readiness_tests(text,source,{path:source.digest(path)});self.assertEqual(facts['explicit_radix_readiness_test_count'],3)
-        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),76)
+        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),78)
 
 if __name__=='__main__':unittest.main()

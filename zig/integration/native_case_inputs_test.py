@@ -288,7 +288,7 @@ class ZigDiagnosticCatalogControls(unittest.TestCase):
  def test_actual_Git_blob_join_produces_exact_catalog_and_serialized_consumer_frames(self):
   import ast
   fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='prepare');assignment=next(n for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_zig_sources'for t in n.targets));addition=next(n for n in fn.body if isinstance(n,ast.AugAssign)and isinstance(n.target,ast.Name)and n.target.id=='required'and 'diagnostic_rust_sources'in ast.unparse(n));plan_literal=next(n.value for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='plan'for t in n.targets));plan_value=next(v for k,v in zip(plan_literal.keys,plan_literal.values)if isinstance(k,ast.Constant)and k.value=='diagnostic_zig_sources')
-  env=dict(m.__dict__,repo=self.repo,context={'runtime_source_commit':self.commit,'execution_source_commit':self.commit},closure={'scopes':{'runtime':self.runtime}},scenario='sealevel',evidence=self.evidence,diagnostic_rust_sources={},diagnostic_relayer_sources={},required=[]);exec(compile(ast.fix_missing_locations(ast.Module(body=[assignment,addition],type_ignores=[])),str(m.__file__),'exec'),env);catalog=eval(compile(ast.Expression(body=plan_value),str(m.__file__),'eval'),env)
+  env=dict(m.__dict__,repo=self.repo,context={'runtime_source_commit':self.commit,'execution_source_commit':self.commit},closure={'scopes':{'runtime':self.runtime}},scenario='sealevel',evidence=self.evidence,diagnostic_rust_sources={},diagnostic_relayer_sources={},diagnostic_radix_scraper_sources={},required=[]);exec(compile(ast.fix_missing_locations(ast.Module(body=[assignment,addition],type_ignores=[])),str(m.__file__),'exec'),env);catalog=eval(compile(ast.Expression(body=plan_value),str(m.__file__),'eval'),env)
   self.assertEqual(set(catalog),{'zig/src/root.zig'});row=catalog['zig/src/root.zig'];self.assertEqual(row,m.artifact(self.repo/'zig/src/root.zig'));self.assertIn(row,env['required']);self.assertTrue(any('ls-tree'in r['argv']for r in self.evidence));self.assertTrue(all(r['actual_parent_wait']for r in self.evidence))
   path=self.repo/'catalog.json';path.write_text(json.dumps({'diagnostic_zig_sources':catalog,'required_inputs':env['required']}));decoded_plan=json.loads(path.read_text());decoded=decoded_plan['diagnostic_zig_sources'];base=pathlib.Path(__file__).resolve().parents[1]
   spec=importlib.util.spec_from_file_location('catalog_consumer_diag',base/'integration/multivm_diagnostics.py');diag=importlib.util.module_from_spec(spec);spec.loader.exec_module(diag)
@@ -365,6 +365,32 @@ class RelayerStartupCatalogControls(unittest.TestCase):
  def test_prepare_fixed_catalog_is_both_required_and_in_actual_approval(self):
   fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='prepare');text=ast.unparse(fn)
   self.assertIn("scenario in {'evm', 'starknet'}",text);self.assertIn("approval['diagnostic_relayer_sources'] = diagnostic_relayer_sources",text);self.assertIn('list(diagnostic_relayer_sources.values())',text)
+
+class RadixScraperCatalogControls(unittest.TestCase):
+ git=ZigDiagnosticCatalogControls.git
+ def setUp(self):
+  ZigDiagnosticCatalogControls.setUp(self);root=pathlib.Path(__file__).resolve().parents[2]
+  spec=importlib.util.spec_from_file_location('radix_catalog_diagnostic',pathlib.Path(__file__).with_name('multivm_diagnostics.py'));self.diagnostic=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.diagnostic)
+  for name,_,_ in self.diagnostic.RADIX_SCRAPER_SOURCE:
+   target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((root/name).read_bytes())
+  self.git('add','.');self.git('commit','-qm','fixed Radix Source fixture');self.commit=self.git('rev-parse','HEAD');self.scopes={family:m.cohort(self.repo,self.commit,self.commit,family)for family in ('runtime','helper')};self.evidence=[]
+ def collect(self):
+  with mock.patch.object(m,'load_module',return_value=self.diagnostic):return m.radix_scraper_source_catalog(self.repo,self.commit,self.commit,self.scopes,self.evidence)
+ def test_actual14_producer_blobs_bind_runtime_and_helper_and_prepare_approval(self):
+  rows=self.collect();self.assertEqual(len(rows),14);self.assertTrue(all(m.artifact(self.repo/name)==row for name,row in rows.items()));self.assertTrue(all(e['actual_parent_wait']for e in self.evidence))
+  fn=next(n for n in ast.parse(pathlib.Path(m.__file__).read_bytes()).body if isinstance(n,ast.FunctionDef)and n.name=='prepare');text=ast.unparse(fn)
+  self.assertIn("approval['diagnostic_radix_scraper_sources'] = diagnostic_radix_scraper_sources",text);self.assertIn('list(diagnostic_radix_scraper_sources.values())',text)
+  assignment=next(n for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='diagnostic_radix_scraper_sources'for t in n.targets));self.assertEqual(ast.literal_eval(assignment.value.test.comparators[0]),'radix')
+ def test_dirty_runtime_or_helper_and_wrong_blob_cannot_borrow_any_epoch(self):
+  for name in ['zig/src/radix/provider.zig','rust/main/utils/run-locally/src/external_agents.rs']:
+   p=self.repo/name;wire=p.read_bytes();p.write_bytes(wire+b'\n')
+   with self.subTest(path=name),self.assertRaisesRegex(ValueError,'Dirty compiled'):self.collect()
+   p.write_bytes(wire)
+  real=m.git
+  def wrong(repo,*args,**kwargs):return'0'*40 if args[:1]==('rev-parse',)and len(args)==2 and ':'in args[1]else real(repo,*args,**kwargs)
+  with mock.patch.object(m,'git',side_effect=wrong),self.assertRaisesRegex(ValueError,'producer blob'):self.collect()
+  original=self.diagnostic.RADIX_SCRAPER_SOURCE
+  with mock.patch.object(self.diagnostic,'RADIX_SCRAPER_SOURCE',original[:-1]),self.assertRaisesRegex(ValueError,'Exact SCR'):self.collect()
 
 class RadixSubmitCatalogControls(unittest.TestCase):
  setUp=Controls.setUp

@@ -239,7 +239,7 @@ class RoleFailureProjectionControls(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.case=Path(self.temp.name).resolve();(self.case/'evidence').mkdir();(self.case/'agent-logs').mkdir();self.repo=self.case/'repo';self.repo.mkdir()
         self.names=['rust/main/utils/run-locally/src/'+n for n in ['external_agents.rs','program.rs','main.rs','sealevel/mod.rs','logging.rs']]
-        bodies=[b'pub struct OwnedChild\nstruct ChildExit\n.join("parent-child-exits.jsonl")\nimpl Drop for TrackedChild',b'format!("{log_prefix}-output.log")\nprintln!("<{prefix}> {line}")\nlog!("Error reading from output for {}: {}", prefix, e)',b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")',b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))',b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)']
+        bodies=[b'pub struct OwnedChild\nstruct ChildExit\n.join("parent-child-exits.jsonl")\nimpl Drop for TrackedChild',b'format!("{log_prefix}-output.log")\nprintln!("<{prefix}> {line}")\nlog!("Error reading from output for {}: {}", prefix, e)',b'create_owned_path(Path::new("/tmp/test_logs"), "agent-logs")',b'.spawn("RLY", Some(&AGENT_LOGGING_DIR))\n.zip(["SCR1", "SCR2", "SCR3"])\nscraper_env.spawn(scraper_name, None)',b'::std::println!(concat!("<E2E> ", $arg), $($rest)*)']
         self.sources={}
         for name,body in zip(self.names,bodies):
             target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body);self.sources[name]={'path':str(target),'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest()}
@@ -248,7 +248,7 @@ class RoleFailureProjectionControls(unittest.TestCase):
         for i,role in enumerate(self.products,10):
             row={'pid':i,'parent_pid':42,'role':role,'executable':self.products[role],'os_start_token':'PRIVATE_START_'+str(i),'scope':'PRIVATE_SCOPE'};self.owned.append(row)
             self.exits.append({**row,'parent_wait_completed':True,'already_exited':role=='relayer','forced_kill':False,'success':False,'exit_code':None,'signal':6 if role=='relayer'else 15,'purpose':'unwind_or_early_drop','planned_exit':False})
-        self.zig_sources={};self.log=self.case/'harness.log';self.log.write_bytes(b'<SCR> error: PrivateFailureName\nDO-NOT-EXPORT-AUTHORIZATION\n')
+        self.zig_sources={};self.log=self.case/'harness.log';self.log.write_bytes(b'<SCR1> error: PrivateFailureName\nDO-NOT-EXPORT-AUTHORIZATION\n')
         (self.case/'agent-logs/RLY-output.log').write_bytes(b'thread 100 panic: integer overflow\nPRIVATE_KEYS_AND_CONFIG\n')
         self.save()
 
@@ -311,10 +311,10 @@ class RoleFailureProjectionControls(unittest.TestCase):
 
     def test_all_actual_SVM_harness_prefixes_capture_stderr_flags_when_stdout_is_empty(self):
         (self.case/'agent-logs/RLY-output.log').write_bytes(b'')
-        self.log.write_bytes(b'<RLY> thread 10 panic: integer overflow\n<VL1> thread 11 panic: reached unreachable code\n<VL2> error: PrivateFailureName\n<VL3> panic: attempt to use null value\n<SCR> error: OtherPrivateFailure\n<OTHER> panic: incorrect alignment\n<RLY-private> panic: index out of bounds\nSECRET_TOKEN_ENV\n')
+        self.log.write_bytes(b'<RLY> thread 10 panic: integer overflow\n<VL1> thread 11 panic: reached unreachable code\n<VL2> error: PrivateFailureName\n<VL3> panic: attempt to use null value\n<SCR1> error: OtherPrivateFailure\n<SCR2> panic: reached unreachable code\n<SCR3> panic: attempt to use null value\n<OTHER> panic: incorrect alignment\n<RLY-private> panic: index out of bounds\nSECRET_TOKEN_ENV\n')
         value=self.observe();rows={r['fixed_log']:r for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')}
-        self.assertEqual(set(rows),{'harness.log prefix '+p for p in ['RLY','VL1','VL2','VL3','SCR']})
-        expected={'RLY':['INTEGER_OVERFLOW','PANIC_HEADER_OBSERVED'],'VL1':['PANIC_HEADER_OBSERVED','UNREACHABLE'],'VL2':['ERROR_RETURN_HEADER_OBSERVED'],'VL3':['NULL_UNWRAP','PANIC_HEADER_OBSERVED'],'SCR':['ERROR_RETURN_HEADER_OBSERVED']}
+        self.assertEqual(set(rows),{'harness.log prefix '+p for p in ['RLY','VL1','VL2','VL3','SCR1','SCR2','SCR3']})
+        expected={'RLY':['INTEGER_OVERFLOW','PANIC_HEADER_OBSERVED'],'VL1':['PANIC_HEADER_OBSERVED','UNREACHABLE'],'VL2':['ERROR_RETURN_HEADER_OBSERVED'],'VL3':['NULL_UNWRAP','PANIC_HEADER_OBSERVED'],'SCR1':['ERROR_RETURN_HEADER_OBSERVED'],'SCR2':['PANIC_HEADER_OBSERVED','UNREACHABLE'],'SCR3':['NULL_UNWRAP','PANIC_HEADER_OBSERVED']}
         for prefix,flags in expected.items():
             row=rows['harness.log prefix '+prefix];self.assertEqual(row['finite_observed_flags'],flags);self.assertEqual(row['stream_scope'],'merged_prefixed_stdout_and_stderr');self.assertFalse(row['exact_pid_or_epoch_attribution'])
         self.assertEqual(next(r for r in value['fixed_role_logs']if r['fixed_log']=='agent-logs/RLY-output.log')['finite_observed_flags'],[])
@@ -335,7 +335,7 @@ class RoleFailureProjectionControls(unittest.TestCase):
         value=self.observe();self.assertTrue(all(r['status']=='unavailable'for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')))
 
     def test_unowned_SVM_role_prefixes_do_not_grant_log_rows(self):
-        self.owned=[r for r in self.owned if r['role']=='relayer'];self.exits=[r for r in self.exits if r['role']=='relayer'];self.save();self.log.write_bytes(b'<SCR> panic: integer overflow\n<VL1> panic: reached unreachable code\n')
+        self.owned=[r for r in self.owned if r['role']=='relayer'];self.exits=[r for r in self.exits if r['role']=='relayer'];self.save();self.log.write_bytes(b'<SCR1> panic: integer overflow\n<VL1> panic: reached unreachable code\n')
         rows=self.observe()['fixed_role_logs'];self.assertEqual([r['fixed_log']for r in rows],['agent-logs/RLY-output.log','harness.log prefix RLY']);self.assertEqual(rows[-1]['finite_observed_flags'],[])
 
 
@@ -358,7 +358,7 @@ class RoleFailureProjectionControls(unittest.TestCase):
         self.log.write_bytes(b'<E2E> Error reading from output for RLY: SECRET_BODY invalid bytes\n<E2E> Error reading from output for VL1: SECRET_OTHER\n<RLY> <E2E> Error reading from output for VL2: SPOOF\n<E2E> Error reading from output for VL3: \n<E2E> Error reading from output for OTHER: SECRET\n')
         value=self.observe();rows={r['fixed_log']:r for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')}
         for prefix in ['RLY','VL1']:self.assertEqual(rows['harness.log prefix '+prefix]['finite_observed_flags'],['ROLE_PIPE_READ_ERROR_OBSERVED'])
-        for prefix in ['VL2','VL3','SCR']:self.assertEqual(rows['harness.log prefix '+prefix]['finite_observed_flags'],[])
+        for prefix in ['VL2','VL3','SCR1','SCR2','SCR3']:self.assertEqual(rows['harness.log prefix '+prefix]['finite_observed_flags'],[])
         wire=json.dumps(value)
         for secret in ['SECRET','invalid bytes','SPOOF']:self.assertNotIn(secret,wire)
         path=self.repo/self.names[-1];path.write_bytes(path.read_bytes()+b' changed logging macro')
@@ -367,11 +367,24 @@ class RoleFailureProjectionControls(unittest.TestCase):
 
     def test_actual_role_projection_consumes_catalog_and_retains_only_Source_coordinates(self):
         path=self.repo/'zig/src/role.zig';path.parent.mkdir(parents=True);path.write_bytes(b'pub fn public_role() void {}\n');self.zig_sources={'zig/src/role.zig':api.pin(path)}
-        self.log.write_bytes(b'<RLY> /PRIVATE_BUILD/zig/src/role.zig:1:5: 0xPRIVATE in SECRET_FUNCTION\n<VL1> zig/src/role.zig:1:3: PRIVATE_TEXT\n<SCR> zig/src/role.zig:1:1: PRIVATE_TEXT\n')
+        self.log.write_bytes(b'<RLY> /PRIVATE_BUILD/zig/src/role.zig:1:5: 0xPRIVATE in SECRET_FUNCTION\n<VL1> zig/src/role.zig:1:3: PRIVATE_TEXT\n<SCR1> zig/src/role.zig:1:1: PRIVATE_TEXT\n')
         value=self.observe();rows={r['fixed_log']:r for r in value['fixed_role_logs']if r['fixed_log'].startswith('harness.log prefix ')}
-        self.assertEqual(rows['harness.log prefix RLY']['Source_frames'],[{'source':'zig/src/role.zig','line':1,'column':5}]);self.assertEqual(rows['harness.log prefix VL1']['Source_frames'],[{'source':'zig/src/role.zig','line':1,'column':3}]);self.assertEqual(rows['harness.log prefix SCR']['Source_frames'],[]);self.assertFalse(rows['harness.log prefix RLY']['exact_pid_or_epoch_attribution']);self.assertFalse(value['native_or_timing_or_cleanup_authority'])
+        self.assertEqual(rows['harness.log prefix RLY']['Source_frames'],[{'source':'zig/src/role.zig','line':1,'column':5}]);self.assertEqual(rows['harness.log prefix VL1']['Source_frames'],[{'source':'zig/src/role.zig','line':1,'column':3}]);self.assertEqual(rows['harness.log prefix SCR1']['Source_frames'],[]);self.assertFalse(rows['harness.log prefix RLY']['exact_pid_or_epoch_attribution']);self.assertFalse(value['native_or_timing_or_cleanup_authority'])
         wire=json.dumps(value)
         for secret in ['PRIVATE_BUILD','0xPRIVATE','SECRET_FUNCTION','PRIVATE_TEXT']:self.assertNotIn(secret,wire)
+
+    def test_legacy_lookalike_and_nested_scraper_prefixes_never_classify(self):
+        self.log.write_bytes(b'<SCR> panic: integer overflow\n<SCR4> panic: integer overflow\n<SCR1-extra> panic: integer overflow\n<RLY> <SCR1> panic: integer overflow\n')
+        scrapers=[r for r in self.observe()['fixed_role_logs']if r['role']=='scraper']
+        self.assertEqual({r['fixed_log']for r in scrapers},{'harness.log prefix '+p for p in ('SCR1','SCR2','SCR3')})
+        self.assertTrue(all(r['finite_observed_flags']==[]for r in scrapers))
+        self.assertTrue(all(not r['exact_pid_or_epoch_attribution']for r in scrapers))
+
+    def test_rehashed_changed_scraper_emitter_does_not_authorize_prefixes(self):
+        target=self.repo/self.names[3]
+        target.write_bytes(target.read_bytes().replace(b'"SCR3"',b'"SCR4"'))
+        self.sources[self.names[3]]=api.pin(target)
+        with self.assertRaisesRegex(ValueError,'Source role journal/log contract'):self.observe()
 
 class FixtureFailureDiscriminatorControls(unittest.TestCase):
     def setUp(self):
@@ -1273,19 +1286,19 @@ class RadixSubmitTextControls(unittest.TestCase):
 class SvmPrivateWindowControls(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.repo=Path(self.temp.name);self.sources={}
-        bodies={'program.rs':b'let mut reader = BufReader::new(output).lines();\nprintln!("<{prefix}> {line}");','sealevel/solana.rs':b'args.spawn("SOL", None)','sealevel/mod.rs':b'scraper_env.spawn("SCR", None)'}
+        bodies={'program.rs':b'let mut reader = BufReader::new(output).lines();\nprintln!("<{prefix}> {line}");','sealevel/solana.rs':b'args.spawn("SOL", None)','sealevel/mod.rs':b'.zip(["SCR1", "SCR2", "SCR3"])\nscraper_env.spawn(scraper_name, None)'}
         for suffix,body in bodies.items():
             name='rust/main/utils/run-locally/src/'+suffix;path=self.repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(body);self.sources[name]=api.pin(path)
     def select(self,raw,scenario='sealevel'):return api.svm_private_windows(raw,self.sources,self.repo,scenario)
     def test_fixed_physical_tags_deduplicated_overlap_and_private_bytes(self):
-        raw=b'<SOL> \x1b[31mPRIVATE\xff\x00\n<SCR> private-key-text\n';plain,meta=self.select(raw)
+        raw=b'<SOL> \x1b[31mPRIVATE\xff\x00\n<SCR1> private-key-text\n';plain,meta=self.select(raw)
         self.assertEqual(plain,raw);self.assertEqual([r['bytes']for r in meta['windows']],[len(raw.splitlines(True)[0]),0,len(raw.splitlines(True)[1]),0]);self.assertNotIn('PRIVATE',json.dumps(meta));self.assertNotIn('sha256',json.dumps(meta))
         plain,meta=self.select(raw,'sealevel-composite');self.assertEqual(plain,raw.splitlines(True)[0]);self.assertEqual([r['bytes']for r in meta['windows']][2:],[0,0])
     def test_global_window_bound_43_not44_and_exact_tail(self):
-        sol=b''.join(b'<SOL> '+bytes([65+i%26])*80+b'\n'for i in range(200));scr=sol.replace(b'<SOL>',b'<SCR>')
+        sol=b''.join(b'<SOL> '+bytes([65+i%26])*80+b'\n'for i in range(200));scr=sol.replace(b'<SOL>',b'<SCR1>')
         plain,meta=self.select(sol+scr);self.assertEqual(len(plain),16384);self.assertEqual((len(plain)+383)//384,43);self.assertEqual([r['bytes']for r in meta['windows']],[4096]*4);self.assertEqual(plain,sol[:4096]+sol[-4096:]+scr[:4096]+scr[-4096:])
     def test_lookalikes_oversize_source_poison_and_absolute_check(self):
-        raw=b' <SOL> foreign\n\x1b[31m<SOL> foreign\n<RLY> <SOL> foreign\n<SOLX> foreign\n<SOL> '+b'x'*65536+b'\n'
+        raw=b'<SCR> foreign\n<SCR4> foreign\n<SCR1-extra> foreign\n<RLY> <SCR2> foreign\n <SOL> foreign\n\x1b[31m<SOL> foreign\n<RLY> <SOL> foreign\n<SOLX> foreign\n<SOL> '+b'x'*65536+b'\n'
         plain,meta=self.select(raw);self.assertEqual(plain,b'');self.assertEqual(meta['oversized_lines_omitted'],1)
         next(iter(self.sources.values()))['sha256']='f'*64
         with self.assertRaises(ValueError):self.select(b'<SOL> PRIVATE\n')
@@ -1312,6 +1325,37 @@ class SvmPrivateWindowControls(unittest.TestCase):
 
 
 
+    def test_all_three_scraper_prefixes_share_one_fixed_window_pair(self):
+        scr=b'<SCR1> first\n<SCR2> second\n<SCR3> third\n'
+        plain,meta=self.select(scr)
+        self.assertEqual(plain,scr)
+        self.assertEqual(meta['windows'],[{'tag':'SOL','position':'first','bytes':0},{'tag':'SOL','position':'tail','bytes':0},{'tag':'SCR','position':'first','bytes':len(scr)},{'tag':'SCR','position':'tail','bytes':0}])
+        self.assertNotIn('SCR1',json.dumps(meta));self.assertNotIn('second',json.dumps(meta))
+        long=b''.join((b'<SCR1> ',b'<SCR2> ',b'<SCR3> ')[i%3]+bytes([65+i%26])*80+b'\n'for i in range(300))
+        plain,meta=self.select(long)
+        self.assertEqual(plain,long[:4096]+long[-4096:]);self.assertEqual([r['bytes']for r in meta['windows']],[0,0,4096,4096])
+        plain,meta=self.select(scr,'sealevel-composite');self.assertEqual(plain,b'');self.assertTrue(all(r['bytes']==0 for r in meta['windows']))
+
+    def test_rehashed_legacy_or_changed_scraper_source_refuses(self):
+        name='rust/main/utils/run-locally/src/sealevel/mod.rs';target=self.repo/name
+        for body in [b'scraper_env.spawn("SCR", None)',b'.zip(["SCR1", "SCR2", "SCR4"])\nscraper_env.spawn(scraper_name, None)',target.read_bytes()+b'\n.zip(["SCR1", "SCR2", "SCR3"])']:
+            target.write_bytes(body);self.sources[name]=api.pin(target)
+            with self.assertRaisesRegex(ValueError,'SVM prefix Source'):self.select(b'<SCR1> PRIVATE\n')
+
+
+def radix_test_admission(root,repo,modules,manifest,approval=None):
+    """Synthetic closure only; no Git/native acceptance or persisted real pins."""
+    approval={}if approval is None else approval
+    epoch=manifest['runtime_source_commit'];execution='b'*40
+    log=root/'compiled-source-check.json';log.write_text('{}\n')
+    paths={'runtime':('zig/src','zig/native','zig/build.zig','zig/build.zig.zon'),'helper':('rust/main','rust/sealevel'),'tools':('rust/main','rust/sealevel','zig/reference')}
+    scopes={category:[{'path':path,'producer_tree':None if path=='zig/build.zig.zon'else'3'*40,'current_tree':None if path=='zig/build.zig.zon'else'3'*40,'worktree_unchanged':True}for path in rows]for category,rows in paths.items()}
+    closure={'schema':1,'runtime_source_commit':epoch,'helper_source_commit':epoch,'tools_source_commit':epoch,'execution_source_commit':execution,'source_unchanged':True,'native_case_acceptance':False,'scopes':scopes,'checks':[{'exit_code':0,'log':api.pin(log)}]}
+    closure_path=root/'compiled-input-closure.json';closure_path.write_text(json.dumps(closure))
+    approval.update(root_approved=True,scenario='radix',runtime_source_commit=epoch,execution_source_commit=execution,python_modules=modules,compiled_input_closure=api.pin(closure_path),diagnostic_radix_scraper_sources={name:{'path':str(repo/name),'bytes':size,'sha256':digest}for name,size,digest in api.RADIX_SCRAPER_SOURCE})
+    path=root/'approval.json';path.write_text(json.dumps(approval));manifest['execution_approval']=api.pin(path)
+    return approval
+
 class RadixScraperCutoverControls(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve()
@@ -1321,7 +1365,25 @@ class RadixScraperCutoverControls(unittest.TestCase):
         for name,_,_ in api.RADIX_SCRAPER_SOURCE:
             target=self.root/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(repo/name,target)
         self.modules={name:api.pin(HERE/name)for name in ['multivm_session.py','multivm_evidence.py']}
-        return api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH},self.modules)
+        self.manifest={'scenario':'radix','runtime_source_commit':'1'*40};self.approval=radix_test_admission(self.root,self.root,self.modules,self.manifest)
+        return api.RadixScraper(self.root,self.manifest,self.modules)
+    def test_successor_requires_exact_admitted_runtime_helper_closure_and_all14_sources(self):
+        state=self.state();self.assertEqual(state.epoch,'1'*40);self.assertEqual(state.public(None)['Source_epoch'],'1'*40)
+        valid=copy.deepcopy(self.approval);path=self.root/'approval.json'
+        mutations=[lambda a:a.pop('compiled_input_closure'),lambda a:a.update(root_approved=False),lambda a:a.update(scenario='evm'),lambda a:a.update(runtime_source_commit='4'*40),lambda a:a.update(python_modules={}),lambda a:a.pop('diagnostic_radix_scraper_sources'),lambda a:a['diagnostic_radix_scraper_sources'].pop('rust/main/utils/run-locally/src/external_agents.rs'),lambda a:a['diagnostic_radix_scraper_sources']['zig/src/radix/provider.zig'].update(sha256='0'*64)]
+        for mutate in mutations:
+            modified=copy.deepcopy(valid);mutate(modified);path.write_text(json.dumps(modified));self.manifest['execution_approval']=api.pin(path)
+            with self.subTest(mutation=repr(mutate)),self.assertRaises(ValueError):api.RadixScraper(self.root,self.manifest,self.modules)
+        closure_path=Path(valid['compiled_input_closure']['path']);original=json.loads(closure_path.read_text())
+        mutations=[lambda c:c.update(helper_source_commit='4'*40),lambda c:c.update(runtime_source_commit='4'*40),lambda c:c.update(tools_source_commit='4'*40),lambda c:c['scopes']['helper'][0].update(current_tree='4'*40),lambda c:c['scopes']['runtime'][0].update(worktree_unchanged=False),lambda c:c['scopes'].pop('tools'),lambda c:c.update(checks=[]),lambda c:c['checks'][0].update(exit_code=1)]
+        for mutate in mutations:
+            modified=copy.deepcopy(original);mutate(modified);closure_path.write_text(json.dumps(modified));approval=copy.deepcopy(valid);approval['compiled_input_closure']=api.pin(closure_path);path.write_text(json.dumps(approval));self.manifest['execution_approval']=api.pin(path)
+            with self.subTest(mutation=repr(mutate)),self.assertRaises(ValueError):api.RadixScraper(self.root,self.manifest,self.modules)
+    def test_admission_identity_is_rechecked_and_historical_epoch_never_bypasses(self):
+        state=self.state();path=self.root/'approval.json';wire=path.read_bytes();path.write_bytes(wire+b' ')
+        with self.assertRaises(ValueError):state.public(None)
+        for epoch in ['f453948ae31c1fadb35e10c87577e73a39350103','1'*40]:
+            with self.assertRaises(ValueError):api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':epoch},self.modules)
     def sample(self,chain='a',value='0'):
         return ('hyperlane_critical_error{chain="'+chain+'",agent="scraper",hyperlane_baselib_version="3.0.0"} '+value+'\n').encode()
     def test_absence_zero_nonzero_and_exact_Rust_count_operands_are_separate(self):
@@ -1343,7 +1405,7 @@ class RadixScraperCutoverControls(unittest.TestCase):
         with self.assertRaises(ValueError):api.radix_scraper_headers(raw,sources)
         path=self.root/'zig/src/agents/scraper/task.zig';path.write_bytes(path.read_bytes()+b'\n')
         with self.assertRaises(ValueError):state.headers(raw)
-        with self.assertRaises(ValueError):api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH},self.modules)
+        with self.assertRaises(ValueError):api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':'1'*40},self.modules)
     def test_wrong_epoch_unknown_headers_linebounds_and_foreign_prefix_refuse(self):
         state=self.state()
         with self.assertRaises(ValueError):api.RadixScraper(self.root,{'scenario':'radix','runtime_source_commit':'a'*40},self.modules)
@@ -1360,8 +1422,8 @@ class RadixScraperCutoverControls(unittest.TestCase):
         with mock.patch.object(api.os,'open',side_effect=opened):value=api.rust_panic_observation(log,{},self.root,radix_scraper=state)
         self.assertEqual(len(reads),1);self.assertEqual(value['Radix_scraper_headers']['counts']['lane_failure'],1)
     def selected(self,rows=None,live=None):
-        product={'path':'/owned/scraper','bytes':1,'sha256':'a'*64};manifest={'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'artifacts':{'scraper':product}}
-        capture={'original':{'role':'scraper','role_chain_names':['a','b'],'runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'scenario':'radix','harness_pid':42,'metrics_port':9093,'chains':{'a':{'protocol':'radix'},'b':{'protocol':'radix'}}}}
+        product={'path':'/owned/scraper','bytes':1,'sha256':'a'*64};manifest={'scenario':'radix','runtime_source_commit':'1'*40,'artifacts':{'scraper':product}}
+        capture={'original':{'role':'scraper','role_chain_names':['a','b'],'runtime_source_commit':'1'*40,'scenario':'radix','harness_pid':42,'metrics_port':9093,'chains':{'a':{'protocol':'radix'},'b':{'protocol':'radix'}}}}
         child={'role':'scraper','pid':43,'parent_pid':42,'os_start_token':'43 42 Wed Nov 9 00:00:00 2026 scraper','executable':product}
         records={'effective-role-configs.jsonl':[capture],'owned-children.jsonl':[child]}
         if rows is not None:rows(records)
@@ -1388,8 +1450,8 @@ class RadixRpcJournalControls(unittest.TestCase):
             target=self.repo/'zig/integration'/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(actual/'zig/integration'/name,target);self.modules[name]=api.pin(target)
         lock=self.repo/api.RADIX_SUBMIT_LOCK;lock.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(actual/api.RADIX_SUBMIT_LOCK,lock)
         self.inputs={'chain_names':['a','b']};self.inputpath=self.case/'case-inputs.json';self.inputpath.write_text(json.dumps(self.inputs));self.approvalpath=self.case/'approval.json';self.manifestpath=self.case/'manifest.json'
-        self.approval={'root_approved':True,'scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'execution_source_commit':'b'*40,'python_modules':self.modules};self.manifest={'scenario':'radix','implementation':'zig','task_root':str(self.case),'runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'case_inputs':api.pin(self.inputpath)};self.plan={'root_approved':True,'scenario':'radix','execution_source_commit':'b'*40,'diagnostic_radix_client_lock':api.pin(lock),'required_inputs':list(self.modules.values())+[api.pin(lock)]};self.rebind()
-        self.state=api.RadixScraper(self.repo,self.manifest,self.modules);self.capture={'original':{'role':'scraper','scenario':'radix','runtime_source_commit':api.RADIX_SCRAPER_EPOCH,'harness_pid':42,'metrics_port':9093,'role_chain_names':['a','b'],'chains':{name:{'protocol':'radix','rpcurls':'http://localhost:3333/core','gatewayurls':[{'http':'http://localhost:5308/'}]}for name in ['a','b']}}};self.captures=self.case/'evidence/effective-role-configs.jsonl';self.captures.write_text(json.dumps(self.capture)+'\n');self.journal=self.case/'evidence/native-rpc-observations.jsonl';self.write([])
+        self.approval={'root_approved':True,'scenario':'radix','runtime_source_commit':'1'*40,'execution_source_commit':'b'*40,'python_modules':self.modules};self.manifest={'scenario':'radix','implementation':'zig','task_root':str(self.case),'runtime_source_commit':'1'*40,'case_inputs':api.pin(self.inputpath)};self.plan={'root_approved':True,'scenario':'radix','execution_source_commit':'b'*40,'diagnostic_radix_client_lock':api.pin(lock),'required_inputs':list(self.modules.values())+[api.pin(lock)]};radix_test_admission(self.case,self.repo,self.modules,self.manifest,self.approval);self.rebind()
+        self.state=api.RadixScraper(self.repo,self.manifest,self.modules);self.capture={'original':{'role':'scraper','scenario':'radix','runtime_source_commit':'1'*40,'harness_pid':42,'metrics_port':9093,'role_chain_names':['a','b'],'chains':{name:{'protocol':'radix','rpcurls':'http://localhost:3333/core','gatewayurls':[{'http':'http://localhost:5308/'}]}for name in ['a','b']}}};self.captures=self.case/'evidence/effective-role-configs.jsonl';self.captures.write_text(json.dumps(self.capture)+'\n');self.journal=self.case/'evidence/native-rpc-observations.jsonl';self.write([])
     def rebind(self):
         self.approvalpath.write_text(json.dumps(self.approval));self.manifest['execution_approval']=api.pin(self.approvalpath);self.manifestpath.write_text(json.dumps(self.manifest));self.plan['manifestArtifact']=api.pin(self.manifestpath)
     def row(self,route='CORE_CALL_PREVIEW',status=200,request=None,response=None):
