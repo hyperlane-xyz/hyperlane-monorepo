@@ -566,6 +566,23 @@ describe('RelayBridge', () => {
     expect(apiStatus.called).to.equal(false);
   });
 
+  it('resolves status domains that differ from EVM chain IDs', async () => {
+    const multiProvider = new MultiProvider({
+      base: { ...metadata.base, domainId: 84530 },
+      elysium: { ...metadata.elysium, domainId: 999010 },
+    });
+    multiProvider.setProvider('base', sourceProvider);
+    multiProvider.setProvider('elysium', destinationProvider);
+    bridge = new RelayBridge({}, logger, client, multiProvider);
+    expect(
+      await bridge.getStatus(SOURCE_HASH, 84530, 999010, identity()),
+    ).to.deep.equal({
+      status: 'complete',
+      receivingTxHash: DESTINATION_HASH,
+      receivedAmount: 9_970_000n,
+    });
+  });
+
   it('does not treat an API success with another source transaction as settlement', async () => {
     apiStatus.resolves({
       status: RelayStatus.Success,

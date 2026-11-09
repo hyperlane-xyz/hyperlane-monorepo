@@ -20,6 +20,7 @@ native tokens, signature/permit flows, deposit addresses, multiple deposit
 transactions, changed chains/tokens/recipients, and nonzero native call value.
 It uses bounded exact ERC20 approvals and refreshes the quote after approval.
 A refresh cannot increase the accepted input or lower the accepted minimum.
+Late-payment slippage is explicitly zero, and refunds return to the source account.
 The provider's calldata remains inside the accepted inventory-key trust boundary;
 the adapter does not simulate or decode arbitrary execution semantics.
 

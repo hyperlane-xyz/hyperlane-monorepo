@@ -138,6 +138,9 @@ export class RelayClient {
         method: 'POST',
         body: JSON.stringify({
           ...request,
+          refundTo: request.user,
+          explicitDeposit: true,
+          latePaymentSlippageTolerance: '0',
           usePermit: false,
           useDepositAddress: false,
           useMulticallAuthorization: false,
