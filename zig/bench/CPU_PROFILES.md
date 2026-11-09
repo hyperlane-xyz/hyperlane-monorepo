@@ -27,3 +27,9 @@ baseline remains `c5202242cc6569da4a858ed7ddbb34170ab696aa`.
 
 The SVM receipt covers the rebuilt host client and SPL helper. Upstream Agave
 binaries and SBF/Wasm programs retain their separate provenance and checks.
+
+The SVM CI job records optional kernel namespace settings before and after setup.
+If AppArmor's user-namespace restriction is enabled, it loads the pinned Ubuntu
+Noble `bwrap-userns-restrict` profile and verifies both enforced profiles.
+Missing settings remain `null`; setup never writes namespace sysctls.
+The original `bwrap` sandbox and prerequisite checks remain required.
