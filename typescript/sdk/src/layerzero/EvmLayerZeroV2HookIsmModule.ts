@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import { Contract, constants } from 'ethers';
 
+import { resolveRemoteDomainId } from '../combinedHookIsm/remoteDomain.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -113,7 +114,11 @@ export class EvmLayerZeroV2HookIsmModule {
     for (const [remoteChain, remote] of Object.entries(current.remoteRouters)) {
       const desired = target.remoteRouters[remoteChain];
       if (!desired || remote.layerZeroDomainId !== desired.layerZeroDomainId) {
-        const domain = this.multiProvider.getDomainId(remoteChain);
+        const domain = resolveRemoteDomainId(
+          this.multiProvider,
+          remoteChain,
+          this.chain,
+        );
         push(
           `Unenrolling ${remoteChain} from LayerZero hook/ISM ${this.chain}`,
           iface.encodeFunctionData('unenrollRemoteRouter', [domain]),
@@ -125,7 +130,10 @@ export class EvmLayerZeroV2HookIsmModule {
       const actual = current.remoteRouters[remoteChain];
       if (actual && this.remoteRouterMatches(actual, remote)) continue;
       enrollments.push(
-        remoteEnrollment(this.multiProvider.getDomainId(remoteChain), remote),
+        remoteEnrollment(
+          resolveRemoteDomainId(this.multiProvider, remoteChain, this.chain),
+          remote,
+        ),
       );
       enrollmentChains.push(remoteChain);
     }

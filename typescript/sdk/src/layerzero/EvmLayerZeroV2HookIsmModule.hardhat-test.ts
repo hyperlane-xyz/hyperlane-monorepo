@@ -40,6 +40,10 @@ import {
 import { EvmLayerZeroV2HookIsmModule } from './EvmLayerZeroV2HookIsmModule.js';
 import { EvmLayerZeroV2HookIsmReader } from './EvmLayerZeroV2HookIsmReader.js';
 import {
+  layerZeroV2ReceiveConfigParams,
+  layerZeroV2SendConfigParams,
+} from './configCodec.js';
+import {
   LAYER_ZERO_V2_LEAF_MATCHER,
   buildLayerZeroV2MeshConfig,
 } from './config.js';
@@ -403,6 +407,69 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
     expect(await replacedRouter.routers(11_002)).to.equal(
       addressToBytes32(addresses[chainB]),
     );
+  });
+
+  it('unenrolls a remote router whose domain is outside the registry', async () => {
+    const target = mesh();
+    const addresses = await EvmLayerZeroV2HookIsmModule.deployMesh(
+      multiProvider,
+      target,
+    );
+    const router = LayerZeroV2HookIsm__factory.connect(
+      addresses[chainA],
+      multiProvider.getSigner(chainA),
+    );
+    const { executorConfig, sendUlnConfig } =
+      layerZeroV2SendConfigParams(defaultSendConfig());
+    const { receiveUlnConfig } = layerZeroV2ReceiveConfigParams(
+      defaultReceiveConfig(),
+    );
+    await multiProvider.handleTx(
+      chainA,
+      router[
+        'enrollRemoteRouters((uint32,bytes32,uint32,address,address,(uint32,address),(uint64,uint8,uint8,uint8,address[],address[]),(uint64,uint8,uint8,uint8,address[],address[]))[])'
+      ]([
+        {
+          domainId: 10_003,
+          domainIsm: addressToBytes32(randomAddress()),
+          endpointId: 30_103,
+          sendLibrary: sendLibraries[chainA],
+          receiveLibrary: receiveLibraries[chainA],
+          executorConfig,
+          sendUlnConfig,
+          receiveUlnConfig,
+        },
+      ]),
+    );
+    const resolved = EvmLayerZeroV2HookIsmModule.withDeployedRouters(
+      target,
+      addresses,
+    )[chainA];
+    const module = new EvmLayerZeroV2HookIsmModule(
+      multiProvider,
+      chainA,
+      addresses[chainA],
+    );
+
+    const transactions = await module.update(resolved);
+
+    expect(transactions).to.have.length(1);
+    const [unenroll] = transactions;
+    assert(unenroll.data, 'Missing unenroll calldata');
+    const [domainId] = router.interface.decodeFunctionData(
+      'unenrollRemoteRouter',
+      unenroll.data,
+    );
+    expect(domainId).to.equal(10_003);
+
+    await sendTxs(chainA, transactions);
+
+    const derived = await new EvmLayerZeroV2HookIsmReader(
+      multiProvider,
+      chainA,
+    ).deriveLayerZeroConfig(addresses[chainA]);
+    expect(Object.keys(derived.remoteRouters)).to.have.members([chainB]);
+    expect(await module.update(resolved)).to.deep.equal([]);
   });
 
   describe('migrates libraries while resetting policy to defaults', () => {

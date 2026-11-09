@@ -12,6 +12,7 @@ import {
 } from '@hyperlane-xyz/utils';
 import { Contract } from 'ethers';
 
+import { resolveRemoteDomainId } from '../combinedHookIsm/remoteDomain.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import {
   HyperlaneModule,
@@ -196,7 +197,7 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
         to: this.args.addresses.deployedRouter,
         data: WormholeVaaHookIsm__factory.createInterface().encodeFunctionData(
           'unenrollRemoteRouter',
-          [this.remoteDomainId(chain)],
+          [resolveRemoteDomainId(this.multiProvider, chain, this.chain)],
         ),
       });
     }
@@ -210,7 +211,7 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
           to: this.args.addresses.deployedRouter,
           data: WormholeVaaHookIsm__factory.createInterface().encodeFunctionData(
             'unenrollRemoteRouter',
-            [this.remoteDomainId(chain)],
+            [resolveRemoteDomainId(this.multiProvider, chain, this.chain)],
           ),
         });
       }
@@ -274,27 +275,11 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
     return true;
   }
 
-  /**
-   * The reader keys enrolled domains outside the registry by their numeric
-   * domain ID, so those keys are used as the domain directly.
-   */
-  private remoteDomainId(remote: string): Domain {
-    const knownDomainId = this.multiProvider.tryGetDomainId(remote);
-    if (knownDomainId !== null) return knownDomainId;
-
-    const domainId = Number(remote);
-    assert(
-      Number.isSafeInteger(domainId) && domainId >= 0,
-      `Cannot resolve domain for remote ${remote} on ${this.chain}`,
-    );
-    return domainId;
-  }
-
   private encodeBatchEnrollment(
     routes: Array<[ChainName, WormholeRemoteRouterConfig]>,
   ): string {
     const enrollments = routes.map(([chain, remote]) => ({
-      domainId: this.remoteDomainId(chain),
+      domainId: resolveRemoteDomainId(this.multiProvider, chain, this.chain),
       domainIsm: addressToBytes32(remote.router),
       wormholeChainId: remote.wormholeChainId,
       expectedConsistencyLevel: remote.expectedConsistencyLevel,
