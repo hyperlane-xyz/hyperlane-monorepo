@@ -233,6 +233,7 @@ export class BaseAleoHypTokenAdapter
     if (!params.interchainGas) {
       params.interchainGas = await this.quoteTransferRemoteGas({
         destination: params.destination,
+        customHook: params.customHook,
       });
     }
 
