@@ -19,10 +19,12 @@ import {
   addressToBytes32,
   assert,
   ensure0x,
+  fromHexString,
   isNullish,
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
+import { ZUint32 } from '../../metadata/customZodTypes.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
@@ -44,6 +46,8 @@ import {
 
 const stringFromDecimalNumber = (num: bigint | number) =>
   shortString.decodeShortString(ensure0x(num.toString(16)));
+
+const StarknetDomainsSchema = ZUint32.array();
 
 export class StarknetTokenAdapter
   extends BaseStarknetAdapter
@@ -201,7 +205,7 @@ class BaseStarknetHypTokenAdapter
       this.contract.symbol(),
       this.contract.name(),
     ]);
-    return { decimals, symbol, name };
+    return { decimals: BigNumber.from(decimals).toNumber(), symbol, name };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
@@ -272,12 +276,12 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getDomains(): Promise<Domain[]> {
-    return this.contract.domains();
+    return StarknetDomainsSchema.parse(await this.contract.domains());
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
     const routerAddresses = await this.contract.routers(domain);
-    return Buffer.from(routerAddresses);
+    return fromHexString(num.toHex64(routerAddresses));
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
