@@ -78,14 +78,20 @@ export const RelayQuoteResponseSchema = z.object({
 
 export type RelayQuoteResponse = z.infer<typeof RelayQuoteResponseSchema>;
 
+// Relay uses this sentinel for transfers that have no failure reason.
+const FailureReasonSchema = z
+  .string()
+  .transform((reason) => (reason === 'N/A' ? undefined : reason))
+  .nullish();
+
 export const RelayStatusResponseSchema = z.object({
   status: z.enum(RelayStatus),
   originChainId: z.number().int().positive().optional(),
   destinationChainId: z.number().int().positive().optional(),
   inTxHashes: z.array(RelayHashSchema).optional(),
   txHashes: z.array(RelayHashSchema).optional(),
-  failReason: z.string().nullish(),
-  refundFailReason: z.string().nullish(),
+  failReason: FailureReasonSchema,
+  refundFailReason: FailureReasonSchema,
 });
 
 export type RelayStatusResponse = z.infer<typeof RelayStatusResponseSchema>;
