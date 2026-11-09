@@ -270,6 +270,34 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  it('retains a delegated signer attempt when its error is not submission-typed', async () => {
+    inventoryRebalancer['sendInventoryTx'] = async (
+      _chain,
+      _transaction,
+      observers,
+    ) => {
+      await observers?.onSubmissionAttempt?.('locally-signed-source');
+      throw new Error('RPC response lost');
+    };
+    let error: unknown;
+    try {
+      await inventoryRebalancer['sendAndConfirmInventoryTx'](ARBITRUM_CHAIN, {
+        category: WarpTxCategory.Transfer,
+        type: ProviderType.EthersV5,
+        transaction: { to: INVENTORY_SIGNER, data: '0x' },
+      });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).to.be.instanceOf(TransactionSubmissionError);
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected a submission error',
+    );
+    expect(error.submissionState).to.equal('unknown');
+    expect(error.txHash).to.equal('locally-signed-source');
+  });
+
   it('shares lockbox reads in a cycle and refreshes them in the next cycle', async () => {
     const token = warpCore.tokens[0];
     token.standard = TokenStandard.EvmHypXERC20Lockbox;
@@ -853,7 +881,12 @@ describe('InventoryRebalancer E2E', () => {
           data: '0xTransferRemoteData',
           value: 1000000n,
         },
-        { waitConfirmations: 2, enableBlockhashResubmit: false },
+        Sinon.match({
+          waitConfirmations: 2,
+          enableBlockhashResubmit: false,
+          onSubmissionAttempt: Sinon.match.func,
+          onSubmitted: Sinon.match.func,
+        }),
       ),
     ).to.be.true;
   });
