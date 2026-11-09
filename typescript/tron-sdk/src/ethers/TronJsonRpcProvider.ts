@@ -7,6 +7,7 @@ import { buildTronTriggerRequest, toTronHex } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
 const REVERT_MESSAGE_REGEX = /revert/i;
+const CONSTANT_RESULT_HEX_REGEX = /^(?:[a-fA-F0-9]{2})*$/;
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
@@ -203,6 +204,10 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
         this.baseRetryMs,
       );
 
+    if (method === 'call' && params.blockTag === 'finalized') {
+      return this.callContract(params.transaction, true);
+    }
+
     // Contract reads are eth_call-first: standard JSON-RPC lets ethers surface
     // reverts as CALL_EXCEPTION (which the SDK's missing-selector detection
     // recognizes) and keeps JSON-RPC-only proxies working, since a re-thrown
@@ -227,6 +232,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
 
   private async callContract(
     transaction: providers.TransactionRequest,
+    finalized = false,
   ): Promise<string> {
     const { contractAddress, callValue, input, issuerAddress } =
       buildTronTriggerRequest(this.tronWeb, transaction, transaction.from);
@@ -238,6 +244,22 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
       call_value: callValue,
       visible: false,
     };
+    if (finalized) {
+      // Tron JSON-RPC eth_call cannot read historical or finalized state.
+      // The Solidity endpoint executes against solidified state; never retry
+      // this request against the latest full-node state.
+      const response = await retryAsync(
+        () =>
+          this.tronWeb.solidityNode.instance.request<unknown>({
+            url: 'walletsolidity/triggerconstantcontract',
+            method: 'POST',
+            data: args,
+          }),
+        this.maxRetries,
+        this.baseRetryMs,
+      );
+      return this.decodeFinalizedConstantCall(response.data);
+    }
     // Post directly to the raw constant-call endpoint instead of TronWeb's
     // triggerConstantContract wrapper, which throws on a reverted read and
     // discards constant_result.
@@ -288,6 +310,63 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
       ? this.tronWeb.toUtf8(rawMessage)
       : 'unknown error';
     throw new Error(`Tron constant call failed: ${message}`);
+  }
+
+  private decodeFinalizedConstantCall(response: unknown): string {
+    assert(isRecord(response), 'Missing Tron finalized constant-call response');
+    const result = response['result'];
+    assert(isRecord(result), 'Missing Tron finalized constant-call result');
+    const output = response['constant_result'];
+    const data =
+      Array.isArray(output) &&
+      output.length === 1 &&
+      typeof output[0] === 'string' &&
+      CONSTANT_RESULT_HEX_REGEX.test(output[0])
+        ? ensure0x(output[0])
+        : undefined;
+    const rawMessage = result['message'];
+    const reason =
+      typeof rawMessage === 'string'
+        ? this.tronWeb.toUtf8(rawMessage)
+        : 'execution reverted';
+    const reverted = () =>
+      callExceptionLogger.makeError(
+        `Tron finalized constant call reverted: ${reason}`,
+        utils.Logger.errors.CALL_EXCEPTION,
+        { data: data ?? '0x' },
+      );
+    if (result['result'] !== true) {
+      if (result['result'] === false && data !== undefined) throw reverted();
+      throw new Error(`Tron finalized constant call failed: ${reason}`);
+    }
+    const transaction = response['transaction'];
+    assert(
+      isRecord(transaction),
+      'Missing Tron finalized VM transaction result',
+    );
+    const outcomes = transaction['ret'];
+    assert(
+      Array.isArray(outcomes) && outcomes.length === 1 && isRecord(outcomes[0]),
+      'Missing Tron finalized VM execution outcome',
+    );
+    const outcome = outcomes[0];
+    // Protobuf omits default success fields. The misspelled SUCESS is the
+    // protocol enum value; contractRet DEFAULT is also its omitted default.
+    const code = outcome['ret'];
+    const contractCode = outcome['contractRet'];
+    if (
+      (code !== undefined && code !== 'SUCESS') ||
+      (contractCode !== undefined &&
+        contractCode !== 'DEFAULT' &&
+        contractCode !== 'SUCCESS')
+    ) {
+      throw reverted();
+    }
+    assert(
+      data !== undefined,
+      'Malformed Tron finalized constant-call return data',
+    );
+    return data;
   }
 
   /**

@@ -30,6 +30,7 @@ type Captured = { value?: CapturedRequest; calls: number };
 
 /** Subset of the raw constant-call response the provider reads. */
 interface ConstantCallResponse {
+  transaction?: { ret?: Array<{ ret?: string; contractRet?: string }> };
   result?: { result?: boolean; message?: string };
   constant_result?: string[];
 }
@@ -54,7 +55,7 @@ type RequestImpl = (
   url: string,
   payload: Record<string, unknown>,
   method?: string,
-) => Promise<StubResponse | undefined>;
+) => Promise<unknown>;
 
 /** Minimal TronWeb surface the provider invokes on the injected instance. */
 interface TronWebStub {
@@ -72,7 +73,7 @@ interface TronWebStub {
         url: string;
         data: Record<string, unknown>;
         method?: string;
-      }) => Promise<{ data: StubResponse | undefined }>;
+      }) => Promise<{ data: unknown }>;
     };
   };
 }
@@ -306,6 +307,204 @@ async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
   expect(thrown, 'expected the call to reject').to.exist;
   return thrown;
 }
+
+describe('TronJsonRpcProvider finalized contract calls', () => {
+  it('uses only the Solidity endpoint for an explicit finalized read', async () => {
+    const provider = makeProvider();
+    let jsonRpcCalls = 0;
+    stubSend(provider, async () => {
+      jsonRpcCalls++;
+      return '0xdead';
+    });
+    const captured: Captured = { calls: 0 };
+    stubFullNode(
+      provider,
+      {
+        result: { result: true },
+        constant_result: ['00ff'],
+        transaction: { ret: [{}] },
+      },
+      captured,
+    );
+    expect(
+      await provider.call({ to: CONTRACT, data: SELECTOR }, 'finalized'),
+    ).to.equal('0x00ff');
+    expect(jsonRpcCalls).to.equal(0);
+    expect(captured.value?.url).to.equal(
+      'walletsolidity/triggerconstantcontract',
+    );
+    expect(captured.value?.payload['owner_address']).to.equal(
+      toTronHex(realTronWeb, TRON_EMPTY_ADDRESS),
+    );
+    expect(captured.value?.payload['data']).to.equal(SELECTOR.slice(2));
+  });
+
+  it('preserves the configured path and authentication on a real finalized HTTP call', async () => {
+    let path: string | undefined;
+    let header: string | string[] | undefined;
+    let body = '';
+    const server = createServer((request, response) => {
+      path = request.url;
+      header = request.headers['x-finality-test'];
+      request.setEncoding('utf8');
+      request.on('data', (chunk: string) => {
+        body += chunk;
+      });
+      request.on('end', () => {
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify({
+            result: { result: true },
+            constant_result: ['00ff'],
+            transaction: { ret: [{ ret: 'SUCESS', contractRet: 'SUCCESS' }] },
+          }),
+        );
+      });
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    assert(
+      address && typeof address === 'object',
+      'Expected listening test server',
+    );
+    const provider = new TronJsonRpcProvider(
+      `http://127.0.0.1:${address.port}/v2/test/jsonrpc?custom_rpc_header=x-finality-test:preserved`,
+      728126428,
+    );
+    try {
+      expect(
+        await provider.call({ to: CONTRACT, data: SELECTOR }, 'finalized'),
+      ).to.equal('0x00ff');
+      expect(path).to.equal('/v2/test/walletsolidity/triggerconstantcontract');
+      expect(header).to.equal('preserved');
+      expect(JSON.parse(body)).to.include({
+        contract_address: CONTRACT_HEX,
+        owner_address: toTronHex(realTronWeb, TRON_EMPTY_ADDRESS),
+        data: SELECTOR.slice(2),
+        visible: false,
+      });
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it('does not route numeric historical reads through latest or Solidity state', async () => {
+    const provider = makeProvider();
+    let requestedTag: unknown;
+    stubSend(provider, async (_method, params) => {
+      requestedTag = params[1];
+      throw new Error('historical unsupported');
+    });
+    const captured: Captured = { calls: 0 };
+    stubFullNode(
+      provider,
+      {
+        result: { result: true },
+        constant_result: ['00'],
+        transaction: { ret: [{}] },
+      },
+      captured,
+    );
+    await expect(provider.call({ to: CONTRACT, data: SELECTOR }, 123)).to.be
+      .rejected;
+    expect(requestedTag).to.equal('0x7b');
+    expect(captured.calls).to.equal(0);
+  });
+
+  it('propagates a Solidity transport failure without an unconfirmed fallback', async () => {
+    const provider = makeProvider();
+    let jsonRpcCalls = 0;
+    stubSend(provider, async () => {
+      jsonRpcCalls++;
+      return '0x00';
+    });
+    stubFullNodeRequest(provider, throwingRequest(TIMEOUT_ERROR));
+    await expect(
+      provider.call({ to: CONTRACT, data: SELECTOR }, 'finalized'),
+    ).to.be.rejectedWith('timeout');
+    expect(jsonRpcCalls).to.equal(0);
+  });
+
+  it('rejects explicit VM failure even when the API reports success', async () => {
+    for (const outcome of [
+      { ret: 'FAILED' },
+      { contractRet: 'REVERT' },
+      { contractRet: 'OUT_OF_ENERGY' },
+    ]) {
+      const provider = makeProvider();
+      stubFullNode(provider, {
+        result: { result: true },
+        constant_result: ['abcd'],
+        transaction: { ret: [outcome] },
+      });
+      const error = await rejectionOf(
+        provider.call({ to: CONTRACT, data: SELECTOR }, 'finalized'),
+      );
+      expect(error).to.have.property(
+        'code',
+        utils.Logger.errors.CALL_EXCEPTION,
+      );
+      expect(error).to.have.property('data', '0xabcd');
+    }
+  });
+
+  it('preserves reasonless executed-revert errors', async () => {
+    const provider = makeProvider();
+    stubFullNode(provider, {
+      result: { result: false },
+      constant_result: [''],
+    });
+    const error = await rejectionOf(
+      provider.call({ to: CONTRACT, data: SELECTOR }, 'finalized'),
+    );
+    expect(error).to.have.property('code', utils.Logger.errors.CALL_EXCEPTION);
+    expect(error).to.have.property('data', '0x');
+  });
+
+  it('fails closed on missing, malformed, or unproven finalized return data', async () => {
+    for (const response of [
+      undefined,
+      null,
+      {},
+      { result: { result: true }, constant_result: ['00'] },
+      { result: { result: true }, transaction: { ret: [{}] } },
+      {
+        result: { result: true },
+        constant_result: ['zz'],
+        transaction: { ret: [{}] },
+      },
+      {
+        result: { result: true },
+        constant_result: ['0'],
+        transaction: { ret: [{}] },
+      },
+      {
+        result: { result: true },
+        constant_result: ['00', '11'],
+        transaction: { ret: [{}] },
+      },
+      {
+        result: { result: true },
+        constant_result: ['00'],
+        transaction: { ret: [] },
+      },
+      {
+        result: { result: 'true' },
+        constant_result: ['00'],
+        transaction: { ret: [{}] },
+      },
+    ]) {
+      const provider = makeProvider();
+      stubFullNodeRequest(provider, async () => response);
+      await expect(provider.call({ to: CONTRACT, data: SELECTOR }, 'finalized'))
+        .to.be.rejected;
+    }
+  });
+});
 
 describe('TronJsonRpcProvider', () => {
   describe('perform (eth_call-first with native fallback)', () => {
