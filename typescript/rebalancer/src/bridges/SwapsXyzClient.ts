@@ -6,6 +6,7 @@ import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
 const DEFAULT_API_URL = 'https://api-v2.swaps.xyz/api';
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1_000;
+const MAX_INLINE_COOLDOWN_MS = 30_000;
 
 /**
  * Error returned by the swaps.xyz API.
@@ -19,10 +20,52 @@ export class SwapsXyzRequestError extends Error {
     readonly status: number,
     readonly statusText: string,
     readonly code?: string,
+    readonly retryAt?: number,
   ) {
     super(message);
     this.name = 'SwapsXyzRequestError';
   }
+}
+
+/** The request can be retried later, but not within this call's wait budget. */
+export class SwapsXyzCooldownError extends SwapsXyzRequestError {
+  constructor(retryAt: number) {
+    super(
+      'swaps.xyz rate limit cooldown exceeds the inline wait budget',
+      429,
+      'Too Many Requests',
+      undefined,
+      retryAt,
+    );
+    this.name = 'SwapsXyzCooldownError';
+  }
+}
+
+export function isSwapsXyzDeferredError(error: unknown): boolean {
+  return (
+    error instanceof SwapsXyzCooldownError ||
+    (error instanceof SwapsXyzRequestError &&
+      error.retryAt !== undefined &&
+      error.retryAt - Date.now() > MAX_INLINE_COOLDOWN_MS)
+  );
+}
+
+function retryAfterDeadline(
+  header: string | null,
+  now: number,
+): number | undefined {
+  if (header === null) return undefined;
+  const value = header.trim();
+  if (/^\d+$/.test(value)) {
+    const delay = Number(value) * 1_000;
+    return Number.isSafeInteger(delay) && Number.isSafeInteger(now + delay)
+      ? now + delay
+      : undefined;
+  }
+  // HTTP dates contain a weekday; do not interpret malformed numeric strings as dates.
+  if (!/^[A-Za-z]{3},/.test(value)) return undefined;
+  const deadline = Date.parse(value);
+  return Number.isFinite(deadline) ? Math.max(now, deadline) : undefined;
 }
 
 export class SwapsXyzResponseValidationError extends Error {
@@ -59,7 +102,7 @@ export function isSwapsXyzTerminalError(error: unknown): boolean {
   if (error instanceof SwapsXyzResponseValidationError) return true;
   if (!(error instanceof SwapsXyzRequestError)) return false;
   if (error.code && TERMINAL_ERROR_CODES.has(error.code)) return true;
-  if (error.status === 408) return false;
+  if (error.status === 408 || error.status === 429) return false;
   return error.status >= 400 && error.status < 500;
 }
 
@@ -306,16 +349,15 @@ const RegisterTxResultsSchema: z.ZodType<SwapsXyzRegisterTxResult[]> = z.array(
 export interface SwapsXyzClientConfig {
   apiKey: string;
   apiUrl?: string;
-  defaultSlippageBps?: number;
   requestTimeoutMs?: number;
 }
 
 export class SwapsXyzClient {
   readonly logger: Logger;
-  readonly defaultSlippageBps: number;
   private readonly apiKey: string;
   private readonly apiUrl: string;
   private readonly requestTimeoutMs: number;
+  private cooldownUntil = 0;
 
   constructor(config: SwapsXyzClientConfig, logger: Logger) {
     this.apiKey = config.apiKey;
@@ -324,12 +366,14 @@ export class SwapsXyzClient {
       throw new Error('swaps.xyz API URL must use HTTPS');
     }
     this.apiUrl = apiUrl.toString().replace(/\/$/, '');
-    this.defaultSlippageBps = config.defaultSlippageBps ?? 50;
     this.requestTimeoutMs = config.requestTimeoutMs ?? 10_000;
     this.logger = logger;
   }
 
-  getAction(req: SwapsXyzActionRequest): Promise<SwapsXyzActionResponse> {
+  getAction(
+    req: SwapsXyzActionRequest,
+    onAttempt?: (startedAt: number) => void,
+  ): Promise<SwapsXyzActionResponse> {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(req)) {
       if (value === undefined || value === null) continue;
@@ -340,6 +384,7 @@ export class SwapsXyzClient {
         `${this.apiUrl}/getAction?${query.toString()}`,
         { method: 'GET' },
         ActionResponseSchema,
+        onAttempt,
       ),
     );
   }
@@ -380,7 +425,10 @@ export class SwapsXyzClient {
     url: string,
     init: { method: string; body?: string; headers?: Record<string, string> },
     schema: z.ZodType<T>,
+    onAttempt?: (startedAt: number) => void,
   ): Promise<T> {
+    await this.waitForCooldown();
+    onAttempt?.(Date.now());
     let responseError: SwapsXyzRequestError | undefined;
     try {
       return await fetchWithDeadline(
@@ -396,6 +444,15 @@ export class SwapsXyzClient {
         this.requestTimeoutMs,
         async (response) => {
           if (!response.ok) {
+            const retryAt =
+              response.status === 429
+                ? retryAfterDeadline(
+                    response.headers.get('retry-after'),
+                    Date.now(),
+                  )
+                : undefined;
+            if (retryAt !== undefined)
+              this.cooldownUntil = Math.max(this.cooldownUntil, retryAt);
             let code: string | undefined;
             let message = `${init.method} ${url} failed: ${response.status} ${response.statusText}`;
             // Keep the HTTP classification if reading its error body times out.
@@ -403,6 +460,8 @@ export class SwapsXyzClient {
               message,
               response.status,
               response.statusText,
+              undefined,
+              retryAt,
             );
             try {
               const body: unknown = await response.json();
@@ -420,6 +479,7 @@ export class SwapsXyzClient {
               response.status,
               response.statusText,
               code,
+              retryAt,
             );
             throw responseError;
           }
@@ -438,6 +498,15 @@ export class SwapsXyzClient {
     }
   }
 
+  private async waitForCooldown(): Promise<void> {
+    const waitDeadline = Date.now() + MAX_INLINE_COOLDOWN_MS;
+    while (this.cooldownUntil > Date.now()) {
+      if (this.cooldownUntil > waitDeadline)
+        throw new SwapsXyzCooldownError(this.cooldownUntil);
+      await sleep(this.cooldownUntil - Date.now());
+    }
+  }
+
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
     let lastError: Error | undefined;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -452,6 +521,7 @@ export class SwapsXyzClient {
           );
           throw lastError;
         }
+        if (isSwapsXyzDeferredError(lastError)) throw lastError;
         this.logger.warn(
           { attempt, error: lastError.message },
           'swaps.xyz request failed, retrying',

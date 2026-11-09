@@ -23,6 +23,7 @@ import type {
   BridgeTransferStatus,
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
+import { minimumOutputForLoss } from '../utils/quoteBudget.js';
 
 import {
   approveErc20IfNeeded,
@@ -33,6 +34,7 @@ import {
   SwapsXyzRequestError,
   isEvmTx,
   isSwapsXyzNotFoundError,
+  isSwapsXyzDeferredError,
   isSwapsXyzTerminalError,
   type SwapsXyzActionRequest,
   type SwapsXyzActionResponse,
@@ -113,14 +115,13 @@ export class SwapsXyzBridge implements IExternalBridge {
       'maxQuoteLossBps must be an integer between 0 and 10000',
     );
     this.logger = logger;
-    const defaultSlippageBps = this.getSlippageBps();
+    this.getSlippageBps(); // Validate the bridge-level default at construction.
     this.client =
       client ??
       new SwapsXyzClient(
         {
           apiKey: config.apiKey,
           apiUrl: config.apiUrl,
-          defaultSlippageBps,
         },
         logger,
       );
@@ -171,8 +172,8 @@ export class SwapsXyzBridge implements IExternalBridge {
     options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     const execution = this._executeLock.then(() =>
-      new TransactionSubmission(options).run(() =>
-        this.executeUnlocked(quote, privateKeys, options),
+      new TransactionSubmission(options).run((observers) =>
+        this.executeUnlocked(quote, privateKeys, { ...options, ...observers }),
       ),
     );
     this._executeLock = execution.then(
@@ -423,7 +424,13 @@ export class SwapsXyzBridge implements IExternalBridge {
         'swaps.xyz reverse quote forward fallback attempt',
       );
       if (lastAmountOutMin >= toAmount) {
-        return this.toBridgeQuote(forwardParams, response);
+        const quote = await this.toBridgeQuote(forwardParams, response);
+        // This executable request is exact input, but retains the original target.
+        return {
+          ...quote,
+          toAmountMin:
+            quote.toAmountMin > toAmount ? quote.toAmountMin : toAmount,
+        };
       }
       assert(
         lastAmountOutMin > 0n,
@@ -499,7 +506,6 @@ export class SwapsXyzBridge implements IExternalBridge {
     const fromAmount = BigInt(
       (response.amountInMax ?? response.amountIn).amount,
     );
-    const toAmountMin = BigInt(response.amountOutMin.amount);
     await this.validateQuoteLoss(
       params,
       response,
@@ -512,13 +518,43 @@ export class SwapsXyzBridge implements IExternalBridge {
       tool: response.bridgeIds?.join('+') || 'swapsxyz',
       fromAmount,
       toAmount: BigInt(response.amountOut.amount),
-      toAmountMin,
+      toAmountMin: await this.executionMinimum(params, response),
       executionDuration: response.estimatedTxTime ?? 0,
       gasCosts: 0n,
       feeCosts,
       route: { actionResponse: response },
       requestParams: params,
     };
+  }
+
+  private async executionMinimum(
+    params: BridgeQuoteParams,
+    response: SwapsXyzActionResponse,
+  ): Promise<bigint> {
+    let expectedFloor: bigint;
+    if (params.toAmount !== undefined) {
+      expectedFloor = params.toAmount;
+    } else {
+      const maxLoss = this.config.maxQuoteLossBps;
+      // No economic drift budget was configured for this exact-input request.
+      if (maxLoss === undefined) return BigInt(response.amountOutMin.amount);
+      assert(params.fromAmount !== undefined, 'Missing exact-input amount');
+      const [sourceDecimals, destinationDecimals] = await Promise.all([
+        this.getTokenDecimals(params.fromChain, params.fromToken),
+        this.getTokenDecimals(params.toChain, params.toToken),
+      ]);
+      expectedFloor = minimumOutputForLoss(
+        params.fromAmount,
+        sourceDecimals,
+        destinationDecimals,
+        maxLoss,
+      );
+    }
+    const minimum =
+      (expectedFloor *
+        (BPS_DENOMINATOR - BigInt(this.getSlippageBps(params.slippage)))) /
+      BPS_DENOMINATOR;
+    return minimum > 0n ? minimum : 1n;
   }
 
   private async executeUnlocked(
@@ -608,9 +644,12 @@ export class SwapsXyzBridge implements IExternalBridge {
     quote: BridgeQuote,
   ): Promise<{ response: SwapsXyzActionResponse; preparedAt: number }> {
     this.validateQuoteParams(quote.requestParams);
-    const preparedAt = Date.now();
+    let preparedAt = Date.now();
     const response = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
+      (startedAt) => {
+        preparedAt = startedAt;
+      },
     );
     await this.validatePreparedEvmOrder(quote, response);
     await this.validateQuoteLoss(
@@ -852,6 +891,7 @@ export class SwapsXyzBridge implements IExternalBridge {
       } catch (error) {
         if (
           isSwapsXyzTerminalError(error) ||
+          isSwapsXyzDeferredError(error) ||
           attempt >= MAX_REGISTRATION_ATTEMPTS - 1
         ) {
           this.logger.error(

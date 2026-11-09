@@ -248,6 +248,28 @@ function transactionResponse(
   };
 }
 
+function stubObservedEvmSend(
+  wallet: Wallet,
+  provider: providers.StaticJsonRpcProvider,
+): void {
+  sinon.stub(wallet, 'populateTransaction').callsFake(async (tx) => ({
+    ...(await utils.resolveProperties(tx)),
+    chainId: 1,
+    nonce: 0,
+    gasLimit: BigNumber.from(100_000),
+    gasPrice: BigNumber.from(1),
+    type: 0,
+  }));
+  sinon.stub(provider, 'sendTransaction').callsFake(async (signed) => {
+    const tx = utils.parseTransaction(await signed);
+    return wallet.sendTransaction({
+      to: tx.to?.toLowerCase(),
+      data: tx.data,
+      value: tx.value,
+    });
+  });
+}
+
 function createExecuteHarness(
   response = actionResponse(),
   overrides: { maxQuoteLossBps?: number } = {},
@@ -277,6 +299,7 @@ function createExecuteHarness(
   const sendTransactionStub = sinon
     .stub(Wallet.prototype, 'sendTransaction')
     .resolves(transactionResponse('0xbridge'));
+  stubObservedEvmSend(Wallet.prototype, provider);
   const waitForTransactionStub = sinon
     .stub(provider, 'waitForTransaction')
     .resolves(transactionReceipt('0xbridge', 1));
@@ -311,7 +334,7 @@ describe('SwapsXyzBridge.quote', () => {
     expect(quote.tool).to.equal('across+cctp');
     expect(quote.fromAmount).to.equal(1_005_000n);
     expect(quote.toAmount).to.equal(995_000n);
-    expect(quote.toAmountMin).to.equal(990_025n);
+    expect(quote.toAmountMin).to.equal(985_074n);
     expect(quote.executionDuration).to.equal(60);
     expect(quote.gasCosts).to.equal(0n);
     expect(quote.feeCosts).to.equal(350n);
@@ -615,6 +638,39 @@ describe('SwapsXyzBridge reverse quote fallback', () => {
     );
   });
 
+  it('retains the original exact-output minimum when fallback switches to exact input', async () => {
+    const client = createClient();
+    const getAction = sinon.stub(client, 'getAction');
+    getAction.onFirstCall().rejects(unsupportedDirection());
+    getAction.onSecondCall().resolves(
+      actionResponse({
+        amountIn: { amount: '1008' },
+        amountOut: { amount: '1006' },
+        amountOutMin: { amount: '1001' },
+      }),
+    );
+    const provider = providerWithDecimals(6);
+    const bridge = createBridge(client, {
+      evmProviderFactory: () => provider,
+      maxQuoteLossBps: 50,
+    });
+    const quote = await bridge.quote(
+      quoteParams({ fromAmount: undefined, toAmount: 1000n }),
+    );
+    expect(quote.requestParams.fromAmount).to.equal(1008n);
+    expect(quote.toAmountMin).to.equal(1000n);
+    getAction.onThirdCall().resolves(
+      actionResponse({
+        amountIn: { amount: '1008' },
+        amountOut: { amount: '1005' },
+        amountOutMin: { amount: '999' },
+      }),
+    );
+    expect((await captureError(bridge.prepare(quote))).message).to.include(
+      'fresh minimum output',
+    );
+  });
+
   it('iteratively scales up and rewrites requestParams to exact-in', async () => {
     const client = createClient();
     const getActionStub = sinon.stub(client, 'getAction');
@@ -763,6 +819,68 @@ describe('SwapsXyzBridge.execute', () => {
         }),
       ),
     );
+    expect(harness.sendTransactionStub.called).to.equal(false);
+  });
+
+  it('accepts repeated adverse drift within the same request loss and slippage budget', async () => {
+    const harness = createExecuteHarness(undefined, { maxQuoteLossBps: 50 });
+    sinon
+      .stub(harness.provider, 'call')
+      .resolves(utils.defaultAbiCoder.encode(['uint8'], [6]));
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const expected = 996_000n - BigInt(cycle);
+      harness.getActionStub.resolves(
+        actionResponse({
+          amountOut: { amount: expected.toString() },
+          amountOutMin: { amount: ((expected * 9950n) / 10000n).toString() },
+        }),
+      );
+      const quote = await harness.bridge.quote(quoteParams());
+      expect(quote.toAmountMin).to.equal(990_025n);
+      const freshExpected = expected - 1n;
+      harness.getActionStub.resolves(
+        actionResponse({
+          amountOut: { amount: freshExpected.toString() },
+          amountOutMin: {
+            amount: ((freshExpected * 9950n) / 10000n).toString(),
+          },
+        }),
+      );
+      await harness.bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
+    }
+    expect(harness.sendTransactionStub.callCount).to.equal(3);
+  });
+
+  it('measures preparation age from the successful retry after earlier timeouts', async () => {
+    const clock = sinon.useFakeTimers();
+    const harness = createExecuteHarness();
+    harness.getActionStub.restore();
+    const fetch = sinon.stub(globalThis, 'fetch');
+    fetch.onFirstCall().returns(new Promise(() => {}));
+    fetch
+      .onSecondCall()
+      .resolves(new Response(JSON.stringify(actionResponse())));
+    const pending = harness.bridge.prepare(bridgeQuote());
+    await clock.tickAsync(11_001);
+    expect((await pending).preparedAt).to.equal(11_000);
+    expect(fetch.callCount).to.equal(2);
+  });
+
+  it('does not refresh preparation age when a successful response arrives late', async () => {
+    const clock = sinon.useFakeTimers();
+    const harness = createExecuteHarness();
+    harness.getActionStub.callsFake(
+      async (_request: unknown, onAttempt?: (startedAt: number) => void) => {
+        onAttempt?.(Date.now());
+        await new Promise((resolve) => setTimeout(resolve, 30_001));
+        return actionResponse();
+      },
+    );
+    const pending = captureError(harness.bridge.prepare(bridgeQuote()));
+    await clock.tickAsync(30_001);
+    expect((await pending).message).to.include('expired during preparation');
     expect(harness.sendTransactionStub.called).to.equal(false);
   });
 
@@ -1622,6 +1740,41 @@ describe('SwapsXyzBridge.getStatus', () => {
     expect(fetch.callCount).to.equal(1);
     expect(fetch.firstCall.args[1]?.method).to.equal('GET');
   });
+
+  for (const seconds of [1, 120]) {
+    it(`preserves the single registration budget and rate-limit cooldown: ${seconds}s`, async () => {
+      const clock = sinon.useFakeTimers();
+      const fetch = sinon.stub(globalThis, 'fetch');
+      fetch.onFirstCall().resolves(apiResponse({}, 404));
+      fetch.callsFake(
+        async () =>
+          new Response('{}', {
+            status: 429,
+            headers: { 'retry-after': String(seconds) },
+          }),
+      );
+      const bridge = createBridge(createClient(), {
+        registerTxRetryDelayMs: 10,
+      });
+      const result = bridge.getStatus('0xsource', 1, 8453, 'tx-1');
+      await clock.runAllAsync();
+      expect(await result).to.deep.equal({ status: 'not_found' });
+      expect(
+        fetch.getCalls().filter((call) => call.args[1]?.method === 'POST')
+          .length,
+      ).to.equal(seconds === 1 ? 3 : 1);
+      if (seconds === 120) {
+        const error = await captureError(
+          bridge.getStatus('0xsource', 1, 8453, 'tx-1'),
+        );
+        expect(error.message).to.include('cooldown');
+        expect(fetch.callCount).to.equal(2);
+        expect(clock.now).to.equal(0);
+      } else {
+        expect(clock.now).to.equal(2_000);
+      }
+    });
+  }
 
   it('caps registration HTTP failures at three POSTs using the configured delay', async () => {
     const clock = sinon.useFakeTimers();

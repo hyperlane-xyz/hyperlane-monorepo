@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import {
   SwapsXyzClient,
   SwapsXyzRequestError,
+  SwapsXyzCooldownError,
   isSwapsXyzTerminalError,
   type SwapsXyzActionRequest,
 } from './SwapsXyzClient.js';
@@ -90,10 +91,7 @@ describe('SwapsXyzClient', () => {
   let fetchStub: FetchStub;
 
   beforeEach(() => {
-    client = new SwapsXyzClient(
-      { apiKey: 'test-key', defaultSlippageBps: 50 },
-      logger,
-    );
+    client = new SwapsXyzClient({ apiKey: 'test-key' }, logger);
     fetchStub = sinon.stub(globalThis, 'fetch');
   });
 
@@ -167,6 +165,96 @@ describe('SwapsXyzClient', () => {
     expect(error.status).to.equal(401);
     expect(fetchStub.callCount).to.equal(1);
     expect(clock.now).to.equal(100);
+  });
+
+  for (const retryAfter of ['5', new Date(5_000).toUTCString()]) {
+    it(`honors Retry-After within the inline budget: ${retryAfter}`, async () => {
+      const clock = sinon.useFakeTimers();
+      fetchStub.onFirstCall().resolves(
+        new Response('{}', {
+          status: 429,
+          headers: { 'retry-after': retryAfter },
+        }),
+      );
+      fetchStub
+        .onSecondCall()
+        .resolves(makeResponse({ body: actionResponseBody() }));
+      const attemptStarts: number[] = [];
+      const result = client.getAction(actionRequest(), (startedAt) =>
+        attemptStarts.push(startedAt),
+      );
+      await clock.tickAsync(4_999);
+      expect(fetchStub.callCount).to.equal(1);
+      await clock.tickAsync(1);
+      await result;
+      expect(fetchStub.callCount).to.equal(2);
+      expect(attemptStarts).to.deep.equal([0, 5_000]);
+    });
+  }
+
+  it('defers a long Retry-After and preserves cooldown across future endpoint calls', async () => {
+    const clock = sinon.useFakeTimers();
+    fetchStub.onFirstCall().resolves(
+      new Response('{}', {
+        status: 429,
+        headers: { 'retry-after': '120' },
+      }),
+    );
+    fetchStub
+      .onSecondCall()
+      .resolves(makeResponse({ body: statusResponseBody() }));
+    const first = await captureError(client.getAction(actionRequest()));
+    expect(first).to.be.instanceOf(SwapsXyzRequestError);
+    expect(clock.now).to.equal(0);
+    expect(
+      await captureError(client.getStatus({ txId: 'tx-1' })),
+    ).to.be.instanceOf(SwapsXyzCooldownError);
+    expect(fetchStub.callCount).to.equal(1);
+    await clock.tickAsync(90_000);
+    const next = client.getStatus({ txId: 'tx-1' });
+    await clock.tickAsync(29_999);
+    expect(fetchStub.callCount).to.equal(1);
+    await clock.tickAsync(1);
+    expect((await next).status).to.equal('pending');
+    expect(fetchStub.callCount).to.equal(2);
+    expect(clock.now).to.equal(120_000);
+  });
+
+  it('retains long rate-limit cooldown when the error body ignores cancellation', async () => {
+    const clock = sinon.useFakeTimers();
+    client = new SwapsXyzClient(
+      { apiKey: 'test-key', requestTimeoutMs: 100 },
+      logger,
+    );
+    fetchStub.resolves(
+      new Response(new ReadableStream(), {
+        status: 429,
+        headers: { 'retry-after': '120' },
+      }),
+    );
+    const result = captureError(client.getAction(actionRequest()));
+    await clock.tickAsync(100);
+    expect(await result).to.be.instanceOf(SwapsXyzRequestError);
+    expect(
+      await captureError(client.getStatus({ txId: 'tx-1' })),
+    ).to.be.instanceOf(SwapsXyzCooldownError);
+    expect(fetchStub.callCount).to.equal(1);
+  });
+
+  it('bounds repeated 429 responses with malformed Retry-After to three attempts', async () => {
+    const clock = sinon.useFakeTimers();
+    fetchStub.callsFake(
+      async () =>
+        new Response('{}', {
+          status: 429,
+          headers: { 'retry-after': '-1' },
+        }),
+    );
+    const result = captureError(client.getAction(actionRequest()));
+    await clock.runAllAsync();
+    expect(await result).to.be.instanceOf(SwapsXyzRequestError);
+    expect(fetchStub.callCount).to.equal(3);
+    expect(clock.now).to.equal(3_000);
   });
 
   it('builds /getAction query params and skips undefined values', async () => {
