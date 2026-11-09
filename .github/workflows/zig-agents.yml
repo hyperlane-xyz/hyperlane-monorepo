@@ -97,7 +97,7 @@ jobs:
         timeout-minutes: 2
         run: |
           python3 -I -B - <<'PY'
-          import hashlib, json, os, stat, subprocess
+          import errno, hashlib, json, os, stat, subprocess
           VERSION = '4.0.1really4.0.1-0ubuntu0.24.04.9'
           PROFILE = '/usr/share/apparmor/extra-profiles/bwrap-userns-restrict'
           TARGET = '/etc/apparmor.d/bwrap-userns-restrict'
@@ -120,10 +120,16 @@ jobs:
           def policy():
               result = {}
               for name in ('unprivileged_userns_clone', 'apparmor_restrict_unprivileged_userns'):
-                  wire = regular('/proc/sys/kernel/' + name, 32)
-                  if wire not in (b'1', b'1\n'):
-                      raise ValueError('original user namespace policy must remain enabled')
-                  result[name] = 1
+                  try:
+                      wire = regular('/proc/sys/kernel/' + name, 32)
+                  except OSError as error:
+                      if error.errno != errno.ENOENT:
+                          raise
+                      result[name] = None
+                      continue
+                  if wire not in (b'0', b'0\n', b'1', b'1\n'):
+                      raise ValueError('canonical optional namespace sysctl required')
+                  result[name] = int(wire)
               return result
 
           def command(argv):
@@ -134,6 +140,13 @@ jobs:
 
           def configure_profile():
               before = policy()
+              if before['unprivileged_userns_clone'] == 0:
+                  raise ValueError('unprivileged user namespaces explicitly disabled')
+              if before['apparmor_restrict_unprivileged_userns'] != 1:
+                  after = policy()
+                  if before != after:
+                      raise ValueError('global namespace policy changed')
+                  return {'profile_action': 'skipped_restriction_not_observed_enabled', 'packages': None, 'profile_bytes': None, 'profile_sha256': None, 'policy_before': before, 'policy_after': after, 'bwrap_enforced': None, 'unpriv_bwrap_enforced': None, 'global_restriction_disabled_by_setup': False}
               if regular('/sys/module/apparmor/parameters/enabled', 8).strip() != b'Y':
                   raise ValueError('active AppArmor required')
               versions = {}
@@ -168,7 +181,7 @@ jobs:
               after = policy()
               if before != after:
                   raise ValueError('global namespace policy changed')
-              return {'packages': versions, 'profile_bytes': len(wire), 'profile_sha256': PROFILE_SHA, 'policy_before': before, 'policy_after': after, 'bwrap_enforced': True, 'unpriv_bwrap_enforced': True, 'global_restriction_disabled': False}
+              return {'profile_action': 'loaded', 'packages': versions, 'profile_bytes': len(wire), 'profile_sha256': PROFILE_SHA, 'policy_before': before, 'policy_after': after, 'bwrap_enforced': True, 'unpriv_bwrap_enforced': True, 'global_restriction_disabled_by_setup': False}
 
           if __name__ == '__main__':
               print('SVM_BWRAP_POLICY ' + json.dumps(configure_profile(), sort_keys=True))

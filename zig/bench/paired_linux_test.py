@@ -17,7 +17,7 @@ def ordinary_native_http_workflow(text):
  svm_next = '      - name: Check prerequisite owner controls\n'
  if text.count(svm_start) != 1 or text.count(svm_next) != 1: raise AssertionError('Exact once-only SVM profile setup required')
  begin = text.index(svm_start); end = text.index(svm_next, begin)
- if hashlib.sha256(text[begin:end].encode()).hexdigest() != '1f174656330548bdf7bbcbf63744a61a' '82324a8899622a9f599c428a4e8ad436': raise AssertionError('Exact reviewed SVM profile setup bytes required')
+ if hashlib.sha256(text[begin:end].encode()).hexdigest() != 'f656916a8890e0edcc751b628182acdb' '3ff16d43d165d57d6ca1c9f8d3e67c91': raise AssertionError('Exact reviewed SVM profile setup bytes required')
  text = text[:begin] + text[end:]
  svm_after = '            pkg-config protobuf-compiler bubblewrap git ca-certificates python3 \\\n            apparmor=4.0.1really4.0.1-0ubuntu0.24.04.9 apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9\n'
  svm_before = '            pkg-config protobuf-compiler bubblewrap git ca-certificates python3\n'

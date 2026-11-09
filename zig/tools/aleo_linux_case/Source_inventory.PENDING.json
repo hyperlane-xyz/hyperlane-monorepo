@@ -17,11 +17,11 @@
   "source_inventory": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 147618,
+      "bytes": 148574,
       "sha256": {
         "sha256_hex_chunks": [
-          "607f98f74b8b96c00cf21b2c0502809d",
-          "212cffda4be64eb4edc3661874290ecd"
+          "620eeb3e34c2093c0777d45ab7c627f1",
+          "9fbcce3774051c86afd6e428c7312001"
         ]
       }
     },

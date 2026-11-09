@@ -588,9 +588,9 @@ class NobleBwrapPolicySetupControls(unittest.TestCase):
   if poison=='source':files[ns['PROFILE']]=b'foreign'
   if poison=='local':files['/etc/apparmor.d/local/unpriv_bwrap']=b'allow capability,\n'
   if poison=='target':files[ns['TARGET']]=b'conflicting policy'
-  if poison=='policy':files['/proc/sys/kernel/apparmor_restrict_unprivileged_userns']=b'0\n'
+  if poison=='policy':files['/proc/sys/kernel/unprivileged_userns_clone']=b'0\n'
   def regular(path,cap):
-   if path not in files:raise FileNotFoundError('unavailable fixed fixture')
+   if path not in files:raise FileNotFoundError(2,'unavailable fixed fixture')
    value=files[path];self.assertLessEqual(len(value),cap);return value
   def command(argv):
    nonlocal loaded
@@ -608,7 +608,7 @@ class NobleBwrapPolicySetupControls(unittest.TestCase):
    with self.assertRaises(ValueError):ns['configure_profile']()
    if poison in {'source','local','target','policy','version'}:self.assertFalse(any(x[0]=='/usr/bin/sudo'for x in calls))
    return
-  result=ns['configure_profile']();self.assertEqual(result['policy_before'],result['policy_after']);self.assertEqual(set(result['policy_after'].values()),{1});self.assertTrue(result['bwrap_enforced']and result['unpriv_bwrap_enforced']);self.assertFalse(result['global_restriction_disabled']);self.assertEqual(len(calls),5);return result
+  result=ns['configure_profile']();self.assertEqual(result['policy_before'],result['policy_after']);self.assertEqual(set(result['policy_after'].values()),{1});self.assertTrue(result['bwrap_enforced']and result['unpriv_bwrap_enforced']);self.assertFalse(result['global_restriction_disabled_by_setup']);self.assertEqual(len(calls),5);return result
  def test_actual_WF_setup_uses_exact_distro_policy_and_keeps_global_restriction(self):
   self.assertEqual(self.invoke()['profile_sha256'],hashlib.sha256(self.PROFILE_WIRE).hexdigest())
   self.assertIn(b'audit deny capability,',self.PROFILE_WIRE);self.assertNotIn(b'flags=(unconfined)',self.PROFILE_WIRE)
@@ -621,6 +621,59 @@ class NobleBwrapPolicySetupControls(unittest.TestCase):
    root=pathlib.Path(temp);path=root/'value';path.write_bytes(b'1\n');self.assertEqual(ns['regular'](str(path),32),b'1\n');alias=root/'alias';alias.symlink_to(path)
    for candidate,cap in [(alias,32),(root,32),(path,1)]:
     with self.subTest(candidate=candidate,cap=cap),self.assertRaises((ValueError,OSError)):ns['regular'](str(candidate),cap)
+ def conditional(self,clone,restrict,after=None):
+  import errno
+  ns,_=self.setup_source();reads=[];calls=[]
+  values=[{'unprivileged_userns_clone':clone,'apparmor_restrict_unprivileged_userns':restrict},after]
+  def regular(path,cap):
+   name=path.removeprefix('/proc/sys/kernel/');self.assertIn(name,values[0]);reads.append(name);value=(values[1]if values[1]is not None and len(reads)>2 else values[0])[name]
+   if value is None:raise FileNotFoundError(errno.ENOENT,'missing optional knob')
+   return str(value).encode()+b'\n'
+  def command(argv):calls.append(argv);raise AssertionError('no commands on skipped profile path')
+  ns.update(regular=regular,command=command)
+  if clone==0 or after is not None and after!=values[0]:
+   with self.assertRaises(ValueError):ns['configure_profile']()
+   self.assertEqual(calls,[]);return
+  result=ns['configure_profile']();self.assertFalse(result['global_restriction_disabled_by_setup']);self.assertEqual(result['profile_action'],'skipped_restriction_not_observed_enabled');self.assertEqual(result['policy_before'],values[0]);self.assertEqual(result['policy_after'],values[0]);self.assertEqual(calls,[])
+  for name in ['packages','profile_bytes','profile_sha256','bwrap_enforced','unpriv_bwrap_enforced']:self.assertIsNone(result[name])
+ def test_absent_or_zero_restriction_skips_all_commands_without_optimistic_values(self):
+  for clone in [None,1]:
+   for restrict in [None,0]:
+    with self.subTest(clone=clone,restrict=restrict):self.conditional(clone,restrict)
+  for restrict in [None,0,1]:
+   with self.subTest(clone=0,restrict=restrict):self.conditional(0,restrict)
+  self.conditional(None,0,{'unprivileged_userns_clone':None,'apparmor_restrict_unprivileged_userns':None})
+ def test_only_ENOENT_is_optional_and_sysctl_values_remain_exact_canonical_0_or_1(self):
+  import errno
+  ns,_=self.setup_source()
+  for error in [PermissionError(errno.EACCES,'denied'),OSError(errno.EIO,'failed'),OSError(errno.ELOOP,'symlink'),FileNotFoundError(errno.EACCES,'not ENOENT')]:
+   def reading(path,cap):raise error
+   ns['regular']=reading
+   with self.subTest(errno=error.errno),self.assertRaises(OSError)as raised:ns['policy']()
+   self.assertEqual(raised.exception.errno,error.errno)
+  def absent(path,cap):raise FileNotFoundError(errno.ENOENT,'absent')
+  ns['regular']=absent;self.assertEqual(set(ns['policy']().values()),{None})
+  for wire in [b'0',b'0\n',b'1',b'1\n']:
+   ns['regular']=lambda path,cap:wire;self.assertEqual(set(ns['policy']().values()),{int(wire)})
+  for wire in [b'',b'01\n',b'2\n',b'-1\n',b' 1\n',b'1 PRIVATE',b'None',b'\xff']:
+   ns['regular']=lambda path,cap:wire
+   with self.subTest(wire=wire),self.assertRaises(ValueError):ns['policy']()
+ def test_missing_clone_still_loads_profile_only_when_restriction_is_one(self):
+  ns,_=self.setup_source();calls=[];wire=self.PROFILE_WIRE;installed=[False]
+  def regular(path,cap):
+   if path=='/proc/sys/kernel/unprivileged_userns_clone':raise FileNotFoundError(2,'absent')
+   if path=='/proc/sys/kernel/apparmor_restrict_unprivileged_userns':return b'1\n'
+   if path=='/sys/module/apparmor/parameters/enabled':return b'Y\n'
+   if path==ns['PROFILE']:return wire
+   if path==ns['TARGET']and installed[0]:return wire
+   raise FileNotFoundError(2,'not installed')
+  def command(argv):
+   calls.append(argv)
+   if argv[0]=='/usr/bin/dpkg-query':return ns['VERSION'].encode()
+   if argv[2]=='/usr/bin/install':installed[0]=True
+   if argv[2]=='/usr/bin/head':return b'bwrap (enforce)\nunpriv_bwrap (enforce)\n'
+   return b''
+  ns.update(regular=regular,command=command);result=ns['configure_profile']();self.assertEqual(result['profile_action'],'loaded');self.assertIsNone(result['policy_before']['unprivileged_userns_clone']);self.assertEqual(result['policy_before'],result['policy_after']);self.assertEqual(result['policy_after']['apparmor_restrict_unprivileged_userns'],1);self.assertEqual(len(calls),5)
  def test_fixed_sysfs_PAGE_SIZE_hint_keeps_actual_8byte_cap_and_identity_checks(self):
   from types import SimpleNamespace
   ns,_=self.setup_source();system='/sys/module/apparmor/parameters/enabled';original_open=ns['os'].open;original_stat=ns['os'].fstat
