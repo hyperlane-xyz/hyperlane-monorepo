@@ -319,38 +319,87 @@ test "Starknet pinned checkpoint tree mailbox announcement and storage locations
     try std.testing.expectEqualStrings("", locations.values[0][1]);
 }
 
-test "Starknet metadata source full-felt builder fails closed when contract verification is unavailable" {
-    const protocol = @import("../protocol/root.zig");
+const VerifyOrigin = struct {
+    pub fn leafIndex(_: *@This(), _: [32]u8) !?u32 {
+        return null;
+    }
+    pub fn highestKnownLeafIndex(_: *@This()) !?u32 {
+        return null;
+    }
+    pub fn fetchCheckpoint(_: *@This(), _: [20]u8, _: u32) !?@import("../storage/root.zig").SignedCheckpoint {
+        return null;
+    }
+    pub fn latestIndex(_: *@This(), _: [20]u8) !?u32 {
+        return null;
+    }
+    pub fn proof(_: *@This(), _: u32, _: @import("../protocol/root.zig").Checkpoint) !@import("../protocol/root.zig").Proof {
+        return error.NoProof;
+    }
+};
+
+test "Starknet full-felt metadata source verifies through actual read-only entrypoint without invented gas" {
     const metadata = @import("../relayer/metadata.zig");
-    const storage = @import("../storage/root.zig");
-    const Origin = struct {
-        pub fn leafIndex(_: *@This(), _: [32]u8) !?u32 {
-            return null;
-        }
-        pub fn highestKnownLeafIndex(_: *@This()) !?u32 {
-            return null;
-        }
-        pub fn fetchCheckpoint(_: *@This(), _: [20]u8, _: u32) !?storage.SignedCheckpoint {
-            return null;
-        }
-        pub fn latestIndex(_: *@This(), _: [20]u8) !?u32 {
-            return null;
-        }
-        pub fn proof(_: *@This(), _: u32, _: protocol.Checkpoint) !protocol.Proof {
-            return error.NoProof;
-        }
-    };
-    var script: mock.Mock = .{ .steps = &.{.{ .method = .POST, .suffix = "/rpc", .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[\"0x6\"]}" }} };
+    var script: mock.Mock = .{ .steps = &.{
+        .{ .method = .POST, .suffix = "/rpc", .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[\"0x6\"]}" },
+        .{ .method = .POST, .suffix = "/rpc", .response = "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[\"0x1\"]}" },
+        .{ .method = .POST, .suffix = "/rpc", .response = "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":[\"0x0\"]}" },
+    } };
     var p = try testProvider(&script);
-    var origin: Origin = .{};
-    var source: contracts.Source(Origin) = .{ .chain = .{ .provider = &p, .mailbox = codec.Felt.zero, .hook = codec.Felt.zero, .domain = 100 }, .origin = &origin };
+    var origin: VerifyOrigin = .{};
+    var source: contracts.Source(VerifyOrigin) = .{ .chain = .{ .provider = &p, .mailbox = codec.Felt.zero, .hook = codec.Felt.zero, .domain = 100 }, .origin = &origin };
     var builder: metadata.Builder(@TypeOf(source)) = .{ .allocator = a, .source = &source };
     const module = try codec.Felt.init(@as(u256, 1) << 200);
     const bytes_result = try builder.build(module, .{});
     defer a.free(bytes_result);
-    try std.testing.expectEqual(@as(usize, 0), bytes_result.len);
-    try std.testing.expectError(error.StarknetDryRunUnavailable, source.verify(module, .{}, bytes_result));
+    const accepted = try source.verifyCandidate(module, .{}, bytes_result);
+    try std.testing.expect(accepted.valid and accepted.cost == null);
+    const rejected = try source.verifyCandidate(module, .{}, bytes_result);
+    try std.testing.expect(!rejected.valid and rejected.cost == null);
     try script.expectDone();
+}
+
+fn checkVerifyCalldata(request: @import("../cloud/http.zig").Request) !void {
+    var parsed = try std.json.parseFromSlice(V, a, request.body orelse return error.MissingVerifyRequest, .{});
+    defer parsed.deinit();
+    try std.testing.expectEqualStrings("starknet_call", try rpc.string(try field(parsed.value, "method")));
+    const params = try field(parsed.value, "params");
+    try std.testing.expectEqualStrings("latest", try rpc.string(try field(params, "block_id")));
+    const call = try field(params, "request");
+    try std.testing.expectEqual(@as(u256, 0x123), (try codec.Felt.fromHex(try rpc.string(try field(call, "contract_address")))).value);
+    // Actual v0.3.9 compiled-class EXTERNAL selector and Cairo ABI order.
+    try std.testing.expectEqual(@as(u256, 0x27ea29384deca9928aa65088faae7fc2e5a99fd6512125ef320c18227e0f7d3), (try codec.Felt.fromHex(try rpc.string(try field(call, "entry_point_selector")))).value);
+    const calldata = try field(call, "calldata");
+    const expected = [_]u256{ 2, 1, @as(u256, 0xaabb) << 112, 3, 7, 1, 9, 8, 2, 11, 10, 3, 1, @as(u256, 0x616263) << 104 };
+    try std.testing.expectEqual(expected.len, calldata.array.items.len);
+    for (expected, calldata.array.items) |want, raw| try std.testing.expectEqual(want, (try codec.Felt.fromHex(try rpc.string(raw))).value);
+}
+
+test "Starknet view verify matches released Cairo metadata and message calldata" {
+    var script: mock.Mock = .{ .steps = &.{.{ .method = .POST, .suffix = "/rpc", .check = checkVerifyCalldata, .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[\"0x1\"]}" }} };
+    var p = try testProvider(&script);
+    const chain: contracts.Contracts = .{ .provider = &p, .mailbox = codec.Felt.zero, .hook = codec.Felt.zero, .domain = 2 };
+    var message: @import("../protocol/root.zig").Message = .{ .version = 3, .nonce = 7, .origin = 1, .destination = 2, .body = "abc" };
+    std.mem.writeInt(u256, &message.sender, (@as(u256, 8) << 128) | 9, .big);
+    std.mem.writeInt(u256, &message.recipient, (@as(u256, 10) << 128) | 11, .big);
+    try std.testing.expect(try chain.verify(try codec.Felt.init(0x123), message, &.{ 0xaa, 0xbb }));
+    try script.expectDone();
+}
+
+test "Starknet view verification refuses malformed booleans trailing felts and remote reverts" {
+    const cases = [_]struct { response: []const u8, expected: anyerror }{
+        .{ .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[]}", .expected = error.TruncatedCairo },
+        .{ .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[\"0x2\"]}", .expected = error.InvalidCairoBoolean },
+        .{ .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[\"0x100\"]}", .expected = error.StarknetIntegerOverflow },
+        .{ .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[\"0x1\",\"0x0\"]}", .expected = error.TrailingCairoData },
+        .{ .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":40,\"message\":\"fixture revert\"}}", .expected = error.JsonRpcRemoteError },
+    };
+    for (cases) |case| {
+        var script: mock.Mock = .{ .steps = &.{.{ .method = .POST, .suffix = "/rpc", .response = case.response }} };
+        var p = try testProvider(&script);
+        const chain: contracts.Contracts = .{ .provider = &p, .mailbox = codec.Felt.zero, .hook = codec.Felt.zero, .domain = 2 };
+        try std.testing.expectError(case.expected, chain.verify(codec.Felt.zero, .{}, ""));
+        try script.expectDone();
+    }
 }
 
 test "Starknet prepare query sign fee median tip production sign and broadcast keep explicit mutation boundary" {

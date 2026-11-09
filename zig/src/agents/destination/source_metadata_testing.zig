@@ -445,3 +445,110 @@ test "native EVM origin to Tron CCIP metadata uses actual wallet revert nativeFo
     try std.testing.expectEqual(@as(usize, 0), executor.executor.retainedOutputBytes());
     try server.check();
 }
+
+const StarkVerifyHistory = struct {
+    signed: objects.SignedCheckpoint,
+    pub fn leafIndex(self: *@This(), id: Hash) !?u32 {
+        return if (std.mem.eql(u8, &id, &self.signed.value.message_id)) self.signed.value.index else null;
+    }
+    pub fn highestKnownLeafIndex(self: *@This()) !?u32 {
+        return self.signed.value.index;
+    }
+    pub fn proof(_: *@This(), _: u32, _: protocol.Checkpoint) !protocol.Proof {
+        return error.NoProof;
+    }
+    pub fn fetchCheckpoint(self: *@This(), validator: Address, index: u32) !?objects.SignedCheckpoint {
+        const expected = try self.signed.recover();
+        return if (index == self.signed.value.index and std.mem.eql(u8, &validator, &expected)) self.signed else null;
+    }
+    pub fn latestIndex(self: *@This(), _: Address) !?u32 {
+        return self.signed.value.index;
+    }
+};
+
+fn checkStarkMetadataRead(request: @import("../../cloud/http.zig").Request) !void {
+    const codec = @import("../../starknet/codec.zig");
+    const rpc = @import("../../net/json_rpc.zig");
+    const a = std.testing.allocator;
+    var parsed = try std.json.parseFromSlice(std.json.Value, a, request.body orelse return error.MissingStarkRequest, .{});
+    defer parsed.deinit();
+    try std.testing.expectEqualStrings("starknet_call", try rpc.string(try rpc.field(parsed.value, "method")));
+    const params = try rpc.field(parsed.value, "params");
+    try std.testing.expectEqualStrings("latest", try rpc.string(try rpc.field(params, "block_id")));
+    const call = try rpc.field(params, "request");
+    const selector = try codec.Felt.fromHex(try rpc.string(try rpc.field(call, "entry_point_selector")));
+    const allowed = [_][]const u8{ "module_type", "modules_and_threshold", "validators_and_threshold", "verify" };
+    for (allowed) |name| if (selector.value == codec.selector(name).value) return;
+    return error.UnexpectedStarkMetadataEntrypoint;
+}
+
+test "production Stark metadata source aggregation requires actual multisig and pausable view verification" {
+    const a = std.testing.allocator;
+    const mock = @import("../../cloud/testing.zig");
+    const rpc = @import("../../net/json_rpc.zig");
+    const secret: [32]u8 = @splat(0x11);
+    const validator = try protocol.signature.secretKeyAddress(secret);
+    const message: protocol.Message = .{ .origin = 1, .destination = 2, .body = "released Cairo aggregation fixture" };
+    var history: StarkVerifyHistory = .{ .signed = try objects.SignedCheckpoint.sign(.{ .mailbox_domain = 1, .merkle_tree_hook_address = .{0} ** 31 ++ .{9}, .root = .{3} ** 32, .index = 0, .message_id = message.id() }, secret, null) };
+    const validator_result = try std.fmt.allocPrint(a, "{{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":[\"0x1\",\"0x{x}\",\"0x1\"]}}", .{std.mem.readInt(u160, &validator, .big)});
+    defer a.free(validator_result);
+    // False and reverted child verification both fail the threshold2 tree.
+    for ([_]enum { valid, rejected, reverted }{ .valid, .rejected, .reverted }) |outcome| {
+        const child_response: []const u8 = switch (outcome) {
+            .valid => "{\"jsonrpc\":\"2.0\",\"id\":5,\"result\":[\"0x1\"]}",
+            .rejected => "{\"jsonrpc\":\"2.0\",\"id\":5,\"result\":[\"0x0\"]}",
+            .reverted => "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":40,\"message\":\"fixture ISM revert\"}}",
+        };
+        var script: mock.Mock = .{ .steps = &.{
+            .{ .method = .POST, .suffix = "/rpc", .check = checkStarkMetadataRead, .response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[\"0x2\",\"0x11\"]}" },
+            .{ .method = .POST, .suffix = "/rpc", .check = checkStarkMetadataRead, .response = "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[\"0x2\",\"0x22\",\"0x33\",\"0x2\"]}" },
+            .{ .method = .POST, .suffix = "/rpc", .check = checkStarkMetadataRead, .response = "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":[\"0x5\",\"0x22\"]}" },
+            .{ .method = .POST, .suffix = "/rpc", .check = checkStarkMetadataRead, .response = validator_result },
+            .{ .method = .POST, .suffix = "/rpc", .check = checkStarkMetadataRead, .response = child_response },
+            .{ .method = .POST, .suffix = "/rpc", .check = checkStarkMetadataRead, .response = "{\"jsonrpc\":\"2.0\",\"id\":6,\"result\":[\"0x6\"]}" },
+            .{ .method = .POST, .suffix = "/rpc", .check = checkStarkMetadataRead, .response = "{\"jsonrpc\":\"2.0\",\"id\":7,\"result\":[\"0x1\"]}" },
+        } };
+        var chain: settings.Chain = undefined;
+        chain.name = "stark-metadata-fixture";
+        chain.protocol = .starknet;
+        chain.domain = 2;
+        chain.contracts = .{ .mailbox = .{0} ** 31 ++ .{1}, .merkle_tree_hook = .{0} ** 31 ++ .{2}, .interchain_gas_paymaster = .{0} ** 32, .validator_announce = .{0} ** 31 ++ .{3} };
+        var factory: @import("../scraper/starknet.zig").Factory = .{
+            .arena = .init(a),
+            .endpoints = &.{},
+            .configuration = undefined,
+            .provider = .{ .allocator = a, .client = try rpc.Client.init(a, script.transport(), &.{.{ .url = "https://fixture/rpc" }}, .{}) },
+        };
+        defer factory.arena.deinit();
+        var env = std.process.EnvMap.init(a);
+        defer env.deinit();
+        var readers: resources.Resources = .{ .allocator = a, .arena = .init(a), .chain = chain, .environment = &env, .options = .{ .curl_library = "unused" }, .clients = .{ .starknet = &factory }, .http = @import("../../cloud/http.zig").HttpTransport.init(a) };
+        defer readers.arena.deinit();
+        defer readers.http.deinit();
+        var cancel = std.atomic.Value(bool).init(false);
+        const now = try @import("../scraper/receipts_evm.zig").nowNs();
+        var root = source.Source(StarkVerifyHistory).init(a, &readers, &history, .{ .deadline_ns = now + 5 * std.time.ns_per_s, .cancel = &cancel });
+        var builder: metadata.Builder(@TypeOf(root)) = .{ .allocator = a, .source = &root };
+        const aggregation: Hash = .{0} ** 31 ++ .{0x11};
+        if (outcome == .valid) {
+            const result = try builder.build(aggregation, message);
+            defer a.free(result);
+            const tree = try protocol.metadata.Aggregation.decode(result, 2);
+            const signed = try protocol.metadata.MessageIdMultisig.decode((try tree.metadataAt(0)).?);
+            try std.testing.expectEqualSlices(u8, &history.signed.value.root, &signed.root);
+            try std.testing.expectEqual(@as(usize, 65), signed.signatures.len);
+            try std.testing.expectEqual(@as(usize, 0), (try tree.metadataAt(1)).?.len);
+        } else {
+            try std.testing.expectError(error.AggregationThresholdNotMet, builder.build(aggregation, message));
+            try std.testing.expectEqual(@as(usize, 1), builder.diagnostics.verification_failures);
+        }
+        try script.expectDone();
+        // Production checks must refuse before any eighth RPC.
+        cancel.store(true, .release);
+        try std.testing.expectError(error.RequestCancelled, root.verifyCandidate(aggregation, message, ""));
+        cancel.store(false, .release);
+        root.options.deadline_ns = now;
+        try std.testing.expectError(error.ScraperReceiptDeadline, root.verifyCandidate(aggregation, message, ""));
+        try script.expectDone();
+    }
+}

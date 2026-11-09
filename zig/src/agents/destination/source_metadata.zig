@@ -375,7 +375,7 @@ pub fn Source(comptime Origin: type) type {
                 },
                 .starknet => {
                     var source = try self.starknet();
-                    return .{ .valid = true, .cost = try source.verify(try felt.fromBytes(address), message, bytes) };
+                    return source.verifyCandidate(try felt.fromBytes(address), message, bytes);
                 },
                 .aleo => {
                     var source = try self.aleo();

@@ -117,6 +117,18 @@ pub const Contracts = struct {
         try decoder.finish();
         return @enumFromInt(value);
     }
+    pub fn verify(self: Contracts, address: Felt, message: protocol.Message, bytes: []const u8) !bool {
+        var encoder: codec.Encoder = .{ .allocator = self.provider.allocator };
+        defer encoder.deinit();
+        try encoder.bytes(bytes);
+        try encoder.message(message);
+        const result = try self.query(address, "verify", encoder.items.items);
+        defer self.provider.allocator.free(result);
+        var decoder: codec.Decoder = .{ .input = result };
+        const valid = try decoder.boolean();
+        try decoder.finish();
+        return valid;
+    }
     pub fn route(self: Contracts, address: Felt, message: protocol.Message) !Felt {
         var encoder: codec.Encoder = .{ .allocator = self.provider.allocator };
         defer encoder.deinit();
@@ -169,16 +181,11 @@ pub const Contracts = struct {
     }
 };
 
-/// The Rust dry-run method returns a placeholder1 because verify() is not an
-/// entrypoint. A real runtime must inject account/process simulation before it
-/// treats metadata as verified; this adapter never manufactures that success.
-pub const Verifier = struct { context: *anyopaque, verify_fn: *const fn (*anyopaque, Felt, protocol.Message, []const u8) anyerror!u256 };
 pub fn Source(comptime Origin: type) type {
     return struct {
         pub const ModuleAddress = Felt;
         chain: Contracts,
         origin: *Origin,
-        verifier: ?Verifier = null,
         const Self = @This();
         pub fn moduleType(self: *Self, address: Felt) !metadata.ModuleType {
             return self.chain.moduleType(address);
@@ -189,9 +196,10 @@ pub fn Source(comptime Origin: type) type {
         pub fn members(self: *Self, address: Felt, message: protocol.Message, comptime validators: bool) !(if (validators) metadata.Members else metadata.ModuleMembers(Felt)) {
             return self.chain.members(address, message, validators);
         }
-        pub fn verify(self: *Self, address: Felt, message: protocol.Message, bytes: []const u8) !u256 {
-            const verifier = self.verifier orelse return error.StarknetDryRunUnavailable;
-            return verifier.verify_fn(verifier.context, address, message, bytes);
+        pub fn verifyCandidate(self: *Self, address: Felt, message: protocol.Message, bytes: []const u8) !metadata.Verification {
+            // Cairo verify is a real view entrypoint. A call has no measured
+            // gas price; preserve module order instead of inventing a quote.
+            return .{ .valid = try self.chain.verify(address, message, bytes) };
         }
         pub fn leafIndex(self: *Self, id: [32]u8) !?u32 {
             return self.origin.leafIndex(id);
