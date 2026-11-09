@@ -125,14 +125,20 @@ describe('RelayerDenylist middleware rebalance messages E2E', function () {
     }
   });
 
-  function writeDenylist(messageIds: string[]): void {
+  function writeDenylist(
+    messageIds: string[],
+    matches: Record<string, unknown>[] = [],
+  ): void {
     writeFileSync(
       denylistPath,
       JSON.stringify({
-        rules: messageIds.map((messageId) => ({
+        rules: [
+          ...messageIds.map((messageId) => ({ messageId })),
+          ...matches,
+        ].map((match) => ({
           reason: 'CCTP delivered the funds out of band',
           addedBy: 'e2e',
-          match: { messageId },
+          match,
         })),
       }),
     );
@@ -462,6 +468,52 @@ describe('RelayerDenylist middleware rebalance messages E2E', function () {
       anvil3: 2000n * USDC,
     });
   });
+
+  interface BroadRuleCase {
+    name: string;
+    match: (message: ExplorerMessage) => Record<string, unknown>;
+  }
+  const broadRuleCases: BroadRuleCase[] = [
+    {
+      name: 'destination',
+      match: () => ({ destinationDomain: DOMAIN_IDS.anvil3 }),
+    },
+    {
+      name: 'route',
+      match: (message) => ({
+        originDomain: message.origin_domain_id,
+        senderAddress: message.sender,
+        destinationDomain: message.destination_domain_id,
+        recipientAddress: message.recipient,
+      }),
+    },
+  ];
+  for (const c of broadRuleCases) {
+    it(`keeps counting an undelivered rebalance a ${c.name} rule denies`, async function () {
+      const context = await buildContext('WEIGHTED_IMBALANCED');
+      await runCycle(context);
+      const [action] =
+        await context.tracker.getActionsByType(REBALANCE_MESSAGE);
+      assert(action, 'Missing rebalance action from cycle 1');
+      const message = await getIndexedMessage(context, getMessageId(action));
+
+      writeDenylist([], [c.match(message)]);
+      await runCycle(context);
+      await runCycle(context);
+
+      const actions = await context.tracker.getActionsByType(REBALANCE_MESSAGE);
+      expect(actions.map((a) => a.id)).to.deep.equal([action.id]);
+      expect(
+        (await context.tracker.getActiveRebalanceIntents()).map((i) => i.id),
+      ).to.deep.equal([action.intentId]);
+      await expectStillInProgress(context, action);
+      expectBalances(await getBalances(), {
+        anvil1: 6000n * USDC,
+        anvil2: 2000n * USDC,
+        anvil3: 1000n * USDC,
+      });
+    });
+  }
 
   it('keeps counting the rebalance that is not denylisted', async function () {
     const context = await buildContext({
