@@ -1702,4 +1702,51 @@ class SvmEventFailureProjectionTests(unittest.TestCase):
                 with self.assertRaises(ValueError):api.validate_record(altered,{})
 
 
+class TronStopFailureProjectionTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture=FixtureFailureDiscriminatorControls();self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
+        self.f=self.fixture;self.f.log.write_bytes(b'');self.source=self.f.sources['rust/main/utils/run-locally/src/external_agents.rs'];self.producer=Path(self.source['path']).read_bytes()
+        self.path=self.f.case/'evidence/fixture-container-stop-failures.jsonl'
+    def row(self,**change):
+        token='81 42 S PRIVATE_START TIME FIELDS /approved/docker PRIVATE-COMMAND'
+        return {'pid':81,'role':'fixture-docker','executable':self.f.manifest['verifier_tools']['docker'],'parent_pid':42,'os_start_token':token,'parent_wait_completed':True,'already_exited':False,'forced_kill':False,'success':False,'exit_code':137,'signal':None,'purpose':'fixture_teardown','planned_exit':True,'planned_container_stop':{'cause':'owned_docker_stop','container_id':'a'*64,'kind':'tron','port':9090,'pre_stop_live_identity':token,'already_exited_scope':'before_owned_container_stop','completed_before_original_deadline':True,'exact_owned_CID_absent':True,'acceptance_failed_before_cleanup':False},**change}
+    def save(self,rows):self.path.write_text(''.join(json.dumps(row)+'\n'for row in rows))
+    def observe(self):return api.tron_stop_failure_observation(self.f.case,self.f.manifest,42,self.producer)
+    def test_synthetic_child_code_signal_and_primary_flags_never_become_Docker_command_or_cause_claims(self):
+        first=self.row();second=self.row(pid=82,exit_code=None,signal=9);second['os_start_token']=second['os_start_token'].replace('81 42','82 42');second['planned_container_stop'].update(pre_stop_live_identity=second['os_start_token'],container_id='b'*64,kind='postgres',port=5432,acceptance_failed_before_cleanup=True)
+        self.save([first,second]);result=self.observe();self.assertEqual(result['collection_status'],'observed');self.assertEqual(result['complete_row_count'],2)
+        rows=result['rows'];self.assertEqual(rows[0]['original_foreground_child_exit_code'],137);self.assertIsNone(rows[0]['original_foreground_child_signal']);self.assertEqual(rows[1]['fixture'],'POSTGRES');self.assertEqual(rows[1]['original_foreground_child_signal'],9)
+        self.assertTrue(rows[1]['producer_primary_error_present_at_receipt']);self.assertFalse(result['native_or_timing_or_cleanup_authority'])
+        self.assertIn('not separate Docker stop/inspect client',result['scope']);wire=json.dumps(result)
+        for value in ['PRIVATE','/approved/docker','container_id','os_start_token','pre_stop_live_identity','parent_pid','"pid"','a'*64,'b'*64]:self.assertNotIn(value,wire)
+    def test_first_eight_selection_validates_every_later_row_and_absence_is_honest(self):
+        self.assertEqual(self.observe()['collection_status'],'absent');rows=[]
+        for i in range(10):
+            row=self.row(pid=81+i);row['os_start_token']=row['os_start_token'].replace('81 42',str(81+i)+' 42');row['planned_container_stop'].update(pre_stop_live_identity=row['os_start_token'],container_id=format(i+1,'064x'));rows.append(row)
+        self.save(rows);result=self.observe();self.assertEqual((result['complete_row_count'],result['selected_first_row_count'],result['later_rows_not_projected']),(10,8,2));self.assertEqual([r['journal_line']for r in result['rows']],list(range(1,9)));self.assertLess(len(json.dumps(result)),8192)
+        rows[-1]['exit_code']=True;self.save(rows);self.assertEqual(self.observe()['collection_status'],'unavailable')
+    def test_exact_parent_tool_types_lifecycle_schema_and_internal_consistency_refuse(self):
+        poisons=[{'parent_pid':43},{'parent_pid':True},{'pid':True},{'executable':{}},{'success':True},{'parent_wait_completed':False},{'planned_exit':False},{'role':'other'},{'purpose':'other'},{'exit_code':True},{'signal':9},{'exit_code':-1},{'exit_code':256},{'os_start_token':'PRIVATE'},{'raw':'PRIVATE'},{'exit_code':0}]
+        for change in poisons:
+            self.save([self.row(**change)]);self.assertEqual(self.observe()['collection_status'],'unavailable',change)
+        for key,value in [('kind','PRIVATE'),('port',True),('port',9091),('container_id','PRIVATE'),('pre_stop_live_identity','PRIVATE'),('cause','other'),('completed_before_original_deadline',1),('exact_owned_CID_absent',None),('acceptance_failed_before_cleanup','PRIVATE')]:
+            row=self.row();row['planned_container_stop'][key]=value;self.save([row]);self.assertEqual(self.observe()['collection_status'],'unavailable',(key,value))
+        row=self.row();self.save([row,row]);self.assertEqual(self.observe()['collection_status'],'unavailable')
+        row=self.row(exit_code=0);row['planned_container_stop']['acceptance_failed_before_cleanup']=True;self.save([row]);self.assertEqual(self.observe()['collection_status'],'observed')
+    def test_source_and_bounded_regular_stable_input_guards_fail_closed(self):
+        self.save([self.row()]);original=self.producer;self.producer=original.replace(b'"fixture-container-stop-failures.jsonl"',b'"OTHER-JOURNAL"')
+        with mock.patch.object(api,'captured_failure_bytes',side_effect=AssertionError('must not read'))as read:self.assertEqual(self.observe()['collection_status'],'unavailable');read.assert_not_called()
+        self.producer=original;self.path.unlink();self.path.symlink_to(self.f.log);self.assertEqual(self.observe()['collection_status'],'unavailable');self.path.unlink()
+        with self.path.open('wb')as stream:stream.truncate(1024**2+1)
+        with mock.patch.object(api.os,'open',side_effect=AssertionError('must refuse before open'))as opened:self.assertEqual(self.observe()['collection_status'],'unavailable');opened.assert_not_called()
+        self.save([self.row()]);wire=self.path.read_bytes();self.path.write_bytes(wire[:-1]);self.assertEqual(self.observe()['collection_status'],'unavailable')
+        self.path.write_bytes(b'{"pid":1,"pid":1}\n');self.assertEqual(self.observe()['collection_status'],'unavailable')
+        self.save([self.row()]*65);self.assertEqual(self.observe()['collection_status'],'unavailable')
+    def test_actual_failure_result_joins_admitted_source_and_optional_baseexception_preserves_old_result(self):
+        self.save([self.row()]);result=self.f.observe();self.assertEqual(result['fixture_stop_failures']['collection_status'],'observed')
+        with mock.patch.object(api,'tron_stop_failure_observation',side_effect=KeyboardInterrupt):quarantined=self.f.observe()
+        self.assertEqual(quarantined['fixture_stop_failures']['collection_status'],'unavailable');self.assertEqual({k:v for k,v in result.items()if k!='fixture_stop_failures'},{k:v for k,v in quarantined.items()if k!='fixture_stop_failures'})
+        self.f.manifest['scenario']='radix';result=self.f.observe();self.assertNotIn('fixture_stop_failures',result)
+
+
 if __name__=='__main__':unittest.main()

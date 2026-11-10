@@ -946,6 +946,59 @@ def late_invariant_observation(scenario,sources,repo,harness_log):
     return {'schema':1,'kind':'public-fixed-late-invariant-observation','collection_status':'observed','writer_sources':checked,'harness_log_fingerprint':fingerprint,'lines_scanned':scanned,'oversized_lines_omitted':oversized,'observations':[rows[k]for k in sorted(rows)],'native_or_timing_or_cleanup_authority':False,'scope':'Exact Source-defined E2E helper text, counts and first/latest numeric fields only. Error prefix count omits all suffix text. No direct metric sample, unique PID/epoch, stage success, root cause or proof claim.'}
 
 
+def tron_stop_failure_observation(case,manifest,parent_pid,producer):
+    """Already admitted Rust writer; finite original foreground-child observations."""
+    unavailable={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+    try:
+        def require(ok):
+            if not ok:raise ValueError('Invalid fixed fixture stop observation')
+        require(manifest['scenario']=='tron'and type(parent_pid)is int and 0<parent_pid<2**31)
+        require(type(producer)is bytes and producer.count(b'fn stop_fixed_container_with(')==1)
+        stop=producer.split(b'fn stop_fixed_container_with(',1)[1].split(b'fn stop_fixed_container(',1)
+        require(len(stop)==2)
+        for literal in [b'let prior = child.try_wait()?;',b'let already_exited = prior.is_some();',b'status.success()',b'exit_code: status.code()',b'signal: status.signal()',b'"fixture-container-stop-failures.jsonl"',b'"planned_container_stop"',b'"acceptance_failed_before_cleanup":primary.is_some()',b'"exact_owned_CID_absent":absent',b'"completed_before_original_deadline":on_time']:
+            require(literal in stop[0])
+        case=Path(case);evidence=case/'evidence'
+        require(case.is_absolute()and case.resolve(strict=True)==case and evidence.resolve(strict=True)==evidence)
+        target=evidence/'fixture-container-stop-failures.jsonl'
+        try:raw,fingerprint=captured_failure_bytes(target,1024**2)
+        except FileNotFoundError:return {**unavailable,'collection_status':'absent'}
+        require(raw and raw.endswith(b'\n'));lines=raw.splitlines();require(0<len(lines)<=64 and all(0<len(line)<=16384 for line in lines))
+        def unique(pairs):
+            row={}
+            for key,value in pairs:require(key not in row);row[key]=value
+            return row
+        fields={'pid','role','executable','parent_pid','os_start_token','parent_wait_completed','already_exited','forced_kill','success','exit_code','signal','purpose','planned_exit','planned_container_stop'}
+        planned_fields={'cause','container_id','kind','port','pre_stop_live_identity','already_exited_scope','completed_before_original_deadline','exact_owned_CID_absent','acceptance_failed_before_cleanup'}
+        public=[];identities=set()
+        for ordinal,line in enumerate(lines,1):
+            row=json.loads(line,object_pairs_hook=unique,parse_constant=lambda _:(_ for _ in()).throw(ValueError('nonfinite')))
+            require(type(row)is dict and set(row)==fields)
+            require(type(row['pid'])is int and 0<row['pid']<2**31 and type(row['parent_pid'])is int and row['parent_pid']==parent_pid)
+            require(row['role']=='fixture-docker'and row['purpose']=='fixture_teardown'and row['executable']==manifest['verifier_tools']['docker'])
+            require(all(type(row[k])is bool for k in ['parent_wait_completed','already_exited','forced_kill','success','planned_exit']))
+            require(row['parent_wait_completed']is True and row['planned_exit']is True and row['success']is False)
+            token=row['os_start_token'];require(type(token)is str and len(token)<=4096)
+            if token:
+                parts=token.split();require(len(parts)>=8 and parts[0]==str(row['pid'])and parts[1]==str(parent_pid))
+            code,sig=row['exit_code'],row['signal']
+            require((code is None or type(code)is int and 0<=code<=255)and(sig is None or type(sig)is int and 1<=sig<=64)and((code is None)!=(sig is None)))
+            planned=row['planned_container_stop'];require(type(planned)is dict and set(planned)==planned_fields)
+            require(planned['cause']=='owned_docker_stop'and planned['already_exited_scope']=='before_owned_container_stop'and planned['pre_stop_live_identity']==token)
+            kind,port=planned['kind'],planned['port'];require(type(kind)is str and type(port)is int and(kind,port)in {('tron',9090),('postgres',5432)})
+            cid=planned['container_id'];require(type(cid)is str and re.fullmatch('[0-9a-f]{64}',cid)is not None)
+            require(all(type(planned[k])is bool for k in ['completed_before_original_deadline','exact_owned_CID_absent','acceptance_failed_before_cleanup']))
+            identity=(row['pid'],token,cid);require(identity not in identities);identities.add(identity)
+            on_time,absent,primary=(planned[k]for k in ['completed_before_original_deadline','exact_owned_CID_absent','acceptance_failed_before_cleanup'])
+            require(not(not primary and not row['already_exited']and bool(token)and not row['forced_kill']and on_time and code==0 and sig is None and absent))
+            if len(public)<8:
+                public.append({'journal_line':ordinal,'fixture':'TRE'if kind=='tron'else'POSTGRES','original_foreground_child_parent_wait_completed':True,'original_foreground_child_exit_code':code,'original_foreground_child_signal':sig,'already_exited_before_owned_stop':row['already_exited'],'foreground_child_forced_kill':row['forced_kill'],'completed_before_original_deadline':on_time,'exact_owned_CID_absent':absent,'producer_primary_error_present_at_receipt':primary,'stop_acceptance_success':False})
+        result={'schema':1,'collection_status':'observed','input':fingerprint,'input_limit_bytes':1024**2,'complete_row_count':len(lines),'selected_first_row_count':len(public),'later_rows_not_projected':len(lines)-len(public),'rows':public,'scope':'First8 failed fixed-fixture stop receipts in journal order, all64 maximum rows schema-checked. Exit/signal belongs to original foreground Docker Child, not separate Docker stop/inspect client or independently inspected container init. Primary flag is sampled at receipt construction after cleanup; it does not establish an error before cleanup. No CID/PID/token, command output, unique cause, absence replay or cleanup acceptance.','native_or_timing_or_cleanup_authority':False}
+        require(len(json.dumps(result,sort_keys=True,separators=(',',':')).encode())<=8192)
+        return result
+    except BaseException:return unavailable
+
+
 def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,harness_log,case_inputs=None,required_inputs=(),private_capture=None):
     """Fixed Source markers and actual client status only; no external text."""
     scenario=manifest['scenario']
@@ -1056,6 +1109,9 @@ def fixture_failure_observation(case,manifest,approval,parent_pid,sources,repo,h
             if key not in seen and len(observations)<16:seen.add(key);observations.append({**item,'source':context['source'],'line':context['line'],'column':context['column']})
     result['panic_observations']=observations
     if scenario=='tron':
+        result['fixture_stop_failures']={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        try:result['fixture_stop_failures']=tron_stop_failure_observation(case,manifest,parent_pid,bodies[root+'external_agents.rs'])
+        except BaseException:pass # Optional journal projection cannot replace existing failure evidence.
         try:result['CLI_failure']=cli.public()if cli is not None else tron_cli_unavailable(cli_reason,cli_frontier)
         except Exception:result['CLI_failure']=tron_cli_unavailable('PUBLIC_SOURCE_RECHECK_FAILED','PUBLICATION')
         if private_capture is not None and cli is not None:
