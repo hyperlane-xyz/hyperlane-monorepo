@@ -515,9 +515,9 @@ impl BaseMetadataBuilder {
                     ?err,
                     ?config,
                     ?validator,
-                    "Failed to read reorg status. Assuming no reorg occurred."
+                    "Failed to read reorg status; refusing checkpoint metadata"
                 );
-                Ok(Some(checkpoint_syncer))
+                Err(err.into())
             }
         }
     }
@@ -591,5 +591,31 @@ mod tests {
             result,
             Err(CheckpointSyncerBuildError::ReorgFlag(response)) if response.exists
         ));
+
+        // A read error is not evidence that the flag is absent. A directory
+        // deterministically causes a read error without relying on permissions.
+        let flag = checkpoint_dir.path().join("reorg_flag.json");
+        tokio::fs::remove_file(&flag).await.unwrap();
+        tokio::fs::create_dir(&flag).await.unwrap();
+        let mut states = BTreeSet::new();
+        assert!(builder
+            .build_and_validate(&mut states, &config, &validator, &storage_location, true,)
+            .await
+            .is_err());
+        assert!(states.contains(&ValidatorStorageState::ReorgCheckFailed));
+
+        // A confirmed absence still permits metadata after the read recovers.
+        tokio::fs::remove_dir(&flag).await.unwrap();
+        assert!(builder
+            .build_and_validate(
+                &mut BTreeSet::new(),
+                &config,
+                &validator,
+                &storage_location,
+                true,
+            )
+            .await
+            .unwrap()
+            .is_some());
     }
 }
