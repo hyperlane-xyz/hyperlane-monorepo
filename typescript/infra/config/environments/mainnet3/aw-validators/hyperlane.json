@@ -2,6 +2,9 @@
   "abstract": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
+  "aevo": {
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
+  },
   "aleo": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
