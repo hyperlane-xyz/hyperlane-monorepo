@@ -167,7 +167,7 @@ class Bridge(unittest.TestCase):
 class Inputs(unittest.TestCase):
     def test_publisher_set_exact_and_no_inclusion(self):
         grant=json.loads(gzip.decompress((HERE/'closed-cache-assets.json.gz').read_bytes()));rows=case_assets.plan(grant)
-        self.assertEqual(len(rows),10);self.assertEqual(sum(r['bytes']for r in rows),104671946)
+        self.assertEqual(len(rows),11);self.assertEqual(sum(r['bytes']for r in rows),129837778)
         self.assertTrue(all('inclusion'not in r['url']for r in rows))
         for changed in (grant['assets'][:-1],grant['assets']+[grant['assets'][0]]):
             with self.assertRaises(ValueError):case_assets.plan({'assets':changed})
@@ -180,7 +180,7 @@ class Inputs(unittest.TestCase):
         expected=('e535d44614ef8e667ac39132cad61516d' 'c4dcbce62d74c396b670b21c9b4e16a')
         self.assertEqual({r['url']for r in rows},{'https://parameters.provable.com/mainnet/powers-of-beta-19.usrs.e535d44','https://s3.us-west-1.amazonaws.com/mainnet.parameters/powers-of-beta-19.usrs.e535d44'})
         self.assertEqual(len(rows),2);self.assertEqual(rows[0]['file'],rows[1]['file']);self.assertEqual((rows[0]['file']['bytes'],rows[0]['file']['sha256']),(25165832,expected))
-        self.assertTrue(all('/shifted-powers-of-beta-19.'not in r['url']and '/powers-of-beta-20.'not in r['url']for r in grant['assets']))
+        self.assertTrue(all('/powers-of-beta-20.'not in r['url']and '/shifted-powers-of-beta-20.'not in r['url']for r in grant['assets']))
         decoded=gzip.decompress((HERE/'closed-cache-assets.json.gz').read_bytes());self.assertEqual(hashlib.sha256(decoded).hexdigest(),case_assets.GRANT_SHA);self.assertEqual(case_assets.GRANT_SHA,specs.GRANT_SHA)
         # A single accepted alias cannot be dropped or multiplied into permission.
         for selected in [grant['assets'][:-1],grant['assets']+[rows[0]]]:
@@ -197,7 +197,7 @@ class Inputs(unittest.TestCase):
             for name in paths:(directory/name).touch()
             pin={'path':str(directory/'grant.json'),'bytes':1,'sha256':specs.GRANT_SHA}
             with patch.object(specs,'load',return_value=grant),patch.object(specs,'checked'):
-                self.assertEqual(len(specs.parameters(pin,assets)),10)
+                self.assertEqual(len(specs.parameters(pin,assets)),11)
                 for changed in (assets[:-1],assets+[assets[0]]):
                     with self.assertRaises(ValueError):specs.parameters(pin,changed)
                 changed=copy.deepcopy(assets);changed[-1]['file']['sha256']='0'*64
@@ -207,6 +207,16 @@ class Inputs(unittest.TestCase):
                 (directory/'unapproved').touch()
                 with self.assertRaises(ValueError):specs.parameters(pin,assets)
                 with self.assertRaises(ValueError):specs.parameters(dict(pin,sha256='0'*64),assets)
+
+    def test_shifted19_exact_publisher_contract_is_expected_not_local_acquisition_credit(self):
+        grant=json.loads(gzip.decompress((HERE/'closed-cache-assets.json.gz').read_bytes()))
+        rows=[r for r in grant['assets']if '/shifted-powers-of-beta-19.usrs.'in r['url']]
+        expected=('662e3437feba9da7d1206f4cfa9297c28' '35124a639c9f6c5ce3e0da81f55658c')
+        self.assertEqual({r['url']for r in rows},{'https://parameters.provable.com/mainnet/shifted-powers-of-beta-19.usrs.662e343','https://s3.us-west-1.amazonaws.com/mainnet.parameters/shifted-powers-of-beta-19.usrs.662e343'})
+        self.assertEqual(len(rows),2);self.assertEqual(rows[0]['file'],rows[1]['file']);self.assertEqual((rows[0]['file']['bytes'],rows[0]['file']['sha256']),(25165832,expected))
+        self.assertFalse(grant['shifted19_local_acquisition_verified']);self.assertEqual(grant['unique_expected_files'],11);self.assertEqual(grant['expected_total_bytes'],129837778)
+        self.assertNotIn('unique_existing_files',grant);self.assertNotIn('existing_total_bytes',grant)
+        self.assertEqual(len({r['file']['sha256']for r in grant['assets']}),11)
 
     def test_actual_sdk_original_source4_added_without_package_changes(self):
         tree=ast.parse((HERE.parent/'aleo_linux_sdk/sdk_provision.py').read_text())

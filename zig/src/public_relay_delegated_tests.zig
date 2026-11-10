@@ -124,6 +124,8 @@ const TestOwner = struct {
     options: TestOptions = .{},
     memory_mutex: std.Thread.Mutex = .{},
     retained_bytes: usize = 0,
+    denylist_ready: std.atomic.Value(bool) = .init(true),
+    effects_halted: std.atomic.Value(bool) = .init(false),
 };
 const TestNonceManager = struct {
     scan_resume: ?u256 = null,
@@ -243,6 +245,7 @@ const NativeFixture = struct {
         }
         self.controls[0].deinit();
         self.controls[1].deinit();
+        std.debug.assert(self.owner.retained_bytes == 0);
         self.hub.deinit();
         for (&self.origin_lanes) |*lanes| for (lanes) |*origin| {
             if (origin.loader) |*value| value.deinit();
@@ -624,12 +627,23 @@ fn addOccupied(fixture: *NativeFixture, lane_index: usize, message: protocol.Mes
     const a = fixture.owner.allocator;
     const lane = &fixture.lanes[lane_index];
     const bytes = try message.encodeAlloc(a);
+    errdefer a.free(bytes);
     const item = try a.create(TestActive);
+    errdefer a.destroy(item);
     const retained = message.body.len + @sizeOf(TestActive);
     item.* = .{ .origin_index = 0, .message = .{ .allocator = a, .bytes = bytes, .value = try protocol.Message.decode(bytes) }, .retained_bytes = retained };
-    try lane.active.append(a, item);
+    const lane_control = fixture.controls[lane_index];
+    lane_control.bindSnapshotBudget(&fixture.owner);
+    try lane_control.ensurePolicy(lane, 0);
+    try lane.active.ensureUnusedCapacity(a, 1);
+    try lane_control.snapshot.ensureCapacity(lane.active.items.len + 1);
+    const row = try lane_control.prepareSnapshotRow(lane, 0, message);
+    lane_control.snapshot.beginPublish();
+    lane.active.appendAssumeCapacity(item);
     lane.active_bytes += retained;
     fixture.owner.retained_bytes += retained;
+    lane_control.snapshot.appendLocked(row);
+    lane_control.snapshot.finishPublish();
 }
 
 test "native public relay cross-destination saturation aborts earlier reservations" {
@@ -702,7 +716,10 @@ test "native public relay queued cancellation leaves no Active or sidecar" {
     try std.testing.expectEqual(error.RequestCancelled, caller.failure.?);
     try std.testing.expectEqual(@as(usize, 0), fixture.lanes[0].active.items.len + fixture.lanes[1].active.items.len);
     try std.testing.expect((try fixture.store.messageById(messages[0].id())) == null);
-    try std.testing.expectEqual(@as(usize, 0), fixture.owner.retained_bytes);
+    // Only the published View pointer capacity remains; aborted handoff owns no bytes.
+    try std.testing.expectEqual(fixture.controls[0].snapshot.retainedBytes() + fixture.controls[1].snapshot.retainedBytes(), fixture.owner.retained_bytes);
+    try std.testing.expect(fixture.controls[0].relay_reservation == null and fixture.controls[1].relay_reservation == null);
+    try std.testing.expectEqual(@as(usize, 0), fixture.controls[0].snapshot.rows.items.len + fixture.controls[1].snapshot.rows.items.len);
     rpc.thread.join();
     try std.testing.expect(rpc.fixture.failure == null);
 }
@@ -757,7 +774,10 @@ test "native public relay running reserve timeout aborts without partial handoff
     try std.testing.expectEqual(relay_api.FailureMetric.processor_saturated, caller.result.?.failure.?.metric);
     try std.testing.expectEqual(@as(usize, 0), fixture.lanes[0].active.items.len + fixture.lanes[1].active.items.len);
     try std.testing.expect((try fixture.store.messageById(messages[0].id())) == null);
-    try std.testing.expectEqual(@as(usize, 0), fixture.owner.retained_bytes);
+    // Only the published View pointer capacity remains; aborted handoff owns no bytes.
+    try std.testing.expectEqual(fixture.controls[0].snapshot.retainedBytes() + fixture.controls[1].snapshot.retainedBytes(), fixture.owner.retained_bytes);
+    try std.testing.expect(fixture.controls[0].relay_reservation == null and fixture.controls[1].relay_reservation == null);
+    try std.testing.expectEqual(@as(usize, 0), fixture.controls[0].snapshot.rows.items.len + fixture.controls[1].snapshot.rows.items.len);
     rpc.thread.join();
     try std.testing.expect(rpc.fixture.failure == null);
 }

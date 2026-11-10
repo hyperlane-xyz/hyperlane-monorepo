@@ -22,7 +22,7 @@ from case_supervisor import CAPS,pin,write,kernel_receipt
 
 CASE_CODE=('verifier_cache.py','custody.py','controller_resources.py','case_cohort.py','case_supervisor.py','case_delegate.py','case_specs.py','inner.py','bridge_close.py','namespace_policy.py','public_proof.py','cache_server.py','case_launcher.mjs','bootstrap.mjs','clock.mjs','prepare_manifest.mjs','public-profile.json.gz','closed-cache-assets.json.gz')
 VERIFIERS=('zig/integration/native_case_inputs.py','zig/bench/native_case_ci.py','zig/bench/native_payload_export.py','zig/tools/build_cpu.py','zig/bench/native_case_tools.py','zig/bench/native_harness_census.py','zig/integration/native_rows_interop.py')
-GRANT_SHA=('c76c8bff61ee1dd23398b13ca812fb34' '2959b2cb12ea50c6f1de06005b11baed')
+GRANT_SHA=('2e39f0415c3de2588fa80bc913931e81' '4bfaf8b816227d7e21abd4cbc03cbad6')
 GIB=1024**3
 
 
@@ -49,7 +49,7 @@ def unique(rows):
 def parameters(grant_pin,assets):
     need(grant_pin['sha256']==GRANT_SHA,'original closed publisher grant required')
     grant=load(grant_pin);expected={row['url']:row['file']for row in grant['assets']}
-    need(len(expected)==19 and type(assets)is list and len(assets)==19,'exact19 publisher aliases required')
+    need(len(expected)==21 and type(assets)is list and len(assets)==21,'exact21 publisher aliases required')
     need({row['url']for row in assets}==set(expected),'parameter alias changed')
     physical={}
     for row in assets:
@@ -59,7 +59,7 @@ def parameters(grant_pin,assets):
         checked(value)
         if value['sha256']in physical:need(value==physical[value['sha256']],'one actual path per unique parameter required')
         physical[value['sha256']]=value
-    need(len(physical)==10 and sum(row['bytes']for row in physical.values())==104671946,'exact ten parameter files only')
+    need(len(physical)==11 and sum(row['bytes']for row in physical.values())==129837778,'exact eleven parameter files only')
     paths=[Path(row['path'])for row in physical.values()];parents={p.parent for p in paths}
     need(len(parents)==1,'one closed owned resource directory required')
     directory=next(iter(parents));need({p.name for p in directory.iterdir()}=={p.name for p in paths},'parameter directory contains unapproved members')

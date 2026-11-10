@@ -113,10 +113,15 @@ pub const Fixture = struct {
             const connection = try self.server.accept();
             const index = self.acceptedCount();
             var record = Record{};
-            readRequest(connection.stream, &record) catch |err| {
+            const complete = readRequest(connection.stream, &record) catch |err| {
                 connection.stream.close();
                 return err;
             };
+            if (!complete) {
+                // A canceled connection with no request bytes is not a request.
+                connection.stream.close();
+                continue;
+            }
             const path_index = std.fmt.parseInt(usize, record.pathText()[1..], 10) catch return error.FixtureBadPath;
             if (path_index >= self.behaviors.len) return error.FixtureMissingBehavior;
             const behavior = self.behaviors[path_index];
@@ -171,7 +176,7 @@ fn delayedReply(stream: std.net.Stream, reply: Reply) void {
     stream.writeAll(reply.body) catch return;
 }
 
-fn readRequest(stream: std.net.Stream, record: *Record) !void {
+fn readRequest(stream: std.net.Stream, record: *Record) !bool {
     var input: [8192]u8 = undefined;
     var used: usize = 0;
     var header_end: ?usize = null;
@@ -186,7 +191,10 @@ fn readRequest(stream: std.net.Stream, record: *Record) !void {
         var fd = [_]std.posix.pollfd{.{ .fd = stream.handle, .events = std.posix.POLL.IN, .revents = 0 }};
         if (try std.posix.poll(&fd, 20) == 0) continue;
         const got = try stream.read(input[used..]);
-        if (got == 0) return error.FixtureUnexpectedEof;
+        if (got == 0) {
+            if (used == 0) return false;
+            return error.FixtureUnexpectedEof;
+        }
         used += got;
         if (header_end == null) if (std.mem.indexOf(u8, input[0..used], "\r\n\r\n")) |end| {
             header_end = end;
@@ -198,6 +206,7 @@ fn readRequest(stream: std.net.Stream, record: *Record) !void {
     if (length > record.body.len) return error.FixtureBodyTooLarge;
     @memcpy(record.body[0..length], input[end + 4 ..][0..length]);
     record.body_len = length;
+    return true;
 }
 
 fn parseHeaders(input: []const u8, record: *Record, content_length: *?usize) !void {
@@ -246,3 +255,80 @@ pub fn config(library: []const u8, urls: []const []const u8, strategy: pool.Stra
 
 pub const chain_id_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}";
 pub const chain_id_ok = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1\"}";
+
+test "pool fixture serves a real request after an empty preheader close" {
+    const replies = [_]Reply{.{ .body = "{\"ok\":true}" }};
+    const behaviors = [_]Behavior{.{ .replies = &replies }};
+    var fixture = try Fixture.init(1, &behaviors);
+    try fixture.start();
+    defer fixture.deinit();
+    const abandoned = try std.net.tcpConnectToAddress(fixture.server.listen_address);
+    abandoned.close();
+    const client = try std.net.tcpConnectToAddress(fixture.server.listen_address);
+    defer client.close();
+    try client.writeAll("POST /0 HTTP/1.1\r\nHost: fixture\r\nContent-Length: 2\r\n\r\n{}");
+    var response: [512]u8 = undefined;
+    var used: usize = 0;
+    var timer = try std.time.Timer.start();
+    while (used < response.len and timer.read() < 2 * std.time.ns_per_s) {
+        var descriptors = [_]std.posix.pollfd{.{ .fd = client.handle, .events = std.posix.POLL.IN, .revents = 0 }};
+        if (try std.posix.poll(&descriptors, 10) == 0) continue;
+        const count = try client.read(response[used..]);
+        if (count == 0) break;
+        used += count;
+    }
+    fixture.stop.store(true, .release);
+    fixture.thread.?.join();
+    fixture.thread = null;
+    try fixture.check();
+    try std.testing.expect(std.mem.startsWith(u8, response[0..used], "HTTP/1.1 200 Fixture\r\n"));
+    try std.testing.expect(std.mem.endsWith(u8, response[0..used], "{\"ok\":true}"));
+    try std.testing.expectEqual(@as(usize, 1), fixture.acceptedCount());
+    try std.testing.expectEqual(@as(usize, 1), fixture.pathHits(0));
+    try std.testing.expectEqual(@as(usize, 0), fixture.probeHits(0));
+    try std.testing.expectEqualStrings("/0", fixture.records[0].pathText());
+    try std.testing.expectEqualStrings("{}", fixture.records[0].bodyText());
+}
+
+test "pool fixture still rejects every nonempty partial header or body EOF" {
+    const replies = [_]Reply{.{ .body = "unused" }};
+    const behaviors = [_]Behavior{.{ .replies = &replies }};
+    for ([_][]const u8{
+        "POST /0 HTTP/1.1\r\nHost: fixture\r\nContent-Length: 2\r\n",
+        "POST /0 HTTP/1.1\r\nHost: fixture\r\nContent-Length: 4\r\n\r\n{}",
+    }) |request| {
+        var fixture = try Fixture.init(1, &behaviors);
+        defer fixture.deinit();
+        const Watched = struct {
+            fixture: *Fixture,
+            done: std.atomic.Value(bool) = .init(false),
+            fn serve(self: *@This()) void {
+                self.fixture.serve();
+                self.done.store(true, .release);
+            }
+        };
+        var watched: Watched = .{ .fixture = &fixture };
+        const thread = try std.Thread.spawn(.{}, Watched.serve, .{&watched});
+        var joined = false;
+        defer if (!joined) {
+            fixture.stop.store(true, .release);
+            thread.join();
+        };
+        {
+            const client = try std.net.tcpConnectToAddress(fixture.server.listen_address);
+            defer client.close();
+            try client.writeAll(request);
+        }
+        var timer = try std.time.Timer.start();
+        while (!watched.done.load(.acquire) and timer.read() < 2 * std.time.ns_per_s) std.Thread.sleep(std.time.ns_per_ms);
+        const finished_before_stop = watched.done.load(.acquire);
+        fixture.stop.store(true, .release);
+        thread.join();
+        joined = true;
+        try std.testing.expect(finished_before_stop);
+        try std.testing.expectError(error.FixtureUnexpectedEof, fixture.check());
+        try std.testing.expectEqual(@as(usize, 0), fixture.acceptedCount());
+        try std.testing.expectEqual(@as(usize, 0), fixture.pathHits(0));
+        try std.testing.expectEqual(@as(usize, 0), fixture.probeHits(0));
+    }
+}

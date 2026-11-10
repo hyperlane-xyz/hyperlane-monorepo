@@ -220,8 +220,16 @@ def kernel_tmpfs(text):
 def fixture_waits(path, scenario, parent):
     rows = [json.loads(line) for line in checked(pin(path)).read_text().splitlines()]
     if scenario=='tron':
-        require(len(rows)==2 and len({r.get('pid')for r in rows})==2 and all(type(r.get('pid'))is int and r['pid']>0 and r.get('role')=='fixture-docker'and r.get('parent_pid')==parent and r.get('parent_wait_completed')is True and r.get('forced_kill')is False and r.get('purpose')=='fixture_teardown'and r.get('already_exited')is False and r.get('success')is True and type(r.get('exit_code'))is int and r['exit_code']==0 and r.get('signal')is None for r in rows),'TRE+PG require two actual clean foreground Child waits; no Kathy/anvil credit')
-        require({r.get('planned_container_stop',{}).get('kind')for r in rows}=={'tron','postgres'},'Separate TRE and PG stop receipts required');return rows
+        require(len(rows)==2 and len({r.get('pid')for r in rows})==2 and all(type(r.get('pid'))is int and r['pid']>0 and r.get('role')=='fixture-docker'and r.get('parent_pid')==parent and r.get('parent_wait_completed')is True and r.get('forced_kill')is False and r.get('purpose')=='fixture_teardown'and r.get('already_exited')is False and r.get('success')is True and type(r.get('exit_code'))is int and r.get('signal')is None for r in rows),'TRE+PG require two actual clean foreground Child waits; no Kathy/anvil credit')
+        require(all(type(r.get('planned_container_stop'))is dict for r in rows)and {r['planned_container_stop'].get('kind')for r in rows}=={'tron','postgres'},'Separate TRE and PG stop receipts required')
+        for row in rows:
+            planned=row['planned_container_stop']
+            if planned['kind']=='tron'and row['exit_code']==143:
+                # success means accepted planned stop, never a zero-exit claim.
+                token=row.get('os_start_token');fields=token.split()if type(token)is str else []
+                require(set(planned)=={'cause','container_id','kind','port','pre_stop_live_identity','already_exited_scope','completed_before_original_deadline','exact_owned_CID_absent','acceptance_failed_before_cleanup'}and planned['cause']=='owned_docker_stop'and type(planned['port'])is int and planned['port']==9090 and planned['already_exited_scope']=='before_owned_container_stop'and planned['completed_before_original_deadline']is True and planned['exact_owned_CID_absent']is True and planned['acceptance_failed_before_cleanup']is False and row.get('planned_exit')is True and type(token)is str and 0<len(token)<=4096 and len(fields)>=8 and fields[0]==str(row['pid'])and fields[1]==str(parent)and planned['pre_stop_live_identity']==token and type(planned['container_id'])is str and len(planned['container_id'])==64 and all(c in '0123456789abcdef'for c in planned['container_id']),'TRE143 requires exact timely owned planned-stop evidence')
+            else:require(row['exit_code']==0,'Only planned TRE143 or original zero fixture exit accepted')
+        return rows
     roles = ['fixture-anvil','fixture-kathy','fixture-postgres'] if scenario=='evm' else ['fixture-docker', 'fixture-hypd' if scenario=='cosmosnative' else 'fixture-osmosisd', 'fixture-hypd' if scenario=='cosmosnative' else 'fixture-osmosisd']
     if scenario=='radix':roles=['fixture-docker']
     if scenario=='sealevel':roles=['fixture-docker','fixture-svm-SOL']

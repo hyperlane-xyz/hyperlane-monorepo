@@ -119,6 +119,55 @@ class CaseOwnerTests(unittest.TestCase):
             changed=copy.deepcopy(rows);changed[0][field]=value;save(changed)
             with self.subTest(field=field),self.assertRaises(ValueError):api.fixture_waits(path,'cosmosnative',42)
 
+    def tron_planned_stop_rows(self):
+        rows=[]
+        for pid,kind,port,code in [(70,'tron',9090,143),(71,'postgres',5432,0)]:
+            token=str(pid)+' 42 70 70 S Mon Jan 1 00:00:00 2026 docker'
+            rows.append({'pid':pid,'role':'fixture-docker','parent_pid':42,'parent_wait_completed':True,'forced_kill':False,'purpose':'fixture_teardown','already_exited':False,'success':True,'exit_code':code,'signal':None,'planned_exit':True,'os_start_token':token,'planned_container_stop':{'kind':kind,'port':port,'cause':'owned_docker_stop','container_id':'c'*64,'pre_stop_live_identity':token,'already_exited_scope':'before_owned_container_stop','completed_before_original_deadline':True,'exact_owned_CID_absent':True,'acceptance_failed_before_cleanup':False}})
+        return rows
+
+    def save_tron_waits(self,rows):
+        path=self.root/'tron-waits.jsonl';path.write_text(''.join(json.dumps(row)+'\n'for row in rows));return path
+
+    def test_tron_planned143_preserves_raw_status_and_original_zero_pair(self):
+        rows=self.tron_planned_stop_rows()
+        try:actual=api.fixture_waits(self.save_tron_waits(rows),'tron',42)
+        except ValueError:self.fail('Source-owned planned TRE143 was rejected as zero-only')
+        self.assertEqual(actual,rows);self.assertEqual(actual[0]['exit_code'],143);self.assertIsNone(actual[0]['signal']);self.assertTrue(actual[0]['success'])
+        rows[0]['exit_code']=0;self.assertEqual(api.fixture_waits(self.save_tron_waits(rows),'tron',42),rows)
+        # Generic semantics replays this admitted Source slice with only require
+        # supplied. Keep the new planned-status check self-contained there.
+        import ast
+        source=ast.parse(Path(api.__file__).read_text());fn=next(n for n in source.body if isinstance(n,ast.FunctionDef)and n.name=='fixture_waits')
+        wrapper=ast.FunctionDef(name='validate',args=ast.arguments(posonlyargs=[],args=[ast.arg(arg=n)for n in ('rows','scenario','parent')],kwonlyargs=[],kw_defaults=[],defaults=[]),body=fn.body[1:],decorator_list=[])
+        env={'require':api.require};exec(compile(ast.fix_missing_locations(ast.Module(body=[wrapper],type_ignores=[])),'actual-fixture-source-replay','exec'),env)
+        rows[0]['exit_code']=143;self.assertEqual(env['validate'](rows,'tron',42),rows)
+
+
+    def test_tron_planned143_rejects_each_missing_changed_or_false_owned_stop_guard(self):
+        original=self.tron_planned_stop_rows()
+        row_poisons=[('parent_wait_completed',False),('forced_kill',True),('already_exited',True),('success',False),('planned_exit',False),('parent_pid',43),('pid',True),('role','fixture-anvil'),('purpose','final'),('signal',15),('os_start_token',''),('os_start_token','PRIVATE'),('os_start_token','x'*4097)]
+        planned_poisons=[('cause','other'),('port',9091),('port',True),('already_exited_scope','after_stop'),('completed_before_original_deadline',False),('exact_owned_CID_absent',False),('acceptance_failed_before_cleanup',True),('pre_stop_live_identity','different'),('container_id','C'*64),('container_id','c'*63),('container_id',None),('extra',True)]
+        for group,poisons in [('row',row_poisons),('planned',planned_poisons)]:
+            for key,value in poisons:
+                rows=copy.deepcopy(original);target=rows[0]if group=='row'else rows[0]['planned_container_stop'];target[key]=value
+                with self.subTest(group=group,key=key),self.assertRaises(ValueError):api.fixture_waits(self.save_tron_waits(rows),'tron',42)
+        for key in original[0]['planned_container_stop']:
+            rows=copy.deepcopy(original);del rows[0]['planned_container_stop'][key]
+            with self.subTest(missing=key),self.assertRaises((ValueError,KeyError)):api.fixture_waits(self.save_tron_waits(rows),'tron',42)
+
+    def test_tron_planned143_is_not_pg_other_nonzero_or_OS_signal_authority(self):
+        original=self.tron_planned_stop_rows()
+        for code in [1,2,125,126,127,130,137,139,255,True]:
+            rows=copy.deepcopy(original);rows[0]['exit_code']=code
+            with self.subTest(code=code),self.assertRaises(ValueError):api.fixture_waits(self.save_tron_waits(rows),'tron',42)
+        rows=copy.deepcopy(original);rows[0]['exit_code']=0;rows[1]['exit_code']=143
+        with self.assertRaises(ValueError):api.fixture_waits(self.save_tron_waits(rows),'tron',42)
+        rows=copy.deepcopy(original);rows[0]['planned_container_stop']['kind']='foreign'
+        with self.assertRaises(ValueError):api.fixture_waits(self.save_tron_waits(rows),'tron',42)
+        rows=copy.deepcopy(original);rows[0].update(exit_code=None,signal=15)
+        with self.assertRaises(ValueError):api.fixture_waits(self.save_tron_waits(rows),'tron',42)
+
     def bootstrap_plan(self):
         script=self.root/'fake-helper.py'
         script.write_text('#!'+sys.executable+'\nimport json,os\nfrom pathlib import Path\nPath(os.environ["NATIVE_TEST_MARKER"]).write_text(json.dumps({"pid":os.getpid()}))\n')

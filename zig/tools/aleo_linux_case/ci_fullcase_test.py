@@ -890,17 +890,17 @@ class ForeignTransportClassifications(unittest.TestCase):
  def test_srs_all_Source_known_degrees_shifted_and_unknown_metadata(self):
   for degree in range(15,26):
    for shifted in [False,True]:
-    url='https://parameters.provable.com/mainnet/'+('shifted-'if shifted else'')+'powers-of-beta-'+str(degree)+'.usrs.0000000';row=self.classification('foreign transport:'+url)['classes'][0];self.assertIn('srs_filename',row);value=row['srs_filename'];self.assertEqual((value['degree'],value['shifted']),(degree,shifted));self.assertEqual(value['filename_metadata_relation'],'SOURCE_ASSET_VERSION_TAG_DIFFERENT'if degree<=18 or(degree==19 and not shifted)else'NO_ADMITTED_SOURCE_METADATA');self.assertNotIn('SDK_checksum_match',value)
+    url='https://parameters.provable.com/mainnet/'+('shifted-'if shifted else'')+'powers-of-beta-'+str(degree)+'.usrs.0000000';row=self.classification('foreign transport:'+url)['classes'][0];self.assertIn('srs_filename',row);value=row['srs_filename'];self.assertEqual((value['degree'],value['shifted']),(degree,shifted));self.assertEqual(value['filename_metadata_relation'],'SOURCE_ASSET_VERSION_TAG_DIFFERENT'if degree<=19 else'NO_ADMITTED_SOURCE_METADATA');self.assertNotIn('SDK_checksum_match',value)
   for filename in ('powers-of-beta-14.usrs.0000000','powers-of-beta-26.usrs.0000000','powers-of-beta-019.usrs.0000000','powers-of-beta-19.usrs.PRIVATE_TAG'):
    out=self.classification('foreign transport:https://parameters.provable.com/mainnet/'+filename);row=out['classes'][0];self.assertIn('srs_filename',row)
    if 'PRIVATE'in filename:
     self.assertEqual(row['srs_filename']['suffix_shape'],'OTHER');self.assertNotIn('PRIVATE_TAG',json.dumps(out))
    else:self.assertEqual(row['srs_filename'],{'status':'unavailable'})
- def test_unshifted19_is_Source_filename_metadata_only_and_shifted19_stays_unadmitted(self):
+ def test_both_degree19_variants_are_Source_metadata_only_without_exact_request_credit(self):
   known='https://parameters.provable.com/mainnet/powers-of-beta-19.usrs.e535d44';row=self.classification('foreign transport:'+known)['classes'][0]
   self.assertEqual(row['asset_relation'],'SOURCE_ASSET_ORIGIN_AND_PATH');self.assertEqual(row['srs_filename'],{'status':'observed','degree':19,'shifted':False,'suffix_shape':'HEX7','filename_metadata_relation':'SOURCE_ASSET_VERSION_TAG_MATCH'})
   shifted='https://parameters.provable.com/mainnet/shifted-powers-of-beta-19.usrs.662e343';row=self.classification('foreign transport:'+shifted)['classes'][0]
-  self.assertEqual(row['asset_relation'],'SOURCE_ASSET_ORIGIN_OTHER_PATH');self.assertEqual(row['srs_filename']['filename_metadata_relation'],'NO_ADMITTED_SOURCE_METADATA');self.assertFalse(self.classification('foreign transport:'+known)['exact_asset_href_observed'])
+  self.assertEqual(row['asset_relation'],'SOURCE_ASSET_ORIGIN_AND_PATH');self.assertEqual(row['srs_filename']['filename_metadata_relation'],'SOURCE_ASSET_VERSION_TAG_MATCH');self.assertFalse(self.classification('foreign transport:'+known)['exact_asset_href_observed'])
 
  def test_srs_aggregation_bound_and_optional_field_preserves_old_counts(self):
   for degree in range(15,26):self.record('foreign transport:https://parameters.provable.com/mainnet/powers-of-beta-'+str(degree)+'.usrs.0000000')

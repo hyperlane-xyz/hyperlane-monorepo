@@ -1290,7 +1290,7 @@ def validate_record(value,modules):
 
 RELAYER_STARTUP_SOURCE = (
     ('zig/src/service_main.zig', 15166, '6b9101771890b56a5303975c7f1433ea' + 'fc5cacc23b7f548f0d083356d32cca78'),
-    ('zig/src/agents/relayer_task.zig', 163776, '2161d89399ec666ff1bf66a2f577004e' + '8f5d78a2e6588e6e61a33c4798307dbd'),
+    ('zig/src/agents/relayer_task.zig', 164542, 'b7a2a20a2eac2db5a11cec97ef361b47' + '90ee397936a618281332ed647534c516'),
     ('zig/src/runtime/lane_owner.zig', 10263, '694159949d9c7b67cba9e4514812dc7e' + 'e3ab2f284afdf5c3336704522d7d722b'),
     ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),
     ('zig/src/agents/origin_tasks.zig', 20356, '26b7a93daddea7e5866499a9bb685aaa' + '9e3ffbbb4e59a79eb425f8db5be566d3'),
@@ -1301,7 +1301,7 @@ RELAYER_STARTUP_SOURCE = (
     ('zig/src/ops/critical_metrics.zig', 5138, 'a7e1125be31ca9dd320659188f6a438f' + '176dd0a7035ab23c13a865709bbabec8'),
     ('zig/src/ops/health_metrics.zig', 2432, 'db829a94c2c6091b39db646c2017948a' + '6d93c09e9462714b781abe13ef11c576'),
     ('zig/src/ops/routes.zig', 1778, '9396bbf0696c0dceed740770a96c8677' + '3bfccac6f03327f108b991c4dcad4037'),
-    ('zig/src/ops/admin/api.zig', 39480, '06e58abacaa25a682d9e68ad03b0ab0c' + 'c741228784d0d024726cf36243850d68'),
+    ('zig/src/ops/admin/api.zig', 39413, '0a9ab8fba34ea13c55adc7796b5af708' + '554ec0b3e14bf9a155fb0f7b1c7b69db'),
     ('zig/src/agents/chain_source.zig', 38677, '1a3a84779465123ae1d35a7b8cf02070' + '8f5444d5e08c1d802b35f2740d3523ee'),
     ('zig/src/agents/scraper/factory.zig', 4790, '1111dc5800e33ea665c8b869594e2c7b' + 'df38f2a22562c068f3353a4646c0ce73'),
     ('zig/src/evm/provider.zig', 46267, '52a65850b3388fc8c8ae8c87cc2fd174' + '9b078b056fbde0e212aa59d6230cf9eb'),
@@ -1687,7 +1687,7 @@ RADIX_SCRAPER_SOURCE = (
     ('zig/src/radix/sbor.zig', 11342, 'bf22610337733294df42cf51a7a60dbf' + '904feaa0767940bc9022739468862e84'),
     ('rust/main/utils/run-locally/src/radix/mod.rs', 17600, '7792d33957b75fee20925e56d82e7332' + '95310c575cddbed10c9ff59d65fc6461'),
     ('rust/main/utils/run-locally/src/program.rs', 18930, 'fd74db13536484d524e31b2188b6ef0a' + 'c8713422d0a63bf0eba7f60186751510'),
-    ('rust/main/utils/run-locally/src/external_agents.rs', 347719, '24ee825613f4fa258af2dc4496addc420' + '943a916c051800b2fa742e6fc99e9cc'),
+    ('rust/main/utils/run-locally/src/external_agents.rs', 354800, '78c950955bef473b889fd0f6529995fc' + 'd32cd34e76924051c1fa745dc57a91a9'),
     ('rust/main/utils/run-locally/src/main.rs', 30900, 'a8e847063664cec776617dace03309dc' + 'e2ebe9c8cd5798108fe8c487d9ac0aaf'),
 )
 

@@ -2043,7 +2043,9 @@ fn tron_stop_receipt(
         // that command had intentionally caused the foreground client to exit.
         already_exited: false,
         forced_kill,
-        success: status.success() && !forced_kill && completed_before_deadline,
+        success: (status.success() || planned_tron_term_exit("tron", &status))
+            && !forced_kill
+            && completed_before_deadline,
         exit_code: status.code(),
         signal: status.signal(),
         purpose: "fixture_teardown".into(),
@@ -2115,6 +2117,14 @@ fn tron_cli_program_with(
         .bin(fixture.pnpm.path)
         .working_dir(directory)
         .flag("config.verify-deps-before-run=false"))
+}
+
+// A foreground `docker run` propagates its container command's exit code.
+// Only the admitted TRE planned SIGTERM shutdown has the additional 143 status.
+// This classifies policy acceptance; the receipt retains the actual code/signal.
+fn planned_tron_term_exit(kind: &str, status: &std::process::ExitStatus) -> bool {
+    use std::os::unix::process::ExitStatusExt;
+    kind == "tron" && status.code() == Some(143) && status.signal().is_none()
 }
 
 // Fixed native container teardown. Callers first authorize exact case labels,
@@ -2247,7 +2257,7 @@ fn stop_fixed_container_with(
         && !token.is_empty()
         && !forced
         && on_time
-        && status.success()
+        && (status.success() || planned_tron_term_exit(kind, &status))
         && absent;
     let row = ChildExit {
         pid: child.id(),
@@ -8575,10 +8585,24 @@ setInterval(()=>{{}},1000);"#,
             row["planned_container_stop"]["container_id"],
             witness.container_id
         );
+        let term = std::process::ExitStatus::from_raw(143 << 8);
+        let term_row = tron_stop_receipt(&witness, term, false, true).unwrap();
+        assert_eq!(term_row["success"], true);
+        assert_eq!(term_row["exit_code"], 143);
+        assert!(term_row["signal"].is_null());
+        for kind in ["postgres", "starknet", "foreign", "Tron"] {
+            assert!(!planned_tron_term_exit(kind, &term));
+        }
+        for code in [1, 2, 125, 126, 127, 130, 137, 139, 255] {
+            let status = std::process::ExitStatus::from_raw(code << 8);
+            assert!(!planned_tron_term_exit("tron", &status));
+        }
         for (status, forced, on_time) in [
             (256, false, true),
             (15, false, true),
             (0, true, true),
+            (143 << 8, true, true),
+            (143 << 8, false, false),
             (0, false, false),
         ] {
             assert_eq!(
@@ -8598,6 +8622,82 @@ setInterval(()=>{{}},1000);"#,
             tron_stop_receipt(&missing, std::process::ExitStatus::from_raw(0), false, true)
                 .is_err()
         );
+        assert!(tron_stop_receipt(&missing, term, false, true).is_err());
+        // Exercise the actual shared stop path with a benign real foreground
+        // child. Docker responses are fixtures; no Docker/container is invoked.
+        for (kind, prior_failure, preexisting) in [
+            ("tron", false, false),
+            ("postgres", false, false),
+            ("tron", true, false),
+            ("tron", false, true),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let mut m = postgres_test_fixture(root.path(), &"a".repeat(32));
+            fs::create_dir_all(&m.verifier.evidence_root).unwrap();
+            m.verifier_tools
+                .insert("docker".into(), actual_artifact("/bin/sh"));
+            m.verifier_tools
+                .insert("ps".into(), actual_artifact("/bin/ps"));
+            let owned = pg_owned_inspection(&m);
+            let mut child = TestChild(Some(
+                Command::new("/bin/sh")
+                    .args(["-c", "read ignored; exit 143"])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::null())
+                    .spawn()
+                    .unwrap(),
+            ));
+            let mut input = child.stdin.take();
+            if preexisting {
+                drop(input.take());
+                assert_eq!(child.wait().unwrap().code(), Some(143));
+            }
+            let primary = prior_failure.then(|| eyre::eyre!("controlled prior acceptance failure"));
+            let outcome = stop_fixed_container_with(
+                &m,
+                &mut child,
+                (kind, if kind == "tron" { 9090 } else { 5432 }),
+                &owned,
+                primary,
+                Instant::now() + Duration::from_secs(2),
+                |args, _| {
+                    if args[0] == "stop" {
+                        assert_eq!(args[3], "c".repeat(64));
+                        drop(input.take());
+                        Ok((true, String::new()))
+                    } else {
+                        assert_eq!(args, &["container", "inspect", &"c".repeat(64)]);
+                        Ok((false, format!("No such container: {}", "c".repeat(64))))
+                    }
+                },
+            );
+            let accepted = kind == "tron" && !prior_failure && !preexisting;
+            assert_eq!(outcome.is_ok(), accepted);
+            if prior_failure {
+                assert!(outcome
+                    .as_ref()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("controlled prior acceptance failure"));
+            }
+            assert_eq!(child.wait().unwrap().code(), Some(143));
+            let journal = if accepted {
+                "fixture-parent-waits.jsonl"
+            } else {
+                "fixture-container-stop-failures.jsonl"
+            };
+            let raw = fs::read_to_string(m.verifier.evidence_root.join(journal)).unwrap();
+            let receipt: serde_json::Value = serde_json::from_str(raw.trim()).unwrap();
+            assert_eq!(receipt["success"], accepted);
+            assert_eq!(receipt["exit_code"], 143);
+            assert!(receipt["signal"].is_null());
+            assert_eq!(receipt["already_exited"], preexisting);
+            assert_eq!(receipt["parent_wait_completed"], true);
+            assert_eq!(
+                receipt["planned_container_stop"]["exact_owned_CID_absent"],
+                true
+            );
+        }
     }
     fn pg_owned_inspection(m: &Manifest) -> serde_json::Value {
         let spec = postgres_fixture(m).unwrap();

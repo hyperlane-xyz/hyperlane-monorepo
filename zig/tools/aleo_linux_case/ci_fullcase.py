@@ -273,13 +273,13 @@ def namespace_foreign_transport_observation(errors,repo,admitted_sources,read_re
   fields=[{k.value:v for k,v in zip(n.keys,n.values)if isinstance(k,ast.Constant)and type(k.value)is str}for n in policies];fields=[n for n in fields if 'rpc_ports'in n and 'cache_port'in n];need(len(fields)==1,'unique fixed port Source')
   ports=ast.literal_eval(fields[0]['rpc_ports']);cache=ast.literal_eval(fields[0]['cache_port']);need(type(ports)is list and len(ports)==10 and len(set(ports))==10 and all(type(v)is int and 1024<v<65536 for v in ports)and type(cache)is int and cache in ports,'fixed policy port Source')
   compressed=source('zig/tools/aleo_linux_case/closed-cache-assets.json.gz');d=zlib.decompressobj(31);body=d.decompress(compressed,256*1024+1);need(len(body)<=256*1024 and d.eof and not d.unused_data and not d.unconsumed_tail,'bounded Source asset metadata');grant=decode(body)
-  aliases=grant['assets'];need(type(aliases)is list and len(aliases)==19 and all(type(v)is dict and type(v.get('url'))is str for v in aliases),'exact Source19 aliases');urls=[urlsplit(v['url'])for v in aliases];need(len({v['url']for v in aliases})==19 and all(v.scheme=='https'and v.hostname and not v.username and not v.password and not v.query and not v.fragment for v in urls),'closed Source asset aliases');origins={(v.scheme,v.netloc)for v in urls};paths={v.path for v in urls};pairs={(v.scheme,v.netloc,v.path)for v in urls}
+  aliases=grant['assets'];need(type(aliases)is list and len(aliases)==21 and all(type(v)is dict and type(v.get('url'))is str for v in aliases),'exact Source21 aliases');urls=[urlsplit(v['url'])for v in aliases];need(len({v['url']for v in aliases})==21 and all(v.scheme=='https'and v.hostname and not v.username and not v.password and not v.query and not v.fragment for v in urls),'closed Source asset aliases');origins={(v.scheme,v.netloc)for v in urls};paths={v.path for v in urls};pairs={(v.scheme,v.netloc,v.path)for v in urls}
   rpc=grant['owned_rpc_origins'];need(type(rpc)is list and len(rpc)==6 and len(set(rpc))==6,'fixed Source RPC origins');rpc=[urlsplit(v)for v in rpc];owned_cache=urlsplit(grant['owned_cache_origin']);need(all(v.scheme=='http'and v.hostname=='127.0.0.1'and v.port in ports and not v.path and not v.query and not v.fragment and not v.username and not v.password for v in [*rpc,owned_cache])and owned_cache.port==cache,'Source origins agree fixed policy');rpc_ports={v.port for v in rpc}
-  # These version tags are ONLY the already admitted Source19 filenames.
+  # These version tags are ONLY the already admitted Source21 filenames.
   # The SDK WASM checksum table is a runtime dependency, not Source54 input.
   srs_files={v.path.rsplit('/',1)[-1]for v in urls if re.fullmatch(r'/(?:mainnet|mainnet.parameters)/(?:shifted-)?powers-of-beta-1[5-9]\.usrs\.[0-9a-f]{7}',v.path)}
   srs_stems={v.rsplit('.',1)[0]for v in srs_files}
-  need(len(srs_files)==9 and srs_stems==({prefix+'powers-of-beta-'+str(degree)+'.usrs'for prefix in ('','shifted-')for degree in range(15,19)}|{'powers-of-beta-19.usrs'}),'fixed Source SRS filename metadata')
+  need(len(srs_files)==10 and srs_stems=={prefix+'powers-of-beta-'+str(degree)+'.usrs'for prefix in ('','shifted-')for degree in range(15,20)},'fixed Source SRS filename metadata')
   counts={};unknown=0
   for error in errors:
    try:
@@ -309,7 +309,7 @@ def namespace_foreign_transport_observation(errors,repo,admitted_sources,read_re
    if row['path_shape']=='PARAMETER_SRS':
     row['srs_filename']={'status':'unavailable'}if key[5]=='UNOBSERVED'else{'status':'observed','degree':int(key[5]),'shifted':key[6]=='YES','suffix_shape':key[7],'filename_metadata_relation':key[8]}
    classes.append(row)
-  return {'status':'observed','classified_count':sum(counts.values()),'unavailable_count':unknown,'classes':classes[:8],'classes_truncated':len(classes)>8,'method_observed':False,'query_observed':False,'caller_observed':False,'exact_asset_href_observed':False,'Source_basis':'admitted Source19 aliases and fixed case-policy ports','raw_URL_host_path_suffix_or_private_hash_exported':False,'cause_or_acceptance_authority':False}
+  return {'status':'observed','classified_count':sum(counts.values()),'unavailable_count':unknown,'classes':classes[:8],'classes_truncated':len(classes)>8,'method_observed':False,'query_observed':False,'caller_observed':False,'exact_asset_href_observed':False,'Source_basis':'admitted Source21 aliases and fixed case-policy ports','raw_URL_host_path_suffix_or_private_hash_exported':False,'cause_or_acceptance_authority':False}
  except BaseException:return unavailable
 
 
