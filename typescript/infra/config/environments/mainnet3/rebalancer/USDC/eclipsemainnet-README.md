@@ -26,8 +26,11 @@ part of this configuration. Failed native automatic redemption requires manual
 recovery using the logged source transaction/retryable identity. Tracking remains
 in memory; process restarts can lose outstanding work, as accepted for this rollout.
 
-The registry pin includes the Elysium route from registry PR #1792. Before
-production activation, use an accepted Elysium-containing registry revision and
+The registry pin rebases the Elysium route from registry PR #1792 onto registry
+main `53094a44`, retaining the Eclipse synthetic mint required for balance reads.
+It is published on the separate `codex/usdc-eclipse-monitor-registry-nov10`
+validation branch; the original registry PR is unchanged. Before production
+activation, use an accepted Elysium-containing registry revision and
 verify deployed router enrollment, collateral identity, signer permissions and gas.
 The pinned amd64 image was built from shared-stack commit `11861e50a5` and
 verified against its published digest and revision label. It includes Relay,
