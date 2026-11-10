@@ -313,5 +313,68 @@ class EventMembershipTests(unittest.TestCase):
             self.verify_batch([calls[0]] * 4, messages, probe)
 
 
+
+class CatchupMeasurementTests(unittest.TestCase):
+    def test_deliveries_before_readiness_still_include_full_interval(self):
+        # Synthetic clocks, not an agent benchmark. The old denominator counted
+        # all32 while excluding990ms of the1000ms actual launch interval.
+        result = bench.catchup_measurements(32, 1_000_000_000, 1_990_000_000, 2_000_000_000)
+        self.assertEqual(result['launch_to_caught_up_messages_per_second'], 32)
+        self.assertEqual(result['launch_to_caught_up_ms'], 1000)
+        self.assertEqual(result['post_readiness_catchup_ms'], 10)
+        self.assertEqual(result['catchup_backlog_messages'], 32)
+        self.assertNotIn('catchup_messages_per_second', result)
+
+    def test_readiness_cannot_change_same_end_to_end_completion_rate(self):
+        for ready in [1_000_000_000, 1_500_000_000, 2_000_000_000]:
+            result = bench.catchup_measurements(7, 1_000_000_000, ready, 2_000_000_000)
+            self.assertEqual(result['launch_to_caught_up_messages_per_second'], 7)
+        result = bench.catchup_measurements(3, 0, 1, 100_000)
+        self.assertEqual(result['launch_to_caught_up_messages_per_second'], 30000)
+        self.assertEqual(result['launch_to_caught_up_ms'], .1)
+
+    def test_invalid_count_or_clock_does_not_become_clamped_throughput(self):
+        for args in [(0, 0, 1, 2), (True, 0, 1, 2), (1, 0, 0, 0), (1, 2, 1, 3), (1, 0, 3, 2), (1, -1, 0, 2), (1, 0, 1.0, 2), (1, False, 1, 2)]:
+            with self.subTest(args=args), self.assertRaises(RuntimeError):
+                bench.catchup_measurements(*args)
+
+    def test_pending_backlog_is_variable_unique_undelivered_and_exact_count(self):
+        messages = [{'id': str(i)} for i in range(7)]
+        queried = []
+        self.assertEqual(bench.pending_backlog_count(messages, 7, lambda row: queried.append(row['id']) or False), 7)
+        self.assertEqual(queried, [str(i) for i in range(7)])
+        for rows, expected in [(messages, 6), ([{'id':'same'}, {'id':'same'}], 2), ([], 0), (messages, True)]:
+            with self.subTest(expected=expected), self.assertRaises(RuntimeError):
+                bench.pending_backlog_count(rows, expected, lambda row: False)
+        with self.assertRaisesRegex(RuntimeError, 'already delivered'):
+            bench.pending_backlog_count(messages, 7, lambda row: row['id']=='2')
+
+    def test_pending_verification_failures_do_not_start_or_measure_agent(self):
+        def broken(row): raise ValueError('fixture read failed')
+        with self.assertRaisesRegex(ValueError, 'fixture read failed'):
+            bench.pending_backlog_count([{'id':'one'}], 1, broken)
+        with mock.patch.object(bench.time, 'perf_counter_ns', side_effect=AssertionError('measurement started')), mock.patch.object(bench.subprocess, 'Popen', side_effect=AssertionError('agent started')):
+            self.assertEqual(bench.pending_backlog_count([{'id':'one'}], 1, lambda row:False), 1)
+
+    def test_actual_measurement_consumers_and_prelaunch_query_scope(self):
+        import ast
+        source = pathlib.Path(bench.__file__).read_text()
+        tree = ast.parse(source)
+        attempt = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name=='run_attempt')
+        calls = [n for n in ast.walk(attempt) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name)]
+        pending = [n for n in calls if n.func.id=='pending_backlog_count']
+        launches = [n for n in calls if n.func.id=='launch']
+        self.assertEqual(len(pending),1)
+        self.assertLess(pending[0].lineno, min(n.lineno for n in launches))
+        self.assertEqual(ast.unparse(pending[0]), 'pending_backlog_count(messages, args.catchup, delivered)')
+        self.assertIn('**catchup_measurements(backlog_count, daemon_start_ns, ready_ns, caught_ns)', source)
+        self.assertIn('"direct_delivered_queries": backlog_count, "inside_relayer_timer": False', source)
+        self.assertNotIn('"median_catchup_messages_per_second"', source)
+        self.assertNotIn('row["catchup_messages_per_second"]', source)
+        self.assertIn('"median_launch_to_caught_up_messages_per_second"', source)
+        self.assertIn('"median_post_readiness_catchup_ms"', source)
+        self.assertIn('"ms launch to backlog delivered"', source)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

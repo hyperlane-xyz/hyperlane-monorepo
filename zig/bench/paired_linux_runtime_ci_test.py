@@ -111,7 +111,7 @@ class Request(Fixture):
         _,value=self.enabled();self.file('zig/bench/native_case_request.json',b'{"root_approved":true}')
         value['required_source']=[self.file(r['path'],b'{"root_approved":true}')if r['path']=='zig/bench/native_case_request.json'else r for r in value['required_source']]
         with self.assertRaisesRegex(c.Refused,'selector'):self.admit(value)
-        self.assertEqual(len((REPO/'zig/bench/paired_linux_methods.json').read_bytes()),11229);self.assertEqual(hashlib.sha256((REPO/'zig/bench/paired_linux_methods.json').read_bytes()).hexdigest(),c.METHODS_SHA)
+        self.assertEqual(len((REPO/'zig/bench/paired_linux_methods.json').read_bytes()),12131);self.assertEqual(hashlib.sha256((REPO/'zig/bench/paired_linux_methods.json').read_bytes()).hexdigest(),c.METHODS_SHA)
     def test_captured_metadata_replacement_and_nonfinite_duplicate_rejected(self):
         row=self.document('fixed.json',{'root_approved':False});(self.repo/'fixed.json').write_text('{"root_approved":true}')
         with self.assertRaises(c.Refused):c.data(row,self.repo)
@@ -295,5 +295,27 @@ class Workflow(unittest.TestCase):
                     assignments=[n for n in nodes if isinstance(n,ast.Assign)];loads=ast.literal_eval(next(n.value for n in assignments if any(isinstance(t,ast.Name)and t.id=='LOADS'for t in n.targets)));required={p for _,p in loads}|set(ast.literal_eval(literal.right))
                 else:required=set(ast.literal_eval(literal))
                 self.assertTrue(required<=c.REQUIRED_SOURCE)
+
+class RelayerCatchupMethodControls(unittest.TestCase):
+    def test_actual_pure_helpers_preserve_full_backlog_interval_and_pending_work(self):
+        # Existing pre-workload CI route: compile only these two pure helpers,
+        # never import/start the benchmark or its ABI/agent/transport modules.
+        tree=ast.parse((REPO/'zig/bench/relayer.py').read_bytes())
+        names={'pending_backlog_count','catchup_measurements'}
+        nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in names]
+        self.assertEqual({n.name for n in nodes},names);self.assertEqual(len(nodes),2)
+        scope={};exec(compile(ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[])),'<relayer-catchup-pure-controls>','exec'),scope)
+        rows=[{'id':str(i)}for i in range(7)];queried=[]
+        count=scope['pending_backlog_count'](rows,7,lambda row:queried.append(row['id'])or False)
+        self.assertEqual(count,7);self.assertEqual(queried,[str(i)for i in range(7)])
+        for ready in [1_000_000_000,1_990_000_000,2_000_000_000]:
+            actual=scope['catchup_measurements'](count,1_000_000_000,ready,2_000_000_000)
+            self.assertEqual(actual['launch_to_caught_up_messages_per_second'],7)
+            self.assertEqual(actual['launch_to_caught_up_ms'],1000)
+        self.assertEqual(actual['post_readiness_catchup_ms'],0)
+        with self.assertRaises(RuntimeError):scope['pending_backlog_count'](rows,7,lambda row:True)
+        with self.assertRaises(RuntimeError):scope['pending_backlog_count']([{'id':'same'},{'id':'same'}],2,lambda row:False)
+        with self.assertRaises(RuntimeError):scope['catchup_measurements'](7,0,0,0)
+
 
 if __name__=='__main__':unittest.main(verbosity=2)

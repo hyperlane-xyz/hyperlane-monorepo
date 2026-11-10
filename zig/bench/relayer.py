@@ -848,6 +848,27 @@ def batch_membership_proof(messages, receipts, chains, mailboxes, contracts, max
     return {"verified": True, "maximum_configured": max_batch_size, "group_size_histogram": dict(sorted(histogram.items())), "batched_message_count": sum(group["calls"] for group in groups), "singleton_message_count": histogram[1], "groups": groups}
 
 
+def pending_backlog_count(messages, expected, delivered):
+    """Pre-launch fixture verification, outside the measured daemon interval."""
+    if type(expected) is not int or expected <= 0 or len(messages) != expected or len({row["id"] for row in messages}) != expected:
+        raise RuntimeError("catchup backlog count/unique identities differ")
+    if any(delivered(message) for message in messages):
+        raise RuntimeError("catchup backlog already delivered before daemon launch")
+    return expected
+
+
+def catchup_measurements(count, launch_ns, ready_ns, caught_ns):
+    """Completion rate for the full verified backlog, including startup."""
+    if type(count) is not int or count <= 0 or any(type(value) is not int for value in [launch_ns, ready_ns, caught_ns]) or not 0 <= launch_ns <= ready_ns <= caught_ns or caught_ns == launch_ns:
+        raise RuntimeError("positive ordered catchup interval required")
+    return {
+        "catchup_backlog_messages": count,
+        "launch_to_caught_up_ms": (caught_ns - launch_ns) / 1e6,
+        "post_readiness_catchup_ms": (caught_ns - ready_ns) / 1e6,
+        "launch_to_caught_up_messages_per_second": count * 1e9 / (caught_ns - launch_ns),
+    }
+
+
 def run_attempt(name, sample, args, binaries, output):
     raw_dir = output / "raw" / f"sample-{sample}-{name}"
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -1012,6 +1033,7 @@ def run_attempt(name, sample, args, binaries, output):
                     mailbox = domains[f"test{message['destination'] - ORIGIN + 1}"]["mailbox"]
                     return int(target.rpc("eth_call", [{"to": mailbox, "data": evm.calldata("delivered(bytes32)", message["id"])}, "latest"]), 16) == 1
 
+                backlog_count = pending_backlog_count(messages, args.catchup, delivered)
                 signer_nonce_before = int(chain.rpc("eth_getTransactionCount", [evm.TEST_SIGNER, "latest"]), 16)
                 signer_nonce_alt_before = int(chain_alt.rpc("eth_getTransactionCount", [evm.TEST_SIGNER, "latest"]), 16)
                 with (raw_dir / "relayer-first.log").open("wb") as log:
@@ -1186,9 +1208,8 @@ def run_attempt(name, sample, args, binaries, output):
                     "contract_artifacts": {contract: chunks(hashlib.sha256(bytes.fromhex(bytecode)).hexdigest()) for contract, bytecode in contracts.items()},
                     "readiness_ms": (ready_ns - daemon_start_ns) / 1e6,
                     "launch_to_ready_ms": (ready_ns - daemon_start_ns) / 1e6,
-                    "launch_to_caught_up_ms": (caught_ns - daemon_start_ns) / 1e6,
-                    "catchup_ms": (caught_ns - ready_ns) / 1e6,
-                    "catchup_messages_per_second": args.catchup / max(0.001, (caught_ns - ready_ns) / 1e9),
+                    **catchup_measurements(backlog_count, daemon_start_ns, ready_ns, caught_ns),
+                    "prelaunch_fixture_verification": {"backlog_messages": backlog_count, "unique_ids": True, "all_undelivered": True, "direct_delivered_queries": backlog_count, "inside_relayer_timer": False},
                     "freshness_ms": fresh_latencies,
                     "effective_steady_interval_ms": args.steady_interval_ms,
                     "freshness_percentiles_ms": {quantile: percentile(fresh_latencies, value) for quantile, value in [("p50", 0.5), ("p95", 0.95), ("p99", 0.99)]},
@@ -1428,7 +1449,7 @@ def main():
                 row = run_attempt(name, sample, args, pinned, args.output)
                 manifest["raw_samples"].append(row)
                 persist()
-                print(name, sample, round(row["catchup_ms"], 1), "ms catchup", flush=True)
+                print(name, sample, round(row["launch_to_caught_up_ms"], 1), "ms launch to backlog delivered", flush=True)
             except Exception as error:
                 partial_path = args.output / "raw" / f"sample-{sample}-{name}" / "partial-summary.json"
                 partial = json.loads(partial_path.read_text()) if partial_path.exists() else None
@@ -1453,10 +1474,10 @@ def main():
         manifest["summary"][name] = {
             "samples": len(rows),
             "median_launch_to_caught_up_ms": statistics.median(row["launch_to_caught_up_ms"] for row in rows),
-            "median_catchup_ms": statistics.median(row["catchup_ms"] for row in rows),
+            "median_post_readiness_catchup_ms": statistics.median(row["post_readiness_catchup_ms"] for row in rows),
             "median_confirmation_hold_ms": statistics.median(row["confirmation_hold_ms"] for row in rows),
             "median_processed_retirement_ms": statistics.median(row["processed_retirement_ms"] for row in rows),
-            "median_catchup_messages_per_second": statistics.median(row["catchup_messages_per_second"] for row in rows),
+            "median_launch_to_caught_up_messages_per_second": statistics.median(row["launch_to_caught_up_messages_per_second"] for row in rows),
             "freshness_percentiles_ms": {quantile: percentile(fresh, value) for quantile, value in [("p50", 0.5), ("p95", 0.95), ("p99", 0.99)]},
             "median_cpu_seconds": statistics.median(row["first_stop"]["user_seconds"] + row["first_stop"]["system_seconds"] for row in rows),
             "median_max_rss_bytes": statistics.median(row["first_stop"]["max_rss_bytes"] for row in rows),

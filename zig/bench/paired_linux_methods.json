@@ -466,5 +466,15 @@
         ["rust", "zig"]
       ]
     }
-  ]
+  ],
+  "relayer_catchup_measurement": {
+    "revision": "launch-to-caught-up-v1",
+    "count": "actual unique undelivered backlog verified before daemon launch; configured catchup count, not a hardcoded32",
+    "interval": "daemon constructor start to complete canonical delivered observation for that backlog, including readiness/startup",
+    "rate_field": "launch_to_caught_up_messages_per_second",
+    "rate": "verified backlog count divided by strictly positive full interval seconds; no0.001s clamp",
+    "latency_only_field": "post_readiness_catchup_ms; no all-backlog throughput derived from this partial interval",
+    "fixture_verification": "one direct delivered query per backlog message outside the daemon timer, included in fixture direct RPC count",
+    "confirmation": "completion rate ends at delivery; unchanged600-second confirmation/retirement and restart proofs follow separately"
+  }
 }

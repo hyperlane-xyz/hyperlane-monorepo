@@ -325,6 +325,19 @@ Additional correctness evidence, outside performance samples:
 
 These tests do not replace the pending final matched workload comparison.
 
+For new paired relayer runs, `launch_to_caught_up_messages_per_second` divides
+that trial's verified unique, initially undelivered backlog by the full interval
+from daemon launch to observation that every backlog message was delivered. The
+pre-launch fixture performs one direct `delivered` query per message, outside
+the daemon timer and included in fixture RPC counts. `post_readiness_catchup_ms`
+retains the partial interval after readiness as latency only: some deliveries
+may already precede readiness, so it cannot supply the denominator for all
+backlog messages. The full interval must be positive; no millisecond clamp is
+used. This delivery-completion rate excludes the subsequent, unchanged
+600-second confirmation/retirement and same-database restart checks. Historical
+result files keep their original bytes and field meanings. The immutable Linux
+method authority records this corrected definition for future runs.
+
 The earlier303-vs-98 RPC snapshot used explicit `rpcConsensusType="majority"`,
 which both production Rust and the Zig settings oracle interpret as checkpoint
 consensus. It is not a classic/null-consensus fallback measurement. Its extra

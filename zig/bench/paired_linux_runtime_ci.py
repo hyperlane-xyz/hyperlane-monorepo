@@ -21,7 +21,7 @@ BRANCH='refs/heads/feat/zig-agent-rewrite'
 WORKFLOW='.github/workflows/zig-agents.yml'
 SELF='zig/bench/paired_linux_runtime_ci.py'
 REQUEST='zig/bench/paired_linux_runtime_request.json'
-METHODS_SHA=('6216aa2fe42f2a2ac69bc9ee36dbeff0' '698d891b0b6bb26406d73505df36b2c0')
+METHODS_SHA=('0ef8f04ec32387abf5cb0be2f72a96f1' '58bd33afd760c6ea1de05cf1257e95f1')
 FIELDS={'schema','kind','root_approved','reuse_header','cohort_qualification','native18_qualification','general_CI_qualification','final_Source_qualification','methods','required_source'}
 MODES=('ReleaseSafe','ReleaseFast')
 FAMILIES=('evm','cosmosnative','cosmwasm','starknet','tron','sealevel','sealevel-composite','radix','aleo')
@@ -127,7 +127,7 @@ def request(path,expected,repo):
     for item in final['runtime_608']:captured(item,repo,16*1024**2)
     captured(final['Root_readback'],repo);context['runtime_608']=final['runtime_608'];context['final']=final
     header=data(value['reuse_header'],repo);need(header.get('root_approved')is True and header.get('producer_source_commit')==context['producer']and header.get('Root_input_accepted')is True and header.get('Root_six_accepted')is True,'Actual original-input/six Root reuse header')
-    need(value['methods']['path']=='zig/bench/paired_linux_methods.json'and value['methods']['bytes']==11229 and value['methods']['sha256']==METHODS_SHA,'Exact committed original methods identity');captured(value['methods'],repo);return context
+    need(value['methods']['path']=='zig/bench/paired_linux_methods.json'and value['methods']['bytes']==12131 and value['methods']['sha256']==METHODS_SHA,'Exact committed original methods identity');captured(value['methods'],repo);return context
 
 def evidence(context):
     rows=[context['request'][key]for key in FIELDS-{'schema','kind','root_approved','required_source'}]
