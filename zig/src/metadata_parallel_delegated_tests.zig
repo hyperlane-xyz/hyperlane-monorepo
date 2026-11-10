@@ -31,6 +31,7 @@ const Fixture = struct {
     max_active: std.atomic.Value(usize) = .init(0),
     refusal_index: ?usize = null,
     invalid_verify: ?usize = null,
+    verify_error: ?anyerror = null,
     unpriced: bool = false,
     message_id_index: ?usize = null,
     pending_from: ?usize = null,
@@ -196,6 +197,7 @@ const Source = struct {
         if (self.fixture.pending_verify_index == index and self.fixture.verify_calls.fetchAdd(1, .acq_rel) < self.fixture.pending_verify_passes) return error.PendingReadIo;
         if (self.fixture.pending_verify and !self.fixture.verify_ready[index].swap(true, .acq_rel)) return error.PendingReadIo;
         if (self.fixture.invalid_verify == index) return .{ .valid = false };
+        if (self.fixture.verify_error) |err| return err;
         return .{ .valid = true, .cost = if (self.fixture.unpriced) null else 1000 - @as(u256, index) };
     }
 
@@ -1183,6 +1185,24 @@ fn metadataRpcResponse(allocator: A, body: []const u8, member_count: usize) ![]u
     return error.UnexpectedMetadataCalldata;
 }
 
+const NativeMetadataWrites = struct {
+    module_type: std.atomic.Value(usize) = .init(0),
+    members: std.atomic.Value(usize) = .init(0),
+    verify: std.atomic.Value(usize) = .init(0),
+    gas: std.atomic.Value(usize) = .init(0),
+
+    fn record(self: *NativeMetadataWrites, request: NativeMetadataSchedule.Call) void {
+        const counter = switch (request.kind) {
+            .root_module_type, .module_type => &self.module_type,
+            .root_members => &self.members,
+            .verify => &self.verify,
+            .gas => &self.gas,
+            .other => return,
+        };
+        _ = counter.fetchAdd(1, .acq_rel);
+    }
+};
+
 const NativeMetadataServer = struct {
     listener: std.net.Server,
     stop: std.atomic.Value(bool) = .init(false),
@@ -1191,6 +1211,7 @@ const NativeMetadataServer = struct {
     schedule: ?*NativeMetadataSchedule = null,
     member_count: usize = 16,
     hits: [16]std.atomic.Value(usize) = @splat(.init(0)),
+    successful_writes: NativeMetadataWrites = .{},
     stalled: [4096]std.net.Stream = undefined,
     stalled_count: usize = 0,
 
@@ -1199,6 +1220,7 @@ const NativeMetadataServer = struct {
     }
 
     fn start(self: *NativeMetadataServer) !void {
+        if (self.schedule) |schedule| schedule.successful_writes = &self.successful_writes;
         self.thread = try std.Thread.spawn(.{}, serve, .{self});
     }
 
@@ -1296,7 +1318,13 @@ const NativeMetadataServer = struct {
                 return;
             }
         }
-        if (try writeMetadataResponse(stream, response)) if (self.schedule) |schedule| schedule.sent(try NativeMetadataSchedule.call(body));
+        if (try writeMetadataResponse(stream, response)) {
+            if (self.schedule) |schedule| {
+                schedule.sent(try NativeMetadataSchedule.call(body));
+            } else {
+                self.successful_writes.record(NativeMetadataSchedule.call(body) catch .{ .kind = .other });
+            }
+        }
     }
 };
 
@@ -1366,6 +1394,9 @@ const NativePoolFailureRecord = struct {
     metadata_storage_errors: usize,
     metadata_awaiting_signatures: usize,
     metadata_verification_failures: usize,
+    verification_error_classes: struct { deadline: usize, rejected: usize, abi: usize, rpc: usize, other: usize },
+    // Successful server writes are not validated upstream completions or votes.
+    successful_response_writes: struct { module_type: usize, members: usize, verify: usize, gas: usize },
     stalled_path_hits: [8]usize,
     healthy_path_hits: [8]usize,
 };
@@ -1389,6 +1420,19 @@ fn nativePoolFailureSnapshot(failure: anyerror, observer: *const MetadataPoolObs
         .metadata_storage_errors = diagnostics.storage_errors,
         .metadata_awaiting_signatures = diagnostics.awaiting_signatures,
         .metadata_verification_failures = diagnostics.verification_failures,
+        .verification_error_classes = .{
+            .deadline = diagnostics.verification_deadline,
+            .rejected = diagnostics.verification_rejected,
+            .abi = diagnostics.verification_abi,
+            .rpc = diagnostics.verification_rpc,
+            .other = diagnostics.verification_other,
+        },
+        .successful_response_writes = .{
+            .module_type = server.successful_writes.module_type.load(.acquire),
+            .members = server.successful_writes.members.load(.acquire),
+            .verify = server.successful_writes.verify.load(.acquire),
+            .gas = server.successful_writes.gas.load(.acquire),
+        },
         .stalled_path_hits = stalled,
         .healthy_path_hits = healthy,
     };
@@ -1407,14 +1451,55 @@ test "native Pool failure record projects existing counters and preserves unknow
     observer.attempt_timeouts.store(1, .release);
     var server: NativeMetadataServer = .{ .listener = undefined };
     for (0..16) |index| server.hits[index].store(index + 10, .release);
+    const allocator = std.testing.allocator;
+    const root = try parallel.Root.start(allocator, .{});
+    defer root.deinit();
+    const failures = [_]anyerror{ error.RequestDeadlineExceeded, error.UpstreamReadTimeout, error.VerifyRejected, error.InvalidAbi, error.InvalidGasEstimate, error.RpcError, error.PRIVATE_ERROR_DO_NOT_EXPORT };
+    for (failures, 0..) |failure, index| {
+        var fixture: Fixture = .{ .child_count = 2, .threshold = 2, .verify_error = failure, .pending_verify_index = 0, .pending_verify_passes = 1 };
+        var cancel = std.atomic.Value(bool).init(false);
+        var source: Source = .{ .allocator = allocator, .fixture = &fixture, .cancel = &cancel };
+        var builder: metadata.Builder(Source) = .{ .allocator = allocator, .source = &source, .executor = &root.executor };
+        try std.testing.expectError(error.AggregationThresholdNotMet, builder.build(@splat(0), message()));
+        try drain(root, &fixture);
+        try std.testing.expectEqual(@as(usize, 2), builder.diagnostics.verification_failures);
+        const classes = [_]usize{ builder.diagnostics.verification_deadline, builder.diagnostics.verification_rejected, builder.diagnostics.verification_abi, builder.diagnostics.verification_rpc, builder.diagnostics.verification_other };
+        const expected: usize = if (index < 2) 0 else if (index == 2) 1 else if (index < 5) 2 else if (index == 5) 3 else 4;
+        for (classes, 0..) |count, class| try std.testing.expectEqual(@as(usize, if (class == expected) 2 else 0), count);
+    }
+    var rejected: Fixture = .{ .child_count = 2, .threshold = 2, .invalid_verify = 0 };
+    var rejected_cancel = std.atomic.Value(bool).init(false);
+    var rejected_source: Source = .{ .allocator = allocator, .fixture = &rejected, .cancel = &rejected_cancel };
+    var rejected_builder: metadata.Builder(Source) = .{ .allocator = allocator, .source = &rejected_source, .executor = &root.executor };
+    try std.testing.expectError(error.AggregationThresholdNotMet, rejected_builder.build(@splat(0), message()));
+    try drain(root, &rejected);
+    try std.testing.expectEqual(@as(usize, 1), rejected_builder.diagnostics.verification_failures);
+    try std.testing.expectEqual(@as(usize, 1), rejected_builder.diagnostics.verification_rejected);
+    server.successful_writes.record(.{ .kind = .root_module_type });
+    server.successful_writes.record(.{ .kind = .module_type });
+    server.successful_writes.record(.{ .kind = .root_members });
+    server.successful_writes.record(.{ .kind = .verify });
+    var schedule: NativeMetadataSchedule = .{ .runtime = undefined, .successful_writes = &server.successful_writes };
+    schedule.sent(.{ .kind = .gas, .member = 0 });
+    server.successful_writes.record(.{ .kind = .other });
     const options: evm.provider.Options = .{ .timeout_ms = 20000, .connect_timeout_ms = 20000 };
-    const record = nativePoolFailureSnapshot(error.AggregationThresholdNotMet, &observer, &server, .{ .storage_errors = 4, .awaiting_signatures = 5, .verification_failures = 6 }, options, 3, 42);
+    const record = nativePoolFailureSnapshot(error.AggregationThresholdNotMet, &observer, &server, .{ .storage_errors = 4, .awaiting_signatures = 5, .verification_failures = 6, .verification_deadline = 1, .verification_rejected = 1, .verification_abi = 1, .verification_rpc = 1, .verification_other = 2 }, options, 3, 42);
     try std.testing.expectEqual(@as(usize, 3), record.upstream_failures);
     try std.testing.expectEqual(@as(usize, 2), record.request_failures);
     try std.testing.expectEqual(@as(usize, 1), record.attempt_timeouts);
     try std.testing.expectEqual(@as(usize, 4), record.metadata_storage_errors);
     try std.testing.expectEqual(@as(usize, 5), record.metadata_awaiting_signatures);
     try std.testing.expectEqual(@as(usize, 6), record.metadata_verification_failures);
+    try std.testing.expectEqual(@as(usize, 1), record.verification_error_classes.deadline);
+    try std.testing.expectEqual(@as(usize, 1), record.verification_error_classes.rejected);
+    try std.testing.expectEqual(@as(usize, 1), record.verification_error_classes.abi);
+    try std.testing.expectEqual(@as(usize, 1), record.verification_error_classes.rpc);
+    try std.testing.expectEqual(@as(usize, 2), record.verification_error_classes.other);
+    try std.testing.expectEqual(@as(usize, 2), record.successful_response_writes.module_type);
+    try std.testing.expectEqual(@as(usize, 1), record.successful_response_writes.members);
+    try std.testing.expectEqual(@as(usize, 1), record.successful_response_writes.verify);
+    try std.testing.expectEqual(@as(usize, 1), record.successful_response_writes.gas);
+    try std.testing.expectEqual(@as(usize, 1), schedule.gas_responses[0]);
     try std.testing.expectEqual(@as(i64, 3), record.root_next_request_id);
     try std.testing.expectEqual(@as(?u64, 42), record.build_elapsed_ns);
     try std.testing.expectEqual(@as(u32, 20000), record.request_timeout_ms);
@@ -1427,7 +1512,8 @@ test "native Pool failure record projects existing counters and preserves unknow
     const wire = try nativePoolFailureJson(&buffer, record);
     try std.testing.expect(std.mem.indexOf(u8, wire, "aggregation_threshold_not_met") != null);
     try std.testing.expect(std.mem.indexOf(u8, wire, "unknown_not_retained") != null);
-    const unknown = nativePoolFailureSnapshot(error.PRIVATE_ERROR_DO_NOT_EXPORT, &observer, &server, .{}, options, 3, null);
+    const unknown = nativePoolFailureSnapshot(error.PRIVATE_ERROR_DO_NOT_EXPORT, &observer, &server, .{ .verification_failures = 1, .verification_other = 1 }, options, 3, null);
+    try std.testing.expectEqual(@as(usize, 1), unknown.verification_error_classes.other);
     const redacted = try nativePoolFailureJson(&buffer, unknown);
     try std.testing.expect(std.mem.indexOf(u8, redacted, "other_build_error") != null);
     try std.testing.expect(std.mem.indexOf(u8, redacted, "PRIVATE") == null);
@@ -1442,8 +1528,11 @@ test "native Pool failure record stays bounded for maximum numeric counters" {
     observer.attempt_timeouts.store(std.math.maxInt(usize), .release);
     var server: NativeMetadataServer = .{ .listener = undefined };
     for (&server.hits) |*value| value.store(std.math.maxInt(usize), .release);
+    inline for (std.meta.fields(NativeMetadataWrites)) |field| @field(server.successful_writes, field.name).store(std.math.maxInt(usize), .release);
     var buffer: [2048]u8 = undefined;
-    const record = nativePoolFailureSnapshot(error.OutOfMemory, &observer, &server, .{ .storage_errors = std.math.maxInt(usize), .awaiting_signatures = std.math.maxInt(usize), .verification_failures = std.math.maxInt(usize) }, .{ .timeout_ms = std.math.maxInt(u32), .connect_timeout_ms = std.math.maxInt(u32) }, std.math.minInt(i64), std.math.maxInt(u64));
+    var diagnostics: metadata.Diagnostics = .{};
+    inline for (std.meta.fields(metadata.Diagnostics)) |field| @field(diagnostics, field.name) = std.math.maxInt(usize);
+    const record = nativePoolFailureSnapshot(error.OutOfMemory, &observer, &server, diagnostics, .{ .timeout_ms = std.math.maxInt(u32), .connect_timeout_ms = std.math.maxInt(u32) }, std.math.minInt(i64), std.math.maxInt(u64));
     const wire = try nativePoolFailureJson(&buffer, record);
     try std.testing.expect(wire.len < buffer.len);
     var tiny: [1]u8 = undefined;
@@ -1806,6 +1895,7 @@ const NativeMetadataSchedule = struct {
     const Slots = struct { total: usize = 0, module_type: usize = 0, verify: usize = 0, gas: usize = 0, other: usize = 0, rows: [4]Slot = @splat(.{}) };
 
     runtime: *Pool,
+    successful_writes: ?*NativeMetadataWrites = null,
     trace: ?*NativeMetadataTrace = null,
     timer: ?std.time.Timer = null,
     abort: std.atomic.Value(bool) = .init(false),
@@ -1901,6 +1991,7 @@ const NativeMetadataSchedule = struct {
     }
 
     fn sent(self: *NativeMetadataSchedule, request: Call) void {
+        if (self.successful_writes) |writes| writes.record(request);
         const member = request.member orelse return;
         switch (request.kind) {
             .module_type => self.module_responses[member] += 1,

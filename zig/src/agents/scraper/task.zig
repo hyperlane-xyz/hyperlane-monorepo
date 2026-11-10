@@ -418,8 +418,9 @@ pub const TaskSet = struct {
         errdefer a.free(chains);
         var count: usize = configured.chains.len * 4;
         for (configured.chains) |chain| for (configured.role.scraper.ccr_routers) |router| if (router.domain == chain.domain) {
-            if (chain.protocol != .ethereum) return error.UnsupportedCcrProtocol;
-            count += 1;
+            if (chain.protocol == .ethereum) {
+                count += 1;
+            } else std.log.warn("scraper chain={s} CCR only supports Ethereum; skipping", .{chain.name});
             break;
         };
         if (count > 4096) return error.ScraperTaskLimit;
@@ -457,7 +458,7 @@ pub const TaskSet = struct {
             errdefer if (!writer_transferred) a.free(writer);
             var routers: std.ArrayList(ccr.Router) = .empty;
             errdefer routers.deinit(a);
-            for (configured.role.scraper.ccr_routers) |router| if (router.domain == chain.domain) try routers.append(a, .{ .address = router.router, .token = router.token });
+            for (configured.role.scraper.ccr_routers) |router| if (chain.protocol == .ethereum and router.domain == chain.domain) try routers.append(a, .{ .address = router.router, .token = router.token });
             owned.* = .{ .configured = chain, .writer = writer, .routers = try routers.toOwnedSlice(a) };
             owned.critical = .{ .registry = options.metrics, .chain = chain.name };
             owned.required_mask = if (owned.routers.len > 0) 31 else 15;

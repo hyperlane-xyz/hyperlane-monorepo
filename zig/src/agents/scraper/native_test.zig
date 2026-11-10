@@ -200,20 +200,49 @@ test "scraper actual TaskSet validates DB then keeps independent chain lanes laz
     chain.domain = 99994;
     chain.protocol = .ethereum;
     chain.index = .{ .chunk = 10 };
-    var chains = [_]types.Chain{chain};
+    var other = chain;
+    other.name = "isolated-lazy-cosmos-scraper";
+    other.domain = 99989;
+    other.protocol = .cosmosnative;
+    var chains = [_]types.Chain{ chain, other };
     const info = try std.process.getEnvVarOwned(allocator, "ZIGGY_PG_FIXTURE");
     defer allocator.free(info);
     if (!std.mem.startsWith(u8, info, "host=127.0.0.1 port=") or std.mem.indexOf(u8, info, " dbname=ziggy user=ziggy ") == null) return error.NotIsolatedPostgresFixture;
     var configured: config.Settings = undefined;
     configured.chains = &chains;
-    configured.role = .{ .scraper = .{ .ccr_routers = &.{}, .chains_to_scrape = &.{chain.name}, .db = info, .db_max_connections = 2, .db_acquire_timeout_ms = 100 } };
+    configured.role = .{ .scraper = .{
+        .ccr_routers = &.{
+            .{ .domain = chain.domain, .router = .{1} ** 20, .token = .{2} ** 20 },
+            .{ .domain = chain.domain, .router = .{3} ** 20, .token = .{4} ** 20 },
+            .{ .domain = other.domain, .router = .{5} ** 20, .token = .{6} ** 20 },
+        },
+        .chains_to_scrape = &.{ chain.name, other.name },
+        .db = info,
+        .db_max_connections = 2,
+        .db_acquire_timeout_ms = 100,
+    } };
     var env = std.process.EnvMap.init(allocator);
     defer env.deinit();
     const library = std.process.getEnvVarOwned(allocator, "HYPERLANE_CURL_LIBRARY") catch return error.SkipZigTest;
     defer allocator.free(library);
     const tasks = try task.TaskSet.open(allocator, &configured, &env, .{ .curl_library = library });
     defer tasks.deinit();
-    try std.testing.expectEqual(@as(usize, 4), tasks.descriptors().len);
+    try std.testing.expectEqual(@as(usize, 9), tasks.descriptors().len);
+    try std.testing.expectEqual(tasks.descriptors().len, tasks.initialized_lanes);
+    try std.testing.expectEqual(@as(usize, 2), tasks.chains[0].routers.len);
+    try std.testing.expectEqual(@as(usize, 0), tasks.chains[1].routers.len);
+    try std.testing.expectEqual(@as(u8, 31), tasks.chains[0].required_mask);
+    try std.testing.expectEqual(@as(u8, 15), tasks.chains[1].required_mask);
+    var ordinary: [2]usize = .{ 0, 0 };
+    var optional_ccr: [2]usize = .{ 0, 0 };
+    for (tasks.lanes) |lane| {
+        try std.testing.expect(lane.chain.configured.domain == chain.domain or lane.chain.configured.domain == other.domain);
+        const index: usize = if (lane.chain.configured.domain == chain.domain) 0 else 1;
+        if (lane.kind == .ccr) optional_ccr[index] += 1 else ordinary[index] += 1;
+        try std.testing.expect(lane.ccr_lane == null and lane.ccr_page == null);
+    }
+    try std.testing.expectEqual([2]usize{ 4, 4 }, ordinary);
+    try std.testing.expectEqual([2]usize{ 1, 0 }, optional_ccr);
     try std.testing.expectEqual(@as(u64, 1), tasks.database.snapshot().opened);
     var cancelled = std.atomic.Value(bool).init(true);
     for (tasks.descriptors(), 0..) |descriptor, index| {

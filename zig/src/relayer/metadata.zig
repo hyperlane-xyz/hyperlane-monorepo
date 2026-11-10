@@ -27,7 +27,28 @@ pub fn ModuleMembers(comptime ModuleAddress: type) type {
     return struct { addresses: []ModuleAddress, threshold: usize };
 }
 pub const Members = ModuleMembers(Address);
-pub const Diagnostics = struct { storage_errors: usize = 0, awaiting_signatures: usize = 0, verification_failures: usize = 0 };
+pub const Diagnostics = struct {
+    storage_errors: usize = 0,
+    awaiting_signatures: usize = 0,
+    verification_failures: usize = 0,
+    verification_deadline: usize = 0,
+    verification_rejected: usize = 0,
+    verification_abi: usize = 0,
+    verification_rpc: usize = 0,
+    verification_other: usize = 0,
+
+    /// Counts the same failures as before; classes retain no remote/error text.
+    fn verificationFailure(self: *Diagnostics, failure: anyerror) void {
+        self.verification_failures += 1;
+        switch (failure) {
+            error.RequestDeadlineExceeded, error.UpstreamReadTimeout => self.verification_deadline += 1,
+            error.VerifyRejected => self.verification_rejected += 1,
+            error.InvalidAbi, error.InvalidHex, error.InvalidQuantity, error.IntegerOverflow, error.InvalidGasEstimate => self.verification_abi += 1,
+            error.RpcError, error.RpcRemoteError, error.RpcHttpStatus, error.RpcResponseDecode, error.RpcIdMismatch, error.InvalidRpcEnvelope, error.NoQuorumReached => self.verification_rpc += 1,
+            else => self.verification_other += 1,
+        }
+    }
+};
 pub const Verification = struct { valid: bool, cost: ?u256 = null };
 /// Refusal and cooperative-I/O control flow cannot become an absent validator
 /// or an optional failed aggregation branch.
@@ -131,12 +152,12 @@ pub fn Builder(comptime Source: type) type {
                         break :priced verificationResult(source.verify(self.address, operation.message, bytes));
                     }) catch |err| {
                         operation.allocator.free(bytes);
-                        if (err != error.PendingReadIo) builder.diagnostics.verification_failures += 1;
+                        if (err != error.PendingReadIo) builder.diagnostics.verificationFailure(err);
                         return err;
                     };
                     if (!verified.valid) {
                         operation.allocator.free(bytes);
-                        builder.diagnostics.verification_failures += 1;
+                        builder.diagnostics.verificationFailure(error.VerifyRejected);
                         return error.VerifyRejected;
                     }
                     if (!operation.executor.reserveOutput(bytes.len)) {
@@ -549,14 +570,14 @@ pub fn Builder(comptime Source: type) type {
                     self.allocator.free(bytes);
                     if (hardFailure(err)) return err;
                     if (err == error.CcipReadPending) any_pending = true;
-                    self.diagnostics.verification_failures += 1;
+                    self.diagnostics.verificationFailure(err);
                     all_errors_awaiting = false;
                     failures += 1;
                     continue;
                 };
                 if (!verification.valid) {
                     self.allocator.free(bytes);
-                    self.diagnostics.verification_failures += 1;
+                    self.diagnostics.verificationFailure(error.VerifyRejected);
                     all_errors_awaiting = false;
                     failures += 1;
                     continue;
