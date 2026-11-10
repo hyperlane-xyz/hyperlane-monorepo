@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "root_approved": false,
+  "root_approved": true,
   "scenario": "evm",
   "mode": "ReleaseSafe",
   "producer_source_commit": "1b35f5f3253f4cff9c846b669d051492b1219a3a",
