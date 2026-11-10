@@ -167,12 +167,46 @@ class Bridge(unittest.TestCase):
 class Inputs(unittest.TestCase):
     def test_publisher_set_exact_and_no_inclusion(self):
         grant=json.loads(gzip.decompress((HERE/'closed-cache-assets.json.gz').read_bytes()));rows=case_assets.plan(grant)
-        self.assertEqual(len(rows),9);self.assertEqual(sum(r['bytes']for r in rows),79506114)
+        self.assertEqual(len(rows),10);self.assertEqual(sum(r['bytes']for r in rows),104671946)
         self.assertTrue(all('inclusion'not in r['url']for r in rows))
         for changed in (grant['assets'][:-1],grant['assets']+[grant['assets'][0]]):
             with self.assertRaises(ValueError):case_assets.plan({'assets':changed})
         altered=copy.deepcopy(grant);altered['assets'][0]['url']='https://unapproved.example/parameter'
         with self.assertRaises(ValueError):case_assets.plan(altered)
+
+    def test_unshifted_degree19_exact_two_aliases_and_shared_publisher_identity(self):
+        grant=json.loads(gzip.decompress((HERE/'closed-cache-assets.json.gz').read_bytes()))
+        rows=[r for r in grant['assets']if '/powers-of-beta-19.usrs.'in r['url']]
+        expected=('e535d44614ef8e667ac39132cad61516d' 'c4dcbce62d74c396b670b21c9b4e16a')
+        self.assertEqual({r['url']for r in rows},{'https://parameters.provable.com/mainnet/powers-of-beta-19.usrs.e535d44','https://s3.us-west-1.amazonaws.com/mainnet.parameters/powers-of-beta-19.usrs.e535d44'})
+        self.assertEqual(len(rows),2);self.assertEqual(rows[0]['file'],rows[1]['file']);self.assertEqual((rows[0]['file']['bytes'],rows[0]['file']['sha256']),(25165832,expected))
+        self.assertTrue(all('/shifted-powers-of-beta-19.'not in r['url']and '/powers-of-beta-20.'not in r['url']for r in grant['assets']))
+        decoded=gzip.decompress((HERE/'closed-cache-assets.json.gz').read_bytes());self.assertEqual(hashlib.sha256(decoded).hexdigest(),case_assets.GRANT_SHA);self.assertEqual(case_assets.GRANT_SHA,specs.GRANT_SHA)
+        # A single accepted alias cannot be dropped or multiplied into permission.
+        for selected in [grant['assets'][:-1],grant['assets']+[rows[0]]]:
+            with self.assertRaises(ValueError):case_assets.plan({'assets':selected})
+        changed=copy.deepcopy(grant);changed['assets'][-1]['file']['bytes']+=1
+        with self.assertRaises(ValueError):case_assets.plan(changed)
+
+    def test_parameter_inventory_still_binds_exact_aliases_bytes_one_path_and_directory(self):
+        grant=json.loads(gzip.decompress((HERE/'closed-cache-assets.json.gz').read_bytes()))
+        with tempfile.TemporaryDirectory()as temporary:
+            directory=Path(temporary).resolve();assets=[];paths={}
+            for row in grant['assets']:
+                value=dict(row['file']);name=Path(value['path']).name;value['path']=str(directory/name);paths[name]=value;assets.append({'url':row['url'],'file':value})
+            for name in paths:(directory/name).touch()
+            pin={'path':str(directory/'grant.json'),'bytes':1,'sha256':specs.GRANT_SHA}
+            with patch.object(specs,'load',return_value=grant),patch.object(specs,'checked'):
+                self.assertEqual(len(specs.parameters(pin,assets)),10)
+                for changed in (assets[:-1],assets+[assets[0]]):
+                    with self.assertRaises(ValueError):specs.parameters(pin,changed)
+                changed=copy.deepcopy(assets);changed[-1]['file']['sha256']='0'*64
+                with self.assertRaises(ValueError):specs.parameters(pin,changed)
+                changed=copy.deepcopy(assets);changed[-1]['file']['path']=str(directory/'same-SHA-different-path')
+                with self.assertRaises(ValueError):specs.parameters(pin,changed)
+                (directory/'unapproved').touch()
+                with self.assertRaises(ValueError):specs.parameters(pin,assets)
+                with self.assertRaises(ValueError):specs.parameters(dict(pin,sha256='0'*64),assets)
 
     def test_actual_sdk_original_source4_added_without_package_changes(self):
         tree=ast.parse((HERE.parent/'aleo_linux_sdk/sdk_provision.py').read_text())

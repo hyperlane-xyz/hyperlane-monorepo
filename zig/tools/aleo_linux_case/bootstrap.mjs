@@ -49,7 +49,7 @@ export function adaptXhrCaller(source) {
   return executed;
 }
 
-const GRANT_SHA = '50edaa4a75ce4657d3c163e5bf644f1f'+'b90e101d5c879acb06f84e3028e87742';
+const GRANT_SHA = 'c76c8bff61ee1dd23398b13ca812fb34'+'2959b2cb12ea50c6f1de06005b11baed';
 const XHR_PREFIX = "'use strict';var http = require('http'), https = require('https'), fs = require('fs');";
 function requireValue(v, message) { if (!v) throw new Error(message); }
 function sha(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
@@ -83,7 +83,7 @@ export function install(policyPath, expectedSha) {
   verify(policy.node, 160 * 1024 ** 2); verify(policy.diagnostic_ps); requireValue(fs.realpathSync(process.execPath) === policy.node.path, 'Node differs');
   const grant = JSON.parse(fs.readFileSync(policy.grant.path,'utf8'));
   const expected = new Map(grant.assets.map(row => [row.url,row.file]));
-  requireValue(expected.size === 17 && Array.isArray(policy.assets) && policy.assets.length === 17, 'exact17 aliases required');
+  requireValue(expected.size === 19 && Array.isArray(policy.assets) && policy.assets.length === 19, 'exact19 aliases required');
   const assets = new Map();
   for (const row of policy.assets) {
     const approved = expected.get(row.url);

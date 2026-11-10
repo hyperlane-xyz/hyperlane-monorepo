@@ -7,14 +7,14 @@ policy_file=Path(sys.argv[1]);expected=sys.argv[2]
 assert policy_file.resolve()==policy_file and hashlib.sha256(policy_file.read_bytes()).hexdigest()==expected
 p=json.loads(policy_file.read_text());root=Path(p['root']);assert root.resolve()==root
 errors=root/'errors';errors.mkdir(mode=0o700,exist_ok=True);assert errors.resolve()==errors
-grant_pin=p['grant'];assert grant_pin['sha256']==('50edaa4a75ce4657d3c163e5bf644f1f' 'b90e101d5c879acb06f84e3028e87742')
+grant_pin=p['grant'];assert grant_pin['sha256']==('c76c8bff61ee1dd23398b13ca812fb34' '2959b2cb12ea50c6f1de06005b11baed')
 grant_path=Path(grant_pin['path']);assert grant_path.resolve()==grant_path and hashlib.sha256(grant_path.read_bytes()).hexdigest()==grant_pin['sha256']
-grant={r['url']:r['file'] for r in json.loads(grant_path.read_text())['assets']};assert len(grant)==17 and len(p['assets'])==17 and {r['url'] for r in p['assets']}==set(grant)
+grant={r['url']:r['file'] for r in json.loads(grant_path.read_text())['assets']};assert len(grant)==19 and len(p['assets'])==19 and {r['url'] for r in p['assets']}==set(grant)
 assets={}
 for row in p['assets']:
  assert row['file']['sha256']==grant[row['url']]['sha256'] and row['file']['bytes']==grant[row['url']]['bytes']
  f=row['file'];old=assets.get(f['sha256']);assert old is None or old==f;assets[f['sha256']]=f
-assert len(assets)==9
+assert len(assets)==10
 requests=0
 def fail(message):
  if len(list(errors.iterdir()))<128:(errors/(str(os.getpid())+'-server-'+secrets.token_hex(6)+'.json')).write_text(json.dumps({'error':message,'pid':os.getpid()}))

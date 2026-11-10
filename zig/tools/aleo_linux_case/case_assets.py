@@ -1,4 +1,4 @@
-"""Acquisition-only exact nine public parameters. Never used by the proof jail."""
+"""Acquisition-only exact ten public parameters. Never used by the proof jail."""
 import argparse
 import gzip
 import hashlib
@@ -17,11 +17,11 @@ for code_root in (HERE,HERE.parent/'aleo_linux',HERE.parent/'aleo_linux_sdk'):
     if(code_root/'__pycache__').exists()or(code_root/'__pycache__').is_symlink():raise ValueError('full-case profile forbids cached local Python bytecode')
 sys.path.insert(0,str(HERE.parent/'aleo_linux'))
 from receipts import checked,load,need
-GRANT_SHA=('50edaa4a75ce4657d3c163e5bf644f1f' 'b90e101d5c879acb06f84e3028e87742')
+GRANT_SHA=('c76c8bff61ee1dd23398b13ca812fb34' '2959b2cb12ea50c6f1de06005b11baed')
 
 
 def plan(grant):
-    need(type(grant)is dict and len(grant['assets'])==17,'original17 aliases required')
+    need(type(grant)is dict and len(grant['assets'])==19,'exact19 aliases required')
     result={}
     for row in grant['assets']:
         value=row['file'];url=urlsplit(row['url'])
@@ -29,7 +29,7 @@ def plan(grant):
         need(url.hostname in {'parameters.provable.com','s3.us-west-1.amazonaws.com'},'closed publisher hosts required')
         if value['sha256']not in result:result[value['sha256']]={'url':row['url'],'bytes':value['bytes'],'sha256':value['sha256'],'name':Path(value['path']).name}
         else:need(result[value['sha256']]['bytes']==value['bytes'],'conflicting publisher length')
-    need(len(result)==9 and sum(row['bytes']for row in result.values())==79506114,'original9 public parameter bytes only')
+    need(len(result)==10 and sum(row['bytes']for row in result.values())==104671946,'exact10 public parameter bytes only')
     return list(result.values())
 
 

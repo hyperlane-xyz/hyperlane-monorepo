@@ -192,8 +192,8 @@
       "bytes": 25624,
       "sha256": {
         "sha256_hex_chunks": [
-          "572dd9233315bf143363406c09852fc7",
-          "dd7454db3210a307922eed385e5ff654"
+          "6f8bae2ae4395376c1e3adeb3d516a77",
+          "00a90e593ab5b58b6cd37bb12ec50cff"
         ]
       }
     },
@@ -209,21 +209,21 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/cache_server.py",
-      "bytes": 3600,
+      "bytes": 3601,
       "sha256": {
         "sha256_hex_chunks": [
-          "83553d0537ec7f2392bfc713242ea4ce",
-          "c08b9af10892543d63a54b897aec928a"
+          "4faff84c4c6f227206637158de96c008",
+          "9e972468125f90bbcf0b8dabd68351f5"
         ]
       }
     },
     {
       "path": "zig/tools/aleo_linux_case/case_assets.py",
-      "bytes": 6704,
+      "bytes": 6700,
       "sha256": {
         "sha256_hex_chunks": [
-          "8b0a2289d3d9f4252d52cdd27354cc62",
-          "2e8f0c5e9c718030ceb78ee68cccee0a"
+          "73f1fd8b12c130e717cca86a9585da44",
+          "ebe793c4367d7d534a41e2ec83587aba"
         ]
       }
     },
@@ -259,11 +259,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/case_specs.py",
-      "bytes": 26377,
+      "bytes": 26375,
       "sha256": {
         "sha256_hex_chunks": [
-          "cdca02ee8d132584a1fe0695797c4137",
-          "72094bb9122c253bf1cf1a095b2662ca"
+          "ce362760e8c760744c8fc7f29512df0e",
+          "632e4e05bcd6cce797f8d2eef95433b0"
         ]
       }
     },
@@ -289,11 +289,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-      "bytes": 73789,
+      "bytes": 73818,
       "sha256": {
         "sha256_hex_chunks": [
-          "cef3c4b63cf766bee76950cc1f5156ce",
-          "0ee9640d5ee6a7c69355253546b7cfe2"
+          "b68c2c388c0a75266f8ff0872fa37189",
+          "be73de34f67bfa4092dd1cc866050650"
         ]
       }
     },
@@ -309,11 +309,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/closed-cache-assets.json.gz",
-      "bytes": 1748,
+      "bytes": 1994,
       "sha256": {
         "sha256_hex_chunks": [
-          "875923869e887b44a88127aba794406f",
-          "41354951111210b20c2cf4eceb7257fa"
+          "c42ffc0239326cefcd71a9c487f0aab5",
+          "b1a33169c4a89f009b63b064ede6bfcf"
         ]
       }
     },
