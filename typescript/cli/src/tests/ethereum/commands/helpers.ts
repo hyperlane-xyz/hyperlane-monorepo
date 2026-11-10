@@ -435,7 +435,7 @@ export function hyperlaneRelayer(chains: string[], warpRouteId?: string) {
 }
 
 /**
- * True for the two ways a relayer process can already be gone by the time it is
+ * True for the two ways a spawned process can already be gone by the time it is
  * signalled: zx refusing to signal a settled process, and the OS reporting no
  * such process.
  */
@@ -488,27 +488,34 @@ export async function startCcipServer({
   })`pnpm --filter @hyperlane-xyz/ccip-server run start`;
 
   const baseUrl = `http://127.0.0.1:${port}`;
+  const close = async () => {
+    await serverProcess.kill();
+  };
   const deadline = Date.now() + 60_000;
-  for (;;) {
+  while (Date.now() < deadline) {
     try {
       const response = await fetch(`${baseUrl}/health`);
-      if (response.ok) break;
+      if (response.ok) return { baseUrl, close };
     } catch {
       // Not listening yet.
     }
+    const exited = serverProcess.output;
     assert(
-      Date.now() < deadline,
-      `ccip-server on port ${port} did not become healthy`,
+      !exited,
+      `ccip-server on port ${port} exited with code ${exited?.exitCode} before becoming healthy:\n${exited?.stdall}`,
     );
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
-  return {
-    baseUrl,
-    close: async () => {
-      await serverProcess.kill();
-    },
-  };
+  try {
+    await serverProcess.kill();
+  } catch (error) {
+    if (!isAlreadyExitedError(error)) throw error;
+  }
+  const output = await serverProcess;
+  throw new Error(
+    `ccip-server on port ${port} did not become healthy within 60s:\n${output.stdall}`,
+  );
 }
 
 export function createSnapshot(rpcUrl: string) {
