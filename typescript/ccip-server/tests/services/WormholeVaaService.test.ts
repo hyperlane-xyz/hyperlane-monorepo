@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
-import http from 'node:http';
 import { pino } from 'pino';
 import { Registry } from 'prom-client';
 import sinon from 'sinon';
@@ -32,6 +31,11 @@ import {
   encodeWormholePayload,
   parseVaa,
 } from '../../src/services/wormholeVaaMatcher.js';
+import {
+  CLOSED_RPC_URL,
+  createRpcServers,
+  replyJson,
+} from '../utils/rpcServer.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -704,7 +708,6 @@ describe('WormholeVaaService', () => {
   describe('when the route is read over RPC', function () {
     this.timeout(10_000);
 
-    const CLOSED_RPC_URL = 'http://127.0.0.1:1';
     const REVERT_DATA = ethers.utils.hexConcat([
       ethers.utils.id('Error(string)').slice(0, 10),
       ethers.utils.defaultAbiCoder.encode(
@@ -713,55 +716,9 @@ describe('WormholeVaaService', () => {
       ),
     ]);
 
-    const servers: http.Server[] = [];
-    const hanging = new Set<http.ServerResponse>();
+    const rpcServers = createRpcServers();
 
-    /** Serves every JSON-RPC request with the same reply. */
-    async function startRpcServer(
-      respond: (id: number, res: http.ServerResponse) => void,
-    ): Promise<string> {
-      const server = http.createServer((req, res) => {
-        const chunks: Buffer[] = [];
-        req.on('data', (chunk: Buffer) => chunks.push(chunk));
-        req.on('end', () => {
-          const body: unknown = JSON.parse(Buffer.concat(chunks).toString());
-          assert(
-            typeof body === 'object' &&
-              body !== null &&
-              'id' in body &&
-              typeof body.id === 'number',
-            'Unexpected JSON-RPC body',
-          );
-          respond(body.id, res);
-        });
-      });
-      servers.push(server);
-      await new Promise<void>((resolve) =>
-        server.listen(0, '127.0.0.1', resolve),
-      );
-      const address = server.address();
-      assert(address && typeof address === 'object', 'Server not listening');
-      return `http://127.0.0.1:${address.port}`;
-    }
-
-    function replyJson(res: http.ServerResponse, body: unknown): void {
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(body));
-    }
-
-    afterEach(async () => {
-      for (const res of hanging) res.destroy();
-      hanging.clear();
-      await Promise.all(
-        servers.splice(0).map(
-          (server) =>
-            new Promise<void>((resolve) => {
-              server.closeAllConnections();
-              server.close(() => resolve());
-            }),
-        ),
-      );
-    });
+    afterEach(() => rpcServers.close());
 
     interface RpcCase {
       name: string;
@@ -778,7 +735,7 @@ describe('WormholeVaaService', () => {
       {
         name: 'reports an RPC server error as unavailable',
         rpcUrl: () =>
-          startRpcServer((_id, res) => {
+          rpcServers.start((_request, res) => {
             res.statusCode = 503;
             res.end('Service Unavailable');
           }),
@@ -786,13 +743,13 @@ describe('WormholeVaaService', () => {
       },
       {
         name: 'reports an RPC that never replies as unavailable',
-        rpcUrl: () => startRpcServer((_id, res) => hanging.add(res)),
+        rpcUrl: () => rpcServers.start((_request, res) => rpcServers.hang(res)),
         reason: UnhandledErrorReason.RPC_UNAVAILABLE,
       },
       {
         name: 'reports a CCIP sender without code as a missing route',
         rpcUrl: () =>
-          startRpcServer((id, res) =>
+          rpcServers.start(({ id }, res) =>
             replyJson(res, { jsonrpc: '2.0', id, result: '0x' }),
           ),
         reason: UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED,
@@ -800,7 +757,7 @@ describe('WormholeVaaService', () => {
       {
         name: 'reports a CCIP sender that reverts as a missing route',
         rpcUrl: () =>
-          startRpcServer((id, res) =>
+          rpcServers.start(({ id }, res) =>
             replyJson(res, {
               jsonrpc: '2.0',
               id,
@@ -812,7 +769,7 @@ describe('WormholeVaaService', () => {
       {
         name: 'reports a CCIP sender that reverts with a reason as a missing route',
         rpcUrl: () =>
-          startRpcServer((id, res) =>
+          rpcServers.start(({ id }, res) =>
             replyJson(res, {
               jsonrpc: '2.0',
               id,

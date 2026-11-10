@@ -38,8 +38,13 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import {
+  CombinedHookIsmLeafMatcher,
+  pairCombinedHookIsmConfigs,
+} from '../combinedHookIsm/config.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { HookConfig } from '../hook/types.js';
+import { collectHookTreeNodes } from '../hook/utils.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -56,18 +61,28 @@ import {
   scalesEqual,
   verifyScale,
 } from '../utils/decimals.js';
+import { EvmLayerZeroV2HookIsmModule } from '../layerzero/EvmLayerZeroV2HookIsmModule.js';
+import {
+  LAYER_ZERO_V2_LEAF_MATCHER,
+  buildLayerZeroV2MeshConfig,
+  isLayerZeroV2Ism,
+} from '../layerzero/config.js';
+import {
+  DerivedLayerZeroV2HookIsmConfig,
+  LayerZeroV2MeshConfig,
+  LayerZeroV2RemoteRouterConfig,
+} from '../layerzero/types.js';
 import {
   collectHybridIsmNodes,
+  collectIsmTreeNodes,
   combinedHookIsmNodeAddress,
+  mapIsmTreeNodes,
 } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
 import {
-  WormholeConfigPair,
+  WORMHOLE_LEAF_MATCHER,
   buildWormholeMeshConfig,
-  findWormholeHooks,
-  findWormholeIsms,
-  pairWormholeConfigs,
 } from '../wormhole/config.js';
 import {
   DerivedWormholeHookIsmConfig,
@@ -917,19 +932,13 @@ export async function checkWarpRouteDeployConfig({
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
-  const wormholeDiff = await deriveWormholeRemoteRouterDiff({
+  const combinedHookIsmDiffs = await deriveCombinedHookIsmRemoteRouterDiffs({
     multiProvider,
     onChainWarpConfig: expandedOnChainWarpConfig,
     warpDeployConfig,
   });
-  for (const [chain, chainDiff] of Object.entries(wormholeDiff)) {
-    if (!rawEvmDiff[chain]) {
-      rawEvmDiff[chain] = chainDiff;
-      continue;
-    }
-    assertObjectDiffMap(rawEvmDiff[chain], `Unexpected diff for ${chain}`);
-    assertObjectDiffMap(chainDiff, `Unexpected Wormhole diff for ${chain}`);
-    Object.assign(rawEvmDiff[chain], chainDiff);
+  for (const combinedHookIsmDiff of combinedHookIsmDiffs) {
+    mergeChainDiffs(rawEvmDiff, combinedHookIsmDiff);
   }
 
   await addOwnerOverrideDiffs({
@@ -1079,6 +1088,23 @@ function assertTimelockSupportedByProtocols({
   }
 }
 
+/**
+ * Drops the effective configs of every LayerZero ISM pathway. They report the
+ * library defaults a route inherits, which are not part of its desired state.
+ */
+function withoutLayerZeroEffectiveConfigs(ism: IsmConfig): IsmConfig {
+  return mapIsmTreeNodes(ism, isLayerZeroV2Ism, (node) => ({
+    ...node,
+    pathways: objMap(node.pathways, (_chain, pathway) => ({
+      layerZeroDomainId: pathway.layerZeroDomainId,
+      sendLibrary: pathway.sendLibrary,
+      receiveLibrary: pathway.receiveLibrary,
+      sendConfig: pathway.sendConfig,
+      receiveConfig: pathway.receiveConfig,
+    })),
+  }));
+}
+
 export function buildWarpRouteDiff({
   warpRouteConfig,
   onChainWarpConfig,
@@ -1101,6 +1127,19 @@ export function buildWarpRouteDiff({
           },
         };
         return acc;
+      }
+
+      if (expectedDeployedConfig.interchainSecurityModule) {
+        expectedDeployedConfig.interchainSecurityModule =
+          withoutLayerZeroEffectiveConfigs(
+            expectedDeployedConfig.interchainSecurityModule,
+          );
+      }
+      if (currentDeployedConfig.interchainSecurityModule) {
+        currentDeployedConfig.interchainSecurityModule =
+          withoutLayerZeroEffectiveConfigs(
+            currentDeployedConfig.interchainSecurityModule,
+          );
       }
 
       if (typeof expectedDeployedConfig.hook === 'string') {
@@ -1231,18 +1270,19 @@ function combinedHookIsmCountDiff(addresses: Address[]): ObjectDiffLeaf {
  * hook and ISM surfaces. A chain whose instance is missing, duplicated, or split
  * across two addresses is reported in `diff` and left out of `addresses`.
  */
-function resolveCombinedHookIsmAddresses({
+function resolveCombinedHookIsmAddresses<
+  THook extends HookConfig,
+  TIsm extends IsmConfig,
+>({
   chains,
-  label,
+  matcher,
+  diffKey,
   onChainWarpConfig,
-  findHooks,
-  findIsms,
 }: {
   chains: ChainName[];
-  label: string;
+  matcher: CombinedHookIsmLeafMatcher<THook, TIsm>;
+  diffKey: string;
   onChainWarpConfig: DerivedWarpRouteDeployConfig;
-  findHooks: (hook: HookConfig | undefined) => HookConfig[];
-  findIsms: (ism: IsmConfig | undefined) => IsmConfig[];
 }): {
   addresses: Record<ChainName, Address>;
   diff: Record<string, ObjectDiff>;
@@ -1254,13 +1294,14 @@ function resolveCombinedHookIsmAddresses({
     // A chain without an on-chain router is already reported as a missing route.
     if (!actual) continue;
 
-    const hookAddresses = findHooks(actual.hook).map((node) =>
-      combinedHookIsmNodeAddress(chain, node),
+    const hookAddresses = collectHookTreeNodes(actual.hook, matcher.isHook).map(
+      (node) => combinedHookIsmNodeAddress(chain, node),
     );
-    const ismAddresses = findIsms(actual.interchainSecurityModule).map((node) =>
-      combinedHookIsmNodeAddress(chain, node),
-    );
-    const path = ['combinedHookIsm', label];
+    const ismAddresses = collectIsmTreeNodes(
+      actual.interchainSecurityModule,
+      matcher.isIsm,
+    ).map((node) => combinedHookIsmNodeAddress(chain, node));
+    const path = ['combinedHookIsm', diffKey];
     if (hookAddresses.length === 1 && ismAddresses.length === 1) {
       const [hookAddress] = hookAddresses;
       const [ismAddress] = ismAddresses;
@@ -1295,6 +1336,18 @@ function resolveCombinedHookIsmAddresses({
   return { addresses, diff };
 }
 
+/** Placement and remote-router diffs of every combined hook/ISM protocol. */
+async function deriveCombinedHookIsmRemoteRouterDiffs(args: {
+  multiProvider: MultiProvider;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): Promise<Record<string, ObjectDiff>[]> {
+  return [
+    await deriveWormholeRemoteRouterDiff(args),
+    await deriveLayerZeroV2RemoteRouterDiff(args),
+  ];
+}
+
 export async function deriveWormholeRemoteRouterDiff({
   multiProvider,
   onChainWarpConfig,
@@ -1304,16 +1357,18 @@ export async function deriveWormholeRemoteRouterDiff({
   onChainWarpConfig: DerivedWarpRouteDeployConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }): Promise<Record<string, ObjectDiff>> {
-  const pairs = pairWormholeConfigs(warpDeployConfig);
+  const pairs = pairCombinedHookIsmConfigs(
+    WORMHOLE_LEAF_MATCHER,
+    warpDeployConfig,
+  );
   const chains = Object.keys(pairs);
   if (chains.length === 0) return {};
 
   const { addresses, diff } = resolveCombinedHookIsmAddresses({
     chains,
-    label: IsmType.WORMHOLE,
+    matcher: WORMHOLE_LEAF_MATCHER,
+    diffKey: IsmType.WORMHOLE,
     onChainWarpConfig,
-    findHooks: findWormholeHooks,
-    findIsms: findWormholeIsms,
   });
 
   // Enrollments of an unresolved chain have no expected router address, so
@@ -1321,7 +1376,7 @@ export async function deriveWormholeRemoteRouterDiff({
   // is already reported above.
   const resolvedPairs = objFilter(
     pairs,
-    (chain, _pair): _pair is WormholeConfigPair => chain in addresses,
+    (chain, _pair): _pair is (typeof pairs)[ChainName] => chain in addresses,
   );
   const unresolvedChains = chains.filter((chain) => !(chain in addresses));
   const expected = EvmWormholeHookIsmModule.withDeployedRouters(
@@ -1333,6 +1388,100 @@ export async function deriveWormholeRemoteRouterDiff({
     addresses,
   );
   const enrollmentDiff = buildWormholeRemoteRouterDiff(
+    actual,
+    expected,
+    unresolvedChains,
+  );
+  for (const [chain, chainDiff] of Object.entries(enrollmentDiff)) {
+    diff[chain] = chainDiff;
+  }
+  return diff;
+}
+
+function normalizeLayerZeroV2RemoteRouters(
+  remoteRouters: Record<string, LayerZeroV2RemoteRouterConfig>,
+) {
+  return Object.fromEntries(
+    Object.entries(remoteRouters).map(([chain, config]) => [
+      chain,
+      {
+        router: normalizeAddressEvm(config.router),
+        layerZeroDomainId: config.layerZeroDomainId,
+      },
+    ]),
+  );
+}
+
+/**
+ * Compares enrolled LayerZero peers. Pathway libraries and policy are part of
+ * the derived ISM config and are already compared by `buildWarpRouteDiff`.
+ */
+export function buildLayerZeroV2RemoteRouterDiff(
+  actual: Record<string, DerivedLayerZeroV2HookIsmConfig>,
+  expected: LayerZeroV2MeshConfig,
+  unresolvedChains: ChainName[] = [],
+): Record<string, ObjectDiff> {
+  const diff: Record<string, ObjectDiff> = {};
+  for (const [chain, expectedConfig] of Object.entries(expected)) {
+    const actualConfig = actual[chain];
+    if (!actualConfig) continue;
+    const result = diffObjMerge(
+      normalizeLayerZeroV2RemoteRouters(
+        objFilter(
+          actualConfig.remoteRouters,
+          (remote, _route): _route is LayerZeroV2RemoteRouterConfig =>
+            !unresolvedChains.includes(remote),
+        ),
+      ),
+      normalizeLayerZeroV2RemoteRouters(expectedConfig.remoteRouters),
+    );
+    if (result.isInvalid) {
+      diff[chain] = { layerZeroRemoteRouters: result.mergedObject };
+    }
+  }
+  return diff;
+}
+
+export async function deriveLayerZeroV2RemoteRouterDiff({
+  multiProvider,
+  onChainWarpConfig,
+  warpDeployConfig,
+}: {
+  multiProvider: MultiProvider;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): Promise<Record<string, ObjectDiff>> {
+  const pairs = pairCombinedHookIsmConfigs(
+    LAYER_ZERO_V2_LEAF_MATCHER,
+    warpDeployConfig,
+  );
+  const chains = Object.keys(pairs);
+  if (chains.length === 0) return {};
+
+  const { addresses, diff } = resolveCombinedHookIsmAddresses({
+    chains,
+    matcher: LAYER_ZERO_V2_LEAF_MATCHER,
+    diffKey: IsmType.LAYER_ZERO_V2,
+    onChainWarpConfig,
+  });
+
+  // Enrollments of an unresolved chain have no expected router address, so
+  // they are compared only among resolved chains; the unresolved chain itself
+  // is already reported above.
+  const resolvedPairs = objFilter(
+    pairs,
+    (chain, _pair): _pair is (typeof pairs)[ChainName] => chain in addresses,
+  );
+  const unresolvedChains = chains.filter((chain) => !(chain in addresses));
+  const expected = EvmLayerZeroV2HookIsmModule.withDeployedRouters(
+    buildLayerZeroV2MeshConfig(warpDeployConfig, resolvedPairs),
+    addresses,
+  );
+  const actual = await EvmLayerZeroV2HookIsmModule.readMesh(
+    multiProvider,
+    addresses,
+  );
+  const enrollmentDiff = buildLayerZeroV2RemoteRouterDiff(
     actual,
     expected,
     unresolvedChains,
@@ -1535,6 +1684,47 @@ async function getCollateralOwnable(
   return collateralTokenAddress
     ? Ownable__factory.connect(collateralTokenAddress, provider)
     : undefined;
+}
+
+/** Deep-merges `additions` into `diff`; colliding leaves are rejected. */
+export function mergeChainDiffs(
+  diff: Record<string, ObjectDiff>,
+  additions: Record<string, ObjectDiff>,
+): void {
+  for (const [chain, chainDiff] of Object.entries(additions)) {
+    const existing = diff[chain];
+    if (!existing) {
+      diff[chain] = chainDiff;
+      continue;
+    }
+    assertObjectDiffMap(existing, `Unexpected diff for ${chain}`);
+    assertObjectDiffMap(chainDiff, `Unexpected diff addition for ${chain}`);
+    mergeObjectDiffMap(existing, chainDiff, chain);
+  }
+}
+
+function mergeObjectDiffMap(
+  target: ObjectDiffMap,
+  source: ObjectDiffMap,
+  path: string,
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    const existing = target[key];
+    if (isNullish(existing)) {
+      target[key] = value;
+      continue;
+    }
+    const keyPath = `${path}.${key}`;
+    assertObjectDiffMap(
+      existing,
+      `Unexpected leaf diff for ${keyPath}; refusing to overwrite it`,
+    );
+    assertObjectDiffMap(
+      value,
+      `Unexpected leaf diff addition for ${keyPath}; refusing to overwrite it`,
+    );
+    mergeObjectDiffMap(existing, value, keyPath);
+  }
 }
 
 function addNestedDiff(

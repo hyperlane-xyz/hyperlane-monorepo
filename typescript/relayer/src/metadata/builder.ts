@@ -122,6 +122,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       }
 
       case IsmType.OFFCHAIN_LOOKUP:
+      case IsmType.LAYER_ZERO_V2:
         return this.ccipReadMetadataBuilder.build({
           ...context,
           ism,
