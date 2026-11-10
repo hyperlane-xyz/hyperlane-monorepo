@@ -532,4 +532,39 @@ class PortableHelperCpuControls(unittest.TestCase):
    with self.git_body(),self.subTest(edit=edit),self.assertRaises(ValueError):m.helper_required_cpu_flags(self.receipt,True,repo=self.root)
 
 
+class EvmReorgOriginSourceControls(unittest.TestCase):
+ def plan(self,source):
+  import re
+  profile=m.public_profile('evm')
+  origins=re.findall(r'let validator_origin_chains = (\[[^\n]+\])\.to_vec\(\);',source);self.assertEqual(len(origins),1)
+  origins=json.loads(origins[0]);self.assertEqual(origins,profile['chain_names'])
+  indices=re.findall(r'^\s*const REORG_VALIDATOR_INDEX: usize = ([0-9]+);$',source,re.M)
+  stop=re.findall(r'^\s*stop_validator\(&mut state, ([^\n]+)\);$',source,re.M);flag=re.findall(r'^\s*set_validator_reorg_flag\(&checkpoints_dirs, ([^\n]+)\);$',source,re.M)
+  self.assertEqual(len(stop),1);self.assertEqual(len(flag),1)
+  def index_value(operand):
+   if operand.isdigit():return int(operand)
+   self.assertEqual(operand,'REORG_VALIDATOR_INDEX');self.assertEqual(len(indices),1);return int(indices[0])
+  index=index_value(stop[0]);flag_index=index_value(flag[0]);self.assertLess(index,len(origins));self.assertLess(flag_index,len(origins))
+  # This semantic check fails on the old literal1 plan: test2 is not intendedtest1.
+  self.assertEqual(origins[index],profile['reorg_origin_chain']);self.assertEqual(origins[flag_index],profile['reorg_origin_chain'])
+  self.assertEqual(indices,['0']);self.assertEqual(stop,['REORG_VALIDATOR_INDEX']);self.assertEqual(flag,['REORG_VALIDATOR_INDEX'])
+  self.assertEqual(source.count('let reorg_origin = validator_origin_chains[REORG_VALIDATOR_INDEX];'),1)
+  self.assertEqual(source.count('.arg("single-origin", reorg_origin)'),1)
+  self.assertIn('.hyp_env("ORIGINCHAINNAME", validator_origin_chains[i])',source)
+  self.assertIn('make_static(format!("VL{}", 1 + i))',source)
+  self.assertIn('let name = format!("VL{}", validator_index + 1);',source)
+  self.assertIn('let checkpoint_path = (*checkpoints_dirs[validator_index]).as_ref();',source)
+  return {'origin':origins[index],'role':'VL'+str(index+1),'checkpoint_directory_index':index}
+ def source(self):return (m.ROOT/'rust/main/utils/run-locally/src/main.rs').read_text()
+ def test_reorg_stop_flag_and_new_dispatch_share_the_intended_origin(self):
+  self.assertEqual(self.plan(self.source()),{'origin':'test1','role':'VL1','checkpoint_directory_index':0})
+ def test_wrong_index_or_independent_stop_flag_send_operands_are_rejected(self):
+  source=self.source()
+  for old,new in [('const REORG_VALIDATOR_INDEX: usize = 0;','const REORG_VALIDATOR_INDEX: usize = 1;'),('stop_validator(&mut state, REORG_VALIDATOR_INDEX);','stop_validator(&mut state, 1);'),('set_validator_reorg_flag(&checkpoints_dirs, REORG_VALIDATOR_INDEX);','set_validator_reorg_flag(&checkpoints_dirs, 1);'),('let reorg_origin = validator_origin_chains[REORG_VALIDATOR_INDEX];','let reorg_origin = validator_origin_chains[1];'),('.arg("single-origin", reorg_origin)','.arg("single-origin", "test1")'),('["test1", "test2", "test3"].to_vec()','["test2", "test1", "test3"].to_vec()')]:
+   self.assertEqual(source.count(old),1)
+   with self.subTest(new=new),self.assertRaises(AssertionError):self.plan(source.replace(old,new))
+ def test_original_child_wait_diagnostic_coordinate_stays_exact(self):
+  source=self.source();line=source.splitlines()[827]
+  self.assertEqual(line,'        if let Some(status) = child.try_wait().unwrap() {');self.assertEqual(line.index('unwrap')+1,48)
+
 if __name__=='__main__':unittest.main(verbosity=2)

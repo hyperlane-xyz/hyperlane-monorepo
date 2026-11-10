@@ -1688,7 +1688,7 @@ RADIX_SCRAPER_SOURCE = (
     ('rust/main/utils/run-locally/src/radix/mod.rs', 17600, '7792d33957b75fee20925e56d82e7332' + '95310c575cddbed10c9ff59d65fc6461'),
     ('rust/main/utils/run-locally/src/program.rs', 18930, 'fd74db13536484d524e31b2188b6ef0a' + 'c8713422d0a63bf0eba7f60186751510'),
     ('rust/main/utils/run-locally/src/external_agents.rs', 354800, '78c950955bef473b889fd0f6529995fc' + 'd32cd34e76924051c1fa745dc57a91a9'),
-    ('rust/main/utils/run-locally/src/main.rs', 30900, 'a8e847063664cec776617dace03309dc' + 'e2ebe9c8cd5798108fe8c487d9ac0aaf'),
+    ('rust/main/utils/run-locally/src/main.rs', 31058, 'b4d440da330b18f0a7e8259922606bfd' + '1a78b32b73c86e416302d8cb6a76709c'),
 )
 
 def radix_scraper_metrics(raw, chains):

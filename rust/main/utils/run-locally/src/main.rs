@@ -247,7 +247,7 @@ fn main() -> ExitCode {
         .map(validator_checkpoint_directory)
         .collect();
     assert_eq!(validator_origin_chains.len(), validator_keys.len());
-
+    const REORG_VALIDATOR_INDEX: usize = 0;
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_dbs = (0..validator_count)
@@ -495,16 +495,16 @@ fn main() -> ExitCode {
     // to ensure the relayer handles reorgs correctly.
     // Kill validator 1 to make sure it doesn't crash by detecting it posted a reorg,
     // causing e2e to also fail.
-    stop_validator(&mut state, 1);
-    set_validator_reorg_flag(&checkpoints_dirs, 1);
-
+    stop_validator(&mut state, REORG_VALIDATOR_INDEX);
+    set_validator_reorg_flag(&checkpoints_dirs, REORG_VALIDATOR_INDEX);
+    let reorg_origin = validator_origin_chains[REORG_VALIDATOR_INDEX];
     // Send a single message from validator 1's origin chain to test the relayer's reorg handling.
     Program::new("pnpm")
         .working_dir(ts_infra_path)
         .cmd("kathy")
         .arg("messages", "1")
         .arg("timeout", "1000")
-        .arg("single-origin", "test1")
+        .arg("single-origin", reorg_origin)
         .run()
         .join();
 
