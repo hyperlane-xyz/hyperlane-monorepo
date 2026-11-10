@@ -181,10 +181,12 @@ describe('Rebalancer Helm deployment', () => {
     }
   }
 
-  it('renders a dedicated secret, digest, registry pin and monitor-only mode', () => {
+  it('renders a dedicated secret, image repository, digest, registry pin and monitor-only mode', () => {
+    const repository = 'us-east1-docker.pkg.dev/test/rebalancer';
     const digest = `sha256:${'b'.repeat(64)}`;
     const loaded = config({
       deployment: {
+        imageRepository: repository,
         imageTag: 'candidate',
         imageDigest: digest,
         swapsXyzApiKeySecret: 'mainnet3-swapsxyz-api-key-ousdt',
@@ -206,9 +208,7 @@ describe('Rebalancer Helm deployment', () => {
     ).to.equal('mainnet3-swapsxyz-api-key-ousdt');
     const container = documents.find((d) => d.kind === 'StatefulSet').spec
       .template.spec.containers[0];
-    expect(container.image).to.equal(
-      `${DockerImageRepos.NODE_SERVICES}@${digest}`,
-    );
+    expect(container.image).to.equal(`${repository}@${digest}`);
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
       value: 'true',
@@ -224,6 +224,7 @@ describe('Rebalancer Helm deployment', () => {
 
   it('rejects invalid deployment metadata and a mismatched route', () => {
     expect(() => config({ unknownControl: true })).to.throw('unknownControl');
+    expect(() => config({ deployment: { imageRepository: '' } })).to.throw();
     expect(() => config({ deployment: { imageDigest: 'latest' } })).to.throw();
     expect(() => config({ deployment: { imageDgiest: 'typo' } })).to.throw();
     expect(() =>
