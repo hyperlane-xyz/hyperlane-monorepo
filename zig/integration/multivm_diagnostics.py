@@ -119,6 +119,34 @@ def note_restart_admin_failure(session,operation,chain,domain,ordinal,nonce,obse
             if not hasattr(session,'diagnostic_restart_admin_failure'):session.diagnostic_restart_admin_failure=row
     except Exception:return
 
+SVM_EVENT_CHAINS=frozenset({'sealeveltest1','sealeveltest2','sealeveltest3'})
+SVM_EVENT_COUNTS=frozenset({'signature_rows','error_rows','other_slot_rows','canonical_transactions','program_address_instructions','matched_transactions'})
+
+
+def checked_svm_event_failure(row):
+    if type(row)is not dict or set(row)!={'chain','kind','account_slot','counts','reason','native_or_timing_credit'}:raise ValueError('Closed SVM event diagnostic required')
+    if type(row['chain'])is not str or row['chain']not in SVM_EVENT_CHAINS or type(row['kind'])is not str or row['kind']not in {'dispatch','gas','delivery'}:raise ValueError('Closed SVM event identity required')
+    if type(row['account_slot'])is not int or not 0<=row['account_slot']<2**64 or row['native_or_timing_credit']is not False:raise ValueError('Bounded SVM account slot required')
+    counts=row['counts']
+    if type(counts)is not dict or set(counts)!=SVM_EVENT_COUNTS or any(type(v)is not int or not 0<=v<2**32 for v in counts.values()):raise ValueError('Bounded SVM event counts required')
+    if counts['signature_rows']!=counts['error_rows']+counts['other_slot_rows']+counts['canonical_transactions'] or not counts['matched_transactions']<=counts['canonical_transactions'] or not counts['matched_transactions']<=counts['program_address_instructions']:raise ValueError('SVM event count partition differs')
+    reason='missing'if counts['matched_transactions']==0 else'ambiguous'if counts['matched_transactions']>1 else None
+    if reason is None or type(row['reason'])is not str or row['reason']!=reason:raise ValueError('Failed SVM relevance count required')
+    return copy.deepcopy(row)
+
+
+def note_svm_event_failure(session,chain,kind,slot,counts):
+    """First failed relevance guard only; no RPC data, identifiers or I/O."""
+    try:
+        scenario=session.manifest.get('scenario')
+        if scenario not in {'sealevel','sealevel-composite'}or scenario=='sealevel-composite'and chain=='sealeveltest3':return
+        matched=counts['matched_transactions']
+        row=checked_svm_event_failure({'chain':chain,'kind':kind,'account_slot':slot,'counts':counts,'reason':'missing'if matched==0 else'ambiguous','native_or_timing_credit':False})
+        with session.lock:
+            if not hasattr(session,'diagnostic_svm_event_failure'):session.diagnostic_svm_event_failure=row
+    except BaseException:return
+
+
 def snapshot(session,now):
     with session.lock:
         captures={}
@@ -143,6 +171,8 @@ def snapshot(session,now):
             row=checked_restart_admin_failure(session.diagnostic_restart_admin_failure)
             if row['observed_monotonic_ns']>now:raise ValueError('Restart admin observation clock is in the future')
             result['restart_admin_failure']=row
+        if hasattr(session,'diagnostic_svm_event_failure'):
+            result['svm_event_failure']=checked_svm_event_failure(session.diagnostic_svm_event_failure)
         return result
 
 
@@ -150,7 +180,7 @@ class Recorder:
     def __init__(self,path,modules,directory):
         self.path=Path(path);self.modules=modules;self.directory=Path(directory);self.lock=threading.Lock()
         if self.path.exists()or self.path.is_symlink():raise ValueError('Preserve existing diagnostic file')
-        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications; no exception message, raw locals, payload, config or environment.'}
+        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications or SVM event relevance counts; no exception message, raw locals, payload, config or environment.'}
     def save(self):
         wire=json.dumps(self.value,sort_keys=True,separators=(',',':')).encode()+b'\n'
         if len(wire)>LIMIT:raise ValueError('Diagnostic output bound')
@@ -1079,10 +1109,11 @@ def validate_record(value,modules):
     def integer(v):return type(v)is int and 0<=v<=2**64-1
     def state(v):
         keys={'observed_monotonic_ns','restart_sample_count','restart_failed','restart_first_observed_ns','restart_last_observed_ns','role_activity','observer_failure_count','lifecycle_error_count'}
-        require(isinstance(v,dict)and set(v)in (keys,keys|{'restart_admin_failure'})and type(v['restart_failed'])is bool)
+        require(isinstance(v,dict)and keys<=set(v)<=keys|{'restart_admin_failure','svm_event_failure'}and type(v['restart_failed'])is bool)
         if 'restart_admin_failure'in v:
             require(integer(v['observed_monotonic_ns']))
             require(checked_restart_admin_failure(v['restart_admin_failure'])['observed_monotonic_ns']<=v['observed_monotonic_ns'])
+        if 'svm_event_failure'in v:checked_svm_event_failure(v['svm_event_failure'])
         for k in keys-{'restart_failed','role_activity','restart_first_observed_ns','restart_last_observed_ns'}:require(integer(v[k]))
         for k in ['restart_first_observed_ns','restart_last_observed_ns']:require(v[k]is None or integer(v[k]))
         require(isinstance(v['role_activity'],list)and len(v['role_activity'])<=16)
@@ -1103,7 +1134,7 @@ def validate_record(value,modules):
             for frame in v['frames']:
                 require(set(frame)=={'module','source','function','line'}and frame['module']in modules and frame['source']==modules[frame['module']]and isinstance(frame['function'],str)and re.fullmatch('[A-Za-z_<>][A-Za-z_<>0-9]*',frame['function'])and integer(frame['line']))
     keys={'schema','kind','stages','failures','dropped_new_failure_signatures','native_or_timing_credit','scope','last_stage'}
-    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications; no exception message, raw locals, payload, config or environment.')
+    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications or SVM event relevance counts; no exception message, raw locals, payload, config or environment.')
     require(isinstance(value['stages'],dict)and len(value['stages'])<=len(STAGES)+1 and isinstance(value['failures'],dict)and len(value['failures'])<=8 and integer(value['dropped_new_failure_signatures']))
     entry(value['last_stage'])
     for stage,row in value['stages'].items():

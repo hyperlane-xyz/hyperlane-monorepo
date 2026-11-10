@@ -1655,4 +1655,51 @@ class RestartAdminFailureProjectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):api.validate_record(bad,modules)
 
 
+
+
+class SvmEventFailureProjectionTests(unittest.TestCase):
+    def session(self, scenario='sealevel'):
+        return SimpleNamespace(manifest={'scenario': scenario}, lock=threading.RLock())
+    def counts(self):
+        return {'signature_rows': 3, 'error_rows': 1, 'other_slot_rows': 1, 'canonical_transactions': 1, 'program_address_instructions': 0, 'matched_transactions': 0}
+    def note(self, session, **change):
+        values={'chain':'sealeveltest1','kind':'dispatch','slot':20,'counts':self.counts()};values.update(change)
+        api.note_svm_event_failure(session, **values)
+    def test_exact_roles_kinds_zero_and_multiple_first_row_copy(self):
+        for chain in api.SVM_EVENT_CHAINS:
+            for kind in ['dispatch','gas','delivery']:
+                session=self.session();self.note(session,chain=chain,kind=kind)
+                row=session.diagnostic_svm_event_failure
+                self.assertEqual((row['chain'],row['kind'],row['reason']),(chain,kind,'missing'))
+                counts={'signature_rows':2,'error_rows':0,'other_slot_rows':0,'canonical_transactions':2,'program_address_instructions':2,'matched_transactions':2}
+                self.note(session,counts=counts);self.assertEqual(session.diagnostic_svm_event_failure,row)
+                second=self.session();self.note(second,counts=counts);counts['signature_rows']=999
+                self.assertEqual(second.diagnostic_svm_event_failure['reason'],'ambiguous')
+                self.assertEqual(second.diagnostic_svm_event_failure['counts']['signature_rows'],2)
+        empty=self.session();self.note(empty,counts={key:0 for key in api.SVM_EVENT_COUNTS});self.assertEqual(empty.diagnostic_svm_event_failure['counts']['signature_rows'],0)
+    def test_exact_types_bounds_partitions_and_scenarios_quarantine(self):
+        poisons=[{'chain':'PRIVATE-address'},{'kind':'PRIVATE-rpc'},{'slot':True},{'slot':-1},{'slot':2**64}]
+        for key in api.SVM_EVENT_COUNTS:
+            for value in [True,-1,2**32,'PRIVATE']:
+                counts=self.counts();counts[key]=value;poisons.append({'counts':counts})
+        for counts in [dict(self.counts(), signature_rows=4),dict(self.counts(), matched_transactions=1),dict(self.counts(), matched_transactions=2),dict(self.counts(), raw='PRIVATE')]:poisons.append({'counts':counts})
+        for poison in poisons:
+            session=self.session();self.note(session,**poison);self.assertFalse(hasattr(session,'diagnostic_svm_event_failure'))
+        for scenario, chain in [('evm','sealeveltest1'),('sealevel-composite','sealeveltest3')]:
+            session=self.session(scenario);self.note(session,chain=chain);self.assertFalse(hasattr(session,'diagnostic_svm_event_failure'))
+    def test_snapshot_recorder_wire_closed_projection_and_old_success_state(self):
+        session=self.session();before=api.snapshot(session,100)
+        self.assertNotIn('svm_event_failure',before);self.note(session);state=api.snapshot(session,100)
+        self.assertEqual({k:v for k,v in state.items()if k!='svm_event_failure'},before)
+        with tempfile.TemporaryDirectory()as directory:
+            recorder=api.Recorder(Path(directory)/'record.json',{},HERE)
+            token=recorder.enter('before_restart',before);recorder.finish(token,state,'exception',ValueError('PRIVATE-id-address-signature-rpc'))
+            value=json.loads(recorder.path.read_text());api.validate_record(value,{})
+            wire=json.dumps(value);self.assertNotIn('PRIVATE',wire);self.assertLess(len(wire),8192)
+            for poison in [{'raw':'PRIVATE'},{'reason':'other'},{'native_or_timing_credit':True}]:
+                altered=copy.deepcopy(value)
+                altered['last_stage']['state']['svm_event_failure'].update(poison)
+                with self.assertRaises(ValueError):api.validate_record(altered,{})
+
+
 if __name__=='__main__':unittest.main()

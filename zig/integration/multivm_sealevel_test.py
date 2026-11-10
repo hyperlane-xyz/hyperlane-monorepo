@@ -5,6 +5,9 @@ import hashlib
 import json
 import pathlib
 import unittest
+import threading
+from types import SimpleNamespace
+from unittest import mock
 
 import multivm_sealevel as svm
 
@@ -314,6 +317,73 @@ class RelayerConfigurationBoundary(unittest.TestCase):
         session.captures = [validator]
         with self.assertRaisesRegex(ValueError, "relayer configuration capture missing"):
             adapter.native_rows(session, snapshot, rows, None)
+
+
+
+class EventRelevanceDiagnostics(unittest.TestCase):
+    """Actual relevance loop/guard; canonical proof itself is an explicit stub."""
+    def fixture(self, rows, mode='dispatch'):
+        program, address = bytes([17]) * 32, bytes([18]) * 32
+        calls = []
+        session = SimpleNamespace(manifest={'scenario': 'sealevel'}, lock=threading.RLock())
+        def rpc(chain, method, params):
+            calls.append((chain, method, params))
+            return rows
+        session.rpc = rpc
+        adapter = svm.Adapter({}, {})
+        proofs = {}
+        def transaction(_session, _chain, signature):
+            calls.append(('canonical', signature))
+            return proofs[signature]
+        adapter._transaction = transaction
+        def add(index, kind=mode, err=None, slot=20, wrong=None):
+            signature = svm.b58encode(bytes([index]) * 64)
+            rows.append({'signature': signature, 'slot': slot, 'err': err})
+            data = {'dispatch': b'\x04' + bytes(68) + bytes(4), 'gas': b'\x03' + bytes(44), 'delivery': b'\x01' + bytes(8)}[kind]
+            instruction = {'programIdIndex': 0 if wrong != 'program' else 1, 'accounts': [0] if wrong == 'address' else [0, 1], 'data': svm.b58encode(data)}
+            proofs[signature] = {'keys': [program, address], 'native_json': {'transaction': {'message': {'instructions': [instruction]}}, 'meta': {'innerInstructions': []}}}
+        def run():
+            return adapter._event_transaction(session, 'sealeveltest1', program, svm.b58encode(address), mode, 20)
+        return session, adapter, calls, add, run
+
+    def test_actual_missing_filters_and_ambiguous_counts_are_exact_and_private(self):
+        session, _, calls, add, run = self.fixture([])
+        add(1, err={'PRIVATE-error': 'PRIVATE'});add(2, slot=18)
+        add(3, wrong='program');add(4, wrong='address');add(5, kind='gas')
+        with self.assertRaisesRegex(ValueError, 'relevance ambiguous/missing'):run()
+        row = getattr(session, 'diagnostic_svm_event_failure', None)
+        self.assertIsNotNone(row)
+        self.assertEqual(row['counts'], {'signature_rows': 5, 'error_rows': 1, 'other_slot_rows': 1, 'canonical_transactions': 3, 'program_address_instructions': 1, 'matched_transactions': 0})
+        self.assertEqual(row['reason'], 'missing');self.assertNotIn('PRIVATE', json.dumps(row))
+        self.assertEqual(len(calls), 4)
+        session, _, _, add, run = self.fixture([]);add(1);add(2)
+        with self.assertRaisesRegex(ValueError, 'relevance ambiguous/missing'):run()
+        self.assertEqual(session.diagnostic_svm_event_failure['reason'], 'ambiguous')
+        self.assertEqual(session.diagnostic_svm_event_failure['counts']['matched_transactions'], 2)
+
+    def test_success_each_kind_and_previous_slot_retains_exact_result_without_state(self):
+        for kind in ['dispatch', 'gas', 'delivery']:
+            session, _, calls, add, run = self.fixture([], kind);add(1, slot=19)
+            result = run()
+            self.assertEqual(result[0], svm.h(bytes([1]) * 64))
+            self.assertFalse(hasattr(session, 'diagnostic_svm_event_failure'))
+            self.assertEqual(len(calls), 2)
+
+    def test_optional_baseexception_does_not_replace_guard_or_canonical_error(self):
+        session, adapter, _, add, run = self.fixture([])
+        error = ValueError('original relevance')
+        original_require = svm.require
+        def require(ok, message):
+            if message == 'native event canonical transaction relevance ambiguous/missing' and not ok:raise error
+            return original_require(ok, message)
+        with mock.patch.object(svm.multivm_diagnostics, 'note_svm_event_failure', side_effect=KeyboardInterrupt), mock.patch.object(svm, 'require', side_effect=require), self.assertRaises(ValueError) as caught:run()
+        self.assertIs(caught.exception, error)
+        add(1)
+        def canonical(*_):raise error
+        adapter._transaction = canonical
+        with mock.patch.object(svm.multivm_diagnostics, 'note_svm_event_failure') as note, self.assertRaises(ValueError) as caught:run()
+        self.assertIs(caught.exception, error);note.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

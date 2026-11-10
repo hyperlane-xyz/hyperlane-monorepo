@@ -10,6 +10,8 @@ import hashlib
 import json
 import pathlib
 
+import multivm_diagnostics
+
 from multivm_evidence import hex_bytes, require, urls
 from multivm_evm import sql_delivery_query, verify_checkpoint_objects
 from multivm_sql import event_metadata, sql_event_query
@@ -403,16 +405,23 @@ class Adapter:
     def _event_transaction(self, session, chain, program, address, kind, slot):
         signatures = session.rpc(chain, "getSignaturesForAddress", [address, {"limit": 100, "commitment": "finalized"}])
         found = []
+        error_rows = other_slot_rows = canonical_transactions = program_address_instructions = 0
         for row in signatures:
-            if row.get("err") is not None or row["slot"] not in {slot, slot - 1}:
+            if row.get("err") is not None:
+                error_rows += 1
+                continue
+            if row["slot"] not in {slot, slot - 1}:
+                other_slot_rows += 1
                 continue
             proof = self._transaction(session, chain, row["signature"])
+            canonical_transactions += 1
             candidates = list(proof["native_json"]["transaction"]["message"]["instructions"])
             for group in proof["native_json"]["meta"].get("innerInstructions") or []:
                 candidates.extend(group["instructions"])
             for instruction in candidates:
                 if "programIdIndex" not in instruction or proof["keys"][instruction["programIdIndex"]] != program or key(address) not in [proof["keys"][index] for index in instruction["accounts"]]:
                     continue
+                program_address_instructions += 1
                 data = b58decode(instruction["data"])
                 reader = Reader(data)
                 if kind == "dispatch" and data[:1] == b"\x04":
@@ -429,6 +438,16 @@ class Adapter:
                 reader.end()
                 found.append((h(b58decode(row["signature"], 64)), proof))
                 break
+        if len(found) != 1:
+            try:
+                multivm_diagnostics.note_svm_event_failure(session, chain, kind, slot, {
+                    "signature_rows": len(signatures), "error_rows": error_rows,
+                    "other_slot_rows": other_slot_rows, "canonical_transactions": canonical_transactions,
+                    "program_address_instructions": program_address_instructions,
+                    "matched_transactions": len(found),
+                })
+            except BaseException:
+                pass  # Optional observation cannot replace the original relevance failure.
         require(len(found) == 1, "native event canonical transaction relevance ambiguous/missing")
         return found[0]
 
