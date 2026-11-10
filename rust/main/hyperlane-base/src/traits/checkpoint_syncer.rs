@@ -56,6 +56,10 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
     /// Return the announcement storage location for this syncer
     fn announcement_location(&self) -> String;
+    /// Return the public checkpoint location for an index, or `local` for local storage.
+    fn checkpoint_location(&self, _index: u32) -> Option<String> {
+        None
+    }
     /// If a bigger than expected reorg was detected on the validated chain, this flag can be set to inform
     /// the validator agent to stop publishing checkpoints. Once any remediation is done, this flag can be reset
     /// to resume operation.

@@ -4,24 +4,85 @@ import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { TestCcipReadIsm, TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import {
+  LayerZeroV2HookIsm,
+  LayerZeroV2HookIsm__factory,
+  MockLayerZeroEndpointV2,
+  MockLayerZeroEndpointV2__factory,
+  MockLayerZeroUln302__factory,
+  MockWormholeCore,
+  MockWormholeCore__factory,
+  TestCcipReadIsm,
+  TestCcipReadIsm__factory,
+  WormholeVaaHookIsm,
+  WormholeVaaHookIsm__factory,
+} from '@hyperlane-xyz/core';
+import {
+  DerivedIsmConfig,
+  DispatchedMessage,
+  EvmHookReader,
   EvmIsmReader,
   HyperlaneCore,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  IsmType,
   MultiProvider,
   OffchainLookupIsmConfig,
+  TestChainName,
   TestCoreDeployer,
   TestRecipientDeployer,
+  WormholeConsistencyLevel,
   offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  addressToBytes32,
+  assert,
+} from '@hyperlane-xyz/utils';
+
+import { HyperlaneRelayer } from '../core/HyperlaneRelayer.js';
 
 import { BaseMetadataBuilder } from './builder.js';
-import { MetadataContext, isMetadataBuildable } from './types.js';
+import {
+  MetadataBuildResult,
+  MetadataContext,
+  isMetadataBuildable,
+} from './types.js';
 
 const OFFCHAIN_LOOKUP_SERVER_URL = 'http://example.com/namespace';
+const ORIGIN = TestChainName.test1;
+const DESTINATION = TestChainName.test2;
+const ORIGIN_WORMHOLE_CHAIN_ID = 2;
+const DESTINATION_WORMHOLE_CHAIN_ID = 4;
+const VAA_URL = 'https://ccip.example.com/wormhole/getWormholeVaa';
+const ORIGIN_LAYER_ZERO_ENDPOINT_ID = 40_101;
+const DESTINATION_LAYER_ZERO_ENDPOINT_ID = 40_102;
+const PACKET_URL = 'https://ccip.example.com/layerzero/getLayerZeroPacket';
+// Token-message shaped (recipient, amount) so an amount-routing ISM can route it.
+const MESSAGE_BODY = ethers.utils.hexZeroPad('0x1234', 64);
+
+function ccipReadLeaf(result: MetadataBuildResult): MetadataBuildResult {
+  if ('modules' in result) {
+    const [module] = result.modules;
+    assert(module, `Missing submodule result for ${result.ismAddress}`);
+    return ccipReadLeaf(module);
+  }
+  if ('selectedIsm' in result) return ccipReadLeaf(result.selectedIsm);
+  return result;
+}
+
+interface RecipientIsmContext {
+  ismAddress: Address;
+  message: DispatchedMessage;
+}
+
+interface CombinedIsmCase {
+  name: string;
+  recipientIsm: (ism: Address) => Promise<Address>;
+  deriveIsm: (context: RecipientIsmContext) => Promise<DerivedIsmConfig>;
+}
+
 describe('Offchain Lookup ISM Integration', () => {
   let core: HyperlaneCore;
   let multiProvider: MultiProvider;
@@ -108,7 +169,7 @@ describe('Offchain Lookup ISM Integration', () => {
       .reverted;
   });
 
-  it('sends signature field in request when calling fetch', async () => {
+  it('sends signature and origin_tx_hash in POST request body', async () => {
     const { dispatchTx, message } = await core.sendMessage(
       'test1',
       'test2',
@@ -141,9 +202,15 @@ describe('Offchain Lookup ISM Integration', () => {
       OFFCHAIN_LOOKUP_SERVER_URL.replace('{data}', payload.data),
     );
 
-    // Should include sender, data, and signature
-    expect(payload).to.include.keys('sender', 'data', 'signature');
+    // Should include authentication and the exact origin receipt hint.
+    expect(payload).to.include.keys(
+      'sender',
+      'data',
+      'signature',
+      'origin_tx_hash',
+    );
     expect(payload.sender).to.equal(ccipReadIsm.address);
+    expect(payload.origin_tx_hash).to.equal(dispatchTx.transactionHash);
 
     const recovered = ethers.utils.verifyMessage(
       ethers.utils.arrayify(
@@ -156,6 +223,391 @@ describe('Offchain Lookup ISM Integration', () => {
       payload.signature,
     );
     expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
+  });
+
+  const viaRelayer = ({ message }: RecipientIsmContext) =>
+    new HyperlaneRelayer({ core }).getRecipientIsmConfig(message);
+  // Without a message context the reader keeps routing ISMs, so the routing
+  // metadata builder derives the routed module itself.
+  const viaIsmReader = ({ ismAddress }: RecipientIsmContext) =>
+    new EvmIsmReader(multiProvider, DESTINATION).deriveIsmConfig(ismAddress);
+
+  const nestedIsmCases: CombinedIsmCase[] = [
+    {
+      name: 'standalone',
+      recipientIsm: async (ism) => ism,
+      deriveIsm: viaRelayer,
+    },
+    {
+      name: 'nested in an aggregation ism',
+      recipientIsm: async (ism) =>
+        (
+          await ismFactory.deploy({
+            destination: DESTINATION,
+            config: {
+              type: IsmType.AGGREGATION,
+              modules: [ism],
+              threshold: 1,
+            },
+          })
+        ).address,
+      deriveIsm: viaRelayer,
+    },
+    {
+      name: 'nested in an aggregation ism behind an amount-routing ism derived without message context',
+      recipientIsm: async (ism) => {
+        const aggregation = (
+          await ismFactory.deploy({
+            destination: DESTINATION,
+            config: {
+              type: IsmType.AGGREGATION,
+              modules: [ism],
+              threshold: 1,
+            },
+          })
+        ).address;
+        return (
+          await ismFactory.deploy({
+            destination: DESTINATION,
+            config: {
+              type: IsmType.AMOUNT_ROUTING,
+              lowerIsm: aggregation,
+              upperIsm: aggregation,
+              threshold: 1,
+            },
+          })
+        ).address;
+      },
+      deriveIsm: viaIsmReader,
+    },
+    {
+      name: 'nested in a routing ism',
+      recipientIsm: async (ism) =>
+        (
+          await ismFactory.deploy({
+            destination: DESTINATION,
+            config: {
+              type: IsmType.ROUTING,
+              owner: await multiProvider.getSignerAddress(DESTINATION),
+              domains: { [ORIGIN]: ism },
+            },
+          })
+        ).address,
+      deriveIsm: viaRelayer,
+    },
+  ];
+
+  describe('Wormhole ISM', () => {
+    let originWormholeCore: MockWormholeCore;
+    let originHookIsm: WormholeVaaHookIsm;
+    let destinationHookIsm: WormholeVaaHookIsm;
+
+    async function deployHookIsm(
+      chain: TestChainName,
+      wormholeChainId: number,
+    ): Promise<{
+      wormholeCore: MockWormholeCore;
+      hookIsm: WormholeVaaHookIsm;
+    }> {
+      const wormholeCore = await multiProvider.handleDeploy(
+        chain,
+        new MockWormholeCore__factory(),
+        [wormholeChainId, 0],
+      );
+      const hookIsm = await multiProvider.handleDeploy(
+        chain,
+        new WormholeVaaHookIsm__factory(),
+        [
+          core.getContracts(chain).mailbox.address,
+          wormholeCore.address,
+          {
+            consistencyLevel: WormholeConsistencyLevel.Finalized,
+            customConsistencyLevelContract: ethers.constants.AddressZero,
+            customBaseConsistencyLevel: 0,
+            additionalBlocks: 0,
+          },
+          [VAA_URL],
+        ],
+      );
+      return { wormholeCore, hookIsm };
+    }
+
+    async function enrollPeer(
+      chain: TestChainName,
+      hookIsm: WormholeVaaHookIsm,
+      peerChain: TestChainName,
+      peer: WormholeVaaHookIsm,
+      peerWormholeChainId: number,
+    ): Promise<void> {
+      await multiProvider.handleTx(
+        chain,
+        hookIsm[
+          'enrollRemoteRouters((uint32,bytes32,uint16,uint8,uint8,uint16)[])'
+        ]([
+          {
+            domainId: multiProvider.getDomainId(peerChain),
+            domainIsm: addressToBytes32(peer.address),
+            wormholeChainId: peerWormholeChainId,
+            expectedConsistencyLevel: WormholeConsistencyLevel.Finalized,
+            expectedCustomBaseConsistencyLevel: 0,
+            expectedAdditionalBlocks: 0,
+          },
+        ]),
+      );
+    }
+
+    beforeEach(async () => {
+      const origin = await deployHookIsm(ORIGIN, ORIGIN_WORMHOLE_CHAIN_ID);
+      originWormholeCore = origin.wormholeCore;
+      originHookIsm = origin.hookIsm;
+      destinationHookIsm = (
+        await deployHookIsm(DESTINATION, DESTINATION_WORMHOLE_CHAIN_ID)
+      ).hookIsm;
+      await enrollPeer(
+        ORIGIN,
+        originHookIsm,
+        DESTINATION,
+        destinationHookIsm,
+        DESTINATION_WORMHOLE_CHAIN_ID,
+      );
+      await enrollPeer(
+        DESTINATION,
+        destinationHookIsm,
+        ORIGIN,
+        originHookIsm,
+        ORIGIN_WORMHOLE_CHAIN_ID,
+      );
+    });
+
+    for (const { name, recipientIsm, deriveIsm } of nestedIsmCases) {
+      it(`builds metadata for a wormhole ism ${name}`, async () => {
+        const ismAddress = await recipientIsm(destinationHookIsm.address);
+        await multiProvider.handleTx(
+          DESTINATION,
+          testRecipient.setInterchainSecurityModule(ismAddress),
+        );
+        const { dispatchTx, message } = await core.sendMessage(
+          ORIGIN,
+          DESTINATION,
+          testRecipient.address,
+          MESSAGE_BODY,
+          originHookIsm.address,
+        );
+        const [published] = await originWormholeCore.queryFilter(
+          originWormholeCore.filters.LogMessagePublished(),
+          dispatchTx.blockHash,
+        );
+        assert(published, `Missing Wormhole publication for ${message.id}`);
+        const vaa = await originWormholeCore.encodeVaa({
+          emitterChainId: ORIGIN_WORMHOLE_CHAIN_ID,
+          emitterAddress: addressToBytes32(originHookIsm.address),
+          sequence: published.args.sequence,
+          nonce: published.args.nonce,
+          consistencyLevel: published.args.consistencyLevel,
+          guardianSetIndex: 0,
+          payload: published.args.payload,
+        });
+        const vaaMetadata = ethers.utils.defaultAbiCoder.encode(
+          ['bytes'],
+          [vaa],
+        );
+        fetchStub.callsFake(
+          async () =>
+            new Response(JSON.stringify({ data: vaaMetadata }), {
+              status: 200,
+            }),
+        );
+        const context: MetadataContext = {
+          ism: await deriveIsm({ ismAddress, message }),
+          hook: await new EvmHookReader(multiProvider, ORIGIN).deriveHookConfig(
+            originHookIsm.address,
+          ),
+          message,
+          dispatchTx,
+        };
+
+        const result = await metadataBuilder.build(context);
+
+        const leaf = ccipReadLeaf(result);
+        expect(leaf.type).to.equal(IsmType.WORMHOLE);
+        expect(leaf.ismAddress).to.equal(destinationHookIsm.address);
+        assert('urls' in leaf, `Missing CCIP-read urls for ${leaf.ismAddress}`);
+        expect(leaf.urls).to.deep.equal([VAA_URL]);
+        expect(leaf.metadata).to.equal(vaaMetadata);
+        assert(isMetadataBuildable(result), `Unbuildable metadata for ${name}`);
+
+        const mailbox = core.getContracts(DESTINATION).mailbox;
+        await multiProvider.handleTx(
+          DESTINATION,
+          mailbox.process(result.metadata, message.message),
+        );
+        expect(await mailbox.delivered(message.id)).to.equal(true);
+      });
+    }
+  });
+
+  describe('LayerZero ISM', () => {
+    let originEndpoint: MockLayerZeroEndpointV2;
+    let originHookIsm: LayerZeroV2HookIsm;
+    let destinationHookIsm: LayerZeroV2HookIsm;
+    let destinationReceiveLibrary: Address;
+
+    async function deployHookIsm(
+      chain: TestChainName,
+      endpointId: number,
+    ): Promise<{
+      endpoint: MockLayerZeroEndpointV2;
+      library: Address;
+      hookIsm: LayerZeroV2HookIsm;
+    }> {
+      const endpoint = await multiProvider.handleDeploy(
+        chain,
+        new MockLayerZeroEndpointV2__factory(),
+        [endpointId],
+      );
+      const library = await multiProvider.handleDeploy(
+        chain,
+        new MockLayerZeroUln302__factory(),
+        [endpoint.address],
+      );
+      await multiProvider.handleTx(
+        chain,
+        endpoint.registerMockLibrary(library.address),
+      );
+      const hookIsm = await multiProvider.handleDeploy(
+        chain,
+        new LayerZeroV2HookIsm__factory(),
+        [
+          core.getContracts(chain).mailbox.address,
+          endpoint.address,
+          [PACKET_URL],
+        ],
+      );
+      return { endpoint, library: library.address, hookIsm };
+    }
+
+    async function enrollPeer(
+      chain: TestChainName,
+      hookIsm: LayerZeroV2HookIsm,
+      library: Address,
+      peerChain: TestChainName,
+      peer: LayerZeroV2HookIsm,
+      peerEndpointId: number,
+    ): Promise<void> {
+      const defaultUln = {
+        confirmations: 0,
+        requiredDVNCount: 0,
+        optionalDVNCount: 0,
+        optionalDVNThreshold: 0,
+        requiredDVNs: [],
+        optionalDVNs: [],
+      };
+      await multiProvider.handleTx(
+        chain,
+        hookIsm[
+          'enrollRemoteRouters((uint32,bytes32,uint32,address,address,(uint32,address),(uint64,uint8,uint8,uint8,address[],address[]),(uint64,uint8,uint8,uint8,address[],address[]))[])'
+        ]([
+          {
+            domainId: multiProvider.getDomainId(peerChain),
+            domainIsm: addressToBytes32(peer.address),
+            endpointId: peerEndpointId,
+            sendLibrary: library,
+            receiveLibrary: library,
+            executorConfig: {
+              maxMessageSize: 0,
+              executor: ethers.constants.AddressZero,
+            },
+            sendUlnConfig: defaultUln,
+            receiveUlnConfig: defaultUln,
+          },
+        ]),
+      );
+    }
+
+    beforeEach(async () => {
+      const origin = await deployHookIsm(ORIGIN, ORIGIN_LAYER_ZERO_ENDPOINT_ID);
+      const destination = await deployHookIsm(
+        DESTINATION,
+        DESTINATION_LAYER_ZERO_ENDPOINT_ID,
+      );
+      originEndpoint = origin.endpoint;
+      originHookIsm = origin.hookIsm;
+      destinationHookIsm = destination.hookIsm;
+      destinationReceiveLibrary = destination.library;
+      await enrollPeer(
+        ORIGIN,
+        originHookIsm,
+        origin.library,
+        DESTINATION,
+        destinationHookIsm,
+        DESTINATION_LAYER_ZERO_ENDPOINT_ID,
+      );
+      await enrollPeer(
+        DESTINATION,
+        destinationHookIsm,
+        destination.library,
+        ORIGIN,
+        originHookIsm,
+        ORIGIN_LAYER_ZERO_ENDPOINT_ID,
+      );
+    });
+
+    for (const { name, recipientIsm, deriveIsm } of nestedIsmCases) {
+      it(`builds metadata for a layerzero ism ${name}`, async () => {
+        const ismAddress = await recipientIsm(destinationHookIsm.address);
+        await multiProvider.handleTx(
+          DESTINATION,
+          testRecipient.setInterchainSecurityModule(ismAddress),
+        );
+        const { dispatchTx, message } = await core.sendMessage(
+          ORIGIN,
+          DESTINATION,
+          testRecipient.address,
+          MESSAGE_BODY,
+          originHookIsm.address,
+        );
+        const [sent] = await originEndpoint.queryFilter(
+          originEndpoint.filters.PacketSent(),
+          dispatchTx.blockHash,
+        );
+        assert(sent, `Missing LayerZero packet for ${message.id}`);
+        const packetMetadata = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'bytes'],
+          [destinationReceiveLibrary, sent.args.encodedPayload],
+        );
+        fetchStub.callsFake(
+          async () =>
+            new Response(JSON.stringify({ data: packetMetadata }), {
+              status: 200,
+            }),
+        );
+        const context: MetadataContext = {
+          ism: await deriveIsm({ ismAddress, message }),
+          hook: await new EvmHookReader(multiProvider, ORIGIN).deriveHookConfig(
+            originHookIsm.address,
+          ),
+          message,
+          dispatchTx,
+        };
+
+        const result = await metadataBuilder.build(context);
+
+        const leaf = ccipReadLeaf(result);
+        expect(leaf.type).to.equal(IsmType.LAYER_ZERO_V2);
+        expect(leaf.ismAddress).to.equal(destinationHookIsm.address);
+        assert('urls' in leaf, `Missing CCIP-read urls for ${leaf.ismAddress}`);
+        expect(leaf.urls).to.deep.equal([PACKET_URL]);
+        expect(leaf.metadata).to.equal(packetMetadata);
+        assert(isMetadataBuildable(result), `Unbuildable metadata for ${name}`);
+
+        const mailbox = core.getContracts(DESTINATION).mailbox;
+        await multiProvider.handleTx(
+          DESTINATION,
+          mailbox.process(result.metadata, message.message),
+        );
+        expect(await mailbox.delivered(message.id)).to.equal(true);
+      });
+    }
   });
 
   afterEach(() => {

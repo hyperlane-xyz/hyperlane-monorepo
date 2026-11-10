@@ -49,6 +49,7 @@ import {
 } from '../tracking/ActionTracker.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
+import { buildPendingTransferMiddlewares } from '../tracking/pendingTransferMiddlewares/buildPendingTransferMiddlewares.js';
 import { InMemoryStore } from '../tracking/store/index.js';
 import type {
   RebalanceAction,
@@ -328,7 +329,7 @@ export class RebalancerContextFactory {
       RebalanceActionStatus
     >();
 
-    const explorerClient =
+    const baseExplorerClient =
       typeof explorerUrlOrClient === 'string'
         ? new ExplorerClient(explorerUrlOrClient, (domain) =>
             this.multiProvider.getProtocol(domain),
@@ -373,8 +374,31 @@ export class RebalancerContextFactory {
       routersByDomain[domain] = token.addressOrDenom;
     }
 
+    const mailboxByDomain: Record<number, string> = {};
+    for (const [chain, addresses] of Object.entries(coreAddresses)) {
+      mailboxByDomain[this.multiProvider.getDomainId(chain)] =
+        addresses.mailbox;
+    }
+
+    const {
+      client: explorerClient,
+      isIgnoredTransfer,
+      isIgnoredRebalanceAction,
+    } = await buildPendingTransferMiddlewares(
+      baseExplorerClient,
+      this.config.pendingTransferMiddlewares ?? [],
+      {
+        routersByDomain,
+        mailboxByDomain,
+        multiProvider: this.multiProvider,
+        logger: this.logger,
+      },
+    );
+
     const trackerConfig: ActionTrackerConfig = {
       routersByDomain,
+      isIgnoredTransfer,
+      isIgnoredRebalanceAction,
       bridges,
       rebalancerAddress,
       inventorySignerAddresses: this.config.inventorySigners

@@ -60,6 +60,12 @@ Append one rule per new message ID to the existing `rules` array:
 }
 ```
 
+Rebalancers with the `relayerDenylist` middleware also read `messageId`-only
+rules: a denied rebalance message (sent by a rebalancer to a monitored route)
+stops counting as incoming collateral. Deny one only after confirming its
+funds settled another way, e.g. CCTP delivered them. Otherwise the rebalancer
+sends a replacement, possibly into the same failing path.
+
 JSON does not support comments. Include destination/grouping context in `reason`.
 When the user supplies an expiry, add `expiresAt` to each applicable rule and
 validate it as an RFC 3339 timestamp before opening the PR. Omit it when no expiry

@@ -4,7 +4,9 @@ import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
   IsmType,
+  LayerZeroV2IsmConfig,
   OffchainLookupIsmConfig,
+  WormholeIsmConfig,
   offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
 import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
@@ -51,6 +53,16 @@ function extractRevertData(error: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * ISMs that answer `getOffchainVerifyInfo` with an EIP-3668 `OffchainLookup`.
+ * Only the ISM address is needed to trigger it, so combined hook/ISM routers
+ * reuse this builder unchanged.
+ */
+export type OffchainLookupContextConfig =
+  | OffchainLookupIsmConfig
+  | WormholeIsmConfig
+  | LayerZeroV2IsmConfig;
+
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
@@ -60,9 +72,9 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   }
 
   async build(
-    context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
+    context: MetadataContext<WithAddress<OffchainLookupContextConfig>>,
   ): Promise<CcipReadMetadataBuildResult> {
-    const { ism, message } = context;
+    const { ism, message, dispatchTx } = context;
     const provider = this.core.multiProvider.getProvider(
       message.parsed.destination,
     );
@@ -93,7 +105,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     ];
 
     const baseResult: Omit<CcipReadMetadataBuildResult, 'metadata'> = {
-      type: IsmType.OFFCHAIN_LOOKUP,
+      type: ism.type,
       ismAddress: ism.address,
       urls,
     };
@@ -130,10 +142,13 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
               sender,
               data: callDataHex,
               signature,
+              // Matches the Rust relayer: lets a service locate the origin
+              // event directly instead of querying the Explorer for it.
+              origin_tx_hash: dispatchTx.transactionHash,
             }),
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.core.logger.warn(
           `CCIP-read metadata fetch failed for ${url}: ${error}`,
         );
@@ -149,6 +164,9 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
             metadata: ensure0x(responseJson.data),
           };
         }
+        this.core.logger.warn(
+          `CCIP-read metadata fetch returned ${res.status} for ${url}: ${JSON.stringify(responseJson)}`,
+        );
       } catch (error) {
         this.core.logger.warn(
           `CCIP-read metadata fetch failed for ${url}: ${error}`,

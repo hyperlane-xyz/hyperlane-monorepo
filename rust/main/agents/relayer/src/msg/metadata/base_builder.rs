@@ -342,7 +342,6 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             );
                             continue;
                         };
-
                         // If this is a LocalStorage based checkpoint syncer and it's not
                         // allowed, ignore it
                         if !self.allow_local_checkpoint_syncers

@@ -19,7 +19,8 @@ use tracing::warn;
 use uuid::Uuid;
 
 use hyperlane_base::{
-    CheckpointObservation, CheckpointObserver, CheckpointUnavailableReason, CoreMetrics,
+    CheckpointObservation, CheckpointObserver, CheckpointSigner, CheckpointUnavailableReason,
+    CoreMetrics,
 };
 use hyperlane_core::{
     ChainCommunicationError, ConfirmReason, HyperlaneMessage, ModuleType, PendingOperationStatus,
@@ -35,8 +36,8 @@ const BATCH_SIZE: usize = 100;
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const WARNING_INTERVAL: Duration = Duration::from_secs(30);
 
-// Intentionally structured data only: no provider errors, URLs, message bodies,
-// metadata bytes or validator signatures. Keep additions safe for public display.
+// Intentionally structured data only: no provider errors, RPC URLs, message bodies,
+// metadata bytes or signature bytes. Sanitized validator storage URLs are public.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Activity {
@@ -417,6 +418,7 @@ pub struct CheckpointSummary {
     index: Option<u32>,
     root: Option<H256>,
     collected: usize,
+    signers: Vec<CheckpointSigner>,
     attempts: u64,
     latest_indices: BTreeMap<H160, Option<u32>>,
     discovery_unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
@@ -449,21 +451,21 @@ impl CheckpointObserver for ActivityCheckpointObserver {
                 summary.index = Some(index);
                 summary.root = None;
                 summary.collected = 0;
+                summary.signers.clear();
                 summary.unavailable.clear();
                 summary.attempts = summary.attempts.saturating_add(1);
             }
-            CheckpointObservation::Signature {
-                validator,
-                root,
-                collected,
-                ..
-            } => {
+            CheckpointObservation::Signature { root, signers, .. } => {
+                let collected = signers.len();
+                for signer in &signers {
+                    summary.unavailable.remove(&signer.validator);
+                }
                 // Counts belong to a single root; never combine conflicting signatures.
                 if collected > summary.collected {
                     summary.root = Some(root);
                     summary.collected = collected;
+                    summary.signers = signers;
                 }
-                summary.unavailable.remove(&validator);
             }
             CheckpointObservation::Unavailable {
                 validator,

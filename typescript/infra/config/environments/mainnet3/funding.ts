@@ -80,7 +80,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: ['forma', 'mocachain', 'nesa'],
+  chainsToSkip: ['forma', 'lisk', 'mocachain', 'nesa'],
   erc20GasTokens: {
     tempo: {
       address: '0x20c0000000000000000000000000000000000000',

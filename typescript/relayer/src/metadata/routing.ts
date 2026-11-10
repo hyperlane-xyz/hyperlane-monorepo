@@ -112,6 +112,9 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
       const ismReader = new EvmIsmReader(
         this.baseMetadataBuilder.multiProvider,
         destination,
+        undefined,
+        undefined,
+        { expandNonDeployableHookIsms: true },
       );
       const nextConfig = await ismReader.deriveIsmConfig(moduleAddress);
       const selectedIsmResult = await this.baseMetadataBuilder.build(

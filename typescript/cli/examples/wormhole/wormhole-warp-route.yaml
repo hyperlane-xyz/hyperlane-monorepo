@@ -1,0 +1,46 @@
+# A Warp route secured by the combined Wormhole hook/ISM (WormholeVaaHookIsm).
+# `hyperlane warp deploy` deploys one router per chain, enrolls every other
+# chain, and installs it as both the Warp router's ISM and the Wormhole child
+# of its aggregation hook.
+#
+# core: official Wormhole Core proxy on the chain.
+# wormholeChainId: Wormhole chain ID that Core reports.
+# consistencyLevel: zeroFinalized | instant | safe | finalized | custom.
+# urls: CCIP-read endpoints of a ccip-server running the `wormhole` module.
+---
+ethereum:
+  type: native
+  owner: '0x1111111111111111111111111111111111111111'
+  mailbox: '0xc005dc82818d67AF737725bD4bf75435d065D239'
+  hook:
+    type: aggregationHook
+    hooks:
+      - type: defaultHook
+      - type: wormholeHook
+  interchainSecurityModule:
+    type: wormholeIsm
+    owner: '0x1111111111111111111111111111111111111111'
+    core: '0x98f3c9e6E3fAce36bAAd05FE09d375Ef1464288B'
+    wormholeChainId: 2
+    consistencyLevel:
+      type: finalized
+    urls:
+      - https://ccip-server.example.com/wormhole/getWormholeVaa
+base:
+  type: synthetic
+  owner: '0x1111111111111111111111111111111111111111'
+  mailbox: '0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D'
+  hook:
+    type: aggregationHook
+    hooks:
+      - type: defaultHook
+      - type: wormholeHook
+  interchainSecurityModule:
+    type: wormholeIsm
+    owner: '0x1111111111111111111111111111111111111111'
+    core: '0xbebdb6C8ddC678FfA9f8748f85C815C556Dd8ac6'
+    wormholeChainId: 30
+    consistencyLevel:
+      type: finalized
+    urls:
+      - https://ccip-server.example.com/wormhole/getWormholeVaa

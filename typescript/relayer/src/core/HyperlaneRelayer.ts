@@ -134,6 +134,7 @@ export class HyperlaneRelayer {
         chain,
         undefined,
         messageContext,
+        { expandNonDeployableHookIsms: true },
       );
       config = await evmIsmReader.deriveIsmConfig(ism);
     }

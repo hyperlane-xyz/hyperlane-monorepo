@@ -30,16 +30,14 @@ pub enum CheckpointObservation {
         /// Requested checkpoint index.
         index: u32,
     },
-    /// A verified signature, counted separately for each index and root.
+    /// Verified signatures for one index and root, stopping at quorum.
     Signature {
-        /// Recovered validator address.
-        validator: H256,
         /// Checkpoint index.
         index: u32,
         /// Signed root.
         root: H256,
-        /// Matching signatures collected so far, stopping at quorum.
-        collected: usize,
+        /// Verified signers for this root and each exact checkpoint object location.
+        signers: Vec<CheckpointSigner>,
     },
     /// A failed read does not imply that a validator is down.
     Unavailable {
@@ -50,6 +48,15 @@ pub enum CheckpointObservation {
         /// Safe classification; never contains storage URLs or raw errors.
         reason: CheckpointUnavailableReason,
     },
+}
+
+/// A verified checkpoint signer and its checkpoint object location.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct CheckpointSigner {
+    /// Recovered validator address.
+    pub validator: H256,
+    /// Exact public checkpoint object URL; local storage is `local`.
+    pub location: Option<String>,
 }
 
 /// Public failure classifications without external error text.
@@ -397,12 +404,31 @@ impl MultisigCheckpointSyncer {
 
             // Count the number of signatures for this signed checkpoint
             let signature_count = signed_checkpoints.len();
-            self.observe(CheckpointObservation::Signature {
-                validator,
-                index,
-                root,
-                collected: signature_count,
-            });
+            if self.observer.is_some() {
+                let mut signer_indices = signed_checkpoints
+                    .iter()
+                    .map(|(validator_index, _)| *validator_index)
+                    .collect::<Vec<_>>();
+                signer_indices.sort_unstable();
+                let signers = signer_indices
+                    .into_iter()
+                    .map(|validator_index| {
+                        let validator = validators[validator_index];
+                        CheckpointSigner {
+                            validator,
+                            location: self
+                                .checkpoint_syncers
+                                .get(&H160::from(validator))
+                                .and_then(|syncer| syncer.checkpoint_location(index)),
+                        }
+                    })
+                    .collect();
+                self.observe(CheckpointObservation::Signature {
+                    index,
+                    root,
+                    signers,
+                });
+            }
             debug!(
                 validator = format!("{:#x}", validator),
                 index = index,
@@ -545,6 +571,7 @@ mod test {
         delay: Duration,
         latest_index: Option<u32>,
         checkpoint: Option<SignedCheckpointWithMessageId>,
+        checkpoint_location: Option<String>,
         activity: Arc<FetchActivity>,
     }
 
@@ -598,6 +625,10 @@ mod test {
 
         fn announcement_location(&self) -> String {
             "test".to_string()
+        }
+
+        fn checkpoint_location(&self, _index: u32) -> Option<String> {
+            self.checkpoint_location.clone()
         }
 
         async fn write_reorg_status(&self, _: &ReorgEvent) -> Result<()> {
@@ -929,6 +960,9 @@ mod test {
                 delay,
                 latest_index: validator.latest_index,
                 checkpoint: Some(signed_checkpoint),
+                checkpoint_location: Some(format!(
+                    "https://validator-{validator_index}.example/checkpoint_1000_with_id.json"
+                )),
                 activity: Arc::new(FetchActivity::default()),
             };
             let key = H160::from_str(&validator.public_key).unwrap();
@@ -972,15 +1006,44 @@ mod test {
                 CheckpointObservation::Signature {
                     index,
                     root,
-                    collected,
+                    signers,
                     ..
-                } => Some((*index, *root, *collected)),
+                } => Some((*index, *root, signers.len())),
                 _ => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(
             counts,
             vec![(1000, checkpoint.root, 1), (1000, checkpoint.root, 2)]
+        );
+        let signers = observations
+            .0
+            .lock()
+            .expect("observation lock")
+            .iter()
+            .filter_map(|event| match event {
+                CheckpointObservation::Signature { signers, .. } => Some(signers),
+                _ => None,
+            })
+            .last()
+            .cloned()
+            .expect("signature observation");
+        assert_eq!(
+            signers,
+            vec![
+                CheckpointSigner {
+                    validator: validator_addresses[1],
+                    location: Some(
+                        "https://validator-1.example/checkpoint_1000_with_id.json".into(),
+                    ),
+                },
+                CheckpointSigner {
+                    validator: validator_addresses[2],
+                    location: Some(
+                        "https://validator-2.example/checkpoint_1000_with_id.json".into(),
+                    ),
+                },
+            ]
         );
         let expected = generate_multisig_signed_checkpoint(&validators[1..], checkpoint).await;
         assert_eq!(result, expected);
@@ -1028,6 +1091,7 @@ mod test {
                     },
                     latest_index: None,
                     checkpoint: Some(signed),
+                    checkpoint_location: None,
                     activity: activity.clone(),
                 }),
             );
@@ -1100,6 +1164,7 @@ mod test {
                     delay,
                     latest_index: None,
                     checkpoint: signed,
+                    checkpoint_location: None,
                     activity: activity.clone(),
                 }),
             );
