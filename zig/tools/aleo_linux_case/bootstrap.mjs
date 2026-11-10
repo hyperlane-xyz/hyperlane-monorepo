@@ -70,7 +70,7 @@ export function install(policyPath, expectedSha) {
   }
   function deny(message) {
     failed ??= new Error(message);
-    if (fs.readdirSync(errorDir).length < 128) fs.writeFileSync(path.join(errorDir,`${process.pid}-${threads.threadId}-${randomBytes(8).toString('hex')}.json`),JSON.stringify({pid:process.pid,threadId:threads.threadId,error:message}),{flag:'wx',mode:0o600});
+    if (fs.readdirSync(errorDir).length < 128) fs.writeFileSync(path.join(errorDir,`${process.pid}-${threads.threadId}-${randomBytes(8).toString('hex')}.json`),JSON.stringify({pid:process.pid,threadId:threads.threadId,error:message,monotonic_ns:String(process.hrtime.bigint())}),{flag:'wx',mode:0o600});
     throw failed;
   }
   function check() {

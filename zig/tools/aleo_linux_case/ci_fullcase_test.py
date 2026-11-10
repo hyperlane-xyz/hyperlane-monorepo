@@ -768,4 +768,51 @@ class DriverSdkDispatchProjection(unittest.TestCase):
   self.assertEqual(m.source_bound_sdk_dispatch(v,self.source())['status'],'observed')
   point=self.diagnostic();point['sdk_dispatch']={'PRIVATE':'PRIVATE'};result=m.source_bound_caught_error(point,self.source());self.assertEqual(result['status'],'observed');self.assertEqual(result['sdk_dispatch'],{'status':'refused'});self.assertEqual(result['worker'],point['worker'])
 
+class NamespacePolicyDenials(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=pathlib.Path(self.temp.name).resolve();self.repo=self.root/'repo';self.source=self.repo/'zig/tools/aleo_linux_case/bootstrap.mjs';self.source.parent.mkdir(parents=True);self.source.write_bytes((HERE/'bootstrap.mjs').read_bytes());self.sources=[m.pin(self.source)];self.case=self.root/'case';self.errors=self.case/'control/errors';self.errors.mkdir(parents=True);self.counter=0
+  for name in ('case_delegate.py','case_supervisor.py','inner.py'):(self.source.parent/name).write_bytes((HERE/name).read_bytes())
+ def record(self,error,timestamp='10',legacy=False):
+  self.counter+=1;value={'pid':self.counter,'threadId':0,'error':error}
+  if not legacy:value['monotonic_ns']=timestamp
+  path=self.errors/(str(self.counter)+'-0-'+format(self.counter,'016x')+'.json');path.write_text(json.dumps(value));return path
+ def observe(self):return m.namespace_policy_failure_observation(self.case,self.repo,self.sources)
+ def test_static_dynamic_unknown_and_legacy_codes_never_export_private_values(self):
+  self.record('raw socket escape',legacy=True);self.record('foreign transport:https://PRIVATE_TOKEN.invalid/SECRET',legacy=True);self.record('unapproved process API:spawnSync',legacy=True);self.record('unapproved process API:PRIVATE_TOKEN',legacy=True)
+  out=self.observe();self.assertEqual(out['status'],'observed');self.assertEqual(out['count'],4);self.assertEqual({r['code']for r in out['counts']},{'RAW_SOCKET_ESCAPE','FOREIGN_TRANSPORT','UNAPPROVED_PROCESS_API_SPAWNSYNC','UNRECOGNIZED'});self.assertEqual(out['order']['status'],'unavailable');wire=json.dumps(out)
+  for forbidden in ['PRIVATE_TOKEN','SECRET',str(self.root),'https://','"pid"','"threadId"','monotonic_ns']:self.assertNotIn(forbidden,wire)
+  self.assertFalse(out['cause_or_acceptance_authority']);self.assertFalse(out['raw_errors_paths_identities_timestamps_exported'])
+ def test_only_numeric_observations_order_not_filenames_or_directory_and_ties_ambiguous(self):
+  self.record('raw socket escape','30');self.record('DNS escape','10');self.record('raw TLS forbidden','10');out=self.observe();groups=out['order']['groups'];self.assertEqual(groups[0],{'codes':['DNS_ESCAPE','RAW_TLS_FORBIDDEN'],'count':2,'tie_ambiguous':True});self.assertEqual(groups[1]['codes'],['RAW_SOCKET_ESCAPE']);self.assertEqual(out['order']['status'],'observed-untrusted-monotonic-values');self.assertTrue(out['order']['not_filename_or_directory_chronology'])
+  self.record('raw TLS forbidden',legacy=True);self.assertEqual(self.observe()['order']['status'],'unavailable');self.assertEqual(self.observe()['order']['groups'],[])
+ def test_malformed_timestamps_keys_JSON_and_identity_refuse_without_raw_fallback(self):
+  path=self.record('raw socket escape');original=json.loads(path.read_text())
+  for timestamp in [None,True,4,1.5,'0','-1',' 10','1e2','١٠',str(2**64)]:
+   with self.subTest(timestamp=timestamp):path.write_text(json.dumps({**original,'monotonic_ns':timestamp}));self.assertEqual(self.observe(),{'status':'unavailable'})
+  for update in [{'pid':True},{'threadId':1},{'error':['PRIVATE']},{'PRIVATE':'TOKEN'}]:
+   path.write_text(json.dumps({**original,**update}));self.assertEqual(self.observe(),{'status':'unavailable'})
+  path.write_text('{"pid":1,"pid":1,"threadId":0,"error":"PRIVATE"}');self.assertEqual(self.observe(),{'status':'unavailable'})
+ def test_regular_nofollow_directory_count_and_per_record_caps(self):
+  path=self.record('raw socket escape');saved=path.read_bytes();target=self.root/'PRIVATE';target.write_bytes(saved);path.unlink();path.symlink_to(target);self.assertEqual(self.observe(),{'status':'unavailable'});path.unlink();path.write_bytes(b'X'*2049);self.assertEqual(self.observe(),{'status':'unavailable'});path.unlink()
+  for _ in range(129):self.record('raw socket escape')
+  opened=[];real=m.os.open
+  def tracked(path,*args,**kwargs):opened.append(str(path));return real(path,*args,**kwargs)
+  with mock.patch.object(m.os,'open',side_effect=tracked):self.assertEqual(self.observe(),{'status':'unavailable'})
+  self.assertFalse(any(name.endswith('.json')for name in opened))
+  for item in self.errors.iterdir():item.unlink()
+  self.errors.rmdir();self.errors.symlink_to(target.parent,target_is_directory=True);self.assertEqual(self.observe(),{'status':'unavailable'})
+ def test_source_admission_poison_and_exact_old_writer_timestamp_inverse(self):
+  self.record('DNS escape');self.assertEqual(self.observe()['status'],'observed');old=list(self.sources)
+  for rows in [None,old*2,[{**old[0],'sha256':'0'*64}]]:
+   with mock.patch.object(m.os,'listdir',side_effect=AssertionError('no records before Source')):self.assertEqual(m.namespace_policy_failure_observation(self.case,self.repo,rows),{'status':'unavailable'})
+  source=self.source.read_text();old_source=source.replace('error:message,monotonic_ns:String(process.hrtime.bigint())','error:message');self.assertNotEqual(source,old_source);self.source.write_text(old_source);self.sources=[m.pin(self.source)];self.assertEqual(self.observe()['status'],'observed')
+  self.source.write_text(source.replace("deny('DNS escape')","deny('NEW PRIVATE GUARD')"));self.sources=[m.pin(self.source)];self.assertEqual(self.observe(),{'status':'unavailable'})
+ def test_failure_only_public_caller_and_output_groups_bounded(self):
+  self.record('DNS escape');(self.case/'control/inner-result.json').write_text(json.dumps({'passed':False,'error':'ValueError:latched all-isolate policy violation'}));out=m.case_failure_diagnostics(self.case,self.repo,self.sources);self.assertEqual(out['records']['namespace']['policy_denials']['status'],'observed')
+  (self.case/'control/inner-result.json').write_text('{"passed":true}')
+  with mock.patch.object(m,'namespace_policy_failure_observation',side_effect=AssertionError('not failure')):self.assertNotIn('policy_denials',m.case_failure_diagnostics(self.case,self.repo,self.sources)['records']['namespace'])
+  for item in self.errors.iterdir():item.unlink()
+  for i in range(128):self.record('DNS escape',str(i+1))
+  out=self.observe();self.assertEqual(out['count'],128);self.assertTrue(out['order']['groups_truncated']);self.assertEqual(len(out['order']['groups']),16);self.assertLessEqual(len(json.dumps(out).encode()),8192)
+
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -256,6 +256,59 @@ def hydration_failure_observation(log,repo,admitted_sources):
  except BaseException:return unavailable
 
 
+def namespace_policy_failure_observation(case,repo,admitted_sources):
+ # Optional failed-case observation only: never export raw deny suffixes/identities.
+ unavailable={'status':'unavailable'}
+ try:
+  relative='zig/tools/aleo_linux_case/bootstrap.mjs';path=Path(repo)/relative
+  need(type(admitted_sources)is list and len(admitted_sources)<=128,'admitted bootstrap Source missing')
+  rows=[r for r in admitted_sources if type(r)is dict and r.get('path')==str(path)]
+  need(len(rows)==1,'unique admitted bootstrap Source');row=rows[0]
+  need(set(row)=={'path','bytes','sha256'}and type(row['bytes'])is int and 0<row['bytes']<=256*1024 and re.fullmatch('[0-9a-f]{64}',row['sha256']),'bounded bootstrap Source')
+  def read_regular(where,limit,directory=None):
+   fd=os.open(where,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=directory)
+   try:
+    before=os.fstat(fd);need(stat.S_ISREG(before.st_mode)and before.st_uid==os.getuid()and before.st_size<=limit,'regular bounded denial input')
+    raw=os.read(fd,limit+1);after=os.fstat(fd)
+    need(len(raw)==before.st_size and len(raw)<=limit and all(getattr(before,k)==getattr(after,k)for k in ('st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns')),'stable denial input');return raw
+   finally:os.close(fd)
+  need(path.is_absolute()and path.resolve(strict=True)==path,'canonical bootstrap Source')
+  raw=read_regular(path,256*1024);need(len(raw)==row['bytes']and hashlib.sha256(raw).hexdigest()==row['sha256'],'bootstrap Source differs');source=raw.decode('utf8')
+  categories={'DNS escape': 'DNS_ESCAPE', 'Node Unix socket forbidden; native capped Docker CLI only': 'NODE_UNIX_SOCKET_FORBIDDEN_NATIVE_CAPPED_DOCKER_CLI_ONLY', 'Worker cap': 'WORKER_CAP', 'XHR helper cannot create Workers': 'XHR_HELPER_CANNOT_CREATE_WORKERS', 'XHR options malformed': 'XHR_OPTIONS_MALFORMED', 'XHR options missing': 'XHR_OPTIONS_MISSING', 'XHR private temp paths differ': 'XHR_PRIVATE_TEMP_PATHS_DIFFER', 'absolute fixture deadline': 'ABSOLUTE_FIXTURE_DEADLINE', 'ambient child loader': 'AMBIENT_CHILD_LOADER', 'ambient helper loader': 'AMBIENT_HELPER_LOADER', 'credential/fragment URL': 'CREDENTIAL_FRAGMENT_URL', 'foreign Worker loader': 'FOREIGN_WORKER_LOADER', 'invalid SDK Worker target': 'INVALID_SDK_WORKER_TARGET', 'isolate native process escape': 'ISOLATE_NATIVE_PROCESS_ESCAPE', 'owner deadline before fetch': 'OWNER_DEADLINE_BEFORE_FETCH', 'parameter method': 'PARAMETER_METHOD', 'raw TLS forbidden': 'RAW_TLS_FORBIDDEN', 'raw socket escape': 'RAW_SOCKET_ESCAPE', 'recursive XHR helper': 'RECURSIVE_XHR_HELPER', 'redirect forbidden': 'REDIRECT_FORBIDDEN', 'request auth': 'REQUEST_AUTH', 'shared Worker env': 'SHARED_WORKER_ENV', 'sync helper cap': 'SYNC_HELPER_CAP', 'total Worker cap': 'TOTAL_WORKER_CAP', 'unadmitted SDK Worker target': 'UNADMITTED_SDK_WORKER_TARGET', 'unapproved credential/range header': 'UNAPPROVED_CREDENTIAL_RANGE_HEADER', 'unapproved native executable': 'UNAPPROVED_NATIVE_EXECUTABLE', 'unexpected SDK worker global handler': 'UNEXPECTED_SDK_WORKER_GLOBAL_HANDLER', 'unknown Node-e helper': 'UNKNOWN_NODE_E_HELPER', 'unknown SDK Worker data': 'UNKNOWN_SDK_WORKER_DATA', 'unknown SDK Worker target': 'UNKNOWN_SDK_WORKER_TARGET', 'unknown Worker eval': 'UNKNOWN_WORKER_EVAL', 'unknown Worker module': 'UNKNOWN_WORKER_MODULE'}
+  static=set(re.findall(r"\bdeny\('([^'\\\r\n]{1,160})'\)",source))
+  need(static==set(categories)and source.count('function deny(message) {')==1 and source.count('failed ??= new Error(message);')==1,'closed static deny Source')
+  need(source.count('deny(`foreign transport:${u.protocol}//${u.host}${u.pathname}`)')==1 and source.count("for(const key of ['exec','execSync','execFileSync','spawnSync','fork'])childProcess[key]=()=>deny('unapproved process API:'+key)")==1,'closed dynamic deny Source')
+  lines={code:sorted({i for i,line in enumerate(source.splitlines(),1)if "deny('"+literal+"')"in line})for literal,code in categories.items()}
+  lines['FOREIGN_TRANSPORT']=[i for i,line in enumerate(source.splitlines(),1)if 'deny(`foreign transport:'in line]
+  for key in ('exec','execSync','execFileSync','spawnSync','fork'):lines['UNAPPROVED_PROCESS_API_'+key.upper()]=[i for i,line in enumerate(source.splitlines(),1)if "deny('unapproved process API:'+key)"in line]
+  directory=Path(case)/'control/errors';need(directory.is_absolute()and directory.resolve(strict=True)==directory,'canonical fixed denial directory')
+  fd=os.open(directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_NONBLOCK)
+  try:
+   info=os.fstat(fd);need(info.st_uid==os.getuid(),'owned denial directory');names=os.listdir(fd);need(len(names)<=128,'existing denial record cap');observed=[];counts={}
+   for name in names:
+    match=re.fullmatch(r'([1-9][0-9]{0,10})-([0-9]{1,10})-([0-9a-f]{16})\.json',name);need(match is not None,'fixed denial leaf')
+    raw=read_regular(name,2048,fd);value=decode(raw)
+    need(type(value)is dict and set(value)in ({'pid','threadId','error'},{'pid','threadId','error','monotonic_ns'}),'closed denial record')
+    need(type(value['pid'])is int and type(value['threadId'])is int and (value['pid'],value['threadId'])==(int(match[1]),int(match[2]))and type(value['error'])is str and len(value['error'].encode())<=1024,'typed denial values')
+    error=value['error'];code=categories.get(error,'UNRECOGNIZED')
+    if error.startswith('foreign transport:'):code='FOREIGN_TRANSPORT'
+    elif error.startswith('unapproved process API:'):
+     key=error[len('unapproved process API:'):]
+     if key in ('exec','execSync','execFileSync','spawnSync','fork'):code='UNAPPROVED_PROCESS_API_'+key.upper()
+    timestamp=value.get('monotonic_ns')
+    if 'monotonic_ns'in value:need(type(timestamp)is str and re.fullmatch(r'[1-9][0-9]{0,19}',timestamp)and int(timestamp)<2**64,'observed monotonic integer');timestamp=int(timestamp)
+    observed.append((timestamp,code));counts[code]=counts.get(code,0)+1
+   need(set(os.listdir(fd))==set(names),'denial leaves changed')
+  finally:os.close(fd)
+  complete=all(t is not None for t,_ in observed);groups=[]
+  if complete:
+   for timestamp in sorted({t for t,_ in observed}):
+    codes=[code for t,code in observed if t==timestamp];groups.append({'codes':sorted(set(codes)),'count':len(codes),'tie_ambiguous':len(codes)>1})
+  result={'schema':1,'kind':'aleo-closed-namespace-policy-denials-v1','status':'observed','source':{'path':relative,'bytes':row['bytes'],'sha256':row['sha256']},'count':len(observed),'counts':[{'code':code,'count':count,'Source_lines':lines.get(code,[])}for code,count in sorted(counts.items())],'order':{'status':'observed-untrusted-monotonic-values'if complete and observed else'unavailable','groups':groups[:16],'groups_truncated':len(groups)>16,'not_filename_or_directory_chronology':True},'raw_errors_paths_identities_timestamps_exported':False,'cause_or_acceptance_authority':False}
+  need(len(json.dumps(result).encode())<=8192,'closed denial projection cap');return result
+ except BaseException:return unavailable
+
+
 def case_failure_diagnostics(case,repo,admitted_sources=None):
  # Fixed metadata leaves only. Raw error strings, argv, tokens, Docker replies,
  # SDK output and log bodies are never copied into this public projection.
@@ -338,6 +391,7 @@ def case_failure_diagnostics(case,repo,admitted_sources=None):
     if isinstance(value.get(key),dict):record[key]={k:v for k,v in value[key].items()if k in {'passed','owned_cgroup_absent','complete_positive_custody','performed_mutations','payload_never_started'}and type(v)is bool}
    record['gate_failure_present']=value.get('gate_failed')is not None
    if name=='service'and 'service_failure_diagnostics'in value:record['service_failure_diagnostics']=service_startup(value['service_failure_diagnostics'])
+   if name=='namespace'and value.get('passed')is False:record['policy_denials']=namespace_policy_failure_observation(case,repo,admitted_sources)
    if name=='driver'and value.get('passed')is False:record['driver_observation']=driver_failure_observation(value,repo,admitted_sources)
   except BaseException as caught:record['status']='unavailable';record['read_error_class']=type(caught).__name__ if type(caught).__name__ in classes else'other'
  result={'schema':1,'kind':'aleo-fullcase-closed-failure-diagnostics','native_or_performance_credit':False,'records':records}

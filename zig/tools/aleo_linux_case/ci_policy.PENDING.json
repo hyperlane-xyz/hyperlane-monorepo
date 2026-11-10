@@ -189,11 +189,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/bootstrap.mjs",
-      "bytes": 19304,
+      "bytes": 19349,
       "sha256": {
         "sha256_hex_chunks": [
-          "e5fef16af6d54a1184ecd4a79d3573eb",
-          "cb788fcee6fadc9f7511fbff8200e1b0"
+          "a8560d9cb65ac8d64facf58fdbb715ba",
+          "7a446ef248946070366ad0c8d822b961"
         ]
       }
     },
@@ -289,11 +289,11 @@
     },
     {
       "path": "zig/tools/aleo_linux_case/ci_fullcase.py",
-      "bytes": 58606,
+      "bytes": 65733,
       "sha256": {
         "sha256_hex_chunks": [
-          "8241ca89b128eca4ec6d71be4e287734",
-          "4feed696327e7b7602f271576eacae39"
+          "96c20b46a456d75cc1e988357103038a",
+          "8a5fc09a51ad049919d302f7b793106f"
         ]
       }
     },
