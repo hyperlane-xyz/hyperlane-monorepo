@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "cosmwasm",
-  "mode": "ReleaseSafe",
+  "root_approved": true,
+  "scenario": "cosmosnative",
+  "mode": "ReleaseFast",
   "producer_source_commit": "1b35f5f3253f4cff9c846b669d051492b1219a3a",
   "producer_run_id": 42753731810,
   "producer_run_attempt": 1,
@@ -45,47 +45,27 @@
     },
     "registry_commit": null,
     "native_cli": {
-      "name": "osmosisd",
+      "name": "hypd",
       "architecture": "amd64",
-      "source_url": "https://github.com/osmosis-labs/osmosis/releases/download/v20.5.0/osmosisd-20.5.0-linux-amd64",
-      "bytes": 72612632,
+      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
+      "bytes": 69488792,
       "sha256": {
         "sha256_hex_chunks": [
-          "f9ff6176e32499f22b20288c71dbc802",
-          "556eb5399baef23de164fe6158a55a69"
+          "90a33bb46f87836675a2f0871d7d122c",
+          "1ecaa8c39014d6c7eae7815fb2e6706e"
         ]
       }
-    },
-    "wasm_bundle": {
-      "schema": 1,
-      "source_release": "v0.0.6",
-      "source_url": "https://github.com/hyperlane-xyz/cosmwasm/releases/download/v0.0.6/wasm_codes.zip",
-      "bytes": 1640623,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "5b0b3b76ef5daf8a69cbc4ee1e9762d3",
-          "c9108127842343bd59cd68862ed0aa9c"
-        ]
-      },
-      "member_count": 21,
-      "member_digest": {
-        "sha256_hex_chunks": [
-          "df340d9c357fea6e44a402a68e061ba3",
-          "484db11e00e19b11ebb282a8b698b7a7"
-        ]
-      },
-      "publisher_checksum": null
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13735573398,
-      "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 51973653,
+      "id": 13737096468,
+      "name": "zig-native-runtime-payload-ReleaseFast",
+      "size_in_bytes": 54077617,
       "sha256": {
         "sha256_hex_chunks": [
-          "3f3b791bed3a236bec105b7545eab74b",
-          "0467c569c20a3733ef0ce8eb4f8a35e3"
+          "4c2bc59a1234a843189d25af626e6b38",
+          "5ab2426526319b1cdefde4b7261fa435"
         ]
       }
     },
