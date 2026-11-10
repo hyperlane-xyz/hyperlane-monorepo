@@ -284,9 +284,13 @@ export class ElysiumNativeBridge implements IExternalBridge {
       case ParentToChildMessageStatus.NOT_YET_CREATED:
         return { status: 'pending', substatus: 'RETRYABLE_NOT_CREATED' };
       case ParentToChildMessageStatus.FUNDS_DEPOSITED_ON_CHILD:
-        this.logger.warn(
-          { txHash, retryableId: message.retryableCreationId },
-          'Canonical USDC deposit requires manual retryable redemption',
+        this.logger.error(
+          {
+            txHash,
+            retryableId: message.retryableCreationId,
+            substatus: 'MANUAL_REDEMPTION_REQUIRED',
+          },
+          'Canonical USDC deposit requires manual redemption before retryable expiry',
         );
         return { status: 'pending', substatus: 'MANUAL_REDEMPTION_REQUIRED' };
       case ParentToChildMessageStatus.CREATION_FAILED:

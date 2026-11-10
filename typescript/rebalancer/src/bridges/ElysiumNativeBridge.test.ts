@@ -581,6 +581,7 @@ describe('ElysiumNativeBridge', () => {
   });
 
   it('does not complete on an unmined, unconfirmed or unredeemed deposit', async () => {
+    const errorLog = sinon.spy(logger, 'error');
     sourceReceiptStub.resolves();
     expect(await bridge.getStatus(SOURCE_HASH, 999, 99901)).to.deep.equal({
       status: 'pending',
@@ -604,6 +605,16 @@ describe('ElysiumNativeBridge', () => {
       status: 'pending',
       substatus: 'MANUAL_REDEMPTION_REQUIRED',
     });
+    expect(errorLog.calledOnce).to.equal(true);
+    expect(
+      errorLog.calledWithMatch(
+        sinon.match({
+          txHash: SOURCE_HASH,
+          retryableId: sinon.match.string,
+          substatus: 'MANUAL_REDEMPTION_REQUIRED',
+        }),
+      ),
+    ).to.equal(true);
     redemption = {
       status: ParentToChildMessageStatus.REDEEMED,
       childTxReceipt: { ...childReceipt(), confirmations: 0 },
