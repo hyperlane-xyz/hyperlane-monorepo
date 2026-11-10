@@ -1059,12 +1059,28 @@ class Session:
 
     def require_starknet_peer_recovery(self):
         with self.lock:
+            # Each observed Source peer needs a recovery witness for the latest
+            # consumer epoch, not after every later retry of its known dead URL.
+            # Reduction is local under the same lock as capture/notice updates.
+            obligations={}
             for notice in getattr(self,"starknet_unavailable_notices",()):
                 row=notice["context"]
-                captures=[capture for capture in self.captures if capture["original"]["role"]==row["role"] and row["chain"] in capture["original"]["role_chain_names"] and row["chain"] in capture["original"]["chains"]]
-                require(captures,"Source Starknet unavailable peer has no selected consumer capture")
-                captured=max(capture["captured_monotonic_ns"] for capture in captures)
-                require(type(captured) is int and captured>0,"actual Starknet consumer capture clock required")
+                key=(row["role"],row["chain"],row["domain"],row["field"],row["ordinal"],row["upstream"],row["healthy_fallback"])
+                if key not in obligations:
+                    captures=[capture for capture in self.captures if capture["original"]["role"]==row["role"] and row["chain"] in capture["original"]["role_chain_names"] and row["chain"] in capture["original"]["chains"]]
+                    require(captures,"Source Starknet unavailable peer has no selected consumer capture")
+                    captured=max(capture["captured_monotonic_ns"] for capture in captures)
+                    require(type(captured) is int and captured>0,"actual Starknet consumer capture clock required")
+                    obligations[key]=[captured,notice]
+                captured,first=obligations[key]
+                observed=notice["monotonic_ns"];previous=first["monotonic_ns"]
+                # Prefer the first actual notice in this epoch. With only older
+                # notices, retain one actual prior notice and the capture fence;
+                # a new capture cannot reuse a success from the previous role.
+                if observed>=captured and(previous<captured or observed<previous)or observed<captured and previous<captured and observed<previous:
+                    obligations[key][1]=notice
+            for captured,notice in obligations.values():
+                row=notice["context"]
                 received=self.starknet_healthy_rpc_fallbacks.get((row["role"],row["chain"],row["field"],row["healthy_fallback"]))
                 try:
                     require(type(received) is int and received>=max(captured,notice["monotonic_ns"]),"Source Starknet unavailable peer has no fresh actual healthy fallback")

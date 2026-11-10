@@ -126,7 +126,9 @@ class StarknetPeerTests(unittest.TestCase):
     def test_latest_notice_capture_and_out_of_order_callbacks_preserve_epochs(self):
         value=self.session();value.failure(self.notice());value.record_starknet_rpc_recovery(self.healthy());value.require_starknet_peer_recovery()
         value.failure(self.notice(130))
-        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        # Later retries of the same admitted dead peer do not erase the actual
+        # healthy response after this epoch's first unavailable notice.
+        value.require_starknet_peer_recovery()
         value.record_starknet_rpc_recovery(self.healthy(140));value.require_starknet_peer_recovery()
         value.captures.append({'captured_monotonic_ns':200,'original':value.captures[0]['original']})
         with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
@@ -158,7 +160,9 @@ class StarknetPeerTests(unittest.TestCase):
     def test_batch_recovery_preserves_notice_and_new_capture_freshness(self):
         value=self.session();value.failure(self.notice());value.record_starknet_rpc_recovery(self.healthy_batch());value.require_starknet_peer_recovery()
         value.failure(self.notice(130))
-        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        # Later retries of the same admitted dead peer do not erase the actual
+        # healthy response after this epoch's first unavailable notice.
+        value.require_starknet_peer_recovery()
         value.record_starknet_rpc_recovery(self.healthy_batch(140));value.require_starknet_peer_recovery()
         value.captures.append({"captured_monotonic_ns":200,"original":value.captures[0]["original"]})
         with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
@@ -170,6 +174,111 @@ class StarknetPeerTests(unittest.TestCase):
             value=self.session();notice=self.notice();change(notice)
             with self.assertRaises(ValueError):value.failure(notice)
             self.assertEqual(value.lifecycle.first,{})
+
+
+    def test_first_epoch_notice_uses_observed_clock_not_callback_order(self):
+        value=self.session()
+        for clock in [90,130,110]:value.failure(self.notice(clock))
+        value.record_starknet_rpc_recovery(self.healthy(115))
+        value.require_starknet_peer_recovery()
+        self.assertEqual([n['monotonic_ns']for n in value.starknet_unavailable_notices],[90,130,110])
+        self.assertEqual(value.lifecycle.first,{})
+
+    def test_old_notice_only_new_capture_requires_new_actual_success(self):
+        value=self.session();value.failure(self.notice(90));value.record_starknet_rpc_recovery(self.healthy(120))
+        value.require_starknet_peer_recovery()
+        value.captures.append({'captured_monotonic_ns':200,'original':value.captures[0]['original']})
+        with self.assertRaisesRegex(ValueError,'no fresh actual healthy fallback'):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy(220));value.require_starknet_peer_recovery()
+        # A first current-epoch failure creates its actual obligation even when
+        # an earlier capture-only check passed without a current failure notice.
+        value.failure(self.notice(230))
+        with self.assertRaisesRegex(ValueError,'no fresh actual healthy fallback'):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy(240));value.require_starknet_peer_recovery()
+        value.failure(self.notice(250));value.require_starknet_peer_recovery()
+
+    def test_success_before_first_epoch_notice_is_not_recovery(self):
+        value=self.session();value.failure(self.notice(130));value.record_starknet_rpc_recovery(self.healthy(120))
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy(130));value.require_starknet_peer_recovery()
+
+    def test_stopped_role_check_uses_already_observed_epoch_witness_without_rpc(self):
+        value=self.session();value.failure(self.notice(110));value.record_starknet_rpc_recovery(self.healthy(120))
+        value.require_starknet_peer_recovery()
+        # Model the actual Source ordering: final expected dead-peer retry,
+        # original parent waits, then the unchanged before_restart gate call.
+        value.failure(self.notice(130));actual_waits=[{'purpose':'same_db_restart','actual_parent_wait':True}]
+        self.assertTrue(all(row['actual_parent_wait']for row in actual_waits))
+        with mock.patch.object(sessions,'direct_request',side_effect=AssertionError('no observer-forced RPC'))as rpc, mock.patch.object(sessions,'run_artifact',side_effect=AssertionError('no tool'))as tool:
+            try:value.require_starknet_peer_recovery();value.require_starknet_peer_recovery()
+            except ValueError:self.fail('A recovered fixed epoch must not require new traffic after original roles stop')
+            rpc.assert_not_called();tool.assert_not_called()
+        self.assertEqual(value.lifecycle.first,{})
+
+    def test_peer_definition_role_chain_and_capture_cannot_borrow_witness(self):
+        value=self.session();value.failure(self.notice());value.record_starknet_rpc_recovery(self.healthy())
+        notice=self.notice(130);notice['context'].update(evidence.starknet_unavailable_peers()[1]);value.failure(notice)
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy(140));value.require_starknet_peer_recovery()
+        notice=self.notice(150);notice['context']['role']='scraper';value.failure(notice)
+        with self.assertRaisesRegex(ValueError,'no selected consumer capture'):value.require_starknet_peer_recovery()
+        value.captures.append({'captured_monotonic_ns':100,'original':dict(value.captures[0]['original'],role='scraper')})
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        record=self.healthy(160);record['role']='scraper';value.record_starknet_rpc_recovery(record);value.require_starknet_peer_recovery()
+        notice=self.notice(170);notice['context'].update(evidence.starknet_unavailable_peers()[3]);value.failure(notice)
+        with self.assertRaisesRegex(ValueError,'no selected consumer capture'):value.require_starknet_peer_recovery()
+        other=notice['context']['chain'];original=value.captures[0]['original'];value.captures[0]['original']=dict(original,role_chain_names=original['role_chain_names']+[other],chains=dict(original['chains'],**{other:{}}))
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        record=self.healthy(180);record.update(chain=other,upstream='http://127.0.0.1:5070');value.record_starknet_rpc_recovery(record);value.require_starknet_peer_recovery()
+
+    def test_new_notice_after_healthy_barrier_does_not_move_first_obligation(self):
+        value=self.session();value.failure(self.notice(110))
+        ready=threading.Event();go=threading.Event();finished=threading.Event();errors=[]
+        def later():
+            ready.set()
+            if not go.wait(2):errors.append('barrier');return
+            try:value.failure(self.notice(130))
+            except BaseException as error:errors.append(type(error).__name__)
+            finally:finished.set()
+        worker=threading.Thread(target=later);worker.start()
+        try:
+            self.assertTrue(ready.wait(2))
+            with value.lock:value.record_starknet_rpc_recovery(self.healthy(120))
+            go.set();self.assertTrue(finished.wait(2));self.assertEqual(errors,[])
+            value.require_starknet_peer_recovery()
+        finally:go.set();worker.join(2)
+        self.assertFalse(worker.is_alive());self.assertEqual(value.lifecycle.first,{})
+
+    def test_first_notice_and_capture_updates_serialize_with_guard(self):
+        value=self.session();value.failure(self.notice(90));value.record_starknet_rpc_recovery(self.healthy(220))
+        value.captures.append({'captured_monotonic_ns':200,'original':value.captures[0]['original']})
+        ready=threading.Event();finished=threading.Event()
+        def publish():
+            ready.set()
+            try:value.failure(self.notice(230))
+            finally:finished.set()
+        worker=threading.Thread(target=publish)
+        try:
+            with value.lock:
+                worker.start()
+                self.assertTrue(ready.wait(2));value.require_starknet_peer_recovery()
+                self.assertFalse(finished.is_set())
+        finally:worker.join(2)  # Release the actual Session lock before joining.
+        self.assertFalse(worker.is_alive());self.assertTrue(finished.is_set())
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy(240));value.require_starknet_peer_recovery()
+        with value.lock:value.captures.append({'captured_monotonic_ns':300,'original':value.captures[0]['original']})
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
+        value.record_starknet_rpc_recovery(self.healthy(320));value.require_starknet_peer_recovery()
+
+    def test_untyped_or_unapproved_notice_never_enters_epoch_reduction(self):
+        for clock in [True,False,None,'110',110.0,-1,0]:
+            value=self.session()
+            with self.assertRaises(ValueError):value.failure(self.notice(clock))
+            self.assertEqual(value.starknet_unavailable_notices,[])
+        value=self.session();value.failure(self.notice());record=self.healthy();record['received_monotonic_ns']=True
+        with self.assertRaises(ValueError):value.record_starknet_rpc_recovery(record)
+        with self.assertRaises(ValueError):value.require_starknet_peer_recovery()
 
 
 if __name__=='__main__':unittest.main()
