@@ -262,7 +262,7 @@ export const RelayBridgeConfigSchema = z.strictObject({
   maxQuoteLossBps: z.number().int().min(0).max(10_000).default(100),
 });
 
-export const ElysiumNativeBridgeConfigSchema = z.object({
+export const ElysiumNativeBridgeConfigSchema = z.strictObject({
   /** Native HYPE prepaid for child delivery; parent transaction gas is separate. */
   maxNativeValueWei: z.coerce.bigint().positive().optional(),
 });

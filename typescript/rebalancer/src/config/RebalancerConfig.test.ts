@@ -1721,6 +1721,14 @@ describe('Elysium native bridge configuration', () => {
     );
   });
 
+  it('rejects misspelled native delivery budget settings', () => {
+    expect(
+      ElysiumNativeBridgeConfigSchema.safeParse({
+        maxNativeValueWEI: '10000000000000000',
+      }).success,
+    ).to.equal(false);
+  });
+
   it('uses the default budget when omitted and rejects nonpositive budgets', () => {
     expect(ElysiumNativeBridgeConfigSchema.parse({})).to.deep.equal({});
     for (const maxNativeValueWei of ['0', '-1']) {

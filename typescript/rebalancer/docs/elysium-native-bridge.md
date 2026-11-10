@@ -44,11 +44,14 @@ consumes its allowance before the next approval is prepared.
 The source transaction hash is observed before broadcast. Status is reconstructed
 from that receipt and its retryable message; there is no adapter database.
 Completion requires a successful, confirmed child redemption receipt with the
-exact canonical USDC mint to the intended recipient. A successful parent deposit
-alone does not count as completion.
+exact canonical USDC mint to the recipient and amount recorded in the canonical
+source deposit. The adapter validates those values when constructing the source
+transaction; status reconstruction does not independently compare them with the
+original strategy action. A successful parent deposit alone does not count as
+completion.
 
 If automatic redemption fails, status stays pending with
-`MANUAL_REDEMPTION_REQUIRED`; the warning includes the source hash and retryable
+`MANUAL_REDEMPTION_REQUIRED`; an error log includes the source hash and retryable
 ID. Use the official Elysium bridge or Arbitrum SDK to inspect and manually redeem
 the ticket, then verify the recipient's USDC mint. The adapter does not redeem or
 extend tickets automatically. Unredeemed tickets can expire, so investigate
