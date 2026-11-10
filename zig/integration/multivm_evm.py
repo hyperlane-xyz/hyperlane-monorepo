@@ -361,8 +361,10 @@ def verify_evm_accounting(snapshot, probes, estimates, broadcasts, chains, kecca
             require(message_id in rows and message_id in links, "actual stopped EVM sealed/canonical accounting row missing")
             row, link = rows[message_id], links[message_id]
             require(link["message_source"] == "canonical" and link["canonical_nonce_message_present"] is True and link["canonical_nonce_matches_message"] is True and link["private_operation_stage"] == "delivered" and link["destination_payload_present"] is True and link["gas_expenditure_record_present"] is True, "actual EVM sealed/durable delivery provenance differs")
-            weight = link.get("estimated_gas")
-            require(type(weight) is int and 0 < weight < 2 ** 256, "actual sealed EVM original estimate unavailable")
+            weight_text = link.get("estimated_gas")
+            require(type(weight_text) is str and 0 < len(weight_text) <= 78 and weight_text.isascii() and weight_text.isdecimal(), "actual sealed EVM original estimate must be an exact decimal string")
+            weight = int(weight_text)
+            require(str(weight) == weight_text and 0 < weight < 2 ** 256, "actual sealed EVM original estimate unavailable")
             candidates = []
             for estimate in estimates:
                 params = estimate["params"]

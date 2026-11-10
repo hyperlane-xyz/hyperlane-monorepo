@@ -1496,7 +1496,7 @@ class EvmAccountingTests(unittest.TestCase):
             gas = 101 * weight // (30 if batch else 10)
             spent = {"gas_used": str(gas), "tokens_used": str(gas * 3)}
             rows.append({"id_chunks": [identity[2:]], "spent": spent, "gas_expenditure_record_present": True})
-            links.append({"message_id_chunks": [identity[2:]], "estimated_gas": weight, "spent": spent, "message_source": "canonical", "canonical_nonce_message_present": True, "canonical_nonce_matches_message": True, "private_operation_stage": "delivered", "destination_payload_present": True, "gas_expenditure_record_present": True})
+            links.append({"message_id_chunks": [identity[2:]], "estimated_gas": str(weight), "spent": spent, "message_source": "canonical", "canonical_nonce_message_present": True, "canonical_nonce_matches_message": True, "private_operation_stage": "delivered", "destination_payload_present": True, "gas_expenditure_record_present": True})
         if batch:
             tuples = [bytes(12) + bytes.fromhex(mailbox[2:]) + word(1) + word(96) + word(len(call)) + call + bytes((-len(call)) % 32) for call in calls]
             position, offsets = 32 * len(tuples), []
@@ -1532,6 +1532,25 @@ class EvmAccountingTests(unittest.TestCase):
             self.assertEqual(result[0]["unallocated_floor_dust"], 1 if batch else 0)
             self.assertEqual([m["weight"] for m in result[0]["members"]], [10, 20] if batch else [10])
             self.assertEqual(len(result[0]["members"][0]["original_prepare_reads"]), 2)
+
+    def test_sealed_estimate_matches_real_Rust_canonical_decimal_u256_schema(self):
+        # Rust exact_gas_estimate returns Option<String>; JSON emits a
+        # canonical decimal string, not the underlying Zig numeric token.
+        fixture = self.fixture(batch=False)
+        weight = (2 ** 256 - 1) // 101
+        fixture[1][0]["sealed_payload_links"][0]["estimated_gas"] = str(weight)
+        fixture[2][0]["result"] = hex(weight)
+        self.assertEqual(evm.verify_evm_accounting(*fixture)[0]["members"][0]["weight"], weight)
+        invalid = [None, True, False, 10, 10.0, [], {}, "", "0", "00", "010", "+10", "-10", " 10", "10 ", "1e1", "10.0", "0xa", "١٠", str(2 ** 256), "9" * 79]
+        for value in invalid:
+            fixture = self.fixture(batch=False)
+            fixture[1][0]["sealed_payload_links"][0]["estimated_gas"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "actual sealed EVM original estimate"):
+                evm.verify_evm_accounting(*fixture)
+        fixture = self.fixture(batch=False)
+        fixture[1][0]["sealed_payload_links"][0].pop("estimated_gas")
+        with self.assertRaisesRegex(ValueError, "actual sealed EVM original estimate"):
+            evm.verify_evm_accounting(*fixture)
 
     def test_funded_wrong_payer_cannot_pass_even_when_prepare_and_canonical_transaction_agree(self):
         fixture = self.fixture()
