@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "cosmwasm",
-  "mode": "ReleaseFast",
+  "root_approved": true,
+  "scenario": "starknet",
+  "mode": "ReleaseSafe",
   "producer_source_commit": "c83dff3d2047299cafaddd740a9a9444c2636ce6",
   "producer_run_id": 42827307915,
   "producer_run_attempt": 1,
@@ -45,47 +45,83 @@
     },
     "registry_commit": null,
     "native_cli": {
-      "name": "osmosisd",
+      "name": "starkli",
       "architecture": "amd64",
-      "source_url": "https://github.com/osmosis-labs/osmosis/releases/download/v20.5.0/osmosisd-20.5.0-linux-amd64",
-      "bytes": 72612632,
+      "source_url": "https://github.com/xJonathanLEI/starkli/releases/download/v0.4.1/starkli-x86_64-unknown-linux-gnu.tar.gz",
+      "bytes": 42077936,
       "sha256": {
         "sha256_hex_chunks": [
-          "f9ff6176e32499f22b20288c71dbc802",
-          "556eb5399baef23de164fe6158a55a69"
+          "7d946b2b155831941f69cce42ce95a71",
+          "7f92d7950ac79db8e45f140d2e80877b"
         ]
+      },
+      "archive": {
+        "bytes": 14276764,
+        "sha256": {
+          "sha256_hex_chunks": [
+            "4217ccd75c11627e513e1c6e4395b4df",
+            "fdebe2b8a7494bc989e93c2b885b8be3"
+          ]
+        },
+        "publisher_digest": null,
+        "member": "./starkli"
       }
     },
-    "wasm_bundle": {
-      "schema": 1,
-      "source_release": "v0.0.6",
-      "source_url": "https://github.com/hyperlane-xyz/cosmwasm/releases/download/v0.0.6/wasm_codes.zip",
-      "bytes": 1640623,
+    "starknet_devnet": {
+      "schema": 2,
+      "architecture": "amd64",
+      "source_image": "shardlabs/starknet-devnet-rs:0.4.2",
+      "image_id": {
+        "sha256_hex_chunks": [
+          "0405b55a0d37c14ab0c9a38963a7cbf2",
+          "19f86afb324dab8ba72cc8f9456de222"
+        ],
+        "prefix": "sha256:"
+      },
+      "canonical_digest": {
+        "sha256_hex_chunks": [
+          "ccf8b80807c6cc5e6497681cfdeabedc",
+          "adcce2c69935c8bf514540726b8955d5"
+        ],
+        "prefix": "shardlabs/starknet-devnet-rs@sha256:"
+      }
+    },
+    "starknet_contracts": {
+      "release": "0.3.9",
+      "source_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.zip",
+      "bytes": 10829931,
       "sha256": {
         "sha256_hex_chunks": [
-          "5b0b3b76ef5daf8a69cbc4ee1e9762d3",
-          "c9108127842343bd59cd68862ed0aa9c"
+          "5303a50baf47b5c3cc30274cf4b6dcba",
+          "fbeb8425010fc3bf54854f5d1bd38667"
         ]
       },
-      "member_count": 21,
-      "member_digest": {
+      "publisher_checksum_url": "https://github.com/hyperlane-xyz/hyperlane-starknet/releases/download/v0.3.9/hyperlane-starknet-v0.3.9.CHECKSUM",
+      "publisher_checksum_bytes": 96,
+      "publisher_checksum_sha256": {
         "sha256_hex_chunks": [
-          "df340d9c357fea6e44a402a68e061ba3",
-          "484db11e00e19b11ebb282a8b698b7a7"
+          "1c567654967a6e6f58741ae84a3fbe59",
+          "d46c0743a397e99c5fb5b6fcd0c7c301"
         ]
       },
-      "publisher_checksum": null
+      "member_count": 558,
+      "member_sha256": {
+        "sha256_hex_chunks": [
+          "594307d5fbc39e65770f4a20429d0b35",
+          "e34ec02893580a72e7b1bfaf9aae826e"
+        ]
+      }
     }
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13774605615,
-      "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 54110993,
+      "id": 13771851861,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
+      "size_in_bytes": 52008264,
       "sha256": {
         "sha256_hex_chunks": [
-          "c7cac0d46f504d411d5d9187915bc13c",
-          "5c3bd7ec169ae83a343a5c2b42dd010f"
+          "17c68e43588d37acb171c2d7ed8ddf3a",
+          "c0a0899486c65259960fc489508c4707"
         ]
       }
     },
