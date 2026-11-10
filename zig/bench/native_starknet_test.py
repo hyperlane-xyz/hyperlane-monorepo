@@ -288,4 +288,119 @@ class StarknetTests(unittest.TestCase):
         case=profile.public_profile('starknet');self.assertEqual(case['initial_corpus']['dispatches'],10);self.assertEqual(case['initial_corpus']['deliveries'],10);self.assertFalse(case['payments_supported']);self.assertEqual(set(map(int,case['domain_names'])),{23448593,23448594})
 
 
+    def test_readiness_failure_closed_guard_and_lifecycle(self):
+        self.launch(); row = self.rows[5050]
+        row['State'].update(Running=False, ExitCode=137, OOMKilled=True, Status='exited')
+        row['RestartCount'] = 3
+        row['Config']['Image'] = 'PRIVATE-IMAGE'; row['Config']['Cmd'] = ['PRIVATE-COMMAND']
+        with self.assertRaisesRegex(ValueError, '^Devnet not running/exact Source command$'): self.identity.observe()
+        result = self.identity.cleanup(); self.assertTrue(result['passed']); self.assertFalse(result['native_parent_wait_credit'])
+        observation = result['readiness_failure_observation']; self.assertEqual(observation['schema'], 1)
+        node = observation['nodes'][0]; self.assertEqual(node['count'], 1); self.assertEqual(node['node_index'], 0)
+        self.assertEqual(node['first'], {'node_index': 0, 'running_matches': False, 'image_matches': False, 'command_matches': False, 'exit_code': 137, 'oom_killed': True, 'restart_count': 3, 'state_status': 'exited'})
+        self.assertEqual(node['first'], node['latest']); self.assertLessEqual(len(json.dumps(observation).encode()), 2048)
+        self.assertNotIn('PRIVATE', json.dumps(result)); self.assertEqual(set(node['first']), {'node_index', 'running_matches', 'image_matches', 'command_matches', 'exit_code', 'oom_killed', 'restart_count', 'state_status'})
+
+    def test_readiness_failure_each_conjunct_and_two_node_history(self):
+        self.launch(); row = self.rows[5050]
+        for change in (lambda: row['State'].update(Running=False), lambda: row['Config'].update(Image='PRIVATE'), lambda: row['Config'].update(Cmd=['PRIVATE'])):
+            row['State']['Running'] = True; row['Config']['Image'] = self.fixture['image_id']; row['Config']['Cmd'] = custody.COMMAND
+            change()
+            with self.assertRaises(ValueError): self.identity.inspect(5050)
+        self.rows[5070]['State'].update(Running=False, Status='dead')
+        with self.assertRaises(ValueError): self.identity.inspect(5070)
+        records = self.identity._readiness_failures
+        self.assertEqual(records[0]['count'], 3); self.assertFalse(records[0]['first']['running_matches']); self.assertFalse(records[0]['latest']['command_matches'])
+        records[0]['count'] = 2 ** 32 - 1
+        with self.assertRaises(ValueError): self.identity.inspect(5050)
+        result = self.identity.cleanup()['readiness_failure_observation']['nodes']
+        self.assertEqual([row['node_index'] for row in result], [0, 1]); self.assertEqual(result[0]['count'], 2 ** 32 - 1)
+        self.assertEqual(result[1]['latest']['state_status'], 'dead')
+
+    def test_readiness_lifecycle_types_bounds_and_status_are_closed(self):
+        self.launch(); row = self.rows[5050]; row['State']['Running'] = False
+        for value in (None, True, False, -1, 256, 2 ** 32, 1.5, 'PRIVATE', [], {}):
+            row['State'].update(ExitCode=value, OOMKilled=value, Status=value); row['RestartCount'] = value
+            with self.assertRaises(ValueError): self.identity.inspect(5050)
+            latest = self.identity._readiness_failures[0]['latest']
+            self.assertEqual(latest['exit_code'], value if type(value) is int and 0 <= value <= 255 else None)
+            self.assertEqual(latest['restart_count'], value if type(value) is int and 0 <= value <= 2 ** 32 - 1 else None)
+            self.assertIs(latest['oom_killed'], value if type(value) is bool else None); self.assertIsNone(latest['state_status'])
+        for status in ('created', 'running', 'paused', 'restarting', 'removing', 'exited', 'dead'):
+            row['State']['Status'] = status
+            with self.assertRaises(ValueError): self.identity.inspect(5050)
+            self.assertEqual(self.identity._readiness_failures[0]['latest']['state_status'], status)
+        for value in (0, 255):
+            row['State']['ExitCode'] = value; row['RestartCount'] = 2 ** 32 - 1
+            with self.assertRaises(ValueError): self.identity.inspect(5050)
+            self.assertEqual(self.identity._readiness_failures[0]['latest']['exit_code'], value)
+            self.assertEqual(self.identity._readiness_failures[0]['latest']['restart_count'], 2 ** 32 - 1)
+
+    def test_readiness_other_guards_and_unowned_rows_never_annotate(self):
+        self.launch()
+        for mutate in (lambda r: r['HostConfig'].update(Memory=0), lambda r: r.update(Mounts=[{}]), lambda r: r.update(SizeRw=None), lambda r: r['Config']['Labels'].update({custody.LABEL_TOKEN: 'foreign'})):
+            self.rows[5050] = self.row(5050); mutate(self.rows[5050])
+            with self.assertRaises(ValueError): self.identity.inspect(5050)
+            self.assertFalse(hasattr(self.identity, '_readiness_failures'))
+        self.rows[5050] = self.row(5050)
+        with mock.patch.object(custody, 'readiness', side_effect=ValueError('Devnet not running/exact Source command')):
+            with self.assertRaises(ValueError): self.identity.inspect(5050)
+        self.assertFalse(hasattr(self.identity, '_readiness_failures'))
+        def false_source(row, fixture, port):
+            cfg = row.get('HostConfig', {})
+            custody.require(False, 'Devnet not running/exact Source command')
+        with mock.patch.object(custody, 'readiness', false_source):
+            with self.assertRaises(ValueError): self.identity.inspect(5050)
+        self.assertFalse(hasattr(self.identity, '_readiness_failures'))
+        self.rows[5050]['State'] = []
+        with self.assertRaises(AttributeError): self.identity.inspect(5050)
+        self.assertFalse(hasattr(self.identity, '_readiness_failures'))
+
+    def test_readiness_primary_error_survives_optional_baseexception(self):
+        self.launch(); self.rows[5050]['State']['Running'] = False
+        for failure in (KeyboardInterrupt(), SystemExit(), RuntimeError('PRIVATE')):
+            observed = []
+            def refused(row, fixture, port, error):
+                observed.append(error); raise failure
+            with mock.patch.object(custody, 'readiness_failure', side_effect=refused):
+                try: self.identity.inspect(5050)
+                except ValueError as error:
+                    self.assertIs(error, observed[0]); self.assertEqual(str(error), 'Devnet not running/exact Source command')
+                else: self.fail('original readiness guard must still fail')
+        self.assertFalse(hasattr(self.identity, '_readiness_failures')); self.assertTrue(self.identity.cleanup()['passed'])
+
+    def test_readiness_cleanup_optional_errors_preserve_exact_original_output(self):
+        self.launch(); self.rows[5050]['State']['Running'] = False
+        with self.assertRaises(ValueError): self.identity.inspect(5050)
+        expected = {'passed': True, 'container_absent': True, 'containers': [{'port': port, 'container_id': ('e' if port == 5050 else 'f') * 64, 'absent': True} for port in custody.PORTS], 'native_parent_wait_credit': False}
+        with mock.patch.object(custody, 'readiness_observation', side_effect=KeyboardInterrupt): result = self.identity.cleanup()
+        self.assertEqual(result, expected)
+        self.assertFalse(self.rows)
+
+    def test_readiness_cleanup_poisoned_records_refuse_optional_namespace(self):
+        self.launch(); self.rows[5050]['State']['Running'] = False
+        with self.assertRaises(ValueError): self.identity.inspect(5050)
+        original = copy.deepcopy(self.identity._readiness_failures)
+        poisons = [lambda r: r.update({2: r[0]}), lambda r: r.update({True: r.pop(0)}), lambda r: r[0].update(count=True), lambda r: r[0].update(count=2 ** 32), lambda r: r[0]['first'].update(raw='PRIVATE'), lambda r: r[0]['first'].update(node_index=True), lambda r: r[0]['first'].update(state_status='PRIVATE'), lambda r: r[0]['first'].update(exit_code=True), lambda r: r[0]['first'].update(oom_killed=1), lambda r: r[0]['first'].update(running_matches=True)]
+        for poison in poisons:
+            changed = copy.deepcopy(original); poison(changed)
+            with self.assertRaises(ValueError): custody.readiness_observation(changed)
+        self.identity._readiness_failures = {0: {'PRIVATE': 'x' * 3000}}
+        self.assertNotIn('readiness_failure_observation', self.identity.cleanup())
+
+    def test_readiness_projection_serialization_and_size_errors_are_optional(self):
+        self.launch(); self.rows[5050]['State']['Running'] = False
+        with self.assertRaises(ValueError): self.identity.inspect(5050)
+        original = custody.json.dumps
+        with mock.patch.object(custody.json, 'dumps', side_effect=lambda value, **kwargs: 'x' * 2049 if isinstance(value, dict) and 'nodes' in value else original(value, **kwargs)):
+            self.assertNotIn('readiness_failure_observation', self.identity.cleanup())
+
+    def test_readiness_success_and_cleanup_only_output_remain_exact(self):
+        self.launch(); self.identity.observe()
+        expected = {'passed': True, 'container_absent': True, 'containers': [{'port': port, 'container_id': ('e' if port == 5050 else 'f') * 64, 'absent': True} for port in custody.PORTS], 'native_parent_wait_credit': False}
+        self.assertEqual(self.identity.cleanup(), expected); self.assertFalse(hasattr(self.identity, '_readiness_failures'))
+        self.rows = {port: self.row(port) for port in custody.PORTS}; self.rows[5050]['State']['Running'] = False
+        self.assertEqual(self.identity.cleanup(), expected); self.assertFalse(hasattr(self.identity, '_readiness_failures'))
+
+
 if __name__=='__main__':unittest.main()

@@ -74,6 +74,41 @@ def readiness(row, fixture, port):
     return row['SizeRw']
 
 
+def readiness_failure(row, fixture, port, error):
+    """Closed observation of the original guard, after inspect authenticated CID."""
+    trace = []; current = error.__traceback__
+    while current is not None:
+        trace.append((current.tb_frame.f_code, current.tb_lineno)); current = current.tb_next
+    if type(error) is not ValueError or [code for code, _ in trace] != [_READINESS_INSPECT_CODE, _READINESS_CODE, _READINESS_REQUIRE_CODE] or trace[1][1] != _READINESS_CODE.co_firstlineno + 2 or trace[2][1] != _READINESS_REQUIRE_CODE.co_firstlineno + 1: return None
+    if type(port) is not int or port not in PORTS or type(row) is not dict or type(row.get('State', {})) is not dict or type(row.get('Config', {})) is not dict: return None
+    state = row.get('State', {}); config = row.get('Config', {})
+    result = {'node_index': PORTS.index(port), 'running_matches': state.get('Running') is True, 'image_matches': config.get('Image') == fixture['image_id'], 'command_matches': config.get('Cmd') == COMMAND}
+    if all(result[key] for key in ('running_matches', 'image_matches', 'command_matches')): return None
+    for key, value, bound in [('exit_code', state.get('ExitCode'), 255), ('restart_count', row.get('RestartCount'), 2 ** 32 - 1)]:
+        result[key] = value if type(value) is int and 0 <= value <= bound else None
+    result['oom_killed'] = state.get('OOMKilled') if type(state.get('OOMKilled')) is bool else None
+    status = state.get('Status'); result['state_status'] = status if type(status) is str and status in ('created', 'running', 'paused', 'restarting', 'removing', 'exited', 'dead') else None
+    return result
+
+
+def readiness_observation(records):
+    """Revalidate the optional public namespace; never serialize inspect payloads."""
+    require(type(records) is dict and 1 <= len(records) <= 2, 'Closed readiness records required')
+    nodes = []
+    for index, record in sorted(records.items()):
+        require(type(index) is int and index in (0, 1) and type(record) is dict and set(record) == {'count', 'first', 'latest'} and type(record['count']) is int and 1 <= record['count'] <= 2 ** 32 - 1, 'Bounded readiness count required')
+        for row in (record['first'], record['latest']):
+            require(type(row) is dict and set(row) == {'node_index', 'running_matches', 'image_matches', 'command_matches', 'exit_code', 'oom_killed', 'restart_count', 'state_status'} and type(row['node_index']) is int and row['node_index'] == index, 'Closed readiness node required')
+            require(all(type(row[key]) is bool for key in ('running_matches', 'image_matches', 'command_matches')) and not all(row[key] for key in ('running_matches', 'image_matches', 'command_matches')), 'Exact failing guard booleans required')
+            for key, bound in [('exit_code', 255), ('restart_count', 2 ** 32 - 1)]: require(row[key] is None or type(row[key]) is int and 0 <= row[key] <= bound, 'Bounded lifecycle integer required')
+            require(row['oom_killed'] is None or type(row['oom_killed']) is bool, 'Nullable OOM flag required')
+            require(row['state_status'] is None or type(row['state_status']) is str and row['state_status'] in ('created', 'running', 'paused', 'restarting', 'removing', 'exited', 'dead'), 'Closed state status required')
+        nodes.append({'node_index': index, **record})
+    wire = json.dumps({'schema': 1, 'nodes': nodes}, separators=(',', ':'), sort_keys=True)
+    require(len(wire.encode()) <= 2048, 'Bounded readiness projection required')
+    return json.loads(wire)
+
+
 class Custody:
     def __init__(self, case, pid, start, fixture, output, call):
         self.case, self.pid, self.start, self.fixture, self.output, self.call = case, pid, start, fixture, output, call
@@ -124,7 +159,18 @@ class Custody:
         if not cleaning:
             # Retain authenticated identity BEFORE rejecting unhealthy/bad caps.
             if not self.planned_shutdown(port, cid):
-                readiness(rows[0], self.fixture, port); self.ready[port] = cid
+                try: readiness(rows[0], self.fixture, port)
+                except ValueError as error:
+                    try:
+                        observation = readiness_failure(rows[0], self.fixture, port, error)
+                        if observation is not None:
+                            records = getattr(self, '_readiness_failures', {})
+                            index = observation['node_index']; previous = records.get(index)
+                            records[index] = {'count': min(previous['count'] + 1, 2 ** 32 - 1) if previous is not None else 1, 'first': previous['first'] if previous is not None else observation, 'latest': observation}
+                            readiness_observation(records); self._readiness_failures = records
+                    except BaseException: pass  # Optional observation cannot replace the original guard.
+                    raise
+                self.ready[port] = cid
         return rows[0]
 
     def observe(self):
@@ -162,4 +208,13 @@ class Custody:
             report['containers'].append(item)
         report['container_absent'] = all(row['absent'] for row in report['containers'])
         report['passed'] = report['container_absent']
+        try:
+            records = getattr(self, '_readiness_failures', None)
+            if records is not None: report['readiness_failure_observation'] = readiness_observation(records)
+        except BaseException: pass  # Preserve original cleanup result if optional projection fails.
         return report
+
+
+_READINESS_CODE = readiness.__code__
+_READINESS_REQUIRE_CODE = require.__code__
+_READINESS_INSPECT_CODE = Custody.inspect.__code__
