@@ -17,9 +17,9 @@ const configPath = path.join(
 );
 
 describe('Elysium USDC inventory policy', () => {
-  it('persists monitor-only mode for local validation', () => {
+  it('enables execution for the approved production deployment', () => {
     const { deployment } = readRebalancerConfig(configPath);
-    expect(deployment.monitorOnly).to.equal(true);
+    expect(deployment.monitorOnly).to.equal(false);
   });
 
   it('uses the agreed allocation without replacing existing inventory providers', () => {
