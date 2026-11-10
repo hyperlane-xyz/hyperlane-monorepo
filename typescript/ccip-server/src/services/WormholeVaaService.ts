@@ -19,6 +19,7 @@ import {
   PrometheusMetrics,
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
+import { RpcUnavailableError } from '../utils/rpcErrors.js';
 
 import {
   BaseService,
@@ -304,15 +305,17 @@ export class WormholeVaaService extends BaseService {
           ),
       );
     } catch (error) {
-      PrometheusMetrics.logUnhandledError(
-        this.config.serviceName,
-        UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED,
-      );
+      const reason =
+        error instanceof RpcUnavailableError
+          ? UnhandledErrorReason.RPC_UNAVAILABLE
+          : UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED;
+      PrometheusMetrics.logUnhandledError(this.config.serviceName, reason);
       logger.error(
         {
           originDomain,
           destinationDomain,
           requestRouter,
+          error_reason: reason,
           error: error instanceof Error ? error.message : String(error),
         },
         'Unable to resolve Wormhole route',

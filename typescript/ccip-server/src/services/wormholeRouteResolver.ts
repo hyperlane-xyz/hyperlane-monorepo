@@ -7,6 +7,8 @@ import {
   bytes32ToAddress,
 } from '@hyperlane-xyz/utils';
 
+import { readOnchain } from '../utils/rpcErrors.js';
+
 export interface WormholeChainConfig {
   core: string;
   wormholeChainId: number;
@@ -58,15 +60,17 @@ async function readRouterState(
     moduleType,
     remoteRouter,
     { remoteWormholeChainId },
-  ] = await Promise.all([
-    contract.wormholeCoreBridge(),
-    contract.localDomain(),
-    contract.wormholeChainId(),
-    contract.hookType(),
-    contract.moduleType(),
-    contract.routers(remoteDomain),
-    contract.remoteRouterConfigs(remoteDomain),
-  ]);
+  ] = await readOnchain(() =>
+    Promise.all([
+      contract.wormholeCoreBridge(),
+      contract.localDomain(),
+      contract.wormholeChainId(),
+      contract.hookType(),
+      contract.moduleType(),
+      contract.routers(remoteDomain),
+      contract.remoteRouterConfigs(remoteDomain),
+    ]),
+  );
 
   assert(
     actualLocalDomain === localDomain,

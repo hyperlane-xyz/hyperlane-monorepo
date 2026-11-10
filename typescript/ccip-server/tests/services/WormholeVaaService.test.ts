@@ -1,11 +1,17 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import http from 'node:http';
 import { pino } from 'pino';
 import { Registry } from 'prom-client';
 import sinon from 'sinon';
 
 import { WormholeVaaHookIsm__factory } from '@hyperlane-xyz/core';
-import { ModuleType, MultiProvider, OnchainHookType } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneSmartProvider,
+  ModuleType,
+  MultiProvider,
+  OnchainHookType,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { WormholeVaaFetcher } from '../../src/services/WormholeVaaFetcher.js';
@@ -242,6 +248,7 @@ function toReceipt(
 
 interface ServiceHarness {
   service: WormholeVaaService;
+  multiProvider: sinon.SinonStubbedInstance<MultiProvider>;
   getTransactionReceipt: sinon.SinonStub;
   explorerLookup: sinon.SinonStub;
 }
@@ -305,7 +312,7 @@ function buildService(
     },
   });
 
-  return { service, getTransactionReceipt, explorerLookup };
+  return { service, multiProvider, getTransactionReceipt, explorerLookup };
 }
 
 function harness(
@@ -316,13 +323,16 @@ function harness(
   const fetchVaa = sinon.stub();
   fetchVaa.resolves({ encodedVaa: vaa, vaa: parseVaa(vaa) });
 
-  const { service, getTransactionReceipt, explorerLookup } = buildService(
-    entries,
-    { fetchVaa },
-    options,
-  );
+  const { service, multiProvider, getTransactionReceipt, explorerLookup } =
+    buildService(entries, { fetchVaa }, options);
 
-  return { service, getTransactionReceipt, fetchVaa, explorerLookup };
+  return {
+    service,
+    multiProvider,
+    getTransactionReceipt,
+    fetchVaa,
+    explorerLookup,
+  };
 }
 
 function realFetcher(): WormholeVaaFetcher {
@@ -580,12 +590,17 @@ describe('WormholeVaaService', () => {
       [publicationLog(payload)],
       encodeVaa(payload),
     );
+    const logUnhandledError = sinon.spy(PrometheusMetrics, 'logUnhandledError');
 
     await expectRejection(
       service.getWormholeVaa(message, undefined, TX_HASH, logger),
       'Invalid Wormhole CCIP sender',
     );
+
     expect(getTransactionReceipt.called).to.be.false;
+    expect(logUnhandledError.args).to.deep.equal([
+      ['wormhole', UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED],
+    ]);
   });
 
   it('rejects a CCIP sender that is not the destination router', async () => {
@@ -621,12 +636,17 @@ describe('WormholeVaaService', () => {
         }),
       },
     );
+    const logUnhandledError = sinon.spy(PrometheusMetrics, 'logUnhandledError');
 
     await expectRejection(
       service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
       `Contract ${DESTINATION_ROUTER} on domain ${DESTINATION_DOMAIN} is not a Wormhole hook`,
     );
+
     expect(getTransactionReceipt.called).to.be.false;
+    expect(logUnhandledError.args).to.deep.equal([
+      ['wormhole', UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED],
+    ]);
   });
 
   it('rejects an origin router that enrolls a different destination', async () => {
@@ -679,6 +699,162 @@ describe('WormholeVaaService', () => {
       `Wormhole chain IDs are inconsistent for ${ORIGIN_DOMAIN} -> ${DESTINATION_DOMAIN}`,
     );
     expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  describe('when the route is read over RPC', function () {
+    this.timeout(10_000);
+
+    const CLOSED_RPC_URL = 'http://127.0.0.1:1';
+    const REVERT_DATA = ethers.utils.hexConcat([
+      ethers.utils.id('Error(string)').slice(0, 10),
+      ethers.utils.defaultAbiCoder.encode(
+        ['string'],
+        ['Not a Wormhole router'],
+      ),
+    ]);
+
+    const servers: http.Server[] = [];
+    const hanging = new Set<http.ServerResponse>();
+
+    /** Serves every JSON-RPC request with the same reply. */
+    async function startRpcServer(
+      respond: (id: number, res: http.ServerResponse) => void,
+    ): Promise<string> {
+      const server = http.createServer((req, res) => {
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => {
+          const body: unknown = JSON.parse(Buffer.concat(chunks).toString());
+          assert(
+            typeof body === 'object' &&
+              body !== null &&
+              'id' in body &&
+              typeof body.id === 'number',
+            'Unexpected JSON-RPC body',
+          );
+          respond(body.id, res);
+        });
+      });
+      servers.push(server);
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      );
+      const address = server.address();
+      assert(address && typeof address === 'object', 'Server not listening');
+      return `http://127.0.0.1:${address.port}`;
+    }
+
+    function replyJson(res: http.ServerResponse, body: unknown): void {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(body));
+    }
+
+    afterEach(async () => {
+      for (const res of hanging) res.destroy();
+      hanging.clear();
+      await Promise.all(
+        servers.splice(0).map(
+          (server) =>
+            new Promise<void>((resolve) => {
+              server.closeAllConnections();
+              server.close(() => resolve());
+            }),
+        ),
+      );
+    });
+
+    interface RpcCase {
+      name: string;
+      rpcUrl: () => Promise<string>;
+      reason: UnhandledErrorReason;
+    }
+
+    const cases: RpcCase[] = [
+      {
+        name: 'reports an unreachable RPC as unavailable',
+        rpcUrl: async () => CLOSED_RPC_URL,
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports an RPC server error as unavailable',
+        rpcUrl: () =>
+          startRpcServer((_id, res) => {
+            res.statusCode = 503;
+            res.end('Service Unavailable');
+          }),
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports an RPC that never replies as unavailable',
+        rpcUrl: () => startRpcServer((_id, res) => hanging.add(res)),
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports a CCIP sender without code as a missing route',
+        rpcUrl: () =>
+          startRpcServer((id, res) =>
+            replyJson(res, { jsonrpc: '2.0', id, result: '0x' }),
+          ),
+        reason: UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED,
+      },
+      {
+        name: 'reports a CCIP sender that reverts as a missing route',
+        rpcUrl: () =>
+          startRpcServer((id, res) =>
+            replyJson(res, {
+              jsonrpc: '2.0',
+              id,
+              error: { code: 3, message: 'execution reverted' },
+            }),
+          ),
+        reason: UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED,
+      },
+      {
+        name: 'reports a CCIP sender that reverts with a reason as a missing route',
+        rpcUrl: () =>
+          startRpcServer((id, res) =>
+            replyJson(res, {
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: 3,
+                message: 'execution reverted: Not a Wormhole router',
+                data: REVERT_DATA,
+              },
+            }),
+          ),
+        reason: UnhandledErrorReason.WORMHOLE_ROUTE_NOT_CONFIGURED,
+      },
+    ];
+
+    for (const { name, rpcUrl, reason } of cases) {
+      it(name, async () => {
+        const message = buildMessage();
+        const payload = buildPayload(ethers.utils.keccak256(message));
+        const { service, multiProvider } = harness(
+          [publicationLog(payload)],
+          encodeVaa(payload),
+        );
+        multiProvider.getProvider.returns(
+          new HyperlaneSmartProvider(
+            { chainId: DESTINATION_DOMAIN, name: DESTINATION_CHAIN },
+            [{ http: await rpcUrl() }],
+            [],
+            { maxRetries: 1, baseRetryDelayMs: 1, fallbackStaggerMs: 20 },
+          ),
+        );
+        const logUnhandledError = sinon.spy(
+          PrometheusMetrics,
+          'logUnhandledError',
+        );
+
+        await rejectionOf(
+          service.getWormholeVaa(message, DESTINATION_ROUTER, TX_HASH, logger),
+        );
+
+        expect(logUnhandledError.args).to.deep.equal([['wormhole', reason]]);
+      });
+    }
   });
 
   describe('with redundant VAA endpoints', () => {

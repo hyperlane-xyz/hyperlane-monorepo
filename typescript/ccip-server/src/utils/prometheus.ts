@@ -13,6 +13,9 @@ export enum UnhandledErrorReason {
   EXPLORER_GRAPHQL_500 = 'explorer_graphql_500',
   EXPLORER_GRAPHQL_NO_RESULTS = 'explorer_graphql_no_results',
 
+  // RPC provider errors
+  RPC_UNAVAILABLE = 'rpc_unavailable',
+
   // CCTP errors
   CCTP_MESSAGE_SENT_NOT_FOUND = 'cctp_message_sent_not_found',
   CCTP_UNSUPPORTED_VERSION = 'cctp_unsupported_version',
