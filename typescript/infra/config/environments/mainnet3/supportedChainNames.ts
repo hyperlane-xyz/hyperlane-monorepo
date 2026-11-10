@@ -2,6 +2,7 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const mainnet3SupportedChainNames = [
   'abstract',
+  'aevo',
   'aleo',
   'apechain',
   'arbitrum',

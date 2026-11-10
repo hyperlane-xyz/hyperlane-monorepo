@@ -96,4 +96,7 @@ export const awIcas: ChainMap<Address> = {
   // Nov 6, 2026 - Elysium (v2 router)
   // ----------------------------------------------------------
   elysium: '0xfA858c3c2352dE6fd77614544691F7704744F461',
+  // Nov 10, 2026 - Aevo (v2 router, core 9.0.5)
+  // ----------------------------------------------------------
+  aevo: '0xAB7b1f688A61e89bDf7a3C31F1F7061f268e69E3',
 } as const;
