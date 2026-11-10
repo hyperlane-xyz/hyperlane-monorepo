@@ -1402,6 +1402,101 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap python3 postgresql-client-16 libcurl4t64 libssl3t64
+          sudo apt-get install -y --no-install-recommends apparmor=4.0.1really4.0.1-0ubuntu0.24.04.9 apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9
+      - name: Load distro bwrap user namespace policy for Aleo
+        if: steps.authority.outputs.enabled == 'true'
+        timeout-minutes: 2
+        run: |
+          python3 -I -B - <<'PY'
+          import errno, hashlib, json, os, stat, subprocess
+          VERSION = '4.0.1really4.0.1-0ubuntu0.24.04.9'
+          PROFILE = '/usr/share/apparmor/extra-profiles/bwrap-userns-restrict'
+          TARGET = '/etc/apparmor.d/bwrap-userns-restrict'
+          PROFILE_BYTES = 1936
+          PROFILE_SHA = ('11d39094f044f0cda0febb3ad517b8303' '01da6b2ce929664af09ee9e4dd264f9')
+          def regular(path, cap):
+              fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+              with os.fdopen(fd, 'rb') as stream:
+                  before = os.fstat(stream.fileno())
+                  # Linux sysfs text attributes report PAGE_SIZE, not content length.
+                  declared_cap = 4096 if path == '/sys/module/apparmor/parameters/enabled' and cap == 8 else cap
+                  if not stat.S_ISREG(before.st_mode) or before.st_size > declared_cap:
+                      raise ValueError('bounded regular policy input required')
+                  wire = stream.read(cap + 1)
+                  after = os.fstat(stream.fileno())
+              if len(wire) > cap or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+                  raise ValueError('policy input changed or exceeded bound')
+              return wire
+
+          def policy():
+              result = {}
+              for name in ('unprivileged_userns_clone', 'apparmor_restrict_unprivileged_userns'):
+                  try:
+                      wire = regular('/proc/sys/kernel/' + name, 32)
+                  except OSError as error:
+                      if error.errno != errno.ENOENT:
+                          raise
+                      result[name] = None
+                      continue
+                  if wire not in (b'0', b'0\n', b'1', b'1\n'):
+                      raise ValueError('canonical optional namespace sysctl required')
+                  result[name] = int(wire)
+              return result
+
+          def command(argv):
+              result = subprocess.run(argv, check=True, capture_output=True, timeout=30)
+              if len(result.stdout) > 1024 * 1024 or len(result.stderr) > 65536:
+                  raise ValueError('bounded profile setup readback required')
+              return result.stdout
+
+          def configure_profile():
+              before = policy()
+              if before['unprivileged_userns_clone'] == 0:
+                  raise ValueError('unprivileged user namespaces explicitly disabled')
+              if before['apparmor_restrict_unprivileged_userns'] != 1:
+                  after = policy()
+                  if before != after:
+                      raise ValueError('global namespace policy changed')
+                  return {'profile_action': 'skipped_restriction_not_observed_enabled', 'packages': None, 'profile_bytes': None, 'profile_sha256': None, 'policy_before': before, 'policy_after': after, 'bwrap_enforced': None, 'unpriv_bwrap_enforced': None, 'global_restriction_disabled_by_setup': False}
+              if regular('/sys/module/apparmor/parameters/enabled', 8).strip() != b'Y':
+                  raise ValueError('active AppArmor required')
+              versions = {}
+              for package in ('apparmor', 'apparmor-profiles'):
+                  value = command(['/usr/bin/dpkg-query', '-W', '-f=${Version}', package]).decode('ascii')
+                  if value != VERSION:
+                      raise ValueError('exact Noble AppArmor package required')
+                  versions[package] = value
+              wire = regular(PROFILE, 16384)
+              if len(wire) != PROFILE_BYTES or hashlib.sha256(wire).hexdigest() != PROFILE_SHA:
+                  raise ValueError('exact distro shipped bwrap policy required')
+              for name in ('bwrap-userns-restrict', 'unpriv_bwrap'):
+                  try:
+                      local = regular('/etc/apparmor.d/local/' + name, 4096)
+                  except FileNotFoundError:
+                      continue
+                  if any(line.strip() and not line.lstrip().startswith(b'#') for line in local.splitlines()):
+                      raise ValueError('custom bwrap policy override refused')
+              try:
+                  existing = regular(TARGET, 16384)
+              except FileNotFoundError:
+                  existing = wire
+              if existing != wire:
+                  raise ValueError('conflicting installed bwrap profile refused')
+              command(['/usr/bin/sudo', '-n', '/usr/bin/install', '-o', 'root', '-g', 'root', '-m', '0644', '--', PROFILE, TARGET])
+              if regular(TARGET, 16384) != wire or regular(PROFILE, 16384) != wire:
+                  raise ValueError('installed policy bytes differ')
+              command(['/usr/bin/sudo', '-n', '/usr/sbin/apparmor_parser', '--replace', TARGET])
+              loaded = command(['/usr/bin/sudo', '-n', '/usr/bin/head', '-c', '1048576', '/sys/kernel/security/apparmor/profiles'])
+              if len(loaded) >= 1048576 or not {b'bwrap (enforce)', b'unpriv_bwrap (enforce)'} <= set(loaded.splitlines()):
+                  raise ValueError('both restrictive profiles must be enforced')
+              after = policy()
+              if before != after:
+                  raise ValueError('global namespace policy changed')
+              return {'profile_action': 'loaded', 'packages': versions, 'profile_bytes': len(wire), 'profile_sha256': PROFILE_SHA, 'policy_before': before, 'policy_after': after, 'bwrap_enforced': True, 'unpriv_bwrap_enforced': True, 'global_restriction_disabled_by_setup': False}
+
+          if __name__ == '__main__':
+              print('ALEO_BWRAP_POLICY ' + json.dumps(configure_profile(), sort_keys=True))
+          PY
       - name: Exact transport, both interops, fresh SDK/Docker/kernel and dedicated case
         if: steps.authority.outputs.enabled == 'true'
         env:

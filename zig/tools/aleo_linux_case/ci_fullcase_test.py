@@ -15,6 +15,16 @@ def evaluator():
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
 def ordinary_native_http_workflow(text):
+ # Exact enabled Aleo runner setup inverse; all profile/authority bytes are reviewed.
+ aleo_start = '      - name: Load distro bwrap user namespace policy for Aleo\n'
+ aleo_next = '      - name: Exact transport, both interops, fresh SDK/Docker/kernel and dedicated case\n'
+ if text.count(aleo_start) != 1 or text.count(aleo_next) != 1: raise AssertionError('Exact once-only Aleo profile setup required')
+ begin = text.index(aleo_start); end = text.index(aleo_next, begin)
+ if hashlib.sha256(text[begin:end].encode()).hexdigest() != ('6d30386b0d596e3346452c733038dfb4e' '898e8bf541ba844d1fe7c8562b7d81c'): raise AssertionError('Exact reviewed Aleo profile setup bytes required')
+ text = text[:begin] + text[end:]
+ aleo_packages = '          sudo apt-get install -y --no-install-recommends apparmor=4.0.1really4.0.1-0ubuntu0.24.04.9 apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9\n'
+ if text.count(aleo_packages) != 1: raise AssertionError('Exact pinned Aleo AppArmor package install required')
+ text = text.replace(aleo_packages, '', 1)
  # Exact SVM-only distro profile setup inverse; no other workflow changes normalize.
  svm_start = '      - name: Load distro bwrap user namespace policy\n'
  svm_next = '      - name: Check prerequisite owner controls\n'
@@ -704,5 +714,27 @@ class EncryptedDriverFailureProjection(unittest.TestCase):
   row=self.cipher();self.assertEqual(m.source_bound_encrypted_error(row,self.source()+self.source()),{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'})
   self.assertEqual(m.source_bound_encrypted_error({'schema':1,'status':'ENCRYPTION_UNAVAILABLE'},self.source()),{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'})
   self.assertNotIn('encrypted_sdk_error',m.source_bound_caught_error(self.diagnostic(),self.source()))
+
+
+class AleoRunnerBwrapPolicyControls(unittest.TestCase):
+ def workflow(self):return (REPO/'.github/workflows/zig-agents.yml').read_text()
+ def block(self,text,name,following):return name+text.split(name,1)[1].split(following,1)[0]
+ def test_enabled_Aleo_runner_reuses_exact_restrictive_distro_setup_before_kernel(self):
+  text=self.workflow();job=text.split('\n  aleo-full-case:',1)[1].split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0]
+  name='      - name: Load distro bwrap user namespace policy for Aleo\n';following='      - name: Exact transport, both interops, fresh SDK/Docker/kernel and dedicated case\n'
+  actual=self.block(text,name,following)
+  expected=self.block(text,'      - name: Load distro bwrap user namespace policy\n','      - name: Check prerequisite owner controls\n')
+  expected=expected.replace('      - name: Load distro bwrap user namespace policy\n',name,1).replace('        timeout-minutes: 2\n',"        if: steps.authority.outputs.enabled == 'true'\n        timeout-minutes: 2\n",1).replace("print('SVM_BWRAP_POLICY '","print('ALEO_BWRAP_POLICY '",1)
+  self.assertEqual(actual,expected);self.assertEqual(job.count(name),1)
+  self.assertLess(job.index('Provision ordinary host tools'),job.index(name));self.assertLess(job.index(name),job.index(following))
+  self.assertIn("        if: steps.authority.outputs.enabled == 'true'\n",actual)
+  self.assertIn('apparmor=4.0.1really4.0.1-0ubuntu0.24.04.9 apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9',job)
+  self.assertNotIn('sysctl -w',actual);self.assertNotIn('flags=(unconfined)',actual)
+ def test_golden_inverse_refuses_policy_authority_and_package_drift(self):
+  text=self.workflow()
+  for old,new in [("print('ALEO_BWRAP_POLICY '","print('FOREIGN '") , ("        if: steps.authority.outputs.enabled == 'true'\n        timeout-minutes: 2\n",'        timeout-minutes: 2\n'),('sudo apt-get install -y --no-install-recommends apparmor=','sudo apt-get install -y --no-install-recommends foreign=')]:
+   with self.subTest(old=old):
+    changed=text.replace(old,new,1);self.assertNotEqual(changed,text)
+    with self.assertRaises(AssertionError):ordinary_native_http_workflow(changed)
 
 if __name__=='__main__':unittest.main(verbosity=2)

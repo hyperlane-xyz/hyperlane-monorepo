@@ -12,6 +12,16 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact enabled Aleo runner setup inverse; all profile/authority bytes are reviewed.
+ aleo_start = '      - name: Load distro bwrap user namespace policy for Aleo\n'
+ aleo_next = '      - name: Exact transport, both interops, fresh SDK/Docker/kernel and dedicated case\n'
+ if text.count(aleo_start) != 1 or text.count(aleo_next) != 1: raise AssertionError('Exact once-only Aleo profile setup required')
+ begin = text.index(aleo_start); end = text.index(aleo_next, begin)
+ if hashlib.sha256(text[begin:end].encode()).hexdigest() != ('6d30386b0d596e3346452c733038dfb4e' '898e8bf541ba844d1fe7c8562b7d81c'): raise AssertionError('Exact reviewed Aleo profile setup bytes required')
+ text = text[:begin] + text[end:]
+ aleo_packages = '          sudo apt-get install -y --no-install-recommends apparmor=4.0.1really4.0.1-0ubuntu0.24.04.9 apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9\n'
+ if text.count(aleo_packages) != 1: raise AssertionError('Exact pinned Aleo AppArmor package install required')
+ text = text.replace(aleo_packages, '', 1)
  # Exact SVM-only distro profile setup inverse; no other workflow changes normalize.
  svm_start = '      - name: Load distro bwrap user namespace policy\n'
  svm_next = '      - name: Check prerequisite owner controls\n'
