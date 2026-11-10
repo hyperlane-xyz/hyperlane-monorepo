@@ -1007,6 +1007,12 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
                 record['Tron_encrypted_deploy_error']=svm_encrypt_failure_windows({**plan,'diagnostic_node':node},module,*tron_selected[0],out,result,private_end_ns,window_mode='tron')
         except BaseException:pass
         finally:tron_selected.clear()
+    if manifest['scenario']=='starknet':
+        record['Stark_admin_sampling']={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        try:
+            require(len(json.dumps(record,sort_keys=True,separators=(',',':')).encode())<=512*1024-24*1024,'Existing failure record has no diagnostic reserve')
+            record['Stark_admin_sampling']=diagnostic_module(approval).starknet_admin_sampling_observation(case,manifest,approval['python_modules'],case_inputs,value)
+        except BaseException:pass # Optional evidence cannot replace the primary failure.
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')

@@ -508,6 +508,73 @@ def evm_child_wait_text_observation(wire,bodies,approved):
 
 
 
+def starknet_admin_sampling_observation(case,manifest,modules,case_inputs,observer=None):
+    """Failure-only terminal-attempt clocks; no raw admin data or proof credit."""
+    absent={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+    def require(ok):
+        if not ok:raise ValueError('Closed Stark admin diagnostic unavailable')
+    def integer(value,maximum=2**64-1):return type(value)is int and 0<=value<=maximum
+    try:
+        expected={'starknettest23448593':23448593,'starknettest23448594':23448594}
+        require(manifest['scenario']=='starknet'and case_inputs['scenario']=='starknet'and case_inputs['chain_names']==list(expected)and case_inputs['domain_names']=={str(domain):name for name,domain in expected.items()})
+        # The caller already admitted modules/case-inputs. Recheck the row
+        # producer; never import or execute its sampler here.
+        source=modules['multivm_session.py'];path=Path(source['path'])
+        require(set(source)=={'path','bytes','sha256'}and path.name=='multivm_session.py'and path.is_absolute()and path.resolve(strict=True)==path)
+        body,identity=captured_failure_bytes(path,1024**2)
+        require(identity=={key:source[key]for key in ('bytes','sha256')})
+        tree=ast.parse(body);functions=[node for node in tree.body if isinstance(node,ast.FunctionDef)and node.name=='collect_admin_sample'];require(len(functions)==1)
+        function=functions[0];timings=[node.value for node in ast.walk(function)if isinstance(node,ast.Assign)and any(isinstance(target,ast.Name)and target.id=='timing'for target in node.targets)]
+        base={'chain','domain','port','attempt','request_started_monotonic_ns','whole_sample_deadline_ns'}
+        require(len(timings)==1 and isinstance(timings[0],ast.Dict)and {ast.literal_eval(key)for key in timings[0].keys}==base)
+        emitted={}
+        for node in ast.walk(function):
+            if not(isinstance(node,ast.Call)and isinstance(node.func,ast.Name)and node.func.id=='diagnostic'):continue
+            require(len(node.args)==1 and not node.keywords)
+            row=node.args[0];require(isinstance(row,ast.Call)and isinstance(row.func,ast.Name)and row.func.id=='dict'and len(row.args)==1 and isinstance(row.args[0],ast.Name)and row.args[0].id=='timing'and all(key.arg is not None for key in row.keywords))
+            keys={key.arg:key.value for key in row.keywords};outcome=ast.literal_eval(keys['outcome']);require(outcome not in emitted);emitted[outcome]=set(keys)
+        require(emitted=={'transport_timeout':{'response_received_monotonic_ns','outcome'},'hard_error':{'response_received_monotonic_ns','outcome','error_type'},'success':{'response_received_monotonic_ns','outcome','operation_count'}})
+        policy=next(ast.literal_eval(node.value)for node in tree.body if isinstance(node,ast.Assign)and any(isinstance(target,ast.Name)and target.id=='OBSERVER_POLICY'for target in node.targets))
+        require((policy['maximum_successful_domain_sample_gap_ns'],policy['maximum_GET_timeout_seconds'],policy['maximum_GET_attempts_per_domain'])==(10_000_000_000,2,8))
+        sampler=next(node for cls in tree.body if isinstance(cls,ast.ClassDef)and cls.name=='Session'for node in cls.body if isinstance(node,ast.FunctionDef)and node.name=='_sample')
+        handlers=[node for node in ast.walk(sampler)if isinstance(node,ast.ExceptHandler)]
+        require(len(handlers)==1 and isinstance(handlers[0].body[-1],ast.Return)and handlers[0].body[-1].value is None)
+        require(sum(isinstance(node,ast.Constant)and node.value=='admin-sampling-diagnostics.jsonl'for node in ast.walk(tree))==1)
+        failure_ns=None
+        if observer is not None:
+            validate_record(observer,modules)
+            failures=[row['first']['finished_monotonic_ns']for row in observer['failures'].values()if row['first']['stage']=='sampler']
+            if failures:failure_ns=min(failures)
+        case=Path(case);evidence=case/'evidence';require(case.is_absolute()and case.resolve(strict=True)==case and evidence.resolve(strict=True)==evidence)
+        raw,fingerprint=captured_failure_bytes(evidence/'admin-sampling-diagnostics.jsonl',32*1024**2)
+        require(raw and raw.endswith(b'\n'))
+        complete=raw.count(b'\n');tail=raw.rsplit(b'\n',49)[:-1][-48:];rows=[]
+        def unique(pairs):
+            result={}
+            for key,value in pairs:require(key not in result);result[key]=value
+            return result
+        errors={'TimeoutError','ConnectionRefusedError','ConnectionResetError','ConnectionAbortedError','BrokenPipeError','OSError','ValueError','JSONDecodeError','RemoteDisconnected','IncompleteRead','HTTPException','CannotSendRequest','ResponseNotReady','TypeError','KeyError','AssertionError'}
+        for index,line in enumerate(tail,complete-len(tail)+1):
+            require(0<len(line)<=4096)
+            value=json.loads(line,object_pairs_hook=unique,parse_constant=lambda _:(_ for _ in()).throw(ValueError('nonfinite')))
+            require(type(value)is dict and value.get('outcome')in emitted)
+            outcome=value['outcome'];require(set(value)==base|emitted[outcome])
+            require(value['chain']in expected and value['domain']==expected[value['chain']]and type(value['domain'])is int)
+            require(type(value['port'])is int and 0<value['port']<=65535 and type(value['attempt'])is int and 1<=value['attempt']<=8)
+            require(all(integer(value[key])for key in ['request_started_monotonic_ns','whole_sample_deadline_ns','response_received_monotonic_ns']))
+            row={key:value[key]for key in ['chain','domain','port','attempt','request_started_monotonic_ns','whole_sample_deadline_ns','response_received_monotonic_ns','outcome']};row['journal_line']=index
+            start,end,deadline=(value[key]for key in ['request_started_monotonic_ns','response_received_monotonic_ns','whole_sample_deadline_ns'])
+            # Late rows are precisely the needed evidence, never accepted work.
+            row.update(elapsed_ns=end-start,remaining_at_request_start_ns=deadline-start,response_after_deadline_ns=max(0,end-deadline),clock_rollback_observed=end<start)
+            if outcome=='success':require(integer(value['operation_count'],2**32-1));row['operation_count']=value['operation_count']
+            if outcome=='hard_error':require(type(value['error_type'])is str);row['error_type']=value['error_type']if value['error_type']in errors else'OtherError'
+            rows.append(row)
+        record={'schema':1,'collection_status':'observed','source_contract':{'module':'multivm_session.py',**identity,'Source_sampler_exception_handler_returns':True},'input':fingerprint,'input_limit_bytes':32*1024**2,'complete_line_count':complete,'selected_tail_line_count':len(rows),'prefix_lines_not_parsed':complete-len(rows),'selection':'Last48 complete terminal-attempt rows in journal order; earliest sampler exception retained separately in existing public observer diagnostics.','sampler_exception_observed_monotonic_ns':failure_ns,'rows':rows,'scope':'Existing completed-attempt timing only. A pre-request deadline failure can leave no row. No request start/whole-round duration or unique cause is inferred from an absent row or sampler exception timestamp. No raw operations, URLs, addresses, messages or exception text. Original10s/2s/8attempt and latched failure guards unchanged.','native_or_timing_or_cleanup_authority':False}
+        require(len(json.dumps(record,sort_keys=True,separators=(',',':')).encode())<=24*1024)
+        return record
+    except(OSError,ValueError,TypeError,KeyError,OverflowError,RecursionError,SyntaxError,StopIteration):return absent
+
+
 def captured_failure_bytes(path, maximum):
     """One stable bounded regular file; private bytes are never returned publicly."""
     path=Path(path);before=path.lstat()

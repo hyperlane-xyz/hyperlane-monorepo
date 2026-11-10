@@ -1439,4 +1439,39 @@ class RadixRpcPublicationControls(unittest.TestCase):
                 with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'runtime_source_commit':'a'*40,'scenario':'radix','mode':'ReleaseSafe'}, {},case,out,result,1,case_inputs={},original_deadline_ns=time.monotonic_ns()+5_000_000_000,radix_scraper={'state':state})
                 value=json.loads(Path(row['path']).read_bytes());self.assertEqual(value['Radix_RPC_failures'],{'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False});self.assertIs(result['error'],primary);self.assertEqual(result['direct_waits'],waits);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(module.radix_rpc_failure_observation.call_count,0 if ambiguous else 1)
 
+class StarkAdminFailureProjectionControls(unittest.TestCase):
+    def test_existing_failure_artifact_optional_projection_preserves_primary_even_on_interrupt(self):
+        from types import SimpleNamespace
+        for failure in [None,ValueError('PRIVATE_DIAGNOSTIC'),KeyboardInterrupt('PRIVATE_INTERRUPT')]:
+            with tempfile.TemporaryDirectory()as temp:
+                root=Path(temp).resolve();case=root/'case';out=root/'out';case.mkdir();out.mkdir();primary={'type':'ValueError','message':'PRIVATE_PRIMARY'};result={'direct_waits':[],'error':primary};before=copy.deepcopy(result);projected={'schema':1,'collection_status':'observed','rows':[],'native_or_timing_or_cleanup_authority':False};module=SimpleNamespace(starknet_admin_sampling_observation=mock.Mock(side_effect=failure,return_value=projected))
+                with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):
+                    row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'starknet','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{'python_modules':{}},case,out,result,90,case_inputs={'scenario':'starknet'})
+                value=json.loads(Path(row['path']).read_bytes());self.assertEqual(result,before);self.assertIs(result['error'],primary);self.assertFalse(value['native_or_timing_credit']);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(value['Stark_admin_sampling']['collection_status'],'observed'if failure is None else'unavailable');module.starknet_admin_sampling_observation.assert_called_once()
+    def test_exact24KiB_projection_and512KiB_final_newline_reserve_boundary(self):
+        from types import SimpleNamespace
+        placeholder={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        projection={'schema':1,'collection_status':'observed','native_or_timing_or_cleanup_authority':False,'synthetic_bound':''}
+        compact=lambda value:json.dumps(value,sort_keys=True,separators=(',',':')).encode()
+        projection['synthetic_bound']='x'*(24*1024-len(compact(projection)));self.assertEqual(len(compact(projection)),24*1024)
+        with tempfile.TemporaryDirectory()as temp:
+            root=Path(temp).resolve();case=root/'case';case.mkdir()
+            def run(filler,name):
+                out=root/name;out.mkdir();module=SimpleNamespace(starknet_admin_sampling_observation=mock.Mock(return_value=projection));startup={'state':SimpleNamespace(public=lambda log:{'synthetic_bound':'x'*filler}),'latest_probe':None}
+                with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module),mock.patch.object(api.time,'monotonic_ns',return_value=100):
+                    row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'starknet','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{'python_modules':{}},case,out,{'direct_waits':[]},90,startup_context=startup)
+                raw=Path(row['path']).read_bytes();return json.loads(raw),len(raw),module
+            base,_,_=run(0,'base');base['Stark_admin_sampling']=placeholder;original=len(compact(base));filler=512*1024-24*1024-original;self.assertGreater(filler,0)
+            value,size,module=run(filler,'boundary');self.assertEqual(value['Stark_admin_sampling']['collection_status'],'observed');self.assertEqual(size,512*1024-len(compact(placeholder))+1);self.assertLessEqual(size,512*1024);module.starknet_admin_sampling_observation.assert_called_once()
+            value,size,module=run(filler+1,'over_reserve');self.assertEqual(value['Stark_admin_sampling'],placeholder);self.assertLessEqual(size,512*1024);module.starknet_admin_sampling_observation.assert_not_called()
+    def test_non_Stark_failure_does_not_read_or_project_admin_timeline(self):
+        from types import SimpleNamespace
+        module=SimpleNamespace(late_invariant_observation=mock.Mock(return_value={'collection_status':'unavailable'}),starknet_admin_sampling_observation=mock.Mock(side_effect=AssertionError('no new admin diagnostic IO')))
+        with tempfile.TemporaryDirectory()as temp:
+            root=Path(temp).resolve();case=root/'case';out=root/'out';case.mkdir();out.mkdir()
+            with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):
+                row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'evm','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},case,out,{'direct_waits':[]},90)
+            self.assertNotIn('Stark_admin_sampling',json.loads(Path(row['path']).read_bytes()));module.starknet_admin_sampling_observation.assert_not_called()
+
+
 if __name__=='__main__':unittest.main()

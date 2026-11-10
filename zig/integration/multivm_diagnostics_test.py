@@ -1571,4 +1571,44 @@ class RadixRpcJournalControls(unittest.TestCase):
             return original()
         with mock.patch.object(self.state,'check_sources',side_effect=check),self.assertRaises(ValueError):self.observe()
 
+class StarkAdminSamplingControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.case=self.root/'case';self.evidence=self.case/'evidence';self.evidence.mkdir(parents=True)
+        self.source=self.root/'multivm_session.py';self.original=(HERE/'multivm_session.py').read_bytes();self.source.write_bytes(self.original);self.modules={'multivm_session.py':api.pin(self.source)}
+        self.inputs={'scenario':'starknet','chain_names':['starknettest23448593','starknettest23448594'],'domain_names':{'23448593':'starknettest23448593','23448594':'starknettest23448594'}};self.manifest={'scenario':'starknet'};self.journal=self.evidence/'admin-sampling-diagnostics.jsonl'
+    def row(self,**changes):
+        row={'chain':'starknettest23448593','domain':23448593,'port':9093,'attempt':1,'request_started_monotonic_ns':100,'whole_sample_deadline_ns':110,'response_received_monotonic_ns':105,'outcome':'success','operation_count':10};row.update(changes);return row
+    def write(self,rows):self.journal.write_bytes(b''.join(json.dumps(row,separators=(',',':')).encode()+b'\n'for row in rows))
+    def observe(self,observer=None):return api.starknet_admin_sampling_observation(self.case,self.manifest,self.modules,self.inputs,observer)
+    def test_actual_Source_contract_terminal_rows_keep_late_numeric_evidence_no_private_values(self):
+        timeout=self.row(outcome='transport_timeout',response_received_monotonic_ns=115);timeout.pop('operation_count')
+        error=self.row(outcome='hard_error',error_type='PRIVATE_CUSTOM_ERROR');error.pop('operation_count')
+        self.write([self.row(),timeout,error]);value=self.observe();self.assertEqual(value['collection_status'],'observed');self.assertEqual(value['complete_line_count'],3);self.assertEqual(value['rows'][1]['response_after_deadline_ns'],5);self.assertEqual(value['rows'][2]['error_type'],'OtherError');self.assertFalse(value['native_or_timing_or_cleanup_authority']);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(value['source_contract']['sha256'],api.pin(self.source)['sha256'])
+    def test_tail_preserves_journal_order_and_declares_unparsed_prefix(self):
+        self.write([self.row(request_started_monotonic_ns=i,response_received_monotonic_ns=i+1)for i in range(80)])
+        value=self.observe();self.assertEqual(value['collection_status'],'observed');self.assertEqual(value['selected_tail_line_count'],48);self.assertEqual(value['prefix_lines_not_parsed'],32);self.assertEqual([r['journal_line']for r in value['rows']],list(range(33,81)));self.assertLessEqual(len(json.dumps(value,separators=(',',':')).encode()),24*1024)
+    def test_earliest_sampler_exception_time_is_not_request_start_or_round_duration(self):
+        self.write([self.row()]);state={'observed_monotonic_ns':1000,'restart_sample_count':0,'restart_failed':False,'restart_first_observed_ns':None,'restart_last_observed_ns':None,'role_activity':[],'observer_failure_count':0,'lifecycle_error_count':0};rec=api.Recorder(self.root/'observer.json',self.modules,self.root)
+        token=rec.enter('sampler',state);state['observed_monotonic_ns']=1500;rec.finish(token,state,'exception',ValueError('PRIVATE'))
+        token=rec.enter('sampler',state);state['observed_monotonic_ns']=2000;rec.finish(token,state,'exception',ValueError('PRIVATE'))
+        value=self.observe(rec.value);self.assertEqual(value['sampler_exception_observed_monotonic_ns'],1500);self.assertIn('pre-request deadline failure can leave no row',value['scope']);self.assertNotIn('round_duration_ns',value);self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_unknown_schema_chain_domain_bool_counter_and_raw_fields_refuse_without_export(self):
+        for changes in [{'chain':'PRIVATE_CHAIN'},{'domain':23448594},{'attempt':True},{'port':0},{'request_started_monotonic_ns':1.0},{'operation_count':-1},{'raw_url':'http://PRIVATE/'},{'outcome':'PRIVATE'}]:
+            self.write([self.row(**changes)]);value=self.observe()
+            with self.subTest(changes=changes):self.assertEqual(value['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))
+        self.journal.write_bytes(b'{"chain":"PRIVATE","chain":"starknettest23448593"}\n');self.assertEqual(self.observe()['collection_status'],'unavailable')
+    def test_absent_partial_oversize_symlink_hardlink_and_fifo_are_optional_unavailable(self):
+        import os
+        self.assertEqual(self.observe()['collection_status'],'unavailable');self.journal.write_bytes(json.dumps(self.row()).encode());self.assertEqual(self.observe()['collection_status'],'unavailable');self.journal.unlink()
+        with self.journal.open('wb')as stream:stream.truncate(32*1024**2+1)
+        self.assertEqual(self.observe()['collection_status'],'unavailable');self.journal.unlink();target=self.root/'target';target.write_bytes(json.dumps(self.row()).encode()+b'\n')
+        self.journal.symlink_to(target);self.assertEqual(self.observe()['collection_status'],'unavailable');self.journal.unlink();os.link(target,self.journal);self.assertEqual(self.observe()['collection_status'],'unavailable');self.journal.unlink();os.mkfifo(self.journal);self.assertEqual(self.observe()['collection_status'],'unavailable')
+    def test_Source_hash_policy_shape_or_return_after_latch_change_refuses(self):
+        self.write([self.row()])
+        for old,new in [(b'"maximum_GET_attempts_per_domain": 8',b'"maximum_GET_attempts_per_domain": 9'),(b'outcome="success"',b'outcome="PRIVATE"'),(b'return # A hard coverage/schema failure is latched; no later re-credit.',b'continue # Changed sampler no longer terminates.')]:
+            changed=self.original.replace(old,new,1);self.assertNotEqual(changed,self.original);self.source.write_bytes(changed);self.modules['multivm_session.py']=api.pin(self.source)
+            with self.subTest(old=old):self.assertEqual(self.observe()['collection_status'],'unavailable')
+        self.source.write_bytes(self.original);self.modules['multivm_session.py']=api.pin(self.source);self.source.write_bytes(self.original+b'\n');self.assertEqual(self.observe()['collection_status'],'unavailable')
+
+
 if __name__=='__main__':unittest.main()
