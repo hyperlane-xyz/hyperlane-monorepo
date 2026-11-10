@@ -14,7 +14,7 @@ use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
 use maplit::hashmap;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
@@ -127,6 +127,10 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
 
     fn update_ism_metric(&self, params: IsmBuildMetricsParams);
 
+    /// Counts validator latest-index telemetry refreshes that were skipped or
+    /// did not complete, so a stale `observed_validator_latest_index` is visible.
+    fn report_latest_index_refresh_skipped(&self, _reason: &str) {}
+
     async fn get_proof(
         &self,
         leaf_index: u32,
@@ -191,6 +195,13 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             "status" => if params.success { "success" } else { "failure" },
         };
         self.metrics.ism_build_count().with(&labels).inc();
+    }
+
+    fn report_latest_index_refresh_skipped(&self, reason: &str) {
+        self.metrics
+            .validator_latest_index_refresh_skipped()
+            .with_label_values(&[self.origin_domain.name(), reason])
+            .inc();
     }
 
     async fn get_proof(
@@ -380,6 +391,11 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             });
                             return Ok(Some((*validator, syncer)));
                         }
+                        // An older location would not carry a reorg flag written to
+                        // the newest one, so an unreadable flag excludes the validator.
+                        if states.contains(&ValidatorStorageState::ReorgCheckFailed) {
+                            break;
+                        }
                     }
                     warn!(
                         ?validator,
@@ -510,14 +526,17 @@ impl BaseMetadataBuilder {
             }
             Ok(_) => Ok(Some(checkpoint_syncer)),
             Err(err) => {
+                // A read error is not evidence that the flag is absent, so this
+                // validator's signatures are excluded. It must not fail the whole
+                // build: the remaining validators can still reach quorum.
                 report(ValidatorStorageState::ReorgCheckFailed);
-                error!(
+                warn!(
                     ?err,
                     ?config,
                     ?validator,
-                    "Failed to read reorg status; refusing checkpoint metadata"
+                    "Failed to read reorg status; excluding validator from checkpoint metadata"
                 );
-                Err(err.into())
+                Ok(None)
             }
         }
     }
@@ -526,11 +545,45 @@ impl BaseMetadataBuilder {
 #[cfg(test)]
 mod tests {
     use hyperlane_base::db::DB;
-    use hyperlane_core::{ReorgEvent, ReorgPeriod};
+    use hyperlane_core::{
+        Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneProvider,
+        ReorgEvent, ReorgPeriod, SignedType, TxOutcome, U256,
+    };
+    use mockall::mock;
 
     use crate::test_utils::dummy_data::dummy_metadata_builder;
 
     use super::*;
+
+    mock! {
+        #[derive(Debug)]
+        pub Announce {}
+
+        #[async_trait::async_trait]
+        impl ValidatorAnnounce for Announce {
+            async fn get_announced_storage_locations(
+                &self,
+                validators: &[H256],
+            ) -> ChainResult<Vec<Vec<String>>>;
+
+            async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome>;
+
+            async fn announce_tokens_needed(
+                &self,
+                announcement: SignedType<Announcement>,
+                chain_signer: H256,
+            ) -> Option<U256>;
+        }
+
+        impl HyperlaneContract for Announce {
+            fn address(&self) -> H256;
+        }
+
+        impl HyperlaneChain for Announce {
+            fn domain(&self) -> &HyperlaneDomain;
+            fn provider(&self) -> Box<dyn HyperlaneProvider>;
+        }
+    }
 
     #[tokio::test]
     async fn revalidates_reorg_status_on_every_pool_checkout() {
@@ -601,7 +654,8 @@ mod tests {
         assert!(builder
             .build_and_validate(&mut states, &config, &validator, &storage_location, true,)
             .await
-            .is_err());
+            .unwrap()
+            .is_none());
         assert!(states.contains(&ValidatorStorageState::ReorgCheckFailed));
 
         // A confirmed absence still permits metadata after the read recovers.
@@ -617,5 +671,69 @@ mod tests {
             .await
             .unwrap()
             .is_some());
+    }
+
+    #[tokio::test]
+    async fn unreadable_reorg_flag_excludes_only_that_validator() {
+        let origin = HyperlaneDomain::new_test_domain("origin");
+        let destination = HyperlaneDomain::new_test_domain("destination");
+        let db_dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(&origin, DB::from_path(db_dir.path()).unwrap());
+        let mut builder =
+            dummy_metadata_builder(&origin, &destination, &db, OptionalCache::new(None));
+        builder.allow_local_checkpoint_syncers = true;
+
+        let healthy = H256::from_low_u64_be(1);
+        let failing = H256::from_low_u64_be(2);
+        let healthy_dir = tempfile::tempdir().unwrap();
+        let failing_dir = tempfile::tempdir().unwrap();
+        let healthy_location = format!("file://{}", healthy_dir.path().display());
+        let failing_location = format!("file://{}", failing_dir.path().display());
+
+        // Both validators have published checkpoints.
+        for (validator, location) in [(healthy, &healthy_location), (failing, &failing_location)] {
+            let config = CheckpointSyncerConf::from_str(location).unwrap();
+            let syncer = builder
+                .build_and_validate(&mut BTreeSet::new(), &config, &validator, location, false)
+                .await
+                .unwrap()
+                .unwrap();
+            syncer.write_latest_index(7).await.unwrap();
+        }
+
+        // A directory deterministically makes the failing validator's flag unreadable.
+        tokio::fs::create_dir(failing_dir.path().join("reorg_flag.json"))
+            .await
+            .unwrap();
+
+        let mut validator_announce = MockAnnounce::new();
+        validator_announce
+            .expect_domain()
+            .return_const(origin.clone());
+        let locations = vec![vec![healthy_location], vec![failing_location]];
+        validator_announce
+            .expect_get_announced_storage_locations()
+            .returning(move |_| Ok(locations.clone()));
+        builder.origin_validator_announce = Arc::new(validator_announce);
+
+        // One unreadable flag must not fail the build for the other validators.
+        let syncer = builder
+            .build_checkpoint_syncer(
+                &HyperlaneMessage::default(),
+                &[healthy, failing],
+                None,
+                true,
+            )
+            .await
+            .unwrap();
+        let latest = syncer
+            .get_validator_latest_checkpoints_and_update_metrics(
+                &[healthy, failing],
+                &origin,
+                &destination,
+            )
+            .await
+            .unwrap();
+        assert_eq!(latest, vec![(H160::from(healthy), 7)]);
     }
 }
