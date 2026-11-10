@@ -85,6 +85,7 @@ export const usdcTokenAddresses = {
   base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   bsc: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
   celo: '0xcebA9300f2b948710d2653dD7B07f33A8B32118C',
+  elysium: '0xb47c4C8F73F009CC0C0d3f92B388d13E293F0B65',
   ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
   flow: 'A.b19436aae4d94622.FiatToken',
   hedera: '0.0.456858',
