@@ -431,6 +431,42 @@ describe('EvmLayerZeroV2HookIsmModule', () => {
     ).to.equal(nonceBefore);
   });
 
+  it('rejects an asymmetric mesh before deploying', async () => {
+    const input = mesh();
+    delete input[chainA].remoteRouters[chainB];
+    const nonceBefore =
+      await hre.ethers.provider.getTransactionCount(signerAddress);
+
+    await expect(
+      EvmLayerZeroV2HookIsmModule.deployMesh(multiProvider, input),
+    ).to.be.rejectedWith(
+      `Asymmetric LayerZero mesh:\n  ${chainA} does not enroll ${chainB}`,
+    );
+
+    expect(
+      await hre.ethers.provider.getTransactionCount(signerAddress),
+    ).to.equal(nonceBefore);
+  });
+
+  it('rejects a remote router outside the mesh before deploying', async () => {
+    const input = mesh();
+    input[chainA].remoteRouters.layerzeroc = route(chainA, {
+      layerZeroDomainId: 30_103,
+    });
+    const nonceBefore =
+      await hre.ethers.provider.getTransactionCount(signerAddress);
+
+    await expect(
+      EvmLayerZeroV2HookIsmModule.deployMesh(multiProvider, input),
+    ).to.be.rejectedWith(
+      `${chainA} enrolls layerzeroc, which is not in the LayerZero mesh`,
+    );
+
+    expect(
+      await hre.ethers.provider.getTransactionCount(signerAddress),
+    ).to.equal(nonceBefore);
+  });
+
   it('unenrolls a remote router whose domain is outside the registry', async () => {
     const target = mesh();
     const addresses = await EvmLayerZeroV2HookIsmModule.deployMesh(
