@@ -431,7 +431,9 @@ def verify_canonical_rocks(probe, chain, messages, delivered_ids, expenditure_ex
         else:
             require(payment is None, "Rust invented gas payment")
         delivered = message["id"] in delivered_ids
-        require(row.get("processed") is delivered, "Rust processed marker differs from actual native delivery")
+        processed = row.get("processed")
+        require("processed" in row and (processed is None or type(processed) is bool), "Rust processed marker must be an explicit optional bool")
+        require(processed is True if delivered else processed is None or processed is False, "Rust processed marker differs from actual native delivery")
         spent = row.get("spent")
         require(isinstance(spent, dict) and int(spent["gas_used"]) >= 0 and int(spent["tokens_used"]) >= 0, "Rust expenditure value missing")
         if delivered:

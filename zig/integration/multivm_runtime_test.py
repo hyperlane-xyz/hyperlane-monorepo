@@ -704,7 +704,7 @@ class EvidenceTests(unittest.TestCase):
     def test_stopped_canonical_rust_reader_validates_real_nonce_leaf_and_payment_semantics(self):
         ids = ["0x" + byte * 32 for byte in ("11", "22", "33")]
         messages = [{"nonce": i, "id": identity, "origin": 1, "destination": 2, "payments": [{"payment": 10, "gas_amount": 5}], "insertions": indexes} for i, (identity, indexes) in enumerate(zip(ids, [[], [0, 1], [2]]))]
-        rows = [{"nonce": i, "present": True, "origin": 1, "destination": 2, "id_chunks": [identity[2:34], identity[34:]], "insertion_id_chunks": [leaf[2:34], leaf[34:]], "payment": {"payment": "10", "gas_amount": "5"}, "processed": i > 0, "spent": {"gas_used": str(100 if i else 0), "tokens_used": str(200 if i else 0)}, "gas_expenditure_record_present": i > 0} for i, (identity, leaf) in enumerate(zip(ids, [ids[1], ids[1], ids[2]]))]
+        rows = [{"nonce": i, "present": True, "origin": 1, "destination": 2, "id_chunks": [identity[2:34], identity[34:]], "insertion_id_chunks": [leaf[2:34], leaf[34:]], "payment": {"payment": "10", "gas_amount": "5"}, "processed": True if i > 0 else None, "spent": {"gas_used": str(100 if i else 0), "tokens_used": str(200 if i else 0)}, "gas_expenditure_record_present": i > 0} for i, (identity, leaf) in enumerate(zip(ids, [ids[1], ids[1], ids[2]]))]
         probe = {"reader": "actual production HyperlaneRocksDB + FullPayload decoder", "origin_namespace": "test1", "origin_domain": 1, "origin_nonce_count": 3, "messages": rows}
         self.assertEqual(len(evm.verify_canonical_rocks(probe, {"name": "test1", "domainid": 1}, messages, set(ids[1:]))), 3)
         for mutate in [lambda p: p["messages"][0].__setitem__("insertion_id_chunks", rows[0]["id_chunks"]), lambda p: p["messages"][1].__setitem__("processed", False), lambda p: p["messages"][1]["payment"].__setitem__("payment", "9"), lambda p: p["messages"][1].__setitem__("nonce", 0), lambda p: p.__setitem__("reader", "canned passed JSON")]:
@@ -712,6 +712,39 @@ class EvidenceTests(unittest.TestCase):
             mutate(changed)
             with self.assertRaises(ValueError):
                 evm.verify_canonical_rocks(changed, {"name": "test1", "domainid": 1}, messages, set(ids[1:]))
+
+    def test_stopped_canonical_processed_marker_requires_explicit_optional_bool(self):
+        identity = "0x" + "11" * 32
+        message = {"nonce": 0, "id": identity, "origin": 1, "destination": 2, "payments": [], "insertions": []}
+        row = {"nonce": 0, "present": True, "origin": 1, "destination": 2, "id_chunks": [identity[2:34], identity[34:]], "insertion_id_chunks": None, "payment": None, "processed": None, "spent": {"gas_used": "0", "tokens_used": "0"}, "gas_expenditure_record_present": False}
+        probe = {"reader": "actual production HyperlaneRocksDB + FullPayload decoder", "origin_namespace": "test1", "origin_domain": 1, "origin_nonce_count": 1, "messages": [row]}
+        chain = {"name": "test1", "domainid": 1}
+        # Rust Option<bool> is emitted as JSON null for an absent key, or an
+        # explicit bool for an existing key. Both absent and stored-false mean
+        # unprocessed; an omitted JSON field is not the same schema.
+        for value in (None, False):
+            changed = copy.deepcopy(probe)
+            changed["messages"][0]["processed"] = value
+            with self.subTest(unprocessed=value):
+                self.assertIs(evm.verify_canonical_rocks(changed, chain, [message], set())[0]["processed"], False)
+        missing = copy.deepcopy(probe)
+        missing["messages"][0].pop("processed")
+        with self.assertRaisesRegex(ValueError, "explicit optional bool"):
+            evm.verify_canonical_rocks(missing, chain, [message], set())
+        for value in (0, 1, "false", "true", [], {}):
+            changed = copy.deepcopy(probe)
+            changed["messages"][0]["processed"] = value
+            with self.subTest(wrong_type=type(value).__name__), self.assertRaisesRegex(ValueError, "explicit optional bool"):
+                evm.verify_canonical_rocks(changed, chain, [message], set())
+        processed = copy.deepcopy(probe)
+        processed["messages"][0]["processed"] = True
+        with self.assertRaisesRegex(ValueError, "differs from actual native delivery"):
+            evm.verify_canonical_rocks(processed, chain, [message], set())
+        for value in (None, False):
+            changed = copy.deepcopy(probe)
+            changed["messages"][0]["processed"] = value
+            with self.subTest(delivered_marker=value), self.assertRaisesRegex(ValueError, "differs from actual native delivery"):
+                evm.verify_canonical_rocks(changed, chain, [message], {identity})
 
     def test_sql_origin_and_destination_databases_are_checked_separately_by_exact_identity(self):
         message = {"id": "0x" + "11" * 32, "dispatch_transaction": "0x" + "22" * 32, "origin": 1, "destination": 2, "nonce": 7, "body": "0x66697874757265", "payments": [{"gas_amount": 5, "payment": 10}, {"gas_amount": 6, "payment": 20}], "insertions": [2, 3]}
