@@ -3,8 +3,8 @@ warpRouteId: USDC/eclipsemainnet
 deployment:
   monitorOnly: true
   imageRepository: ghcr.io/hyperlane-xyz/hyperlane-node-services
-  imageTag: 4996544-20261110-113449
-  imageDigest: sha256:bddd693e3bb08ddf14a6bea02666a13636a93aff5d3fb0d6be391e2b234dbc02
+  imageTag: 11861e5-20261110-130055
+  imageDigest: sha256:b77396a69e3c295d4b8dea9b9566aac0905a43442ec472d225985e2455ac8260
   registryCommit: 096f98b48f370d7aef95276bff026c073ce0a251
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
