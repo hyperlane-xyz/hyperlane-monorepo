@@ -1,7 +1,7 @@
 warpRouteId: USDC/eclipsemainnet
 
 deployment:
-  monitorOnly: true
+  monitorOnly: false
   imageRepository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   imageTag: 11861e5-20261110-130055
   imageDigest: sha256:b77396a69e3c295d4b8dea9b9566aac0905a43442ec472d225985e2455ac8260

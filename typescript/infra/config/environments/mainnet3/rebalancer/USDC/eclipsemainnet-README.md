@@ -54,10 +54,10 @@ reported a missing Elysium-to-Solana token fee; that pair is disabled here.
 The pinned amd64 image was built from shared-stack commit `11861e50a5` and
 verified against its published digest and revision label. It includes Relay,
 physical inventory routing and native deposits.
-This configuration is persisted in monitor-only mode. Validation stops after local
-monitor-only runs; the existing production deployment is unchanged. Monitor-only
-checks validate startup, balances and strategy reads, but do not construct provider
-executors or validate live quotes, funding or settlement.
+This configuration enables execution with `deployment.monitorOnly: false`.
+Use `--monitor-only` when deploying an observer. Monitor-only checks validate
+startup, balances and strategy reads, but do not construct provider executors or
+validate live quotes, funding or settlement.
 
 For any separately planned EVM wallet funding into HyperEVM, prefer the existing
 `USDC/mainnet-cctp-v2-standard` route where supported. LI.FI/Polymer was used only
