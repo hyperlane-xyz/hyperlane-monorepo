@@ -60,6 +60,7 @@ impl DbLoaderExt for MerkleTreeDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        self.db.ensure_no_indexed_event_conflict()?;
         let begin = Instant::now();
         let insertions = self.retrieve_batch().await?;
         self.update_metrics(&insertions, &begin);
@@ -232,6 +233,24 @@ mod tests {
         assert_eq!(
             loader.metrics.latest_tree_insertion_index_gauge.get(),
             (insertion_count - 1) as i64
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_replacement_blocks_a_loader_that_already_consumed_the_leaf() {
+        let (_dir, mut loader) = test_loader(1, 49104);
+        loader.tick().await.unwrap();
+        assert_eq!(loader.prover_sync.read().await.count(), 1);
+        let replacement = MerkleTreeInsertion::new(0, H256::from_low_u64_be(99));
+        loader.db.process_tree_insertion(&replacement, 100).unwrap();
+        assert!(loader.tick().await.is_err());
+        assert_eq!(loader.leaf_index, 1);
+        assert_eq!(
+            loader
+                .db
+                .retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                .unwrap(),
+            Some(replacement)
         );
     }
 

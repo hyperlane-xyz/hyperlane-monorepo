@@ -118,6 +118,11 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         }
     }
 
+    /// Warm independently read announcements without observing checkpoints or producing metadata.
+    async fn prepare_validator_storages(&self, _validators: &[H256]) -> eyre::Result<()> {
+        Ok(())
+    }
+
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
@@ -163,6 +168,15 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         self.activity_reporter.as_ref()
     }
 
+    async fn prepare_validator_storages(&self, validators: &[H256]) -> eyre::Result<()> {
+        validator_announced_storages::prepare_storage_locations(
+            validators,
+            &self.cache,
+            self.origin_validator_announce.as_ref(),
+        )
+        .await
+    }
+
     fn origin_domain(&self) -> &HyperlaneDomain {
         &self.origin_domain
     }
@@ -198,10 +212,11 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         leaf_index: u32,
         checkpoint: Checkpoint,
     ) -> Result<Proof, MetadataBuildError> {
-        let proof = self
-            .origin_prover_sync
-            .read()
-            .await
+        let prover = self.origin_prover_sync.read().await;
+        self.db
+            .ensure_no_indexed_event_conflict()
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        let proof = prover
             .get_proof(leaf_index, checkpoint.index)
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 

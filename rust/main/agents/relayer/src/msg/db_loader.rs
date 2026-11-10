@@ -2,7 +2,10 @@ use std::{
     cmp::max,
     collections::{BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter},
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -75,6 +78,8 @@ pub struct MessageDbLoader {
     destination_scan_pending: bool,
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
+    preparation_notification: Option<Arc<tokio::sync::Notify>>,
+    notification_overflow: Option<(Arc<AtomicU64>, u64)>,
     /// Denied messages already logged, for all destinations. Created on the
     /// first denial, so a loader that never denies anything allocates none.
     logged_denials: Option<LoggedDenials>,
@@ -479,6 +484,7 @@ impl DbLoaderExt for MessageDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        self.db.ensure_no_indexed_event_conflict()?;
         self.check_runtime_denylist_version();
         self.reconsider_released_messages();
         self.drain_index_notifications()?;
@@ -592,9 +598,18 @@ impl MessageDbLoader {
             destination_scan_pending: true,
             max_retries,
             index_notifications: None,
+            preparation_notification: None,
+            notification_overflow: None,
             logged_denials: None,
             logged_denials_ttl: LOGGED_DENIALS_TTL,
         })
+    }
+
+    pub(crate) fn set_preparation_notification(
+        &mut self,
+        notification: Option<Arc<tokio::sync::Notify>>,
+    ) {
+        self.preparation_notification = notification;
     }
 
     /// Log a denied message at info the first time this loader skips it, so
@@ -666,9 +681,20 @@ impl MessageDbLoader {
         self.index_notifications = index_notifications;
     }
 
+    pub fn set_notification_overflow(&mut self, counter: Option<Arc<AtomicU64>>) {
+        self.notification_overflow = counter.map(|counter| (counter, 0));
+    }
+
     /// Discard already-observed index notifications so this receiver cannot
     /// backpressure the message indexer while the loader is processing a backlog.
     fn drain_index_notifications(&mut self) -> Result<()> {
+        if let Some((counter, seen)) = &mut self.notification_overflow {
+            let current = counter.load(Ordering::Acquire);
+            if current != *seen {
+                *seen = current;
+                self.request_low_range_reopens();
+            }
+        }
         let mut disconnected = false;
         let mut notifications = Vec::new();
         if let Some(receiver) = self.index_notifications.as_mut() {
@@ -757,6 +783,14 @@ impl MessageDbLoader {
                 }
             }
         };
+        let preparation_notification = self.preparation_notification.clone();
+        let preparation_ready = async {
+            match preparation_notification {
+                Some(notification) => notification.notified().await,
+                None => std::future::pending::<()>().await,
+            }
+        };
+        let mut preparation_woke = false;
         let (disconnected, notification) = if let Some(receiver) = self.index_notifications.as_mut()
         {
             tokio::select! {
@@ -764,17 +798,22 @@ impl MessageDbLoader {
                     Some(notification) => (false, Some(notification)),
                     None => (true, None),
                 },
+                _ = preparation_ready => { preparation_woke = true; (false, None) },
                 _ = capacity_available => (false, None),
                 _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, None),
             }
         } else {
             tokio::select! {
+                _ = preparation_ready => preparation_woke = true,
                 _ = capacity_available => {},
                 _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => {},
             }
             (false, None)
         };
 
+        if preparation_woke {
+            self.request_low_range_reopens();
+        }
         if disconnected {
             self.index_notifications = None;
         }

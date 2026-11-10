@@ -778,6 +778,19 @@ for (const eventType of [
             return queryRows<T>([
               { height: '10', source: 0, id: '1', msg_id: messageId },
             ]);
+          if (eventType === 'merkle_tree_insertion')
+            return queryRows<T>([
+              {
+                domain: 1,
+                merkle_tree_hook: hookA,
+                leaf_index: 0,
+                message_id: messageId,
+                block_number: '10',
+                block_hash: `\\x${'08'.repeat(32)}`,
+                frontier_id: '1',
+                frontier_height: '10',
+              },
+            ]);
           const projected: Record<string, unknown> = {
             ...data,
             frontier_id: '1',
@@ -849,6 +862,10 @@ for (const eventType of [
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);
+      if (eventType === 'merkle_tree_insertion') {
+        assert.equal(frame.blockHash, `\\x${'08'.repeat(32)}`);
+        assert.equal(record(frame.data).block_hash, undefined);
+      }
       await waitUntil(() => completions.length === 1);
       advance('11', '9', '10');
       const rollback = await waitFor(messages, 'rollback');
@@ -859,7 +876,10 @@ for (const eventType of [
       completions.shift()?.();
       await waitUntil(() =>
         messages.some(
-          (m) => m.data && record(m.data).msg_id === `\\x${'02'.repeat(32)}`,
+          (m) =>
+            m.data &&
+            (record(m.data).msg_id ?? record(m.data).message_id) ===
+              `\\x${'02'.repeat(32)}`,
         ),
       );
       assert.equal(socket.readyState, WebSocket.OPEN);
@@ -4046,3 +4066,275 @@ function captureMessages(socket: WebSocket): Record<string, unknown>[] {
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
   return messages;
 }
+
+for (const confirmations of [undefined, 0, 2]) {
+  void it(`carries observed and confirmed dispatch lifecycle updates at ${confirmations ?? 'canonical'} depth`, async (context) => {
+    const original = db.queryLive.bind(db);
+    const data = {
+      id: '9010',
+      nonce: 0,
+      origin_domain: 1,
+      destination_domain: 2,
+      origin_mailbox: hookA,
+      origin_block_height: '10',
+      origin_block_hash: `\\x${'08'.repeat(32)}`,
+      origin_tx_hash: `\\x${'09'.repeat(32)}`,
+      sender: hookA,
+      recipient: hookB,
+      msg_body: '\\x01',
+      msg_id: msgId,
+    };
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('SELECT domain, head_height'))
+          return queryRows<T>([
+            {
+              domain: 1,
+              head_height: '9',
+              indexed_height: '9',
+              confirmed_height: '5',
+            },
+          ]);
+        if (sql.includes('confirmation_events')) {
+          const after = BigInt(String(values[1]));
+          const id = BigInt(String(values[2]));
+          const through = BigInt(String(values[3]));
+          return queryRows<T>(
+            through >= 10n && (after < 10n || (after === 10n && id < 1n))
+              ? [{ ...data, frontier_height: '10', frontier_id: '1' }]
+              : [],
+          );
+        }
+        return original<T>(sql, values);
+      },
+    );
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    const advance = (height: string, indexed: string, previous: string) =>
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain: 1,
+          headHeight: height,
+          indexedHeight: indexed,
+          previousIndexedHeight: previous,
+          confirmedHeight: '5',
+          previousConfirmedHeight: '5',
+        }),
+      );
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'dispatch',
+              confirmations,
+              includeUnconfirmed: true,
+              // Missing live data for domain 2 must not reject canonical delivery.
+              domains: confirmations === undefined ? [1, 2] : [1],
+            },
+          ],
+        }),
+      );
+      const acknowledged = await waitFor(messages, 'subscribed');
+      assert.equal(
+        record(
+          (Array.isArray(acknowledged.streams) ? acknowledged.streams : [])[0],
+        ).includeUnconfirmed,
+        true,
+      );
+      advance('10', '10', '9');
+      if (confirmations !== 0) {
+        await waitUntil(() =>
+          messages.some((message) => message.stage === 'observed'),
+        );
+        assert.equal(
+          messages.some((message) => message.stage === 'confirmed'),
+          false,
+        );
+        advance('9', '9', '10');
+        await waitUntil(() =>
+          messages.some(
+            (message) =>
+              message.type === 'rollback' && message.stage === 'observed',
+          ),
+        );
+        data.origin_block_hash = `\\x${'0a'.repeat(32)}`;
+        advance('10', '10', '9');
+        await waitUntil(
+          () =>
+            messages.filter(
+              (message) =>
+                message.type === 'event' && message.stage === 'observed',
+            ).length === 2,
+        );
+        if (confirmations === undefined) {
+          dispatchRows.set(data.id, data);
+          notify(
+            'scraper_event',
+            JSON.stringify({ domain: 1, eventType: 'dispatch', id: data.id }),
+          );
+        } else advance('12', '10', '10');
+      }
+      await waitUntil(() =>
+        messages.some(
+          (message) =>
+            message.type === 'event' && message.stage === 'confirmed',
+        ),
+      );
+      const events = messages.filter((message) => message.type === 'event');
+      assert.deepEqual(
+        events.map((message) => message.stage),
+        confirmations === 0
+          ? ['confirmed']
+          : ['observed', 'observed', 'confirmed'],
+      );
+      assert.equal(
+        record(events.at(-1)?.data).origin_block_hash,
+        data.origin_block_hash,
+      );
+    } finally {
+      dispatchRows.delete(data.id);
+      socket.close();
+    }
+  });
+}
+
+void it('replays only confirmed dispatches and keeps advisory events outside durable cursor state', async (context) => {
+  const original = db.queryLive.bind(db);
+  const historical = {
+    id: '9011',
+    nonce: 0,
+    origin_domain: 1,
+    destination_domain: 2,
+    origin_mailbox: hookA,
+    origin_block_height: '5',
+    origin_block_hash: `\\x${'08'.repeat(32)}`,
+    origin_tx_hash: `\\x${'09'.repeat(32)}`,
+    sender: hookA,
+    recipient: hookB,
+    msg_body: '\\x01',
+    msg_id: msgId,
+  };
+  const next = {
+    ...historical,
+    id: '9012',
+    nonce: 1,
+    origin_block_height: '10',
+  };
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('SELECT domain, head_height'))
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '9',
+            indexed_height: '9',
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('MIN('))
+        return queryRows<T>([{ first: '0', last: '0' }]);
+      if (sql.includes('ORDER BY "nonce"')) return queryRows<T>([historical]);
+      if (sql.includes('confirmation_events')) {
+        const after = BigInt(String(values[1]));
+        const id = BigInt(String(values[2]));
+        const through = BigInt(String(values[3]));
+        return queryRows<T>(
+          [
+            {
+              ...next,
+              origin_mailbox: hookB,
+              frontier_id: '1',
+              frontier_height: '10',
+            },
+            { ...next, frontier_id: '2', frontier_height: '10' },
+          ].filter(
+            (row) =>
+              through >= 10n &&
+              (after < 10n || (after === 10n && BigInt(row.frontier_id) > id)),
+          ),
+        );
+      }
+      return original<T>(sql, values);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'dispatch',
+            includeUnconfirmed: true,
+            cursors: [{ domain: 1, address: hookA, afterSequence: '-1' }],
+          },
+        ],
+      }),
+    );
+    const caughtUp = await waitFor(messages, 'caught_up');
+    assert.equal(caughtUp.sequence, '0');
+    assert.deepEqual(
+      messages
+        .filter((message) => message.type === 'event')
+        .map((message) => message.stage),
+      ['confirmed'],
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousIndexedHeight: '9',
+        confirmedHeight: '5',
+      }),
+    );
+    await waitUntil(() =>
+      messages.some((message) => message.stage === 'observed'),
+    );
+    const observed = messages.filter((message) => message.stage === 'observed');
+    assert.equal(
+      observed.length,
+      1,
+      'advisory delivery must respect mailbox filters',
+    );
+    assert.equal(record(observed[0]?.data).origin_mailbox, hookA);
+    dispatchRows.set(next.id, next);
+    notify(
+      'scraper_event',
+      JSON.stringify({ domain: 1, eventType: 'dispatch', id: next.id }),
+    );
+    await waitUntil(
+      () =>
+        messages.filter(
+          (message) =>
+            message.type === 'event' && message.stage === 'confirmed',
+        ).length === 2,
+    );
+    assert.deepEqual(
+      messages
+        .filter((message) => message.type === 'event')
+        .map((message) => message.stage),
+      ['confirmed', 'observed', 'confirmed'],
+    );
+  } finally {
+    dispatchRows.delete(next.id);
+    socket.close();
+  }
+});

@@ -45,7 +45,9 @@ use crate::relay_api::{
     handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache},
     RelayApiMetrics,
 };
-use crate::scraper_websocket::{ScraperAuthorityReceiver, ScraperSource, ScraperWebSocketMonitor};
+use crate::scraper_websocket::{
+    RollbackRecoveryRequired, ScraperAuthorityReceiver, ScraperWebSocketMonitor,
+};
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
@@ -56,6 +58,7 @@ use crate::{
     msg::{
         blacklist::AddressBlacklist,
         db_loader::{MessageDbLoader, MessageDbLoaderMetricsShared},
+        early_preparation::EarlyPreparation,
         message_processor::{
             MessageProcessor, MessageProcessorMetrics, MESSAGE_PROCESSOR_INGRESS_CAPACITY,
         },
@@ -261,6 +264,7 @@ pub struct Relayer {
     critical_errors: CriticalErrorTracker,
     runtime_metrics: RuntimeMetrics,
     scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
+    early_preparation: Option<Arc<EarlyPreparation>>,
     scraper_websocket_authority: HashMap<u32, ScraperAuthorityReceiver>,
     gas_payment_websocket_authority: HashMap<u32, watch::Receiver<bool>>,
     /// Tokio console server
@@ -343,7 +347,7 @@ impl BaseAgent for Relayer {
             core_metrics.clone(),
             &critical_errors,
         )
-        .await;
+        .await?;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized origin chains", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -501,31 +505,47 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
         let scraper_sources = origins
-            .iter()
-            .map(|(domain, origin)| {
-                ScraperSource::new(
-                    domain.name().to_owned(),
-                    domain.id(),
-                    origin.chain_conf.addresses.mailbox,
-                    origin.chain_conf.addresses.interchain_gas_paymaster,
-                    origin.chain_conf.addresses.merkle_tree_hook,
-                    origin.database.clone(),
-                )
-                .with_broadcaster(origin.message_sync.get_broadcaster())
-                .with_freshness_indexer(origin.message_sequence_indexer.clone())
-                .with_sync_metrics(origin.sync_metrics.clone())
-                .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone())
-            })
-            .collect();
+            .values()
+            .map(Origin::scraper_source)
+            .collect::<Result<Vec<_>>>()?;
+        let early_preparation = settings.websocket_url.as_ref().map(|_| {
+            Arc::new(EarlyPreparation::new(
+                msg_ctxs
+                    .iter()
+                    .map(|(key, context)| {
+                        ((key.origin.id(), key.destination.id()), context.clone())
+                    })
+                    .collect(),
+                message_whitelist.clone(),
+                message_blacklist.clone(),
+                address_blacklist.clone(),
+            ))
+        });
         let scraper_websocket_monitor = settings
             .websocket_url
             .map(|url| {
+                let preparation = early_preparation
+                    .clone()
+                    .expect("websocket preparation initialized");
+                let early_domains = origins
+                    .values()
+                    .filter(|origin| {
+                        settings.allow_contract_call_caching
+                            && settings.websocket_authority_enabled
+                            && matches!(
+                                origin.chain_conf.connection,
+                                hyperlane_base::settings::ChainConnectionConf::Ethereum(_)
+                            )
+                    })
+                    .map(|origin| origin.domain.id())
+                    .collect();
                 ScraperWebSocketMonitor::new_with_authority(
                     url.expose_secret().clone(),
                     scraper_sources,
                     &core_metrics,
                     settings.websocket_authority_enabled,
                 )
+                .map(|monitor| monitor.with_preparation(preparation, &early_domains))
             })
             .transpose()?;
         let gas_payment_websocket_authority = origins
@@ -574,6 +594,7 @@ impl BaseAgent for Relayer {
             critical_errors,
             runtime_metrics,
             scraper_websocket_monitor,
+            early_preparation,
             scraper_websocket_authority,
             gas_payment_websocket_authority,
             tokio_console_server: Some(tokio_console_server),
@@ -945,13 +966,13 @@ impl Relayer {
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> (Router, Option<RelayApiState>) {
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
-            .origins
+            .destinations
             .iter()
-            .map(|(origin_domain, origin)| (origin_domain.id(), origin.database.clone()))
+            .map(|(dest_domain, dest)| (dest_domain.id(), dest.database.clone()))
             .chain(
-                self.destinations
+                self.origins
                     .iter()
-                    .map(|(dest_domain, dest)| (dest_domain.id(), dest.database.clone())),
+                    .map(|(origin_domain, origin)| (origin_domain.id(), origin.database.clone())),
             )
             .collect();
 
@@ -1498,6 +1519,10 @@ impl Relayer {
         let metric_app_contexts = self.metric_app_contexts.clone();
         let max_retries = self.max_retries;
         let origin_domain = origin.domain.clone();
+        let preparation_notification = self
+            .early_preparation
+            .as_ref()
+            .and_then(|preparation| preparation.notification(origin.domain.id()));
         let critical_errors = self.critical_errors.clone();
         let task_name = format!("message_db_loader_init::{}", origin_domain.name());
         let span = info_span!("MessageDbLoader", origin=%origin_domain.name());
@@ -1553,9 +1578,15 @@ impl Relayer {
                         }
                     }
                 };
+                message_db_loader.set_preparation_notification(preparation_notification);
                 message_db_loader.set_runtime_denylist(runtime_denylist);
                 message_db_loader.set_index_notifications(
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                );
+                message_db_loader.set_notification_overflow(
+                    maybe_broadcaster
+                        .as_ref()
+                        .map(BroadcastMpscSender::missed_notifications),
                 );
                 if init_failed {
                     critical_errors.clear(&origin_domain, CriticalErrorSource::MessageDbLoader);
@@ -1623,6 +1654,7 @@ impl Relayer {
         domain: &HyperlaneDomain,
         role: &str,
         retry: ChainBuildRetry,
+        should_retry: impl Fn(&E) -> bool,
         mut build: F,
     ) -> Result<T, E>
     where
@@ -1634,6 +1666,9 @@ impl Relayer {
             Ok(value) => return Ok(value),
             Err(err) => err,
         };
+        if !should_retry(&last_error) {
+            return Err(last_error);
+        }
         let Some(deadline) = tokio::time::Instant::now().checked_add(retry.budget) else {
             return Err(last_error);
         };
@@ -1652,7 +1687,12 @@ impl Relayer {
             };
             match tokio::time::timeout_at(deadline, retry).await {
                 Ok(Ok(value)) => return Ok(value),
-                Ok(Err(err)) => last_error = err,
+                Ok(Err(err)) => {
+                    if !should_retry(&err) {
+                        return Err(err);
+                    }
+                    last_error = err;
+                }
                 Err(_) => {
                     warn!(
                         domain = domain.name(),
@@ -1673,7 +1713,7 @@ impl Relayer {
         db: DB,
         core_metrics: Arc<CoreMetrics>,
         critical_errors: &CriticalErrorTracker,
-    ) -> HashMap<HyperlaneDomain, Origin> {
+    ) -> Result<HashMap<HyperlaneDomain, Origin>> {
         use origin::Factory;
         use origin::OriginFactory;
 
@@ -1691,34 +1731,55 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                let result =
-                    Self::build_chain_with_retries(domain, "origin", CHAIN_BUILD_RETRY, || {
-                        factory.create(
-                            domain.clone(),
-                            chain,
-                            settings.gas_payment_enforcement.clone(),
-                        )
-                    })
-                    .await;
+                let result = async {
+                    let origin = Self::build_chain_with_retries(
+                        domain,
+                        "origin",
+                        CHAIN_BUILD_RETRY,
+                        |_| true,
+                        || {
+                            factory.create(
+                                domain.clone(),
+                                chain,
+                                settings.gas_payment_enforcement.clone(),
+                            )
+                        },
+                    )
+                    .await?;
+                    // Do not construct consumers for an origin until its durable live
+                    // writes have been verified, including when WebSockets are disabled.
+                    let source = origin.scraper_source()?;
+                    Self::build_chain_with_retries(
+                        domain,
+                        "origin live-block verification",
+                        CHAIN_BUILD_RETRY,
+                        |error: &eyre::Report| !error.is::<RollbackRecoveryRequired>(),
+                        || source.verify_live_blocks(),
+                    )
+                    .await?;
+                    Ok::<_, eyre::Report>(origin)
+                }
+                .await;
                 (domain.clone(), result)
             })
             .collect();
         let results = futures::future::join_all(origin_futures).await;
-        let origins = results
-            .into_iter()
-            .filter_map(|(domain, result)| match result {
-                Ok(origin) => Some((domain, origin)),
-                Err(err) => {
-                    critical_errors.record(
-                        &domain,
-                        CriticalErrorSource::Origin,
-                        &err,
-                        "Critical error when building chain as origin",
-                    );
-                    None
+        let mut origins = HashMap::new();
+        for (domain, result) in results {
+            match result {
+                Ok(origin) => {
+                    origins.insert(domain, origin);
                 }
-            })
-            .collect::<HashMap<_, _>>();
+                // A confirmed reorg still halts the entire relayer before consumers start.
+                Err(error) if error.is::<RollbackRecoveryRequired>() => return Err(error),
+                Err(error) => critical_errors.record(
+                    &domain,
+                    CriticalErrorSource::Origin,
+                    &error,
+                    "Critical error when building or verifying origin",
+                ),
+            }
+        }
         settings
             .origin_chains
             .iter()
@@ -1732,7 +1793,7 @@ impl Relayer {
                 );
             });
 
-        origins
+        Ok(origins)
     }
 
     async fn build_destinations(
@@ -1757,6 +1818,7 @@ impl Relayer {
                             domain,
                             "destination",
                             CHAIN_BUILD_RETRY,
+                            |_| true,
                             || {
                                 factory.create(
                                     domain.clone(),

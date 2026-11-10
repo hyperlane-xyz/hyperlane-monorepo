@@ -18,6 +18,12 @@ pub(crate) mod storage_types;
 #[allow(missing_docs)]
 /// Hyperlane database interface
 pub trait HyperlaneDb: Send + Sync {
+    /// Refuse work after an indexed event conflict until DB/queue/prover recovery.
+    /// Stores with independent indexing writers must check their durable gate.
+    fn ensure_no_indexed_event_conflict(&self) -> DbResult<()> {
+        Ok(())
+    }
+
     /// Retrieve the nonce of the highest processed message we're aware of
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
 

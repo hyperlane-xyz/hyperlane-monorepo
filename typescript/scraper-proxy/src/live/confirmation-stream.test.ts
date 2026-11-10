@@ -432,3 +432,72 @@ void it('re-reads Explorer metadata if its frontier rolls back during enrichment
     held.release();
   }
 });
+
+void it('advisory streams skip unavailable origins and start when live heads become available', async () => {
+  const messages: Record<string, unknown>[] = [];
+  const stream = new ConfirmationStream(0, new Set([1, 2]), {
+    early: {},
+    active: () => true,
+    read: async function* (domain, _after, through) {
+      yield { position: [through, 0, 1n], message: { domain } };
+    },
+    send: async (message) => {
+      messages.push(message);
+      return true;
+    },
+    rollback: () => {},
+    fail: (error) => assert.fail(String(error)),
+  });
+  await stream.initialize(
+    async () => new Map([[1, { head: 9n, indexed: 9n, confirmed: 5n }]]),
+    true,
+  );
+  stream.start();
+  stream.notify(head(10n));
+  await until(() => messages.length === 1);
+  stream.notify(head(10n, 9n, 10n, 2));
+  assert.equal(
+    messages.length,
+    1,
+    'new live origins start after their current height',
+  );
+  stream.notify(head(11n, 10n, 11n, 2));
+  await until(() => messages.length === 2);
+  assert.deepEqual(
+    messages.map((message) => message.domain),
+    [1, 2],
+  );
+});
+
+void it('discards queued advisory rows that become eligible before they are sent', async () => {
+  for (const confirmations of [undefined, 2]) {
+    const paused = gate();
+    let reading = false;
+    const messages: Record<string, unknown>[] = [];
+    const stream = new ConfirmationStream(0, new Set([1]), {
+      early: { confirmations },
+      active: () => true,
+      read: async function* () {
+        reading = true;
+        await paused.promise;
+        yield { position: [10n, 0, 1n], message: { id: 'already-confirmed' } };
+      },
+      send: async (message) => {
+        messages.push(message);
+        return true;
+      },
+      rollback: () => {},
+      fail: (error) => assert.fail(String(error)),
+    });
+    await stream.initialize(
+      async () => new Map([[1, { head: 9n, indexed: 9n, confirmed: 5n }]]),
+    );
+    stream.start();
+    stream.notify(head(10n));
+    await until(() => reading);
+    stream.notify({ ...head(10n, 10n, 12n), confirmedHeight: 10n });
+    paused.release();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.deepEqual(messages, []);
+  }
+});

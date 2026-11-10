@@ -238,6 +238,23 @@ async fn finish_legacy_migration(loader: &mut MessageDbLoader) {
 }
 
 #[tokio::test]
+async fn indexed_event_conflict_blocks_loading_stored_messages() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        add_db_entry(&db, &dummy_hyperlane_message(&destination, 0), 0);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        db.mark_indexed_event_conflict().unwrap();
+        assert!(loader.tick().await.is_err());
+        assert!(receiver.try_recv().is_err());
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn idle_loader_does_not_reserve_shared_destination_capacity() {
     test_utils::run_test_db(|db| async move {
         let origin = dummy_domain(0, "dummy_origin_domain");
@@ -2097,6 +2114,58 @@ async fn standalone_cleanup_forces_restart_recovery_of_replacement() {
 }
 
 #[tokio::test]
+async fn missed_broadcast_reopens_consumed_ranges_without_restarting() {
+    use hyperlane_base::broadcast::BroadcastMpscSender;
+
+    test_utils::run_test_db(|db| async move {
+        let origin = dummy_domain(0, "dummy_origin_domain");
+        let destination = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin, db);
+        let broadcaster = BroadcastMpscSender::new(1);
+        let (mut loader, mut receiver) = dummy_message_loader_with_notifications(
+            &origin,
+            &destination,
+            &db,
+            OptionalCache::new(None),
+            Some(broadcaster.get_receiver().await),
+        );
+        loader.set_notification_overflow(Some(broadcaster.missed_notifications()));
+        finish_legacy_migration(&mut loader).await;
+        let high = dummy_hyperlane_message(&destination, 5);
+        add_db_entry(&db, &high, 0);
+        loader.tick().await.unwrap();
+        let high_operation = only_operation(receiver.try_recv().unwrap());
+        loader.destination_iterators[0].low_nonce = None;
+        // Queue a notification which cannot reopen the consumed low range.
+        let high_notification = IndexingNotification {
+            tx_id: H512::from_low_u64_be(1),
+            sequences: vec![Some(5)],
+        };
+        assert!(broadcaster.try_send(high_notification));
+        let late = dummy_hyperlane_message(&destination, 1);
+        add_db_entry(&db, &late, 0);
+        assert!(!broadcaster.try_send(IndexingNotification {
+            tx_id: H512::from_low_u64_be(2),
+            sequences: vec![Some(1)]
+        }));
+        let late_operation = timeout(Duration::from_secs(2), async {
+            loop {
+                loader.tick().await.unwrap();
+                if let Ok(batch) = receiver.try_recv() {
+                    break only_operation(batch);
+                }
+            }
+        })
+        .await
+        .expect("overflow must reopen the historical range");
+        assert_eq!(late_operation.id(), late.id());
+        assert!(receiver.try_recv().is_err());
+        drop(high_operation);
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn runtime_denylist_skips_message_and_reloads_it_after_rule_removed() {
     test_utils::run_test_db(|raw_db| async move {
         let origin = dummy_domain(0, "origin");
@@ -2388,4 +2457,56 @@ async fn denied_message_logs_again_after_the_ttl() {
         });
     })
     .await;
+}
+
+#[tokio::test]
+async fn confirmed_preparation_wakes_loader_before_fallback_and_reopens_consumed_ranges() {
+    for with_index_notifications in [false, true] {
+        test_utils::run_test_db(|db| async move {
+            let origin = dummy_domain(0, "dummy_origin_domain");
+            let destination = dummy_domain(1, "dummy_destination_domain");
+            let db = HyperlaneRocksDB::new(&origin, db);
+            let (_sender, receiver) = mpsc::channel(1);
+            let (mut loader, mut operations) = dummy_message_loader_with_notifications(
+                &origin,
+                &destination,
+                &db,
+                OptionalCache::new(None),
+                with_index_notifications.then_some(receiver),
+            );
+            let preparation = crate::msg::early_preparation::EarlyPreparation::new(
+                loader
+                    .destination_ctxs
+                    .iter()
+                    .map(|(destination, ctx)| ((origin.id(), *destination), ctx.clone()))
+                    .collect(),
+                Default::default(),
+                Default::default(),
+                Arc::new(AddressBlacklist::new(vec![])),
+            );
+            loader.set_preparation_notification(preparation.notification(origin.id()));
+            finish_legacy_migration(&mut loader).await;
+            loader.destination_iterators[0].high_nonce = Some(6);
+            loader.destination_iterators[0].low_nonce = None;
+            let mut late = dummy_hyperlane_message(&destination, 1);
+            late.origin = origin.id();
+            let notify = async {
+                sleep(Duration::from_millis(10)).await;
+                add_db_entry(&db, &late, 0);
+                preparation.confirmed(&late, 100, Some(H256::zero()));
+            };
+            timeout(Duration::from_millis(250), async {
+                let (result, _) = tokio::join!(loader.tick(), notify);
+                result.unwrap();
+                loader.tick().await.unwrap();
+            })
+            .await
+            .expect("confirmation must bypass the one-second fallback");
+            assert_eq!(
+                only_operation(operations.try_recv().unwrap()).id(),
+                late.id()
+            );
+        })
+        .await;
+    }
 }

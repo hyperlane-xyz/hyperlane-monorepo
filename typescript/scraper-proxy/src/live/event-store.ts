@@ -210,10 +210,14 @@ export class EventStore {
     const height =
       eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
     const { projection, joins } = eventQueryParts(eventType);
+    // Provisional Merkle writes need block identity for reconnect/reorg checks.
+    // Keep the canonical wire projection compatible with existing validators.
+    const blockHash =
+      eventType === 'merkle_tree_insertion' ? ', event_row.block_hash' : '';
     let position = after;
     while (true) {
       const rows = await this.db.queryLive<Row>(
-        `/* confirmation_events */ SELECT ${projection}, event_row.id AS frontier_id, event_row.${q(height)} AS frontier_height
+        `/* confirmation_events */ SELECT ${projection}${blockHash}, event_row.id AS frontier_id, event_row.${q(height)} AS frontier_height
          FROM (SELECT * FROM ${q(table)} WHERE ${q(stream.domain)}=$1
            AND (${q(height)}, id)>($2::bigint,$3::bigint) AND ${q(height)}<=$4::bigint
            ORDER BY ${q(height)}, id LIMIT $5) event_row${joins}
@@ -226,7 +230,7 @@ export class EventStore {
           config.EVENT_STREAM_BATCH_SIZE,
         ],
       );
-      for (const { frontier_id, frontier_height, ...row } of rows) {
+      for (const { frontier_id, frontier_height, block_hash, ...row } of rows) {
         position = [parseId(frontier_height), 0, parseId(frontier_id)];
         yield {
           position,
@@ -236,6 +240,7 @@ export class EventStore {
             domain,
             confirmations,
             height: position[0].toString(),
+            blockHash: block_hash,
             data: eventData(eventType, row),
             sequence: rowSequence(eventType, row)?.value.toString(),
             rowId:

@@ -11,6 +11,25 @@ pub async fn fetch_storage_locations_helper(
     cache: &impl FunctionCallCache,
     validator_announce: &dyn ValidatorAnnounce,
 ) -> eyre::Result<Vec<Vec<String>>> {
+    fetch_storage_locations(validators, cache, validator_announce, true).await
+}
+
+/// Early reads must not cache absence: a validator can announce before confirmation.
+pub(super) async fn prepare_storage_locations(
+    validators: &[H256],
+    cache: &impl FunctionCallCache,
+    validator_announce: &dyn ValidatorAnnounce,
+) -> eyre::Result<()> {
+    fetch_storage_locations(validators, cache, validator_announce, false).await?;
+    Ok(())
+}
+
+async fn fetch_storage_locations(
+    validators: &[H256],
+    cache: &impl FunctionCallCache,
+    validator_announce: &dyn ValidatorAnnounce,
+    cache_empty: bool,
+) -> eyre::Result<Vec<Vec<String>>> {
     const CTX: &str = "When fetching storage locations";
 
     let origin = validator_announce.domain().name(); // Dynamically fetch domain name
@@ -54,9 +73,11 @@ pub async fn fetch_storage_locations_helper(
         let locations = &fetched_locations[fetched_index];
 
         // Store in cache
-        cache
-            .cache_call_result(origin, METHOD_NAME, &key, locations)
-            .await?;
+        if cache_empty || !locations.is_empty() {
+            cache
+                .cache_call_result(origin, METHOD_NAME, &key, locations)
+                .await?;
+        }
 
         // Update the placeholder in storage_locations
         storage_locations[*index] = locations.clone();

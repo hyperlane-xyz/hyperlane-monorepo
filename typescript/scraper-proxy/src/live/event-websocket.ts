@@ -25,12 +25,15 @@ import {
 } from '../metrics.js';
 import {
   displayAddress,
+  DispatchStage,
   SUBSCRIPTION_TYPES,
   type BlockStreamRequest,
   type EventNotification,
   type EventType,
   type HeadNotification,
   parseDatabaseDomain,
+  normalizeSequenceAddress,
+  type StreamCursor,
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
@@ -625,10 +628,18 @@ export class EventWebSocketServer {
     confirmations: number,
     domains: Set<number>,
     eventType?: EventType,
+    lifecycle?: {
+      stage: DispatchStage;
+      confirmations?: number;
+      cursors?: StreamCursor[];
+    },
   ): Promise<ConfirmationStream> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
     const stream = new ConfirmationStream(confirmations, domains, {
+      ...(lifecycle?.stage === DispatchStage.Observed
+        ? { early: { confirmations: lifecycle.confirmations } }
+        : {}),
       active: () =>
         this.clients.has(socket) || this.explorerClients.has(socket),
       read: (domain, after, through, frontiers) =>
@@ -648,7 +659,31 @@ export class EventWebSocketServer {
               confirmations,
               this.explorerClients.get(socket)?.messageIds,
             ),
-      send: (message) => this.sendAndWait(socket, message),
+      send: async (message) => {
+        if (lifecycle?.stage === DispatchStage.Observed && lifecycle.cursors) {
+          const data = message.data;
+          if (
+            typeof data !== 'object' ||
+            data === null ||
+            !('origin_mailbox' in data) ||
+            typeof data.origin_mailbox !== 'string'
+          ) {
+            throw new Error('Observed dispatch has no mailbox');
+          }
+          const mailbox = normalizeSequenceAddress(data.origin_mailbox);
+          if (
+            !lifecycle.cursors.some(
+              (cursor) =>
+                cursor.domain === message.domain && cursor.address === mailbox,
+            )
+          )
+            return true;
+        }
+        return this.sendAndWait(
+          socket,
+          lifecycle ? { ...message, stage: lifecycle.stage } : message,
+        );
+      },
       messageId: eventType
         ? undefined
         : (message) => {
@@ -687,6 +722,7 @@ export class EventWebSocketServer {
           domain,
           eventType,
           confirmations,
+          ...(lifecycle ? { stage: lifecycle.stage } : {}),
           fromHeight: from.toString(),
           toHeight: to.toString(),
         });
@@ -698,7 +734,7 @@ export class EventWebSocketServer {
     this.confirmationStreams.set(socket, streams);
     await stream.initialize(
       () => this.store.confirmationHeads(domains),
-      eventType === undefined,
+      eventType === undefined || lifecycle?.stage === DispatchStage.Observed,
     );
     return stream;
   }
@@ -774,7 +810,27 @@ export class EventWebSocketServer {
             request.confirmations,
             request.domains,
             request.eventType,
+            request.includeUnconfirmed
+              ? { stage: DispatchStage.Confirmed }
+              : undefined,
           );
+        if (
+          request.includeUnconfirmed &&
+          request.domains &&
+          request.confirmations !== 0
+        ) {
+          await this.createConfirmationStream(
+            socket,
+            0,
+            request.domains,
+            request.eventType,
+            {
+              stage: DispatchStage.Observed,
+              confirmations: request.confirmations,
+              cursors: request.cursors,
+            },
+          );
+        }
       }
     } catch (error) {
       if (error instanceof ConfirmationUnavailableError)
@@ -1560,6 +1616,9 @@ function subscriptionResponse(
 ): Record<string, unknown> {
   return {
     confirmations: request.confirmations,
+    ...(request.includeUnconfirmed !== undefined
+      ? { includeUnconfirmed: request.includeUnconfirmed }
+      : {}),
     cursors: request.cursors?.map((cursor) =>
       cursor.kind === 'gas_payment'
         ? {

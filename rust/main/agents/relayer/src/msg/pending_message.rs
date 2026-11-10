@@ -400,6 +400,7 @@ impl Eq for PendingMessage {}
 
 impl TryBatchAs<HyperlaneMessage> for PendingMessage {
     fn try_batch(&self) -> ChainResult<BatchItem<HyperlaneMessage>> {
+        self.ctx.origin_db.ensure_no_indexed_event_conflict()?;
         match self.submission_data.as_ref() {
             None => {
                 warn!("Cannot batch message without submission data, returning BatchingFailed");
@@ -502,6 +503,10 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
+        if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
+            warn!(?error, "Origin requires indexed event recovery");
+            return PendingOperationResult::NotReady;
+        }
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
             return PendingOperationResult::NotReady;
@@ -795,6 +800,10 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
     async fn submit(&mut self) -> PendingOperationResult {
+        if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
+            warn!(?error, "Origin requires indexed event recovery");
+            return PendingOperationResult::NotReady;
+        }
         if self.submitted {
             // this message has already been submitted, possibly not by us
             return PendingOperationResult::Success;
@@ -1019,6 +1028,7 @@ impl PendingOperation for PendingMessage {
     }
 
     async fn payload(&self) -> ChainResult<Vec<u8>> {
+        self.ctx.origin_db.ensure_no_indexed_event_conflict()?;
         let mailbox = &self.ctx.destination_mailbox;
         let message = &self.message;
         let submission_data = self
@@ -1935,6 +1945,62 @@ mod test {
         fn write_to<W: Write>(&self, writer: &mut W) -> std::io::Result<usize> {
             writer.write(self.0)
         }
+    }
+
+    #[tokio::test]
+    async fn indexed_event_conflict_blocks_cached_proofs_and_all_submission_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let db = HyperlaneRocksDB::new(&origin, DB::from_path(dir.path()).unwrap());
+        let cache = OptionalCache::new(None);
+        let builder = Arc::new(dummy_metadata_builder(
+            &origin,
+            &destination,
+            &db,
+            cache.clone(),
+        ));
+        let mut ctx = dummy_message_context(builder.clone(), &db, cache);
+        ctx.destination_mailbox = Arc::new(contract_test_mailbox());
+        let mut pending = PendingMessage::new(
+            HyperlaneMessage::default(),
+            Arc::new(ctx),
+            PendingOperationStatus::FirstPrepareAttempt,
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        pending.metadata = Some(Metadata::new(vec![1, 2, 3]));
+        pending.submission_data = Some(Box::new(MessageSubmissionData {
+            metadata: Metadata::new(vec![1, 2, 3]),
+            gas_limit: U256::from(100),
+        }));
+        db.mark_indexed_event_conflict().unwrap();
+        // Even cached metadata must not reach any mailbox submission path.
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::NotReady
+        ));
+        assert!(matches!(
+            pending.submit().await,
+            PendingOperationResult::NotReady
+        ));
+        assert!(pending.try_batch().is_err());
+        assert!(pending.payload().await.is_err());
+        assert!(crate::msg::metadata::BuildsBaseMetadata::get_proof(
+            builder.as_ref(),
+            0,
+            Checkpoint {
+                merkle_tree_hook_address: H256::zero(),
+                mailbox_domain: origin.id(),
+                root: H256::zero(),
+                index: 0,
+            },
+        )
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("origin requires DB/queue/prover recovery"));
+        assert_eq!(pending.num_retries, 0);
     }
 
     #[test]
