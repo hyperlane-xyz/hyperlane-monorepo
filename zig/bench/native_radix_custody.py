@@ -600,7 +600,7 @@ def _memory_directory(root, parts, context):
 
 def _memory_read(directory, name, context):
     _memory_fence(context)
-    require(name in {'stat', 'status', 'cgroup', 'memory.current', 'memory.peak', 'memory.max', 'memory.stat', 'memory.events'}, 'Fixed memory diagnostic file required')
+    require(name in {'stat', 'status', 'cgroup', 'memory.current', 'memory.peak', 'memory.max', 'memory.stat', 'memory.events', 'cgroup.procs', 'comm', 'cmdline'}, 'Fixed memory diagnostic file required')
     descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
     try:
         before = os.fstat(descriptor)
@@ -656,8 +656,94 @@ def _memory_cgroup(wire, cid):
     return parts
 
 
+def _jvm_numeric_flags(tokens):
+    """Ordered declared options only; unknown tokens are counted, never exposed."""
+    require(type(tokens)is list and len(tokens)<=256, 'JVM argument count bound')
+    flags=[];unknown=0;seen=set();duplicates=0
+    memory={'Xmx','Xms','MaxDirectMemorySize','MaxMetaspaceSize','MaxRAM'}
+    percentage={'MaxRAMPercentage','InitialRAMPercentage','MinRAMPercentage'}
+    for token in tokens:
+        token=token.encode('utf8')if type(token)is str else token
+        require(type(token)is bytes and len(token)<=4096, 'JVM token bound')
+        match=re.fullmatch(rb'-(Xmx|Xms)([0-9]{1,20})([kKmMgG]?)',token)
+        if match is None:match=re.fullmatch(rb'-XX:(MaxDirectMemorySize|MaxMetaspaceSize|MaxRAM)=([0-9]{1,20})([kKmMgG]?)',token)
+        if match is not None:
+            name=match[1].decode('ascii');value=int(match[2])*(1024**{'':0,'k':1,'m':2,'g':3}[match[3].decode('ascii').lower()]);require(value<=2**64-1,'JVM byte value range')
+            row={'flag':name,'value_bytes':value}
+        else:
+            match=re.fullmatch(rb'-XX:(MaxRAMPercentage|InitialRAMPercentage|MinRAMPercentage)=([0-9]{1,3})(?:\.([0-9]{1,6}))?',token)
+            if match is not None:
+                name=match[1].decode('ascii');value=int(match[2])*1000000+int((match[3]or b'').ljust(6,b'0')or b'0');require(value<=100000000,'JVM percentage range')
+                row={'flag':name,'value_percent_millionths':value}
+            else:
+                prefixes=[b'-Xmx',b'-Xms',*[b'-XX:'+n.encode()+b'='for n in memory|percentage if n not in {'Xmx','Xms'}]]
+                require(not any(token.startswith(prefix)for prefix in prefixes),'Malformed known JVM numeric flag')
+                unknown+=1;continue
+        duplicates+=int(name in seen);seen.add(name);flags.append(row);require(len(flags)<=8,'JVM numeric flag count bound')
+    return {'ordered_numeric_flags':flags,'duplicate_numeric_flag_occurrences':duplicates,'other_option_or_argument_count':unknown}
+
+
+def _jvm_command_flags(tokens):
+    # Only launcher-option prefix: flags following Main/-jar/-m are app data.
+    require(type(tokens)is list and len(tokens)<=256 and all(type(t)is bytes and len(t)<=4096 for t in tokens),'JVM command arguments bound')
+    operands={b'-cp',b'-classpath',b'--class-path',b'-p',b'--module-path',b'--upgrade-module-path',b'--patch-module',b'--add-exports',b'--add-opens',b'--add-reads',b'--limit-modules',b'--add-modules',b'--enable-native-access',b'--source'}
+    prefix=[];discarded=0;position=0;boundary='end_of_argv'
+    while position<len(tokens):
+        token=tokens[position]
+        require(not token.startswith(b'@'),'Unresolved JVM argument file')
+        if token in {b'-jar',b'-m',b'--module',b'--'}or token.startswith(b'--module='):
+            boundary='jar'if token==b'-jar'else'separator'if token==b'--'else'module';break
+        if not token.startswith(b'-'):
+            boundary='class_or_source';break
+        prefix.append(token);position+=1
+        if token in operands:
+            require(position<len(tokens)and not tokens[position].startswith(b'@'),'Missing or unresolved JVM option operand');discarded+=1;position+=1
+    result=_jvm_numeric_flags(prefix);result['other_option_or_argument_count']+=discarded
+    result.update(unparsed_tail_token_count=len(tokens)-position,launcher_boundary=boundary)
+    return result
+
+
+def _jvm_configuration(row,proc_root,group,cgroup_wire,context):
+    """Optional inspected Env and owned Java argv; never VM-effective defaults."""
+    unavailable={'collection_status':'unavailable'}
+    result={'schema':1,'environment':dict(unavailable),'command_line':dict(unavailable),'effective_JVM_flags':None,'scope':'Inspect-declared environment options versus singleton same-owned-cgroup comm/argv0 Java candidate command-line options. Only launcher-option prefix before class/source/-jar/-m is parsed; application tokens counted. Order and duplicates retained; no VM-effective flags, ergonomic defaults, native allocation, heap usage or cleanup authority; no PID/raw environment/arguments/classpath.'}
+    try:
+        import shlex
+        env=row['Config']['Env'];require(type(env)is list and len(env)<=256 and all(type(v)is str and len(v)<=4096 for v in env)and sum(len(v)for v in env)<=16384,'Bounded inspected JVM environment required')
+        values={};allowed={'JAVA_OPTS','JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS'}
+        for item in env:
+            name,separator,value=item.partition('=')
+            if name not in allowed:continue
+            require(separator and name not in values and '\0'not in value,'Unique JVM environment options required');values[name]=_jvm_numeric_flags(shlex.split(value))
+        result['environment']={'collection_status':'observed','variables':{name:({'collection_status':'observed',**values[name]}if name in values else{'collection_status':'absent'})for name in sorted(allowed)}}
+    except BaseException:pass
+    try:
+        raw=_memory_read(group,'cgroup.procs',context);require(len(raw)<=4096,'JVM process table bound')
+        parts=raw.splitlines();require(0<len(parts)<=256 and all(re.fullmatch(rb'[1-9][0-9]{0,9}',p)for p in parts),'JVM process table shape');pids=[int(p)for p in parts];require(len(set(pids))==len(pids)and all(p<2**31 for p in pids)and row['State']['Pid']in pids,'JVM process table identity bound')
+        candidates=[]
+        for pid in pids:
+            process=_memory_directory(proc_root,[str(pid)],context)
+            try:
+                birth=_memory_process_stat(_memory_read(process,'stat',context),pid)
+                require(_memory_read(process,'cgroup',context)==cgroup_wire,'JVM candidate left owned cgroup')
+                comm=_memory_read(process,'comm',context);require(len(comm)<=64,'JVM comm bound')
+                if comm in {b'java',b'java\n'}:
+                    args=_memory_read(process,'cmdline',context);require(0<len(args)<=16384 and args.endswith(b'\0'),'JVM command-line bound');tokens=args[:-1].split(b'\0');require(tokens[0].rsplit(b'/',1)[-1]==b'java','JVM candidate argv0 differs')
+                    candidates.append(_jvm_command_flags(tokens[1:]))
+                require(_memory_process_stat(_memory_read(process,'stat',context),pid)==birth and _memory_read(process,'cgroup',context)==cgroup_wire,'JVM candidate changed during capture')
+            finally:os.close(process)
+        again=_memory_read(group,'cgroup.procs',context);require(set(again.splitlines())==set(parts),'JVM owned process table changed')
+        result['command_line']={'collection_status':'observed'if len(candidates)==1 else'ambiguous'if candidates else'no_owned_java_candidate','java_candidate_count':len(candidates)}
+        if len(candidates)==1:result['command_line'].update(candidates[0])
+    except BaseException:pass
+    try:
+        require(len(json.dumps(result,separators=(',',':')).encode())<=2048,'JVM public2KiB bound')
+        return result
+    except BaseException:return {'schema':1,'collection_status':'unavailable','effective_JVM_flags':None}
+
+
 def fullnode_memory_sample(row, project, fixture, previous_identity, end, cancelled, *, proc_root=Path('/proc'), cgroup_root=Path('/sys/fs/cgroup'), clock=time.monotonic_ns):
-    """One non-atomic numeric sample. No Docker, network, command line or environment."""
+    """One non-atomic numeric/configuration sample. No Docker, network or commands."""
     context = {'end': end, 'cancelled': cancelled, 'clock': clock, 'remaining': 65536}
     _memory_fence(context)
     service, cid = ownership(row, project, fixture)
@@ -699,12 +785,21 @@ def fullnode_memory_sample(row, project, fixture, previous_identity, end, cancel
                 require(values[public] <= 2 ** 64 - 1, 'Memory diagnostic RSS range')
             else:
                 values[public] = _memory_uint(value)
+        # Reserve existing identity rechecks; optional reads share the original
+        # deadline and total64KiB, including one possible over-bound byte.
+        jvm_budget = max(0, min(32768, context['remaining'] - 4097))
+        jvm_context = {**context, 'remaining': jvm_budget}
+        jvm = {'schema': 1, 'collection_status': 'unavailable', 'effective_JVM_flags': None}
+        if jvm_budget:
+            try: jvm = _jvm_configuration(row, proc_root, group, cgroup_wire, jvm_context)
+            except BaseException: pass  # Optional JVM evidence cannot replace numeric counters.
+            context['remaining'] -= jvm_budget + 1
         require(_memory_process_stat(_memory_read(process, 'stat', context), pid) == birth and _memory_read(process, 'cgroup', context) == cgroup_wire, 'Memory diagnostic PID/cgroup changed during read')
         again = _memory_directory(cgroup_root, parts, context); descriptors.append(again)
         after = os.fstat(again)
         require((group_stat.st_dev, group_stat.st_ino) == (after.st_dev, after.st_ino), 'Memory diagnostic directory changed during read')
         _memory_fence(context)
-        return identity, {'observed_monotonic_ns': clock(), 'numeric': values}
+        return identity, {'observed_monotonic_ns': clock(), 'numeric': values, 'JVM_configuration': jvm}
     finally:
         for descriptor in reversed(descriptors):
             os.close(descriptor)

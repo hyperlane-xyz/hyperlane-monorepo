@@ -965,4 +965,67 @@ class MemoryControls(unittest.TestCase):
         self.assertLess(original.lineno,call.lineno);self.assertLess(call.lineno,transport.lineno);self.assertIn('args.original_deadline_ns',ast.unparse(original.value));self.assertIn('500000000',ast.unparse(original.value))
 
 
+class JVMConfigurationControls(unittest.TestCase):
+    def setUp(self):
+        self.f=MemoryControls();self.f.setUp();self.addCleanup(self.f.doCleanups)
+        self.row=self.f.row;self.row['Config']['Env']=['JAVA_OPTS=-Xmx512m -Xmx512m -XX:MaxDirectMemorySize=128m -Dprivate=PRIVATE_VALUE','JDK_JAVA_OPTIONS=-XX:MaxRAMPercentage=75.125','UNRELATED=PRIVATE_SECRET']
+        (self.f.process/'comm').write_bytes(b'docker-init\n');self.group=self.f.group;self.procs=[12345,54321]
+        self.java=self.java_process(54321);self.table()
+    def table(self):(self.group/'cgroup.procs').write_text(''.join(str(p)+'\n'for p in self.procs))
+    def java_process(self,pid,args=None):
+        path=self.f.proc/str(pid);path.mkdir(exist_ok=True)
+        (path/'stat').write_bytes(str(pid).encode()+b' (java) '+b' '.join([b'S']+[b'0']*18+[b'456'])+b'\n')
+        (path/'cgroup').write_bytes((self.f.process/'cgroup').read_bytes());(path/'comm').write_bytes(b'java\n')
+        tokens=args or[b'/usr/bin/java',b'-Xmx512m',b'-XX:MaxRAMPercentage=50.25',b'-cp',b'PRIVATE_CLASSPATH',b'PrivateMain',b'PRIVATE_ARGUMENT']
+        (path/'cmdline').write_bytes(b'\0'.join(tokens)+b'\0');return path
+    def sample(self):return self.f.sample()[1]
+    def test_owned_Env_vs_actual_java_prefix_order_duplicates_and_privacy(self):
+        value=self.sample();cfg=value['JVM_configuration'];self.assertEqual(value['numeric']['current_bytes'],1024);self.assertIsNone(cfg['effective_JVM_flags'])
+        env=cfg['environment']['variables'];self.assertEqual(env['JAVA_OPTS']['ordered_numeric_flags'],[{'flag':'Xmx','value_bytes':512*m.MIB},{'flag':'Xmx','value_bytes':512*m.MIB},{'flag':'MaxDirectMemorySize','value_bytes':128*m.MIB}]);self.assertEqual(env['JAVA_OPTS']['duplicate_numeric_flag_occurrences'],1);self.assertEqual(env['JDK_JAVA_OPTIONS']['ordered_numeric_flags'][0]['value_percent_millionths'],75125000);self.assertEqual(env['JAVA_TOOL_OPTIONS']['collection_status'],'absent')
+        argv=cfg['command_line'];self.assertEqual(argv['collection_status'],'observed');self.assertEqual(argv['java_candidate_count'],1);self.assertEqual(argv['ordered_numeric_flags'],[{'flag':'Xmx','value_bytes':512*m.MIB},{'flag':'MaxRAMPercentage','value_percent_millionths':50250000}]);self.assertEqual(argv['unparsed_tail_token_count'],2)
+        wire=json.dumps(value)
+        for text in ['PRIVATE','PrivateMain','54321','12345',self.row['Id'],'cmdline','/usr/bin/java','PRIVATE_CLASSPATH']:self.assertNotIn(text,wire)
+        self.assertLess(len(json.dumps(cfg)),2048)
+    def test_known_numeric_flag_bounds_percentages_and_unknown_count_only(self):
+        result=m._jvm_numeric_flags([b'-Xms1g',b'-XX:MaxRAM=2g',b'-XX:MaxMetaspaceSize=64m',b'-XX:MinRAMPercentage=0.000001',b'-XX:InitialRAMPercentage=100.000000',b'-Dprivate=PRIVATE'])
+        self.assertEqual(result['ordered_numeric_flags'][0]['value_bytes'],m.GIB);self.assertEqual(result['ordered_numeric_flags'][-2]['value_percent_millionths'],1);self.assertEqual(result['ordered_numeric_flags'][-1]['value_percent_millionths'],100000000);self.assertEqual(result['other_option_or_argument_count'],1);self.assertNotIn('PRIVATE',json.dumps(result))
+        for token in [b'-Xmx-1g',b'-XmxNaN',b'-Xmx18446744073709551616',b'-XX:MaxDirectMemorySize=99999999999999999999g',b'-XX:MaxRAMPercentage=NaN',b'-XX:MaxRAMPercentage=Infinity',b'-XX:MaxRAMPercentage=-1',b'-XX:MaxRAMPercentage=100.000001',b'-XX:MaxRAMPercentage=1.0000001']:
+            with self.subTest(token=token),self.assertRaises(ValueError):m._jvm_numeric_flags([token])
+    def test_application_args_jar_module_classpath_operand_and_argfile_never_become_VM_flags(self):
+        for tokens,boundary in [([b'PrivateMain',b'-Xmx9g'],'class_or_source'),([b'-jar',b'PRIVATE.jar',b'-Xmx9g'],'jar'),([b'-m',b'PRIVATE/module',b'-Xmx9g'],'module'),([b'--module=PRIVATE',b'-Xmx9g'],'module'),([b'--',b'PrivateMain',b'-Xmx9g'],'separator')]:
+            result=m._jvm_command_flags([b'-Xmx512m',*tokens]);self.assertEqual(result['ordered_numeric_flags'],[{'flag':'Xmx','value_bytes':512*m.MIB}]);self.assertEqual(result['launcher_boundary'],boundary);self.assertNotIn('PRIVATE',json.dumps(result))
+            self.java_process(54321,[b'/usr/bin/java',b'-Xmx512m',*tokens]);self.assertEqual(self.sample()['JVM_configuration']['command_line']['ordered_numeric_flags'],[{'flag':'Xmx','value_bytes':512*m.MIB}])
+        result=m._jvm_command_flags([b'-cp',b'-Xmx9g',b'PrivateMain',b'-Xmx8g']);self.assertEqual(result['ordered_numeric_flags'],[])
+        for tokens in [[b'@PRIVATE_FILE',b'-Xmx9g'],[b'-cp',b'@PRIVATE_FILE',b'-Xmx9g',b'PrivateMain']]:
+            with self.assertRaises(ValueError):m._jvm_command_flags(tokens)
+    def test_foreign_cgroup_and_PID_birth_mutation_refuse_before_foreign_argv_without_losing_counters(self):
+        from unittest import mock
+        good=(self.java/'cgroup').read_bytes();(self.java/'cgroup').write_bytes(b'0::/foreign/PRIVATE\n');real=m._memory_read;seen=[]
+        def read(fd,name,ctx):
+            if name=='cmdline':seen.append(name)
+            return real(fd,name,ctx)
+        with mock.patch.object(m,'_memory_read',side_effect=read):value=self.sample()
+        self.assertEqual(value['JVM_configuration']['command_line']['collection_status'],'unavailable');self.assertEqual(value['numeric']['anon_bytes'],128);self.assertEqual(seen,[])
+        (self.java/'cgroup').write_bytes(good)
+        def mutate(fd,name,ctx):
+            wire=real(fd,name,ctx)
+            if name=='cmdline':(self.java/'stat').write_bytes(b'54321 (java) '+b' '.join([b'S']+[b'0']*18+[b'999'])+b'\n')
+            return wire
+        with mock.patch.object(m,'_memory_read',side_effect=mutate):value=self.sample()
+        self.assertEqual(value['JVM_configuration']['command_line']['collection_status'],'unavailable');self.assertEqual(value['numeric']['current_bytes'],1024)
+    def test_ambiguous_java_and_optional_shape_overflow_or_exception_preserve_original_numeric_sample(self):
+        from unittest import mock
+        self.procs.append(54322);self.java_process(54322);self.table();value=self.sample();self.assertEqual(value['JVM_configuration']['command_line']['collection_status'],'ambiguous');self.assertEqual(value['JVM_configuration']['command_line']['java_candidate_count'],2);self.assertNotIn('ordered_numeric_flags',value['JVM_configuration']['command_line'])
+        self.procs=[12345,54321];self.table();(self.java/'cmdline').write_bytes(b'x'*65537);value=self.sample();self.assertEqual(value['numeric']['current_bytes'],1024);self.assertEqual(value['JVM_configuration']['command_line']['collection_status'],'unavailable')
+        with mock.patch.object(m,'_jvm_configuration',side_effect=KeyboardInterrupt):value=self.sample()
+        self.assertEqual(value['numeric']['current_bytes'],1024);self.assertEqual(value['JVM_configuration']['collection_status'],'unavailable')
+        options=' '.join('-XX:MaxDirectMemorySize=18446744073709551615'for _ in range(8));self.row['Config']['Env']=[name+'='+options for name in ['JAVA_OPTS','JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS']];self.java_process(54321,[b'/usr/bin/java',*[b'-XX:MaxDirectMemorySize=18446744073709551615']*8]);value=self.sample();self.assertEqual(value['numeric']['anon_bytes'],128);self.assertEqual(value['JVM_configuration']['collection_status'],'unavailable')
+    def test_single_link_bounded_proc_files_and_original_custody_output_caps_remain(self):
+        from unittest import mock
+        outside=self.f.base.case/'PRIVATE_FOREIGN';outside.write_bytes(b'PRIVATE');target=self.java/'cmdline';target.unlink();target.symlink_to(outside);value=self.sample();self.assertEqual(value['numeric']['current_bytes'],1024);self.assertEqual(value['JVM_configuration']['command_line']['collection_status'],'unavailable');self.assertNotIn('PRIVATE',json.dumps(value))
+        target.unlink();self.java_process(54321)
+        self.row['Config']['Env']=['JAVA_OPTS=-XmxPRIVATE'];value=self.sample();self.assertEqual(value['JVM_configuration']['environment']['collection_status'],'unavailable');self.assertEqual(value['JVM_configuration']['command_line']['collection_status'],'observed')
+        self.row['Config']['Env']=['JAVA_OPTS=-Xmx512m'];self.f.patched_observe();record=self.f.base.custody.public_observation()['fullnode_memory'];self.assertIsNone(record['effective_JVM_flags']);self.assertLessEqual(len(json.dumps(record,separators=(',',':')).encode()),8192)
+
+
 if __name__=='__main__':unittest.main()
