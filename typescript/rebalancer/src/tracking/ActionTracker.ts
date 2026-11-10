@@ -425,7 +425,7 @@ export class ActionTracker implements IActionTracker {
     const ignoredIntentIds = new Set<string>();
     const countedIntentIds = new Set<string>();
     for (const action of actions) {
-      if (!action.messageId) continue;
+      if (action.type !== 'rebalance_message' || !action.messageId) continue;
       if (isIgnored(action.messageId)) ignoredIntentIds.add(action.intentId);
       else countedIntentIds.add(action.intentId);
     }
