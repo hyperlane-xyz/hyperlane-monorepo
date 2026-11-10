@@ -16,6 +16,7 @@ import {
   ID_B,
   ID_C,
   PARAMS,
+  REBALANCE_PARAMS,
   StubExplorerClient,
   buildMessage,
 } from '../../test/pendingTransferMiddlewareMocks.js';
@@ -494,5 +495,60 @@ describe('PendingTransferMiddleware Explorer paging', () => {
         1_100, 2_200, 4_400, 8_800, 17_600, 25_600,
       ]);
     });
+  });
+});
+
+/** Also ignores a fixed set of rebalance message ids. */
+class RebalanceIgnoringMiddleware extends StaticMiddleware {
+  constructor(
+    inner: IExplorerClient,
+    public ignoredRebalanceIds: string[],
+  ) {
+    super(inner, 'rebalance', []);
+  }
+
+  override isIgnoredRebalanceAction(messageId: string): boolean {
+    return (
+      this.ignoredRebalanceIds.includes(messageId) ||
+      super.isIgnoredRebalanceAction(messageId)
+    );
+  }
+}
+
+describe('PendingTransferMiddleware rebalance action queries', () => {
+  let logger: Logger;
+  let inner: StubExplorerClient;
+
+  beforeEach(() => {
+    logger = pino({ level: 'silent' });
+    inner = new StubExplorerClient([buildMessage(ID_A)]);
+    inner.rebalanceActions = [buildMessage(ID_B), buildMessage(ID_C)];
+  });
+
+  it('passes rebalance messages through without evaluating them', async () => {
+    const client = new StaticMiddleware(inner, 'static', [ID_B]);
+
+    const result = await client.getInflightRebalanceActions(
+      REBALANCE_PARAMS,
+      logger,
+    );
+
+    expect(result.map((msg) => msg.msg_id)).to.deep.equal([ID_B, ID_C]);
+    expect(client.seen).to.deep.equal([]);
+    expect(client.isIgnoredRebalanceAction(ID_B)).to.be.false;
+  });
+
+  it('reports rebalance messages an inner middleware ignores through an outer one', async () => {
+    const innerLayer = new RebalanceIgnoringMiddleware(inner, [ID_B]);
+    const outerLayer = new StaticMiddleware(innerLayer, 'other', [ID_C]);
+
+    const result = await outerLayer.getInflightRebalanceActions(
+      REBALANCE_PARAMS,
+      logger,
+    );
+
+    expect(result.map((msg) => msg.msg_id)).to.deep.equal([ID_B, ID_C]);
+    expect(outerLayer.isIgnoredRebalanceAction(ID_B)).to.be.true;
+    expect(outerLayer.isIgnoredRebalanceAction(ID_C)).to.be.false;
   });
 });

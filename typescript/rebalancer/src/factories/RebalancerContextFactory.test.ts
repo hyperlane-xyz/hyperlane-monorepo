@@ -344,6 +344,7 @@ describe('RebalancerContextFactory', () => {
 
       expect(tracker['explorerClient']).to.equal(explorer);
       expect(tracker['config'].isIgnoredTransfer).to.equal(undefined);
+      expect(tracker['config'].isIgnoredRebalanceAction).to.equal(undefined);
     });
 
     it('wraps the Explorer client and passes the predicate when middlewares are configured', async () => {
@@ -362,6 +363,7 @@ describe('RebalancerContextFactory', () => {
 
       expect(client['inner']).to.equal(explorer);
       expect(tracker['config'].isIgnoredTransfer).to.be.a('function');
+      expect(tracker['config'].isIgnoredRebalanceAction).to.be.a('function');
       expect(client['options'].mailboxByDomain).to.deep.equal({
         1: TEST_ADDRESSES.ethereum,
         42161: TEST_ADDRESSES.ethereum,

@@ -86,6 +86,17 @@ export abstract class PendingTransferMiddleware implements IExplorerClient {
     );
   }
 
+  /**
+   * Whether this middleware or any inner middleware ignores the rebalance
+   * message. Rebalance action queries are not filtered.
+   */
+  isIgnoredRebalanceAction(messageId: string): boolean {
+    return (
+      this.inner instanceof PendingTransferMiddleware &&
+      this.inner.isIgnoredRebalanceAction(messageId)
+    );
+  }
+
   async getInflightUserTransfers(
     params: UserTransferQueryParams,
     logger: Logger,

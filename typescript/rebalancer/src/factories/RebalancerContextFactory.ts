@@ -380,21 +380,25 @@ export class RebalancerContextFactory {
         addresses.mailbox;
     }
 
-    const { client: explorerClient, isIgnoredTransfer } =
-      await buildPendingTransferMiddlewares(
-        baseExplorerClient,
-        this.config.pendingTransferMiddlewares ?? [],
-        {
-          routersByDomain,
-          mailboxByDomain,
-          multiProvider: this.multiProvider,
-          logger: this.logger,
-        },
-      );
+    const {
+      client: explorerClient,
+      isIgnoredTransfer,
+      isIgnoredRebalanceAction,
+    } = await buildPendingTransferMiddlewares(
+      baseExplorerClient,
+      this.config.pendingTransferMiddlewares ?? [],
+      {
+        routersByDomain,
+        mailboxByDomain,
+        multiProvider: this.multiProvider,
+        logger: this.logger,
+      },
+    );
 
     const trackerConfig: ActionTrackerConfig = {
       routersByDomain,
       isIgnoredTransfer,
+      isIgnoredRebalanceAction,
       bridges,
       rebalancerAddress,
       inventorySignerAddresses: this.config.inventorySigners
