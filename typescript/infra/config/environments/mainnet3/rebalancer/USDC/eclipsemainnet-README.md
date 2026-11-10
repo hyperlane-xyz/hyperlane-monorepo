@@ -1,8 +1,10 @@
 # USDC Eclipse and Elysium inventory
 
-Elysium uses weight 3, tolerance 3 and a 2,500 USDC economic minimum, matching
-HyperEVM. The existing 15 chains keep their weights, thresholds, movable-collateral
-bridges and inventory signers. Existing BSC/Solana inventory routes keep swaps.xyz
+Elysium uses weight 3, tolerance 3 and a 2,500 USDC outbound economic minimum,
+matching HyperEVM. Minimums apply to the economic source route; inbound Elysium
+proposals use each source's minimum. BSC has no configured minimum. The existing
+15 chains keep their weights, thresholds, movable-collateral bridges and inventory
+signers. Existing BSC/Solana inventory routes keep swaps.xyz
 and its shared `mainnet3-swapsxyz-api-key` secret.
 
 Physical inventory routes are separate from economic surplus/deficit proposals:
@@ -26,12 +28,11 @@ part of this configuration. Failed native automatic redemption requires manual
 recovery using the logged source transaction/retryable identity. Tracking remains
 in memory; process restarts can lose outstanding work, as accepted for this rollout.
 
-The registry pin rebases the Elysium route from registry PR #1792 onto registry
-main `53094a44`, retaining the Eclipse synthetic mint required for balance reads.
-It is published on the separate `codex/usdc-eclipse-monitor-registry-nov10`
-validation branch; the original registry PR is unchanged. Before production
-activation, use an accepted Elysium-containing registry revision and
-verify deployed router enrollment, collateral identity, signer permissions and gas.
+The registry pin uses merged registry PR #1792 at `774cf8fadf`, retaining the
+Eclipse synthetic mint required for balance reads. The EVM extension Safe executed
+on 2026-11-10. Before production activation, verify deployed router enrollment,
+collateral identity, signer permissions and gas. The registry deployment check
+reported a missing Elysium-to-Solana token fee; that pair is disabled here.
 The pinned amd64 image was built from shared-stack commit `11861e50a5` and
 verified against its published digest and revision label. It includes Relay,
 physical inventory routing and native deposits.

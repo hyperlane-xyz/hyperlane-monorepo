@@ -5,7 +5,7 @@ deployment:
   imageRepository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   imageTag: 11861e5-20261110-130055
   imageDigest: sha256:b77396a69e3c295d4b8dea9b9566aac0905a43442ec472d225985e2455ac8260
-  registryCommit: 2cff6427b8eb20ef81b3fd8bcc840222f4e4b712
+  registryCommit: 774cf8fadf1a3472a59065b45d193f2b27891f3e
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
 inventorySigners:
