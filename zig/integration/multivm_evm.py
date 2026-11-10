@@ -232,7 +232,7 @@ def merkle_roots(messages, keccak):
     return roots
 
 
-def verify_checkpoint_objects(directory, chain, validator_address, messages, keccak, *, git_sha, configured_rpc_urls, allows_public_rpcs, hook_hash=None):
+def verify_checkpoint_objects(directory, chain, validator_address, messages, keccak, *, git_sha, configured_rpc_urls, allows_public_rpcs, hook_hash=None, merkle_provider=None):
     """Read real published objects and independently authenticate every leaf."""
     import json
     import pathlib
@@ -244,7 +244,7 @@ def verify_checkpoint_objects(directory, chain, validator_address, messages, kec
     import urllib.parse
     expected_rpcs = [{"url_hash": keccak(url), "host_hash": keccak(urllib.parse.urlsplit(url).hostname)} for url in configured_rpc_urls]
     require(metadata == {"git_sha": git_sha, "rpcs": expected_rpcs, "allows_public_rpcs": allows_public_rpcs}, "actual ValidatorMetadata producer differs")
-    expected = merkle_roots(messages, keccak)
+    expected = merkle_roots(messages, keccak) if merkle_provider is None else merkle_provider(messages, chain, git_sha, keccak)
     require(expected, "actual merkle stream empty")
     verified = []
     raw_hook = hex_bytes(hook_hash if hook_hash is not None else chain["merkletreehook"])

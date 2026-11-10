@@ -1920,6 +1920,226 @@ class CheckpointObservationHashControls(unittest.TestCase):
         self.assertEqual(self.session.checkpoint_proofs(self.snapshot), family.checkpoints.return_value)
         family.checkpoints.assert_called_once_with(self.session, self.snapshot)
 
+class CheckpointObservationTreeControls(unittest.TestCase):
+    hashed = staticmethod(CheckpointObservationHashControls.hashed)
+    setUp = CheckpointObservationHashControls.setUp
+    invoke = CheckpointObservationHashControls.invoke
+
+    def test_existing_signed_objects_and_every_command_guard_counts(self):
+        original_checked = evidence.checked_artifact
+        counts = {'command': 0, 'hash_hit': 0, 'tree_boundary': 0}
+        command_count = 0
+        def checked(row, executable=False):
+            name = __import__('sys')._getframe(1).f_code.co_name
+            counts['tree_boundary' if name == 'checkpoint_roots' else 'hash_hit'] += 1
+            return original_checked(row, executable)
+        def command_checked(row, executable=False):
+            counts['command'] += 1
+            return original_checked(row, executable)
+        def command(argv, **kwargs):
+            nonlocal command_count
+            self.assertEqual(argv[:2], [str(self.tool), 'keccak'])
+            command_count += 1
+            return __import__('types').SimpleNamespace(returncode=0, stdout=self.hashed(argv[2]))
+        self.session.adapter = mock.Mock(side_effect=lambda chain: evm.EvmEvidence(self.session.manifest, 'unused'))
+        with mock.patch.object(session_module, 'checked_artifact', checked), mock.patch.object(evidence, 'checked_artifact', command_checked), mock.patch.object(evidence.subprocess, 'run', side_effect=command):
+            proof = self.session.checkpoint_proofs(self.snapshot)
+        self.assertEqual(sum(len(row['verified_checkpoint_objects']) for row in proof), 32)
+        self.assertEqual(command_count, 308)
+        self.assertEqual(counts, {'command': 308, 'hash_hit': 116, 'tree_boundary': 4})
+        self.assertEqual(sum(counts.values()), 428)
+        type(self).call_counts = {'cast_commands': command_count, 'full_artifact_checks': sum(counts.values()), **counts}
+
+    def test_same_full_proofs_and_no_reuse_across_observations(self):
+        # Retains original independent full recovery/byte-descriptor assertions.
+        CheckpointObservationHashControls.test_real_signed_objects_equal_uncached_result_with_fewer_kernel_calls(self)
+        with mock.patch.object(session_module, 'merkle_roots', wraps=evm.merkle_roots) as trees:
+            first = self.session.checkpoint_proofs(self.snapshot)
+            self.assertEqual(trees.call_count, 1)
+            self.assertEqual(self.session.checkpoint_proofs(self.snapshot), first)
+            self.assertEqual(trees.call_count, 2)
+
+    def test_complete_prefix_and_chain_context_changes_compute_again(self):
+        for change in ('message', 'chain', 'source'):
+            with self.subTest(change=change):
+                seen = 0
+                def verify(path, chain, signer, messages, hashed, **kwargs):
+                    nonlocal seen
+                    seen += 1
+                    if seen == 2:
+                        if change == 'message': messages[0]['extra_canonical_context'] = 'changed'
+                        if change == 'chain': chain['extra_canonical_context'] = 'changed'
+                        if change == 'source':
+                            self.session.manifest['runtime_source_commit'] = 'b' * 40
+                            kwargs['git_sha'] = 'b' * 40
+                            metadata = pathlib.Path(path) / 'metadata_latest.json'
+                            value = json.loads(metadata.read_text());value['git_sha'] = 'b' * 40;metadata.write_text(json.dumps(value))
+                    return evm.verify_checkpoint_objects(path, chain, signer, messages, hashed, **kwargs)
+                if change == 'source':
+                    with self.assertRaisesRegex(ValueError, 'ValidatorMetadata producer differs'):
+                        self.invoke(verify)
+                    self.session.manifest['runtime_source_commit'] = 'a' * 40
+                    for index in range(4):
+                        p = self.root / ('validator-' + str(index)) / 'metadata_latest.json'
+                        value = json.loads(p.read_text());value['git_sha'] = 'a' * 40;p.write_text(json.dumps(value))
+                else:
+                    with mock.patch.object(session_module, 'merkle_roots', wraps=evm.merkle_roots) as trees:
+                        self.invoke(verify)
+                    self.assertEqual(trees.call_count, 2)
+                self.messages[0].pop('extra_canonical_context', None)
+                self.chain.pop('extra_canonical_context', None)
+
+    def test_original_computation_uses_frozen_copy_and_mutation_refuses(self):
+        original = evm.merkle_roots
+        def change(messages, hashed):
+            self.assertIsNot(messages, self.messages)
+            self.messages[0]['insertions'] = [7]
+            return original(messages, hashed)
+        with mock.patch.object(session_module, 'merkle_roots', side_effect=change):
+            with self.assertRaisesRegex(ValueError, 'checkpoint tree inputs changed'):
+                self.session.checkpoint_proofs(self.snapshot)
+
+    def test_retained_roots_are_immutable_and_returns_do_not_alias(self):
+        def verify(path, chain, signer, messages, hashed, **kwargs):
+            provider = kwargs['merkle_provider']
+            first = provider(messages, chain, kwargs['git_sha'], hashed)
+            first[0]['root'] = 'invalid caller mutation'
+            first.append({'root': 'foreign row'})
+            second = provider(messages, chain, kwargs['git_sha'], hashed)
+            self.assertEqual(len(second), 8)
+            self.assertNotEqual(second[0]['root'], first[0]['root'])
+            return evm.verify_checkpoint_objects(path, chain, signer, messages, hashed, **kwargs)
+        self.assertEqual(sum(len(row['verified_checkpoint_objects']) for row in self.invoke(verify)), 32)
+
+    def test_fresh_signature_file_and_canonical_leaf_guards_remain(self):
+        seen = 0
+        def verify(path, *args, **kwargs):
+            nonlocal seen
+            seen += 1
+            if seen == 2:
+                p = pathlib.Path(path) / '7_with_id.json';value = json.loads(p.read_text());value['signature']['r'] = '0x0';p.write_text(json.dumps(value))
+            return evm.verify_checkpoint_objects(path, *args, **kwargs)
+        with self.assertRaisesRegex(ValueError, 'invalid checkpoint ECDSA'):
+            self.invoke(verify)
+        p = self.root / 'validator-1/7_with_id.json';p.unlink()
+        with self.assertRaisesRegex(ValueError, 'actual final checkpoint missing'):
+            self.session.checkpoint_proofs(self.snapshot)
+        self.messages[0]['insertions'] = [1]
+        with self.assertRaisesRegex(ValueError, 'gap/duplicate'):
+            self.session.checkpoint_proofs(self.snapshot)
+        self.setUp()
+        def wrong_signer(path, chain, signer, messages, hashed, **kwargs):
+            if pathlib.Path(path).name == 'validator-1':signer = '0x' + '00' * 20
+            return evm.verify_checkpoint_objects(path, chain, signer, messages, hashed, **kwargs)
+        with self.assertRaisesRegex(ValueError, 'published checkpoint signer differs'):
+            self.invoke(wrong_signer)
+
+    def test_tree_reuse_boundary_detects_actual_tool_and_descriptor_changes(self):
+        original = evidence.checked_artifact
+        for change in ('file', 'descriptor', 'messages', 'chain', 'source'):
+            with self.subTest(change=change):
+                count = 0
+                def checked(row, executable=False):
+                    nonlocal count
+                    if __import__('sys')._getframe(1).f_code.co_name == 'checkpoint_roots':
+                        count += 1
+                        if count == 2:
+                            if change == 'file': self.tool.write_bytes(b'x')
+                            elif change == 'descriptor': self.session.manifest['verifier_tools']['cast']['sha256'] = '0' * 64
+                            elif change == 'messages': self.messages[0]['changed_during_guard'] = True
+                            elif change == 'chain': self.chain['changed_during_guard'] = True
+                            else: self.session.manifest['runtime_source_commit'] = 'b' * 40
+                    return original(row, executable)
+                with mock.patch.object(session_module, 'checked_artifact', checked):
+                    with self.assertRaises(ValueError):self.session.checkpoint_proofs(self.snapshot)
+                self.assertEqual(count, 2)
+                self.tool.write_bytes(b'pinned synthetic verifier; never executed')
+                self.session.manifest['verifier_tools']['cast']['sha256'] = hashlib.sha256(self.tool.read_bytes()).hexdigest()
+                self.messages[0].pop('changed_during_guard', None)
+                self.chain.pop('changed_during_guard', None)
+                self.session.manifest['runtime_source_commit'] = 'a' * 40
+
+    def test_capacity_and_ineligible_context_recompute_original_path(self):
+        for kind in ('capacity', 'large', 'non_json'):
+            with self.subTest(kind=kind):
+                if kind == 'large':self.messages[0]['optional_context'] = 'x' * 2048
+                if kind == 'non_json':self.messages[0]['optional_context'] = object()
+                with mock.patch.object(session_module, 'CHECKPOINT_TREE_MEMO_BYTES', 1 if kind == 'capacity' else 4 * 1024 * 1024), mock.patch.object(session_module, 'CHECKPOINT_TREE_KEY_BYTES', 1024 if kind == 'large' else 1024 * 1024), mock.patch.object(session_module, 'merkle_roots', wraps=evm.merkle_roots) as trees:
+                    result = self.session.checkpoint_proofs(self.snapshot)
+                self.assertEqual(trees.call_count, 4)
+                self.assertEqual(sum(len(row['verified_checkpoint_objects']) for row in result), 32)
+                self.messages[0].pop('optional_context', None)
+
+    def test_empty_prefix_case_order_crosschain_keys_and_no_result_alias(self):
+        seen = False
+        def verify(path, chain, signer, messages, hashed, **kwargs):
+            nonlocal seen
+            provider = kwargs['merkle_provider']
+            if not seen:
+                seen = True
+                self.assertEqual(provider([], chain, kwargs['git_sha'], hashed), [])
+                rows = [{'id': '0x' + 'ab' * 32, 'insertions': [0]}, {'id': '0x' + 'cd' * 32, 'insertions': [1]}]
+                lower = provider(rows, chain, kwargs['git_sha'], hashed)
+                upper_rows = copy.deepcopy(rows);upper_rows[0]['id'] = upper_rows[0]['id'].upper().replace('0X', '0x')
+                upper = provider(upper_rows, chain, kwargs['git_sha'], hashed)
+                self.assertNotEqual(lower[0]['message_id'], upper[0]['message_id'])
+                self.assertEqual(provider(list(reversed(rows)), chain, kwargs['git_sha'], hashed), lower)
+                other = dict(chain, domainid=2)
+                self.assertEqual(provider(rows, other, kwargs['git_sha'], hashed), lower)
+            return evm.verify_checkpoint_objects(path, chain, signer, messages, hashed, **kwargs)
+        with mock.patch.object(session_module, 'merkle_roots', wraps=evm.merkle_roots) as trees:
+            self.assertEqual(sum(len(r['verified_checkpoint_objects']) for r in self.invoke(verify)), 32)
+        self.assertEqual(trees.call_count, 6) # empty/lower/upper/reordered/other-chain/actual
+
+    def test_no_memo_survives_later_signature_failure(self):
+        seen = 0
+        retained = []
+        def verify(path, chain, signer, messages, hashed, **kwargs):
+            nonlocal seen
+            seen += 1
+            retained[:] = [(kwargs['merkle_provider'], chain, kwargs['git_sha'])]
+            if seen == 2:
+                p = pathlib.Path(path) / '7_with_id.json';value = json.loads(p.read_text());value['signature']['r'] = '0x0';p.write_text(json.dumps(value))
+            return evm.verify_checkpoint_objects(path, chain, signer, messages, hashed, **kwargs)
+        with self.assertRaisesRegex(ValueError, 'invalid checkpoint ECDSA'):
+            self.invoke(verify)
+        provider, chain, source = retained[0]
+        with mock.patch.object(session_module, 'merkle_roots', wraps=evm.merkle_roots) as trees:
+            first = provider(self.messages, chain, source, self.hashed)
+            self.assertEqual(provider(self.messages, chain, source, self.hashed), first)
+        self.assertEqual(trees.call_count, 2) # inactive observation always original, no memo
+
+    def test_failed_original_tree_never_populates_memo(self):
+        original = evm.merkle_roots
+        error = ValueError('synthetic original tree failure')
+        computed = 0
+        def calculate(messages, hashed):
+            nonlocal computed
+            computed += 1
+            if computed == 1:raise error
+            return original(messages, hashed)
+        seen = False
+        def verify(path, chain, signer, messages, hashed, **kwargs):
+            nonlocal seen
+            if not seen:
+                seen = True
+                provider = kwargs['merkle_provider']
+                with self.assertRaises(ValueError) as raised:provider(messages, chain, kwargs['git_sha'], hashed)
+                self.assertIs(raised.exception, error)
+                first = provider(messages, chain, kwargs['git_sha'], hashed)
+                self.assertEqual(provider(messages, chain, kwargs['git_sha'], hashed), first)
+            return evm.verify_checkpoint_objects(path, chain, signer, messages, hashed, **kwargs)
+        with mock.patch.object(session_module, 'merkle_roots', side_effect=calculate):
+            self.assertEqual(sum(len(r['verified_checkpoint_objects']) for r in self.invoke(verify)), 32)
+        self.assertEqual(computed, 2)
+
+    def test_default_object_verifier_keeps_original_merkle_path(self):
+        for capture in self.session.captures:
+            with mock.patch.object(evm, 'merkle_roots', wraps=evm.merkle_roots) as trees:
+                result = evm.verify_checkpoint_objects(capture['original']['checkpoint_syncer']['path'], self.chain, self.signer, self.messages, self.hashed, git_sha='a' * 40, configured_rpc_urls=['http://127.0.0.1:1'], allows_public_rpcs=False)
+            self.assertEqual(trees.call_count, 1)
+            self.assertEqual(len(result['verified_checkpoint_objects']), 8)
+
 
 if __name__ == "__main__":
     unittest.main()

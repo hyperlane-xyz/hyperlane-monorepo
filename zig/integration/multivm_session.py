@@ -20,13 +20,18 @@ import sys
 import multivm_diagnostics
 
 from multivm_evidence import starknet_unavailable_peers, checked_starknet_peer_context, ENDPOINT_FIELDS, RawTcpProxy, TransparentProxy, checked_artifact, direct_endpoint, direct_request, effective_config, endpoint_replacements, hex_bytes, process_identity, read_approval, require, rpc as direct_rpc, run_tool, urls, run_artifact, validate_evidence_nodes, selected_evidence_node, source_connect_url, verified_harness_identity, owned_devnet_name, verify_devnet_inspect
-from multivm_evm import EvmEvidence, address, quantity, sql_delivery_query, sql_message_query, verify_canonical_rocks, verify_checkpoint_objects, verify_evm_accounting, verify_sql_message, log_metadata, validate_expenditure_expectations
+from multivm_evm import EvmEvidence, address, quantity, sql_delivery_query, sql_message_query, verify_canonical_rocks, verify_checkpoint_objects, merkle_roots, verify_evm_accounting, verify_sql_message, log_metadata, validate_expenditure_expectations
 from multivm_sql import sql_event_query
 from multivm_tron import TronEvidence, tron_address
 
 RESTART_CLOCK_SCOPE = 'One complete canonical/SDK/checkpoint/readiness proof BEFORE the first live anchor; then continuous actual child/config/authority/admin/no-resubmission and paired role-RPC checks; full canonical/SDK/SQL/checkpoint and stopped-reader proof again at final acceptance. No heavy proof is claimed per live sample.'
 RESTART_DEADLINE_SCOPE = 'Python first after_restart entry+120s; not the earlier Rust caller Instant.'
 RESTART_FINAL_SCOPE = 'Fresh final canonical/SDK/checkpoint/SQL and stopped-reader verification after live window and clean actual parent waits.'
+
+# Optional pure-tree memo only; overflow always recomputes the original proof.
+CHECKPOINT_TREE_MEMO_BYTES = 4 * 1024 * 1024
+CHECKPOINT_TREE_KEY_BYTES = 1024 * 1024
+
 
 OBSERVER_POLICY = {
     "version": "native-admin-observation-v2",
@@ -1208,34 +1213,79 @@ class Session:
                     checkpoint_hashes[value] = result
                 return result
             return hashed
+        # Immutable serialized inputs/results never escape this observation.
+        checkpoint_trees = []
+        checkpoint_tree_bytes = 0
+        checkpoint_tree_active = True
+        def tree_wire(value):
+            try:
+                wire = bytearray()
+                encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
+                for part in encoder.iterencode(value):
+                    chunk = part.encode()
+                    if len(wire) + len(chunk) > CHECKPOINT_TREE_KEY_BYTES: return None
+                    wire.extend(chunk)
+                return bytes(wire)
+            except (TypeError, ValueError, RecursionError):
+                return None
+        def checkpoint_roots(messages, chain, source, hashed):
+            nonlocal checkpoint_tree_bytes
+            if not checkpoint_tree_active:
+                return merkle_roots(messages, hashed)
+            require(self.manifest["verifier_tools"]["cast"] == checkpoint_cast and self.manifest["runtime_source_commit"] == source, "checkpoint tree context changed during observation")
+            value = {"messages": messages, "chain": chain, "source": source, "cast": checkpoint_cast}
+            key = tree_wire(value)
+            if key is None:
+                return merkle_roots(messages, hashed)
+            for prior, roots_wire in checkpoint_trees:
+                if prior == key:
+                    checked_artifact(checkpoint_cast, True)
+                    require(self.manifest["verifier_tools"]["cast"] == checkpoint_cast and self.manifest["runtime_source_commit"] == source and tree_wire(value) == key, "checkpoint tree inputs changed during observation")
+                    return json.loads(roots_wire)
+            frozen = json.loads(key)
+            roots = merkle_roots(frozen["messages"], hashed)
+            checked_artifact(checkpoint_cast, True)
+            require(self.manifest["verifier_tools"]["cast"] == checkpoint_cast and self.manifest["runtime_source_commit"] == source and tree_wire(value) == key, "checkpoint tree inputs changed during observation")
+            roots_wire = tree_wire(roots)
+            # Payload plus conservative Python bytes/tuple/list-slot overhead.
+            charge = len(key) + (0 if roots_wire is None else len(roots_wire)) + 256
+            if roots_wire is not None and checkpoint_tree_bytes + charge + 512 <= CHECKPOINT_TREE_MEMO_BYTES:
+                checkpoint_trees.append((key, roots_wire))
+                checkpoint_tree_bytes += charge
+            return roots
         require(isinstance(self.case.get("validator_addresses"), dict), "reviewed public validator identities required")
         result = []
-        for capture in self.captures:
-            original, proxied = capture["original"], capture["proxied"]
-            if original["role"] != "validator":
-                continue
-            require(len(original["role_chain_names"]) == 1, "actual validator origin differs")
-            name = original["role_chain_names"][0]
-            checkpoint = original["checkpoint_syncer"]
-            require(isinstance(checkpoint, dict) and checkpoint.get("type") == "localStorage" and isinstance(checkpoint.get("path"), str), "actual local checkpoint path missing")
-            path = pathlib.Path(checkpoint["path"])
-            relative = path.relative_to(self.manifest["task_root"])
-            path = self.owned_path(relative)
-            chain = original["chains"][name]
-            if self.manifest["scenario"] == "tron":
-                chain = dict(chain, merkletreehook=tron_address(chain["merkletreehook"]))
-            selected_rpc = proxied["chains"][name]
-            rpc_urls = []
-            for base, custom in [("rpcurls", "customrpcurls"), ("grpcurls", "customgrpcurls"), ("walleturls", "customwalleturls"), ("walletsolidityurls", "customwalletsolidityurls")]:
-                if custom in selected_rpc or base in selected_rpc:
-                    rpc_urls.extend(urls(selected_rpc[custom] if custom in selected_rpc else selected_rpc[base]))
-            calculate = self.adapter(chain).keccak
-            hashed = checkpoint_keccak(calculate) if checkpoint_cast is not None else calculate
-            proof = verify_checkpoint_objects(path, chain, self.case["validator_addresses"][name], [message for message in messages if message["origin_chain"] == name], hashed, git_sha=self.manifest["runtime_source_commit"], configured_rpc_urls=rpc_urls, allows_public_rpcs=original["allows_public_rpcs"])
-            proof["published_bytes"] = [{"path": str(item), "bytes": item.stat().st_size, "sha256": hashlib.sha256(item.read_bytes()).hexdigest()} for item in path.glob("*_with_id.json")]
-            result.append(proof)
-        require(result, "actual validator publication evidence missing")
-        return result
+        try:
+            for capture in self.captures:
+                original, proxied = capture["original"], capture["proxied"]
+                if original["role"] != "validator":
+                    continue
+                require(len(original["role_chain_names"]) == 1, "actual validator origin differs")
+                name = original["role_chain_names"][0]
+                checkpoint = original["checkpoint_syncer"]
+                require(isinstance(checkpoint, dict) and checkpoint.get("type") == "localStorage" and isinstance(checkpoint.get("path"), str), "actual local checkpoint path missing")
+                path = pathlib.Path(checkpoint["path"])
+                relative = path.relative_to(self.manifest["task_root"])
+                path = self.owned_path(relative)
+                chain = original["chains"][name]
+                if self.manifest["scenario"] == "tron":
+                    chain = dict(chain, merkletreehook=tron_address(chain["merkletreehook"]))
+                selected_rpc = proxied["chains"][name]
+                rpc_urls = []
+                for base, custom in [("rpcurls", "customrpcurls"), ("grpcurls", "customgrpcurls"), ("walleturls", "customwalleturls"), ("walletsolidityurls", "customwalletsolidityurls")]:
+                    if custom in selected_rpc or base in selected_rpc:
+                        rpc_urls.extend(urls(selected_rpc[custom] if custom in selected_rpc else selected_rpc[base]))
+                calculate = self.adapter(chain).keccak
+                hashed = checkpoint_keccak(calculate) if checkpoint_cast is not None else calculate
+                proof = verify_checkpoint_objects(path, chain, self.case["validator_addresses"][name], [message for message in messages if message["origin_chain"] == name], hashed, git_sha=self.manifest["runtime_source_commit"], configured_rpc_urls=rpc_urls, allows_public_rpcs=original["allows_public_rpcs"], merkle_provider=checkpoint_roots if checkpoint_cast is not None else None)
+                proof["published_bytes"] = [{"path": str(item), "bytes": item.stat().st_size, "sha256": hashlib.sha256(item.read_bytes()).hexdigest()} for item in path.glob("*_with_id.json")]
+                result.append(proof)
+            require(result, "actual validator publication evidence missing")
+            return result
+        finally:
+            checkpoint_tree_active = False
+            checkpoint_trees.clear()
+            checkpoint_hashes.clear()
 
     def zero_leaf_checkpoint_proof(self, snapshot, name):
         require(self.manifest["scenario"] in {"starknet", "sealevel", "sealevel-composite"}, "zero-leaf metadata-only family not supported")
