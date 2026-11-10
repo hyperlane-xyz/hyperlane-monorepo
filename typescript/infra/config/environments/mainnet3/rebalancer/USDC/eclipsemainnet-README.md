@@ -1,11 +1,18 @@
 # USDC Eclipse and Elysium inventory
 
-Elysium uses weight 3, tolerance 3 and a 2,500 USDC outbound economic minimum,
-matching HyperEVM. Minimums apply to the economic source route; inbound Elysium
-proposals use each source's minimum. BSC has no configured minimum. The existing
-15 chains keep their weights, thresholds, movable-collateral bridges and inventory
-signers. Existing BSC/Solana inventory routes keep swaps.xyz
-and its shared `mainnet3-swapsxyz-api-key` secret.
+Elysium uses weight 3 and tolerance 3. Every supported EVM source has an
+Elysium-specific `bridgeMinAcceptedAmount: 2500` override. This minimum filters
+each proposed collateral rebalance after allocation; it is not a transfer size,
+a cap, or a minimum for each physical inventory bridge leg or partial deposit.
+There is no destination-wide minimum setting, so new source chains need their own
+Elysium override. BSC/Solana inventory routes keep swaps.xyz and its shared
+`mainnet3-swapsxyz-api-key` secret.
+
+Rebalances that remove collateral from Elysium are disabled by
+`strategy.chains.elysium.enabled: false`. Physical inventory exports are also
+disabled for every configured destination under `inventoryRoutes.elysium`.
+Unspecified inventory pairs default to enabled, so any future destination needs
+an explicit disabled Elysium export rule.
 
 The relayer-denylist middleware reads the registry's live mainnet denylist and
 refreshes every 60 seconds. Its message-ID rules exclude historical CCTP rebalance
@@ -17,11 +24,16 @@ Physical inventory routes are separate from economic surplus/deficit proposals:
 
 - Funded HyperEVM inventory deposits canonical USDC into Elysium through the native
   bridge, with priority over other sources. HyperEVM needs no router imbalance.
-- Other configured EVM/Elysium pairs use direct Relay in both directions.
-- Native withdrawals from Elysium are unsupported. Elysium/Solana pairs are
-  disabled in both the strategy and physical inventory policy.
+- Other configured EVM sources fund Elysium inventory through direct Relay.
+- All configured inventory exports from Elysium are disabled. Native withdrawals
+  remain unsupported. Elysium/Solana pairs are disabled in both policies.
 - An empty HyperEVM wallet is not an automatic intermediate hop. Other funded
   sources can bridge directly to Elysium through Relay.
+
+Adding router collateral still calls `transferRemote` on Elysium, sending a
+Hyperlane message back to the economic source chain. That call locks collateral
+on Elysium and releases it on the surplus chain; the outbound policy does not
+block this inbound-collateral execution step.
 
 Relay permits at most 1% total USDC quote loss, including its 0.1% slippage
 tolerance. Quotes outside this budget are skipped. Native deposits preserve USDC
