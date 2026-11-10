@@ -193,9 +193,10 @@ class Controls(unittest.TestCase):
             with self.subTest(variant=variant),self.assertRaises(api.Refused):api.validate_policy(value)
         with mock.patch.object(api,'PRODUCER',None),self.assertRaisesRegex(api.Refused,'FRESH_PRODUCER_NOT_BOUND'):api.validate_policy(good)
         spec=importlib.util.spec_from_file_location('fresh_unbound_core608',HERE/'cohort_readback.py');fresh=importlib.util.module_from_spec(spec);spec.loader.exec_module(fresh)
-        self.assertIsNone(fresh.PRODUCER)
-        with self.assertRaisesRegex(fresh.Refused,'FRESH_PRODUCER_NOT_BOUND'):fresh.validate_policy(good)
-        self.assertFalse(api.validate_policy(api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())))
+        self.assertEqual(fresh.PRODUCER,_original_producer)
+        with mock.patch.object(fresh,'PRODUCER',None),self.assertRaisesRegex(fresh.Refused,'FRESH_PRODUCER_NOT_BOUND'):fresh.validate_policy(good)
+        live=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
+        with mock.patch.object(api,'PRODUCER',_original_producer):self.assertIs(api.validate_policy(live),live['root_approved'])
 
     def test_new_helper_namespace_is_required_before_actual_test_credit(self):
         files,source=family_fixture('helper')
@@ -377,14 +378,28 @@ class Controls(unittest.TestCase):
         self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core608']),608);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
     def test_current_policy_binding_and_synthetic_unbound_future_pins_refuse(self):
         policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
-        self.assertEqual(policy['schema'],2);self.assertIsNone(policy['producer']);self.assertIsNone(policy['core608'])
-        self.assertTrue(all(v is None for v in policy['jobs'].values()));self.assertTrue(all(v is None for v in policy['artifacts'].values()))
-        # Parse either a reviewed complete READONLY policy or its inert precursor;
-        # this test grants no approval and does not require live activation.
-        self.assertIs(api.validate_policy(policy),policy['root_approved'])
+        self.assertEqual(policy['schema'],2)
+        # Live Source may be an unbound precursor, complete FALSE, or approved READONLY.
+        # Synthetic module-wide producer must not validate actual publisher identities.
+        with mock.patch.object(api,'PRODUCER',_original_producer):
+            self.assertIs(api.validate_policy(policy),policy['root_approved'])
+            if policy['producer']is None:
+                self.assertIs(policy['root_approved'],False);self.assertIsNone(policy['core608'])
+                self.assertTrue(all(v is None for v in policy['jobs'].values()));self.assertTrue(all(v is None for v in policy['artifacts'].values()))
+            else:
+                approved=copy.deepcopy(policy);approved['root_approved']=True
+                self.assertTrue(api.validate_policy(approved))
+        # All three states are parser-only copies; no approval or live file is written.
+        precursor=copy.deepcopy(self.policy);precursor.update(producer=None,core608=None)
+        precursor['jobs']=dict.fromkeys(api.REQUIRED_JOBS);precursor['artifacts']=dict.fromkeys(api.PRODUCT_KEYS)
+        with mock.patch.object(api,'PRODUCER',None):self.assertFalse(api.validate_policy(precursor))
+        complete=copy.deepcopy(self.policy);self.assertFalse(api.validate_policy(complete));complete['root_approved']=True
+        self.assertTrue(api.validate_policy(complete))
         unbound=copy.deepcopy(self.policy);unbound['jobs']=dict.fromkeys(api.REQUIRED_JOBS);unbound['artifacts']=dict.fromkeys(api.PRODUCT_KEYS);unbound['core608']=None
         self.assertFalse(api.validate_policy(unbound));unbound['root_approved']=True
         with self.assertRaisesRegex(api.Refused,'POLICY_JOBS'):api.validate_policy(unbound)
+        unbound['jobs']=copy.deepcopy(self.policy['jobs'])
+        with self.assertRaisesRegex(api.Refused,'POLICY_ARTIFACT'):api.validate_policy(unbound)
     def test_reader_is_bound_to_Gbe13_and_historical_producers_cannot_authorize(self):
         self.assertEqual(api.PRODUCER,SYNTHETIC_PRODUCER)
         for producer in ('7fdbe182301e92ee7aaed7d82d679e52cffcd8f4','14c854379a86c74f36bd8f25f3b56c1fc3eed562','c0e9b16f5f5361dbbc45260d0316ed8a03b80857','56e791042c3be1b5adf944a9095fc7a4245204a0','f453948ae31c1fadb35e10c87577e73a39350103','9badc87e8c2e2f019a1b3453c323a8d89686e43e','bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
