@@ -39,6 +39,7 @@ pub const RetryReason = enum {
     gas_payment_check,
     origin_sender,
     metadata,
+    metadata_refused,
     awaiting_validator_signatures,
     estimation,
     awaiting_ica_reveal,
@@ -336,6 +337,11 @@ pub fn Preparer(comptime Origin: type) type {
                         } };
                         return outcome.*;
                     }
+                    // A selected remote validator's reorg refuses this message,
+                    // as Rust MetadataBuildError::Refused does. The builder has
+                    // already aborted the complete build; never try another
+                    // aggregation branch or accept a partial quorum here.
+                    if (err == error.ValidatorReorg) return retryDiagnostics(outcome, .metadata_refused, null, state, null, diagnostics);
                     if (hardFailure(err)) return err;
                     const reason: RetryReason = if (err == error.AwaitingValidatorSignatures) .awaiting_validator_signatures else .metadata;
                     return retryDiagnostics(outcome, reason, err, state, null, diagnostics);

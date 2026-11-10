@@ -1263,6 +1263,74 @@ test "hard source failure propagates without sealing payload or flattening retry
     try std.testing.expectEqual(@as(usize, 0), relationLen(runtime));
     try expectNoEffects(runtime);
     try runtime.rpc.expectDone();
+
+    const RemoteGuard = struct {
+        failure: anyerror,
+        calls: usize = 0,
+        pub fn leafIndex(_: *@This(), _: [32]u8) !?u32 {
+            return 0;
+        }
+        pub fn highestKnownLeafIndex(_: *@This()) !?u32 {
+            return 0;
+        }
+        pub fn latestIndex(_: *@This(), _: [20]u8) !?u32 {
+            return 0;
+        }
+        pub fn fetchCheckpoint(self: *@This(), _: [20]u8, _: u32) !?@import("../../storage/root.zig").SignedCheckpoint {
+            return self.failure;
+        }
+        pub fn proof(_: *@This(), _: u32, _: protocol.Checkpoint) !protocol.Proof {
+            return error.UnexpectedProofAfterRefusal;
+        }
+        pub fn fetchQuorum(self: *@This(), _: A, _: []const [20]u8, _: usize, _: u32, _: *usize, _: ?*const std.atomic.Value(bool)) !?@import("../../relayer/quorum.zig").Quorum {
+            self.calls += 1;
+            return self.failure;
+        }
+    };
+    const members = "\"0x" ++
+        "00000000000000000000000000000000" ++ "00000000000000000000000000000040" ++
+        "00000000000000000000000000000000" ++ "00000000000000000000000000000001" ++
+        "00000000000000000000000000000000" ++ "00000000000000000000000000000001" ++
+        "00000000000000000000000011111111" ++ "11111111111111111111111111111111" ++ "\"";
+    for ([_]anyerror{ error.ValidatorReorg, error.ReorgHalted, error.ReorgFlagPresent, error.RequestCancelled }) |failure| {
+        const standard = readySteps();
+        var refused_steps: [8]Step = undefined;
+        @memcpy(refused_steps[0..7], standard[0..7]);
+        refused_steps[6].result = "\"0x" ++ "00000000000000000000000000000000" ++ "00000000000000000000000000000005" ++ "\"";
+        refused_steps[7] = .{ .method = "eth_call", .selector = evm.codecs.selector("validatorsAndThreshold(bytes)"), .result = members };
+        var other_fixture = try Fixture.init(a);
+        defer other_fixture.deinit();
+        var refused = try Runtime.init(a, &other_fixture, &refused_steps, allow_gas, .{ .blocks = 1 });
+        defer refused.deinit();
+        var origin: RemoteGuard = .{ .failure = failure };
+        const result = refused.value.step(a, &refused.destination, &refused.actor, &origin, &refused.policy, other_fixture.message, &refused.client, refused.config(), now(), .{ .cancel = &refused.cancel });
+        if (failure == error.ValidatorReorg) {
+            const report = try result;
+            try std.testing.expectEqual(driver.State.retried, report.state);
+            try std.testing.expect(report.reason.? == .MessageMetadataRefused);
+            try std.testing.expectEqual(@as(u32, 1), refused.actor.value.retries);
+            const status = (try refused.store.status(other_fixture.message.id())).?;
+            try std.testing.expect(status == .Retry and status.Retry == .MessageMetadataRefused);
+        } else {
+            try std.testing.expectError(failure, result);
+            try std.testing.expectEqual(@as(u32, 0), refused.actor.value.retries);
+        }
+        try std.testing.expectEqual(@as(usize, 1), origin.calls);
+        try std.testing.expectEqual(@as(usize, 0), try relationLen(refused));
+        try std.testing.expect(refused.value.cached_metadata == null);
+        try expectNoEffects(refused);
+        try refused.rpc.expectDone();
+    }
+    // A separately eligible message still prepares normally: refusing the
+    // remote flag does not turn a global halt into apparent quorum success.
+    var healthy_fixture = try Fixture.init(a);
+    defer healthy_fixture.deinit();
+    const healthy_steps = readySteps();
+    var healthy = try Runtime.init(a, &healthy_fixture, &healthy_steps, allow_gas, .{ .blocks = 1 });
+    defer healthy.deinit();
+    _ = try healthy.prepareStep();
+    try expectNoSigning(healthy);
+    try healthy.rpc.expectDone();
 }
 
 test "driver starts without retained source metadata" {

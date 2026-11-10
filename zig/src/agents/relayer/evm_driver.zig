@@ -423,6 +423,7 @@ fn retryReason(reason: evm_prepare.RetryReason) Reason {
         .gas_payment_check => .ErrorCheckingGasRequirement,
         .origin_sender => .ErrorFetchingOriginTxSender,
         .metadata => .CouldNotFetchMetadata,
+        .metadata_refused => .MessageMetadataRefused,
         .awaiting_validator_signatures => .AwaitingValidatorSignatures,
         .estimation => .ErrorEstimatingGas,
         .awaiting_ica_reveal => .AwaitingIcaReveal,

@@ -670,6 +670,9 @@ pub const Lane = struct {
     }
     fn run(context: *anyopaque, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
         const self: *Lane = @ptrCast(@alignCast(context));
+        // A fatal lane may have stopped its worker before publishing completion.
+        // Preserve that original error across Owner stop/deadline/cancel precedence.
+        if (self.owner.failureReason()) |err| return err;
         return try self.worker.poll(times, cancel) orelse error.PendingReadIo;
     }
     fn cycle(context: *anyopaque, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
@@ -682,7 +685,7 @@ pub const Lane = struct {
                     item.native_pop_checked = false;
                 }
             }
-            if (classify(err) == .halt_all) self.owner.requestStop();
+            if (classify(err) == .halt_all) self.owner.haltForFailure(err);
             return err;
         };
     }
@@ -1899,6 +1902,7 @@ pub const TaskSet = struct {
     memory_mutex: std.Thread.Mutex = .{},
     retained_bytes: usize = 0,
     effects_halted: std.atomic.Value(bool) = .init(false),
+    fatal_error: std.atomic.Value(u16) = .init(0),
     fn reserve(self: *TaskSet, bytes: usize) bool {
         self.memory_mutex.lock();
         defer self.memory_mutex.unlock();
@@ -2138,6 +2142,18 @@ pub const TaskSet = struct {
         }
         self.denylist_mutex.unlock();
     }
+    fn failureReason(self: *TaskSet) ?anyerror {
+        const code = self.fatal_error.load(.acquire);
+        return if (code == 0) null else @errorFromInt(code);
+    }
+    fn haltForFailure(self: *TaskSet, err: anyerror) void {
+        // Only the existing fatal classifier can publish a cause. Ordinary
+        // shutdown/cancellation never synthesizes a fatal error.
+        if (Lane.classify(err) != .halt_all) return;
+        self.effects_halted.store(true, .release);
+        _ = self.fatal_error.cmpxchgStrong(0, @intFromError(err), .acq_rel, .acquire);
+        self.requestStop();
+    }
     pub fn requestStop(self: *TaskSet) void {
         self.effects_halted.store(true, .release);
         if (self.websocket_bridge) |bridge| bridge.requestStop();
@@ -2238,6 +2254,126 @@ test "effects halt blocks the real destination signer before touching key state"
     var lane: Lane = undefined;
     lane.owner = &owner;
     try std.testing.expectError(error.RequestCancelled, Lane.sign(&lane, @splat(1)));
+
+    const Fixture = struct {
+        owner: TaskSet = undefined,
+        lanes: [1]Lane = undefined,
+        entered: std.atomic.Value(bool) = .init(false),
+        release: std.atomic.Value(bool) = .init(false),
+        fn init(self: *@This()) !void {
+            self.owner.effects_halted = .init(false);
+            self.owner.fatal_error = .init(0);
+            self.owner.websocket_bridge = null;
+            self.owner.lanes = &self.lanes;
+            self.lanes[0].owner = &self.owner;
+            self.lanes[0].worker = try lane_owner.Owner.init(self, fail, .{ .timeout_ms = 10000 });
+        }
+        fn fail(context: *anyopaque, _: supervisor.Times, _: *const std.atomic.Value(bool)) !supervisor.Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.owner.haltForFailure(error.OperationContextChanged);
+            self.entered.store(true, .release);
+            while (!self.release.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
+            return error.OperationContextChanged;
+        }
+    };
+    var fixture: Fixture = .{};
+    try fixture.init();
+    defer {
+        fixture.release.store(true, .release);
+        fixture.lanes[0].worker.deinit();
+    }
+    const target = &fixture.lanes[0];
+    var cancel = std.atomic.Value(bool).init(false);
+    const times: supervisor.Times = .{ .unix_ms = 0, .monotonic_ms = 0 };
+    // The ordinary error path cannot manufacture a fatal cause or stop work.
+    fixture.owner.haltForFailure(error.RequestCancelled);
+    try std.testing.expect(fixture.owner.failureReason() == null);
+    try std.testing.expect(!fixture.owner.effects_halted.load(.acquire));
+    try std.testing.expectError(error.PendingReadIo, Lane.run(target, times, &cancel));
+    var timer = try std.time.Timer.start();
+    while (!fixture.entered.load(.acquire)) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.TestFatalLaneDidNotStart;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // The original worker remains in its callback: its completion is NOT yet
+    // published, and requestStop has already latched the generic Owner stop.
+    try std.testing.expectError(error.OperationContextChanged, Lane.run(target, times, &cancel));
+    target.worker.mutex.lock();
+    target.worker.expired = true;
+    target.worker.cancelled = true;
+    target.worker.mutex.unlock();
+    cancel.store(true, .release);
+    try std.testing.expectError(error.OperationContextChanged, Lane.run(target, times, &cancel));
+    try std.testing.expectError(error.RequestCancelled, Lane.sign(target, @splat(2)));
+    fixture.owner.haltForFailure(error.PayloadLinkContextChanged);
+    try std.testing.expectEqual(error.OperationContextChanged, fixture.owner.failureReason().?);
+    const root = try supervisor.Supervisor.start(std.testing.allocator, &.{.{ .context = target, .run = Lane.run, .failure = Lane.classify, .stop_fn = Lane.stop, .interval_ms = 1, .timeout_ms = 10000 }});
+    defer root.deinit();
+    while (root.failureReason() == null) {
+        const elapsed = timer.read() / std.time.ns_per_ms;
+        if (elapsed > 5000) break;
+        _ = try root.tick(.{ .unix_ms = elapsed, .monotonic_ms = elapsed });
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try std.testing.expect(root.failureReason() != null);
+    try std.testing.expectEqual(error.OperationContextChanged, root.failureReason().?);
+    try std.testing.expect((try root.health(0)).halted);
+    // Joining a stopped/expired/cancelled completion cannot erase its fatal
+    // cause or grant reuse; shutdown without a fatal cause stays ordinary.
+    fixture.release.store(true, .release);
+    target.worker.deinit();
+    try std.testing.expectError(error.OperationContextChanged, Lane.run(target, times, &cancel));
+    var ordinary: Fixture = .{};
+    try ordinary.init();
+    defer ordinary.lanes[0].worker.deinit();
+    ordinary.owner.requestStop();
+    try std.testing.expect(ordinary.owner.failureReason() == null);
+    try std.testing.expectError(error.LaneOwnerStopped, Lane.run(&ordinary.lanes[0], times, &cancel));
+    var raced: TaskSet = undefined;
+    raced.effects_halted = .init(false);
+    raced.fatal_error = .init(0);
+    raced.websocket_bridge = null;
+    raced.lanes = &.{};
+    const Publisher = struct {
+        owner: *TaskSet,
+        ready: *std.atomic.Value(u32),
+        start: *std.atomic.Value(bool),
+        failure: anyerror,
+        fn publish(self: *@This()) void {
+            _ = self.ready.fetchAdd(1, .release);
+            while (!self.start.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
+            self.owner.haltForFailure(self.failure);
+        }
+    };
+    var ready = std.atomic.Value(u32).init(0);
+    var start = std.atomic.Value(bool).init(false);
+    var first: Publisher = .{ .owner = &raced, .ready = &ready, .start = &start, .failure = error.OperationContextChanged };
+    var second: Publisher = .{ .owner = &raced, .ready = &ready, .start = &start, .failure = error.PayloadLinkContextChanged };
+    const one = try std.Thread.spawn(.{}, Publisher.publish, .{&first});
+    const two = std.Thread.spawn(.{}, Publisher.publish, .{&second}) catch |err| {
+        start.store(true, .release);
+        one.join();
+        return err;
+    };
+    {
+        defer {
+            start.store(true, .release);
+            one.join();
+            two.join();
+        }
+        var barrier_timer = try std.time.Timer.start();
+        while (ready.load(.acquire) != 2) {
+            if (barrier_timer.read() > 5 * std.time.ns_per_s) return error.TestFatalPublishersDidNotStart;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+        start.store(true, .release);
+    }
+    try std.testing.expectEqual(@as(u32, 2), ready.load(.acquire));
+    const won = raced.failureReason().?;
+    try std.testing.expect(won == error.OperationContextChanged or won == error.PayloadLinkContextChanged);
+    try std.testing.expect(raced.effects_halted.load(.acquire));
+    raced.haltForFailure(error.ValidatorReorg);
+    try std.testing.expectEqual(won, raced.failureReason().?);
 }
 
 test "metadata cache growth preserves pending public byte reservations and releases evicted bytes" {

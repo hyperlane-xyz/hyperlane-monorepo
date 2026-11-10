@@ -1434,7 +1434,7 @@ def validate_record(value,modules):
 
 RELAYER_STARTUP_SOURCE = (
     ('zig/src/service_main.zig', 15166, '6b9101771890b56a5303975c7f1433ea' + 'fc5cacc23b7f548f0d083356d32cca78'),
-    ('zig/src/agents/relayer_task.zig', 164542, 'b7a2a20a2eac2db5a11cec97ef361b47' + '90ee397936a618281332ed647534c516'),
+    ('zig/src/agents/relayer_task.zig', 171498, 'bcb37e7a1feab56997269b52f6120b06' + '6bc8d218a6a305b29bae7db6c3612e04'),
     ('zig/src/runtime/lane_owner.zig', 10263, '694159949d9c7b67cba9e4514812dc7e' + 'e3ab2f284afdf5c3336704522d7d722b'),
     ('zig/src/runtime/supervisor.zig', 17573, 'ef34f29f9bb69e4ab1effc7c7c7ae02f' + '6c72cf233a2b1ac3091c28238658b5c3'),
     ('zig/src/agents/origin_tasks.zig', 20356, '26b7a93daddea7e5866499a9bb685aaa' + '9e3ffbbb4e59a79eb425f8db5be566d3'),
