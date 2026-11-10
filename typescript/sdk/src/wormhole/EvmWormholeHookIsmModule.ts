@@ -372,6 +372,20 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
       }
     }
 
+    for (const chain of chains) {
+      for (const remote of Object.keys(mesh[chain].remoteRouters)) {
+        assert(
+          remote in mesh,
+          `${chain} enrolls ${remote}, which is not in the Wormhole mesh`,
+        );
+      }
+    }
+    const problems = findAsymmetricWormholeRoutes(mesh);
+    assert(
+      problems.length === 0,
+      `Asymmetric Wormhole mesh:\n  ${problems.join('\n  ')}`,
+    );
+
     const addresses: ChainMap<Address> = {};
     const fresh = new Set<ChainName>();
     const replaced = new Set<ChainName>();
@@ -422,11 +436,6 @@ export class EvmWormholeHookIsmModule extends HyperlaneModule<
     const resolved = EvmWormholeHookIsmModule.withDeployedRouters(
       mesh,
       addresses,
-    );
-    const problems = findAsymmetricWormholeRoutes(resolved);
-    assert(
-      problems.length === 0,
-      `Asymmetric Wormhole mesh:\n  ${problems.join('\n  ')}`,
     );
 
     const deferred: ChainMap<AnnotatedEV5Transaction[]> = {};

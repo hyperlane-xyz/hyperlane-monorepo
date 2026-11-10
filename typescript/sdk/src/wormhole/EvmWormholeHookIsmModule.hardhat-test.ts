@@ -1,4 +1,5 @@
 import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
 
 import {
@@ -41,6 +42,7 @@ import {
 } from './consistency.js';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
+chai.use(chaiAsPromised);
 const { expect } = chai;
 
 const VAA_URL = 'https://example.com/{data}';
@@ -483,6 +485,48 @@ describe('EvmWormholeHookIsmModule', () => {
       expect(result.addresses[chain]).to.not.equal(addresses[chain]);
     }
     expect(Object.values(result.transactions).flat()).to.deep.equal([]);
+  });
+
+  it('rejects an asymmetric mesh before deploying', async () => {
+    const input = routeConfig();
+    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    delete mesh.wormholea.remoteRouters.wormholeb;
+    const nonceBefore =
+      await hre.ethers.provider.getTransactionCount(signerAddress);
+
+    await expect(
+      EvmWormholeHookIsmModule.deployMesh(multiProvider, mesh),
+    ).to.be.rejectedWith(
+      'Asymmetric Wormhole mesh:\n  wormholea does not enroll wormholeb',
+    );
+
+    expect(
+      await hre.ethers.provider.getTransactionCount(signerAddress),
+    ).to.equal(nonceBefore);
+  });
+
+  it('rejects a remote router outside the mesh before deploying', async () => {
+    const input = routeConfig();
+    const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
+    mesh.wormholea.remoteRouters.wormholec = {
+      router: randomAddress(),
+      wormholeChainId: 4_003,
+      expectedConsistencyLevel: WormholeConsistencyLevel.Finalized,
+      expectedCustomBaseConsistencyLevel: 0,
+      expectedAdditionalBlocks: 0,
+    };
+    const nonceBefore =
+      await hre.ethers.provider.getTransactionCount(signerAddress);
+
+    await expect(
+      EvmWormholeHookIsmModule.deployMesh(multiProvider, mesh),
+    ).to.be.rejectedWith(
+      'wormholea enrolls wormholec, which is not in the Wormhole mesh',
+    );
+
+    expect(
+      await hre.ethers.provider.getTransactionCount(signerAddress),
+    ).to.equal(nonceBefore);
   });
 
   describe('nested in a warp route aggregation ISM', () => {
