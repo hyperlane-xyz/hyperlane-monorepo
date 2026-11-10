@@ -46,6 +46,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     base:
       weighted:
@@ -64,6 +65,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     arbitrum:
       weighted:
@@ -82,6 +84,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     optimism:
       weighted:
@@ -100,6 +103,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     polygon:
       weighted:
@@ -118,6 +122,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     unichain:
       weighted:
@@ -136,6 +141,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     arc:
       weighted:
@@ -154,6 +160,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     ink:
       weighted:
@@ -172,6 +179,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     avalanche:
       weighted:
@@ -190,6 +198,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     linea:
       weighted:
@@ -208,6 +217,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     worldchain:
       weighted:
@@ -226,6 +236,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     hyperevm:
       weighted:
@@ -244,6 +255,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     monad:
       weighted:
@@ -262,6 +274,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     bsc:
       weighted:
@@ -273,6 +286,7 @@ strategy:
         elysium:
           executionType: inventory
           externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     solanamainnet:
       weighted:
@@ -284,6 +298,7 @@ strategy:
         elysium:
           enabled: false
     elysium:
+      enabled: false
       weighted:
         weight: 3
         tolerance: 3
@@ -342,32 +357,46 @@ inventoryRoutes:
       enabled: false
   elysium:
     ethereum:
+      enabled: false
       externalBridge: relay
     base:
+      enabled: false
       externalBridge: relay
     arbitrum:
+      enabled: false
       externalBridge: relay
     optimism:
+      enabled: false
       externalBridge: relay
     polygon:
+      enabled: false
       externalBridge: relay
     unichain:
+      enabled: false
       externalBridge: relay
     arc:
+      enabled: false
       externalBridge: relay
     ink:
+      enabled: false
       externalBridge: relay
     avalanche:
+      enabled: false
       externalBridge: relay
     linea:
+      enabled: false
       externalBridge: relay
     worldchain:
+      enabled: false
       externalBridge: relay
     hyperevm:
+      enabled: false
       externalBridge: relay
     monad:
+      enabled: false
       externalBridge: relay
     bsc:
+      enabled: false
       externalBridge: relay
     solanamainnet:
       enabled: false
