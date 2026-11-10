@@ -1,9 +1,14 @@
 import { expect } from 'chai';
+import { ethers, type providers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
+import { BlacklistIsm__factory, Mailbox__factory } from '@hyperlane-xyz/core';
 import { type IRegistry, RegistryType } from '@hyperlane-xyz/registry';
 import {
+  EvmIsmReader,
+  IsmType,
+  MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
   TokenStandard,
@@ -11,13 +16,18 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import type { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
   DEFAULT_INTENT_TTL_MS,
+  type PendingTransferMiddlewareConfig,
+  PendingTransferMiddlewareType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
 import { TEST_ADDRESSES } from '../test/helpers.js';
+import { ActionTracker } from '../tracking/ActionTracker.js';
+import { BlacklistIsmMiddleware } from '../tracking/pendingTransferMiddlewares/BlacklistIsmMiddleware.js';
+import type { IExplorerClient } from '../utils/ExplorerClient.js';
 
 import { RebalancerContextFactory } from './RebalancerContextFactory.js';
 
@@ -200,6 +210,174 @@ describe('RebalancerContextFactory', () => {
         '0x0000000000000000000000000000000000000000',
       );
     }).timeout(10_000);
+  });
+
+  describe('createActionTracker() — pending transfer middlewares', () => {
+    const BLACKLIST_ISM = '0x5555555555555555555555555555555555555555';
+    const mailboxInterface = Mailbox__factory.createInterface();
+    const blacklistInterface = BlacklistIsm__factory.createInterface();
+
+    const DEFAULT_ISM = '0x6666666666666666666666666666666666666666';
+
+    /**
+     * Every router has the BlacklistIsm as its own ISM, which has no
+     * blacklisted ids.
+     */
+    function createIsmProvider(): providers.Provider {
+      const provider = new ethers.providers.StaticJsonRpcProvider(
+        'http://127.0.0.1:1',
+        { chainId: 1, name: 'fake' },
+      );
+      Sinon.stub(provider, 'call').callsFake(async (tx) => {
+        const { data } = await ethers.utils.resolveProperties(tx);
+        if (typeof data !== 'string') throw new Error('Unexpected call');
+
+        if (data.startsWith(mailboxInterface.getSighash('recipientIsm'))) {
+          return mailboxInterface.encodeFunctionResult('recipientIsm', [
+            BLACKLIST_ISM,
+          ]);
+        }
+        if (data.startsWith(mailboxInterface.getSighash('defaultIsm'))) {
+          return mailboxInterface.encodeFunctionResult('defaultIsm', [
+            DEFAULT_ISM,
+          ]);
+        }
+        if (data.startsWith(blacklistInterface.getSighash('values'))) {
+          return blacklistInterface.encodeFunctionResult('values', [[]]);
+        }
+        throw new Error(`Unexpected call ${data}`);
+      });
+
+      return provider;
+    }
+
+    const DOMAINS: Record<string, number> = { ethereum: 1, arbitrum: 42161 };
+    const explorer: IExplorerClient = {
+      getInflightUserTransfers: async () => [],
+      getInflightRebalanceActions: async () => [],
+    };
+
+    let deriveIsmConfig: Sinon.SinonStub;
+
+    async function createTracker(
+      pendingTransferMiddlewares?: PendingTransferMiddlewareConfig[],
+    ): Promise<ActionTracker> {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+      multiProvider.getDomainId.callsFake((chain) => {
+        const domain = DOMAINS[String(chain)];
+        assert(domain, `No domain in mock for chain ${chain}`);
+
+        return domain;
+      });
+      multiProvider.getSigner.returns(
+        new ethers.VoidSigner(TEST_ADDRESSES.signer),
+      );
+      multiProvider.getProtocol.returns(ProtocolType.Ethereum);
+      multiProvider.getProvider.returns(createIsmProvider());
+      multiProvider.getChainName.callsFake((domain) => {
+        const chain = Object.keys(DOMAINS).find(
+          (name) => DOMAINS[name] === domain,
+        );
+        assert(chain, `No chain in mock for domain ${domain}`);
+
+        return chain;
+      });
+      multiProvider.getChainMetadata.callsFake((chain) => ({
+        name: String(chain),
+        chainId: DOMAINS[String(chain)],
+        domainId: DOMAINS[String(chain)],
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [{ http: 'http://127.0.0.1:1' }],
+      }));
+      multiProvider.tryGetEvmExplorerMetadataList.returns([]);
+      deriveIsmConfig = sandbox
+        .stub(EvmIsmReader.prototype, 'deriveIsmConfigFromAddress')
+        .resolves({
+          type: IsmType.BLACKLIST,
+          address: BLACKLIST_ISM,
+          owner: TEST_ADDRESSES.signer,
+          blacklistedIds: [],
+        });
+
+      sandbox
+        .stub(MultiProtocolCore, 'fromAddressesMap')
+        .returns(Sinon.createStubInstance(MultiProtocolCore));
+
+      const base = createMockConfig();
+      const factory = await createFactory(
+        new RebalancerConfig(
+          base.warpRouteId,
+          base.strategyConfig,
+          base.intentTTL,
+          undefined,
+          undefined,
+          pendingTransferMiddlewares,
+        ),
+        multiProvider,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'arbitrum',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypCollateral,
+            ),
+          ],
+        },
+      );
+
+      const { tracker } = await factory.createActionTracker(explorer);
+      assert(tracker instanceof ActionTracker, 'Expected an ActionTracker');
+
+      return tracker;
+    }
+
+    it('uses the Explorer client unchanged when no middlewares are configured', async () => {
+      const tracker = await createTracker();
+
+      expect(tracker['explorerClient']).to.equal(explorer);
+      expect(tracker['config'].isIgnoredTransfer).to.equal(undefined);
+    });
+
+    it('wraps the Explorer client and passes the predicate when middlewares are configured', async () => {
+      const tracker = await createTracker([
+        {
+          type: PendingTransferMiddlewareType.BlacklistIsm,
+          refreshIntervalSecs: 600,
+        },
+      ]);
+
+      const client = tracker['explorerClient'];
+      assert(
+        client instanceof BlacklistIsmMiddleware,
+        'Expected a BlacklistIsmMiddleware',
+      );
+
+      expect(client['inner']).to.equal(explorer);
+      expect(tracker['config'].isIgnoredTransfer).to.be.a('function');
+      expect(client['options'].mailboxByDomain).to.deep.equal({
+        1: TEST_ADDRESSES.ethereum,
+        42161: TEST_ADDRESSES.ethereum,
+      });
+      expect(client['options'].routersByDomain).to.deep.equal({
+        1: TEST_ADDRESSES.ethereum,
+        42161: TEST_ADDRESSES.arbitrum,
+      });
+      expect(client['options'].refreshIntervalMs).to.equal(600_000);
+      expect(
+        deriveIsmConfig.getCalls().map((call) => call.args[0]),
+      ).to.deep.equal([
+        ethers.utils.getAddress(BLACKLIST_ISM),
+        ethers.utils.getAddress(BLACKLIST_ISM),
+      ]);
+    });
   });
 
   describe('create() — non-EVM chain handling', () => {

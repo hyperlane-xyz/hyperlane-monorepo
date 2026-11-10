@@ -12,6 +12,7 @@ import {
   DEFAULT_INTENT_TTL_MS,
   ExecutionType,
   ExternalBridgeType,
+  PendingTransferMiddlewareType,
   type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
@@ -104,6 +105,7 @@ describe('RebalancerConfig', () => {
       intentTTL: DEFAULT_INTENT_TTL_MS,
       inventorySigners: undefined,
       externalBridges: undefined,
+      pendingTransferMiddlewares: undefined,
     });
   });
 
@@ -1064,4 +1066,170 @@ describe('getAllBridges', () => {
     const result = getAllBridges(strategies);
     expect(result).to.deep.equal([BRIDGE_A]);
   });
+});
+
+describe('pendingTransferMiddlewares configuration', () => {
+  const TEST_CONFIG_PATH_MIDDLEWARES = join(
+    tmpdir(),
+    'rebalancer-pending-transfer-middlewares-test.yaml',
+  );
+
+  function writeConfig(pendingTransferMiddlewares: unknown): void {
+    writeYamlOrJson(TEST_CONFIG_PATH_MIDDLEWARES, {
+      warpRouteId: 'USDC/radix',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 50, tolerance: 10 },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1800,
+            },
+            arbitrum: {
+              weighted: { weight: 50, tolerance: 10 },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1800,
+            },
+          },
+        },
+      ],
+      pendingTransferMiddlewares,
+    });
+  }
+
+  afterEach(() => {
+    rmSync(TEST_CONFIG_PATH_MIDDLEWARES, { force: true });
+  });
+
+  it('leaves middlewares unset when the field is absent', () => {
+    writeConfig(undefined);
+
+    expect(
+      RebalancerConfig.load(TEST_CONFIG_PATH_MIDDLEWARES)
+        .pendingTransferMiddlewares,
+    ).to.equal(undefined);
+  });
+
+  it('loads middlewares in order, with defaults and duplicate types', () => {
+    writeConfig([
+      {
+        type: 'relayerDenylist',
+        url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json',
+      },
+      { type: 'blacklistIsm', refreshIntervalSecs: 300 },
+      {
+        type: 'relayerDenylist',
+        url: 'file:///etc/rebalancer/denylist.json',
+        refreshIntervalSecs: 30,
+      },
+      { type: 'blacklistIsm' },
+    ]);
+
+    expect(
+      RebalancerConfig.load(TEST_CONFIG_PATH_MIDDLEWARES)
+        .pendingTransferMiddlewares,
+    ).to.deep.equal([
+      {
+        type: PendingTransferMiddlewareType.RelayerDenylist,
+        url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json',
+        refreshIntervalSecs: 60,
+      },
+      {
+        type: PendingTransferMiddlewareType.BlacklistIsm,
+        refreshIntervalSecs: 300,
+      },
+      {
+        type: PendingTransferMiddlewareType.RelayerDenylist,
+        url: 'file:///etc/rebalancer/denylist.json',
+        refreshIntervalSecs: 30,
+      },
+      {
+        type: PendingTransferMiddlewareType.BlacklistIsm,
+        refreshIntervalSecs: 600,
+      },
+    ]);
+  });
+
+  interface InvalidMiddlewareCase {
+    name: string;
+    middlewares: unknown;
+    error: RegExp;
+  }
+  const invalidCases: InvalidMiddlewareCase[] = [
+    {
+      name: 'an unknown type',
+      middlewares: [{ type: 'ageCap' }],
+      error: /pendingTransferMiddlewares/,
+    },
+    {
+      name: 'a denylist without url',
+      middlewares: [{ type: 'relayerDenylist' }],
+      error: /url/,
+    },
+    {
+      name: 'a denylist url with an unsupported protocol',
+      middlewares: [
+        { type: 'relayerDenylist', url: 'ftp://example.com/x.json' },
+      ],
+      error: /url must be an https:\/\/, http:\/\/ or file:\/\/ URL/,
+    },
+    {
+      name: 'a denylist url with credentials',
+      middlewares: [
+        {
+          type: 'relayerDenylist',
+          url: 'https://user:hunter2@example.com/x.json',
+        },
+      ],
+      error: /url must not contain credentials/,
+    },
+    {
+      name: 'a non-positive refresh interval',
+      middlewares: [
+        {
+          type: 'relayerDenylist',
+          url: 'https://example.com/x.json',
+          refreshIntervalSecs: 0,
+        },
+      ],
+      error: /refreshIntervalSecs/,
+    },
+    {
+      name: 'a non-integer blacklistIsm refresh interval',
+      middlewares: [{ type: 'blacklistIsm', refreshIntervalSecs: 1.5 }],
+      error: /refreshIntervalSecs/,
+    },
+    {
+      name: 'a misspelled denylist key',
+      middlewares: [
+        {
+          type: 'relayerDenylist',
+          url: 'https://example.com/x.json',
+          refreshIntervalSec: 30,
+        },
+      ],
+      error: /Unrecognized key: "refreshIntervalSec"/,
+    },
+    {
+      name: 'a misspelled blacklistIsm key',
+      middlewares: [{ type: 'blacklistIsm', refreshIntervalSec: 300 }],
+      error: /Unrecognized key: "refreshIntervalSec"/,
+    },
+    {
+      name: 'a non-array value',
+      middlewares: { blacklistIsm: {} },
+      error: /pendingTransferMiddlewares/,
+    },
+  ];
+  for (const c of invalidCases) {
+    it(`rejects ${c.name}`, () => {
+      writeConfig(c.middlewares);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_MIDDLEWARES))
+        .to.throw(c.error)
+        .with.property('message')
+        .that.does.not.include('hunter2');
+    });
+  }
 });

@@ -19,6 +19,7 @@ import type {
   CreateRebalanceIntentParams,
   IActionTracker,
 } from './IActionTracker.js';
+import { ExplorerRowLimitError } from './pendingTransferMiddlewares/PendingTransferMiddleware.js';
 import type {
   ActionType,
   IRebalanceActionStore,
@@ -30,8 +31,12 @@ import type {
   Transfer,
 } from './types.js';
 
+export const TRANSFER_SYNC_ROW_LIMIT_MESSAGE =
+  'Transfer sync hit the Explorer row limit';
+
 export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
+  isIgnoredTransfer?: (messageId: string) => boolean; // True when a pending-transfer middleware ignored the message on the latest Explorer query
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
@@ -111,13 +116,24 @@ export class ActionTracker implements IActionTracker {
       excludeTxSenders.push(...this.config.inventorySignerAddresses);
     }
 
-    const inflightMessages = await this.explorerClient.getInflightUserTransfers(
-      {
-        routersByDomain: this.config.routersByDomain,
-        excludeTxSenders,
-      },
-      this.logger,
-    );
+    let inflightMessages: ExplorerMessage[];
+    try {
+      inflightMessages = await this.explorerClient.getInflightUserTransfers(
+        {
+          routersByDomain: this.config.routersByDomain,
+          excludeTxSenders,
+        },
+        this.logger,
+      );
+    } catch (error: unknown) {
+      if (error instanceof ExplorerRowLimitError) {
+        this.logger.error(
+          { error: error.message },
+          TRANSFER_SYNC_ROW_LIMIT_MESSAGE,
+        );
+      }
+      throw error;
+    }
 
     this.logger.debug(
       { count: inflightMessages.length },
@@ -126,6 +142,7 @@ export class ActionTracker implements IActionTracker {
 
     let newTransfers = 0;
     let completedTransfers = 0;
+    let ignoredTransfers = 0;
 
     for (const msg of inflightMessages) {
       const transfer = await this.transferStore.get(msg.msg_id);
@@ -180,8 +197,14 @@ export class ActionTracker implements IActionTracker {
       }
     }
 
-    const existingTransfers = await this.getInProgressTransfers();
+    const existingTransfers =
+      await this.transferStore.getByStatus('in_progress');
     for (const transfer of existingTransfers) {
+      if (this.config.isIgnoredTransfer?.(transfer.messageId)) {
+        ignoredTransfers++;
+        continue;
+      }
+
       const blockTag = await this.getConfirmedBlockTag(
         transfer.destination,
         confirmedBlockTags,
@@ -204,6 +227,7 @@ export class ActionTracker implements IActionTracker {
       {
         newTransfers,
         completed: completedTransfers,
+        ignored: ignoredTransfers,
         inProgress: inProgressCount,
       },
       'Transfers synced',
@@ -356,7 +380,12 @@ export class ActionTracker implements IActionTracker {
   }
 
   async getInProgressTransfers(): Promise<Transfer[]> {
-    return this.transferStore.getByStatus('in_progress');
+    const transfers = await this.transferStore.getByStatus('in_progress');
+    // Ignored transfers stay stored, so their reservation returns once a
+    // middleware stops ignoring them, e.g. when a deny rule expires.
+    return transfers.filter(
+      (transfer) => !this.config.isIgnoredTransfer?.(transfer.messageId),
+    );
   }
 
   async getTransfersByDestination(destination: Domain): Promise<Transfer[]> {

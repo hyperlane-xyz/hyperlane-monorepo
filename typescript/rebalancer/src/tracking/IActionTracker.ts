@@ -90,7 +90,8 @@ export interface IActionTracker {
   getTransfer(id: string): Promise<Transfer | undefined>;
 
   /**
-   * Get all transfers currently in progress.
+   * Get all transfers currently in progress, excluding those a pending
+   * transfer middleware currently ignores.
    */
   getInProgressTransfers(): Promise<Transfer[]>;
 

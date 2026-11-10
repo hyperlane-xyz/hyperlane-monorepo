@@ -1,6 +1,6 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { pino } from 'pino';
+import { type Logger, pino } from 'pino';
 import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
@@ -16,7 +16,12 @@ import {
   type ExplorerMessage,
 } from '../utils/ExplorerClient.js';
 
-import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
+import {
+  ActionTracker,
+  type ActionTrackerConfig,
+  TRANSFER_SYNC_ROW_LIMIT_MESSAGE,
+} from './ActionTracker.js';
+import { ExplorerRowLimitError } from './pendingTransferMiddlewares/PendingTransferMiddleware.js';
 import { InMemoryStore } from './store/InMemoryStore.js';
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
@@ -353,6 +358,50 @@ describe('ActionTracker', () => {
       expect(transfers).to.have.lengthOf(1);
     });
 
+    interface SyncFailureCase {
+      name: string;
+      error: Error;
+      loggedAsError: boolean;
+    }
+    const syncFailures: SyncFailureCase[] = [
+      {
+        name: 'logs an Explorer row limit failure as an error and rethrows it',
+        error: new ExplorerRowLimitError('row limit', []),
+        loggedAsError: true,
+      },
+      {
+        name: 'rethrows other Explorer failures without an error log',
+        error: new Error('explorer down'),
+        loggedAsError: false,
+      },
+    ];
+    for (const c of syncFailures) {
+      it(c.name, async () => {
+        const logger: Logger = pino({ level: 'silent' });
+        const error = Sinon.spy(logger, 'error');
+        explorerClient.getInflightUserTransfers.rejects(c.error);
+        const tracker = new ActionTracker(
+          transferStore,
+          rebalanceIntentStore,
+          rebalanceActionStore,
+          explorerClient,
+          core,
+          config,
+          logger,
+        );
+
+        await expect(tracker.syncTransfers()).to.be.rejectedWith(c.error);
+
+        expect(
+          error.calledWith(
+            Sinon.match({ error: c.error.message }),
+            TRANSFER_SYNC_ROW_LIMIT_MESSAGE,
+          ),
+        ).to.equal(c.loggedAsError);
+        expect(error.callCount).to.equal(c.loggedAsError ? 1 : 0);
+      });
+    }
+
     it('should mark transfers as complete when delivered', async () => {
       // Pre-create transfer
       await transferStore.save({
@@ -375,6 +424,123 @@ describe('ActionTracker', () => {
 
       const transfer = await transferStore.get('0xmsg1');
       expect(transfer?.status).to.equal('complete');
+    });
+
+    describe('with an ignored-transfer predicate', () => {
+      const trackedTransfer: Transfer = {
+        id: '0xmsg1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      };
+
+      function createTracker(
+        isIgnoredTransfer: (messageId: string) => boolean,
+        logger: Logger = testLogger,
+      ): ActionTracker {
+        return new ActionTracker(
+          transferStore,
+          rebalanceIntentStore,
+          rebalanceActionStore,
+          explorerClient,
+          core,
+          {
+            routersByDomain: config.routersByDomain,
+            isIgnoredTransfer,
+            bridges: config.bridges,
+            rebalancerAddress: config.rebalancerAddress,
+            intentTTL: config.intentTTL,
+          },
+          logger,
+        );
+      }
+
+      it('keeps an ignored tracked transfer stored but excludes it from in-progress transfers without checking delivery', async () => {
+        await transferStore.save(trackedTransfer);
+        const tracker = createTracker((id) => id === '0xmsg1');
+
+        await tracker.syncTransfers();
+
+        const transfer = await tracker.getTransfer('0xmsg1');
+        expect(transfer?.status).to.equal('in_progress');
+        expect(await tracker.getInProgressTransfers()).to.deep.equal([]);
+        expect(mailboxStub.isDelivered.called).to.be.false;
+      });
+
+      it('reserves an ignored transfer again once it is no longer ignored, even when absent from the Explorer result', async () => {
+        await transferStore.save(trackedTransfer);
+        let ignored = true;
+        const tracker = createTracker((id) => ignored && id === '0xmsg1');
+        explorerClient.getInflightUserTransfers.resolves([]);
+
+        await tracker.syncTransfers();
+        expect(await tracker.getInProgressTransfers()).to.deep.equal([]);
+
+        ignored = false;
+        await tracker.syncTransfers();
+
+        const inProgress = await tracker.getInProgressTransfers();
+        expect(inProgress.map((t) => [t.id, t.amount])).to.deep.equal([
+          ['0xmsg1', 100n],
+        ]);
+      });
+
+      it('completes an ignored transfer on the first sync after it is no longer ignored once delivered', async () => {
+        await transferStore.save(trackedTransfer);
+        let ignored = true;
+        const tracker = createTracker((id) => ignored && id === '0xmsg1');
+        mailboxStub.isDelivered.resolves(true);
+
+        await tracker.syncTransfers();
+        expect(mailboxStub.isDelivered.called).to.be.false;
+        expect((await tracker.getTransfer('0xmsg1'))?.status).to.equal(
+          'in_progress',
+        );
+
+        ignored = false;
+        await tracker.syncTransfers();
+
+        expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+        expect((await tracker.getTransfer('0xmsg1'))?.status).to.equal(
+          'complete',
+        );
+      });
+
+      it('keeps a tracked transfer the predicate does not ignore', async () => {
+        await transferStore.save(trackedTransfer);
+
+        await createTracker((id) => id === '0xother').syncTransfers();
+
+        const transfer = await transferStore.get('0xmsg1');
+
+        expect(transfer?.status).to.equal('in_progress');
+        expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      });
+
+      it('counts an ignored transfer on every sync while it stays ignored', async () => {
+        await transferStore.save(trackedTransfer);
+        const logger: Logger = pino({ level: 'silent' });
+        const info = Sinon.spy(logger, 'info');
+        const tracker = createTracker((id) => id === '0xmsg1', logger);
+
+        await tracker.syncTransfers();
+        await tracker.syncTransfers();
+
+        const syncedCounts = info
+          .getCalls()
+          .filter((call) => call.args.includes('Transfers synced'))
+          .map((call) => call.args[0]);
+        expect(syncedCounts).to.deep.equal([
+          { newTransfers: 0, completed: 0, ignored: 1, inProgress: 0 },
+          { newTransfers: 0, completed: 0, ignored: 1, inProgress: 0 },
+        ]);
+      });
     });
   });
 
