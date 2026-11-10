@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "tron",
+  "root_approved": true,
+  "scenario": "evm",
   "mode": "ReleaseSafe",
   "producer_source_commit": "1b35f5f3253f4cff9c846b669d051492b1219a3a",
   "producer_run_id": 42753731810,
@@ -43,45 +43,7 @@
       },
       "wheel_bytes": 34246
     },
-    "registry_commit": null,
-    "tron_cli": {
-      "schema": 1,
-      "name": "hyperlane",
-      "version": "45.1.0",
-      "node_version": "26.12.1",
-      "pnpm_version": "12.3.0",
-      "full_original_tsconfig": true,
-      "EVM_solc": "0.8.33",
-      "TVM_solc": "0.8.24",
-      "owned_full_package_graph": true
-    },
-    "tron_tre": {
-      "schema": 2,
-      "architecture": "amd64",
-      "source_image": {
-        "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "canonical_digest": {
-        "sha256_hex_chunks": [
-          "f4332e11df12a9f360639a4546fd0465",
-          "93909630fda48af00b30410c144342f0"
-        ],
-        "prefix": "tronbox/tre@sha256:"
-      },
-      "image_id": {
-        "sha256_hex_chunks": [
-          "bf3a2b631ff2a1834530f69fcb90508c",
-          "40970203aa1240b692223308cc90cae0"
-        ],
-        "prefix": "sha256:"
-      },
-      "command": ["./quickstart", "v2.0.0"],
-      "entrypoint": null
-    }
+    "registry_commit": "a03afaa4fc6b8bd86616ef9986d80dcc1863e66a"
   },
   "artifact_pins": {
     "sdk": {
