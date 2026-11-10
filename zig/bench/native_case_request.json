@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "cosmosnative",
-  "mode": "ReleaseFast",
+  "root_approved": true,
+  "scenario": "evm",
+  "mode": "ReleaseSafe",
   "producer_source_commit": "1b35f5f3253f4cff9c846b669d051492b1219a3a",
   "producer_run_id": 42753731810,
   "producer_run_attempt": 1,
@@ -43,29 +43,17 @@
       },
       "wheel_bytes": 34246
     },
-    "registry_commit": null,
-    "native_cli": {
-      "name": "hypd",
-      "architecture": "amd64",
-      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
-      "bytes": 69488792,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "90a33bb46f87836675a2f0871d7d122c",
-          "1ecaa8c39014d6c7eae7815fb2e6706e"
-        ]
-      }
-    }
+    "registry_commit": "a03afaa4fc6b8bd86616ef9986d80dcc1863e66a"
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13737096468,
-      "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 54077617,
+      "id": 13735573398,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
+      "size_in_bytes": 51973653,
       "sha256": {
         "sha256_hex_chunks": [
-          "4c2bc59a1234a843189d25af626e6b38",
-          "5ab2426526319b1cdefde4b7261fa435"
+          "3f3b791bed3a236bec105b7545eab74b",
+          "0467c569c20a3733ef0ce8eb4f8a35e3"
         ]
       }
     },
