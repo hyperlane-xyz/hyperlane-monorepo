@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "root_approved": true,
+  "root_approved": false,
   "scenario": "starknet",
   "mode": "ReleaseSafe",
   "producer_source_commit": "1b35f5f3253f4cff9c846b669d051492b1219a3a",
