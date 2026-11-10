@@ -1134,11 +1134,30 @@ class Session:
                     require(message["origin_chain"] == self.case["reorg_origin_chain"], "unexpected additional actual dispatch")
         require(len(deliverable) == expected, "actual eligible native delivery count differs")
         transactions, delivered_ids = {}, set()
-        for message in messages:
+        for corpus_ordinal, message in enumerate(messages):
             name = domains.get(message["destination"])
             require(name is not None, "actual dispatch destination outside selected fixture")
             delivered = adapters[name].delivered(chain_map[name]["mailbox"], message["id"])
-            require(delivered is (message in deliverable), "actual native delivered state differs from eligible corpus")
+            try:
+                require(delivered is (message in deliverable), "actual native delivered state differs from eligible corpus")
+            except ValueError as error:
+                try:
+                    kind = ("newrefused" if not initial and message["id"] not in prior_ids else
+                            "failedbody" if message in excluded_failure else
+                            "zero" if message in excluded_zero else
+                            "double" if message in double else "normal")
+                    multivm_diagnostics.bind_canonical_delivery_mismatch(
+                        error, self.manifest["scenario"], _CANONICAL_DELIVERY_CODE,
+                        _CANONICAL_DELIVERY_REQUIRE_CODE,
+                        {"phase": phase if phase is not None else ("initial" if initial else "final"),
+                         "corpus_ordinal": corpus_ordinal, "origin_chain": message["origin_chain"],
+                         "origin_domain": message["origin"], "destination_chain": name,
+                         "destination_domain": message["destination"], "nonce": message["nonce"],
+                         "kind": kind, "expected_eligible": message in deliverable,
+                         "observed_delivered": delivered, "native_or_timing_credit": False})
+                except BaseException:
+                    pass  # Optional finite evidence cannot replace the original guard.
+                raise
             if not delivered:
                 continue
             process_topic = adapters[name].topic("ProcessId(bytes32)")
@@ -1829,3 +1848,8 @@ class Session:
         require(not self.sampler.is_alive(), "owned lifecycle sampler did not drain")
         for proxy in self.proxies:
             proxy.close()
+
+
+# Import-time identities for the optional exact-guard public projection only.
+_CANONICAL_DELIVERY_CODE = Session.canonical_snapshot.__code__
+_CANONICAL_DELIVERY_REQUIRE_CODE = require.__code__

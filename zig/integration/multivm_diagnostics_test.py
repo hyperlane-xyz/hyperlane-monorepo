@@ -1749,4 +1749,121 @@ class TronStopFailureProjectionTests(unittest.TestCase):
         self.f.manifest['scenario']='radix';result=self.f.observe();self.assertNotIn('fixture_stop_failures',result)
 
 
+class CanonicalDeliveryMismatchControls(unittest.TestCase):
+    MESSAGE = 'actual native delivered state differs from eligible corpus'
+    ATTRIBUTE = '_canonical_delivery_mismatch'
+
+    def setUp(self):
+        self.modules={name:api.pin(HERE/name)for name in ['multivm_session.py','multivm_evidence.py','multivm_diagnostics.py']}
+
+    def fixture(self,kind='normal',*,phase='after_source_reorg',scenario='evm',observed=None):
+        domains={'test1':9913371,'test2':9913372,'test3':9913373}
+        chains={name:{'name':name,'domainid':str(domain),'mailbox':'0x'+'1'*40}for name,domain in domains.items()}
+        rows=[]
+        for ordinal,label in enumerate(['normal','failedbody','zero','double','newrefused']):
+            body=b'failMessageBody'if label=='failedbody'else b'PRIVATE_SENTINEL'
+            rows.append({'id':'0x'+format(ordinal+1,'064x'),'wire':'0x'+'00'*77+body.hex(),'body':'0x'+body.hex(),'origin':domains['test1'],'origin_chain':'test1','destination':domains['test2'],'nonce':ordinal,'insertions':[]if label=='zero'else[0,1]if label=='double'else[0]})
+        target=next(row for row in rows if row['nonce']==['normal','failedbody','zero','double','newrefused'].index(kind));rows=[target]+[row for row in rows if row is not target]
+        s=sessions.Session.__new__(sessions.Session);s.family=None;s.failures=[];s.lock=threading.RLock();s.manifest={'scenario':scenario,'runtime_source_commit':'a'*40}
+        s.case={'chain_names':list(chains),'domain_names':{str(v):k for k,v in domains.items()},'initial_corpus':{'dispatches':4,'deliveries':2,'failed_body':1,'zero_insertions':1,'double_insertions':1},'additional_refused_dispatches':1,'reorg_origin_chain':'test1'}
+        s.captures=[{'capture_ordinal':2,'original':{'role':'relayer','chains':chains}}]
+        s.initial={'messages':[row for row in rows if row['nonce']<4],'deliverable_messages':[row for row in rows if row['nonce']in[0,3]]}
+        expected=kind in {'normal','double'};actual=(not expected)if observed is None else observed
+        s.adapter=lambda chain:SimpleNamespace(dispatches=lambda configured:rows if configured['name']=='test1'else[],delivered=lambda mailbox,message_id:actual)
+        return s,phase,expected,actual
+
+    def error(self,kind='normal',**kwargs):
+        s,phase,expected,actual=self.fixture(kind,**kwargs)
+        try:s.canonical_snapshot(2,initial=False,phase=phase)
+        except ValueError as error:
+            self.assertIs(type(error),ValueError);self.assertEqual(error.args,(self.MESSAGE,));self.assertEqual(s.failures,[]);return error,expected,actual
+        self.fail('original canonical mismatch guard did not fail')
+
+    def projected(self,error,modules=None):
+        return api.public_frames(error,self.modules if modules is None else modules,HERE)
+
+    def test_actual_guard_projects_both_boolean_directions_and_all_source_kinds(self):
+        for kind in ['normal','failedbody','zero','double','newrefused']:
+            with self.subTest(kind=kind):
+                error,expected,actual=self.error(kind);value=self.projected(error);self.assertIn('canonical_delivery_mismatch',value);row=value['canonical_delivery_mismatch']
+                self.assertEqual(row,{'phase':'after_source_reorg','corpus_ordinal':0,'origin_chain':'test1','origin_domain':9913371,'destination_chain':'test2','destination_domain':9913372,'nonce':['normal','failedbody','zero','double','newrefused'].index(kind),'kind':kind,'expected_eligible':expected,'observed_delivered':actual,'native_or_timing_credit':False})
+                self.assertEqual(set(error.__dict__),{self.ATTRIBUTE});self.assertNotIn('PRIVATE_SENTINEL',json.dumps(value));self.assertNotIn('0x'+'0'*63+'1',json.dumps(value))
+
+    def test_unknown_phase_cross_family_nonbool_and_optional_failure_preserve_original(self):
+        for kwargs in [{'phase':'PRIVATE_PHASE'},{'phase':False},{'phase':[]},{'scenario':'tron'},{'observed':1}]:
+            error,_,_=self.error(**kwargs);self.assertNotIn(self.ATTRIBUTE,error.__dict__);self.assertNotIn('canonical_delivery_mismatch',self.projected(error))
+        original=sessions.require;seen=[]
+        def require(ok,message):
+            try:original(ok,message)
+            except ValueError as error:seen.append(error);raise
+        for optional in [KeyboardInterrupt('PRIVATE_SENTINEL'),ValueError('PRIVATE_SENTINEL')]:
+            with mock.patch.object(sessions,'require',side_effect=require),mock.patch.object(api,'bind_canonical_delivery_mismatch',side_effect=optional):
+                error,_,_=self.error();self.assertIs(error,seen[-1]);self.assertNotIn(self.ATTRIBUTE,error.__dict__)
+
+    def test_same_method_other_require_forged_source_and_nonadjacent_guard_refuse(self):
+        real,_,_=self.error();s,phase,_,_=self.fixture();original_adapter=s.adapter
+        def adapter(chain):
+            value=original_adapter(chain);dispatch=value.dispatches
+            return SimpleNamespace(dispatches=lambda configured:(lambda rows:rows+[rows[0]]if rows else rows)(dispatch(configured)),delivered=value.delivered)
+        s.adapter=adapter
+        try:s.canonical_snapshot(2,initial=False,phase=phase)
+        except ValueError as error:
+            self.assertEqual(error.args,('duplicate actual native message ID',));error.__dict__[self.ATTRIBUTE]=real.__dict__[self.ATTRIBUTE];self.assertNotIn('canonical_delivery_mismatch',self.projected(error))
+        forged=ValueError(self.MESSAGE);forged.__dict__[self.ATTRIBUTE]=real.__dict__[self.ATTRIBUTE]
+        try:raise forged
+        except ValueError as error:self.assertNotIn('canonical_delivery_mismatch',self.projected(error))
+        wrong=copy.deepcopy(self.modules);wrong['multivm_session.py']['sha256']='0'*64;self.assertNotIn('canonical_delivery_mismatch',self.projected(real,wrong))
+        import types
+        clone=types.ModuleType('multivm_session');clone.__dict__.update(sessions.__dict__)
+        with mock.patch.dict(sys.modules,{'multivm_session':clone}):self.assertNotIn('canonical_delivery_mismatch',self.projected(real))
+        with mock.patch.object(sessions,'_CANONICAL_DELIVERY_CODE',sessions.Session._verify.__code__):self.assertNotIn('canonical_delivery_mismatch',self.projected(real))
+        original=sessions.require
+        def wrapper(*args):return original(*args)
+        with mock.patch.object(sessions,'require',side_effect=wrapper):
+            error,_,_=self.error();self.assertNotIn('canonical_delivery_mismatch',self.projected(error))
+
+    def test_closed_attribute_type_bounds_extra_fields_and_code_identity_poisons(self):
+        error,_,_=self.error();origin,guard,row=error.__dict__[self.ATTRIBUTE]
+        edits=[('phase','unknown'),('phase','x'*2048),('corpus_ordinal',True),('corpus_ordinal',256),('corpus_ordinal',-1),('origin_chain','other'),('origin_domain',True),('origin_domain',9913372),('destination_chain','other'),('destination_domain',1),('nonce',True),('nonce',2**32),('nonce',-1),('kind','other'),('expected_eligible',1),('observed_delivered',None),('observed_delivered',row['expected_eligible']),('native_or_timing_credit',True),('PRIVATE_EXTRA','PRIVATE_SENTINEL')]
+        for field,value in edits:
+            bad=dict(row);bad[field]=value
+            with self.subTest(field=field,value=value):
+                error.__dict__[self.ATTRIBUTE]=(origin,guard,bad);self.assertNotIn('canonical_delivery_mismatch',self.projected(error))
+                with self.assertRaises(ValueError):api.checked_canonical_delivery_mismatch(bad)
+        for bad in [None,[],(origin,guard),(origin,guard,[]),('canonical_snapshot',guard,row),(origin,lambda:None,row)]:
+            error.__dict__[self.ATTRIBUTE]=bad;self.assertNotIn('canonical_delivery_mismatch',self.projected(error))
+        valid=dict(row,corpus_ordinal=255,nonce=2**32-1);self.assertEqual(api.checked_canonical_delivery_mismatch(valid),valid)
+
+    def record(self,error=None,limit=None):
+        state={'observed_monotonic_ns':1,'restart_sample_count':0,'restart_failed':False,'restart_first_observed_ns':None,'restart_last_observed_ns':None,'role_activity':[],'observer_failure_count':0,'lifecycle_error_count':0}
+        with tempfile.TemporaryDirectory()as directory:
+            recorder=api.Recorder(Path(directory)/'observer.json',self.modules,HERE);token=recorder.enter('restart',state)
+            if limit is None:recorder.finish(token,dict(state,observed_monotonic_ns=2),'exception'if error else'completed',error)
+            else:
+                with mock.patch.object(api,'LIMIT',limit):recorder.finish(token,dict(state,observed_monotonic_ns=2),'exception',error)
+            result=json.loads(recorder.path.read_bytes())
+        return result
+
+    def test_existing_recorder_counts_schema_privacy_cap_and_optional_omission(self):
+        error,_,_=self.error();value=self.record(error);self.assertEqual(api.validate_record(value,self.modules),value);self.assertEqual(next(iter(value['failures'].values()))['count'],1);self.assertEqual(value['last_stage']['canonical_delivery_mismatch']['kind'],'normal');self.assertNotIn('PRIVATE_SENTINEL',json.dumps(value))
+        old=copy.deepcopy(value)
+        for entry in [old['last_stage'],*[r[k]for group in ['stages','failures']for r in old[group].values()for k in ['first','latest']]]:
+            if entry:entry.pop('canonical_delivery_mismatch',None)
+        bound=len(json.dumps(old,sort_keys=True,separators=(',',':')).encode())+1
+        omitted=self.record(error,bound);self.assertEqual(omitted,old);self.assertEqual(api.validate_record(omitted,self.modules),omitted)
+        with self.assertRaisesRegex(ValueError,'Diagnostic output bound'):self.record(error,bound-1)
+        success=self.record();self.assertEqual(success['failures'],{});self.assertNotIn('canonical_delivery_mismatch',success['last_stage']);api.validate_record(success,self.modules)
+        for edit in [lambda r:r['last_stage']['canonical_delivery_mismatch'].update(nonce=True),lambda r:r['last_stage'].update(exception_type='RuntimeError'),lambda r:r['last_stage'].update(status='completed'),lambda r:r['last_stage'].update(frames=[])]:
+            bad=copy.deepcopy(value);edit(bad)
+            with self.assertRaises(ValueError):api.validate_record(bad,self.modules)
+        self.assertEqual(api.LIMIT,256*1024)
+
+    def test_real_success_path_has_no_attribute_or_optional_binding_call(self):
+        s,_,_,_=self.fixture();rows=[s.initial['messages'][i]for i in range(len(s.initial['messages']))if s.initial['messages'][i]['nonce']in[1,2]]
+        s.case['initial_corpus']={'dispatches':2,'deliveries':0,'failed_body':1,'zero_insertions':1,'double_insertions':0};s.lifecycle=SimpleNamespace(complete=lambda rows:[]);s.broadcasts=[]
+        s.adapter=lambda chain:SimpleNamespace(dispatches=lambda configured:rows if configured['name']=='test1'else[],delivered=lambda mailbox,message_id:False)
+        with mock.patch.object(api,'bind_canonical_delivery_mismatch',side_effect=AssertionError('not called'))as bind:
+            value=s.canonical_snapshot(0,initial=True);self.assertEqual(value['deliverable_messages'],[]);self.assertEqual(value['native_delivery_transactions'],[]);bind.assert_not_called();self.assertEqual(s.failures,[])
+
+
 if __name__=='__main__':unittest.main()
