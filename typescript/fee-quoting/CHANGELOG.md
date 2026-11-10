@@ -1,5 +1,30 @@
 # @hyperlane-xyz/fee-quoting
 
+## 27.3.18
+
+### Patch Changes
+
+- Updated dependencies [d2ea605]
+- Updated dependencies [bdeb314]
+- Updated dependencies [f265d2f]
+- Updated dependencies [fe5dfda]
+- Updated dependencies [8b65668]
+- Updated dependencies [aa84958]
+- Updated dependencies [d0ec60c]
+- Updated dependencies [63fa540]
+- Updated dependencies [c520224]
+- Updated dependencies [d770c3b]
+- Updated dependencies [1baa78e]
+- Updated dependencies [a72f027]
+- Updated dependencies [6e5db5f]
+- Updated dependencies [7be44b5]
+- Updated dependencies [9ef15ff]
+- Updated dependencies [48cd574]
+  - @hyperlane-xyz/sdk@45.2.0
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/sealevel-sdk@45.2.0
+  - @hyperlane-xyz/provider-sdk@11.0.3
+
 ## 27.3.17
 
 ### Patch Changes

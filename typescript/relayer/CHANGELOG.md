@@ -1,5 +1,66 @@
 # @hyperlane-xyz/relayer
 
+## 4.1.0
+
+### Minor Changes
+
+- d0ec60c: Support for the combined `LayerZeroV2HookIsm` hook/ISM router was added:
+
+  - The SDK gained `EvmLayerZeroV2HookIsmModule` and `EvmLayerZeroV2HookIsmReader`, the `layerZeroV2Hook` and `layerZeroV2Ism` config types, and Warp helpers that paired the hook and ISM leaves of a route into one mesh. One router was deployed per chain with its offchain lookup URLs, and every other chain was enrolled with its LayerZero endpoint ID, send and receive libraries, Executor config and send and receive ULN configs.
+  - Pathway configs were typed: each Executor and ULN config was either `default`, which inherited the library's mutable default, or `override`, whose fields replaced the default individually. Every enrollment wrote the complete policy, encoding defaults as all-zero configs, so a reset to `default` or a library change never left an old override active. Reads reported the app configs and, separately, the effective configs after LayerZero applied the defaults.
+  - The `expandNonDeployableHookIsms` reader option covered LayerZero hooks and ISMs, so LayerZero ISMs nested in aggregation and routing ISMs were derived as typed configs for Warp reads and relayer metadata.
+  - `warp deploy` deployed and enrolled the mesh before the Warp routers, and `warp apply` reused compatible routers and added the enrollment and URL updates for reused routers to the apply transactions. `warp check` compared the enrolled LayerZero peers and endpoint IDs with the deployed counterparts, in addition to the pathway libraries and policy.
+  - The relayer built CCIP-read metadata, `(receiveLibrary, packet)`, for the LayerZero router.
+  - The pairing and materialization of combined hook/ISM leaves were shared between Wormhole and LayerZero. `pairCombinedHookIsmConfigs` and `materializeCombinedHookIsmWarpConfig` took the protocol's leaf matcher, `WORMHOLE_LEAF_MATCHER` or `LAYER_ZERO_V2_LEAF_MATCHER`, and `collectHookAddresses` and `collectIsmAddresses` collected the addresses of derived hook and ISM trees.
+  - `EvmLayerZeroV2HookIsmModule.reconcileMesh` logged a warning naming every replaced router. Packets of messages dispatched through a replaced router named it as their sender or receiver, so they could not be verified once its replacement was installed, and transfers had to be paused and pending messages delivered before the returned transactions were submitted.
+  - `EvmLayerZeroV2HookIsmModule` unenrolled remote routers whose domain was not in the registry by their numeric domain ID.
+  - `EvmLayerZeroV2HookIsmModule.deployMesh` and `reconcileMesh` checked, before deploying anything, that the LayerZero domain ID of every pathway matched the ID reported by the remote chain's Endpoint.
+  - LayerZero ISMs read by `EvmIsmReader`, and so by `warp read`, included the effective send and receive configs of every pathway, showing the DVNs, confirmations and Executor that secured a `default` pathway. `warp check` ignored these read-only values and compared the configured pathway policy.
+  - The CLI examples gained `examples/layerzero/layerzero-warp-route.yaml`, a two-chain Warp route secured by the LayerZero hook/ISM. Its comments described the pathway fields, the configured and effective configs reported by `warp read`, and that `confirmations: 0` in a ULN override required zero confirmations instead of inheriting the library default.
+
+- 48cd574: Support for the combined `WormholeVaaHookIsm` hook/ISM router was added:
+
+  - The SDK gained `EvmWormholeHookIsmModule` and `EvmWormholeHookIsmReader`, the `wormholeHook` and `wormholeIsm` config types, and Warp helpers that paired the hook and ISM leaves of a route into one mesh. One router was deployed per chain, every other chain was enrolled with its Wormhole chain ID and the consistency level, custom base level and additional blocks it published with, and both leaves were replaced with the same local address before generic Warp processing.
+  - `EvmHookReader` and `EvmIsmReader` gained an `expandNonDeployableHookIsms` option. Warp route reads enabled it on both readers, so Wormhole hooks nested in aggregation, routing, fallback-routing and amount-routing hooks, and Wormhole ISMs nested in aggregation, routing and amount-routing ISMs, were derived as typed configs. The relayer enabled it on its ISM reader to build metadata for nested Wormhole ISMs; other readers kept them as addresses.
+  - Custom consistency levels were required to use a standard base level and at least one additional block.
+  - Wormhole consistency levels matched the values the router accepted. A router published at `zeroFinalized` (0), `instant` (200), `safe` (201), `finalized` (202) or `custom` (203). An enrolled remote router was expected at any of those levels or at the Solana VAA levels 1 (confirmed) and 32 (finalized), listed in `WormholeVaaConsistencyLevel` and validated by `WormholeVaaConsistencyLevelSchema`. Custom base levels stayed limited to `instant`, `safe` and `finalized`. Every level was read back and re-encoded to the same value.
+  - `warp deploy` deployed and enrolled the mesh before the Warp routers. `warp apply` reused compatible routers, redeployed routers whose immutable settings changed, and added the enrollment and URL updates for reused routers to the apply transactions. `warp check` reported drift in the enrolled remote routers, and reported each chain whose Wormhole hook and ISM were missing, duplicated or not the same router while still checking the enrollments between the remaining chains.
+  - The relayer built CCIP-read metadata for the Wormhole router and included `origin_tx_hash` in CCIP-read POST requests, so a lookup service could find the origin transaction without the Explorer.
+  - The final ownership pass of `warp deploy` described only the Wormhole router nodes of a route's hook and ISM by address, so a flow-control hybrid sharing an aggregation with the Wormhole router was handed to the route owner while the Wormhole router kept its own owner.
+  - `EvmWormholeHookIsmModule.reconcileMesh` logged a warning naming every replaced router, since messages dispatched through a replaced router could not be verified once its replacement was installed, so transfers had to be paused and pending messages delivered before the returned transactions were submitted.
+  - `warp deploy` and `warp apply` passed a `ContractVerifier` to the Wormhole mesh deployment, so newly deployed Wormhole routers were verified on the block explorer like the rest of the route.
+  - `EvmWormholeHookIsmModule` unenrolled remote routers whose domain was not in the registry by their numeric domain ID.
+  - The CLI examples gained `examples/wormhole/wormhole-warp-route.yaml`, a two-chain Warp route secured by the Wormhole hook/ISM.
+
+### Patch Changes
+
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- Updated dependencies [d2ea605]
+- Updated dependencies [bdeb314]
+- Updated dependencies [048d1f3]
+- Updated dependencies [f265d2f]
+- Updated dependencies [fe5dfda]
+- Updated dependencies [8b65668]
+- Updated dependencies [aa84958]
+- Updated dependencies [e48ffe7]
+- Updated dependencies [4623acb]
+- Updated dependencies [d0ec60c]
+- Updated dependencies [63fa540]
+- Updated dependencies [c520224]
+- Updated dependencies [d770c3b]
+- Updated dependencies [1baa78e]
+- Updated dependencies [6e5db5f]
+- Updated dependencies [7be44b5]
+- Updated dependencies [9ef15ff]
+- Updated dependencies [8868234]
+- Updated dependencies [02c6ef4]
+- Updated dependencies [2bc0b3e]
+- Updated dependencies [48cd574]
+  - @hyperlane-xyz/sdk@45.2.0
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/metrics@1.0.6
+
 ## 4.0.5
 
 ### Patch Changes
