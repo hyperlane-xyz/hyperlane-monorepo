@@ -6,7 +6,11 @@ import {
   ILayerZeroPacketService__factory,
   LayerZeroV2HookIsm__factory,
 } from '@hyperlane-xyz/core';
-import { HyperlaneSmartProvider, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneSmartProvider,
+  MultiProvider,
+  ProviderMethod,
+} from '@hyperlane-xyz/sdk';
 import { assert, parseMessage } from '@hyperlane-xyz/utils';
 
 import type { CcipApp } from '../http.js';
@@ -19,6 +23,7 @@ import {
   PrometheusMetrics,
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
+import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
 import {
   BaseService,
   REGISTRY_URI_SCHEMA,
@@ -148,9 +153,20 @@ export class LayerZeroPacketService extends BaseService {
         requestRouter,
       ));
     } catch (error) {
-      PrometheusMetrics.logUnhandledError(
-        this.config.serviceName,
-        UnhandledErrorReason.LAYERZERO_ROUTE_NOT_CONFIGURED,
+      const reason =
+        error instanceof RpcUnavailableError
+          ? UnhandledErrorReason.RPC_UNAVAILABLE
+          : UnhandledErrorReason.LAYERZERO_ROUTE_NOT_CONFIGURED;
+      PrometheusMetrics.logUnhandledError(this.config.serviceName, reason);
+      logger.error(
+        {
+          originDomain: parsed.origin,
+          destinationDomain: parsed.destination,
+          requestRouter,
+          error_reason: reason,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Unable to resolve LayerZero route',
       );
       throw error;
     }
@@ -207,9 +223,20 @@ export class LayerZeroPacketService extends BaseService {
         packet,
       );
     } catch (error) {
-      PrometheusMetrics.logUnhandledError(
-        this.config.serviceName,
-        UnhandledErrorReason.LAYERZERO_RECEIVE_NOT_READY,
+      const reason =
+        error instanceof RpcUnavailableError
+          ? UnhandledErrorReason.RPC_UNAVAILABLE
+          : UnhandledErrorReason.LAYERZERO_RECEIVE_NOT_READY;
+      PrometheusMetrics.logUnhandledError(this.config.serviceName, reason);
+      logger.error(
+        {
+          originDomain: parsed.origin,
+          destinationDomain: parsed.destination,
+          receiver: destination.router,
+          error_reason: reason,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Unable to resolve a ready LayerZero receive library',
       );
       throw error;
     }
@@ -265,7 +292,7 @@ export class LayerZeroPacketService extends BaseService {
           ENDPOINT_ABI,
           this.multiProvider.getProvider(domain),
         );
-        const endpointEid = Number(await endpoint.eid());
+        const endpointEid = Number(await readOnchain(() => endpoint.eid()));
         assert(
           endpointEid === route.layerZeroDomainId,
           `LayerZero Endpoint ${route.endpoint} reports domain ID ${endpointEid}; router reports ${route.layerZeroDomainId}`,
@@ -328,21 +355,31 @@ export class LayerZeroPacketService extends BaseService {
           ),
         };
         if (provider instanceof HyperlaneSmartProvider) {
-          let lastError: unknown;
+          const errors: unknown[] = [];
           for (const rpcProvider of provider.rpcProviders) {
             try {
               // A successful no-return commit simulation returns `0x`.
               // HyperlaneSmartProvider intentionally rejects empty call
-              // results, so issue raw eth_call against its RPC providers.
-              await rpcProvider.send('eth_call', [transaction, 'latest']);
+              // results, so issue a raw eth_call against each RPC provider;
+              // ReadRpc reports reverts as CALL_EXCEPTION.
+              await readOnchain(() =>
+                rpcProvider.perform(ProviderMethod.ReadRpc, {
+                  method: 'eth_call',
+                  params: [transaction, 'latest'],
+                }),
+              );
               return;
             } catch (error) {
-              lastError = error;
+              errors.push(error);
             }
           }
-          throw lastError;
+          // A revert on any RPC is an answer: the packet is not ready.
+          throw (
+            errors.find((error) => !(error instanceof RpcUnavailableError)) ??
+            errors[errors.length - 1]
+          );
         }
-        await provider.call(transaction);
+        await readOnchain(() => provider.call(transaction));
       },
     );
   }

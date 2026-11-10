@@ -7,6 +7,8 @@ import {
   bytes32ToAddress,
 } from '@hyperlane-xyz/utils';
 
+import { readOnchain } from '../utils/rpcErrors.js';
+
 export interface LayerZeroChainConfig {
   mailbox: string;
   endpoint: string;
@@ -59,16 +61,18 @@ async function readRouterState(
     moduleType,
     remoteRouter,
     remoteLayerZeroDomainId,
-  ] = await Promise.all([
-    contract.mailbox(),
-    contract.endpointContract(),
-    contract.localDomain(),
-    contract.localEndpointId(),
-    contract.hookType(),
-    contract.moduleType(),
-    contract.routers(remoteDomain),
-    contract.remoteLzEndpointIds(remoteDomain),
-  ]);
+  ] = await readOnchain(() =>
+    Promise.all([
+      contract.mailbox(),
+      contract.endpointContract(),
+      contract.localDomain(),
+      contract.localEndpointId(),
+      contract.hookType(),
+      contract.moduleType(),
+      contract.routers(remoteDomain),
+      contract.remoteLzEndpointIds(remoteDomain),
+    ]),
+  );
 
   assert(
     actualLocalDomain === localDomain,

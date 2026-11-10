@@ -18,7 +18,19 @@ import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { LayerZeroPacketService } from '../../src/services/LayerZeroPacketService.js';
 import { encodeLayerZeroPayload } from '../../src/services/layerZeroPacketMatcher.js';
-import { initializeMetrics } from '../../src/utils/prometheus.js';
+import {
+  PrometheusMetrics,
+  UnhandledErrorReason,
+  initializeMetrics,
+} from '../../src/utils/prometheus.js';
+import { RpcUnavailableError } from '../../src/utils/rpcErrors.js';
+import {
+  CLOSED_RPC_URL,
+  type JsonRpcRequest,
+  type RpcResponder,
+  createRpcServers,
+  replyJson,
+} from '../utils/rpcServer.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -44,6 +56,9 @@ const DESTINATION_EID = 30_110;
 const NONCE = 3;
 const PACKET_NONCE = 9;
 const TX_HASH = `0x${'ab'.repeat(32)}`;
+const LZ_ULN_VERIFYING_DATA = ethers.utils
+  .id('LZ_ULN_Verifying()')
+  .slice(0, 10);
 
 const routerInterface = LayerZeroV2HookIsm__factory.createInterface();
 const endpointInterface = new ethers.utils.Interface([
@@ -261,6 +276,7 @@ function endpointCall(eid: number, data: string): string {
 
 interface Harness {
   service: LayerZeroPacketService;
+  multiProvider: sinon.SinonStubbedInstance<MultiProvider>;
   getTransactionReceipt: sinon.SinonStub;
   explorerLookup: sinon.SinonStub;
   rpcSends: Array<sinon.SinonStub>;
@@ -282,7 +298,19 @@ function harness(
   const rpcSends = provider.rpcProviders.map((rpcProvider, index) =>
     rpcReady[index]
       ? sinon.stub(rpcProvider, 'send').resolves('0x')
-      : sinon.stub(rpcProvider, 'send').rejects(new Error('DVNs pending')),
+      : sinon.stub(rpcProvider, 'send').rejects(
+          ethers.logger.makeError(
+            'processing response error',
+            ethers.errors.SERVER_ERROR,
+            {
+              error: {
+                code: 3,
+                message: 'execution reverted',
+                data: LZ_ULN_VERIFYING_DATA,
+              },
+            },
+          ),
+        ),
   );
   const getTransactionReceipt = sinon
     .stub(provider, 'getTransactionReceipt')
@@ -321,7 +349,13 @@ function harness(
     },
   });
 
-  return { service, getTransactionReceipt, explorerLookup, rpcSends };
+  return {
+    service,
+    multiProvider,
+    getTransactionReceipt,
+    explorerLookup,
+    rpcSends,
+  };
 }
 
 const logger = pino({ level: 'silent' });
@@ -524,7 +558,7 @@ describe('LayerZeroPacketService', () => {
 
     await expectRejection(
       service.getLayerZeroPacket(message, DESTINATION_ROUTER, TX_HASH, logger),
-      'LayerZero packet is not DVN-ready: Error: DVNs pending',
+      'LayerZero packet is not DVN-ready: Error: execution reverted',
     );
   });
 
@@ -551,6 +585,242 @@ describe('LayerZeroPacketService', () => {
       `LayerZero router ${ORIGIN_ROUTER} reports Hyperlane domain ${ORIGIN_DOMAIN}; expected ${DESTINATION_DOMAIN}`,
     );
     expect(getTransactionReceipt.called).to.be.false;
+  });
+
+  describe('when LayerZero state is read over RPC', function () {
+    this.timeout(10_000);
+
+    const REVERT_DATA = ethers.utils.hexConcat([
+      ethers.utils.id('Error(string)').slice(0, 10),
+      ethers.utils.defaultAbiCoder.encode(
+        ['string'],
+        ['Not a LayerZero router'],
+      ),
+    ]);
+
+    const rpcServers = createRpcServers();
+
+    afterEach(() => rpcServers.close());
+
+    interface EthCall {
+      to: string;
+      data: string;
+    }
+
+    const unavailable: RpcResponder = (_request, res) => {
+      res.statusCode = 503;
+      res.end('Service Unavailable');
+    };
+
+    function reverts(data?: string): RpcResponder {
+      return ({ id }, res) =>
+        replyJson(res, {
+          jsonrpc: '2.0',
+          id,
+          error: { code: 3, message: 'execution reverted', data },
+        });
+    }
+
+    function ethCallOf({ method, params }: JsonRpcRequest): EthCall {
+      const [call] = params;
+      assert(
+        method === 'eth_call' &&
+          typeof call === 'object' &&
+          call !== null &&
+          'to' in call &&
+          typeof call.to === 'string' &&
+          'data' in call &&
+          typeof call.data === 'string',
+        `Unexpected JSON-RPC request ${method}`,
+      );
+      return { to: call.to, data: call.data };
+    }
+
+    function callsEndpoint(name: string) {
+      return ({ to, data }: EthCall) =>
+        to.toLowerCase() === DESTINATION_ENDPOINT.toLowerCase() &&
+        endpointInterface.parseTransaction({ data }).name === name;
+    }
+
+    function simulatesCommit({ to }: EthCall): boolean {
+      return to.toLowerCase() === RECEIVE_LIBRARY.toLowerCase();
+    }
+
+    /**
+     * Serves the route and Endpoint state of `harness`, replying with `reply`
+     * to the eth_calls `matches` selects.
+     */
+    function fakeChain(
+      matches: (call: EthCall) => boolean,
+      reply: RpcResponder,
+    ): Promise<string> {
+      return rpcServers.start((request, res) => {
+        const call = ethCallOf(request);
+        if (matches(call)) return reply(request, res);
+        const router = ROUTERS[call.to.toLowerCase()];
+        const eid = ENDPOINT_EIDS[call.to.toLowerCase()];
+        assert(
+          router || eid !== undefined,
+          `Unexpected eth_call to ${call.to}`,
+        );
+        replyJson(res, {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: router
+            ? routerCall(router, call.data)
+            : endpointCall(eid, call.data),
+        });
+      });
+    }
+
+    interface RpcCase {
+      name: string;
+      rpcUrls: () => Promise<string[]>;
+      reason: UnhandledErrorReason;
+      /** Whether the route resolved, so the origin receipt was fetched. */
+      fetchesReceipt: boolean;
+      message?: string;
+    }
+
+    const cases: RpcCase[] = [
+      {
+        name: 'reports an unreachable RPC as unavailable',
+        rpcUrls: async () => [CLOSED_RPC_URL],
+        fetchesReceipt: false,
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports an RPC server error as unavailable',
+        rpcUrls: async () => [await rpcServers.start(unavailable)],
+        fetchesReceipt: false,
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports an RPC that never replies as unavailable',
+        rpcUrls: async () => [
+          await rpcServers.start((_request, res) => rpcServers.hang(res)),
+        ],
+        fetchesReceipt: false,
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports a CCIP sender without code as a missing route',
+        rpcUrls: async () => [
+          await rpcServers.start(({ id }, res) =>
+            replyJson(res, { jsonrpc: '2.0', id, result: '0x' }),
+          ),
+        ],
+        fetchesReceipt: false,
+        reason: UnhandledErrorReason.LAYERZERO_ROUTE_NOT_CONFIGURED,
+      },
+      {
+        name: 'reports a CCIP sender that reverts as a missing route',
+        rpcUrls: async () => [await rpcServers.start(reverts())],
+        fetchesReceipt: false,
+        reason: UnhandledErrorReason.LAYERZERO_ROUTE_NOT_CONFIGURED,
+      },
+      {
+        name: 'reports a CCIP sender that reverts with a reason as a missing route',
+        rpcUrls: async () => [await rpcServers.start(reverts(REVERT_DATA))],
+        fetchesReceipt: false,
+        reason: UnhandledErrorReason.LAYERZERO_ROUTE_NOT_CONFIGURED,
+      },
+      {
+        name: 'reports an Endpoint domain ID read failure as unavailable',
+        rpcUrls: async () => [
+          await fakeChain(callsEndpoint('eid'), unavailable),
+        ],
+        fetchesReceipt: false,
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports a receive library read failure as unavailable',
+        rpcUrls: async () => [
+          await fakeChain(callsEndpoint('getReceiveLibrary'), unavailable),
+        ],
+        fetchesReceipt: true,
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports a commit simulation no RPC answers as unavailable',
+        rpcUrls: async () => [
+          await fakeChain(simulatesCommit, unavailable),
+          await fakeChain(simulatesCommit, unavailable),
+        ],
+        fetchesReceipt: true,
+        reason: UnhandledErrorReason.RPC_UNAVAILABLE,
+      },
+      {
+        name: 'reports a reverting commit simulation as not DVN-ready',
+        rpcUrls: async () => [
+          await fakeChain(simulatesCommit, reverts(LZ_ULN_VERIFYING_DATA)),
+        ],
+        fetchesReceipt: true,
+        reason: UnhandledErrorReason.LAYERZERO_RECEIVE_NOT_READY,
+        message: 'LayerZero packet is not DVN-ready: Error: execution reverted',
+      },
+      {
+        name: 'reports a commit simulation that reverts on one RPC and is unreachable on another as not DVN-ready',
+        rpcUrls: async () => [
+          await fakeChain(simulatesCommit, reverts(LZ_ULN_VERIFYING_DATA)),
+          CLOSED_RPC_URL,
+        ],
+        fetchesReceipt: true,
+        reason: UnhandledErrorReason.LAYERZERO_RECEIVE_NOT_READY,
+        message: 'LayerZero packet is not DVN-ready: Error: execution reverted',
+      },
+    ];
+
+    for (const {
+      name,
+      rpcUrls,
+      reason,
+      fetchesReceipt,
+      message: expectedMessage,
+    } of cases) {
+      it(name, async () => {
+        const message = buildMessage();
+        const { service, multiProvider } = harness([]);
+        const provider = new HyperlaneSmartProvider(
+          { chainId: DESTINATION_DOMAIN, name: DESTINATION_CHAIN },
+          (await rpcUrls()).map((http) => ({ http })),
+          [],
+          { maxRetries: 1, baseRetryDelayMs: 1, fallbackStaggerMs: 20 },
+        );
+        const getTransactionReceipt = sinon
+          .stub(provider, 'getTransactionReceipt')
+          .resolves(
+            toReceipt([
+              dispatchLog(message),
+              packetSentLog(buildPacket(message)),
+            ]),
+          );
+        multiProvider.getProvider.returns(provider);
+        const logUnhandledError = sinon.spy(
+          PrometheusMetrics,
+          'logUnhandledError',
+        );
+
+        const error = await service
+          .getLayerZeroPacket(message, DESTINATION_ROUTER, TX_HASH, logger)
+          .then(
+            () => expect.fail('Expected getLayerZeroPacket to reject'),
+            (caught: unknown) => caught,
+          );
+
+        expect(logUnhandledError.args).to.deep.equal([['layerzero', reason]]);
+        expect(getTransactionReceipt.called).to.equal(fetchesReceipt);
+        expect(error instanceof RpcUnavailableError).to.equal(
+          reason === UnhandledErrorReason.RPC_UNAVAILABLE,
+        );
+        if (expectedMessage) {
+          expect(error)
+            .to.be.an('error')
+            .with.property('message')
+            .that.includes(expectedMessage);
+        }
+      });
+    }
   });
 });
 

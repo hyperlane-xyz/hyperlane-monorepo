@@ -3,6 +3,8 @@ import { ethers } from 'ethers';
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
+
 export const LAYER_ZERO_PACKET_VERSION = 1;
 export const LAYER_ZERO_PACKET_HEADER_LENGTH = 81;
 export const LAYER_ZERO_PACKET_MESSAGE_OFFSET = 113;
@@ -87,21 +89,25 @@ export async function resolveLayerZeroReceiveLibrary(
   query: LayerZeroReceiveQuery,
   simulateCommit: (library: string) => Promise<void>,
 ): Promise<string> {
-  const [[library], currentPayloadHash] = await Promise.all([
-    endpoint.getReceiveLibrary(query.receiver, query.sourceEid),
-    endpoint.inboundPayloadHash(
-      query.receiver,
-      query.sourceEid,
-      query.sender,
-      query.nonce,
-    ),
-  ]);
-  assert(
-    library.toLowerCase() !== ethers.constants.AddressZero.toLowerCase() &&
-      (await endpoint.isValidReceiveLibrary(
+  const [[library], currentPayloadHash] = await readOnchain(() =>
+    Promise.all([
+      endpoint.getReceiveLibrary(query.receiver, query.sourceEid),
+      endpoint.inboundPayloadHash(
         query.receiver,
         query.sourceEid,
-        library,
+        query.sender,
+        query.nonce,
+      ),
+    ]),
+  );
+  assert(
+    library.toLowerCase() !== ethers.constants.AddressZero.toLowerCase() &&
+      (await readOnchain(() =>
+        endpoint.isValidReceiveLibrary(
+          query.receiver,
+          query.sourceEid,
+          library,
+        ),
       )),
     'No valid LayerZero receive library',
   );
@@ -117,6 +123,7 @@ export async function resolveLayerZeroReceiveLibrary(
   try {
     await simulateCommit(library);
   } catch (error) {
+    if (error instanceof RpcUnavailableError) throw error;
     throw new Error(`LayerZero packet is not DVN-ready: ${error}`, {
       cause: error,
     });

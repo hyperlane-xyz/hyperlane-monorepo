@@ -14,6 +14,7 @@ import {
   parseLayerZeroPacket,
   resolveLayerZeroReceiveLibrary,
 } from '../../src/services/layerZeroPacketMatcher.js';
+import { RpcUnavailableError } from '../../src/utils/rpcErrors.js';
 
 describe('resolveLayerZeroRoutes', () => {
   const originDomain = 1_000;
@@ -299,6 +300,37 @@ describe('layerZeroPacketMatcher', () => {
         'LayerZero packet is not DVN-ready: Error: DVNs pending',
       );
     expect(error).to.have.property('cause', pending);
+  });
+
+  it('rethrows an RPC failure from the commit simulation unchanged', async () => {
+    const unavailable = new RpcUnavailableError(new Error('missing response'));
+    const endpoint = {
+      getReceiveLibrary: async (): Promise<[string, boolean]> => [
+        ethers.Wallet.createRandom().address,
+        false,
+      ],
+      inboundPayloadHash: async () => ethers.constants.HashZero,
+      isValidReceiveLibrary: async () => true,
+    };
+
+    const error = await resolveLayerZeroReceiveLibrary(
+      endpoint,
+      {
+        receiver,
+        sourceEid,
+        sender,
+        nonce,
+        payloadHash: ethers.utils.keccak256('0x1234'),
+      },
+      async () => {
+        throw unavailable;
+      },
+    ).then(
+      () => expect.fail('Expected the receive library lookup to reject'),
+      (caught: unknown) => caught,
+    );
+
+    expect(error).to.equal(unavailable);
   });
 
   it('rejects a receive library the Endpoint does not accept', async () => {
