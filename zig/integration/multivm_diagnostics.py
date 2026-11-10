@@ -9,6 +9,7 @@ import json
 import os
 import re
 import stat
+import sys
 import threading
 import types
 
@@ -35,15 +36,38 @@ def checked_modules(modules,directory):
     return out
 
 
+def canonical_block_rpc_error(error,tb,name):
+    """Exact admitted rpc->require guard pair; never trust names/text alone."""
+    try:
+        if type(error)is not ValueError or name!='multivm_evidence.py':return None
+        bound=error.__dict__.get('_canonical_block_rpc_error')
+        if type(bound)is not tuple or len(bound)!=3:return None
+        origin,guard,code=bound
+        if type(origin)is not types.CodeType or type(guard)is not types.CodeType:return None
+        if not(type(code)is int and code in {-32001,-32004,-32007}or type(code)is str and code=='unknown'):return None
+        frame=tb.tb_frame;following=tb.tb_next
+        module=sys.modules.get('multivm_evidence')
+        if not isinstance(module,types.ModuleType)or module.__dict__ is not frame.f_globals:return None
+        if origin.co_name!='rpc'or guard.co_name!='require'or str(Path(module.__file__).resolve())!=str(Path(origin.co_filename).resolve()):return None
+        if frame.f_code is not origin or frame.f_globals.get('_RPC_DIAGNOSTIC_CODE')is not origin or frame.f_globals.get('_RPC_REQUIRE_CODE')is not guard:return None
+        if following is None or following.tb_frame.f_code is not guard or following.tb_frame.f_globals is not frame.f_globals:return None
+        return {'code':code}
+    except BaseException:return None
+
+
 def public_frames(error,modules,directory):
-    approved=checked_modules(modules,directory);frames=[];unapproved=0;tb=error.__traceback__;walked=0
+    approved=checked_modules(modules,directory);frames=[];unapproved=0;tb=error.__traceback__;walked=0;rpc_error=None;rpc_frame=None
     while tb is not None and walked<64:
         walked+=1;code=tb.tb_frame.f_code;path=str(Path(code.co_filename).resolve())
         if path in approved and re.fullmatch(r'[A-Za-z_<>][A-Za-z_<>0-9]*',code.co_name):
-            name,row=approved[path];frames.append({'module':name,'source':row,'function':code.co_name,'line':tb.tb_lineno})
+            name,row=approved[path];frame={'module':name,'source':row,'function':code.co_name,'line':tb.tb_lineno};frames.append(frame)
+            projected=canonical_block_rpc_error(error,tb,name)
+            if projected is not None:rpc_error=projected;rpc_frame=frame
         else:unapproved+=1
         tb=tb.tb_next
-    return {'frames':frames[-8:],'unapproved_frames_omitted':unapproved,'stack_truncated':tb is not None or len(frames)>8}
+    result={'frames':frames[-8:],'unapproved_frames_omitted':unapproved,'stack_truncated':tb is not None or len(frames)>8}
+    if rpc_error is not None and rpc_frame in result['frames']:result['canonical_block_rpc_error']=rpc_error
+    return result
 
 
 def note_success(session,role,chain,start,received):
@@ -180,7 +204,7 @@ class Recorder:
     def __init__(self,path,modules,directory):
         self.path=Path(path);self.modules=modules;self.directory=Path(directory);self.lock=threading.Lock()
         if self.path.exists()or self.path.is_symlink():raise ValueError('Preserve existing diagnostic file')
-        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications or SVM event relevance counts; no exception message, raw locals, payload, config or environment.'}
+        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications or SVM event relevance counts and optional closed canonical-block RPC error codes; no exception message, raw locals, payload, config or environment.'}
     def save(self):
         wire=json.dumps(self.value,sort_keys=True,separators=(',',':')).encode()+b'\n'
         if len(wire)>LIMIT:raise ValueError('Diagnostic output bound')
@@ -1183,14 +1207,17 @@ def validate_record(value,modules):
                 require(set(pair)=={'request_started_monotonic_ns','response_received_monotonic_ns','request_age_ns','response_age_ns'}and all(integer(n)for n in pair.values()))
     def entry(v):
         keys={'stage','attempt','started_monotonic_ns','finished_monotonic_ns','status','state'};error={'exception_type','frames','unapproved_frames_omitted','stack_truncated'}
-        require(isinstance(v,dict)and set(v)in(keys,keys|error)and v['stage']in STAGES|{'unknown'}and integer(v['attempt'])and integer(v['started_monotonic_ns'])and(v['finished_monotonic_ns']is None or integer(v['finished_monotonic_ns']))and v['status']in{'inflight','pending','completed','exception'})
+        require(isinstance(v,dict)and set(v)in(keys,keys|error,keys|error|{'canonical_block_rpc_error'})and v['stage']in STAGES|{'unknown'}and integer(v['attempt'])and integer(v['started_monotonic_ns'])and(v['finished_monotonic_ns']is None or integer(v['finished_monotonic_ns']))and v['status']in{'inflight','pending','completed','exception'})
         state(v['state'])
+        if 'canonical_block_rpc_error'in v:
+            projected=v['canonical_block_rpc_error'];require(type(projected)is dict and set(projected)=={'code'}and(type(projected['code'])is int and projected['code']in {-32001,-32004,-32007}or type(projected['code'])is str and projected['code']=='unknown'))
+            require(v.get('exception_type')=='ValueError'and any(frame.get('module')=='multivm_evidence.py'and frame.get('function')=='rpc'for frame in v.get('frames',[])))
         if 'exception_type'in v:
             require(isinstance(v['exception_type'],str)and re.fullmatch('[A-Za-z_][A-Za-z_0-9]{0,127}',v['exception_type'])and type(v['stack_truncated'])is bool and integer(v['unapproved_frames_omitted'])and isinstance(v['frames'],list)and len(v['frames'])<=8)
             for frame in v['frames']:
                 require(set(frame)=={'module','source','function','line'}and frame['module']in modules and frame['source']==modules[frame['module']]and isinstance(frame['function'],str)and re.fullmatch('[A-Za-z_<>][A-Za-z_<>0-9]*',frame['function'])and integer(frame['line']))
     keys={'schema','kind','stages','failures','dropped_new_failure_signatures','native_or_timing_credit','scope','last_stage'}
-    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications or SVM event relevance counts; no exception message, raw locals, payload, config or environment.')
+    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications or SVM event relevance counts and optional closed canonical-block RPC error codes; no exception message, raw locals, payload, config or environment.')
     require(isinstance(value['stages'],dict)and len(value['stages'])<=len(STAGES)+1 and isinstance(value['failures'],dict)and len(value['failures'])<=8 and integer(value['dropped_new_failure_signatures']))
     entry(value['last_stage'])
     for stage,row in value['stages'].items():

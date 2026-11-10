@@ -384,10 +384,34 @@ def direct_request(endpoint, payload, *, path=None, timeout=20):
         connection.close()
 
 
+def _bind_canonical_block_rpc_error(error, method, result):
+    # Private fixed code only; the already-read message/data/result never attach.
+    if type(error) is not ValueError or type(method) is not str or method != "getBlock":
+        return
+    code = "unknown"
+    if type(result) is dict and type(result.get("id")) is int and result["id"] == 1 and result.get("jsonrpc") == "2.0" and "result" not in result and type(result.get("error")) is dict:
+        observed = result["error"].get("code")
+        if type(observed) is int and observed in {-32001, -32004, -32007}:
+            code = observed
+    error.__dict__["_canonical_block_rpc_error"] = (_RPC_DIAGNOSTIC_CODE, _RPC_REQUIRE_CODE, code)
+
+
 def rpc(endpoint, method, params):
     result = direct_request(endpoint, {"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
-    require(isinstance(result, dict) and result.get("id") == 1 and "error" not in result and "result" in result, "native JSONRPC error/identity mismatch")
+    try:
+        require(isinstance(result, dict) and result.get("id") == 1 and "error" not in result and "result" in result, "native JSONRPC error/identity mismatch")
+    except ValueError as error:
+        try:
+            _bind_canonical_block_rpc_error(error, method, result)
+        except BaseException:
+            pass  # Optional metadata cannot replace the original guard error.
+        raise
     return result["result"]
+
+
+# Import-time code identities, not function names or exception-message inference.
+_RPC_DIAGNOSTIC_CODE = rpc.__code__
+_RPC_REQUIRE_CODE = require.__code__
 
 
 def run_tool(manifest, tool, arguments, *, stdin=None, timeout=30):
