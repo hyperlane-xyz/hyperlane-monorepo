@@ -85,7 +85,9 @@ def listener_proof(manifest,case_inputs,case,lsof,observations,owner,subprocess)
             for kind,query in [('tcp',['-iTCP','-sTCP:LISTEN']),('udp',['-iUDP'])]:
                 call=subprocess.run([str(lsof),'-nP','-a','-p',str(pid),*query,'-F','pfn'],env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},capture_output=True,timeout=2,check=False)
                 require(call.returncode in (0,1)and len(call.stdout)<=65536 and len(call.stderr)<=65536,'SVM bounded listener observation failed')
-                live=owner._linux_row(pid);require(live is not None and owner.same_process(row,live),'SVM PID changed during observation')
+                live=owner._linux_row(pid)
+                if live is None:raise ProcessLookupError # Vanished census candidate adds no readiness proof.
+                require(owner.same_process(row,live),'SVM PID changed during observation')
                 observed[kind]=api.listener_rows(pid,call.stdout.decode(),udp=kind=='udp')
             ports={port for _,port in observed['tcp']}
             if not api.required_listener_rows(observed['tcp'],observed['udp'],allow_pending='8899,8900'not in observations):

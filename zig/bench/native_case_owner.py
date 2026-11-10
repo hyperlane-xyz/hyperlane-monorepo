@@ -298,7 +298,9 @@ def native_listener_proof(scenario, manifest, case_inputs, case, lsof, observati
                 require(home.is_absolute() and home.resolve(strict=True).is_relative_to(case) and not home.is_symlink(),'Native home escaped case')
             query=subprocess.run([str(lsof),'-nP','-a','-p',str(pid),'-iTCP','-sTCP:LISTEN','-F','pn'],env={'PATH':'/usr/bin:/bin','LC_ALL':'C'},capture_output=True,timeout=2,check=False)
             require(query.returncode in (0,1) and len(query.stdout)<=65536 and len(query.stderr)<=65536,'Native listener observation failed/oversized')
-            live=owner._linux_row(pid);require(live is not None and owner.same_process(row,live),'Native PID changed during listener observation')
+            live=owner._linux_row(pid)
+            if live is None:raise ProcessLookupError # Vanished census candidate adds no readiness proof.
+            require(owner.same_process(row,live),'Native PID changed during listener observation')
             ports=set();current=None
             for line in query.stdout.decode().splitlines():
                 if line.startswith('p'):current=int(line[1:]);require(current==pid,'Foreign listener PID')

@@ -148,6 +148,16 @@ class Controls(unittest.TestCase):
             self.assertIn('no socket subsystem attribution',proof['source_udp_client_scope'])
             self.assertEqual(proof['client_endpoint_scope'],'localhost')
             self.assertNotIn('owned_loopback_ports',proof)
+            # TCP/UDP are one census candidate: disappearance at either
+            # recheck adds nothing and cannot publish a partial TCP proof.
+            for live_rows in ([None],[row,None]):
+                for prior in ({},{'8899,8900':copy.deepcopy(proof)}):
+                    with self.subTest(vanish_after_query=len(live_rows),existing=bool(prior)):
+                        expected_prior=copy.deepcopy(prior)
+                        with mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.os,'readlink',side_effect=link),mock.patch.object(subprocess,'run',side_effect=run)as queries,mock.patch.object(owner,'_linux_row',side_effect=live_rows):
+                            try:self.assertEqual(api.listener_proof({},inputs,root,root/'unused-lsof',prior,owner,subprocess),[{8899,8900}])
+                            except ValueError:self.fail('A vanished TCP/UDP census PID must add no partial readiness proof')
+                        self.assertEqual(prior,expected_prior);self.assertEqual(queries.call_count,len(live_rows))
             for original_tcp in [tcp]:
                 for port in (8899,8900,9900):
                     for replacement in (b'',f'n127.0.0.1:{port}\n'.encode()):

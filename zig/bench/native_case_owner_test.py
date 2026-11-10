@@ -219,6 +219,45 @@ class CaseOwnerTests(unittest.TestCase):
         self.assertEqual(observed,{})
 
 
+    def test_native_listener_census_vanished_reused_valid_and_final_readiness_gate(self):
+        import ast
+        executable,home,row,manifest=self.listener_fixture()
+        rows={42:row,43:dict(row,pid=43,start='linux-ticks:124')};original=Path.read_bytes
+        def read(path):
+            if str(path)in {'/proc/42/cmdline','/proc/43/cmdline'}:return b'hypd\0start\0--home\0'+os.fsencode(home)+b'\0'
+            return original(path)
+        def query(command,**kwargs):
+            pid=int(command[command.index('-p')+1]);ports=(26659,26660)if pid==42 else(26665,26666)
+            return subprocess.CompletedProcess(command,0,('p'+str(pid)+'\n'+''.join('n127.0.0.1:'+str(port)+'\n'for port in ports)).encode(),b'')
+        patches=[mock.patch.object(api.owner,'proc_fallback',return_value=rows),mock.patch.object(api.os,'readlink',return_value=str(executable)),mock.patch.object(Path,'read_bytes',read),mock.patch.object(api.subprocess,'run',side_effect=query)]
+        from contextlib import ExitStack
+        with ExitStack()as stack:
+            for item in patches:stack.enter_context(item)
+            with mock.patch.object(api.owner,'_linux_row',side_effect=lambda pid:rows[pid]):
+                full={};required=api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',full)
+            self.assertEqual(required,[{26659,26660},{26665,26666}]);self.assertEqual({v['pid']for v in full.values()},{42,43})
+            for prior in [{},copy.deepcopy(full)]:
+                with self.subTest(existing=bool(prior)):
+                    expected=copy.deepcopy(prior)
+                    with mock.patch.object(api.owner,'_linux_row',return_value=None):
+                        try:api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',prior)
+                        except ValueError:self.fail('A vanished census PID must add no proof, not report PID reuse')
+                    self.assertEqual(prior,expected)
+            with mock.patch.object(api.owner,'_linux_row',return_value=dict(row,start='linux-ticks:999')),self.assertRaisesRegex(ValueError,'Native PID changed'):
+                api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',{})
+            bad=subprocess.CompletedProcess([],0,b'p42\nn0.0.0.0:26659\nn0.0.0.0:26660\n',b'')
+            with mock.patch.object(api.owner,'_linux_row',return_value=row),mock.patch.object(api.subprocess,'run',return_value=bad),self.assertRaisesRegex(ValueError,'not loopback'):
+                api.native_listener_proof('cosmosnative',manifest,{},self.root,self.root/'unused-lsof',{})
+        # Exercise the unchanged final production gate: an empty or partial
+        # census must never become successful readiness after a vanished PID.
+        tree=ast.parse(Path(api.__file__).read_text())
+        gate=next(n for n in ast.walk(tree)if isinstance(n,ast.Expr)and isinstance(n.value,ast.Call)and isinstance(n.value.func,ast.Name)and n.value.func.id=='require'and len(n.value.args)==2 and isinstance(n.value.args[1],ast.Constant)and n.value.args[1].value=='Actual native loopback listener proof missing')
+        for proofs in [{},dict(list(full.items())[:1]),full]:
+            scope={'require':api.require,'node_proofs':proofs,'plan':{'scenario':'cosmosnative'}}
+            if proofs==full:exec(compile(ast.Module([gate],type_ignores=[]),'<actual-final-listener-gate>','exec'),scope)
+            else:
+                with self.assertRaisesRegex(ValueError,'listener proof missing'):exec(compile(ast.Module([gate],type_ignores=[]),'<actual-final-listener-gate>','exec'),scope)
+
     def public_snapshot_fixture(self):
         identity='0x'+'11'*32;tx='0x'+'22'*32;first=1_000_000_000_000
         life={'id':identity,'chain':'test2','transaction_hash':tx,'first_positive_monotonic_ns':first,
