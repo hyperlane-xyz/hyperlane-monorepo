@@ -1600,7 +1600,8 @@ impl PendingMessage {
         true
     }
 
-    fn signature_retry_delay(&mut self, now: SystemTime) -> Duration {
+    /// Returns an accelerated polling delay, or `None` to consume a normal retry.
+    fn signature_retry_delay(&mut self, now: SystemTime) -> Option<Duration> {
         let state = self.signature_retry.get_or_insert(SignatureRetryState {
             started_at: now,
             backoff_retries: 0,
@@ -1610,37 +1611,39 @@ impl PendingMessage {
             .duration_since(state.started_at)
             .unwrap_or(SIGNATURE_POLL_WINDOW);
         if state.backoff_retries == 0 && elapsed < SIGNATURE_POLL_WINDOW {
-            return SIGNATURE_POLL_INTERVAL.min(SIGNATURE_POLL_WINDOW.saturating_sub(elapsed));
+            return Some(
+                SIGNATURE_POLL_INTERVAL.min(SIGNATURE_POLL_WINDOW.saturating_sub(elapsed)),
+            );
         }
         state.backoff_retries = state.backoff_retries.saturating_add(1);
         if state.backoff_retries <= 3 {
-            return Duration::from_secs(u64::from(state.backoff_retries));
+            return Some(Duration::from_secs(u64::from(state.backoff_retries)));
         }
-        Self::calculate_msg_backoff(
-            state.backoff_retries.saturating_sub(3),
-            self.max_retries,
-            Some(self.message.id()),
-            None,
-        )
-        .expect("post-window signature retry has a nonzero retry count")
+        None
     }
 
     fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
-        self.num_retries = self.num_retries.saturating_add(1);
         self.last_attempted_at = Instant::now();
-        let delay = if self.num_retries < self.max_retries
+        let signature_delay = if !self.fail_fast
+            && self.num_retries < self.max_retries
             && matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures))
         {
-            Some(self.signature_retry_delay(SystemTime::now()))
+            self.signature_retry_delay(SystemTime::now())
         } else {
             self.signature_retry = None;
+            None
+        };
+        // Only accelerated polls bypass the normal budget. Relay API messages
+        // must still consume an attempt so their fail-fast limit is respected.
+        let delay = signature_delay.or_else(|| {
+            self.num_retries = self.num_retries.saturating_add(1);
             Self::calculate_msg_backoff(
                 self.num_retries,
                 self.max_retries,
                 Some(self.message.id()),
-                reason,
+                None,
             )
-        };
+        });
         self.next_attempt_after = delay.and_then(|dur| self.last_attempted_at.checked_add(dur));
         self.persist_retry_state(delay, reason.cloned());
     }
@@ -3302,37 +3305,147 @@ mod test {
         for millis in [0, 500, 1_000, 4_000, 9_500] {
             assert_eq!(
                 pending.signature_retry_delay(start + Duration::from_millis(millis)),
-                Duration::from_millis(500)
+                Some(Duration::from_millis(500))
             );
         }
         assert_eq!(
             pending.signature_retry_delay(start + Duration::from_millis(9_900)),
-            Duration::from_millis(100)
+            Some(Duration::from_millis(100))
         );
-        for seconds in [1, 2, 3, 5, 10, 30, 60, 180] {
+        for seconds in [1, 2, 3] {
             assert_eq!(
                 pending.signature_retry_delay(start + Duration::from_secs(10)),
-                Duration::from_secs(seconds)
+                Some(Duration::from_secs(seconds))
             );
         }
+        assert_eq!(
+            pending.signature_retry_delay(start + Duration::from_secs(10)),
+            None
+        );
         // A backwards clock jump cannot return an already-backed-off message to fast polling.
         assert_eq!(
             pending.signature_retry_delay(start - Duration::from_secs(1)),
-            Duration::from_secs(180)
+            None
         );
         let (_skew_dir, mut skewed) = pending_with_mailbox(contract_test_mailbox(), None);
         assert_eq!(
             skewed.signature_retry_delay(start),
-            Duration::from_millis(500)
+            Some(Duration::from_millis(500))
         );
         assert_eq!(
             skewed.signature_retry_delay(start - Duration::from_secs(1)),
-            Duration::from_secs(1)
+            Some(Duration::from_secs(1))
         );
         assert_eq!(
             skewed.signature_retry_delay(start + Duration::from_secs(1)),
-            Duration::from_secs(2)
+            Some(Duration::from_secs(2))
         );
+    }
+
+    #[test]
+    fn signature_polls_preserve_existing_retry_budget() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        pending.num_retries = DEFAULT_MAX_MESSAGE_RETRIES - 1;
+        // Even more polls than the entire normal budget must not exhaust it.
+        for _ in 0..DEFAULT_MAX_MESSAGE_RETRIES {
+            pending.signature_retry = Some(SignatureRetryState {
+                started_at: SystemTime::now(),
+                backoff_retries: 0,
+            });
+            let observation = pending
+                .ctx
+                .metrics
+                .record_metadata_wait(pending.message.id(), None);
+            assert!(matches!(
+                pending.on_metadata_wait(observation),
+                PendingOperationResult::Reprepare(ReprepareReason::AwaitingValidatorSignatures)
+            ));
+            assert_eq!(pending.num_retries, DEFAULT_MAX_MESSAGE_RETRIES - 1);
+        }
+        pending.inc_attempts(Some(&ReprepareReason::ErrorBuildingMetadata));
+        assert_eq!(pending.num_retries, DEFAULT_MAX_MESSAGE_RETRIES);
+        assert!(pending.signature_retry.is_none());
+    }
+
+    #[test]
+    fn signature_retry_schedule_preserves_normal_retry_lifetime() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        let reason = ReprepareReason::AwaitingValidatorSignatures;
+        let day = Duration::from_secs(24 * 60 * 60);
+        let mut total = Duration::ZERO;
+        // Simulate the fast window without sleeping or depending on test runtime.
+        for _ in 0..20 {
+            pending.signature_retry = Some(SignatureRetryState {
+                started_at: SystemTime::now(),
+                backoff_retries: 0,
+            });
+            pending.inc_attempts(Some(&reason));
+            let delay = pending
+                .next_attempt_after
+                .expect("signature poll must have a deadline")
+                .duration_since(pending.last_attempted_at);
+            assert_eq!(delay, Duration::from_millis(500));
+            assert_eq!(pending.num_retries, 0);
+            total += delay;
+        }
+        pending.signature_retry = Some(SignatureRetryState {
+            started_at: SystemTime::now() - Duration::from_secs(10),
+            backoff_retries: 0,
+        });
+        for seconds in [1, 2, 3] {
+            pending.inc_attempts(Some(&reason));
+            let delay = pending
+                .next_attempt_after
+                .expect("signature ramp must have a deadline")
+                .duration_since(pending.last_attempted_at);
+            assert_eq!(delay, Duration::from_secs(seconds));
+            assert_eq!(pending.num_retries, 0);
+            total += delay;
+        }
+        for retry in 1..=DEFAULT_MAX_MESSAGE_RETRIES {
+            pending.inc_attempts(Some(&reason));
+            assert_eq!(pending.num_retries, retry);
+            let delay = pending
+                .next_attempt_after
+                .expect("normal retry must have a deadline")
+                .duration_since(pending.last_attempted_at);
+            if retry == DEFAULT_MAX_MESSAGE_RETRIES {
+                assert_eq!(delay, day * 70);
+            } else {
+                total += delay;
+            }
+        }
+        // Same jitter tolerance as the ordinary retry lifetime test.
+        assert!(total > day * 9);
+        assert!(total < day * 19);
+    }
+
+    #[test]
+    fn signature_waits_respect_fail_fast_retry_limit() {
+        for max_retries in [1, 3] {
+            let (_dir, pending) = pending_with_mailbox(contract_test_mailbox(), None);
+            let mut pending = pending.with_fail_fast();
+            pending.max_retries = max_retries;
+            for retry in 1..=max_retries {
+                let observation = pending
+                    .ctx
+                    .metrics
+                    .record_metadata_wait(pending.message.id(), None);
+                let result = pending.on_metadata_wait(observation);
+                assert_eq!(pending.num_retries, retry);
+                assert!(pending.signature_retry.is_none());
+                if retry == max_retries {
+                    assert!(matches!(result, PendingOperationResult::Drop));
+                } else {
+                    assert!(matches!(
+                        result,
+                        PendingOperationResult::Reprepare(
+                            ReprepareReason::AwaitingValidatorSignatures
+                        )
+                    ));
+                }
+            }
+        }
     }
 
     #[test]
@@ -3347,12 +3460,31 @@ mod test {
             PendingMessage::get_retry_state(pending.ctx.origin_db.clone(), &pending.message)
                 .unwrap();
         assert_eq!(saved.retry_delay_millis, Some(500));
+        assert_eq!(saved.retry_count, 0);
+        let restored = PendingMessage::maybe_from_persisted_retries(
+            pending.message.clone(),
+            pending.ctx.clone(),
+            pending.app_context.clone(),
+            pending.max_retries,
+        )
+        .expect("fast polling progress must survive restart");
+        assert_eq!(restored.num_retries, 0);
+        assert_eq!(restored.signature_retry, pending.signature_retry);
         pending.signature_retry = None;
         let now = SystemTime::now();
         pending.num_retries = 5;
-        pending.signature_retry_delay(now - Duration::from_secs(11));
-        assert_eq!(pending.signature_retry_delay(now), Duration::from_secs(1));
-        assert_eq!(pending.signature_retry_delay(now), Duration::from_secs(2));
+        assert_eq!(
+            pending.signature_retry_delay(now - Duration::from_secs(11)),
+            Some(Duration::from_millis(500))
+        );
+        assert_eq!(
+            pending.signature_retry_delay(now),
+            Some(Duration::from_secs(1))
+        );
+        assert_eq!(
+            pending.signature_retry_delay(now),
+            Some(Duration::from_secs(2))
+        );
         pending.persist_retry_state(
             Some(Duration::from_secs(2)),
             Some(ReprepareReason::AwaitingValidatorSignatures),
@@ -3365,12 +3497,27 @@ mod test {
         )
         .unwrap();
         assert_eq!(restored.signature_retry, pending.signature_retry);
-        assert_eq!(restored.signature_retry_delay(now), Duration::from_secs(3));
+        assert_eq!(restored.num_retries, 5);
+        assert_eq!(
+            restored.signature_retry_delay(now),
+            Some(Duration::from_secs(3))
+        );
+        restored.inc_attempts(Some(&ReprepareReason::AwaitingValidatorSignatures));
+        assert_eq!(restored.num_retries, 6);
+        let resumed = PendingMessage::maybe_from_persisted_retries(
+            restored.message.clone(),
+            restored.ctx.clone(),
+            restored.app_context.clone(),
+            restored.max_retries,
+        )
+        .expect("normal retry progress must survive restart");
+        assert_eq!(resumed.num_retries, 6);
+        assert_eq!(resumed.signature_retry, restored.signature_retry);
         assert!(restored.reset_attempts());
         assert!(restored.signature_retry.is_none());
         assert_eq!(
             restored.signature_retry_delay(now),
-            Duration::from_millis(500)
+            Some(Duration::from_millis(500))
         );
     }
 
@@ -3594,6 +3741,11 @@ mod test {
             Some(app_context.to_owned()),
             1,
         );
+        // Accelerated polls do not consume the normal retry budget.
+        pending_message.signature_retry = Some(SignatureRetryState {
+            started_at: SystemTime::now() - Duration::from_secs(10),
+            backoff_retries: 3,
+        });
         let labels = [app_context, "ethereum", "arbitrum"];
         let observation = pending_message
             .ctx
