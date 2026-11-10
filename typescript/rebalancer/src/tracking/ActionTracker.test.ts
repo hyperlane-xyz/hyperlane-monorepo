@@ -1105,6 +1105,88 @@ describe('ActionTracker', () => {
       expect(await activeIntentMessageIds(tracker)).to.deep.equal([ID_C]);
     });
 
+    for (const operation of ['initialize', 'syncRebalanceActions'] as const) {
+      it(`links an existing source transaction before denylist exclusion during ${operation}`, async () => {
+        const message = buildMessage(ID_A);
+        explorerClient.getInflightRebalanceActions.resolves([message]);
+        const intent = await tracker.createRebalanceIntent({
+          origin: message.origin_domain_id,
+          destination: message.destination_domain_id,
+          amount: 100n,
+          executionMethod: 'movable_collateral',
+        });
+        const action = await tracker.createRebalanceAction({
+          intentId: intent.id,
+          type: 'rebalance_message',
+          origin: intent.origin,
+          destination: intent.destination,
+          amount: intent.amount,
+          txHash: message.origin_tx_hash,
+        });
+        await rebalanceIntentStore.update(intent.id, { createdAt: 0 });
+        writeDenylist([ID_A]);
+        const denylistTracker = await createDenylistTracker();
+
+        await denylistTracker[operation]();
+        await denylistTracker.syncRebalanceIntents();
+
+        expect(await rebalanceActionStore.getAll()).to.have.lengthOf(1);
+        expect(await rebalanceIntentStore.getAll()).to.have.lengthOf(1);
+        expect(await rebalanceActionStore.get(action.id)).to.include({
+          messageId: ID_A,
+          txHash: message.origin_tx_hash,
+          status: 'in_progress',
+        });
+        expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+          'in_progress',
+        );
+        expect(await denylistTracker.getActiveRebalanceIntents()).to.be.empty;
+
+        writeDenylist([]);
+        await denylistTracker.syncRebalanceActions();
+        expect(await activeIntentMessageIds(denylistTracker)).to.deep.equal([
+          ID_A,
+        ]);
+        expect(await rebalanceActionStore.getAll()).to.have.lengthOf(1);
+      });
+    }
+
+    it('retains inventory intent reservations when their message is denylisted', async () => {
+      const message = buildMessage(ID_A);
+      explorerClient.getInflightRebalanceActions.resolves([message]);
+      const intent = await tracker.createRebalanceIntent({
+        origin: message.origin_domain_id,
+        destination: message.destination_domain_id,
+        amount: 100n,
+        executionMethod: 'inventory',
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'inventory_deposit',
+        origin: intent.origin,
+        destination: intent.destination,
+        amount: intent.amount,
+        txHash: message.origin_tx_hash,
+      });
+      await rebalanceIntentStore.update(intent.id, { createdAt: 0 });
+      writeDenylist([ID_A]);
+      const denylistTracker = await createDenylistTracker();
+
+      await denylistTracker.syncRebalanceActions();
+      await denylistTracker.syncRebalanceIntents();
+
+      expect(await activeIntentMessageIds(denylistTracker)).to.deep.equal([
+        ID_A,
+      ]);
+      expect(await rebalanceActionStore.get(action.id)).to.include({
+        messageId: ID_A,
+        status: 'in_progress',
+      });
+      expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+        'in_progress',
+      );
+    });
+
     it('stops counting a tracked rebalance message once it is denylisted without changing its status', async () => {
       const tracker = await createDenylistTracker();
       await tracker.initialize();
