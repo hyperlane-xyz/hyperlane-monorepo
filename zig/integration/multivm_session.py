@@ -39,6 +39,46 @@ OBSERVER_POLICY = {
 }
 
 
+def native_provider_floor(capture, chain_name, proxy_cache):
+    """Lower bound for one live relayer Source; not Rust wrapper-clone counts.
+
+    Settings custom URLs replace defaults. Actual owned proxy endpoints are
+    canonical, and capture preserves duplicate equivalence before Pool dedup.
+    Cosmos also owns one separate wrapper per configured gRPC entry.
+    """
+    original, proxied = capture["original"], capture["proxied"]
+    require(chain_name in original["role_chain_names"] and chain_name in original["chains"], "provider chain not owned by relayer")
+    chain = proxied["chains"][chain_name]
+    require(original["role"] == proxied["role"] == "relayer" and chain["name"] == chain_name, "provider capture role/name differs")
+    protocol = chain["protocol"]
+    require(protocol == original["chains"][chain_name]["protocol"] and protocol in {"ethereum", "sealevel", "cosmos", "cosmosnative"}, "provider protocol not reviewed")
+
+    def endpoints(base):
+        field = "custom" + base if "custom" + base in chain else base
+        actual = urls(chain[field])
+        before = urls(original["chains"][chain_name][field])
+        require(len(actual) == len(before), "provider endpoint capture count differs")
+        for source, endpoint in zip(before, actual):
+            proxy = proxy_cache.get(("relayer", chain_name, field, source))
+            require(proxy is not None and endpoint == proxy.endpoint, "provider endpoint is not actual owned proxy")
+            # Generated proxy URLs have canonical loopback identity; no raw URL
+            # alias can inflate the deduplicated native pool denominator.
+            direct_endpoint(endpoint)
+        return actual
+
+    rpc = endpoints("rpcurls")
+    if protocol == "ethereum":
+        strategy = chain.get("rpcconsensustype", "fallback")
+        require(strategy in {"single", "fallback", "quorum"}, "provider strategy differs")
+        if strategy == "single":
+            rpc = rpc[:1]
+    floor = len(set(rpc))
+    if protocol in {"cosmos", "cosmosnative"}:
+        floor += len(endpoints("grpcurls"))
+    require(floor > 0, "native provider floor is empty")
+    return floor
+
+
 def tron_transaction_id(value):
     """Hash actual protobuf raw_data (Transaction field1), not signed envelope."""
     raw = bytes.fromhex(value)
@@ -1393,6 +1433,25 @@ class Session:
         except Exception:
             self.public_diagnostic_write_failed=True
         return None
+
+    def provider_metrics(self, payload):
+        require(isinstance(payload, dict) and set(payload) == {"chain", "metrics_port", "created", "dropped", "harness_parent"}, "invalid provider observation")
+        read_approval(self.manifest)
+        identity = verified_harness_identity(self.manifest, self.approval, payload["harness_parent"])
+        require(type(payload["metrics_port"]) is int and 0 < payload["metrics_port"] <= 65535, "invalid provider metrics port")
+        created, dropped = payload["created"], payload["dropped"]
+        require(all(type(v) is int and 0 <= v <= 2**32 - 1 for v in (created, dropped)), "invalid provider counters")
+        with self.lock:
+            require(not self.failures, "actual observer failed")
+            captures = [row for row in self.captures if row["original"]["role"] == "relayer"]
+            require(captures, "actual relayer capture missing")
+            # Use the latest relayer, never an older/other-role topology that
+            # happens to match the requested port or chain.
+            capture = captures[-1]
+            require(capture["original"]["harness_pid"] == identity["pid"] and capture["original"]["metrics_port"] == payload["metrics_port"], "provider relayer ownership differs")
+            floor = native_provider_floor(capture, payload["chain"], self.proxy_cache)
+            active = created - dropped if dropped <= created else None
+            return {"verified": active is not None and active >= floor, "created": created, "dropped": dropped, "active": active, "minimum_active": floor}
 
     def verify(self, stage, expected, harness_parent=None):
         if stage == 'after_restart':

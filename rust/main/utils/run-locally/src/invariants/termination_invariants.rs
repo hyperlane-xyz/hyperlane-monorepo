@@ -477,21 +477,64 @@ pub fn provider_metrics_invariant_met(
         return Ok(false);
     }
 
-    let provider_create_count = fetch_metric(
-        relayer_port,
-        "hyperlane_provider_create_count",
-        provider_filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-    log!("Provider created count: {}", provider_create_count);
-    if provider_create_count < expected_request_count {
-        log!(
-            "hyperlane_provider_create_count only has {} count, expected at least {}",
-            provider_create_count,
-            expected_request_count
+    if crate::external_agents::enabled() {
+        eyre::ensure!(
+            provider_filter_hashmap.len() == 1,
+            "native provider filter must select exactly one chain"
         );
-        return Ok(false);
+        let chain = provider_filter_hashmap
+            .get("chain")
+            .copied()
+            .ok_or_else(|| eyre::eyre!("native provider chain filter missing"))?;
+        eyre::ensure!(
+            filter_hashmap.get("chain") == Some(&chain),
+            "native request/provider chain filters differ"
+        );
+        // fetch_metric intentionally permits label prefixes for other callers.
+        // Close this native label and metric name before summing: test1 must
+        // not credit test10/test1evil or a suffixed metric.
+        let exact_chain = crate::external_agents::provider_metric_label(chain)?;
+        let exact_filter = hashmap! {"chain" => exact_chain.as_str()};
+        let provider_create_count = fetch_metric(
+            relayer_port,
+            "hyperlane_provider_create_count{",
+            &exact_filter,
+        )?
+        .iter()
+        .sum::<u32>();
+        let provider_drop_count = fetch_metric(
+            relayer_port,
+            "hyperlane_provider_drop_count{",
+            &exact_filter,
+        )?
+        .iter()
+        .sum::<u32>();
+        log!("Provider created count: {}", provider_create_count);
+        if !crate::external_agents::provider_metrics(
+            relayer_port.parse()?,
+            chain,
+            provider_create_count,
+            provider_drop_count,
+        )? {
+            return Ok(false);
+        }
+    } else {
+        let provider_create_count = fetch_metric(
+            relayer_port,
+            "hyperlane_provider_create_count",
+            provider_filter_hashmap,
+        )?
+        .iter()
+        .sum::<u32>();
+        log!("Provider created count: {}", provider_create_count);
+        if provider_create_count < expected_request_count {
+            log!(
+                "hyperlane_provider_create_count only has {} count, expected at least {}",
+                provider_create_count,
+                expected_request_count
+            );
+            return Ok(false);
+        }
     }
 
     let metadata_build_hashmap: HashMap<&str, &str> = HashMap::new();

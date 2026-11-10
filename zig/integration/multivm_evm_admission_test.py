@@ -3,6 +3,8 @@ import copy
 import hashlib
 import json
 import tempfile
+import threading
+import types
 import importlib.util
 import pathlib
 import unittest
@@ -120,6 +122,149 @@ class EvmConfiguredDepth(unittest.TestCase):
             self.assertEqual(self.session.adapter(dict(self.chain, rpcurls=self.chain["rpcUrls"], blocks={"reorgperiod": depth})).reorg_depth, int(depth))
         with self.assertRaisesRegex(ValueError, "finality depth"):
             api.multivm_session.EvmEvidence({}, "unused", reorg_depth="1")
+
+
+class NativeProviderLifecycle(unittest.TestCase):
+    def setUp(self):
+        # Reuse actual layered-config fixture; no nodes, sockets or agents.
+        self.fixture = EvmConfiguredDepth()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.session = self.fixture.session
+        self.session.approval = {"harness": {"fixture": True}}
+        self.session.lock = threading.RLock()
+        self.session.failures = []
+        self.session.proxy_cache = {}
+        self.next_proxy_port = 20000
+        self.identity = {"pid": 42}
+        self.request = dict(self.fixture.request, role="relayer", environment={"HYP_RELAYCHAINS": "test1", "HYP_METRICSPORT": "9092", "HYP_CHAINS_TEST1_CUSTOMRPCURLS": "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8546"})
+        self.capture()
+
+    def capture(self):
+        original = api.multivm_evidence.effective_config(self.request, self.fixture.manifest)
+        self.install(original)
+
+    def install(self, original):
+        replacements = {}
+        for name, chain in original["chains"].items():
+            for field in api.multivm_evidence.ENDPOINT_FIELDS & chain.keys():
+                replacements[name, field] = []
+                for source in api.multivm_evidence.urls(chain[field]):
+                    key = ("relayer", name, field, source)
+                    if key not in self.session.proxy_cache:
+                        endpoint = "http://127.0.0.1:" + str(self.next_proxy_port)
+                        self.next_proxy_port += 1
+                        self.session.proxy_cache[key] = types.SimpleNamespace(endpoint=endpoint)
+                    replacements[name, field].append(self.session.proxy_cache[key].endpoint)
+        _, proxied = api.multivm_evidence.endpoint_replacements(original, replacements)
+        self.row = {"original": original, "proxied": proxied}
+        self.session.captures = [self.row]
+
+    def observe(self, created=4, dropped=0, **changes):
+        payload = dict(chain="test1", metrics_port=9092, created=created, dropped=dropped, harness_parent=self.identity)
+        payload.update(changes)
+        with mock.patch.object(api.multivm_session, "read_approval") as approval, mock.patch.object(api.multivm_session, "verified_harness_identity", return_value=self.identity) as identity:
+            result = self.session.provider_metrics(payload)
+        approval.assert_called_once_with(self.session.manifest)
+        identity.assert_called_once_with(self.session.manifest, self.session.approval, self.identity)
+        return result
+
+    def test_actual_config_custom_override_pool_dedup_and_active_lifecycle(self):
+        before = copy.deepcopy(self.row)
+        # Default RPC field is present but overridden, and duplicate custom
+        # URLs resolve to one actual proxy/Pool identity, not extra providers.
+        self.assertEqual(self.observe()["minimum_active"], 2)
+        self.assertTrue(self.observe(created=4, dropped=2)["verified"])
+        self.assertFalse(self.observe(created=4, dropped=3)["verified"])
+        self.assertFalse(self.observe(created=0)["verified"])
+        underflow = self.observe(created=1, dropped=2)
+        self.assertIsNone(underflow["active"])
+        self.assertFalse(underflow["verified"])
+        self.assertEqual(self.row, before)
+
+    def test_single_fallback_quorum_and_distinct_endpoint_identity(self):
+        for strategy, floor in [("single", 1), ("fallback", 2), ("quorum", 2)]:
+            with self.subTest(strategy=strategy):
+                self.request["environment"]["HYP_CHAINS_TEST1_RPCCONSENSUSTYPE"] = strategy
+                self.capture()
+                self.assertEqual(self.observe()["minimum_active"], floor)
+        self.row["proxied"]["chains"]["test1"]["customrpcurls"] += ",http://127.0.0.1:39999"
+        with self.assertRaises(ValueError):
+            self.observe()
+
+    def test_only_latest_actual_relayer_chain_port_and_harness_are_counted(self):
+        for change in [{"chain": "unrelated"}, {"metrics_port": 9093}]:
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.observe(**change)
+        original = self.row["original"]
+        for key, value in [("harness_pid", 99), ("role_chain_names", ["other"])]:
+            old = original[key]
+            original[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                self.observe()
+            original[key] = old
+        unrelated = copy.deepcopy(self.row)
+        unrelated["original"]["role"] = "scraper"
+        unrelated["proxied"]["chains"]["test1"]["customrpcurls"] = "http://127.0.0.1:39999"
+        self.session.captures.append(unrelated)
+        self.assertEqual(self.observe()["minimum_active"], 2)
+        newer = copy.deepcopy(self.row)
+        newer["original"]["metrics_port"] = 9093
+        self.session.captures.append(newer)
+        with self.assertRaisesRegex(ValueError, "ownership"):
+            self.observe()
+        self.session.captures = [unrelated]
+        with self.assertRaisesRegex(ValueError, "capture missing"):
+            self.observe()
+
+    def test_unowned_proxy_and_unknown_strategy_cannot_supply_floor(self):
+        key = next(key for key in self.session.proxy_cache if key[2] == "customrpcurls")
+        del self.session.proxy_cache[key]
+        with self.assertRaisesRegex(ValueError, "owned proxy"):
+            self.observe()
+        self.capture()
+        self.row["proxied"]["chains"]["test1"]["rpcconsensustype"] = "unknown"
+        with self.assertRaisesRegex(ValueError, "strategy"):
+            self.observe()
+        self.session.failures.append("synthetic prior failure")
+        with self.assertRaisesRegex(ValueError, "observer failed"):
+            self.observe()
+
+    def test_svm_pool_and_cosmos_grpc_wrapper_counts_remain_distinct(self):
+        for protocol, floor in [("sealevel", 2), ("cosmos", 5), ("cosmosnative", 5)]:
+            original = copy.deepcopy(self.row["original"])
+            chain = original["chains"]["test1"]
+            chain["protocol"] = protocol
+            if protocol.startswith("cosmos"):
+                chain["grpcurls"] = [{"http": "http://127.0.0.1:30001"}]
+                chain["customgrpcurls"] = "http://127.0.0.1:30002,http://127.0.0.1:30002,http://127.0.0.1:30003"
+            self.install(original)
+            with self.subTest(protocol=protocol):
+                self.assertEqual(self.observe(created=10)["minimum_active"], floor)
+
+    def test_invalid_counter_types_and_ranges_do_not_gain_credit(self):
+        for value in [True, False, -1, 2**32, 1.0, "4", None]:
+            for field in ["created", "dropped"]:
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    self.observe(**{field: value})
+        for value in [True, 0, 65536, "9092"]:
+            with self.subTest(port=value), self.assertRaises(ValueError):
+                self.observe(metrics_port=value)
+
+    def test_controller_action_authenticates_parent_and_passes_only_actual_operands(self):
+        value = {"scenario": "evm"}
+        with mock.patch.object(api, "validate_manifest") as validate, mock.patch.object(api.multivm_evidence, "verify_harness_parent", return_value=self.identity) as parent, mock.patch.object(api, "controller_request", return_value={"verified": True}) as request:
+            self.assertTrue(api.provider_metrics_stage(value, "test1", 9092, 4, 1))
+            validate.assert_called_once_with(value)
+            parent.assert_called_once_with(value)
+            request.assert_called_once_with(value, "provider-metrics", {"chain": "test1", "metrics_port": 9092, "created": 4, "dropped": 1, "harness_parent": self.identity})
+        for reply in [{"verified": 1}, {"verified": "true"}, {"verified": False}]:
+            with mock.patch.object(api, "validate_manifest"), mock.patch.object(api.multivm_evidence, "verify_harness_parent", return_value=self.identity), mock.patch.object(api, "controller_request", return_value=reply):
+                self.assertFalse(api.provider_metrics_stage(value, "test1", 9092, 4, 1))
+        with mock.patch.object(api, "validate_manifest"), mock.patch.object(api.multivm_evidence, "verify_harness_parent", side_effect=ValueError("wrong parent")), mock.patch.object(api, "controller_request") as request:
+            with self.assertRaisesRegex(ValueError, "wrong parent"):
+                api.provider_metrics_stage(value, "test1", 9092, 4, 1)
+            request.assert_not_called()
 
 
 if __name__ == "__main__":

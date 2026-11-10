@@ -204,6 +204,15 @@ def verify_stage(value, stage, expected):
     return FAMILY_VERIFIERS[value["scenario"]](value, stage, expected)
 
 
+def provider_metrics_stage(value, chain, port, created, dropped):
+    validate_manifest(value)
+    require(value["scenario"] in {"evm", "sealevel", "cosmosnative", "cosmwasm"}, "native provider family not reviewed")
+    require(isinstance(chain, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", chain) and type(port) is int and 0 < port <= 65535, "invalid provider operand")
+    require(all(type(v) is int and 0 <= v <= 2**32 - 1 for v in (created, dropped)), "invalid provider counters")
+    parent = multivm_evidence.verify_harness_parent(value)
+    return controller_request(value, "provider-metrics", {"chain": chain, "metrics_port": port, "created": created, "dropped": dropped, "harness_parent": parent}).get("verified") is True
+
+
 def session_verifier(value, stage, expected):
     return controller_request(value, "verify", {"stage": stage, "expected": expected, "harness_parent": multivm_evidence.verify_harness_parent(value)}).get("verified") is True
 
@@ -282,6 +291,8 @@ def serve(value):
                 require(set(request) == {"action", "payload", "controller_token"} and request["controller_token"] == token, "wrong owned observer token")
                 if request["action"] == "capture":
                     result = session.capture(request["payload"])
+                elif request["action"] == "provider-metrics":
+                    result = session.provider_metrics(request["payload"])
                 else:
                     require(request["action"] == "verify" and set(request["payload"]) == {"stage", "expected", "harness_parent"}, "unknown observer action")
                     result = session.verify(request["payload"]["stage"], request["payload"]["expected"], request["payload"]["harness_parent"])
@@ -326,14 +337,22 @@ def serve(value):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["plan", "verify", "capture", "serve"])
+    parser.add_argument("action", choices=["plan", "verify", "capture", "serve", "provider-metrics"])
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
     parser.add_argument("--scenario", choices=sorted(SCENARIOS))
     parser.add_argument("--stage", choices=["preflight", "live", "before_restart", "after_restart", "restart", "final"])
     parser.add_argument("--expected", type=int)
     parser.add_argument("--output", type=pathlib.Path)
+    parser.add_argument("--provider-chain")
+    parser.add_argument("--metrics-port", type=int)
+    parser.add_argument("--provider-created", type=int)
+    parser.add_argument("--provider-dropped", type=int)
     args = parser.parse_args()
     value = validate_manifest(json.loads(args.manifest.read_text()))
+    if args.action == "provider-metrics":
+        require(provider_metrics_stage(value, args.provider_chain, args.metrics_port, args.provider_created, args.provider_dropped), "native provider lifecycle did not pass")
+        print(json.dumps({"verified": True, "scope": "native provider lifecycle"}))
+        return
     if args.action == "capture":
         request = json.loads(sys.stdin.buffer.read(1024 * 1024 + 1))
         print(json.dumps(capture_stage(value, request)))

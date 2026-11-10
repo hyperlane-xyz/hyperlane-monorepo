@@ -967,6 +967,49 @@ pub fn checker(stage: &str, expected: u32) -> Result<bool> {
         .status()?;
     Ok(status.success())
 }
+/// fetch_metric's label-prefix interface becomes an exact chain selector by
+/// retaining the closing quote. Chain names cannot inject Prometheus syntax.
+pub fn provider_metric_label(chain: &str) -> Result<String> {
+    ensure!(
+        !chain.is_empty()
+            && chain.len() <= 128
+            && chain
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'),
+        "invalid native provider chain label"
+    );
+    Ok(format!("{chain}\""))
+}
+/// Validate actual pooled-provider lifecycle counters against the intercepted
+/// relayer topology. This does not replace request, metadata or delivery checks.
+pub fn provider_metrics(port: u16, chain: &str, created: u32, dropped: u32) -> Result<bool> {
+    let Some(loaded) = (match &*LOADED {
+        Ok(v) => v.as_ref(),
+        Err(e) => bail!("{e}"),
+    }) else {
+        bail!("native provider checker requires opt-in manifest");
+    };
+    loaded.manifest.verifier.python.verify()?;
+    loaded.manifest.verifier.script.verify()?;
+    let status = Command::new(&loaded.manifest.verifier.python.path)
+        .arg(&loaded.manifest.verifier.script.path)
+        .args(["provider-metrics", "--manifest"])
+        .arg(&loaded.path)
+        .args([
+            "--provider-chain",
+            chain,
+            "--metrics-port",
+            &port.to_string(),
+        ])
+        .args([
+            "--provider-created",
+            &created.to_string(),
+            "--provider-dropped",
+            &dropped.to_string(),
+        ])
+        .status()?;
+    Ok(status.success())
+}
 /// Check each existing relative component before any owned write. The accepted
 /// root may have system aliases (e.g. /tmp); only its canonical tree is writable.
 pub fn checked_owned_path(root: &Path, relative: &Path) -> Result<PathBuf> {
@@ -5403,6 +5446,50 @@ pub fn svm_node_arguments(program: crate::program::Program) -> Result<crate::pro
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_provider_metric_label_excludes_other_chains_and_suffixed_metrics() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port().to_string();
+        let server = std::thread::spawn(move || {
+            let body = concat!(
+                "hyperlane_provider_create_count{chain=\"test1\"} 4\n",
+                "hyperlane_provider_create_count{chain=\"test10\"} 30\n",
+                "hyperlane_provider_create_count{chain=\"test1evil\"} 40\n",
+                "hyperlane_provider_create_count_extra{chain=\"test1\"} 50\n",
+                "hyperlane_provider_drop_count{chain=\"test1\"} 1\n",
+                "hyperlane_provider_drop_count{chain=\"test10\"} 60\n",
+            );
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0; 4096];
+                assert!(stream.read(&mut request).unwrap() > 0);
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                )
+                .unwrap();
+            }
+        });
+        let exact = super::provider_metric_label("test1").unwrap();
+        let labels = maplit::hashmap! {"chain" => exact.as_str()};
+        for (metric, expected) in [
+            ("hyperlane_provider_create_count{", 4),
+            ("hyperlane_provider_drop_count{", 1),
+        ] {
+            assert_eq!(
+                crate::fetch_metric::<u32, _>(&port, metric, &labels).unwrap(),
+                vec![expected]
+            );
+        }
+        server.join().unwrap();
+        for chain in ["", "test1\"", "test1\n", "test1,other=", "test1é"] {
+            assert!(super::provider_metric_label(chain).is_err());
+        }
+    }
+
     #[test]
     fn explicit_node_stop_error_propagates_before_success() {
         fn finish(
