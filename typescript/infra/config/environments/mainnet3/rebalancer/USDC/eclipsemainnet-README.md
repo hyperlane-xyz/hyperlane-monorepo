@@ -32,7 +32,10 @@ verify deployed router enrollment, collateral identity, signer permissions and g
 The pinned amd64 image was built from shared-stack commit `4996544841` and
 verified against its published digest and revision label. It includes Relay,
 physical inventory routing and native deposits.
-Deployment is separate; this configuration preserves the existing execution mode.
+This configuration is persisted in monitor-only mode. Validation stops after local
+monitor-only runs; the existing production deployment is unchanged. Monitor-only
+checks validate startup, balances and strategy reads, but do not construct provider
+executors or validate live quotes, funding or settlement.
 
 For any separately planned EVM wallet funding into HyperEVM, prefer the existing
 `USDC/mainnet-cctp-v2-standard` route where supported. LI.FI/Polymer was used only
