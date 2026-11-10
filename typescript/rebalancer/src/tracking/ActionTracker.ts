@@ -1139,7 +1139,9 @@ export class ActionTracker implements IActionTracker {
   }
 
   /** Index once per Explorer batch, including identities discovered in that batch. */
-  private async recoverActions(messages: ExplorerMessage[]): Promise<{ discovered: number; ignored: number }> {
+  private async recoverActions(
+    messages: ExplorerMessage[],
+  ): Promise<{ discovered: number; ignored: number }> {
     if (messages.length === 0) return { discovered: 0, ignored: 0 };
     const byMessage = new Map<string, RebalanceAction>();
     const byTransaction = new Map<string, RebalanceAction>();
