@@ -737,4 +737,35 @@ class AleoRunnerBwrapPolicyControls(unittest.TestCase):
     changed=text.replace(old,new,1);self.assertNotEqual(changed,text)
     with self.assertRaises(AssertionError):ordinary_native_http_workflow(changed)
 
+
+
+class DriverSdkDispatchProjection(unittest.TestCase):
+ def source(self):return (REPO/'zig/integration/aleo_process.ts').read_text()
+ def diagnostic(self):return DriverCaughtErrorProjection.diagnostic(self)
+ def observed(self):
+  def labels(name):
+   source=self.source();body=re.findall(r'export const '+name+r':\s*readonly string\[\]\s*=\s*Object\.freeze\(\[(.*?)\]\);',source,re.S)[0];return re.findall(r"'([A-Za-z0-9_-]+)'",body)
+  return {'schema':1,'kind':'aleo-existing-SDK-dispatch-observation-v1','unavailable':False,'bounded':False,'stages':[{'stage':name,'counts':{'entered':1,'returned':0,'failed':1}}for name in labels('ALEO_SDK_OBSERVATION_STAGES')],'warnings':[{'kind':name,'count':0}for name in labels('ALEO_SDK_WARNING_KINDS')],'programs':[{'role':name,'source_sha256':'a'*64,'source_bytes':10,'source_changed':False,'edition':0,'amendment':0,'edition_changed':False,'fetched':1,'added':1,'add_failed':0,'builder_contains':True}for name in labels('ALEO_SDK_PROGRAM_ROLES')],'observed_height':18,'effective_consensus':17}
+ def test_existing_SDK_closed_observation_and_worker_failure_projection(self):
+  value=self.observed();point=self.diagnostic();point['sdk_dispatch']=value
+  result=m.source_bound_caught_error(point,self.source());self.assertEqual(result['status'],'observed');self.assertEqual(result['sdk_dispatch']['programs'],value['programs']);self.assertEqual(result['worker'],point['worker']);self.assertNotIn('PRIVATE',json.dumps(result))
+  with tempfile.TemporaryDirectory()as directory:
+   root=pathlib.Path(directory).resolve();repo=root/'repo';source=repo/'zig/integration/aleo_process.ts';source.parent.mkdir(parents=True);source.write_text(self.source())
+   for name in ['case_delegate.py','case_supervisor.py','inner.py']:
+    target=repo/'zig/tools/aleo_linux_case'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((pathlib.Path(__file__).resolve().parents[3]/'zig/tools/aleo_linux_case'/name).read_bytes())
+   case=root/'case';driver=case/'data/case/result.json';driver.parent.mkdir(parents=True);driver.write_text(json.dumps({'passed':False,'stage':'actual-runtime-preflight','errors':['PRIVATE_PRIMARY'],'evidence':{'caughtErrorDiagnostic':point}}))
+   result=m.case_failure_diagnostics(case,repo,[m.pin(source)]);public=result['records']['driver']['driver_observation']['caught_error'];self.assertEqual(public['sdk_dispatch']['status'],'observed');self.assertNotIn('PRIVATE',json.dumps(result))
+ def test_malformed_private_unknown_overflow_wrong_hash_and_edition_refuse(self):
+  original=self.observed()
+  changes=[lambda x:x.update(raw='PRIVATE'),lambda x:x.update(observed_height=True),lambda x:x['programs'][0].update(role='PRIVATE'),lambda x:x['programs'][0].update(edition=65536),lambda x:x['programs'][0].update(source_sha256='PRIVATE'),lambda x:x['programs'][0].update(source_bytes=None),lambda x:x['warnings'][0].update(count=1025),lambda x:x['stages'][0]['counts'].update(entered=True)]
+  for change in changes:
+   v=copy.deepcopy(original);change(v)
+   with self.subTest(change=changes.index(change)):self.assertEqual(m.source_bound_sdk_dispatch(v,self.source()),{'status':'refused'})
+  self.assertEqual(m.source_bound_sdk_dispatch(original,self.source()+self.source()),{'status':'refused'})
+ def test_optional_unavailable_and_missing_height_never_invent_edition_or_admission(self):
+  v=self.observed();v.update(unavailable=True,bounded=True,observed_height=None,effective_consensus=None)
+  for row in v['programs']:row.update(source_sha256=None,source_bytes=None,edition=None,amendment=None,builder_contains=None,fetched=0,added=0,add_failed=0)
+  self.assertEqual(m.source_bound_sdk_dispatch(v,self.source())['status'],'observed')
+  point=self.diagnostic();point['sdk_dispatch']={'PRIVATE':'PRIVATE'};result=m.source_bound_caught_error(point,self.source());self.assertEqual(result['status'],'observed');self.assertEqual(result['sdk_dispatch'],{'status':'refused'});self.assertEqual(result['worker'],point['worker'])
+
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -25,6 +25,10 @@ import { stripTypeScriptTypes } from 'node:module';
 
 import {
   captureAleoFailureDiagnostic,
+  observeAleoSdkDispatch,
+  observeAleoSdkDispatchRuntime,
+  resolveAleoSdkDispatchRuntime,
+  parseAleoSdkDispatchObservation,
   retainAleoEncryptedSdkFailure,
   ALEO_DIAGNOSTIC_KEY_ID,
   retainAleoIsolateFailure,
@@ -2933,10 +2937,13 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
   );
   const workerAt = source.indexOf('if (!isMainThread) {');
   const catchAt = source.indexOf(
-    '  } catch (error) {\n    port.postMessage(',
+    '  } catch (error) {\n    sdkObservation?.restore();\n    port.postMessage(',
     workerAt,
   );
-  const catchEnd = source.indexOf('  } finally {\n    port.close();', catchAt);
+  const catchEnd = source.indexOf(
+    '  } finally {\n    sdkObservation?.restore();\n    port.close();',
+    catchAt,
+  );
   assert.ok(workerAt > 0 && catchAt > workerAt && catchEnd > catchAt);
   const body = source.slice(catchAt + '  } catch (error) {'.length, catchEnd);
   const childError = Object.assign(new RangeError('PRIVATE_WORKER_PRIMARY'), {
@@ -2951,6 +2958,7 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
     'process',
     'attemptedBoundary',
     'captureAleoFailureDiagnostic',
+    'sdkObservation',
   ]);
   workerCatch(
     childError,
@@ -2962,6 +2970,7 @@ void test('Aleo diagnostic actual worker catch reconstruction and main catch pre
     fakeProcess,
     'sdk-worker-deploy-left',
     captureAleoFailureDiagnostic,
+    null,
   );
   assert.equal(fakeProcess.exitCode, 1);
   assert.equal(childError.message, 'PRIVATE_WORKER_PRIMARY');
@@ -3607,4 +3616,398 @@ void test('Aleo record commitment capability still requires actual state-path re
     /actual devnode genesis exposes no record/,
   );
   assert.deepEqual(missingCalls, ['http://fixture/testnet/block/0']);
+});
+
+void test('SDK dispatch finite existing-call observation preserves promises errors and exact restore', async () => {
+  const primary = new Error('PRIVATE_ERROR_SOURCE');
+  const marker = 'PRIVATE_PROGRAM_TEXT';
+  const networkCalls: string[] = [];
+  class Network {
+    async getProgram(_name: string) {
+      networkCalls.push('getProgram');
+      return 'program test_hyp_mailbox.aleo; // ' + marker;
+    }
+    async getProgramAmendmentCount(_name: string): Promise<unknown> {
+      networkCalls.push('getProgramAmendmentCount');
+      throw primary;
+    }
+    async getLatestHeight() {
+      networkCalls.push('getLatestHeight');
+      return 18;
+    }
+    async submitTransaction() {
+      return 'PRIVATE_TX';
+    }
+    async waitForTransactionConfirmation() {
+      return { privateReceipt: 'PRIVATE_RECEIPT' };
+    }
+  }
+  class Imports {
+    rows = new Set<string>();
+    addProgram(name: string, _source: string, _edition: number) {
+      this.rows.add(name);
+    }
+    contains(name: string) {
+      return this.rows.has(name);
+    }
+  }
+  let originalPromise: Promise<never> | undefined;
+  class Base {
+    static buildExecutionTransaction() {
+      originalPromise = Promise.reject(primary);
+      return originalPromise;
+    }
+  }
+  class Manager {
+    network = new Network();
+    async resolveEditionAndAmendment(name: string) {
+      try {
+        await this.network.getProgramAmendmentCount(name);
+      } catch {
+        Reflect.apply(Reflect.get(console, 'warn'), console, [
+          'Error finding edition/amendment for PRIVATE_ID',
+        ]);
+      }
+      return { edition: 1, amendment: 0 };
+    }
+    async buildProgramImports() {
+      const source = await this.network.getProgram('test_hyp_mailbox.aleo');
+      const resolved = await this.resolveEditionAndAmendment(
+        'test_hyp_mailbox.aleo',
+      );
+      const builder = new Imports();
+      builder.addProgram('test_hyp_mailbox.aleo', source, resolved.edition);
+      return { builder };
+    }
+    buildExecutionTransaction() {
+      return Base.buildExecutionTransaction();
+    }
+  }
+  const runtime = {
+    AleoNetworkClient: Network,
+    ProgramManager: Manager,
+    ProgramImportsBuilder: Imports,
+    ProgramManagerBase: Base,
+  };
+  const before = Object.getOwnPropertyDescriptors(Manager.prototype);
+  const nativeBefore = Object.getOwnPropertyDescriptor(
+    Base,
+    'buildExecutionTransaction',
+  );
+  const originalWarn: unknown = Reflect.get(console, 'warn');
+  const messages: unknown[][] = [];
+  Reflect.set(console, 'warn', (...args: unknown[]) => {
+    messages.push(args);
+  });
+  const originalWarnDescriptor = Object.getOwnPropertyDescriptor(
+    console,
+    'warn',
+  );
+  const trace = observeAleoSdkDispatch(runtime, [
+    ...Array(17).keys(),
+    0xfffffffb,
+    0xfffffffc,
+    0xfffffffd,
+    0xfffffffe,
+    0xffffffff,
+  ]);
+  try {
+    const manager = new Manager();
+    await manager.buildProgramImports();
+    await manager.network.getLatestHeight();
+    const promise = manager.buildExecutionTransaction();
+    assert.equal(promise, originalPromise);
+    await assert.rejects(promise, (error) => error === primary);
+    const observed = trace.snapshot();
+    assert.ok(observed);
+    assert.equal(observed.unavailable, false);
+    const mailbox = observed.programs.find((r) => r.role === 'mailbox');
+    assert.ok(mailbox);
+    assert.equal(mailbox.edition, 1);
+    assert.equal(mailbox.amendment, 0);
+    assert.equal(mailbox.builder_contains, true);
+    assert.equal(
+      mailbox.source_sha256,
+      createHash('sha256')
+        .update('program test_hyp_mailbox.aleo; // ' + marker)
+        .digest('hex'),
+    );
+    assert.equal(mailbox.added, 1);
+    assert.equal(mailbox.fetched, 1);
+    assert.equal(
+      observed.programs.find((r) => r.role === 'dispatch_proxy')
+        ?.builder_contains,
+      false,
+    );
+    assert.equal(
+      observed.stages.find((r) => r.stage === 'native_build')?.counts.failed,
+      1,
+    );
+    assert.equal(
+      observed.stages.find((r) => r.stage === 'get_edition')?.counts.failed,
+      1,
+    );
+    assert.equal(
+      observed.warnings.find((r) => r.kind === 'edition_fallback')?.count,
+      1,
+    );
+    assert.equal(observed.observed_height, 18);
+    assert.equal(observed.effective_consensus, 17);
+    assert.deepEqual(networkCalls, [
+      'getProgram',
+      'getProgramAmendmentCount',
+      'getLatestHeight',
+    ]);
+    assert.equal(messages.length, 1);
+    assert.ok(!JSON.stringify(observed).includes('PRIVATE'));
+    const failure = new Error('parent');
+    retainAleoIsolateFailure(failure, {
+      schema: 1,
+      kind: 'aleo-source-bound-caught-error-v1',
+      attempted_boundary: 'sdk-worker-dispatch',
+      error_class: 'Error',
+      error_code: null,
+      driver_frames: [],
+      worker: null,
+      sdk_dispatch: observed,
+    });
+    assert.deepEqual(
+      captureAleoFailureDiagnostic(failure, 'sdk-deployment').sdk_dispatch,
+      observed,
+    );
+  } finally {
+    trace.restore();
+    trace.restore();
+    assert.deepEqual(
+      Object.getOwnPropertyDescriptors(Manager.prototype),
+      before,
+    );
+    assert.deepEqual(
+      Object.getOwnPropertyDescriptor(Base, 'buildExecutionTransaction'),
+      nativeBefore,
+    );
+    assert.deepEqual(
+      Object.getOwnPropertyDescriptor(console, 'warn'),
+      originalWarnDescriptor,
+    );
+    Reflect.set(console, 'warn', originalWarn);
+  }
+});
+
+void test('SDK dispatch observation missing imports edition changes and failed insertion remain diagnostic only', async () => {
+  const primary = new Error('PRIVATE_ADD');
+  let edition = 0;
+  class Network {
+    async getProgram(name: string) {
+      return name === 'test_hyp_mailbox.aleo'
+        ? 'source-' + edition
+        : 'PRIVATE_UNRECOGNIZED';
+    }
+    async getProgramAmendmentCount() {
+      return { edition: 0, amendment_count: 0 };
+    }
+    async getLatestHeight() {
+      return 1;
+    }
+    async submitTransaction() {
+      return 'PRIVATE_TX';
+    }
+    async waitForTransactionConfirmation() {
+      return {};
+    }
+  }
+  class Imports {
+    addProgram(_name: string) {
+      throw primary;
+    }
+    contains() {
+      return false;
+    }
+  }
+  class Base {
+    static buildExecutionTransaction() {
+      return Promise.resolve({});
+    }
+  }
+  class Manager {
+    async resolveEditionAndAmendment(_name: string) {
+      return { edition: edition, amendment: 0 };
+    }
+    async buildProgramImports() {
+      return { builder: new Imports() };
+    }
+    async buildExecutionTransaction() {
+      return {};
+    }
+  }
+  const trace = observeAleoSdkDispatch(
+    {
+      AleoNetworkClient: Network,
+      ProgramManager: Manager,
+      ProgramImportsBuilder: Imports,
+      ProgramManagerBase: Base,
+    },
+    [0],
+  );
+  try {
+    const network = new Network();
+    const manager = new Manager();
+    await network.getProgram('test_hyp_mailbox.aleo');
+    await manager.resolveEditionAndAmendment('test_hyp_mailbox.aleo');
+    edition = 1;
+    await network.getProgram('test_hyp_mailbox.aleo');
+    await manager.resolveEditionAndAmendment('test_hyp_mailbox.aleo');
+    await network.getProgram('PRIVATE_UNKNOWN_ID');
+    assert.throws(
+      () => new Imports().addProgram('test_hyp_mailbox.aleo'),
+      (error) => error === primary,
+    );
+    await manager.buildProgramImports();
+    const observed = trace.snapshot();
+    assert.ok(observed);
+    const row = observed.programs.find((r) => r.role === 'mailbox');
+    assert.ok(row);
+    assert.equal(row.source_changed, true);
+    assert.equal(row.edition_changed, true);
+    assert.equal(row.edition, 1);
+    assert.equal(row.add_failed, 1);
+    assert.equal(row.builder_contains, false);
+    assert.ok(!JSON.stringify(observed).includes('PRIVATE'));
+    for (const change of [
+      { ...observed, raw: 'PRIVATE' },
+      { ...observed, observed_height: true },
+      { ...observed, programs: observed.programs.slice(1) },
+      {
+        ...observed,
+        programs: observed.programs.map((r) => ({ ...r, role: 'PRIVATE' })),
+      },
+      {
+        ...observed,
+        warnings: observed.warnings.map((r) => ({ ...r, count: 1025 })),
+      },
+    ])
+      assert.equal(parseAleoSdkDispatchObservation(change), null);
+  } finally {
+    trace.restore();
+  }
+  const fresh = observeAleoSdkDispatch({}, [0]);
+  try {
+    assert.equal(fresh.snapshot()?.unavailable, true);
+    assert.equal(fresh.snapshot()?.programs[0]?.fetched, 0);
+  } finally {
+    fresh.restore();
+  }
+});
+
+void test('SDK dispatch observation blocked installation preserves original behavior and bounded counters', async () => {
+  class Blocked {
+    async getProgram() {
+      return 'unchanged';
+    }
+  }
+  Object.freeze(Blocked.prototype);
+  const trace = observeAleoSdkDispatch({ AleoNetworkClient: Blocked }, [0]);
+  try {
+    assert.equal(await new Blocked().getProgram(), 'unchanged');
+    assert.equal(trace.snapshot()?.unavailable, true);
+  } finally {
+    trace.restore();
+  }
+  let calls = 0;
+  class Network {
+    getProgram(_name: string) {
+      calls++;
+      return 'source';
+    }
+    getProgramAmendmentCount() {
+      return {};
+    }
+    getLatestHeight() {
+      return 0;
+    }
+    submitTransaction() {
+      return '';
+    }
+    waitForTransactionConfirmation() {
+      return {};
+    }
+  }
+  const bounded = observeAleoSdkDispatch({ AleoNetworkClient: Network }, [0]);
+  try {
+    assert.equal(calls, 0);
+    const network = new Network();
+    for (let i = 0; i < 1025; i++) network.getProgram('test_hyp_mailbox.aleo');
+    assert.equal(calls, 1025);
+    assert.equal(bounded.snapshot()?.bounded, true);
+    assert.equal(
+      bounded.snapshot()?.programs.find((r) => r.role === 'mailbox')?.fetched,
+      1024,
+    );
+  } finally {
+    bounded.restore();
+  }
+});
+
+void test('SDK dispatch diagnostic resolves from actual SDK workspace without importing WASM', async () => {
+  const url = resolveAleoSdkDispatchRuntime();
+  assert.equal(new URL(url).protocol, 'file:');
+  assert.ok(
+    new URL(url).pathname.endsWith('/@provablehq/sdk/dist/testnet/node.js'),
+  );
+  const metadata: unknown = JSON.parse(
+    await readFile(new URL('../../package.json', url), 'utf8'),
+  );
+  assert.ok(
+    typeof metadata === 'object' &&
+      metadata !== null &&
+      'version' in metadata &&
+      metadata.version === '0.12.0' &&
+      'exports' in metadata,
+  );
+  const exports = metadata.exports;
+  assert.ok(
+    typeof exports === 'object' &&
+      exports !== null &&
+      './testnet.js' in exports,
+  );
+  const testnet = exports['./testnet.js'];
+  assert.ok(
+    typeof testnet === 'object' && testnet !== null && 'node' in testnet,
+  );
+  const node = testnet.node;
+  assert.ok(
+    typeof node === 'object' &&
+      node !== null &&
+      'import' in node &&
+      'require' in node,
+  );
+  assert.equal(node.import, './dist/testnet/node.js');
+  assert.equal(node.require, './dist/testnet/node.cjs');
+  assert.equal(
+    url,
+    new URL('./dist/testnet/node.js', new URL('../../', url)).href,
+  );
+
+  // No import(url), Program, key, SDK instance, RPC or native invocation.
+});
+
+void test('SDK dispatch diagnostic missing loader is unavailable and preserves later primary', async () => {
+  const missing = new Error('PRIVATE_DIAGNOSTIC_IMPORT');
+  const primary = new Error('PRIVATE_DISPATCH_PRIMARY');
+  let loads = 0;
+  const observed = await observeAleoSdkDispatchRuntime([0], async () => {
+    loads++;
+    throw missing;
+  });
+  try {
+    assert.equal(loads, 1);
+    assert.equal(observed.snapshot()?.unavailable, true);
+    assert.ok(!JSON.stringify(observed.snapshot()).includes('PRIVATE'));
+    const dispatch = () => {
+      throw primary;
+    };
+    assert.throws(dispatch, (error) => error === primary);
+  } finally {
+    observed.restore();
+  }
 });

@@ -53,6 +53,31 @@ def source_bound_encrypted_error(value,source):
   return dict(value)
  except BaseException:return unavailable
 
+def source_bound_sdk_dispatch(value,source):
+ try:
+  def catalog(name):
+   found=re.findall(r'export const '+name+r':\s*readonly string\[\]\s*=\s*Object\.freeze\(\[(.*?)\]\);',source,re.S);need(len(found)==1,'unique SDK Source catalog');body=found[0];values=re.findall(r"'([A-Za-z0-9_-]+)'",body);need(values and len(values)==len(set(values))and re.sub(r"'([A-Za-z0-9_-]+)'|[\s,]",'',body)=='','literal SDK catalog');return values
+  roles=catalog('ALEO_SDK_PROGRAM_ROLES');stages=catalog('ALEO_SDK_OBSERVATION_STAGES');warnings=catalog('ALEO_SDK_WARNING_KINDS')
+  need(type(value)is dict and set(value)=={'schema','kind','unavailable','bounded','stages','warnings','programs','observed_height','effective_consensus'},'closed SDK observation')
+  need(type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-existing-SDK-dispatch-observation-v1'and type(value['unavailable'])is bool and type(value['bounded'])is bool,'SDK observation constants')
+  def numeric(v,maximum,nullable=False):need(v is None and nullable or type(v)is int and 0<=v<=maximum,'bounded SDK scalar')
+  need(type(value['stages'])is list and len(value['stages'])==len(stages)and type(value['warnings'])is list and len(value['warnings'])==len(warnings)and type(value['programs'])is list and len(value['programs'])==len(roles),'SDK census')
+  for row,label in zip(value['stages'],stages):
+   need(type(row)is dict and set(row)=={'stage','counts'}and row['stage']==label and type(row['counts'])is dict and set(row['counts'])=={'entered','returned','failed'},'closed SDK stage')
+   for v in row['counts'].values():numeric(v,1024)
+  for row,label in zip(value['warnings'],warnings):
+   need(type(row)is dict and set(row)=={'kind','count'}and row['kind']==label,'closed SDK warning');numeric(row['count'],1024)
+  for row,label in zip(value['programs'],roles):
+   need(type(row)is dict and set(row)=={'role','source_sha256','source_bytes','source_changed','edition','amendment','edition_changed','fetched','added','add_failed','builder_contains'}and row['role']==label,'closed SDK program')
+   need(all(type(row[k])is bool for k in ['source_changed','edition_changed'])and(row['builder_contains']is None or type(row['builder_contains'])is bool),'SDK booleans')
+   need(row['source_sha256']is None or type(row['source_sha256'])is str and re.fullmatch('[0-9a-f]{64}',row['source_sha256']),'SDK source fingerprint');numeric(row['source_bytes'],1024**2,True);need((row['source_sha256']is None)==(row['source_bytes']is None),'SDK fingerprint pair')
+   numeric(row['edition'],65535,True);numeric(row['amendment'],0xffffffff,True)
+   for k in ['fetched','added','add_failed']:numeric(row[k],1024)
+  numeric(value['observed_height'],0xffffffff,True);numeric(value['effective_consensus'],22,True)
+  need(len(json.dumps(value).encode())<=16384,'bounded SDK diagnostic')
+  return {'status':'observed',**value,'scope':'Existing SDK calls only; fixed public role labels/fingerprints/numeric editions and counters. No raw program IDs, source, inputs, errors, RPCs or underlying-cause/acceptance authority.'}
+ except BaseException:return {'status':'refused'}
+
 def source_bound_caught_error(value,source):
  if value is None:return {'status':'not-recorded'}
  try:
@@ -72,11 +97,11 @@ def source_bound_caught_error(value,source):
     need(1<=frame['column']<=len(lines[frame['line']-1].encode('utf-16-le'))//2+1,'Source frame column bound')
     checked_frames.append({'line':frame['line'],'column':frame['column']})
    return {'attempted_boundary':row['attempted_boundary'],'error_class':row['error_class'],'error_code':row['error_code'],'driver_frames':checked_frames}
-  need(type(value)is dict and set(value)in({'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker'},{'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker','encrypted_sdk_error'})and type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-source-bound-caught-error-v1','closed caught diagnostic')
+  need(type(value)is dict and {'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker'}<=set(value)<={'schema','kind','attempted_boundary','error_class','error_code','driver_frames','worker','encrypted_sdk_error','sdk_dispatch'}and type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-source-bound-caught-error-v1','closed caught diagnostic')
   result=point({k:value[k]for k in ['attempted_boundary','error_class','error_code','driver_frames']});worker=value['worker']
   if worker is not None:
    worker=point(worker);need(worker['attempted_boundary'].startswith('sdk-worker-'),'worker boundary contract')
-  return {'status':'observed',**result,'worker':worker,**({'encrypted_sdk_error':source_bound_encrypted_error(value['encrypted_sdk_error'],source)}if'encrypted_sdk_error'in value else{}),'basis':'Finite caught properties and stack-frame text observed by pinned driver; frames match only admitted aleo_process.ts. No underlying SDK/OS root-cause or Zig execution claim.'}
+  return {'status':'observed',**result,'worker':worker,**({'encrypted_sdk_error':source_bound_encrypted_error(value['encrypted_sdk_error'],source)}if'encrypted_sdk_error'in value else{}),**({'sdk_dispatch':source_bound_sdk_dispatch(value['sdk_dispatch'],source)}if'sdk_dispatch'in value else{}),'basis':'Finite caught properties and stack-frame text observed by pinned driver; frames match only admitted aleo_process.ts. No underlying SDK/OS root-cause or Zig execution claim.'}
  except BaseException:return {'status':'refused'}
 
 

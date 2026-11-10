@@ -255,6 +255,475 @@ export function retainAleoEncryptedSdkFailure(
   }
 }
 
+/** Fixed public labels only; no caller program IDs, sources, inputs or errors. */
+export const ALEO_SDK_PROGRAM_ROLES: readonly string[] = Object.freeze([
+  'credits',
+  'ism_manager',
+  'mailbox',
+  'hook_manager',
+  'dispatch_proxy',
+  'native',
+]);
+export const ALEO_SDK_OBSERVATION_STAGES: readonly string[] = Object.freeze([
+  'get_program',
+  'get_edition',
+  'resolve_edition',
+  'build_imports',
+  'transaction_build',
+  'native_build',
+  'submit',
+  'confirm',
+  'height',
+]);
+export const ALEO_SDK_WARNING_KINDS: readonly string[] = Object.freeze([
+  'import_fetch',
+  'transitive_import',
+  'import_add',
+  'edition_fallback',
+]);
+interface AleoSdkCount {
+  entered: number;
+  returned: number;
+  failed: number;
+}
+interface AleoSdkProgramObservation {
+  role: string;
+  source_sha256: string | null;
+  source_bytes: number | null;
+  source_changed: boolean;
+  edition: number | null;
+  amendment: number | null;
+  edition_changed: boolean;
+  fetched: number;
+  added: number;
+  add_failed: number;
+  builder_contains: boolean | null;
+}
+interface AleoSdkDispatchObservation {
+  schema: 1;
+  kind: 'aleo-existing-SDK-dispatch-observation-v1';
+  unavailable: boolean;
+  bounded: boolean;
+  stages: { stage: string; counts: AleoSdkCount }[];
+  warnings: { kind: string; count: number }[];
+  programs: AleoSdkProgramObservation[];
+  observed_height: number | null;
+  effective_consensus: number | null;
+}
+const sdkDispatchFailures = new WeakMap<Error, AleoSdkDispatchObservation>();
+
+export function parseAleoSdkDispatchObservation(
+  value: unknown,
+): AleoSdkDispatchObservation | null {
+  try {
+    const v = object(value, 'SDK observation');
+    fields(
+      v,
+      [
+        'schema',
+        'kind',
+        'unavailable',
+        'bounded',
+        'stages',
+        'warnings',
+        'programs',
+        'observed_height',
+        'effective_consensus',
+      ],
+      'SDK observation',
+    );
+    requireValue(
+      v.schema === 1 &&
+        v.kind === 'aleo-existing-SDK-dispatch-observation-v1' &&
+        typeof v.unavailable === 'boolean' &&
+        typeof v.bounded === 'boolean',
+      'SDK observation constants',
+    );
+    requireValue(
+      Array.isArray(v.stages) &&
+        v.stages.length === ALEO_SDK_OBSERVATION_STAGES.length &&
+        Array.isArray(v.warnings) &&
+        v.warnings.length === ALEO_SDK_WARNING_KINDS.length &&
+        Array.isArray(v.programs) &&
+        v.programs.length === ALEO_SDK_PROGRAM_ROLES.length,
+      'SDK observation census',
+    );
+    const count = (x: unknown) => integer(x, 0, 1024, 'bounded SDK count');
+    const nullable = (x: unknown, maximum: number) =>
+      x === null ? null : integer(x, 0, maximum, 'SDK numeric observation');
+    const stages = v.stages.map((item, i) => {
+      const r = object(item, 'SDK stage');
+      fields(r, ['stage', 'counts'], 'SDK stage');
+      const c = object(r.counts, 'SDK counts');
+      fields(c, ['entered', 'returned', 'failed'], 'SDK counts');
+      requireValue(
+        r.stage === ALEO_SDK_OBSERVATION_STAGES[i],
+        'SDK stage order',
+      );
+      return {
+        stage: ALEO_SDK_OBSERVATION_STAGES[i] ?? '',
+        counts: {
+          entered: count(c.entered),
+          returned: count(c.returned),
+          failed: count(c.failed),
+        },
+      };
+    });
+    const warnings = v.warnings.map((item, i) => {
+      const r = object(item, 'SDK warning');
+      fields(r, ['kind', 'count'], 'SDK warning');
+      requireValue(r.kind === ALEO_SDK_WARNING_KINDS[i], 'SDK warning order');
+      return { kind: ALEO_SDK_WARNING_KINDS[i] ?? '', count: count(r.count) };
+    });
+    const programs = v.programs.map((item, i) => {
+      const r = object(item, 'SDK program');
+      fields(
+        r,
+        [
+          'role',
+          'source_sha256',
+          'source_bytes',
+          'source_changed',
+          'edition',
+          'amendment',
+          'edition_changed',
+          'fetched',
+          'added',
+          'add_failed',
+          'builder_contains',
+        ],
+        'SDK program',
+      );
+      requireValue(
+        r.role === ALEO_SDK_PROGRAM_ROLES[i] &&
+          typeof r.source_changed === 'boolean' &&
+          typeof r.edition_changed === 'boolean' &&
+          (r.builder_contains === null ||
+            typeof r.builder_contains === 'boolean'),
+        'SDK program fields',
+      );
+      requireValue(
+        r.source_sha256 === null ||
+          (typeof r.source_sha256 === 'string' &&
+            /^[0-9a-f]{64}$/.test(r.source_sha256)),
+        'SDK source fingerprint',
+      );
+      const bytes = nullable(r.source_bytes, 1024 * 1024);
+      requireValue(
+        (bytes === null) === (r.source_sha256 === null),
+        'SDK source fingerprint pair',
+      );
+      return {
+        role: ALEO_SDK_PROGRAM_ROLES[i] ?? '',
+        source_sha256: r.source_sha256,
+        source_bytes: bytes,
+        source_changed: r.source_changed,
+        edition: nullable(r.edition, 65535),
+        amendment: nullable(r.amendment, 0xffffffff),
+        edition_changed: r.edition_changed,
+        fetched: count(r.fetched),
+        added: count(r.added),
+        add_failed: count(r.add_failed),
+        builder_contains: r.builder_contains,
+      };
+    });
+    return {
+      schema: 1,
+      kind: 'aleo-existing-SDK-dispatch-observation-v1',
+      unavailable: v.unavailable,
+      bounded: v.bounded,
+      stages,
+      warnings,
+      programs,
+      observed_height: nullable(v.observed_height, 0xffffffff),
+      effective_consensus: nullable(v.effective_consensus, 22),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve from the SDK workspace, whose dependency is not a root dependency. */
+export function resolveAleoSdkDispatchRuntime(
+  sdkEntry = new URL(
+    '../../typescript/aleo-sdk/dist/index.js',
+    import.meta.url,
+  ),
+): string {
+  const entry = createRequire(sdkEntry).resolve('@provablehq/sdk/testnet.js');
+  // Pinned SDK0.12 exports node.cjs for require and sibling node.js for import.
+  // Observe the SAME ESM classes the Aleo SDK uses, not a second CJS runtime.
+  requireValue(
+    entry.endsWith('/dist/testnet/node.cjs'),
+    'unexpected SDK export',
+  );
+  return pathToFileURL(join(dirname(entry), 'node.js')).href;
+}
+
+/** Optional module observation never becomes a dispatch failure. */
+export async function observeAleoSdkDispatchRuntime(
+  heights: readonly number[],
+  load: () => Promise<unknown> = () => import(resolveAleoSdkDispatchRuntime()),
+) {
+  try {
+    return observeAleoSdkDispatch(await load(), heights);
+  } catch {
+    return observeAleoSdkDispatch({}, heights);
+  }
+}
+
+/** Observe existing calls only. Restore exact descriptors; never add RPC or alter returns/errors. */
+export function observeAleoSdkDispatch(
+  runtime: unknown,
+  heights: readonly number[],
+) {
+  const observation: AleoSdkDispatchObservation = {
+    schema: 1,
+    kind: 'aleo-existing-SDK-dispatch-observation-v1',
+    unavailable: false,
+    bounded: false,
+    stages: ALEO_SDK_OBSERVATION_STAGES.map((stage) => ({
+      stage,
+      counts: { entered: 0, returned: 0, failed: 0 },
+    })),
+    warnings: ALEO_SDK_WARNING_KINDS.map((kind) => ({ kind, count: 0 })),
+    programs: ALEO_SDK_PROGRAM_ROLES.map((role) => ({
+      role,
+      source_sha256: null,
+      source_bytes: null,
+      source_changed: false,
+      edition: null,
+      amendment: null,
+      edition_changed: false,
+      fetched: 0,
+      added: 0,
+      add_failed: 0,
+      builder_contains: null,
+    })),
+    observed_height: null,
+    effective_consensus: null,
+  };
+  const restores: (() => void)[] = [];
+  let active = true;
+  const optional = (fn: () => void) => {
+    try {
+      fn();
+    } catch {
+      observation.unavailable = true;
+    }
+  };
+  const bump = (n: number) => {
+    if (n >= 1024) observation.bounded = true;
+    return Math.min(1024, n + 1);
+  };
+  const program = (id: unknown) => {
+    if (typeof id !== 'string') return undefined;
+    return observation.programs.find(
+      (r) =>
+        id ===
+        (r.role === 'credits'
+          ? 'credits.aleo'
+          : 'test_hyp_' + r.role + '.aleo'),
+    );
+  };
+  const completed = (
+    stage: string,
+    args: unknown[],
+    result: unknown,
+    receiver: unknown,
+  ) => {
+    const row = program(args[0]);
+    if (stage === 'get_program' && row && typeof result === 'string') {
+      const bytes = Buffer.byteLength(result);
+      if (bytes > 1024 * 1024) {
+        observation.bounded = true;
+        return;
+      }
+      const fingerprint = createHash('sha256').update(result).digest('hex');
+      row.source_changed ||=
+        row.source_sha256 !== null && row.source_sha256 !== fingerprint;
+      row.source_sha256 = fingerprint;
+      row.source_bytes = bytes;
+      row.fetched = bump(row.fetched);
+    }
+    if (stage === 'resolve_edition' && row && isObject(result)) {
+      const edition = result.edition,
+        amendment = result.amendment;
+      if (
+        typeof edition === 'number' &&
+        Number.isInteger(edition) &&
+        edition >= 0 &&
+        edition <= 65535 &&
+        typeof amendment === 'number' &&
+        Number.isInteger(amendment) &&
+        amendment >= 0 &&
+        amendment <= 0xffffffff
+      ) {
+        row.edition_changed ||= row.edition !== null && row.edition !== edition;
+        row.edition = edition;
+        row.amendment = amendment;
+      } else observation.unavailable = true;
+    }
+    if (
+      stage === 'build_imports' &&
+      isObject(result) &&
+      isObject(result.builder)
+    ) {
+      const contains: unknown = Reflect.get(result.builder, 'contains');
+      if (typeof contains === 'function')
+        for (const r of observation.programs) {
+          const id =
+            r.role === 'credits'
+              ? 'credits.aleo'
+              : 'test_hyp_' + r.role + '.aleo';
+          const found: unknown = Reflect.apply(contains, result.builder, [id]);
+          if (typeof found === 'boolean') r.builder_contains = found;
+          else observation.unavailable = true;
+        }
+    }
+    if (
+      stage === 'height' &&
+      typeof result === 'number' &&
+      Number.isInteger(result) &&
+      result >= 0 &&
+      result <= 0xffffffff
+    ) {
+      observation.observed_height = result;
+      observation.effective_consensus = effectiveConsensus(heights, result);
+    }
+    if (stage === 'add_program' && row) {
+      row.added = bump(row.added);
+      const contains: unknown = Reflect.get(receiver, 'contains');
+      if (typeof contains === 'function') {
+        const found: unknown = Reflect.apply(contains, receiver, [args[0]]);
+        if (typeof found === 'boolean') row.builder_contains = found;
+      }
+    }
+  };
+  const patch = (target: object, key: string, stage: string) => {
+    const original = Object.getOwnPropertyDescriptor(target, key);
+    const call: unknown = original?.value;
+    if (!original || typeof call !== 'function') {
+      observation.unavailable = true;
+      return;
+    }
+    const wrapped = function (this: unknown, ...args: unknown[]) {
+      const counts = observation.stages.find((r) => r.stage === stage)?.counts;
+      if (active && counts)
+        optional(() => {
+          counts.entered = bump(counts.entered);
+        });
+      const success = (result: unknown) => {
+        if (active)
+          optional(() => {
+            if (counts) counts.returned = bump(counts.returned);
+            completed(stage, args, result, this);
+          });
+      };
+      const failure = () => {
+        if (active)
+          optional(() => {
+            if (counts) counts.failed = bump(counts.failed);
+            if (stage === 'add_program') {
+              const row = program(args[0]);
+              if (row) row.add_failed = bump(row.add_failed);
+            }
+          });
+      };
+      try {
+        const result: unknown = Reflect.apply(call, this, args);
+        if (result instanceof Promise)
+          optional(() => {
+            void result.then(success, failure);
+          });
+        else success(result);
+        return result;
+      } catch (error) {
+        failure();
+        throw error;
+      }
+    };
+    Object.defineProperty(target, key, { ...original, value: wrapped });
+    restores.push(() => Object.defineProperty(target, key, original));
+  };
+  optional(() => {
+    const sdk = object(runtime, 'SDK observation runtime');
+    const surfaces: { name: string; methods: [string, string][] }[] = [
+      {
+        name: 'AleoNetworkClient',
+        methods: [
+          ['getProgram', 'get_program'],
+          ['getProgramAmendmentCount', 'get_edition'],
+          ['getLatestHeight', 'height'],
+          ['submitTransaction', 'submit'],
+          ['waitForTransactionConfirmation', 'confirm'],
+        ],
+      },
+      {
+        name: 'ProgramManager',
+        methods: [
+          ['resolveEditionAndAmendment', 'resolve_edition'],
+          ['buildProgramImports', 'build_imports'],
+          ['buildExecutionTransaction', 'transaction_build'],
+        ],
+      },
+      {
+        name: 'ProgramImportsBuilder',
+        methods: [['addProgram', 'add_program']],
+      },
+    ];
+    for (const { name, methods } of surfaces) {
+      const constructor: unknown = Reflect.get(sdk, name);
+      if (typeof constructor !== 'function') {
+        observation.unavailable = true;
+        continue;
+      }
+      const prototype: unknown = Reflect.get(constructor, 'prototype');
+      if (!isObject(prototype)) {
+        observation.unavailable = true;
+        continue;
+      }
+      for (const [key, stage] of methods) patch(prototype, key, stage);
+    }
+    const base: unknown = Reflect.get(sdk, 'ProgramManagerBase');
+    if (typeof base === 'function')
+      patch(base, 'buildExecutionTransaction', 'native_build');
+    const original = Object.getOwnPropertyDescriptor(console, 'warn');
+    const call: unknown = original?.value;
+    if (original && typeof call === 'function') {
+      Object.defineProperty(console, 'warn', {
+        ...original,
+        value: function (this: unknown, ...args: unknown[]) {
+          if (active)
+            optional(() => {
+              const first = args[0];
+              if (typeof first !== 'string') return;
+              const prefixes = [
+                'Failed to resolve program imports from network:',
+                'Failed to resolve transitive imports for ',
+                'Failed to add import ',
+                'Error finding edition/amendment for ',
+              ];
+              const i = prefixes.findIndex((p) => first.startsWith(p));
+              const row = observation.warnings[i];
+              if (row) row.count = bump(row.count);
+            });
+          return Reflect.apply(call, this, args);
+        },
+      });
+      restores.push(() => Object.defineProperty(console, 'warn', original));
+    }
+  });
+  return {
+    snapshot: () => parseAleoSdkDispatchObservation(observation),
+    restore: () => {
+      if (!active) return;
+      active = false;
+      for (const restore of restores.reverse()) optional(restore);
+    },
+  };
+}
+
 interface AleoFailurePoint {
   attempted_boundary: string;
   error_class: string;
@@ -266,6 +735,7 @@ interface AleoFailureDiagnostic extends AleoFailurePoint {
   kind: 'aleo-source-bound-caught-error-v1';
   worker: AleoFailurePoint | null;
   encrypted_sdk_error?: AleoEncryptedFailurePrefix;
+  sdk_dispatch?: AleoSdkDispatchObservation;
 }
 const isolateFailurePoints = new WeakMap<Error, AleoFailurePoint>();
 
@@ -277,8 +747,10 @@ export function retainAleoIsolateFailure(error: Error, value: unknown): void {
       value.schema !== 1 ||
       value.kind !== 'aleo-source-bound-caught-error-v1' ||
       value.worker !== null ||
-      Object.keys(value).sort().join(',') !==
-        'attempted_boundary,driver_frames,error_class,error_code,kind,schema,worker'
+      ![
+        'attempted_boundary,driver_frames,error_class,error_code,kind,schema,worker',
+        'attempted_boundary,driver_frames,error_class,error_code,kind,schema,sdk_dispatch,worker',
+      ].includes(Object.keys(value).sort().join(','))
     )
       return;
     const boundary = value.attempted_boundary;
@@ -321,6 +793,8 @@ export function retainAleoIsolateFailure(error: Error, value: unknown): void {
         return;
       frames.push({ line, column });
     }
+    const sdkDispatch = parseAleoSdkDispatchObservation(value.sdk_dispatch);
+    if (sdkDispatch !== null) sdkDispatchFailures.set(error, sdkDispatch);
     isolateFailurePoints.set(error, {
       attempted_boundary: boundary,
       error_class: errorClass,
@@ -350,6 +824,8 @@ export function captureAleoFailureDiagnostic(
   try {
     if (!(error instanceof Error)) return point;
     point.worker = isolateFailurePoints.get(error) ?? null;
+    const sdkDispatch = sdkDispatchFailures.get(error);
+    if (sdkDispatch !== undefined) point.sdk_dispatch = sdkDispatch;
     const encrypted = encryptedSdkFailures.get(error);
     if (encrypted !== undefined) point.encrypted_sdk_error = encrypted;
     point.error_class = 'OTHER_ERROR';
@@ -4842,6 +5318,7 @@ if (!isMainThread) {
   const port = parentPort;
   requireValue(port !== null, 'SDK fixture isolate has no owner');
   let attemptedBoundary = 'sdk-worker-parse';
+  let sdkObservation: ReturnType<typeof observeAleoSdkDispatch> | null = null;
   try {
     const job = object(workerData, 'owned SDK request');
     if (job.kind === 'aleo-checked-deployment-v1') {
@@ -4911,6 +5388,9 @@ if (!isMainThread) {
         constants.TEST_ALEO_PRIVATE_KEY === FIXTURE_KEY,
         'SDK fixture key differs',
       );
+      sdkObservation = await observeAleoSdkDispatchRuntime(
+        sdkNativeConsensusHeights(manifest.consensusHeights),
+      );
       const signer = await sdk.AleoSigner.connectWithSigner(
         sdkMetadata(local, constants.TEST_ALEO_CHAIN_METADATA),
         FIXTURE_KEY,
@@ -4932,12 +5412,19 @@ if (!isMainThread) {
       port.postMessage({ value: receipt.transactionHash });
     }
   } catch (error) {
+    sdkObservation?.restore();
     port.postMessage({
       error: error instanceof Error ? error.message : String(error),
-      diagnostic: captureAleoFailureDiagnostic(error, attemptedBoundary),
+      diagnostic: {
+        ...captureAleoFailureDiagnostic(error, attemptedBoundary),
+        ...(sdkObservation?.snapshot()
+          ? { sdk_dispatch: sdkObservation.snapshot() }
+          : {}),
+      },
     });
     process.exitCode = 1;
   } finally {
+    sdkObservation?.restore();
     port.close();
   }
 }
