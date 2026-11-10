@@ -210,6 +210,33 @@ impl MultisigCheckpointSyncer {
             .collect())
     }
 
+    /// Latest indices from validators that have a checkpoint syncer, for
+    /// narrowing repeated signature probes. Unlike
+    /// [`Self::get_validator_latest_checkpoints_and_update_metrics`], this does
+    /// not report validators without storage or failed reads, and does not
+    /// update metrics, so per-probe calls add no logs or diagnostics noise.
+    pub async fn latest_indices(&self, validators: &[H256]) -> HashMap<H160, u32> {
+        let futures = validators
+            .iter()
+            .map(|validator| H160::from(*validator))
+            .filter_map(|validator| {
+                self.checkpoint_syncers
+                    .get(&validator)
+                    .map(|syncer| (validator, syncer))
+            })
+            .map(|(validator, syncer)| async move {
+                (validator, syncer.latest_index().await.ok().flatten())
+            })
+            .collect::<Vec<_>>();
+        stream::iter(futures)
+            .buffer_unordered(10)
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .filter_map(|(validator, index)| index.map(|index| (validator, index)))
+            .collect()
+    }
+
     /// Attempts to get the latest checkpoint with a quorum of signatures among
     /// validators.
     ///

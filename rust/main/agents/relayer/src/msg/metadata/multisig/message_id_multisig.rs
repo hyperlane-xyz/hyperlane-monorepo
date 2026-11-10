@@ -109,7 +109,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             self.spawn_latest_index_telemetry(checkpoint_syncer, validators);
         }
         let probe_validators;
-        let validators = if self.signature_polling {
+        let validators = if self.narrow_signature_probe {
             probe_validators = self
                 .validators_that_may_have_signed(checkpoint_syncer, validators, leaf_index)
                 .await;
@@ -174,25 +174,14 @@ impl MessageIdMultisigMetadataBuilder {
         validators: &[H256],
         leaf_index: u32,
     ) -> Vec<H256> {
-        let latest = match timeout(
+        let Ok(latest) = timeout(
             PROBE_LATEST_INDEX_TIMEOUT,
-            checkpoint_syncer.get_validator_latest_checkpoints_and_update_metrics(
-                validators,
-                self.base_builder().origin_domain(),
-                self.base_builder().destination_domain(),
-            ),
+            checkpoint_syncer.latest_indices(validators),
         )
         .await
-        {
-            Ok(Ok(latest)) => latest.into_iter().collect::<HashMap<H160, u32>>(),
-            Ok(Err(error)) => {
-                debug!(?error, "Failed to read latest indices for signature probe");
-                return validators.to_vec();
-            }
-            Err(_) => {
-                debug!("Timed out reading latest indices for signature probe");
-                return validators.to_vec();
-            }
+        else {
+            debug!("Timed out reading latest indices for signature probe");
+            return validators.to_vec();
         };
         validators
             .iter()
@@ -466,7 +455,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             builder
-                .build_for_delivery(H256::zero(), &message, true)
+                .build_for_delivery(H256::zero(), &message, true, true)
                 .await,
             Err(MetadataBuildError::Refused(_))
         ));
@@ -499,12 +488,15 @@ mod tests {
             .iter()
             .map(|validator| validator.public_key.parse::<H160>().unwrap().into())
             .collect::<Vec<_>>();
-        let syncers: HashMap<_, _> = build_mock_checkpoint_syncs(&validators)
-            .await
-            .into_iter()
-            .map(|(k, v)| (k, Arc::new(v) as Arc<dyn CheckpointSyncer>))
-            .collect();
-        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+        // Mock syncers answer each checkpoint fetch once, so each phase gets its own.
+        let multisig_syncer = || async {
+            let syncers: HashMap<_, _> = build_mock_checkpoint_syncs(&validators)
+                .await
+                .into_iter()
+                .map(|(k, v)| (k, Arc::new(v) as Arc<dyn CheckpointSyncer>))
+                .collect();
+            MultisigCheckpointSyncer::new(syncers, None)
+        };
 
         let base_builder = build_mock_base_builder(
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
@@ -515,27 +507,38 @@ mod tests {
             .get_merkle_leaf_id_by_message_id
             .lock()
             .unwrap()
-            .extend([Ok(Some(1000)), Ok(Some(1000))]);
+            .extend([Ok(Some(1000)), Ok(Some(1000)), Ok(Some(1000))]);
         let mut message_builder =
             MessageMetadataBuilder::new(Arc::new(base_builder), H256::zero(), &message)
                 .await
                 .unwrap();
 
-        // The probe only queries validators that have reached the leaf, so it
-        // cannot reach a threshold of two.
+        // The fast-window probe only queries validators that have reached the
+        // leaf, so it cannot reach a threshold of two.
         message_builder.signature_polling = true;
+        message_builder.narrow_signature_probe = true;
         let probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
         assert!(probe
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer)
+            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
             .await
             .unwrap()
             .is_none());
+
+        // After the fast window, probes query every validator again, so a lagging
+        // latest index cannot hold delivery.
+        message_builder.narrow_signature_probe = false;
+        let late_probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
+        assert!(late_probe
+            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
+            .await
+            .unwrap()
+            .is_some());
 
         // A normal build still queries every validator.
         message_builder.signature_polling = false;
         let normal = MessageIdMultisigMetadataBuilder::new(message_builder);
         assert!(normal
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer)
+            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
             .await
             .unwrap()
             .is_some());

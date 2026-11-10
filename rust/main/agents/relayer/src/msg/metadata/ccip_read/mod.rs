@@ -1179,6 +1179,7 @@ mod test {
             app_context: None,
             root_ism: H256::repeat_byte(1),
             signature_polling: false,
+            narrow_signature_probe: false,
             max_ism_depth: 5,
             max_ism_count: 10,
         });

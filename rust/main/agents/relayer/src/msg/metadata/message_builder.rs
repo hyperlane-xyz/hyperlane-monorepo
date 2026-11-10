@@ -40,6 +40,8 @@ pub struct MessageMetadataBuilder {
     pub max_ism_count: u32,
     /// Availability probes defer fresh reorg checks to the normal build before delivery.
     pub(crate) signature_polling: bool,
+    /// Fast-window probes skip validators whose latest index is below the leaf.
+    pub(crate) narrow_signature_probe: bool,
 }
 
 /// This is the entry point for recursively building ISM metadata.
@@ -79,14 +81,17 @@ impl MessageMetadataBuilder {
         ism: H256,
         message: &HyperlaneMessage,
         polling: bool,
+        narrow_probe: bool,
     ) -> Result<Metadata, MetadataBuildError> {
         let mut builder = self.clone();
         builder.signature_polling = polling;
+        builder.narrow_signature_probe = polling && narrow_probe;
         let metadata = builder.build(ism, message, Default::default()).await?;
         if !polling {
             return Ok(metadata);
         }
         builder.signature_polling = false;
+        builder.narrow_signature_probe = false;
         builder.build(ism, message, Default::default()).await
     }
 
@@ -107,6 +112,7 @@ impl MessageMetadataBuilder {
             max_ism_depth: ISM_MAX_DEPTH,
             max_ism_count: ISM_MAX_COUNT,
             signature_polling: false,
+            narrow_signature_probe: false,
         })
     }
 
