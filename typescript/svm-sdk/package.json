@@ -21,6 +21,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./program-metadata": {
+      "types": "./dist/hyperlane/program-metadata.d.ts",
+      "default": "./dist/hyperlane/program-metadata.js"
+    },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
