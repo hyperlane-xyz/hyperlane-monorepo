@@ -593,6 +593,10 @@ export function observeAleoSdkDispatch(
     }
     if (stage === 'add_program' && row) {
       row.added = bump(row.added);
+      if (!isObject(receiver)) {
+        observation.unavailable = true;
+        return;
+      }
       const contains: unknown = Reflect.get(receiver, 'contains');
       if (typeof contains === 'function') {
         const found: unknown = Reflect.apply(contains, receiver, [args[0]]);

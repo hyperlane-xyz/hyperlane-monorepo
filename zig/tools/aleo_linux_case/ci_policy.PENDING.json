@@ -109,11 +109,11 @@
     },
     {
       "path": "zig/integration/aleo_process.ts",
-      "bytes": 205935,
+      "bytes": 206032,
       "sha256": {
         "sha256_hex_chunks": [
-          "8f50f30e39f6d8729e2aca860359a6f3",
-          "f07be8f246918a361ff46d88323e6ecd"
+          "995461fbbee26580173f3282a58badaa",
+          "c621e2c7564a2a94749e29e7dfcbe9e2"
         ]
       }
     },
