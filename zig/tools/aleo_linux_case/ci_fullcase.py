@@ -45,7 +45,7 @@ def source_bound_encrypted_error(value,source):
   need(set(value)=={'schema','status','key_id','prefix_bytes','truncated','ciphertext_base64','ciphertext_sha256'}and value['status']=='ENCRYPTED_PREFIX','closed encrypted prefix')
   ids=re.findall(r"export const ALEO_DIAGNOSTIC_KEY_ID\s*=\s*'([0-9a-f]{32})'\s*\+\s*'([0-9a-f]{32})';",source)
   need(len(ids)==1 and type(value['key_id'])is str and value['key_id']==''.join(ids[0]),'fixed Source diagnostic public key')
-  need(type(value['prefix_bytes'])is int and 0<=value['prefix_bytes']<=384 and type(value['truncated'])is bool,'bounded encrypted prefix metadata')
+  need(type(value['prefix_bytes'])is int and 0<=value['prefix_bytes']<=432 and type(value['truncated'])is bool,'bounded encrypted prefix metadata')
   wire=value['ciphertext_base64'];need(type(wire)is str and len(wire)==684,'fixed ciphertext encoding')
   cipher=base64.b64decode(wire,validate=True)
   need(len(cipher)==512 and base64.b64encode(cipher).decode('ascii')==wire,'canonical RSA4096 ciphertext')

@@ -223,8 +223,8 @@ export function retainAleoEncryptedSdkFailure(
     const keyId = createHash('sha256')
       .update(key.export({ type: 'spki', format: 'der' }))
       .digest('hex');
-    const bounded = Buffer.from(message.slice(0, 384), 'utf8');
-    let end = Math.min(bounded.length, 384);
+    const bounded = Buffer.from(message.slice(0, 432), 'utf8');
+    let end = Math.min(bounded.length, 432);
     if (end < bounded.length)
       while (end > 0 && (bounded[end] & 0xc0) === 0x80) --end;
     const ciphertext = publicEncrypt(
@@ -243,7 +243,7 @@ export function retainAleoEncryptedSdkFailure(
       status: 'ENCRYPTED_PREFIX',
       key_id: keyId,
       prefix_bytes: end,
-      truncated: message.length > 384 || end < bounded.length,
+      truncated: message.length > 432 || end < bounded.length,
       ciphertext_base64: ciphertext.toString('base64'),
       ciphertext_sha256: createHash('sha256').update(ciphertext).digest('hex'),
     });

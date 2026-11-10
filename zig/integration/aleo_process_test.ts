@@ -3251,14 +3251,24 @@ void test('Aleo encrypted SDK prefix bounded UTF8 roundtrips only with test key 
   const publicPem = keys.publicKey
     .export({ type: 'spki', format: 'pem' })
     .toString();
-  for (const message of [
-    'PRIVATE_'.padEnd(48, 'x'),
-    'PRIVATE_'.padEnd(85, 'y'),
-    '',
-    '😀'.repeat(150),
-    'a'.repeat(383) + '😀END',
-    'a'.repeat(385),
-  ]) {
+  assert.equal(keys.publicKey.asymmetricKeyDetails?.modulusLength, 4096);
+  const cases = [
+    { message: 'PRIVATE_'.padEnd(48, 'x'), prefixBytes: 48, truncated: false },
+    { message: 'PRIVATE_'.padEnd(85, 'y'), prefixBytes: 85, truncated: false },
+    {
+      message: 'PRIVATE_'.padEnd(404, 'z'),
+      prefixBytes: 404,
+      truncated: false,
+    },
+    { message: '', prefixBytes: 0, truncated: false },
+    { message: '😀'.repeat(150), prefixBytes: 432, truncated: true },
+    { message: 'a'.repeat(431) + '😀END', prefixBytes: 431, truncated: true },
+    { message: '€'.repeat(145), prefixBytes: 432, truncated: true },
+    { message: 'a'.repeat(430) + '€END', prefixBytes: 430, truncated: true },
+    { message: 'a'.repeat(432), prefixBytes: 432, truncated: false },
+    { message: 'a'.repeat(433), prefixBytes: 432, truncated: true },
+  ];
+  for (const { message, prefixBytes, truncated } of cases) {
     const error = new Error(message);
     retainAleoEncryptedSdkFailure(error, message, publicPem);
     const row = captureAleoFailureDiagnostic(
@@ -3278,11 +3288,12 @@ void test('Aleo encrypted SDK prefix bounded UTF8 roundtrips only with test key 
       },
       cipher,
     );
-    assert.ok(plain.length <= 384);
+    assert.equal(plain.length, prefixBytes);
+    assert.ok(plain.length <= 432);
     assert.equal(row.prefix_bytes, plain.length);
     assert.ok(Buffer.from(plain.toString('utf8')).equals(plain));
     assert.ok(message.startsWith(plain.toString('utf8')));
-    assert.equal(row.truncated, Buffer.byteLength(message, 'utf8') > 384);
+    assert.equal(row.truncated, truncated);
     assert.equal(
       row.ciphertext_sha256,
       createHash('sha256').update(cipher).digest('hex'),
@@ -3405,13 +3416,13 @@ void test('Aleo encrypted SDK collector bounds conversion before allocating mess
     () => ({ export: () => Buffer.from('test-only-public-DER') }),
     createHash,
     (_options: unknown, wire: Buffer) => {
-      assert.ok(wire.length <= 384);
+      assert.ok(wire.length <= 432);
       return Buffer.alloc(512);
     },
     constants,
     {
       from(value: string, encoding: BufferEncoding) {
-        assert.ok(value.length <= 384);
+        assert.ok(value.length <= 432);
         converted++;
         return Buffer.from(value, encoding);
       },
@@ -3424,7 +3435,7 @@ void test('Aleo encrypted SDK collector bounds conversion before allocating mess
   collector(primary, 'PRIVATE_'.repeat(10000));
   assert.equal(converted, 2);
   assert.equal(failures.get(primary)?.status, 'ENCRYPTED_PREFIX');
-  assert.equal(failures.get(primary)?.prefix_bytes, 384);
+  assert.equal(failures.get(primary)?.prefix_bytes, 432);
   assert.equal(primary.message, 'PRIVATE_PRIMARY');
 });
 

@@ -112,18 +112,18 @@
       "bytes": 190075,
       "sha256": {
         "sha256_hex_chunks": [
-          "befb18af35bea515d0b7a9065816f5fa",
-          "bed0e017809774d0121fb67a4b7f13e4"
+          "f1688837bc6aafa9f34b75d50f0c23ca",
+          "62594ac71cd8f1d8feb35b40c62d8c33"
         ]
       }
     },
     {
       "path": "zig/integration/aleo_process_test.ts",
-      "bytes": 111097,
+      "bytes": 111849,
       "sha256": {
         "sha256_hex_chunks": [
-          "5bd2cfbd720d2b15b5a021b2c19eb881",
-          "822e6ef8bafcb28d80650e400df168b3"
+          "96bac4bb164d1e8a72bc41268f1fa50c",
+          "a14d0ebd678e5751726e6a5c3841053e"
         ]
       }
     },
@@ -292,8 +292,8 @@
       "bytes": 55359,
       "sha256": {
         "sha256_hex_chunks": [
-          "a7f5fa3c63e9f2ea3e3b55631763fad2",
-          "1fefd996fb4552377d4655163a0e1407"
+          "44b27fcd1b2f6dd84adcbab3d8e77f93",
+          "b013fbb60091289fce2b68600deb8a45"
         ]
       }
     },

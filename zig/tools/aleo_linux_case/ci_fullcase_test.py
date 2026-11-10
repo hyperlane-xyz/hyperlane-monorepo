@@ -694,12 +694,12 @@ class EncryptedDriverFailureProjection(unittest.TestCase):
    reduced=copy.deepcopy(after);del reduced['caught_error']['encrypted_sdk_error'];self.assertEqual(reduced,before);self.assertNotIn('PRIVATE',json.dumps(public));self.assertFalse(public['native_or_performance_credit'])
  def test_malformed_optional_cipher_is_unavailable_but_original_caught_fields_survive(self):
   record=self.cipher();alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';noncanonical=record['ciphertext_base64'][:-2]+alphabet[alphabet.index(record['ciphertext_base64'][-2])+1]+'=';cases=[None,{},dict(record,PRIVATE='PRIVATE_VALUE'),dict(record,ciphertext_base64=noncanonical)]
-  for key,value in [('schema',True),('status','PRIVATE'),('key_id','0'*64),('prefix_bytes',True),('prefix_bytes',-1),('prefix_bytes',385),('truncated',1),('ciphertext_base64','A'*684),('ciphertext_base64',record['ciphertext_base64'][:-1]+'A'),('ciphertext_sha256','0'*64),('ciphertext_sha256','PRIVATE')]:cases.append(dict(record,**{key:value}))
+  for key,value in [('schema',True),('status','PRIVATE'),('key_id','0'*64),('prefix_bytes',True),('prefix_bytes',-1),('prefix_bytes',433),('truncated',1),('ciphertext_base64','A'*684),('ciphertext_base64',record['ciphertext_base64'][:-1]+'A'),('ciphertext_sha256','0'*64),('ciphertext_sha256','PRIVATE')]:cases.append(dict(record,**{key:value}))
   for value in cases:
    with self.subTest(optional_type=type(value).__name__):
     diagnostic=self.diagnostic();diagnostic['encrypted_sdk_error']=value;point=m.source_bound_caught_error(diagnostic,self.source());self.assertEqual(point['status'],'observed');self.assertEqual(point['worker'],self.diagnostic()['worker']);self.assertEqual(point['encrypted_sdk_error'],{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'});self.assertNotIn('PRIVATE',json.dumps(point))
  def test_zero_maximum_prefix_source_key_binding_and_absent_optional_shape(self):
-  for length in [0,384]:
+  for length in [0,384,404,432]:
    row=dict(self.cipher(),prefix_bytes=length,truncated=True);self.assertEqual(m.source_bound_encrypted_error(row,self.source()),row)
   row=self.cipher();self.assertEqual(m.source_bound_encrypted_error(row,self.source()+self.source()),{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'})
   self.assertEqual(m.source_bound_encrypted_error({'schema':1,'status':'ENCRYPTION_UNAVAILABLE'},self.source()),{'schema':1,'status':'ENCRYPTION_UNAVAILABLE'})
