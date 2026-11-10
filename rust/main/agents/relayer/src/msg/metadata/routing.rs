@@ -212,6 +212,7 @@ mod tests {
             root_ism: H256::from_low_u64_be(1),
             signature_polling: false,
             narrow_signature_probe: false,
+            offchain_reads: None,
             max_ism_depth: 10,
             max_ism_count: 10,
         })
