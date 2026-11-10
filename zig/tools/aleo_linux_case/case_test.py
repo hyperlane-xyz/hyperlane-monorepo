@@ -379,12 +379,13 @@ class MetadataShape(unittest.TestCase):
                 if row==tools['python']:return Path('/usr/bin/python3.12')
                 if row==tools['ps']:return Path('/usr/bin/ps')
                 return value
-            with patch.object(specs,'checked',side_effect=checked),patch.object(specs,'sdk_receipt',return_value=sdk),patch.object(specs,'source_cohort',return_value=cohort),patch.object(specs,'storage_interop'),patch.object(specs,'docker_admission',return_value=probe),patch.object(specs,'kernel_pair'),patch.object(specs,'parameters',return_value=[parameter]):
+            with patch.object(specs,'checked',side_effect=checked),patch.object(specs,'sdk_receipt',return_value=sdk),patch.object(specs,'source_cohort',return_value=cohort),patch.object(specs,'storage_interop'),patch.object(specs,'docker_admission',return_value=probe),patch.object(specs,'kernel_pair'),patch.object(specs,'parameters',return_value=[parameter]),patch.object(specs,'xhr_caller',return_value=driver):
                 pending=specs.prepare(binding_pin)
             value=specs.load(pending);manifest=specs.load(specs.pin(root/'metadata/manifest-input.json'))
             self.assertIs(value['root_approved'],False);self.assertIsNone(value['readonly_roots']);self.assertIsNone(value['namespace_pins'])
             self.assertFalse((root/'case').exists());self.assertNotIn('original_deadline_ns',value)
             self.assertEqual(value['driver'],driver);self.assertEqual(value['sdk_entry'],entry)
+            self.assertEqual(value['xhr_caller'],driver);self.assertEqual(value['xhr_adapter'],specs.xhr_adapter_contract());self.assertEqual(specs.load(value['policy_template'])['xhr_caller'],driver)
             self.assertEqual(manifest['tools']['rocksOracle'],context['tools']['ziggy-rocks-oracle']);self.assertEqual(manifest['tools']['nativeRows'],context['tools']['ziggy-native-rows'])
             self.assertEqual(manifest['artifacts'],products);self.assertEqual(manifest['deadlineSeconds'],10800)
             self.assertNotIn('node',manifest);self.assertEqual(manifest['tools']['node'],tools['node'])
@@ -604,5 +605,51 @@ class StartupDiagnostics(unittest.TestCase):
             self.assertEqual(delegate.execute({}),1)
         path,value=next((p,v)for p,v in records if p.name=='owner.json');path.write_text(json.dumps(value));self.assertIn('service_failure_diagnostics',value);self.assertEqual(value['service_failure_diagnostics']['startup']['record']['stage'],'properties');self.assertEqual(value['error'],'ValueError:actual case service failed')
         load=importlib.util.spec_from_file_location('closed_startup_public_control',HERE/'ci_fullcase.py');ci=importlib.util.module_from_spec(load);load.loader.exec_module(ci);public=ci.case_failure_diagnostics(case,HERE.parents[2]);record=public['records']['service'];self.assertEqual(record['service_failure_diagnostics']['startup']['record']['stage'],'properties');self.assertEqual(record['error']['fixed_Source_guard']['guard'],'actual case service failed');self.assertNotIn(self.private,json.dumps(public));self.assertFalse(public['native_or_performance_credit'])
+
+class SynchronousXhrAdapterControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve();self.contract=specs.xhr_adapter_contract();self.bootstrap={'path':str(HERE/'bootstrap.mjs'),'bytes':(HERE/'bootstrap.mjs').stat().st_size,'sha256':hashlib.sha256((HERE/'bootstrap.mjs').read_bytes()).hexdigest()};self.original={'path':str(self.root/'node_modules/xmlhttprequest-ssl/lib/XMLHttpRequest.js'),**self.contract['original']};self.spec={'xhr_caller':self.original,'bootstrap':self.bootstrap,'xhr_adapter':self.contract};self.control=self.root/'control';self.states=self.control/'xhr-adapters';self.states.mkdir(parents=True)
+    def state(self):
+        return {'schema':1,'kind':self.contract['kind'],'pid':123,'threadId':2,'original':self.original,'adapter':self.bootstrap,'executed':self.contract['executed'],'disk_mutated':False,'loads':1,'started':3,'actual_waits':3,'not_started':0,'failed':0,'in_flight':0,'maximum_in_flight':1}
+    def publish(self,value=None):
+        (self.states/'123-2.json').write_text(json.dumps(self.state()if value is None else value))
+    def collect(self):
+        with patch.object(supervisor,'checked',side_effect=lambda row:Path(row['path'])):return supervisor.xhr_adapter_provenance(self.spec,self.control)
+    def test_contract_matches_hash_bound_original_and_exact_three_substitutions(self):
+        self.assertEqual(self.contract['original'],{'bytes':37447,'sha256':('bdda14cc1438a57e89ef0a5054665473' '7ed0cd9f80d5157c9a1b8de8c4e03e08')});self.assertEqual(self.contract['substitutions'],3);self.assertFalse(self.contract['published_dependency_disk_mutated']);self.assertNotEqual(self.contract['original'],self.contract['executed'])
+        with patch.object(specs,'checked',side_effect=lambda row:Path(row['path'])):
+            self.assertEqual(specs.xhr_caller({'dependency_payloads':[self.original]}),self.original)
+            for rows in [[],[self.original,self.original],[dict(self.original,sha256='0'*64)],[dict(self.original,path='/foreign/anything.js')]]:
+                with self.subTest(rows=rows),self.assertRaises(ValueError):specs.xhr_caller({'dependency_payloads':rows})
+    def test_chunked_Source_contract_decoder_rejects_malformed_or_ambiguous_hashes(self):
+        import re
+        original=(HERE/'bootstrap.mjs').read_text();match=re.search(r"^const XHR_ADAPTER_JSON = '([^'\n]+)';$",original,re.M);wire=json.loads(match[1]);changes=[]
+        for bad in [[],['a'*32],['a'*32,'b'*31],[True,'b'*32],['A'*32,'b'*32]]:
+            value=copy.deepcopy(wire);value['original']['sha256_hex_chunks']=bad;changes.append(value)
+        for key,value in [('schema',True),('substitutions',True)]:
+            changed=copy.deepcopy(wire);changed[key]=value;changes.append(changed)
+        changed=copy.deepcopy(wire);changed['original']['bytes']=True;changes.append(changed)
+        for value in changes:
+            source=original[:match.start(1)]+json.dumps(value)+original[match.end(1):];(self.root/'bootstrap.mjs').write_text(source)
+            with patch.object(specs,'HERE',self.root),self.assertRaises(ValueError):specs.xhr_adapter_contract()
+        (self.root/'bootstrap.mjs').write_text(original+'\n'+match[0]+'\n')
+        with patch.object(specs,'HERE',self.root),self.assertRaises(ValueError):specs.xhr_adapter_contract()
+    def test_actual_summary_discloses_adapted_source_and_real_wait_counts_without_identities(self):
+        self.publish();out=self.collect();self.assertFalse(out['executed_original_dependency_verbatim']);self.assertTrue(out['published_dependency_disk_unchanged']);self.assertTrue(out['all_actual_waits_successful']);self.assertEqual(out['actual_synchronous_waits'],3);self.assertEqual(out['actual_isolate_states'],1);self.assertEqual(out['adapter_Source']['sha256'],self.bootstrap['sha256']);self.assertFalse(out['global_helper_limit_claimed']);self.assertFalse(out['live_PID_birth_observation_claimed']);self.assertNotIn(str(self.root),json.dumps(out));self.assertNotIn('threadId',json.dumps(out));self.assertNotIn('"pid"',json.dumps(out))
+    def test_failed_unwaited_nonstarted_source_poison_and_boolean_counts_refuse(self):
+        variants=[{'started':4},{'failed':1},{'not_started':1},{'in_flight':1},{'maximum_in_flight':3},{'loads':0},{'loads':True},{'schema':True},{'original':dict(self.original,sha256='0'*64)},{'adapter':dict(self.bootstrap,sha256='0'*64)},{'executed':dict(self.contract['executed'],sha256='0'*64)},{'disk_mutated':True},{'pid':124},{'private':'DO_NOT_EXPORT'}]
+        for change in variants:
+            with self.subTest(change=change):self.publish({**self.state(),**change});self.assertRaises(ValueError,self.collect)
+    def test_bounded_regular_state_and_directory_set_refuse_alias_partial_or_oversize(self):
+        self.assertRaises(ValueError,self.collect);self.publish();path=self.states/'123-2.json';body=path.read_bytes();path.unlink();target=self.root/'elsewhere';target.write_bytes(body);path.symlink_to(target);self.assertRaises(OSError,self.collect);path.unlink();path.write_bytes(b'x'*4097);self.assertRaises(ValueError,self.collect);path.write_bytes(body);(self.states/'123-2.json.tmp').write_text('{}');self.assertRaises(ValueError,self.collect)
+    def test_more_than_eight_sequential_isolate_births_are_not_conflated_with_concurrency(self):
+        for index in range(20):
+            value=self.state();value.update(pid=1000+index,threadId=0);(self.states/(str(value['pid'])+'-0.json')).write_text(json.dumps(value))
+        out=self.collect();self.assertEqual(out['actual_isolate_states'],20);self.assertEqual(out['actual_synchronous_waits'],60);self.assertEqual(out['maximum_observed_per_isolate_helpers'],1)
+    def test_public_proof_requires_and_publishes_explicit_adapter_when_declared(self):
+        self.publish();adapter=self.collect();actual,owner,raw,spec,_=PublicProjection().public_fixture();spec.update(xhr_caller=self.original,bootstrap=self.bootstrap,xhr_adapter=self.contract)
+        self.assertRaises(ValueError,public_proof.project,actual,owner,raw,spec);owner['fixture_dependency_adapter']=adapter;out=public_proof.project(actual,owner,raw,spec);self.assertEqual(out['source']['fixture_dependency_adapter'],adapter);self.assertFalse(out['source']['fixture_dependency_adapter']['executed_original_dependency_verbatim'])
+        for poison in [{**adapter,'private':'DO_NOT_EXPORT'},{**adapter,'actual_synchronous_waits':True},{**adapter,'executed_dependency':{'bytes':1,'sha256':'0'*64}}]:
+            owner['fixture_dependency_adapter']=poison;self.assertRaises(ValueError,public_proof.project,actual,owner,raw,spec)
 
 if __name__=='__main__':unittest.main()

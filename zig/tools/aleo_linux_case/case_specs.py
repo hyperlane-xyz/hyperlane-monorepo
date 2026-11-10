@@ -96,6 +96,21 @@ def docker_admission(result_pin,owner_pin,node):
     return spec
 
 
+def xhr_adapter_contract():
+    # The reviewed transform lives in the already pinned bootstrap, not a new dependency.
+    source=(HERE/'bootstrap.mjs').read_text();rows=re.findall(r"^const XHR_ADAPTER_JSON = '([^'\n]+)';$",source,re.M)
+    need(len(rows)==1,'unique XHR adapter Source contract required');value=json.loads(rows[0])
+    need(set(value)=={'schema','kind','original','executed','substitutions','published_dependency_disk_mutated'}and type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-fixture-sync-xhr-adapter-v1'and type(value['substitutions'])is int and value['substitutions']==3 and value['published_dependency_disk_mutated']is False,'closed fixture XHR contract required')
+    for key in ('original','executed'):
+        row=value[key];chunks=row.get('sha256_hex_chunks');need(set(row)=={'bytes','sha256_hex_chunks'}and type(row['bytes'])is int and 0<row['bytes']<=128*1024 and type(chunks)is list and len(chunks)==2 and all(type(x)is str and re.fullmatch('[0-9a-f]{32}',x)for x in chunks),'bounded chunked XHR Source hash required');value[key]={'bytes':row['bytes'],'sha256':''.join(chunks)}
+    return value
+
+
+def xhr_caller(sdk):
+    contract=xhr_adapter_contract();rows=[r for r in sdk['dependency_payloads']if Path(r['path']).as_posix().endswith('/xmlhttprequest-ssl/lib/XMLHttpRequest.js')and {k:r[k]for k in ('bytes','sha256')}==contract['original']]
+    need(len(rows)==1,'unique original XHR dependency in actual SDK payload required');row=rows[0];checked(row);return row
+
+
 def namespace_inputs(spec,sdk):
     """Derive actual visible leaves; host-only origins/cohort receipts stay out."""
     manifest=load(spec['manifest'])
@@ -150,6 +165,7 @@ def admission(spec):
     need(manifest['tools']['docker']==spec['docker_cli']and manifest['tools']['node']==spec['node'],'actual admitted tool paths differ')
     need(manifest['nativeRowsAcceptance']==spec['storage_interop']and manifest['sdkBuild']==spec['sdk_receipt'],'actual SDK/storage receipts differ')
     sdk=sdk_receipt(spec['sdk_receipt'],spec['node'],spec['sdk_entry'],spec['execution_source_commit'],spec['sdk_owner_receipt'])
+    need(spec['xhr_adapter']==xhr_adapter_contract()and spec['xhr_caller']==xhr_caller(sdk)and load(spec['policy_template'])['xhr_caller']==spec['xhr_caller'],'actual SDK XHR caller binding differs')
     need(spec['driver']==pin(Path(load(sdk['spec'])['stage'])/'zig/integration/aleo_process.ts'),'actual compiled staged driver differs')
     need(manifest['sourceFiles']==unique([pin(p)for p in runtime_paths()]+[spec['driver'],pin(Path(load(sdk['spec'])['stage'])/'zig/integration/aleo_process_test.ts'),spec['policy_template']]),'exact inner manifest Source leaves differ')
     need(spec['driver']in sdk['source_files']and pin(Path(load(sdk['spec'])['stage'])/'zig/integration/aleo_process_test.ts')in sdk['source_files'],'both original staged TS inputs required')
@@ -177,6 +193,7 @@ def prepare(binding_pin):
     need(checked(tools['python'])==Path('/usr/bin/python3.12')and checked(tools['ps'])==Path('/usr/bin/ps'),'pinned Ubuntu system tools required')
     sdk=load(binding['sdk_receipt'],32*1024**2);entry=sdk['sdk_entry']
     sdk=sdk_receipt(binding['sdk_receipt'],tools['node'],entry,binding['execution_source_commit'],binding['sdk_owner_receipt'])
+    caller=xhr_caller(sdk)
     verifier_pins=[pin(repo/name)for name in VERIFIERS];loader=pin(repo/VERIFIERS[0])
     cohort=source_cohort(binding['context'],loader,repo,binding['execution_source_commit'],binding['runtime_source_commit'],verifier_pins)
     context=load(binding['context']);need(context['mode']==binding['mode'],'mode context differs')
@@ -199,13 +216,13 @@ def prepare(binding_pin):
     control.mkdir(mode=0o700)
     accepted=write(control/'accepted-runtime.json',{'schema':1,'passed':True,'source_unchanged':True,'source_commit':binding['runtime_source_commit'],'mode':binding['mode'],'runtime_artifacts':products,'actual_hydrated_context':binding['context'],'compiled_input_closure':cohort['compiled_input_closure'],'correctness_input_reuse_only':True,'native_acceptance':False,'performance_credit':False})
     closure=load(cohort['compiled_input_closure']);gate=write(control/'compiled-source-gate.json',{'schema':1,'source_commit':binding['runtime_source_commit'],'source_unchanged':True,'checks':closure['checks'],'actual_compiled_input_closure':cohort['compiled_input_closure'],'actual_waited_git_rechecks':cohort['actual_waited_git_checks'],'not_a_fresh_build':True})
-    policy={'schema':1,'root':str(root/'control'),'grant':grant,'node':tools['node'],'diagnostic_ps':tools['ps'],'code_pins':unique(code+[driver,driver_test,tools['docker']]),'assets':binding['assets'],'rpc_ports':[23030,23031,23032,23033,23034,25432,29091,29092,29093,29094],'cache_port':23032,'deadline_monotonic_ns':None,'deadline_python_ns':None,'uncertainty_ns':None,'allowed_sdk_worker_files':sdk['worker_policy']['allowed_worker_files'],'allowed_worker_files':[driver,*sdk['worker_policy']['allowed_worker_files']],'allowed_eval_sha256':sdk['worker_policy']['allowed_eval_sha256'],'max_threads_per_parent':8,'max_threads_total':8,'max_old_space_mb':3072,'allowed_native_executables':[products[k]for k in ('relayer','validator','scraper','worker')]+[native_tools[k]for k in ('docker','psql','initDb','rocksOracle','nativeRows')]}
+    policy={'schema':1,'root':str(root/'control'),'grant':grant,'node':tools['node'],'diagnostic_ps':tools['ps'],'code_pins':unique(code+[driver,driver_test,tools['docker']]),'assets':binding['assets'],'rpc_ports':[23030,23031,23032,23033,23034,25432,29091,29092,29093,29094],'cache_port':23032,'deadline_monotonic_ns':None,'deadline_python_ns':None,'uncertainty_ns':None,'allowed_sdk_worker_files':sdk['worker_policy']['allowed_worker_files'],'allowed_worker_files':[driver,*sdk['worker_policy']['allowed_worker_files']],'allowed_eval_sha256':sdk['worker_policy']['allowed_eval_sha256'],'max_threads_per_parent':8,'max_threads_total':8,'max_old_space_mb':3072,'xhr_caller':caller,'allowed_native_executables':[products[k]for k in ('relayer','validator','scraper','worker')]+[native_tools[k]for k in ('docker','psql','initDb','rocksOracle','nativeRows')]}
     policy_pin=write(control/'policy-template.json',policy)
     manifest=dict(profile,schema=1,runtimeSourceCommit=binding['runtime_source_commit'],mode=binding['mode'],taskRoot=str(root/'data/case'),acceptedBuild=accepted,approval={'path':str(control/'approval.json'),'bytes':1,'sha256':'0'*64},artifacts=products,tools=native_tools,sdkBuild=binding['sdk_receipt'],nativeRowsAcceptance=binding['storage_interop'],sourceGates=[gate],parameterHome=binding['parameter_home'],dockerHost='unix://'+str(root/'capabilities/docker.sock'),dockerDaemonId=probe['daemon_id'],httpLibrary=libs['http']['path'],cryptoLibrary=libs['crypto']['path'],parameterFiles=files,sourceFiles=unique(code+[driver,driver_test,policy_pin]))
     manifest_input=write(control/'manifest-input.json',manifest)
     template=[tools['node']['path'],'--experimental-strip-types','--no-warnings',str(HERE/'case_launcher.mjs'),str(root/'readonly/policy.json'),'MINT_AT_LAUNCH',str(control/'manifest.json'),driver['path']]
     spec={k:binding[k]for k in ('repo','execution_source_commit','runtime_source_commit','run_token','output','context','sdk_receipt','sdk_owner_receipt','storage_interop','kernel_receipt','kernel_spec','kernel_owner_receipt','docker_receipt','docker_owner_receipt')}
-    spec.update(schema=1,root_approved=False,purpose='actual-aleo-linux-case-v1',caps=CAPS,system_libraries=libs,sdk_entry=entry,node=tools['node'],python=tools['python'],bwrap=tools['bwrap'],docker_cli=tools['docker'],driver=driver,source_loader=loader,verifier_pins=verifier_pins,manifest={'path':str(control/'manifest.json'),'bytes':None,'sha256':None},manifest_digest=None,policy_template=policy_pin,namespace_policy=pin(HERE/'namespace_policy.py'),inner=pin(HERE/'inner.py'),cache_server=pin(HERE/'cache_server.py'),case_launcher=pin(HERE/'case_launcher.mjs'),bootstrap=pin(HERE/'bootstrap.mjs'),clock_script=pin(HERE/'clock.mjs'),daemon_id=probe['daemon_id'],docker_filesystem=probe['docker_filesystem'],docker_socket=probe['docker_socket'],docker_api_version=probe['docker_api_version'],public_node_env=probe['public_node_env'],exact_node_argv_template=template)
+    spec.update(schema=1,root_approved=False,purpose='actual-aleo-linux-case-v1',caps=CAPS,xhr_caller=caller,xhr_adapter=xhr_adapter_contract(),system_libraries=libs,sdk_entry=entry,node=tools['node'],python=tools['python'],bwrap=tools['bwrap'],docker_cli=tools['docker'],driver=driver,source_loader=loader,verifier_pins=verifier_pins,manifest={'path':str(control/'manifest.json'),'bytes':None,'sha256':None},manifest_digest=None,policy_template=policy_pin,namespace_policy=pin(HERE/'namespace_policy.py'),inner=pin(HERE/'inner.py'),cache_server=pin(HERE/'cache_server.py'),case_launcher=pin(HERE/'case_launcher.mjs'),bootstrap=pin(HERE/'bootstrap.mjs'),clock_script=pin(HERE/'clock.mjs'),daemon_id=probe['daemon_id'],docker_filesystem=probe['docker_filesystem'],docker_socket=probe['docker_socket'],docker_api_version=probe['docker_api_version'],public_node_env=probe['public_node_env'],exact_node_argv_template=template)
     spec['namespace_pins']=None;spec['readonly_roots']=None
     spec['pins']=unique(code+[grant,binding_pin,manifest_input,policy_pin,accepted,gate,entry,driver,driver_test,*tools.values(),*libs.values(),*verifier_pins,*files,*products.values(),*context['tools'].values(),binding['context'],binding['sdk_receipt'],binding['sdk_owner_receipt'],binding['storage_interop'],binding['kernel_receipt'],binding['kernel_spec'],binding['kernel_owner_receipt'],binding['docker_receipt'],binding['docker_owner_receipt']])
     return write(control/'case.PENDING.json',spec)

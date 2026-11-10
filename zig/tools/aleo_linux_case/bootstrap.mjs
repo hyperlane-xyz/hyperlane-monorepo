@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
-import { fileURLToPath, urlToHttpOptions } from 'node:url';
-import { syncBuiltinESMExports } from 'node:module';
+import { fileURLToPath, pathToFileURL, urlToHttpOptions } from 'node:url';
+import { syncBuiltinESMExports, registerHooks } from 'node:module';
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
@@ -13,6 +13,42 @@ import childProcess from 'node:child_process';
 import threads from 'node:worker_threads';
 const SELF = fs.realpathSync(fileURLToPath(import.meta.url));
 const SYMBOL = Symbol.for('ziggy.aleo.closed-cache.v1');
+const XHR_ADAPTER_JSON = '{"schema":1,"kind":"aleo-fixture-sync-xhr-adapter-v1","original":{"bytes":37447,"sha256_hex_chunks":["bdda14cc1438a57e89ef0a5054665473","7ed0cd9f80d5157c9a1b8de8c4e03e08"]},"executed":{"bytes":37311,"sha256_hex_chunks":["ce897ead0284af2111c59b066d6dbc20","4695c090678bea0698fe87f66ccafc2f"]},"substitutions":3,"published_dependency_disk_mutated":false}';
+export function xhrAdapterContract() {
+  const value=JSON.parse(XHR_ADAPTER_JSON);
+  for(const role of ['original','executed']) {
+    const row=value[role],chunks=row.sha256_hex_chunks;
+    requireValue(Object.keys(row).sort().join(',')==='bytes,sha256_hex_chunks' && Array.isArray(chunks) && chunks.length===2 && chunks.every(x=>typeof x==='string' && /^[0-9a-f]{32}$/.test(x)),'exact chunked XHR Source hash required');
+    value[role]={bytes:row.bytes,sha256:chunks.join('')};
+  }
+  return value;
+}
+const XHR_PATCHES = [
+  [
+    "var spawn = require('child_process').spawn;",
+    "var runSynchronousXHR = globalThis[Symbol.for('ziggy.aleo.closed-cache.v1')].runSynchronousXHR;"
+  ],
+  [
+    "        var syncProc = spawn(process.argv[0], [\"-e\", execString]);\n        while(fs.existsSync(syncFile)) {\n          // Wait while the sync file is empty\n        }",
+    "        runSynchronousXHR(process.argv[0], [\"-e\", execString]);"
+  ],
+  [
+    "        // Kill the child process once the file has data\n        syncProc.stdin.end();\n",
+    ""
+  ]
+];
+export function adaptXhrCaller(source) {
+  const contract=xhrAdapterContract();
+  requireValue(typeof source==='string' && Buffer.byteLength(source)===contract.original.bytes && sha(Buffer.from(source))===contract.original.sha256,'exact original XHR caller Source required');
+  let executed=source;
+  for(const [before,after] of XHR_PATCHES) {
+    requireValue(executed.split(before).length===2,'exact once-only XHR caller substitution required');
+    executed=executed.replace(before,after);
+  }
+  requireValue(Buffer.byteLength(executed)===contract.executed.bytes && sha(Buffer.from(executed))===contract.executed.sha256,'exact executed XHR adapter Source required');
+  return executed;
+}
+
 const GRANT_SHA = '50edaa4a75ce4657d3c163e5bf644f1f'+'b90e101d5c879acb06f84e3028e87742';
 const XHR_PREFIX = "'use strict';var http = require('http'), https = require('https'), fs = require('fs');";
 function requireValue(v, message) { if (!v) throw new Error(message); }
@@ -58,6 +94,7 @@ export function install(policyPath, expectedSha) {
   const errorDir = privateDir(policy.root,'errors');
   const registry = privateDir(policy.root,'registry');
   const slots = privateDir(policy.root,'worker-slots');
+  const xhrStates = privateDir(policy.root,'xhr-adapters');
   const capability=process.env.ZIGGY_ALEO_CAPABILITY ?? 'main';
   requireValue(['main','sdk','xhr'].includes(capability),'invalid capability');
   const tmp = privateDir(policy.root,`sdk-tmp/${process.pid}-${threads.threadId}`);
@@ -233,6 +270,7 @@ export function install(policyPath, expectedSha) {
   };
   let syncChildren=0;
   const nativeSpawn = childProcess.spawn;
+  const nativeSpawnSync = childProcess.spawnSync;
   const nativeExecFile = childProcess.execFile;
   const nativeExecFileSync = childProcess.execFileSync;
   function retainNative(child,file) {
@@ -246,8 +284,8 @@ export function install(policyPath, expectedSha) {
     check();if(capability !== 'main')deny('isolate native process escape');
     const allowed=nativeFiles.get(file);if(!allowed)deny('unapproved native executable');verify(allowed);
   }
-  childProcess.spawn = function(file,args=[],options) {
-    if (file === process.execPath && args[0] === '-e') {
+  function approvedXHR(file,args,options) {
+    if(file!==process.execPath || !Array.isArray(args) || args[0]!=='-e')deny('unknown Node-e helper');
       check();
       if (capability === 'xhr') deny('recursive XHR helper');
       if (args.length !== 2 || typeof args[1] !== 'string' || !args[1].startsWith(XHR_PREFIX)) deny('unknown Node-e helper');
@@ -262,6 +300,64 @@ export function install(policyPath, expectedSha) {
       if(!code.includes("'"+sync+"'")||!code.includes("'"+content+"'"))deny('XHR private temp paths differ');
       const env={...(options?.env ?? process.env)};if(env.NODE_OPTIONS)deny('ambient helper loader');
       Object.assign(env,{ZIGGY_ALEO_BOOTSTRAP_CHILD:'1',ZIGGY_ALEO_CAPABILITY:'xhr',ZIGGY_ALEO_POLICY:policyPath,ZIGGY_ALEO_POLICY_SHA:expectedSha});
+      return env;
+  }
+  const xhrContract=xhrAdapterContract();
+  requireValue(typeof registerHooks==='function','pinned Node synchronous module hook required');
+  requireValue(policy.xhr_caller && policy.xhr_caller.bytes===xhrContract.original.bytes && policy.xhr_caller.sha256===xhrContract.original.sha256,'admitted exact XHR dependency required');
+  verify(policy.xhr_caller);
+  const xhrPath=fs.realpathSync(policy.xhr_caller.path);
+  requireValue(xhrPath===policy.xhr_caller.path && xhrPath.endsWith('/xmlhttprequest-ssl/lib/XMLHttpRequest.js'),'canonical fixed XHR dependency path required');
+  const adapterPins=policy.code_pins.filter(p=>p.path===SELF);
+  requireValue(adapterPins.length===1,'exact adapter bootstrap Source pin required');
+  const xhrState={schema:1,kind:xhrContract.kind,pid:process.pid,threadId:threads.threadId,original:policy.xhr_caller,adapter:adapterPins[0],executed:xhrContract.executed,disk_mutated:false,loads:0,started:0,actual_waits:0,not_started:0,failed:0,in_flight:0,maximum_in_flight:0};
+  function saveXhrState() {
+    const file=path.join(xhrStates,`${process.pid}-${threads.threadId}.json`),temp=file+'.tmp';
+    fs.writeFileSync(temp,JSON.stringify(xhrState),{flag:'wx',mode:0o600});fs.renameSync(temp,file);
+  }
+  function runSynchronousXHR(file,args) {
+    const env=approvedXHR(file,args,undefined);
+    if(syncChildren>=2)deny('sync helper cap');
+    if(process.hrtime.bigint()>=deadline)deny('owner deadline before fetch');
+    syncChildren++;xhrState.started++;xhrState.in_flight++;
+    xhrState.maximum_in_flight=Math.max(xhrState.maximum_in_flight,syncChildren);saveXhrState();
+    let result;
+    try {
+      const remaining=Number((deadline-process.hrtime.bigint())/1000000n);
+      if(remaining<=0)deny('owner deadline before fetch');
+      result=nativeSpawnSync.call(childProcess,file,['--import',SELF,...args],{env,stdio:['ignore','pipe','pipe'],timeout:remaining,killSignal:'SIGKILL',maxBuffer:65536});
+      const hasPid=Number.isInteger(result.pid)&&result.pid>0;
+      const waited=hasPid&&(Number.isInteger(result.status)||typeof result.signal==='string');
+      if(waited)xhrState.actual_waits++;else if(!hasPid)xhrState.not_started++;
+      // Release only after native synchronous wait, or a positively unstarted spawn.
+      if(waited||!hasPid){syncChildren--;xhrState.in_flight--;}
+      const passed=waited && !result.error && result.status===0 && result.signal===null && process.hrtime.bigint()<deadline;
+      if(!passed){xhrState.failed++;failed??=new Error('synchronous XHR actual wait/status/deadline failed');}
+      saveXhrState();
+      record('sync-child-synchronous-result',{childPid:hasPid?result.pid:null,code:result.status??null,signal:result.signal??null,actualParentWait:waited,nativeSpawnSyncReturned:true,noLiveBirthObservation:true,stdoutBytes:result.stdout?.length??0,stderrBytes:result.stderr?.length??0});
+      requireValue(passed,'synchronous XHR actual wait/status/deadline failed');
+      return result;
+    } catch(error) {
+      failed??=error;
+      if(result===undefined){
+        xhrState.failed++;
+        try{saveXhrState();}catch{/* Optional private state must not replace the primary failure. */}
+      }
+      throw failed;
+    }
+  }
+  if(capability!=='xhr')registerHooks({load(url,context,nextLoad) {
+    if(url!==pathToFileURL(xhrPath).href)return nextLoad(url,context);
+    const loaded=nextLoad(url,{...context,format:'commonjs'});
+    requireValue(loaded.format==='commonjs','exact XHR CommonJS format required');
+    const original=typeof loaded.source==='string'?loaded.source:Buffer.from(loaded.source).toString('utf8');
+    const executed=adaptXhrCaller(original);verify(policy.xhr_caller);
+    xhrState.loads++;saveXhrState();
+    return {...loaded,source:executed};
+  }});
+  childProcess.spawn = function(file,args=[],options) {
+    if (file === process.execPath && args[0] === '-e') {
+      const env=approvedXHR(file,args,options);
       if(syncChildren>=2)deny('sync helper cap');
       syncChildren++;
       const child=nativeSpawn.call(childProcess,file,['--import',SELF,...args],{...options,env});
@@ -276,6 +372,6 @@ export function install(policyPath, expectedSha) {
   for(const key of ['exec','execSync','execFileSync','spawnSync','fork'])childProcess[key]=()=>deny('unapproved process API:'+key);
   syncBuiltinESMExports();
   record('bootstrap-ready',{tmpdir:tmp,policySha:expectedSha});
-  const context={check,route,policySha:expectedSha,policy};globalThis[SYMBOL]=context;return context;
+  const context={check,route,policySha:expectedSha,policy,runSynchronousXHR};globalThis[SYMBOL]=context;return context;
 }
 if (process.env.ZIGGY_ALEO_BOOTSTRAP_CHILD === '1') install(process.env.ZIGGY_ALEO_POLICY,process.env.ZIGGY_ALEO_POLICY_SHA);

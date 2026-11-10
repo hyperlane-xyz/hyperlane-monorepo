@@ -23,6 +23,20 @@ def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
 
 
+def projected_adapter(value,spec):
+    fields={'schema','kind','original_dependency','adapter_Source','executed_dependency','published_dependency_disk_unchanged','executed_original_dependency_verbatim','actual_isolate_states','actual_adapter_loads','actual_synchronous_waits','all_actual_waits_successful','maximum_observed_per_isolate_helpers','per_isolate_helper_limit','global_helper_limit_claimed','live_PID_birth_observation_claimed'}
+    need(type(value)is dict and set(value)==fields and type(value['schema'])is int and value['schema']==1 and value['kind']=='aleo-fixture-sync-xhr-adapter-v1','closed actual XHR adapter projection required')
+    for key,expected in [('published_dependency_disk_unchanged',True),('executed_original_dependency_verbatim',False),('all_actual_waits_successful',True),('global_helper_limit_claimed',False),('live_PID_birth_observation_claimed',False)]:need(value[key]is expected,'actual XHR adapter boundary differs')
+    for key in ('original_dependency','executed_dependency'):
+        row=value[key];need(type(row)is dict and set(row)=={'bytes','sha256'}and type(row['bytes'])is int and 0<row['bytes']<=128*1024 and type(row['sha256'])is str and re.fullmatch('[0-9a-f]{64}',row['sha256']),'closed XHR dependency hash required')
+    need(value['original_dependency']=={k:spec['xhr_caller'][k]for k in ('bytes','sha256')}and value['executed_dependency']==spec['xhr_adapter']['executed'],'actual declared XHR transform differs')
+    need(value['adapter_Source']=={'path':'zig/tools/aleo_linux_case/bootstrap.mjs','bytes':spec['bootstrap']['bytes'],'sha256':spec['bootstrap']['sha256']},'actual adapter bootstrap Source differs')
+    for key in ('actual_isolate_states','actual_adapter_loads','actual_synchronous_waits','maximum_observed_per_isolate_helpers','per_isolate_helper_limit'):need(type(value[key])is int and 0<=value[key]<=2**31,'typed adapter counts required')
+    need(1<=value['actual_isolate_states']<=1024 and value['actual_adapter_loads']>=value['actual_isolate_states']and value['per_isolate_helper_limit']==2 and value['maximum_observed_per_isolate_helpers']<=2,'actual adapter bounds differ')
+    # All nested fields are closed above; copy scalars/hash records only.
+    return {key:dict(row)if type(row)is dict else row for key,row in value.items()}
+
+
 def project(actual,owner,raw_pin,spec):
     need(owner.get('passed')is True and actual.get('passed')is True and actual.get('errors')==[],'actual dedicated owner and TS proof required')
     need(owner.get('source_unchanged')is True and owner.get('owned_absent')is True and not owner.get('signals'),'actual owner preservation/absence required')
@@ -65,4 +79,7 @@ def project(actual,owner,raw_pin,spec):
         need(isinstance(row['signed'],list)and row['signed'],'actual checkpoint signatures absent')
         checkpoints.extend(selected(item,('name','index','root','id','signer'))for item in row['signed'])
     need({row['id']for row in checkpoints}==set(ids),'checkpoint ID coverage missing')
-    return {'schema':1,'kind':'public-actual-aleo-proof-v1','generic_Python_NativeSession_acceptance':False,'raw_final':raw_pin,'source':{'runtime_source_commit':spec['runtime_source_commit'],'execution_source_commit':spec['execution_source_commit'],'manifest':spec['manifest'],'SDK_receipt':spec['sdk_receipt'],'Linux_storage_component':spec['storage_interop']},'actual_owner_waits':owner['direct_waits'],'owned_absent':owner['owned_absent'],'actual_role_waits':waits,'messages':rows,'per_ID_monotonic_ms':clocks,'restart':{'startedMonotonicMs':start,'completedMonotonicMs':end,'actual_duration_ms':end-start,'domainLastReceived':public_received,'sameDB_no_extra_transaction':True},'actual_checkpoint_signature_verdicts':checkpoints,'stopped_readback_fingerprints':{key:digest(value)for key,value in evidence.items()if key.startswith('stopped-')},'source_products_rechecked':owner['source_unchanged'],'native_family_acceptance_requires_Root_readback':True,'benchmark_or_performance_credit':False}
+    adapter=None
+    if 'xhr_caller'in spec:
+        adapter=projected_adapter(owner.get('fixture_dependency_adapter'),spec)
+    return {'schema':1,'kind':'public-actual-aleo-proof-v1','generic_Python_NativeSession_acceptance':False,'raw_final':raw_pin,'source':{'runtime_source_commit':spec['runtime_source_commit'],'execution_source_commit':spec['execution_source_commit'],'manifest':spec['manifest'],'SDK_receipt':spec['sdk_receipt'],'Linux_storage_component':spec['storage_interop'],**({'fixture_dependency_adapter':adapter}if adapter is not None else{})},'actual_owner_waits':owner['direct_waits'],'owned_absent':owner['owned_absent'],'actual_role_waits':waits,'messages':rows,'per_ID_monotonic_ms':clocks,'restart':{'startedMonotonicMs':start,'completedMonotonicMs':end,'actual_duration_ms':end-start,'domainLastReceived':public_received,'sameDB_no_extra_transaction':True},'actual_checkpoint_signature_verdicts':checkpoints,'stopped_readback_fingerprints':{key:digest(value)for key,value in evidence.items()if key.startswith('stopped-')},'source_products_rechecked':owner['source_unchanged'],'native_family_acceptance_requires_Root_readback':True,'benchmark_or_performance_credit':False}

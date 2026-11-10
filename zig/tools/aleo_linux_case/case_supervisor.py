@@ -104,6 +104,29 @@ def kernel_receipt(pin_value):
     return row
 
 
+def xhr_adapter_provenance(spec,control):
+    from case_specs import xhr_adapter_contract
+    contract=xhr_adapter_contract();expected={'original':spec['xhr_caller'],'adapter':spec['bootstrap'],'executed':contract['executed']}
+    directory=Path(control)/'xhr-adapters';need(directory.resolve(strict=True)==directory and directory.is_dir()and not directory.is_symlink(),'canonical XHR adapter state directory required')
+    names=list(directory.iterdir());need(0<len(names)<=1024,'bounded actual adapter isolates required');loaded=waited=0;maximum=0
+    for path in names:
+        match=__import__('re').fullmatch(r'([1-9][0-9]{0,10})-([0-9]{1,10})\.json',path.name);need(match is not None,'fixed adapter state leaf required')
+        fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+        try:
+            before=os.fstat(fd);need(stat.S_ISREG(before.st_mode)and before.st_uid==os.getuid()and 0<before.st_size<=4096,'bounded regular adapter state required');raw=os.read(fd,4097);after=os.fstat(fd)
+            need(len(raw)==before.st_size and all(getattr(before,k)==getattr(after,k)for k in ('st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns')),'stable adapter state required')
+        finally:os.close(fd)
+        value=decode(raw);need(type(value)is dict and set(value)=={'schema','kind','pid','threadId','original','adapter','executed','disk_mutated','loads','started','actual_waits','not_started','failed','in_flight','maximum_in_flight'},'closed XHR actual state required')
+        need(type(value['schema'])is int and value['schema']==1 and value['kind']==contract['kind']and value['disk_mutated']is False and all(value[k]==v for k,v in expected.items()),'actual XHR Source provenance differs')
+        need(type(value['pid'])is int and type(value['threadId'])is int and(value['pid'],value['threadId'])==(int(match[1]),int(match[2])),'adapter state identity differs')
+        for key in ('loads','started','actual_waits','not_started','failed','in_flight','maximum_in_flight'):need(type(value[key])is int and 0<=value[key]<=2**31,'typed XHR actual state count required')
+        need(value['loads']>0 and value['started']==value['actual_waits']and value['failed']==value['not_started']==value['in_flight']==0 and value['maximum_in_flight']<=2,'actual synchronous XHR waits incomplete or failed')
+        loaded+=value['loads'];waited+=value['actual_waits'];maximum=max(maximum,value['maximum_in_flight'])
+    need({p.name for p in directory.iterdir()}=={p.name for p in names},'adapter state set changed')
+    checked(spec['xhr_caller']);checked(spec['bootstrap'])
+    return {'schema':1,'kind':contract['kind'],'original_dependency':contract['original'],'adapter_Source':{'path':'zig/tools/aleo_linux_case/bootstrap.mjs','bytes':spec['bootstrap']['bytes'],'sha256':spec['bootstrap']['sha256']},'executed_dependency':contract['executed'],'published_dependency_disk_unchanged':True,'executed_original_dependency_verbatim':False,'actual_isolate_states':len(names),'actual_adapter_loads':loaded,'actual_synchronous_waits':waited,'all_actual_waits_successful':True,'maximum_observed_per_isolate_helpers':maximum,'per_isolate_helper_limit':2,'global_helper_limit_claimed':False,'live_PID_birth_observation_claimed':False}
+
+
 def final_pass(result):
     return result.get('case_verdict')is True and result.get('source_unchanged')is True and result.get('owned_absent')is True and result.get('container_cleanup',{}).get('passed')is True and result.get('network_cleanup',{}).get('owned_internal_network_removed_and_absent')is True and result.get('bridges_joined')is True and result.get('gate_failed')is None and not result.get('signals')and not result.get('error')and not result.get('cleanup_errors')and all(row.get('actual_parent_wait')is True and row.get('exit_code')==0 for row in result.get('direct_waits',[]))and len(result.get('direct_waits',[]))==2 and all(row.get('exit_code')==0 for row in result.get('actual_adopted_waits',[]))
 
@@ -300,6 +323,9 @@ def run(spec_pin):
             result['actual_manager_limits_after']={name:(manager/name).read_text().strip()for name in ('memory.max','memory.swap.max','pids.max')}
             need(result['actual_manager_limits_after']=={'memory.max':str(CAPS['owner_memory_bytes']),'memory.swap.max':'0','pids.max':'128'},'actual manager limits changed')
         except BaseException as error:cleanup.append('manager limits:'+type(error).__name__)
+        if result.get('case_verdict')is True and not result.get('error'):
+            try:result['fixture_dependency_adapter']=xhr_adapter_provenance(spec,control)
+            except BaseException as error:result['error']='XHR adapter provenance:'+type(error).__name__
         result['cleanup_errors']=cleanup;result['passed']=final_pass(result);result['finished_ns']=time.monotonic_ns()
         # Final public proof is published only by case_delegate after its actual
         # systemd-client wait and positive cgroup absence, not inside the unit.
