@@ -1747,5 +1747,179 @@ class RestartFailedBodyStatusTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'restart refused admin operation became submitted'):self.invoke(self.fixture(body=b'ordinary',insertions=[],status={'Retry':'ErrorEstimatingGas'}))
 
 
+class CheckpointObservationHashControls(unittest.TestCase):
+    @staticmethod
+    def hashed(value):
+        raw = bytes.fromhex(value[2:]) if value.startswith('0x') else value.encode()
+        return '0x' + hashlib.sha256(raw).hexdigest()
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='ziggy-checkpoint-hash-pure-')
+        self.addCleanup(self.temporary.cleanup)
+        self.root = pathlib.Path(self.temporary.name).resolve()
+        tool = self.root / 'cast-public-fixture'
+        tool.write_bytes(b'pinned synthetic verifier; never executed')
+        tool.chmod(0o700)
+        self.tool = tool
+        self.session = Session.__new__(Session)
+        self.session.family = None
+        self.session.manifest = {'task_root': str(self.root), 'scenario': 'evm', 'runtime_source_commit': 'a' * 40,
+            'verifier_tools': {'cast': {'path': str(tool), 'bytes': tool.stat().st_size, 'sha256': hashlib.sha256(tool.read_bytes()).hexdigest()}}}
+        public = '0x' + evm.SECP_G[0].to_bytes(32, 'big').hex() + evm.SECP_G[1].to_bytes(32, 'big').hex()
+        self.signer = '0x' + bytes.fromhex(self.hashed(public)[2:])[12:].hex()
+        self.session.case = {'validator_addresses': {'test1': self.signer}}
+        self.session.owned_path = lambda path: self.root / path
+        self.calls = []
+        def calculate(value):
+            self.calls.append(value)
+            return self.hashed(value)
+        adapter = mock.Mock()
+        adapter.keccak = calculate
+        self.session.adapter = mock.Mock(return_value=adapter)
+        self.chain = {'name': 'test1', 'domainid': 1, 'merkletreehook': '0x' + '12' * 20}
+        self.messages = [{'id': '0x' + format(i + 1, '064x'), 'origin_chain': 'test1', 'insertions': [i]} for i in range(8)]
+        self.snapshot = {'messages': self.messages}
+        self.session.captures = []
+        roots = evm.merkle_roots(self.messages, self.hashed)
+        hook = '0x' + '00' * 12 + '12' * 20
+        for number in range(4):
+            directory = self.root / ('validator-' + str(number))
+            directory.mkdir()
+            metadata = {'git_sha': 'a' * 40, 'rpcs': [{'url_hash': self.hashed('http://127.0.0.1:1'), 'host_hash': self.hashed('127.0.0.1')}], 'allows_public_rpcs': False}
+            (directory / 'metadata_latest.json').write_text(json.dumps(metadata))
+            for row in roots:
+                checkpoint = {'merkle_tree_hook_address': hook, 'mailbox_domain': 1, 'root': row['root'], 'index': row['index']}
+                digest = evm.checkpoint_digest(checkpoint, row['message_id'], self.hashed)
+                point = evm.point_multiply(2, evm.SECP_G)
+                r = point[0] % evm.SECP_N
+                z = int(digest, 16)
+                signature = {'r': hex(r), 's': hex((z + r) * pow(2, -1, evm.SECP_N) % evm.SECP_N), 'v': 27 + (point[1] & 1)}
+                (directory / (str(row['index']) + '_with_id.json')).write_text(json.dumps({'value': {'checkpoint': checkpoint, 'message_id': row['message_id']}, 'signature': signature}))
+            original = {'role': 'validator', 'role_chain_names': ['test1'], 'checkpoint_syncer': {'type': 'localStorage', 'path': str(directory)}, 'chains': {'test1': self.chain}, 'allows_public_rpcs': False}
+            proxied = {'chains': {'test1': {'rpcurls': 'http://127.0.0.1:1'}}}
+            self.session.captures.append({'original': original, 'proxied': proxied})
+
+    def invoke(self, verifier):
+        with mock.patch.object(session_module, 'verify_checkpoint_objects', verifier):
+            return self.session.checkpoint_proofs(self.snapshot)
+
+    def test_real_signed_objects_equal_uncached_result_with_fewer_kernel_calls(self):
+        expected = []
+        for capture in self.session.captures:
+            path = pathlib.Path(capture['original']['checkpoint_syncer']['path'])
+            proof = evm.verify_checkpoint_objects(path, self.chain, self.signer, self.messages, self.session.adapter(self.chain).keccak,
+                git_sha='a' * 40, configured_rpc_urls=['http://127.0.0.1:1'], allows_public_rpcs=False)
+            proof['published_bytes'] = [{'path': str(item), 'bytes': item.stat().st_size, 'sha256': hashlib.sha256(item.read_bytes()).hexdigest()} for item in path.glob('*_with_id.json')]
+            expected.append(proof)
+        before = len(self.calls)
+        exact_inputs = len(set(self.calls))
+        self.calls.clear()
+        actual = self.session.checkpoint_proofs(self.snapshot)
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(self.calls), exact_inputs)
+        self.assertLess(len(self.calls), before)
+        self.assertEqual(sum(len(row['verified_checkpoint_objects']) for row in actual), 32)
+        self.assertEqual(len(self.session.adapter.call_args_list), 8)
+        type(self).kernel_counts = {'uncached': before, 'cached': len(self.calls), 'signed_objects': 32}
+
+    def test_no_hash_or_signed_object_reuse_across_observations(self):
+        first = self.session.checkpoint_proofs(self.snapshot)
+        count = len(self.calls)
+        self.calls.clear()
+        self.assertEqual(self.session.checkpoint_proofs(self.snapshot), first)
+        self.assertEqual(len(self.calls), count)
+        path = self.root / 'validator-3/7_with_id.json'
+        changed = json.loads(path.read_text())
+        changed['signature']['r'] = '0x0'
+        path.write_text(json.dumps(changed))
+        with self.assertRaisesRegex(ValueError, 'invalid checkpoint ECDSA'):
+            self.session.checkpoint_proofs(self.snapshot)
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, 'actual final checkpoint missing'):
+            self.session.checkpoint_proofs(self.snapshot)
+
+    def test_fresh_second_validator_file_and_canonical_leaf_poison_still_refused(self):
+        count = 0
+        def read_fresh(*args, **kwargs):
+            nonlocal count
+            count += 1
+            if count == 2:
+                path = self.root / 'validator-1/7_with_id.json'
+                changed = json.loads(path.read_text())
+                changed['value']['checkpoint']['root'] = '0x' + '00' * 32
+                path.write_text(json.dumps(changed))
+            return evm.verify_checkpoint_objects(*args, **kwargs)
+        with self.assertRaisesRegex(ValueError, 'published checkpoint differs'):
+            self.invoke(read_fresh)
+        self.messages[0]['insertions'] = [1]
+        with self.assertRaisesRegex(ValueError, 'gap/duplicate'):
+            self.session.checkpoint_proofs(self.snapshot)
+
+    def test_exact_string_keys_no_alias_merging_and_bounded_overflow_fallback(self):
+        values = ['0xaa', '0xAA', 'aa', '0xaa', 'http://127.0.0.1', 'http://127.0.0.1/']
+        expected = [self.hashed(value) for value in values]
+        def exercise(path, chain, signer, messages, hashed, **kwargs):
+            self.assertEqual([hashed(value) for value in values], expected)
+            return {}
+        self.invoke(exercise)
+        self.assertEqual(self.calls, list(dict.fromkeys(values)))
+        self.calls.clear()
+        self.session.captures = self.session.captures[:1]
+        def capacity(path, chain, signer, messages, hashed, **kwargs):
+            for index in range(4097):
+                hashed('value-' + str(index))
+            hashed('value-0')
+            hashed('value-4096')
+            hashed('x' * 1025)
+            hashed('x' * 1025)
+            return {}
+        self.invoke(capacity)
+        self.assertEqual(len(self.calls), 4100)
+        self.assertEqual(self.calls.count('value-0'), 1)
+        self.assertEqual(self.calls.count('value-4096'), 2)
+        self.assertEqual(self.calls.count('x' * 1025), 2)
+
+    def test_changed_pinned_tool_and_descriptor_refused_on_cache_hit(self):
+        for mutate in [lambda: self.tool.write_bytes(b'changed synthetic verifier'),
+                       lambda: self.session.manifest['verifier_tools']['cast'].__setitem__('sha256', '0' * 64)]:
+            self.setUp()
+            def changed(path, chain, signer, messages, hashed, **kwargs):
+                hashed('same input')
+                mutate()
+                hashed('same input')
+                return {}
+            with self.assertRaises(ValueError):
+                self.invoke(changed)
+            self.assertEqual(self.calls, ['same input'])
+
+    def test_non_evm_original_callback_is_not_memoized(self):
+        self.session.manifest['scenario'] = 'tron'
+        def repeated(path, chain, signer, messages, hashed, **kwargs):
+            hashed('same input')
+            hashed('same input')
+            return {}
+        with mock.patch.object(session_module, 'tron_address', side_effect=lambda value: value):
+            self.invoke(repeated)
+        self.assertEqual(self.calls, ['same input'] * 8)
+
+    def test_failed_hash_not_reused_and_non_evm_delegation_unchanged(self):
+        error = ValueError('synthetic hash failure')
+        self.session.adapter.return_value.keccak = mock.Mock(side_effect=[error, self.hashed('input')])
+        def retried(path, chain, signer, messages, hashed, **kwargs):
+            with self.assertRaises(ValueError) as raised:
+                hashed('input')
+            self.assertIs(raised.exception, error)
+            self.assertEqual(hashed('input'), self.hashed('input'))
+            return {}
+        self.session.captures = self.session.captures[:1]
+        self.invoke(retried)
+        self.assertEqual(self.session.adapter.return_value.keccak.call_count, 2)
+        family = mock.Mock()
+        family.checkpoints.return_value = ['delegated original family result']
+        self.session.family = family
+        self.assertEqual(self.session.checkpoint_proofs(self.snapshot), family.checkpoints.return_value)
+        family.checkpoints.assert_called_once_with(self.session, self.snapshot)
+
+
 if __name__ == "__main__":
     unittest.main()

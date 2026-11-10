@@ -1170,6 +1170,23 @@ class Session:
         if self.family is not None:
             return self.family.checkpoints(self, snapshot)
         messages = snapshot["messages"]
+        # Only deterministic cast hashes repeat within this fresh observation.
+        # File reads, canonical leaves and every signature are still verified.
+        checkpoint_hashes = {}
+        checkpoint_cast = dict(self.manifest["verifier_tools"]["cast"]) if self.manifest["scenario"] == "evm" else None
+        def checkpoint_keccak(calculate):
+            def hashed(value):
+                require(self.manifest["verifier_tools"]["cast"] == checkpoint_cast, "checkpoint hash verifier changed during observation")
+                if type(value) is not str or len(value) > 1024:
+                    return calculate(value)
+                if value in checkpoint_hashes:
+                    checked_artifact(checkpoint_cast, True)
+                    return checkpoint_hashes[value]
+                result = calculate(value)
+                if len(checkpoint_hashes) < 4096:
+                    checkpoint_hashes[value] = result
+                return result
+            return hashed
         require(isinstance(self.case.get("validator_addresses"), dict), "reviewed public validator identities required")
         result = []
         for capture in self.captures:
@@ -1191,7 +1208,9 @@ class Session:
             for base, custom in [("rpcurls", "customrpcurls"), ("grpcurls", "customgrpcurls"), ("walleturls", "customwalleturls"), ("walletsolidityurls", "customwalletsolidityurls")]:
                 if custom in selected_rpc or base in selected_rpc:
                     rpc_urls.extend(urls(selected_rpc[custom] if custom in selected_rpc else selected_rpc[base]))
-            proof = verify_checkpoint_objects(path, chain, self.case["validator_addresses"][name], [message for message in messages if message["origin_chain"] == name], self.adapter(chain).keccak, git_sha=self.manifest["runtime_source_commit"], configured_rpc_urls=rpc_urls, allows_public_rpcs=original["allows_public_rpcs"])
+            calculate = self.adapter(chain).keccak
+            hashed = checkpoint_keccak(calculate) if checkpoint_cast is not None else calculate
+            proof = verify_checkpoint_objects(path, chain, self.case["validator_addresses"][name], [message for message in messages if message["origin_chain"] == name], hashed, git_sha=self.manifest["runtime_source_commit"], configured_rpc_urls=rpc_urls, allows_public_rpcs=original["allows_public_rpcs"])
             proof["published_bytes"] = [{"path": str(item), "bytes": item.stat().st_size, "sha256": hashlib.sha256(item.read_bytes()).hexdigest()} for item in path.glob("*_with_id.json")]
             result.append(proof)
         require(result, "actual validator publication evidence missing")
