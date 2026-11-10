@@ -349,7 +349,7 @@ class Controls(unittest.TestCase):
         self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
     def test_current_policy_binding_and_synthetic_unbound_future_pins_refuse(self):
         policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
-        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42714540346,'run_attempt':1})
+        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42753731810,'run_attempt':1})
         # Parse either a reviewed complete READONLY policy or its inert precursor;
         # this test grants no approval and does not require live activation.
         self.assertIs(api.validate_policy(policy),policy['root_approved'])
@@ -357,7 +357,7 @@ class Controls(unittest.TestCase):
         self.assertFalse(api.validate_policy(unbound));unbound['root_approved']=True
         with self.assertRaisesRegex(api.Refused,'POLICY_JOBS'):api.validate_policy(unbound)
     def test_reader_is_bound_to_Gbe13_and_historical_producers_cannot_authorize(self):
-        self.assertEqual(api.PRODUCER,'a7b3319590295c2a65fbf5b077c05e9ec0b3e127')
+        self.assertEqual(api.PRODUCER,'1b35f5f3253f4cff9c846b669d051492b1219a3a')
         for producer in ('7fdbe182301e92ee7aaed7d82d679e52cffcd8f4','14c854379a86c74f36bd8f25f3b56c1fc3eed562','c0e9b16f5f5361dbbc45260d0316ed8a03b80857','56e791042c3be1b5adf944a9095fc7a4245204a0','f453948ae31c1fadb35e10c87577e73a39350103','9badc87e8c2e2f019a1b3453c323a8d89686e43e','bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
             historical=copy.deepcopy(self.policy);historical['root_approved']=True;historical['producer']['source_commit']=producer
             with self.subTest(producer=producer),self.assertRaisesRegex(api.Refused,'POLICY_PRODUCER'):api.validate_policy(historical)
