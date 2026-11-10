@@ -583,16 +583,24 @@ async fn late_checkpoint_discovery_is_published_without_resetting_signatures() {
         );
         assert_eq!(node["signatures"]["collected"], 2);
         assert_eq!(node["signatures"]["signers"].as_array().unwrap().len(), 2);
-        assert_eq!(node["signatures"]["latest_indices"][0]["index"], 14);
-        assert_eq!(node["signatures"]["latest_indices"][1]["index"], 13);
-        assert_eq!(
-            node["signatures"]["discovery_unavailable"][0]["reason"],
-            "fetch_error"
-        );
-        assert_eq!(
-            node["signatures"]["discovery_unavailable"][1]["reason"],
-            "no_storage"
-        );
+        let latest_indices = node["signatures"]["latest_indices"].as_array().unwrap();
+        assert_eq!(latest_indices.len(), 2);
+        for (validator, index) in [(1, 14), (2, 13)] {
+            assert!(latest_indices.contains(&serde_json::json!({
+                "validator": H160::repeat_byte(validator),
+                "index": index,
+            })));
+        }
+        let discovery_unavailable = node["signatures"]["discovery_unavailable"]
+            .as_array()
+            .unwrap();
+        assert_eq!(discovery_unavailable.len(), 2);
+        for (validator, reason) in [(3, "fetch_error"), (4, "no_storage")] {
+            assert!(discovery_unavailable.contains(&serde_json::json!({
+                "validator": H256::repeat_byte(validator),
+                "reason": reason,
+            })));
+        }
         assert_eq!(node["metadata_status"], "ready");
         assert_eq!(node["verification"], "succeeded");
     }
