@@ -912,6 +912,10 @@ impl Validator {
             Arc::clone(&self.readiness),
         )
         .with_checkpoint_wake(self.checkpoint_wake.clone())
+        .with_websocket_insertion_sequence(match &self.merkle_tree_hook_sync {
+            MerkleTreeHookSync::WebSocket { websocket, .. } => Some(websocket.insertion_sequence()),
+            MerkleTreeHookSync::Rpc(_) => None,
+        })
         .with_websocket_health(match &self.merkle_tree_hook_sync {
             MerkleTreeHookSync::WebSocket { websocket, .. } => Some(websocket.health()),
             MerkleTreeHookSync::Rpc(_) => None,

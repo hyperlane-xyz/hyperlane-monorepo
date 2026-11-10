@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex,
     },
     time::Duration,
@@ -392,11 +392,18 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     fallback_active: IntGauge,
     cursor_state: MerkleTreeCursorState,
     checkpoint_wake: Arc<Notify>,
+    // Exclusive insertion sequence, published after persistence. Scheduling only;
+    // the submitter must independently authenticate every leaf before signing.
+    insertion_sequence: Arc<AtomicU32>,
 }
 
 impl MerkleTreeHookWebSocketSync {
     pub(crate) fn health(&self) -> Arc<AtomicBool> {
         self.websocket_healthy.clone()
+    }
+
+    pub(crate) fn insertion_sequence(&self) -> Arc<AtomicU32> {
+        self.insertion_sequence.clone()
     }
 
     fn set_healthy(&self, healthy: bool) {
@@ -450,6 +457,7 @@ impl MerkleTreeHookWebSocketSync {
             fallback_active,
             cursor_state,
             checkpoint_wake,
+            insertion_sequence: Arc::new(AtomicU32::new(0)),
         }
     }
 
@@ -922,6 +930,8 @@ impl MerkleTreeHookWebSocketSync {
             }
             // This is only a wake hint: persistence does not authenticate a leaf.
             // The submitter checks the reconstructed root before signing.
+            self.insertion_sequence
+                .fetch_max(*next_sequence, Ordering::Release);
             self.checkpoint_wake.notify_one();
         }
         Ok(Some(leaf_index))
@@ -1930,6 +1940,7 @@ mod tests {
             .expect("valid event")
             .is_some());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_some());
+        assert_eq!(sync.insertion_sequence().load(Ordering::Acquire), 1);
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -1960,6 +1971,7 @@ mod tests {
             .expect("matching fallback insertion")
             .is_some());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
+        assert_eq!(sync.insertion_sequence().load(Ordering::Acquire), 1);
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -1984,6 +1996,7 @@ mod tests {
         };
         assert!(sync.process_event(gap, &mut next_sequence, false).is_err());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
+        assert_eq!(sync.insertion_sequence().load(Ordering::Acquire), 1);
     }
 
     #[test]
