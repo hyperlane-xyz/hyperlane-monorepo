@@ -7,6 +7,12 @@ proposals use each source's minimum. BSC has no configured minimum. The existing
 signers. Existing BSC/Solana inventory routes keep swaps.xyz
 and its shared `mainnet3-swapsxyz-api-key` secret.
 
+The relayer-denylist middleware reads the registry's live mainnet denylist and
+refreshes every 60 seconds. Its message-ID rules exclude historical CCTP rebalance
+messages from incoming-collateral accounting after their funds settled another
+way. Broad route-pause rules do not suppress rebalance accounting. Reconcile any
+remaining historical messages separately; age alone does not prove settlement.
+
 Physical inventory routes are separate from economic surplus/deficit proposals:
 
 - Funded HyperEVM inventory deposits canonical USDC into Elysium through the native
