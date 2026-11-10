@@ -1559,6 +1559,12 @@ class Session:
                         require(operation.get('type') == 'PendingMessage' and isinstance(message, dict)
                                 and hashlib.sha256(json.dumps(message, sort_keys=True, separators=(',', ':')).encode()).hexdigest() == admin_message_hash(known[identity]['wire']), 'restart admin message differs from canonical corpus')
                         status = json.dumps(operation.get('status'), sort_keys=True)
+                        if not (operation.get('submitted') is False and ('CouldNotFetchMetadata' in status or 'MessageMetadataRefused' in status)):
+                            try:
+                                ordinal = next(i for i, row in enumerate(snapshot['messages']) if row['id'].lower() == identity)
+                                multivm_diagnostics.note_restart_admin_failure(self, operation, name, int(original['chains'][name]['domainid']), ordinal, known[identity]['nonce'], observations[name], deadline_ns, time.monotonic_ns())
+                            except Exception:
+                                pass # Optional closed diagnostic cannot replace the original guard.
                         require(operation.get('submitted') is False and ('CouldNotFetchMetadata' in status or 'MessageMetadataRefused' in status), 'restart refused admin operation became submitted')
                     results.append({'role': role, 'chain': name, 'port': original['metrics_port'], 'request_started_monotonic_ns': started,
                                     'response_received_monotonic_ns': observations[name]['response_received_monotonic_ns'], 'operation_count': len(values)})

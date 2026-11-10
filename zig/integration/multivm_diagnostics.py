@@ -61,6 +61,64 @@ def note_success(session,role,chain,start,received):
     except Exception:return
 
 
+
+# Exact native admin Status/ReprepareReason/ConfirmReason JSON tags from
+# zig/src/db/json.zig. Unknown future/malformed variants are never copied.
+RESTART_ADMIN_RETRY_TAGS=frozenset({'Manual','ErrorCheckingDeliveryStatus','ErrorCheckingIfRecipientIsContract','ErrorFetchingIsmAddress','ErrorGettingMetadataBuilder','ErrorSubmitting','ErrorBuildingMetadata','CouldNotFetchMetadata','ErrorEstimatingGas','ErrorCheckingGasRequirement','GasPaymentRequirementNotMet','GasPaymentNotFound','ExceedsMaxGasLimit','RevertedOrReorged','MessageMetadataRefused','ErrorCreatingPayload','ErrorStoringPayloadUuidsByMessageId','ErrorRetrievingPayloadUuids','ErrorRetrievingPayloadStatus','ErrorPersistingTerminalMessage','ErrorCreatingPayloadSuccessCriteria','AwaitingValidatorSignatures','AwaitingIcaReveal','ErrorFetchingOriginTxSender'})
+RESTART_ADMIN_CONFIRM_TAGS=frozenset({'SubmittedBySelf','AlreadySubmitted','ErrorConfirmingDelivery','ErrorRecordingProcessSuccess'})
+RESTART_ADMIN_REPORT_TAGS=frozenset({'AmountBelowMinimum','MalformedMessage','ZeroAmount'})
+RESTART_ADMIN_CHAINS={'test1':9913371,'test2':9913372,'test3':9913373}
+
+
+def restart_admin_status(value):
+    unknown={'kind':'unknown','reason':None,'application_report':None}
+    if type(value)is str and value in {'FirstPrepareAttempt','ReadyToSubmit'}:return {'kind':value,'reason':None,'application_report':None}
+    if type(value)is not dict or len(value)!=1:return unknown
+    if 'Confirm'in value and type(value['Confirm'])is str and value['Confirm']in RESTART_ADMIN_CONFIRM_TAGS:return {'kind':'Confirm','reason':value['Confirm'],'application_report':None}
+    if 'Retry'in value:
+        reason=value['Retry']
+        if type(reason)is str and reason in RESTART_ADMIN_RETRY_TAGS:return {'kind':'Retry','reason':reason,'application_report':None}
+        if type(reason)is dict and set(reason)=={'ApplicationReport'}and type(reason['ApplicationReport'])is str and reason['ApplicationReport']in RESTART_ADMIN_REPORT_TAGS:return {'kind':'Retry','reason':'ApplicationReport','application_report':reason['ApplicationReport']}
+    return unknown
+
+
+def checked_restart_admin_failure(row):
+    keys={'chain','domain','corpus_ordinal','corpus_nonce','submitted_classification','status','request_started_monotonic_ns','response_received_monotonic_ns','observed_monotonic_ns','whole_sample_deadline_ns','native_or_timing_credit'}
+    if type(row)is not dict or set(row)!=keys:raise ValueError('Closed restart admin diagnostic required')
+    if type(row['chain'])is not str or row['chain']not in RESTART_ADMIN_CHAINS or type(row['domain'])is not int or row['domain']!=RESTART_ADMIN_CHAINS[row['chain']]:raise ValueError('Closed EVM fixture chain required')
+    if type(row['corpus_ordinal'])is not int or not 0<=row['corpus_ordinal']<256 or type(row['corpus_nonce'])is not int or not 0<=row['corpus_nonce']<2**32:raise ValueError('Bounded known corpus position required')
+    if type(row['submitted_classification'])is not str or row['submitted_classification']not in {'true','false','missing','null','wrong_type'} or row['native_or_timing_credit']is not False:raise ValueError('Closed submitted classification required')
+    status=row['status']
+    if type(status)is not dict or set(status)!= {'kind','reason','application_report'}:raise ValueError('Closed status diagnostic required')
+    if type(status['kind'])is not str:raise ValueError('Closed status kind required')
+    if status['kind']in {'unknown','FirstPrepareAttempt','ReadyToSubmit'}:
+        if status['reason']is not None or status['application_report']is not None:raise ValueError('Invalid unit status diagnostic')
+    elif status['kind']=='Confirm':
+        if type(status['reason'])is not str or status['reason']not in RESTART_ADMIN_CONFIRM_TAGS or status['application_report']is not None:raise ValueError('Invalid Confirm diagnostic')
+    elif status['kind']=='Retry':
+        if status['reason']=='ApplicationReport':
+            if type(status['application_report'])is not str or status['application_report']not in RESTART_ADMIN_REPORT_TAGS:raise ValueError('Invalid ApplicationReport diagnostic')
+        elif type(status['reason'])is not str or status['reason']not in RESTART_ADMIN_RETRY_TAGS or status['application_report']is not None:raise ValueError('Invalid Retry diagnostic')
+    else:raise ValueError('Unknown status diagnostic')
+    for key in ['request_started_monotonic_ns','response_received_monotonic_ns','observed_monotonic_ns','whole_sample_deadline_ns']:
+        if type(row[key])is not int or not 0<row[key]<2**64:raise ValueError('Bounded actual monotonic clock required')
+    if not row['request_started_monotonic_ns']<=row['response_received_monotonic_ns']<=row['observed_monotonic_ns']:raise ValueError('Actual admin clock order differs')
+    return copy.deepcopy(row)
+
+
+def note_restart_admin_failure(session,operation,chain,domain,ordinal,nonce,observation,deadline,observed):
+    """First failed EVM restart-admin guard only; no raw DTO or I/O retained."""
+    try:
+        if session.manifest.get('scenario')!='evm'or type(operation)is not dict:return
+        if 'submitted'not in operation:submitted='missing'
+        elif operation['submitted']is None:submitted='null'
+        elif type(operation['submitted'])is bool:submitted='true'if operation['submitted']else'false'
+        else:submitted='wrong_type'
+        row=checked_restart_admin_failure({'chain':chain,'domain':domain,'corpus_ordinal':ordinal,'corpus_nonce':nonce,'submitted_classification':submitted,'status':restart_admin_status(operation.get('status')),'request_started_monotonic_ns':observation['request_started_monotonic_ns'],'response_received_monotonic_ns':observation['response_received_monotonic_ns'],'observed_monotonic_ns':observed,'whole_sample_deadline_ns':deadline,'native_or_timing_credit':False})
+        with session.lock:
+            if not hasattr(session,'diagnostic_restart_admin_failure'):session.diagnostic_restart_admin_failure=row
+    except Exception:return
+
 def snapshot(session,now):
     with session.lock:
         captures={}
@@ -80,14 +138,19 @@ def snapshot(session,now):
             if first is not None and first.get('capture_monotonic_ns')!=capture:first=None
             rows.append({'role':role,'chain':chain,'capture_monotonic_ns':capture,'first_successful_new_capture_exchange':pair(first),'latest_successful_exchange':pair(getattr(session,'successful_activity',{}).get((role,chain)))})
         window=getattr(session,'restart_window',None);samples=[]if window is None else window.samples
-        return {'observed_monotonic_ns':now,'restart_sample_count':len(samples),'restart_failed':False if window is None else window.failed,'restart_first_observed_ns':None if not samples else samples[0]['observed_monotonic_ns'],'restart_last_observed_ns':None if not samples else samples[-1]['observed_monotonic_ns'],'role_activity':rows,'observer_failure_count':len(getattr(session,'failures',[])),'lifecycle_error_count':len(getattr(getattr(session,'lifecycle',None),'errors',[]))}
+        result={'observed_monotonic_ns':now,'restart_sample_count':len(samples),'restart_failed':False if window is None else window.failed,'restart_first_observed_ns':None if not samples else samples[0]['observed_monotonic_ns'],'restart_last_observed_ns':None if not samples else samples[-1]['observed_monotonic_ns'],'role_activity':rows,'observer_failure_count':len(getattr(session,'failures',[])),'lifecycle_error_count':len(getattr(getattr(session,'lifecycle',None),'errors',[]))}
+        if hasattr(session,'diagnostic_restart_admin_failure'):
+            row=checked_restart_admin_failure(session.diagnostic_restart_admin_failure)
+            if row['observed_monotonic_ns']>now:raise ValueError('Restart admin observation clock is in the future')
+            result['restart_admin_failure']=row
+        return result
 
 
 class Recorder:
     def __init__(self,path,modules,directory):
         self.path=Path(path);self.modules=modules;self.directory=Path(directory);self.lock=threading.Lock()
         if self.path.exists()or self.path.is_symlink():raise ValueError('Preserve existing diagnostic file')
-        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status and observed public monotonic clocks; no exception message, locals, payload, config or environment.'}
+        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications; no exception message, raw locals, payload, config or environment.'}
     def save(self):
         wire=json.dumps(self.value,sort_keys=True,separators=(',',':')).encode()+b'\n'
         if len(wire)>LIMIT:raise ValueError('Diagnostic output bound')
@@ -1016,7 +1079,10 @@ def validate_record(value,modules):
     def integer(v):return type(v)is int and 0<=v<=2**64-1
     def state(v):
         keys={'observed_monotonic_ns','restart_sample_count','restart_failed','restart_first_observed_ns','restart_last_observed_ns','role_activity','observer_failure_count','lifecycle_error_count'}
-        require(isinstance(v,dict)and set(v)==keys and type(v['restart_failed'])is bool)
+        require(isinstance(v,dict)and set(v)in (keys,keys|{'restart_admin_failure'})and type(v['restart_failed'])is bool)
+        if 'restart_admin_failure'in v:
+            require(integer(v['observed_monotonic_ns']))
+            require(checked_restart_admin_failure(v['restart_admin_failure'])['observed_monotonic_ns']<=v['observed_monotonic_ns'])
         for k in keys-{'restart_failed','role_activity','restart_first_observed_ns','restart_last_observed_ns'}:require(integer(v[k]))
         for k in ['restart_first_observed_ns','restart_last_observed_ns']:require(v[k]is None or integer(v[k]))
         require(isinstance(v['role_activity'],list)and len(v['role_activity'])<=16)
@@ -1037,7 +1103,7 @@ def validate_record(value,modules):
             for frame in v['frames']:
                 require(set(frame)=={'module','source','function','line'}and frame['module']in modules and frame['source']==modules[frame['module']]and isinstance(frame['function'],str)and re.fullmatch('[A-Za-z_<>][A-Za-z_<>0-9]*',frame['function'])and integer(frame['line']))
     keys={'schema','kind','stages','failures','dropped_new_failure_signatures','native_or_timing_credit','scope','last_stage'}
-    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status and observed public monotonic clocks; no exception message, locals, payload, config or environment.')
+    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed failed EVM restart-admin classifications; no exception message, raw locals, payload, config or environment.')
     require(isinstance(value['stages'],dict)and len(value['stages'])<=len(STAGES)+1 and isinstance(value['failures'],dict)and len(value['failures'])<=8 and integer(value['dropped_new_failure_signatures']))
     entry(value['last_stage'])
     for stage,row in value['stages'].items():

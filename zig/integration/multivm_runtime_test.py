@@ -1665,5 +1665,35 @@ class ExpectedCwPeerPolicyTests(unittest.TestCase):
 
 
 
+
+class RestartAdminGuardDiagnosticTests(unittest.TestCase):
+    def fixture(self,operation):
+        session=session_module.Session.__new__(session_module.Session);session.manifest={'scenario':'evm'};session.lock=threading.RLock();session.stop=threading.Event();session.append=lambda *args:None
+        identity='0x'+'11'*32;message={'public_fixture':1};nonce={'id':identity,'destination':9913372,'nonce':5,'wire':'0x00'}
+        session.restart_baseline={'snapshot':{'deliverable_messages':[],'messages':[nonce]}}
+        context={'restarted':[{'original':{'role':'relayer','metrics_port':9093,'chains':{'test2':{'domainid':9913372}},'role_chain_names':['test2']}}]}
+        row={'type':'PendingMessage','message':message,**operation};operations={'test2':[{'id':identity,'operation':row}]};observation={'test2':{'request_started_monotonic_ns':100,'response_received_monotonic_ns':105}}
+        return session,context,operations,observation,hashlib.sha256(json.dumps(message,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    def invoke(self,operation,projection_error=False):
+        session,context,operations,observation,digest=self.fixture(operation)
+        with mock.patch.object(session_module,'collect_admin_sample',return_value=(operations,observation)),mock.patch.object(session_module,'admin_message_hash',return_value=digest),mock.patch.object(session_module.time,'monotonic_ns',return_value=110):
+            if projection_error:
+                with mock.patch.object(session_module.multivm_diagnostics,'note_restart_admin_failure',side_effect=RuntimeError('PRIVATE')):return session._restart_admin(context,200)
+            return session,session._restart_admin(context,200)
+    def test_allowed_metadata_state_returns_exact_old_readiness_without_projection(self):
+        session,result=self.invoke({'submitted':False,'status':{'Retry':'CouldNotFetchMetadata'}});self.assertEqual(result,[{'role':'relayer','chain':'test2','port':9093,'request_started_monotonic_ns':100,'response_received_monotonic_ns':105,'operation_count':1}]);self.assertFalse(hasattr(session,'diagnostic_restart_admin_failure'))
+    def test_actual_failed_guard_records_closed_status_but_still_refuses(self):
+        session,context,operations,observation,digest=self.fixture({'submitted':False,'status':{'Retry':'AwaitingValidatorSignatures'}})
+        with mock.patch.object(session_module,'collect_admin_sample',return_value=(operations,observation)),mock.patch.object(session_module,'admin_message_hash',return_value=digest),mock.patch.object(session_module.time,'monotonic_ns',return_value=110),self.assertRaisesRegex(ValueError,'restart refused admin operation became submitted'):session._restart_admin(context,200)
+        self.assertEqual(session.diagnostic_restart_admin_failure['status']['reason'],'AwaitingValidatorSignatures');self.assertEqual(session.diagnostic_restart_admin_failure['submitted_classification'],'false')
+    def test_optional_projection_exception_never_replaces_original_guard(self):
+        original=ValueError('restart refused admin operation became submitted');real=session_module.require
+        def require(ok,message):
+            if not ok and message==str(original):raise original
+            return real(ok,message)
+        with mock.patch.object(session_module,'require',side_effect=require),self.assertRaises(ValueError)as caught:self.invoke({'submitted':True,'status':{'Confirm':'SubmittedBySelf'}},projection_error=True)
+        self.assertIs(caught.exception,original)
+
+
 if __name__ == "__main__":
     unittest.main()

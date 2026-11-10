@@ -1611,4 +1611,48 @@ class StarkAdminSamplingControls(unittest.TestCase):
         self.source.write_bytes(self.original);self.modules['multivm_session.py']=api.pin(self.source);self.source.write_bytes(self.original+b'\n');self.assertEqual(self.observe()['collection_status'],'unavailable')
 
 
+
+class RestartAdminFailureProjectionTests(unittest.TestCase):
+    def session(self):
+        return SimpleNamespace(manifest={'scenario':'evm'},lock=threading.RLock())
+    def note(self,s,operation,**changes):
+        values={'chain':'test2','domain':9913372,'ordinal':0,'nonce':5,'observation':{'request_started_monotonic_ns':100,'response_received_monotonic_ns':105},'deadline':200,'observed':110};values.update(changes)
+        api.note_restart_admin_failure(s,operation,**values)
+    def test_all_closed_native_Source_enum_tags_are_exact(self):
+        import re
+        source=(HERE.parent/'src/db/json.zig').read_text()
+        block=source.split('pub const ReprepareReason = union(enum) {',1)[1].split('    pub fn jsonStringify',1)[0]
+        tags=set(re.findall(r'^    ([A-Za-z][A-Za-z0-9]*)(?:: ApplicationReport)?,',block,re.M))
+        self.assertEqual(tags,api.RESTART_ADMIN_RETRY_TAGS|{'ApplicationReport'})
+        for kind,names in [('ConfirmReason',api.RESTART_ADMIN_CONFIRM_TAGS),('ApplicationReport',api.RESTART_ADMIN_REPORT_TAGS)]:
+            values=source.split('pub const '+kind+' = enum {',1)[1].split('}',1)[0]
+            self.assertEqual({v.strip()for v in values.split(',')if v.strip()},names)
+        for reason in api.RESTART_ADMIN_RETRY_TAGS:self.assertEqual(api.restart_admin_status({'Retry':reason}),{'kind':'Retry','reason':reason,'application_report':None})
+        for reason in api.RESTART_ADMIN_CONFIRM_TAGS:self.assertEqual(api.restart_admin_status({'Confirm':reason})['reason'],reason)
+        for reason in api.RESTART_ADMIN_REPORT_TAGS:self.assertEqual(api.restart_admin_status({'Retry':{'ApplicationReport':reason}})['application_report'],reason)
+    def test_unknown_raw_status_payload_never_copied(self):
+        for value in ['PRIVATE_MESSAGE',{'Retry':'PRIVATE_URL'},{'Confirm':'PRIVATE_KEY'},{'Retry':{'ApplicationReport':'PRIVATE'}},{'Retry':'Manual','message':'PRIVATE'},{'Retry':['PRIVATE']},None,True]:
+            projected=api.restart_admin_status(value);self.assertEqual(projected,{'kind':'unknown','reason':None,'application_report':None});self.assertNotIn('PRIVATE',json.dumps(projected))
+    def test_exact_submitted_classes_and_first_failure_latched(self):
+        for operation,expected in [({},'missing'),({'submitted':None},'null'),({'submitted':True},'true'),({'submitted':False},'false'),({'submitted':0},'wrong_type'),({'submitted':'PRIVATE'},'wrong_type')]:
+            s=self.session();operation.update(status={'Retry':'AwaitingValidatorSignatures'});self.note(s,operation);row=s.diagnostic_restart_admin_failure;self.assertEqual(row['submitted_classification'],expected);self.assertEqual(row['status']['reason'],'AwaitingValidatorSignatures');first=copy.deepcopy(row)
+            self.note(s,{'submitted':True,'status':{'Confirm':'SubmittedBySelf'}},observed=120);self.assertEqual(s.diagnostic_restart_admin_failure,first);self.assertNotIn('PRIVATE',json.dumps(first))
+    def test_invalid_fixture_position_and_clocks_do_not_publish(self):
+        for poison in [{'chain':'PRIVATE_URL'},{'domain':9913373},{'ordinal':256},{'ordinal':True},{'nonce':2**32},{'nonce':-1},{'observation':{'request_started_monotonic_ns':106,'response_received_monotonic_ns':105}},{'observed':104},{'deadline':False}]:
+            s=self.session();self.note(s,{'submitted':False,'status':'PRIVATE'},**poison);self.assertFalse(hasattr(s,'diagnostic_restart_admin_failure'))
+        s=self.session();s.manifest['scenario']='starknet';self.note(s,{'submitted':False,'status':'PRIVATE'});self.assertFalse(hasattr(s,'diagnostic_restart_admin_failure'))
+    def test_existing_record_path_keeps_optional_closed_failure_bounded(self):
+        s=self.session();before=api.snapshot(s,109);self.assertNotIn('restart_admin_failure',before)
+        self.note(s,{'submitted':False,'status':{'Retry':'AwaitingValidatorSignatures'},'message':{'PRIVATE':'RAW'},'id':'PRIVATE_ID'})
+        state=api.snapshot(s,111);row=state['restart_admin_failure'];self.assertEqual((row['chain'],row['domain'],row['corpus_ordinal'],row['corpus_nonce']),('test2',9913372,0,5));self.assertLessEqual(len(json.dumps(row)),1024)
+        with tempfile.TemporaryDirectory()as tmp:
+            root=Path(tmp).resolve();modules={n:api.pin(HERE/n)for n in ['multivm_session.py','multivm_diagnostics.py']};r=api.Recorder(root/'observer.json',modules,root);token=r.enter('restart_continuous',before);r.finish(token,state,'exception',ValueError('PRIVATE_ERROR'));value=json.loads((root/'observer.json').read_text());api.validate_record(value,modules);self.assertNotIn('PRIVATE',json.dumps(value));self.assertFalse(value['native_or_timing_credit']);self.assertLessEqual((root/'observer.json').stat().st_size,api.LIMIT)
+        bad=copy.deepcopy(row);bad['status']['reason']='PRIVATE'
+        with self.assertRaises(ValueError):api.checked_restart_admin_failure(bad)
+        bad=copy.deepcopy(row);bad['status']['kind']=[]
+        with self.assertRaises(ValueError):api.checked_restart_admin_failure(bad)
+        bad=copy.deepcopy(value);bad['last_stage']['state']['observed_monotonic_ns']='PRIVATE'
+        with self.assertRaises(ValueError):api.validate_record(bad,modules)
+
+
 if __name__=='__main__':unittest.main()
