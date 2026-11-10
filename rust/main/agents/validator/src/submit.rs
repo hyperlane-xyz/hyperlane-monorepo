@@ -1,8 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{
-    atomic::{AtomicBool, AtomicU32, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
@@ -33,6 +30,9 @@ use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
 
 const IDLE_CHECKPOINT_AUDIT_INTERVAL: Duration = Duration::from_secs(60);
+
+// A confirmed insertion can arrive before the RPC quorum sees its block.
+const CHECKPOINT_LAG_RETRY_INTERVAL: Duration = Duration::from_millis(500);
 
 const CHECKPOINT_SAMPLE_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -162,8 +162,6 @@ pub(crate) struct ValidatorSubmitter {
     readiness: Arc<ValidatorReadiness>,
     reorg_halt: watch::Sender<bool>,
     checkpoint_wake: Option<Arc<Notify>>,
-    websocket_insertion_sequence: Option<Arc<AtomicU32>>,
-    websocket_healthy: Option<Arc<AtomicBool>>,
     rpc_recovery: Option<MerkleTreeRpcRecovery>,
     recovery_progress: Arc<tokio::sync::Mutex<RecoveryProgress>>,
     historical_publication: bool,
@@ -203,8 +201,6 @@ impl ValidatorSubmitter {
             readiness,
             reorg_halt: watch::channel(false).0,
             checkpoint_wake: None,
-            websocket_insertion_sequence: None,
-            websocket_healthy: None,
             rpc_recovery: None,
             recovery_progress: Arc::default(),
             historical_publication: false,
@@ -217,58 +213,59 @@ impl ValidatorSubmitter {
         self
     }
 
-    pub(crate) fn with_websocket_health(mut self, health: Option<Arc<AtomicBool>>) -> Self {
-        self.websocket_healthy = health;
-        self
-    }
-
-    pub(crate) fn with_websocket_insertion_sequence(
-        mut self,
-        sequence: Option<Arc<AtomicU32>>,
-    ) -> Self {
-        self.websocket_insertion_sequence = sequence;
-        self
-    }
-
-    fn websocket_insertion_sequence(&self) -> u32 {
-        self.websocket_insertion_sequence
-            .as_ref()
-            .map_or(0, |sequence| sequence.load(Ordering::Acquire))
-    }
-
-    /// A hint interrupts the timer so the caller can check durable insertion
-    /// progress. A repeated hint alone never authorizes another RPC round.
-    async fn wait_for_rpc_deadline(&self, deadline: tokio::time::Instant) -> bool {
-        if let Some(wake) = &self.checkpoint_wake {
-            tokio::select! {
-                _ = tokio::time::sleep_until(deadline) => true,
-                _ = wake.notified() => false,
-            }
-        } else {
-            tokio::time::sleep_until(deadline).await;
-            true
-        }
-    }
-
-    fn websocket_is_healthy(&self) -> bool {
-        self.websocket_healthy
-            .as_ref()
-            .is_some_and(|health| health.load(Ordering::Acquire))
-    }
-
     pub(crate) fn with_rpc_recovery(mut self, recovery: MerkleTreeRpcRecovery) -> Self {
         self.rpc_recovery = Some(recovery);
         self
     }
 
-    async fn wait_for_checkpoint_check(&self) {
+    fn has_pending_insertion(&self, next_index: u32) -> bool {
+        self.db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&next_index)
+            .expect("Failed to fetch merkle tree insertion")
+            .is_some()
+    }
+
+    /// Both indexers persist before notifying. With no notification source, poll
+    /// the local DB at the configured RPC-indexing interval, not the RPC endpoint.
+    async fn wait_for_checkpoint_work(
+        &self,
+        next_index: u32,
+        last_rpc_audit: tokio::time::Instant,
+    ) {
+        while !self.has_pending_insertion(next_index) {
+            let audit_wait = if next_index == 0 {
+                IDLE_CHECKPOINT_AUDIT_INTERVAL
+            } else {
+                IDLE_CHECKPOINT_AUDIT_INTERVAL.saturating_sub(last_rpc_audit.elapsed())
+            };
+            if audit_wait.is_zero() {
+                return;
+            }
+            let wait = if self.checkpoint_wake.is_some() {
+                audit_wait
+            } else {
+                audit_wait.min(self.interval)
+            };
+            self.wait_for_checkpoint_check(wait).await;
+        }
+    }
+
+    async fn wait_for_checkpoint_check(&self, duration: Duration) {
         if let Some(checkpoint_wake) = &self.checkpoint_wake {
             tokio::select! {
-                _ = sleep(self.interval) => {}
+                _ = sleep(duration) => {}
                 _ = checkpoint_wake.notified() => {}
             }
         } else {
-            sleep(self.interval).await;
+            sleep(duration).await;
+        }
+    }
+
+    fn checkpoint_lag_retry_interval(&self) -> Duration {
+        if self.checkpoint_wake.is_some() {
+            CHECKPOINT_LAG_RETRY_INTERVAL
+        } else {
+            self.interval
         }
     }
 
@@ -357,13 +354,6 @@ impl ValidatorSubmitter {
         );
         let mut tree = CheckpointTree::new(restored_tree);
         let mut samples: Option<Vec<Option<CheckpointAtBlock>>> = None;
-        let mut sampled_at = tokio::time::Instant::now();
-        let mut next_rpc_attempt = sampled_at;
-        let mut last_rpc_insertion_sequence = 0;
-        // New insertions bypass the normal polling interval, never a retry
-        // after failed reads or failed checkpoint agreement.
-        let mut rpc_retry_required = false;
-        let mut sampled_batch = None;
         let mut last_rpc_audit = tokio::time::Instant::now();
         loop {
             // The single worker is cancelled when the signing task exits.
@@ -373,33 +363,12 @@ impl ValidatorSubmitter {
             }
             let next_index =
                 u32::try_from(tree.committed.count()).expect("Merkle leaf count fits in u32");
-            // Count/progress probes cannot detect a same-count reorg. Retain a
-            // bounded authenticated root audit even while the stream is healthy.
-            let idle_audit_due = tree.committed.count() > 0
-                && last_rpc_audit.elapsed() >= IDLE_CHECKPOINT_AUDIT_INTERVAL;
-            if (self.rpc_recovery.is_none() || self.websocket_is_healthy())
-                && !idle_audit_due
-                && samples.is_none()
-                && self
-                    .db
-                    .retrieve_merkle_tree_insertion_by_leaf_index(&next_index)
-                    .expect("Failed to fetch merkle tree insertion")
-                    .is_none()
-            {
-                self.wait_for_checkpoint_check().await;
-                continue;
+            if samples.is_none() {
+                self.wait_for_checkpoint_work(next_index, last_rpc_audit)
+                    .await;
             }
-            if samples.is_none() || sampled_at.elapsed() >= CHECKPOINT_SAMPLE_REFRESH_INTERVAL {
-                let sequence = self.websocket_insertion_sequence();
-                let new_insertion = sequence > next_index
-                    && sequence > last_rpc_insertion_sequence
-                    && !rpc_retry_required;
-                if !new_insertion && !self.wait_for_rpc_deadline(next_rpc_attempt).await {
-                    continue;
-                }
-                // Capture before starting RPCs: insertions received during the
-                // round must still be able to wake the next verification.
-                last_rpc_insertion_sequence = self.websocket_insertion_sequence();
+            let mut verified_batch = None;
+            if samples.is_none() || last_rpc_audit.elapsed() >= CHECKPOINT_SAMPLE_REFRESH_INTERVAL {
                 let mut responses = reader.checkpoint_stream(&self.reorg_period);
                 let mut received = vec![None; reader.endpoint_count()];
                 let mut verified = None;
@@ -472,25 +441,21 @@ impl ValidatorSubmitter {
                         None => responses_done = true,
                     }
                 }
-                last_rpc_audit = tokio::time::Instant::now();
-                next_rpc_attempt = last_rpc_audit
-                    .checked_add(self.interval)
-                    .expect("checkpoint interval fits in Instant");
                 if received.iter().flatten().count() < reader.consensus.required(received.len()) {
-                    rpc_retry_required = true;
                     self.readiness
                         .mark_operation_blocked("checkpoint_consensus_reads");
+                    // Notifications never bypass a failed RPC round's backoff.
+                    sleep(self.interval).await;
                     continue;
                 }
                 self.readiness
                     .mark_operation_ready("checkpoint_consensus_reads");
                 samples = Some(received);
-                rpc_retry_required = false;
-                sampled_at = tokio::time::Instant::now();
-                sampled_batch = verified;
+                last_rpc_audit = tokio::time::Instant::now();
+                verified_batch = verified;
             }
             let checkpoints = samples.as_ref().expect("checkpoint samples");
-            let mut batch = match sampled_batch.take() {
+            let mut batch = match verified_batch {
                 Some(batch) => batch,
                 None => self.verify_checkpoint_batch(&mut tree, checkpoints).await,
             };
@@ -501,10 +466,19 @@ impl ValidatorSubmitter {
                 }
             }
             match batch {
-                CheckpointBatch::WaitingForInsertions => {}
+                CheckpointBatch::WaitingForInsertions => {
+                    let refresh =
+                        CHECKPOINT_SAMPLE_REFRESH_INTERVAL.saturating_sub(last_rpc_audit.elapsed());
+                    let wait = if self.checkpoint_wake.is_some() {
+                        refresh
+                    } else {
+                        refresh.min(self.interval)
+                    };
+                    self.wait_for_checkpoint_check(wait).await;
+                }
                 CheckpointBatch::WaitingForRpc => {
                     samples = None;
-                    rpc_retry_required = true;
+                    sleep(self.interval).await;
                 }
                 CheckpointBatch::Verified { checkpoint, latest } => {
                     self.readiness.mark_operation_ready("checkpoint_recovery");
@@ -520,6 +494,7 @@ impl ValidatorSubmitter {
                         initial_verification_complete = true;
                     }
                     samples = None;
+                    let advanced = latest.is_some();
                     if let Some(latest) = latest {
                         // Older indices are reconstructed by one worker from the DB.
                         self.sign_and_submit_checkpoints(std::iter::once(
@@ -534,9 +509,13 @@ impl ValidatorSubmitter {
                         .latest_checkpoint_processed
                         .set(i64::from(checkpoint.index));
                     self.metrics.reached_initial_consistency.set(1);
+                    if self.checkpoint_wake.is_none()
+                        || (!advanced && self.has_pending_insertion(next_index))
+                    {
+                        sleep(self.checkpoint_lag_retry_interval()).await;
+                    }
                 }
             }
-            self.wait_for_checkpoint_check().await;
         }
     }
 
@@ -875,33 +854,12 @@ impl ValidatorSubmitter {
             true
         };
 
-        let mut next_rpc_attempt = tokio::time::Instant::now();
-        let mut last_rpc_insertion_sequence = 0;
-        let mut last_rpc_audit = next_rpc_attempt;
+        let mut last_rpc_audit = tokio::time::Instant::now();
         loop {
-            // A healthy stream wakes us for new insertions. Keep RPC verification
-            // pending until those insertions reach the configured reorg depth.
-            if self.websocket_is_healthy()
-                && last_rpc_audit.elapsed() < IDLE_CHECKPOINT_AUDIT_INTERVAL
-                && self
-                    .db
-                    .retrieve_merkle_tree_insertion_by_leaf_index(
-                        &u32::try_from(tree.count()).expect("Merkle leaf count fits in u32"),
-                    )
-                    .expect("Failed to fetch merkle tree insertion")
-                    .is_none()
-            {
-                self.wait_for_checkpoint_check().await;
-                continue;
-            }
-            let sequence = self.websocket_insertion_sequence();
-            let new_insertion = sequence
-                > u32::try_from(tree.count()).expect("Merkle leaf count fits in u32")
-                && sequence > last_rpc_insertion_sequence;
-            if !new_insertion && !self.wait_for_rpc_deadline(next_rpc_attempt).await {
-                continue;
-            }
-            last_rpc_insertion_sequence = self.websocket_insertion_sequence();
+            let next_index = u32::try_from(tree.count()).expect("Merkle leaf count fits in u32");
+            self.wait_for_checkpoint_work(next_index, last_rpc_audit)
+                .await;
+            let previous_count = tree.count();
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();
@@ -911,9 +869,6 @@ impl ValidatorSubmitter {
             .await;
 
             last_rpc_audit = tokio::time::Instant::now();
-            next_rpc_attempt = last_rpc_audit
-                .checked_add(self.interval)
-                .expect("checkpoint interval fits in Instant");
 
             self.metrics
                 .set_latest_checkpoint_observed(&latest_checkpoint);
@@ -937,7 +892,7 @@ impl ValidatorSubmitter {
                     tree_count = tree.count(),
                     "Latest checkpoint is behind tree, sleeping briefly"
                 );
-                self.wait_for_checkpoint_check().await;
+                sleep(self.checkpoint_lag_retry_interval()).await;
                 continue;
             }
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
@@ -955,7 +910,11 @@ impl ValidatorSubmitter {
             // Set that initial consistency has been reached on first loop run. Subsequent runs are idempotent.
             self.metrics.reached_initial_consistency.set(1);
 
-            self.wait_for_checkpoint_check().await;
+            if self.checkpoint_wake.is_none()
+                || (tree.count() == previous_count && self.has_pending_insertion(next_index))
+            {
+                sleep(self.checkpoint_lag_retry_interval()).await;
+            }
         }
     }
 

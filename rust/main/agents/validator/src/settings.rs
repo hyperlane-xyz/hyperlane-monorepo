@@ -57,7 +57,8 @@ pub struct ValidatorSettings {
     pub checkpoint_syncer: CheckpointSyncerConf,
     /// The reorg configuration
     pub reorg_period: ReorgPeriod,
-    /// How frequently to check for new checkpoints, in fractional seconds. Defaults to 2s, overridable
+    /// RPC-only DB polling and failed-verification retry interval, in fractional seconds.
+    /// WebSocket insertions wake verification immediately. Defaults to 2s, overridable
     /// via `interval`, or via `chains.<originChainName>.index.interval` if
     /// `interval` is unset.
     pub interval: Duration,

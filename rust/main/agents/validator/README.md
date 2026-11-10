@@ -19,8 +19,9 @@ majority needs both. Exact duplicate URLs are counted once.
 For normal quorum/majority, indexing and auxiliary RPC calls use fallback transport;
 only the explicit history vote authorizes signatures. Startup reconstructs the tree
 from indexed leaves or a snapshot authenticated by this validator's signed
-checkpoint, never an unverified RPC frontier. RPC indexing, WebSocket freshness
-checks, and idle checkpoint polling remain enabled. If a local batch disagrees,
+checkpoint, never an unverified RPC frontier. RPC indexing fallback and WebSocket
+freshness checks remain enabled. Healthy, caught-up validators wait for insertions, with a
+60-second root audit to detect same-count reorgs. If a local batch disagrees,
 RPC recovery may fetch replacement insertions, but it repairs storage and permits
 signing only through the prefix authenticated by the configured checkpoint vote.
 Recovery ignores endpoint-supplied block metadata, uses the configured indexing
@@ -141,15 +142,20 @@ frontiers only at sampled indices, bounded by endpoint count. If a later sample
 requests an uncached intermediate index, replay resumes from the committed tree
 using stored insertions. Roots are calculated only at sampled indices.
 
-In lightweight mode, no idle count/root polling or websocket RPC freshness probes
-run once caught up.
-New durably stored WebSocket insertions trigger independent checkpoint verification
-immediately, coalescing progress received before each RPC round. Repeated hints without
-new insertions and pending finality checks retain the configured retry interval;
-failed consensus reads also retain their backoff even if more insertions arrive.
-Single/fallback RPC failures retain the provider retry policy. Each endpoint receives one
-checkpoint-method read per attempt, shared by a batch of insertions, with a 20-second
-timeout per endpoint, including deferred WebSocket connection setup. Responses
+Lightweight mode does not run an RPC indexer or WebSocket freshness probes.
+All modes retain the 60-second root audit after signing their first checkpoint.
+The next unsigned insertion in the local DB drives independent RPC verification.
+Both WebSocket and fallback RPC indexing notify the same verifier after persisting
+new insertions. It does not track which indexer is active, and no separate insertion
+counter or polling deadline gates new work. Once caught up, the verifier waits for a
+notification or the 60-second safety audit. A valid RPC quorum that has not advanced
+retries pending insertions after 500 ms, without needing another notification.
+Failed consensus reads or root verification retain the configured retry interval;
+notifications cannot bypass that delay. RPC indexing fallback keeps its configured
+polling interval. Without a WebSocket configured, the verifier checks the local DB
+at that interval. Single/fallback RPC failures retain the provider retry policy.
+Each endpoint receives one checkpoint-method read per attempt, shared by a batch
+of insertions, with a 20-second timeout per endpoint, including deferred WebSocket connection setup. Responses
 are verified progressively: signing advances as soon as enough roots match local
 history, without waiting for a stalled minority. Unavailable WebSocket endpoints
 retain their voting slots and retry initialization on subsequent reads. Without
