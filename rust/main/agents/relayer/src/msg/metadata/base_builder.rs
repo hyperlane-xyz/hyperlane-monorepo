@@ -153,6 +153,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         message: &HyperlaneMessage,
         validators: &[H256],
         app_context: Option<String>,
+        check_reorg: bool,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>;
 }
 
@@ -290,6 +291,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         message: &HyperlaneMessage,
         validators: &[H256],
         app_context: Option<String>,
+        check_reorg: bool,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
         let report = |outcome| {
             self.report_activity(
@@ -356,7 +358,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                         }
 
                         let syncer = match self
-                            .build_and_validate(&mut states, &config, validator, storage_location)
+                            .build_and_validate(&mut states, &config, validator, storage_location, check_reorg)
                             .await
                         {
                             Ok(syncer) => syncer,
@@ -436,6 +438,7 @@ impl BaseMetadataBuilder {
         config: &CheckpointSyncerConf,
         validator: &H256,
         storage_location: &str,
+        check_reorg: bool,
     ) -> Result<Option<Arc<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
         let mut report = |state| {
             states.insert(state);
@@ -481,6 +484,12 @@ impl BaseMetadataBuilder {
             }
         };
 
+        if !check_reorg {
+            // Only availability is being probed. Delivery must use a normal
+            // build with fresh checks, even when the signatures are cached.
+            return Ok(Some(checkpoint_syncer));
+        }
+
         // The backend is pooled, but reorg status is safety-critical and must be
         // checked on every checkout rather than only when the client is built.
         match checkpoint_syncer.reorg_status().await {
@@ -506,9 +515,9 @@ impl BaseMetadataBuilder {
                     ?err,
                     ?config,
                     ?validator,
-                    "Failed to read reorg status. Assuming no reorg occurred."
+                    "Failed to read reorg status; refusing checkpoint metadata"
                 );
-                Ok(Some(checkpoint_syncer))
+                Err(err.into())
             }
         }
     }
@@ -536,7 +545,13 @@ mod tests {
         let validator = H256::from_low_u64_be(1);
 
         let syncer = builder
-            .build_and_validate(&mut BTreeSet::new(), &config, &validator, &storage_location)
+            .build_and_validate(
+                &mut BTreeSet::new(),
+                &config,
+                &validator,
+                &storage_location,
+                true,
+            )
             .await
             .unwrap()
             .unwrap();
@@ -549,12 +564,58 @@ mod tests {
         };
         syncer.write_reorg_status(&reorg_event).await.unwrap();
 
+        // An availability probe may reuse the client, but the subsequent normal
+        // checkout must still refuse delivery after a reorg report appears.
+        assert!(builder
+            .build_and_validate(
+                &mut BTreeSet::new(),
+                &config,
+                &validator,
+                &storage_location,
+                false
+            )
+            .await
+            .unwrap()
+            .is_some());
+
         let result = builder
-            .build_and_validate(&mut BTreeSet::new(), &config, &validator, &storage_location)
+            .build_and_validate(
+                &mut BTreeSet::new(),
+                &config,
+                &validator,
+                &storage_location,
+                true,
+            )
             .await;
         assert!(matches!(
             result,
             Err(CheckpointSyncerBuildError::ReorgFlag(response)) if response.exists
         ));
+
+        // A read error is not evidence that the flag is absent. A directory
+        // deterministically causes a read error without relying on permissions.
+        let flag = checkpoint_dir.path().join("reorg_flag.json");
+        tokio::fs::remove_file(&flag).await.unwrap();
+        tokio::fs::create_dir(&flag).await.unwrap();
+        let mut states = BTreeSet::new();
+        assert!(builder
+            .build_and_validate(&mut states, &config, &validator, &storage_location, true,)
+            .await
+            .is_err());
+        assert!(states.contains(&ValidatorStorageState::ReorgCheckFailed));
+
+        // A confirmed absence still permits metadata after the read recovers.
+        tokio::fs::remove_dir(&flag).await.unwrap();
+        assert!(builder
+            .build_and_validate(
+                &mut BTreeSet::new(),
+                &config,
+                &validator,
+                &storage_location,
+                true,
+            )
+            .await
+            .unwrap()
+            .is_some());
     }
 }

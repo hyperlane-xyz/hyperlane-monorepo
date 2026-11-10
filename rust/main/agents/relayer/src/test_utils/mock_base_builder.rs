@@ -100,6 +100,7 @@ impl MockBaseMetadataBuilderResponses {
 
 #[derive(Debug, Default)]
 pub struct MockBaseMetadataBuilderRequests {
+    pub checkpoint_reorg_checks: RequestList<bool>,
     pub activities: RequestList<(H256, crate::message_activity::Activity)>,
     pub update_ism_metrics: RequestList<IsmBuildMetricsParams>,
 }
@@ -267,7 +268,13 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
         _message: &HyperlaneMessage,
         _validators: &[H256],
         _app_context: Option<String>,
+        check_reorg: bool,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
+        self.requests
+            .checkpoint_reorg_checks
+            .lock()
+            .unwrap()
+            .push(check_reorg);
         self.responses
             .build_checkpoint_syncer
             .lock()

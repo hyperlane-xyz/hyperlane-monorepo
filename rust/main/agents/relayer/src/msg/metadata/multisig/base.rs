@@ -266,6 +266,7 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             message,
             &validators,
             ism_builder.as_ref().app_context.clone(),
+            !ism_builder.as_ref().signature_polling,
         )
         .await
     {

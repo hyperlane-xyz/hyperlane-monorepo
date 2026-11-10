@@ -38,6 +38,8 @@ pub struct MessageMetadataBuilder {
     pub node_id: String,
     pub max_ism_depth: u32,
     pub max_ism_count: u32,
+    /// Availability probes defer fresh reorg checks to the normal build before delivery.
+    pub(crate) signature_polling: bool,
 }
 
 /// This is the entry point for recursively building ISM metadata.
@@ -70,6 +72,24 @@ impl MetadataBuilder for MessageMetadataBuilder {
 }
 
 impl MessageMetadataBuilder {
+    /// Missing-signature probes use pooled clients. Only a normal checked build
+    /// can produce delivery metadata, including any aggregation fallbacks.
+    pub(crate) async fn build_for_delivery(
+        &self,
+        ism: H256,
+        message: &HyperlaneMessage,
+        polling: bool,
+    ) -> Result<Metadata, MetadataBuildError> {
+        let mut builder = self.clone();
+        builder.signature_polling = polling;
+        let metadata = builder.build(ism, message, Default::default()).await?;
+        if !polling {
+            return Ok(metadata);
+        }
+        builder.signature_polling = false;
+        builder.build(ism, message, Default::default()).await
+    }
+
     pub async fn new(
         base: Arc<dyn BuildsBaseMetadata>,
         ism_address: H256,
@@ -86,6 +106,7 @@ impl MessageMetadataBuilder {
             node_id: format!("{ism_address:#x}"),
             max_ism_depth: ISM_MAX_DEPTH,
             max_ism_count: ISM_MAX_COUNT,
+            signature_polling: false,
         })
     }
 
