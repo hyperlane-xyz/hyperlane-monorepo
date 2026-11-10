@@ -1,7 +1,10 @@
 //! Best-effort sanitized message activity. No network I/O on the delivery path.
 use std::{
     collections::BTreeMap,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -407,11 +410,12 @@ impl MessageActivityReporter {
             node_id: node_id.map(str::to_owned),
             threshold,
             summary: Mutex::default(),
+            reported: AtomicBool::new(false),
         })
     }
 }
 
-// One snapshot per metadata build. Collections are already limited to 50 validators;
+// Summaries are scoped to one metadata build. Collections are limited to 50 validators;
 // only the latest attempted index is retained, so range walks cannot grow this state.
 #[derive(Debug, Default, Serialize)]
 pub struct CheckpointSummary {
@@ -435,6 +439,7 @@ pub struct ActivityCheckpointObserver {
     ism: Option<H256>,
     threshold: u8,
     summary: Mutex<CheckpointSummary>,
+    reported: AtomicBool,
     node_id: Option<String>,
 }
 
@@ -483,6 +488,7 @@ impl CheckpointObserver for ActivityCheckpointObserver {
 
 impl ActivityCheckpointObserver {
     pub fn report(&self) {
+        self.reported.store(true, Ordering::Relaxed);
         let summary = std::mem::take(&mut *self.summary.lock());
         if summary.attempts == 0
             && summary.latest_indices.is_empty()
@@ -503,6 +509,16 @@ impl ActivityCheckpointObserver {
             },
             self.node_id.clone(),
         );
+    }
+}
+
+impl Drop for ActivityCheckpointObserver {
+    fn drop(&mut self) {
+        // Background telemetry may outlive the metadata build's first report.
+        // Flush its remaining observations, but keep abandoned collections silent.
+        if *self.reported.get_mut() {
+            self.report();
+        }
     }
 }
 

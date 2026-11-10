@@ -497,7 +497,16 @@ impl MessageState {
                     // Discovery-only results are distinct from fetching a checkpoint. Do not
                     // reset an observed signature count to zero just because discovery ran again.
                     if summary["index"].is_null() {
-                        if node.get("signatures").is_none() {
+                        if let Some(signatures) = node.get_mut("signatures") {
+                            for field in ["latest_indices", "discovery_unavailable"] {
+                                if let (Some(current), Some(update)) = (
+                                    signatures[field].as_object_mut(),
+                                    summary[field].as_object(),
+                                ) {
+                                    current.extend(update.clone());
+                                }
+                            }
+                        } else {
                             node["discovery"] = summary;
                         }
                     } else {
