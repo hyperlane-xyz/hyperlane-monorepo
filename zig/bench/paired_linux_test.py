@@ -429,7 +429,7 @@ class Workflow(unittest.TestCase):
   self.assertIn('POSTGRES_DIGEST_A: 933463a6c8eba2b9f5cd414138738cd8',self.legacy());self.assertNotIn('PAIRED_PG16_DIGEST',self.legacy())
  def test_fixed_six_and_ten_matrices_limits_and_timing_refusal(self):
   functional=self.text.split('\n  paired-linux-functional:',1)[1].split('\n  paired-linux-runtime:',1)[0];runtime=self.text.split('\n  paired-linux-runtime:',1)[1]
-  self.assertIn('index: [0, 1, 2, 3, 4, 5]',functional);self.assertIn('timeout-minutes: 180',functional);self.assertIn('timeout-minutes: 122',functional);self.assertIn('index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]',runtime);self.assertIn('max-parallel: 2',runtime);self.assertIn('paired_linux_runtime_ci.py select',runtime);self.assertIn("if: steps.runtime.outputs.runtime_enabled == 'true'",runtime);self.assertIn('exec env -u GH_TOKEN python3 -I -B zig/bench/paired_linux_runtime_owner.py',runtime);self.assertIn('timeout-minutes: 306',runtime);self.assertNotIn('paired_linux_owner.py',runtime)
+  self.assertIn('index: [0, 1, 2, 3, 4, 5]',functional);self.assertIn('max-parallel: 2',functional);self.assertIn('timeout-minutes: 180',functional);self.assertIn('timeout-minutes: 122',functional);self.assertIn('index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]',runtime);self.assertIn('max-parallel: 2',runtime);self.assertIn('paired_linux_runtime_ci.py select',runtime);self.assertIn("if: steps.runtime.outputs.runtime_enabled == 'true'",runtime);self.assertIn('exec env -u GH_TOKEN python3 -I -B zig/bench/paired_linux_runtime_owner.py',runtime);self.assertIn('timeout-minutes: 306',runtime);self.assertNotIn('paired_linux_owner.py',runtime)
 
 class AdmissionFailureDiagnostics(unittest.TestCase):
  def setUp(self):
