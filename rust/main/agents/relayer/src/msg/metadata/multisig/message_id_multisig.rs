@@ -76,26 +76,29 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 highest_known: None,
             },
         );
-        // Updating the validator latest checkpoint metrics is independent of fetching the exact
-        // message-id checkpoint. Run both storage operations concurrently so metrics collection
-        // does not add another round trip to the metadata critical path.
-        let ((), quorum_checkpoint) = tokio::join!(
-            async {
-                let _ = checkpoint_syncer
-                    .get_validator_latest_checkpoints_and_update_metrics(
-                        validators,
-                        self.base_builder().origin_domain(),
-                        self.base_builder().destination_domain(),
-                    )
-                    .await;
-            },
-            checkpoint_syncer.fetch_checkpoint(
-                validators,
-                usize::from(threshold),
-                leaf_index,
-                self.base_builder().destination_domain(),
-            )
+        // The exact checkpoint index is already known. Availability probes do
+        // not need latest-index GETs; telemetry stays on the normal build path.
+        let fetch = checkpoint_syncer.fetch_checkpoint(
+            validators,
+            usize::from(threshold),
+            leaf_index,
+            self.base_builder().destination_domain(),
         );
+        let quorum_checkpoint = if self.signature_polling {
+            fetch.await
+        } else {
+            let metrics = checkpoint_syncer.get_validator_latest_checkpoints_and_update_metrics(
+                validators,
+                self.base_builder().origin_domain(),
+                self.base_builder().destination_domain(),
+            );
+            // Telemetry must not hold up an available signature or a quick miss.
+            tokio::pin!(fetch, metrics);
+            tokio::select! {
+                result = &mut fetch => result,
+                _ = &mut metrics => fetch.await,
+            }
+        };
 
         let quorum_checkpoint = unwrap_or_none_result!(
             quorum_checkpoint.map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
@@ -161,13 +164,14 @@ mod tests {
         latest_started: Arc<AtomicBool>,
         fetch_started: Arc<AtomicBool>,
         release: Arc<Notify>,
+        release_latest: Arc<Notify>,
     }
 
     #[async_trait::async_trait]
     impl CheckpointSyncer for GatedCheckpointSyncer {
         async fn latest_index(&self) -> eyre::Result<Option<u32>> {
             self.latest_started.store(true, Ordering::SeqCst);
-            self.release.notified().await;
+            self.release_latest.notified().await;
             self.inner.latest_index().await
         }
 
@@ -241,6 +245,88 @@ mod tests {
                 message: &HyperlaneMessage,
             ) -> ChainResult<(Vec<H256>, u8)>;
         }
+    }
+
+    #[tokio::test]
+    async fn ready_signatures_still_require_fresh_reorg_checks() {
+        use crate::test_utils::mock_ism::MockInterchainSecurityModule;
+        use hyperlane_base::settings::CheckpointSyncerBuildError;
+
+        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let message = HyperlaneMessage::default();
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: message.origin,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1,
+            },
+            message_id: message.id(),
+        };
+        let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
+        validators[0].fetch_checkpoint = Some(checkpoint);
+        let address: H160 = validators[0].public_key.parse().unwrap();
+        let clients = build_mock_checkpoint_syncs(&validators)
+            .await
+            .into_iter()
+            .map(|(address, client)| {
+                let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
+                (address, client)
+            })
+            .collect();
+        let base = Arc::new(build_mock_base_builder(origin, destination.clone()));
+        base.responses
+            .build_checkpoint_syncer
+            .lock()
+            .unwrap()
+            .extend([
+                Ok(MultisigCheckpointSyncer::new(clients, None)),
+                Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
+                    exists: true,
+                    event: None,
+                    content: None,
+                })),
+            ]);
+        for _ in 0..2 {
+            base.responses.push_build_ism_response(
+                H256::zero(),
+                Ok(Box::new(MockInterchainSecurityModule::new(
+                    H256::zero(),
+                    destination.clone(),
+                    ModuleType::MessageIdMultisig,
+                ))),
+            );
+            let mut ism = MockMockMultisigIsm::new();
+            ism.expect_validators_and_threshold()
+                .once()
+                .return_once(move |_| Ok((vec![address.into()], 1)));
+            ism.expect_domain().return_const(destination.clone());
+            ism.expect_address().return_const(H256::zero());
+            base.responses
+                .build_multisig_ism
+                .lock()
+                .unwrap()
+                .push_back(Ok(Box::new(ism)));
+            base.responses
+                .get_merkle_leaf_id_by_message_id
+                .lock()
+                .unwrap()
+                .push_back(Ok(Some(1)));
+        }
+        let builder = MessageMetadataBuilder::new(base.clone(), H256::zero(), &message)
+            .await
+            .unwrap();
+        assert!(matches!(
+            builder
+                .build_for_delivery(H256::zero(), &message, true)
+                .await,
+            Err(MetadataBuildError::Refused(_))
+        ));
+        assert_eq!(
+            *base.requests.checkpoint_reorg_checks.lock().unwrap(),
+            vec![false, true]
+        );
     }
 
     #[tracing_test::traced_test]
@@ -330,7 +416,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fetches_latest_index_and_checkpoint_concurrently_and_updates_metrics() {
+    async fn available_signature_does_not_wait_for_latest_index_telemetry() {
         let message = HyperlaneMessage::default();
         let checkpoint = CheckpointWithMessageId {
             checkpoint: Checkpoint {
@@ -359,11 +445,13 @@ mod tests {
         let latest_started = Arc::new(AtomicBool::new(false));
         let fetch_started = Arc::new(AtomicBool::new(false));
         let release = Arc::new(Notify::new());
+        let release_latest = Arc::new(Notify::new());
         let gated_syncer = GatedCheckpointSyncer {
             inner,
             latest_started: latest_started.clone(),
             fetch_started: fetch_started.clone(),
             release: release.clone(),
+            release_latest: release_latest.clone(),
         };
         let gated_syncer: Arc<dyn CheckpointSyncer> = Arc::new(gated_syncer);
 
@@ -416,18 +504,20 @@ mod tests {
             .expect("metadata should be available");
         assert_eq!(metadata.checkpoint.index, checkpoint.index);
 
-        let validator_label = format!("0x{validator:x}").to_lowercase();
-        let observed_latest_index = metrics
-            .validator_metrics
-            .observed_validator_latest_index()
-            .with_label_values(&[
-                origin.as_ref(),
-                destination.as_ref(),
-                &validator_label,
-                app_context,
-            ])
-            .get();
-        assert_eq!(observed_latest_index, 1010);
+        // Telemetry updates when ready, but cannot hold up the signature.
+        assert_eq!(
+            metrics
+                .validator_metrics
+                .observed_validator_latest_index()
+                .with_label_values(&[
+                    origin.as_ref(),
+                    destination.as_ref(),
+                    &format!("0x{validator:x}"),
+                    app_context
+                ])
+                .get(),
+            0
+        );
     }
 
     #[tracing_test::traced_test]

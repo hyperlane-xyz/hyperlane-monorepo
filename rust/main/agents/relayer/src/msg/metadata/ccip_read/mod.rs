@@ -1178,6 +1178,7 @@ mod test {
             base: base.clone(),
             app_context: None,
             root_ism: H256::repeat_byte(1),
+            signature_polling: false,
             max_ism_depth: 5,
             max_ism_count: 10,
         });

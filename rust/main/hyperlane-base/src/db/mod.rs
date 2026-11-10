@@ -1,5 +1,6 @@
 pub use self::storage_types::{
     InterchainGasExpenditureData, InterchainGasPaymentData, PendingMessageRetryState,
+    SignatureRetryState,
 };
 pub use error::*;
 pub use rocks::*;

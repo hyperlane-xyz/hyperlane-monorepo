@@ -1,4 +1,7 @@
-use std::io::{Read, Write};
+use std::{
+    io::{Read, Write},
+    time::SystemTime,
+};
 
 use hyperlane_core::{
     Decode, Encode, HyperlaneProtocolError, InterchainGasExpenditure, InterchainGasPayment,
@@ -7,6 +10,15 @@ use hyperlane_core::{
 use serde::{Deserialize, Serialize};
 
 const PENDING_MESSAGE_RETRY_STATE_VERSION: u8 = 1;
+
+/// Signature polling progress, retained across relayer restarts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignatureRetryState {
+    /// Time of the first missing-signature response.
+    pub started_at: SystemTime,
+    /// Number of retries scheduled after the ten-second fast window.
+    pub backoff_retries: u32,
+}
 
 /// Durable retry state for a pending message.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -20,6 +32,9 @@ pub struct PendingMessageRetryState {
     pub retry_delay_millis: Option<u64>,
     /// Retry reason used when the deadline was calculated.
     pub reason: Option<ReprepareReason>,
+    /// Optional extension; older retry records have no signature polling progress.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature_retry: Option<SignatureRetryState>,
 }
 
 impl PendingMessageRetryState {
@@ -36,6 +51,7 @@ impl PendingMessageRetryState {
             next_attempt_at_millis,
             retry_delay_millis,
             reason,
+            signature_retry: None,
         }
     }
 }
@@ -74,6 +90,19 @@ impl Decode for PendingMessageRetryState {
             )));
         }
         Ok(state)
+    }
+}
+
+#[cfg(test)]
+mod signature_retry_tests {
+    use super::*;
+
+    #[test]
+    fn reads_legacy_retry_state_without_signature_progress() {
+        let legacy = br#"{"version":1,"retry_count":4,"next_attempt_at_millis":1500,"retry_delay_millis":500,"reason":null}"#;
+        let state = PendingMessageRetryState::read_from(&mut legacy.as_slice()).unwrap();
+        assert_eq!(state.retry_count, 4);
+        assert_eq!(state.signature_retry, None);
     }
 }
 

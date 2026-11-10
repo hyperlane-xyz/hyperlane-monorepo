@@ -17,7 +17,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 
 use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
-    db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState},
+    db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState, SignatureRetryState},
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -34,12 +34,12 @@ use crate::{
     metrics::message_submission::{
         MessageSubmissionMetrics, MetadataBuildMetric, MetadataWaitObservation,
     },
-    msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
+    msg::metadata::MetadataBuildError,
 };
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder},
     runtime_denylist::{is_hash_not_stored, OriginSenderCheck},
 };
 
@@ -72,8 +72,8 @@ pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
-const VALIDATOR_SIGNATURE_FAST_RETRY_INTERVAL: Duration = Duration::from_secs(2);
-const VALIDATOR_SIGNATURE_FAST_RETRY_MAX: u32 = 3;
+const SIGNATURE_POLL_INTERVAL: Duration = Duration::from_millis(500);
+const SIGNATURE_POLL_WINDOW: Duration = Duration::from_secs(10);
 
 /// Revert string emitted by the ICA router when the originating commit has not
 /// yet been confirmed on-chain. There is no typed error variant for this today —
@@ -246,6 +246,8 @@ pub struct PendingMessage {
     /// RPC on every prepare.
     #[serde(skip_serializing)]
     origin_lookup_skip_until: Option<Instant>,
+    #[serde(skip_serializing)]
+    signature_retry: Option<SignatureRetryState>,
 }
 
 impl PendingMessage {
@@ -317,6 +319,7 @@ impl PendingMessage {
             origin_lookup_failures: 0,
             origin_hash_waited: false,
             origin_lookup_skip_until: None,
+            signature_retry: None,
         }
     }
 
@@ -1127,6 +1130,7 @@ impl PendingMessage {
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         pending_message.num_retries = num_retries;
         pending_message.next_attempt_after = next_attempt_after;
+        pending_message.signature_retry = retry_state.and_then(|state| state.signature_retry);
         Some(pending_message)
     }
 
@@ -1590,20 +1594,53 @@ impl PendingMessage {
         }
         self.set_status(status);
         self.num_retries = 0;
+        self.signature_retry = None;
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
         true
     }
 
+    fn signature_retry_delay(&mut self, now: SystemTime) -> Duration {
+        let state = self.signature_retry.get_or_insert(SignatureRetryState {
+            started_at: now,
+            backoff_retries: 0,
+        });
+        // Clock rollback ends the fast window rather than extending it.
+        let elapsed = now
+            .duration_since(state.started_at)
+            .unwrap_or(SIGNATURE_POLL_WINDOW);
+        if state.backoff_retries == 0 && elapsed < SIGNATURE_POLL_WINDOW {
+            return SIGNATURE_POLL_INTERVAL.min(SIGNATURE_POLL_WINDOW.saturating_sub(elapsed));
+        }
+        state.backoff_retries = state.backoff_retries.saturating_add(1);
+        if state.backoff_retries <= 3 {
+            return Duration::from_secs(u64::from(state.backoff_retries));
+        }
+        Self::calculate_msg_backoff(
+            state.backoff_retries.saturating_sub(3),
+            self.max_retries,
+            Some(self.message.id()),
+            None,
+        )
+        .expect("post-window signature retry has a nonzero retry count")
+    }
+
     fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
         self.num_retries = self.num_retries.saturating_add(1);
         self.last_attempted_at = Instant::now();
-        let delay = PendingMessage::calculate_msg_backoff(
-            self.num_retries,
-            self.max_retries,
-            Some(self.message.id()),
-            reason,
-        );
+        let delay = if self.num_retries < self.max_retries
+            && matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures))
+        {
+            Some(self.signature_retry_delay(SystemTime::now()))
+        } else {
+            self.signature_retry = None;
+            Self::calculate_msg_backoff(
+                self.num_retries,
+                self.max_retries,
+                Some(self.message.id()),
+                reason,
+            )
+        };
         self.next_attempt_after = delay.and_then(|dur| self.last_attempted_at.checked_add(dur));
         self.persist_retry_state(delay, reason.cloned());
     }
@@ -1643,12 +1680,13 @@ impl PendingMessage {
             },
         );
         let retry_delay_millis = delay.and_then(|delay| delay.as_millis().try_into().ok());
-        let state = PendingMessageRetryState::new(
+        let mut state = PendingMessageRetryState::new(
             self.num_retries,
             next_attempt_at_millis,
             retry_delay_millis,
             reason,
         );
+        state.signature_retry = self.signature_retry.clone();
         if let Err(e) = self
             .ctx
             .origin_db
@@ -1667,26 +1705,12 @@ impl PendingMessage {
         message_id: Option<H256>,
         reason: Option<&ReprepareReason>,
     ) -> Option<Duration> {
-        // Signatures are simply not yet available (validator hasn't signed past the reorg
-        // period yet). Use a short 2s fast-path so the relayer can pick them up promptly
-        // without repeatedly rebuilding aggregation metadata for up to 20 seconds. Note:
-        // num_retries is the total persisted retry counter across all reasons, not a
-        // per-reason count.
-        //
-        // After the fast-path budget is spent, restart the normal gentle ramp (5s→10s→30s…)
-        // from the beginning rather than landing mid-table at the 3-min arm.
-        if matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures)) {
-            if (1..=VALIDATOR_SIGNATURE_FAST_RETRY_MAX).contains(&num_retries) {
-                return Some(VALIDATOR_SIGNATURE_FAST_RETRY_INTERVAL);
-            }
-            // Offset retries so the first retry after the fast path resumes the normal ramp.
-            // Pass reason=None to avoid recursing into this branch again.
-            return Self::calculate_msg_backoff(
-                num_retries.saturating_sub(VALIDATOR_SIGNATURE_FAST_RETRY_MAX),
-                max_retries,
-                message_id,
-                None,
-            );
+        // Without a stored deadline, start signature checking promptly. The
+        // elapsed-time window and subsequent backoff are handled by signature_retry_delay.
+        if (1..max_retries).contains(&num_retries)
+            && matches!(reason, Some(ReprepareReason::AwaitingValidatorSignatures))
+        {
+            return Some(SIGNATURE_POLL_INTERVAL);
         }
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
@@ -1769,17 +1793,20 @@ impl PendingMessage {
             }
         };
 
-        let params = MessageMetadataBuildParams::default();
-
+        let polling = matches!(
+            self.status,
+            PendingOperationStatus::Retry(ReprepareReason::AwaitingValidatorSignatures)
+        );
         let build_metadata_start = Instant::now();
         let metadata_res = message_metadata_builder
-            .build(ism_address, &self.message, params)
+            .build_for_delivery(ism_address, &self.message, polling)
             .await;
 
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
 
         let metadata_res = match metadata_res {
             Ok(metadata) => {
+                self.signature_retry = None;
                 if let Some(wait_duration) = self.ctx.metrics.finish_metadata_wait(
                     self.message.id(),
                     self.app_context.as_deref(),
@@ -1889,7 +1916,7 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES, VALIDATOR_SIGNATURE_FAST_RETRY_MAX};
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
 
     fn unix_millis(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
@@ -3243,52 +3270,107 @@ mod test {
     }
 
     #[test]
-    fn test_awaiting_validator_signatures_backoff() {
-        let reason = ReprepareReason::AwaitingValidatorSignatures;
-
-        // Fast path: the bounded initial retries always return 2s.
-        for i in 1..=VALIDATOR_SIGNATURE_FAST_RETRY_MAX {
+    fn missing_signature_deadlines_restart_with_a_prompt_probe() {
+        for retries in [1, 20, DEFAULT_MAX_MESSAGE_RETRIES - 1] {
             assert_eq!(
                 PendingMessage::calculate_msg_backoff(
-                    i,
+                    retries,
                     DEFAULT_MAX_MESSAGE_RETRIES,
                     None,
-                    Some(&reason)
+                    Some(&ReprepareReason::AwaitingValidatorSignatures),
                 ),
-                Some(Duration::from_secs(2)),
-                "retry {i} should be 2s"
+                Some(Duration::from_millis(500))
             );
         }
+        assert_eq!(
+            PendingMessage::calculate_msg_backoff(
+                0,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+                None,
+                Some(&ReprepareReason::AwaitingValidatorSignatures),
+            ),
+            None,
+            "the first request has no delay"
+        );
+    }
 
-        // After the fast path, resume the gentle ramp from its first step.
-        let first_normal_retry = VALIDATOR_SIGNATURE_FAST_RETRY_MAX.saturating_add(1);
+    #[test]
+    fn signature_retry_window_uses_elapsed_time_not_attempt_count() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        pending.num_retries = 50; // Other failures must not consume the signature fast window.
+        let start = UNIX_EPOCH + Duration::from_secs(1_000);
+        for millis in [0, 500, 1_000, 4_000, 9_500] {
+            assert_eq!(
+                pending.signature_retry_delay(start + Duration::from_millis(millis)),
+                Duration::from_millis(500)
+            );
+        }
         assert_eq!(
-            PendingMessage::calculate_msg_backoff(
-                first_normal_retry,
-                DEFAULT_MAX_MESSAGE_RETRIES,
-                None,
-                Some(&reason)
-            ),
-            Some(Duration::from_secs(5)),
-            "first retry after the fast path should resume the normal ramp at 5s"
+            pending.signature_retry_delay(start + Duration::from_millis(9_900)),
+            Duration::from_millis(100)
+        );
+        for seconds in [1, 2, 3, 5, 10, 30, 60, 180] {
+            assert_eq!(
+                pending.signature_retry_delay(start + Duration::from_secs(10)),
+                Duration::from_secs(seconds)
+            );
+        }
+        // A backwards clock jump cannot return an already-backed-off message to fast polling.
+        assert_eq!(
+            pending.signature_retry_delay(start - Duration::from_secs(1)),
+            Duration::from_secs(180)
+        );
+        let (_skew_dir, mut skewed) = pending_with_mailbox(contract_test_mailbox(), None);
+        assert_eq!(
+            skewed.signature_retry_delay(start),
+            Duration::from_millis(500)
         );
         assert_eq!(
-            PendingMessage::calculate_msg_backoff(
-                first_normal_retry.saturating_add(1),
-                DEFAULT_MAX_MESSAGE_RETRIES,
-                None,
-                Some(&reason)
-            ),
-            Some(Duration::from_secs(10)),
+            skewed.signature_retry_delay(start - Duration::from_secs(1)),
+            Duration::from_secs(1)
         );
         assert_eq!(
-            PendingMessage::calculate_msg_backoff(
-                first_normal_retry.saturating_add(2),
-                DEFAULT_MAX_MESSAGE_RETRIES,
-                None,
-                Some(&reason)
-            ),
-            Some(Duration::from_secs(30)),
+            skewed.signature_retry_delay(start + Duration::from_secs(1)),
+            Duration::from_secs(2)
+        );
+    }
+
+    #[test]
+    fn signature_retry_progress_survives_restart_and_manual_reset() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        let observation = pending
+            .ctx
+            .metrics
+            .record_metadata_wait(pending.message.id(), None);
+        pending.on_metadata_wait(observation);
+        let saved =
+            PendingMessage::get_retry_state(pending.ctx.origin_db.clone(), &pending.message)
+                .unwrap();
+        assert_eq!(saved.retry_delay_millis, Some(500));
+        pending.signature_retry = None;
+        let now = SystemTime::now();
+        pending.num_retries = 5;
+        pending.signature_retry_delay(now - Duration::from_secs(11));
+        assert_eq!(pending.signature_retry_delay(now), Duration::from_secs(1));
+        assert_eq!(pending.signature_retry_delay(now), Duration::from_secs(2));
+        pending.persist_retry_state(
+            Some(Duration::from_secs(2)),
+            Some(ReprepareReason::AwaitingValidatorSignatures),
+        );
+        let mut restored = PendingMessage::maybe_from_persisted_retries(
+            pending.message.clone(),
+            pending.ctx.clone(),
+            pending.app_context.clone(),
+            pending.max_retries,
+        )
+        .unwrap();
+        assert_eq!(restored.signature_retry, pending.signature_retry);
+        assert_eq!(restored.signature_retry_delay(now), Duration::from_secs(3));
+        assert!(restored.reset_attempts());
+        assert!(restored.signature_retry.is_none());
+        assert_eq!(
+            restored.signature_retry_delay(now),
+            Duration::from_millis(500)
         );
     }
 
