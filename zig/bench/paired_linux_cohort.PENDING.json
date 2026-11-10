@@ -3,116 +3,116 @@
   "passed": true,
   "Root_actual_cohort_acceptance": true,
   "scope": "Authenticated remote eight-product contents and coherent producer qualification only",
-  "source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-  "run_id": 42586182471,
+  "source_commit": "c83dff3d2047299cafaddd740a9a9444c2636ce6",
+  "run_id": 42827307915,
   "run_attempt": 1,
-  "reader_execution_commit": "babf33f3f781e37897e99c62d0806e08af0b7d2f",
-  "reader_run_id": 42598962630,
+  "reader_execution_commit": "b511e14ddd4453332c4d63af70fafeb9f1721e2c",
+  "reader_run_id": 42841024237,
   "reader_run_attempt": 1,
   "inspection_report": {
-    "bytes": 27588,
+    "bytes": 34190,
     "sha256": {
       "sha256_hex_chunks": [
-        "dd52ef2fc6e601e74ff84faf51a5424a",
-        "6e312ecbaf08e9d0c3f2e54170b19d07"
+        "776d2429710de90df618d8ce3ec04146",
+        "3916ce6cdd8be15e080d5ed9e09bb09b"
       ]
     }
   },
   "independent_readback": {
-    "bytes": 11644,
+    "bytes": 16128,
     "sha256": {
       "sha256_hex_chunks": [
-        "ab3142294ab3bc50c80bc8b59f712879",
-        "3f3a24ae5c59797cb976cd39bb032eab"
+        "bb33c631f0622a798673100c34832e8b",
+        "b4f8b00a9e303ac45b66990e8e3a7b1d"
       ]
     }
   },
   "eight_artifacts": {
     "sdk_safe": {
-      "id": 13660307486,
+      "id": 13771851861,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52481326,
+      "size_in_bytes": 52008264,
       "sha256": {
         "sha256_hex_chunks": [
-          "439ac3e94c66ba4a497b5f3bf0f4f649",
-          "6c8fdb4294ad903fffcd31a6a98163a9"
+          "17c68e43588d37acb171c2d7ed8ddf3a",
+          "c0a0899486c65259960fc489508c4707"
         ]
       }
     },
     "sdk_fast": {
-      "id": 13661513116,
+      "id": 13774605615,
       "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 55148093,
+      "size_in_bytes": 54110993,
       "sha256": {
         "sha256_hex_chunks": [
-          "67d7eb9652f60c59a1af2403f0fdb394",
-          "02003397b7104c101101f78c2c7d0494"
+          "c7cac0d46f504d411d5d9187915bc13c",
+          "5c3bd7ec169ae83a343a5c2b42dd010f"
         ]
       }
     },
     "helper": {
-      "id": 13659769342,
+      "id": 13770313967,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56510096,
+      "size_in_bytes": 56241226,
       "sha256": {
         "sha256_hex_chunks": [
-          "bdc7221c07fbde482d2931edcd57d672",
-          "d21449a7d5f25ea4e1fe40db04b75933"
+          "5a0b525ba93174272e07b8154a738ef1",
+          "c354bfc73b383c02cc20a8d37b18bdc4"
         ]
       }
     },
     "tools": {
-      "id": 13659838754,
-      "name": "zig-native-case-tools-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-      "size_in_bytes": 20092495,
+      "id": 13770642971,
+      "name": "zig-native-case-tools-c83dff3d2047299cafaddd740a9a9444c2636ce6",
+      "size_in_bytes": 19965625,
       "sha256": {
         "sha256_hex_chunks": [
-          "8237aa5ede95c948939598213c493f4e",
-          "0c4be97f1d262565d6ba166346557669"
+          "a3ae3a1263a479ec7d5ce7811ff6f4ff",
+          "0758e4ae9d9a9cfd749362ceaa1e43d9"
         ]
       }
     },
     "writer_safe": {
-      "id": 13660502012,
+      "id": 13771747182,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5171516,
+      "size_in_bytes": 5218363,
       "sha256": {
         "sha256_hex_chunks": [
-          "23bcbfecfc95b1c40cedee62adec4980",
-          "9aeceab45247ffc7a3b73e1e58ae584a"
+          "6b192b029ab4134fc3bcc492fdf48e95",
+          "3b8dc298d3c34e35b7a4994b5d7dadb0"
         ]
       }
     },
     "writer_fast": {
-      "id": 13661962123,
+      "id": 13774306289,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4863021,
+      "size_in_bytes": 4929315,
       "sha256": {
         "sha256_hex_chunks": [
-          "e9cddb589d43d50eaaddfa16aa7e0ccc",
-          "74d8a7b87cb7153ed38814b37b46e749"
+          "e15b560c8efe9eb338f8214733a18409",
+          "504e7be296b7a828924182a6e5c35cdd"
         ]
       }
     },
     "svm": {
-      "id": 13659787719,
-      "name": "svm-linux-prerequisites-42586182471-1",
-      "size_in_bytes": 327982661,
+      "id": 13770896381,
+      "name": "svm-linux-prerequisites-42827307915-1",
+      "size_in_bytes": 327922349,
       "sha256": {
         "sha256_hex_chunks": [
-          "17dda43c595e2f07a91ed2047811bbb4",
-          "f5f4f54408938ab32bba81e335c1b729"
+          "fb23d12e744269c62d5dbebe0f2a2eb2",
+          "87a20f4c68953ba4f9806eb4df13dce6"
         ]
       }
     },
     "radix_reference": {
-      "id": 13660292178,
-      "name": "zig-native-radix-reference-c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
-      "size_in_bytes": 3177951,
+      "id": 13771621629,
+      "name": "zig-native-radix-reference-c83dff3d2047299cafaddd740a9a9444c2636ce6",
+      "size_in_bytes": 3166405,
       "sha256": {
         "sha256_hex_chunks": [
-          "f57c0af578b2a2787f1da6667a37ffb6",
-          "ed2aa27b8bcd59e7c08e5e43bb746bd1"
+          "494c63e455e9dd1b5a91a721b2f354aa",
+          "2e3da2980a0998eba6ef0477cbdaafab"
         ]
       }
     }
@@ -120,46 +120,46 @@
   "all4_required_jobs_actual_success": [
     {
       "conclusion": "success",
-      "id": 129056459488,
+      "id": 129867879694,
       "name": "full-sdk-native (ReleaseSafe)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 129056459510,
+      "id": 129867879507,
       "name": "full-sdk-native (ReleaseFast)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 129056459496,
+      "id": 129867879524,
       "name": "native-harness-controls",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 129056459762,
+      "id": 129867879422,
       "name": "svm-prerequisites",
       "status": "completed"
     }
   ],
   "all8_same_run_required_product_artifacts": true,
-  "core607": {
+  "core608": {
     "all_policy_Git_blobs_match": true,
     "policy_map_sha256": {
       "sha256_hex_chunks": [
-        "35485a26df19b71fd0cc50731883da79",
-        "23d32c9c57ee2602df09eaef6d0acdd4"
+        "2bad5225cd65da1e7eebe2c811c35f30",
+        "601e097f977a11780182cc0759dfb382"
       ]
     },
-    "source_rows_checked": 607
+    "source_rows_checked": 608
   },
   "compiled_cohort": {
     "helper": [
       {
-        "execution_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
+        "execution_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
         "path": "rust/main",
-        "producer_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
+        "producer_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
         "worktree_clean_in_scope": true
       },
       {
@@ -171,21 +171,21 @@
     ],
     "runtime": [
       {
-        "execution_tree": "e614b3caffedbca95ebba6738221cae6feb6bdf8",
+        "execution_tree": "e2947d66c07e04e7db44a3b7e97a75bde24f9537",
         "path": "zig/src",
-        "producer_tree": "e614b3caffedbca95ebba6738221cae6feb6bdf8",
+        "producer_tree": "e2947d66c07e04e7db44a3b7e97a75bde24f9537",
         "worktree_clean_in_scope": true
       },
       {
-        "execution_tree": "6611d3c4fd816559d73360179058933854347f7d",
+        "execution_tree": "2f178a1f2bc614e55ede5b0a70e2cbafe91e774b",
         "path": "zig/native",
-        "producer_tree": "6611d3c4fd816559d73360179058933854347f7d",
+        "producer_tree": "2f178a1f2bc614e55ede5b0a70e2cbafe91e774b",
         "worktree_clean_in_scope": true
       },
       {
-        "execution_tree": "1d4994bcfdec43cffb18d16cd6691ccdee321378",
+        "execution_tree": "99c967d7ac7fd2c9632bff55ba90a6a5d87718cd",
         "path": "zig/build.zig",
-        "producer_tree": "1d4994bcfdec43cffb18d16cd6691ccdee321378",
+        "producer_tree": "99c967d7ac7fd2c9632bff55ba90a6a5d87718cd",
         "worktree_clean_in_scope": true
       },
       {
@@ -197,9 +197,9 @@
     ],
     "tools": [
       {
-        "execution_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
+        "execution_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
         "path": "rust/main",
-        "producer_tree": "c4129847833f11032f0dde5a330cb02e71cee540",
+        "producer_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
         "worktree_clean_in_scope": true
       },
       {
@@ -223,7 +223,7 @@
   "native_suites": {
     "sdk_safe": {
       "explicit_agent_runtime_test_count": 2,
-      "producer_native_required_count": 36,
+      "producer_native_required_count": 68,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
           "b6f9d9865cf80d7ee66bc995741eef47",
@@ -232,16 +232,16 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1202,
+        "OK": 1251,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1205,
+      "total": 1254,
       "two_explicit_agent_runtime_tests_observed_OK": true
     },
     "sdk_fast": {
       "explicit_agent_runtime_test_count": 2,
-      "producer_native_required_count": 36,
+      "producer_native_required_count": 68,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
           "b6f9d9865cf80d7ee66bc995741eef47",
@@ -250,24 +250,33 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1202,
+        "OK": 1251,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1205,
+      "total": 1254,
       "two_explicit_agent_runtime_tests_observed_OK": true
     }
   },
   "inspection_resources": {
-    "actual_streamed_bytes": 1705477147,
-    "elapsed_seconds": 111.668757,
-    "inspector_peak_RSS_bytes": 81920000,
+    "actual_streamed_bytes": 1697349026,
+    "elapsed_seconds": 113.567116,
+    "inspector_peak_RSS_bytes": 82948096,
     "own_downloads_removed": true
   },
-  "actual_calls_all_waited": 8518,
+  "actual_calls_all_waited": 8524,
   "actual_CPU_receipts": {
     "sdk_safe": [
       {
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "c85c3a3e0651e67f34b4d863a6b3b57f",
+            "74c0de7ae5912a416e1b20da9fc4e8ac"
+          ]
+        },
+        "compiler_recipe_count": 3,
         "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
@@ -277,13 +286,29 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "03ee57d989fc39e12c329669e5de618c",
-            "5f2fc32781263a80d6dac74d4ce65206"
+            "839cacc733ac7771d3a9c142dc19bbac",
+            "f01028b01ef5bf760add9bb0144bd24b"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "aleo"
       },
       {
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "4010434aed66513d029abe4695b48523",
+            "813dca2499e04c144a49308b57f01ec3"
+          ]
+        },
+        "compiler_recipe_count": 6,
         "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
@@ -293,13 +318,29 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "c603607ac5162fd237f7cbf73ce31f7f",
-            "5be5556272cdafb9af341c3aed3e3f13"
+            "77c34dec32a7c0454dfd1086e72d9e52",
+            "4f9cb7e26e1f63dc9ae018cec60883e8"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "native-db"
       },
       {
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "02ed040acff24f7aecb291b3524149d4",
+            "7d6c1032eee40b04d5c1ed16adddab29"
+          ]
+        },
+        "compiler_recipe_count": 1,
         "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
@@ -309,13 +350,29 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "76c50960ef6efcbb7ac6e5c09f6ca320",
-            "a679ff04a78989a23f197d8152bdac8c"
+            "88821b276e458a06069b647f5e6d07a4",
+            "9fd7d76af0663fad2d2bd0fb5c8de9d4"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "regex"
       },
       {
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "2f4627824e08fd8a9b381f660115d842",
+            "6c7a5fb1795a9a8d298eeb4dacf36078"
+          ]
+        },
+        "compiler_recipe_count": 1,
         "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
@@ -325,13 +382,29 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "3b048e4b27fbcba49400c1d0b9af9d63",
-            "423d7547c1a3d8419e6a1a883ff817f4"
+            "107929f648062e80d01ee907aea73dd3",
+            "72e81b773cedead8e848a53bed739e8f"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "starknet"
       },
       {
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "3cd44a8d9975edacd114a1310b4b1245",
+            "bbbf57c721b2fec880ddd4eb41ab8ef3"
+          ]
+        },
+        "compiler_recipe_count": 1,
         "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
@@ -341,8 +414,15 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "c145b1227d84ef7d864599358d9118b6",
-            "94e183987c1c2f0f231bca206474ec76"
+            "395ba1df922c7f50e25f8550e89d78f1",
+            "2f249121a722d6067acb864803ef8411"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "url"
@@ -350,86 +430,178 @@
     ],
     "sdk_fast": [
       {
-        "flag_count": 132,
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "eba89ad991e6c72c1d019a2eb0af9098",
+            "cf6b3c8e5b90fd976da4bfb0a2d2b8d6"
+          ]
+        },
+        "compiler_recipe_count": 3,
+        "flag_count": 120,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "4eb3c28fdc2dec2db0423c1d6b7ac127",
-            "e5db0cca9175b93af2927dab3ddd22cf"
+            "bb30d11711f231832c0d2c5ed94b4ab3",
+            "0d1e76162589c11a3f202a7263edf6a0"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "e6306446e0097902c09117232d8dbe0b",
-            "293e9085b45b32365a93a2c30ef3d2c1"
+            "647cdbfa6dff8b709654db4c6cd81566",
+            "354a341c7127431095c8cf199d6e8142"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "aleo"
       },
       {
-        "flag_count": 132,
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "54338eec799bc824b12c3c51cb1e4a01",
+            "b7d456a90b9c1cda427589171dc3f027"
+          ]
+        },
+        "compiler_recipe_count": 6,
+        "flag_count": 120,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "4eb3c28fdc2dec2db0423c1d6b7ac127",
-            "e5db0cca9175b93af2927dab3ddd22cf"
+            "bb30d11711f231832c0d2c5ed94b4ab3",
+            "0d1e76162589c11a3f202a7263edf6a0"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "c874e1dd9b298abdcce6fcd29b99bc58",
-            "51644b7b42c61f836ab186c86105a9a5"
+            "b1d025fc5bde1e93c77ce1d7c245eda6",
+            "b286d6c0bb5eca1491d41591c9780d22"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "native-db"
       },
       {
-        "flag_count": 132,
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "02ed040acff24f7aecb291b3524149d4",
+            "7d6c1032eee40b04d5c1ed16adddab29"
+          ]
+        },
+        "compiler_recipe_count": 1,
+        "flag_count": 120,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "4eb3c28fdc2dec2db0423c1d6b7ac127",
-            "e5db0cca9175b93af2927dab3ddd22cf"
+            "bb30d11711f231832c0d2c5ed94b4ab3",
+            "0d1e76162589c11a3f202a7263edf6a0"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "3dbd36f5018a1d7e2e98513e9c80e416",
-            "e09c4695d21d77f5962b0be4de092f14"
+            "2be8c0a45d883c371d7ca1e3e8842cac",
+            "9f27e7ff7b3c55f05a5b729595957596"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "regex"
       },
       {
-        "flag_count": 132,
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "2f4627824e08fd8a9b381f660115d842",
+            "6c7a5fb1795a9a8d298eeb4dacf36078"
+          ]
+        },
+        "compiler_recipe_count": 1,
+        "flag_count": 120,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "4eb3c28fdc2dec2db0423c1d6b7ac127",
-            "e5db0cca9175b93af2927dab3ddd22cf"
+            "bb30d11711f231832c0d2c5ed94b4ab3",
+            "0d1e76162589c11a3f202a7263edf6a0"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "0261188d667370e4e7bab9708d02d75b",
-            "15a7eb7041a1b23b37cb85a3d2420f63"
+            "60f590eaf56d15d26919d63233234d2b",
+            "0b7dcd902a6b53db5ac4cf14a4467e5d"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "starknet"
       },
       {
-        "flag_count": 132,
+        "CPU_profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+        "compiler_recipe_Source_verified": true,
+        "compiler_recipe_catalog_sha256": {
+          "sha256_hex_chunks": [
+            "3cd44a8d9975edacd114a1310b4b1245",
+            "bbbf57c721b2fec880ddd4eb41ab8ef3"
+          ]
+        },
+        "compiler_recipe_count": 1,
+        "flag_count": 120,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "4eb3c28fdc2dec2db0423c1d6b7ac127",
-            "e5db0cca9175b93af2927dab3ddd22cf"
+            "bb30d11711f231832c0d2c5ed94b4ab3",
+            "0d1e76162589c11a3f202a7263edf6a0"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "fcf2184aad97748f4bb7fbaac00fad3e",
-            "2f3c57262b2570dd55731fd719d87f9f"
+            "a70217bd00924989c6130edf9a009241",
+            "c995684e26e5dd17c1059d76e945ab4c"
+          ]
+        },
+        "required_ISA_flag_count": 25,
+        "required_ISA_flags_sha256": {
+          "sha256_hex_chunks": [
+            "63e3a7be49412b12bd6ed34a0887259f",
+            "6a3a4c86a3dfb8774704c75034741470"
           ]
         },
         "scope": "url"
       }
     ]
+  },
+  "actual_portable_CPU_profile": {
+    "profile": "linux-x86_64-v3-pclmul-native-abi-v1",
+    "required_ISA_flag_count": 25,
+    "required_ISA_flags_sha256": {
+      "sha256_hex_chunks": [
+        "63e3a7be49412b12bd6ed34a0887259f",
+        "6a3a4c86a3dfb8774704c75034741470"
+      ]
+    },
+    "all_eight_portable_Source_verified": true,
+    "upstream_prebuilt_ISA_claim": false
   },
   "actual_SDK_export_waits": {
     "sdk_safe": 29,
@@ -447,14 +619,15 @@
     "Product archives inspected remotely; local evidence consists of the bounded tiny report and existing independent SDK-step receipts.",
     "This accepts producer contents only; no native-case, consumer-CPU, runtime or timing proof."
   ],
-  "kind": "Root-qualified-portable-D-paired-eight-product-cohort",
+  "kind": "Root-qualified-portable-NEXT-paired-eight-product-cohort",
   "Root_qualification_fingerprint": {
-    "bytes": 10239,
+    "bytes": 14580,
     "sha256": {
       "sha256_hex_chunks": [
-        "f6b5b0ccd163e2b9dcd697243acdb8e1",
-        "e0147fb27a30e878cfca4067bea9d3c7"
+        "4e2ca2f9f0432b24d3ad02f651c4c2f1",
+        "ac19e0d8f43b650c8c588133637e2cff"
       ]
     }
-  }
+  },
+  "root_approved": false
 }

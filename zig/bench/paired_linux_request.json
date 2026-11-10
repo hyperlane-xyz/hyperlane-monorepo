@@ -5,16 +5,16 @@
   "inputs_enabled": false,
   "functional_enabled": false,
   "runtime_enabled": false,
-  "producer_source_commit": "c0e9b16f5f5361dbbc45260d0316ed8a03b80857",
+  "producer_source_commit": "c83dff3d2047299cafaddd740a9a9444c2636ce6",
   "baseline_source_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
   "baseline_profile": "locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-native-abi-v4",
   "qualified_cohort": {
     "path": "zig/bench/paired_linux_cohort.PENDING.json",
-    "bytes": 12969,
+    "bytes": 19103,
     "sha256": {
       "sha256_hex_chunks": [
-        "3cf9639e4df6a5e1a17bee355c195a06",
-        "ee58d72698facf240fdd1e328cc5efc1"
+        "761bdc62acb4cd758e9d0edd97689371",
+        "b2f8fc7bcb13b2e343e97e7f688a903c"
       ]
     }
   },
@@ -24,8 +24,8 @@
       "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "8f87a8b86d6dfd7a39c7cf3791a9d477",
-          "8b754db6d0c24db808ef2edeb28198d6"
+          "c76605eba78c9a9e7b08d86c21eacbe3",
+          "c1e8ced103347b1901eb17e78b5392ea"
         ]
       }
     },
@@ -34,8 +34,8 @@
       "bytes": 3106,
       "sha256": {
         "sha256_hex_chunks": [
-          "9d0e8c690917c3ad497431419ac0ef34",
-          "e74fb9d06a989873c97ff39046d68f86"
+          "225cda51ded000a70d4cc29a46f18a89",
+          "c8e8136d7fedc2627a25857236943705"
         ]
       }
     }
