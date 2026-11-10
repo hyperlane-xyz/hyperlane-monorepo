@@ -283,5 +283,203 @@ class NativeProviderLifecycle(unittest.TestCase):
             request.assert_not_called()
 
 
+class RetiredEvmCheckpointTests(unittest.TestCase):
+    hashed = staticmethod(runtime_controls.CheckpointObservationHashControls.hashed)
+
+    def fixture(self, leaves=2):
+        temporary = tempfile.TemporaryDirectory(prefix='retired-checkpoint-pure-')
+        self.addCleanup(temporary.cleanup)
+        root = pathlib.Path(temporary.name).resolve()
+        session = runtime_controls.Session.__new__(runtime_controls.Session)
+        session.family = None
+        session.evidence_relative = pathlib.Path('evidence')
+        (root / 'evidence').mkdir()
+        tool = root / 'cast-public-fixture'
+        tool.write_bytes(b'synthetic never-executed verifier')
+        tool.chmod(0o700)
+        artifact = {'path': str(tool), 'bytes': tool.stat().st_size, 'sha256': hashlib.sha256(tool.read_bytes()).hexdigest()}
+        session.manifest = {'scenario': 'evm', 'task_root': str(root), 'runtime_source_commit': 'a' * 40,
+            'verifier_tools': {'cast': artifact}, 'artifacts': dict.fromkeys(['validator', 'relayer', 'scraper'], artifact)}
+        session._owned_path = api.checked_owned_path
+        session.adapter = lambda chain: type('PureHash', (), {'keccak': staticmethod(self.hashed)})()
+        names = ['test1', 'test2', 'test3']
+        session.case = {'reorg_origin_chain': 'test1', 'domain_names': {str(9913371 + i): n for i, n in enumerate(names)}, 'validator_addresses': {}}
+        captures, messages, directories, chains, secrets = [], [], {}, {}, {}
+        for i, name in enumerate(names):
+            secret = i + 1  # Explicit public synthetic scalars, never a production key.
+            point = runtime_controls.evm.point_multiply(secret, runtime_controls.evm.SECP_G)
+            public = '0x' + point[0].to_bytes(32, 'big').hex() + point[1].to_bytes(32, 'big').hex()
+            signer = '0x' + bytes.fromhex(self.hashed(public)[2:])[12:].hex()
+            session.case['validator_addresses'][name] = signer
+            directory = root / name
+            directory.mkdir()
+            directories[name], secrets[name] = directory, secret
+            chain = {'name': name, 'domainid': 9913371 + i, 'merkletreehook': '0x' + format(0x12 + i, '02x') * 20}
+            chains[name] = chain
+            selected = [{'id': '0x' + format((i + 1) * 100 + k, '064x'), 'origin_chain': name, 'insertions': [k]} for k in range(leaves)]
+            messages.extend(selected)
+            metadata = {'git_sha': 'a' * 40, 'rpcs': [{'url_hash': self.hashed('http://127.0.0.1:1'), 'host_hash': self.hashed('127.0.0.1')}], 'allows_public_rpcs': False}
+            (directory / 'metadata_latest.json').write_text(json.dumps(metadata))
+            for checkpoint in runtime_controls.evm.merkle_roots(selected, self.hashed):
+                self.publish(directory, chain, checkpoint, secret)
+            original = {'role': 'validator', 'role_chain_names': [name], 'checkpoint_syncer': {'type': 'localStorage', 'path': str(directory)}, 'chains': {name: chain}, 'allows_public_rpcs': False}
+            captures.append({'original': original, 'proxied': {'chains': {name: {'rpcurls': 'http://127.0.0.1:1'}}}})
+        captures.extend([{'original': {'role': 'relayer'}, 'proxied': {}}, {'original': {'role': 'scraper'}, 'proxied': {}}])
+        session.captures = captures
+        initial = session.checkpoint_proofs({'messages': messages})
+        session.initial = {'capture_count': 5, 'checkpoint_proofs': initial}
+        session.after_restart, session.restart = {}, {}
+        session.captures = captures + copy.deepcopy(captures) + [{'original': {'role': 'relayer'}, 'proxied': {}}]
+        launches, exits = [], []
+        for i, capture in enumerate(session.captures):
+            role = capture['original']['role']
+            row = {'pid': i + 100, 'parent_pid': 90, 'role': role, 'executable': artifact, 'os_start_token': 'synthetic-start-' + str(i)}
+            purpose = 'same_db_restart' if i < 5 else 'intentional_reorg' if i == 5 else 'intentional_restart' if i == 8 else 'final'
+            planned = purpose.startswith('intentional_')
+            launches.append(row)
+            exits.append(dict(row, purpose=purpose, parent_wait_completed=True, already_exited=False, forced_kill=False, success=not planned, exit_code=None if planned else 0, signal=9 if planned else None, planned_exit=planned))
+        runtime_controls.ParentWaitTests.write(session, launches, exits)
+        flag = directories['test1'] / 'reorg_flag.json'
+        flag.write_text(json.dumps({'local_merkle_root': '0x' + '00' * 32, 'canonical_merkle_root': '0x' + '00' * 32, 'checkpoint_index': 0, 'unix_timestamp': 0, 'reorg_period': 0}, separators=(',', ':')))
+        extra = {'id': '0x' + format(999, '064x'), 'origin_chain': 'test1', 'insertions': [leaves]}
+        snapshot = {'messages': [*messages, extra], 'parent_wait_receipts': copy.deepcopy(exits)}
+        return session, snapshot, directories, chains, secrets, launches, exits
+
+    @classmethod
+    def publish(cls, directory, chain, row, secret):
+        checkpoint = {'merkle_tree_hook_address': '0x' + '00' * 12 + chain['merkletreehook'][2:], 'mailbox_domain': chain['domainid'], 'root': row['root'], 'index': row['index']}
+        digest = runtime_controls.evm.checkpoint_digest(checkpoint, row['message_id'], cls.hashed)
+        point = runtime_controls.evm.point_multiply(2, runtime_controls.evm.SECP_G)
+        r = point[0] % runtime_controls.evm.SECP_N
+        signature = {'r': hex(r), 's': hex((int(digest, 16) + r * secret) * pow(2, -1, runtime_controls.evm.SECP_N) % runtime_controls.evm.SECP_N), 'v': 27 + (point[1] & 1)}
+        (directory / (str(row['index']) + '_with_id.json')).write_text(json.dumps({'value': {'checkpoint': checkpoint, 'message_id': row['message_id']}, 'signature': signature}))
+
+    def test_signed_stopped_prefix_passes_full_canonical_final_without_new_signature(self):
+        session, snapshot, dirs, _, _, _, _ = self.fixture()
+        before = {str(p): p.read_bytes() for p in dirs['test1'].glob('*_with_id.json')}
+        result = session.checkpoint_proofs(snapshot, _final=True)
+        self.assertEqual(sum(len(p['verified_checkpoint_objects']) for p in result), 12)
+        self.assertEqual(before, {str(p): p.read_bytes() for p in dirs['test1'].glob('*_with_id.json')})
+        self.assertFalse((dirs['test1'] / '2_with_id.json').exists())
+        with self.assertRaisesRegex(ValueError, 'actual final checkpoint missing'):
+            session.checkpoint_proofs(snapshot)
+
+    def test_zero_initial_frontier_is_not_replaced_by_final_index(self):
+        session, snapshot, _, _, _, _, _ = self.fixture(leaves=1)
+        self.assertEqual(session.retired_evm_checkpoint_requirement(snapshot)[1], 0)
+        self.assertEqual(sum(len(p['verified_checkpoint_objects']) for p in session.checkpoint_proofs(snapshot, _final=True)), 6)
+
+    def test_active_latest_requirement_and_every_extra_actual_object_remain_strict(self):
+        session, snapshot, dirs, chains, secrets, _, _ = self.fixture()
+        active = dirs['test2'] / '1_with_id.json'
+        saved = active.read_bytes()
+        active.unlink()
+        with self.assertRaisesRegex(ValueError, 'actual final checkpoint missing'):
+            session.checkpoint_proofs(snapshot, _final=True)
+        active.write_bytes(saved)
+        rows = [r for r in snapshot['messages'] if r['origin_chain'] == 'test1']
+        final = runtime_controls.evm.merkle_roots(rows, self.hashed)[-1]
+        self.publish(dirs['test1'], chains['test1'], final, secrets['test1'])
+        self.assertEqual(sum(len(p['verified_checkpoint_objects']) for p in session.checkpoint_proofs(snapshot, _final=True)), 14)
+        extra = dirs['test1'] / '2_with_id.json'
+        wire = extra.read_bytes()
+        for field, value in [('root', '0x' + '00' * 32), ('mailbox_domain', 9913372)]:
+            bad = json.loads(wire)
+            bad['value']['checkpoint'][field] = value
+            extra.write_text(json.dumps(bad))
+            with self.assertRaisesRegex(ValueError, 'published checkpoint differs'):
+                session.checkpoint_proofs(snapshot, _final=True)
+        bad = json.loads(wire)
+        bad['signature']['r'] = '0x0'
+        extra.write_text(json.dumps(bad))
+        with self.assertRaisesRegex(ValueError, 'invalid checkpoint ECDSA'):
+            session.checkpoint_proofs(snapshot, _final=True)
+        extra.write_bytes(wire)
+        (dirs['test1'] / '3_with_id.json').write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'checkpoint beyond actual native insertion stream'):
+            session.checkpoint_proofs(snapshot, _final=True)
+
+    def test_missing_or_changed_prior_signed_bytes_and_frontier_authority_refuse(self):
+        for poison in ['missing', 'changed', 'signer', 'index-bool', 'path', 'duplicate-proof', 'no-proof']:
+            with self.subTest(poison=poison):
+                session, snapshot, dirs, _, _, _, _ = self.fixture()
+                proof = session.initial['checkpoint_proofs'][0]
+                if poison == 'missing': (dirs['test1'] / '1_with_id.json').unlink()
+                elif poison == 'changed': (dirs['test1'] / '1_with_id.json').write_text('{}')
+                elif poison == 'signer': proof['verified_checkpoint_objects'][0]['signer'] = session.case['validator_addresses']['test2']
+                elif poison == 'index-bool': proof['verified_checkpoint_objects'][0]['index'] = False
+                elif poison == 'path': proof['verified_checkpoint_objects'][0]['path'] = str(dirs['test2'] / '0_with_id.json')
+                elif poison == 'duplicate-proof': session.initial['checkpoint_proofs'].append(copy.deepcopy(proof))
+                else: session.initial['checkpoint_proofs'] = []
+                with self.assertRaises((ValueError, OSError)):
+                    session.checkpoint_proofs(snapshot, _final=True)
+
+    def test_flag_wire_ownership_scope_and_ambiguity_refuse(self):
+        for poison in ['missing', 'bool-zero', 'float-zero', 'duplicate-key', 'extra-key', 'newline', 'wrong-origin', 'ambiguous', 'symlink', 'hardlink', 'wrong-hook']:
+            with self.subTest(poison=poison):
+                session, snapshot, dirs, _, _, _, _ = self.fixture()
+                flag = dirs['test1'] / 'reorg_flag.json'
+                wire = flag.read_bytes()
+                if poison == 'missing': flag.unlink()
+                elif poison in {'bool-zero', 'float-zero'}:
+                    value = json.loads(wire)
+                    value['checkpoint_index'] = False if poison == 'bool-zero' else 0.0
+                    flag.write_text(json.dumps(value, separators=(',', ':')))
+                elif poison == 'duplicate-key': flag.write_bytes(wire[:-1] + b',"checkpoint_index":0}')
+                elif poison == 'extra-key': flag.write_bytes(wire[:-1] + b',"foreign":0}')
+                elif poison == 'newline': flag.write_bytes(wire + b'\n')
+                elif poison == 'wrong-origin': flag.unlink(); (dirs['test2'] / 'reorg_flag.json').write_bytes(wire)
+                elif poison == 'ambiguous': (dirs['test2'] / 'reorg_flag.json').write_bytes(wire)
+                elif poison == 'symlink': flag.unlink(); flag.symlink_to(dirs['test2'] / 'metadata_latest.json')
+                elif poison == 'hardlink': (dirs['test1'] / 'alias').hardlink_to(flag)
+                else: session.captures[5]['original']['chains']['test1']['merkletreehook'] = '0x' + 'ff' * 20
+                with self.assertRaises((ValueError, OSError)):
+                    session.checkpoint_proofs(snapshot, _final=True)
+
+    def test_retirement_receipts_snapshot_and_phase_scope_fail_closed(self):
+        for poison in ['missing-retirement', 'duplicate', 'unplanned', 'wrong-role', 'wrong-epoch', 'snapshot-waits', 'foreign-origin', 'foreign-family', 'no-initial', 'no-restart', 'nonliteral-final']:
+            with self.subTest(poison=poison):
+                session, snapshot, _, _, _, launches, exits = self.fixture()
+                retired = exits[5]
+                if poison == 'missing-retirement': retired.update(purpose='final', success=True, exit_code=0, signal=None)
+                elif poison == 'duplicate': exits.append(copy.deepcopy(retired))
+                elif poison == 'unplanned': retired['planned_exit'] = False
+                elif poison == 'wrong-role': retired['role'] = 'relayer'
+                elif poison == 'wrong-epoch': retired['os_start_token'] = 'foreign'
+                elif poison == 'snapshot-waits': snapshot['parent_wait_receipts'] = []
+                elif poison == 'foreign-origin': session.case['reorg_origin_chain'] = 'test2'
+                elif poison == 'foreign-family': session.manifest['scenario'] = 'tron'
+                elif poison == 'no-initial': session.initial = None
+                elif poison == 'no-restart': session.restart = None
+                runtime_controls.ParentWaitTests.write(session, launches, exits)
+                with self.assertRaises(ValueError):
+                    session.checkpoint_proofs(snapshot, _final=1 if poison == 'nonliteral-final' else True)
+
+    def test_verifier_bound_types_and_metadata_do_not_weaken_authentication(self):
+        session, snapshot, dirs, chains, _, _, _ = self.fixture()
+        chain = chains['test1']
+        messages = [r for r in snapshot['messages'] if r['origin_chain'] == 'test1']
+        kwargs = {'git_sha': 'a' * 40, 'configured_rpc_urls': ['http://127.0.0.1:1'], 'allows_public_rpcs': False}
+        for value in [True, False, 0.0, -1, 3, '0']:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                runtime_controls.evm.verify_checkpoint_objects(dirs['test1'], chain, session.case['validator_addresses']['test1'], messages, self.hashed, _required_checkpoint_index=value, **kwargs)
+        metadata = dirs['test1'] / 'metadata_latest.json'
+        original = metadata.read_bytes()
+        value = json.loads(original)
+        value['git_sha'] = 'b' * 40
+        metadata.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError, 'ValidatorMetadata producer differs'):
+            session.checkpoint_proofs(snapshot, _final=True)
+        metadata.write_bytes(original)
+
+    def test_only_final_verify_branch_supplies_retired_authorization(self):
+        import ast
+        tree = ast.parse(pathlib.Path(runtime_controls.session_module.__file__).read_text())
+        session = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'Session')
+        calls = [(n.name, c) for n in session.body if isinstance(n, ast.FunctionDef) for c in ast.walk(n) if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute) and c.func.attr == 'checkpoint_proofs' and any(k.arg == '_final' for k in c.keywords)]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], '_verify')
+        self.assertIn('stage == "final"', pathlib.Path(runtime_controls.session_module.__file__).read_text())
+
 if __name__ == "__main__":
     unittest.main()

@@ -5268,7 +5268,7 @@ fn svm_required_listeners(tcp: &[std::net::SocketAddr], udp: &[std::net::SocketA
 fn svm_exact_node_arguments(args: &[&str], ledger: &str) -> Result<()> {
     for pair in [
         ["--ledger", ledger],
-        ["--limit-ledger-size", "100000"],
+        ["--limit-ledger-size", "1000000"],
         ["--bind-address", "127.0.0.1"],
         ["--rpc-port", "8899"],
         ["--faucet-port", "9900"],
@@ -5938,7 +5938,7 @@ mod tests {
             "--faucet-per-request-sol-cap",
             "0",
             "--limit-ledger-size",
-            "100000",
+            "1000000",
         ];
         super::svm_exact_node_arguments(&args, "/owned/ledger").unwrap();
         for index in (1..args.len()).step_by(2) {
@@ -5958,7 +5958,7 @@ mod tests {
     fn svm_shared_validator_factory_keeps_finite_history_and_original_arguments() {
         assert_eq!(
             crate::sealevel::solana::SOLANA_TEST_VALIDATOR_LEDGER_SHREDS,
-            "100000"
+            "1000000"
         );
         // Reads actual Program fields only: no command/spawn, manifest load,
         // tool resolution, global environment mutation or validator execution.
@@ -5971,7 +5971,7 @@ mod tests {
             concat!(
                 "Program { bin: Some(\"/fixture/bin/solana-test-validator\"), ",
                 "args: [\"--quiet\", \"--reset\", \"--ledger\", ",
-                "\"/owned/ledger\", \"--limit-ledger-size\", \"100000\"], ",
+                "\"/owned/ledger\", \"--limit-ledger-size\", \"1000000\"], ",
                 "env: {}, working_dir: None, log_filter: false }"
             )
         );
@@ -5998,17 +5998,17 @@ mod tests {
             "--faucet-per-request-sol-cap",
             "0",
             "--limit-ledger-size",
-            "100000",
+            "1000000",
         ];
         super::svm_exact_node_arguments(&correct, "/owned/ledger").unwrap();
-        for value in ["10000", "0", "99999", "100001"] {
+        for value in ["10000", "100000", "0", "999999", "1000001"] {
             let mut wrong = correct;
             wrong[18] = value;
             assert!(super::svm_exact_node_arguments(&wrong, "/owned/ledger").is_err());
         }
         assert!(super::svm_exact_node_arguments(&correct[..17], "/owned/ledger").is_err());
         let mut duplicate = correct.to_vec();
-        duplicate.extend_from_slice(&["--limit-ledger-size", "100000"]);
+        duplicate.extend_from_slice(&["--limit-ledger-size", "1000000"]);
         assert!(super::svm_exact_node_arguments(&duplicate, "/owned/ledger").is_err());
     }
 

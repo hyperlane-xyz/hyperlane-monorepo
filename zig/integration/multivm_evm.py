@@ -232,7 +232,7 @@ def merkle_roots(messages, keccak):
     return roots
 
 
-def verify_checkpoint_objects(directory, chain, validator_address, messages, keccak, *, git_sha, configured_rpc_urls, allows_public_rpcs, hook_hash=None, merkle_provider=None):
+def verify_checkpoint_objects(directory, chain, validator_address, messages, keccak, *, git_sha, configured_rpc_urls, allows_public_rpcs, hook_hash=None, merkle_provider=None, _required_checkpoint_index=None):
     """Read real published objects and independently authenticate every leaf."""
     import json
     import pathlib
@@ -256,7 +256,9 @@ def verify_checkpoint_objects(directory, chain, validator_address, messages, kec
     # begin at a later index: authenticate every actual published object and
     # require the actual final checkpoint, without inventing earlier signatures.
     paths = list(root.glob("*_with_id.json"))
-    require(paths and (root / f'{expected[-1]["index"]}_with_id.json').is_file(), "actual final checkpoint missing")
+    required_index = expected[-1]["index"] if _required_checkpoint_index is None else _required_checkpoint_index
+    require(type(required_index) is int and 0 <= required_index <= expected[-1]["index"], "invalid required checkpoint index")
+    require(paths and (root / f'{required_index}_with_id.json').is_file(), "actual final checkpoint missing")
     for path in paths:
         require(path.is_file() and not path.is_symlink(), "actual checkpoint object missing")
         index_text = path.name.removesuffix("_with_id.json")

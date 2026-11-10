@@ -1227,10 +1227,79 @@ class Session:
         require(not self.failures, "native observer failed during canonical verification")
         return {"runtime_source_commit": self.manifest["runtime_source_commit"], "scenario": self.manifest["scenario"], "messages": messages, "deliverable_messages": deliverable, "native_delivery_transactions": [{"chain": chain, "transaction_hash": tx, "proof": proof} for (chain, tx), proof in transactions.items()], "per_id_lifecycle": lifecycle, "observer_policy": dict(OBSERVER_POLICY), "broadcasts": broadcasts, "capture_count": len(self.captures), "relayer_capture_ordinal": relayers[-1]["capture_ordinal"]}
 
-    def checkpoint_proofs(self, snapshot):
+    def retired_evm_checkpoint_requirement(self, snapshot):
+        # Only final's complete parent-wait proof can authorize this Source EVM
+        # exception. Never infer a PID/config join from journal row ordering.
+        require(self.manifest["scenario"] == "evm" and self.initial is not None and self.after_restart is not None and self.restart is not None, "retired checkpoint requires completed EVM live/restart proofs")
+        origin = self.case["reorg_origin_chain"]
+        require(origin == "test1" and self.case["domain_names"].get("9913371") == origin, "Source intentional reorg origin differs")
+        waits = self.parent_wait_proofs()
+        require(snapshot.get("parent_wait_receipts") == waits, "final checkpoint parent waits differ")
+        retired = [row for row in waits if row["purpose"] == "intentional_reorg"]
+        require(len(retired) == 1 and retired[0]["role"] == "validator", "unique planned validator retirement required")
+        signer = address(self.case["validator_addresses"][origin])
+        require(sum(address(value) == signer for value in self.case["validator_addresses"].values()) == 1, "retired public signer is ambiguous")
+        default_flag = json.dumps({"local_merkle_root": "0x" + "00" * 32, "canonical_merkle_root": "0x" + "00" * 32, "checkpoint_index": 0, "unix_timestamp": 0, "reorg_period": 0}, separators=(",", ":")).encode()
+        scopes, flagged = {}, {}
+        for capture in self.captures:
+            original = capture["original"]
+            if original["role"] != "validator":
+                continue
+            names = original["role_chain_names"]
+            require(len(names) == 1, "validator checkpoint origin differs")
+            name = names[0]
+            chain = original["chains"][name]
+            domain = chain["domainid"]
+            require(type(domain) in (int, str) and str(int(domain)) == str(domain) and self.case["domain_names"].get(str(domain)) == name, "validator checkpoint domain differs")
+            syncer = original["checkpoint_syncer"]
+            require(syncer["type"] == "localStorage", "retired checkpoint requires local Source store")
+            relative = pathlib.Path(syncer["path"]).relative_to(self.manifest["task_root"])
+            directory = self.owned_path(relative)
+            scope = (name, int(domain), address(chain["merkletreehook"]), address(self.case["validator_addresses"][name]))
+            require(directory not in scopes or scopes[directory] == scope, "shared checkpoint directory has conflicting authority")
+            scopes[directory] = scope
+            flag = self.owned_path(relative / "reorg_flag.json")
+            if flag.exists():
+                st = flag.stat()
+                require(flag.is_file() and st.st_nlink == 1 and st.st_uid == os.getuid() and st.st_size == len(default_flag), "owned regular Source reorg flag required")
+                raw_flag = flag.read_bytes()
+                current = flag.stat()
+                stable = all(getattr(current, key) == getattr(st, key) for key in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns", "st_nlink", "st_uid"))
+                require(raw_flag == default_flag and stable, "exact Source-default reorg flag required")
+                flagged[directory] = scope
+        require(len(flagged) == 1, "unique Source reorg checkpoint directory required")
+        directory, scope = next(iter(flagged.items()))
+        require(scope[0] == origin and scope[1] == 9913371 and scope[3] == signer, "reorg flag belongs to another validator")
+        candidates = []
+        for proof in self.initial["checkpoint_proofs"]:
+            published = proof["published_bytes"]
+            if not any(pathlib.Path(row["path"]).parent == directory for row in published):
+                continue
+            objects = proof["verified_checkpoint_objects"]
+            require(objects and published and len(objects) == len(published), "initial signed checkpoint frontier missing")
+            paths = set()
+            indices = []
+            for row in objects:
+                path = pathlib.Path(row["path"])
+                index = row["index"]
+                require(type(index) is int and 0 <= index < 2 ** 32 and path.parent == directory and path.name == f"{index}_with_id.json" and path not in paths and address(row["signer"]) == signer, "initial signed checkpoint authority differs")
+                paths.add(path)
+                indices.append(index)
+            require({pathlib.Path(row["path"]) for row in published} == paths and len(paths) == len(published), "initial checkpoint byte catalog differs")
+            for row in published:
+                path = self.owned_path(pathlib.Path(row["path"]).relative_to(self.manifest["task_root"]))
+                require(path.is_file() and path.stat().st_size == row["bytes"] and hashlib.sha256(path.read_bytes()).hexdigest() == row["sha256"], "retired checkpoint changed prior signed bytes")
+            # Default flag.checkpoint_index is synthetic zero, never a frontier.
+            candidates.append(max(indices))
+        require(len(candidates) == 1, "unique actual initial signed frontier required")
+        return directory, candidates[0]
+
+    def checkpoint_proofs(self, snapshot, *, _final=False):
         if self.family is not None:
             return self.family.checkpoints(self, snapshot)
         messages = snapshot["messages"]
+        require(type(_final) is bool, "literal final checkpoint phase required")
+        retired = self.retired_evm_checkpoint_requirement(snapshot) if _final else None
         # Only deterministic cast hashes repeat within this fresh observation.
         # File reads, canonical leaves and every signature are still verified.
         checkpoint_hashes = {}
@@ -1312,7 +1381,8 @@ class Session:
                         rpc_urls.extend(urls(selected_rpc[custom] if custom in selected_rpc else selected_rpc[base]))
                 calculate = self.adapter(chain).keccak
                 hashed = checkpoint_keccak(calculate) if checkpoint_cast is not None else calculate
-                proof = verify_checkpoint_objects(path, chain, self.case["validator_addresses"][name], [message for message in messages if message["origin_chain"] == name], hashed, git_sha=self.manifest["runtime_source_commit"], configured_rpc_urls=rpc_urls, allows_public_rpcs=original["allows_public_rpcs"], merkle_provider=checkpoint_roots if checkpoint_cast is not None else None)
+                required = {"_required_checkpoint_index": retired[1]} if retired is not None and path == retired[0] else {}
+                proof = verify_checkpoint_objects(path, chain, self.case["validator_addresses"][name], [message for message in messages if message["origin_chain"] == name], hashed, git_sha=self.manifest["runtime_source_commit"], configured_rpc_urls=rpc_urls, allows_public_rpcs=original["allows_public_rpcs"], merkle_provider=checkpoint_roots if checkpoint_cast is not None else None, **required)
                 proof["published_bytes"] = [{"path": str(item), "bytes": item.stat().st_size, "sha256": hashlib.sha256(item.read_bytes()).hexdigest()} for item in path.glob("*_with_id.json")]
                 result.append(proof)
             require(result, "actual validator publication evidence missing")
@@ -1903,7 +1973,7 @@ class Session:
                 require(path.is_file() and not path.is_symlink() and path.stat().st_size == row["bytes"] and hashlib.sha256(path.read_bytes()).hexdigest() == row["sha256"], "restart mutated prior signed checkpoint object")
         snapshot["parent_wait_receipts"] = waits
         snapshot["stopped_canonical_Rust_readback"] = self.stopped_store_proofs(snapshot)
-        snapshot["checkpoint_proofs"] = self.checkpoint_publications(snapshot, self.checkpoint_proofs(snapshot))
+        snapshot["checkpoint_proofs"] = self.checkpoint_publications(snapshot, self.checkpoint_proofs(snapshot, _final=self.manifest["scenario"] == "evm"))
         snapshot["postgres"] = self.postgres_proofs(snapshot)
         if self.family is not None or self.manifest["scenario"] == "tron":
             snapshot["native_operations"] = self.native_operation_proofs(snapshot, baseline=self.before_restart["native_operations"])

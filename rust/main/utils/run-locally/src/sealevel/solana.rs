@@ -314,8 +314,8 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
 
 // Finite local-fixture retention, shared by original Rust and external agents.
 // Canonical proofs re-read early blocks after the 600s hold + 30s grace;
-// 100000 shreds is not a time guarantee and case disk limits remain unchanged.
-pub(crate) const SOLANA_TEST_VALIDATOR_LEDGER_SHREDS: &str = "100000";
+// 1000000 shreds is a bounded trial; canonical history and resource gates decide.
+pub(crate) const SOLANA_TEST_VALIDATOR_LEDGER_SHREDS: &str = "1000000";
 
 pub(crate) fn solana_test_validator_program(
     solana_cli_tools_path: &Path,
