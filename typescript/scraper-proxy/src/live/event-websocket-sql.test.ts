@@ -90,3 +90,30 @@ void it('filters confirmation dispatch, delivery and gas rows in SQL before enri
   }
   assert.equal(queries.length, 1);
 });
+
+void it('bounds advisory dispatch reads by the subscribed mailbox addresses', async () => {
+  const { EventStore } = await import('./event-store.js');
+  const queries: { sql: string; values: unknown[] }[] = [];
+  const store = new EventStore({
+    queryLive: async (sql, values = []) => {
+      queries.push({ sql, values });
+      return [];
+    },
+  });
+  for (const addresses of [[`\\x${'aa'.repeat(20)}`], []]) {
+    for await (const row of store.confirmationEventRows(
+      'dispatch',
+      1,
+      [0n, 0, 0n],
+      10n,
+      0,
+      addresses,
+    ))
+      assert.fail(JSON.stringify(row));
+    assert.match(
+      queries.at(-1)?.sql ?? '',
+      /"origin_mailbox"=ANY\(\$6::bytea\[\]\)/,
+    );
+    assert.deepEqual(queries.at(-1)?.values[5], addresses);
+  }
+});

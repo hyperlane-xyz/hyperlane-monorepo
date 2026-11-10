@@ -20,7 +20,7 @@ use crate::{
         db_loader::tests::DummyApplicationOperationVerifier,
         gas_payment::GasPaymentEnforcer,
         metadata::{
-            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
+            BaseMetadataBuilder, BuildsBaseMetadata, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
         },
         pending_message::MessageContext,
@@ -110,7 +110,7 @@ pub fn dummy_submission_metrics() -> MessageSubmissionMetrics {
 }
 
 pub fn dummy_message_context(
-    base_metadata_builder: Arc<BaseMetadataBuilder>,
+    base_metadata_builder: Arc<dyn BuildsBaseMetadata>,
     db: &HyperlaneRocksDB,
     cache: OptionalCache<MeteredCache<LocalCache>>,
 ) -> MessageContext {

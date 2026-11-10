@@ -4263,6 +4263,8 @@ void it('replays only confirmed dispatches and keeps advisory events outside dur
             { ...next, frontier_id: '2', frontier_height: '10' },
           ].filter(
             (row) =>
+              (values[5] === undefined ||
+                stringArray(values[5]).includes(row.origin_mailbox)) &&
               through >= 10n &&
               (after < 10n || (after === 10n && BigInt(row.frontier_id) > id)),
           ),

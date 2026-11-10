@@ -32,7 +32,6 @@ import {
   type EventType,
   type HeadNotification,
   parseDatabaseDomain,
-  normalizeSequenceAddress,
   type StreamCursor,
   parseClientMessage,
   parseEventNotification,
@@ -650,6 +649,9 @@ export class EventWebSocketServer {
               after,
               through,
               confirmations,
+              lifecycle?.cursors
+                ?.filter((cursor) => cursor.domain === domain)
+                .map((cursor) => cursor.address),
             )
           : this.store.confirmationMessageRows(
               domain,
@@ -659,31 +661,11 @@ export class EventWebSocketServer {
               confirmations,
               this.explorerClients.get(socket)?.messageIds,
             ),
-      send: async (message) => {
-        if (lifecycle?.stage === DispatchStage.Observed && lifecycle.cursors) {
-          const data = message.data;
-          if (
-            typeof data !== 'object' ||
-            data === null ||
-            !('origin_mailbox' in data) ||
-            typeof data.origin_mailbox !== 'string'
-          ) {
-            throw new Error('Observed dispatch has no mailbox');
-          }
-          const mailbox = normalizeSequenceAddress(data.origin_mailbox);
-          if (
-            !lifecycle.cursors.some(
-              (cursor) =>
-                cursor.domain === message.domain && cursor.address === mailbox,
-            )
-          )
-            return true;
-        }
-        return this.sendAndWait(
+      send: (message) =>
+        this.sendAndWait(
           socket,
           lifecycle ? { ...message, stage: lifecycle.stage } : message,
-        );
-      },
+        ),
       messageId: eventType
         ? undefined
         : (message) => {

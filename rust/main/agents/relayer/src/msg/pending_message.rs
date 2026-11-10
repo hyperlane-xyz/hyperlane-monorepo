@@ -122,6 +122,57 @@ pub struct MessageContext {
     pub origin_sender_check: Option<Arc<OriginSenderCheck>>,
 }
 
+impl MessageContext {
+    /// The same cached RPC read serves speculative discovery and normal preparation.
+    pub(super) async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        let domain = self.destination_mailbox.domain().name();
+        let key = "recipient_ism";
+        if let Some(ism) = self.get_from_cache(domain, key, &recipient).await {
+            return Ok(ism);
+        }
+        let ism = with_rpc_operation(
+            RpcOperation::RelayerRecipient,
+            self.destination_mailbox.recipient_ism(recipient),
+        )
+        .await?;
+        self.store_to_cache(domain, key, &recipient, &ism).await;
+        Ok(ism)
+    }
+
+    async fn get_from_cache<U: DeserializeOwned>(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+    ) -> Option<U> {
+        self.cache
+            .get_cached_call_result::<U>(domain_name, fn_key, fn_params)
+            .await
+            .map_err(|err| {
+                warn!(error=?err, ?fn_key, "Error checking cache stored result");
+                err
+            })
+            .ok()
+            .flatten()
+    }
+
+    async fn store_to_cache(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+    ) {
+        if let Err(err) = self
+            .cache
+            .cache_call_result(domain_name, fn_key, fn_params, result)
+            .await
+        {
+            warn!(error=?err, ?fn_key, "Error caching result");
+        }
+    }
+}
+
 /// Keeps an indexed message from being loaded again while its operation is alive.
 pub(super) struct LoadedMessageGuard {
     message_id: H256,
@@ -1273,6 +1324,7 @@ impl PendingMessage {
         let fn_params = self.message.recipient;
         // Check cache for recipient contract status
         if let Some(is_contract) = self
+            .ctx
             .get_from_cache::<bool>(domain_name, fn_key, &fn_params)
             .await
         {
@@ -1290,7 +1342,8 @@ impl PendingMessage {
         })?;
 
         // Cache the recipient contract status
-        self.store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
+        self.ctx
+            .store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
             .await;
 
         Ok(is_contract)
@@ -1303,74 +1356,12 @@ impl PendingMessage {
     /// Implicit contract in this method: function name `recipient_ism` matches
     /// the name of the method `recipient_ism`.
     async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
-        let domain = self.ctx.destination_mailbox.domain().name();
-        let fn_key = "recipient_ism";
-        let fn_params = self.message.recipient;
-
-        // Check cache for recipient ISM address
-        if let Some(ism_address) = self
-            .get_from_cache::<H256>(domain, fn_key, &fn_params)
-            .await
-        {
-            return Ok(ism_address);
-        }
-
-        // Fetch the recipient ISM address
-        let ism_address = match with_rpc_operation(
-            RpcOperation::RelayerRecipient,
-            self.ctx
-                .destination_mailbox
-                .recipient_ism(self.message.recipient),
-        )
-        .await
-        {
-            Ok(ism_address) => ism_address,
-            Err(err) => {
-                return Err(self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress));
-            }
-        };
-
-        // Cache the recipient ISM address
-        self.store_to_cache(domain, fn_key, &fn_params, &ism_address)
-            .await;
-
-        Ok(ism_address)
-    }
-
-    async fn get_from_cache<U: DeserializeOwned>(
-        &self,
-        domain_name: &str,
-        fn_key: &str,
-        fn_params: &(impl Serialize + Send + Sync),
-    ) -> Option<U> {
         self.ctx
-            .cache
-            .get_cached_call_result::<U>(domain_name, fn_key, fn_params)
+            .recipient_ism(self.message.recipient)
             .await
-            .map_err(|err| {
-                warn!(error=?err, ?fn_key, "Error checking cache stored result");
-                err
-            })
-            .ok()
-            .flatten()
+            .map_err(|err| self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress))
     }
 
-    async fn store_to_cache(
-        &self,
-        domain_name: &str,
-        fn_key: &str,
-        fn_params: &(impl Serialize + Send + Sync),
-        result: &(impl Serialize + Send + Sync),
-    ) {
-        if let Err(err) = self
-            .ctx
-            .cache
-            .cache_call_result(domain_name, fn_key, fn_params, result)
-            .await
-        {
-            warn!(error=?err, ?fn_key, "Error caching result");
-        }
-    }
     /// A preflight check to see if a message could possibly meet
     /// a gas payment requirement prior to undertaking expensive operations
     /// like metadata building or gas estimation.
@@ -2526,6 +2517,7 @@ mod test {
             mailbox.expect__provider().times(0);
             let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
             pending
+                .ctx
                 .store_to_cache(
                     "arbitrum",
                     "is_contract",
@@ -2623,6 +2615,7 @@ mod test {
                 .expect("store tx hash");
         }
         pending
+            .ctx
             .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
             .await;
         pending.metadata = Some(Metadata::new(vec![7; 8]));
@@ -2651,6 +2644,7 @@ mod test {
         let blocked = H256::random();
         let mut s = pending_with_origin_check(Some(blocked), blocked, 1, 0, true).await;
         s.pending
+            .ctx
             .store_to_cache(
                 "arbitrum",
                 "is_contract",
@@ -2813,6 +2807,7 @@ mod test {
                 });
             let (_dir, mut pending) = pending_with_mailbox(mailbox, max_gas);
             pending
+                .ctx
                 .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
                 .await;
             pending.metadata = Some(Metadata::new(vec![7; 1291]));
@@ -2883,6 +2878,7 @@ mod test {
             );
             Arc::get_mut(&mut pending.ctx).unwrap().metadata_builder = Arc::new(base);
             pending
+                .ctx
                 .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
                 .await;
             assert!(pending.metadata.is_none());

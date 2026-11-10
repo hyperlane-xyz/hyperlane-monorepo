@@ -204,6 +204,7 @@ export class EventStore {
     after: Position,
     through: bigint,
     confirmations: number,
+    addresses?: readonly string[],
   ): AsyncIterable<ConfirmationRow> {
     const stream = STREAMS[eventType];
     const table = stream.table.replace('confirmed_', '');
@@ -214,11 +215,14 @@ export class EventStore {
     // Keep the canonical wire projection compatible with existing validators.
     const blockHash =
       eventType === 'merkle_tree_insertion' ? ', event_row.block_hash' : '';
+    const addressFilter = addresses
+      ? ` AND ${q(sequenceConfig(stream).address)}=ANY($6::bytea[])`
+      : '';
     let position = after;
     while (true) {
       const rows = await this.db.queryLive<Row>(
         `/* confirmation_events */ SELECT ${projection}${blockHash}, event_row.id AS frontier_id, event_row.${q(height)} AS frontier_height
-         FROM (SELECT * FROM ${q(table)} WHERE ${q(stream.domain)}=$1
+         FROM (SELECT * FROM ${q(table)} WHERE ${q(stream.domain)}=$1${addressFilter}
            AND (${q(height)}, id)>($2::bigint,$3::bigint) AND ${q(height)}<=$4::bigint
            ORDER BY ${q(height)}, id LIMIT $5) event_row${joins}
          ORDER BY event_row.${q(height)}, event_row.id`,
@@ -228,6 +232,7 @@ export class EventStore {
           position[2].toString(),
           through.toString(),
           config.EVENT_STREAM_BATCH_SIZE,
+          ...(addresses ? [addresses] : []),
         ],
       );
       for (const { frontier_id, frontier_height, block_hash, ...row } of rows) {

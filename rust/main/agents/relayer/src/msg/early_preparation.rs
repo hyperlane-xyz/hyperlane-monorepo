@@ -17,7 +17,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use eyre::Result;
 use hyperlane_base::cache::FunctionCallCache;
-use hyperlane_core::{HyperlaneMessage, TxCostEstimate, H256, U256};
+use hyperlane_core::{HyperlaneMessage, H256};
 use parking_lot::Mutex;
 use tokio::{
     sync::{Notify, Semaphore},
@@ -38,9 +38,8 @@ const READ_TIMEOUT: Duration = Duration::from_secs(20);
 const REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 
 struct Preparation {
-    message: HyperlaneMessage,
-    block: u64,
-    hash: H256,
+    message: Arc<HyperlaneMessage>,
+    context: Arc<MessageContext>,
     discovered: Instant,
     last_started: Instant,
     task: JoinHandle<()>,
@@ -84,7 +83,7 @@ impl EarlyPreparation {
         }
     }
 
-    pub(crate) fn discover(&self, message: HyperlaneMessage, block: u64, hash: H256) {
+    pub(crate) fn discover(&self, message: HyperlaneMessage) {
         if !self.whitelist.msg_matches(&message, true)
             || self.blacklist.msg_matches(&message, false)
             || self
@@ -103,29 +102,24 @@ impl EarlyPreparation {
         let mut messages = self.messages.lock();
         messages.retain(|_, entry| entry.discovered.elapsed() < MAX_AGE);
         let id = message.id();
-        if messages
-            .get(&id)
-            .is_some_and(|entry| entry.block == block && entry.hash == hash)
-        {
+        if messages.contains_key(&id) {
             return;
         }
-        // Re-inclusion has a different identity. Abort the old work before replacing it.
-        messages.remove(&id);
         if messages.len() >= MAX_MESSAGES {
             return;
         }
+        let message = Arc::new(message);
         let Some(task) = self.spawn(context.clone(), message.clone()) else {
             return;
         };
         let now = Instant::now();
-        info!(message_id = ?id, origin = message.origin, block, ?hash,
+        info!(message_id = ?id, origin = message.origin,
             observed_at_millis = chrono::Utc::now().timestamp_millis(), "Early message discovered");
         messages.insert(
             id,
             Preparation {
                 message,
-                block,
-                hash,
+                context: context.clone(),
                 discovered: now,
                 last_started: now,
                 task,
@@ -140,10 +134,7 @@ impl EarlyPreparation {
         messages.retain(|_, entry| {
             entry.discovered.elapsed() < MAX_AGE
                 && (entry.message.origin != domain
-                    || self
-                        .contexts
-                        .get(&(domain, entry.message.destination))
-                        .is_some_and(|context| needs_preparation(context, &entry.message)))
+                    || needs_preparation(&entry.context, &entry.message))
         });
         for entry in messages
             .values_mut()
@@ -152,30 +143,24 @@ impl EarlyPreparation {
             if !entry.task.is_finished() || entry.last_started.elapsed() < REFRESH_INTERVAL {
                 continue;
             }
-            if let Some(context) = self.contexts.get(&(domain, entry.message.destination)) {
-                if let Some(task) = self.spawn(context.clone(), entry.message.clone()) {
-                    entry.task = task;
-                    entry.last_started = Instant::now();
-                }
+            if let Some(task) = self.spawn(entry.context.clone(), entry.message.clone()) {
+                entry.task = task;
+                entry.last_started = Instant::now();
             }
         }
     }
 
     /// This is only a cache handoff notification, never authorization to submit.
-    pub(crate) fn confirmed(&self, message: &HyperlaneMessage, block: u64, hash: Option<H256>) {
+    pub(crate) fn confirmed(&self, message: &HyperlaneMessage) {
         if let Some(notification) = self.notifications.get(&message.origin) {
             notification.notify_one();
         }
         if let Some(entry) = self.messages.lock().remove(&message.id()) {
-            if entry.block == block && hash == Some(entry.hash) {
-                info!(message_id = ?message.id(), origin = message.origin,
-                    elapsed_ms = entry.discovered.elapsed().as_millis() as u64,
-                    preparation_finished = entry.task.is_finished(),
-                    observed_at_millis = chrono::Utc::now().timestamp_millis(),
-                    "Early message confirmed; normal preparation owns delivery");
-            }
-            // Dropping the entry aborts unfinished reads. Normal preparation can
-            // reuse completed RPC results without waiting for speculative work.
+            info!(message_id = ?message.id(), origin = message.origin,
+                elapsed_ms = entry.discovered.elapsed().as_millis() as u64,
+                preparation_finished = entry.task.is_finished(),
+                observed_at_millis = chrono::Utc::now().timestamp_millis(),
+                "Early message confirmed; normal preparation owns delivery");
         }
     }
 
@@ -183,16 +168,17 @@ impl EarlyPreparation {
         self.notifications.get(&domain).cloned()
     }
 
-    pub(crate) fn invalidate(&self, domain: u32, through: Option<u64>) {
-        self.messages.lock().retain(|_, entry| {
-            entry.message.origin != domain || through.is_some_and(|height| entry.block <= height)
-        });
+    /// Read-ahead is disposable: cancel the origin rather than track block ancestry.
+    pub(crate) fn invalidate(&self, domain: u32) {
+        self.messages
+            .lock()
+            .retain(|_, entry| entry.message.origin != domain);
     }
 
     fn spawn(
         &self,
         context: Arc<MessageContext>,
-        message: HyperlaneMessage,
+        message: Arc<HyperlaneMessage>,
     ) -> Option<JoinHandle<()>> {
         let permit = self.permits.clone().try_acquire_owned().ok()?;
         Some(tokio::spawn(async move {
@@ -226,79 +212,44 @@ fn needs_preparation(context: &MessageContext, message: &HyperlaneMessage) -> bo
 async fn prepare(context: &MessageContext, message: &HyperlaneMessage) -> Result<()> {
     let mailbox = &context.destination_mailbox;
     let domain = mailbox.domain().name();
-    // Only independent RPC reads are cached. Absence of a recipient/payment at
-    // this early point must never become a terminal decision after confirmation.
-    let recipient = async {
-        if context
-            .cache
-            .get_cached_call_result::<bool>(domain, "is_contract", &message.recipient)
-            .await?
-            .is_some()
-        {
-            return Ok::<_, eyre::Report>(());
-        }
-        let is_contract = mailbox.provider().is_contract(&message.recipient).await?;
-        if is_contract {
-            context
-                .cache
-                .cache_call_result(domain, "is_contract", &message.recipient, &true)
-                .await?;
-        }
-        Ok::<_, eyre::Report>(())
-    };
-    let metadata = async {
-        let root = match context
-            .cache
-            .get_cached_call_result::<H256>(domain, "recipient_ism", &message.recipient)
-            .await?
-        {
-            Some(root) => root,
-            None => {
-                let root = mailbox.recipient_ism(message.recipient).await?;
+    let is_contract = match context
+        .cache
+        .get_cached_call_result::<bool>(domain, "is_contract", &message.recipient)
+        .await?
+    {
+        Some(value) => value,
+        None => {
+            let value = mailbox.provider().is_contract(&message.recipient).await?;
+            // Absence is provisional. Do not cache it or warm a fallback ISM
+            // for a recipient that may be deployed before confirmation.
+            if value {
                 context
                     .cache
-                    .cache_call_result(domain, "recipient_ism", &message.recipient, &root)
+                    .cache_call_result(domain, "is_contract", &message.recipient, &value)
                     .await?;
-                root
             }
-        };
-        let builder =
-            MessageMetadataBuilder::new(context.metadata_builder.clone(), root, message).await?;
-        builder.prepare(message).await?;
-        Ok::<_, eyre::Report>(())
+            value
+        }
     };
-    let gas = async {
-        let estimate = TxCostEstimate {
-            gas_limit: U256::zero(),
-            gas_price: Default::default(),
-            l2_gas_limit: None,
-        };
-        let _ = context
-            .origin_gas_payment_enforcer
-            .read()
-            .await
-            .message_meets_gas_payment_requirement(message, &estimate)
-            .await?;
-        Ok::<_, eyre::Report>(())
-    };
-    // Delivery status and gas estimation need current state and valid metadata;
-    // leave those authoritative checks on the confirmed path.
-    tokio::try_join!(recipient, metadata, gas)?;
+    if !is_contract {
+        return Ok(());
+    }
+    let root = context.recipient_ism(message.recipient).await?;
+    MessageMetadataBuilder::new(context.metadata_builder.clone(), root, message)
+        .await?
+        .prepare(message)
+        .await?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        msg::gas_payment::GasPaymentEnforcer,
-        settings::{GasPaymentEnforcementConf, GasPaymentEnforcementPolicy},
-        test_utils::{
-            dummy_data::{dummy_message_context, dummy_metadata_builder},
-            mock_base_builder::{build_mock_base_builder, MockBaseMetadataBuilder},
-            mock_ism::MockInterchainSecurityModule,
-            mock_routing_ism::MockRoutingIsm,
-        },
+    use crate::test_utils::{
+        dummy_data::dummy_message_context,
+        mock_base_builder::{build_mock_base_builder, MockBaseMetadataBuilder},
+        mock_ism::MockInterchainSecurityModule,
+        mock_routing_ism::MockRoutingIsm,
     };
     use hyperlane_base::{
         cache::{
@@ -360,22 +311,11 @@ mod tests {
                     .push_build_routing_ism_response(root, Ok(Box::new(routing)));
             }
             let base = Arc::new(base);
-            let dummy = dummy_metadata_builder(&domain, &domain, &db, cache.clone());
-            let mut context = dummy_message_context(Arc::new(dummy), &db, cache.clone());
-            context.metadata_builder = base.clone();
+            let mut context = dummy_message_context(base.clone(), &db, cache.clone());
             let mut mailbox = MockMailboxContract::new_with_default_ism(H256::zero());
             mailbox.expect__domain().return_const(domain.clone());
             mailbox.expect__recipient_ism().returning(move |_| Ok(root));
-            mailbox.expect__delivered().returning(|_| Ok(false));
             context.destination_mailbox = Arc::new(mailbox);
-            context.origin_gas_payment_enforcer =
-                Arc::new(tokio::sync::RwLock::new(GasPaymentEnforcer::new(
-                    [GasPaymentEnforcementConf {
-                        policy: GasPaymentEnforcementPolicy::None,
-                        matching_list: Default::default(),
-                    }],
-                    db.clone(),
-                )));
             let message = HyperlaneMessage {
                 version: 3,
                 origin: domain.id(),
@@ -409,6 +349,64 @@ mod tests {
                 Arc::new(AddressBlacklist::new(vec![])),
             )
         }
+
+        async fn cached<T: serde::de::DeserializeOwned>(
+            &self,
+            method: &str,
+            params: &(impl serde::Serialize + Send + Sync),
+        ) -> Option<T> {
+            self.context
+                .cache
+                .get_cached_call_result(
+                    self.context.destination_mailbox.domain().name(),
+                    method,
+                    params,
+                )
+                .await
+                .unwrap()
+        }
+    }
+
+    #[tokio::test]
+    async fn missing_recipient_does_not_preload_a_fallback_ism() {
+        let fixture = Fixture::new().await;
+        let domain = fixture.context.destination_mailbox.domain();
+        fixture
+            .context
+            .cache
+            .cache_call_result(
+                domain.name(),
+                "is_contract",
+                &fixture.message.recipient,
+                &false,
+            )
+            .await
+            .unwrap();
+        prepare(&fixture.context, &fixture.message).await.unwrap();
+        assert_eq!(
+            fixture
+                .cached::<H256>("recipient_ism", &fixture.message.recipient)
+                .await,
+            None
+        );
+        fixture
+            .context
+            .cache
+            .cache_call_result(
+                domain.name(),
+                "is_contract",
+                &fixture.message.recipient,
+                &true,
+            )
+            .await
+            .unwrap();
+        prepare(&fixture.context, &fixture.message).await.unwrap();
+        assert_eq!(
+            fixture
+                .cached::<H256>("recipient_ism", &fixture.message.recipient)
+                .await,
+            Some(H256::from_low_u64_be(10))
+        );
     }
 
     #[tokio::test]
@@ -503,15 +501,8 @@ mod tests {
             .push_back(Ok(Box::new(TestMultisig(domain.clone(), root))));
         prepare(&fixture.context, &fixture.message).await.unwrap();
         let cached = fixture
-            .context
-            .cache
-            .get_cached_call_result::<(Vec<H256>, u8)>(
-                domain.name(),
-                "validators_and_threshold",
-                &(root, fixture.message.id()),
-            )
+            .cached::<(Vec<H256>, u8)>("validators_and_threshold", &(root, fixture.message.id()))
             .await
-            .unwrap()
             .unwrap();
         assert_eq!(cached.1, 2);
         assert_eq!(cached.0.len(), 2);
@@ -578,25 +569,25 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            fixture
-                .context
-                .cache
-                .get_cached_call_result::<H256>(domain.name(), "route", &key)
-                .await
-                .unwrap(),
+            fixture.cached::<H256>("route", &key).await,
             Some(replacement)
         );
     }
 
     #[tokio::test]
-    async fn duplicates_coalesce_and_confirmation_wakes_without_waiting() {
+    async fn duplicate_hints_coalesce_and_rollback_cancels_only_the_origin() {
         let fixture = Fixture::new().await;
         let preparation = fixture.preparer();
-        let hash = H256::from_low_u64_be(3);
-        preparation.discover(fixture.message.clone(), 100, hash);
-        preparation.discover(fixture.message.clone(), 100, hash);
+        preparation.discover(fixture.message.clone());
+        preparation.discover(fixture.message.clone());
         assert_eq!(preparation.messages.lock().len(), 1);
-        preparation.confirmed(&fixture.message, 100, Some(hash));
+        preparation.invalidate(fixture.message.origin + 1);
+        assert_eq!(preparation.messages.lock().len(), 1);
+        preparation.invalidate(fixture.message.origin);
+        assert!(preparation.messages.lock().is_empty());
+        preparation.discover(fixture.message.clone());
+        assert_eq!(preparation.messages.lock().len(), 1);
+        preparation.confirmed(&fixture.message);
         assert!(preparation.messages.lock().is_empty());
         tokio::time::timeout(
             Duration::from_millis(100),
@@ -615,34 +606,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rollback_and_disconnect_discard_affected_work_and_reinclude_cleanly() {
-        let fixture = Fixture::new().await;
-        let preparation = fixture.preparer();
-        let hash = H256::from_low_u64_be(3);
-        preparation.discover(fixture.message.clone(), 100, hash);
-        preparation.invalidate(fixture.message.origin, Some(100));
-        assert_eq!(preparation.messages.lock().len(), 1);
-        preparation.invalidate(fixture.message.origin, Some(99));
-        assert!(preparation.messages.lock().is_empty());
-        preparation.discover(fixture.message.clone(), 101, H256::from_low_u64_be(4));
-        assert_eq!(
-            preparation.messages.lock()[&fixture.message.id()].block,
-            101
-        );
-        preparation.invalidate(fixture.message.origin, None);
-        assert!(preparation.messages.lock().is_empty());
-    }
-
-    #[tokio::test]
     async fn rpc_ingestion_retires_preparation_and_late_early_events_are_ignored() {
         let fixture = Fixture::new().await;
         let preparation = fixture.preparer();
-        let hash = H256::from_low_u64_be(3);
-        preparation.discover(fixture.message.clone(), 100, hash);
+        preparation.discover(fixture.message.clone());
         fixture.db.store_message(&fixture.message, 100).unwrap();
         preparation.refresh(fixture.message.origin);
         assert!(preparation.messages.lock().is_empty());
-        preparation.discover(fixture.message.clone(), 100, hash);
+        preparation.discover(fixture.message.clone());
         assert!(preparation.messages.lock().is_empty());
     }
 
@@ -653,10 +624,10 @@ mod tests {
         for nonce in 0..1000 {
             let mut message = fixture.message.clone();
             message.nonce = nonce;
-            preparation.discover(message, 100, H256::from_low_u64_be(3));
+            preparation.discover(message);
         }
         assert_eq!(preparation.messages.lock().len(), MAX_CONCURRENT);
-        preparation.invalidate(fixture.message.origin, None);
+        preparation.invalidate(fixture.message.origin);
         for _ in 0..10 {
             tokio::task::yield_now().await;
         }

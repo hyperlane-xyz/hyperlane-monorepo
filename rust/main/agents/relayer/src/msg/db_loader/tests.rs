@@ -2493,7 +2493,7 @@ async fn confirmed_preparation_wakes_loader_before_fallback_and_reopens_consumed
             let notify = async {
                 sleep(Duration::from_millis(10)).await;
                 add_db_entry(&db, &late, 0);
-                preparation.confirmed(&late, 100, Some(H256::zero()));
+                preparation.confirmed(&late);
             };
             timeout(Duration::from_millis(250), async {
                 let (result, _) = tokio::join!(loader.tick(), notify);

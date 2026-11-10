@@ -167,7 +167,7 @@ impl ScraperSource {
                 .map_err(Into::into)
         });
         if let Err(error) = healthy {
-            preparation.invalidate(self.domain, None);
+            preparation.invalidate(self.domain);
             tracing::debug!(
                 chain = self.chain,
                 ?error,
@@ -189,14 +189,7 @@ impl ScraperSource {
         let Some(message) = data.message(self.domain, self.mailbox)? else {
             return Ok(());
         };
-        let Some(hash) = data.origin_block_hash.as_deref() else {
-            return Ok(());
-        };
-        preparation.discover(
-            message,
-            data.origin_block_height.as_u64("dispatch block")?,
-            parse_address(hash)?,
-        );
+        preparation.discover(message);
         Ok(())
     }
 
@@ -448,14 +441,7 @@ impl ScraperSource {
                         },
                     )?;
                     if let Some(preparation) = self.preparation.as_ref().filter(|_| inserted) {
-                        preparation.confirmed(
-                            &message,
-                            block,
-                            data.origin_block_hash
-                                .as_deref()
-                                .map(parse_address)
-                                .transpose()?,
-                        );
+                        preparation.confirmed(&message);
                     }
                     if tx != H512::zero() {
                         // Live-only streams already supply leaves and retain gas RPC
@@ -801,7 +787,7 @@ impl ScraperWebSocketMonitor {
     fn reset(&self) {
         for source in self.sources.values() {
             if let Some(preparation) = &source.preparation {
-                preparation.invalidate(source.domain, None);
+                preparation.invalidate(source.domain);
             }
             source.control.resume();
             for gauge in [
@@ -1294,8 +1280,7 @@ impl ScraperWebSocketMonitor {
                                 .get(&domain)
                                 .context("Unknown rollback domain")?;
                             if let Some(preparation) = &source.preparation {
-                                preparation
-                                    .invalidate(domain, Some(to_height.as_u64("rollback height")?));
+                                preparation.invalidate(domain);
                             }
                             continue;
                         }
