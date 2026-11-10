@@ -15,6 +15,10 @@ def evaluator():
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the once-only hard-latch observer control command.
+ latch = '          python3 -I -B -W error zig/integration/multivm_observer_latch_test.py -v\n'
+ if text.count(latch) != 1: raise AssertionError('Exact once-only observer hard-latch control required')
+ text = text.replace(latch, '', 1)
  # Exact enabled Aleo runner setup inverse; all profile/authority bytes are reviewed.
  aleo_start = '      - name: Load distro bwrap user namespace policy for Aleo\n'
  aleo_next = '      - name: Exact transport, both interops, fresh SDK/Docker/kernel and dedicated case\n'

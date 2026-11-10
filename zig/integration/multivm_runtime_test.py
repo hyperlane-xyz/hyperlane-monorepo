@@ -1622,7 +1622,7 @@ class ExpectedCwPeerPolicyTests(unittest.TestCase):
         manifest,case,approval=self.policy();definitions=session_module.cw_expected_unavailable_definitions(manifest,case,approval)
         session=Session.__new__(Session);session.manifest=manifest;session.lock=threading.RLock()
         session.expected_unavailable_definitions=definitions;session.expected_unavailable_notices=[];session.cw_healthy_grpc_fallbacks={}
-        session.failures=[];session.transport_notices=[];session.lifecycle=Lifecycle();session.append=mock.Mock()
+        session.failures=[];session.hard_failure_latched=threading.Event();session.transport_notices=[];session.lifecycle=Lifecycle();session.append=mock.Mock()
         session.captures=[{"captured_monotonic_ns":1,"original":{"role":"relayer","role_chain_names":["cosmostest99990"],"chains":{"cosmostest99990":{}}}}]
         context=dict(definitions[0],scenario="cosmwasm",role="relayer",case_inputs_sha256="a"*64)
         session.failure({"kind":"expected_source_endpoint_unavailable","context":context,"error_type":"ConnectionRefusedError","error":"public fixture refused","monotonic_ns":1,"positive_receipt_credit":False})
@@ -1638,7 +1638,7 @@ class ExpectedCwPeerPolicyTests(unittest.TestCase):
         manifest,case,approval=self.policy();definitions=session_module.cw_expected_unavailable_definitions(manifest,case,approval)
         session=Session.__new__(Session);session.manifest=manifest;session.lock=threading.RLock()
         session.expected_unavailable_definitions=definitions;session.expected_unavailable_notices=[];session.cw_healthy_grpc_fallbacks={}
-        session.failures=[];session.transport_notices=[];session.lifecycle=Lifecycle();session.append=mock.Mock()
+        session.failures=[];session.hard_failure_latched=threading.Event();session.transport_notices=[];session.lifecycle=Lifecycle();session.append=mock.Mock()
         def capture(clock, chain="cosmostest99990"):
             return {"captured_monotonic_ns":clock,"original":{"role":"relayer","role_chain_names":[chain],"chains":{chain:{}}}}
         session.captures=[capture(100)]

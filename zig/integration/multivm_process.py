@@ -322,6 +322,7 @@ def serve(value):
         for signum in (signal.SIGTERM, signal.SIGINT):
             prior_signals[signum] = signal.signal(signum, lambda *_: stopping.set())
         while not stopping.is_set():
+            require(not session.hard_failure_latched.is_set(), "actual observer hard failure latched")
             server.handle_request()
     finally:
         if server is not None:
@@ -333,6 +334,8 @@ def serve(value):
             current = controller_path(value, "controller.sock")
             require(stat.S_ISSOCK(current.stat().st_mode) and (current.stat().st_dev, current.stat().st_ino) == socket_identity, "owned socket changed; preserve unknown file")
             current.unlink()
+    # A normal stop ends loop work, but cannot erase a failure during drain.
+    require(not session.hard_failure_latched.is_set(), "actual observer hard failure latched")
 
 
 def main():

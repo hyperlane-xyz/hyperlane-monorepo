@@ -638,6 +638,7 @@ class Session:
         self.proxies = []
         self.proxy_cache = {}
         self.failures = []
+        self.hard_failure_latched = threading.Event()
         self.transport_notices = []
         self.activity = {}
         self.successful_activity = {}
@@ -796,6 +797,7 @@ class Session:
                 self.append("native-expected-unavailable-endpoints.jsonl", error)
                 return
             self.failures.append(error)
+            self.hard_failure_latched.set()
             self.append("observer-errors.jsonl", {"monotonic_ns": time.monotonic_ns(), "error": error})
         token=self.diagnostic('transport')
         if token is not None:self.diagnostic('transport',token,'exception',sys.exc_info()[1])

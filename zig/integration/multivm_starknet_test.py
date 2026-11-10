@@ -497,6 +497,7 @@ class PreconfirmedObserverControls(unittest.TestCase):
         self.session.broadcasts = list(self.memory.broadcasts)
         self.session.activity = {}
         self.session.failures = []
+        self.session.hard_failure_latched = threading.Event()
         self.session.lifecycle = sessions.Lifecycle()
         self.records = []
         self.session.append = lambda name, row: self.records.append((name, row))

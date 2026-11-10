@@ -39,7 +39,7 @@ class StarknetPeerTests(unittest.TestCase):
         value.manifest=manifest;value.case=case;value.approval=approval;value.lock=threading.RLock()
         value.starknet_unavailable_definitions=sessions.starknet_expected_unavailable_definitions(manifest,case,approval)
         value.starknet_unavailable_notices=[];value.starknet_healthy_rpc_fallbacks={}
-        value.failures=[];value.transport_notices=[];value.append=mock.Mock();value.lifecycle=sessions.Lifecycle()
+        value.failures=[];value.hard_failure_latched=threading.Event();value.transport_notices=[];value.append=mock.Mock();value.lifecycle=sessions.Lifecycle()
         value.captures=[{'captured_monotonic_ns':100,'original':{'role':'relayer','role_chain_names':['starknettest23448593'],'chains':{'starknettest23448593':{}}}}]
         return value
 
