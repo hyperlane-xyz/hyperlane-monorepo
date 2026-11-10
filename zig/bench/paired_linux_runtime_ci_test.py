@@ -36,7 +36,7 @@ class Fixture(unittest.TestCase):
         cases=[{'family':family,'mode':mode,'passed':True,'public_proof':proof,'Root_readback':readback,'runtime_products':copy.deepcopy(products)}for family in c.FAMILIES for mode in c.MODES]
         native={'schema':1,'kind':'paired-linux-Root-native18-v1','root_approved':True,'passed':True,'producer_source_commit':'b'*40,'cases':cases}
         jobs=[{'name':'unit','run_id':1,'run_attempt':1,'job_id':1,'source_commit':'e'*40,'conclusion':'success','Root_readback':readback}];general={'schema':1,'kind':'paired-linux-Root-general-CI-v1','root_approved':True,'passed':True,'producer_source_commit':'b'*40,'Source_scope_qualified':True,'required_jobs':['unit'],'jobs':jobs}
-        runtime=[self.file(f'zig/src/fixture-{i}.zig',b'// pure Source qualification fixture\n')for i in range(607)];final={'schema':1,'kind':'paired-linux-Root-final-Source-v1','root_approved':True,'passed':True,'producer_source_commit':'b'*40,'runtime_607':runtime,'Root_readback':readback}
+        runtime=[self.file(f'zig/src/fixture-{i}.zig',b'// pure Source qualification fixture\n')for i in range(607)]+[self.file('zig/src/agents/relayer/queue_view.zig',b'// synthetic queue-view Source fixture\n')];final={'schema':2,'kind':'paired-linux-Root-final-Source-v2','root_approved':True,'passed':True,'producer_source_commit':'b'*40,'runtime_608':runtime,'Root_readback':readback}
         cohort={'passed':True,'root_approved':True,'Root_actual_cohort_acceptance':True,'all8_same_run_required_product_artifacts':True,'source_commit':'b'*40,'eight_artifacts':{key:{'id':i+1,'name':key,'size_in_bytes':1,'sha256':'a'*64}for i,key in enumerate(['sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference'])},'all4_required_jobs_actual_success':[{'name':name,'id':i+1}for i,name in enumerate(['full-sdk-native (ReleaseSafe)','full-sdk-native (ReleaseFast)','native-harness-controls','svm-prerequisites'])]}
         self.documents={'native18_qualification':native,'general_CI_qualification':general,'final_Source_qualification':final,'cohort_qualification':cohort,'reuse_header':{'root_approved':True,'producer_source_commit':'b'*40,'Root_input_accepted':True,'Root_six_accepted':True}}
         value={key:None for key in c.FIELDS};value.update(schema=1,kind='paired-linux-runtime-ci-v1',root_approved=True,required_source=source,methods=next(r for r in source if r['path']=='zig/bench/paired_linux_methods.json'))
@@ -68,7 +68,7 @@ class Request(Fixture):
         for field,value,reason in [('root_approved',1,'Closed runtime request'),('reuse_header',{},'Unapproved future gates must remain null'),('required_source',[{}],'Unapproved future gates must remain null'),('unknown',None,'Closed runtime request')]:
             with self.subTest(field=field),self.assertRaisesRegex(c.Refused,reason):self.admit({**base,field:value})
     def test_actual_enabled_closed_dto_and_all18_products_admitted_as_fixture_only(self):
-        _,value=self.enabled();context=self.admit(value);self.assertEqual(context['producer'],'b'*40);self.assertEqual(len(context['native']['cases']),18);self.assertEqual(len(context['runtime_607']),607);self.assertNotIn('execution_source_commit',value)
+        _,value=self.enabled();context=self.admit(value);self.assertEqual(context['producer'],'b'*40);self.assertEqual(len(context['native']['cases']),18);self.assertEqual(len(context['runtime_608']),608);self.assertNotIn('execution_source_commit',value)
     def test_each_independent_actual_Root_gate_and_source_count_required(self):
         _,base=self.enabled()
         for key in ['cohort_qualification','native18_qualification','general_CI_qualification','final_Source_qualification']:
@@ -77,6 +77,21 @@ class Request(Fixture):
             self.document(key+'.json',self.documents[key])
         value=copy.deepcopy(base);value['required_source']=value['required_source'][:-1]
         with self.assertRaises(c.Refused):self.admit(value)
+    def test_final_Source_v2_requires608_unique_including_queue_view_and_refuses_old_contract(self):
+        _,base=self.enabled()
+        for variant in ('schema1','kind_v1','runtime_607','607','609','duplicate','missing_new_leaf'):
+            doc=copy.deepcopy(self.documents['final_Source_qualification'])
+            if variant=='schema1':doc['schema']=1
+            elif variant=='kind_v1':doc['kind']='paired-linux-Root-final-Source-v1'
+            elif variant=='runtime_607':doc['runtime_607']=doc.pop('runtime_608')
+            elif variant=='607':doc['runtime_608'].pop(0)
+            elif variant=='609':doc['runtime_608'].append(self.file('zig/src/extra.zig',b'// extra'))
+            elif variant=='duplicate':doc['runtime_608'][-1]=doc['runtime_608'][0]
+            else:doc['runtime_608'][-1]=self.file('zig/src/replacement.zig',b'// replacement')
+            value=copy.deepcopy(base);value['final_Source_qualification']=self.document('final_Source_qualification.json',doc)
+            with self.subTest(variant=variant),self.assertRaises(c.Refused):self.admit(value)
+            self.document('final_Source_qualification.json',self.documents['final_Source_qualification'])
+
     def test_foundry_installer_test_and_root_cannot_be_omitted_from_runtime_authority(self):
         required={'zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json'};self.assertTrue(required<=c.REQUIRED_SOURCE)
         for missing in required:
@@ -239,7 +254,7 @@ class Workflow(unittest.TestCase):
         exec(compile(ast.Module(body=[helper],type_ignores=[]),'actual-reviewed-native-HTTP-inverse','exec'),scope)
         ordinary=scope['ordinary_native_http_workflow'](self.text)
         prefix,tail=ordinary.split('  paired-linux-runtime:\n',1);inverse=prefix+tail.split('  # END REVIEWED PAIRED LINUX JOBS',1)[1]
-        self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(inverse.encode()).hexdigest(),'61c6875a22586bcd3408ef4d44638102'+'2879a14543ba46209f40638732810219')
+        self.assertEqual(len(self.rows),18);self.assertEqual(hashlib.sha256(inverse.encode()).hexdigest(),'3a30b6dcb6896ea5f1ee615ed1e204b4'+'4a632dd9186471e04566eab1916d45e6')
         self.assertIn('name: paired-linux-input-diagnostic-',inverse);self.assertNotIn('needs:',self.job)
     def test_288_existing_ordinary_routes_never_start_runtime(self):
         count=0

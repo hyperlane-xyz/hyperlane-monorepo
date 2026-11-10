@@ -78,6 +78,8 @@ const TestOwner = struct {
     options: TestOptions = .{},
     memory_mutex: std.Thread.Mutex = .{},
     retained_bytes: usize = 0,
+    denylist_ready: std.atomic.Value(bool) = .init(true),
+    effects_halted: std.atomic.Value(bool) = .init(false),
 };
 const TestNonceManager = struct {
     scan_resume: ?u256 = null,
@@ -163,6 +165,7 @@ const NativeFixture = struct {
         self.hub = try control.Hub.init(a, &self.configured, &self.environment, undefined, undefined, null, &self.runtime);
         errdefer self.hub.deinit();
         self.control = try control.Control.init(&self.hub, &chains[1]);
+        self.control.bindSnapshotBudget(&self.owner);
         return self;
     }
 
@@ -192,7 +195,14 @@ const NativeFixture = struct {
         const item = try a.create(TestActive);
         errdefer a.destroy(item);
         item.* = .{ .origin_index = 0, .message = .{ .allocator = a, .bytes = bytes, .value = try protocol.Message.decode(bytes) } };
-        try self.lane.active.append(a, item);
+        try self.control.ensurePolicy(&self.lane, 0);
+        try self.lane.active.ensureUnusedCapacity(a, 1);
+        try self.control.snapshot.ensureCapacity(self.lane.active.items.len + 1);
+        const row = try self.control.prepareSnapshotRow(&self.lane, 0, value);
+        self.control.snapshot.beginPublish();
+        self.lane.active.appendAssumeCapacity(item);
+        self.control.snapshot.appendLocked(row);
+        self.control.snapshot.finishPublish();
         return item;
     }
 
@@ -384,7 +394,7 @@ test "native gas broadcast rebuilds current and future policies and queue snapsh
     const QueueCaller = struct {
         owner: api.QueueOwner,
         cancel: *const std.atomic.Value(bool),
-        response: ?[]u8 = null,
+        response: ?@import("ops/http.zig").Response = null,
         failure: ?anyerror = null,
         fn run(self: *@This()) void {
             const result = self.owner.render_fn(self.owner.context, std.testing.allocator, 2, self.cancel) catch |err| {
@@ -396,13 +406,11 @@ test "native gas broadcast rebuilds current and future policies and queue snapsh
     };
     var queue_caller: QueueCaller = .{ .owner = queue, .cancel = &cancel };
     thread = try std.Thread.spawn(.{}, QueueCaller.run, .{&queue_caller});
-    while (!fixture.control.wake.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
-    try fixture.drain();
     thread.join();
     try std.testing.expect(queue_caller.failure == null);
-    defer a.free(queue_caller.response.?);
-    try std.testing.expect(std.mem.indexOf(u8, queue_caller.response.?, "\"type\": \"PendingMessage\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, queue_caller.response.?, "\"num_retries\": 0") != null);
+    defer queue_caller.response.?.deinit();
+    try std.testing.expect(std.mem.indexOf(u8, queue_caller.response.?.body, "\"type\": \"PendingMessage\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, queue_caller.response.?.body, "\"num_retries\": 0") != null);
 
     policy.deinit();
     fixture.origin_lanes[0].policy = null;
@@ -497,4 +505,272 @@ test "native bindings bound ranges cancel and dynamically hide unready origins" 
 
 test {
     _ = @import("agents/relayer/control_test.zig");
+}
+
+fn queueBody(value: anytype) []const u8 {
+    // Test-only before/after comparison: production QueueOwner has no bridge.
+    return if (@TypeOf(value) == []u8) value else value.body;
+}
+fn freeQueue(value: anytype) void {
+    if (@TypeOf(value.*) == []u8) std.testing.allocator.free(value.*) else value.deinit();
+}
+
+const HeldMutation = struct {
+    owner: api.GasOwner,
+    cancel: std.atomic.Value(bool) = .init(false),
+    failure: ?anyerror = null,
+    fn run(self: *@This()) void {
+        self.owner.add_fn(self.owner.context, std.testing.allocator, .{ .policy = .none, .matching_list = &.{} }, &self.cancel) catch |err| {
+            self.failure = err;
+        };
+    }
+};
+
+test "admin queue observation progresses while destination mutation owner is held" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const path = try temporaryDatabase(a, &temp);
+    defer a.free(path);
+    const fixture = try NativeFixture.init(a, path);
+    defer fixture.deinit(a);
+    const value = message(1);
+    try fixture.store.upsertMessage(value, 1, null);
+    _ = try fixture.addActive(value);
+    try fixture.drain();
+    const original_rules = fixture.control.ledger.rules.items.len;
+    var mutation: HeldMutation = .{ .owner = fixture.hub.gasOwner() };
+    const thread = try std.Thread.spawn(.{}, HeldMutation.run, .{&mutation});
+    defer {
+        mutation.cancel.store(true, .release);
+        thread.join();
+    }
+    var timer = try std.time.Timer.start();
+    while (!fixture.control.wake.load(.acquire)) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.FixtureMutationDidNotQueue;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Do not drain/release the held owner. Old code reaches its ORIGINAL10s
+    // command deadline; the read-only route must finish independently.
+    const queue = fixture.hub.queueOwner();
+    var cancel = std.atomic.Value(bool).init(false);
+    var first = try queue.render_fn(queue.context, a, 2, &cancel);
+    defer freeQueue(&first);
+    try std.testing.expect(std.mem.indexOf(u8, queueBody(first), "\"num_retries\": 0") != null);
+    try std.testing.expectEqual(original_rules, fixture.control.ledger.rules.items.len);
+    // Same membership, fresh persisted fields: never a cached old JSON/status.
+    try fixture.store.storeRetry(value.id(), .{ .retry_count = 7, .next_attempt_at_millis = null, .retry_delay_millis = null, .reason = .CouldNotFetchMetadata }, .{ .Retry = .CouldNotFetchMetadata });
+    var second = try queue.render_fn(queue.context, a, 2, &cancel);
+    defer freeQueue(&second);
+    try std.testing.expect(std.mem.indexOf(u8, queueBody(second), "\"num_retries\": 7") != null);
+    try std.testing.expect(std.mem.indexOf(u8, queueBody(second), "CouldNotFetchMetadata") != null);
+    try std.testing.expectEqual(original_rules, fixture.control.ledger.rules.items.len);
+}
+
+const StoreReadGate = struct {
+    store: *native.Store,
+    entered: std.atomic.Value(bool) = .init(false),
+    release: std.atomic.Value(bool) = .init(false),
+    fn run(self: *@This()) void {
+        self.store.mutex.lock();
+        self.entered.store(true, .release);
+        while (!self.release.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
+        self.store.mutex.unlock();
+    }
+};
+const SnapshotCaller = struct {
+    owner: api.QueueOwner,
+    cancel: std.atomic.Value(bool) = .init(false),
+    done: std.atomic.Value(bool) = .init(false),
+    response: ?@import("ops/http.zig").Response = null,
+    failure: ?anyerror = null,
+    fn run(self: *@This()) void {
+        defer self.done.store(true, .release);
+        self.response = self.owner.render_fn(self.owner.context, std.testing.allocator, 2, &self.cancel) catch |err| {
+            self.failure = err;
+            return;
+        };
+    }
+};
+
+fn waitFlag(flag: *const std.atomic.Value(bool)) !void {
+    var timer = try std.time.Timer.start();
+    while (!flag.load(.acquire)) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.FixtureBarrierNotReached;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
+
+test "admin queue row and policy generation changes refuse after fresh store read without dangling actors" {
+    const a = std.testing.allocator;
+    for (0..3) |change| {
+        var temp = std.testing.tmpDir(.{});
+        defer temp.cleanup();
+        const path = try temporaryDatabase(a, &temp);
+        defer a.free(path);
+        const fixture = try NativeFixture.init(a, path);
+        defer fixture.deinit(a);
+        const value = message(1);
+        try fixture.store.upsertMessage(value, 1, null);
+        _ = try fixture.addActive(value);
+        try fixture.drain();
+        var gate: StoreReadGate = .{ .store = &fixture.store };
+        const gate_thread = try std.Thread.spawn(.{}, StoreReadGate.run, .{&gate});
+        var gate_joined = false;
+        defer if (!gate_joined) {
+            gate.release.store(true, .release);
+            gate_thread.join();
+        };
+        try waitFlag(&gate.entered);
+        var caller: SnapshotCaller = .{ .owner = fixture.hub.queueOwner() };
+        const reader = try std.Thread.spawn(.{}, SnapshotCaller.run, .{&caller});
+        var reader_joined = false;
+        defer {
+            if (!reader_joined) {
+                gate.release.store(true, .release);
+                reader.join();
+            }
+            if (caller.response) |*response| response.deinit();
+        }
+        const row = fixture.control.snapshot.rows.items[0];
+        var timer = try std.time.Timer.start();
+        while (row.references.load(.acquire) < 2) {
+            if (caller.done.load(.acquire)) return error.ReaderBypassedStoreMutationLock;
+            if (timer.read() > 5 * std.time.ns_per_s) return error.FixtureCaptureDidNotReachStore;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+        // This thread owns no Store lock: the gate thread owns it. No V->S or
+        // S->V nesting is introduced while publication invalidates this copy.
+        if (change == 0) {
+            fixture.control.snapshot.beginPublish();
+            const active = fixture.lane.active.swapRemove(0);
+            const old = fixture.control.snapshot.removeLocked(0);
+            fixture.control.snapshot.finishPublish();
+            old.release();
+            active.message.deinit();
+            a.destroy(active);
+        } else if (change == 1) {
+            // Same rows, policy generation changes; old in-flight read refuses.
+            fixture.control.snapshot.beginPublish();
+            fixture.control.snapshot.finishPublish();
+        } else {
+            fixture.owner.effects_halted.store(true, .release);
+        }
+        gate.release.store(true, .release);
+        gate_thread.join();
+        gate_joined = true;
+        reader.join();
+        reader_joined = true;
+        try std.testing.expectEqual(error.QueueViewChanged, caller.failure.?);
+        try std.testing.expect(caller.response == null);
+        try std.testing.expectEqual(fixture.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
+    }
+}
+
+test "admin queue response survives actor retirement and retains quota until actual response free" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const path = try temporaryDatabase(a, &temp);
+    defer a.free(path);
+    const fixture = try NativeFixture.init(a, path);
+    defer fixture.deinit(a);
+    const value = message(1);
+    try fixture.store.upsertMessage(value, 1, null);
+    _ = try fixture.addActive(value);
+    try fixture.drain();
+    var cancel = std.atomic.Value(bool).init(false);
+    const queue = fixture.hub.queueOwner();
+    var response = try queue.render_fn(queue.context, a, 2, &cancel);
+    var response_freed = false;
+    defer if (!response_freed) response.deinit();
+    fixture.control.snapshot.beginPublish();
+    const item = fixture.lane.active.swapRemove(0);
+    const row = fixture.control.snapshot.removeLocked(0);
+    fixture.control.snapshot.finishPublish();
+    row.release();
+    item.message.deinit();
+    a.destroy(item);
+    const after_retirement = fixture.control.snapshot.retainedBytes();
+    try std.testing.expect(std.mem.indexOf(u8, response.body, "PendingMessage") != null);
+    try std.testing.expect(after_retirement > fixture.control.snapshot.rows.capacity * @sizeOf(*@import("agents/relayer/queue_view.zig").Row));
+    response.deinit();
+    response_freed = true;
+    try std.testing.expect(fixture.control.snapshot.retainedBytes() < after_retirement);
+    try std.testing.expectEqual(fixture.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
+}
+
+test "admin queue policy publication owns contexts and leaves old captures immutable" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const path = try temporaryDatabase(a, &temp);
+    defer a.free(path);
+    const fixture = try NativeFixture.init(a, path);
+    defer fixture.deinit(a);
+    fixture.configured.role.relayer.metric_app_contexts = &.{.{ .name = "old", .matching_list = &.{.{}} }};
+    const value = message(1);
+    try fixture.store.upsertMessage(value, 1, null);
+    _ = try fixture.addActive(value);
+    try fixture.drain();
+    var cancel = std.atomic.Value(bool).init(false);
+    var previous = try fixture.control.snapshot.capture(&cancel);
+    defer previous.deinit();
+    try std.testing.expectEqualStrings("old", previous.items()[0].app_context.?);
+    // Source policies are rebuilt by the existing serialized gas command.
+    fixture.configured.role.relayer.metric_app_contexts = &.{.{ .name = "new", .matching_list = &.{.{}} }};
+    var mutation: HeldMutation = .{ .owner = fixture.hub.gasOwner() };
+    const thread = try std.Thread.spawn(.{}, HeldMutation.run, .{&mutation});
+    var joined = false;
+    defer if (!joined) {
+        mutation.cancel.store(true, .release);
+        thread.join();
+    };
+    try waitFlag(fixture.control.wake);
+    try fixture.drain();
+    thread.join();
+    joined = true;
+    try std.testing.expect(mutation.failure == null);
+    try std.testing.expect(!fixture.control.snapshot.current(previous.generation));
+    try std.testing.expectEqualStrings("old", previous.items()[0].app_context.?);
+    const queue = fixture.hub.queueOwner();
+    var response = try queue.render_fn(queue.context, a, 2, &cancel);
+    defer response.deinit();
+    try std.testing.expect(std.mem.indexOf(u8, response.body, "\"app_context\": \"new\"") != null);
+    try std.testing.expectEqual(fixture.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
+}
+
+test "admin absent domain keeps bounded original response while configured view remains gated" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const path = try temporaryDatabase(a, &temp);
+    defer a.free(path);
+    const fixture = try NativeFixture.init(a, path);
+    defer fixture.deinit(a);
+    // Model a constructor before View.bind and a role unable to fund a render.
+    fixture.control.snapshot.deinit();
+    fixture.control.snapshot = .{ .allocator = a };
+    fixture.owner.options.max_retained_bytes = 1;
+    fixture.owner.denylist_ready.store(false, .release);
+    const queue = fixture.hub.queueOwner();
+    var cancel = std.atomic.Value(bool).init(false);
+    for (0..3) |phase| {
+        var response = try queue.render_fn(queue.context, a, std.math.maxInt(u32), &cancel);
+        defer response.deinit();
+        try std.testing.expectEqual(@as(u16, 200), response.status);
+        try std.testing.expectEqualStrings("No queue found for domain 4294967295", response.body);
+        try std.testing.expectEqualStrings("text/plain; charset=utf-8", response.headers[0].value);
+        try std.testing.expectEqual(@as(usize, 0), fixture.control.snapshot.retainedBytes());
+        if (phase < 2) {
+            try std.testing.expectError(error.QueueViewUnavailable, queue.render_fn(queue.context, a, 2, &cancel));
+            if (phase == 0) fixture.control.bindSnapshotBudget(&fixture.owner) else {
+                fixture.owner.denylist_ready.store(true, .release);
+                try fixture.control.snapshot.activate();
+            }
+        } else {
+            // Configured render still allocates through its denied role quota.
+            try std.testing.expectError(error.OutOfMemory, queue.render_fn(queue.context, a, 2, &cancel));
+        }
+    }
 }

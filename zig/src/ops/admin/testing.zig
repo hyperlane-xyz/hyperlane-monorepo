@@ -142,9 +142,10 @@ fn proof(_: *anyopaque, _: u32, _: u32, _: u32, _: *const std.atomic.Value(bool)
     return error.UnknownMerkleLeaf;
 }
 
-fn renderQueue(_: *anyopaque, a: A, domain: u32, _: *const std.atomic.Value(bool)) anyerror![]u8 {
-    if (domain != 1) return std.fmt.allocPrint(a, "No queue found for domain {d}", .{domain});
-    return a.dupe(u8, "[\n  {\n    \"id\": \"0x01\",\n    \"operation\": {\"retry_count\":0}\n  }\n]");
+fn renderQueue(_: *anyopaque, a: A, domain: u32, _: *const std.atomic.Value(bool)) anyerror!http.Response {
+    const body = if (domain != 1) try std.fmt.allocPrint(a, "No queue found for domain {d}", .{domain}) else try a.dupe(u8, "[\n  {\n    \"id\": \"0x01\",\n    \"operation\": {\"retry_count\":0}\n  }\n]");
+    defer a.free(body);
+    return http.Response.init(a, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, body);
 }
 
 fn retry(_: *anyopaque, _: A, _: []const u8, _: @import("../../settings/types.zig").MatchingList, _: *const std.atomic.Value(bool)) anyerror!api.RetryResult {

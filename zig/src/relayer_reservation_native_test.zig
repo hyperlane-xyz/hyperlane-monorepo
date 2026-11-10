@@ -67,6 +67,7 @@ const Fixture = struct {
         self.owner.memory_mutex = .{};
         self.owner.retained_bytes = 0;
         self.owner.effects_halted = .init(false);
+        self.owner.denylist_ready = .init(true);
         self.owner.denylist = try denylist.RuntimeDenylist.init(a, null);
         errdefer self.owner.denylist.deinit();
         self.owner.control_hub = try control.Hub.init(a, &self.configured, &self.environment, &self.origin_set, undefined, null, &self.owner.denylist);
@@ -188,7 +189,7 @@ test "Root native public reserve ordinary load and commit retain capacity and pe
         try std.testing.expect(fixture.lane.active.items.len <= fixture.owner.options.max_active);
         try std.testing.expect(fixture.lane.active_bytes <= fixture.owner.options.max_active_bytes);
         try std.testing.expectEqual(public.id(), fixture.lane.active.items[fixture.lane.active.items.len - 1].message.value.id());
-        try std.testing.expectEqual(fixture.lane.active_bytes, fixture.owner.retained_bytes);
+        try std.testing.expectEqual(fixture.lane.active_bytes + fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
         try std.testing.expect(try fixture.origin.store.operationMessageAuthorized(public));
         var indexed = (try fixture.origin.store.messageByNonce(0)).?;
         defer indexed.deinit();
@@ -262,7 +263,7 @@ test "Root ordinary and public lazy metric labels are inside retained byte budge
     if (ordinary.metric_app_context.?.len != 3) return error.OrdinaryAppContextLengthMismatch;
     if (ordinary.retained_bytes != canonical.encodedLen() + @sizeOf(Item) + 3) return error.OrdinaryRetainedBytesMismatch;
     try std.testing.expectEqual(ordinary.retained_bytes, fixture.lane.active_bytes);
-    try std.testing.expectEqual(fixture.lane.active_bytes, fixture.owner.retained_bytes);
+    try std.testing.expectEqual(fixture.lane.active_bytes + fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
 
     try fixture.command(.reserve, public);
     try fixture.command(.authorize, public);
@@ -276,7 +277,7 @@ test "Root ordinary and public lazy metric labels are inside retained byte budge
     try std.testing.expect(try fixture.lane.advance(lazy, .{ .unix_ms = 1002, .monotonic_ms = 3 }, &fixture.cancel));
     if (fixture.lane.active_bytes != active_bytes + 3) return error.LazyActiveBytesMismatch;
     if (lazy.retained_bytes != public.encodedLen() + @sizeOf(Item) + 3) return error.LazyRetainedBytesMismatch;
-    try std.testing.expectEqual(fixture.lane.active_bytes, fixture.owner.retained_bytes);
+    try std.testing.expectEqual(fixture.lane.active_bytes + fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
 }
 
 test "Root core allocation failures roll back ownership while telemetry pressure preserves admitted work" {
@@ -302,7 +303,7 @@ test "Root core allocation failures roll back ownership while telemetry pressure
             try std.testing.expectEqual(error.OutOfMemory, err);
             try std.testing.expectEqual(@as(usize, 0), fixture.lane.active.items.len);
             try std.testing.expectEqual(@as(usize, 0), fixture.lane.active_bytes);
-            try std.testing.expectEqual(@as(usize, 0), fixture.owner.retained_bytes);
+            try std.testing.expectEqual(fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
             try std.testing.expectEqual(@as(usize, 0), fixture.owner.metric_tracker.?.activeCount());
             if (fixture.lane_origins[0].loader) |*value| try std.testing.expectEqual(@as(usize, 0), value.loaded.count());
             saw_core_failure = true;
@@ -312,7 +313,7 @@ test "Root core allocation failures roll back ownership while telemetry pressure
         try std.testing.expectEqual(@as(u64, 1), loaded);
         try std.testing.expectEqual(@as(usize, 1), fixture.lane.active.items.len);
         try std.testing.expectEqual(canonical.encodedLen() + @sizeOf(Item), fixture.lane.active_bytes);
-        try std.testing.expectEqual(fixture.lane.active_bytes, fixture.owner.retained_bytes);
+        try std.testing.expectEqual(fixture.lane.active_bytes + fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
         if (watch.post_append_failure) {
             saw_post_append_failure = true;
             try std.testing.expect(fixture.lane.telemetry_failures.load(.monotonic) > 0);
@@ -356,7 +357,7 @@ test "Root registry pressure preserves durable retirement and never re-admits a 
         try std.testing.expect(fixture.lane.telemetry_failures.load(.monotonic) > 0);
         try std.testing.expectEqual(@as(usize, 0), fixture.lane.active.items.len);
         try std.testing.expectEqual(@as(usize, 0), fixture.lane.active_bytes);
-        try std.testing.expectEqual(@as(usize, 0), fixture.owner.retained_bytes);
+        try std.testing.expectEqual(fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
         try std.testing.expectEqual(@as(usize, 0), fixture.owner.metric_tracker.?.activeCount());
         try std.testing.expectEqual(@as(usize, 0), fixture.owner.metric_tracker.?.retainedBytes());
         try std.testing.expectEqual(@as(usize, 0), fixture.lane_origins[0].loader.?.loaded.count());
@@ -385,11 +386,11 @@ test "Root optional app labels cannot consume the core admission budget" {
     const item = fixture.lane.active.items[0];
     try std.testing.expect(item.metric_app_context == null);
     try std.testing.expect(!item.metric_active);
-    try std.testing.expectEqual(base, fixture.owner.retained_bytes);
+    try std.testing.expectEqual(base + fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
     try fixture.origin.store.markTerminal(canonical.id());
     try std.testing.expect(try fixture.lane.advance(item, .{ .unix_ms = 1002, .monotonic_ms = 3 }, &fixture.cancel));
     try fixture.lane.releaseCompleted(0);
-    try std.testing.expectEqual(@as(usize, 0), fixture.owner.retained_bytes);
+    try std.testing.expectEqual(fixture.lane.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
 }
 
 const QueueDestination = struct {
@@ -628,4 +629,157 @@ test "Root native submit admitted preparation batch survives pending IO without 
 
 test "Root native submit popped ready IO is excluded from backpressure and control restores admission" {
     try pendingQueueExercise(true);
+}
+
+const ViewBatchCaller = struct {
+    fixture: *Fixture,
+    command: enum { reserve, commit, abort },
+    messages: [2]protocol.Message,
+    allocation_failure_offset: usize = 0,
+    failure: ?anyerror = null,
+    fn run(self: *@This()) void {
+        self.call() catch |err| {
+            self.failure = err;
+        };
+    }
+    fn call(self: *@This()) !void {
+        const f = self.fixture;
+        switch (self.command) {
+            .reserve => try f.hub.relayReserve(f.lane.control, 1, .{3} ** 64, &self.messages, 3000, &f.cancel),
+            .commit => try f.hub.relayCommit(f.lane.control, 1, 3000, &f.cancel),
+            .abort => try f.hub.relayAbort(f.lane.control, 1, 3000, &f.cancel),
+        }
+    }
+    fn execute(self: *@This(), fail_next_after_queue: ?*WatchAllocator) !void {
+        const thread = try std.Thread.spawn(.{}, run, .{self});
+        var joined = false;
+        defer if (!joined) {
+            self.fixture.cancel.store(true, .release);
+            thread.join();
+        };
+        var timer = try std.time.Timer.start();
+        while (!self.fixture.lane.control.wake.load(.acquire)) {
+            if (timer.read() > 2 * std.time.ns_per_s) return error.ViewBatchCommandDidNotQueue;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+        // All queue/clone allocations happened before the owner is released.
+        if (fail_next_after_queue) |watch| watch.fail_index = watch.alloc_index + self.allocation_failure_offset;
+        _ = try self.fixture.lane.control.drain(&self.fixture.lane, .{ .unix_ms = 1000, .monotonic_ms = 1 }, &self.fixture.cancel);
+        thread.join();
+        joined = true;
+        if (self.failure) |err| return err;
+    }
+};
+
+test "admin public authorized batch commits owned view rows without any later allocation" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const parent = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(parent);
+    const path = try std.fs.path.join(a, &.{ parent, "rocks" });
+    defer a.free(path);
+    var watch: WatchAllocator = .{ .backing = a };
+    const allocator = watch.allocator();
+    const f = try Fixture.init(allocator, path, 2, 1024 * 1024);
+    defer f.deinit(allocator);
+    const values = [2]protocol.Message{ message(10, "first"), message(11, "second") };
+    var reserve: ViewBatchCaller = .{ .fixture = f, .command = .reserve, .messages = values };
+    try reserve.execute(null);
+    try std.testing.expectEqual(@as(usize, 2), f.lane.control.reservedSlots());
+    try std.testing.expectEqual(@as(usize, 0), f.lane.active.items.len);
+    const prepared = &f.lane.control.relay_reservation.?;
+    try std.testing.expectEqual(@as(usize, 2), prepared.snapshot_rows.count);
+    for (prepared.snapshot_rows.items(), values) |row, value| try std.testing.expectEqual(value.id(), row.message.value.id());
+    try f.command(.authorize, values[0]);
+    for (values) |value| try std.testing.expect(try f.origin.store.operationMessageAuthorized(value));
+    var previous = try f.lane.control.snapshot.capture(&f.cancel);
+    defer previous.deinit();
+    const generation = previous.generation;
+    try std.testing.expectEqual(@as(usize, 0), previous.count);
+    var commit: ViewBatchCaller = .{ .fixture = f, .command = .commit, .messages = values };
+    try commit.execute(&watch);
+    // The armed failure is still unconsumed: commit and publication allocate 0.
+    try std.testing.expectEqual(watch.alloc_index, watch.fail_index);
+    watch.fail_index = std.math.maxInt(usize);
+    try std.testing.expect(f.lane.control.relay_reservation == null);
+    try std.testing.expectEqual(@as(usize, 2), f.lane.active.items.len);
+    try std.testing.expect(!f.lane.control.snapshot.current(generation));
+    var current = try f.lane.control.snapshot.capture(&f.cancel);
+    defer current.deinit();
+    try std.testing.expectEqual(@as(usize, 2), current.count);
+    for (current.items(), f.lane.active.items, values) |row, active, value| {
+        try std.testing.expectEqual(value.id(), row.message.value.id());
+        try std.testing.expectEqual(value.id(), active.message.value.id());
+    }
+    try std.testing.expectEqual(f.lane.active_bytes + f.lane.control.snapshot.retainedBytes(), f.owner.retained_bytes);
+}
+
+test "admin public reservation abort releases prepared rows and leaves current view untouched" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const parent = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(parent);
+    const path = try std.fs.path.join(a, &.{ parent, "rocks" });
+    defer a.free(path);
+    const f = try Fixture.init(a, path, 2, 1024 * 1024);
+    defer f.deinit(a);
+    const values = [2]protocol.Message{ message(10, "first"), message(11, "second") };
+    var reserve: ViewBatchCaller = .{ .fixture = f, .command = .reserve, .messages = values };
+    try reserve.execute(null);
+    const charged = f.lane.control.snapshot.retainedBytes();
+    try std.testing.expect(charged > 2 * @sizeOf(*@import("agents/relayer/queue_view.zig").Row));
+    var copy = try f.lane.control.snapshot.capture(&f.cancel);
+    defer copy.deinit();
+    const generation = copy.generation;
+    var abort: ViewBatchCaller = .{ .fixture = f, .command = .abort, .messages = values };
+    try abort.execute(null);
+    try std.testing.expect(f.lane.control.snapshot.current(generation));
+    try std.testing.expect(f.lane.control.relay_reservation == null);
+    try std.testing.expectEqual(@as(usize, 0), f.lane.active.items.len);
+    try std.testing.expectEqual(2 * @sizeOf(*@import("agents/relayer/queue_view.zig").Row), f.lane.control.snapshot.retainedBytes());
+    try std.testing.expectEqual(f.lane.control.snapshot.retainedBytes(), f.owner.retained_bytes);
+}
+
+test "admin public reservation allocation failures never partially publish or authorize" {
+    const a = std.testing.allocator;
+    var observed_failure = false;
+    var observed_success = false;
+    for (0..24) |offset| {
+        var temp = std.testing.tmpDir(.{});
+        defer temp.cleanup();
+        const parent = try temp.dir.realpathAlloc(a, ".");
+        defer a.free(parent);
+        const path = try std.fs.path.join(a, &.{ parent, "rocks" });
+        defer a.free(path);
+        var watch: WatchAllocator = .{ .backing = a };
+        const allocator = watch.allocator();
+        const f = try Fixture.init(allocator, path, 2, 1024 * 1024);
+        defer f.deinit(allocator);
+        // Finish initial policy publication before injecting into reserve only.
+        _ = try f.lane.control.drain(&f.lane, .{ .unix_ms = 1000, .monotonic_ms = 1 }, &f.cancel);
+        const values = [2]protocol.Message{ message(10, "first"), message(11, "second") };
+        var reserve: ViewBatchCaller = .{ .fixture = f, .command = .reserve, .messages = values, .allocation_failure_offset = offset };
+        reserve.execute(&watch) catch |err| {
+            try std.testing.expectEqual(error.OutOfMemory, err);
+            observed_failure = true;
+            try std.testing.expect(f.lane.control.relay_reservation == null);
+            try std.testing.expectEqual(@as(usize, 0), f.lane.active.items.len);
+            try std.testing.expectEqual(@as(usize, 0), f.lane.control.snapshot.rows.items.len);
+            try std.testing.expectEqual(f.lane.control.snapshot.retainedBytes(), f.owner.retained_bytes);
+            for (values) |value| try std.testing.expect(!try f.origin.store.operationMessageAuthorized(value));
+            continue;
+        };
+        watch.fail_index = std.math.maxInt(usize);
+        observed_success = true;
+        try std.testing.expectEqual(@as(usize, 0), f.lane.active.items.len);
+        try std.testing.expectEqual(@as(usize, 0), f.lane.control.snapshot.rows.items.len);
+        try std.testing.expectEqual(@as(usize, 2), f.lane.control.relay_reservation.?.snapshot_rows.count);
+        for (values) |value| try std.testing.expect(!try f.origin.store.operationMessageAuthorized(value));
+        var abort: ViewBatchCaller = .{ .fixture = f, .command = .abort, .messages = values };
+        try abort.execute(null);
+        try std.testing.expectEqual(f.lane.control.snapshot.retainedBytes(), f.owner.retained_bytes);
+    }
+    try std.testing.expect(observed_failure and observed_success);
 }

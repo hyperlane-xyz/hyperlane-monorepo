@@ -13,6 +13,16 @@ def deny_effect(event,args):
     if event in {'subprocess.Popen','socket.__new__','socket.connect','socket.bind','os.system','os.fork','os.posix_spawn'}:raise AssertionError('Unexpected effect: '+event)
 sys.addaudithook(deny_effect)
 
+SYNTHETIC_PRODUCER='a'*40
+_original_producer=api.PRODUCER
+_original_public_strings=set(api.PUBLIC_STRINGS)
+def setUpModule():
+    # Entire module's records are parser-only fakes, never actual publisher IDs.
+    api.PRODUCER=SYNTHETIC_PRODUCER
+    api.PUBLIC_STRINGS|=set(api.artifact_names(0,0).values())
+def tearDownModule():
+    api.PRODUCER=_original_producer;api.PUBLIC_STRINGS.clear();api.PUBLIC_STRINGS.update(_original_public_strings)
+
 class Meter:
     def __init__(self):self.bytes=0;self.members=0;self.deadline=1800;self.cleanup_deadline=1860;self.clock=lambda:0
     def __call__(self,n=0):self.bytes+=n
@@ -152,23 +162,40 @@ def family_fixture(family):
 def synthetic_policy():
     """Parser-only fake inventory; never an activation or publisher receipt."""
     names=api.artifact_names(1,1)
-    return {'schema':1,'root_approved':False,'scope':'fresh-eight-product-data-inspection',
+    return {'schema':2,'root_approved':False,'scope':'fresh-eight-product-data-inspection',
             'producer':{'source_commit':api.PRODUCER,'run_id':1,'run_attempt':1},
             'jobs':{name:i for i,name in enumerate(api.REQUIRED_JOBS,1)},
             'artifacts':{key:{'id':i,'name':name,'size_in_bytes':2,'sha256':api.sha(b'SYNTHETIC parser-only payload')}for i,(key,name)in enumerate(names.items(),101)},
-            'core607':{'zig/src/synthetic-parser-only-'+str(i)+'.zig':{'bytes':0,'sha256':api.sha(b'')}for i in range(607)},
+            'core608':{'zig/src/synthetic-parser-only-'+str(i)+'.zig':{'bytes':0,'sha256':api.sha(b'')}for i in range(607)}|{'zig/src/agents/relayer/queue_view.zig':{'bytes':0,'sha256':api.sha(b'')}},
             'limits':dict(api.LIMITS)}
 
 class Controls(unittest.TestCase):
     def setUp(self):
-        # Entirely SYNTHETIC metadata: no actual job/artifact IDs, acquired bytes,
-        # Git catalog, publisher evidence or acceptance. Never patch PRODUCER.
+        # Explicit SYNTHETIC Source only; real module stays unbound by default.
+        producer=mock.patch.object(api,'PRODUCER','a'*40);producer.start();self.addCleanup(producer.stop)
         self.policy=synthetic_policy()
     def test_unbound_fresh_reader_cannot_enable_or_reuse_old_identity(self):
         self.policy['root_approved']=True
         with mock.patch.object(api,'PRODUCER',None),self.assertRaisesRegex(api.Refused,'FRESH_PRODUCER_NOT_BOUND'):api.validate_policy(self.policy)
         self.policy['root_approved']=False
         with mock.patch.object(api,'PRODUCER',None):self.assertFalse(api.validate_policy(self.policy))
+
+    def test_schema2_core608_requires_new_compiled_leaf_and_rejects_historical_shapes(self):
+        good=copy.deepcopy(self.policy);good['root_approved']=True
+        self.assertTrue(api.validate_policy(good))
+        for variant in ('schema1','old_key','607','609','missing_new_leaf'):
+            value=copy.deepcopy(good)
+            if variant=='schema1':value['schema']=1
+            elif variant=='old_key':value['core607']=value.pop('core608')
+            elif variant=='607':value['core608'].pop('zig/src/synthetic-parser-only-0.zig')
+            elif variant=='609':value['core608']['zig/src/extra.zig']={'bytes':0,'sha256':api.sha(b'')}
+            else:value['core608']['zig/src/replacement.zig']=value['core608'].pop('zig/src/agents/relayer/queue_view.zig')
+            with self.subTest(variant=variant),self.assertRaises(api.Refused):api.validate_policy(value)
+        with mock.patch.object(api,'PRODUCER',None),self.assertRaisesRegex(api.Refused,'FRESH_PRODUCER_NOT_BOUND'):api.validate_policy(good)
+        spec=importlib.util.spec_from_file_location('fresh_unbound_core608',HERE/'cohort_readback.py');fresh=importlib.util.module_from_spec(spec);spec.loader.exec_module(fresh)
+        self.assertIsNone(fresh.PRODUCER)
+        with self.assertRaisesRegex(fresh.Refused,'FRESH_PRODUCER_NOT_BOUND'):fresh.validate_policy(good)
+        self.assertFalse(api.validate_policy(api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())))
 
     def test_new_helper_namespace_is_required_before_actual_test_credit(self):
         files,source=family_fixture('helper')
@@ -183,7 +210,7 @@ class Controls(unittest.TestCase):
     def test_new_helper_regressions_require_actual_OK_log_and_cannot_borrow_census(self):
         fresh=['external_agents::tests::svm_scraper_programs_isolate_logical_domains_and_metrics','external_agents::tests::tron_cli_frozen_graph_option_precedes_original_script_arguments','external_agents::tests::native_provider_metric_label_excludes_other_chains_and_suffixed_metrics']
         actual=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
-        self.assertEqual(actual['external_agents::tests::'][-3:],fresh)
+        self.assertEqual(actual['external_agents::tests::'][-5:],fresh+['external_agents::tests::svm_shared_validator_factory_keeps_finite_history_and_original_arguments', 'external_agents::tests::svm_ledger_retention_rejects_old_zero_missing_and_duplicate_limits'])
         for absent in [None,*fresh]:
             for nonOK in ([None]if absent is None else ['missing','SKIP','FAILED']):
                 files,source=family_fixture('helper')
@@ -204,12 +231,13 @@ class Controls(unittest.TestCase):
     def test_actual_current_census_includes_fresh_temporary_and_Stark_Radix_additions(self):
         # Actual committed exporter Source; never import or execute its main.
         raw=(HERE/'native_harness_controls.py').read_bytes()
-        self.assertEqual(api.sha(raw),'c13dd46f08fe290e49b79749ff66c4ff'+'b6fb11c796aab2c3c09bff60d1c84015')
+        self.assertEqual(api.sha(raw),'d1d8a2f119b9881c18b6cca62694469a'+'22a78df5ac8f592a00a7d7904f356be4')
         required=api.literal_constants(raw.decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
-        self.assertEqual(sum(map(len,required.values())),79)
+        self.assertEqual(sum(map(len,required.values())),81)
         fresh={'svm_fresh_temporary_objects_do_not_walk_live_ledger_siblings','svm_fresh_temporary_objects_reject_root_or_parent_symlinks','svm_fresh_temporary_objects_reject_non_directory_parent','svm_temporary_objects_are_distinct_fresh_leaves'}
         self.assertTrue({'external_agents::tests::'+n for n in fresh}<=set(required['external_agents::tests::']))
-        self.assertEqual(len(required['external_agents::tests::']),57)
+        self.assertEqual(len(required['external_agents::tests::']),59)
+        self.assertTrue({'external_agents::tests::svm_shared_validator_factory_keeps_finite_history_and_original_arguments', 'external_agents::tests::svm_ledger_retention_rejects_old_zero_missing_and_duplicate_limits'}<=set(required['external_agents::tests::']))
         self.assertIn('external_agents::tests::native_provider_metric_label_excludes_other_chains_and_suffixed_metrics',required['external_agents::tests::'])
         self.assertEqual(len(required['external_agents::radix_fixture::tests::']),14)
         self.assertEqual(len(required['starknet::cli::tests::']),2)
@@ -346,18 +374,19 @@ class Controls(unittest.TestCase):
         self.zip(list(files.items()),lambda a,m,p:self.assertEqual(api.inspect_archive('writer_fast',a,git)['mode'],'ReleaseFast'))
     def test_synthetic_policy_is_disabled_and_complete_parser_pins_validate_only_in_memory(self):
         self.assertFalse(api.validate_policy(self.policy));enabled=copy.deepcopy(self.policy);enabled['root_approved']=True
-        self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core607']),607);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
+        self.assertTrue(api.validate_policy(enabled));self.assertEqual(len(enabled['core608']),608);self.assertEqual(set(enabled['artifacts']),set(api.PRODUCT_KEYS));self.assertEqual(sum(r['size_in_bytes']for r in enabled['artifacts'].values()),16)
     def test_current_policy_binding_and_synthetic_unbound_future_pins_refuse(self):
         policy=api.decode_policy((HERE/'cohort_readback_request.json').read_bytes())
-        self.assertEqual(policy['producer'],{'source_commit':api.PRODUCER,'run_id':42753731810,'run_attempt':1})
+        self.assertEqual(policy['schema'],2);self.assertIsNone(policy['producer']);self.assertIsNone(policy['core608'])
+        self.assertTrue(all(v is None for v in policy['jobs'].values()));self.assertTrue(all(v is None for v in policy['artifacts'].values()))
         # Parse either a reviewed complete READONLY policy or its inert precursor;
         # this test grants no approval and does not require live activation.
         self.assertIs(api.validate_policy(policy),policy['root_approved'])
-        unbound=copy.deepcopy(self.policy);unbound['jobs']=dict.fromkeys(api.REQUIRED_JOBS);unbound['artifacts']=dict.fromkeys(api.PRODUCT_KEYS);unbound['core607']=None
+        unbound=copy.deepcopy(self.policy);unbound['jobs']=dict.fromkeys(api.REQUIRED_JOBS);unbound['artifacts']=dict.fromkeys(api.PRODUCT_KEYS);unbound['core608']=None
         self.assertFalse(api.validate_policy(unbound));unbound['root_approved']=True
         with self.assertRaisesRegex(api.Refused,'POLICY_JOBS'):api.validate_policy(unbound)
     def test_reader_is_bound_to_Gbe13_and_historical_producers_cannot_authorize(self):
-        self.assertEqual(api.PRODUCER,'1b35f5f3253f4cff9c846b669d051492b1219a3a')
+        self.assertEqual(api.PRODUCER,SYNTHETIC_PRODUCER)
         for producer in ('7fdbe182301e92ee7aaed7d82d679e52cffcd8f4','14c854379a86c74f36bd8f25f3b56c1fc3eed562','c0e9b16f5f5361dbbc45260d0316ed8a03b80857','56e791042c3be1b5adf944a9095fc7a4245204a0','f453948ae31c1fadb35e10c87577e73a39350103','9badc87e8c2e2f019a1b3453c323a8d89686e43e','bcd97e71ce727edb4527d07757f6a2d4230c4378','06e263fe7950e6051502a771646bbcc6d0453369'):
             historical=copy.deepcopy(self.policy);historical['root_approved']=True;historical['producer']['source_commit']=producer
             with self.subTest(producer=producer),self.assertRaisesRegex(api.Refused,'POLICY_PRODUCER'):api.validate_policy(historical)
@@ -448,7 +477,7 @@ class Controls(unittest.TestCase):
             changed=copy.deepcopy(native);mutate(changed)
             with self.assertRaises(api.Refused):api.suite_counts(changed)
     def test_producer_required_native_catalog_and_closed_count(self):
-        required=actual_native_required();self.assertEqual(len(required),54)
+        required=actual_native_required();self.assertEqual(len(required),68)
         self.assertIn('scraper generic raw sequence snapshots dispatch before derived insertion union write',required)
         self.assertIn('Aleo worker forwards explicit public consensus override into actual clean child and preserves absence',required)
         files=sdk_fixture()
@@ -718,7 +747,7 @@ class ExplicitAgentRuntimeControls(unittest.TestCase):
         body=(HERE.parent/'src/ops/metrics.zig').read_bytes();lines=body.splitlines()
         self.assertEqual(len(api.AGENT_RUNTIME_TESTS),2);self.assertEqual(len(set(api.AGENT_RUNTIME_TESTS)),2)
         for name in api.AGENT_RUNTIME_TESTS:self.assertEqual(lines.count(('test "'+name+'" {').encode()),1)
-        self.assertFalse(set(actual_native_required())&set(api.AGENT_RUNTIME_TESTS));self.assertEqual(len(actual_native_required()),54)
+        self.assertFalse(set(actual_native_required())&set(api.AGENT_RUNTIME_TESTS));self.assertEqual(len(actual_native_required()),68)
 
     def test_count_only_and_source_only_are_not_actual_test_observation(self):
         for name in api.AGENT_RUNTIME_TESTS:
@@ -763,7 +792,7 @@ class ExplicitRadixReadinessWitnesses(unittest.TestCase):
             with self.subTest(value_type=type(value).__name__),self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TEST_SOURCE$'):api.explicit_radix_readiness_tests('',N(bytes=lambda name:value),{path:{}})
     def test_actual_current_R1_Source_matches_three_sealed_names_not_old76(self):
         path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';source=SyntheticGit();source.rows[path]=(HERE.parents[1]/path).read_bytes();text='\n'.join('test '+name+' ... ok'for name in api.RADIX_READINESS_TESTS);facts=api.explicit_radix_readiness_tests(text,source,{path:source.digest(path)});self.assertEqual(facts['explicit_radix_readiness_test_count'],3)
-        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),79)
+        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),81)
 
 
 class PortablePublisherCpuControls(unittest.TestCase):
@@ -821,10 +850,10 @@ class PortablePublisherCpuControls(unittest.TestCase):
             wire=json.dumps(row).encode();files[pin['path']]=wire;pin.update(bytes=len(wire),sha256=api.sha(wire));files['manifest.json']=json.dumps(manifest).encode()
             with self.subTest(edit=edit),self.assertRaises((ValueError,api.Refused)):self.inspect(files,git)
 
-    def test_portable_helper_keeps_actual_producer_79_test_census_separate_from_25_CPU_flags(self):
+    def test_portable_helper_keeps_actual_producer_81_test_census_separate_from_25_CPU_flags(self):
         files,git=family_fixture('helper')
         required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
-        names={name for group in required.values()for name in group};self.assertEqual(len(names),79)
+        names={name for group in required.values()for name in group};self.assertEqual(len(names),81)
         caller='zig/bench/native_harness_controls.py'
         git.rows[caller]=('REQUIRED_TESTS = '+repr(required)).encode()
         git.rows['zig/tools/build_cpu.py']=('PROFILE = '+repr(self.cpu.PROFILE)).encode()
@@ -844,9 +873,21 @@ class PortablePublisherCpuControls(unittest.TestCase):
         path=self.root/'helper.zip';path.write_bytes(archive_bytes(files.items()));archive=api.Archive(path,Meter())
         try:value=api.validate_helper(archive,git)
         finally:archive.close()
-        self.assertEqual(value['required_census_names_observed'],79)
+        self.assertEqual(value['required_census_names_observed'],81)
         self.assertEqual(value['required_ISA_flag_count'],25)
         self.assertTrue(value['compiler_recipe_Source_verified'])
+
+        for name in ('external_agents::tests::svm_shared_validator_factory_keeps_finite_history_and_original_arguments', 'external_agents::tests::svm_ledger_retention_rejects_old_zero_missing_and_duplicate_limits'):
+            for variant in ('missing','duplicate','altered'):
+                changed=copy.deepcopy(files);record=json.loads(changed['result.json']);phase=next(row for row in record['checks']if row['name']=='external_agents-tests')
+                actual=list(phase['required_new_tests_observed'])
+                if variant=='missing':actual.remove(name)
+                elif variant=='duplicate':actual.append(name)
+                else:actual[actual.index(name)]=name+'_altered'
+                log=('\n'.join('test '+item+' ... ok'for item in actual)+'\ntest result: ok. '+str(len(actual))+' passed; 0 failed; 0 ignored;').encode()
+                changed['external_agents-tests.log']=log;phase['log'].update(bytes=len(log),sha256=api.sha(log));phase['actual_tests_passed']=len(actual);phase['required_new_tests_observed']=actual;changed['result.json']=json.dumps(record).encode()
+                with self.subTest(name=name,variant=variant),self.assertRaisesRegex(api.Refused,'HELPER_REQUIRED_NAMES'if variant=='duplicate'else'HELPER_REQUIRED_CENSUS'):
+                    Controls.zip(self,list(changed.items()),lambda archive,*_:api.validate_helper(archive,git))
 
     def test_complete_eight_publisher_profile_rejects_legacy_or_missing_one(self):
         values={key:{'CPU_profile':self.cpu.PROFILE}for key in api.PRODUCT_KEYS}

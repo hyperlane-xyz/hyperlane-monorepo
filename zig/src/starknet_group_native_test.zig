@@ -101,6 +101,7 @@ pub const Fixture = struct {
         self.owner.memory_mutex = .{};
         self.owner.retained_bytes = 0;
         self.owner.effects_halted = .init(false);
+        self.owner.denylist_ready = .init(true);
         self.owner.denylist = try denylist.RuntimeDenylist.init(a, null);
         errdefer self.owner.denylist.deinit();
         self.owner.control_hub = try control.Hub.init(a, &self.configured, &self.environment, &self.origin_set, undefined, null, &self.owner.denylist);
@@ -153,6 +154,10 @@ pub const Fixture = struct {
         return (try groups.Journal.load(self.allocator, typed, entry.key[0..32].*)) orelse return error.MissingNativeGroup;
     }
     pub fn clearActive(self: *Fixture) void {
+        // This fixture models a role restart with no live HTTP callers. Retire
+        // its previous immutable membership before replacing actor/config state.
+        self.lane.control.snapshot.deinit();
+        self.lane.control.snapshot = .{ .allocator = self.allocator };
         self.lane.clearGroupSenders();
         for (self.lane.active.items) |item| {
             item.message.deinit();

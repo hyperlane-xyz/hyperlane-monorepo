@@ -5258,6 +5258,7 @@ fn svm_required_listeners(tcp: &[std::net::SocketAddr], udp: &[std::net::SocketA
 fn svm_exact_node_arguments(args: &[&str], ledger: &str) -> Result<()> {
     for pair in [
         ["--ledger", ledger],
+        ["--limit-ledger-size", "100000"],
         ["--bind-address", "127.0.0.1"],
         ["--rpc-port", "8899"],
         ["--faucet-port", "9900"],
@@ -5926,6 +5927,8 @@ mod tests {
             "0",
             "--faucet-per-request-sol-cap",
             "0",
+            "--limit-ledger-size",
+            "100000",
         ];
         super::svm_exact_node_arguments(&args, "/owned/ledger").unwrap();
         for index in (1..args.len()).step_by(2) {
@@ -5940,6 +5943,65 @@ mod tests {
             assert!(super::svm_exact_node_arguments(&duplicate, "/owned/ledger").is_err());
         }
     }
+    #[test]
+    #[cfg(feature = "sealevel")]
+    fn svm_shared_validator_factory_keeps_finite_history_and_original_arguments() {
+        assert_eq!(
+            crate::sealevel::solana::SOLANA_TEST_VALIDATOR_LEDGER_SHREDS,
+            "100000"
+        );
+        // Reads actual Program fields only: no command/spawn, manifest load,
+        // tool resolution, global environment mutation or validator execution.
+        let program = crate::sealevel::solana::solana_test_validator_program(
+            std::path::Path::new("/fixture/bin"),
+            std::path::Path::new("/owned/ledger"),
+        );
+        assert_eq!(
+            format!("{program:?}"),
+            concat!(
+                "Program { bin: Some(\"/fixture/bin/solana-test-validator\"), ",
+                "args: [\"--quiet\", \"--reset\", \"--ledger\", ",
+                "\"/owned/ledger\", \"--limit-ledger-size\", \"100000\"], ",
+                "env: {}, working_dir: None, log_filter: false }"
+            )
+        );
+    }
+
+    #[test]
+    fn svm_ledger_retention_rejects_old_zero_missing_and_duplicate_limits() {
+        let correct = [
+            "validator",
+            "--ledger",
+            "/owned/ledger",
+            "--bind-address",
+            "127.0.0.1",
+            "--rpc-port",
+            "8899",
+            "--faucet-port",
+            "9900",
+            "--gossip-port",
+            "8001",
+            "--dynamic-port-range",
+            "8002-8033",
+            "--faucet-per-time-sol-cap",
+            "0",
+            "--faucet-per-request-sol-cap",
+            "0",
+            "--limit-ledger-size",
+            "100000",
+        ];
+        super::svm_exact_node_arguments(&correct, "/owned/ledger").unwrap();
+        for value in ["10000", "0", "99999", "100001"] {
+            let mut wrong = correct;
+            wrong[18] = value;
+            assert!(super::svm_exact_node_arguments(&wrong, "/owned/ledger").is_err());
+        }
+        assert!(super::svm_exact_node_arguments(&correct[..17], "/owned/ledger").is_err());
+        let mut duplicate = correct.to_vec();
+        duplicate.extend_from_slice(&["--limit-ledger-size", "100000"]);
+        assert!(super::svm_exact_node_arguments(&duplicate, "/owned/ledger").is_err());
+    }
+
     #[test]
     fn svm_listener_foreign_pid_fd_and_udp_escape_are_hard_errors() {
         for raw in [

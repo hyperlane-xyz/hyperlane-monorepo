@@ -55,9 +55,9 @@ pub const ProofDb = struct {
 
 pub const QueueOwner = struct {
     context: *anyopaque,
-    /// Caller owns the returned bytes. The owner snapshots and source-format sorts
-    /// the complete prepare queue, including `No queue found for domain N`.
-    render_fn: *const fn (context: *anyopaque, allocator: A, destination_domain: u32, cancel: Cancel) anyerror![]u8,
+    /// Response owns its allocator and complete source-sorted queue JSON. Its
+    /// allocator context must survive response.deinit (joined by HTTP stop).
+    render_fn: *const fn (context: *anyopaque, allocator: A, destination_domain: u32, cancel: Cancel) anyerror!http.Response,
 };
 
 pub const RetryResult = struct { evaluated: usize = 0, matched: u64 = 0, failed: u64 = 0 };
@@ -394,11 +394,10 @@ fn listOperations(self: *Admin, a: A, request: http.Request, cancel: Cancel) !ht
     defer params.deinit();
     const domain = query.unsigned(params.get("destination_domain") orelse "", u32) catch return queryRejection(a);
     const owner = self.queue.?;
-    const body = owner.render_fn(owner.context, a, domain, cancel) catch |err| {
+    return owner.render_fn(owner.context, a, domain, cancel) catch |err| {
         if (err == error.OutOfMemory) return err;
         return plain(a, 500, "Error formatting queue", null);
     };
-    return plainOwned(a, 200, body, "text/plain; charset=utf-8");
 }
 
 fn messageRetry(self: *Admin, a: A, request: http.Request, cancel: Cancel) !http.Response {

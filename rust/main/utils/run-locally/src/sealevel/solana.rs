@@ -312,6 +312,22 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     out_path
 }
 
+// Finite local-fixture retention, shared by original Rust and external agents.
+// Canonical proofs re-read early blocks after the 600s hold + 30s grace;
+// 100000 shreds is not a time guarantee and case disk limits remain unchanged.
+pub(crate) const SOLANA_TEST_VALIDATOR_LEDGER_SHREDS: &str = "100000";
+
+pub(crate) fn solana_test_validator_program(
+    solana_cli_tools_path: &Path,
+    ledger_dir: &Path,
+) -> Program {
+    Program::new(concat_path(solana_cli_tools_path, "solana-test-validator"))
+        .flag("quiet")
+        .flag("reset")
+        .arg("ledger", ledger_dir.to_str().unwrap())
+        .arg("limit-ledger-size", SOLANA_TEST_VALIDATOR_LEDGER_SHREDS)
+}
+
 /// Result from starting the solana test validator
 pub struct SolanaTestValidatorResult {
     pub config_path: PathBuf,
@@ -362,10 +378,7 @@ pub fn start_solana_test_validator(
         .join();
 
     log!("Starting solana validator");
-    let mut args = Program::new(concat_path(&solana_cli_tools_path, "solana-test-validator"))
-        .flag("quiet")
-        .flag("reset")
-        .arg("ledger", ledger_dir.to_str().unwrap())
+    let mut args = solana_test_validator_program(&solana_cli_tools_path, &ledger_dir)
         .arg3(
             "account",
             "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",

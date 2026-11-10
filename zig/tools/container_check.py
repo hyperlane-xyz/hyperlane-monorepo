@@ -624,6 +624,20 @@ NATIVE_REQUIRED = (
     'scraper head publishes raw dispatch without claiming enriched messages',
     'scraper reconciliation publishes committed rows excluding failed insertions and replay',
     'scraper committed dispatch survives metric refusal without duplicate insertion or synthetic recount',
+    'queue view cannot bypass startup cancellation halt or generation change',
+    'queue view concurrent captures cannot exceed original retained byte budget',
+    'queue view every allocation failure retires view rows captures and accounting',
+    'queue view render arena and owned response remain charged after membership retirement',
+    'queue view render quota allocation resize remap and failures release exact ownership',
+    'queue view retains retired message and charges every HTTP reference array',
+    'admin absent domain keeps bounded original response while configured view remains gated',
+    'admin queue observation progresses while destination mutation owner is held',
+    'admin queue policy publication owns contexts and leaves old captures immutable',
+    'admin queue response survives actor retirement and retains quota until actual response free',
+    'admin queue row and policy generation changes refuse after fresh store read without dangling actors',
+    'admin public authorized batch commits owned view rows without any later allocation',
+    'admin public reservation abort releases prepared rows and leaves current view untouched',
+    'admin public reservation allocation failures never partially publish or authorize',
 )
 
 

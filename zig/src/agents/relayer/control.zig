@@ -1,6 +1,7 @@
 //! Serialized administrative commands for operational relayer destination lanes.
 const std = @import("std");
 const commands = @import("../../runtime/commands.zig");
+const queue_view = @import("queue_view.zig");
 const supervisor = @import("../../runtime/supervisor.zig");
 const settings = struct {
     pub const Settings = @import("../../settings/root.zig").Settings;
@@ -13,6 +14,7 @@ const settings = struct {
 };
 const protocol = @import("../../protocol/root.zig");
 const api = @import("../../ops/admin/api.zig");
+const http = @import("../../ops/http.zig");
 const admin_json = @import("../../ops/admin/json.zig");
 const matching = @import("../../ops/matching.zig");
 const regex = @import("../../ops/regex.zig");
@@ -107,15 +109,16 @@ const Reservation = struct {
     retained_bytes: usize,
     context: *anyopaque,
     drop_fn: *const fn (*anyopaque, []*anyopaque, usize) void,
+    snapshot_rows: queue_view.Rows,
 
     fn deinit(self: *Reservation, a: A) void {
+        self.snapshot_rows.deinit();
         self.drop_fn(self.context, self.items, self.retained_bytes);
         a.free(self.storage);
         self.* = undefined;
     }
 };
 const Request = union(enum) {
-    snapshot,
     retry: RetryRequest,
     reprocess: protocol.Message,
     gas_add: OwnedRule,
@@ -132,7 +135,6 @@ const Request = union(enum) {
 const DomainRules = struct { domain: []const u8, rules: []OwnedRule };
 const Response = union(enum) {
     empty,
-    snapshot: []u8,
     retry: api.RetryResult,
     reprocess: []u8,
     gas_rules: DomainRules,
@@ -194,6 +196,7 @@ pub const Control = struct {
     wake: *const std.atomic.Value(bool),
     relay_reservation: ?Reservation = null,
     committed_relay_id: ?u64 = null,
+    snapshot: queue_view.View,
 
     pub fn init(hub: *Hub, chain: *const settings.Chain) !*Control {
         if (hub.closed) return error.ControlHubStopped;
@@ -205,6 +208,7 @@ pub const Control = struct {
             .queue = try Queue.init(hub.allocator, 64, dropRequest, dropResponse),
             .ledger = undefined,
             .wake = undefined,
+            .snapshot = .{ .allocator = hub.allocator },
         };
         errdefer self.queue.deinit();
         self.ledger = try RulesLedger.init(hub.allocator, hub.settings.role.relayer.gas_payment_enforcement);
@@ -225,12 +229,16 @@ pub const Control = struct {
         if (self.relay_reservation) |*reservation| reservation.deinit(hub.allocator);
         self.ledger.deinit();
         self.queue.deinit();
+        self.snapshot.deinit();
         const a = hub.allocator;
         a.destroy(self);
     }
 
     pub fn drain(self: *Control, lane: anytype, times: supervisor.Times, cancel: Cancel) !u64 {
+        self.bindSnapshotBudget(lane.owner);
         try self.ensurePolicies(lane);
+        if (!self.snapshot.published()) try self.refreshSnapshotContexts(lane);
+        try self.snapshot.activate();
         var work: u64 = 0;
         while (self.queue.take()) |entry| {
             work +|= 1;
@@ -243,6 +251,51 @@ pub const Control = struct {
         }
         if (cancel.load(.acquire)) return error.RequestCancelled;
         return work;
+    }
+
+    pub fn bindSnapshotBudget(self: *Control, owner: anytype) void {
+        const Owner = @TypeOf(owner);
+        self.snapshot.bind(.{
+            .context = owner,
+            .reserve_fn = struct {
+                fn reserve(context: *anyopaque, bytes: usize) bool {
+                    const value: Owner = @ptrCast(@alignCast(context));
+                    return reserveBytes(value, bytes);
+                }
+            }.reserve,
+            .release_fn = struct {
+                fn release(context: *anyopaque, bytes: usize) void {
+                    const value: Owner = @ptrCast(@alignCast(context));
+                    releaseBytes(value, bytes);
+                }
+            }.release,
+        }, owner.options.max_active, .{ .ready = &owner.denylist_ready, .halted = &owner.effects_halted });
+    }
+    pub fn prepareSnapshotRow(self: *Control, lane: anytype, origin_index: usize, message: protocol.Message) !*queue_view.Row {
+        self.bindSnapshotBudget(lane.owner);
+        const origin = lane.owner.origins.slots[origin_index].handle() orelse return error.OriginNotReady;
+        const context = if (lane.origins[origin_index].policy) |*policy| try policy.appContext(message) else null;
+        return self.snapshot.prepare(origin.store, origin_index, message, context);
+    }
+    fn prepareContexts(self: *Control, lane: anytype, input: []*queue_view.Row, replacements: ?[]?relay_policy.Policy) !queue_view.Rows {
+        var result = try self.snapshot.allocateRows(input.len);
+        errdefer result.deinit();
+        for (input) |row| {
+            const policy = if (replacements) |values| &values[row.origin_index] else &lane.origins[row.origin_index].policy;
+            const context = if (policy.*) |*value| try value.appContext(row.message.value) else null;
+            result.appendAssumeCapacity(try self.snapshot.prepare(row.store, row.origin_index, row.message.value, context));
+        }
+        return result;
+    }
+    fn refreshSnapshotContexts(self: *Control, lane: anytype) !void {
+        var current = try self.prepareContexts(lane, self.snapshot.rows.items, null);
+        defer current.deinit();
+        var reserved = if (self.relay_reservation) |*reservation| try self.prepareContexts(lane, reservation.snapshot_rows.items(), null) else try self.snapshot.allocateRows(0);
+        defer reserved.deinit();
+        self.snapshot.beginPublish();
+        self.snapshot.swapLocked(&current);
+        if (self.relay_reservation) |*reservation| std.mem.swap(queue_view.Rows, &reservation.snapshot_rows, &reserved);
+        self.snapshot.finishPublish();
     }
 
     fn ensurePolicies(self: *Control, lane: anytype) !void {
@@ -259,13 +312,15 @@ pub const Control = struct {
         // only a successful first policy can publish initialization latency.
         const observed = @hasDecl(@TypeOf(lane.*), "observeGasEnforcer");
         var timer: ?std.time.Timer = if (observed) std.time.Timer.start() catch null else null;
-        lane.origins[index].policy = try self.ledger.buildPolicy(self.hub);
+        const policy = try self.ledger.buildPolicy(self.hub);
+        if (self.snapshot.budget != null) self.snapshot.invalidate();
+        lane.origins[index].policy = policy;
         if (observed) if (timer) |*value| lane.observeGasEnforcer(index, value.read());
+        if (self.snapshot.budget != null) try self.refreshSnapshotContexts(lane);
     }
 
     fn execute(self: *Control, lane: anytype, request: *const Request, times: supervisor.Times, cancel: Cancel) anyerror!Response {
         return switch (request.*) {
-            .snapshot => .{ .snapshot = try renderQueue(self, lane, times, cancel) },
             .retry => |*value| .{ .retry = try retry(self, lane, value, times, cancel) },
             .reprocess => |message| .{ .reprocess = try reprocess(self, lane, message, times, cancel) },
             .gas_add => |*rule| .{ .empty = try self.addGas(lane, rule.*) },
@@ -309,17 +364,21 @@ pub const Control = struct {
         const replacements = try a.alloc(?relay_policy.Policy, lane.origins.len);
         defer a.free(replacements);
         @memset(replacements, null);
-        errdefer for (replacements) |*replacement| if (replacement.*) |*value| value.deinit();
+        defer for (replacements) |*replacement| if (replacement.*) |*value| value.deinit();
         for (lane.origins, replacements) |origin, *replacement| {
             if (origin.policy != null) replacement.* = try self.ledger.buildPolicy(self.hub);
         }
+        var current = try self.prepareContexts(lane, self.snapshot.rows.items, replacements);
+        defer current.deinit();
+        var reserved = if (self.relay_reservation) |*reservation| try self.prepareContexts(lane, reservation.snapshot_rows.items(), replacements) else try self.snapshot.allocateRows(0);
+        defer reserved.deinit();
+        self.snapshot.beginPublish();
         for (lane.origins, replacements) |*origin, *replacement| {
-            if (replacement.*) |*value| {
-                origin.policy.?.deinit();
-                origin.policy = value.*;
-                replacement.* = null;
-            }
+            if (replacement.* != null) std.mem.swap(?relay_policy.Policy, &origin.policy, replacement);
         }
+        self.snapshot.swapLocked(&current);
+        if (self.relay_reservation) |*reservation| std.mem.swap(queue_view.Rows, &reservation.snapshot_rows, &reserved);
+        self.snapshot.finishPublish();
     }
 
     fn listGas(self: *Control) !DomainRules {
@@ -340,7 +399,7 @@ pub const Control = struct {
 
 fn dropRequest(a: A, request: *Request) void {
     switch (request.*) {
-        .snapshot, .gas_list, .gas_remove, .nonce_overwrite, .relay_authorize, .relay_commit, .relay_abort => {},
+        .gas_list, .gas_remove, .nonce_overwrite, .relay_authorize, .relay_commit, .relay_abort => {},
         .retry => |*value| {
             a.free(value.uuid);
             freeMatching(a, value.pattern);
@@ -363,7 +422,7 @@ fn dropRequest(a: A, request: *Request) void {
 fn dropResponse(a: A, response: *Response) void {
     switch (response.*) {
         .empty, .retry => {},
-        .snapshot, .reprocess => |bytes| a.free(bytes),
+        .reprocess => |bytes| a.free(bytes),
         .gas_rules => |value| {
             for (value.rules) |*rule| rule.deinit(a);
             a.free(value.rules);
@@ -378,7 +437,7 @@ fn dropResponse(a: A, response: *Response) void {
 
 fn cloneRequest(a: A, request: Request) !Request {
     return switch (request) {
-        .snapshot, .gas_list, .gas_remove, .nonce_overwrite, .relay_authorize, .relay_commit, .relay_abort => request,
+        .gas_list, .gas_remove, .nonce_overwrite, .relay_authorize, .relay_commit, .relay_abort => request,
         .retry => |value| blk: {
             const uuid = try a.dupe(u8, value.uuid);
             errdefer a.free(uuid);
@@ -413,21 +472,23 @@ fn cloneRequest(a: A, request: Request) !Request {
     };
 }
 
-fn renderQueue(self: *Control, lane: anytype, times: supervisor.Times, cancel: Cancel) ![]u8 {
-    _ = times;
-    const a = self.hub.allocator;
+fn renderSnapshot(a: A, rows: []*queue_view.Row, cancel: Cancel) ![]u8 {
     var arena = std.heap.ArenaAllocator.init(a);
     defer arena.deinit();
     const temporary = arena.allocator();
     const Item = struct { retries: u32, position: usize, value: std.json.Value };
     var items = std.array_list.Managed(Item).init(temporary);
-    for (lane.active.items, 0..) |item, position| {
+    for (rows, 0..) |item, position| {
         if (cancel.load(.acquire)) return error.RequestCancelled;
-        const origin = lane.owner.origins.slots[item.origin_index].handle() orelse return error.OriginNotReady;
         const message = item.message.value;
-        const retries = try origin.store.retryCount(message.id());
-        const status = (try origin.store.status(message.id())) orelse .FirstPrepareAttempt;
-        const app_context = if (lane.origins[item.origin_index].policy) |*policy| try policy.appContext(message) else null;
+        const state = locked: {
+            item.store.mutex.lock();
+            defer item.store.mutex.unlock();
+            break :locked .{ .retries = try item.store.retryCount(message.id()), .status = (try item.store.status(message.id())) orelse .FirstPrepareAttempt };
+        };
+        const retries = state.retries;
+        const status = state.status;
+        const app_context = item.app_context;
         var out = std.Io.Writer.Allocating.init(temporary);
         try out.writer.writeAll("{\"type\":\"PendingMessage\",\"message\":");
         try admin_json.writeMessage(&out.writer, message);
@@ -582,6 +643,11 @@ fn reserveRelay(self: *Control, lane: anytype, request: *const RelayReserve) !vo
     var memory_retained = true;
     errdefer if (memory_retained) releaseBytes(lane.owner, retained_bytes);
     try lane.active.ensureUnusedCapacity(a, request.messages.len);
+    self.bindSnapshotBudget(lane.owner);
+    try self.snapshot.ensureCapacity(lane.active.items.len + request.messages.len);
+    var snapshot_rows = try self.snapshot.allocateRows(request.messages.len);
+    var snapshot_transferred = false;
+    defer if (!snapshot_transferred) snapshot_rows.deinit();
     const storage = try a.alloc(*anyopaque, request.messages.len);
     var reservation: Reservation = .{
         .id = request.id,
@@ -590,6 +656,7 @@ fn reserveRelay(self: *Control, lane: anytype, request: *const RelayReserve) !vo
         .items = storage[0..0],
         .retained_bytes = retained_bytes,
         .context = lane,
+        .snapshot_rows = snapshot_rows,
         .drop_fn = struct {
             fn drop(context: *anyopaque, items: []*anyopaque, bytes: usize) void {
                 const owned_lane: @TypeOf(lane) = @ptrCast(@alignCast(context));
@@ -602,6 +669,7 @@ fn reserveRelay(self: *Control, lane: anytype, request: *const RelayReserve) !vo
             }
         }.drop,
     };
+    snapshot_transferred = true;
     errdefer reservation.deinit(a);
     memory_retained = false;
     for (request.messages) |message| {
@@ -617,9 +685,10 @@ fn reserveRelay(self: *Control, lane: anytype, request: *const RelayReserve) !vo
         const origin = lane.owner.origins.slots[index].handle() orelse return error.MessageContextNotFound;
         if (lane.origins[index].loader == null) lane.origins[index].loader = try loader.Loader.init(a, origin.store, &.{lane.chain.domain}, .{ .max_loaded = lane.owner.options.max_active });
         const encoded = try message.encodeAlloc(a);
-        errdefer a.free(encoded);
+        var item_transferred = false;
+        errdefer if (!item_transferred) a.free(encoded);
         const item = try a.create(Item);
-        errdefer a.destroy(item);
+        errdefer if (!item_transferred) a.destroy(item);
         item.* = .{
             .origin_index = index,
             .message = .{ .allocator = a, .bytes = encoded, .value = try protocol.Message.decode(encoded) },
@@ -627,6 +696,8 @@ fn reserveRelay(self: *Control, lane: anytype, request: *const RelayReserve) !vo
         };
         storage[reservation.items.len] = item;
         reservation.items = storage[0 .. reservation.items.len + 1];
+        item_transferred = true;
+        reservation.snapshot_rows.appendAssumeCapacity(try self.prepareSnapshotRow(lane, index, message));
     }
     self.relay_reservation = reservation;
     memory_retained = false;
@@ -653,11 +724,18 @@ fn commitRelay(self: *Control, lane: anytype, id: u64) !void {
     };
     if (reservation.id != id) return error.RelayReservationNotFound;
     const ItemPtr = std.meta.Child(@TypeOf(lane.active.items));
-    for (reservation.items) |raw| {
+    std.debug.assert(reservation.snapshot_rows.count == reservation.items.len);
+    self.snapshot.beginPublish();
+    for (reservation.items, reservation.snapshot_rows.items()) |raw, row| {
         const item: ItemPtr = @ptrCast(@alignCast(raw));
         lane.active.appendAssumeCapacity(item);
         lane.active_bytes += item.retained_bytes;
+        self.snapshot.appendLocked(row);
     }
+    self.snapshot.finishPublish();
+    // Membership refs transfer non-fallibly; only pointer storage retires.
+    reservation.snapshot_rows.count = 0;
+    reservation.snapshot_rows.deinit();
     const a = lane.owner.allocator;
     a.free(reservation.storage);
     self.committed_relay_id = id;
@@ -807,12 +885,25 @@ pub const Hub = struct {
     }
 };
 
-fn queueRender(context: *anyopaque, a: A, domain: u32, cancel: Cancel) anyerror![]u8 {
+fn queueRender(context: *anyopaque, a: A, domain: u32, cancel: Cancel) anyerror!http.Response {
     const self: *Hub = @ptrCast(@alignCast(context));
-    const control = self.find(domain) orelse return std.fmt.allocPrint(a, "No queue found for domain {d}", .{domain});
-    var response = try self.call(control, .snapshot, cancel);
-    defer dropResponse(self.allocator, &response);
-    return a.dupe(u8, response.snapshot);
+    const control = self.find(domain) orelse {
+        // Tiny fixed-format u32 response keeps its original request allocator.
+        // Do not inspect a View that an owner may still be binding/activating.
+        const body = try std.fmt.allocPrint(a, "No queue found for domain {d}", .{domain});
+        defer a.free(body);
+        return http.Response.init(a, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, body);
+    };
+    var rows = try control.snapshot.capture(cancel);
+    defer rows.deinit();
+    const allocator = control.snapshot.renderAllocator();
+    const body = try renderSnapshot(allocator, rows.items(), cancel);
+    defer allocator.free(body);
+    var response = try http.Response.init(allocator, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, body);
+    errdefer response.deinit();
+    if (cancel.load(.acquire)) return error.RequestCancelled;
+    if (!control.snapshot.current(rows.generation)) return error.QueueViewChanged;
+    return response;
 }
 
 fn retryBroadcast(context: *anyopaque, _: A, uuid: []const u8, pattern: settings.MatchingList, cancel: Cancel) anyerror!api.RetryResult {

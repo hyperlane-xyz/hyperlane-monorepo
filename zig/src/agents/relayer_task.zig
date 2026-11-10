@@ -1393,7 +1393,11 @@ pub const Lane = struct {
         self.finishActiveMetrics(item, .ended);
         self.active_bytes -= item.retained_bytes;
         self.owner.release(item.retained_bytes);
+        self.control.snapshot.beginPublish();
         _ = self.active.swapRemove(index);
+        const snapshot_row = self.control.snapshot.removeLocked(index);
+        self.control.snapshot.finishPublish();
+        snapshot_row.release();
         item.deinit();
         self.owner.allocator.destroy(item);
     }
@@ -1501,8 +1505,15 @@ pub const Lane = struct {
                 .metric_status = loaded_status,
                 .restored_submitted = loaded_status == .Confirm and loaded_status.Confirm == .SubmittedBySelf,
             };
-            try self.active.append(self.owner.allocator, item);
+            self.control.bindSnapshotBudget(self.owner);
+            try self.control.snapshot.ensureCapacity(self.active.items.len + reserved_slots + 1);
+            const snapshot_row = try self.control.prepareSnapshotRow(self, index, candidate.message.value);
+            // Every allocation completed before either membership is published.
+            self.control.snapshot.beginPublish();
+            self.active.appendAssumeCapacity(item);
             self.active_bytes += retained_bytes;
+            self.control.snapshot.appendLocked(snapshot_row);
+            self.control.snapshot.finishPublish();
             retained = true;
             committed = true;
             self.syncActiveMetrics(item, item.metric_status);
@@ -2058,6 +2069,7 @@ pub const TaskSet = struct {
                 return err;
             };
             lane.* = .{ .owner = self, .chain = chain, .origins = per_origin, .control = control, .worker = undefined };
+            control.bindSnapshotBudget(self);
             if (self.validator_observations) |*manager| lane.validator_observation = .{ .manager = manager, .resolver = .{ .context = self, .name_fn = observationDomainName } };
             lane.lander_metrics = if (options.metrics) |registry| .{ .registry = registry, .destination = chain.name } else null;
             lane.initialization_metrics = if (options.metrics) |registry| .{ .registry = registry, .chain = chain.name, .role = .destination } else null;
@@ -2242,7 +2254,7 @@ test "metadata cache growth preserves pending public byte reservations and relea
         owner.memory_mutex = .{};
         owner.retained_bytes = 60 + case.reserved;
         var control: relayer_control.Control = undefined;
-        control.relay_reservation = .{ .id = 1, .transaction = @splat(0), .storage = &.{}, .items = &.{}, .retained_bytes = case.reserved, .context = undefined, .drop_fn = undefined };
+        control.relay_reservation = .{ .id = 1, .transaction = @splat(0), .storage = &.{}, .items = &.{}, .retained_bytes = case.reserved, .context = undefined, .drop_fn = undefined, .snapshot_rows = undefined };
         var lane: Lane = undefined;
         lane.owner = &owner;
         lane.control = &control;

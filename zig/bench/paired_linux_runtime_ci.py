@@ -88,8 +88,8 @@ def source_module(context,relative_path,name):
     except BaseException:sys.modules.pop(name,None);raise
     return module
 
-def root_dto(context,key,kind,fields):
-    value=data(context['request'][key],context['repo']);need(type(value)is dict and set(value)==fields and type(value['schema'])is int and value['schema']==1 and value['kind']==kind and value['root_approved']is True and value['passed']is True,'Actual Root qualification required: '+key);return value
+def root_dto(context,key,kind,fields,*,schema=1):
+    value=data(context['request'][key],context['repo']);need(type(value)is dict and set(value)==fields and type(value['schema'])is int and value['schema']==schema and value['kind']==kind and value['root_approved']is True and value['passed']is True,'Actual Root qualification required: '+key);return value
 
 def request(path,expected,repo):
     repo=Path(repo);need(repo.is_absolute()and repo.resolve(strict=True)==repo,'Canonical checkout');need(Path(path).stat().st_size<=2*1024**2,'Request metadata bound before hash');row=pin(path);need(row['sha256']==expected,'Request pin');value=decode(captured(row,maximum=2*1024**2)[1]);need(type(value)is dict and set(value)==FIELDS and type(value['schema'])is int and value['schema']==1 and value['kind']=='paired-linux-runtime-ci-v1'and type(value['root_approved'])is bool,'Closed runtime request')
@@ -122,10 +122,10 @@ def request(path,expected,repo):
     for job in ci['jobs']:
         need(type(job)is dict and set(job)=={'name','run_id','run_attempt','job_id','source_commit','conclusion','Root_readback'}and all(integer(job[k],1)for k in ['run_id','run_attempt','job_id'])and type(job['source_commit'])is str and re.fullmatch('[0-9a-f]{40}',job['source_commit'])and job['conclusion']=='success','Actual general CI job');captured(job['Root_readback'],repo)
     context['general']=ci
-    final=root_dto(context,'final_Source_qualification','paired-linux-Root-final-Source-v1',{'schema','kind','root_approved','passed','producer_source_commit','runtime_607','Root_readback'})
-    need(final['producer_source_commit']==context['producer']and type(final['runtime_607'])is list and len(final['runtime_607'])==607 and len({r['path']for r in final['runtime_607']})==607,'Actual final607 Source qualification')
-    for item in final['runtime_607']:captured(item,repo,16*1024**2)
-    captured(final['Root_readback'],repo);context['runtime_607']=final['runtime_607'];context['final']=final
+    final=root_dto(context,'final_Source_qualification','paired-linux-Root-final-Source-v2',{'schema','kind','root_approved','passed','producer_source_commit','runtime_608','Root_readback'},schema=2)
+    need(final['producer_source_commit']==context['producer']and type(final['runtime_608'])is list and len(final['runtime_608'])==608 and len({r['path']for r in final['runtime_608']})==608 and any(r['path']=='zig/src/agents/relayer/queue_view.zig'for r in final['runtime_608']),'Actual final608 Source qualification')
+    for item in final['runtime_608']:captured(item,repo,16*1024**2)
+    captured(final['Root_readback'],repo);context['runtime_608']=final['runtime_608'];context['final']=final
     header=data(value['reuse_header'],repo);need(header.get('root_approved')is True and header.get('producer_source_commit')==context['producer']and header.get('Root_input_accepted')is True and header.get('Root_six_accepted')is True,'Actual original-input/six Root reuse header')
     need(value['methods']['path']=='zig/bench/paired_linux_methods.json'and value['methods']['bytes']==11229 and value['methods']['sha256']==METHODS_SHA,'Exact committed original methods identity');captured(value['methods'],repo);return context
 
@@ -141,7 +141,7 @@ def evidence(context):
 
 def recheck(context):
     for row in context['source'].values():captured(row,context['repo'],16*1024**2)
-    for row in context['runtime_607']:captured(row,context['repo'],16*1024**2)
+    for row in context['runtime_608']:captured(row,context['repo'],16*1024**2)
     for row in evidence(context):captured(row,context['repo'])
     captured(context['request_pin'])
 
@@ -189,7 +189,7 @@ def mint(context,reuse_pin,output,gh,index,environment,owner_output):
     try:
         head,_=runner.git(['rev-parse','HEAD'],maximum=128);need(head.read_text().strip()==source,'Actual checkout differs from GitHub Source')
         request_relative={**context['request_pin'],'path':REQUEST}
-        for row in [*context['source'].values(),*context['runtime_607'],request_relative,*evidence(context)]:
+        for row in [*context['source'].values(),*context['runtime_608'],request_relative,*evidence(context)]:
             raw,_=runner.git(['show',source+':'+row['path']],maximum=16*1024**2);need(raw.stat().st_size==row['bytes']and hashlib.sha256(raw.read_bytes()).hexdigest()==row['sha256'],'Actual Git Source blob differs')
         recheck(context);manifest=data(binding['input_manifest']);need(manifest.get('producer_source_commit')==context['producer'],'Reused actual product Source differs')
         for case in context['native']['cases']:

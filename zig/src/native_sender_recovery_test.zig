@@ -163,6 +163,7 @@ pub const Fixture = struct {
         self.owner.origins = &self.origin_set;
         self.owner.options = .{ .curl_library = "unused", .observation_clock = .{ .context = self, .now_fn = readTime } };
         self.owner.effects_halted = .init(false);
+        self.owner.denylist_ready = .init(true);
         self.owner.denylist = try deny.RuntimeDenylist.init(a, null);
         errdefer self.owner.denylist.deinit();
         self.origin_lanes = .{.{ .policy = try policy.Policy.init(a, .{ .gas_payment_enforcement = &.{.{ .matching_list = &.{}, .policy = .none }} }, null, &self.owner.denylist) }};

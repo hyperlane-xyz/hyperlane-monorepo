@@ -255,6 +255,22 @@ class Controls(unittest.TestCase):
                 with self.subTest(name=name, status=status), self.assertRaises(AssertionError):
                     c.native_test_results(log)
 
+    def test_admin_queue_view14_are_required_in_actual_native_census(self):
+        required = ('queue view cannot bypass startup cancellation halt or generation change', 'queue view concurrent captures cannot exceed original retained byte budget', 'queue view every allocation failure retires view rows captures and accounting', 'queue view render arena and owned response remain charged after membership retirement', 'queue view render quota allocation resize remap and failures release exact ownership', 'queue view retains retired message and charges every HTTP reference array', 'admin absent domain keeps bounded original response while configured view remains gated', 'admin queue observation progresses while destination mutation owner is held', 'admin queue policy publication owns contexts and leaves old captures immutable', 'admin queue response survives actor retirement and retains quota until actual response free', 'admin queue row and policy generation changes refuse after fresh store read without dangling actors', 'admin public authorized batch commits owned view rows without any later allocation', 'admin public reservation abort releases prepared rows and leaves current view untouched', 'admin public reservation allocation failures never partially publish or authorize')
+        self.assertEqual(len(c.NATIVE_REQUIRED), 68)
+        self.assertEqual(len(set(c.NATIVE_REQUIRED)), 68)
+        self.assertTrue(set(required) <= set(c.NATIVE_REQUIRED))
+        names = ['fixture.test.' + name for name in c.NATIVE_REQUIRED]
+        log = '\n'.join(f'{i}/{len(names)} {name}...OK' for i, name in enumerate(names, 1))
+        self.assertEqual(c.native_test_results(log)['total'], 68)
+        for name in required:
+            for variant in ('missing', 'SKIP', 'FAIL', 'altered'):
+                selected = [row for row in names if row != 'fixture.test.' + name] if variant == 'missing' else list(names)
+                if variant == 'altered': selected[selected.index('fixture.test.' + name)] += ' altered'
+                wire = '\n'.join(f'{i}/{len(selected)} {row}...{variant if variant in {"SKIP", "FAIL"} and row == "fixture.test." + name else "OK"}' for i, row in enumerate(selected, 1))
+                with self.subTest(name=name, variant=variant), self.assertRaises(AssertionError):
+                    c.native_test_results(wire)
+
     def test_missing_worker_and_mode_cannot_reach_commands(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c.cpu, 'require_native_linux_host'), mock.patch.object(c, 'command', side_effect=AssertionError('no subprocess')) as called:
             library = Path(tmp) / 'fixture.so'; library.write_bytes(b'\x7fELFpublic-fixture')
