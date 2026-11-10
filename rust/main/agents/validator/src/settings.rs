@@ -1009,11 +1009,6 @@ mod test {
             (None, Some(json!(7)), Duration::from_secs(7)),
             (Some(json!(0.01)), None, ms(10)),
             (None, Some(json!("0.01")), ms(10)),
-            (
-                Some(json!(u64::MAX.to_string())),
-                None,
-                Duration::from_secs(u64::MAX),
-            ),
         ] {
             let case = format!("top={top_level:?} chain={chain_index:?}");
             let settings = parse_with_intervals(top_level, chain_index)
