@@ -695,7 +695,15 @@ class NobleBwrapPolicySetupControls(unittest.TestCase):
   start='      - name: Load distro bwrap user namespace policy\n';end='      - name: Check prerequisite owner controls\n';block=start+workflow.split(start,1)[1].split(end,1)[0]
   for name in ['zig/bench/paired_linux_test.py','zig/tools/aleo_linux_case/ci_fullcase_test.py']:
    fn=next(n for n in ast.parse((root/name).read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');functions.append(ast.dump(fn,include_attributes=False));scope={'hashlib':hashlib,'re':re};exec(compile(ast.Module(body=[fn],type_ignores=[]),'<actual-reviewed-workflow-inverse>','exec'),scope);inverse=scope['ordinary_native_http_workflow']
-   self.assertEqual(hashlib.sha256(inverse(workflow).encode()).hexdigest(),'0b8e744f14610dbe5330fe5371b5bd35' '1950bd4e8a9c9edc4be0cee176a208e7')
+   def reviewed_current(text):
+    normalized=inverse(text);functional=normalized.split('\n  paired-linux-functional:',1)[1].split('\n  paired-linux-runtime:',1)[0]
+    self.assertEqual(functional.count('      max-parallel: 2\n'),1)
+    self.assertEqual(hashlib.sha256(normalized.encode()).hexdigest(),'e08ffd005159dd3915047706df9a1806b' '13cf3344795e5700980910bc38f9ef3')
+   reviewed_current(workflow)
+   start=workflow.index('\n  paired-linux-functional:');end=workflow.index('\n  paired-linux-runtime:',start)
+   for parallel in ['6','3']:
+    changed=workflow[:start]+workflow[start:end].replace('      max-parallel: 2\n','      max-parallel: '+parallel+'\n',1)+workflow[end:]
+    with self.subTest(parallel=parallel),self.assertRaises(AssertionError):reviewed_current(changed)
    for changed in [workflow.replace(block,'',1),workflow.replace(block,block+block,1),workflow.replace('--replace','--remove',1),workflow.replace('apparmor-profiles=4.0.1really4.0.1-0ubuntu0.24.04.9','apparmor-profiles=foreign',1),workflow.replace("b'1', b'1\\n'","b'0', b'0\\n'",1)]:
     self.assertNotEqual(changed,workflow)
     with self.assertRaises(AssertionError):inverse(changed)
