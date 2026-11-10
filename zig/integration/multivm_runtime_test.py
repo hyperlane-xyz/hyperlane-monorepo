@@ -1695,5 +1695,57 @@ class RestartAdminGuardDiagnosticTests(unittest.TestCase):
         self.assertIs(caught.exception,original)
 
 
+class RestartFailedBodyStatusTests(unittest.TestCase):
+    """Actual admin guard/hash with a Source-shaped, previously canonical fixture."""
+    def fixture(self, body=b'failMessageBody', insertions=None, scenario='evm', submitted=False, status=None):
+        session=session_module.Session.__new__(session_module.Session);session.manifest={'scenario':scenario};session.lock=threading.RLock();session.stop=threading.Event();session.append=lambda *args:None
+        wire=bytes([3])+(0).to_bytes(4,'big')+(9913371).to_bytes(4,'big')+bytes(32)+(9913372).to_bytes(4,'big')+bytes([1])*32+body
+        identity='0x'+'11'*32
+        canonical={'id':identity,'destination':9913372,'nonce':0,'wire':'0x'+wire.hex(),'body':'0x'+body.hex(),'insertions':[0]if insertions is None else insertions}
+        message={'version':3,'nonce':0,'origin':9913371,'sender':'0x'+bytes(32).hex(),'destination':9913372,'recipient':'0x'+(bytes([1])*32).hex(),'body':list(body)}
+        session.restart_baseline={'snapshot':{'deliverable_messages':[],'messages':[canonical]}}
+        context={'restarted':[{'original':{'role':'relayer','metrics_port':9093,'chains':{'test2':{'domainid':9913372}},'role_chain_names':['test2']}}]}
+        operation={'type':'PendingMessage','message':message,'submitted':submitted,'status':{'Retry':'ErrorEstimatingGas'}if status is None else status}
+        operations={'test2':[{'id':identity,'operation':operation}]};observation={'test2':{'request_started_monotonic_ns':100,'response_received_monotonic_ns':105}}
+        return session,context,operations,observation,canonical
+    def invoke(self,fixture):
+        session,context,operations,observation,_=fixture
+        with mock.patch.object(session_module,'collect_admin_sample',return_value=(operations,observation))as collect,mock.patch.object(session_module.time,'monotonic_ns',return_value=110):
+            value=session._restart_admin(context,200)
+        collect.assert_called_once();return session,value
+    def test_Rust_shaped_failed_body_estimation_retry_with_real_wire_hash_passes(self):
+        session,rows=self.invoke(self.fixture());self.assertEqual(rows,[{'role':'relayer','chain':'test2','port':9093,'request_started_monotonic_ns':100,'response_received_monotonic_ns':105,'operation_count':1}]);self.assertFalse(hasattr(session,'diagnostic_restart_admin_failure'))
+    def test_other_body_zero_insertion_or_family_never_borrow_failed_body_status(self):
+        fixtures=[self.fixture(body=b'ordinary'),self.fixture(insertions=[]),self.fixture(insertions=True),self.fixture(scenario='tron'),self.fixture(scenario='starknet')]
+        mirror=self.fixture();mirror[-1]['body']='0x'+b'ordinary'.hex();fixtures.append(mirror)
+        wire_mismatch=self.fixture(body=b'ordinary');wire_mismatch[-1]['body']='0x'+b'failMessageBody'.hex();fixtures.append(wire_mismatch)
+        for fixture in fixtures:
+            with self.subTest(canonical=fixture[-1],scenario=fixture[0].manifest),self.assertRaisesRegex(ValueError,'restart refused admin operation became submitted'):self.invoke(fixture)
+    def test_submitted_status_shape_confirm_other_retry_and_missing_fields_refuse(self):
+        for submitted in [True,None,0,1,'false']:
+            with self.subTest(submitted=submitted),self.assertRaisesRegex(ValueError,'restart refused admin operation became submitted'):self.invoke(self.fixture(submitted=submitted))
+        for status in [{'Confirm':'SubmittedBySelf'},{'Retry':'ErrorCheckingGasRequirement'},{'Retry':'AwaitingValidatorSignatures'},{'Retry':['ErrorEstimatingGas']},{'Retry':'ErrorEstimatingGas','other':False},'ErrorEstimatingGas',False]:
+            with self.subTest(status=status),self.assertRaisesRegex(ValueError,'restart refused admin operation became submitted'):self.invoke(self.fixture(status=status))
+        for key in ['submitted','status']:
+            fixture=self.fixture();fixture[2]['test2'][0]['operation'].pop(key)
+            with self.assertRaisesRegex(ValueError,'restart refused admin operation became submitted'):self.invoke(fixture)
+    def test_foreign_delivered_duplicate_destination_or_wire_mismatch_guards_still_precede_status(self):
+        fixtures=[]
+        f=self.fixture();f[2]['test2'][0]['id']='0x'+'22'*32;fixtures.append(f)
+        f=self.fixture();f[0].restart_baseline['snapshot']['deliverable_messages']=[f[-1]];fixtures.append(f)
+        f=self.fixture();f[2]['test2'].append(copy.deepcopy(f[2]['test2'][0]));fixtures.append(f)
+        f=self.fixture();f[-1]['destination']=9913373;fixtures.append(f)
+        for fixture in fixtures:
+            with self.assertRaisesRegex(ValueError,'foreign/cross-domain/duplicate/restored-delivered'):self.invoke(fixture)
+        for key,value in [('body',list(b'foreign')),('nonce',1),('destination',9913373)]:
+            fixture=self.fixture();fixture[2]['test2'][0]['operation']['message'][key]=value
+            with self.assertRaisesRegex(ValueError,'restart admin message differs from canonical corpus'):self.invoke(fixture)
+    def test_original_metadata_branch_unchanged_for_zero_and_failed_body(self):
+        for body,insertions in [(b'ordinary',[]),(b'failMessageBody',[0])]:
+            for reason in ['CouldNotFetchMetadata','MessageMetadataRefused']:
+                session,_=self.invoke(self.fixture(body=body,insertions=insertions,status={'Retry':reason}));self.assertFalse(hasattr(session,'diagnostic_restart_admin_failure'))
+        with self.assertRaisesRegex(ValueError,'restart refused admin operation became submitted'):self.invoke(self.fixture(body=b'ordinary',insertions=[],status={'Retry':'ErrorEstimatingGas'}))
+
+
 if __name__ == "__main__":
     unittest.main()
