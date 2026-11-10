@@ -329,8 +329,8 @@ def load_manifest(path, expected_sha256, expected_commit, expected_machine):
 
 
 # Separately bounded, post-case verification. Never changes the main case verdict.
-EVM_CONTROL_PRODUCER = '1b35f5f3253f4cff9c846b669d051492b1219a3a'
-EVM_CONTROL_DEP = {'run_id':42753731810,'attempt':1,'job_id':129623131857,'artifact_id':13734639572,'bytes':54124670,'sha256':'15ff0b606515f63e67a89d14df6049f1'+'568db9e3c8695b0c72279233469a5d1a'}
+EVM_CONTROL_PRODUCER = 'c83dff3d2047299cafaddd740a9a9444c2636ce6'
+EVM_CONTROL_DEP = {'run_id': 42827307915, 'attempt': 1, 'job_id': 129867879513, 'artifact_id': 13771616045, 'bytes': 54158690, 'sha256': '6b173f61d4cbc24eeaeef7362cf018be'+'2f9c6511783b7d9f41161e3433d25e68'}
 EVM_CONTROL_DEP_MEMBERS = {
     'bench/results/native-linux/deps/libbz2.a': {'bytes': 99164, 'sha256': 'b7f015e8e160ac2dfc1a4413771b3bf1'+'f0acdd200e6245a50e0ac3bb55ad11a8', 'crc32': 1489836117},
     'bench/results/native-linux/deps/liblz4.a': {'bytes': 302550, 'sha256': '75eaf72d208bea02ed5e92c662844bd3'+'88e5cb518b8653fff7f203cebb58080e', 'crc32': 1889339944},
@@ -339,7 +339,7 @@ EVM_CONTROL_DEP_MEMBERS = {
     'bench/results/native-linux/deps/libz.a': {'bytes': 132194, 'sha256': '4b7d62fe404f4f4a06f2bb5a860d4e77'+'86a4056f42fda6989b8c21d6814e65a4', 'crc32': 1160046960},
     'bench/results/native-linux/deps/libziggy_rocks_abi.a': {'bytes': 3998, 'sha256': 'f719c8c4ca28245c74e6b33159ea4f6e'+'bc4967fb44c628a0d89a1cd746bf6202', 'crc32': 2337018755},
     'bench/results/native-linux/deps/libzstd.a': {'bytes': 1564248, 'sha256': 'c4745efa7d2ad163de0291ebd40c0cba'+'4ecbe7c410ac73fc1799edeae0f2819d', 'crc32': 1942127412},
-    'bench/results/native-linux/deps/manifest.json': {'bytes': 53493, 'sha256': 'e24abea52052b7a1a86629dcf703bbb1'+'0455e9b055bb23aa86cd27f5f0ccd34f', 'crc32': 1875322081},
+    'bench/results/native-linux/deps/manifest.json': {'bytes': 53493, 'sha256': '5f56f0c4f841f45c5620e63b9d60b507'+'8a8fa0501d1867355a05d9db0505a7df', 'crc32': 475727500},
 }
 EVM_CONTROL_ARCHIVES = {'libziggy_rocks_abi.a','librocksdb.a','libsnappy.a','liblz4.a','libzstd.a','libz.a','libbz2.a'}
 EVM_CONTROL_TESTS = ('local Anvil Multicall3 returns positional allowFailure results','opt-in loopback prepares actual repo Solidity without delivery or nonce mutation','consumer portable transaction-ID crash window repairs reopened dispatch and actual Source Rust decoder agrees')
