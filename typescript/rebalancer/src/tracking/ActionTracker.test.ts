@@ -900,7 +900,7 @@ describe('ActionTracker', () => {
       ).to.equal('complete');
     });
 
-    it('still fails a denylisted rebalance message past the intent TTL', async () => {
+    it('retains a denylisted source-started rebalance past the intent TTL', async () => {
       await rebalanceIntentStore.save({
         id: 'expired-intent',
         status: 'in_progress',
@@ -932,10 +932,12 @@ describe('ActionTracker', () => {
 
       await tracker.syncRebalanceIntents();
 
-      expect((await rebalanceActionStore.get(ID_A))?.status).to.equal('failed');
+      expect((await rebalanceActionStore.get(ID_A))?.status).to.equal(
+        'in_progress',
+      );
       expect(
         (await rebalanceIntentStore.get('expired-intent'))?.status,
-      ).to.equal('failed');
+      ).to.equal('in_progress');
     });
 
     it('keeps ignoring a denylisted rebalance message pushed off the Explorer page', async () => {
