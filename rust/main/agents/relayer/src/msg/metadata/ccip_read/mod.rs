@@ -29,8 +29,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSigner, Metadata,
-    ModuleType, RawHyperlaneMessage, H160, H256,
+    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, DiagnosticError, HyperlaneMessage,
+    HyperlaneSigner, Metadata, ModuleType, RawHyperlaneMessage, H160, H256,
 };
 use hyperlane_ethereum::OffchainLookup;
 
@@ -401,7 +401,55 @@ struct ReadActivity<'a> {
 }
 
 impl ReadActivity<'_> {
+    fn report_invalid_response(&self, status: reqwest::StatusCode) {
+        let error = if status.is_success() {
+            crate::message_activity::offchain_diagnostic(OffchainReadState::InvalidResponse)
+        } else {
+            Some(DiagnosticError::new(
+                "gateway_http_error",
+                "Offchain gateway returned an HTTP error",
+                "ccip_gateway",
+            ))
+        };
+        self.report_error(
+            OffchainReadState::InvalidResponse,
+            Some(status.as_u16()),
+            error,
+        );
+    }
+
     fn report(&self, state: OffchainReadState, http_status: Option<u16>) {
+        self.report_error(
+            state,
+            http_status,
+            crate::message_activity::offchain_diagnostic(state),
+        );
+    }
+
+    fn report_error(
+        &self,
+        state: OffchainReadState,
+        http_status: Option<u16>,
+        error: Option<DiagnosticError>,
+    ) {
+        let error = error.map(|mut error| {
+            error
+                .details
+                .insert("request_attempt".into(), self.attempt.into());
+            if let Some(endpoint) = self.endpoint {
+                error.details.insert("endpoint".into(), endpoint.into());
+            }
+            if let Some(status) = http_status {
+                error.details.insert("http_status".into(), status.into());
+            }
+            if matches!(state, OffchainReadState::RequestTimeout) {
+                error.details.insert(
+                    "timeout_ms".into(),
+                    DEFAULT_TIMEOUT.saturating_mul(1000).into(),
+                );
+            }
+            error
+        });
         self.builder.report_activity(
             self.message,
             Activity::OffchainRead {
@@ -410,6 +458,7 @@ impl ReadActivity<'_> {
                 attempt: self.attempt,
                 state,
                 http_status,
+                error,
             },
         );
     }
@@ -497,7 +546,7 @@ async fn metadata_build(
                     );
                     return Ok(data);
                 }
-                Err(FetchOutcome::Pending) if pending_attempts < MAX_PENDING_RETRIES => {
+                Err(FetchOutcome::Pending { .. }) if pending_attempts < MAX_PENDING_RETRIES => {
                     pending_attempts = pending_attempts.saturating_add(1);
                     tracing::debug!(
                         ?ism_address,
@@ -510,8 +559,16 @@ async fn metadata_build(
                     );
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
-                Err(FetchOutcome::Pending) => {
-                    request_activity.report(OffchainReadState::PendingRetriesExhausted, None);
+                Err(FetchOutcome::Pending { error, http_status }) => {
+                    let exhausted = crate::message_activity::offchain_diagnostic(
+                        OffchainReadState::PendingRetriesExhausted,
+                    )
+                    .map(|exhausted| exhausted.with_cause(error));
+                    request_activity.report_error(
+                        OffchainReadState::PendingRetriesExhausted,
+                        Some(http_status),
+                        exhausted,
+                    );
                     tracing::warn!(
                         ?ism_address,
                         url,
@@ -539,7 +596,10 @@ async fn metadata_build(
 /// is only ever produced and consumed inside this module — it never escapes to
 /// [`MetadataBuildError`].
 enum FetchOutcome {
-    Pending,
+    Pending {
+        error: DiagnosticError,
+        http_status: u16,
+    },
     Failed(MetadataBuildError),
 }
 
@@ -716,26 +776,66 @@ fn decode_offchain_response(
     status: reqwest::StatusCode,
     response_body: &str,
 ) -> Result<Metadata, Box<FetchOutcome>> {
-    if body_signals_pending(response_body) {
+    let upstream = upstream_diagnostic(response_body);
+    let pending = upstream
+        .as_ref()
+        .map(|error| {
+            matches!(
+                error.code.as_str(),
+                "cctp_attestation_pending"
+                    | "cctp_pending_confirmations"
+                    | "cctp_insufficient_fee"
+                    | "cctp_amount_above_max"
+                    | "cctp_insufficient_allowance_available"
+                    | "cctp_attestation_not_found"
+                    | "cctp_message_match_pending"
+            )
+        })
+        .unwrap_or_else(|| body_signals_pending(response_body));
+    if pending {
+        let error = upstream.unwrap_or_else(|| {
+            DiagnosticError::new(
+                "attestation_pending",
+                "Offchain attestation is not available yet",
+                "ccip_gateway",
+            )
+        });
         // Keep the transition to pending, not every one-second internal retry.
         if activity.attempt == 1 {
-            activity.report(OffchainReadState::Pending, Some(status.as_u16()));
+            activity.report_error(
+                OffchainReadState::Pending,
+                Some(status.as_u16()),
+                Some(error.clone()),
+            );
         }
-        return Err(Box::new(FetchOutcome::Pending));
+        return Err(Box::new(FetchOutcome::Pending {
+            error,
+            http_status: status.as_u16(),
+        }));
     }
 
-    // A 404 without an explicit pending response is a hard failure.
-    if status == reqwest::StatusCode::NOT_FOUND {
-        activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+    if let Some(error) = upstream {
+        activity.report_error(
+            OffchainReadState::InvalidResponse,
+            Some(status.as_u16()),
+            Some(error),
+        );
         return Err(Box::new(FetchOutcome::Failed(
-            MetadataBuildError::FailedToBuild(format!(
-                "Offchain lookup server returned 404: {response_body}"
-            )),
+            MetadataBuildError::CouldNotFetch,
+        )));
+    }
+
+    // Preserve legacy endpoint handling; a 404 without an explicit pending
+    // response is a hard failure. Other statuses still use the response format.
+    if status == reqwest::StatusCode::NOT_FOUND {
+        activity.report_invalid_response(status);
+        return Err(Box::new(FetchOutcome::Failed(
+            MetadataBuildError::CouldNotFetch,
         )));
     }
 
     let json: OffchainResponse = serde_json::from_str(response_body).map_err(|err| {
-        activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+        activity.report_invalid_response(status);
         let error_msg = format!(
             "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
         );
@@ -747,9 +847,59 @@ fn decode_offchain_response(
     decode_response_data(&json.data)
         .inspect(|_| activity.report(OffchainReadState::Succeeded, Some(status.as_u16())))
         .map_err(|e| {
-            activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+            activity.report_invalid_response(status);
             Box::new(FetchOutcome::from(*e))
         })
+}
+
+/// Only allowlisted service codes and scalar evidence cross the gateway boundary.
+/// Never forward a gateway-supplied message, URL, body or arbitrary details.
+fn upstream_diagnostic(body: &str) -> Option<DiagnosticError> {
+    let body: serde_json::Value = serde_json::from_str(body).ok()?;
+    let diagnostic = body.get("diagnostic")?;
+    let code = diagnostic.get("code")?.as_str()?;
+    let message = match code {
+        "cctp_attestation_pending" => "Circle attestation is pending",
+        "cctp_pending_confirmations" => "Circle is awaiting origin confirmations",
+        "cctp_insufficient_fee" => "Circle attestation is delayed by an insufficient fee",
+        "cctp_amount_above_max" => "Circle transfer amount exceeds the allowed maximum",
+        "cctp_insufficient_allowance_available" => {
+            "Circle attestation is delayed by insufficient available allowance"
+        }
+        "cctp_attestation_not_found" => "Circle has not found the attestation yet",
+        "cctp_message_match_pending" => "Circle response does not yet contain a matching message",
+        "cctp_upstream_http_error" => "Circle attestation API returned an HTTP error",
+        "cctp_upstream_request_failed" => "Circle attestation API request failed",
+        "cctp_upstream_invalid_response" => "Circle attestation API returned an invalid response",
+        "cctp_unsupported_version" => "CCTP message version is unsupported",
+        "cctp_origin_transaction_missing" => "CCTP origin transaction was not found",
+        "cctp_origin_receipt_missing" => "CCTP origin transaction receipt was not found",
+        "cctp_origin_receipt_lookup_failed" => "CCTP origin transaction receipt lookup failed",
+        "cctp_message_event_missing" => {
+            "CCTP MessageSent event was not found in the origin receipt"
+        }
+        "cctp_message_match_failed" => "No CCTP MessageSent event matched the Hyperlane message",
+        _ => return None,
+    };
+    let source = if code.starts_with("cctp_origin_")
+        || matches!(
+            code,
+            "cctp_message_event_missing" | "cctp_message_match_failed"
+        ) {
+        "cctp_gateway"
+    } else {
+        "circle_api"
+    };
+    let mut error = DiagnosticError::new(code, message, source);
+    if let Some(status) = diagnostic
+        .get("details")
+        .and_then(|d| d.get("http_status"))
+        .and_then(|s| s.as_u64())
+        .filter(|s| (100..=599).contains(s))
+    {
+        error = error.with_detail("upstream_http_status", status);
+    }
+    Some(error)
 }
 
 #[cfg(test)]
@@ -776,6 +926,24 @@ mod test {
     };
 
     use super::*;
+
+    #[test]
+    fn gateway_diagnostics_only_accept_known_codes_and_safe_evidence() {
+        let diagnostic = upstream_diagnostic(r#"{"diagnostic":{"code":"cctp_upstream_http_error","message":"private-password","source":"https://private-rpc","details":{"http_status":429,"token":"private-password"},"causes":[{"secret":"private-password"}]}}"#).expect("known diagnostic");
+        assert_eq!(diagnostic.source, "circle_api");
+        assert_eq!(diagnostic.details["upstream_http_status"], 429);
+        assert!(!serde_json::to_string(&diagnostic)
+            .expect("serialize")
+            .contains("private"));
+        assert!(upstream_diagnostic(
+            r#"{"diagnostic":{"code":"unknown","message":"private-password"}}"#
+        )
+        .is_none());
+        for status in [0, 999] {
+            let error = upstream_diagnostic(&format!(r#"{{"diagnostic":{{"code":"cctp_upstream_http_error","details":{{"http_status":{status}}}}}}}"#)).expect("known code");
+            assert!(!error.details.contains_key("upstream_http_status"));
+        }
+    }
 
     #[test]
     fn offchain_lookup_regex_matches_repeated_reverts() {
@@ -1203,6 +1371,16 @@ mod test {
                 "invalid_response",
             ),
             (200, r#"{"data":"private-password"}"#, "invalid_response"),
+            (
+                500,
+                r#"{"error":"CCTP attestation is pending","diagnostic":{"code":"cctp_insufficient_fee"}}"#,
+                "pending",
+            ),
+            (
+                500,
+                r#"{"error":"private-password","diagnostic":{"code":"cctp_upstream_http_error","details":{"http_status":503}}}"#,
+                "invalid_response",
+            ),
         ] {
             base.requests
                 .activities
@@ -1216,7 +1394,7 @@ mod test {
             );
             if expected == "pending" {
                 assert!(
-                    matches!(result, Err(outcome) if matches!(*outcome, FetchOutcome::Pending))
+                    matches!(result, Err(outcome) if matches!(*outcome, FetchOutcome::Pending { .. }))
                 );
             } else {
                 assert!(
@@ -1274,6 +1452,15 @@ mod test {
         assert_eq!(outcome["state"], "succeeded");
         assert_eq!(outcome["attempt"], 11);
         assert_eq!(outcome["http_status"], 200);
+        drop(events);
+        // Diagnostics must not change the legacy acceptance of metadata returned
+        // with a non-404 status. HTTP status remains available as evidence.
+        assert!(decode_offchain_response(
+            &activity,
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            r#"{"data":"0x1234"}"#
+        )
+        .is_ok());
     }
 
     #[test]

@@ -19,8 +19,8 @@ use tracing::warn;
 use hyperlane_application::ApplicationReport;
 
 use crate::{
-    ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
+    ChainResult, Decode, DiagnosticError, Encode, FixedPointNumber, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
 };
 
 /// Boxed operation that can be stored in an operation queue
@@ -202,6 +202,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// Called when the submission pipeline advances to a new observable stage.
     fn on_submission_stage(&self, _stage: SubmissionStage) {}
+
+    /// Called when submission fails, retaining the typed failure for diagnostics.
+    fn on_submission_failure(&self, _error: DiagnosticError) {}
 
     /// Called before a runtime denylist drop, so the operation can arrange
     /// to be reconsidered once it is released if its rule was removed meanwhile.

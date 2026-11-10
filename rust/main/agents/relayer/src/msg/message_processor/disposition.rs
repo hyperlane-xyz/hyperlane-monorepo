@@ -3,8 +3,11 @@ use std::sync::Arc;
 use tracing::warn;
 
 use hyperlane_base::db::HyperlaneDb;
-use hyperlane_core::{QueueOperation, SubmissionStage};
-use lander::{Entrypoint, LanderError, PayloadStatus, TransactionStatus};
+use hyperlane_core::{DiagnosticError, QueueOperation, SubmissionStage};
+use lander::{
+    Entrypoint, LanderError, PayloadDropReason, PayloadStatus, TransactionDropReason,
+    TransactionStatus,
+};
 
 /// Disposition for routing operations through the message processor pipeline.
 ///
@@ -130,9 +133,49 @@ pub(crate) async fn operation_disposition_by_payload_status(
             op.on_submission_stage(SubmissionStage::Finalized);
             PostSubmitSuccess
         }
-        PayloadStatus::Dropped(_)
-        | PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
-        | PayloadStatus::Retry(_) => PostSubmitFailure,
+        PayloadStatus::Dropped(reason) => {
+            let (code, message) = match reason {
+                PayloadDropReason::FailedSimulation => (
+                    "payload_simulation_failed",
+                    "Payload failed transaction simulation",
+                ),
+                PayloadDropReason::FailedToBuildAsTransaction => (
+                    "payload_build_failed",
+                    "Payload could not be built into a transaction",
+                ),
+                PayloadDropReason::Reverted => ("payload_reverted", "Payload execution reverted"),
+                PayloadDropReason::UnhandledError => {
+                    ("payload_dropped", "Payload was dropped by the submitter")
+                }
+            };
+            op.on_submission_failure(DiagnosticError::new(code, message, "lander"));
+            PostSubmitFailure
+        }
+        PayloadStatus::InTransaction(TransactionStatus::Dropped(reason)) => {
+            let (code, message) = match reason {
+                TransactionDropReason::FailedSimulation => {
+                    ("payload_simulation_failed", "Transaction failed simulation")
+                }
+                TransactionDropReason::DroppedByChain => (
+                    "transaction_dropped_by_chain",
+                    "Transaction was dropped by the chain",
+                ),
+                TransactionDropReason::Other(_) => (
+                    "transaction_dropped",
+                    "Transaction was dropped by the submitter",
+                ),
+            };
+            op.on_submission_failure(DiagnosticError::new(code, message, "lander"));
+            PostSubmitFailure
+        }
+        PayloadStatus::Retry(_) => {
+            op.on_submission_failure(DiagnosticError::new(
+                "transaction_reorged",
+                "Transaction requires retry after a reorg",
+                "lander",
+            ));
+            PostSubmitFailure
+        }
     }
 }
 

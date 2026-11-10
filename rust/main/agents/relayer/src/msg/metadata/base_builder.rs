@@ -322,7 +322,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .filter_map(|(validator, validator_storage_locations)| {
                 debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
                 if validator_storage_locations.is_empty() {
-                    self.report_activity(message, Activity::ValidatorStorage { validator: *validator, states: vec![ValidatorStorageState::NotAnnounced], usable: false });
+                    self.report_activity(message, Activity::validator_storage(*validator, vec![ValidatorStorageState::NotAnnounced], false));
                     // If the validator has not announced any storage locations, we skip it
                     // and log a warning.
                     warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
@@ -361,21 +361,13 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                         {
                             Ok(syncer) => syncer,
                             Err(error) => {
-                                self.report_activity(message, Activity::ValidatorStorage {
-                                    validator: *validator,
-                                    states: states.into_iter().collect(),
-                                    usable: false,
-                                });
+                                self.report_activity(message, Activity::validator_storage(*validator, states.into_iter().collect(), false));
                                 return Err(error);
                             }
                         };
                         if let Some(syncer) = syncer {
                             // found the syncer for this validator
-                            self.report_activity(message, Activity::ValidatorStorage {
-                                validator: *validator,
-                                states: states.into_iter().collect(),
-                                usable: true,
-                            });
+                            self.report_activity(message, Activity::validator_storage(*validator, states.into_iter().collect(), true));
                             return Ok(Some((*validator, syncer)));
                         }
                     }
@@ -384,11 +376,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                         ?validator_storage_locations,
                         "No valid checkpoint syncer configs for validator"
                     );
-                    self.report_activity(message, Activity::ValidatorStorage {
-                        validator: *validator,
-                        states: states.into_iter().collect(),
-                        usable: false,
-                    });
+                    self.report_activity(message, Activity::validator_storage(*validator, states.into_iter().collect(), false));
                     Ok(None)
                 };
                 Some(future)

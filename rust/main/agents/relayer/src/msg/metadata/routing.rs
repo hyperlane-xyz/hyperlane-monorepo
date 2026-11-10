@@ -30,7 +30,7 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
             .base_builder()
             .build_routing_ism(ism_address)
             .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+            .map_err(MetadataBuildError::from_chain)?;
 
         let cache_policy = self
             .base_builder()
@@ -99,7 +99,7 @@ impl RoutingIsmMetadataBuilder {
                 let module = ism
                     .route(message)
                     .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                    .map_err(MetadataBuildError::from_chain)?;
 
                 // store result in cache
                 match cache_policy {

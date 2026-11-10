@@ -194,6 +194,57 @@ Diagnostics errors use the GraphQL code `DIAGNOSTICS_UNAVAILABLE` when the
 diagnostics database is disabled or unavailable. Other scraper queries continue
 to work.
 
+Failure observations add the shared `DiagnosticError` type from
+`@hyperlane-xyz/utils`: `code`, readable `message`, component `source`, optional
+`details`, and nested `causes`. The proxy forwards this text; clients can display
+`message` and `causes` without interpreting codes. Unknown codes remain readable.
+
+Errors appear on `relayers[].failure`, `retry`, and `confirmation_error`; ISM
+modules expose `error` for metadata and `verification_error` for verification.
+Gateway observations (`offchain_read` and per-endpoint `offchain_reads`), signature
+`unavailable`/`discovery_unavailable`, and `validator_storage` entries also expose
+`error`. Existing reason strings, metadata errors, outcomes and counters remain.
+
+Select errors within the existing GraphQL query, for example
+`retry { reason count next_attempt_at_millis error { ...FailureEvidence } }`:
+
+```graphql
+fragment FailureEvidence on DiagnosticError {
+  code
+  message
+  source
+  details
+  causes {
+    code
+    message
+    source
+    details
+  }
+}
+```
+
+The same errors appear in WebSocket snapshots and `activities` history. Deploy
+readers before writers; the additive JSON fields require no database migration
+or subscription change. Older rows can omit errors. GraphQL returns null for
+absent optional fields; WebSocket JSON can omit them.
+
+Evidence includes endpoint/HTTP status, upstream HTTP status, request attempt,
+request timeout, validator/checkpoint index/root, quorum counts, revert selector,
+panic code and native fund amounts (decimal strings). Each cause tree and endpoint
+summary is limited to 50 entries; `details.causes_truncated` marks omitted causes.
+Raw provider errors, credentials and gateway response bodies are excluded.
+
+Circle errors distinguish confirmation waits, fee/allowance/amount delays,
+missing or mismatched messages, HTTP failures and failed requests. Pending states
+keep their existing retry behavior. The contract covers every VM; additional
+revert decoding currently covers EVM selectors, panic codes and known protocol
+strings. Other VM adapters can still yield generic chain errors.
+
+Retries retain their triggering error and recovery clears the current failure;
+history retains earlier evidence. A missing checkpoint does not establish that a
+validator is offline. Failed optional ISM branches/gateways need not block
+successful delivery: inspect the root error, phase and aggregation threshold.
+
 ## Message WebSocket: `/messages`
 
 `/messages` is the consumer-facing stream used by Explorer and Nexus. The

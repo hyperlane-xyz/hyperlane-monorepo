@@ -265,6 +265,7 @@ type RelayerProgress {
   observed_at: String!
   tree_root: String
   failure: RelayFailure
+  confirmation_error: ConfirmationFailure
   retry: RelayRetry
   modules: [IsmProgress!]!
 }
@@ -272,6 +273,21 @@ type RelayerProgress {
 type RelayFailure {
   stage: String!
   reason: String!
+  error: DiagnosticError
+}
+
+type ConfirmationFailure {
+  reason: String!
+  error: DiagnosticError
+}
+
+"Structured failure evidence. Codes/detail keys are stable; messages are for display."
+type DiagnosticError {
+  code: String!
+  message: String!
+  source: String!
+  details: DiagnosticsJSON
+  causes: [DiagnosticError!]
 }
 
 type RelayRetry {
@@ -279,6 +295,7 @@ type RelayRetry {
   reason: String!
   count: bigint!
   next_attempt_at_millis: Float
+  error: DiagnosticError
 }
 
 type IsmProgress {
@@ -289,14 +306,18 @@ type IsmProgress {
   observed_at: String!
   module_type: String
   validators: [String!]
+  validator_storage: [ValidatorStorageProgress!]
   threshold: Int
   modules: [String!]
   routed_module: String
   verified: Int
   verification: VerificationOutcome
   metadata_error: String
+  error: DiagnosticError
+  verification_error: DiagnosticError
   signatures: SignatureProgress
   offchain_read: OffchainReadProgress
+  offchain_reads: [OffchainReadProgress!]
 }
 
 type IsmChild {
@@ -313,6 +334,20 @@ type SignatureProgress {
   "Signatures required for this ISM, not the total number of validators."
   threshold: Int!
   unavailable: [UnavailableSignature!]!
+  latest_indices: [ValidatorCheckpointIndex!]
+  discovery_unavailable: [UnavailableSignature!]
+}
+
+type ValidatorCheckpointIndex {
+  validator: String!
+  index: bigint
+}
+
+type ValidatorStorageProgress {
+  validator: String!
+  states: [String!]!
+  usable: Boolean!
+  error: DiagnosticError
 }
 
 type CheckpointSigner {
@@ -323,6 +358,7 @@ type CheckpointSigner {
 type UnavailableSignature {
   validator: String!
   reason: String!
+  error: DiagnosticError
 }
 
 type OffchainReadProgress {
@@ -330,4 +366,5 @@ type OffchainReadProgress {
   attempt: bigint
   endpoint: Int
   http_status: Int
+  error: DiagnosticError
 }

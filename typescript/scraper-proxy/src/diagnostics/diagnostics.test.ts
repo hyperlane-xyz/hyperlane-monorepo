@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 
+import type { DiagnosticError } from '@hyperlane-xyz/utils';
+
 import { DiagnosticsService } from './service.js';
 import { reduceStatus, type ActivityRow } from './status.js';
 import { Phase, VerificationOutcome } from './types.js';
@@ -15,6 +17,7 @@ const parseDiagnostics = (url: string) => {
 };
 
 process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
+
 const id = `0x${'01'.repeat(32)}`;
 const ism = `0x${'02'.repeat(32)}`;
 function row(
@@ -685,20 +688,43 @@ void it('keeps snapshot anchors and same-address nodes isolated by reporter and 
   assert.deepEqual(second?.modules, []);
 });
 
-void it('serves producer snapshots through GraphQL and WebSocket without inventing omitted counters', async () => {
+void it('serves structured errors and producer progress identically without inventing counters', async () => {
   const { createScraperProxyApp } = await import('../module.js');
+  const error: DiagnosticError = {
+    code: 'metadata_unavailable',
+    message: 'Metadata unavailable',
+    source: 'ism',
+    details: { node_id: 'root' },
+    causes: [
+      {
+        code: 'cctp_insufficient_fee',
+        message: 'Circle fee is insufficient',
+        source: 'circle_api',
+        details: { endpoint: 0, http_status: 500 },
+      },
+    ],
+  };
   const events = [
     row({
       type: 'snapshot',
       state: {
-        phase: 'awaiting_signatures',
+        phase: 'retrying',
         tree_root: 'root',
+        failure: { stage: 'metadata', reason: 'metadata_unavailable', error },
+        confirmation_error: { reason: 'ErrorConfirmingDelivery', error },
+        retry: {
+          reason: 'CouldNotFetchMetadata',
+          count: 2,
+          next_attempt_at_millis: 100,
+          error,
+        },
         modules: [
           {
             node_id: 'root',
             ism,
             children: [],
             selected_children: [],
+            error,
             signatures: {
               index: 3,
               root: 'checkpoint-root',
@@ -711,8 +737,14 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
               ],
               threshold: 2,
               unavailable: [],
+              latest_indices: [{ validator: 'validator-a', index: 10 }],
             },
-            offchain_read: { state: 'pending', endpoint: 0, http_status: 202 },
+            offchain_read: {
+              state: 'pending',
+              endpoint: 0,
+              http_status: 202,
+              error: error.causes?.[0],
+            },
           },
         ],
       },
@@ -732,17 +764,24 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
       payload: {
         query: `{
       message_diagnostics(message_id: "${id}") { relayers {
-        phase tree_root modules { node_id ism children { node_id ism } selected_children
-          signatures { collection_id collected signers { validator location } threshold }
-          offchain_read { state attempt }
+        phase tree_root
+        failure { error { ...FailureEvidence } }
+        confirmation_error { error { ...FailureEvidence } }
+        retry { error { ...FailureEvidence } }
+        modules { node_id ism children { node_id ism } selected_children
+          error { ...FailureEvidence }
+          signatures { collection_id collected signers { validator location } threshold latest_indices { validator index } }
+          offchain_read { state attempt error { code } }
         }
       }}
-    }`,
+    }
+    fragment FailureEvidence on DiagnosticError { code message source details causes { code message source details } }
+    `,
       },
     });
     assert.equal(response.json().errors, undefined, response.body);
     const [progress] = response.json().data.message_diagnostics.relayers;
-    assert.equal(progress.phase, Phase.AwaitingSignatures);
+    assert.equal(progress.phase, Phase.Retrying);
     assert.equal(progress.tree_root, 'root');
     assert.equal(progress.modules[0].signatures.collection_id, null);
     assert.equal(progress.modules[0].signatures.collected, 1);
@@ -753,6 +792,17 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
       },
     ]);
     assert.equal(progress.modules[0].offchain_read.attempt, null);
+    assert.deepEqual(progress.failure.error, error);
+    assert.deepEqual(progress.confirmation_error.error, error);
+    assert.deepEqual(progress.retry.error, error);
+    assert.deepEqual(progress.modules[0].error, error);
+    assert.equal(
+      progress.modules[0].offchain_read.error.code,
+      'cctp_insufficient_fee',
+    );
+    assert.deepEqual(progress.modules[0].signatures.latest_indices, [
+      { validator: 'validator-a', index: 10 },
+    ]);
     stream.subscribe('127.0.0.1', [id], (frame, complete) => {
       frames.push(frame);
       complete(true);
@@ -762,6 +812,18 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
     assert.deepEqual(frames, [
       { type: 'diagnostics', data: (await service.snapshots([id]))[0] },
     ]);
+    const future = { ...error, code: 'future_error_code' };
+    assert.deepEqual(
+      reduceStatus([
+        row({
+          type: 'chain_failure',
+          stage: 'simulate',
+          reason: 'chain_error',
+          error: future,
+        }),
+      ])[0]?.failure?.error,
+      future,
+    );
   } finally {
     await stream.stop();
     await app.close();

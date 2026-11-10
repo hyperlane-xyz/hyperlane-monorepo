@@ -10,6 +10,7 @@
 extern crate core;
 
 pub use chain::*;
+pub use diagnostic::DiagnosticError;
 pub use error::*;
 pub use error::{ChainCommunicationError, ChainResult, HyperlaneProtocolError};
 pub use identifiers::HyperlaneIdentifier;
@@ -40,6 +41,7 @@ pub mod matching_list;
 mod types;
 
 mod chain;
+mod diagnostic;
 mod error;
 
 /// Implementations of custom rpc client logic (e.g. fallback)

@@ -21,7 +21,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    DiagnosticError, FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
     PendingOperationStatus, ReprepareReason, SubmissionStage, TryBatchAs, TxCostEstimate,
     TxOutcome, H256, U256,
@@ -271,11 +271,30 @@ impl PendingMessage {
     }
 
     fn report_chain_failure(&self, stage: Stage, error: &ChainCommunicationError) {
+        let diagnostic = if is_ica_invalid_reveal(error) {
+            DiagnosticError::new(
+                "ica_commit_not_confirmed",
+                "ICA reveal is awaiting origin commit confirmation",
+                "ica",
+            )
+            .with_cause(error.diagnostic())
+        } else {
+            error.diagnostic()
+        };
+        self.report_failure(
+            stage,
+            crate::message_activity::chain_error(error),
+            diagnostic,
+        );
+    }
+
+    fn report_failure(&self, stage: Stage, reason: &'static str, error: DiagnosticError) {
         self.ctx.metadata_builder.report_activity(
             &self.message,
             Activity::ChainFailure {
                 stage,
-                reason: crate::message_activity::chain_error(error),
+                reason,
+                error,
             },
         );
     }
@@ -517,6 +536,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
+                self.report_chain_failure(Stage::Prepare, &err);
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
             }
         };
@@ -667,6 +687,7 @@ impl PendingOperation for PendingMessage {
                         if is_ica_invalid_reveal(&e)
                             && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX =>
                     {
+                        self.report_chain_failure(Stage::Simulate, &e);
                         self.report_progress(Stage::Simulate, Outcome::Failed);
                         return self.requeue_ica_reveal();
                     }
@@ -1011,6 +1032,15 @@ impl PendingOperation for PendingMessage {
         self.metric.clone()
     }
 
+    fn on_submission_failure(&self, error: DiagnosticError) {
+        let stage = if error.code == "payload_simulation_failed" {
+            Stage::Simulate
+        } else {
+            Stage::Submit
+        };
+        self.report_failure(stage, "submission_failed", error);
+    }
+
     fn set_metric(&mut self, metric: Arc<IntGauge>) {
         self.metric = Some(metric);
     }
@@ -1269,6 +1299,7 @@ impl PendingMessage {
         let provider = mailbox.provider();
         // Check if the recipient is a contract
         let is_contract = provider.is_contract(&fn_params).await.map_err(|err| {
+            self.report_chain_failure(Stage::Prepare, &err);
             self.on_reprepare(
                 Some(err),
                 ReprepareReason::ErrorCheckingIfRecipientIsContract,
@@ -1312,6 +1343,7 @@ impl PendingMessage {
         {
             Ok(ism_address) => ism_address,
             Err(err) => {
+                self.report_chain_failure(Stage::Prepare, &err);
                 return Err(self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress));
             }
         };
@@ -1534,6 +1566,7 @@ impl PendingMessage {
             &self.message,
             Activity::ConfirmationError {
                 reason: reason.clone(),
+                error: DiagnosticError::new("confirmation_failed", &reason.to_string(), "relayer"),
             },
         );
         self.set_pending_tracking(true);
@@ -1640,6 +1673,9 @@ impl PendingMessage {
                 reason: reason.clone(),
                 retry_count: self.num_retries,
                 next_attempt_at_millis,
+                error: reason
+                    .as_ref()
+                    .and_then(crate::message_activity::retry_diagnostic),
             },
         );
         let retry_delay_millis = delay.and_then(|delay| delay.as_millis().try_into().ok());
@@ -1763,6 +1799,17 @@ impl PendingMessage {
         {
             Ok(message_metadata_builder) => message_metadata_builder,
             Err(err) => {
+                let error = err
+                    .downcast_ref::<ChainCommunicationError>()
+                    .map(ChainCommunicationError::diagnostic)
+                    .unwrap_or_else(|| {
+                        DiagnosticError::new(
+                            "metadata_builder_failed",
+                            "Could not initialize the message metadata builder",
+                            "ism",
+                        )
+                    });
+                self.report_failure(Stage::Prepare, "metadata_builder_failed", error);
                 return Err(
                     self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder)
                 );
@@ -1801,7 +1848,9 @@ impl PendingMessage {
                     );
                 }
                 let reprepare = match &err {
-                    MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
+                    MetadataBuildError::FailedToBuild(_)
+                    | MetadataBuildError::FastPathError(_)
+                    | MetadataBuildError::ChainError(_) => {
                         self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
                     }
                     MetadataBuildError::CouldNotFetch => {
@@ -2741,6 +2790,50 @@ mod test {
                 assert_eq!(submission.gas_limit, U256::from(100));
             }
         }
+    }
+
+    #[tokio::test]
+    async fn cached_ica_simulation_records_cause_without_changing_retry_behavior() {
+        use super::ICA_INVALID_REVEAL;
+        use crate::message_activity::{Activity, Stage};
+        use crate::test_utils::mock_base_builder::build_mock_base_builder;
+        let mut mailbox = contract_test_mailbox();
+        mailbox.expect__provider().times(0);
+        mailbox
+            .expect__delivered()
+            .times(1)
+            .returning(|_| Ok(false));
+        mailbox
+            .expect_process_estimate_costs()
+            .times(1)
+            .returning(|_, _| Err(ChainCommunicationError::from_other_str(ICA_INVALID_REVEAL)));
+        let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let base = build_mock_base_builder(domain.clone(), domain);
+        let activities = base.requests.activities.clone();
+        Arc::get_mut(&mut pending.ctx)
+            .expect("unique context")
+            .metadata_builder = Arc::new(base);
+        pending
+            .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
+            .await;
+        pending.metadata = Some(Metadata::new(vec![7; 32]));
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::Reprepare(ReprepareReason::AwaitingIcaReveal)
+        ));
+        assert_eq!(pending.num_retries, 0);
+        assert_eq!(pending.ica_reveal_attempts, 1);
+        assert!(pending.metadata.is_some());
+        let activities = activities.lock().expect("activities lock");
+        assert!(activities.iter().any(|(_, activity)| matches!(activity, Activity::ChainFailure { stage: Stage::Simulate, error, .. } if error.code == "ica_commit_not_confirmed" && !error.causes.is_empty())));
+        assert!(activities.iter().any(|(_, activity)| matches!(
+            activity,
+            Activity::Retry {
+                reason: Some(ReprepareReason::AwaitingIcaReveal),
+                ..
+            }
+        )));
     }
 
     #[tokio::test]

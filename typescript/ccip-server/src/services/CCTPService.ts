@@ -10,6 +10,7 @@ import type { MultiProvider } from '@hyperlane-xyz/sdk/providers/MultiProvider';
 import { parseMessage } from '@hyperlane-xyz/utils';
 
 import type { CcipApp } from '../http.js';
+import { CctpAttestationError, CctpErrorCode } from '../utils/errors.js';
 import {
   ABI_ROUTE_OPTIONS,
   type AbiRoute,
@@ -149,7 +150,7 @@ class CCTPService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
       );
-      throw new Error('Unable to find MessageSent event in logs');
+      throw new CctpAttestationError(CctpErrorCode.MessageEventMissing);
     }
 
     // Fast path: only one MessageSent in this tx, no disambiguation needed.
@@ -187,9 +188,9 @@ class CCTPService extends BaseService {
       this.config.serviceName,
       UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
     );
-    throw new Error(
-      `Could not match any of ${allMessages.length} MessageSent events to messageId ${messageId}`,
-    );
+    throw new CctpAttestationError(CctpErrorCode.MessageMatchFailed, {
+      message_count: allMessages.length,
+    });
   }
 
   async getCCTPAttestation(
@@ -223,7 +224,7 @@ class CCTPService extends BaseService {
     }
 
     if (!txHash) {
-      throw new Error(`Invalid transaction hash: ${txHash}`);
+      throw new CctpAttestationError(CctpErrorCode.OriginTransactionMissing);
     }
 
     log.info({ txHash, messageId }, 'Retrieved transaction hash');
@@ -232,7 +233,13 @@ class CCTPService extends BaseService {
 
     const receipt = await this.multiProvider
       .getProvider(parsedMessage.origin)
-      .getTransactionReceipt(txHash);
+      .getTransactionReceipt(txHash)
+      .catch((error: unknown) => {
+        log.error({ messageId, error }, 'CCTP origin receipt lookup failed');
+        throw new CctpAttestationError(CctpErrorCode.OriginReceiptLookupFailed);
+      });
+    if (!receipt)
+      throw new CctpAttestationError(CctpErrorCode.OriginReceiptMissing);
     const cctpMessage = await this.getCCTPMessageFromReceipt(
       receipt,
       message,
