@@ -319,7 +319,47 @@ class LoopbackPublisher:
         self.thread, self.error, self.finished = None, None, False
         self.close_failed = False
         self.revoked = False
+        self.failure_reason = None
         self.accepted, self.refused, self.forwarded, self.maximum_active = 0, 0, 0, 0
+
+    def _observe_failure(self, error, select_streams=None):
+        # Optional, failure-only Source coordinates. Never retain exception text.
+        if self.failure_reason is not None:
+            return
+        methods = {name: getattr(LoopbackPublisher, name).__code__ for name in ('_live', '_observe', '_step', '_run', 'observe', 'revoke', '_close_stream')}
+        names = {code: name for name, code in methods.items()}
+        names[require.__code__] = 'require'
+        trace = []
+        item = error.__traceback__
+        raw_previous = raw_last = None
+        while item is not None:
+            raw_previous, raw_last = raw_last, item.tb_frame.f_code
+            if item.tb_frame.f_code in names:
+                trace.append({'function': names[item.tb_frame.f_code], 'line': item.tb_lineno})
+            item = item.tb_next
+        guards = {
+            ('_live', 'Original Radix publisher deadline expired'): 'DEADLINE_EXPIRED',
+            ('_live', 'Radix publisher helper birth changed'): 'HELPER_BIRTH_CHANGED',
+            ('_live', 'Radix publisher container birth changed'): 'CONTAINER_BIRTH_CHANGED',
+            ('_observe', 'Radix publisher CID/network/process endpoint changed'): 'LEASE_CHANGED',
+            ('_step', 'Radix publisher client must be loopback'): 'NONLOOPBACK_CLIENT',
+            ('_step', 'Radix publisher zero send'): 'ZERO_SEND',
+        }
+        reason = 'UNCLASSIFIED_SOURCE_ERROR'
+        # A lookalike library/callback string cannot impersonate local require().
+        if type(error) is ValueError and len(error.args) == 1 and type(error.args[0]) is str and raw_last is require.__code__ and raw_previous in names:
+            reason = guards.get((names[raw_previous], error.args[0]), reason)
+        descriptors = None
+        if select_streams is not None and type(error) is ValueError:
+            reason = 'SELECT_VALUE_ERROR'
+            try:
+                require(len(select_streams) <= 130, 'bounded existing publisher fd set')
+                values = {stream.fileno() for stream in select_streams}
+                require(all(type(value) is int and -1 <= value < 2**31 for value in values), 'finite existing publisher descriptor')
+                descriptors = {'count': len(values), 'maximum': max(values) if values else None}
+            except BaseException:
+                pass
+        self.failure_reason = {'schema': 1, 'reason': reason, 'Source': 'native_radix_custody.py', 'frames': trace[-8:], 'select_existing_descriptors': descriptors, 'native_or_transport_or_cleanup_authority': False}
 
     def _live(self, targets):
         if self.revoked or self.stop_event.is_set():raise PublisherStopped()
@@ -344,6 +384,8 @@ class LoopbackPublisher:
         # First revoke independently of Event/diagnostic reporting. This method
         # cannot replace the worker's primary exception, even on report failure.
         self.revoked = True
+        try:self._observe_failure(error)
+        except BaseException:pass  # Optional diagnostics cannot replace the original failure.
         try:
             if self.error is None:self.error = type(error).__name__ if type(error).__name__ in {'ValueError', 'OSError', 'TimeoutError', 'RuntimeError'} else 'OtherError'
             self.stop_event.set()
@@ -385,7 +427,9 @@ class LoopbackPublisher:
     def _close_stream(self, stream):
         try:
             stream.close()
-        except OSError:
+        except OSError as error:
+            try:self._observe_failure(error)
+            except BaseException:pass
             self.close_failed = True
             if self.error is None:self.error = 'OSError'
 
@@ -418,7 +462,12 @@ class LoopbackPublisher:
                         reads.append(stream)
                     if row['buffers'][index]:
                         writes.append(stream)
-        readable, writable, _ = select.select(reads, writes, [], .01)
+        try:
+            readable, writable, _ = select.select(reads, writes, [], .01)
+        except ValueError as error:
+            try:self._observe_failure(error, reads + writes)
+            except BaseException:pass
+            raise
         self._live(self.targets)
         for listener in list(self.listeners):
             if listener not in readable:
@@ -507,6 +556,8 @@ class LoopbackPublisher:
         except PublisherStopped:
             self.stop_event.set()
         except BaseException as error:
+            try:self._observe_failure(error)
+            except BaseException:pass
             self.error = type(error).__name__ if type(error).__name__ in {'ValueError', 'OSError', 'TimeoutError', 'RuntimeError'} else 'OtherError'
             self.stop_event.set()
         finally:
@@ -522,7 +573,7 @@ class LoopbackPublisher:
             self._close_sockets()
             self.finished = True
         require(self.finished and not self.listeners and not self.connections, 'Owned Radix publisher sockets remain')
-        return {'error_class': self.error, 'schema': 1, 'kind': 'owned-Radix-loopback-publisher', 'routes': ['fullnode', 'gateway_api_image'], 'accepted_connections': self.accepted, 'refused_connections': self.refused, 'forwarded_bytes': self.forwarded, 'maximum_active_connections': self.maximum_active, 'connection_limit': 32, 'buffer_bytes_per_direction': 65536, 'actual_thread_joined': self.thread is not None, 'all_owned_sockets_closed': not self.close_failed, 'new_processes': 0, 'native_or_parent_wait_credit': False, 'scope': 'Fixed loopback byte relay to owned internal endpoints; Docker identity checked at ordinary custody cadence, process births checked before nonblocking IO.'}
+        return {'error_class': self.error, 'failure_reason': self.failure_reason, 'schema': 1, 'kind': 'owned-Radix-loopback-publisher', 'routes': ['fullnode', 'gateway_api_image'], 'accepted_connections': self.accepted, 'refused_connections': self.refused, 'forwarded_bytes': self.forwarded, 'maximum_active_connections': self.maximum_active, 'connection_limit': 32, 'buffer_bytes_per_direction': 65536, 'actual_thread_joined': self.thread is not None, 'all_owned_sockets_closed': not self.close_failed, 'new_processes': 0, 'native_or_parent_wait_credit': False, 'scope': 'Fixed loopback byte relay to owned internal endpoints; Docker identity checked at ordinary custody cadence, process births checked before nonblocking IO.'}
 
 
 # Failure diagnosis only: these bounded host reads never grant process custody.

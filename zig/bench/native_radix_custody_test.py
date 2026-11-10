@@ -802,6 +802,60 @@ class PublisherControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'publisher failed'):p.check()
 
 
+    def test_publisher_failure_reason_requires_actual_Source_guard_frames(self):
+        from unittest import mock
+        for mode,expected in [('deadline','DEADLINE_EXPIRED'),('helper','HELPER_BIRTH_CHANGED'),('container','CONTAINER_BIRTH_CHANGED')]:
+            p=self.publisher()
+            if mode=='helper':self.processes[24680]['start']='linux-ticks:999'
+            if mode=='container':self.processes[701]['start']='linux-ticks:999'
+            with mock.patch.object(m.time,'monotonic_ns',return_value=2000 if mode=='deadline'else 10):p._run()
+            self.assertEqual(p.error,'ValueError');self.assertEqual(p.failure_reason['reason'],expected)
+            self.assertEqual(p.failure_reason['frames'][-1]['function'],'require')
+        p=self.publisher();p.targets['fullnode']=('f'*64,*p.targets['fullnode'][1:])
+        with self.assertRaises(ValueError):p.observe()
+        self.assertEqual(p.failure_reason['reason'],'LEASE_CHANGED');self.assertTrue(p.revoked)
+        p=self.publisher();p._step=mock.Mock(side_effect=ValueError('Radix publisher helper birth changed'))
+        p._run();self.assertEqual(p.failure_reason['reason'],'UNCLASSIFIED_SOURCE_ERROR')
+        self.assertNotIn('birth changed',json.dumps(p.failure_reason))
+
+    def test_publisher_failure_reason_nonloopback_zero_send_and_select_fd_only(self):
+        from unittest import mock
+        p=self.publisher();listener=self.socket();left=self.socket();listener.accepted=[(left,('192.0.2.1',9))];p.listeners={listener:'fullnode'}
+        with mock.patch.object(m.select,'select',return_value=([listener],[],[])),mock.patch.object(m.time,'monotonic_ns',return_value=10):p._run()
+        self.assertEqual(p.failure_reason['reason'],'NONLOOPBACK_CLIENT')
+        p=self.publisher();left=self.socket(sent_limit=0);right=self.socket();p.connections=[self.connection(left,right,buffers=[b'PRIVATE',b''])]
+        with mock.patch.object(m.select,'select',return_value=([],[left],[])),mock.patch.object(m.time,'monotonic_ns',return_value=10):p._run()
+        self.assertEqual(p.failure_reason['reason'],'ZERO_SEND')
+        p=self.publisher();left=self.socket();right=self.socket();left.fileno=lambda:1050;right.fileno=lambda:1051;p.connections=[self.connection(left,right)]
+        with mock.patch.object(m.select,'select',side_effect=ValueError('PRIVATE arbitrary library suffix')),mock.patch.object(m.time,'monotonic_ns',return_value=10):p._run()
+        receipt=p.close(1);reason=receipt['failure_reason'];self.assertEqual(reason['reason'],'SELECT_VALUE_ERROR');self.assertEqual(reason['select_existing_descriptors'],{'count':2,'maximum':1051})
+        self.assertTrue(receipt['all_owned_sockets_closed']);self.assertEqual(receipt['error_class'],'ValueError');self.assertFalse(reason['native_or_transport_or_cleanup_authority'])
+        self.assertLessEqual(len(reason['frames']),8);self.assertTrue(all(set(row)=={'function','line'}and type(row['line'])is int for row in reason['frames']))
+        self.assertNotIn('PRIVATE',json.dumps(receipt));self.assertNotIn('192.0.2.1',json.dumps(receipt))
+
+    def test_optional_publisher_reason_failure_preserves_original_error_and_cleanup(self):
+        from unittest import mock
+        p=self.publisher();left=self.socket();right=self.socket();p.connections=[self.connection(left,right)]
+        p._observe_failure=mock.Mock(side_effect=RuntimeError('PRIVATE diagnostic failure'))
+        with mock.patch.object(m.select,'select',side_effect=ValueError('PRIVATE primary')),mock.patch.object(m.time,'monotonic_ns',return_value=10):p._run()
+        receipt=p.close(1);self.assertEqual(receipt['error_class'],'ValueError');self.assertIsNone(receipt['failure_reason']);self.assertTrue(left.closed and right.closed)
+        with self.assertRaisesRegex(ValueError,'Owned Radix loopback publisher failed'):p.check()
+
+
+    def test_callback_require_lookalike_cannot_impersonate_direct_publisher_guard(self):
+        from unittest import mock
+        p=self.publisher()
+        def callback(pid):m.require(False,'Radix publisher helper birth changed')
+        p.kernel_row=callback
+        with mock.patch.object(m.time,'monotonic_ns',return_value=10):p._run()
+        receipt=p.close(1);self.assertEqual(receipt['error_class'],'ValueError')
+        self.assertEqual(receipt['failure_reason']['reason'],'UNCLASSIFIED_SOURCE_ERROR')
+        self.assertEqual(receipt['failure_reason']['frames'][-2]['function'],'_live')
+        self.assertEqual(receipt['failure_reason']['frames'][-1]['function'],'require')
+        self.assertFalse(receipt['failure_reason']['native_or_transport_or_cleanup_authority'])
+        self.assertTrue(receipt['all_owned_sockets_closed']);self.assertNotIn('birth changed',json.dumps(receipt))
+
+
 class MemoryControls(unittest.TestCase):
     def setUp(self):
         import time
