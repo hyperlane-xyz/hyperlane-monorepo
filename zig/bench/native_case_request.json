@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "evm",
+  "root_approved": true,
+  "scenario": "sealevel",
   "mode": "ReleaseSafe",
   "producer_source_commit": "822a929c67ebd2126ca96d7b59df395be95e8a83",
   "producer_run_id": 42905305053,
@@ -43,7 +43,19 @@
       },
       "wheel_bytes": 34246
     },
-    "registry_commit": "a03afaa4fc6b8bd86616ef9986d80dcc1863e66a"
+    "registry_commit": null,
+    "svm_offline": {
+      "schema": 2,
+      "platform": "linux-x86_64",
+      "agave_version": "3.0.14",
+      "platform_tools_version": "v1.51",
+      "spl_release": "2024-08-23",
+      "spl_token_revision": "e101cca",
+      "programs": 13,
+      "agave_files": 85,
+      "source_environment_files": 25,
+      "require_same_producer_source": true
+    }
   },
   "artifact_pins": {
     "sdk": {
@@ -98,6 +110,17 @@
         "sha256_hex_chunks": [
           "4126d4223f7cf586370cca0d10d2e808",
           "7d2272cff92d820a3912ac09b1764a8b"
+        ]
+      }
+    },
+    "svm": {
+      "id": 13805377369,
+      "name": "svm-linux-prerequisites-42905305053-1",
+      "size_in_bytes": 327921670,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "f47df70405f7500fa243cd9350ba0c02",
+          "12dc98c7a21b67fc03742a4b315bfee7"
         ]
       }
     }
