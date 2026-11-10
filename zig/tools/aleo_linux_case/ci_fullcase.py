@@ -275,6 +275,11 @@ def namespace_foreign_transport_observation(errors,repo,admitted_sources,read_re
   compressed=source('zig/tools/aleo_linux_case/closed-cache-assets.json.gz');d=zlib.decompressobj(31);body=d.decompress(compressed,256*1024+1);need(len(body)<=256*1024 and d.eof and not d.unused_data and not d.unconsumed_tail,'bounded Source asset metadata');grant=decode(body)
   aliases=grant['assets'];need(type(aliases)is list and len(aliases)==17 and all(type(v)is dict and type(v.get('url'))is str for v in aliases),'exact Source17 aliases');urls=[urlsplit(v['url'])for v in aliases];need(len({v['url']for v in aliases})==17 and all(v.scheme=='https'and v.hostname and not v.username and not v.password and not v.query and not v.fragment for v in urls),'closed Source asset aliases');origins={(v.scheme,v.netloc)for v in urls};paths={v.path for v in urls};pairs={(v.scheme,v.netloc,v.path)for v in urls}
   rpc=grant['owned_rpc_origins'];need(type(rpc)is list and len(rpc)==6 and len(set(rpc))==6,'fixed Source RPC origins');rpc=[urlsplit(v)for v in rpc];owned_cache=urlsplit(grant['owned_cache_origin']);need(all(v.scheme=='http'and v.hostname=='127.0.0.1'and v.port in ports and not v.path and not v.query and not v.fragment and not v.username and not v.password for v in [*rpc,owned_cache])and owned_cache.port==cache,'Source origins agree fixed policy');rpc_ports={v.port for v in rpc}
+  # These version tags are ONLY the already admitted Source17 filenames.
+  # The SDK WASM checksum table is a runtime dependency, not Source54 input.
+  srs_files={v.path.rsplit('/',1)[-1]for v in urls if re.fullmatch(r'/(?:mainnet|mainnet.parameters)/(?:shifted-)?powers-of-beta-1[5-8]\.usrs\.[0-9a-f]{7}',v.path)}
+  srs_stems={v.rsplit('.',1)[0]for v in srs_files}
+  need(len(srs_files)==8 and srs_stems=={prefix+'powers-of-beta-'+str(degree)+'.usrs'for prefix in ('','shifted-')for degree in range(15,19)},'fixed Source SRS filename metadata')
   counts={};unknown=0
   for error in errors:
    try:
@@ -285,10 +290,25 @@ def namespace_foreign_transport_observation(errors,repo,admitted_sources,read_re
     port_class='SOURCE_CACHE'if port==cache else'SOURCE_RPC'if port in rpc_ports else'SOURCE_OTHER_POLICY_PORT'if port in ports else'UNSTATED'if port is None else'OTHER'
     relation='SOURCE_ASSET_ORIGIN_AND_PATH'if(u.scheme,u.netloc,u.path)in pairs else'SOURCE_ASSET_ORIGIN_OTHER_PATH'if(u.scheme,u.netloc)in origins else'OTHER_ORIGIN_SOURCE_ASSET_PATH'if u.path in paths else'OTHER_ORIGIN_OTHER_PATH'
     path_class='EMPTY_OR_ROOT'if u.path in ('','/')else'RPC_PROGRAM'if re.fullmatch('/(?:testnet|mainnet)/program/[^/]+(?:/.*)?',u.path)else'RPC_STATE_PATH'if re.fullmatch('/(?:testnet|mainnet)/statePath/[^/]+',u.path)else'RPC_BLOCK'if re.fullmatch('/(?:testnet|mainnet)/(?:block|latest)(?:/.*)?',u.path)else'PARAMETER_SRS'if re.fullmatch('/(?:mainnet|mainnet.parameters)/(?:shifted-)?powers-of-beta-[^/]+',u.path)else'PARAMETER_FEE'if re.fullmatch('/(?:testnet|mainnet|mainnet.parameters)/fee_[^/]+',u.path)else'OTHER'
-    key=(protocol,host_class,port_class,relation,path_class);counts[key]=counts.get(key,0)+1
+    # No basename/version tag is exported. Canonical degree enumeration is
+    # finite15..25, corroborated by the public pinned0.12 SRS metadata corpus.
+    srs=('UNOBSERVED','UNOBSERVED','UNOBSERVED','UNOBSERVED')
+    if path_class=='PARAMETER_SRS':
+     match=re.fullmatch(r'/(?:mainnet|mainnet.parameters)/(shifted-)?powers-of-beta-(1[5-9]|2[0-5])\.usrs(?:\.([^/]{1,128}))?',u.path)
+     if match:
+      degree=match[2];shifted='YES'if match[1]else'NO';suffix=match[3];filename=u.path.rsplit('/',1)[-1];stem=filename if suffix is None else filename[:-(len(suffix)+1)]
+      shape='ABSENT'if suffix is None else'HEX7'if re.fullmatch('[0-9a-f]{7}',suffix)else'HEX64'if re.fullmatch('[0-9a-f]{64}',suffix)else'OTHER'
+      tag='SOURCE_ASSET_VERSION_TAG_MATCH'if filename in srs_files else'SOURCE_ASSET_VERSION_TAG_DIFFERENT'if stem in srs_stems and shape=='HEX7'else'NO_ADMITTED_SOURCE_METADATA'if stem not in srs_stems else'UNAVAILABLE'
+      srs=(degree,shifted,shape,tag)
+    key=(protocol,host_class,port_class,relation,path_class,*srs);counts[key]=counts.get(key,0)+1
    except Exception:unknown+=1
   if not counts:return unavailable
-  classes=[dict(zip(('protocol','host_class','port_class','asset_relation','path_shape'),key),count=count)for key,count in sorted(counts.items())]
+  classes=[]
+  for key,count in sorted(counts.items()):
+   row=dict(zip(('protocol','host_class','port_class','asset_relation','path_shape'),key[:5]),count=count)
+   if row['path_shape']=='PARAMETER_SRS':
+    row['srs_filename']={'status':'unavailable'}if key[5]=='UNOBSERVED'else{'status':'observed','degree':int(key[5]),'shifted':key[6]=='YES','suffix_shape':key[7],'filename_metadata_relation':key[8]}
+   classes.append(row)
   return {'status':'observed','classified_count':sum(counts.values()),'unavailable_count':unknown,'classes':classes[:8],'classes_truncated':len(classes)>8,'method_observed':False,'query_observed':False,'caller_observed':False,'exact_asset_href_observed':False,'Source_basis':'admitted Source17 aliases and fixed case-policy ports','raw_URL_host_path_suffix_or_private_hash_exported':False,'cause_or_acceptance_authority':False}
  except BaseException:return unavailable
 

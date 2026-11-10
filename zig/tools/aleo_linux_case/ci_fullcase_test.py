@@ -876,5 +876,28 @@ class ForeignTransportClassifications(unittest.TestCase):
   self.record('DNS escape')
   with mock.patch.object(m,'namespace_foreign_transport_observation',side_effect=AssertionError('not foreign')):self.assertNotIn('foreign_transport',self.observe())
 
+ def test_srs_exact_Source_filename_variant_and_sdk_checksum_never_inferred(self):
+  import gzip
+  grant=json.loads(gzip.decompress((self.source.parent/'closed-cache-assets.json.gz').read_bytes()));asset=next(r['url']for r in grant['assets']if '/powers-of-beta-18.usrs.'in r['url']);filename=asset.rsplit('/',1)[-1]
+  variants=[(asset,'SOURCE_ASSET_VERSION_TAG_MATCH','HEX7'),('https://parameters.provable.com/mainnet.parameters/'+filename,'SOURCE_ASSET_VERSION_TAG_MATCH','HEX7'),(asset.rsplit('.',1)[0]+'.0000000','SOURCE_ASSET_VERSION_TAG_DIFFERENT','HEX7'),(asset.rsplit('.',1)[0],'UNAVAILABLE','ABSENT'),(asset.rsplit('.',1)[0]+'.'+'a'*64,'UNAVAILABLE','HEX64')]
+  for url,relation,shape in variants:
+   row=self.classification('foreign transport:'+url)['classes'][0];self.assertIn('srs_filename',row);value=row['srs_filename'];self.assertEqual(value,{'status':'observed','degree':18,'shifted':False,'suffix_shape':shape,'filename_metadata_relation':relation})
+   wire=json.dumps(row);self.assertNotIn(filename,wire);self.assertNotIn(asset,wire);self.assertNotIn('a'*64,wire)
+ def test_srs_all_Source_known_degrees_shifted_and_unknown_metadata(self):
+  for degree in range(15,26):
+   for shifted in [False,True]:
+    url='https://parameters.provable.com/mainnet/'+('shifted-'if shifted else'')+'powers-of-beta-'+str(degree)+'.usrs.0000000';row=self.classification('foreign transport:'+url)['classes'][0];self.assertIn('srs_filename',row);value=row['srs_filename'];self.assertEqual((value['degree'],value['shifted']),(degree,shifted));self.assertEqual(value['filename_metadata_relation'],'SOURCE_ASSET_VERSION_TAG_DIFFERENT'if degree<=18 else'NO_ADMITTED_SOURCE_METADATA');self.assertNotIn('SDK_checksum_match',value)
+  for filename in ('powers-of-beta-14.usrs.0000000','powers-of-beta-26.usrs.0000000','powers-of-beta-019.usrs.0000000','powers-of-beta-19.usrs.PRIVATE_TAG'):
+   out=self.classification('foreign transport:https://parameters.provable.com/mainnet/'+filename);row=out['classes'][0];self.assertIn('srs_filename',row)
+   if 'PRIVATE'in filename:
+    self.assertEqual(row['srs_filename']['suffix_shape'],'OTHER');self.assertNotIn('PRIVATE_TAG',json.dumps(out))
+   else:self.assertEqual(row['srs_filename'],{'status':'unavailable'})
+ def test_srs_aggregation_bound_and_optional_field_preserves_old_counts(self):
+  for degree in range(15,26):self.record('foreign transport:https://parameters.provable.com/mainnet/powers-of-beta-'+str(degree)+'.usrs.0000000')
+  out=self.observe();self.assertEqual(out['count'],11);classification=out['foreign_transport'];self.assertEqual(classification['classified_count'],11);self.assertEqual(len(classification['classes']),8);self.assertTrue(classification['classes_truncated']);self.assertLessEqual(len(json.dumps(out).encode()),8192)
+  before={k:v for k,v in out.items()if k!='foreign_transport'}
+  with mock.patch.object(m,'namespace_foreign_transport_observation',side_effect=KeyboardInterrupt):after=self.observe()
+  self.assertEqual({k:v for k,v in after.items()if k!='foreign_transport'},before);self.assertEqual(after['foreign_transport'],{'status':'unavailable'})
+
 
 if __name__=='__main__':unittest.main(verbosity=2)
