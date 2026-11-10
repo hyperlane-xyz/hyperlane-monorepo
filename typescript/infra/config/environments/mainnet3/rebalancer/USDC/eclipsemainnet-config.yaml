@@ -8,6 +8,10 @@ deployment:
   registryCommit: 774cf8fadf1a3472a59065b45d193f2b27891f3e
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
+pendingTransferMiddlewares:
+  - type: relayerDenylist
+    url: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json
+
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
   sealevel: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo'
