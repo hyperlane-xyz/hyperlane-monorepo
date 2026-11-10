@@ -52,9 +52,30 @@ def canonical_block_rpc_error(error,tb,name):
         if origin.co_name!='rpc'or guard.co_name!='require'or str(Path(module.__file__).resolve())!=str(Path(origin.co_filename).resolve()):return None
         if frame.f_code is not origin or frame.f_globals.get('_RPC_DIAGNOSTIC_CODE')is not origin or frame.f_globals.get('_RPC_REQUIRE_CODE')is not guard:return None
         if following is None or following.tb_frame.f_code is not guard or following.tb_frame.f_globals is not frame.f_globals:return None
-        return {'code':code}
+        projected={'code':code}
+        try:
+            slots=error.__dict__.get('_canonical_block_cleanup_slots')
+            if code==-32001 and type(slots)is tuple and len(slots)==4 and slots[0]is origin and slots[1]is guard and all(type(value)is int and 0<=value<2**64 for value in slots[2:]):
+                projected.update(queried_slot=slots[2],first_available_block=slots[3])
+        except BaseException:pass
+        return projected
     except BaseException:return None
 
+
+
+def trim_optional_canonical_block_slots(value):
+    """Keep the old code-only evidence if numeric observations hit the old cap."""
+    entries=[value.get('last_stage')]
+    for group in ['stages','failures']:
+        for row in value.get(group,{}).values():entries.extend([row.get('first'),row.get('latest')])
+    if not any(type(row)is dict and type(row.get('canonical_block_rpc_error'))is dict and 'queried_slot'in row['canonical_block_rpc_error'] for row in entries):return
+    try:
+        if len(json.dumps(value,sort_keys=True,separators=(',',':')).encode())+1<=LIMIT:return
+    except BaseException:pass
+    for row in entries:
+        if type(row)is dict and type(row.get('canonical_block_rpc_error'))is dict:
+            row['canonical_block_rpc_error'].pop('queried_slot',None)
+            row['canonical_block_rpc_error'].pop('first_available_block',None)
 
 
 def checked_canonical_delivery_mismatch(row):
@@ -407,6 +428,7 @@ class Recorder:
             stage=self.value['stages'][row['stage']]
             if stage['latest']['attempt']==row['attempt']:stage['latest']=copy.deepcopy(row)
             if self.value['last_stage']['stage']==row['stage']and self.value['last_stage']['attempt']==row['attempt']:self.value['last_stage']=copy.deepcopy(row)
+            trim_optional_canonical_block_slots(self.value)
             trim_optional_starknet_peer_recovery(self.value)
             trim_optional_admin_http_failure(self.value)
             trim_optional_delivery_mismatch(self.value)
@@ -1392,7 +1414,8 @@ def validate_record(value,modules):
             checked_canonical_delivery_mismatch(v['canonical_delivery_mismatch'])
             require(v['status']=='exception'and v.get('exception_type')=='ValueError'and any(frame.get('module')=='multivm_session.py'and frame.get('function')=='canonical_snapshot'for frame in v.get('frames',[])))
         if 'canonical_block_rpc_error'in v:
-            projected=v['canonical_block_rpc_error'];require(type(projected)is dict and set(projected)=={'code'}and(type(projected['code'])is int and projected['code']in {-32001,-32004,-32007}or type(projected['code'])is str and projected['code']=='unknown'))
+            projected=v['canonical_block_rpc_error'];require(type(projected)is dict and set(projected)in ({'code'},{'code','queried_slot','first_available_block'})and(type(projected['code'])is int and projected['code']in {-32001,-32004,-32007}or type(projected['code'])is str and projected['code']=='unknown'))
+            if 'queried_slot'in projected:require(projected['code']==-32001 and all(type(projected[k])is int and 0<=projected[k]<2**64 for k in ['queried_slot','first_available_block']))
             require(v.get('exception_type')=='ValueError'and any(frame.get('module')=='multivm_evidence.py'and frame.get('function')=='rpc'for frame in v.get('frames',[])))
         if 'exception_type'in v:
             require(isinstance(v['exception_type'],str)and re.fullmatch('[A-Za-z_][A-Za-z_0-9]{0,127}',v['exception_type'])and type(v['stack_truncated'])is bool and integer(v['unapproved_frames_omitted'])and isinstance(v['frames'],list)and len(v['frames'])<=8)
@@ -1422,7 +1445,7 @@ RELAYER_STARTUP_SOURCE = (
     ('zig/src/ops/critical_metrics.zig', 5138, 'a7e1125be31ca9dd320659188f6a438f' + '176dd0a7035ab23c13a865709bbabec8'),
     ('zig/src/ops/health_metrics.zig', 2432, 'db829a94c2c6091b39db646c2017948a' + '6d93c09e9462714b781abe13ef11c576'),
     ('zig/src/ops/routes.zig', 1778, '9396bbf0696c0dceed740770a96c8677' + '3bfccac6f03327f108b991c4dcad4037'),
-    ('zig/src/ops/admin/api.zig', 39413, '0a9ab8fba34ea13c55adc7796b5af708' + '554ec0b3e14bf9a155fb0f7b1c7b69db'),
+    ('zig/src/ops/admin/api.zig', 40853, 'a0c82c8aa274ac98f38f645cb4fc18c1' + 'd9e606c034cc33b7d4a21f68d7e328e2'),
     ('zig/src/agents/chain_source.zig', 38677, '1a3a84779465123ae1d35a7b8cf02070' + '8f5444d5e08c1d802b35f2740d3523ee'),
     ('zig/src/agents/scraper/factory.zig', 4790, '1111dc5800e33ea665c8b869594e2c7b' + 'df38f2a22562c068f3353a4646c0ce73'),
     ('zig/src/evm/provider.zig', 46267, '52a65850b3388fc8c8ae8c87cc2fd174' + '9b078b056fbde0e212aa59d6230cf9eb'),
@@ -1528,11 +1551,53 @@ def startup_metric_projection(raw, chains):
     return [{'chain_index':index,'metrics':{key:{'family_present':families[name],'selected_present':bool(samples.get((index,key))),'series_count':len(samples.get((index,key),[])),'finite_values':samples.get((index,key),[])}for key,(name,_)in targets.items()},'pipeline':{key:{'family_present':families[name],'selected_present':bool(pipeline.get((index,key))),'series_count':len(pipeline.get((index,key),[])),'aggregation':'sum','finite_values':[sum(pipeline[index,key])]if(index,key)in pipeline else[]}for key,(name,_,_)in STARTUP_PIPELINE_TARGETS.items()}}for index in range(len(chains))]
 
 
+ADMIN_QUEUE_RENDER_CODES=frozenset({'QUEUE_VIEW_UNAVAILABLE','QUEUE_VIEW_CHANGED','PROCESSOR_CAPACITY_UNAVAILABLE','REQUEST_CANCELLED','OTHER'})
+ADMIN_QUEUE_RENDER_EMITTER=b'std.log.warn("admin queue render failure code={s} domain={d} pid={d} observed_monotonic_ns={d}", .{ @tagName(queueRenderFailureCode(err)), domain, pid, observed });'
+
+
+def admin_queue_render_failure_projection(raw,sources):
+    """Closed log observations; PID/time need an independent actual epoch join."""
+    source=sources.get('zig/src/ops/admin/api.zig',b'')
+    expected=next((row for row in RELAYER_STARTUP_SOURCE if row[0]=='zig/src/ops/admin/api.zig'),None)
+    if expected is None or type(source)is not bytes or len(source)!=expected[1]or hashlib.sha256(source).hexdigest()!=expected[2]or source.count(ADMIN_QUEUE_RENDER_EMITTER)!=1:return None
+    if type(raw)is not bytes or len(raw)>32*1024**2:return None
+    count=0;first=latest=None
+    for line in io.BytesIO(raw):
+        if len(line)>16384:continue
+        # No ANSI/suffix normalization for the new diagnostic pattern.
+        clean=line[:-1]if line.endswith(b'\n')else line
+        match=re.fullmatch(rb'<RLY> (?:warning|warn): admin queue render failure code=([A-Z_]{1,40}) domain=(0|[1-9][0-9]{0,9}) pid=([1-9][0-9]{0,9}) observed_monotonic_ns=([1-9][0-9]{0,19})',clean)
+        if match is None:continue
+        code=match[1].decode();domain,pid,observed=(int(match[i])for i in [2,3,4])
+        if code not in ADMIN_QUEUE_RENDER_CODES or domain>=2**32 or pid>=2**31 or observed>=2**64:continue
+        row={'code':code,'domain':domain,'pid':pid,'observed_monotonic_ns':observed}
+        if first is None:first=row
+        latest=row;count=min(count+1,2**32-1)
+    if not count:return None
+    return {'count':count,'first':dict(first),'latest':dict(latest),'text_only':True,'native_or_timing_or_identity_authority':False}
+
+
+def trim_optional_admin_queue_render_failure(record):
+    """Drop ONLY the new namespace before the existing aggregate512KiB refusal."""
+    startup=record.get('EVM_Stark_startup')
+    headers=startup.get('fixed_harness_headers')if type(startup)is dict else None
+    if type(headers)is not dict or 'admin_queue_render_failure'not in headers:return
+    try:
+        if len(json.dumps(record,sort_keys=True,separators=(',',':')).encode())+1<=512*1024:return
+    except BaseException:pass
+    headers.pop('admin_queue_render_failure',None)
+
+
 def startup_header_projection(raw, sources):
     """Text-header observations, never typed exception or lane attribution."""
     if not isinstance(raw,bytes)or len(raw)>32*1024**2:raise ValueError('Bounded existing harness capture required')
     known=set()
-    for source in sources.values():
+    for name,source in sources.items():
+        # New classifier literals must not expand old header-name admission.
+        if name=='zig/src/ops/admin/api.zig':
+            begin=source.find(b'pub const QueueRenderFailureCode = enum {')
+            end=source.find(b'fn listOperations(',begin)if begin>=0 else -1
+            if begin>=0 and end>begin:source=source[:begin]+source[end:]
         known.update(x.decode()for x in re.findall(rb'\berror\.([A-Za-z][A-Za-z0-9_]{0,63})\b',source))
     if len(known)>2048:raise ValueError('Bounded Source error-name catalog required')
     # These emitters are in the hash-captured startup Source catalog. They
@@ -1572,7 +1637,12 @@ def startup_header_projection(raw, sources):
             counts[kind]=min(2**32-1,counts[kind]+1)
             row={'header':kind,'task_index':index,'Source_error_name':name if name in known else None,'error_name_status':'Source_literal'if name in known else'unknown','lane_attribution':None,**origin_observation}
             if row not in rows and len(rows)<16:rows.append(row)
-    return {'counts':counts,'observations':rows,'scope':'Fixed RLY-prefixed text only; no typed exception, task-to-lane, unique PID/epoch or readiness claim.'}
+    result={'counts':counts,'observations':rows,'scope':'Fixed RLY-prefixed text only; no typed exception, task-to-lane, unique PID/epoch or readiness claim.'}
+    try:
+        optional=admin_queue_render_failure_projection(raw,sources)
+        if optional is not None:result['admin_queue_render_failure']=optional
+    except BaseException:pass
+    return result
 
 
 class RelayerStartup:

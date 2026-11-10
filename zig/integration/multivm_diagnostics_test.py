@@ -2051,4 +2051,66 @@ class StarknetPeerRecoveryControls(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Diagnostic output bound'):recorder.save()
 
 
+class AdminQueueRenderFailureControls(unittest.TestCase):
+    def setUp(self):
+        self.source=(HERE.parents[1]/'zig/src/ops/admin/api.zig').read_bytes()
+        self.sources={'zig/src/ops/admin/api.zig':self.source}
+    def line(self,code='QUEUE_VIEW_UNAVAILABLE',domain='9913371',pid='321',clock='123456789'):
+        return f'<RLY> warning: admin queue render failure code={code} domain={domain} pid={pid} observed_monotonic_ns={clock}\n'.encode()
+    def test_all_five_enums_first_latest_and_numeric_process_fields(self):
+        codes=sorted(api.ADMIN_QUEUE_RENDER_CODES);raw=b''.join(self.line(c,clock=str(i+1))for i,c in enumerate(codes));x=api.admin_queue_render_failure_projection(raw,self.sources)
+        self.assertEqual(x['count'],5);self.assertEqual(x['first'],{'code':codes[0],'domain':9913371,'pid':321,'observed_monotonic_ns':1});self.assertEqual(x['latest']['code'],codes[-1]);self.assertEqual(x['latest']['observed_monotonic_ns'],5);self.assertIs(x['text_only'],True);self.assertIs(x['native_or_timing_or_identity_authority'],False)
+    def test_source_spoof_enum_bounds_suffix_and_private_poisons(self):
+        for sources in [{},{'zig/src/ops/admin/api.zig':self.source+b'\n'},{'zig/src/ops/admin/api.zig':self.source.replace(b'queueRenderFailureCode',b'queueRenderFailureFake')}]:self.assertIsNone(api.admin_queue_render_failure_projection(self.line(),sources))
+        for raw in [self.line('PRIVATE_SENTINEL'),self.line(domain=str(2**32)),self.line(pid='0'),self.line(pid=str(2**31)),self.line(clock='0'),self.line(clock=str(2**64)),self.line(domain='01'),self.line(pid='0321'),self.line(clock='-1'),self.line().replace(b'\n',b' PRIVATE_SENTINEL\n'),self.line().replace(b'<RLY>',b'<OTHER>'),b'\x1b[31m'+self.line(),b'x'*16385+self.line(),b'x'*(32*1024**2+1)]:
+            self.assertIsNone(api.admin_queue_render_failure_projection(raw,self.sources))
+        x=api.admin_queue_render_failure_projection(b'PRIVATE_BODY_URL_HEADER_WINDOW\n'+self.line('OTHER'),self.sources);self.assertNotIn('PRIVATE',json.dumps(x));self.assertEqual(x['first']['code'],'OTHER')
+    def test_old_header_rows_counts_are_byte_model_exact_even_at_capacity(self):
+        # Self-contained historical fixed-header fixture; no packet/before files.
+        expected={'counts':{'supervised_task_failed':16,'health_warning':0,'agent_stopped':0,'native_group_rpc_warning':0,'relayer_telemetry_warning':0,'initialization_metric_warning':0,'critical_metric_warning':0,'origin_range_fetch_warning':0},
+                  'observations':[{'header':'supervised_task_failed','task_index':i,'Source_error_name':'OutOfMemory','error_name_status':'Source_literal','lane_attribution':None}for i in range(16)],
+                  'scope':'Fixed RLY-prefixed text only; no typed exception, task-to-lane, unique PID/epoch or readiness claim.'}
+        raw=b''.join(f'<RLY> warning: task {i} failed: OutOfMemory\n'.encode()for i in range(16))
+        actual=api.startup_header_projection(raw+self.line(),self.sources);extra=actual.pop('admin_queue_render_failure');self.assertEqual(extra['count'],1);self.assertEqual(actual,expected);self.assertEqual(len(actual['observations']),16)
+        with mock.patch.object(api,'admin_queue_render_failure_projection',side_effect=KeyboardInterrupt('PRIVATE')):self.assertEqual(api.startup_header_projection(raw,self.sources),expected)
+    def test_optional_trim_keeps_all_old_fields_and_original_oversize(self):
+        extra=api.admin_queue_render_failure_projection(self.line(),self.sources);record={'EVM_Stark_startup':{'fixed_harness_headers':{'counts':{},'observations':[], 'admin_queue_render_failure':extra}},'old':'x'*(512*1024-140)};before=copy.deepcopy(record);before['EVM_Stark_startup']['fixed_harness_headers'].pop('admin_queue_render_failure');self.assertLessEqual(len(json.dumps(before,sort_keys=True,separators=(',',':')).encode())+1,512*1024);api.trim_optional_admin_queue_render_failure(record);self.assertEqual(record,before)
+        small={'EVM_Stark_startup':{'fixed_harness_headers':{'admin_queue_render_failure':extra}}};same=copy.deepcopy(small);api.trim_optional_admin_queue_render_failure(small);self.assertEqual(small,same)
+        record['old']='x'*(512*1024);api.trim_optional_admin_queue_render_failure(record);self.assertGreater(len(json.dumps(record).encode()),512*1024)
+    def owner_writer(self,extra,padding,root,trim=None,scenario='evm',sample_calls=None):
+        import types
+        source=HERE.parents[1]/'zig/bench/native_case_owner.py';tree=ast.parse(source.read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='write_public_failure_diagnostics')
+        startup={'fixed_harness_headers':{'counts':{},'observations':[],'scope':'old'},'padding':padding}
+        if extra is not None:startup['fixed_harness_headers']['admin_queue_render_failure']=extra
+        namespace={'snapshot_public_diagnostics':lambda *a:None,'time':SimpleNamespace(monotonic_ns=lambda:100),'json':json,'Path':Path,'__file__':str(source),'diagnostic_module':lambda *a:SimpleNamespace(late_invariant_observation=lambda *a:{},starknet_admin_sampling_observation=lambda *a:(sample_calls.append('called')if sample_calls is not None else None)or{'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False},trim_optional_admin_queue_render_failure=api.trim_optional_admin_queue_render_failure if trim is None else trim),'pin':api.pin,'os':__import__('os'),'require':sessions.require}
+        exec(compile(ast.Module([fn],type_ignores=[]),str(source),'exec'),namespace)
+        out=Path(root);context={'state':SimpleNamespace(public=lambda *a:copy.deepcopy(startup)),'latest_probe':None}
+        return namespace['write_public_failure_diagnostics']({'execution_source_commit':'a'*40},{'runtime_source_commit':'b'*40,'scenario':scenario,'mode':'ReleaseSafe'},{'python_modules':{}},out,out,{'direct_waits':[]},1,startup_context=context)
+    def test_real_owner_aggregate_exact_cap_fallback_and_old_refusal(self):
+        extra=api.admin_queue_render_failure_projection(self.line(),self.sources)
+        with tempfile.TemporaryDirectory()as t:
+            base=Path(t);initial=base/'initial';initial.mkdir();row=self.owner_writer(None,'',initial);value=json.loads(Path(row['path']).read_text());wire=len(json.dumps(value,sort_keys=True,separators=(',',':')).encode())+1;pad='x'*(512*1024-wire)
+            exact=base/'exact';exact.mkdir();row=self.owner_writer(extra,pad,exact);result=json.loads(Path(row['path']).read_text());self.assertEqual(Path(row['path']).stat().st_size,512*1024);self.assertNotIn('admin_queue_render_failure',result['EVM_Stark_startup']['fixed_harness_headers']);self.assertEqual(result,{**value,'EVM_Stark_startup':{**value['EVM_Stark_startup'],'padding':pad}})
+            failed=base/'failed';failed.mkdir()
+            with self.assertRaisesRegex(ValueError,'Public failure record bound'):self.owner_writer(extra,pad+'x',failed)
+            fallback=base/'fallback';fallback.mkdir()
+            def broken(record):raise SystemExit('PRIVATE_SECONDARY')
+            row=self.owner_writer(extra,'',fallback,broken);self.assertEqual(json.loads(Path(row['path']).read_text()),value)
+
+
+    def test_existing_Stark_reserve_decision_and_old_fields_survive_new_namespace(self):
+        extra=api.admin_queue_render_failure_projection(self.line(),self.sources)
+        with tempfile.TemporaryDirectory()as t:
+            base=Path(t);initial=base/'initial';initial.mkdir();calls=[]
+            row=self.owner_writer(None,'',initial,scenario='starknet',sample_calls=calls);self.assertEqual(calls,['called']);value=json.loads(Path(row['path']).read_text())
+            presize=len(json.dumps(value,sort_keys=True,separators=(',',':')).encode());pad='x'*(512*1024-24*1024-presize)
+            expected={**value,'EVM_Stark_startup':{**value['EVM_Stark_startup'],'padding':pad}}
+            for name,optional in [('baseline',None),('new',extra)]:
+                out=base/name;out.mkdir();seen=[];row=self.owner_writer(optional,pad,out,scenario='starknet',sample_calls=seen);actual=json.loads(Path(row['path']).read_text());self.assertEqual(seen,['called']);self.assertEqual(actual,expected)
+            # One byte over the OLD reserve still refuses its old sampling path.
+            for name,optional in [('old-over',None),('new-over',extra)]:
+                out=base/name;out.mkdir();seen=[];row=self.owner_writer(optional,pad+'x',out,scenario='starknet',sample_calls=seen);self.assertEqual(seen,[]);actual=json.loads(Path(row['path']).read_text());self.assertNotIn('admin_queue_render_failure',actual['EVM_Stark_startup']['fixed_harness_headers']);self.assertEqual(actual,{**expected,'EVM_Stark_startup':{**expected['EVM_Stark_startup'],'padding':pad+'x'}})
+
+
+
 if __name__=='__main__':unittest.main()

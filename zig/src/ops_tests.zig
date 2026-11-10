@@ -4,4 +4,5 @@ test {
     _ = @import("ops/runtime_denylist.zig");
     _ = @import("ops/metrics.zig");
     _ = @import("agents/relay_policy.zig");
+    _ = @import("admin_delegated_tests.zig");
 }

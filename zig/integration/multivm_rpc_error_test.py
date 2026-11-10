@@ -155,6 +155,133 @@ class CanonicalBlockRpcErrorTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 diagnostics.validate_record(bad, self.modules)
 
+    def cleanup_response(self, slot=320, first=400):
+        return {'jsonrpc': '2.0', 'id': 1, 'error': {'code': -32001, 'message': f'Block {slot} cleaned up, does not exist on node. First available block: {first}', 'data': None}}
+
+    def cleanup_failure(self, response, params=None, method='getBlock'):
+        params = [320] if params is None else params
+        with patch.object(evidence, 'direct_request', return_value=response) as request:
+            try:
+                evidence.rpc('http://127.0.0.1:1', method, params)
+            except ValueError as error:
+                self.assertIs(type(error), ValueError)
+                self.assertEqual(error.args, (MESSAGE,))
+                request.assert_called_once_with('http://127.0.0.1:1', {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params})
+                return error
+        self.fail('Original RPC guard did not reject response')
+
+    def test_cleanup_numeric_actual_rpc_positive_and_u64_edges(self):
+        for slot, first in [(320, 400), (0, 0), (2**64-1, 2**64-1)]:
+            with self.subTest(slot=slot, first=first):
+                error = self.cleanup_failure(self.cleanup_response(slot, first), [slot, {'encoding': 'json'}])
+                self.assertEqual(self.project(error)['canonical_block_rpc_error'], {'code': -32001, 'queried_slot': slot, 'first_available_block': first})
+                self.assertEqual(error.__dict__['_canonical_block_cleanup_slots'], (evidence.rpc.__code__, evidence.require.__code__, slot, first))
+                self.assertTrue(all(type(v) is int or isinstance(v, types.CodeType) for v in error.__dict__['_canonical_block_cleanup_slots']))
+
+    def test_cleanup_numeric_strict_formatter_poison_keeps_code_only(self):
+        good = self.cleanup_response()['error']['message']
+        messages = [None, 7, b'private', 'SECRET_SENTINEL', 'x'+good, good+'\n', good+' SECRET_SENTINEL', good.replace('320', '0320'), good.replace('320', '+320'), good.replace('320', '-320'), good.replace('320', '３２０'), good.replace('400', str(2**64)), good.replace('320', '9'*10000), good.replace('First available', 'first available')]
+        for message in messages:
+            response = self.cleanup_response(); response['error']['message'] = message
+            with self.subTest(message_type=type(message).__name__):
+                error = self.cleanup_failure(response)
+                self.assertNotIn('_canonical_block_cleanup_slots', error.__dict__)
+                self.assertEqual(self.project(error)['canonical_block_rpc_error'], {'code': -32001})
+                self.assertNotIn('SECRET_SENTINEL', json.dumps(self.project(error)))
+        response = self.cleanup_response(); response['error']['data'] = {'private': 'SECRET_SENTINEL'}
+        self.assertEqual(self.project(self.cleanup_failure(response))['canonical_block_rpc_error'], {'code': -32001})
+
+    def test_cleanup_numeric_params_code_envelope_crossmethod_poison(self):
+        for params in [[321], [True], [-1], [320.0], ['320'], [2**64], [], [320, {}, {}], (320,)]:
+            error = self.cleanup_failure(self.cleanup_response(), params)
+            self.assertEqual(self.project(error)['canonical_block_rpc_error'], {'code': -32001})
+        for code in [-32004, -32007, True, '-32001', -32001.0, 2]:
+            response = self.cleanup_response(); response['error']['code'] = code
+            projected = self.project(self.cleanup_failure(response))['canonical_block_rpc_error']
+            self.assertEqual(projected, {'code': code if type(code) is int and code in {-32004, -32007} else 'unknown'})
+        for mutate in [lambda r:r.update(id=True), lambda r:r.update(jsonrpc='1.0'), lambda r:r.update(result=None)]:
+            response = self.cleanup_response(); mutate(response)
+            self.assertEqual(self.project(self.cleanup_failure(response))['canonical_block_rpc_error'], {'code': 'unknown'})
+        other = self.cleanup_failure(self.cleanup_response(), [320], 'getSignaturesForAddress')
+        self.assertNotIn('_canonical_block_cleanup_slots', other.__dict__)
+        self.assertNotIn('canonical_block_rpc_error', self.project(other))
+
+    def test_cleanup_numeric_pair_and_source_poison_preserve_old_code(self):
+        poison = [None, [], (evidence.rpc.__code__, evidence.require.__code__, True, 400), (evidence.rpc.__code__, evidence.require.__code__, -1, 400), (evidence.rpc.__code__, evidence.require.__code__, 320, 2**64), (evidence.rpc.__code__, evidence.require.__code__, 320.0, 400), ('rpc', 'require', 320, 400), (evidence.require.__code__, evidence.rpc.__code__, 320, 400), (evidence.rpc.__code__, evidence.require.__code__, 320)]
+        for pair in poison:
+            error = self.cleanup_failure(self.cleanup_response()); error.__dict__['_canonical_block_cleanup_slots'] = pair
+            self.assertEqual(self.project(error)['canonical_block_rpc_error'], {'code': -32001})
+        real = self.cleanup_failure(self.cleanup_response())
+        forged = ValueError(MESSAGE); forged.__dict__.update(real.__dict__)
+        try:
+            raise forged
+        except ValueError as error:
+            self.assertNotIn('canonical_block_rpc_error', self.project(error))
+        bad = copy.deepcopy(self.modules); bad['multivm_evidence.py']['sha256'] = '0'*64
+        self.assertNotIn('canonical_block_rpc_error', self.project(real, bad))
+        # Rebinding a previously used error cannot carry forward stale slots.
+        evidence._bind_canonical_block_rpc_error(real, 'getBlock', self.response(-32001), [320])
+        self.assertNotIn('_canonical_block_cleanup_slots', real.__dict__)
+        self.assertEqual(self.project(real)['canonical_block_rpc_error'], {'code': -32001})
+        # Optional numeric metadata failure must preserve already-valid code.
+        real = self.cleanup_failure(self.cleanup_response())
+        with patch.object(diagnostics, 'all', side_effect=KeyboardInterrupt('SECRET_SENTINEL'), create=True):
+            self.assertEqual(self.project(real)['canonical_block_rpc_error'], {'code': -32001})
+
+    def test_cleanup_numeric_primary_identity_success_and_no_extra_request(self):
+        original = evidence.require; seen = []
+        def require(condition, message):
+            try:
+                original(condition, message)
+            except ValueError as error:
+                seen.append(error); raise
+        with patch.object(evidence, 'require', side_effect=require), patch.object(evidence, '_bind_canonical_block_rpc_error', side_effect=KeyboardInterrupt('SECRET_SENTINEL')):
+            error = self.cleanup_failure(self.cleanup_response())
+            self.assertIs(error, seen[-1]); self.assertNotIn('_canonical_block_cleanup_slots', error.__dict__)
+        with patch.object(evidence, 'direct_request', return_value={'id': 1, 'result': {'ok': 7}}) as request:
+            self.assertEqual(evidence.rpc('http://127.0.0.1:1', 'getBlock', [320]), {'ok': 7})
+            self.assertEqual(request.call_count, 1)
+
+    def test_cleanup_numeric_closed_record_schema_and_old_code_unchanged(self):
+        result = self.record(self.cleanup_failure(self.cleanup_response()))
+        self.assertEqual(diagnostics.validate_record(result, self.modules), result)
+        self.assertEqual(result['last_stage']['canonical_block_rpc_error'], {'code': -32001, 'queried_slot': 320, 'first_available_block': 400})
+        for value in [{'code': -32001, 'queried_slot': True, 'first_available_block': 400}, {'code': -32001, 'queried_slot': 320}, {'code': -32004, 'queried_slot': 320, 'first_available_block': 400}, {'code': -32001, 'queried_slot': 320, 'first_available_block': 2**64}, {'code': -32001, 'queried_slot': 320, 'first_available_block': 400, 'message': 'SECRET_SENTINEL'}]:
+            bad = copy.deepcopy(result); bad['last_stage']['canonical_block_rpc_error'] = value
+            with self.assertRaises(ValueError): diagnostics.validate_record(bad, self.modules)
+        old = self.record(self.failure(self.response(-32001)))
+        self.assertEqual(old['last_stage']['canonical_block_rpc_error'], {'code': -32001})
+        self.assertEqual(diagnostics.validate_record(old, self.modules), old)
+
+    def test_cleanup_numeric_original_cap_drops_pair_not_old_code(self):
+        value = self.record(self.cleanup_failure(self.cleanup_response()))
+        # Padding is a synthetic local fixture, never an admitted public field.
+        # Pick a cap between the exact original code-only and extended bodies.
+        original = copy.deepcopy(value)
+        for row in [original['last_stage'], *[v for group in ['stages','failures'] for g in original[group].values() for v in [g.get('first'),g.get('latest')]]]:
+            if type(row) is dict and 'canonical_block_rpc_error' in row:
+                row['canonical_block_rpc_error'] = {'code': -32001}
+        size = len(json.dumps(original, sort_keys=True, separators=(',', ':')).encode())+1
+        with patch.object(diagnostics, 'LIMIT', size): diagnostics.trim_optional_canonical_block_slots(value)
+        self.assertEqual(value, original)
+        self.assertEqual(value['last_stage']['canonical_block_rpc_error'], {'code': -32001})
+        # Exercise the actual 256KiB boundary too. Synthetic padding is only
+        # a serialization size model; no admission of this extra key is claimed.
+        real = copy.deepcopy(original); real['size_model_padding'] = ''
+        empty = len(json.dumps(real, sort_keys=True, separators=(',', ':')).encode())+1
+        real['size_model_padding'] = 'x'*(diagnostics.LIMIT-empty)
+        self.assertEqual(len(json.dumps(real, sort_keys=True, separators=(',', ':')).encode())+1, 256*1024)
+        extended = copy.deepcopy(real)
+        extended['last_stage']['canonical_block_rpc_error'].update(queried_slot=320, first_available_block=400)
+        diagnostics.trim_optional_canonical_block_slots(extended)
+        self.assertEqual(extended, real)
+        # Still reject an independently overbound old record; no cap waiver.
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = diagnostics.Recorder(Path(directory)/'observer.json', self.modules, HERE)
+            recorder.value = value
+            with patch.object(diagnostics, 'LIMIT', size-1), self.assertRaises(ValueError): recorder.save()
+
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -84,6 +84,11 @@ fn call(state: *api.Admin, a: std.mem.Allocator, method: []const u8, target: []c
     return handler.handle_fn(handler.context, a, request.value, &cancelled);
 }
 
+fn queueFailure(context: *anyopaque, _: std.mem.Allocator, _: u32, _: *const std.atomic.Value(bool)) anyerror!http.Response {
+    const failure: *anyerror = @ptrCast(@alignCast(context));
+    return failure.*;
+}
+
 test "admin routes preserve source status bodies and method behavior" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -149,6 +154,30 @@ test "admin routes preserve source status bodies and method behavior" {
     defer operations.deinit();
     try std.testing.expectEqual(@as(u16, 200), operations.status);
     try std.testing.expect(std.mem.indexOf(u8, operations.body, "\"retry_count\":0") != null);
+
+    {
+        const original_queue = fixture.state.queue;
+        defer fixture.state.queue = original_queue;
+        const cases = [_]struct { failure: anyerror, code: api.QueueRenderFailureCode }{
+            .{ .failure = error.QueueViewUnavailable, .code = .QUEUE_VIEW_UNAVAILABLE },
+            .{ .failure = error.QueueViewChanged, .code = .QUEUE_VIEW_CHANGED },
+            .{ .failure = error.ProcessorCapacityUnavailable, .code = .PROCESSOR_CAPACITY_UNAVAILABLE },
+            .{ .failure = error.RequestCancelled, .code = .REQUEST_CANCELLED },
+            .{ .failure = error.PrivateSentinelError, .code = .OTHER },
+        };
+        for (cases) |item| {
+            try std.testing.expectEqual(item.code, api.queueRenderFailureCode(item.failure));
+            var failure = item.failure;
+            fixture.state.queue = .{ .context = &failure, .render_fn = queueFailure };
+            var failed = try call(&fixture.state, a, "GET", "/list_operations?destination_domain=1", "");
+            defer failed.deinit();
+            try std.testing.expectEqual(@as(u16, 500), failed.status);
+            try std.testing.expectEqualStrings("Error formatting queue", failed.body);
+        }
+        var oom: anyerror = error.OutOfMemory;
+        fixture.state.queue = .{ .context = &oom, .render_fn = queueFailure };
+        try std.testing.expectError(error.OutOfMemory, call(&fixture.state, a, "GET", "/list_operations?destination_domain=1", ""));
+    }
 
     var retry = try call(&fixture.state, a, "POST", "/message_retry", "[{\"originDomain\":1}]");
     defer retry.deinit();

@@ -1017,10 +1017,23 @@ def write_public_failure_diagnostics(plan,manifest,approval,case,out,result,star
         finally:tron_selected.clear()
     if manifest['scenario']=='starknet':
         record['Stark_admin_sampling']={'schema':1,'collection_status':'unavailable','native_or_timing_or_cleanup_authority':False}
+        # New optional headers must not consume the existing sampling reserve.
+        startup=record.get('EVM_Stark_startup')
+        headers=startup.get('fixed_harness_headers')if type(startup)is dict else None
+        if type(headers)is dict and 'admin_queue_render_failure'in headers:
+            try:
+                if len(json.dumps(record,sort_keys=True,separators=(',',':')).encode())>512*1024-24*1024:headers.pop('admin_queue_render_failure',None)
+            except BaseException:headers.pop('admin_queue_render_failure',None)
         try:
             require(len(json.dumps(record,sort_keys=True,separators=(',',':')).encode())<=512*1024-24*1024,'Existing failure record has no diagnostic reserve')
             record['Stark_admin_sampling']=diagnostic_module(approval).starknet_admin_sampling_observation(case,manifest,approval['python_modules'],case_inputs,value)
         except BaseException:pass # Optional evidence cannot replace the primary failure.
+    # Optional new log evidence must not displace old fields or exceed their cap.
+    startup=record.get('EVM_Stark_startup')
+    headers=startup.get('fixed_harness_headers')if type(startup)is dict else None
+    if type(headers)is dict and 'admin_queue_render_failure'in headers:
+        try:diagnostic_module(approval).trim_optional_admin_queue_render_failure(record)
+        except BaseException:headers.pop('admin_queue_render_failure',None)
     path=out/'public-failure-diagnostics.json';require(not path.exists()and not path.is_symlink(),'Preserve public failure record')
     with path.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     require(path.stat().st_size<=512*1024,'Public failure record bound')

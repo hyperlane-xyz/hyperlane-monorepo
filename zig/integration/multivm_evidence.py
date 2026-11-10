@@ -384,8 +384,8 @@ def direct_request(endpoint, payload, *, path=None, timeout=20):
         connection.close()
 
 
-def _bind_canonical_block_rpc_error(error, method, result):
-    # Private fixed code only; the already-read message/data/result never attach.
+def _bind_canonical_block_rpc_error(error, method, result, params):
+    # Only closed code/numeric observations; message/data/result never attach.
     if type(error) is not ValueError or type(method) is not str or method != "getBlock":
         return
     code = "unknown"
@@ -394,6 +394,24 @@ def _bind_canonical_block_rpc_error(error, method, result):
         if type(observed) is int and observed in {-32001, -32004, -32007}:
             code = observed
     error.__dict__["_canonical_block_rpc_error"] = (_RPC_DIAGNOSTIC_CODE, _RPC_REQUIRE_CODE, code)
+    error.__dict__.pop("_canonical_block_cleanup_slots", None)
+    # Agave v3.0.14 BlockCleanedUp formatter. The already-read text is only
+    # an exact parser input; never retain it or the request/result objects.
+    if code != -32001 or type(params) is not list or not 1 <= len(params) <= 2:
+        return
+    queried = params[0]
+    if type(queried) is not int or not 0 <= queried < 2**64:
+        return
+    message = result["error"].get("message")
+    if type(message) is not str or len(message) > 160 or result["error"].get("data") is not None:
+        return
+    match = re.fullmatch(r"Block (0|[1-9][0-9]{0,19}) cleaned up, does not exist on node\. First available block: (0|[1-9][0-9]{0,19})", message)
+    if match is None:
+        return
+    slot, first = (int(value) for value in match.groups())
+    if slot != queried or first >= 2**64:
+        return
+    error.__dict__["_canonical_block_cleanup_slots"] = (_RPC_DIAGNOSTIC_CODE, _RPC_REQUIRE_CODE, queried, first)
 
 
 def rpc(endpoint, method, params):
@@ -402,7 +420,7 @@ def rpc(endpoint, method, params):
         require(isinstance(result, dict) and result.get("id") == 1 and "error" not in result and "result" in result, "native JSONRPC error/identity mismatch")
     except ValueError as error:
         try:
-            _bind_canonical_block_rpc_error(error, method, result)
+            _bind_canonical_block_rpc_error(error, method, result, params)
         except BaseException:
             pass  # Optional metadata cannot replace the original guard error.
         raise

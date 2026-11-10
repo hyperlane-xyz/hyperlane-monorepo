@@ -389,6 +389,37 @@ fn insertMerkle(self: *Admin, a: A, request: http.Request, cancel: Cancel) !http
     return json.response(&out, a, 200, &.{.{ .name = "content-type", .value = "application/json" }});
 }
 
+pub const QueueRenderFailureCode = enum {
+    QUEUE_VIEW_UNAVAILABLE,
+    QUEUE_VIEW_CHANGED,
+    PROCESSOR_CAPACITY_UNAVAILABLE,
+    REQUEST_CANCELLED,
+    OTHER,
+};
+
+pub fn queueRenderFailureCode(err: anyerror) QueueRenderFailureCode {
+    return switch (err) {
+        error.QueueViewUnavailable => .QUEUE_VIEW_UNAVAILABLE,
+        error.QueueViewChanged => .QUEUE_VIEW_CHANGED,
+        error.ProcessorCapacityUnavailable => .PROCESSOR_CAPACITY_UNAVAILABLE,
+        error.RequestCancelled => .REQUEST_CANCELLED,
+        else => .OTHER,
+    };
+}
+
+fn noteQueueRenderFailure(err: anyerror, domain: u32) void {
+    // Python's monotonic clock uses CLOCK_MONOTONIC; Instant uses BOOTTIME on Linux.
+    const ts = std.posix.clock_gettime(.MONOTONIC) catch return;
+    const seconds = std.math.cast(u64, ts.sec) orelse return;
+    const nanos = std.math.cast(u64, ts.nsec) orelse return;
+    if (nanos >= std.time.ns_per_s) return;
+    const whole = std.math.mul(u64, seconds, std.time.ns_per_s) catch return;
+    const observed = std.math.add(u64, whole, nanos) catch return;
+    const pid = std.math.cast(u32, std.posix.system.getpid()) orelse return;
+    if (observed == 0 or pid == 0 or pid > std.math.maxInt(i32)) return;
+    std.log.warn("admin queue render failure code={s} domain={d} pid={d} observed_monotonic_ns={d}", .{ @tagName(queueRenderFailureCode(err)), domain, pid, observed });
+}
+
 fn listOperations(self: *Admin, a: A, request: http.Request, cancel: Cancel) !http.Response {
     var params = query.parse(a, request.query orelse "") catch return queryRejection(a);
     defer params.deinit();
@@ -396,6 +427,7 @@ fn listOperations(self: *Admin, a: A, request: http.Request, cancel: Cancel) !ht
     const owner = self.queue.?;
     return owner.render_fn(owner.context, a, domain, cancel) catch |err| {
         if (err == error.OutOfMemory) return err;
+        noteQueueRenderFailure(err, domain);
         return plain(a, 500, "Error formatting queue", null);
     };
 }
