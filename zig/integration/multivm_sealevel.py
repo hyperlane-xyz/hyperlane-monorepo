@@ -402,47 +402,77 @@ class Adapter:
             require(decoded["keys"][item["programIdIndex"]] == signed["program"] and item["accounts"] == signed["accounts"] and b58decode(item["data"]) == signed["data"], "native JSON instruction differs from signed bytes")
         return {"slot": slot, "block_hash": h(key(first["blockhash"])), "transaction_index": first["signatures"].index(signature), "fee": fee, "units": units, "wire_sha256": hashlib.sha256(wire).hexdigest(), "wire_bytes": len(wire), "decoded": decoded, "keys": all_keys, "lookup_addresses": table_addresses, "native_json": value}
 
+    @staticmethod
+    def _event_instructions(value, keys, program, address, kind):
+        candidates = list(value["transaction"]["message"]["instructions"])
+        for group in value["meta"].get("innerInstructions") or []:
+            candidates.extend(group["instructions"])
+        examined = 0
+        for instruction in candidates:
+            if "programIdIndex" not in instruction:
+                continue
+            index, accounts = instruction["programIdIndex"], instruction["accounts"]
+            require(type(index) is int and 0 <= index < len(keys) and isinstance(accounts, list) and all(type(i) is int and 0 <= i < len(keys) for i in accounts), "native event instruction index differs")
+            if keys[index] != program or address not in [keys[i] for i in accounts]:
+                continue
+            examined += 1
+            data = b58decode(instruction["data"])
+            reader = Reader(data)
+            if kind == "dispatch" and data[:1] == b"\x04":
+                reader.take(69)
+                reader.vec()
+            elif kind == "gas" and data[:1] == b"\x03":
+                reader.take(45)
+            elif kind == "delivery" and data[:1] == b"\x01":
+                reader.take(1)
+                reader.vec()
+                reader.vec()
+            else:
+                continue
+            reader.end()
+            return examined, True
+        return examined, False
+
     def _event_transaction(self, session, chain, program, address, kind, slot):
-        signatures = session.rpc(chain, "getSignaturesForAddress", [address, {"limit": 100, "commitment": "finalized"}])
+        # All three immutable event accounts store Clock::get()?.slot at their
+        # creation. Discover in that exact canonical bank, not a secondary
+        # address-signature index which may be unavailable independently.
+        options = {"encoding": "json", "transactionDetails": "full", "rewards": False, "commitment": "finalized", "maxSupportedTransactionVersion": 0}
+        block = session.rpc(chain, "getBlock", [slot, options])
+        require(isinstance(block, dict), "native event canonical account slot unavailable")
+        rows = block.get("transactions")
+        # This is a fixture resource bound, not a Solana protocol limit. Never
+        # truncate: the complete list is needed to exclude a second match.
+        require(isinstance(rows, list) and len(rows) <= 100, "native event canonical block census exceeds fixture bound")
+        signatures = [row["transaction"]["signatures"][0] for row in rows]
+        require(len(set(signatures)) == len(signatures) and all(len(b58decode(s, 64)) == 64 for s in signatures), "native event canonical block signature census differs")
+        # Reconstruct the exact-slot address-containing candidate census from
+        # the COMPLETE canonical block. Unrelated rows receive no proof credit.
+        candidates = []
+        for row, signature in zip(rows, signatures):
+            loaded = row["meta"].get("loadedAddresses", {"writable": [], "readonly": []})
+            keys = [key(item) for item in row["transaction"]["message"]["accountKeys"]] + [key(item) for part in ("writable", "readonly") for item in loaded[part]]
+            require(len(keys) <= 256, "native event canonical block key census exceeds bound")
+            if key(address) in keys:
+                candidates.append((row, signature, keys))
         found = []
-        error_rows = other_slot_rows = canonical_transactions = program_address_instructions = 0
-        for row in signatures:
-            if row.get("err") is not None:
+        error_rows = canonical_transactions = program_address_instructions = 0
+        for row, signature, keys in candidates:
+            if row["meta"].get("err") is not None:
                 error_rows += 1
                 continue
-            if row["slot"] not in {slot, slot - 1}:
-                other_slot_rows += 1
-                continue
-            proof = self._transaction(session, chain, row["signature"])
+            proof = self._transaction(session, chain, signature)
+            require(proof["slot"] == slot and proof["block_hash"] == h(key(block["blockhash"])) and proof["keys"] == keys, "native event account slot/discovery block fence differs")
+            examined, matched = self._event_instructions(proof["native_json"], proof["keys"], program, key(address), kind)
             canonical_transactions += 1
-            candidates = list(proof["native_json"]["transaction"]["message"]["instructions"])
-            for group in proof["native_json"]["meta"].get("innerInstructions") or []:
-                candidates.extend(group["instructions"])
-            for instruction in candidates:
-                if "programIdIndex" not in instruction or proof["keys"][instruction["programIdIndex"]] != program or key(address) not in [proof["keys"][index] for index in instruction["accounts"]]:
-                    continue
-                program_address_instructions += 1
-                data = b58decode(instruction["data"])
-                reader = Reader(data)
-                if kind == "dispatch" and data[:1] == b"\x04":
-                    reader.take(69)
-                    reader.vec()
-                elif kind == "gas" and data[:1] == b"\x03":
-                    reader.take(45)
-                elif kind == "delivery" and data[:1] == b"\x01":
-                    reader.take(1)
-                    reader.vec()
-                    reader.vec()
-                else:
-                    continue
-                reader.end()
-                found.append((h(b58decode(row["signature"], 64)), proof))
-                break
+            program_address_instructions += examined
+            if matched:
+                found.append((h(b58decode(signature, 64)), proof))
         if len(found) != 1:
             try:
                 multivm_diagnostics.note_svm_event_failure(session, chain, kind, slot, {
-                    "signature_rows": len(signatures), "error_rows": error_rows,
-                    "other_slot_rows": other_slot_rows, "canonical_transactions": canonical_transactions,
+                    "signature_rows": len(candidates), "error_rows": error_rows,
+                    "other_slot_rows": 0, "canonical_transactions": canonical_transactions,
                     "program_address_instructions": program_address_instructions,
                     "matched_transactions": len(found),
                 })

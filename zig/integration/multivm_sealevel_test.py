@@ -321,58 +321,110 @@ class RelayerConfigurationBoundary(unittest.TestCase):
 
 
 class EventRelevanceDiagnostics(unittest.TestCase):
-    """Actual relevance loop/guard; canonical proof itself is an explicit stub."""
-    def fixture(self, rows, mode='dispatch'):
+    """Full block discovery; canonical cryptography is stubbed only here."""
+    def fixture(self, mode='dispatch'):
         program, address = bytes([17]) * 32, bytes([18]) * 32
-        calls = []
+        calls, rows, proofs = [], [], {}
+        block = {'blockhash': svm.b58encode(bytes([3]) * 32), 'previousBlockhash': svm.b58encode(bytes([2]) * 32), 'transactions': rows}
         session = SimpleNamespace(manifest={'scenario': 'sealevel'}, lock=threading.RLock())
         def rpc(chain, method, params):
             calls.append((chain, method, params))
-            return rows
+            if method == 'getBlock':return block
+            if method == 'getSignaturesForAddress':return []  # Actual failing discovery shape.
+            raise AssertionError(method)
         session.rpc = rpc
         adapter = svm.Adapter({}, {})
-        proofs = {}
         def transaction(_session, _chain, signature):
-            calls.append(('canonical', signature))
-            return proofs[signature]
+            calls.append(('canonical', signature));return proofs[signature]
         adapter._transaction = transaction
-        def add(index, kind=mode, err=None, slot=20, wrong=None):
+        def add(index, kind=mode, err=None, wrong=None, inner=False):
             signature = svm.b58encode(bytes([index]) * 64)
-            rows.append({'signature': signature, 'slot': slot, 'err': err})
             data = {'dispatch': b'\x04' + bytes(68) + bytes(4), 'gas': b'\x03' + bytes(44), 'delivery': b'\x01' + bytes(8)}[kind]
             instruction = {'programIdIndex': 0 if wrong != 'program' else 1, 'accounts': [0] if wrong == 'address' else [0, 1], 'data': svm.b58encode(data)}
-            proofs[signature] = {'keys': [program, address], 'native_json': {'transaction': {'message': {'instructions': [instruction]}}, 'meta': {'innerInstructions': []}}}
-        def run():
-            return adapter._event_transaction(session, 'sealeveltest1', program, svm.b58encode(address), mode, 20)
-        return session, adapter, calls, add, run
+            keys = [program, bytes([19]) * 32 if wrong == 'key' else address]
+            value = {'transaction': {'signatures': [signature], 'message': {'accountKeys': [svm.b58encode(k) for k in keys], 'instructions': [] if inner else [instruction]}}, 'meta': {'err': err, 'innerInstructions': [{'index': 0, 'instructions': [instruction]}] if inner else []}}
+            rows.append(value)
+            proofs[signature] = {'slot': 20, 'block_hash': svm.h(bytes([3]) * 32), 'keys': keys, 'native_json': copy.deepcopy(value)}
+            return value, proofs[signature]
+        def run():return adapter._event_transaction(session, 'sealeveltest1', program, svm.b58encode(address), mode, 20)
+        return session, adapter, calls, add, run, block
+
+    def test_actual_empty_address_index_all_three_exact_slot_events_and_inner_instructions(self):
+        for kind in ['dispatch', 'gas', 'delivery']:
+            for inner in [False, True]:
+                session, _, calls, add, run, _ = self.fixture(kind);add(1, inner=inner)
+                self.assertEqual(run()[0], svm.h(bytes([1]) * 64))
+                self.assertFalse(hasattr(session, 'diagnostic_svm_event_failure'))
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(calls[0][1:], ('getBlock', [20, {'encoding': 'json', 'transactionDetails': 'full', 'rewards': False, 'commitment': 'finalized', 'maxSupportedTransactionVersion': 0}]))
 
     def test_actual_missing_filters_and_ambiguous_counts_are_exact_and_private(self):
-        session, _, calls, add, run = self.fixture([])
-        add(1, err={'PRIVATE-error': 'PRIVATE'});add(2, slot=18)
-        add(3, wrong='program');add(4, wrong='address');add(5, kind='gas')
+        session, _, calls, add, run, _ = self.fixture()
+        add(1, err={'PRIVATE': 'PRIVATE'});add(2, wrong='program');add(3, wrong='address');add(4, kind='gas')
         with self.assertRaisesRegex(ValueError, 'relevance ambiguous/missing'):run()
-        row = getattr(session, 'diagnostic_svm_event_failure', None)
-        self.assertIsNotNone(row)
-        self.assertEqual(row['counts'], {'signature_rows': 5, 'error_rows': 1, 'other_slot_rows': 1, 'canonical_transactions': 3, 'program_address_instructions': 1, 'matched_transactions': 0})
-        self.assertEqual(row['reason'], 'missing');self.assertNotIn('PRIVATE', json.dumps(row))
-        self.assertEqual(len(calls), 4)
-        session, _, _, add, run = self.fixture([]);add(1);add(2)
+        row = session.diagnostic_svm_event_failure
+        self.assertEqual(row['counts'], {'signature_rows': 4, 'error_rows': 1, 'other_slot_rows': 0, 'canonical_transactions': 3, 'program_address_instructions': 1, 'matched_transactions': 0})
+        self.assertNotIn('PRIVATE', json.dumps(row));self.assertEqual(len(calls), 4)
+        session, _, _, add, run, _ = self.fixture();add(1);add(2)
         with self.assertRaisesRegex(ValueError, 'relevance ambiguous/missing'):run()
         self.assertEqual(session.diagnostic_svm_event_failure['reason'], 'ambiguous')
-        self.assertEqual(session.diagnostic_svm_event_failure['counts']['matched_transactions'], 2)
 
-    def test_success_each_kind_and_previous_slot_retains_exact_result_without_state(self):
-        for kind in ['dispatch', 'gas', 'delivery']:
-            session, _, calls, add, run = self.fixture([], kind);add(1, slot=19)
-            result = run()
-            self.assertEqual(result[0], svm.h(bytes([1]) * 64))
-            self.assertFalse(hasattr(session, 'diagnostic_svm_event_failure'))
-            self.assertEqual(len(calls), 2)
+    def test_no_census_truncation_duplicate_signature_or_malformed_index(self):
+        for poison in ['overbound', 'duplicate', 'index']:
+            _, _, calls, add, run, block = self.fixture();row, proof = add(1)
+            if poison == 'overbound':block['transactions'][:] = [row] * 101
+            elif poison == 'duplicate':block['transactions'].append(copy.deepcopy(row))
+            else:proof['native_json']['transaction']['message']['instructions'][0]['accounts'] = [True]
+            with self.assertRaises(ValueError):run()
+            self.assertEqual(sum(call[0] == 'canonical' for call in calls), 1 if poison == 'index' else 0)
+
+    def test_unrelated_rows_receive_no_credit_and_every_address_candidate_gets_full_fence(self):
+        session, _, calls, add, run, _ = self.fixture();add(1, wrong='key');add(2, wrong='key', err={'PRIVATE': 'PRIVATE'})
+        with self.assertRaisesRegex(ValueError, 'ambiguous/missing'):run()
+        self.assertTrue(all(count == 0 for count in session.diagnostic_svm_event_failure['counts'].values()))
+        self.assertFalse(any(call[0] == 'canonical' for call in calls))
+        _, _, _, add, run, _ = self.fixture();_, proof = add(1, wrong='program');proof['slot'] = 19
+        with self.assertRaisesRegex(ValueError, 'fence differs'):run()
+        _, adapter, _, add, _, _ = self.fixture();_, proof = add(1)
+        good = proof['native_json']['transaction']['message']['instructions'][0]
+        wrong = dict(good, data=svm.b58encode(b'\x03' + bytes(44)))
+        proof['native_json']['transaction']['message']['instructions'] = [wrong, good, wrong]
+        self.assertEqual(adapter._event_instructions(proof['native_json'], proof['keys'], proof['keys'][0], proof['keys'][1], 'dispatch'), (2, True))
+
+    def test_complete_hundred_row_boundary_keeps_last_ambiguity_candidate(self):
+        for ambiguous in [False, True]:
+            _, _, calls, add, run, _ = self.fixture();add(1)
+            for index in range(2, 100):add(index, wrong='key')
+            add(100, wrong=None if ambiguous else 'key')
+            if ambiguous:
+                with self.assertRaisesRegex(ValueError, 'ambiguous/missing'):run()
+            else:self.assertEqual(run()[0], svm.h(bytes([1]) * 64))
+            self.assertEqual(sum(call[0] == 'canonical' for call in calls), 2 if ambiguous else 1)
+
+    def test_slot_and_block_fences_and_relevance_are_rechecked_after_full_proof(self):
+        for poison in ['slot', 'block_hash', 'keys']:
+            _, _, _, add, run, _ = self.fixture();_, proof = add(1)
+            if poison == 'slot':proof['slot'] = 19
+            elif poison == 'block_hash':proof['block_hash'] = svm.h(bytes([4]) * 32)
+            else:proof['keys'] = [bytes([19]) * 32, bytes([18]) * 32]
+            with self.assertRaisesRegex(ValueError, 'fence differs'):run()
+
+    def test_unavailable_block_or_rpc_exception_is_not_an_empty_success_or_extra_query(self):
+        for value in [None, ValueError('original RPC error')]:
+            def rpc(chain, method, params):
+                calls.append((chain, method, params));self.assertEqual(method, 'getBlock')
+                if isinstance(value, Exception):raise value
+                return value
+            session, adapter, calls, _, run, _ = self.fixture()
+            session.rpc = rpc
+            with self.assertRaises(ValueError) as caught:run()
+            if isinstance(value, Exception):self.assertIs(caught.exception, value)
+            else:self.assertEqual(str(caught.exception), 'native event canonical account slot unavailable')
+            self.assertEqual(len(calls), 1)
 
     def test_optional_baseexception_does_not_replace_guard_or_canonical_error(self):
-        session, adapter, _, add, run = self.fixture([])
-        error = ValueError('original relevance')
-        original_require = svm.require
+        _, adapter, _, add, run, _ = self.fixture()
+        error = ValueError('original relevance');original_require = svm.require
         def require(ok, message):
             if message == 'native event canonical transaction relevance ambiguous/missing' and not ok:raise error
             return original_require(ok, message)
@@ -383,6 +435,40 @@ class EventRelevanceDiagnostics(unittest.TestCase):
         adapter._transaction = canonical
         with mock.patch.object(svm.multivm_diagnostics, 'note_svm_event_failure') as note, self.assertRaises(ValueError) as caught:run()
         self.assertIs(caught.exception, error);note.assert_not_called()
+
+
+class CanonicalSlotSignedWireControls(unittest.TestCase):
+    def test_unsupported_signed_wire_version_still_fails_closed(self):
+        row = next(row for row in json.loads((FIXTURES / 'svm-destination.json').read_text())['cases'] if row['versioned'] and not row['jito'])
+        wire = bytearray.fromhex(row['wire']);reader = svm.Reader(wire);count = reader.compact();reader.take(64 * count)
+        self.assertEqual(wire[reader.position], 128);wire[reader.position] = 129
+        with self.assertRaisesRegex(ValueError, 'unsupported native message version'):svm.decode_wire(bytes(wire))
+
+    def test_authentic_signed_legacy_and_alt_wire_with_synthetic_event_metadata(self):
+        for versioned in [False, True]:
+            for kind, data in [('dispatch', b'\x04' + bytes(68) + bytes(4)), ('gas', b'\x03' + bytes(44)), ('delivery', b'\x01' + bytes(8))]:
+                adapter, session, signature, native, _, _ = CanonicalBoundary().fixture(versioned)
+                decoded = svm.decode_wire(bytes.fromhex(next(row for row in json.loads((FIXTURES / 'svm-destination.json').read_text())['cases'] if row['versioned'] == versioned and not row['jito'])['wire']))
+                program = decoded['instructions'][-1]['program'];address = bytes([1]) * 32 if versioned else decoded['keys'][1]
+                address_index = len(decoded['keys']) if versioned else 1
+                # Existing signed SDK fixture has an unrelated outer instruction.
+                # Synthetic RPC inner metadata supplies the event; no live claim.
+                native['meta']['innerInstructions'] = [{'index': 2, 'instructions': [{'programIdIndex': decoded['keys'].index(program), 'accounts': [address_index], 'data': svm.b58encode(data)}]}]
+                original = session.rpc
+                def rpc(chain, method, params):
+                    if method == 'getBlock' and params[1].get('transactionDetails') == 'full':
+                        return {'blockhash': svm.b58encode(bytes([3]) * 32), 'previousBlockhash': svm.b58encode(bytes([2]) * 32), 'transactions': [copy.deepcopy(native)]}
+                    if method == 'getSignaturesForAddress':return []
+                    return original(chain, method, params)
+                session.rpc = rpc
+                result = adapter._event_transaction(session, 'fixture', program, svm.b58encode(address), kind, 21)
+                self.assertEqual(result[0], svm.h(svm.b58decode(signature, 64)))
+                self.assertEqual(result[1]['decoded']['version'], 0 if versioned else 'legacy')
+                for poison in ['status', 'reorg', 'table'] if versioned else ['status', 'reorg']:
+                    adapter2, session2, signature2, *_ = CanonicalBoundary().fixture(versioned)
+                    session2.changes = {'status': {'context': {'slot': 40}, 'value': [{'slot': 21, 'err': None, 'confirmationStatus': 'confirmed'}]}} if poison == 'status' else {'reorg': True} if poison == 'reorg' else {'table': bytes(55)}
+                    adapter._transaction = lambda _s, c, sig: adapter2._transaction(session2, c, sig)
+                    with self.assertRaises(ValueError):adapter._event_transaction(session, 'fixture', program, svm.b58encode(address), kind, 21)
 
 
 if __name__ == "__main__":
