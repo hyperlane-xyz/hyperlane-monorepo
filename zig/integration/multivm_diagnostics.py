@@ -155,8 +155,68 @@ def trim_optional_admin_http_failure(value):
         if type(row)is dict:row.pop('admin_http_failure',None)
 
 
+def checked_starknet_peer_recovery(row):
+    keys={'role','definition_index','latest_capture_ns','notice_ns','received_ns','classification'}
+    if type(row)is not dict or set(row)!=keys:raise ValueError('Closed Starknet peer recovery required')
+    if type(row['role'])is not str or row['role']not in {'validator','relayer','scraper'}:raise ValueError('Closed Starknet role required')
+    if type(row['definition_index'])is not int or not 0<=row['definition_index']<6:raise ValueError('Source Starknet definition index required')
+    for key in ['latest_capture_ns','notice_ns']:
+        if type(row[key])is not int or not 0<row[key]<2**63:raise ValueError('Bounded Starknet observed clock required')
+    received=row['received_ns'];classification=row['classification']
+    if type(classification)is not str or classification not in {'missing','noninteger','stale'}:raise ValueError('Closed Starknet peer classification required')
+    if classification=='stale':
+        if type(received)is not int or not 0<=received<max(row['latest_capture_ns'],row['notice_ns']):raise ValueError('Actual stale Starknet receive clock required')
+    elif received is not None:raise ValueError('Unobserved Starknet receive clock must be absent')
+    return dict(row)
+
+
+def bind_starknet_peer_recovery(error,origin,guard,context,captured,notice,received):
+    if type(error)is not ValueError or type(origin)is not types.CodeType or type(guard)is not types.CodeType:return
+    evidence=sys.modules['multivm_evidence']
+    checked=evidence.checked_starknet_peer_context(context,context['upstream'])
+    definitions=evidence.starknet_unavailable_peers()
+    if len(definitions)!=6:raise ValueError('Exact Source Starknet definitions required')
+    matches=[index for index,row in enumerate(definitions)if all(checked.get(k)==v for k,v in row.items())]
+    if len(matches)!=1:raise ValueError('Unique Source Starknet definition required')
+    classification='missing'if received is None else'noninteger'if type(received)is not int else'stale'
+    if type(received)is int and not 0<=received<2**63:return
+    row={'role':checked['role'],'definition_index':matches[0],'latest_capture_ns':captured,'notice_ns':notice,'received_ns':received if type(received)is int else None,'classification':classification}
+    error.__dict__['_starknet_peer_recovery']=(origin,guard,checked_starknet_peer_recovery(row))
+
+
+def starknet_peer_recovery(error,tb,name):
+    """Only the admitted unchanged fresh-fallback guard; no private context."""
+    try:
+        if type(error)is not ValueError or name!='multivm_session.py':return None
+        bound=error.__dict__.get('_starknet_peer_recovery')
+        if type(bound)is not tuple or len(bound)!=3:return None
+        origin,guard,row=bound
+        if type(origin)is not types.CodeType or type(guard)is not types.CodeType or len(origin.co_code)>64*1024:return None
+        frame=tb.tb_frame;following=tb.tb_next;module=sys.modules.get('multivm_session');evidence=sys.modules.get('multivm_evidence')
+        if not isinstance(module,types.ModuleType)or module.__dict__ is not frame.f_globals or not isinstance(evidence,types.ModuleType):return None
+        if origin.co_name!='require_starknet_peer_recovery'or guard.co_name!='require'or str(Path(module.__file__).resolve())!=str(Path(origin.co_filename).resolve()):return None
+        if frame.f_code is not origin or module.Session.require_starknet_peer_recovery.__code__ is not origin or frame.f_globals.get('_STARKNET_PEER_RECOVERY_CODE')is not origin or frame.f_globals.get('_STARKNET_PEER_RECOVERY_REQUIRE_CODE')is not guard or evidence.require.__code__ is not guard:return None
+        if following is None or following.tb_frame.f_code is not guard or following.tb_frame.f_globals is not evidence.__dict__:return None
+        lines=[i.positions.lineno for i in dis.get_instructions(origin)if i.opname=='LOAD_CONST'and i.argval=='Source Starknet unavailable peer has no fresh actual healthy fallback']
+        if len(lines)!=1 or type(lines[0])is not int or tb.tb_lineno!=lines[0]:return None
+        return checked_starknet_peer_recovery(row)
+    except BaseException:return None
+
+
+def trim_optional_starknet_peer_recovery(value):
+    entries=[value.get('last_stage')]
+    for group in ['stages','failures']:
+        for row in value.get(group,{}).values():entries.extend([row.get('first'),row.get('latest')])
+    if not any(type(row)is dict and 'starknet_peer_recovery'in row for row in entries):return
+    try:
+        if len(json.dumps(value,sort_keys=True,separators=(',',':')).encode())+1<=LIMIT:return
+    except BaseException:pass
+    for row in entries:
+        if type(row)is dict:row.pop('starknet_peer_recovery',None)
+
+
 def public_frames(error,modules,directory):
-    approved=checked_modules(modules,directory);frames=[];unapproved=0;tb=error.__traceback__;walked=0;rpc_error=None;rpc_frame=None;delivery_error=None;delivery_frame=None;http_error=None;http_frame=None
+    approved=checked_modules(modules,directory);frames=[];unapproved=0;tb=error.__traceback__;walked=0;rpc_error=None;rpc_frame=None;delivery_error=None;delivery_frame=None;http_error=None;http_frame=None;starknet_error=None;starknet_frame=None
     while tb is not None and walked<64:
         walked+=1;code=tb.tb_frame.f_code;path=str(Path(code.co_filename).resolve())
         if path in approved and re.fullmatch(r'[A-Za-z_<>][A-Za-z_<>0-9]*',code.co_name):
@@ -167,12 +227,16 @@ def public_frames(error,modules,directory):
             if projected is not None:delivery_error=projected;delivery_frame=frame
             projected=admin_http_failure(error,tb,name)
             if projected is not None:http_error=projected;http_frame=frame
+            try:projected=starknet_peer_recovery(error,tb,name)
+            except BaseException:projected=None
+            if projected is not None:starknet_error=projected;starknet_frame=frame
         else:unapproved+=1
         tb=tb.tb_next
     result={'frames':frames[-8:],'unapproved_frames_omitted':unapproved,'stack_truncated':tb is not None or len(frames)>8}
     if rpc_error is not None and rpc_frame in result['frames']:result['canonical_block_rpc_error']=rpc_error
     if delivery_error is not None and delivery_frame in result['frames']:result['canonical_delivery_mismatch']=delivery_error
     if http_error is not None and http_frame in result['frames']:result['admin_http_failure']=http_error
+    if starknet_error is not None and starknet_frame in result['frames']:result['starknet_peer_recovery']=starknet_error
     return result
 
 
@@ -310,7 +374,7 @@ class Recorder:
     def __init__(self,path,modules,directory):
         self.path=Path(path);self.modules=modules;self.directory=Path(directory);self.lock=threading.Lock()
         if self.path.exists()or self.path.is_symlink():raise ValueError('Preserve existing diagnostic file')
-        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error EVM delivery-mismatch or admin HTTP status/byte-count/domain diagnostics; no exception message, raw locals, payload, config or environment.'}
+        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error EVM delivery-mismatch admin HTTP status/byte-count/domain or Starknet peer-recovery definition/clock diagnostics; no exception message, raw locals, payload, config or environment.'}
     def save(self):
         wire=json.dumps(self.value,sort_keys=True,separators=(',',':')).encode()+b'\n'
         if len(wire)>LIMIT:raise ValueError('Diagnostic output bound')
@@ -343,6 +407,7 @@ class Recorder:
             stage=self.value['stages'][row['stage']]
             if stage['latest']['attempt']==row['attempt']:stage['latest']=copy.deepcopy(row)
             if self.value['last_stage']['stage']==row['stage']and self.value['last_stage']['attempt']==row['attempt']:self.value['last_stage']=copy.deepcopy(row)
+            trim_optional_starknet_peer_recovery(self.value)
             trim_optional_admin_http_failure(self.value)
             trim_optional_delivery_mismatch(self.value)
             self.save()
@@ -1315,8 +1380,11 @@ def validate_record(value,modules):
                 require(set(pair)=={'request_started_monotonic_ns','response_received_monotonic_ns','request_age_ns','response_age_ns'}and all(integer(n)for n in pair.values()))
     def entry(v):
         keys={'stage','attempt','started_monotonic_ns','finished_monotonic_ns','status','state'};error={'exception_type','frames','unapproved_frames_omitted','stack_truncated'}
-        require(isinstance(v,dict)and (set(v)==keys or keys|error<=set(v)<=keys|error|{'canonical_block_rpc_error','canonical_delivery_mismatch','admin_http_failure'})and v['stage']in STAGES|{'unknown'}and integer(v['attempt'])and integer(v['started_monotonic_ns'])and(v['finished_monotonic_ns']is None or integer(v['finished_monotonic_ns']))and v['status']in{'inflight','pending','completed','exception'})
+        require(isinstance(v,dict)and (set(v)==keys or keys|error<=set(v)<=keys|error|{'canonical_block_rpc_error','canonical_delivery_mismatch','admin_http_failure','starknet_peer_recovery'})and v['stage']in STAGES|{'unknown'}and integer(v['attempt'])and integer(v['started_monotonic_ns'])and(v['finished_monotonic_ns']is None or integer(v['finished_monotonic_ns']))and v['status']in{'inflight','pending','completed','exception'})
         state(v['state'])
+        if 'starknet_peer_recovery'in v:
+            checked_starknet_peer_recovery(v['starknet_peer_recovery'])
+            require(v['status']=='exception'and v.get('exception_type')=='ValueError'and any(frame.get('module')=='multivm_session.py'and frame.get('function')=='require_starknet_peer_recovery'for frame in v.get('frames',[])))
         if 'admin_http_failure'in v:
             checked_admin_http_failure(v['admin_http_failure'])
             require(v['status']=='exception'and v.get('exception_type')=='ValueError'and any(frame.get('module')=='multivm_session.py'and frame.get('function')=='admin_operations'for frame in v.get('frames',[])))
@@ -1331,7 +1399,7 @@ def validate_record(value,modules):
             for frame in v['frames']:
                 require(set(frame)=={'module','source','function','line'}and frame['module']in modules and frame['source']==modules[frame['module']]and isinstance(frame['function'],str)and re.fullmatch('[A-Za-z_<>][A-Za-z_<>0-9]*',frame['function'])and integer(frame['line']))
     keys={'schema','kind','stages','failures','dropped_new_failure_signatures','native_or_timing_credit','scope','last_stage'}
-    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error EVM delivery-mismatch or admin HTTP status/byte-count/domain diagnostics; no exception message, raw locals, payload, config or environment.')
+    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error EVM delivery-mismatch admin HTTP status/byte-count/domain or Starknet peer-recovery definition/clock diagnostics; no exception message, raw locals, payload, config or environment.')
     require(isinstance(value['stages'],dict)and len(value['stages'])<=len(STAGES)+1 and isinstance(value['failures'],dict)and len(value['failures'])<=8 and integer(value['dropped_new_failure_signatures']))
     entry(value['last_stage'])
     for stage,row in value['stages'].items():

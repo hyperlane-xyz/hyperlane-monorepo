@@ -1066,7 +1066,13 @@ class Session:
                 captured=max(capture["captured_monotonic_ns"] for capture in captures)
                 require(type(captured) is int and captured>0,"actual Starknet consumer capture clock required")
                 received=self.starknet_healthy_rpc_fallbacks.get((row["role"],row["chain"],row["field"],row["healthy_fallback"]))
-                require(type(received) is int and received>=max(captured,notice["monotonic_ns"]),"Source Starknet unavailable peer has no fresh actual healthy fallback")
+                try:
+                    require(type(received) is int and received>=max(captured,notice["monotonic_ns"]),"Source Starknet unavailable peer has no fresh actual healthy fallback")
+                except ValueError as error:
+                    try:
+                        multivm_diagnostics.bind_starknet_peer_recovery(error,_STARKNET_PEER_RECOVERY_CODE,_STARKNET_PEER_RECOVERY_REQUIRE_CODE,row,captured,notice["monotonic_ns"],received)
+                    except BaseException:pass
+                    raise
 
     def require_expected_peer_recovery(self):
         # Proxy URLs/cache keys intentionally survive restart. Recovery may not
@@ -1916,3 +1922,6 @@ class Session:
 # Import-time identities for the optional exact-guard public projection only.
 _CANONICAL_DELIVERY_CODE = Session.canonical_snapshot.__code__
 _CANONICAL_DELIVERY_REQUIRE_CODE = require.__code__
+
+_STARKNET_PEER_RECOVERY_CODE = Session.require_starknet_peer_recovery.__code__
+_STARKNET_PEER_RECOVERY_REQUIRE_CODE = require.__code__

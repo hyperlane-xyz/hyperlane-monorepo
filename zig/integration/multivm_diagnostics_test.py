@@ -1953,4 +1953,102 @@ class AdminHttpFailureControls(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Diagnostic output bound'):recorder.save()
 
 
+class StarknetPeerRecoveryControls(unittest.TestCase):
+    MESSAGE='Source Starknet unavailable peer has no fresh actual healthy fallback'
+    def setUp(self):
+        self.modules={name:api.pin(HERE/name)for name in ['multivm_session.py','multivm_evidence.py','multivm_diagnostics.py']}
+    def context(self,index=0,role='relayer'):
+        return dict(sessions.starknet_unavailable_peers()[index],scenario='starknet',role=role,case_inputs_sha256='a'*64)
+    def invoke(self,received=None,index=0,role='relayer',captured=100,notice=110,context=None):
+        row=self.context(index,role)if context is None else context
+        value=sessions.Session.__new__(sessions.Session);value.lock=threading.RLock()
+        value.captures=[{'captured_monotonic_ns':captured,'original':{'role':row['role'],'role_chain_names':[row['chain']],'chains':{row['chain']:{}}}}]
+        value.starknet_unavailable_notices=[{'context':row,'monotonic_ns':notice}]
+        value.starknet_healthy_rpc_fallbacks={(row['role'],row['chain'],row['field'],row['healthy_fallback']):received}
+        try:value.require_starknet_peer_recovery()
+        except ValueError as error:return error
+        return None
+    def projected(self,error,modules=None):
+        return api.public_frames(error,self.modules if modules is None else modules,HERE)
+    def test_actual_original_guard_missing_stale_and_noninteger(self):
+        for received,classification,observed in [(None,'missing',None),(109,'stale',109),(False,'noninteger',None),('PRIVATE_RECEIVE','noninteger',None),(1.0,'noninteger',None)]:
+            with self.subTest(classification=classification):
+                error=self.invoke(received);self.assertIs(type(error),ValueError);self.assertEqual(error.args,(self.MESSAGE,));value=self.projected(error)
+                self.assertIn('starknet_peer_recovery',value)
+                self.assertEqual(value['starknet_peer_recovery'],{'role':'relayer','definition_index':0,'latest_capture_ns':100,'notice_ns':110,'received_ns':observed,'classification':classification})
+        self.assertIsNone(self.invoke(110));self.assertIsNone(self.invoke(120,captured=120));self.assertEqual(self.projected(self.invoke(115,captured=120))['starknet_peer_recovery']['classification'],'stale')
+    def test_all_six_Source_definitions_and_three_roles_are_closed_identifiers(self):
+        self.assertEqual(len(sessions.starknet_unavailable_peers()),6)
+        for role in ['validator','relayer','scraper']:
+            for index in range(6):
+                row=self.projected(self.invoke(index=index,role=role))['starknet_peer_recovery'];self.assertEqual((row['role'],row['definition_index']),(role,index));self.assertEqual(set(row),{'role','definition_index','latest_capture_ns','notice_ns','received_ns','classification'})
+    def test_optional_binder_BaseException_keeps_original_ValueError_identity(self):
+        original=sessions.require;seen=[]
+        def require(ok,message):
+            try:original(ok,message)
+            except ValueError as error:seen.append(error);raise
+        for failure in [KeyboardInterrupt('PRIVATE'),SystemExit('PRIVATE'),RuntimeError('PRIVATE')]:
+            with mock.patch.object(sessions,'require',side_effect=require),mock.patch.object(api,'bind_starknet_peer_recovery',side_effect=failure):error=self.invoke()
+            self.assertIs(error,seen[-1]);self.assertEqual(error.args,(self.MESSAGE,));self.assertNotIn('_starknet_peer_recovery',error.__dict__)
+        with mock.patch.object(api,'bind_starknet_peer_recovery')as binder:
+            self.assertIsNone(self.invoke(110));binder.assert_not_called()
+    def test_secret_context_other_guards_and_unrepresentable_clocks_never_export(self):
+        error=self.invoke('PRIVATE_URL_PAYLOAD_WINDOW');error.args=('PRIVATE_MESSAGE',);value=self.projected(error)
+        self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(set(error.__dict__),{'_starknet_peer_recovery'});self.assertEqual(set(error.__dict__['_starknet_peer_recovery'][2]),{'role','definition_index','latest_capture_ns','notice_ns','received_ns','classification'})
+        for key,bad in [('role','PRIVATE_ROLE'),('field','PRIVATE_FIELD'),('upstream','https://PRIVATE'),('case_inputs_sha256','PRIVATE')]:
+            context=self.context();context[key]=bad;error=self.invoke(context=context);self.assertIs(type(error),ValueError);self.assertEqual(error.args,(self.MESSAGE,));self.assertNotIn('starknet_peer_recovery',self.projected(error))
+        self.assertIsNone(self.invoke(2**63)) # Preserve original predicate; no diagnostic on success.
+        for captured,notice,received in [(100,110,-1),(2**63,110,None),(100,2**63,None)]:
+            error=self.invoke(received,captured=captured,notice=notice);self.assertEqual(error.args,(self.MESSAGE,));self.assertNotIn('starknet_peer_recovery',self.projected(error))
+        error=self.invoke(captured=0);self.assertEqual(error.args,('actual Starknet consumer capture clock required',));self.assertNotIn('_starknet_peer_recovery',error.__dict__)
+    def test_closed_field_type_range_consistency_and_extra_data_poisons(self):
+        good={'role':'relayer','definition_index':0,'latest_capture_ns':100,'notice_ns':110,'received_ns':109,'classification':'stale'}
+        for key,values in {'role':[True,'PRIVATE',[]],'definition_index':[True,-1,6,'PRIVATE'],'latest_capture_ns':[True,0,-1,2**63],'notice_ns':[True,0,-1,2**63],'received_ns':[True,None,-1,110,2**63,'PRIVATE'],'classification':[True,'PRIVATE','missing','noninteger']}.items():
+            for value in values:
+                bad=dict(good);bad[key]=value
+                with self.assertRaises(ValueError):api.checked_starknet_peer_recovery(bad)
+        for bad in [dict(good,context='PRIVATE'),{},dict(good,received_ns=None)]:
+            with self.assertRaises(ValueError):api.checked_starknet_peer_recovery(bad)
+    def test_Source_pin_code_pair_adjacency_and_other_guard_cannot_spoof(self):
+        error=self.invoke();bound=error.__dict__['_starknet_peer_recovery'];tb=error.__traceback__
+        while tb is not None and tb.tb_frame.f_code is not sessions.Session.require_starknet_peer_recovery.__code__:tb=tb.tb_next
+        self.assertIsNotNone(tb)
+        modules=copy.deepcopy(self.modules);modules['multivm_session.py']['bytes']+=1;self.assertNotIn('starknet_peer_recovery',self.projected(error,modules))
+        for key in ['_STARKNET_PEER_RECOVERY_CODE','_STARKNET_PEER_RECOVERY_REQUIRE_CODE']:
+            with mock.patch.object(sessions,key,None):self.assertIsNone(api.starknet_peer_recovery(error,tb,'multivm_session.py'))
+        self.assertIsNone(api.starknet_peer_recovery(error,tb,'multivm_evidence.py'));self.assertIsNone(api.starknet_peer_recovery(RuntimeError(),tb,'multivm_session.py'))
+        for value in [(bound[1],bound[0],bound[2]),(None,bound[1],bound[2]),'PRIVATE']:
+            error.__dict__['_starknet_peer_recovery']=value;self.assertIsNone(api.starknet_peer_recovery(error,tb,'multivm_session.py'))
+        other=self.invoke(captured=0);other.__dict__['_starknet_peer_recovery']=bound;self.assertNotIn('starknet_peer_recovery',self.projected(other))
+        error.__dict__['_starknet_peer_recovery']=bound
+        fake=SimpleNamespace(tb_frame=tb.tb_frame,tb_next=None,tb_lineno=tb.tb_lineno);self.assertIsNone(api.starknet_peer_recovery(error,fake,'multivm_session.py'))
+        with mock.patch.object(sessions.Session,'require_starknet_peer_recovery',lambda self:None):self.assertIsNone(api.starknet_peer_recovery(error,tb,'multivm_session.py'))
+    def test_optional_projection_error_quarantined_without_changing_frames(self):
+        error=self.invoke();baseline=self.projected(error);baseline.pop('starknet_peer_recovery')
+        for raised in [KeyboardInterrupt('PRIVATE'),SystemExit('PRIVATE'),RuntimeError('PRIVATE')]:
+            with mock.patch.object(api,'starknet_peer_recovery',side_effect=raised):self.assertEqual(self.projected(error),baseline)
+    def test_recorder_roundtrip_schema_requires_correct_exception_and_frame(self):
+        state={'observed_monotonic_ns':120,'restart_sample_count':0,'restart_failed':False,'restart_first_observed_ns':None,'restart_last_observed_ns':None,'role_activity':[],'observer_failure_count':0,'lifecycle_error_count':0}
+        with tempfile.TemporaryDirectory()as directory:
+            recorder=api.Recorder(Path(directory)/'result.json',self.modules,HERE);token=recorder.enter('before_restart',state);recorder.finish(token,dict(state,observed_monotonic_ns=130),'exception',self.invoke())
+            value=json.loads(recorder.path.read_text());api.validate_record(value,self.modules);self.assertEqual(value['last_stage']['starknet_peer_recovery']['classification'],'missing');self.assertNotIn('PRIVATE',json.dumps(value))
+            for key,bad in [('definition_index',True),('role','PRIVATE'),('notice_ns',-1)]:
+                invalid=copy.deepcopy(value);invalid['last_stage']['starknet_peer_recovery'][key]=bad
+                with self.assertRaises(ValueError):api.validate_record(invalid,self.modules)
+            for key,bad in [('exception_type','RuntimeError'),('frames',[])]:
+                invalid=copy.deepcopy(value);invalid['last_stage'][key]=bad
+                with self.assertRaises(ValueError):api.validate_record(invalid,self.modules)
+    def test_optional_cap_drop_preserves_HTTP_and_old_oversize_refusal(self):
+        finite=self.projected(self.invoke())['starknet_peer_recovery'];base={'last_stage':{'admin_http_failure':{'domain':1,'http_status':503,'body_bytes':12}},'stages':{},'failures':{},'padding':''}
+        base['padding']='x'*(api.LIMIT-len(json.dumps(base,sort_keys=True,separators=(',',':')).encode())-1)
+        self.assertEqual(len(json.dumps(base,sort_keys=True,separators=(',',':')).encode())+1,api.LIMIT);value=copy.deepcopy(base);value['last_stage']['starknet_peer_recovery']=finite
+        api.trim_optional_starknet_peer_recovery(value);self.assertEqual(value,base)
+        with mock.patch.object(api.json,'dumps',side_effect=KeyboardInterrupt('PRIVATE')):
+            value=copy.deepcopy(base);value['last_stage']['starknet_peer_recovery']=finite;api.trim_optional_starknet_peer_recovery(value)
+        self.assertEqual(value,base)
+        with tempfile.TemporaryDirectory()as directory:
+            recorder=api.Recorder(Path(directory)/'result.json',self.modules,HERE);recorder.value={'last_stage':{'starknet_peer_recovery':finite},'stages':{},'failures':{},'padding':'x'*api.LIMIT};api.trim_optional_starknet_peer_recovery(recorder.value)
+            with self.assertRaisesRegex(ValueError,'Diagnostic output bound'):recorder.save()
+
+
 if __name__=='__main__':unittest.main()
