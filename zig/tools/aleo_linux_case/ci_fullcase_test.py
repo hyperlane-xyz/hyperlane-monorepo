@@ -815,4 +815,66 @@ class NamespacePolicyDenials(unittest.TestCase):
   for i in range(128):self.record('DNS escape',str(i+1))
   out=self.observe();self.assertEqual(out['count'],128);self.assertTrue(out['order']['groups_truncated']);self.assertEqual(len(out['order']['groups']),16);self.assertLessEqual(len(json.dumps(out).encode()),8192)
 
+class ForeignTransportClassifications(unittest.TestCase):
+ record=NamespacePolicyDenials.record
+ observe=NamespacePolicyDenials.observe
+ def setUp(self):
+  NamespacePolicyDenials.setUp(self)
+  for name in ('case_specs.py','closed-cache-assets.json.gz'):
+   path=self.source.parent/name;path.write_bytes((HERE/name).read_bytes());self.sources.append(m.pin(path))
+ def classification(self,error):
+  for path in self.errors.iterdir():path.unlink()
+  self.record(error);out=self.observe();self.assertEqual(out['status'],'observed');return out['foreign_transport']
+ def test_admitted_origin_path_is_not_exact_href_or_method_and_no_private_values(self):
+  import gzip
+  grant=json.loads(gzip.decompress((self.source.parent/'closed-cache-assets.json.gz').read_bytes()));url=grant['assets'][0]['url'];out=self.classification('foreign transport:'+url);row=out['classes'][0]
+  self.assertEqual(row['protocol'],'HTTPS');self.assertEqual(row['asset_relation'],'SOURCE_ASSET_ORIGIN_AND_PATH')
+  for field in ('method_observed','query_observed','caller_observed','exact_asset_href_observed'):self.assertFalse(out[field])
+  out=self.classification('foreign transport:https://PRIVATE_TOKEN.invalid/SECRET/private/path');wire=json.dumps(out)
+  for value in ('PRIVATE_TOKEN','SECRET','private/path','https://','sha256','hostname'):self.assertNotIn(value,wire)
+  self.assertEqual(out['classes'][0]['host_class'],'OTHER');self.assertFalse(out['cause_or_acceptance_authority'])
+ def test_fixed_loopback_alias_protocol_and_Source_port_classes(self):
+  for url,protocol,host,port in [('http://127.0.0.1:23030/testnet/program/public_fixture.aleo','HTTP','EXACT_IPV4_LOOPBACK','SOURCE_RPC'),('https://127.0.0.1:23030/testnet/block/1','HTTPS','EXACT_IPV4_LOOPBACK','SOURCE_RPC'),('http://localhost:23033/testnet/statePath/public_fixture','HTTP','LOCALHOST_ALIAS','SOURCE_OTHER_POLICY_PORT'),('http://[::1]:23032/','HTTP','IPV6_LOOPBACK','SOURCE_CACHE'),('http://127.0.0.1:12345/','HTTP','EXACT_IPV4_LOOPBACK','OTHER'),('file:///synthetic','FILE','ABSENT','UNSTATED')]:
+   row=self.classification('foreign transport:'+url)['classes'][0];self.assertEqual((row['protocol'],row['host_class'],row['port_class']),(protocol,host,port))
+ def test_opaque_truncated_malformed_and_non_Source_shape_are_unavailable(self):
+  for suffix in ('mailto://user@PRIVATE.invalid','javascript://PRIVATE','https://','http://[::1','http://host:99999/path','http://host:bad/path','https://host/path?PRIVATE','https://host/path#PRIVATE','https://host/\nPRIVATE'):
+   with self.subTest(suffix=suffix):self.assertEqual(self.classification('foreign transport:'+suffix),{'status':'unavailable'})
+ def test_required_Source_pins_ports_alias_metadata_and_gzip_bounds_fail_closed(self):
+  self.record('foreign transport:https://unlisted.invalid/path');saved=list(self.sources)
+  for values in [saved[:1],saved+[saved[-1]],[{**r,'sha256':'0'*64}if r==saved[-1]else r for r in saved]]:
+   self.sources=values;out=self.observe();self.assertEqual(out['status'],'observed');self.assertEqual(out['foreign_transport'],{'status':'unavailable'})
+  self.sources=saved;source=self.source.parent/'case_specs.py';original=source.read_bytes();source.write_bytes(original.replace(b"'rpc_ports':[23030",b"'rpc_ports':[True",1));self.sources=[m.pin(pathlib.Path(r['path']))for r in saved];self.assertEqual(self.observe()['foreign_transport'],{'status':'unavailable'});source.write_bytes(original)
+  import gzip
+  source=self.source.parent/'closed-cache-assets.json.gz';source.write_bytes(gzip.compress(b'x'*(256*1024+1)));self.sources=[m.pin(pathlib.Path(r['path']))for r in saved];self.assertEqual(self.observe()['foreign_transport'],{'status':'unavailable'})
+ def test_classes_aggregate_and_truncate_without_identities_or_order_and_keep_old_bound(self):
+  for host in ('127.0.0.1','localhost','[::1]','unlisted.invalid'):
+   for port in (23030,23032,23033,12345):self.record('foreign transport:http://'+host+':'+str(port)+'/testnet/block/1')
+  out=self.observe();self.assertEqual(out['count'],16);value=out['foreign_transport'];self.assertEqual(value['classified_count'],16);self.assertEqual(len(value['classes']),8);self.assertTrue(value['classes_truncated']);self.assertLessEqual(len(json.dumps(out).encode()),8192)
+ def test_real_old_projection_near_8192_omits_optional_field_instead_of_losing_counts(self):
+  wire=pathlib.Path(m.__file__).read_text();tree=ast.parse(wire);fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='namespace_policy_failure_observation');legacy=ast.get_source_segment(wire,fn)
+  for before,after in [(";foreign=[]",""),(";foreign.append(error)","")]:
+   self.assertEqual(legacy.count(before),1);legacy=legacy.replace(before,after,1)
+  marker='  if foreign:\n';tail="  need(len(json.dumps(result).encode())<=8192,'closed denial projection cap');return result";self.assertEqual(legacy.count(marker),1);start=legacy.index(marker);end=legacy.index(tail,start);legacy=legacy[:start]+legacy[end:]
+  expected=('30c00da7b41e427b1d7383580dd9c579' '3a1448339f9b7ffa1b990c2c84fe92a2');self.assertEqual(hashlib.sha256(legacy.encode()).hexdigest(),expected)
+  space=dict(m.__dict__);exec(compile(ast.parse(legacy),'<exact-current-Source-inverse>','exec'),space)
+  self.record('DNS escape');self.record('foreign transport:https://unlisted.invalid/path');original=self.source.read_text();low=0;high=3000
+  def old(count):
+   self.source.write_text(original+'\n'+"deny('DNS escape');\n"*count);self.sources=[m.pin(pathlib.Path(row['path']))for row in self.sources];return space['namespace_policy_failure_observation'](self.case,self.repo,self.sources)
+  while low+1<high:
+   mid=(low+high)//2;value=old(mid)
+   if value.get('status')=='observed':low=mid
+   else:high=mid
+  expected=old(low);self.assertEqual(expected['status'],'observed');self.assertLessEqual(len(json.dumps(expected).encode()),8192);self.assertGreater(len(json.dumps({**expected,'foreign_transport':{'status':'unavailable'}}).encode()),8192)
+  with mock.patch.object(m,'namespace_foreign_transport_observation',return_value={'status':'unavailable'}):out=self.observe()
+  self.assertEqual(out,expected);self.assertNotIn('foreign_transport',out)
+ def test_optional_helper_BaseException_or_serialization_failure_preserves_original_counts(self):
+  self.record('foreign transport:https://unlisted.invalid/path');normal=self.observe();expected={k:v for k,v in normal.items()if k!='foreign_transport'}
+  for options in ({'side_effect':KeyboardInterrupt()},{'return_value':{'status':object()}}):
+   with mock.patch.object(m,'namespace_foreign_transport_observation',**options):out=self.observe()
+   self.assertEqual(out['foreign_transport'],{'status':'unavailable'});self.assertEqual({k:v for k,v in out.items()if k!='foreign_transport'},expected)
+  for path in self.errors.iterdir():path.unlink()
+  self.record('DNS escape')
+  with mock.patch.object(m,'namespace_foreign_transport_observation',side_effect=AssertionError('not foreign')):self.assertNotIn('foreign_transport',self.observe())
+
+
 if __name__=='__main__':unittest.main(verbosity=2)

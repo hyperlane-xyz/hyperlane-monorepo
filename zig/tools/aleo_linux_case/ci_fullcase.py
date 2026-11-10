@@ -256,6 +256,43 @@ def hydration_failure_observation(log,repo,admitted_sources):
  except BaseException:return unavailable
 
 
+def namespace_foreign_transport_observation(errors,repo,admitted_sources,read_regular):
+ # Only the existing Source-written protocol//host/path suffix is available.
+ # Its original method, query and caller are deliberately NOT inferred.
+ unavailable={'status':'unavailable'}
+ try:
+  import zlib
+  from urllib.parse import urlsplit
+  need(type(errors)is list and 0<len(errors)<=128 and all(type(v)is str and v.startswith('foreign transport:')and len(v.encode())<=1024 for v in errors),'bounded foreign records')
+  def source(relative):
+   path=Path(repo)/relative;need(path.is_absolute()and path.resolve(strict=True)==path,'canonical classification Source')
+   rows=[r for r in admitted_sources if type(r)is dict and r.get('path')==str(path)];need(len(rows)==1,'unique classification Source');row=rows[0]
+   need(set(row)=={'path','bytes','sha256'}and type(row['bytes'])is int and 0<row['bytes']<=256*1024 and type(row['sha256'])is str and re.fullmatch('[0-9a-f]{64}',row['sha256']),'bounded classification Source')
+   body=read_regular(path,256*1024);need(len(body)==row['bytes']and hashlib.sha256(body).hexdigest()==row['sha256'],'classification Source differs');return body
+  tree=ast.parse(source('zig/tools/aleo_linux_case/case_specs.py'));policies=[n.value for n in ast.walk(tree)if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='policy'for t in n.targets)and isinstance(n.value,ast.Dict)]
+  fields=[{k.value:v for k,v in zip(n.keys,n.values)if isinstance(k,ast.Constant)and type(k.value)is str}for n in policies];fields=[n for n in fields if 'rpc_ports'in n and 'cache_port'in n];need(len(fields)==1,'unique fixed port Source')
+  ports=ast.literal_eval(fields[0]['rpc_ports']);cache=ast.literal_eval(fields[0]['cache_port']);need(type(ports)is list and len(ports)==10 and len(set(ports))==10 and all(type(v)is int and 1024<v<65536 for v in ports)and type(cache)is int and cache in ports,'fixed policy port Source')
+  compressed=source('zig/tools/aleo_linux_case/closed-cache-assets.json.gz');d=zlib.decompressobj(31);body=d.decompress(compressed,256*1024+1);need(len(body)<=256*1024 and d.eof and not d.unused_data and not d.unconsumed_tail,'bounded Source asset metadata');grant=decode(body)
+  aliases=grant['assets'];need(type(aliases)is list and len(aliases)==17 and all(type(v)is dict and type(v.get('url'))is str for v in aliases),'exact Source17 aliases');urls=[urlsplit(v['url'])for v in aliases];need(len({v['url']for v in aliases})==17 and all(v.scheme=='https'and v.hostname and not v.username and not v.password and not v.query and not v.fragment for v in urls),'closed Source asset aliases');origins={(v.scheme,v.netloc)for v in urls};paths={v.path for v in urls};pairs={(v.scheme,v.netloc,v.path)for v in urls}
+  rpc=grant['owned_rpc_origins'];need(type(rpc)is list and len(rpc)==6 and len(set(rpc))==6,'fixed Source RPC origins');rpc=[urlsplit(v)for v in rpc];owned_cache=urlsplit(grant['owned_cache_origin']);need(all(v.scheme=='http'and v.hostname=='127.0.0.1'and v.port in ports and not v.path and not v.query and not v.fragment and not v.username and not v.password for v in [*rpc,owned_cache])and owned_cache.port==cache,'Source origins agree fixed policy');rpc_ports={v.port for v in rpc}
+  counts={};unknown=0
+  for error in errors:
+   try:
+    suffix=error[len('foreign transport:'):];need(0<len(suffix)<=1006 and suffix.isascii()and not any(ord(v)<=32 or ord(v)==127 for v in suffix),'closed suffix syntax');u=urlsplit(suffix)
+    need(u.scheme in ('http','https','file')and not u.username and not u.password and not u.query and not u.fragment and suffix==u.scheme+'://'+u.netloc+u.path,'unambiguous hierarchical suffix');port=u.port;host=u.hostname
+    need((u.scheme=='file'and not u.netloc)or(u.scheme in ('http','https')and host and u.path.startswith('/')),'complete hierarchical suffix')
+    protocol={'http':'HTTP','https':'HTTPS','file':'FILE'}[u.scheme];host_class='EXACT_IPV4_LOOPBACK'if host=='127.0.0.1'else'LOCALHOST_ALIAS'if host=='localhost'else'IPV6_LOOPBACK'if host=='::1'else'ABSENT'if host is None else'OTHER'
+    port_class='SOURCE_CACHE'if port==cache else'SOURCE_RPC'if port in rpc_ports else'SOURCE_OTHER_POLICY_PORT'if port in ports else'UNSTATED'if port is None else'OTHER'
+    relation='SOURCE_ASSET_ORIGIN_AND_PATH'if(u.scheme,u.netloc,u.path)in pairs else'SOURCE_ASSET_ORIGIN_OTHER_PATH'if(u.scheme,u.netloc)in origins else'OTHER_ORIGIN_SOURCE_ASSET_PATH'if u.path in paths else'OTHER_ORIGIN_OTHER_PATH'
+    path_class='EMPTY_OR_ROOT'if u.path in ('','/')else'RPC_PROGRAM'if re.fullmatch('/(?:testnet|mainnet)/program/[^/]+(?:/.*)?',u.path)else'RPC_STATE_PATH'if re.fullmatch('/(?:testnet|mainnet)/statePath/[^/]+',u.path)else'RPC_BLOCK'if re.fullmatch('/(?:testnet|mainnet)/(?:block|latest)(?:/.*)?',u.path)else'PARAMETER_SRS'if re.fullmatch('/(?:mainnet|mainnet.parameters)/(?:shifted-)?powers-of-beta-[^/]+',u.path)else'PARAMETER_FEE'if re.fullmatch('/(?:testnet|mainnet|mainnet.parameters)/fee_[^/]+',u.path)else'OTHER'
+    key=(protocol,host_class,port_class,relation,path_class);counts[key]=counts.get(key,0)+1
+   except Exception:unknown+=1
+  if not counts:return unavailable
+  classes=[dict(zip(('protocol','host_class','port_class','asset_relation','path_shape'),key),count=count)for key,count in sorted(counts.items())]
+  return {'status':'observed','classified_count':sum(counts.values()),'unavailable_count':unknown,'classes':classes[:8],'classes_truncated':len(classes)>8,'method_observed':False,'query_observed':False,'caller_observed':False,'exact_asset_href_observed':False,'Source_basis':'admitted Source17 aliases and fixed case-policy ports','raw_URL_host_path_suffix_or_private_hash_exported':False,'cause_or_acceptance_authority':False}
+ except BaseException:return unavailable
+
+
 def namespace_policy_failure_observation(case,repo,admitted_sources):
  # Optional failed-case observation only: never export raw deny suffixes/identities.
  unavailable={'status':'unavailable'}
@@ -284,14 +321,14 @@ def namespace_policy_failure_observation(case,repo,admitted_sources):
   directory=Path(case)/'control/errors';need(directory.is_absolute()and directory.resolve(strict=True)==directory,'canonical fixed denial directory')
   fd=os.open(directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_NONBLOCK)
   try:
-   info=os.fstat(fd);need(info.st_uid==os.getuid(),'owned denial directory');names=os.listdir(fd);need(len(names)<=128,'existing denial record cap');observed=[];counts={}
+   info=os.fstat(fd);need(info.st_uid==os.getuid(),'owned denial directory');names=os.listdir(fd);need(len(names)<=128,'existing denial record cap');observed=[];counts={};foreign=[]
    for name in names:
     match=re.fullmatch(r'([1-9][0-9]{0,10})-([0-9]{1,10})-([0-9a-f]{16})\.json',name);need(match is not None,'fixed denial leaf')
     raw=read_regular(name,2048,fd);value=decode(raw)
     need(type(value)is dict and set(value)in ({'pid','threadId','error'},{'pid','threadId','error','monotonic_ns'}),'closed denial record')
     need(type(value['pid'])is int and type(value['threadId'])is int and (value['pid'],value['threadId'])==(int(match[1]),int(match[2]))and type(value['error'])is str and len(value['error'].encode())<=1024,'typed denial values')
     error=value['error'];code=categories.get(error,'UNRECOGNIZED')
-    if error.startswith('foreign transport:'):code='FOREIGN_TRANSPORT'
+    if error.startswith('foreign transport:'):code='FOREIGN_TRANSPORT';foreign.append(error)
     elif error.startswith('unapproved process API:'):
      key=error[len('unapproved process API:'):]
      if key in ('exec','execSync','execFileSync','spawnSync','fork'):code='UNAPPROVED_PROCESS_API_'+key.upper()
@@ -305,6 +342,12 @@ def namespace_policy_failure_observation(case,repo,admitted_sources):
    for timestamp in sorted({t for t,_ in observed}):
     codes=[code for t,code in observed if t==timestamp];groups.append({'codes':sorted(set(codes)),'count':len(codes),'tie_ambiguous':len(codes)>1})
   result={'schema':1,'kind':'aleo-closed-namespace-policy-denials-v1','status':'observed','source':{'path':relative,'bytes':row['bytes'],'sha256':row['sha256']},'count':len(observed),'counts':[{'code':code,'count':count,'Source_lines':lines.get(code,[])}for code,count in sorted(counts.items())],'order':{'status':'observed-untrusted-monotonic-values'if complete and observed else'unavailable','groups':groups[:16],'groups_truncated':len(groups)>16,'not_filename_or_directory_chronology':True},'raw_errors_paths_identities_timestamps_exported':False,'cause_or_acceptance_authority':False}
+  if foreign:
+   try:
+    classification=namespace_foreign_transport_observation(foreign,repo,admitted_sources,read_regular)
+    if len(json.dumps({**result,'foreign_transport':classification}).encode())>8192:classification={'status':'unavailable'}
+   except BaseException:classification={'status':'unavailable'}
+   if len(json.dumps({**result,'foreign_transport':classification}).encode())<=8192:result['foreign_transport']=classification
   need(len(json.dumps(result).encode())<=8192,'closed denial projection cap');return result
  except BaseException:return unavailable
 
