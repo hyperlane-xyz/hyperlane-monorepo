@@ -1866,4 +1866,91 @@ class CanonicalDeliveryMismatchControls(unittest.TestCase):
             value=s.canonical_snapshot(0,initial=True);self.assertEqual(value['deliverable_messages'],[]);self.assertEqual(value['native_delivery_transactions'],[]);bind.assert_not_called();self.assertEqual(s.failures,[])
 
 
+class AdminHttpFailureControls(unittest.TestCase):
+    MESSAGE='actual native admin sample failed'
+    def setUp(self):
+        self.modules={name:api.pin(HERE/name)for name in ['multivm_session.py','multivm_evidence.py','multivm_diagnostics.py']}
+    def invoke(self,status=503,data=b'PRIVATE_BODY',domain=9913372,hook=None):
+        response=mock.Mock(status=status);response.read.return_value=data
+        connection=mock.Mock();connection.getresponse.return_value=response
+        with mock.patch.object(sessions.http.client,'HTTPConnection',return_value=connection):
+            try:result=sessions.admin_operations(12345,domain,connection_hook=hook)
+            except ValueError as error:result=error
+        response.read.assert_called_once_with(8*1024*1024+1)
+        connection.request.assert_called_once_with('GET',f'/list_operations?destination_domain={domain}')
+        connection.close.assert_called_once_with()
+        return result
+    def projected(self,error,modules=None):
+        return api.public_frames(error,self.modules if modules is None else modules,HERE)
+    def test_actual_status_oversize_and_both_only_export_three_integers(self):
+        for status,data in [(503,b'PRIVATE_BODY'),(200,b'x'*(8*1024*1024+1)),(503,b'x'*(8*1024*1024+1)),(999,b'')]:
+            with self.subTest(status=status,bytes=len(data)):
+                error=self.invoke(status,data);self.assertIs(type(error),ValueError);self.assertEqual(error.args,(self.MESSAGE,))
+                row=self.projected(error);self.assertEqual(row['admin_http_failure'],{'domain':9913372,'http_status':status,'body_bytes':len(data)})
+                self.assertEqual(set(error.__dict__),{'_admin_http_failure'});self.assertNotIn('PRIVATE',json.dumps(row));self.assertNotIn('body',set(row['admin_http_failure']))
+    def test_success_and_other_original_guards_have_no_new_annotation(self):
+        events=[];self.assertEqual(self.invoke(200,b'[]',hook=lambda c,live:events.append(live)),[]);self.assertEqual(events,[True,True,False])
+        error=self.invoke(200,b'{}');self.assertEqual(error.args,('native admin response is not operation list',));self.assertNotIn('_admin_http_failure',error.__dict__)
+        self.assertNotIn('admin_http_failure',self.projected(error))
+    def test_optional_baseexception_preserves_original_exception_identity_and_cleanup(self):
+        original=sessions.require;seen=[]
+        def require(ok,message):
+            try:original(ok,message)
+            except ValueError as error:seen.append(error);raise
+        for failure in [KeyboardInterrupt('PRIVATE'),SystemExit('PRIVATE'),RuntimeError('PRIVATE')]:
+            with mock.patch.object(sessions,'require',side_effect=require),mock.patch.object(api,'bind_admin_http_failure',side_effect=failure):error=self.invoke()
+            self.assertIs(error,seen[-1]);self.assertEqual(error.args,(self.MESSAGE,));self.assertNotIn('_admin_http_failure',error.__dict__)
+    def test_closed_types_ranges_and_success_pair_poison_refused(self):
+        good={'domain':9913372,'http_status':503,'body_bytes':12}
+        for key,values in {'domain':[True,-1,2**32,'PRIVATE',[]],'http_status':[True,99,1000,'PRIVATE',[]],'body_bytes':[True,-1,8*1024*1024+2,'PRIVATE',[]]}.items():
+            for value in values:
+                bad=dict(good);bad[key]=value
+                with self.assertRaises(ValueError):api.checked_admin_http_failure(bad)
+        for bad in [dict(good,body='PRIVATE'),dict(good,http_status=200),{}]:
+            with self.assertRaises(ValueError):api.checked_admin_http_failure(bad)
+    def test_source_pin_code_pair_globals_nonadjacent_and_other_guard_poison(self):
+        error=self.invoke();bound=error.__dict__['_admin_http_failure'];tb=error.__traceback__
+        while tb is not None and tb.tb_frame.f_code is not sessions.admin_operations.__code__:tb=tb.tb_next
+        self.assertIsNotNone(tb)
+        modules=copy.deepcopy(self.modules);modules['multivm_session.py']['bytes']+=1
+        self.assertNotIn('admin_http_failure',self.projected(error,modules))
+        for bad in [None,(bound[0],bound[1]),(bound[1],bound[0],bound[2]),(bound[0],bound[1],dict(bound[2],http_status=True))]:
+            error.__dict__['_admin_http_failure']=bad;self.assertNotIn('admin_http_failure',self.projected(error))
+        error.__dict__['_admin_http_failure']=bound
+        with mock.patch.object(sessions,'_ADMIN_HTTP_CODE',sessions.collect_admin_sample.__code__):self.assertNotIn('admin_http_failure',self.projected(error))
+        with mock.patch.dict(sys.modules,{'multivm_session':SimpleNamespace()}):self.assertNotIn('admin_http_failure',self.projected(error))
+        import types
+        missing_next=types.TracebackType(None,tb.tb_frame,tb.tb_lasti,tb.tb_lineno)
+        self.assertIsNone(api.admin_http_failure(error,missing_next,'multivm_session.py'))
+        other=self.invoke(200,b'{}');other.__dict__['_admin_http_failure']=bound;self.assertNotIn('admin_http_failure',self.projected(other))
+        self.assertIsNone(api.admin_http_failure(RuntimeError(),tb,'multivm_session.py'))
+    def test_response_secret_headers_body_and_error_message_never_projected(self):
+        error=self.invoke(503,b'PRIVATE_BODY_URL_HEADER_WINDOW');error.args=('PRIVATE_MESSAGE',)
+        value=self.projected(error);self.assertNotIn('PRIVATE',json.dumps(value));self.assertEqual(value['admin_http_failure']['body_bytes'],len(b'PRIVATE_BODY_URL_HEADER_WINDOW'))
+        # The private tuple contains only exact code identities and the finite copy.
+        self.assertEqual(set(error.__dict__['_admin_http_failure'][2]),{'domain','http_status','body_bytes'})
+    def test_recorder_roundtrip_and_schema_poison(self):
+        error=self.invoke();state={'observed_monotonic_ns':1,'restart_sample_count':0,'restart_failed':False,'restart_first_observed_ns':None,'restart_last_observed_ns':None,'role_activity':[],'observer_failure_count':0,'lifecycle_error_count':0}
+        with tempfile.TemporaryDirectory()as directory:
+            recorder=api.Recorder(Path(directory)/'result.json',self.modules,HERE);token=recorder.enter('restart',state)
+            recorder.finish(token,dict(state,observed_monotonic_ns=2),'exception',error)
+            value=json.loads(recorder.path.read_text());api.validate_record(value,self.modules)
+            self.assertEqual(value['last_stage']['admin_http_failure'],{'domain':9913372,'http_status':503,'body_bytes':12})
+            for key,bad in [('http_status',True),('body_bytes',-1),('domain',2**32)]:
+                poisoned=copy.deepcopy(value);poisoned['last_stage']['admin_http_failure'][key]=bad
+                with self.assertRaises(ValueError):api.validate_record(poisoned,self.modules)
+            self.assertNotIn('PRIVATE',json.dumps(value))
+    def test_new_optional_cap_drop_does_not_change_old_bound_refusal(self):
+        row={'admin_http_failure':{'domain':1,'http_status':503,'body_bytes':12}}
+        value={'last_stage':row,'stages':{},'failures':{},'padding':'x'*(api.LIMIT-110)}
+        original=copy.deepcopy(value);original['last_stage'].pop('admin_http_failure')
+        self.assertLessEqual(len(json.dumps(original,sort_keys=True,separators=(',',':')).encode())+1,api.LIMIT)
+        self.assertGreater(len(json.dumps(value,sort_keys=True,separators=(',',':')).encode())+1,api.LIMIT)
+        api.trim_optional_admin_http_failure(value);self.assertEqual(value,original)
+        with tempfile.TemporaryDirectory()as directory:
+            recorder=api.Recorder(Path(directory)/'result.json',self.modules,HERE);recorder.value={'last_stage':row,'stages':{},'failures':{},'padding':'x'*api.LIMIT}
+            api.trim_optional_admin_http_failure(recorder.value)
+            with self.assertRaisesRegex(ValueError,'Diagnostic output bound'):recorder.save()
+
+
 if __name__=='__main__':unittest.main()

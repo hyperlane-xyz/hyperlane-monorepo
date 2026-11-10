@@ -383,7 +383,16 @@ def admin_operations(port, domain, *, timeout=1, connection_hook=None):
         connection.request("GET", f"/list_operations?destination_domain={domain}")
         response = connection.getresponse()
         data = response.read(8 * 1024 * 1024 + 1)
-        require(response.status == 200 and len(data) <= 8 * 1024 * 1024, "actual native admin sample failed")
+        try:
+            require(response.status == 200 and len(data) <= 8 * 1024 * 1024, "actual native admin sample failed")
+        except ValueError as error:
+            try:
+                multivm_diagnostics.bind_admin_http_failure(
+                    error, _ADMIN_HTTP_CODE, _ADMIN_HTTP_REQUIRE_CODE,
+                    {"domain": domain, "http_status": response.status, "body_bytes": len(data)})
+            except BaseException:
+                pass  # Optional finite evidence cannot replace the original guard.
+            raise
         result = json.loads(data)
         require(isinstance(result, list), "native admin response is not operation list")
         return result
@@ -391,6 +400,10 @@ def admin_operations(port, domain, *, timeout=1, connection_hook=None):
         connection.close()
         if connection_hook is not None:
             connection_hook(connection, False)
+
+
+_ADMIN_HTTP_CODE = admin_operations.__code__
+_ADMIN_HTTP_REQUIRE_CODE = require.__code__
 
 
 def collect_admin_sample(port, chains, deadline_ns, diagnostic, stopped):

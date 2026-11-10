@@ -109,8 +109,54 @@ def trim_optional_delivery_mismatch(value):
         if type(row)is dict:row.pop('canonical_delivery_mismatch',None)
 
 
+def checked_admin_http_failure(row):
+    if type(row)is not dict or set(row)!={'domain','http_status','body_bytes'}:raise ValueError('Closed admin HTTP failure required')
+    if type(row['domain'])is not int or not 0<=row['domain']<2**32:raise ValueError('Bounded admin domain required')
+    if type(row['http_status'])is not int or not 100<=row['http_status']<=999:raise ValueError('HTTP response status required')
+    if type(row['body_bytes'])is not int or not 0<=row['body_bytes']<=8*1024*1024+1:raise ValueError('Bounded observed HTTP bytes required')
+    if row['http_status']==200 and row['body_bytes']<=8*1024*1024:raise ValueError('Actual failed HTTP guard required')
+    return dict(row)
+
+
+def bind_admin_http_failure(error,origin,guard,row):
+    if type(error)is not ValueError or type(origin)is not types.CodeType or type(guard)is not types.CodeType:return
+    error.__dict__['_admin_http_failure']=(origin,guard,checked_admin_http_failure(row))
+
+
+def admin_http_failure(error,tb,name):
+    """Project only the admitted admin response guard; never retain its body."""
+    try:
+        if type(error)is not ValueError or name!='multivm_session.py':return None
+        bound=error.__dict__.get('_admin_http_failure')
+        if type(bound)is not tuple or len(bound)!=3:return None
+        origin,guard,row=bound
+        if type(origin)is not types.CodeType or type(guard)is not types.CodeType or len(origin.co_code)>64*1024:return None
+        frame=tb.tb_frame;following=tb.tb_next;module=sys.modules.get('multivm_session');evidence=sys.modules.get('multivm_evidence')
+        if not isinstance(module,types.ModuleType)or module.__dict__ is not frame.f_globals or not isinstance(evidence,types.ModuleType):return None
+        if origin.co_name!='admin_operations'or guard.co_name!='require'or str(Path(module.__file__).resolve())!=str(Path(origin.co_filename).resolve()):return None
+        if frame.f_code is not origin or frame.f_globals.get('_ADMIN_HTTP_CODE')is not origin or frame.f_globals.get('_ADMIN_HTTP_REQUIRE_CODE')is not guard or evidence.require.__code__ is not guard:return None
+        if following is None or following.tb_frame.f_code is not guard or following.tb_frame.f_globals is not evidence.__dict__:return None
+        lines=[i.positions.lineno for i in dis.get_instructions(origin)if i.opname=='LOAD_CONST'and i.argval=='actual native admin sample failed']
+        if len(lines)!=1 or type(lines[0])is not int or tb.tb_lineno!=lines[0]:return None
+        return checked_admin_http_failure(row)
+    except BaseException:return None
+
+
+def trim_optional_admin_http_failure(value):
+    """New optional rows cannot displace old records or change the save cap."""
+    entries=[value.get('last_stage')]
+    for group in ['stages','failures']:
+        for row in value.get(group,{}).values():entries.extend([row.get('first'),row.get('latest')])
+    if not any(type(row)is dict and 'admin_http_failure'in row for row in entries):return
+    try:
+        if len(json.dumps(value,sort_keys=True,separators=(',',':')).encode())+1<=LIMIT:return
+    except BaseException:pass
+    for row in entries:
+        if type(row)is dict:row.pop('admin_http_failure',None)
+
+
 def public_frames(error,modules,directory):
-    approved=checked_modules(modules,directory);frames=[];unapproved=0;tb=error.__traceback__;walked=0;rpc_error=None;rpc_frame=None;delivery_error=None;delivery_frame=None
+    approved=checked_modules(modules,directory);frames=[];unapproved=0;tb=error.__traceback__;walked=0;rpc_error=None;rpc_frame=None;delivery_error=None;delivery_frame=None;http_error=None;http_frame=None
     while tb is not None and walked<64:
         walked+=1;code=tb.tb_frame.f_code;path=str(Path(code.co_filename).resolve())
         if path in approved and re.fullmatch(r'[A-Za-z_<>][A-Za-z_<>0-9]*',code.co_name):
@@ -119,11 +165,14 @@ def public_frames(error,modules,directory):
             if projected is not None:rpc_error=projected;rpc_frame=frame
             projected=canonical_delivery_mismatch(error,tb,name)
             if projected is not None:delivery_error=projected;delivery_frame=frame
+            projected=admin_http_failure(error,tb,name)
+            if projected is not None:http_error=projected;http_frame=frame
         else:unapproved+=1
         tb=tb.tb_next
     result={'frames':frames[-8:],'unapproved_frames_omitted':unapproved,'stack_truncated':tb is not None or len(frames)>8}
     if rpc_error is not None and rpc_frame in result['frames']:result['canonical_block_rpc_error']=rpc_error
     if delivery_error is not None and delivery_frame in result['frames']:result['canonical_delivery_mismatch']=delivery_error
+    if http_error is not None and http_frame in result['frames']:result['admin_http_failure']=http_error
     return result
 
 
@@ -261,7 +310,7 @@ class Recorder:
     def __init__(self,path,modules,directory):
         self.path=Path(path);self.modules=modules;self.directory=Path(directory);self.lock=threading.Lock()
         if self.path.exists()or self.path.is_symlink():raise ValueError('Preserve existing diagnostic file')
-        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error or EVM delivery-mismatch diagnostics; no exception message, raw locals, payload, config or environment.'}
+        self.value={'schema':1,'kind':'public-native-observer-diagnostics','stages':{},'failures':{},'dropped_new_failure_signatures':0,'native_or_timing_credit':False,'scope':'Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error EVM delivery-mismatch or admin HTTP status/byte-count/domain diagnostics; no exception message, raw locals, payload, config or environment.'}
     def save(self):
         wire=json.dumps(self.value,sort_keys=True,separators=(',',':')).encode()+b'\n'
         if len(wire)>LIMIT:raise ValueError('Diagnostic output bound')
@@ -294,6 +343,7 @@ class Recorder:
             stage=self.value['stages'][row['stage']]
             if stage['latest']['attempt']==row['attempt']:stage['latest']=copy.deepcopy(row)
             if self.value['last_stage']['stage']==row['stage']and self.value['last_stage']['attempt']==row['attempt']:self.value['last_stage']=copy.deepcopy(row)
+            trim_optional_admin_http_failure(self.value)
             trim_optional_delivery_mismatch(self.value)
             self.save()
 
@@ -1265,8 +1315,11 @@ def validate_record(value,modules):
                 require(set(pair)=={'request_started_monotonic_ns','response_received_monotonic_ns','request_age_ns','response_age_ns'}and all(integer(n)for n in pair.values()))
     def entry(v):
         keys={'stage','attempt','started_monotonic_ns','finished_monotonic_ns','status','state'};error={'exception_type','frames','unapproved_frames_omitted','stack_truncated'}
-        require(isinstance(v,dict)and (set(v)==keys or keys|error<=set(v)<=keys|error|{'canonical_block_rpc_error','canonical_delivery_mismatch'})and v['stage']in STAGES|{'unknown'}and integer(v['attempt'])and integer(v['started_monotonic_ns'])and(v['finished_monotonic_ns']is None or integer(v['finished_monotonic_ns']))and v['status']in{'inflight','pending','completed','exception'})
+        require(isinstance(v,dict)and (set(v)==keys or keys|error<=set(v)<=keys|error|{'canonical_block_rpc_error','canonical_delivery_mismatch','admin_http_failure'})and v['stage']in STAGES|{'unknown'}and integer(v['attempt'])and integer(v['started_monotonic_ns'])and(v['finished_monotonic_ns']is None or integer(v['finished_monotonic_ns']))and v['status']in{'inflight','pending','completed','exception'})
         state(v['state'])
+        if 'admin_http_failure'in v:
+            checked_admin_http_failure(v['admin_http_failure'])
+            require(v['status']=='exception'and v.get('exception_type')=='ValueError'and any(frame.get('module')=='multivm_session.py'and frame.get('function')=='admin_operations'for frame in v.get('frames',[])))
         if 'canonical_delivery_mismatch'in v:
             checked_canonical_delivery_mismatch(v['canonical_delivery_mismatch'])
             require(v['status']=='exception'and v.get('exception_type')=='ValueError'and any(frame.get('module')=='multivm_session.py'and frame.get('function')=='canonical_snapshot'for frame in v.get('frames',[])))
@@ -1278,7 +1331,7 @@ def validate_record(value,modules):
             for frame in v['frames']:
                 require(set(frame)=={'module','source','function','line'}and frame['module']in modules and frame['source']==modules[frame['module']]and isinstance(frame['function'],str)and re.fullmatch('[A-Za-z_<>][A-Za-z_<>0-9]*',frame['function'])and integer(frame['line']))
     keys={'schema','kind','stages','failures','dropped_new_failure_signatures','native_or_timing_credit','scope','last_stage'}
-    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error or EVM delivery-mismatch diagnostics; no exception message, raw locals, payload, config or environment.')
+    require(isinstance(value,dict)and set(value)==keys and type(value['schema'])is int and value['schema']==1 and value['kind']=='public-native-observer-diagnostics'and value['native_or_timing_credit']is False and value['scope']=='Only approved source frames, stage/attempt status, observed public monotonic clocks and optional closed restart-admin, SVM event, canonical-block RPC error EVM delivery-mismatch or admin HTTP status/byte-count/domain diagnostics; no exception message, raw locals, payload, config or environment.')
     require(isinstance(value['stages'],dict)and len(value['stages'])<=len(STAGES)+1 and isinstance(value['failures'],dict)and len(value['failures'])<=8 and integer(value['dropped_new_failure_signatures']))
     entry(value['last_stage'])
     for stage,row in value['stages'].items():
