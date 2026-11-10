@@ -29,7 +29,7 @@ in memory; process restarts can lose outstanding work, as accepted for this roll
 The registry pin includes the Elysium route from registry PR #1792. Before
 production activation, use an accepted Elysium-containing registry revision and
 verify deployed router enrollment, collateral identity, signer permissions and gas.
-The pinned amd64 image was built from shared-stack commit `4996544841` and
+The pinned amd64 image was built from shared-stack commit `11861e50a5` and
 verified against its published digest and revision label. It includes Relay,
 physical inventory routing and native deposits.
 This configuration is persisted in monitor-only mode. Validation stops after local
