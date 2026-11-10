@@ -77,6 +77,10 @@ class EvmConfiguredDepth(unittest.TestCase):
         case = self.root / "case.json"
         case.write_text(json.dumps({"schema": 1, "scenario": "evm", "chain_names": ["test1"]}))
         self.manifest = {"scenario": "evm", "runtime_source_commit": "a" * 40, "task_root": str(self.root), "case_inputs": {"path": str(case), "bytes": case.stat().st_size, "sha256": hashlib.sha256(case.read_bytes()).hexdigest()}}
+        cast = self.root / "synthetic-cast"
+        cast.write_bytes(b"public synthetic verifier fixture; never executed")
+        cast.chmod(0o700)
+        self.manifest["verifier_tools"] = {"cast": {"path": str(cast), "bytes": cast.stat().st_size, "sha256": hashlib.sha256(cast.read_bytes()).hexdigest()}}
         checkpoints = self.root / "checkpoints"
         checkpoints.mkdir()
         self.request = {"schema": 1, "scenario": "evm", "runtime_source_commit": "a" * 40, "role": "validator", "harness_pid": 42, "cwd": str(self.root), "environment": {"HYP_ORIGINCHAINNAME": "test1", "HYP_CHAINS_TEST1_BLOCKS_REORGPERIOD": "0", "HYP_CHECKPOINTSYNCER_TYPE": "localStorage", "HYP_CHECKPOINTSYNCER_PATH": str(checkpoints)}, "arguments": [], "selected_chain_names": ["test1"]}
@@ -91,11 +95,23 @@ class EvmConfiguredDepth(unittest.TestCase):
         self.assertEqual(captured["chains"]["test1"]["blocks"]["reorgperiod"], "0")
         original = copy.deepcopy(captured)
         self.session.captures = [{"original": captured, "proxied": copy.deepcopy(captured)}]
-        with mock.patch.object(api.multivm_session, "verify_checkpoint_objects", return_value={"fixture_checkpoint_crypto_boundary": True}) as verify:
+        adapters = []
+        actual_adapter = self.session.adapter
+        def constructed_adapter(chain):
+            adapter = actual_adapter(chain)
+            adapter.command = mock.Mock(return_value="0x" + "ab" * 32)
+            adapters.append(adapter)
+            return adapter
+        def checkpoint_boundary(*args, **kwargs):
+            keccak = args[4]
+            self.assertEqual(keccak("0x01"), "0x" + "ab" * 32)
+            self.assertEqual(keccak("0x01"), "0x" + "ab" * 32)
+            return {"fixture_checkpoint_crypto_boundary": True}
+        with mock.patch.object(self.session, "adapter", side_effect=constructed_adapter), mock.patch.object(api.multivm_session, "verify_checkpoint_objects", side_effect=checkpoint_boundary) as verify:
             self.session.checkpoint_proofs({"messages": []})
         verify.assert_called_once()
-        keccak = verify.call_args.args[4]
-        self.assertEqual(keccak.__self__.reorg_depth, 0)
+        self.assertEqual([adapter.reorg_depth for adapter in adapters], [0])
+        adapters[0].command.assert_called_once_with("keccak", "0x01")
         self.assertEqual(captured, original)
 
     def test_configured_numeric_string_depth_preserves_exact_receipt_finality_fence(self):
