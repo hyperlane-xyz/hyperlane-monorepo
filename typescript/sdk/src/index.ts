@@ -332,6 +332,8 @@ export {
   RateLimitedHookConfig,
   RateLimitedHookSchema,
   SafeParseHookConfigSchema,
+  WormholeHookConfig,
+  WormholeHookSchema,
 } from './hook/types.js';
 export {
   collectHybridHookNodes,
@@ -423,6 +425,8 @@ export {
   SafeParseIsmConfigSchema,
   RateLimitedIsmConfig,
   RateLimitedIsmConfigSchema,
+  WormholeIsmConfig,
+  WormholeIsmConfigSchema,
   BlacklistIsmConfig,
   BlacklistIsmConfigSchema,
   TrustedRelayerIsmConfig,
@@ -1051,6 +1055,7 @@ export {
   TypedSigner,
   IMultiProtocolSignerManager,
 } from './types.js';
+export { throwIfNotMissingSelector } from './utils/contract.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export {
   alignLocalAmountToMessage,
@@ -1182,3 +1187,47 @@ export {
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
 export { IMultiProtocolSigner } from './signers/types.js';
+
+export {
+  EvmWormholeHookIsmModule,
+  WormholeMeshReconciliation,
+} from './wormhole/EvmWormholeHookIsmModule.js';
+export { EvmWormholeHookIsmReader } from './wormhole/EvmWormholeHookIsmReader.js';
+export {
+  WormholeConfigPair,
+  WormholeWarpChainConfig,
+  buildWormholeMeshConfig,
+  collectHookAddresses,
+  collectIsmAddresses,
+  findWormholeHooks,
+  findWormholeIsms,
+  materializeWormholeWarpConfig,
+  pairWormholeConfigs,
+  replaceWormholeHook,
+  replaceWormholeIsm,
+} from './wormhole/config.js';
+export {
+  DerivedWormholeHookIsmConfig,
+  WormholeConsistencyLevel,
+  WormholeConsistencyLevelConfigSchema,
+  WormholeConsistencyLevelSchema,
+  WormholeConsistencyType,
+  WormholeStandardConsistencyTypeSchema,
+  WormholeVaaConsistencyLevel,
+  WormholeVaaConsistencyLevelSchema,
+  consistencyLevelConfigFromOnchain,
+  consistencyLevelForConfig,
+  standardConsistencyType,
+  WormholeHookIsmAddresses,
+  WormholeHookIsmConfig,
+  WormholeHookIsmSchema,
+  WormholeMeshConfig,
+  WormholeMeshSchema,
+  WormholeRemoteRouterConfig,
+  WormholeRemoteRouterSchema,
+  findAsymmetricWormholeRoutes,
+} from './wormhole/types.js';
+export type {
+  WormholeConsistencyLevelConfig,
+  WormholeStandardConsistencyType,
+} from './wormhole/types.js';

@@ -1,6 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
+import { IPostDispatchHook__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMJsonRpcSubmitter,
@@ -38,12 +39,15 @@ import {
   type CompositeIsmNodeConfig,
   CompositeIsmNodeType,
   ContractVerifier,
+  EvmWormholeHookIsmModule,
   EvmWarpModule,
+  EvmWarpRouteReader,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
   type MultiProvider,
   type MultisigIsmConfig,
+  OnchainHookType,
   type OpStackIsmConfig,
   type PausableIsmConfig,
   type HypTokenRouterConfig,
@@ -68,6 +72,9 @@ import {
   assertDelayedFlowRoutePreconditions,
   buildDelayedFlowEnrollmentTxs,
   deriveDelayedFlowEnrollmentTargets,
+  buildWormholeMeshConfig,
+  collectHookAddresses,
+  collectIsmAddresses,
   deriveCctpDomains,
   enrollCrossChainRouters,
   executeWarpDeploy,
@@ -78,9 +85,12 @@ import {
   getSubmitterBuilder,
   getTokenConnectionId,
   isCrossCollateralTokenConfig,
+  materializeWormholeWarpConfig,
   normalizeScale,
   planWarpRouteHybrids,
+  pairWormholeConfigs,
   splitWarpCoreAndExtendedConfigs,
+  throwIfNotMissingSelector,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
 import { mapHybridHookNodes } from '@hyperlane-xyz/sdk/hook/utils';
@@ -232,13 +242,25 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await getBalances(context, deploymentChains);
 
+  const effectiveWarpDeployConfig = await materializeNewWormholeMesh(
+    multiProvider,
+    warpDeployConfig,
+    apiKeys,
+  );
+  deploymentParams.warpDeployConfig = effectiveWarpDeployConfig;
+
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
   const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
 
   const registryAddresses = await registry.getAddresses();
 
   const enrollTxs = await enrollCrossChainRouters(
-    { multiProvider, altVmSigners, registryAddresses, warpDeployConfig },
+    {
+      multiProvider,
+      altVmSigners,
+      registryAddresses,
+      warpDeployConfig: effectiveWarpDeployConfig,
+    },
     deployedContracts,
   );
 
@@ -327,6 +349,30 @@ export async function runWarpRouteDeploy({
     null,
     deploymentChains,
   );
+}
+
+async function materializeNewWormholeMesh(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  apiKeys: ChainMap<string>,
+): Promise<WarpRouteDeployConfigMailboxRequired> {
+  const pairs = pairWormholeConfigs(warpDeployConfig);
+  if (Object.keys(pairs).length === 0) return warpDeployConfig;
+
+  logBlue('Deploying and enrolling combined Wormhole hook/ISM routers...');
+  const mesh = buildWormholeMeshConfig(warpDeployConfig, pairs);
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
+  const addresses = await EvmWormholeHookIsmModule.deployMesh(
+    multiProvider,
+    mesh,
+    contractVerifier,
+  );
+  return materializeWormholeWarpConfig(warpDeployConfig, addresses);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -554,10 +600,21 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
+  const wormhole = await materializeWormholeMeshForApply(
+    context.multiProvider,
+    warpDeployConfig,
+    warpCoreConfig,
+    apiKeys,
+  );
+  const effectiveParams: WarpApplyParams = {
+    ...params,
+    warpDeployConfig: wormhole.config,
+  };
+
   // temporarily configure deployer as owner so that warp update after extension
   // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
-    objMap(params.warpDeployConfig, async (chain, config) => {
+    objMap(wormhole.config, async (chain, config) => {
       const protocolType = multiProvider.getProtocol(chain);
       if (isEVMLike(protocolType)) {
         return withIntermediateWarpOwner(
@@ -575,7 +632,7 @@ export async function runWarpRouteApply(
 
   // Extend the warp route and get the updated configs
   const updatedWarpCoreConfig = await extendWarpRoute(
-    { ...params, warpDeployConfig: intermediateOwnerConfig },
+    { ...effectiveParams, warpDeployConfig: intermediateOwnerConfig },
     apiKeys,
     warpCoreConfig,
     warpDeployConfig,
@@ -587,11 +644,18 @@ export async function runWarpRouteApply(
     feeTxs: feeUpdateTransactions,
     ownershipTxs: ownershipTransactions,
   } = await updateExistingWarpRoute(
-    params,
+    effectiveParams,
     apiKeys,
-    warpDeployConfig,
+    wormhole.config,
     updatedWarpCoreConfig,
   );
+
+  for (const [chain, transactions] of Object.entries(wormhole.transactions)) {
+    updateTransactions[chain] = [
+      ...transactions,
+      ...(updateTransactions[chain] ?? []),
+    ];
+  }
 
   // Check if update transactions are empty
   const hasAnyTx = [
@@ -604,11 +668,86 @@ export async function runWarpRouteApply(
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
   await submitWarpApplyTransactions(
-    params,
+    effectiveParams,
     updateTransactions,
     feeUpdateTransactions,
     ownershipTransactions,
   );
+}
+
+async function materializeWormholeMeshForApply(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpCoreConfig: WarpCoreConfig,
+  apiKeys: ChainMap<string>,
+): Promise<{
+  config: WarpRouteDeployConfigMailboxRequired;
+  transactions: ChainMap<TypedAnnotatedTransaction[]>;
+}> {
+  const pairs = pairWormholeConfigs(warpDeployConfig);
+  if (Object.keys(pairs).length === 0) {
+    return { config: warpDeployConfig, transactions: {} };
+  }
+
+  const deployedWarpRouters =
+    getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+  const existingWormholeRouters: ChainMap<Address> = {};
+  for (const chain of Object.keys(pairs)) {
+    const deployedWarpRouter = deployedWarpRouters[chain];
+    if (!deployedWarpRouter) continue;
+
+    const actual = await new EvmWarpRouteReader(
+      multiProvider,
+      chain,
+    ).deriveWarpRouteConfig(deployedWarpRouter);
+    const hookAddresses = new Set(
+      collectHookAddresses(actual.hook).map((address) => address.toLowerCase()),
+    );
+    const candidates = Array.from(
+      new Set(
+        collectIsmAddresses(actual.interchainSecurityModule).filter((address) =>
+          hookAddresses.has(address.toLowerCase()),
+        ),
+      ),
+    );
+    const matches: Address[] = [];
+    for (const candidate of candidates) {
+      try {
+        const hookType = await IPostDispatchHook__factory.connect(
+          candidate,
+          multiProvider.getProvider(chain),
+        ).hookType();
+        if (hookType === OnchainHookType.WORMHOLE) matches.push(candidate);
+      } catch (error) {
+        // Shared hook/ISM addresses of other types are not Wormhole candidates.
+        throwIfNotMissingSelector(error);
+      }
+    }
+    assert(
+      matches.length <= 1,
+      `${chain} has multiple deployed combined Wormhole hook/ISM routers`,
+    );
+    if (matches[0]) existingWormholeRouters[chain] = matches[0];
+  }
+
+  logBlue('Reconciling combined Wormhole hook/ISM routers...');
+  const mesh = buildWormholeMeshConfig(warpDeployConfig, pairs);
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
+  const result = await EvmWormholeHookIsmModule.reconcileMesh(
+    multiProvider,
+    mesh,
+    existingWormholeRouters,
+    contractVerifier,
+  );
+  return {
+    config: materializeWormholeWarpConfig(warpDeployConfig, result.addresses),
+    transactions: result.transactions,
+  };
 }
 
 /**

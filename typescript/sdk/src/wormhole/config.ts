@@ -1,0 +1,333 @@
+import { constants } from 'ethers';
+
+import { Address, assert } from '@hyperlane-xyz/utils';
+
+import { HookConfig, HookType, WormholeHookConfig } from '../hook/types.js';
+import { collectHookTreeNodes, mapHookTreeNodes } from '../hook/utils.js';
+import { IsmConfig, IsmType, WormholeIsmConfig } from '../ism/types.js';
+import { ChainMap, ChainName } from '../types.js';
+import { collectIsmTreeNodes, mapIsmTreeNodes } from '../utils/ism.js';
+
+import { WormholeHookIsmConfig, WormholeMeshConfig } from './types.js';
+import { consistencyLevelConfigToOnchain } from './consistency.js';
+
+export interface WormholeWarpChainConfig {
+  hook?: HookConfig;
+  interchainSecurityModule?: IsmConfig;
+  mailbox?: Address;
+}
+
+export interface WormholeConfigPair {
+  hook: WormholeHookConfig;
+  ism: WormholeIsmConfig;
+}
+
+function isWormholeHook(
+  config: HookConfig | undefined,
+): config is WormholeHookConfig {
+  return (
+    !!config && typeof config !== 'string' && config.type === HookType.WORMHOLE
+  );
+}
+
+function isWormholeIsm(config: IsmConfig): config is WormholeIsmConfig {
+  return typeof config !== 'string' && config.type === IsmType.WORMHOLE;
+}
+
+export function findWormholeHooks(
+  config: HookConfig | undefined,
+): WormholeHookConfig[] {
+  return collectHookTreeNodes(config, isWormholeHook);
+}
+
+export function findWormholeIsms(
+  config: IsmConfig | undefined,
+): WormholeIsmConfig[] {
+  return collectIsmTreeNodes(config, isWormholeIsm);
+}
+
+/** Collects concrete addresses from a derived hook tree. */
+export function collectHookAddresses(
+  config: HookConfig | undefined,
+): Address[] {
+  if (!config) return [];
+  if (typeof config === 'string') return [config];
+  const ownAddress =
+    'address' in config && typeof config.address === 'string'
+      ? [config.address]
+      : [];
+  switch (config.type) {
+    case HookType.AGGREGATION:
+      return [...ownAddress, ...config.hooks.flatMap(collectHookAddresses)];
+    case HookType.ROUTING:
+      return [
+        ...ownAddress,
+        ...Object.values(config.domains).flatMap(collectHookAddresses),
+      ];
+    case HookType.FALLBACK_ROUTING:
+      return [
+        ...ownAddress,
+        ...Object.values(config.domains).flatMap(collectHookAddresses),
+        ...collectHookAddresses(config.fallback),
+      ];
+    case HookType.AMOUNT_ROUTING:
+      return [
+        ...ownAddress,
+        ...collectHookAddresses(config.lowerHook),
+        ...collectHookAddresses(config.upperHook),
+      ];
+    case HookType.ARB_L2_TO_L1:
+      return [...ownAddress, ...collectHookAddresses(config.childHook)];
+    default:
+      return ownAddress;
+  }
+}
+
+/** Collects concrete addresses from a derived ISM tree. */
+export function collectIsmAddresses(config: IsmConfig | undefined): Address[] {
+  if (!config) return [];
+  if (typeof config === 'string') return [config];
+  const ownAddress =
+    'address' in config && typeof config.address === 'string'
+      ? [config.address]
+      : [];
+  switch (config.type) {
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
+      return [...ownAddress, ...config.modules.flatMap(collectIsmAddresses)];
+    case IsmType.ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+      return [
+        ...ownAddress,
+        ...Object.values(config.domains).flatMap(collectIsmAddresses),
+      ];
+    case IsmType.AMOUNT_ROUTING:
+      return [
+        ...ownAddress,
+        ...collectIsmAddresses(config.lowerIsm),
+        ...collectIsmAddresses(config.upperIsm),
+      ];
+    default:
+      return ownAddress;
+  }
+}
+
+/**
+ * Finds and validates the one combined Wormhole resource represented by the
+ * hook and ISM trees on every chain. An empty route returns an empty map.
+ */
+export function pairWormholeConfigs(
+  configs: ChainMap<WormholeWarpChainConfig>,
+): ChainMap<WormholeConfigPair> {
+  const pairs: ChainMap<WormholeConfigPair> = {};
+  const hasAnyWormhole = Object.values(configs).some(
+    (config) =>
+      findWormholeHooks(config.hook).length > 0 ||
+      findWormholeIsms(config.interchainSecurityModule).length > 0,
+  );
+  if (!hasAnyWormhole) return pairs;
+
+  for (const [chain, config] of Object.entries(configs)) {
+    const hooks = findWormholeHooks(config.hook);
+    const isms = findWormholeIsms(config.interchainSecurityModule);
+    assert(
+      hooks.length === 1,
+      `${chain} must contain exactly one Wormhole hook leaf; found ${hooks.length}`,
+    );
+    assert(
+      isms.length === 1,
+      `${chain} must contain exactly one Wormhole ISM leaf; found ${isms.length}`,
+    );
+
+    pairs[chain] = { hook: hooks[0], ism: isms[0] };
+  }
+
+  validateDirectionalPairing(configs);
+  return pairs;
+}
+
+function hookUsesWormholeFor(
+  config: HookConfig | undefined,
+  destination: ChainName,
+): boolean {
+  if (!config || typeof config === 'string') return false;
+  if (isWormholeHook(config)) return true;
+
+  switch (config.type) {
+    case HookType.AGGREGATION:
+      return config.hooks.some((hook) =>
+        hookUsesWormholeFor(hook, destination),
+      );
+    case HookType.ROUTING:
+      return hookUsesWormholeFor(config.domains[destination], destination);
+    case HookType.FALLBACK_ROUTING:
+      return hookUsesWormholeFor(
+        config.domains[destination] ?? config.fallback,
+        destination,
+      );
+    case HookType.AMOUNT_ROUTING: {
+      const lower = hookUsesWormholeFor(config.lowerHook, destination);
+      const upper = hookUsesWormholeFor(config.upperHook, destination);
+      assert(
+        lower === upper,
+        `Wormhole cannot be conditional on amount for destination ${destination}`,
+      );
+      return lower;
+    }
+    case HookType.ARB_L2_TO_L1:
+      return (
+        config.destinationChain === destination &&
+        hookUsesWormholeFor(config.childHook, destination)
+      );
+    default:
+      return false;
+  }
+}
+
+function ismUsesWormholeFor(
+  config: IsmConfig | undefined,
+  origin: ChainName,
+): boolean {
+  if (!config || typeof config === 'string') return false;
+  if (isWormholeIsm(config)) return true;
+
+  switch (config.type) {
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
+      return config.modules.some((ism) => ismUsesWormholeFor(ism, origin));
+    case IsmType.ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+      return ismUsesWormholeFor(config.domains[origin], origin);
+    case IsmType.AMOUNT_ROUTING: {
+      const lower = ismUsesWormholeFor(config.lowerIsm, origin);
+      const upper = ismUsesWormholeFor(config.upperIsm, origin);
+      assert(
+        lower === upper,
+        `Wormhole cannot be conditional on amount for origin ${origin}`,
+      );
+      return lower;
+    }
+    default:
+      return false;
+  }
+}
+
+function validateDirectionalPairing(
+  configs: ChainMap<WormholeWarpChainConfig>,
+): void {
+  const chains = Object.keys(configs);
+  for (const origin of chains) {
+    for (const destination of chains) {
+      if (origin === destination) continue;
+      const hookUses = hookUsesWormholeFor(configs[origin].hook, destination);
+      const ismUses = ismUsesWormholeFor(
+        configs[destination].interchainSecurityModule,
+        origin,
+      );
+      assert(
+        hookUses === ismUses,
+        `Wormhole pairing mismatch for ${origin} -> ${destination}: origin hook=${hookUses}, destination ISM=${ismUses}`,
+      );
+    }
+  }
+}
+
+export function replaceWormholeHook(
+  config: HookConfig,
+  address: Address,
+): HookConfig {
+  return mapHookTreeNodes(config, isWormholeHook, () => address);
+}
+
+export function replaceWormholeIsm(
+  config: IsmConfig,
+  address: Address,
+): IsmConfig {
+  return mapIsmTreeNodes(config, isWormholeIsm, () => address);
+}
+
+export function buildWormholeMeshConfig(
+  configs: ChainMap<WormholeWarpChainConfig>,
+  pairs: ChainMap<WormholeConfigPair>,
+): WormholeMeshConfig {
+  const chains = Object.keys(pairs);
+  return Object.fromEntries(
+    chains.map((chain) => {
+      const local = pairs[chain];
+      const mailbox = configs[chain].mailbox;
+      assert(mailbox, `${chain} requires a mailbox for Wormhole deployment`);
+
+      const remoteRouters = Object.fromEntries(
+        chains
+          .filter((remote) => remote !== chain)
+          .map((remote) => {
+            const remoteIsm = pairs[remote].ism;
+            const remoteConsistency = consistencyLevelConfigToOnchain(
+              remoteIsm.consistencyLevel,
+            );
+            return [
+              remote,
+              {
+                router: constants.AddressZero,
+                wormholeChainId: remoteIsm.wormholeChainId,
+                expectedConsistencyLevel: remoteConsistency.consistencyLevel,
+                expectedCustomBaseConsistencyLevel:
+                  remoteConsistency.customBaseConsistencyLevel,
+                expectedAdditionalBlocks: remoteConsistency.additionalBlocks,
+              },
+            ];
+          }),
+      );
+
+      const common: WormholeHookIsmConfig = {
+        owner: local.ism.owner,
+        mailbox,
+        core: local.ism.core,
+        wormholeChainId: local.ism.wormholeChainId,
+        consistencyLevel: local.ism.consistencyLevel,
+        urls: local.ism.urls,
+        remoteRouters,
+      };
+      return [chain, common];
+    }),
+  );
+}
+
+export type MaterializedWormholeWarpChainConfig<
+  T extends WormholeWarpChainConfig,
+> = T & {
+  hook: HookConfig;
+  interchainSecurityModule: IsmConfig;
+};
+
+export function materializeWormholeWarpConfig<
+  T extends WormholeWarpChainConfig,
+>(
+  configs: ChainMap<T>,
+  addresses: ChainMap<Address>,
+): ChainMap<MaterializedWormholeWarpChainConfig<T>> {
+  return Object.fromEntries(
+    Object.entries(configs).map(([chain, config]) => {
+      const address = addresses[chain];
+      assert(address, `Missing deployed Wormhole router for ${chain}`);
+      assert(config.hook, `${chain} is missing its Wormhole hook tree`);
+      assert(
+        config.interchainSecurityModule,
+        `${chain} is missing its Wormhole ISM tree`,
+      );
+      return [
+        chain,
+        {
+          ...config,
+          hook: replaceWormholeHook(config.hook, address),
+          interchainSecurityModule: replaceWormholeIsm(
+            config.interchainSecurityModule,
+            address,
+          ),
+        },
+      ];
+    }),
+  );
+}

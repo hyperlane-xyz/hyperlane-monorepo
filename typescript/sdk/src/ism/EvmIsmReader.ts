@@ -13,6 +13,7 @@ import {
   DelayedFlowRouterHookIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
+  IPostDispatchHook__factory,
   IOutbox__factory,
   InterchainAccountRouter__factory,
   NetFlowRateLimitedHookIsm__factory,
@@ -37,11 +38,14 @@ import {
 import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
+import { OnchainHookType } from '../hook/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { isCombinedHookIsmNode } from '../utils/ism.js';
+import { EvmWormholeHookIsmReader } from '../wormhole/EvmWormholeHookIsmReader.js';
 import {
   contractHasString,
   isMissingSelectorCallException,
@@ -62,6 +66,7 @@ import {
   NullIsmConfig,
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
+  WormholeIsmConfig,
 } from './types.js';
 import { readBlacklistedIds } from './blacklist.js';
 import { deriveDelayedFlowRemoteIsms } from './delayedFlow.js';
@@ -95,7 +100,12 @@ export interface IsmReader {
 const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
   IsmType.OFFCHAIN_LOOKUP,
   IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+  IsmType.WORMHOLE,
 ]);
+
+export interface EvmIsmReaderOptions {
+  expandNonDeployableHookIsms?: boolean;
+}
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
@@ -109,6 +119,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
     protected readonly messageContext?: DispatchedMessage,
+    protected readonly options: EvmIsmReaderOptions = {},
   ) {
     super(multiProvider, chain);
 
@@ -122,6 +133,42 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       { chain: this.chain },
       multiProvider,
     );
+  }
+
+  /**
+   * Recognizes the combined Wormhole hook/ISM router, which is otherwise
+   * indistinguishable from a plain CCIP-read ISM, by `hookType() == WORMHOLE`.
+   */
+  private async tryDeriveWormholeConfig(
+    address: Address,
+  ): Promise<WithAddress<WormholeIsmConfig> | undefined> {
+    try {
+      const hookType = await IPostDispatchHook__factory.connect(
+        address,
+        this.provider,
+      ).hookType();
+      if (hookType !== OnchainHookType.WORMHOLE) return undefined;
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+      // Not a hook at all, so not a combined Wormhole router.
+      return undefined;
+    }
+
+    const derived = await new EvmWormholeHookIsmReader(
+      this.multiProvider,
+      this.chain,
+    ).deriveWormholeConfig(address);
+    const common = {
+      address,
+      type: IsmType.WORMHOLE,
+      owner: derived.owner,
+      core: derived.core,
+      wormholeChainId: derived.wormholeChainId,
+      consistencyLevel: derived.consistencyLevel,
+      urls: derived.urls,
+      remoteRouters: derived.remoteRouters,
+    };
+    return common;
   }
 
   async deriveIsmConfigFromAddress(
@@ -160,9 +207,12 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         case ModuleType.NULL:
           derivedIsmConfig = await this.deriveNullConfig(address);
           break;
-        case ModuleType.CCIP_READ:
-          derivedIsmConfig = await this.deriveOffchainLookupConfig(address);
+        case ModuleType.CCIP_READ: {
+          const wormhole = await this.tryDeriveWormholeConfig(address);
+          derivedIsmConfig =
+            wormhole ?? (await this.deriveOffchainLookupConfig(address));
           break;
+        }
         case ModuleType.ARB_L2_TO_L1:
           return this.deriveArbL2ToL1Config(address);
         default:
@@ -252,9 +302,17 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     original: IsmConfig,
     derived: DerivedIsmConfig,
   ): IsmConfig {
+    if (
+      this.options.expandNonDeployableHookIsms &&
+      isCombinedHookIsmNode(derived)
+    ) {
+      return derived;
+    }
     if (!NON_REDEPLOYABLE_ISM_TYPES.has(derived.type)) return derived;
     if (typeof original === 'string') return original;
-    return derived.address;
+    return 'address' in derived && typeof derived.address === 'string'
+      ? derived.address
+      : original;
   }
 
   async deriveRoutingConfig(

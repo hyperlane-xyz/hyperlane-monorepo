@@ -125,6 +125,9 @@ jobs:
           - warp-deploy-2
           - warp-deploy-predicate
           - warp-deploy-remote-routers
+          # wormhole
+          - wormhole-hook-ism
+          - wormhole-warp
           # check
           - warp-check-1
           - warp-check-2

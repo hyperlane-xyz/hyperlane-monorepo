@@ -36,6 +36,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { WormholeConsistencyLevelFields } from '../wormhole/consistency.js';
+
 import {
   ZBigNumberish,
   ZBytes32String,
@@ -110,6 +112,12 @@ export const IsmType = {
   // ISM config surface; the hook side is referenced by address.
   NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHookIsm',
   DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
+  /**
+   * Combined Wormhole hook/ISM router, CCIP-read VAA delivery. Excluded from
+   * `DeployableIsmType`: one contract serves as both hook and ISM, so it is
+   * deployed by `EvmWormholeHookIsmModule`, never by `HyperlaneIsmFactory`.
+   */
+  WORMHOLE: 'wormholeIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -117,7 +125,7 @@ export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
 export type DeployableIsmType = Exclude<
   IsmType,
-  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
+  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN | typeof IsmType.WORMHOLE
 >;
 
 // ISM types that can be updated in-place on EVM chains (consumed by
@@ -201,6 +209,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
+    // The Wormhole router receives its VAA through the generic CCIP-read path.
+    case IsmType.WORMHOLE:
       return ModuleType.CCIP_READ;
     case IsmType.COMPOSITE:
       return ModuleType.COMPOSITE;
@@ -334,6 +344,7 @@ export type IsmConfig =
   | ArbL2ToL1IsmConfig
   | OffchainLookupIsmConfig
   | InterchainAccountRouterIsm
+  | WormholeIsmConfig
   | UnknownIsmConfig;
 
 export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
@@ -365,6 +376,9 @@ export type DeployedIsmType = {
   [IsmType.MAILBOX_DEFAULT]: DefaultIsm;
   [IsmType.NET_FLOW_RATE_LIMITED]: NetFlowRateLimitedHookIsm;
   [IsmType.DELAYED_FLOW_ROUTER]: DelayedFlowRouterHookIsm;
+  // Deployed by EvmWormholeHookIsmModule, never by HyperlaneIsmFactory, so the
+  // generic interface is all this map needs to express.
+  [IsmType.WORMHOLE]: IInterchainSecurityModule;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -401,6 +415,17 @@ export const TrustedRelayerIsmConfigSchema = z.object({
   type: z.literal(IsmType.TRUSTED_RELAYER),
   relayer: z.string(),
 });
+
+export const WormholeIsmConfigSchema = OwnableSchema.extend({
+  ...WormholeConsistencyLevelFields,
+  type: z.literal(IsmType.WORMHOLE),
+  /** Official Wormhole Core proxy on this chain. */
+  core: ZHash,
+  /** Expected value returned by the configured Core proxy. */
+  wormholeChainId: z.number().int().positive().max(65_535),
+  urls: z.array(z.string().url()).min(1),
+});
+export type WormholeIsmConfig = z.infer<typeof WormholeIsmConfigSchema>;
 
 export const BlacklistIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.BLACKLIST),
@@ -1107,6 +1132,7 @@ export const BaseIsmConfigSchema: z.ZodType<IsmConfig, unknown> = z.union([
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,
+  WormholeIsmConfigSchema,
   UnknownIsmConfigSchema,
 ]);
 

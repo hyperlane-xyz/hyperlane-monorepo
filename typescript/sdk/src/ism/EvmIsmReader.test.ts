@@ -19,6 +19,8 @@ import {
   DomainRoutingIsm__factory,
   IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
+  IPostDispatchHook,
+  IPostDispatchHook__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
   IncrementalDomainRoutingIsm__factory,
@@ -33,6 +35,8 @@ import {
   PausableIsm__factory,
   RateLimitedIsm,
   RateLimitedIsm__factory,
+  StaticAggregationIsm,
+  StaticAggregationIsm__factory,
   TestIsm,
   TestIsm__factory,
   TrustedRelayerIsm,
@@ -47,8 +51,9 @@ import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { contractDouble } from '../test/contractDouble.js';
 import { missingSelectorError, networkError } from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
+import { WormholeConsistencyType } from '../wormhole/consistency.js';
 
-import { EvmIsmReader } from './EvmIsmReader.js';
+import { EvmIsmReader, EvmIsmReaderOptions } from './EvmIsmReader.js';
 import {
   BlacklistIsmConfig,
   DelayedFlowRouterHookIsmConfig,
@@ -60,6 +65,7 @@ import {
   NetFlowRateLimitedHookIsmConfig,
   PausableIsmConfig,
   TestIsmConfig,
+  WormholeIsmConfig,
 } from './types.js';
 
 // keccak256('MessageBlacklisted(bytes32)')
@@ -137,11 +143,16 @@ describe('EvmIsmReader', () => {
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
   let getContractDeploymentBlockFromExplorer: sinon.SinonStub;
+  let hookTypeStub: sinon.SinonStub;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
     evmIsmReader = new EvmIsmReader(multiProvider, TestChainName.test1);
+    hookTypeStub = sandbox.stub().rejects(missingSelectorError());
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(contractDouble<IPostDispatchHook>({ hookType: hookTypeStub }));
     getContractDeploymentBlockFromExplorer = sandbox
       .stub(
         EvmEventLogsReader.prototype,
@@ -152,6 +163,112 @@ describe('EvmIsmReader', () => {
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  it('propagates transient Wormhole hookType probe failures', async () => {
+    const mockAddress = randomAddress();
+    const transientError = networkError();
+    sandbox.stub(IInterchainSecurityModule__factory, 'connect').returns(
+      contractDouble<IInterchainSecurityModule>({
+        moduleType: sandbox.stub().resolves(ModuleType.CCIP_READ),
+      }),
+    );
+    hookTypeStub.rejects(transientError);
+
+    let thrown: unknown;
+    try {
+      await evmIsmReader.deriveIsmConfigFromAddress(mockAddress);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.be.instanceOf(Error);
+    if (!(thrown instanceof Error)) throw thrown;
+    expect(thrown.message).to.include(transientError.message);
+  });
+
+  it('preserves an undeployed Wormhole config object in a container', async () => {
+    const wormholeConfig: WormholeIsmConfig = {
+      type: IsmType.WORMHOLE,
+      owner: randomAddress(),
+      core: randomAddress(),
+      wormholeChainId: 2,
+      consistencyLevel: { type: WormholeConsistencyType.Finalized },
+      urls: ['https://vaa.example/v1'],
+    };
+
+    const config = await evmIsmReader.deriveIsmConfig({
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [wormholeConfig],
+    });
+
+    assert(
+      config.type === IsmType.AGGREGATION,
+      'Expected aggregation ISM config',
+    );
+    expect(config.modules).to.deep.equal([wormholeConfig]);
+  });
+
+  describe('Wormhole module nested in an aggregation', () => {
+    interface NestedWormholeCase {
+      name: string;
+      options?: EvmIsmReaderOptions;
+      expandsWormhole: boolean;
+    }
+
+    const cases: NestedWormholeCase[] = [
+      {
+        name: 'preserves the address for deployment readers',
+        expandsWormhole: false,
+      },
+      {
+        name: 'expands the config when requested for diagnostics',
+        options: { expandNonDeployableHookIsms: true },
+        expandsWormhole: true,
+      },
+    ];
+
+    for (const { name, options, expandsWormhole } of cases) {
+      it(name, async () => {
+        const reader = new EvmIsmReader(
+          multiProvider,
+          TestChainName.test1,
+          undefined,
+          undefined,
+          options,
+        );
+        const aggregationAddress = randomAddress();
+        const wormholeAddress = randomAddress();
+        const derivedWormhole: WithAddress<WormholeIsmConfig> = {
+          address: wormholeAddress,
+          type: IsmType.WORMHOLE,
+          owner: randomAddress(),
+          core: randomAddress(),
+          wormholeChainId: 2,
+          consistencyLevel: { type: WormholeConsistencyType.Finalized },
+          urls: ['https://vaa.example/v1'],
+        };
+        sandbox.stub(StaticAggregationIsm__factory, 'connect').returns(
+          contractDouble<StaticAggregationIsm>({
+            moduleType: sandbox.stub().resolves(ModuleType.AGGREGATION),
+            modulesAndThreshold: sandbox
+              .stub()
+              .resolves([[wormholeAddress], 1]),
+          }),
+        );
+        sandbox
+          .stub(reader, 'deriveIsmConfigFromAddress')
+          .withArgs(wormholeAddress)
+          .resolves(derivedWormhole);
+
+        const config = await reader.deriveAggregationConfig(aggregationAddress);
+
+        expect(config.modules).to.deep.equal([
+          expandsWormhole ? derivedWormhole : wormholeAddress,
+        ]);
+      });
+    }
   });
 
   it('should derive multisig config correctly', async () => {

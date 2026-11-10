@@ -13,6 +13,9 @@ export enum UnhandledErrorReason {
   EXPLORER_GRAPHQL_500 = 'explorer_graphql_500',
   EXPLORER_GRAPHQL_NO_RESULTS = 'explorer_graphql_no_results',
 
+  // RPC provider errors
+  RPC_UNAVAILABLE = 'rpc_unavailable',
+
   // CCTP errors
   CCTP_MESSAGE_SENT_NOT_FOUND = 'cctp_message_sent_not_found',
   CCTP_UNSUPPORTED_VERSION = 'cctp_unsupported_version',
@@ -20,6 +23,14 @@ export enum UnhandledErrorReason {
   CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR = 'cctp_attestation_service_unknown_error',
   CCTP_ATTESTATION_SERVICE_JSON_PARSE_ERROR = 'cctp_attestation_service_json_parse_error',
   CCTP_ATTESTATION_SERVICE_PENDING = 'cctp_attestation_service_pending',
+
+  // Wormhole errors
+  WORMHOLE_PUBLICATION_NOT_FOUND = 'wormhole_publication_not_found',
+  WORMHOLE_PUBLICATION_AMBIGUOUS = 'wormhole_publication_ambiguous',
+  WORMHOLE_VAA_PENDING = 'wormhole_vaa_pending',
+  WORMHOLE_VAA_UNAVAILABLE = 'wormhole_vaa_unavailable',
+  WORMHOLE_VAA_MISMATCH = 'wormhole_vaa_mismatch',
+  WORMHOLE_ROUTE_NOT_CONFIGURED = 'wormhole_route_not_configured',
 
   // CallCommitments errors
   CALL_COMMITMENTS_DATABASE_ERROR = 'call_commitments_database_error',

@@ -47,6 +47,7 @@ export enum OnchainHookType {
   CCTP,
   TIMELOCK_ROUTING,
   PREDICATE_ROUTER_WRAPPER,
+  WORMHOLE,
 }
 
 export const HookType = {
@@ -93,6 +94,12 @@ export const HookType = {
    * IsmType.DELAYED_FLOW_ROUTER). Excluded from `DeployableHookType`.
    */
   DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
+  /**
+   * Combined Wormhole hook/ISM router, CCIP-read VAA delivery. Excluded from
+   * `DeployableHookType`: one contract serves as both hook and ISM, so it is
+   * deployed by `EvmWormholeHookIsmModule`, never by the generic hook deployer.
+   */
+  WORMHOLE: 'wormholeHook',
   UNKNOWN: 'unknownHook',
   PREDICATE: 'predicateHook',
 } as const;
@@ -107,6 +114,7 @@ export type DeployableHookType = Exclude<
   | typeof HookType.CCTP
   | typeof HookType.NET_FLOW_RATE_LIMITED
   | typeof HookType.DELAYED_FLOW_ROUTER
+  | typeof HookType.WORMHOLE
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -192,6 +200,7 @@ export type HookConfig =
   | RateLimitedHookConfig
   | NetFlowRateLimitedHookConfig
   | DelayedFlowRouterHookConfig
+  | WormholeHookConfig
   | UnknownHookConfig
   | PredicateHookConfig;
 
@@ -367,6 +376,17 @@ export const CctpHookSchema = z.object({
 });
 export type CctpHookConfig = z.infer<typeof CctpHookSchema>;
 
+/**
+ * Outbound half of a combined Wormhole hook/ISM. The Warp prepass pairs this
+ * leaf with the local Wormhole ISM leaf, deploys one contract, and replaces
+ * both leaves with that same address before generic deployment. VAA
+ * publication has no hook-only configuration.
+ */
+export const WormholeHookSchema = z.object({
+  type: z.literal(HookType.WORMHOLE),
+});
+export type WormholeHookConfig = z.infer<typeof WormholeHookSchema>;
+
 export const UnknownHookSchema = z.looseObject({
   type: z.literal(HookType.UNKNOWN),
 });
@@ -504,6 +524,7 @@ export const HookConfigSchema: z.ZodType<HookConfig, unknown> = z.union([
   RateLimitedHookSchema,
   NetFlowRateLimitedHookConfigSchema,
   DelayedFlowRouterHookConfigSchema,
+  WormholeHookSchema,
   UnknownHookSchema,
   PredicateHookSchema,
 ]);

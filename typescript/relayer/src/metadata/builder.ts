@@ -127,6 +127,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
           ism,
         });
 
+      case IsmType.WORMHOLE:
+        return this.ccipReadMetadataBuilder.build({
+          ...context,
+          ism: { ...ism, type: IsmType.WORMHOLE },
+        });
+
       default:
         throw new Error(`Unsupported ISM: ${JSON.stringify(ism)}`);
     }
