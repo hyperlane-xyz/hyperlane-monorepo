@@ -181,9 +181,9 @@ class Controls(unittest.TestCase):
         with self.assertRaises(api.Refused):inspect(wrong)
 
     def test_new_helper_regressions_require_actual_OK_log_and_cannot_borrow_census(self):
-        fresh=['external_agents::tests::svm_scraper_programs_isolate_logical_domains_and_metrics','external_agents::tests::tron_cli_frozen_graph_option_precedes_original_script_arguments']
+        fresh=['external_agents::tests::svm_scraper_programs_isolate_logical_domains_and_metrics','external_agents::tests::tron_cli_frozen_graph_option_precedes_original_script_arguments','external_agents::tests::native_provider_metric_label_excludes_other_chains_and_suffixed_metrics']
         actual=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
-        self.assertEqual(actual['external_agents::tests::'][-2:],fresh)
+        self.assertEqual(actual['external_agents::tests::'][-3:],fresh)
         for absent in [None,*fresh]:
             for nonOK in ([None]if absent is None else ['missing','SKIP','FAILED']):
                 files,source=family_fixture('helper')
@@ -197,19 +197,20 @@ class Controls(unittest.TestCase):
                 wire=log.encode();files['external_agents-tests.log']=wire;row['log'].update(bytes=len(wire),sha256=api.sha(wire));files['result.json']=json.dumps(result).encode()
                 def inspect():return self.zip(list(files.items()),lambda archive,*_:api.validate_helper(archive,source))
                 with self.subTest(name=absent,status=nonOK):
-                    if absent is None:self.assertEqual(inspect()['actual_test_counts']['external_agents-tests'],7)
+                    if absent is None:self.assertEqual(inspect()['actual_test_counts']['external_agents-tests'],8)
                     else:
                         with self.assertRaisesRegex(api.Refused,'HELPER_REQUIRED_CENSUS'if nonOK=='missing'else'HELPER_REQUIRED_TEST_LOG'):inspect()
 
     def test_actual_current_census_includes_fresh_temporary_and_Stark_Radix_additions(self):
         # Actual committed exporter Source; never import or execute its main.
         raw=(HERE/'native_harness_controls.py').read_bytes()
-        self.assertEqual(api.sha(raw),'8624732768af0ca86b0fa57bc24ee4b4'+'db9c17272609bd87fb965434f15f524a')
+        self.assertEqual(api.sha(raw),'c13dd46f08fe290e49b79749ff66c4ff'+'b6fb11c796aab2c3c09bff60d1c84015')
         required=api.literal_constants(raw.decode(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
-        self.assertEqual(sum(map(len,required.values())),78)
+        self.assertEqual(sum(map(len,required.values())),79)
         fresh={'svm_fresh_temporary_objects_do_not_walk_live_ledger_siblings','svm_fresh_temporary_objects_reject_root_or_parent_symlinks','svm_fresh_temporary_objects_reject_non_directory_parent','svm_temporary_objects_are_distinct_fresh_leaves'}
         self.assertTrue({'external_agents::tests::'+n for n in fresh}<=set(required['external_agents::tests::']))
-        self.assertEqual(len(required['external_agents::tests::']),56)
+        self.assertEqual(len(required['external_agents::tests::']),57)
+        self.assertIn('external_agents::tests::native_provider_metric_label_excludes_other_chains_and_suffixed_metrics',required['external_agents::tests::'])
         self.assertEqual(len(required['external_agents::radix_fixture::tests::']),14)
         self.assertEqual(len(required['starknet::cli::tests::']),2)
         self.assertEqual(len(required['external_agents::radix_contracts::tests::']),6)
@@ -762,7 +763,7 @@ class ExplicitRadixReadinessWitnesses(unittest.TestCase):
             with self.subTest(value_type=type(value).__name__),self.assertRaisesRegex(api.Refused,'^RADIX_READINESS_TEST_SOURCE$'):api.explicit_radix_readiness_tests('',N(bytes=lambda name:value),{path:{}})
     def test_actual_current_R1_Source_matches_three_sealed_names_not_old76(self):
         path='rust/main/utils/run-locally/src/external_agents/radix_fixture.rs';source=SyntheticGit();source.rows[path]=(HERE.parents[1]/path).read_bytes();text='\n'.join('test '+name+' ... ok'for name in api.RADIX_READINESS_TESTS);facts=api.explicit_radix_readiness_tests(text,source,{path:source.digest(path)});self.assertEqual(facts['explicit_radix_readiness_test_count'],3)
-        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),78)
+        required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS'];self.assertFalse(set(api.RADIX_READINESS_TESTS)&set(n for rows in required.values()for n in rows));self.assertEqual(sum(map(len,required.values())),79)
 
 
 class PortablePublisherCpuControls(unittest.TestCase):
@@ -820,10 +821,10 @@ class PortablePublisherCpuControls(unittest.TestCase):
             wire=json.dumps(row).encode();files[pin['path']]=wire;pin.update(bytes=len(wire),sha256=api.sha(wire));files['manifest.json']=json.dumps(manifest).encode()
             with self.subTest(edit=edit),self.assertRaises((ValueError,api.Refused)):self.inspect(files,git)
 
-    def test_portable_helper_keeps_actual_producer_78_test_census_separate_from_25_CPU_flags(self):
+    def test_portable_helper_keeps_actual_producer_79_test_census_separate_from_25_CPU_flags(self):
         files,git=family_fixture('helper')
         required=api.literal_constants((HERE/'native_harness_controls.py').read_text(),{'REQUIRED_TESTS'})['REQUIRED_TESTS']
-        names={name for group in required.values()for name in group};self.assertEqual(len(names),78)
+        names={name for group in required.values()for name in group};self.assertEqual(len(names),79)
         caller='zig/bench/native_harness_controls.py'
         git.rows[caller]=('REQUIRED_TESTS = '+repr(required)).encode()
         git.rows['zig/tools/build_cpu.py']=('PROFILE = '+repr(self.cpu.PROFILE)).encode()
@@ -843,7 +844,7 @@ class PortablePublisherCpuControls(unittest.TestCase):
         path=self.root/'helper.zip';path.write_bytes(archive_bytes(files.items()));archive=api.Archive(path,Meter())
         try:value=api.validate_helper(archive,git)
         finally:archive.close()
-        self.assertEqual(value['required_census_names_observed'],78)
+        self.assertEqual(value['required_census_names_observed'],79)
         self.assertEqual(value['required_ISA_flag_count'],25)
         self.assertTrue(value['compiler_recipe_Source_verified'])
 
