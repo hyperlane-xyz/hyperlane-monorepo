@@ -1,0 +1,314 @@
+//! pg-pool equivalent over blocking libpq connections.
+//!
+//! * acquire: newest idle connection (LIFO, like `_idle.pop()`), else open a
+//!   new one while `total < max`, else wait FIFO; with `connect_timeout_ms` a
+//!   waiter gives up with "timeout exceeded when trying to connect".
+//! * release: hand straight to the oldest waiter, else park idle.
+//! * idle connections above `min` close after `idle_timeout_ms` (reaper thread).
+//! * idle connections that the server closed are detected at checkout and
+//!   reported through `on_idle_error` (pg-pool's `'error'` event).
+//! * `end()` closes idle connections and refuses new work; connections in use
+//!   close when released.
+const std = @import("std");
+const core = @import("core");
+const root = @import("root.zig");
+const pq = @import("pq.zig");
+
+const Value = core.json.Value;
+const Error = root.Error;
+const Failure = root.Failure;
+
+pub const IdleErrorHook = struct {
+    ctx: *anyopaque,
+    func: *const fn (ctx: *anyopaque, message: []const u8) void,
+};
+
+pub const Options = struct {
+    conn: pq.ConnOptions,
+    max: u32 = 10,
+    min: u32 = 0,
+    /// pg-pool default 10s; 0 disables reaping.
+    idle_timeout_ms: u64 = 10_000,
+    on_idle_error: ?IdleErrorHook = null,
+};
+
+pub const Stats = struct { total: u32, idle: u32, waiting: u32 };
+
+const Idle = struct { conn: pq.Conn, since_ms: i64 };
+
+const Waiter = struct {
+    cond: std.Thread.Condition = .{},
+    /// Set by `release` (hand-off) or to signal "try to open" (`slot`).
+    conn: ?pq.Conn = null,
+    slot: bool = false,
+    next: ?*Waiter = null,
+};
+
+pub const Pool = struct {
+    gpa: std.mem.Allocator,
+    options: Options,
+    conninfo: []u8,
+    mutex: std.Thread.Mutex = .{},
+    idle: std.ArrayList(Idle) = .empty,
+    total: u32 = 0,
+    waiting: u32 = 0,
+    head: ?*Waiter = null,
+    tail: ?*Waiter = null,
+    closed: bool = false,
+    reaper: ?std.Thread = null,
+    reaper_cond: std.Thread.Condition = .{},
+    /// Signalled whenever `total` drops (for `deinit` draining).
+    drained: std.Thread.Condition = .{},
+
+    pub fn init(gpa: std.mem.Allocator, options: Options) !*Pool {
+        const self = try gpa.create(Pool);
+        errdefer gpa.destroy(self);
+        const conninfo = try gpa.dupe(u8, options.conn.conninfo);
+        errdefer gpa.free(conninfo);
+        var opts = options;
+        opts.conn.conninfo = conninfo;
+        if (opts.conn.options) |o| opts.conn.options = try gpa.dupe(u8, o);
+        self.* = .{ .gpa = gpa, .options = opts, .conninfo = conninfo };
+        if (opts.idle_timeout_ms > 0) self.reaper = try std.Thread.spawn(.{}, reapLoop, .{self});
+        return self;
+    }
+
+    /// Ends the pool (if not already), waits up to `drain_timeout_ms` for
+    /// checked-out connections to come back, then frees it. If some never
+    /// return the pool is leaked rather than freed under their feet.
+    pub fn deinit(self: *Pool) void {
+        self.deinitTimeout(30_000);
+    }
+
+    pub fn deinitTimeout(self: *Pool, drain_timeout_ms: u64) void {
+        self.end();
+        if (self.reaper) |t| t.join();
+        self.reaper = null;
+        self.mutex.lock();
+        const deadline = pq.nowMs() + @as(i64, @intCast(drain_timeout_ms));
+        while (self.total > 0) {
+            const remaining = deadline - pq.nowMs();
+            if (remaining <= 0) break;
+            self.drained.timedWait(&self.mutex, @as(u64, @intCast(remaining)) * std.time.ns_per_ms) catch {};
+        }
+        const busy = self.total > 0;
+        self.mutex.unlock();
+        if (busy) return;
+        self.idle.deinit(self.gpa);
+        if (self.options.conn.options) |o| self.gpa.free(o);
+        self.gpa.free(self.conninfo);
+        self.gpa.destroy(self);
+    }
+
+    /// `pool.end()`.
+    pub fn end(self: *Pool) void {
+        self.mutex.lock();
+        if (self.closed) {
+            self.mutex.unlock();
+            return;
+        }
+        self.closed = true;
+        var idle = self.idle;
+        self.idle = .empty;
+        self.total -= @intCast(idle.items.len);
+        // Wake waiters so they fail with PoolClosed.
+        var w = self.head;
+        while (w) |waiter| : (w = waiter.next) waiter.cond.signal();
+        self.reaper_cond.signal();
+        self.mutex.unlock();
+        for (idle.items) |*i| i.conn.deinit();
+        idle.deinit(self.gpa);
+    }
+
+    pub fn stats(self: *Pool) Stats {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return .{ .total = self.total, .idle = @intCast(self.idle.items.len), .waiting = self.waiting };
+    }
+
+    /// `pool.query(text, values)`.
+    pub fn query(self: *Pool, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error!root.Result {
+        var conn = try self.acquire(arena, failure);
+        const result = conn.query(arena, sql, params, failure);
+        self.release(conn);
+        return result;
+    }
+
+    /// `pool.connect()`; pair with `release`.
+    pub fn acquire(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure) Error!pq.Conn {
+        // pg-pool: a queued request's connectionTimeoutMillis timer runs from
+        // the `connect()` call, also while its new client is connecting.
+        const deadline: ?i64 = if (self.options.conn.connect_timeout_ms) |ms| (if (ms > 0) pq.nowMs() + @as(i64, @intCast(ms)) else null) else null;
+        while (true) {
+            const got = try self.checkout(arena, failure, deadline);
+            switch (got) {
+                .conn => |c| {
+                    var conn = c;
+                    var idle_failure: Failure = .{};
+                    if (conn.checkIdle(arena, &idle_failure)) return conn;
+                    if (self.options.on_idle_error) |hook| hook.func(hook.ctx, idle_failure.message);
+                    self.discard(&conn);
+                },
+                .open => |queued| {
+                    var opts = self.options.conn;
+                    if (queued) if (deadline) |d| {
+                        opts.connect_timeout_ms = @intCast(@max(1, d - pq.nowMs()));
+                    };
+                    var conn = pq.Conn.connect(opts, arena, failure) catch |e| {
+                        self.mutex.lock();
+                        self.total -= 1;
+                        self.wakeOne();
+                        self.drained.broadcast();
+                        self.mutex.unlock();
+                        if (queued and deadline != null and pq.nowMs() >= deadline.?) {
+                            if (failure) |f| f.message = arena.dupe(u8, "timeout exceeded when trying to connect") catch "";
+                        }
+                        return e;
+                    };
+                    self.mutex.lock();
+                    const closed = self.closed;
+                    self.mutex.unlock();
+                    if (closed) {
+                        self.discard(&conn);
+                        return error.PoolClosed;
+                    }
+                    return conn;
+                },
+            }
+        }
+    }
+
+    /// `open`: a slot is reserved (counted in `total`); true when it was
+    /// obtained after queueing.
+    const Checkout = union(enum) { conn: pq.Conn, open: bool };
+
+    fn checkout(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure, deadline: ?i64) Error!Checkout {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.closed) return error.PoolClosed;
+        if (self.head == null) {
+            if (self.idle.pop()) |i| return .{ .conn = i.conn };
+            if (self.total < self.options.max) {
+                self.total += 1;
+                return .{ .open = false };
+            }
+        }
+        var waiter: Waiter = .{};
+        if (self.tail) |t| t.next = &waiter else self.head = &waiter;
+        self.tail = &waiter;
+        self.waiting += 1;
+        defer self.waiting -= 1;
+        while (waiter.conn == null and !waiter.slot and !self.closed) {
+            if (deadline) |d| {
+                const remaining = d - pq.nowMs();
+                if (remaining <= 0) {
+                    self.unlink(&waiter);
+                    if (failure) |f| f.message = arena.dupe(u8, "timeout exceeded when trying to connect") catch "";
+                    return error.ConnectionFailed;
+                }
+                waiter.cond.timedWait(&self.mutex, @as(u64, @intCast(remaining)) * std.time.ns_per_ms) catch {};
+            } else waiter.cond.wait(&self.mutex);
+        }
+        if (waiter.conn) |c| return .{ .conn = c };
+        // `wakeOne` already reserved the slot.
+        if (waiter.slot) return .{ .open = true };
+        self.unlink(&waiter);
+        return error.PoolClosed;
+    }
+
+    fn unlink(self: *Pool, waiter: *Waiter) void {
+        var prev: ?*Waiter = null;
+        var cur = self.head;
+        while (cur) |c| : (cur = c.next) {
+            if (c == waiter) {
+                if (prev) |p| p.next = c.next else self.head = c.next;
+                if (self.tail == c) self.tail = prev;
+                return;
+            }
+            prev = c;
+        }
+    }
+
+    fn popWaiter(self: *Pool) ?*Waiter {
+        const w = self.head orelse return null;
+        self.head = w.next;
+        if (self.head == null) self.tail = null;
+        w.next = null;
+        return w;
+    }
+
+    /// A slot freed up: let the oldest waiter open a connection.
+    fn wakeOne(self: *Pool) void {
+        if (self.total >= self.options.max) return;
+        if (self.popWaiter()) |w| {
+            // Reserve now so a newcomer cannot take the slot before the
+            // waiter runs (which would exceed `max`).
+            self.total += 1;
+            w.slot = true;
+            w.cond.signal();
+        }
+    }
+
+    pub fn release(self: *Pool, conn_in: pq.Conn) void {
+        var conn = conn_in;
+        if (!conn.ok()) return self.discard(&conn);
+        self.mutex.lock();
+        if (self.closed) {
+            self.total -= 1;
+            self.drained.broadcast();
+            self.mutex.unlock();
+            conn.deinit();
+            return;
+        }
+        if (self.popWaiter()) |w| {
+            w.conn = conn;
+            w.cond.signal();
+            self.mutex.unlock();
+            return;
+        }
+        self.idle.append(self.gpa, .{ .conn = conn, .since_ms = pq.nowMs() }) catch {
+            self.total -= 1;
+            self.drained.broadcast();
+            self.mutex.unlock();
+            conn.deinit();
+            return;
+        };
+        self.mutex.unlock();
+    }
+
+    fn discard(self: *Pool, conn: *pq.Conn) void {
+        conn.deinit();
+        self.mutex.lock();
+        self.total -= 1;
+        self.wakeOne();
+        self.drained.broadcast();
+        self.mutex.unlock();
+    }
+
+    fn reapLoop(self: *Pool) void {
+        const timeout: i64 = @intCast(self.options.idle_timeout_ms);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (!self.closed) {
+            const now = pq.nowMs();
+            var next_check: i64 = timeout;
+            var i: usize = 0;
+            while (i < self.idle.items.len) {
+                const age = now - self.idle.items[i].since_ms;
+                if (age >= timeout and self.total > self.options.min) {
+                    var conn = self.idle.orderedRemove(i).conn;
+                    self.total -= 1;
+                    self.drained.broadcast();
+                    self.mutex.unlock();
+                    conn.deinit();
+                    self.mutex.lock();
+                    continue;
+                }
+                next_check = @min(next_check, timeout - age);
+                i += 1;
+            }
+            const wait_ms: u64 = @intCast(@max(next_check, 10));
+            self.reaper_cond.timedWait(&self.mutex, wait_ms * std.time.ns_per_ms) catch {};
+        }
+    }
+};
