@@ -131,7 +131,7 @@ async fn monitor_backlog(
     }
 }
 
-/// Read the first pending row through each stream's partial (domain,id) index.
+/// Sample receipt backlogs, restricting dispatch to its provisional suffix.
 /// This runs on the polling cadence, independently of receipt fetches and pages.
 async fn update_pending_age(
     store: &HyperlaneDbStore,
@@ -159,6 +159,7 @@ async fn enrich_page(
     domain_rpc_permits: &Semaphore,
 ) -> PageOutcome {
     let start = *after;
+    let mut ids = Vec::new();
     let result = timeout(deadline, async {
         let db_permit = RECEIPT_DB_PERMITS.acquire().await?;
         let rows = store
@@ -167,6 +168,7 @@ async fn enrich_page(
             .await?;
         drop(db_permit);
         *after = rows.last().map(|(id, _)| *id).unwrap_or(0);
+        ids = rows.iter().map(|(id, _)| *id).collect();
         let complete = store
             .ensure_transactions_for_known_blocks(
                 rows.iter().map(|(_, meta)| meta),
@@ -181,12 +183,12 @@ async fn enrich_page(
 
     // Persisted successes are linked even when another receipt timed out. Keep
     // this separate from fetch cancellation, but bound its own database wait.
-    let linked = if *after > start {
+    let linked = if !ids.is_empty() {
         let result = timeout(deadline, async {
             let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
             store
                 .db
-                .link_receipts(store.domain.id(), stream, start, *after)
+                .link_receipts(store.domain.id(), stream, &ids)
                 .await
         })
         .await;
@@ -228,14 +230,11 @@ async fn enrich_page(
 #[cfg(test)]
 pub(super) async fn enrich_with_timeout(
     store: &HyperlaneDbStore,
-    cursors: &mut [i64; 2],
+    cursors: &mut [i64; 3],
     deadline: Duration,
 ) {
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
-    for (stream, after) in [ReceiptStream::Delivery, ReceiptStream::GasPayment]
-        .into_iter()
-        .zip(cursors)
-    {
+    for (stream, after) in ReceiptStream::ALL.into_iter().zip(cursors) {
         enrich_page(store, stream, after, deadline, &domain_rpc_permits).await;
     }
 }

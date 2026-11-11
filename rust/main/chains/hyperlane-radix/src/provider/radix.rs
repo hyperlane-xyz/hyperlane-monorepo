@@ -835,6 +835,7 @@ impl HyperlaneProvider for RadixProvider {
             sender: fee_payer,
             recipient: first_component_address,
             receipt: Some(TxnReceiptInfo {
+                block_hash: None,
                 gas_used: U256::from(gas_limit),
                 cumulative_gas_used: gas_price,
                 effective_gas_price: Some(gas_price),

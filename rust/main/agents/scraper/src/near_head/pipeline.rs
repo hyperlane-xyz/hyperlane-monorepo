@@ -62,6 +62,8 @@ pub(super) async fn observe(source: &dyn Source, store: &Store) -> Result<State>
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct CountCache {
+    /// Includes delivery/gas events that have no native sequence number.
+    pub(super) wrote_events: bool,
     pub(super) boundary: Option<(ethers::types::H256, [u32; 4])>,
     /// Highest indexed height through which stored dispatches and insertions
     /// matched hash-pinned contract counts in this process. Counts are
@@ -77,6 +79,7 @@ pub(super) async fn ingest_cached(
     chunk_size: u64,
     count_cache: &mut CountCache,
 ) -> Result<bool> {
+    count_cache.wrote_events = false;
     ensure!(chunk_size > 0, "Empty indexing range");
     if state.indexed == state.head {
         return Ok(false);
@@ -170,6 +173,7 @@ pub(super) async fn ingest_cached(
         end = boundary.height;
     }
     let events = batch.events;
+    let event_count = events.len();
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
         Err(error) => {
@@ -236,6 +240,7 @@ pub(super) async fn ingest_cached(
     );
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
+    count_cache.wrote_events = event_count > 0;
     count_cache.boundary = Some((boundary.hash, validated_counts));
     if end_counts.is_some() {
         count_cache.proven_through = Some(end);

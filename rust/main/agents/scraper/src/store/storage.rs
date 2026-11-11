@@ -84,6 +84,13 @@ impl HyperlaneDbStore {
                         let domain_rpc_permit = domain_rpc_permits.acquire().await?;
                         let rpc_permit = rpc_permits.acquire().await?;
                         let info = self.provider.get_txn_by_hash(&hash).await?;
+                        eyre::ensure!(
+                            info.receipt
+                                .as_ref()
+                                .and_then(|receipt| receipt.block_hash)
+                                .is_none_or(|received| received == block_hash),
+                            "Receipt belongs to another block"
+                        );
                         drop(rpc_permit);
                         drop(domain_rpc_permit);
                         let _db_permit = db_permits.acquire().await?;

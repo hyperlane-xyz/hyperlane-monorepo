@@ -289,7 +289,7 @@ impl Worker {
         } else {
             Ok(false)
         };
-        if bounded.indexed < bounded.head && ingestion.is_ok() {
+        if bounded.indexed < bounded.head && ingestion.is_ok() && count_cache.wrote_events {
             self.receipt_wakeup.send_replace(());
         }
 

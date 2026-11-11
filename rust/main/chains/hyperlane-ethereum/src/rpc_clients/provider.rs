@@ -574,6 +574,11 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .map(|r| -> Result<_, HyperlaneProviderError> {
                 Ok(TxnReceiptInfo {
+                    block_hash: Some(
+                        r.block_hash
+                            .ok_or(HyperlaneProviderError::NoReceiptBlockHash)?
+                            .into(),
+                    ),
                     gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?.into(),
                     cumulative_gas_used: r.cumulative_gas_used.into(),
                     effective_gas_price: r.effective_gas_price.map(Into::into),
@@ -850,7 +855,9 @@ mod tests {
             &hex::decode("189f97ad488ed5ea0c5c7eaff458b01c06bd3bb40f4a0132a0405744317f44d0")
                 .expect("fixture hash should be valid hex"),
         ));
+        let block_hash = EthersH256::repeat_byte(0x11);
         let receipt = TransactionReceipt {
+            block_hash: Some(block_hash),
             gas_used: Some(EthersU256::from(0x23b8d_u64)),
             cumulative_gas_used: EthersU256::zero(),
             effective_gas_price: Some(EthersU256::from(0x2b275d0_u64)),
@@ -874,9 +881,34 @@ mod tests {
 
         assert_eq!(info.hash, requested_hash);
         assert_eq!(
+            info.receipt.as_ref().expect("receipt").block_hash,
+            Some(block_hash.into())
+        );
+        assert_eq!(
             info.receipt.expect("receipt should be present").gas_used,
             U256::from(0x23b8d_u64)
         );
+    }
+
+    #[tokio::test]
+    async fn rejects_mined_receipt_without_block_hash() {
+        let mock = Arc::new(MockProvider::new());
+        let provider = EthereumProvider::new(
+            Arc::new(Provider::new(mock.clone())),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
+        mock.push(TransactionReceipt {
+            gas_used: Some(EthersU256::one()),
+            ..Default::default()
+        })
+        .expect("receipt response");
+        mock.push(Transaction::default())
+            .expect("transaction response");
+        let error = provider
+            .get_txn_by_hash(&H512::zero())
+            .await
+            .expect_err("missing receipt identity");
+        assert!(error.to_string().contains("receipt block hash"), "{error}");
     }
 
     #[tokio::test]

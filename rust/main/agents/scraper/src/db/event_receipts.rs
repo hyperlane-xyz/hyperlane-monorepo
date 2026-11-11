@@ -42,6 +42,19 @@ impl ReceiptStream {
     }
 }
 
+// Fence the height range before paging/sorting so an empty suffix cannot walk
+// the permanent dispatch primary key from the beginning of history.
+pub(crate) const DISPATCH_PENDING: &str = r#"
+    FROM scraper_head h CROSS JOIN LATERAL (
+      SELECT id,origin_block_height,origin_block_hash,origin_tx_hash,time_created
+      FROM raw_message_dispatch
+      WHERE origin_domain=h.domain AND origin_block_height>h.confirmed_height
+        AND origin_block_height<=h.indexed_height
+      OFFSET 0
+    ) e LEFT JOIN "transaction" t ON t.hash=e.origin_tx_hash
+    WHERE h.domain=$1 AND t.id IS NULL
+      AND e.origin_tx_hash<>decode(repeat('00',32),'hex')"#;
+
 fn sql(query: impl Into<String>, values: Vec<Value>) -> Statement {
     Statement::from_sql_and_values(DbBackend::Postgres, query, values)
 }
@@ -68,11 +81,7 @@ impl ScraperDb {
             format!(
                 r#"SELECT e.id,e.origin_block_height AS block_number,
                    e.origin_block_hash AS block_hash,e.origin_tx_hash AS transaction_hash
-                   FROM raw_message_dispatch e
-                   LEFT JOIN "transaction" t ON t.hash=e.origin_tx_hash
-                   WHERE e.origin_domain=$1 AND e.id>$2 AND t.id IS NULL
-                   AND e.origin_tx_hash<>decode(repeat('00',octet_length(e.origin_tx_hash)),'hex')
-                   AND e.origin_block_height>(SELECT confirmed_height FROM scraper_head WHERE domain=$1)
+                   {DISPATCH_PENDING} AND e.id>$2
                    ORDER BY e.id LIMIT {RECEIPT_PAGE_SIZE}"#
             )
         };
@@ -110,46 +119,37 @@ impl ScraperDb {
         &self,
         domain: u32,
         stream: ReceiptStream,
-        after: i64,
-        through: i64,
+        ids: &[i64],
     ) -> Result<()> {
-        let table = stream.table();
-        let query = if let Some(column) = stream.transaction_column() {
-            format!(
-                r#"WITH linked AS (UPDATE {table} e SET {column}=t.id
-                   FROM "transaction" t JOIN block b ON b.id=t.block_id
-                   WHERE e.domain=$1 AND e.id>$2 AND e.id<=$3
-                   AND e.{column} IS NULL AND t.hash=e.transaction_hash
-                   AND b.domain=e.domain AND b.hash=e.block_hash
-                   RETURNING e.msg_id)
-                   SELECT pg_notify('scraper_explorer_event',
-                     json_build_object('messageId',encode(msg_id,'hex'))::text) FROM linked"#
-            )
-        } else {
-            // The proxy already handles this notification for custom and default
-            // subscribers. Publish only receipts that matched a retained block.
-            r#"SELECT pg_notify('scraper_explorer_event',
-                 json_build_object('messageId',encode(e.msg_id,'hex'))::text)
-               FROM raw_message_dispatch e
-               JOIN block b ON b.domain=e.origin_domain AND b.hash=e.origin_block_hash
-               JOIN "transaction" t ON t.block_id=b.id AND t.hash=e.origin_tx_hash
-               WHERE e.origin_domain=$1 AND e.id>$2 AND e.id<=$3"#
-                .to_owned()
+        // Dispatch refreshes are emitted atomically by the transaction INSERT
+        // trigger, including when another stream stores the shared receipt.
+        let Some(column) = stream.transaction_column() else {
+            return Ok(());
         };
+        let table = stream.table();
+        let query = format!(
+            r#"WITH linked AS (UPDATE {table} e SET {column}=t.id
+               FROM "transaction" t JOIN block b ON b.id=t.block_id
+               WHERE e.domain=$1 AND e.id=ANY($2)
+               AND e.{column} IS NULL AND t.hash=e.transaction_hash
+               AND b.domain=e.domain AND b.hash=e.block_hash
+               RETURNING e.msg_id)
+               SELECT pg_notify('scraper_explorer_event',
+                 json_build_object('messageId',encode(msg_id,'hex'))::text) FROM linked"#
+        );
         self.0
             .execute(sql(
                 query,
                 vec![
                     i32::from_ne_bytes(domain.to_ne_bytes()).into(),
-                    after.into(),
-                    through.into(),
+                    ids.to_vec().into(),
                 ],
             ))
             .await?;
         Ok(())
     }
 
-    /// Read the first pending row through the stream's partial (domain,id) index.
+    /// Measure pending receipts; dispatch is restricted to the provisional suffix.
     pub(crate) async fn pending_receipt_age(
         &self,
         domain: u32,
@@ -165,14 +165,11 @@ impl ScraperDb {
                  ORDER BY id LIMIT 1),0::double precision) AS age"
             )
         } else {
-            r#"SELECT coalesce((SELECT greatest(0, extract(epoch FROM
-                 ((clock_timestamp() AT TIME ZONE 'UTC') - e.time_created))::double precision)
-               FROM raw_message_dispatch e LEFT JOIN "transaction" t ON t.hash=e.origin_tx_hash
-               WHERE e.origin_domain=$1 AND t.id IS NULL
-               AND e.origin_tx_hash<>decode(repeat('00',octet_length(e.origin_tx_hash)),'hex')
-               AND e.origin_block_height>(SELECT confirmed_height FROM scraper_head WHERE domain=$1)
-               ORDER BY e.id LIMIT 1),0::double precision) AS age"#
-                .to_owned()
+            format!(
+                r#"SELECT coalesce(greatest(0, extract(epoch FROM
+                   ((clock_timestamp() AT TIME ZONE 'UTC') - min(e.time_created)))
+                   ::double precision),0::double precision) AS age {DISPATCH_PENDING}"#
+            )
         };
         let row = self
             .0

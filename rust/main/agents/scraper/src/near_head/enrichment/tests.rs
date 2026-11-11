@@ -16,7 +16,7 @@ use hyperlane_core::{
     KnownHyperlaneDomain, LogMeta, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use migration::MigratorTrait;
-use sea_orm::{ConnectionTrait, Database, DbBackend, Statement};
+use sea_orm::{ConnectionTrait, Database, DbBackend, Statement, TransactionTrait};
 use testcontainers::{runners::AsyncRunner, ImageExt};
 use testcontainers_modules::postgres::Postgres;
 use tokio::sync::Notify;
@@ -65,6 +65,8 @@ impl HyperlaneProvider for PendingProvider {
             sender: H256::repeat_byte(0x22),
             recipient: None,
             receipt: Some(TxnReceiptInfo {
+                block_hash: (*hash == H512::from(H256::repeat_byte(0xee)))
+                    .then_some(H256::repeat_byte(0xee)),
                 gas_used: U256::zero(),
                 cumulative_gas_used: U256::zero(),
                 effective_gas_price: None,
@@ -191,14 +193,20 @@ async fn all_transaction_types_enrich_before_confirmation_and_roll_back_with_the
     let permits = Semaphore::new(1);
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_explorer_event").await?;
-    for stream in ReceiptStream::ALL {
+    // Delivery has a different message ID but shares the dispatch transaction.
+    // Fetch it first: its insert must also refresh the dispatch projection.
+    for stream in [
+        ReceiptStream::Delivery,
+        ReceiptStream::Dispatch,
+        ReceiptStream::GasPayment,
+    ] {
         assert_eq!(
             enrichment_store
                 .db
                 .pending_receipts(1, stream, 0)
                 .await?
                 .len(),
-            1
+            usize::from(!matches!(stream, ReceiptStream::Dispatch))
         );
         let mut after = 0;
         assert_eq!(
@@ -212,14 +220,19 @@ async fn all_transaction_types_enrich_before_confirmation_and_roll_back_with_the
             .await,
             PageOutcome::Idle
         );
-        let notification = timeout(Duration::from_secs(1), listener.recv()).await??;
-        let payload: serde_json::Value = serde_json::from_str(notification.payload())?;
-        let expected_id = if matches!(stream, ReceiptStream::Delivery) {
-            delivery_id
-        } else {
-            message_id
+        let expected_ids = match stream {
+            ReceiptStream::Delivery => vec![message_id, delivery_id],
+            ReceiptStream::Dispatch => vec![],
+            ReceiptStream::GasPayment => vec![message_id],
         };
-        assert_eq!(payload["messageId"], format!("{expected_id:x}"));
+        for expected_id in expected_ids {
+            let notification = timeout(Duration::from_secs(1), listener.recv()).await??;
+            let payload: serde_json::Value = serde_json::from_str(notification.payload())?;
+            assert_eq!(payload["messageId"], format!("{expected_id:x}"));
+        }
+        assert!(timeout(Duration::from_millis(50), listener.recv())
+            .await
+            .is_err());
         assert!(enrichment_store
             .db
             .pending_receipts(1, stream, 0)
@@ -246,6 +259,28 @@ async fn all_transaction_types_enrich_before_confirmation_and_roll_back_with_the
     assert_eq!(store.state().await?.expect("initialized").confirmed, 0);
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 
+    let wrong_fork = LogMeta {
+        transaction_id: H256::repeat_byte(0xee).into(),
+        block_hash: block.hash.into(),
+        block_number: block.height,
+        ..LogMeta::default()
+    };
+    assert!(
+        !enrichment_store
+            .ensure_transactions_for_known_blocks(
+                std::iter::once(&wrong_fork),
+                &RECEIPT_RPC_PERMITS,
+                &permits,
+                &RECEIPT_DB_PERMITS,
+            )
+            .await?
+    );
+    assert!(enrichment_store
+        .db
+        .get_txn_ids(std::iter::once(&wrong_fork.transaction_id))
+        .await?
+        .is_empty());
+
     // A receipt completing after its fork was deleted must not recreate stale metadata.
     let pending_store = enrichment_store.clone();
     let meta = LogMeta {
@@ -265,7 +300,7 @@ async fn all_transaction_types_enrich_before_confirmation_and_roll_back_with_the
             .await
     });
     timeout(Duration::from_secs(5), async {
-        while calls.load(Ordering::Relaxed) < 2 {
+        while calls.load(Ordering::Relaxed) < 3 {
             sleep(Duration::from_millis(10)).await;
         }
     })
@@ -337,7 +372,7 @@ async fn all_transaction_types_enrich_before_confirmation_and_roll_back_with_the
             .await?
             .is_empty());
     }
-    assert_eq!(calls.load(Ordering::Relaxed), 3);
+    assert_eq!(calls.load(Ordering::Relaxed), 4);
     let row = store.db.query_one(Statement::from_string(DbBackend::Postgres,
         r#"SELECT encode(b.hash,'hex') AS hash FROM "transaction" t JOIN block b ON b.id=t.block_id"#,
     )).await?.expect("replacement transaction");
@@ -529,4 +564,186 @@ async fn receipt_wakeups_interrupt_idle_waits_but_preserve_failure_cooldowns() {
     assert_eq!(tokio::time::Instant::now(), start + interval + interval);
     PageOutcome::More.wait(interval, &mut first).await;
     assert_eq!(tokio::time::Instant::now(), start + interval + interval);
+}
+
+#[tokio::test]
+async fn dispatch_backlog_excludes_confirmed_history_and_resets_at_confirmation() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    // Model an existing deployment with a restricted transaction writer.
+    migration::Migrator::up(&db, Some(21)).await?;
+    db.execute_unprepared(
+        r#"CREATE ROLE receipt_writer;
+        GRANT SELECT,INSERT,UPDATE ON "transaction",block,raw_message_dispatch,
+          delivered_message,gas_payment,merkle_tree_insertion,scraper_head,scraper_checkpoint TO receipt_writer;
+        GRANT DELETE ON block,raw_message_dispatch,delivered_message,gas_payment,
+          merkle_tree_insertion,scraper_checkpoint TO receipt_writer;
+        GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO receipt_writer;"#,
+    ).await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store {
+        db: Database::connect(&url).await?,
+        domain: 1,
+    };
+    let anchor = Header {
+        height: 1,
+        timestamp: 1,
+        hash: ethers::types::H256::repeat_byte(1),
+        parent: ethers::types::H256::zero(),
+    };
+    store
+        .initialize(
+            &anchor,
+            &Contracts {
+                mailbox: H256::repeat_byte(1),
+                hook: H256::repeat_byte(2),
+                paymaster: H256::repeat_byte(3),
+            },
+        )
+        .await?;
+    db.execute_unprepared(
+        r#"INSERT INTO raw_message_dispatch(origin_domain,origin_block_height,origin_block_hash,
+          origin_tx_hash,origin_mailbox,msg_id,destination_domain,nonce,sender,recipient)
+        SELECT 1,1,decode(repeat('01',32),'hex'),decode(lpad(to_hex(n),64,'0'),'hex'),
+          decode(repeat('01',20),'hex'),decode(lpad(to_hex(n),64,'0'),'hex'),2,n,
+          decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex')
+        FROM generate_series(1,20000) n;
+        UPDATE raw_message_dispatch SET origin_block_height=2 WHERE nonce=20000;
+        UPDATE raw_message_dispatch SET time_created=(now() AT TIME ZONE 'UTC')-interval '2 minutes';
+        UPDATE scraper_head SET indexed_height=2,head_height=2,indexed_hash=decode(repeat('02',32),'hex');
+        ANALYZE raw_message_dispatch;"#,
+    ).await?;
+    let receipts = crate::db::ScraperDb::with_connection(Database::connect(&url).await?);
+    assert_eq!(
+        receipts
+            .pending_receipts(1, ReceiptStream::Dispatch, 0)
+            .await?
+            .len(),
+        1
+    );
+    let domain: HyperlaneDomain = KnownHyperlaneDomain::Ethereum.into();
+    let enrichment = HyperlaneDbStore::new(
+        crate::db::ScraperDb::with_connection(Database::connect(&url).await?),
+        domain.clone(),
+        hyperlane_base::settings::CoreContractAddresses::default(),
+        Arc::new(PendingProvider {
+            domain,
+            calls: Arc::new(AtomicUsize::new(0)),
+            gate: None,
+        }),
+    );
+    let age = GaugeVec::new(
+        prometheus::Opts::new("dispatch_age", "Pending receipt age"),
+        &["chain", "event_type"],
+    )?;
+    update_pending_age(&enrichment, &age).await?;
+    assert!(
+        age.with_label_values(&[enrichment.domain.name(), "dispatch"])
+            .get()
+            >= 120.0
+    );
+    db.execute_unprepared("UPDATE scraper_head SET confirmed_height=2")
+        .await?;
+    assert!(receipts
+        .pending_receipts(1, ReceiptStream::Dispatch, 0)
+        .await?
+        .is_empty());
+    update_pending_age(&enrichment, &age).await?;
+    assert_eq!(
+        age.with_label_values(&[enrichment.domain.name(), "dispatch"])
+            .get(),
+        0.0
+    );
+
+    // Inspect both real query plans: neither may choose the permanent ID index.
+    for query in [
+        format!(
+            "EXPLAIN SELECT e.id {} AND e.id>0 ORDER BY e.id LIMIT 100",
+            crate::db::DISPATCH_PENDING
+        ),
+        format!(
+            "EXPLAIN SELECT min(e.time_created) {}",
+            crate::db::DISPATCH_PENDING
+        ),
+    ] {
+        let plan = db
+            .query_all(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                query,
+                [1i32.into()],
+            ))
+            .await?;
+        let plan = plan
+            .iter()
+            .map(|row| row.try_get::<String>("", "QUERY PLAN"))
+            .collect::<Result<Vec<_>, _>>()?
+            .join("\n");
+        assert!(plan.contains("raw_dispatch_block_height"), "{plan}");
+        assert!(!plan.contains("raw_message_dispatch_pkey"), "{plan}");
+    }
+    db.execute_unprepared(
+        r#"UPDATE scraper_head SET confirmed_height=1;
+        INSERT INTO block(domain,height,hash,timestamp) VALUES(1,2,decode(repeat('02',32),'hex'),now());
+        UPDATE raw_message_dispatch SET origin_block_hash=decode(repeat('02',32),'hex') WHERE nonce=20000;"#,
+    ).await?;
+    let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    listener.listen("scraper_explorer_event").await?;
+    // Confirmation while a receipt is in flight must not suppress its notification.
+    db.execute_unprepared("UPDATE scraper_head SET confirmed_height=2")
+        .await?;
+    db.execute_unprepared(
+        r#"INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
+        SELECT origin_tx_hash,b.id,0,0,decode(repeat('22',20),'hex'),0,0
+        FROM raw_message_dispatch e JOIN block b ON b.hash=e.origin_block_hash WHERE e.nonce=20000"#,
+    ).await?;
+    let notice = timeout(Duration::from_secs(1), listener.recv()).await??;
+    let payload: serde_json::Value = serde_json::from_str(notice.payload())?;
+    assert_eq!(payload["messageId"], format!("{:064x}", 20000));
+    assert!(timeout(Duration::from_millis(50), listener.recv())
+        .await
+        .is_err());
+
+    // Exercise the actual rewind as the pre-existing restricted writer.
+    db.execute_unprepared("UPDATE scraper_head SET confirmed_height=1,indexed_height=2,indexed_hash=decode(repeat('02',32),'hex')").await?;
+    let mut options = sea_orm::ConnectOptions::new(url);
+    options.max_connections(1);
+    let writer = Database::connect(options).await?;
+    writer.execute_unprepared("SET ROLE receipt_writer").await?;
+    let restricted = Store {
+        db: writer,
+        domain: 1,
+    };
+    let expected = store.state().await?.expect("state");
+    let late = db.begin().await?;
+    late.execute_unprepared("SELECT 1 FROM block WHERE domain=1 AND height=2 FOR KEY SHARE")
+        .await?;
+    let rewind = tokio::spawn(async move { restricted.rewind_to_confirmed(&expected).await });
+    timeout(Duration::from_secs(5), async {
+        loop {
+            let waiting = db.query_one(Statement::from_string(DbBackend::Postgres,
+                "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%SELECT 1 FROM block%FOR UPDATE%') AS waiting"
+            )).await?.expect("lock state");
+            if waiting.try_get::<bool>("", "waiting")? {
+                return Ok::<_, eyre::Report>(());
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+    }).await??;
+    // This commit happens after rewind started. Its receipt must be deleted too.
+    late.execute_unprepared(
+        r#"INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
+        SELECT decode(repeat('66',32),'hex'),id,0,0,decode(repeat('22',20),'hex'),0,0
+        FROM block WHERE domain=1 AND height=2"#,
+    ).await?;
+    late.commit().await?;
+    rewind.await??;
+    assert!(receipts
+        .get_txn_ids(std::iter::once(&H512::from(H256::from_low_u64_be(20000))))
+        .await?
+        .is_empty());
+    Ok(())
 }

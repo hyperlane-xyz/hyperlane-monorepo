@@ -270,6 +270,12 @@ impl Store {
     }
 
     async fn delete_suffix<C: ConnectionTrait>(&self, db: &C, after: u64) -> Result<()> {
+        // Serialize against receipt inserts' FK locks before deleting transactions.
+        db.query_all(sql(
+            "SELECT 1 FROM block WHERE domain=$1 AND height>$2 FOR UPDATE",
+            vec![self.domain(), number(after)?],
+        ))
+        .await?;
         for (table, domain, height) in EVENTS {
             db.execute(sql(
                 format!("DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2"),

@@ -71,6 +71,22 @@ pub const GAS_PAYMENT_FRONTIER_HEIGHT: ScraperIndex = ScraperIndex {
     unique: false,
 };
 
+// PostgreSQL checks these child references for every transaction removed on rollback.
+pub const MESSAGE_ORIGIN_TRANSACTION: ScraperIndex = ScraperIndex {
+    name: "message_origin_tx_id_idx",
+    table: "message",
+    keys: &["origin_tx_id"],
+    predicate: None,
+    unique: false,
+};
+pub const GAS_PAYMENT_TRANSACTION: ScraperIndex = ScraperIndex {
+    name: "gas_payment_tx_id_idx",
+    table: "gas_payment",
+    keys: &["tx_id"],
+    predicate: None,
+    unique: false,
+};
+
 /// Run after transactional migrations have committed. Concurrent index creation
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
@@ -88,6 +104,8 @@ pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
             DELIVERY_FRONTIER_UNENRICHED,
             GAS_PAYMENT_FRONTIER_UNENRICHED,
             GAS_PAYMENT_FRONTIER_HEIGHT,
+            MESSAGE_ORIGIN_TRANSACTION,
+            GAS_PAYMENT_TRANSACTION,
         ] {
             create_index(db, index).await?;
         }
@@ -184,6 +202,8 @@ pub async fn verify_frontier_indexes(db: &DatabaseConnection) -> eyre::Result<()
         DELIVERY_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_HEIGHT,
+        MESSAGE_ORIGIN_TRANSACTION,
+        GAS_PAYMENT_TRANSACTION,
     ] {
         verify_index(db, index).await?;
     }
@@ -287,6 +307,12 @@ mod tests {
         assert!(verify_frontier_indexes(&db).await.is_err());
         create_indexes(&db).await?;
         verify_frontier_indexes(&db).await?;
+        for index in [MESSAGE_ORIGIN_TRANSACTION, GAS_PAYMENT_TRANSACTION] {
+            db.execute_unprepared(&format!("DROP INDEX {}", index.name))
+                .await?;
+            assert!(verify_frontier_indexes(&db).await.is_err());
+            create_index(&db, index).await?;
+        }
         db.execute_unprepared("DROP INDEX gas_payment_frontier_height")
             .await?;
         assert!(verify_frontier_indexes(&db)

@@ -1214,3 +1214,22 @@ async fn run_cycles_retries_a_log_ahead_of_http_then_stops_at_indexed_height() -
     assert!(task.await.unwrap_err().is_cancelled());
     Ok(())
 }
+
+#[tokio::test]
+async fn only_appended_events_wake_receipts_including_unsequenced_gas() -> Result<()> {
+    let chain = Arc::new(Chain::new(1, false));
+    let (_postgres, worker) = header_worker(chain.clone(), 5).await?;
+    let mut wakeup = worker.receipt_wakeup.subscribe();
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    assert!(!wakeup.has_changed()?);
+    chain.events.lock().expect("events").push(gas_event(2, 0));
+    chain.head.store(2, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    assert!(wakeup.has_changed()?);
+    wakeup.borrow_and_update();
+    chain.head.store(3, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    assert!(!wakeup.has_changed()?);
+    Ok(())
+}

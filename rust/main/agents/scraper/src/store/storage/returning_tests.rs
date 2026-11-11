@@ -35,6 +35,7 @@ fn txn_info(hash: H512) -> TxnInfo {
         sender: H256::zero(),
         recipient: None,
         receipt: Some(TxnReceiptInfo {
+            block_hash: None,
             gas_used: U256::one(),
             cumulative_gas_used: U256::one(),
             effective_gas_price: None,

@@ -298,6 +298,7 @@ impl<T: BuildableQueryClient> HyperlaneProvider for CosmosProvider<T> {
             sender,
             recipient,
             receipt: Some(TxnReceiptInfo {
+                block_hash: None,
                 gas_used: response.tx_result.gas_used.into(),
                 cumulative_gas_used: response.tx_result.gas_used.into(),
                 effective_gas_price: Some(gas_price),

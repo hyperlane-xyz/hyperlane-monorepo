@@ -39,6 +39,7 @@ cargo fmt --all --check
 ```
 
 Tests need Docker. Startup verifies indexes but never runs migrations.
+`dbMaxConnections` defaults to 10; `dbAcquireTimeoutMillis` to 15,000.
 
 [Configuration and legacy cutover](../../../../docs/scraper/near-head.md) ·
 [Migration commands](migration/README.md)
