@@ -2,6 +2,12 @@
 """Pure preparation-barrier controls; no fixture imports, roles or network."""
 import ast
 import copy
+import contextlib
+import json
+import os
+import tempfile
+import time
+from types import SimpleNamespace
 import pathlib
 import re
 import unittest
@@ -158,6 +164,40 @@ class PreparationBarrierTests(unittest.TestCase):
         self.probe['sealed_payload_links'].pop()
         with self.assertRaises(AssertionError):
             API['assert_prepared_batch_replayed'](prepared, self.probe)
+
+
+class HeldProbeDiagnosticsTests(unittest.TestCase):
+    def test_actual_held_probe_is_saved_before_each_compound_assert_failure(self):
+        source = SOURCE.read_text()
+        names = {'hold_batch_preparation', 'persist_progress', 'write_snapshot', 'existing_snapshot'}
+        nodes = [node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name in names]
+        for field, changed in [('processed', True), ('payment', None), ('payloads', [])]:
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory); config = root/'config'; config.mkdir()
+                output = root/'proof.json'; messages, _, probe = fixture(); probe['messages'][0][field] = changed
+                expected = copy.deepcopy(probe); events = []; agents = []
+                def check(actual, targets):
+                    saved = json.loads(output.read_text())['progress'][-1]
+                    self.assertEqual(saved['stage'], 'batch-held-stopped-readback')
+                    self.assertEqual(saved['achieved']['stopped_rust_readback'], expected)
+                    self.assertEqual(saved['achieved']['stop']['exit'], 0)
+                    self.assertTrue(saved['achieved']['poststop_nonce_and_broadcast_assertions_passed'])
+                    events.append('saved-before-validation')
+                    return API['prepared_batch_probe'](actual, targets)
+                api = {'copy':copy, 'json':json, 'pathlib':pathlib, 'os':os, 'time':time,
+                       'launch':lambda *args:SimpleNamespace(), 'stop':lambda process:{'exit':0},
+                       'wait_role_ready':lambda *args:None, 'wait':lambda predicate,*args:self.assertTrue(predicate()),
+                       'rpc_snapshot':lambda proxy:{'observations':[]},
+                       'prepared_batch_snapshot':lambda *args:{'ready':True,'operations':[]},
+                       'prepared_batch_probe':check, 'rust_probe':lambda *args:probe,
+                       'urllib':SimpleNamespace(request=SimpleNamespace(urlopen=lambda *args,**kwargs:contextlib.nullcontext(SimpleNamespace(read=lambda:b'[]')))),
+                       'DESTINATION':9913372, 'evm':SimpleNamespace(TEST_SIGNER='fixture-public-signer')}
+                exec(compile(ast.Module(body=nodes,type_ignores=[]),str(SOURCE),'exec'),api)
+                with self.assertRaisesRegex(AssertionError,'held canonical row already processed or payload missing'):
+                    api['hold_batch_preparation'](None,config,{'chains':{'test2':{'maxBatchSize':4}},'metricsPort':1},root/'db',root/'role.log',messages,9,SimpleNamespace(rpc=lambda *args:7),None,None,agents,output)
+                self.assertEqual(events,['saved-before-validation'])
+                self.assertEqual(len(agents),1)
+                self.assertIn('maxSubmitQueueLength',json.loads((config/'public.json').read_text())['chains']['test2'])
 
 
 if __name__ == '__main__':

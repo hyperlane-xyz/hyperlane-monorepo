@@ -12,6 +12,11 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the two reviewed functional diagnostic-only uploads.
+ functional_diagnostics_after = '            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-failure.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/worker.log\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json\n'
+ functional_diagnostics_before = '            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json\n'
+ if text.count(functional_diagnostics_after) != 1: raise AssertionError('Exact functional diagnostic uploads required')
+ text = text.replace(functional_diagnostics_after, functional_diagnostics_before, 1)
  # Exact inverse of the three reviewed pnpm temporary-HOME recipe changes.
  pnpm_home_after = "              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False\n              home=root/'home';home_identity=None\n              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(home)}\n"
  pnpm_home_before = "              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False\n              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}\n"
@@ -566,6 +571,51 @@ class ExternalToolMismatchDiagnostics(unittest.TestCase):
   tree=ast.parse(Path(p.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='input_manifest');loop=next(n for n in fn.body if isinstance(n,ast.For)and isinstance(n.target,ast.Name)and n.target.id=='name'and isinstance(n.iter,ast.Name)and n.iter.id=='required_tools');calls=[n for n in ast.walk(loop)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='checked'];self.assertEqual(len(calls),1);self.assertEqual([(k.arg,ast.unparse(k.value))for k in calls[0].keywords],[('external_tool','name')])
 
 
+class FunctionalFailureDiagnosticsControls(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve();self.repo=self.root/'repo';self.out=self.root/'out';self.out.mkdir();self.args=N(repo=self.repo,output=self.out,index=0)
+  file=self.repo/'zig/bench/paired_linux_stage.py';file.parent.mkdir(parents=True);file.write_bytes((HERE/'paired_linux_stage.py').read_bytes());self.authority={'required_source':[{**p.pin(file),'path':'zig/bench/paired_linux_stage.py'}]};self.request={'path':'/CI/request.json','bytes':1,'sha256':'a'*64}
+  import paired_linux_owner as owner
+  self.owner=owner
+ def test_actual_Source_stage_dependencies_and_guard_are_reused(self):
+  file=self.repo/'zig/integration/control.py';file.parent.mkdir(parents=True);file.write_text('def fail():\n p.need(False,"fixed functional guard")\n');self.authority['required_source'].append({**p.pin(file),'path':'zig/integration/control.py'});space={'p':p};exec(compile(file.read_text(),str(file),'exec'),space)
+  try:space['fail']()
+  except p.Refused as error:self.owner.functional_failure(error,self.args,self.authority,self.request,'ReleaseSafe','relayer_process')
+  value=json.loads((self.out/'functional-failure.json').read_text());self.assertFalse(value['passed']);self.assertFalse(value['native18_or_timing_acceptance']);self.assertEqual(value['failure_observation']['Source_guard'],'fixed functional guard');self.assertEqual(value['failure_observation']['Source_frames'][-1]['source'],'zig/integration/control.py')
+ def test_HTTP_metadata_never_exports_URL_reason_headers_or_body(self):
+  from urllib.error import HTTPError
+  sentinel='PRIVATE_HTTP_SENTINEL'
+  cases=[('http://127.0.0.1:1/list_operations?'+sentinel,'list_operations'),('https://localhost/metrics','metrics'),('http://[::1]/','chain_rpc'),('http://127.0.0.1/'+sentinel,'other_loopback'),('https://remote.invalid/'+sentinel,'unavailable'),('http://[broken','unavailable')]
+  for url,route in cases:
+   with self.subTest(route=route):
+    (self.out/'functional-failure.json').unlink(missing_ok=True)
+    error=HTTPError(url,500,sentinel,{'Private':sentinel},io.BytesIO(sentinel.encode()));self.owner.functional_failure(error,self.args,self.authority,self.request,'ReleaseSafe','relayer_process');wire=(self.out/'functional-failure.json').read_text();value=json.loads(wire);self.assertEqual(value['HTTP'],{'status':500,'route':route});self.assertNotIn(sentinel,wire);self.assertNotIn(url,wire);self.assertNotIn('headers',wire)
+ def test_invalid_HTTP_status_and_failed_Source_observer_remain_closed(self):
+  from urllib.error import HTTPError
+  for code in [True,99,600,'500']:
+   (self.out/'functional-failure.json').unlink(missing_ok=True)
+   with mock.patch.object(p,'load_source',side_effect=RuntimeError('PRIVATE_DIAGNOSTIC')):
+    self.owner.functional_failure(HTTPError('http://localhost/',code,'PRIVATE_REASON',None,None),self.args,self.authority,self.request,'ReleaseSafe','relayer_process')
+   wire=(self.out/'functional-failure.json').read_text();value=json.loads(wire);self.assertIsNone(value['HTTP']['status']);self.assertEqual(value['failure_observation'],{'status':'unavailable'});self.assertNotIn('PRIVATE',wire)
+ def test_actual_worker_bare_rethrow_survives_diagnostic_write_failure(self):
+  tree=ast.parse((HERE/'paired_linux_owner.py').read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');node=next(n for n in worker.body if isinstance(n,ast.Try));primary=AssertionError('PRIVATE_PRIMARY');saved=[];warnings=io.StringIO()
+  def fail():raise primary
+  scope={'module':N(main=fail),'policy':N(write=lambda path,value:saved.append((path.name,value))),'args':self.args,'events':[],'functional_failure':mock.Mock(side_effect=OSError('PRIVATE_SECONDARY')),'authority':self.authority,'request_pin':self.request,'mode':'ReleaseSafe','kind':'relayer_process','sys':N(stderr=warnings)}
+  with self.assertRaises(AssertionError)as caught:exec(compile(ast.Module(body=[node],type_ignores=[]),str(HERE/'paired_linux_owner.py'),'exec'),scope)
+  self.assertIs(caught.exception,primary);self.assertEqual([name for name,_ in saved],['actual-agent-launches.json']);self.assertEqual(warnings.getvalue(),'FUNCTIONAL_DIAGNOSTIC_WRITE_FAILED\n')
+ def test_actual_worker_also_records_postmain_proof_validation_failure(self):
+  tree=ast.parse((HERE/'paired_linux_owner.py').read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');node=next(n for n in worker.body if isinstance(n,ast.Try));record=mock.Mock();saved=[];path=self.out/'proof.json';path.write_text('{}')
+  scope={'module':N(main=lambda:None),'policy':N(write=lambda path,value:saved.append(path.name),decode=p.decode),'proof':path,'args':self.args,'events':[],'functional_failure':record,'authority':self.authority,'request_pin':self.request,'mode':'ReleaseSafe','kind':'relayer_process','value':{'artifacts':{'zig':{'ReleaseSafe':{'relayer':{'sha256':'a'*64}}}}},'sys':sys}
+  with self.assertRaisesRegex(RuntimeError,'actual functional proof failed')as caught:exec(compile(ast.Module(body=[node],type_ignores=[]),str(HERE/'paired_linux_owner.py'),'exec'),scope)
+  self.assertIs(record.call_args.args[0],caught.exception);self.assertEqual(saved,['actual-agent-launches.json'])
+
+class FunctionalFailureWorkflowControls(unittest.TestCase):
+ def test_exact_two_diagnostic_uploads_invert_and_poison_refuses(self):
+  text=(ROOT/'.github/workflows/zig-agents.yml').read_text();block='            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-failure.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/worker.log\n'
+  self.assertEqual(text.count(block),1);ordinary_native_http_workflow(text)
+  for bad in [text.replace(block,'',1),text.replace(block,block+block,1),text.replace('paired-linux-proof-${{ matrix.index }}/functional-failure.json','paired-linux-proof-${{ matrix.index }}/raw/',1),text.replace('paired-linux-proof-${{ matrix.index }}/worker.log','paired-linux-proof-${{ matrix.index }}/other.log',1)]:
+   with self.assertRaises(AssertionError):ordinary_native_http_workflow(bad)
+
 class PnpmHomeWorkflowInverseControls(unittest.TestCase):
  def test_exact_three_recipe_inverse_keeps_original_full_golden(self):
   text=(ROOT/'.github/workflows/zig-agents.yml').read_text();functions=[]
@@ -902,9 +952,11 @@ class DrainedHandoffWorkflowInverseControls(unittest.TestCase):
  def test_each_exact_hunk_missing_duplicated_or_mutated_refuses(self):
   for node,inverse in self.actual_inverses():
    hunks=[ast.literal_eval(n.value)for n in node.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='handoff_after'for t in n.targets)];self.assertEqual(len(hunks),6)
+   diagnostic={n.targets[0].id:ast.literal_eval(n.value)for n in node.body if isinstance(n,ast.Assign)and len(n.targets)==1 and isinstance(n.targets[0],ast.Name)and n.targets[0].id in {'functional_diagnostics_before','functional_diagnostics_after'}}
+   hunks=[h.replace(diagnostic['functional_diagnostics_before'],diagnostic['functional_diagnostics_after'],1)for h in hunks]
    for index,hunk in enumerate(hunks):
     for changed in [self.current().replace(hunk,'',1),self.current()+hunk,self.current().replace(hunk,'UNREVIEWED'+hunk[1:],1)]:
-     with self.subTest(hunk=index),self.assertRaisesRegex(AssertionError,'reviewed utility/handoff workflow hunk'):inverse(changed)
+     with self.subTest(hunk=index),self.assertRaisesRegex(AssertionError,'reviewed utility/handoff workflow hunk|Exact functional diagnostic uploads required'):inverse(changed)
  def test_unreviewed_parallel_timeout_and_workflow_recipe_changes_still_fail_golden(self):
   text=self.current();functional=text.split('\n  paired-linux-functional:',1)[1].split('\n  paired-linux-runtime:',1)[0]
   for changed_body in [functional.replace('      max-parallel: 2','      max-parallel: 3',1),functional.replace('timeout-minutes: 180','timeout-minutes: 181',1),functional.replace('timeout-minutes: 122','timeout-minutes: 123',1)]:

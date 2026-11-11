@@ -15,6 +15,11 @@ def evaluator():
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name in {'conditions','selected'}]
  exec(compile(ast.Module(body=functions,type_ignores=[]),'actual-shared-route-evaluator','exec'),ns);return ns
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the two reviewed functional diagnostic-only uploads.
+ functional_diagnostics_after = '            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-failure.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/worker.log\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json\n'
+ functional_diagnostics_before = '            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json\n'
+ if text.count(functional_diagnostics_after) != 1: raise AssertionError('Exact functional diagnostic uploads required')
+ text = text.replace(functional_diagnostics_after, functional_diagnostics_before, 1)
  # Exact inverse of the three reviewed pnpm temporary-HOME recipe changes.
  pnpm_home_after = "              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False\n              home=root/'home';home_identity=None\n              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(home)}\n"
  pnpm_home_before = "              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False\n              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}\n"

@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 158198,
+      "bytes": 158373,
       "sha256": {
         "sha256_hex_chunks": [
-          "d3fb4243085a2ea39ddac96a5b2c6b0b",
-          "19d32a2930e8e7fb79434aa197458487"
+          "f127a6426f9727cdbb5a1026eaefb4c4",
+          "b53ee3ff76c730bcc8ee892996f9dea4"
         ]
       }
     },
@@ -193,11 +193,11 @@
     },
     {
       "path": "zig/bench/paired_linux_owner.py",
-      "bytes": 23744,
+      "bytes": 25200,
       "sha256": {
         "sha256_hex_chunks": [
-          "48e4c5b30e83047294df1b3509e04ed8",
-          "f6e34aebd4147d5d1e58b955ef074d70"
+          "9ac2314aa8fb098d1622591b176a1495",
+          "0a5d52ccd3d995e98e04856ba45eaa22"
         ]
       }
     },
@@ -303,11 +303,11 @@
     },
     {
       "path": "zig/integration/relayer_process.py",
-      "bytes": 87182,
+      "bytes": 87454,
       "sha256": {
         "sha256_hex_chunks": [
-          "91814c0cf1102c65a1a678bf54a13d2e",
-          "06e2dd8c47881a10dddd613952b29820"
+          "739cdaf77b071a2e54ef507ca303cfa2",
+          "82748a620d5fef6a40cc327a5dfe1d8f"
         ]
       }
     },

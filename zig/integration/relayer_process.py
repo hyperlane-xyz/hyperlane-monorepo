@@ -569,7 +569,7 @@ def assert_prepared_batch_replayed(prepared,probe):
         link=links[item['id']]
         assert ''.join(link['uuid_chunks']).replace('-','').lower()==item['uuid'] and str(link['estimated_gas'])==item['estimated_gas'] and link['nonce']==item['nonce'],'restart changed sealed UUID, estimate or nonce'
 
-def hold_batch_preparation(binary,config,value,database,log_path,messages,count,chain,proxy,oracle,agents):
+def hold_batch_preparation(binary,config,value,database,log_path,messages,count,chain,proxy,oracle,agents,output):
     assert value['chains']['test2']['maxBatchSize']==4 and value['chains']['test2'].get('maxSubmitQueueLength')is None,'expected uncapped maxBatch4 fixture'
     held=copy.deepcopy(value);held['chains']['test2']['maxSubmitQueueLength']=0
     released=copy.deepcopy(held);released['chains']['test2'].pop('maxSubmitQueueLength')
@@ -596,7 +596,9 @@ def hold_batch_preparation(binary,config,value,database,log_path,messages,count,
     assert stopped['exit']==0,stopped
     assert chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest'])==before_nonce,'held preparation shutdown consumed nonce'
     assert sum(row['method']=='eth_sendRawTransaction' for row in rpc_snapshot(proxy)['observations'])==before_sends,'held preparation shutdown broadcast'
-    probe=rust_probe(oracle,database,count);sealed=prepared_batch_probe(probe,messages)
+    probe=rust_probe(oracle,database,count)
+    persist_progress(output,'batch-held-stopped-readback',stopped_rust_readback=probe,prepared_admin=evidence,stop=stopped,account_nonce_before=before_nonce,broadcast_requests_before=before_sends,poststop_nonce_and_broadcast_assertions_passed=True)
+    sealed=prepared_batch_probe(probe,messages)
     (config/'public.json').write_text(json.dumps(released))
     return {'admin':evidence,'sealed_pending':sealed,'stopped_rust_readback':probe,'stop':stopped,'account_nonce_before':before_nonce,'account_nonce_after':before_nonce,'broadcast_requests_before':before_sends,'broadcast_requests_after':before_sends,'held_max_submit_queue_length':0,'released_max_submit_queue_length':None,'same_database':str(database),'configuration_change':'only destination maxSubmitQueueLength removed; operation context domain/chain/mailbox/signer/origin/hook unchanged'}
 
@@ -803,7 +805,7 @@ def main():
     assert batch_validator_stop['exit']==0,batch_validator_stop
     batch_messages=messages[batch_start:]
     batch_config=temporary/'batch-config';batch_config.mkdir();batch_database=temporary/'batch-db';batch_value=json.loads(json.dumps(value));batch_value['db']=str(batch_database);batch_value['metricsPort']=port();batch_value['whitelist']=[{'messageId':[message['id']for message in batch_messages]}];batch_value['chains']['test2']['maxBatchSize']=4;batch_value['chains']['test2']['batchContractAddress']=multicall
-    batch_prepared=hold_batch_preparation(binary,batch_config,batch_value,batch_database,temporary/'relayer-batch-prepare.log',batch_messages,len(messages),chain,destination_rpc,oracle,agents)
+    batch_prepared=hold_batch_preparation(binary,batch_config,batch_value,batch_database,temporary/'relayer-batch-prepare.log',batch_messages,len(messages),chain,destination_rpc,oracle,agents,args.output)
     persist_progress(args.output,'batch-prepared-held',{'destination':destination_rpc},prepared_barrier=batch_prepared)
     raw_before_batch=len(destination_rpc.raw_transactions)
     with (temporary/'relayer-batch.log').open('w')as log:

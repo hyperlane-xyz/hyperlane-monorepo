@@ -1949,6 +1949,8 @@ jobs:
             ${{ runner.temp }}/paired-linux-stage/accepted-six.json
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/owner-result.json
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json
+            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-failure.json
+            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/worker.log
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/proof.json
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/proof.json.gz

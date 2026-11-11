@@ -1,6 +1,8 @@
 """Bounded Linux proof/timing custody outside existing daemon timers."""
 from pathlib import Path
 import argparse,hashlib,importlib.util,json,os,shutil,signal,subprocess,sys,time
+from urllib.error import HTTPError
+from urllib.parse import urlsplit
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import paired_linux as policy
 GIB=1024**3
@@ -69,6 +71,24 @@ def owner(args):
    for s,h in previous.items():signal.signal(s,h)
  policy.need(result['passed'],'paired owner failed; raw evidence retained')
 
+def functional_failure(error,args,authority,request_pin,mode,kind):
+ """Retain admitted Source coordinates and typed HTTP metadata, never text."""
+ try:
+  stage=policy.load_source(args.repo/'zig/bench/paired_linux_stage.py','paired_worker_failure_source',authority,args.repo)
+  observation=stage.failure_observation(error,args.repo,authority)
+ except Exception:observation={'status':'unavailable'}
+ result={'schema':1,'kind':'paired-linux-functional-failure','passed':False,'index':args.index,'mode':mode,'proof_kind':kind,'request':request_pin,'failure_observation':observation,'native18_or_timing_acceptance':False}
+ if isinstance(error,HTTPError):
+  route='unavailable'
+  if type(error.url)is str and len(error.url)<=4096:
+   try:
+    url=urlsplit(error.url)
+    if url.scheme in {'http','https'}and url.hostname in {'127.0.0.1','localhost','::1'}:
+     route={'/metrics':'metrics','/list_operations':'list_operations','':'chain_rpc','/':'chain_rpc'}.get(url.path,'other_loopback')
+   except ValueError:pass
+  result['HTTP']={'status':error.code if type(error.code)is int and 100<=error.code<=599 else None,'route':route}
+ policy.write(args.output/'functional-failure.json',result)
+
 def worker(args,authority,request_pin):
  if args.action=='handoff-worker':return handoff_worker(args,authority,request_pin)
  value=policy.input_manifest(args.inputs/'input-manifest.json',args.inputs,args.repo,authority['producer_source_commit'],authority);mode=policy.MODES[args.index//3]if args.action=='functional-worker'else None
@@ -84,15 +104,19 @@ def worker(args,authority,request_pin):
    effective[k]=v
   child=original(binary,config,log,effective);events.append({'pid':child.pid,'mode':mode,'binary_sha256':digest});return child
  rp.launch=bound;module=rp if kind=='relayer_process'else policy.load_source(args.repo/'zig/integration'/(kind+'.py'),'paired_'+kind,authority,args.repo);proof=args.output/'proof.json';command=policy.functional_command(value,args.inputs,args.repo,args.index,proof);sys.argv=[command[3],*command[4:]]
- try:module.main()
- finally:policy.write(args.output/'actual-agent-launches.json',events)
- from paired_linux_proofs import validate
- raw=policy.decode(proof.read_bytes(),64*1024**2,2000000);summary=validate(kind,raw,value['artifacts']['zig'][mode]['relayer']['sha256'],args.repo)
- # Original per-ID600+30, crash/signing/public schemas remain checked. CI
- # correctness is not Root native18 or final quiet/performance authority.
- for row in authority['required_source']:policy.checked(row,args.repo)
- policy.write(args.output/'functional-result.json',{'schema':1,'kind':'paired-linux-functional-result','platform':'linux-x86_64','passed':True,'index':args.index,'mode':mode,'proof_kind':kind,'proof':policy.pin(proof),'input_manifest':policy.pin(args.inputs/'input-manifest.json'),'request':request_pin,'actual_role_launches':events,'strict_cases':summary,'production_confirm_seconds':600,'bounded_grace_seconds':30,'native18_or_timing_acceptance':False})
-
+ try:
+  try:module.main()
+  finally:policy.write(args.output/'actual-agent-launches.json',events)
+  from paired_linux_proofs import validate
+  raw=policy.decode(proof.read_bytes(),64*1024**2,2000000);summary=validate(kind,raw,value['artifacts']['zig'][mode]['relayer']['sha256'],args.repo)
+  # Original per-ID600+30, crash/signing/public schemas remain checked. CI
+  # correctness is not Root native18 or final quiet/performance authority.
+  for row in authority['required_source']:policy.checked(row,args.repo)
+  policy.write(args.output/'functional-result.json',{'schema':1,'kind':'paired-linux-functional-result','platform':'linux-x86_64','passed':True,'index':args.index,'mode':mode,'proof_kind':kind,'proof':policy.pin(proof),'input_manifest':policy.pin(args.inputs/'input-manifest.json'),'request':request_pin,'actual_role_launches':events,'strict_cases':summary,'production_confirm_seconds':600,'bounded_grace_seconds':30,'native18_or_timing_acceptance':False})
+ except BaseException as error:
+  try:functional_failure(error,args,authority,request_pin,mode,kind)
+  except Exception:print('FUNCTIONAL_DIAGNOSTIC_WRITE_FAILED',file=sys.stderr)
+  raise
 
 
 def handoff_sources(authority):
