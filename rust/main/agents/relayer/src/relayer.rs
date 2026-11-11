@@ -46,7 +46,8 @@ use crate::relay_api::{
     RelayApiMetrics,
 };
 use crate::scraper_websocket::{
-    Kind, RollbackRecoveryRequired, RpcRecovery, ScraperAuthorityReceiver, ScraperWebSocketMonitor,
+    Kind, RollbackRecoveryRequired, RpcRecovery, ScraperAuthorityReceiver, ScraperSource,
+    ScraperWebSocketMonitor,
 };
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -77,7 +78,7 @@ use crate::{
 use destination::{Destination, FactoryError};
 
 mod destination;
-mod origin;
+pub(crate) mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 /// Unit tests instantiate cursors against dead localhost RPCs, so they retry less and faster.
@@ -501,10 +502,7 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
-        let scraper_sources = origins
-            .values()
-            .map(Origin::scraper_source)
-            .collect::<Result<Vec<_>>>()?;
+        let scraper_sources = origins.values().map(ScraperSource::from_origin).collect();
         let scraper_websocket_monitor = Some(ScraperWebSocketMonitor::new_with_authority(
             settings
                 .websocket_url
@@ -568,9 +566,7 @@ impl BaseAgent for Relayer {
             if !origin.database.live_block_verification_pending() {
                 continue;
             }
-            let source = origin
-                .scraper_source()
-                .expect("Origin source was validated during construction");
+            let source = ScraperSource::from_origin(origin);
             let domain = origin.domain.clone();
             let critical_errors = self.critical_errors.clone();
             tasks.push(tokio::spawn(async move {
@@ -1725,7 +1721,7 @@ impl Relayer {
                     origin.database.set_indexed_event_conflict_metric(
                         recovery_metric.with_label_values(&[domain.name()]),
                     )?;
-                    let source = origin.scraper_source()?;
+                    let source = ScraperSource::from_origin(&origin);
                     origin.database.set_live_block_verification_pending(true);
                     let verification = Self::build_chain_with_retries(
                         domain,

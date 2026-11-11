@@ -91,7 +91,7 @@ impl AggregationIsmMetadataBuilder {
     ///
     /// Implicit contract in this method: function name `modules_and_threshold` matches
     /// the name of the method `modules_and_threshold`.
-    pub(super) async fn call_modules_and_threshold(
+    async fn call_modules_and_threshold(
         &self,
         ism: Box<dyn AggregationIsm>,
         message: &HyperlaneMessage,

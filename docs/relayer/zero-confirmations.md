@@ -17,7 +17,10 @@ an overlapping subscription checkpoint, including gas payments. Only then does t
 supervisor stop all three RPC indexers. Disconnects, rejected frames, missing receipt
 metadata and sequence gaps restore RPC. Reconnects repeat the overlap check. Sources
 fail independently. Progress probes and reorg audits still use RPC while event indexing
-uses WebSockets. `websocketAuthorityEnabled: false` keeps RPC as the discovery source.
+uses WebSockets. `websocketAuthorityEnabled: false` keeps RPC as the discovery source
+and validates WebSocket frames in shadow mode without writing them or pausing RPC.
+Proxy connection capacity must include one socket per configured relayer origin,
+in addition to validator connections and deployment headroom.
 
 Destination delivery is still checked by the existing delivery/receipt confirmation
 pipeline; a zero-confirmation delivery notification is not a finalized receipt.

@@ -18,7 +18,6 @@ use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
-use crate::scraper_websocket::ScraperSource;
 use crate::settings::GasPaymentEnforcementConf;
 
 type MessageSync = Arc<dyn ContractSyncer<HyperlaneMessage>>;
@@ -27,6 +26,7 @@ type MerkleTreeHookSync = Arc<dyn ContractSyncer<MerkleTreeInsertion>>;
 
 pub struct Origin {
     pub database: HyperlaneRocksDB,
+    pub sync_metrics: Arc<ContractSyncMetrics>,
     pub finality_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
     pub domain: HyperlaneDomain,
     pub chain_conf: ChainConf,
@@ -46,41 +46,6 @@ pub struct Origin {
     pub igp_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
     pub merkle_sequence_indexer: SequenceIndexer<MerkleTreeInsertion>,
-}
-
-impl Origin {
-    pub(super) fn scraper_source(&self) -> eyre::Result<ScraperSource> {
-        Ok(ScraperSource::new(
-            self.domain.name().to_owned(),
-            self.domain.id(),
-            self.chain_conf.addresses.mailbox,
-            self.chain_conf.addresses.interchain_gas_paymaster,
-            self.chain_conf.addresses.merkle_tree_hook,
-            self.database.clone(),
-        )?
-        .with_confirmations(if self.finality_indexer.is_some() {
-            Some(0)
-        } else {
-            match &self.chain_conf.reorg_period {
-                ReorgPeriod::Blocks(blocks) => Some(blocks.get()),
-                _ => None,
-            }
-        })
-        .with_block_provider(Arc::from(self.validator_announce.provider()))
-        .with_broadcaster(self.message_sync.get_broadcaster())
-        .with_freshness_indexer(self.message_sequence_indexer.clone())
-        .with_merkle_freshness_indexer(self.merkle_sequence_indexer.clone())
-        .with_recovery(
-            self.finality_indexer.clone(),
-            self.prover_sync.clone(),
-            self.igp_indexer.is_some(),
-            match &self.chain_conf.reorg_period {
-                ReorgPeriod::None => false,
-                ReorgPeriod::Blocks(_) => true,
-                ReorgPeriod::Tag(tag) => !matches!(tag.as_str(), "latest" | "pending"),
-            },
-        ))
-    }
 }
 
 impl std::fmt::Debug for Origin {
@@ -237,6 +202,7 @@ impl Factory for OriginFactory {
         };
 
         let origin = Origin {
+            sync_metrics: self.sync_metrics.clone(),
             database: db,
             finality_indexer,
             domain,

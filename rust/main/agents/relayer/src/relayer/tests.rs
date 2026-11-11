@@ -1158,9 +1158,7 @@ async fn live_verification_retries_outages_and_halts_on_confirmed_reorgs() {
                 .is_none());
             if failures == usize::MAX {
                 recovered.store(true, Ordering::Release);
-                origins[&affected]
-                    .scraper_source()
-                    .unwrap()
+                crate::scraper_websocket::ScraperSource::from_origin(&origins[&affected])
                     .retry_startup_verification()
                     .await
                     .unwrap();

@@ -176,26 +176,12 @@ impl HyperlaneRocksDB {
         }
     }
 
-    /// Serialize each poll of a submission with conflict marking. No lock survives
-    /// an await. A conflict cancels pending work; requests already sent to a node
-    /// cannot be revoked. Sort/deduplicate origins for transactions that batch them.
-    pub async fn with_consistent_origins<F: Future>(
-        origins: &[&dyn HyperlaneDb],
-        future: F,
-    ) -> DbResult<F::Output> {
-        let generations: Vec<_> = origins
-            .iter()
-            .map(|db| (*db, db.discovery_generation()))
-            .collect();
-        Self::with_origin_generations(&generations, future).await
-    }
-
     /// Refuse stale prepared work, including after recovery has reopened an origin.
     pub async fn with_origin_generations<F: Future>(
         origins: &[(&dyn HyperlaneDb, u64)],
         future: F,
     ) -> DbResult<F::Output> {
-        let generations = origins.to_vec();
+        let origins_with_generations = origins;
         let mut origins: Vec<_> = origins.iter().map(|(db, _)| *db).collect();
         origins.sort_unstable_by_key(|db| db.domain().id());
         origins.dedup_by_key(|db| db.domain().id());
@@ -210,7 +196,7 @@ impl HyperlaneRocksDB {
         let mut future = std::pin::pin!(future);
         poll_fn(|cx| {
             let _admission: Vec<_> = states.iter().map(|state| state.admission.lock()).collect();
-            for (db, generation) in &generations {
+            for (db, generation) in origins_with_generations {
                 if db.discovery_generation() != *generation {
                     return Poll::Ready(Err(DbError::Other(
                         "Prepared work belongs to an orphaned discovery generation".into(),
@@ -308,44 +294,6 @@ impl HyperlaneRocksDB {
         }
         self.upsert_message_inner(message, dispatched_block_number)?;
         Ok(true)
-    }
-
-    /// Validate replay parity and fill absent dispatch data under the RPC writer's lock.
-    /// The callback records live-block identity before any event data is changed.
-    pub fn store_dispatched_message_if_consistent(
-        &self,
-        message: &HyperlaneMessage,
-        block: u64,
-        tx: H512,
-        before_write: impl FnOnce() -> Result<()>,
-    ) -> Result<bool> {
-        let _guard = self.4.lock();
-        let existing_message = self.retrieve_message_by_nonce(message.nonce)?;
-        let existing_block = self.retrieve_dispatched_block_number_by_nonce(&message.nonce)?;
-        let existing_tx = self.retrieve_dispatched_tx_hash_by_message_id(&message.id())?;
-        self.check_event_consistency(
-            existing_message
-                .as_ref()
-                .is_none_or(|stored| stored == message),
-            "dispatch",
-        )?;
-        self.check_event_consistency(
-            existing_block.is_none_or(|stored| stored == block),
-            "dispatch block",
-        )?;
-        self.check_event_consistency(
-            tx.is_zero() || existing_tx.is_none_or(|stored| stored.is_zero() || stored == tx),
-            "dispatch transaction",
-        )?;
-        let fill_tx = !tx.is_zero() && existing_tx.is_none_or(|stored| stored.is_zero());
-        if existing_message.is_none() || existing_block.is_none() || fill_tx {
-            before_write()?;
-        }
-        let inserted = self.store_message_inner(message, block)?;
-        if fill_tx {
-            self.store_value_by_key(MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID, &message.id(), &tx)?;
-        }
-        Ok(inserted)
     }
 
     /// Store a raw committed message.
@@ -711,6 +659,8 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
         let _guard = self.2.lock();
+        self.ensure_discovery_writable()?;
+        self.check_discovery_gas(payment, log_meta)?;
         self.process_gas_payment_inner(payment, log_meta, None)
     }
 
@@ -720,9 +670,7 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
         sequence: Option<u32>,
     ) -> DbResult<bool> {
-        self.ensure_discovery_writable()?;
         let payment_meta = log_meta.into();
-        self.check_discovery_gas(payment, log_meta)?;
         // If the gas payment has already been processed, do nothing
         if self
             .retrieve_processed_by_gas_payment_meta(&payment_meta)?
@@ -843,53 +791,6 @@ impl HyperlaneRocksDB {
         Ok(existing)
     }
 
-    /// Validate replay parity and fill absent Merkle metadata for matching leaves.
-    /// Shares the RPC writer's lock so a concurrent stream replay cannot overwrite
-    /// a canonical insertion or its existing metadata.
-    pub fn store_tree_insertion_if_consistent(
-        &self,
-        insertion: &MerkleTreeInsertion,
-        insertion_block_number: u64,
-        before_write: impl FnOnce() -> Result<()>,
-    ) -> Result<Option<MerkleTreeInsertion>> {
-        let _guard = self.3.lock();
-        let existing = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?;
-        let reverse = self.retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?;
-        let block =
-            self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())?;
-        self.check_event_consistency(
-            existing.is_none_or(|stored| stored == *insertion),
-            "Merkle leaf",
-        )?;
-        self.check_event_consistency(
-            block.is_none_or(|stored| stored == insertion_block_number),
-            "Merkle block",
-        )?;
-        if existing.is_none() {
-            before_write()?;
-            self.store_tree_insertion_inner(insertion, insertion_block_number)?;
-        } else if reverse.is_none() || block.is_none() {
-            before_write()?;
-            let mut batch = self.batch();
-            if reverse.is_none() {
-                batch.store_keyed_encodable(
-                    MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
-                    &insertion.message_id(),
-                    &insertion.index(),
-                );
-            }
-            if block.is_none() {
-                batch.store_keyed_encodable(
-                    MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
-                    &insertion.index(),
-                    &insertion_block_number,
-                );
-            }
-            batch.commit()?;
-        }
-        Ok(existing)
-    }
-
     fn store_tree_insertion_inner(
         &self,
         insertion: &MerkleTreeInsertion,
@@ -987,8 +888,8 @@ mod pending_index_tests {
             let (started, waiting) = tokio::sync::oneshot::channel();
             let submission_db = db.clone();
             let submission = tokio::spawn(async move {
-                HyperlaneRocksDB::with_consistent_origins(
-                    &[&submission_db, &submission_db],
+                HyperlaneRocksDB::with_origin_generations(
+                    &[(&submission_db, 0), (&submission_db, 0)],
                     async {
                         started.send(()).unwrap();
                         std::future::pending::<()>().await;
@@ -1005,11 +906,13 @@ mod pending_index_tests {
                 .unwrap()
                 .unwrap_err();
             assert!(matches!(error, DbError::ConflictingEvent(_)));
-            assert!(HyperlaneRocksDB::with_consistent_origins(&[&db], async {
-                panic!("blocked submission was polled");
-            })
-            .await
-            .is_err());
+            assert!(
+                HyperlaneRocksDB::with_origin_generations(&[(&db, 0)], async {
+                    panic!("blocked submission was polled");
+                })
+                .await
+                .is_err()
+            );
         })
         .await;
     }
@@ -1047,13 +950,29 @@ mod pending_index_tests {
         let id = H256::from_low_u64_be(1);
         let first = MerkleTreeInsertion::new(0, id);
         let second = MerkleTreeInsertion::new(1, id);
-        db.store_tree_insertion_if_consistent(&first, 100, || Ok(()))
-            .unwrap();
-        db.store_tree_insertion_if_consistent(&second, 101, || Ok(()))
-            .unwrap();
-        db.store_tree_insertion_if_consistent(&first, 100, || {
-            panic!("matching replay must not rewrite metadata")
-        })
+        db.store_indexed_merkle(
+            &first,
+            &LogMeta {
+                block_number: 100,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.store_indexed_merkle(
+            &second,
+            &LogMeta {
+                block_number: 101,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.store_indexed_merkle(
+            &first,
+            &LogMeta {
+                block_number: 100,
+                ..Default::default()
+            },
+        )
         .unwrap();
         db.ensure_no_indexed_event_conflict().unwrap();
         assert_eq!(
@@ -1121,10 +1040,7 @@ mod pending_index_tests {
                 transaction_id: H512::from_low_u64_be(1),
                 ..Default::default()
             };
-            db.store_dispatched_message_if_consistent(&original, 100, meta.transaction_id, || {
-                Ok(())
-            })
-            .unwrap();
+            db.store_indexed_dispatch(&original, &meta).unwrap();
             assert_eq!(
                 db.store_logs(&[(Indexed::new(original.clone()), meta.clone())])
                     .await
@@ -1298,11 +1214,13 @@ mod pending_index_tests {
                         .unwrap()
                         .is_none());
                     started.send(()).unwrap();
-                    writer.store_dispatched_message_if_consistent(
+                    writer.store_indexed_dispatch(
                         &replay,
-                        100,
-                        H512::from_low_u64_be(1),
-                        || panic!("conflict must be detected before recording live metadata"),
+                        &LogMeta {
+                            block_number: 100,
+                            transaction_id: H512::from_low_u64_be(1),
+                            ..Default::default()
+                        },
                     )
                 });
                 ready.recv().unwrap();
@@ -1353,9 +1271,13 @@ mod pending_index_tests {
                     .unwrap()
                     .is_none());
                 started.send(()).unwrap();
-                writer.store_tree_insertion_if_consistent(&insertion, 100, || {
-                    panic!("conflict must be detected before recording live metadata")
-                })
+                writer.store_indexed_merkle(
+                    &insertion,
+                    &LogMeta {
+                        block_number: 100,
+                        ..Default::default()
+                    },
+                )
             });
             ready.recv().unwrap();
             db.store_tree_insertion_inner(&insertion, 101).unwrap();
@@ -1639,7 +1561,11 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored: u32 = 0;
         for (message, meta) in messages {
-            if self.store_indexed_dispatch(message.inner(), meta)? {
+            if self.store_indexed_dispatch_inner(
+                message.inner(),
+                meta,
+                self.6.discovery_enabled.load(Ordering::Acquire),
+            )? {
                 stored = stored.saturating_add(1);
             }
         }

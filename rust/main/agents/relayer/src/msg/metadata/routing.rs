@@ -60,7 +60,7 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
 }
 
 impl RoutingIsmMetadataBuilder {
-    pub(super) async fn route(
+    async fn route(
         &self,
         ism: &dyn RoutingIsm,
         message: &HyperlaneMessage,

@@ -90,7 +90,7 @@ pub enum MetadataToken {
     Signatures,
 }
 
-pub(crate) const MAX_VALIDATOR_SET_SIZE: usize = 50;
+const MAX_VALIDATOR_SET_SIZE: usize = 50;
 
 #[async_trait]
 pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Sync {

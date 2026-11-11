@@ -203,6 +203,9 @@ impl HyperlaneRocksDB {
         payment: InterchainGasPayment,
         meta: &LogMeta,
     ) -> DbResult<()> {
+        if !self.6.discovery_enabled.load(Ordering::Acquire) {
+            return Ok(());
+        }
         let key = InterchainGasPaymentMeta::from(meta);
         if self
             .retrieve_value_by_key::<_, H256>(GAS_FINGERPRINT, &key)?
@@ -251,13 +254,17 @@ impl HyperlaneRocksDB {
                 "Discovery confirmation boundary moved backwards".into(),
             ));
         }
+        let verified: HashSet<_> = verified
+            .iter()
+            .map(|block| (block.height, block.hash))
+            .collect();
         let records: Vec<Record> = self.retrieve_decodables_by_prefix(EVENTS)?;
         let mut batch = self.batch();
         for record in records
             .into_iter()
             .filter(|record| record.block.height <= checkpoint.height)
         {
-            if !verified.contains(&record.block) {
+            if !verified.contains(&(record.block.height, record.block.hash)) {
                 return Err(DbError::Other(
                     "Discovery changed during verification; retry".into(),
                 ));
@@ -423,9 +430,6 @@ impl HyperlaneRocksDB {
         ] {
             batch.delete_prefix(prefix)?;
         }
-        let checkpoint = self
-            .discovery_checkpoint()?
-            .ok_or_else(|| DbError::Other("Missing discovery checkpoint".into()))?;
         batch.store_encodable(
             LATEST_INDEXED_GAS_PAYMENT_BLOCK,
             b"",
@@ -480,6 +484,15 @@ impl HyperlaneRocksDB {
         &self,
         message: &HyperlaneMessage,
         meta: &LogMeta,
+    ) -> Result<bool> {
+        self.store_indexed_dispatch_inner(message, meta, true)
+    }
+
+    pub(super) fn store_indexed_dispatch_inner(
+        &self,
+        message: &HyperlaneMessage,
+        meta: &LogMeta,
+        strict_tx: bool,
     ) -> Result<bool> {
         let _guard = self.4.lock();
         self.ensure_discovery_writable()?;
@@ -538,8 +551,7 @@ impl HyperlaneRocksDB {
         if !meta.transaction_id.is_zero() {
             let previous = self.retrieve_dispatched_tx_hash_by_message_id(&message.id())?;
             self.check_discovery_consistency(
-                !self.6.discovery_enabled.load(Ordering::Acquire)
-                    || previous.is_none_or(|tx| tx.is_zero() || tx == meta.transaction_id),
+                !strict_tx || previous.is_none_or(|tx| tx.is_zero() || tx == meta.transaction_id),
                 "dispatch transaction",
                 meta.block_number,
             )?;

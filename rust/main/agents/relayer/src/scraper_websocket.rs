@@ -1,25 +1,26 @@
 //! Shared origin discovery. RPC fills subscription gaps; both transports use the
 //! same DB writes. EVM discovery is provisional; other VMs retain configured finality.
-use crate::merkle_tree::builder::MerkleTreeBuilder;
+use crate::{merkle_tree::builder::MerkleTreeBuilder, relayer::origin::Origin};
 use async_trait::async_trait;
 use eyre::{bail, ensure, Context, ContextCompat, Result};
 use futures_util::{stream, StreamExt};
 use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
+    cursors::Indexable,
     db::{DiscoveryCheckpoint, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         parse_address, EventMessage, MerkleEventData, ScraperSession, ServerMessage, SessionEvent,
         StreamHealth, StreamTimeouts, StringOrNumber, SubscribeMessage, SubscribeStream,
     },
     settings::SequenceIndexer,
-    CoreMetrics,
+    ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{
     bytes_to_h512, ContractSyncCursor, CursorAction, HyperlaneMessage, HyperlaneProvider, Indexed,
-    Indexer, InterchainGasPayment, LogMeta, MerkleTreeInsertion, H256, H512, U256,
+    Indexer, InterchainGasPayment, LogMeta, MerkleTreeInsertion, ReorgPeriod, H256, H512, U256,
 };
 use prometheus::IntGaugeVec;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -83,96 +84,53 @@ pub(crate) struct ScraperSource {
     interchain_gas_paymaster: H256,
     merkle_tree_hook: H256,
     database: HyperlaneRocksDB,
-    block_provider: Option<Arc<dyn HyperlaneProvider>>,
+    block_provider: Arc<dyn HyperlaneProvider>,
     broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
-    freshness_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
-    merkle_freshness_indexer: Option<SequenceIndexer<MerkleTreeInsertion>>,
+    freshness_indexer: SequenceIndexer<HyperlaneMessage>,
+    merkle_freshness_indexer: SequenceIndexer<MerkleTreeInsertion>,
     finality_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
-    prover: Option<Arc<RwLock<MerkleTreeBuilder>>>,
+    prover: Arc<RwLock<MerkleTreeBuilder>>,
+    sync_metrics: Arc<ContractSyncMetrics>,
     gas_enabled: bool,
     recover_provisional: bool,
     confirmations: Option<u32>,
     control: Arc<Authority>,
 }
 impl ScraperSource {
-    pub(crate) fn new(
-        chain: String,
-        domain: u32,
-        mailbox: H256,
-        interchain_gas_paymaster: H256,
-        merkle_tree_hook: H256,
-        database: HyperlaneRocksDB,
-    ) -> Result<Self> {
-        Ok(Self {
-            chain,
-            domain,
-            mailbox,
-            interchain_gas_paymaster,
-            merkle_tree_hook,
-            database,
-            block_provider: None,
-            broadcaster: None,
-            freshness_indexer: None,
-            merkle_freshness_indexer: None,
-            finality_indexer: None,
-            prover: None,
-            gas_enabled: true,
-            recover_provisional: false,
-            confirmations: None,
-            control: Arc::new(Authority::new(domain)),
-        })
-    }
-    pub(crate) fn with_block_provider(mut self, value: Arc<dyn HyperlaneProvider>) -> Self {
-        self.block_provider = Some(value);
-        self
-    }
-    pub(crate) fn with_confirmations(mut self, confirmations: Option<u32>) -> Self {
-        self.confirmations = confirmations;
-        self
-    }
-    pub(crate) fn with_broadcaster(
-        mut self,
-        value: Option<BroadcastMpscSender<IndexingNotification>>,
-    ) -> Self {
-        self.broadcaster = value;
-        self
-    }
-    pub(crate) fn with_freshness_indexer(
-        mut self,
-        value: SequenceIndexer<HyperlaneMessage>,
-    ) -> Self {
-        self.freshness_indexer = Some(value);
-        self
-    }
-    pub(crate) fn with_merkle_freshness_indexer(
-        mut self,
-        value: SequenceIndexer<MerkleTreeInsertion>,
-    ) -> Self {
-        self.merkle_freshness_indexer = Some(value);
-        self
-    }
-    pub(crate) fn with_recovery(
-        mut self,
-        indexer: Option<SequenceIndexer<HyperlaneMessage>>,
-        prover: Arc<RwLock<MerkleTreeBuilder>>,
-        gas_enabled: bool,
-        recover_provisional: bool,
-    ) -> Self {
-        self.recover_provisional = recover_provisional;
-        self.finality_indexer = indexer;
-        self.prover = Some(prover);
-        self.gas_enabled = gas_enabled;
-        self
+    pub(crate) fn from_origin(origin: &Origin) -> Self {
+        Self {
+            chain: origin.domain.name().to_owned(),
+            domain: origin.domain.id(),
+            mailbox: origin.chain_conf.addresses.mailbox,
+            interchain_gas_paymaster: origin.chain_conf.addresses.interchain_gas_paymaster,
+            merkle_tree_hook: origin.chain_conf.addresses.merkle_tree_hook,
+            database: origin.database.clone(),
+            block_provider: Arc::from(origin.validator_announce.provider()),
+            broadcaster: origin.message_sync.get_broadcaster(),
+            freshness_indexer: origin.message_sequence_indexer.clone(),
+            merkle_freshness_indexer: origin.merkle_sequence_indexer.clone(),
+            finality_indexer: origin.finality_indexer.clone(),
+            prover: origin.prover_sync.clone(),
+            sync_metrics: origin.sync_metrics.clone(),
+            gas_enabled: origin.igp_indexer.is_some(),
+            recover_provisional: match &origin.chain_conf.reorg_period {
+                ReorgPeriod::None => false,
+                ReorgPeriod::Blocks(_) => true,
+                ReorgPeriod::Tag(tag) => !matches!(tag.as_str(), "latest" | "pending"),
+            },
+            confirmations: if origin.finality_indexer.is_some() {
+                Some(0)
+            } else {
+                match &origin.chain_conf.reorg_period {
+                    ReorgPeriod::Blocks(blocks) => Some(blocks.get()),
+                    _ => None,
+                }
+            },
+            control: Arc::new(Authority::new(origin.domain.id())),
+        }
     }
     async fn block(&self, height: u64) -> Result<DiscoveryCheckpoint> {
-        let block = timeout(
-            RPC_TIMEOUT,
-            self.block_provider
-                .as_ref()
-                .context("Missing block provider")?
-                .get_block_by_height(height),
-        )
-        .await??;
+        let block = timeout(RPC_TIMEOUT, self.block_provider.get_block_by_height(height)).await??;
         ensure!(
             block.number == height && !block.hash.is_zero(),
             "RPC returned an invalid block identity"
@@ -232,21 +190,12 @@ impl ScraperSource {
         Ok(valid)
     }
     pub(crate) async fn verify_live_blocks(&self) -> Result<()> {
-        if self.finality_indexer.is_none() {
-            return Ok(());
-        }
         self.ensure_confirmed_history()?;
-        let stable = self.stable().await?;
         let upgrading = !self
             .database
             .retrieve_value_by_key::<_, bool>("discovery_legacy_checked", &false)?
             .unwrap_or(false);
-        self.database.enable_discovery(stable)?;
         if upgrading {
-            let mut invalid = self
-                .database
-                .retrieve_value_by_key::<_, bool>("indexed_event_conflict_v1_", &false)?
-                .unwrap_or(false);
             for address in [
                 self.mailbox,
                 self.merkle_tree_hook,
@@ -260,15 +209,19 @@ impl ScraperSource {
                         "scraper_websocket_live_block_hash",
                         &address,
                     )?;
-                    invalid |= hash != Some(self.block(height).await?.hash);
+                    if hash != Some(self.block(height).await?.hash) {
+                        self.confirmed_reorg(height)?;
+                    }
                 }
-            }
-            if invalid {
-                self.confirmed_reorg(stable.height)?;
             }
             self.database
                 .store_value_by_key("discovery_legacy_checked", &false, &true)?;
         }
+        if self.finality_indexer.is_none() {
+            return Ok(());
+        }
+        let stable = self.stable().await?;
+        self.database.enable_discovery(stable)?;
         let checkpoint = self
             .database
             .discovery_checkpoint()?
@@ -306,13 +259,7 @@ impl ScraperSource {
                     .height,
             )?;
         }
-        let mut prover = self
-            .prover
-            .as_ref()
-            .context("Missing origin prover")?
-            .clone()
-            .write_owned()
-            .await;
+        let mut prover = self.prover.clone().write_owned().await;
         let db = self.database.clone();
         // Recovery can scan Merkle history; keep that work off async workers.
         let first = tokio::task::spawn_blocking(move || -> Result<Option<u32>> {
@@ -363,12 +310,12 @@ impl ScraperSource {
                 if let Some(previous) = previous_head {
                     verify.push(previous);
                 }
-                verify.sort_unstable_by_key(|block| (block.height, block.hash));
-                verify.dedup();
                 let pending = self.database.discovery_recovery_pending()?;
                 if pending {
                     verify.extend(blocks.iter().copied());
                 }
+                verify.sort_unstable_by_key(|block| (block.height, block.hash));
+                verify.dedup();
                 let valid = self.verify(&verify).await?;
                 if pending || !valid {
                     self.database.request_discovery_recovery()?;
@@ -403,13 +350,8 @@ impl ScraperSource {
     }
     async fn counts(&self) -> Result<([u32; 2], u32)> {
         let (dispatch, merkle) = tokio::try_join!(
-            self.freshness_indexer
-                .as_ref()
-                .context("Missing mailbox indexer")?
-                .latest_sequence_count_and_tip(),
+            self.freshness_indexer.latest_sequence_count_and_tip(),
             self.merkle_freshness_indexer
-                .as_ref()
-                .context("Missing Merkle indexer")?
                 .latest_sequence_count_and_tip(),
         )?;
         Ok((
@@ -420,7 +362,7 @@ impl ScraperSource {
             dispatch.1.max(merkle.1),
         ))
     }
-    async fn store(&self, event: EventMessage<serde_json::Value>) -> Result<Option<(Kind, u32)>> {
+    fn decode(&self, event: EventMessage<serde_json::Value>) -> Result<Option<DiscoveryEvent>> {
         ensure!(
             event.domain == self.domain && event.confirmations == self.confirmations,
             "Unexpected discovery stream"
@@ -434,7 +376,7 @@ impl ScraperSource {
                     return Ok(None);
                 }
                 let message = data
-                    .message(self.domain, self.mailbox)?
+                    .message(self.domain)?
                     .context("Dispatch body unavailable; use RPC")?;
                 ensure!(
                     event
@@ -453,20 +395,7 @@ impl ScraperSource {
                     transaction_index: 0,
                     log_index: U256::zero(),
                 };
-                let inserted = self.database.store_indexed_dispatch(&message, &meta)?;
-                if inserted {
-                    if let Some(sender) = &self.broadcaster {
-                        timeout(
-                            RPC_TIMEOUT,
-                            sender.send(IndexingNotification {
-                                tx_id: meta.transaction_id,
-                                sequences: vec![Some(message.nonce)],
-                            }),
-                        )
-                        .await??;
-                    }
-                }
-                Ok(Some((kind, message.nonce)))
+                Ok(Some(DiscoveryEvent::Dispatch(message, meta)))
             }
             Kind::Merkle => {
                 let data: MerkleEventData = serde_json::from_value(event.data)?;
@@ -476,9 +405,9 @@ impl ScraperSource {
                 let hash = self.event_block_hash(hash, data.block_hash.as_deref())?;
                 let sequence = event.sequence.context("Missing Merkle sequence")?.parse()?;
                 let (leaf, height) = data.decode(self.domain, self.merkle_tree_hook, sequence)?;
-                self.database.store_indexed_merkle(
-                    &leaf,
-                    &LogMeta {
+                Ok(Some(DiscoveryEvent::Merkle(
+                    leaf,
+                    LogMeta {
                         address: self.merkle_tree_hook,
                         block_number: height,
                         block_hash: hash,
@@ -486,8 +415,7 @@ impl ScraperSource {
                         transaction_index: 0,
                         log_index: U256::zero(),
                     },
-                )?;
-                Ok(Some((kind, sequence)))
+                )))
             }
             Kind::Gas => {
                 let data: GasData = serde_json::from_value(event.data)?;
@@ -503,10 +431,56 @@ impl ScraperSource {
                     hash.is_none_or(|hash| hash == meta.block_hash),
                     "Gas block identity mismatch"
                 );
-                self.database.process_indexed_gas_payment(payment, &meta)?;
-                Ok(None)
+                Ok(Some(DiscoveryEvent::Gas(payment, meta)))
             }
         }
+    }
+
+    async fn store(&self, event: DiscoveryEvent) -> Result<()> {
+        let sequence = event.sequence();
+        match event {
+            DiscoveryEvent::Dispatch(message, meta) => {
+                if self.database.store_indexed_dispatch(&message, &meta)? {
+                    if let Some(sender) = &self.broadcaster {
+                        timeout(
+                            RPC_TIMEOUT,
+                            sender.send(IndexingNotification {
+                                tx_id: meta.transaction_id,
+                                sequences: vec![Some(message.nonce)],
+                            }),
+                        )
+                        .await??;
+                    }
+                }
+            }
+            DiscoveryEvent::Merkle(leaf, meta) => {
+                self.database.store_indexed_merkle(&leaf, &meta)?;
+            }
+            DiscoveryEvent::Gas(payment, meta) => {
+                self.database.process_indexed_gas_payment(payment, &meta)?;
+            }
+        }
+        if let Some((kind, sequence)) = sequence {
+            let event_type = match kind {
+                Kind::Dispatch => HyperlaneMessage::name(),
+                Kind::Merkle => MerkleTreeInsertion::name(),
+                Kind::Gas => unreachable!("gas payments have no sequence cursor"),
+            };
+            let metrics = &self.sync_metrics.cursor_metrics;
+            for gauge in [
+                metrics
+                    .cursor_max_sequence
+                    .with_label_values(&[event_type, &self.chain]),
+                metrics.cursor_current_sequence.with_label_values(&[
+                    event_type,
+                    &self.chain,
+                    "forward_sequenced",
+                ]),
+            ] {
+                gauge.set(gauge.get().max(i64::from(sequence)));
+            }
+        }
+        Ok(())
     }
 
     fn event_block_hash(&self, envelope: Option<H256>, payload: Option<&str>) -> Result<H256> {
@@ -516,6 +490,21 @@ impl ScraperSource {
             return Ok(H256::zero());
         }
         event_block_hash(envelope, payload)
+    }
+}
+
+enum DiscoveryEvent {
+    Dispatch(HyperlaneMessage, LogMeta),
+    Merkle(MerkleTreeInsertion, LogMeta),
+    Gas(Indexed<InterchainGasPayment>, LogMeta),
+}
+impl DiscoveryEvent {
+    fn sequence(&self) -> Option<(Kind, u32)> {
+        match self {
+            Self::Dispatch(message, _) => Some((Kind::Dispatch, message.nonce)),
+            Self::Merkle(leaf, _) => Some((Kind::Merkle, leaf.index())),
+            Self::Gas(..) => None,
+        }
     }
 }
 
@@ -570,9 +559,6 @@ impl ScraperWebSocketMonitor {
                     let Some(url) = &self.url else {
                         return;
                     };
-                    if !self.authority_enabled {
-                        return;
-                    }
                     source.database.wait_for_live_block_verification().await;
                     loop {
                         let result = self.stream(source, url, StreamTimeouts::default()).await;
@@ -605,19 +591,19 @@ impl ScraperWebSocketMonitor {
         url: &Url,
         timeouts: StreamTimeouts,
     ) -> Result<()> {
-        let _fallback = RpcFallback(source.clone());
+        let _fallback = RpcFallback(source);
         source.ensure_confirmed_history()?;
         source.database.ensure_no_indexed_event_conflict()?;
         let epoch = source.database.discovery_generation();
         let mut session =
             ScraperSession::<Result<([u32; 2], u32)>, bool>::connect(url, timeouts).await?;
-        let mut subscribed = None;
+        let mut subscribed = false;
         let mut target = None;
         let mut next = [0; 2];
         let mut health = [StreamHealth::default(), StreamHealth::default()];
         let mut authoritative = false;
         while let Some(event) = session
-            .next::<serde_json::Value>(subscribed.is_some(), || {
+            .next::<serde_json::Value>(subscribed, || {
                 let source = source.clone();
                 stream::once(async move {
                     timeout(RPC_TIMEOUT, source.counts())
@@ -654,15 +640,15 @@ impl ScraperWebSocketMonitor {
                         .await?;
                 }
                 SessionEvent::Message(ServerMessage::Subscribed { .. }) => {
-                    subscribed = Some(Instant::now());
+                    subscribed = true;
                     self.active.with_label_values(&[&source.chain]).set(1);
                 }
                 SessionEvent::Message(ServerMessage::Event(event)) => {
-                    ensure!(
-                        subscribed.is_some(),
-                        "Event before subscription acknowledgement"
-                    );
-                    if let Some((kind, sequence)) = source.store(event).await? {
+                    ensure!(subscribed, "Event before subscription acknowledgement");
+                    let Some(event) = source.decode(event)? else {
+                        continue;
+                    };
+                    if let Some((kind, sequence)) = event.sequence() {
                         let current = &mut next[kind.index()];
                         ensure!(
                             (target.is_none() && *current == 0) || sequence <= *current,
@@ -670,6 +656,9 @@ impl ScraperWebSocketMonitor {
                         );
                         *current =
                             (*current).max(sequence.checked_add(1).context("Sequence overflow")?);
+                    }
+                    if self.authority_enabled {
+                        source.store(event).await?;
                     }
                 }
                 SessionEvent::Message(ServerMessage::Rollback {
@@ -682,6 +671,9 @@ impl ScraperWebSocketMonitor {
                         domain == source.domain && confirmations == source.confirmations,
                         "Unexpected rollback scope"
                     );
+                    if !self.authority_enabled {
+                        bail!("Shadow stream rolled back; reconnecting");
+                    }
                     if source.finality_indexer.is_none() {
                         source.confirmed_reorg(to_height.as_u64("rollback height")?)?;
                     }
@@ -700,8 +692,11 @@ impl ScraperWebSocketMonitor {
                             next[index] = next[index].max(counts[index]);
                         }
                     }
-                    let (since, _, block) = *target.get_or_insert((Instant::now(), counts, height));
-                    if !authoritative {
+                    let (since, block) = *target.get_or_insert((Instant::now(), height));
+                    if self.authority_enabled
+                        && !authoritative
+                        && !source.control.command.borrow().desired
+                    {
                         let progress = *source
                             .control
                             .ack
@@ -726,7 +721,7 @@ impl ScraperWebSocketMonitor {
                                     .unwrap_or(false)
                             });
                         }
-                    } else {
+                    } else if authoritative {
                         for index in 0..2 {
                             // Frames can arrive after the RPC count snapshot was taken.
                             // Hash audits detect reorgs; a newer live count is not one.
@@ -745,8 +740,8 @@ impl ScraperWebSocketMonitor {
         Ok(())
     }
 }
-struct RpcFallback(ScraperSource);
-impl Drop for RpcFallback {
+struct RpcFallback<'a>(&'a ScraperSource);
+impl Drop for RpcFallback<'_> {
     fn drop(&mut self) {
         if !self.0.database.discovery_recovery_pending().unwrap_or(true) {
             self.0.control.resume();
@@ -928,11 +923,7 @@ struct DispatchData {
     origin_tx_hash: String,
 }
 impl DispatchData {
-    fn message(&self, domain: u32, mailbox: H256) -> Result<Option<HyperlaneMessage>> {
-        ensure!(
-            parse_address(&self.origin_mailbox)? == mailbox,
-            "Dispatch mailbox does not match configured mailbox"
-        );
+    fn message(&self, domain: u32) -> Result<Option<HyperlaneMessage>> {
         let Some(body) = &self.msg_body else {
             return Ok(None);
         };
@@ -953,12 +944,11 @@ impl DispatchData {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct GasData {
     destination: u32,
     domain: u32,
     gas_amount: String,
-    id: String,
     interchain_gas_paymaster: String,
     log_index: String,
     msg_id: String,
@@ -968,8 +958,6 @@ struct GasData {
     origin_tx_hash: Option<String>,
     payment: String,
     sequence: Option<String>,
-    time_created: String,
-    tx_id: Option<String>,
 }
 impl GasData {
     fn decode(self, paymaster: H256) -> Result<(Indexed<InterchainGasPayment>, LogMeta)> {
@@ -1002,7 +990,7 @@ impl GasData {
                     .context("Gas payment needs RPC transaction hash")?,
             )?,
             transaction_index: 0,
-            log_index: U256::from_dec_str(&self.log_index)?,
+            log_index: self.log_index.parse::<u64>()?.into(),
         };
         let mut payment = Indexed::new(payment);
         payment.sequence = sequence;
@@ -1224,25 +1212,26 @@ mod tests {
             );
             let counts = Arc::new(Counts(AtomicU32::new(0), AtomicBool::new(true)));
             let blocks = Arc::new(Blocks(AtomicU64::new(8), AtomicBool::new(false)));
-            let source = ScraperSource::new(
-                "origin".into(),
-                5,
-                H256::from_low_u64_be(1),
-                H256::from_low_u64_be(3),
-                H256::from_low_u64_be(2),
-                db,
-            )
-            .unwrap()
-            .with_confirmations(confirmations)
-            .with_block_provider(blocks.clone())
-            .with_freshness_indexer(counts.clone())
-            .with_merkle_freshness_indexer(counts.clone())
-            .with_recovery(
-                provisional.then_some(counts),
-                Arc::new(RwLock::new(MerkleTreeBuilder::new())),
-                true,
-                true,
-            );
+            let metrics = CoreMetrics::new("discovery-test", 9090, Registry::new()).unwrap();
+            let source = ScraperSource {
+                chain: "origin".into(),
+                domain: 5,
+                mailbox: H256::from_low_u64_be(1),
+                interchain_gas_paymaster: H256::from_low_u64_be(3),
+                merkle_tree_hook: H256::from_low_u64_be(2),
+                database: db,
+                block_provider: blocks.clone(),
+                broadcaster: None,
+                freshness_indexer: counts.clone(),
+                merkle_freshness_indexer: counts.clone(),
+                finality_indexer: provisional.then_some(counts),
+                prover: Arc::new(RwLock::new(MerkleTreeBuilder::new())),
+                sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
+                gas_enabled: true,
+                recover_provisional: true,
+                confirmations,
+                control: Arc::new(Authority::new(5)),
+            };
             if provisional {
                 source
                     .database
@@ -1252,7 +1241,6 @@ mod tests {
                     })
                     .unwrap();
             }
-            let metrics = CoreMetrics::new("discovery-test", 9090, Registry::new()).unwrap();
             let monitor = Arc::new(
                 ScraperWebSocketMonitor::new_with_authority(
                     Some(url),
@@ -1268,6 +1256,15 @@ mod tests {
                 monitor,
                 blocks,
             }
+        }
+        async fn store(&self, event: EventMessage<serde_json::Value>) -> Result<()> {
+            self.source
+                .store(
+                    self.source
+                        .decode(event)?
+                        .context("Ignored fixture event")?,
+                )
+                .await
         }
         fn connect(&self, url: Url) -> tokio::task::JoinHandle<Result<()>> {
             let monitor = self.monitor.clone();
@@ -1324,6 +1321,8 @@ mod tests {
             for (kind, mut data) in [
                 (Kind::Dispatch, dispatch(0)),
                 (Kind::Merkle, merkle(0)),
+                (Kind::Dispatch, dispatch(1)),
+                (Kind::Merkle, merkle(1)),
                 (Kind::Gas, gas(1)),
             ] {
                 // Older confirmed dispatch/Merkle projections can omit hashes.
@@ -1331,7 +1330,12 @@ mod tests {
                     data.as_object_mut().unwrap().remove("origin_block_hash");
                     data.as_object_mut().unwrap().remove("block_hash");
                 }
-                let mut frame = event(kind, 0, data);
+                let sequence = match kind {
+                    Kind::Dispatch => data["nonce"].as_u64().unwrap(),
+                    Kind::Merkle => data["leaf_index"].as_u64().unwrap(),
+                    Kind::Gas => 0,
+                };
+                let mut frame = event(kind, sequence.try_into().unwrap(), data);
                 frame["confirmations"] = json!(confirmations);
                 send(&mut socket, frame.clone()).await;
                 send(&mut socket, frame).await;
@@ -1369,8 +1373,25 @@ mod tests {
                 .unwrap()
                 .is_none());
             assert_eq!(fixture.source.database.discovery_generation(), 0);
+            for event_type in [HyperlaneMessage::name(), MerkleTreeInsertion::name()] {
+                let metrics = &fixture.source.sync_metrics.cursor_metrics;
+                assert_eq!(
+                    metrics
+                        .cursor_max_sequence
+                        .with_label_values(&[event_type, "origin"])
+                        .get(),
+                    1
+                );
+                assert_eq!(
+                    metrics
+                        .cursor_current_sequence
+                        .with_label_values(&[event_type, "origin", "forward_sequenced"])
+                        .get(),
+                    1
+                );
+            }
 
-            let mut gap = event(Kind::Dispatch, 2, dispatch(2));
+            let mut gap = event(Kind::Dispatch, 3, dispatch(3));
             gap["confirmations"] = json!(confirmations);
             send(&mut socket, gap).await;
             assert!(timeout(Duration::from_secs(5), task)
@@ -1379,6 +1400,15 @@ mod tests {
                 .unwrap()
                 .is_err());
             assert!(!fixture.source.control.command.borrow().desired);
+            assert!(
+                fixture
+                    .source
+                    .database
+                    .retrieve_message_by_nonce(3)
+                    .unwrap()
+                    .is_none(),
+                "a frame with a sequence gap must not enter the pipeline"
+            );
             assert!(!fixture
                 .source
                 .database
@@ -1393,7 +1423,6 @@ mod tests {
         let (listener, url) = listener().await;
         let fixture = Fixture::with_confirmations(url.clone(), Some(7), false);
         assert!(fixture
-            .source
             .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0)),).unwrap())
             .await
             .is_err());
@@ -1423,6 +1452,109 @@ mod tests {
             .discovery_recovery_pending()
             .unwrap());
         assert_eq!(fixture.source.database.discovery_generation(), 0);
+        assert!(fixture
+            .source
+            .verify_live_blocks()
+            .await
+            .unwrap_err()
+            .is::<RollbackRecoveryRequired>());
+    }
+
+    #[tokio::test]
+    async fn shadow_connections_validate_without_writes_cutover_or_recovery() {
+        for confirmations in [Some(0), None] {
+            let (listener, url) = listener().await;
+            let mut fixture =
+                Fixture::with_confirmations(url, confirmations, confirmations.is_some());
+            Arc::get_mut(&mut fixture.monitor)
+                .unwrap()
+                .authority_enabled = false;
+            let active = fixture.monitor.active.clone();
+            let monitor = Arc::try_unwrap(fixture.monitor).ok().unwrap();
+            let task = tokio::spawn(async move { monitor.run().await });
+            let (mut socket, _) = handshake(&listener).await;
+            for (kind, data) in [
+                (Kind::Dispatch, dispatch(0)),
+                (Kind::Merkle, merkle(0)),
+                (Kind::Gas, gas(1)),
+            ] {
+                let mut frame = event(kind, 0, data);
+                frame["confirmations"] = json!(confirmations);
+                send(&mut socket, frame).await;
+            }
+            // A Pong after these ordered frames proves they were read by the client.
+            socket.send(Message::Ping(vec![1].into())).await.unwrap();
+            assert!(matches!(
+                timeout(Duration::from_secs(5), socket.next())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap(),
+                Message::Pong(_)
+            ));
+            assert!(fixture
+                .source
+                .database
+                .retrieve_message_by_nonce(0)
+                .unwrap()
+                .is_none());
+            assert!(fixture
+                .source
+                .database
+                .retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                .unwrap()
+                .is_none());
+            assert!(fixture
+                .source
+                .database
+                .retrieve_gas_payment_by_gas_payment_key(hyperlane_core::GasPaymentKey {
+                    message_id: H256::from_low_u64_be(7),
+                    destination: 6,
+                })
+                .unwrap()
+                .is_none());
+            assert!(!fixture.source.control.command.borrow().desired);
+            send(&mut socket, json!({"type":"rollback", "domain":5, "eventType":"dispatch", "confirmations":confirmations, "toHeight":99})).await;
+            eventually(|| active.with_label_values(&["origin"]).get() == 0).await;
+            assert!(!fixture
+                .source
+                .database
+                .discovery_recovery_pending()
+                .unwrap());
+            assert!(!fixture
+                .source
+                .database
+                .confirmed_discovery_conflict()
+                .unwrap());
+            task.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn confirmed_vm_checks_legacy_history_on_startup() {
+        let fixture =
+            Fixture::with_confirmations(Url::parse("ws://localhost:1").unwrap(), None, false);
+        let db = &fixture.source.database;
+        db.store_value_by_key(
+            "scraper_websocket_live_block",
+            &fixture.source.mailbox,
+            &100u64,
+        )
+        .unwrap();
+        db.store_value_by_key(
+            "scraper_websocket_live_block_hash",
+            &fixture.source.mailbox,
+            &H256::from_low_u64_be(8),
+        )
+        .unwrap();
+        fixture.blocks.0.store(9, Ordering::Release);
+        assert!(fixture
+            .source
+            .verify_live_blocks()
+            .await
+            .unwrap_err()
+            .is::<RollbackRecoveryRequired>());
+        assert!(db.confirmed_discovery_conflict().unwrap());
     }
 
     #[tokio::test]
@@ -1475,6 +1607,12 @@ mod tests {
             message(0).id()
         );
         let data: GasData = serde_json::from_value(gas(1)).unwrap();
+        let mut invalid_gas = gas(2);
+        invalid_gas["log_index"] = json!("18446744073709551616");
+        assert!(fixture
+            .source
+            .decode(serde_json::from_value(event(Kind::Gas, 0, invalid_gas)).unwrap())
+            .is_err());
         let (payment, meta) = data
             .decode(fixture.source.interchain_gas_paymaster)
             .unwrap();
@@ -1547,10 +1685,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn slow_rpc_pause_is_not_replaced_by_duplicate_cutover_requests() {
+        let (listener, url) = listener().await;
+        let fixture = Fixture::new(url.clone());
+        let task = fixture.connect(url);
+        let (socket, _) = handshake(&listener).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        fixture
+            .source
+            .control
+            .ack
+            .recovery
+            .lock()
+            .unwrap()
+            .fill(Some(RpcProgress {
+                at: Instant::now(),
+                block: 100,
+            }));
+        eventually(|| fixture.source.control.command.borrow().desired).await;
+        let pause = *fixture.source.control.command.borrow();
+        // Several progress probes finish before the supervisor acknowledges.
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert_eq!(*fixture.source.control.command.borrow(), pause);
+        fixture
+            .source
+            .control
+            .receiver()
+            .mark_paused(5, pause.generation);
+        eventually(|| {
+            fixture
+                .monitor
+                .authority
+                .with_label_values(&["origin"])
+                .get()
+                == 1
+        })
+        .await;
+        drop(socket);
+        assert!(task.await.unwrap().is_err());
+        assert!(!fixture.source.control.command.borrow().desired);
+    }
+
+    #[tokio::test]
     async fn rpc_only_audit_recovers_a_live_reorg_and_resumes_writers() {
         let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap());
         fixture
-            .source
             .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap())
             .await
             .unwrap();
@@ -1595,7 +1774,6 @@ mod tests {
         let mut fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap());
         fixture.source.recover_provisional = false;
         fixture
-            .source
             .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap())
             .await
             .unwrap();
@@ -1626,7 +1804,6 @@ mod tests {
         for online in [false, true] {
             let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap());
             fixture
-                .source
                 .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap())
                 .await
                 .unwrap();
