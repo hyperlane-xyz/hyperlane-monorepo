@@ -3,116 +3,116 @@
   "passed": true,
   "Root_actual_cohort_acceptance": true,
   "scope": "Authenticated remote eight-product contents and coherent producer qualification only",
-  "source_commit": "822a929c67ebd2126ca96d7b59df395be95e8a83",
-  "run_id": 42905305053,
+  "source_commit": "dfb159aedfe7bd7a5be292d9ead43e2c8b92085e",
+  "run_id": 42995463682,
   "run_attempt": 1,
-  "reader_execution_commit": "f4ee2ad343c53663f454c1f413f01bd23a825fa3",
-  "reader_run_id": 42916485445,
+  "reader_execution_commit": "3e99cfe9ee7e02170ec2019fd5c4bb6a7dfb3e25",
+  "reader_run_id": 43005431976,
   "reader_run_attempt": 1,
   "inspection_report": {
     "bytes": 34190,
     "sha256": {
       "sha256_hex_chunks": [
-        "1b3d9b817a069dd8efb1010953c2b62a",
-        "508066778dc995a3a20aa66828a8264f"
+        "de6b638e5e41da81110a62baa4ffb72b",
+        "4d4eb2ceb3f9a8f9d688dd6881e58314"
       ]
     }
   },
   "independent_readback": {
-    "bytes": 16130,
+    "bytes": 16151,
     "sha256": {
       "sha256_hex_chunks": [
-        "835e2b00509fd50f80a035c30442cf1c",
-        "8038a6eab2bc4faee59cd240c5ec0aec"
+        "e3a486814477decdbcc94ccb493601d0",
+        "cac78e36ed8c250c78896ff3aa31f5a6"
       ]
     }
   },
   "eight_artifacts": {
     "sdk_safe": {
-      "id": 13806592038,
+      "id": 13844783401,
       "name": "zig-native-runtime-payload-ReleaseSafe",
-      "size_in_bytes": 52011052,
+      "size_in_bytes": 52015183,
       "sha256": {
         "sha256_hex_chunks": [
-          "3caa8b6a716972a9e722da3092c9f35e",
-          "d0337e9c909e0d6902c1a4704560407b"
+          "09c427ec11ae9505a9205e37310d179d",
+          "5efa8122d237912d8150f5831d40c2ac"
         ]
       }
     },
     "sdk_fast": {
-      "id": 13807289952,
+      "id": 13846667872,
       "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 54116124,
+      "size_in_bytes": 54117488,
       "sha256": {
         "sha256_hex_chunks": [
-          "e47d1ccd53fb92cde03b1c9f394e714a",
-          "fbaa731bd99c12d28d81c99e7d61f361"
+          "02cb9e28fe13201ed91bc825a6e2577e",
+          "205db46443e17c155ca4c9c6e7ff9e53"
         ]
       }
     },
     "helper": {
-      "id": 13806736292,
+      "id": 13844229600,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56241756,
+      "size_in_bytes": 56236524,
       "sha256": {
         "sha256_hex_chunks": [
-          "0bc30a52f0458c846099cb3c86920503",
-          "8305c804c1144b5475f478bea03780b1"
+          "0d91a16f1194e128b9d19d0dcb13d757",
+          "a0cc305513f9cd2f6e57fa8a19c968dc"
         ]
       }
     },
     "tools": {
-      "id": 13806326677,
-      "name": "zig-native-case-tools-822a929c67ebd2126ca96d7b59df395be95e8a83",
-      "size_in_bytes": 19965788,
+      "id": 13844583171,
+      "name": "zig-native-case-tools-dfb159aedfe7bd7a5be292d9ead43e2c8b92085e",
+      "size_in_bytes": 19965818,
       "sha256": {
         "sha256_hex_chunks": [
-          "d04bef4e8d6ae05efb2f1eaebe41533c",
-          "cb2066897fb4b39188766a0a7d5bf482"
+          "df56ab1a93e70fa6c8717e8f688c86f2",
+          "e3d54c77a7e527afb3380439b2f21659"
         ]
       }
     },
     "writer_safe": {
-      "id": 13807270309,
+      "id": 13844484010,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5218361,
+      "size_in_bytes": 5218400,
       "sha256": {
         "sha256_hex_chunks": [
-          "1307bc37b30d51f7e39a82ef8da68ea2",
-          "42141be54ff78cd0039ad06df6596a64"
+          "3cbcfc738b8c1258c822ff5f459dff2a",
+          "67042217670cec86305d6ac8dffe523d"
         ]
       }
     },
     "writer_fast": {
-      "id": 13807424805,
+      "id": 13846742681,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4929306,
+      "size_in_bytes": 4929368,
       "sha256": {
         "sha256_hex_chunks": [
-          "4126d4223f7cf586370cca0d10d2e808",
-          "7d2272cff92d820a3912ac09b1764a8b"
+          "5a8bfa36d748f7ca625e23d574193532",
+          "ac05074135257f5ae32171d3488fdd9e"
         ]
       }
     },
     "svm": {
-      "id": 13805377369,
-      "name": "svm-linux-prerequisites-42905305053-1",
-      "size_in_bytes": 327921670,
+      "id": 13843754190,
+      "name": "svm-linux-prerequisites-42995463682-1",
+      "size_in_bytes": 327922477,
       "sha256": {
         "sha256_hex_chunks": [
-          "f47df70405f7500fa243cd9350ba0c02",
-          "12dc98c7a21b67fc03742a4b315bfee7"
+          "5f171bc0927b93d15292ce7c80345ce9",
+          "11f8d6a70928b79e4ae7413fd17725cf"
         ]
       }
     },
     "radix_reference": {
-      "id": 13806167169,
-      "name": "zig-native-radix-reference-822a929c67ebd2126ca96d7b59df395be95e8a83",
-      "size_in_bytes": 3166465,
+      "id": 13844772786,
+      "name": "zig-native-radix-reference-dfb159aedfe7bd7a5be292d9ead43e2c8b92085e",
+      "size_in_bytes": 3166382,
       "sha256": {
         "sha256_hex_chunks": [
-          "1a6ac40889e004d68ce27a7cdb3f464e",
-          "4288733d60fbccf65fa6d1716b840c98"
+          "e2cef647c2c97cd7d7944e36d3cdb5aa",
+          "d57536d4d06c9bbb299ef834f3409566"
         ]
       }
     }
@@ -120,25 +120,25 @@
   "all4_required_jobs_actual_success": [
     {
       "conclusion": "success",
-      "id": 130141633672,
+      "id": 130438342597,
       "name": "full-sdk-native (ReleaseSafe)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 130141633569,
+      "id": 130438343035,
       "name": "full-sdk-native (ReleaseFast)",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 130141633562,
+      "id": 130438342127,
       "name": "native-harness-controls",
       "status": "completed"
     },
     {
       "conclusion": "success",
-      "id": 130141633610,
+      "id": 130438342093,
       "name": "svm-prerequisites",
       "status": "completed"
     }
@@ -148,8 +148,8 @@
     "all_policy_Git_blobs_match": true,
     "policy_map_sha256": {
       "sha256_hex_chunks": [
-        "e40e5549d15b35567ed6472230ffae43",
-        "f0a7771c0bb9dd0913ddfef7debf45c6"
+        "3a085a14261a85af4ce5d8bc7037a88c",
+        "f062e828076e3b8631f8a0f01e85e5a2"
       ]
     },
     "source_rows_checked": 608
@@ -157,9 +157,9 @@
   "compiled_cohort": {
     "helper": [
       {
-        "execution_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
+        "execution_tree": "aa4faeed50aee6375b01202868e39ab2ed33d23c",
         "path": "rust/main",
-        "producer_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
+        "producer_tree": "aa4faeed50aee6375b01202868e39ab2ed33d23c",
         "worktree_clean_in_scope": true
       },
       {
@@ -171,9 +171,9 @@
     ],
     "runtime": [
       {
-        "execution_tree": "23e6862dddf94c6576e9f6ac66ed3fbf1654f1f5",
+        "execution_tree": "35640dd0707efd105891aaa95934b12a5118ab24",
         "path": "zig/src",
-        "producer_tree": "23e6862dddf94c6576e9f6ac66ed3fbf1654f1f5",
+        "producer_tree": "35640dd0707efd105891aaa95934b12a5118ab24",
         "worktree_clean_in_scope": true
       },
       {
@@ -183,9 +183,9 @@
         "worktree_clean_in_scope": true
       },
       {
-        "execution_tree": "99c967d7ac7fd2c9632bff55ba90a6a5d87718cd",
+        "execution_tree": "53aa6bfee0ea5f1a7f19b95ff7b27d886e29e9fe",
         "path": "zig/build.zig",
-        "producer_tree": "99c967d7ac7fd2c9632bff55ba90a6a5d87718cd",
+        "producer_tree": "53aa6bfee0ea5f1a7f19b95ff7b27d886e29e9fe",
         "worktree_clean_in_scope": true
       },
       {
@@ -197,9 +197,9 @@
     ],
     "tools": [
       {
-        "execution_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
+        "execution_tree": "aa4faeed50aee6375b01202868e39ab2ed33d23c",
         "path": "rust/main",
-        "producer_tree": "f017d3b4a4d7eb5d363a217093c8b259c9812e2d",
+        "producer_tree": "aa4faeed50aee6375b01202868e39ab2ed33d23c",
         "worktree_clean_in_scope": true
       },
       {
@@ -223,7 +223,7 @@
   "native_suites": {
     "sdk_safe": {
       "explicit_agent_runtime_test_count": 2,
-      "producer_native_required_count": 68,
+      "producer_native_required_count": 71,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
           "b6f9d9865cf80d7ee66bc995741eef47",
@@ -232,16 +232,16 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1251,
+        "OK": 1254,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1254,
+      "total": 1257,
       "two_explicit_agent_runtime_tests_observed_OK": true
     },
     "sdk_fast": {
       "explicit_agent_runtime_test_count": 2,
-      "producer_native_required_count": 68,
+      "producer_native_required_count": 71,
       "skip_catalog_sha256": {
         "sha256_hex_chunks": [
           "b6f9d9865cf80d7ee66bc995741eef47",
@@ -250,18 +250,18 @@
       },
       "status_counts": {
         "FAIL": 0,
-        "OK": 1251,
+        "OK": 1254,
         "SKIP": 3
       },
       "three_recovery_allocation_tests_observed_OK": true,
-      "total": 1254,
+      "total": 1257,
       "two_explicit_agent_runtime_tests_observed_OK": true
     }
   },
   "inspection_resources": {
-    "actual_streamed_bytes": 1697629905,
-    "elapsed_seconds": 125.804002,
-    "inspector_peak_RSS_bytes": 82558976,
+    "actual_streamed_bytes": 1697887773,
+    "elapsed_seconds": 111.257643,
+    "inspector_peak_RSS_bytes": 82997248,
     "own_downloads_removed": true
   },
   "actual_calls_all_waited": 8524,
@@ -286,8 +286,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "736fac9484d8e42fcad9c619e83953fc",
-            "baf1c91b08a1de419461496209612dbc"
+            "6729f6ddd832b9d0ac9d0d486ad9eba1",
+            "e13152c08c2b3d2a61da4e9ea1cccf2c"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -304,8 +304,8 @@
         "compiler_recipe_Source_verified": true,
         "compiler_recipe_catalog_sha256": {
           "sha256_hex_chunks": [
-            "5915f0832db8e97d4bd775d9b0b48fd7",
-            "47c5268da836dbb4174bfa1144358bd7"
+            "7e59649a5527b63d95f10d36b5907318",
+            "1f9ff6907059f97cfee34fc50a7b2d48"
           ]
         },
         "compiler_recipe_count": 6,
@@ -318,8 +318,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "9b19b389d931f0657af5c1048172d6db",
-            "da2a31e904191c326e618afe300d9ad0"
+            "0a7baf1806ed169cd3763726d4126c33",
+            "7c886b2b57a59b0a0d348fa538be780a"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -350,8 +350,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "a2bd4b7b570b733df842c49b10fb5899",
-            "cfb878792d7cf6ffdbed73253c083d01"
+            "540ae90a64c4c7551f8d1f57160ed45c",
+            "8d786bfe6c027dc161c74d8bc2e11fa1"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -382,8 +382,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "d18d2a6ef669d01422989f01bda36ab5",
-            "ff659ff769d021aeb232368d16c6c4b6"
+            "fb5b1bfee8c067a99c55e239206d8bad",
+            "43f0c34c7586c788e0c838932c5f6c9f"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -414,8 +414,8 @@
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "801c94edcfcf6d9448bc8c145a9864eb",
-            "6b8c515c741b23fc2c0f21a562cf34e4"
+            "6755e3958893449bc09dcfc3da5a446d",
+            "95f1e8f7303ac5d8a12bb0d3475417bb"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -439,17 +439,17 @@
           ]
         },
         "compiler_recipe_count": 3,
-        "flag_count": 122,
+        "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "162d192e82963293038d0b633e7d5faa",
-            "95d0cadef3f5c6fad1ba1316bd18b46a"
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "2c72404b4b0c0edd2a23dd7fac95d907",
-            "26bdf22cddf6980de3fabce37769562a"
+            "fff2ce111a1994e0be56e959ac03d48e",
+            "f64ff5777addcd82a5242317f9f52de0"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -466,22 +466,22 @@
         "compiler_recipe_Source_verified": true,
         "compiler_recipe_catalog_sha256": {
           "sha256_hex_chunks": [
-            "7a48870ce1aeab10dc45752b6c0dc64b",
-            "024c34d431f4f8d3df49332d2197e3a3"
+            "b14cec2e417b05b04bb55fbe4f50df88",
+            "f209669db1f9dc4d80f23bb5dc061443"
           ]
         },
         "compiler_recipe_count": 6,
-        "flag_count": 122,
+        "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "162d192e82963293038d0b633e7d5faa",
-            "95d0cadef3f5c6fad1ba1316bd18b46a"
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "df968be5c6ac25930c9d94c114ca0b1c",
-            "84ccbfe985d50b9bd554ca137af39ec5"
+            "facc9b87a1f26cdf17a4164ac5f02545",
+            "06d0d53a84577c08e53ef71921dc3337"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -503,17 +503,17 @@
           ]
         },
         "compiler_recipe_count": 1,
-        "flag_count": 122,
+        "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "162d192e82963293038d0b633e7d5faa",
-            "95d0cadef3f5c6fad1ba1316bd18b46a"
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "d6c2dfa49b4151a862d4d63b1bfd9c16",
-            "14ae93a3ca29f440d8c33e237380cb99"
+            "d19abf6b806bedf7f93c0f5a134f8a4a",
+            "3b813538b23bbedf428a872d3b2c3d66"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -535,17 +535,17 @@
           ]
         },
         "compiler_recipe_count": 1,
-        "flag_count": 122,
+        "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "162d192e82963293038d0b633e7d5faa",
-            "95d0cadef3f5c6fad1ba1316bd18b46a"
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "5f4b92b853f3e86dd1acbeded676c6b2",
-            "797fe05fdc5500719ef6cf280c48bc67"
+            "f1ad7455d967657f55531c0151e06ec8",
+            "ada148ce08b14ea0fd598dd2cb9523db"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -567,17 +567,17 @@
           ]
         },
         "compiler_recipe_count": 1,
-        "flag_count": 122,
+        "flag_count": 132,
         "flags_sha256": {
           "sha256_hex_chunks": [
-            "162d192e82963293038d0b633e7d5faa",
-            "95d0cadef3f5c6fad1ba1316bd18b46a"
+            "4eb3c28fdc2dec2db0423c1d6b7ac127",
+            "e5db0cca9175b93af2927dab3ddd22cf"
           ]
         },
         "receipt_sha256": {
           "sha256_hex_chunks": [
-            "4bdb2db2b0f662c8a01f71a396f20aba",
-            "6fb79f6b8c8282406806ea2a6a562e3d"
+            "4ec78e2b04b56d0d185cd0abd41e6461",
+            "09eda175e7ef3a5c838791bc0559e3ea"
           ]
         },
         "required_ISA_flag_count": 25,
@@ -621,11 +621,11 @@
   ],
   "kind": "Root-qualified-portable-NEXT608-eight-product-cohort",
   "Root_qualification_fingerprint": {
-    "bytes": 14582,
+    "bytes": 14586,
     "sha256": {
       "sha256_hex_chunks": [
-        "838b2074da414f86efb29829f82ab613",
-        "e082cffa9498e21bc43e6b9d1abbfc76"
+        "b9407ade5ef225c6baae93e74c0d3b58",
+        "116a604791c022f34412f1fc5774e155"
       ]
     }
   }
