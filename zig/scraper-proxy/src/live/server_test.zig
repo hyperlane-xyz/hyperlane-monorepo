@@ -34,6 +34,7 @@ const FakeSocket = struct {
             .send = send,
             .buffered_amount = bufferedAmount,
             .is_open = isOpen,
+            .snapshot = snapshot,
             .close = close,
             .terminate = terminate,
             .ping = ping,
@@ -119,6 +120,9 @@ const FakeSocket = struct {
     fn bufferedAmount(ptr: *anyopaque) usize {
         const self: *FakeSocket = @ptrCast(@alignCast(ptr));
         return self.buffered;
+    }
+    fn snapshot(ptr: *anyopaque) live.Socket.Snapshot {
+        return .{ .open = isOpen(ptr), .buffered = bufferedAmount(ptr) };
     }
     fn isOpen(ptr: *anyopaque) bool {
         const self: *FakeSocket = @ptrCast(@alignCast(ptr));

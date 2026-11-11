@@ -209,92 +209,95 @@ pub const Pool = struct {
     }
 };
 
-/// Node timers are monotonic: wall-clock steps must not delay or fire them.
-fn monotonicNs() i128 {
-    const ts = std.posix.clock_gettime(std.posix.CLOCK.MONOTONIC) catch unreachable;
-    return @as(i128, ts.sec) * std.time.ns_per_s + ts.nsec;
-}
-
-/// Real scheduler: one thread and a deadline-ordered list.
-pub const ThreadScheduler = struct {
+/// Live's timers on the process timer thread (`core.scheduler`, monotonic
+/// like Node timers). Callbacks run there without the loop mutex and must
+/// only spawn tasks (the thread is shared with every module).
+///
+/// `cancel` never waits, so it is safe with the loop mutex held: whoever
+/// removes a timer's slot from `slots` (the firing callback or `cancel`)
+/// owns it. `deinit` cancels what is left and waits for callbacks in flight,
+/// so no timer can spawn into a pool that is being torn down.
+pub const SharedScheduler = struct {
     allocator: std.mem.Allocator,
+    timers: *core.scheduler.Scheduler,
     mutex: std.Thread.Mutex = .{},
-    condition: std.Thread.Condition = .{},
-    timers: std.ArrayList(Entry) = .empty,
-    next_id: u64 = 1,
-    stopping: bool = false,
-    thread: ?std.Thread = null,
+    drained: std.Thread.Condition = .{},
+    slots: std.AutoArrayHashMapUnmanaged(u64, *Slot) = .empty,
+    in_flight: usize = 0,
 
-    const Entry = struct { id: u64, deadline: i128, ctx: *anyopaque, callback: TimerCallback };
+    const Slot = struct {
+        owner: *SharedScheduler,
+        id: u64 = 0,
+        ctx: *anyopaque,
+        callback: TimerCallback,
+    };
 
-    pub fn init(allocator: std.mem.Allocator) ThreadScheduler {
-        return .{ .allocator = allocator };
+    pub fn init(allocator: std.mem.Allocator, timers: *core.scheduler.Scheduler) SharedScheduler {
+        return .{ .allocator = allocator, .timers = timers };
     }
 
-    pub fn start(self: *ThreadScheduler) !void {
-        self.thread = try std.Thread.spawn(.{}, run, .{self});
-    }
-
-    pub fn deinit(self: *ThreadScheduler) void {
+    pub fn deinit(self: *SharedScheduler) void {
         self.mutex.lock();
-        self.stopping = true;
-        self.condition.signal();
+        const slots = self.allocator.dupe(*Slot, self.slots.values()) catch @panic("live: out of memory");
+        self.slots.clearRetainingCapacity();
         self.mutex.unlock();
-        if (self.thread) |thread| thread.join();
-        self.timers.deinit(self.allocator);
+        defer self.allocator.free(slots);
+        for (slots) |slot| {
+            // Waits for a firing trampoline, which then finds its slot gone.
+            _ = self.timers.cancel(slot.id);
+            self.allocator.destroy(slot);
+        }
+        self.mutex.lock();
+        while (self.in_flight > 0) self.drained.wait(&self.mutex);
+        self.mutex.unlock();
+        self.slots.deinit(self.allocator);
     }
 
-    pub fn scheduler(self: *ThreadScheduler) Scheduler {
+    pub fn scheduler(self: *SharedScheduler) Scheduler {
         return .{ .ptr = self, .vtable = &.{ .schedule = schedule, .cancel = cancel } };
     }
 
     fn schedule(ptr: *anyopaque, delay_ms: u64, ctx: *anyopaque, callback: TimerCallback) u64 {
-        const self: *ThreadScheduler = @ptrCast(@alignCast(ptr));
+        const self: *SharedScheduler = @ptrCast(@alignCast(ptr));
+        const slot = self.allocator.create(Slot) catch @panic("live: out of memory scheduling timer");
+        slot.* = .{ .owner = self, .ctx = ctx, .callback = callback };
+        // Registered before it can fire (the trampoline looks the id up).
         self.mutex.lock();
         defer self.mutex.unlock();
-        const id = self.next_id;
-        self.next_id += 1;
-        const deadline = monotonicNs() + @as(i128, delay_ms) * std.time.ns_per_ms;
-        // Keep insertion order among equal deadlines, like Node timers.
-        var index = self.timers.items.len;
-        while (index > 0 and self.timers.items[index - 1].deadline > deadline) index -= 1;
-        self.timers.insert(self.allocator, index, .{ .id = id, .deadline = deadline, .ctx = ctx, .callback = callback }) catch
-            @panic("live: out of memory scheduling timer");
-        self.condition.signal();
+        const id = self.timers.schedule(delay_ms, slot, trampoline) catch @panic("live: out of memory scheduling timer");
+        slot.id = id;
+        self.slots.put(self.allocator, id, slot) catch @panic("live: out of memory scheduling timer");
         return id;
     }
 
     fn cancel(ptr: *anyopaque, id: u64) void {
-        const self: *ThreadScheduler = @ptrCast(@alignCast(ptr));
+        const self: *SharedScheduler = @ptrCast(@alignCast(ptr));
         self.mutex.lock();
-        defer self.mutex.unlock();
-        for (self.timers.items, 0..) |entry, index| {
-            if (entry.id == id) {
-                _ = self.timers.orderedRemove(index);
-                return;
-            }
-        }
+        const removed = self.slots.fetchSwapRemove(id);
+        self.mutex.unlock();
+        const entry = removed orelse return; // fired (or firing) already
+        // Pending: removed from the timer list. Firing: its trampoline is
+        // waiting for our mutex and will find the slot gone; wait for it.
+        _ = self.timers.cancel(id);
+        self.allocator.destroy(entry.value);
     }
 
-    fn run(self: *ThreadScheduler) void {
+    fn trampoline(ptr: *anyopaque, id: u64) void {
+        const slot: *Slot = @ptrCast(@alignCast(ptr));
+        const self = slot.owner;
         self.mutex.lock();
-        defer self.mutex.unlock();
-        while (!self.stopping) {
-            if (self.timers.items.len == 0) {
-                self.condition.wait(&self.mutex);
-                continue;
-            }
-            const first = self.timers.items[0];
-            const now = monotonicNs();
-            if (first.deadline > now) {
-                self.condition.timedWait(&self.mutex, @intCast(first.deadline - now)) catch {};
-                continue;
-            }
-            _ = self.timers.orderedRemove(0);
-            self.mutex.unlock();
-            first.callback(first.ctx, first.id);
-            self.mutex.lock();
-        }
+        const owned = self.slots.swapRemove(id);
+        if (owned) self.in_flight += 1;
+        self.mutex.unlock();
+        if (!owned) return; // cancelled: the canceller frees the slot
+        const ctx = slot.ctx;
+        const callback = slot.callback;
+        self.allocator.destroy(slot);
+        callback(ctx, id);
+        self.mutex.lock();
+        self.in_flight -= 1;
+        if (self.in_flight == 0) self.drained.broadcast();
+        self.mutex.unlock();
     }
 };
 

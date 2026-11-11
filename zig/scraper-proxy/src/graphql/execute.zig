@@ -2,17 +2,19 @@
 //! @skip/@include, argument coercion, resolver calls, value completion with
 //! non-null propagation, leaf serialization and located errors.
 //!
-//! Root fields run concurrently (one thread per extra field) when enabled
+//! Root fields run concurrently (extra fields on `RootPool` threads) when enabled
 //! (graphql-js starts them all at once). Results and errors are merged in
 //! document order; after a non-null root failure, later fields' data and
 //! errors are dropped and `data` is null, like the rejected `Promise.all`
 //! (see DEVIATIONS.md).
 const std = @import("std");
-const json = @import("core").json;
+const core = @import("core");
+const json = core.json;
 const ast = @import("ast.zig");
 const schema_mod = @import("schema.zig");
 const values = @import("values.zig");
 const js = @import("js.zig");
+const root_pool = @import("root_pool.zig");
 
 const Value = json.Value;
 const Member = json.Member;
@@ -85,13 +87,17 @@ pub const Resolvers = struct {
 };
 
 pub const Result = struct {
-    /// Null when a non-null root field failed (or field collection threw).
+    /// Null when a non-null root field failed (or field collection threw);
+    /// otherwise `.raw` (the serialized `data` object, written while completing).
     data: ?Value,
     errors: []const GqlError,
     /// Per-field arenas of concurrently executed root fields; `data` and
     /// `errors` point into them until `deinit`.
     arenas: []const *std.heap.ArenaAllocator = &.{},
     backing: ?Allocator = null,
+    /// When `data` is set: the response body so far (`{"data":` + data), so
+    /// the route finishes it in place instead of copying `data`.
+    body: ?std.Io.Writer.Allocating = null,
 
     pub fn deinit(self: Result) void {
         const backing = self.backing orelse return;
@@ -107,15 +113,38 @@ pub const Result = struct {
 /// tell graphql-js microtask-settled failures from I/O-settled ones.
 pub threadlocal var io_events: u32 = 0;
 
+/// The request's execution-admission hook (`graphql.ts` counts a request
+/// toward GRAPHQL_MAX_ACTIVE_REQUESTS only while it is yielded, see route.zig).
+/// `enter` runs before the request's I/O; false = over capacity, do no I/O.
+pub const Admission = struct {
+    ctx: *anyopaque,
+    enter: *const fn (ctx: *anyopaque) bool,
+};
+
+/// Set by the route on the request thread and by `RootTask.run` on pool
+/// threads while a request executes.
+pub threadlocal var admission: ?Admission = null;
+
+/// Called by data-source adapters right before a resolver performs I/O
+/// (database query, diagnostics read). Returns false when the request lost
+/// its execution slot; the adapter must then fail without I/O.
+pub fn beforeIo() bool {
+    const adm = admission orelse return true;
+    return adm.enter(adm.ctx);
+}
+
+/// Counterpart of `beforeIo` once the I/O happened (settle-order bookkeeping).
+pub fn afterIo() void {
+    io_events +%= 1;
+}
+
 var completion_seq: std.atomic.Value(u64) = .init(0);
 
-/// Root-field fan-out: one short-lived thread per extra root field (FIFO
-/// fairness comes from the database pool's waiter queue; std.Thread.Pool is
-/// LIFO and starves old tasks under load), bounded by a shared counter, plus
-/// a thread-safe allocator for the per-field arenas.
+/// Root-field fan-out: extra root fields go to a FIFO `RootPool` (std.Thread.Pool
+/// is LIFO and starves old tasks under load), plus a thread-safe allocator
+/// for the per-field arenas.
 pub const Parallel = struct {
-    active: *std.atomic.Value(u32),
-    max_threads: u32,
+    pool: *root_pool.RootPool,
     backing: Allocator,
 };
 
@@ -132,16 +161,26 @@ pub const Executor = struct {
     /// The error being raised (raw until located).
     pending: GqlError = .{ .message = "" },
     pending_offsets: []const u32 = &.{},
+    /// Propagated to root-field pool threads (thread-local `admission`).
+    admission: ?Admission = null,
+    /// Completed values are serialized here as they are produced (no result
+    /// tree); an error nulls the nearest nullable position by rewinding to
+    /// where that position's value started.
+    out: std.Io.Writer.Allocating = undefined,
 
     const Err = error{ OutOfMemory, Raw, Located };
 
     const SubfieldKey = struct { named: *const NamedType, nodes: [*]const *const ast.Field, len: usize };
     const Collected = struct {
         names: []const []const u8,
+        /// `"name":` (JSON-escaped response name plus colon) per field.
+        keys: []const []const u8,
         nodes: []const []const *const ast.Field,
         defs: []const ?*const schema_mod.Field,
         /// Row member index where each field was last found (rows share column order).
         hints: []usize,
+        /// Default resolver without arguments (`source[name]`): no coercion or call.
+        plain: []const bool,
     };
 
     fn hasCustomResolvers(self: *const Executor, parent: *const NamedType) bool {
@@ -169,11 +208,16 @@ pub const Executor = struct {
             },
         };
         if (fields.names.items.len > 1) return self.executeRoots(root, &fields, parallel);
-        var members: std.ArrayList(Member) = .empty;
+        self.out = try .initCapacity(self.a, 1024);
+        const w = &self.out.writer;
+        w.writeAll(body_prefix ++ "{") catch return error.OutOfMemory;
         for (fields.names.items) |name| {
             const nodes = fields.entries.get(name).?.items;
             const path: Path = .{ .prev = null, .segment = .{ .key = name } };
-            const v = self.executeField(root, .null, nodes, &path) catch |err| switch (err) {
+            const def = self.schema.fieldDef(root, nodes[0].name.value) orelse continue;
+            try self.writeKey(name);
+            var hint: usize = 0;
+            self.writeFieldDef(root, def, .null, nodes, &path, &hint) catch |err| switch (err) {
                 error.OutOfMemory => return error.OutOfMemory,
                 error.Raw => unreachable,
                 error.Located => {
@@ -181,9 +225,19 @@ pub const Executor = struct {
                     return .{ .data = null, .errors = self.errors.items };
                 },
             };
-            if (v) |value| try members.append(self.a, .{ .key = name, .value = value });
         }
-        return .{ .data = .{ .object = members.items }, .errors = self.errors.items };
+        w.writeByte('}') catch return error.OutOfMemory;
+        return .{ .data = .{ .raw = self.out.written()[body_prefix.len..] }, .errors = self.errors.items, .body = self.out };
+    }
+
+    /// Start of every 2xx response body (mercurius field order `data, errors`).
+    pub const body_prefix = "{\"data\":";
+
+    fn writeKey(self: *Executor, name: []const u8) Allocator.Error!void {
+        const w = &self.out.writer;
+        if (w.end > 0 and w.buffer[w.end - 1] != '{') w.writeByte(',') catch return error.OutOfMemory;
+        json.writeString(w, name) catch return error.OutOfMemory;
+        w.writeByte(':') catch return error.OutOfMemory;
     }
 
     const RootTask = struct {
@@ -193,7 +247,8 @@ pub const Executor = struct {
         nodes: []const *const ast.Field,
         arena: ?*std.heap.ArenaAllocator,
         allocator: Allocator,
-        value: ?Value = null,
+        /// Serialized value; null = undefined (no such field).
+        value: ?[]const u8 = null,
         propagated: bool = false,
         oom: bool = false,
         errors: []const GqlError = &.{},
@@ -203,8 +258,16 @@ pub const Executor = struct {
         io: bool = false,
         /// Global completion order (settle order among I/O fields).
         stamp: u64 = 0,
+        job: root_pool.Job = .{ .run = runJob },
+
+        fn runJob(job: *root_pool.Job) void {
+            run(@fieldParentPtr("job", job));
+        }
 
         fn run(t: *RootTask) void {
+            const saved_admission = admission;
+            admission = t.parent.admission;
+            defer admission = saved_admission;
             const io_before = io_events;
             defer {
                 t.io = io_events != io_before;
@@ -217,9 +280,16 @@ pub const Executor = struct {
                 .vars = t.parent.vars,
                 .resolvers = t.parent.resolvers,
                 .fragments = t.parent.fragments,
+                .admission = t.parent.admission,
             };
             const path: Path = .{ .prev = null, .segment = .{ .key = t.name } };
-            t.value = sub.executeField(t.root, .null, t.nodes, &path) catch |err| switch (err) {
+            const def = t.parent.schema.fieldDef(t.root, t.nodes[0].name.value) orelse return;
+            sub.out = std.Io.Writer.Allocating.initCapacity(t.allocator, 1024) catch {
+                t.oom = true;
+                return;
+            };
+            var hint: usize = 0;
+            sub.writeFieldDef(t.root, def, .null, t.nodes, &path, &hint) catch |err| switch (err) {
                 error.OutOfMemory => {
                     t.oom = true;
                     return;
@@ -232,6 +302,7 @@ pub const Executor = struct {
                     return;
                 },
             };
+            t.value = sub.out.written();
             t.errors = sub.errors.items;
         }
     };
@@ -266,24 +337,23 @@ pub const Executor = struct {
             t.* = .{ .parent = self, .root = root, .name = name, .nodes = fields.entries.get(name).?.items, .arena = arena, .allocator = allocator };
         }
         result.arenas = arenas[0..created];
-        const threads = try self.a.alloc(?std.Thread, n);
-        @memset(threads, null);
-        if (parallel) |p| for (tasks[1..], threads[1..]) |*t, *thread| {
-            if (p.active.fetchAdd(1, .monotonic) >= p.max_threads) {
-                _ = p.active.fetchSub(1, .monotonic);
-                continue; // over the cap: runs on this thread below
-            }
-            thread.* = std.Thread.spawn(.{ .stack_size = 1024 * 1024 }, RootTask.run, .{t}) catch blk: {
-                _ = p.active.fetchSub(1, .monotonic);
-                break :blk null;
-            };
+        const pooled = try self.a.alloc(bool, n);
+        @memset(pooled, false);
+        if (parallel) |p| for (tasks[1..], pooled[1..]) |*t, *in_pool| {
+            in_pool.* = p.pool.submit(&t.job); // false (pool full): runs here below
         };
         RootTask.run(&tasks[0]);
-        for (tasks[1..], threads[1..]) |*t, thread| if (thread == null) RootTask.run(t);
-        if (parallel) |p| for (threads[1..]) |thread| if (thread) |th| {
-            th.join();
-            _ = p.active.fetchSub(1, .monotonic);
-        };
+        for (tasks[1..], pooled[1..]) |*t, in_pool| {
+            if (!in_pool) {
+                RootTask.run(t);
+            } else if (parallel.?.pool.reclaim(&t.job)) {
+                RootTask.run(t); // no thread started it yet
+            } else {
+                core.blocking.begin();
+                defer core.blocking.end();
+                t.job.done.wait();
+            }
+        }
         for (tasks) |*t| if (t.oom) return error.OutOfMemory;
 
         // Settle order: I/O-free fields in document order, then I/O fields by completion.
@@ -321,10 +391,21 @@ pub const Executor = struct {
             return result;
         }
         for (order) |t| try self.errors.appendSlice(self.a, t.errors);
-        var members: std.ArrayList(Member) = .empty;
-        for (tasks) |*t| if (t.value) |v| try members.append(self.a, .{ .key = t.name, .value = v });
-        result.data = .{ .object = members.items };
+        var size: usize = 2;
+        for (tasks) |*t| if (t.value) |v| {
+            size += t.name.len + v.len + 8;
+        };
+        self.out = try .initCapacity(self.a, size + body_prefix.len);
+        const w = &self.out.writer;
+        w.writeAll(body_prefix ++ "{") catch return error.OutOfMemory;
+        for (tasks) |*t| if (t.value) |v| {
+            try self.writeKey(t.name);
+            w.writeAll(v) catch return error.OutOfMemory;
+        };
+        w.writeByte('}') catch return error.OutOfMemory;
+        result.data = .{ .raw = self.out.written()[body_prefix.len..] };
         result.errors = self.errors.items;
+        result.body = self.out;
         return result;
     }
 
@@ -359,41 +440,88 @@ pub const Executor = struct {
         self.pending_offsets = &.{};
     }
 
-    /// `handleFieldError`: propagate through non-null positions, else record.
-    fn handleFieldError(self: *Executor, t: *const TypeRef) Err!Value {
+    /// `handleFieldError`: propagate through non-null positions, else record
+    /// the error and write `null` where the value started at `mark`.
+    fn handleFieldError(self: *Executor, t: *const TypeRef, mark: usize) Err!void {
         if (t.isNonNull()) return error.Located;
         try self.errors.append(self.a, self.pending);
-        return .null;
+        self.out.writer.end = mark;
+        try self.writeRaw("null");
+    }
+
+    fn writeRaw(self: *Executor, bytes: []const u8) Allocator.Error!void {
+        self.out.writer.writeAll(bytes) catch return error.OutOfMemory;
     }
 
     // ---- fields ----
 
-    /// Null result = graphql-js `undefined` (field omitted).
-    fn executeField(self: *Executor, parent: *const NamedType, source: Value, nodes: []const *const ast.Field, path: *const Path) Err!?Value {
-        const def = self.schema.fieldDef(parent, nodes[0].name.value) orelse return null;
-        var hint: usize = 0;
-        return self.executeFieldDef(parent, def, source, nodes, path, &hint);
-    }
-
-    fn executeFieldDef(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!?Value {
-        const value = self.resolveAndComplete(parent, def, source, nodes, path, hint) catch |err| switch (err) {
+    /// Writes the field's completed value; a field error writes `null` (or
+    /// propagates through a non-null type).
+    fn writeFieldDef(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!void {
+        const mark = self.out.writer.end;
+        self.resolveAndWrite(parent, def, source, nodes, path, hint) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.Raw => {
                 try self.locate(nodes, path);
-                return try self.handleFieldError(def.type);
+                return self.handleFieldError(def.type, mark);
             },
-            error.Located => return try self.handleFieldError(def.type),
+            error.Located => return self.handleFieldError(def.type, mark),
         };
-        return value;
     }
 
-    fn resolveAndComplete(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!Value {
+    /// Field at `path` with the default resolver and no arguments (see
+    /// `Collected.plain`). Scalars that serialize without error are written
+    /// directly; everything else (objects, lists, enums, failures) takes the
+    /// general path.
+    fn writePlainField(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!void {
+        const resolved = lookup(source, def.name, hint);
+        const non_null = def.type.* == .non_null;
+        const t = if (non_null) def.type.non_null else def.type;
+        if (t.* == .named and t.named.kind == .scalar) {
+            const r = resolved orelse Value.null;
+            if (r == .null) {
+                if (!non_null) return self.writeRaw("null");
+            } else if (try self.writeScalarFast(t.named.scalar, r)) return;
+        }
+        return self.writeFieldDef(parent, def, source, nodes, path, hint);
+    }
+
+    /// Writes a non-null scalar value when its serialization cannot fail and
+    /// equals the value itself (graphql-js `serialize` identity cases).
+    fn writeScalarFast(self: *Executor, scalar: schema_mod.ScalarKind, r: Value) Allocator.Error!bool {
+        const w = &self.out.writer;
+        switch (scalar) {
+            .custom => json.stringify(w, r) catch return error.OutOfMemory,
+            .string, .id => {
+                if (r != .string) return false;
+                json.writeString(w, r.string) catch return error.OutOfMemory;
+            },
+            .int => {
+                if (r != .number) return false;
+                const n = r.number;
+                if (!std.math.isFinite(n) or @floor(n) != n or n > 2147483647 or n < -2147483648) return false;
+                json.writeNumber(w, n) catch return error.OutOfMemory;
+            },
+            .float => {
+                if (r != .number or !std.math.isFinite(r.number)) return false;
+                json.writeNumber(w, r.number) catch return error.OutOfMemory;
+            },
+            .boolean => {
+                if (r != .bool) return false;
+                w.writeAll(if (r.bool) "true" else "false") catch return error.OutOfMemory;
+            },
+        }
+        return true;
+    }
+
+    fn resolveAndWrite(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!void {
         const first = nodes[0];
         const info: Info = .{ .field_name = def.name, .parent_type = parent, .field_nodes = nodes, .fragments = &self.fragments };
         if (def.args.len == 0 and !self.hasCustomResolvers(parent)) {
             // Default resolver: `source[fieldName]` (no arguments to coerce).
             const resolved: ?Value = if (std.mem.eql(u8, def.name, "__typename")) .{ .string = parent.name } else lookup(source, def.name, hint);
-            return self.completeValue(def.type, &info, path, resolved);
+            _ = try self.writeValue(def.type, &info, path, resolved);
+            return;
         }
         const args = switch (try values.getArgumentValues(self.a, def.args, first.arguments, first.loc, self.vars)) {
             .ok => |v| v,
@@ -407,56 +535,74 @@ pub const Executor = struct {
             .value => |v| resolved = v,
             .failure => |f| return self.raise(f.message, f.code, &.{}),
         }
-        return self.completeValue(def.type, &info, path, resolved);
+        _ = try self.writeValue(def.type, &info, path, resolved);
     }
 
-    /// `completeValue`; `result` null = undefined.
-    fn completeValue(self: *Executor, t: *const TypeRef, info: *const Info, path: *const Path, result: ?Value) Err!Value {
+    /// `completeValue`, serialized; `result` null = undefined. Returns
+    /// whether it wrote `null`.
+    fn writeValue(self: *Executor, t: *const TypeRef, info: *const Info, path: *const Path, result: ?Value) Err!bool {
         switch (t.*) {
             .non_null => |inner| {
-                const completed = try self.completeValue(inner, info, path, result);
-                if (completed == .null) return self.raisef("Cannot return null for non-nullable field {s}.{s}.", .{ info.parent_type.name, info.field_name });
-                return completed;
+                if (try self.writeValue(inner, info, path, result)) return self.raisef("Cannot return null for non-nullable field {s}.{s}.", .{ info.parent_type.name, info.field_name });
+                return false;
             },
             .list => |item_type| {
-                const r = result orelse return .null;
-                if (r == .null) return .null;
+                const r = result orelse return self.writeNull();
+                if (r == .null) return self.writeNull();
                 if (r != .array) return self.raisef("Expected Iterable, but did not find one for field \"{s}.{s}\".", .{ info.parent_type.name, info.field_name });
-                const out = try self.a.alloc(Value, r.array.len);
-                for (r.array, out, 0..) |item, *slot, i| {
+                try self.writeRaw("[");
+                for (r.array, 0..) |item, i| {
+                    if (i > 0) try self.writeRaw(",");
                     const item_path: Path = .{ .prev = path, .segment = .{ .index = i } };
-                    slot.* = self.completeValue(item_type, info, &item_path, item) catch |err| switch (err) {
+                    const mark = self.out.writer.end;
+                    _ = self.writeValue(item_type, info, &item_path, item) catch |err| switch (err) {
                         error.OutOfMemory => return error.OutOfMemory,
-                        error.Raw => blk: {
+                        error.Raw => {
                             try self.locate(info.field_nodes, &item_path);
-                            break :blk try self.handleFieldError(item_type);
+                            try self.handleFieldError(item_type, mark);
                         },
-                        error.Located => try self.handleFieldError(item_type),
+                        error.Located => try self.handleFieldError(item_type, mark),
                     };
                 }
-                return .{ .array = out };
+                try self.writeRaw("]");
+                return false;
             },
             .named => |named| {
-                const r = result orelse return .null;
-                if (r == .null) return .null;
-                if (named.isLeaf()) return self.completeLeaf(named, r);
-                return self.completeObject(named, info, path, r);
+                const r = result orelse return self.writeNull();
+                if (r == .null) return self.writeNull();
+                if (named.isLeaf()) {
+                    const leaf = try self.completeLeaf(named, r);
+                    json.stringify(&self.out.writer, leaf) catch return error.OutOfMemory;
+                    return leaf == .null;
+                }
+                try self.writeObject(named, info, path, r);
+                return false;
             },
         }
     }
 
-    fn completeObject(self: *Executor, named: *const NamedType, info: *const Info, path: *const Path, source: Value) Err!Value {
+    fn writeNull(self: *Executor) Err!bool {
+        try self.writeRaw("null");
+        return true;
+    }
+
+    fn writeObject(self: *Executor, named: *const NamedType, info: *const Info, path: *const Path, source: Value) Err!void {
         const collected = try self.collectSubfields(named, info.field_nodes);
-        const members = try self.a.alloc(Member, collected.names.len);
-        var n: usize = 0;
-        for (collected.names, collected.nodes, collected.defs, collected.hints) |name, nodes, def, *hint| {
+        try self.writeRaw("{");
+        var first = true;
+        for (collected.names, collected.keys, collected.nodes, collected.defs, collected.hints, collected.plain) |name, key, nodes, def, *hint, plain| {
+            const d = def orelse continue;
+            if (!first) try self.writeRaw(",");
+            first = false;
+            try self.writeRaw(key);
             const field_path: Path = .{ .prev = path, .segment = .{ .key = name } };
-            if (try self.executeFieldDef(named, def orelse continue, source, nodes, &field_path, hint)) |v| {
-                members[n] = .{ .key = name, .value = v };
-                n += 1;
+            if (plain) {
+                try self.writePlainField(named, d, source, nodes, &field_path, hint);
+            } else {
+                try self.writeFieldDef(named, d, source, nodes, &field_path, hint);
             }
         }
-        return .{ .object = members[0..n] };
+        try self.writeRaw("}");
     }
 
     fn collectSubfields(self: *Executor, named: *const NamedType, field_nodes: []const *const ast.Field) Err!*const Collected {
@@ -468,16 +614,24 @@ pub const Executor = struct {
             if (node.selection_set) |set| try self.collectFields(named, set, &fields, &visited);
         }
         const count = fields.names.items.len;
+        const keys = try self.a.alloc([]const u8, count);
         const nodes = try self.a.alloc([]const *const ast.Field, count);
         const defs = try self.a.alloc(?*const schema_mod.Field, count);
         const hints = try self.a.alloc(usize, count);
-        for (fields.names.items, nodes, defs, hints) |name, *slot, *def, *hint| {
+        const plain = try self.a.alloc(bool, count);
+        const custom = self.hasCustomResolvers(named);
+        for (fields.names.items, keys, nodes, defs, hints, plain) |name, *key_text, *slot, *def, *hint, *is_plain| {
+            var text: std.Io.Writer.Allocating = try .initCapacity(self.a, name.len + 3);
+            json.writeString(&text.writer, name) catch return error.OutOfMemory;
+            text.writer.writeByte(':') catch return error.OutOfMemory;
+            key_text.* = text.written();
             slot.* = fields.entries.get(name).?.items;
             def.* = self.schema.fieldDef(named, slot.*[0].name.value);
             hint.* = 0;
+            is_plain.* = if (def.*) |d| d.args.len == 0 and !custom and !std.mem.eql(u8, d.name, "__typename") else false;
         }
         const c = try self.a.create(Collected);
-        c.* = .{ .names = fields.names.items, .nodes = nodes, .defs = defs, .hints = hints };
+        c.* = .{ .names = fields.names.items, .keys = keys, .nodes = nodes, .defs = defs, .hints = hints, .plain = plain };
         try self.subfields.put(self.a, key, c);
         return c;
     }

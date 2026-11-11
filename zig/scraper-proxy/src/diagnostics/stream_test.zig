@@ -569,3 +569,47 @@ test "sink release runs once after the last send, off the caller's thread" {
     try testing.expectEqual(@as(usize, 1), live_sink.count());
     try testing.expectEqual(@as(usize, 1), late_sink.count());
 }
+
+fn timerThreadState(stream: *Stream) enum { none, running, exited } {
+    stream.mutex.lock();
+    defer stream.mutex.unlock();
+    if (stream.thread == null) return .none;
+    return if (stream.thread_exited) .exited else .running;
+}
+
+fn timerThreadExited(stream: *Stream) bool {
+    return timerThreadState(stream) == .exited;
+}
+
+test "the timer thread starts on demand and exits when idle" {
+    @import("testing_log.zig").silence();
+    var mock: Mock = .{ .generate_rows = true };
+    mock.init();
+    defer mock.deinit();
+    const stream = try Stream.initWithTiming(gpa, &mock.service, 1, long_retry_ms);
+    defer stream.deinit();
+    stream.idle_exit_ms = 20;
+    var recorder: Recorder = .{};
+    defer recorder.deinit();
+    stream.start();
+    try waitFor(listening, .{stream});
+    // Connected with nothing scheduled: no timer thread at all.
+    try testing.expectEqual(.none, timerThreadState(stream));
+    var b1: [66]u8 = undefined;
+    const m1 = messageId(&b1, 1);
+    var handles: Handles = .{ .stream = stream };
+    defer handles.release();
+    try handles.add(try stream.subscribe("127.0.0.1", &.{m1}, recorder.sink()));
+    const h = mock.handler(0);
+    for (0..2) |_| {
+        const before = recorder.count();
+        // A notification schedules a drain: the thread (re)starts and drains it.
+        h.notify(h.ctx, m1[2..]);
+        try waitFor(struct {
+            fn more(r: *Recorder, n: usize) bool {
+                return r.count() > n;
+            }
+        }.more, .{ &recorder, before });
+        try waitFor(timerThreadExited, .{stream});
+    }
+}

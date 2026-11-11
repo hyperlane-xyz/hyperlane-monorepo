@@ -283,14 +283,39 @@ pub fn isoString(a: Allocator, ms: i64) Allocator.Error!?[]const u8 {
     const ss = @divFloor(@mod(in_day, 60_000), 1000);
     const mss = @mod(in_day, 1000);
     if (y >= 0 and y <= 9999) {
-        return try std.fmt.allocPrint(a, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}Z", .{
-            @as(u64, @intCast(y)), @as(u64, @intCast(m)), @as(u64, @intCast(d)), @as(u64, @intCast(hh)), @as(u64, @intCast(mi)), @as(u64, @intCast(ss)), @as(u64, @intCast(mss)),
-        });
+        // Hot path (every timestamptz cell): fixed-width digits, no fmt.
+        const out = try a.alloc(u8, 24);
+        putDigits(out[0..4], @intCast(y));
+        out[4] = '-';
+        putDigits(out[5..7], @intCast(m));
+        out[7] = '-';
+        putDigits(out[8..10], @intCast(d));
+        out[10] = 'T';
+        putDigits(out[11..13], @intCast(hh));
+        out[13] = ':';
+        putDigits(out[14..16], @intCast(mi));
+        out[16] = ':';
+        putDigits(out[17..19], @intCast(ss));
+        out[19] = '.';
+        putDigits(out[20..23], @intCast(mss));
+        out[23] = 'Z';
+        return out;
     }
     const sign: u8 = if (y < 0) '-' else '+';
     return try std.fmt.allocPrint(a, "{c}{d:0>6}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}Z", .{
         sign, @as(u64, @intCast(@abs(y))), @as(u64, @intCast(m)), @as(u64, @intCast(d)), @as(u64, @intCast(hh)), @as(u64, @intCast(mi)), @as(u64, @intCast(ss)), @as(u64, @intCast(mss)),
     });
+}
+
+/// Zero-padded decimal `n` filling `out` (n < 10^out.len).
+fn putDigits(out: []u8, n: u64) void {
+    var v = n;
+    var i = out.len;
+    while (i > 0) {
+        i -= 1;
+        out[i] = @intCast('0' + v % 10);
+        v /= 10;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -477,4 +502,44 @@ test "logValue truncates long strings and summarises long arrays" {
     for (&items, 0..) |*item, i| item.* = .{ .number = @floatFromInt(i) };
     const s = try core.json.stringifyAlloc(a, try logValue(a, .{ .array = &items }));
     try testing.expectEqualStrings("{\"count\":11,\"sample\":[0,1,2,3,4,5,6,7,\"…\"]}", s);
+}
+
+test "isoString matches the zero-padded fmt rendering across the 4-digit range" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var prng = std.Random.DefaultPrng.init(0x5eed);
+    const r = prng.random();
+    const lo: i64 = -62_167_219_200_000; // 0000-01-01T00:00:00.000Z
+    const hi: i64 = 253_402_300_799_999; // 9999-12-31T23:59:59.999Z
+    var i: usize = 0;
+    while (i < 200_000) : (i += 1) {
+        const ms = switch (i) {
+            0 => lo,
+            1 => hi,
+            2 => 0,
+            3 => -1,
+            else => r.intRangeAtMost(i64, lo, hi),
+        };
+        const fast = (try isoString(a, ms)).?;
+        const days = @divFloor(ms, 86_400_000);
+        const in_day = @mod(ms, 86_400_000);
+        const z = days + 719468;
+        const era = @divFloor(z, 146097);
+        const doe = z - era * 146097;
+        const yoe = @divFloor(doe - @divFloor(doe, 1460) + @divFloor(doe, 36524) - @divFloor(doe, 146096), 365);
+        const doy = doe - (365 * yoe + @divFloor(yoe, 4) - @divFloor(yoe, 100));
+        const mp = @divFloor(5 * doy + 2, 153);
+        const d = doy - @divFloor(153 * mp + 2, 5) + 1;
+        const m = if (mp < 10) mp + 3 else mp - 9;
+        const y = yoe + era * 400 + @as(i64, if (m <= 2) 1 else 0);
+        const expected = try std.fmt.allocPrint(a, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}Z", .{
+            @as(u64, @intCast(y)),                            @as(u64, @intCast(m)),                         @as(u64, @intCast(d)),
+            @as(u64, @intCast(@divFloor(in_day, 3_600_000))), @as(u64, @intCast(@divFloor(@mod(in_day, 3_600_000), 60_000))), @as(u64, @intCast(@divFloor(@mod(in_day, 60_000), 1000))),
+            @as(u64, @intCast(@mod(in_day, 1000))),
+        });
+        try testing.expectEqualStrings(expected, fast);
+    }
+    try testing.expectEqualStrings("+010000-01-01T00:00:00.000Z", (try isoString(a, hi + 1)).?);
+    try testing.expectEqualStrings("-000001-12-31T23:59:59.999Z", (try isoString(a, lo - 1)).?);
 }

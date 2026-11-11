@@ -21,6 +21,7 @@ const cache_mod = @import("cache.zig");
 const request_schema = @import("request_schema.zig");
 const v8json = @import("v8json.zig");
 const js = @import("js.zig");
+const root_pool = @import("root_pool.zig");
 
 const Value = json.Value;
 const Member = json.Member;
@@ -31,6 +32,7 @@ const metrics = core.metrics;
 const logger = core.log.child("GraphQL");
 
 pub const max_request_bytes = 100 * 1024;
+pub const capacity_message = "GraphQL request capacity exceeded";
 const document_cache_size = 1024;
 const csrf_message = "This operation has been blocked as a potential Cross-Site Request Forgery (CSRF).";
 const csrf_required_headers = [_][]const u8{ "x-apollo-operation-name", "apollo-require-preflight", "x-mercurius-operation-name", "mercurius-require-preflight" };
@@ -39,25 +41,46 @@ const csrf_allowed_content_types = [_][]const u8{ "application/json", "applicati
 pub const Options = struct {
     max_active_requests: u32 = 25,
     max_active_uploads: u32 = 50,
-    /// Process-wide cap on extra threads executing root fields concurrently;
+    /// Cap on pooled threads executing extra root fields concurrently;
     /// 0 runs root fields sequentially.
     root_field_threads: u32 = 64,
 };
 
+/// `graphql stats` window counters. Atomics (no lock on the request path);
+/// `logStats` swaps each to zero, so a request finishing during the swap may
+/// split its fields across two windows (log text only).
 const Stats = struct {
-    errors: u64 = 0,
-    max_ms: i64 = 0,
-    rejected: u64 = 0,
-    requests: u64 = 0,
-    status4xx: u64 = 0,
-    status5xx: u64 = 0,
-    total_ms: i64 = 0,
+    errors: std.atomic.Value(u64) = .init(0),
+    max_ms: std.atomic.Value(i64) = .init(0),
+    rejected: std.atomic.Value(u64) = .init(0),
+    requests: std.atomic.Value(u64) = .init(0),
+    status4xx: std.atomic.Value(u64) = .init(0),
+    status5xx: std.atomic.Value(u64) = .init(0),
+    total_ms: std.atomic.Value(i64) = .init(0),
 };
+
+/// Takes a slot when `counter < max` (graphql.ts admission checks).
+fn tryAcquire(counter: *std.atomic.Value(u32), max: u32) bool {
+    var current = counter.load(.monotonic);
+    while (current < max) {
+        current = counter.cmpxchgWeak(current, current + 1, .monotonic, .monotonic) orelse return true;
+    }
+    return false;
+}
+
+/// Execution slot of an admitted request (see "Execution admission" below).
+const Slot = enum(u8) { none, deciding, held, rejected };
 
 /// Per-request hook state (`requestStates` / `uploadReleases` WeakMaps).
 const RequestState = struct {
+    route: *GraphqlRoute,
+    /// TS `uploadReleases` has an entry (every admitted non-GET request).
+    upload_tracked: bool = false,
+    /// ...and it counts in `active_uploads` (its body was still arriving).
     upload_held: bool = false,
+    /// Passed the preHandler capacity check (recorded on completion).
     admitted: bool = false,
+    slot: std.atomic.Value(Slot) = .init(.none),
     started_ms: i64 = 0,
     failed: bool = false,
     prepared: ?cache_mod.PreparedCacheRequest = null,
@@ -70,17 +93,16 @@ pub const GraphqlRoute = struct {
     schema: *const Schema,
     resolver_map: resolvers_mod.ResolverMap,
     options: Options,
-    mutex: std.Thread.Mutex = .{},
-    active_requests: u32 = 0,
-    active_uploads: u32 = 0,
+    active_requests: std.atomic.Value(u32) = .init(0),
+    active_uploads: std.atomic.Value(u32) = .init(0),
     stats: Stats = .{},
     response_cache: cache_mod.ResponseCache,
     documents: DocumentCache,
     error_documents: ErrorCache,
     now_ms: *const fn () i64 = defaultNow,
-    stats_thread: ?std.Thread = null,
-    stop: std.Thread.ResetEvent = .{},
-    root_field_threads: std.atomic.Value(u32) = .init(0),
+    /// `core.scheduler` timer of the 60 s stats log (0 = not started).
+    stats_timer: u64 = 0,
+    root_fields: root_pool.RootPool,
     /// Test seam: runs after execution, before the response is serialized.
     after_execute_hook: ?*const fn (*GraphqlRoute) void = null,
 
@@ -98,45 +120,47 @@ pub const GraphqlRoute = struct {
             .response_cache = cache_mod.ResponseCache.init(gpa),
             .documents = .{ .gpa = gpa },
             .error_documents = .{ .gpa = gpa },
+            .root_fields = root_pool.RootPool.init(options.root_field_threads),
         };
     }
 
     pub fn deinit(self: *GraphqlRoute) void {
         self.stopStatsTimer();
+        self.root_fields.deinit();
         self.response_cache.deinit();
         self.documents.deinit();
         self.error_documents.deinit();
     }
 
     /// The 60s `graphql stats ...` interval (unref'd timer in TS).
+    /// The 60s `graphql stats ...` interval (unref'd timer in TS), on the
+    /// process timer thread (`core.scheduler.global()`).
     pub fn startStatsTimer(self: *GraphqlRoute) !void {
-        self.stats_thread = try std.Thread.spawn(.{}, statsLoop, .{self});
+        self.stats_timer = try core.scheduler.global().every(60_000, self, statsTick);
     }
 
     pub fn stopStatsTimer(self: *GraphqlRoute) void {
-        const thread = self.stats_thread orelse return;
-        self.stop.set();
-        thread.join();
-        self.stats_thread = null;
+        if (self.stats_timer == 0) return;
+        _ = core.scheduler.global().cancel(self.stats_timer);
+        self.stats_timer = 0;
     }
 
-    fn statsLoop(self: *GraphqlRoute) void {
-        while (true) {
-            self.stop.timedWait(60 * std.time.ns_per_s) catch {
-                self.logStats();
-                continue;
-            };
-            return;
-        }
+    fn statsTick(ctx: *anyopaque, _: u64) void {
+        const self: *GraphqlRoute = @ptrCast(@alignCast(ctx));
+        self.logStats();
     }
 
     pub fn logStats(self: *GraphqlRoute) void {
-        self.mutex.lock();
-        const s = self.stats;
-        self.stats = .{};
-        self.mutex.unlock();
-        const avg: i64 = if (s.requests > 0) @intFromFloat(@round(@as(f64, @floatFromInt(s.total_ms)) / @as(f64, @floatFromInt(s.requests)))) else 0;
-        logger.info("graphql stats requests={d} rejected={d} errors={d} status4xx={d} status5xx={d} avgMs={d} maxMs={d}", .{ s.requests, s.rejected, s.errors, s.status4xx, s.status5xx, avg, s.max_ms });
+        const st = &self.stats;
+        const requests = st.requests.swap(0, .monotonic);
+        const total_ms = st.total_ms.swap(0, .monotonic);
+        const max_ms = st.max_ms.swap(0, .monotonic);
+        const rejected = st.rejected.swap(0, .monotonic);
+        const errors = st.errors.swap(0, .monotonic);
+        const status4xx = st.status4xx.swap(0, .monotonic);
+        const status5xx = st.status5xx.swap(0, .monotonic);
+        const avg: i64 = if (requests > 0) @intFromFloat(@round(@as(f64, @floatFromInt(total_ms)) / @as(f64, @floatFromInt(requests)))) else 0;
+        logger.info("graphql stats requests={d} rejected={d} errors={d} status4xx={d} status5xx={d} avgMs={d} maxMs={d}", .{ requests, rejected, errors, status4xx, status5xx, avg, max_ms });
     }
 
     pub fn route(self: *GraphqlRoute) http.Route {
@@ -149,6 +173,7 @@ pub const GraphqlRoute = struct {
                 .handler = handler,
                 .error_handler = errorHandler,
                 .on_send = onSend,
+                .on_write_blocked = onWriteBlocked,
                 .on_done = onDone,
             },
             .text_content_types = &.{"application/graphql"},
@@ -156,25 +181,78 @@ pub const GraphqlRoute = struct {
         };
     }
 
-    fn state(req: *http.Request) *RequestState {
+    fn state(self: *GraphqlRoute, req: *http.Request) *RequestState {
         if (req.state) |s| return @ptrCast(@alignCast(s));
         const s = req.arena.create(RequestState) catch @panic("out of memory");
-        s.* = .{};
+        s.* = .{ .route = self };
         req.state = s;
         return s;
+    }
+
+    // ---- execution admission ----
+    //
+    // graphql.ts counts a request in `activeRequests` from preHandler until
+    // the reply finishes. Node runs one request at a time between awaits, so
+    // a request that completes without yielding (cache hit, validation error,
+    // any I/O-free result whose response is written at once) is admitted and
+    // finished before any other request's check runs: the counter other
+    // requests observe is the number of requests parked on I/O. Here handlers
+    // run on many threads, so a request takes its slot when it first yields
+    // (`execute.beforeIo`, right before its first database or diagnostics
+    // read) and returns it when the response is done; the preHandler check
+    // compares against that count. Two requests that both passed the check
+    // below the limit and then race for the last slot are ordered like Node
+    // would order them: the loser gets the preHandler 503 (nothing has been
+    // sent yet).
+
+    fn enterSlot(ctx: *anyopaque) bool {
+        const st: *RequestState = @ptrCast(@alignCast(ctx));
+        while (true) {
+            switch (st.slot.load(.acquire)) {
+                .held => return true,
+                .rejected => return false,
+                .deciding => std.atomic.spinLoopHint(), // another root field of this request
+                .none => {
+                    if (st.slot.cmpxchgWeak(.none, .deciding, .acquire, .monotonic) != null) continue;
+                    const self = st.route;
+                    const ok = tryAcquire(&self.active_requests, self.options.max_active_requests);
+                    if (ok) metrics.graphql_active_requests.inc(.{}, 1);
+                    st.slot.store(if (ok) .held else .rejected, .release);
+                    return ok;
+                },
+            }
+        }
+    }
+
+    fn releaseSlot(self: *GraphqlRoute, st: *RequestState) void {
+        if (st.slot.load(.acquire) != .held) return;
+        st.slot.store(.none, .release);
+        _ = self.active_requests.fetchSub(1, .monotonic);
+        metrics.graphql_active_requests.dec(.{}, 1);
+    }
+
+    /// The preHandler capacity rejection (`reply.code(503)...`).
+    fn sendCapacityRejection(self: *GraphqlRoute, reply: *http.Reply, started: i64) void {
+        reply.code(503);
+        reply.header("retry-after", "1");
+        self.recordRequest(started, 503, true, null);
+        reply.sendText(capacity_message);
     }
 
     // ---- hooks ----
 
     fn onRequest(ctx: *anyopaque, req: *http.Request, reply: *http.Reply) void {
         const self: *GraphqlRoute = @ptrCast(@alignCast(ctx));
-        const st = state(req);
-        // graphql.ts onRequest: bound buffered uploads independently of execution slots.
+        const st = self.state(req);
+        // graphql.ts onRequest: bound buffered uploads independently of execution
+        // slots. Like `activeRequests`, TS's counter only holds uploads still
+        // waiting for body bytes: a body already buffered is consumed within
+        // the same event-loop turn, so it is checked but never held.
         if (!std.mem.eql(u8, req.method, "GET")) {
-            self.mutex.lock();
-            const full = self.active_uploads >= self.options.max_active_uploads;
-            if (!full) self.active_uploads += 1;
-            self.mutex.unlock();
+            const full = if (req.body_pending)
+                !tryAcquire(&self.active_uploads, self.options.max_active_uploads)
+            else
+                self.active_uploads.load(.monotonic) >= self.options.max_active_uploads;
             if (full) {
                 reply.code(503);
                 reply.header("retry-after", "1");
@@ -183,7 +261,8 @@ pub const GraphqlRoute = struct {
                 reply.sendText("GraphQL upload capacity exceeded");
                 return;
             }
-            st.upload_held = true;
+            st.upload_tracked = true;
+            st.upload_held = req.body_pending;
         }
         // mercurius route onRequest: CSRF prevention.
         if (!csrfSafe(req)) {
@@ -207,8 +286,8 @@ pub const GraphqlRoute = struct {
 
     fn onSend(ctx: *anyopaque, req: *http.Request, reply: *http.Reply) void {
         const self: *GraphqlRoute = @ptrCast(@alignCast(ctx));
-        const st = state(req);
-        if (st.upload_held) {
+        const st = self.state(req);
+        if (st.upload_tracked) {
             if (req.complete) {
                 self.releaseUpload(st);
             } else {
@@ -232,54 +311,67 @@ pub const GraphqlRoute = struct {
         }
     }
 
+    /// The response did not fit the socket: TS keeps the slot it took at
+    /// preHandler until 'finish', so an admitted request that has not yielded
+    /// yet joins now (no bound: it can no longer be rejected; exceeding the
+    /// limit needs a race at the last slot).
+    fn onWriteBlocked(ctx: *anyopaque, req: *http.Request, reply: *http.Reply) void {
+        _ = reply;
+        const self: *GraphqlRoute = @ptrCast(@alignCast(ctx));
+        const st = self.state(req);
+        if (!st.admitted or st.slot.load(.acquire) != .none) return;
+        st.slot.store(.held, .release);
+        _ = self.active_requests.fetchAdd(1, .monotonic);
+        metrics.graphql_active_requests.inc(.{}, 1);
+    }
+
     fn onDone(ctx: *anyopaque, req: *http.Request, reply: *http.Reply, reason: http.DoneReason) void {
         _ = reason;
         const self: *GraphqlRoute = @ptrCast(@alignCast(ctx));
-        const st = state(req);
+        const st = self.state(req);
         self.releaseUpload(st);
         if (st.hit) |hit| {
             st.hit = null;
             self.response_cache.release(hit);
         }
+        self.releaseSlot(st);
         if (!st.admitted) return;
         st.admitted = false;
-        self.mutex.lock();
-        self.active_requests -= 1;
-        self.mutex.unlock();
-        metrics.graphql_active_requests.dec(.{}, 1);
-        const label = std.fmt.allocPrint(req.arena, "{s} {s}", .{ req.method, req.url }) catch "REQUEST /graphql";
-        self.recordRequest(st.started_ms, reply.status, false, label);
+        self.recordRequest(st.started_ms, reply.status, false, req);
     }
 
     fn releaseUpload(self: *GraphqlRoute, st: *RequestState) void {
+        st.upload_tracked = false;
         if (!st.upload_held) return;
         st.upload_held = false;
-        self.mutex.lock();
-        self.active_uploads -= 1;
-        self.mutex.unlock();
+        _ = self.active_uploads.fetchSub(1, .monotonic);
     }
 
-    fn recordRequest(self: *GraphqlRoute, started: i64, status: u16, rejected: bool, label: []const u8) void {
+    /// `req` null = the capacity rejection (`REQUEST /graphql` label).
+    fn recordRequest(self: *GraphqlRoute, started: i64, status: u16, rejected: bool, req: ?*http.Request) void {
         const duration = self.now_ms() - started;
         const outcome: []const u8 = if (rejected) "capacity_rejected" else if (status >= 500) "server_error" else if (status >= 400) "client_error" else "success";
         metrics.graphql_requests.inc(.{outcome}, 1);
         metrics.graphql_request_duration.observe(.{}, @as(f64, @floatFromInt(duration)) / 1000);
-        self.mutex.lock();
-        self.stats.requests += 1;
-        self.stats.total_ms += duration;
-        self.stats.max_ms = @max(self.stats.max_ms, duration);
-        if (rejected) self.stats.rejected += 1;
-        if (status >= 400 and status < 500) self.stats.status4xx += 1;
-        if (status >= 500) self.stats.status5xx += 1;
-        self.mutex.unlock();
-        logger.debug("{s} {d} {d}ms", .{ label, status, duration });
+        const st = &self.stats;
+        _ = st.requests.fetchAdd(1, .monotonic);
+        _ = st.total_ms.fetchAdd(duration, .monotonic);
+        _ = st.max_ms.fetchMax(duration, .monotonic);
+        if (rejected) _ = st.rejected.fetchAdd(1, .monotonic);
+        if (status >= 400 and status < 500) _ = st.status4xx.fetchAdd(1, .monotonic);
+        if (status >= 500) _ = st.status5xx.fetchAdd(1, .monotonic);
+        if (req) |r| {
+            logger.debug("{s} {s} {d} {d}ms", .{ r.method, r.url, status, duration });
+        } else {
+            logger.debug("REQUEST /graphql {d} {d}ms", .{ status, duration });
+        }
     }
 
     // ---- request flow ----
 
     fn handle(self: *GraphqlRoute, req: *http.Request, reply: *http.Reply) !void {
         const a = req.arena;
-        const st = state(req);
+        const st = self.state(req);
         // preValidation: the body is buffered; return the upload slot.
         self.releaseUpload(st);
         const is_get = std.mem.eql(u8, req.method, "GET") or std.mem.eql(u8, req.method, "HEAD");
@@ -291,20 +383,11 @@ pub const GraphqlRoute = struct {
         };
         const validated = if (is_get) try request_schema.validateQuerystring(a, raw) else try request_schema.validateBody(a, raw);
 
-        // preHandler: execution admission.
+        // preHandler: execution admission (slot taken at the first yield).
         const started = self.now_ms();
-        self.mutex.lock();
-        const full = self.active_requests >= self.options.max_active_requests;
-        if (!full) self.active_requests += 1;
-        self.mutex.unlock();
-        if (full) {
-            reply.code(503);
-            reply.header("retry-after", "1");
-            self.recordRequest(started, 503, true, "REQUEST /graphql");
-            reply.sendText("GraphQL request capacity exceeded");
-            return;
+        if (self.active_requests.load(.monotonic) >= self.options.max_active_requests) {
+            return self.sendCapacityRejection(reply, started);
         }
-        metrics.graphql_active_requests.inc(.{}, 1);
         st.admitted = true;
         st.started_ms = started;
 
@@ -356,8 +439,19 @@ pub const GraphqlRoute = struct {
         // aliases): keep the reference until the response is serialized.
         var doc_ref: ?*CachedDocument = null;
         defer if (doc_ref) |d| self.documents.release(d);
-        const outcome = try self.runGraphql(a, std.mem.eql(u8, req.method, "GET"), query, variables, operation_name, &doc_ref);
+        const admission: execute.Admission = .{ .ctx = st, .enter = enterSlot };
+        execute.admission = admission;
+        const run = self.runGraphql(a, std.mem.eql(u8, req.method, "GET"), query, variables, operation_name, &doc_ref, admission);
+        execute.admission = null;
+        const outcome = try run;
         if (self.after_execute_hook) |hook| hook(self);
+        if (st.slot.load(.acquire) == .rejected) {
+            // Lost the last slot at the first yield: the preHandler 503.
+            if (outcome == .executed) outcome.executed.deinit();
+            st.admitted = false;
+            st.prepared = null;
+            return self.sendCapacityRejection(reply, started);
+        }
         switch (outcome) {
             .thrown => |errors| self.sendThrown(req, reply, errors),
             .executed => |result| {
@@ -378,7 +472,7 @@ pub const GraphqlRoute = struct {
     /// `fastifyGraphQl(source, context, variables, operationName)`.
     /// On return `doc_ref` holds the document reference the caller must
     /// release after serializing the outcome.
-    fn runGraphql(self: *GraphqlRoute, a: Allocator, is_get_exact: bool, query: []const u8, variables: VariablesInput, operation_name: ?[]const u8, doc_ref: *?*CachedDocument) !Outcome {
+    fn runGraphql(self: *GraphqlRoute, a: Allocator, is_get_exact: bool, query: []const u8, variables: VariablesInput, operation_name: ?[]const u8, doc_ref: *?*CachedDocument, admission: execute.Admission) !Outcome {
         const doc = switch (try self.obtainDocument(a, query)) {
             .errors => |errors| return .{ .thrown = errors },
             .document => |d| d,
@@ -413,7 +507,8 @@ pub const GraphqlRoute = struct {
             },
         };
         var executor = try execute.Executor.init(a, self.schema, document, coerced, self.resolver_map.resolvers());
-        const parallel: ?execute.Parallel = if (self.options.root_field_threads > 0) .{ .active = &self.root_field_threads, .max_threads = self.options.root_field_threads, .backing = std.heap.c_allocator } else null;
+        executor.admission = admission;
+        const parallel: ?execute.Parallel = if (self.options.root_field_threads > 0) .{ .pool = &self.root_fields, .backing = std.heap.c_allocator } else null;
         return .{ .executed = try executor.executeQuery(op, parallel) };
     }
 
@@ -484,17 +579,21 @@ pub const GraphqlRoute = struct {
         if (result.errors.len > 0) self.formatterSideEffects(req, result.errors);
         // Execution errors never carry a statusCode: always 200.
         reply.code(200);
+        if (result.body) |prefixed| {
+            // `{"data":` + data already written: append errors and close.
+            var body = prefixed;
+            finishResponse(&body.writer, result.errors, true) catch return reply.sendSerializedJson("");
+            return reply.sendSerializedJson(body.written());
+        }
         reply.sendSerializedJson(serializeResponse(req.arena, 200, result.data, result.errors) catch "");
     }
 
     /// graphql.ts errorFormatter wrapper: failed flag, stats, metrics, logs.
     fn formatterSideEffects(self: *GraphqlRoute, req: *http.Request, errors: []const GqlError) void {
-        const st = state(req);
+        const st = self.state(req);
         if (!st.admitted or errors.len == 0) return;
         st.failed = true;
-        self.mutex.lock();
-        self.stats.errors += errors.len;
-        self.mutex.unlock();
+        _ = self.stats.errors.fetchAdd(errors.len, .monotonic);
         metrics.graphql_errors.inc(.{}, @floatFromInt(errors.len));
         for (errors) |e| {
             const fields = logFields(req.arena, e) catch continue;
@@ -595,18 +694,23 @@ pub fn serializeResponse(a: Allocator, status: u16, data: ?Value, errors: []cons
     var out: std.Io.Writer.Allocating = .init(a);
     const w = &out.writer;
     const schema_serialized = status >= 200 and status < 300;
-    w.writeAll("{\"data\":") catch return error.OutOfMemory;
+    w.writeAll(execute.Executor.body_prefix) catch return error.OutOfMemory;
     if (data) |d| json.stringify(w, d) catch return error.OutOfMemory else w.writeAll("null") catch return error.OutOfMemory;
-    if (errors.len > 0) {
-        w.writeAll(",\"errors\":[") catch return error.OutOfMemory;
-        for (errors, 0..) |e, i| {
-            if (i > 0) w.writeByte(',') catch return error.OutOfMemory;
-            writeError(w, e, schema_serialized) catch return error.OutOfMemory;
-        }
-        w.writeByte(']') catch return error.OutOfMemory;
-    }
-    w.writeByte('}') catch return error.OutOfMemory;
+    finishResponse(w, errors, schema_serialized) catch return error.OutOfMemory;
     return out.written();
+}
+
+/// `,"errors":[...]` (when any) and the closing brace.
+fn finishResponse(w: *std.Io.Writer, errors: []const GqlError, schema_serialized: bool) std.Io.Writer.Error!void {
+    if (errors.len > 0) {
+        try w.writeAll(",\"errors\":[");
+        for (errors, 0..) |e, i| {
+            if (i > 0) try w.writeByte(',');
+            try writeError(w, e, schema_serialized);
+        }
+        try w.writeByte(']');
+    }
+    try w.writeByte('}');
 }
 
 fn writeError(w: *std.Io.Writer, e: GqlError, path_as_strings: bool) !void {
@@ -658,7 +762,9 @@ pub const CachedDocument = struct {
     arena: std.heap.ArenaAllocator,
     source: []const u8,
     doc: *ast.Document = undefined,
-    refs: u32 = 1,
+    /// Taken under the cache mutex (a mapped document always holds the
+    /// cache's reference); dropped lock-free, last one frees.
+    refs: std.atomic.Value(u32) = .init(1),
     cached: bool = false,
     prev: ?*CachedDocument = null,
     next: ?*CachedDocument = null,
@@ -704,9 +810,11 @@ pub const DocumentCache = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         const d = self.map.get(source) orelse return null;
-        self.unlink(d);
-        self.push(d);
-        d.refs += 1;
+        if (self.tail != d) {
+            self.unlink(d);
+            self.push(d);
+        }
+        _ = d.refs.fetchAdd(1, .monotonic);
         return d;
     }
 
@@ -729,15 +837,14 @@ pub const DocumentCache = struct {
         if (self.map.get(d.source) != null) return d; // uncached private copy
         self.map.put(self.gpa, d.source, d) catch return d;
         d.cached = true;
-        d.refs += 1;
+        _ = d.refs.fetchAdd(1, .monotonic);
         self.push(d);
         if (self.len > document_cache_size) {
             const oldest = self.head.?;
             self.unlink(oldest);
             _ = self.map.remove(oldest.source);
             oldest.cached = false;
-            oldest.refs -= 1;
-            if (oldest.refs == 0) self.free(oldest);
+            self.release(oldest);
         }
         return d;
     }
@@ -750,17 +857,12 @@ pub const DocumentCache = struct {
             self.unlink(d);
             _ = self.map.remove(d.source);
             d.cached = false;
-            d.refs -= 1;
-            if (d.refs == 0) self.free(d);
+            self.release(d);
         }
     }
 
     fn release(self: *DocumentCache, d: *CachedDocument) void {
-        self.mutex.lock();
-        d.refs -= 1;
-        const last = d.refs == 0;
-        self.mutex.unlock();
-        if (last) self.free(d);
+        if (d.refs.fetchSub(1, .acq_rel) == 1) self.free(d);
     }
 };
 

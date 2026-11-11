@@ -1,15 +1,19 @@
 //! HTTP/1.1 server reproducing Node `http` + Fastify 5 + @fastify/cors
 //! behaviour for this app (see `types.zig` for the request lifecycle).
 //!
-//! Threads: one accept thread; one thread per connection (keep-alive loop,
-//! later the WebSocket reader after an upgrade). Every blocking read is
-//! bounded by poll() deadlines: requestTimeout (10s from the first byte of a
-//! request until it is fully received -> 408), keepAliveTimeout (72s idle).
+//! Evented (`loop.zig`): sockets are non-blocking and registered
+//! edge-triggered on one epoll/kqueue set; whichever poller thread receives
+//! an event drives that connection (read, parse, hooks, write) until it would
+//! block, then parks it. Deadlines live on the slot and a tick sweeps them:
+//! requestTimeout (10 s from the start of a request head, or from accept for
+//! a fresh socket -> 408), keepAliveTimeout (72 s idle -> silent close).
 const std = @import("std");
 const builtin = @import("builtin");
 const core = @import("core");
 const types = @import("types.zig");
 const parse = @import("parse.zig");
+const loop_mod = @import("loop.zig");
+const ws = @import("ws.zig");
 
 const posix = std.posix;
 const Request = types.Request;
@@ -17,15 +21,17 @@ const Reply = types.Reply;
 const Route = types.Route;
 const Header = types.Header;
 const FastifyError = types.FastifyError;
+const Loop = loop_mod.Loop;
+const monoMs = loop_mod.monoMs;
 
 const log = core.log.child("Http");
 
 pub const UpgradeHandler = struct {
     ctx: *anyopaque,
-    /// Node `server.on('upgrade', (req, socket, head))`: called on the
-    /// connection thread for requests carrying `Upgrade` + `Connection:
-    /// upgrade`. The callee owns `socket` from here on: hand it to
-    /// `ws.Server.handleUpgrade` or call `socket.destroy()`.
+    /// Node `server.on('upgrade', (req, socket, head))`: called on a poller
+    /// thread for requests carrying `Upgrade` + `Connection: upgrade`. The
+    /// callee owns `socket` from here on: hand it to `ws.Server.handleUpgrade`
+    /// or call `socket.destroy()`.
     on_upgrade: *const fn (ctx: *anyopaque, req: *Request, socket: *UpgradeSocket) void,
 };
 
@@ -35,12 +41,10 @@ pub const UpgradeSocket = struct {
     /// Bytes received after the request head (Node `head`).
     head: []const u8,
     remote_address: std.net.Address,
-    /// Set by `ws` when it takes over the socket: the connection thread runs
-    /// this after `on_upgrade` returns (the WebSocket reader loop).
-    takeover: ?Takeover = null,
+    /// Set by `ws` when it takes over the socket: the server attaches it to
+    /// the poller set after `on_upgrade` returns.
+    takeover: ?*ws.Conn = null,
     destroyed: bool = false,
-
-    pub const Takeover = struct { ctx: *anyopaque, run: *const fn (ctx: *anyopaque) void };
 
     /// `socket.destroy()`.
     pub fn destroy(self: *UpgradeSocket) void {
@@ -55,43 +59,95 @@ pub const Options = struct {
     routes: []const Route = &.{},
     upgrade: ?UpgradeHandler = null,
     /// Fastify `requestTimeout` (Node enforces it on a 30s check interval;
-    /// here it is exact).
+    /// here within one tick).
     request_timeout_ms: u32 = 10_000,
     /// Fastify default `keepAliveTimeout`.
     keep_alive_timeout_ms: u32 = 72_000,
-    /// Thread-per-connection cap; extra clients wait in the kernel backlog.
-    max_connections: u32 = 8192,
-    /// Per-connection thread stack (virtual; touched pages only).
+    /// Pollers running at once. One about to block in the database (or any
+    /// `core.blocking` section) hands its place to another.
+    pollers: u32 = 1,
+    /// Poller threads cap: running + blocked + parked.
+    max_threads: u32 = 256,
+    /// Poller thread stack (virtual; touched pages only).
     thread_stack_bytes: usize = 8 * 1024 * 1024,
     kernel_backlog: u31 = 511,
 };
+
+const buf_len = 64 * 1024;
+
+/// A request arena with a stable address (requests keep `*ArenaBox` across
+/// parks; idle sockets own none).
+const ArenaBox = struct {
+    arena: std.heap.ArenaAllocator,
+    next: ?*ArenaBox = null,
+
+    fn reset(self: *ArenaBox) void {
+        _ = self.arena.reset(.{ .retain_with_limit = 256 * 1024 });
+    }
+};
+
+/// Per poller thread: the read buffer every driven socket uses and the arena
+/// for requests that complete without parking.
+const Scratch = struct {
+    buf: [buf_len]u8 = undefined,
+    arena: ?*ArenaBox = null,
+};
+
+threadlocal var tls_scratch: ?*Scratch = null;
+
+fn scratch() !*Scratch {
+    if (tls_scratch) |s| return s;
+    const s = try std.heap.c_allocator.create(Scratch);
+    s.* = .{};
+    tls_scratch = s;
+    return s;
+}
+
+/// The calling poller thread's read buffer.
+pub fn readBuffer() ![]u8 {
+    return &(try scratch()).buf;
+}
+
+fn freeScratch() void {
+    const s = tls_scratch orelse return;
+    tls_scratch = null;
+    if (s.arena) |box| {
+        box.arena.deinit();
+        std.heap.c_allocator.destroy(box);
+    }
+    std.heap.c_allocator.destroy(s);
+}
 
 pub const Server = struct {
     gpa: std.mem.Allocator,
     options: Options,
     listen_fd: posix.socket_t,
     address: std.net.Address,
-    stop_pipe: [2]posix.fd_t,
-    accept_thread: ?std.Thread = null,
+    loop: Loop = undefined,
+    listener_index: u32 = 0,
+    listener_gen: u32 = 0,
+    started: bool = false,
     mutex: std.Thread.Mutex = .{},
     cond: std.Thread.Condition = .{},
-    /// HTTP connections (not upgraded ones).
+    /// HTTP connections (not upgraded, not lingering).
     connections: u32 = 0,
-    /// Upgraded sockets whose reader still runs on a connection thread.
+    /// Upgraded sockets whose reader still runs.
     upgraded: u32 = 0,
-    /// Threads in `lingerClose`: they count against `max_connections` but do
-    /// not hold up `close()`.
+    /// Connections in a lingering close: they do not hold up `close()`.
     lingering: u32 = 0,
     closing: std.atomic.Value(bool) = .init(false),
     listener_closed: bool = false,
-    /// Live HTTP connections (intrusive list; touched only at connection
-    /// start/end, never per request). `close` shuts down the idle ones.
-    live: ?*Connection = null,
+    /// Free request arenas (bounded).
+    arenas: ?*ArenaBox = null,
+    arena_count: u32 = 0,
+    accept_backoff_ms: i64 = 10,
+    accept_retry_pinned: bool = false,
+    last_accept_log: i64 = 0,
 
     /// Binds and listens (like `app.listen`); errors surface immediately.
     pub fn init(gpa: std.mem.Allocator, options: Options) !*Server {
         const address = try std.net.Address.parseIp(options.host, options.port);
-        const fd = try posix.socket(address.any.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, posix.IPPROTO.TCP);
+        const fd = try posix.socket(address.any.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC | posix.SOCK.NONBLOCK, posix.IPPROTO.TCP);
         errdefer posix.close(fd);
         try posix.setsockopt(fd, posix.SOL.SOCKET, posix.SO.REUSEADDR, &std.mem.toBytes(@as(c_int, 1)));
         var len = address.getOsSockLen();
@@ -99,9 +155,29 @@ pub const Server = struct {
         try posix.listen(fd, options.kernel_backlog);
         var bound: std.net.Address = undefined;
         try posix.getsockname(fd, &bound.any, &len);
-        const pipe = try posix.pipe2(.{ .CLOEXEC = true, .NONBLOCK = true });
         const self = try gpa.create(Server);
-        self.* = .{ .gpa = gpa, .options = options, .listen_fd = fd, .address = bound, .stop_pipe = pipe };
+        errdefer gpa.destroy(self);
+        self.* = .{ .gpa = gpa, .options = options, .listen_fd = fd, .address = bound };
+        try self.loop.init(gpa, .{
+            // Without `core.blocking` the database cannot hand off: stay elastic.
+            .active = if (@hasDecl(core, "blocking")) options.pollers else options.max_threads,
+            .max_threads = options.max_threads,
+            .stack_size = options.thread_stack_bytes,
+            .tick_ms = std.math.clamp(@min(options.request_timeout_ms, options.keep_alive_timeout_ms) / 10, 5, 250),
+        }, .{
+            .ctx = self,
+            .on_event = onEvent,
+            .on_posted = onPosted,
+            .on_tick = onTick,
+            .on_thread_exit = onThreadExit,
+        });
+        errdefer self.loop.deinit();
+        const slot = try self.loop.allocSlot(.listener, self);
+        self.listener_index = slot.index;
+        self.listener_gen = slot.gen;
+        try self.loop.register(fd, slot.index, slot.gen);
+        // No poller runs yet: nothing can have set a pending bit.
+        _ = loop_mod.release(self.loop.slot(slot.index), loop_mod.R, 0);
         return self;
     }
 
@@ -111,7 +187,8 @@ pub const Server = struct {
 
     /// Starts accepting connections.
     pub fn start(self: *Server) !void {
-        self.accept_thread = try std.Thread.spawn(.{}, acceptLoop, .{self});
+        try self.loop.start();
+        self.started = true;
     }
 
     pub fn isClosing(self: *const Server) bool {
@@ -124,20 +201,26 @@ pub const Server = struct {
     /// sockets are not touched (their owner closes them).
     pub fn close(self: *Server, timeout_ms: u64) void {
         if (self.closing.swap(true, .acq_rel)) return;
-        _ = posix.write(self.stop_pipe[1], "x") catch {};
-        if (self.accept_thread) |t| {
-            t.join();
-            self.accept_thread = null;
+        const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
+        if (!self.started) {
+            self.closeListener();
+        } else {
+            self.kick(self.listener_index, self.listener_gen);
+            self.mutex.lock();
+            while (!self.listener_closed) self.cond.timedWait(&self.mutex, 10 * std.time.ns_per_ms) catch {};
+            self.mutex.unlock();
+        }
+        // Idle keep-alive connections close on the kick (pairs with the
+        // closing check when a connection goes idle).
+        const count = self.loop.slotCount();
+        var i: u32 = 0;
+        while (i < count) : (i += 1) {
+            const slot = self.loop.slot(i);
+            const g = slot.gen();
+            if (slot.kind == .http) self.kick(i, g);
         }
         self.mutex.lock();
         defer self.mutex.unlock();
-        // Pairs with Connection.enterIdle: either we see `idle`, or the
-        // connection sees `closing` after publishing it.
-        var it = self.live;
-        while (it) |conn| : (it = conn.next) {
-            if (conn.idle.load(.seq_cst)) posix.shutdown(conn.fd, .both) catch {};
-        }
-        const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
         while (self.connections > 0) {
             const remaining = deadline - std.time.milliTimestamp();
             if (remaining <= 0) break;
@@ -145,8 +228,8 @@ pub const Server = struct {
         }
     }
 
-    /// Waits for upgraded connection threads to finish (after their owner
-    /// closed them), then frees the server.
+    /// Waits for upgraded sockets to finish (after their owner closed them)
+    /// and lingering closes to end, stops the pollers, then frees the server.
     pub fn deinit(self: *Server) void {
         self.close(10_000);
         self.mutex.lock();
@@ -158,163 +241,224 @@ pub const Server = struct {
         }
         const leaked = self.upgraded > 0 or self.connections > 0 or self.lingering > 0;
         self.mutex.unlock();
-        posix.close(self.stop_pipe[0]);
-        posix.close(self.stop_pipe[1]);
-        // Connection threads still reference the server: leak rather than free.
-        if (!leaked) self.gpa.destroy(self);
+        // Sockets still alive reference the server and the loop: leak them.
+        if (leaked) return;
+        self.loop.deinit();
+        while (self.arenas) |box| {
+            self.arenas = box.next;
+            box.arena.deinit();
+            std.heap.c_allocator.destroy(box);
+        }
+        self.gpa.destroy(self);
     }
 
-    fn acceptLoop(self: *Server) void {
-        defer {
-            posix.close(self.listen_fd);
-            self.listener_closed = true;
-        }
-        var backoff_ms: u64 = 10;
-        var last_accept_log: i64 = 0;
-        while (!self.isClosing()) {
-            self.mutex.lock();
-            while (self.connections + self.upgraded + self.lingering >= self.options.max_connections and !self.isClosing())
-                self.cond.timedWait(&self.mutex, 100 * std.time.ns_per_ms) catch {};
-            self.mutex.unlock();
-            var fds = [_]posix.pollfd{
-                .{ .fd = self.listen_fd, .events = posix.POLL.IN, .revents = 0 },
-                .{ .fd = self.stop_pipe[0], .events = posix.POLL.IN, .revents = 0 },
-            };
-            _ = posix.poll(&fds, -1) catch continue;
-            if (fds[1].revents != 0 or self.isClosing()) return;
-            if (fds[0].revents == 0) continue;
-            var addr: std.net.Address = undefined;
-            var addr_len: posix.socklen_t = @sizeOf(std.net.Address);
-            const fd = posix.accept(self.listen_fd, &addr.any, &addr_len, posix.SOCK.CLOEXEC) catch |e| {
-                switch (e) {
-                    error.ConnectionAborted, error.WouldBlock => {},
-                    else => {
-                        // Persistent failures (EMFILE/ENFILE): back off up to 1 s
-                        // and log at most once per second.
-                        const now = nowMs();
-                        if (now - last_accept_log >= 1000) {
-                            log.err("accept failed: {s}", .{@errorName(e)});
-                            last_accept_log = now;
-                        }
-                        std.Thread.sleep(backoff_ms * std.time.ns_per_ms);
-                        backoff_ms = @min(backoff_ms * 2, 1000);
-                    },
-                }
-                continue;
-            };
-            backoff_ms = 10;
-            setNoDelay(fd);
-            if (builtin.os.tag == .macos) {
-                posix.setsockopt(fd, posix.SOL.SOCKET, std.c.SO.NOSIGPIPE, &std.mem.toBytes(@as(c_int, 1))) catch {};
-            }
-            self.mutex.lock();
-            self.connections += 1;
-            self.mutex.unlock();
-            const thread = std.Thread.spawn(.{ .stack_size = self.options.thread_stack_bytes }, connectionMain, .{ self, fd, addr }) catch |e| {
-                log.err("connection thread spawn failed: {s}", .{@errorName(e)});
-                posix.close(fd);
-                self.connectionEnded(false);
-                continue;
-            };
-            thread.detach();
-        }
+    /// Claims R (then hands the connection to a poller) or flags KICK for its holder.
+    fn kick(self: *Server, index: u32, gen: u32) void {
+        if (loop_mod.claim(self.loop.slot(index), gen, loop_mod.R, loop_mod.KICK) == .claimed)
+            self.loop.post(index, gen, loop_mod.R | loop_mod.KICK);
     }
 
-    fn connectionEnded(self: *Server, upgraded: bool) void {
+    fn closeListener(self: *Server) void {
+        posix.close(self.listen_fd);
+        if (self.accept_retry_pinned) self.loop.unpinTick();
+        self.accept_retry_pinned = false;
+        self.loop.freeSlot(self.listener_index);
         self.mutex.lock();
         defer self.mutex.unlock();
-        if (upgraded) self.upgraded -= 1 else self.connections -= 1;
+        self.listener_closed = true;
         self.cond.broadcast();
     }
 
-    fn link(self: *Server, conn: *Connection) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        conn.next = self.live;
-        if (self.live) |head| head.prev = conn;
-        self.live = conn;
+    // -- loop callbacks ---------------------------------------------------------------
+
+    fn onEvent(ctx: *anyopaque, index: u32, gen: u32, ev: loop_mod.Event) void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        const slot = self.loop.slot(index);
+        const word = slot.state.load(.acquire);
+        if (loop_mod.Slot.genOf(word) != gen) return;
+        if (slot.kind == .ws) {
+            // WebSocket reads and writes are driven independently (R / W).
+            if (ev.writable and loop_mod.Slot.bitsOf(word) & loop_mod.WANT_W != 0) {
+                if (loop_mod.claim(slot, gen, loop_mod.W, loop_mod.W_AGAIN) == .claimed) wsConn(slot).runWriter();
+            }
+            if (!ev.readable and !ev.hup) return;
+        }
+        // A hangup merged into this edge must survive a short read (sticky).
+        const again = loop_mod.R_AGAIN | (if (ev.hup) loop_mod.R_HUP else 0);
+        if (loop_mod.claim(slot, gen, loop_mod.R, again) != .claimed) return;
+        self.runSlot(index, if (ev.hup) .hup else .io, false);
     }
 
-    fn unlink(self: *Server, conn: *Connection) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        if (conn.prev) |p| p.next = conn.next else self.live = conn.next;
-        if (conn.next) |n| n.prev = conn.prev;
+    fn onPosted(ctx: *anyopaque, index: u32, gen: u32, token: u32) void {
+        _ = gen;
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        if (token & loop_mod.W != 0) return wsConn(self.loop.slot(index)).runWriter();
+        self.runSlot(index, .none, token & loop_mod.KICK != 0);
     }
 
-    fn connectionMain(self: *Server, fd: posix.socket_t, addr: std.net.Address) void {
-        var conn: Connection = .{ .server = self, .fd = fd, .remote = addr };
-        self.link(&conn);
-        const outcome = conn.run();
-        self.unlink(&conn);
-        switch (outcome) {
-            .closed => {
-                posix.close(fd);
-                self.connectionEnded(false);
+    fn wsConn(slot: *loop_mod.Slot) *ws.Conn {
+        return @ptrCast(@alignCast(slot.ptr.?));
+    }
+
+    /// R is held.
+    fn runSlot(self: *Server, index: u32, io: loop_mod.Io, kicked: bool) void {
+        const slot = self.loop.slot(index);
+        switch (slot.kind) {
+            .listener => self.runListener(),
+            .http => {
+                const conn: *Connection = @ptrCast(@alignCast(slot.ptr.?));
+                conn.run(io, kicked);
             },
-            .ended => {
-                // The exchange is over: don't hold up `close()` on the peer,
-                // but keep the thread within the connection cap.
-                const linger_ms = self.options.request_timeout_ms;
-                self.mutex.lock();
-                self.connections -= 1;
-                self.lingering += 1;
-                self.cond.broadcast();
-                self.mutex.unlock();
-                lingerClose(self, fd, linger_ms);
-                self.mutex.lock();
-                self.lingering -= 1;
-                self.cond.broadcast();
-                self.mutex.unlock();
-            },
-            .upgraded => |takeover| {
-                self.mutex.lock();
-                self.connections -= 1;
-                self.upgraded += 1;
-                self.cond.broadcast();
-                self.mutex.unlock();
-                takeover.run(takeover.ctx);
-                self.connectionEnded(true);
-            },
+            .ws => wsConn(slot).runReader(io, kicked),
+            .free => unreachable,
         }
     }
-};
 
-/// Half-closes, then discards input until the peer closes (bounded; cut
-/// short once the server is closing).
-fn lingerClose(server: *const Server, fd: posix.socket_t, timeout_ms: u32) void {
-    defer posix.close(fd);
-    posix.shutdown(fd, .send) catch return;
-    const deadline = nowMs() + timeout_ms;
-    var buf: [16 * 1024]u8 = undefined;
-    while (!server.isClosing()) {
-        const remaining = deadline - nowMs();
-        if (remaining <= 0) return;
-        var fds = [_]posix.pollfd{.{ .fd = fd, .events = posix.POLL.IN, .revents = 0 }};
-        const ready = posix.poll(&fds, @intCast(@min(remaining, 100))) catch return;
-        if (ready == 0) continue;
-        const n = posix.read(fd, &buf) catch return;
-        if (n == 0) return;
+    fn onTick(ctx: *anyopaque) void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        const now = monoMs();
+        const count = self.loop.slotCount();
+        var i: u32 = 0;
+        while (i < count) : (i += 1) {
+            const slot = self.loop.slot(i);
+            const g = slot.gen();
+            if (slot.deadline.load(.acquire) > now) continue;
+            // Expiry runs on another poller: a re-run may reach a hook.
+            if (loop_mod.claim(slot, g, loop_mod.R, loop_mod.KICK) == .claimed) self.loop.post(i, g, loop_mod.R | loop_mod.KICK);
+        }
     }
-}
+
+    fn onThreadExit(_: *anyopaque) void {
+        freeScratch();
+    }
+
+    // -- accept -----------------------------------------------------------------------
+
+    /// R on the listener is held.
+    fn runListener(self: *Server) void {
+        const slot = self.loop.slot(self.listener_index);
+        while (true) {
+            if (self.isClosing()) return self.closeListener();
+            slot.deadline.store(loop_mod.no_deadline, .release);
+            var accepted: [16]*Connection = undefined;
+            var n: usize = 0;
+            var more = false;
+            while (n < accepted.len) {
+                var addr: std.net.Address = undefined;
+                var addr_len: posix.socklen_t = @sizeOf(std.net.Address);
+                const fd = posix.accept(self.listen_fd, &addr.any, &addr_len, posix.SOCK.CLOEXEC | posix.SOCK.NONBLOCK) catch |e| switch (e) {
+                    error.WouldBlock => break,
+                    error.ConnectionAborted => continue,
+                    else => {
+                        // Persistent failures (EMFILE/ENFILE): retry from the
+                        // tick after a backoff up to 1 s; log at most once per second.
+                        const now = std.time.milliTimestamp();
+                        if (now - self.last_accept_log >= 1000) {
+                            log.err("accept failed: {s}", .{@errorName(e)});
+                            self.last_accept_log = now;
+                        }
+                        slot.deadline.store(monoMs() + self.accept_backoff_ms, .release);
+                        self.accept_backoff_ms = @min(self.accept_backoff_ms * 2, 1000);
+                        if (!self.accept_retry_pinned) self.loop.pinTick();
+                        self.accept_retry_pinned = true;
+                        break;
+                    },
+                };
+                self.accept_backoff_ms = 10;
+                if (self.accept_retry_pinned) self.loop.unpinTick();
+                self.accept_retry_pinned = false;
+                if (self.newConnection(fd, addr)) |conn| {
+                    accepted[n] = conn;
+                    n += 1;
+                }
+            } else more = true;
+            // Let other pollers pick up the rest before serving one here.
+            if (n > 1) for (accepted[1..n]) |conn| conn.handOff();
+            const pending = if (more) loop_mod.R_AGAIN else loop_mod.release(slot, loop_mod.R, loop_mod.R_AGAIN | loop_mod.KICK);
+            if (pending != 0) {
+                // Still held: another poller continues accepting.
+                self.loop.post(self.listener_index, self.listener_gen, loop_mod.R);
+            }
+            if (n > 0) accepted[0].run(.io, false);
+            return;
+        }
+    }
+
+    fn newConnection(self: *Server, fd: posix.socket_t, addr: std.net.Address) ?*Connection {
+        setNoDelay(fd);
+        if (builtin.os.tag == .macos) {
+            posix.setsockopt(fd, posix.SOL.SOCKET, std.c.SO.NOSIGPIPE, &std.mem.toBytes(@as(c_int, 1))) catch {};
+        }
+        const conn = self.gpa.create(Connection) catch {
+            posix.close(fd);
+            return null;
+        };
+        const slot = self.loop.allocSlot(.http, conn) catch {
+            self.gpa.destroy(conn);
+            posix.close(fd);
+            return null;
+        };
+        const now = monoMs();
+        conn.* = .{ .server = self, .fd = fd, .remote = addr, .index = slot.index, .gen = slot.gen, .idle_since = now };
+        self.mutex.lock();
+        self.connections += 1;
+        self.mutex.unlock();
+        return conn;
+    }
+
+    fn connectionEnded(self: *Server, lingering: bool) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (lingering) self.lingering -= 1 else self.connections -= 1;
+        self.cond.broadcast();
+    }
+
+    pub fn upgradedEnded(self: *Server) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.upgraded -= 1;
+        self.cond.broadcast();
+    }
+
+    // -- arenas -----------------------------------------------------------------------
+
+    fn acquireArena(self: *Server) !*ArenaBox {
+        self.mutex.lock();
+        if (self.arenas) |box| {
+            self.arenas = box.next;
+            self.arena_count -= 1;
+            self.mutex.unlock();
+            return box;
+        }
+        self.mutex.unlock();
+        const box = try std.heap.c_allocator.create(ArenaBox);
+        box.* = .{ .arena = .init(std.heap.c_allocator) };
+        return box;
+    }
+
+    fn releaseArena(self: *Server, box: *ArenaBox) void {
+        box.reset();
+        self.mutex.lock();
+        if (self.arena_count < 64) {
+            box.next = self.arenas;
+            self.arenas = box;
+            self.arena_count += 1;
+            self.mutex.unlock();
+            return;
+        }
+        self.mutex.unlock();
+        box.arena.deinit();
+        std.heap.c_allocator.destroy(box);
+    }
+};
 
 fn setNoDelay(fd: posix.socket_t) void {
     posix.setsockopt(fd, posix.IPPROTO.TCP, posix.TCP.NODELAY, &std.mem.toBytes(@as(c_int, 1))) catch {};
 }
 
-fn nowMs() i64 {
-    return std.time.milliTimestamp();
-}
 // ---------------------------------------------------------------------------
 // Connection
 // ---------------------------------------------------------------------------
-
-/// `closed`: destroy the socket; `ended`: Node `socket.end()` after a final
-/// response (half-close, then read until the peer closes so unread request
-/// bytes do not turn into a TCP reset).
-const Outcome = union(enum) { closed, ended, upgraded: UpgradeSocket.Takeover };
-
-const ReadError = error{ Timeout, Closed };
 
 /// Node `clientError` handled by Fastify's `defaultClientErrorHandler`.
 const ClientError = enum {
@@ -331,77 +475,203 @@ const ClientError = enum {
     }
 };
 
+/// Where a connection waits when it parks.
+const Phase = enum {
+    /// No request bytes buffered (fresh socket or keep-alive idle).
+    idle,
+    /// A request head is arriving.
+    head,
+    /// The handler waits for the request body.
+    body,
+    /// Output is pending (`after` runs once it is written or failed).
+    write,
+    /// Node `req._dump()`: discarding the rest of a body after the response.
+    drain,
+    /// Half-closed after a final response; discarding until the peer closes.
+    linger,
+};
+
+/// What follows a write.
+const After = enum {
+    /// Fastify reply: `on_done`, then keep-alive/end/close.
+    response,
+    /// A response that bypasses Fastify (417, bad URL), then like `response`.
+    complete,
+    /// `100 Continue`, then the exchange goes on.
+    continue_100,
+    /// Lingering close (Node `socket.end()`).
+    end,
+    /// Destroy the socket.
+    close,
+};
+
+/// `null` from a step: keep driving.
+const Step = enum { park, gone };
+
+/// One request in flight; lives in the request arena.
+const Exchange = struct {
+    req: Request,
+    reply: Reply,
+    route: ?*const Route = null,
+    keep_alive: bool,
+    /// Keep-alive decision of the written response.
+    keep_after: bool = false,
+    /// `on_write_blocked` already ran.
+    write_blocked: bool = false,
+    kind: enum { json, text } = .text,
+    limit: usize = default_body_limit,
+    raw: std.ArrayList(u8) = .empty,
+};
+
 const Connection = struct {
     server: *Server,
     fd: posix.socket_t,
     remote: std.net.Address,
-    buf: [64 * 1024]u8 = undefined,
+    index: u32,
+    gen: u32,
+    /// The thread scratch buffer while driven; leftovers move to `pending`.
+    buf: *[buf_len]u8 = undefined,
     start: usize = 0,
     end: usize = 0,
-    /// Waiting for the next keep-alive request (`close` may shut it down).
-    idle: std.atomic.Value(bool) = .init(false),
-    /// Current SO_RCVTIMEO in ms (0 = none); reads block with this timeout
-    /// instead of a poll() per read.
-    recv_timeout_ms: ?u32 = null,
-    prev: ?*Connection = null,
-    next: ?*Connection = null,
+    pending: []u8 = &.{},
+    /// A read may return data: set by every event, cleared by a short read.
+    readable: bool = true,
+    /// The peer hung up (or the socket failed): read until EOF/error.
+    hup: bool = false,
+    registered: bool = false,
+    write_armed: bool = false,
+    first: bool = true,
+    in_linger: bool = false,
+    phase: Phase = .idle,
+    idle_since: i64,
+    head_deadline: i64 = loop_mod.no_deadline,
+    linger_until: i64 = loop_mod.no_deadline,
+    /// Request arena owned across parks (null: the thread's).
+    arena_box: ?*ArenaBox = null,
+    ex: ?*Exchange = null,
+    body: BodyReader = .{ .framing = .none },
+    out: [2][]const u8 = .{ "", "" },
+    after: After = .close,
 
-    fn run(self: *Connection) Outcome {
-        var arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-        defer arena_state.deinit();
-        var first = true;
+    fn slot(self: *Connection) *loop_mod.Slot {
+        return self.server.loop.slot(self.index);
+    }
+
+    /// Drives the connection; R is held. Returns once it parked and released
+    /// R, or the connection is gone.
+    fn run(self: *Connection, io: loop_mod.Io, kick: bool) void {
+        var kicked = kick;
+        self.noteIo(io);
         while (true) {
-            _ = arena_state.reset(.{ .retain_with_limit = 256 * 1024 });
-            const arena = arena_state.allocator();
-            if (self.end == self.start) {
-                // Node: a fresh socket gets requestTimeout (-> 408); an idle
-                // keep-alive socket is closed silently after keepAliveTimeout.
-                if (!first) {
-                    self.idle.store(true, .seq_cst);
-                    if (self.server.isClosing()) return .closed;
-                }
-                const timeout = if (first) self.server.options.request_timeout_ms else self.server.options.keep_alive_timeout_ms;
-                const got = self.fill(timeout);
-                self.idle.store(false, .seq_cst);
-                _ = got catch |e| switch (e) {
-                    error.Closed => return .closed,
-                    error.Timeout => {
-                        if (first) self.clientError(.timeout);
-                        return .closed;
-                    },
-                };
-            }
-            first = false;
-            const deadline = nowMs() + @as(i64, self.server.options.request_timeout_ms);
-            const head = self.readHead(arena, deadline) catch |e| switch (e) {
-                error.Timeout => return self.failClient(.timeout),
-                error.HeaderOverflow => return self.failClient(.header_overflow),
-                error.BadRequest => return self.failClient(.bad_request),
-                error.Closed, error.OutOfMemory => return .closed,
+            const s = scratch() catch {
+                _ = self.destroy();
+                return;
             };
-            self.start += head.len;
-            const keep = self.exchange(arena, head, deadline) catch return .closed;
-            switch (keep) {
-                .keep_alive => continue,
-                .close => return .closed,
-                .end => return .ended,
-                .upgraded => |t| return .{ .upgraded = t },
-            }
+            self.bind(s);
+            if (self.drive(kicked) == .gone) return;
+            const pending = loop_mod.release(self.slot(), loop_mod.R, loop_mod.r_pending);
+            if (pending == 0) return;
+            self.noteIo(loop_mod.Io.fromPending(pending));
+            kicked = pending & loop_mod.KICK != 0;
         }
     }
 
-    fn failClient(self: *Connection, kind: ClientError) Outcome {
-        self.clientError(kind);
-        return .closed;
+    fn noteIo(self: *Connection, io: loop_mod.Io) void {
+        switch (io) {
+            .none => {},
+            .io => self.readable = true,
+            .hup => {
+                self.readable = true;
+                self.hup = true;
+            },
+        }
     }
 
-    fn clientError(self: *Connection, kind: ClientError) void {
-        _ = writeFd(self.fd, kind.bytes());
+    /// A new socket another poller should serve: register it and let go.
+    fn handOff(self: *Connection) void {
+        if (self.park() == .gone) return;
+        const pending = loop_mod.release(self.slot(), loop_mod.R, loop_mod.r_pending);
+        if (pending != 0) self.run(loop_mod.Io.fromPending(pending), pending & loop_mod.KICK != 0);
     }
 
-    /// Reads more bytes into `buf` (compacting first). `timeout_ms` 0 waits
-    /// indefinitely.
-    fn fill(self: *Connection, timeout_ms: u32) ReadError!usize {
+    fn bind(self: *Connection, s: *Scratch) void {
+        self.buf = &s.buf;
+        self.start = 0;
+        self.end = self.pending.len;
+        if (self.pending.len > 0) {
+            @memcpy(self.buf[0..self.pending.len], self.pending);
+            self.server.gpa.free(self.pending);
+            self.pending = &.{};
+        }
+    }
+
+    fn arena(self: *Connection) !std.mem.Allocator {
+        if (self.arena_box) |box| return box.arena.allocator();
+        const s = try scratch();
+        if (s.arena == null) s.arena = try self.server.acquireArena();
+        return s.arena.?.arena.allocator();
+    }
+
+    /// The request is over: its arena is reset for the next one.
+    fn endRequest(self: *Connection) void {
+        if (self.ex == null) return;
+        self.ex = null;
+        if (self.arena_box) |box| {
+            self.arena_box = null;
+            self.server.releaseArena(box);
+        } else if (tls_scratch) |s| if (s.arena) |box| box.reset();
+    }
+
+    fn deadline(self: *const Connection) i64 {
+        const o = self.server.options;
+        return switch (self.phase) {
+            .idle => self.idle_since + @as(i64, if (self.first) o.request_timeout_ms else o.keep_alive_timeout_ms),
+            .head => self.head_deadline,
+            .linger => self.linger_until,
+            .body, .write, .drain => loop_mod.no_deadline,
+        };
+    }
+
+    /// Saves state and registers interest; the caller then releases R.
+    fn park(self: *Connection) Step {
+        if (self.start < self.end) {
+            self.pending = self.server.gpa.dupe(u8, self.buf[self.start..self.end]) catch return self.destroy();
+        }
+        self.start = 0;
+        self.end = 0;
+        if (self.ex != null and self.arena_box == null) {
+            // The request outlives this thread's turn: hand its arena over.
+            const s = tls_scratch.?;
+            self.arena_box = s.arena;
+            s.arena = null;
+        }
+        const want_write = self.phase == .write;
+        if (!self.registered) {
+            self.server.loop.register(self.fd, self.index, self.gen) catch return self.destroy();
+            self.registered = true;
+        }
+        if (want_write and !self.write_armed) {
+            self.server.loop.enableWrite(self.fd, self.index, self.gen) catch return self.destroy();
+            self.write_armed = true;
+        }
+        self.slot().deadline.store(self.deadline(), .release);
+        return .park;
+    }
+
+    fn destroy(self: *Connection) Step {
+        const server = self.server;
+        if (self.ex != null) self.endRequest();
+        posix.close(self.fd);
+        if (self.pending.len > 0) server.gpa.free(self.pending);
+        server.loop.freeSlot(self.index);
+        const lingering = self.in_linger;
+        server.gpa.destroy(self);
+        server.connectionEnded(lingering);
+        return .gone;
+    }
+
+    /// Reads more bytes into `buf` (compacting first).
+    fn fill(self: *Connection) error{ WouldBlock, Closed }!usize {
         if (self.start == self.end) {
             self.start = 0;
             self.end = 0;
@@ -410,123 +680,218 @@ const Connection = struct {
             self.end -= self.start;
             self.start = 0;
         }
-        if (!self.setRecvTimeout(timeout_ms)) return error.Closed;
+        if (!self.readable) return error.WouldBlock;
+        const space = self.buf.len - self.end;
         const n = posix.read(self.fd, self.buf[self.end..]) catch |e| switch (e) {
-            error.WouldBlock => return error.Timeout,
+            error.WouldBlock => {
+                self.readable = false;
+                return error.WouldBlock;
+            },
             else => return error.Closed,
         };
         if (n == 0) return error.Closed;
+        // Edge-triggered: a short read drained the socket; later bytes bring a
+        // new event. A hangup in the same edge brings none: keep reading.
+        if (n < space and !self.hup) self.readable = false;
         self.end += n;
         return n;
     }
 
-    /// False when the timeout could not be set (the connection is dropped
-    /// rather than reading with a stale or missing timeout).
-    fn setRecvTimeout(self: *Connection, ms: u32) bool {
-        if (self.recv_timeout_ms == ms) return true;
-        const tv: posix.timeval = .{ .sec = @intCast(ms / 1000), .usec = @intCast((ms % 1000) * 1000) };
-        posix.setsockopt(self.fd, posix.SOL.SOCKET, posix.SO.RCVTIMEO, std.mem.asBytes(&tv)) catch |e| {
-            log.warn("SO_RCVTIMEO failed: {s}", .{@errorName(e)});
-            self.recv_timeout_ms = null;
-            return false;
-        };
-        self.recv_timeout_ms = ms;
-        return true;
+    /// Timer expiry or server close.
+    fn onKick(self: *Connection) ?Step {
+        const now = monoMs();
+        const server = self.server;
+        switch (self.phase) {
+            .idle => {
+                // Node: close() ends idle keep-alive sockets.
+                if (!self.first and server.isClosing()) return self.destroy();
+                // A fresh socket gets requestTimeout (-> 408); an idle
+                // keep-alive socket is closed silently after keepAliveTimeout.
+                if (now >= self.deadline()) {
+                    if (self.first) return self.clientError(.timeout);
+                    return self.destroy();
+                }
+            },
+            .head => if (now >= self.head_deadline) return self.clientError(.timeout),
+            .linger => if (server.isClosing() or now >= self.linger_until) return self.destroy(),
+            .body, .write, .drain => {},
+        }
+        return null;
     }
 
-    /// Time left until `deadline` for a fill (at least 1 ms), or Timeout.
-    fn remaining(deadline: i64) ReadError!u32 {
-        if (deadline == std.math.maxInt(i64)) return 0;
-        const left = deadline - nowMs();
-        if (left <= 0) return error.Timeout;
-        return @intCast(@min(left, std.math.maxInt(u32)));
-    }
-
-    fn readHead(self: *Connection, arena: std.mem.Allocator, deadline: i64) (ReadError || parse.HeadError)!parse.Head {
+    fn drive(self: *Connection, kicked: bool) Step {
+        if (kicked) if (self.onKick()) |step| return step;
         while (true) {
-            // llhttp skips CRLFs between requests.
-            while (self.start < self.end and (self.buf[self.start] == '\r' or self.buf[self.start] == '\n')) self.start += 1;
-            switch (try parse.scanHead(self.buf[self.start..self.end])) {
-                .complete => |len| return parse.parseHead(arena, self.buf[self.start .. self.start + len]),
-                .incomplete => if (self.start == 0 and self.end == self.buf.len) return error.HeaderOverflow,
-            }
-            _ = try self.fill(try remaining(deadline));
+            const step: ?Step = switch (self.phase) {
+                .idle => self.stepIdle(),
+                .head => self.stepHead(),
+                .body => self.stepBody(),
+                .write => self.stepWrite(),
+                .drain => self.stepDrain(),
+                .linger => self.stepLinger(),
+            };
+            if (step) |s| return s;
         }
     }
 
-    const Keep = union(enum) { keep_alive, close, end, upgraded: UpgradeSocket.Takeover };
+    fn stepIdle(self: *Connection) ?Step {
+        if (self.start == self.end) {
+            _ = self.fill() catch |e| return switch (e) {
+                error.WouldBlock => self.park(),
+                error.Closed => self.destroy(),
+            };
+        }
+        self.first = false;
+        self.head_deadline = monoMs() + @as(i64, self.server.options.request_timeout_ms);
+        self.phase = .head;
+        return null;
+    }
 
-    fn exchange(self: *Connection, arena: std.mem.Allocator, head: parse.Head, deadline: i64) !Keep {
+    fn stepHead(self: *Connection) ?Step {
+        // llhttp skips CRLFs between requests.
+        while (self.start < self.end and (self.buf[self.start] == '\r' or self.buf[self.start] == '\n')) self.start += 1;
+        const scan = parse.scanHead(self.buf[self.start..self.end]) catch |e| return self.headError(e);
+        switch (scan) {
+            .complete => |len| {
+                const a = self.arena() catch return self.destroy();
+                const head = parse.parseHead(a, self.buf[self.start .. self.start + len]) catch |e| return self.headError(e);
+                self.start += head.len;
+                return self.startExchange(a, head) catch self.destroy();
+            },
+            .incomplete => if (self.start == 0 and self.end == self.buf.len) return self.clientError(.header_overflow),
+        }
+        _ = self.fill() catch |e| return switch (e) {
+            error.WouldBlock => self.park(),
+            error.Closed => self.destroy(),
+        };
+        return null;
+    }
+
+    fn headError(self: *Connection, e: parse.HeadError) ?Step {
+        return switch (e) {
+            error.HeaderOverflow => self.clientError(.header_overflow),
+            error.BadRequest => self.clientError(.bad_request),
+            error.OutOfMemory => self.destroy(),
+        };
+    }
+
+    /// Fastify's client error bytes, then destroy.
+    fn clientError(self: *Connection, kind: ClientError) ?Step {
+        return self.write(kind.bytes(), "", .close);
+    }
+
+    fn write(self: *Connection, head: []const u8, body: []const u8, after: After) ?Step {
+        self.out = .{ head, body };
+        self.after = after;
+        self.phase = .write;
+        return null;
+    }
+
+    fn stepWrite(self: *Connection) ?Step {
+        var parts = [2][]const u8{ self.out[0], self.out[1] };
+        const ok = switch (writeSome(self.fd, &parts)) {
+            .done => true,
+            .would_block => {
+                self.out = parts;
+                if (self.after == .response) self.notifyWriteBlocked();
+                return self.park();
+            },
+            .failed => false,
+        };
+        self.out = .{ "", "" };
+        return switch (self.after) {
+            .response => self.afterReply(ok),
+            .complete => if (ok) self.afterResponse(self.ex.?.keep_alive and !self.server.isClosing()) else self.destroy(),
+            .continue_100 => if (ok) self.routeExchange() catch self.destroy() else self.destroy(),
+            .end => self.startLinger(),
+            .close => self.destroy(),
+        };
+    }
+
+    fn notifyWriteBlocked(self: *Connection) void {
+        const ex = self.ex.?;
+        if (ex.write_blocked) return;
+        ex.write_blocked = true;
+        if (ex.route) |r| if (r.hooks.on_write_blocked) |hook| hook(r.ctx, &ex.req, &ex.reply);
+    }
+
+    // -- exchange ---------------------------------------------------------------------
+
+    fn startExchange(self: *Connection, a: std.mem.Allocator, head: parse.Head) !?Step {
         const server = self.server;
         const q = std.mem.indexOfScalar(u8, head.url, '?');
-        var req: Request = .{
-            .arena = arena,
-            .method = head.method,
-            .url = head.url,
-            .path = head.url[0 .. q orelse head.url.len],
-            .query = if (q) |i| head.url[i + 1 ..] else "",
-            .headers = head.headers,
-            .remote_address = self.remote,
+        const ex = try a.create(Exchange);
+        ex.* = .{
+            .req = .{
+                .arena = a,
+                .method = head.method,
+                .url = head.url,
+                .path = head.url[0 .. q orelse head.url.len],
+                .query = if (q) |i| head.url[i + 1 ..] else "",
+                .headers = head.headers,
+                .remote_address = self.remote,
+            },
+            .reply = .{ .arena = a },
+            .keep_alive = false,
         };
+        ex.keep_alive = keepAliveRequested(&ex.req, head);
+        self.ex = ex;
         // Measured: Node applies requestTimeout to the head only; a stalled
         // body (read by a parser or dumped after the response) never times out.
-        _ = deadline;
-        var body: BodyReader = .{ .conn = self, .framing = head.framing, .deadline = std.math.maxInt(i64) };
-        const ctx: Exchange = .{ .keep_alive = keepAliveRequested(&req, head) };
+        self.body = .{ .framing = head.framing };
+        const req = &ex.req;
 
         // Node: CONNECT and upgrade requests go to their events, unprocessed.
-        if (std.mem.eql(u8, req.method, "CONNECT")) return .close;
-        if (server.options.upgrade) |handler| if (isUpgrade(&req)) {
-            var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote };
-            handler.on_upgrade(handler.ctx, &req, &socket);
-            if (socket.takeover) |t| return .{ .upgraded = t };
-            return .close;
-        };
+        if (std.mem.eql(u8, req.method, "CONNECT")) return self.destroy();
+        if (server.options.upgrade) |handler| if (isUpgrade(req)) return self.upgrade(handler);
 
         // Node `requireHostHeader`.
         if (head.major == 1 and head.minor == 1 and req.header("host") == null) {
-            var out: std.Io.Writer.Allocating = .init(arena);
+            var out: std.Io.Writer.Allocating = .init(a);
             try out.writer.print("HTTP/1.1 400 Bad Request\r\nConnection: close\r\nDate: {s}\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n", .{httpDate()});
-            _ = writeFd(self.fd, out.written());
-            return .end;
+            return self.write(out.written(), "", .end);
         }
 
         // Node `Expect` handling (HTTP/1.1 only, no checkContinue listener).
         if (head.major == 1 and head.minor == 1) if (req.header("expect")) |expect| {
-            if (expectsContinue(expect)) {
-                if (!writeFd(self.fd, "HTTP/1.1 100 Continue\r\n\r\n")) return .close;
-            } else {
-                var out: std.Io.Writer.Allocating = .init(arena);
-                try out.writer.print("HTTP/1.1 417 Expectation Failed\r\nDate: {s}\r\n", .{httpDate()});
-                try self.connectionHeaders(&out.writer, ctx.keep_alive);
-                try out.writer.writeAll("Transfer-Encoding: chunked\r\n\r\n0\r\n\r\n");
-                return self.complete(out.written(), ctx.keep_alive, &body);
-            }
+            if (expectsContinue(expect)) return self.write("HTTP/1.1 100 Continue\r\n\r\n", "", .continue_100);
+            var out: std.Io.Writer.Allocating = .init(a);
+            try out.writer.print("HTTP/1.1 417 Expectation Failed\r\nDate: {s}\r\n", .{httpDate()});
+            try self.connectionHeaders(&out.writer, ex.keep_alive);
+            try out.writer.writeAll("Transfer-Encoding: chunked\r\n\r\n0\r\n\r\n");
+            return self.write(out.written(), "", .complete);
         };
+        return self.routeExchange();
+    }
+
+    fn routeExchange(self: *Connection) !?Step {
+        const server = self.server;
+        const ex = self.ex.?;
+        const req = &ex.req;
+        const reply = &ex.reply;
+        const a = req.arena;
 
         // Fastify `return503OnClosing`.
         if (server.isClosing()) {
-            var out: std.Io.Writer.Allocating = .init(arena);
+            var out: std.Io.Writer.Allocating = .init(a);
             try out.writer.print("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 80\r\nDate: {s}\r\n\r\n{{\"error\":\"Service Unavailable\",\"message\":\"Service Unavailable\",\"statusCode\":503}}", .{httpDate()});
-            _ = writeFd(self.fd, out.written());
-            return .end;
+            return self.write(out.written(), "", .end);
         }
 
         // find-my-way lookup (bad URLs answer before any Fastify hook).
-        const route = switch (try parse.routerPath(arena, req.url)) {
+        ex.route = switch (try parse.routerPath(a, req.url)) {
             .bad_url => |path| {
-                const message = try std.fmt.allocPrint(arena, "'{s}' is not a valid url component", .{path});
-                const payload = try std.fmt.allocPrint(arena, "{{\"error\":\"Bad Request\",\"code\":\"FST_ERR_BAD_URL\",\"message\":{f},\"statusCode\":400}}", .{core.json.Value{ .string = message }});
-                var out: std.Io.Writer.Allocating = .init(arena);
+                const message = try std.fmt.allocPrint(a, "'{s}' is not a valid url component", .{path});
+                const payload = try std.fmt.allocPrint(a, "{{\"error\":\"Bad Request\",\"code\":\"FST_ERR_BAD_URL\",\"message\":{f},\"statusCode\":400}}", .{core.json.Value{ .string = message }});
+                var out: std.Io.Writer.Allocating = .init(a);
                 try out.writer.print("HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {d}\r\nDate: {s}\r\n", .{ payload.len, httpDate() });
-                try self.connectionHeaders(&out.writer, ctx.keep_alive);
+                try self.connectionHeaders(&out.writer, ex.keep_alive);
                 try out.writer.print("\r\n{s}", .{payload});
-                return self.complete(out.written(), ctx.keep_alive, &body);
+                return self.write(out.written(), "", .complete);
             },
             .path => |path| matchRoute(server.options.routes, req.method, path),
         };
-
-        var reply: Reply = .{ .arena = arena };
+        const route = ex.route;
 
         // @fastify/cors onRequest (root scope: every route incl. 404).
         const origin = req.header("origin");
@@ -546,110 +911,183 @@ const Connection = struct {
                 reply.header("content-length", "0");
                 reply.sendEmpty();
             }
-            return self.finish(&req, &reply, null, &body, ctx);
+            return self.finish(null);
         }
 
+        req.body_pending = self.bodyPending();
         if (route) |r| if (r.hooks.on_request) |hook| {
-            hook(r.ctx, &req, &reply);
-            if (reply.sent) return self.finish(&req, &reply, route, &body, ctx);
+            hook(r.ctx, req, reply);
+            if (reply.sent) return self.finish(route);
         };
-
-        self.handleRequest(&req, &reply, route, &body) catch |e| {
-            if (route) |r| if (r.hooks.on_done) |hook| hook(r.ctx, &req, &reply, .closed);
-            switch (e) {
-                error.RequestTimeout => self.clientError(.timeout),
-                error.BadChunk => self.clientError(.bad_request),
-                error.ClientGone => {},
-                error.OutOfMemory => return error.OutOfMemory,
-            }
-            return .close;
-        };
-        if (!reply.sent) {
-            if (route) |r| {
-                r.hooks.handler(r.ctx, &req, &reply);
-                if (!reply.sent) reply.sendEmpty();
-            } else notFound(&req, &reply);
-        }
-        return self.finish(&req, &reply, route, &body, ctx);
+        return self.prepareBody();
     }
 
-    /// Fastify `handleRequest` + content-type parsing. Sends framework errors
-    /// on `reply`; otherwise leaves the reply unsent for the handler.
-    fn handleRequest(self: *Connection, req: *Request, reply: *Reply, route: ?*const Route, body: *BodyReader) error{ RequestTimeout, BadChunk, ClientGone, OutOfMemory }!void {
-        _ = self;
+    /// Fastify `handleRequest` + content-type parsing up to the body read.
+    /// Sends framework errors on `reply`; otherwise leaves it unsent.
+    fn prepareBody(self: *Connection) !?Step {
+        const ex = self.ex.?;
+        const req = &ex.req;
+        const reply = &ex.reply;
+        const route = ex.route;
         const method = req.method;
-        if (isBodyless(method)) return;
-        if (!isBodyWith(method)) return;
+        if (isBodyless(method) or !isBodyWith(method)) return self.handle();
         const ct_header = req.header("content-type");
         const empty = req.header("transfer-encoding") == null and
             (req.header("content-length") == null or std.mem.eql(u8, req.header("content-length").?, "0"));
         if (std.mem.eql(u8, method, "QUERY")) {
-            if (ct_header == null) return reply.sendError(.{ .status = 400, .code = "FST_ERR_ROUTE_MISSING_CONTENT_TYPE", .message = "Method 'QUERY' must provide a 'Content-Type' header." });
-            if (empty) return reply.sendError(.{ .status = 400, .code = "FST_ERR_ROUTE_MISSING_CONTENT", .message = "Method 'QUERY' must provide a request body." });
+            if (ct_header == null) {
+                reply.sendError(.{ .status = 400, .code = "FST_ERR_ROUTE_MISSING_CONTENT_TYPE", .message = "Method 'QUERY' must provide a 'Content-Type' header." });
+                return self.handle();
+            }
+            if (empty) {
+                reply.sendError(.{ .status = 400, .code = "FST_ERR_ROUTE_MISSING_CONTENT", .message = "Method 'QUERY' must provide a request body." });
+                return self.handle();
+            }
         }
-        const Kind = enum { json, text };
-        var kind: Kind = undefined;
         if (ct_header) |ct| {
-            const media = parse.mediaType(req.arena, ct) orelse return reply.sendError(FastifyError.invalid_media_type);
+            const media = parse.mediaType(req.arena, ct) orelse {
+                reply.sendError(FastifyError.invalid_media_type);
+                return self.handle();
+            };
             if (std.mem.eql(u8, media, "application/json")) {
-                kind = .json;
+                ex.kind = .json;
             } else if (std.mem.eql(u8, media, "text/plain")) {
-                kind = .text;
+                ex.kind = .text;
             } else {
                 const extra = if (route) |r| r.text_content_types else &.{};
                 for (extra) |t| {
                     if (std.mem.eql(u8, media, t)) break;
                 } else {
                     // No parser: the 404 handler ignores the body; routes 415.
-                    if (route == null) return;
-                    return reply.sendError(FastifyError.invalid_media_type);
+                    if (route != null) reply.sendError(FastifyError.invalid_media_type);
+                    return self.handle();
                 }
-                kind = .text;
+                ex.kind = .text;
             }
         } else {
-            if (empty) return;
-            if (route == null) return;
-            return reply.sendError(FastifyError.invalid_media_type);
+            if (!empty and route != null) reply.sendError(FastifyError.invalid_media_type);
+            return self.handle();
         }
 
-        const limit = if (route) |r| r.body_limit else default_body_limit;
+        ex.limit = if (route) |r| r.body_limit else default_body_limit;
         // Parser failures close the connection: the client may still be sending.
-        switch (body.framing) {
-            .length => |n| if (n > limit) return parserError(reply, FastifyError.body_too_large),
+        switch (self.body.framing) {
+            .length => |n| if (n > ex.limit) {
+                parserError(reply, FastifyError.body_too_large);
+                return self.handle();
+            },
             else => {},
         }
-        const raw = body.readAll(req.arena, limit) catch |e| switch (e) {
-            error.TooLarge => return parserError(reply, FastifyError.body_too_large),
-            error.Timeout => return error.RequestTimeout,
-            error.Closed => return error.ClientGone,
-            error.BadRequest => return error.BadChunk,
-            error.OutOfMemory => return error.OutOfMemory,
+        self.phase = .body;
+        return null;
+    }
+
+    /// True when the body's framing is not complete in the buffer yet.
+    fn bodyPending(self: *Connection) bool {
+        switch (self.body.framing) {
+            .none, .invalid_te => return false,
+            .length => |n| return self.end - self.start < n,
+            .chunked => {
+                var probe = self.body;
+                const start = self.start;
+                defer self.start = start;
+                const progress = probe.consume(self, null, null, std.math.maxInt(usize)) catch return false;
+                return progress == .need_more;
+            },
+        }
+    }
+
+    fn stepBody(self: *Connection) ?Step {
+        const ex = self.ex.?;
+        const progress = self.body.consume(self, ex.req.arena, &ex.raw, ex.limit) catch |e| switch (e) {
+            error.TooLarge => {
+                parserError(&ex.reply, FastifyError.body_too_large);
+                return self.handle() catch self.destroy();
+            },
+            error.BadRequest => {
+                self.doneClosed();
+                return self.clientError(.bad_request);
+            },
+            error.OutOfMemory => {
+                self.doneClosed();
+                return self.destroy();
+            },
         };
+        switch (progress) {
+            .done => return self.bodyRead() catch self.destroy(),
+            .need_more => {},
+        }
+        _ = self.fill() catch |e| return switch (e) {
+            error.WouldBlock => self.park(),
+            error.Closed => {
+                self.doneClosed();
+                return self.destroy();
+            },
+        };
+        return null;
+    }
+
+    /// `on_done(.closed)` for a request that failed before its response.
+    fn doneClosed(self: *Connection) void {
+        const ex = self.ex.?;
+        if (ex.route) |r| if (r.hooks.on_done) |hook| hook(r.ctx, &ex.req, &ex.reply, .closed);
+    }
+
+    fn bodyRead(self: *Connection) !?Step {
+        const ex = self.ex.?;
+        const req = &ex.req;
+        const reply = &ex.reply;
+        const raw = ex.raw.items;
         req.raw_body = raw;
         req.complete = true;
         // `setEncoding('utf8')`: invalid sequences become U+FFFD, and Fastify
         // then compares the decoded byte length with Content-Length.
         const text = try core.json.toWellFormedUtf8(req.arena, raw);
-        switch (body.framing) {
-            .length => |n| if (text.len != n) return parserError(reply, FastifyError.invalid_content_length),
+        switch (self.body.framing) {
+            .length => |n| if (text.len != n) {
+                parserError(reply, FastifyError.invalid_content_length);
+                return self.handle();
+            },
             else => {},
         }
-        switch (kind) {
+        switch (ex.kind) {
             .text => req.body = .{ .text = text },
             .json => {
-                if (text.len == 0) return parserError(reply, FastifyError.empty_json_body);
+                if (text.len == 0) {
+                    parserError(reply, FastifyError.empty_json_body);
+                    return self.handle();
+                }
                 const value = core.json.parse(req.arena, text, .{ .secure = true, .strip_bom = true }) catch |e| switch (e) {
                     error.OutOfMemory => return error.OutOfMemory,
-                    error.SyntaxError => return parserError(reply, FastifyError.invalid_json_body),
+                    error.SyntaxError => {
+                        parserError(reply, FastifyError.invalid_json_body);
+                        return self.handle();
+                    },
                 };
                 req.body = .{ .json = value };
             },
         }
+        return self.handle();
     }
 
-    fn finish(self: *Connection, req: *Request, reply: *Reply, route: ?*const Route, body: *BodyReader, ctx: Exchange) !Keep {
-        const arena = req.arena;
-        if (body.framing == .none) req.complete = true;
+    /// Route handler (or the 404 handler) unless a reply was already sent.
+    fn handle(self: *Connection) !?Step {
+        const ex = self.ex.?;
+        if (!ex.reply.sent) {
+            if (ex.route) |r| {
+                r.hooks.handler(r.ctx, &ex.req, &ex.reply);
+                if (!ex.reply.sent) ex.reply.sendEmpty();
+            } else notFound(&ex.req, &ex.reply);
+        }
+        return self.finish(ex.route);
+    }
+
+    fn finish(self: *Connection, route: ?*const Route) !?Step {
+        const ex = self.ex.?;
+        const req = &ex.req;
+        const reply = &ex.reply;
+        const a = req.arena;
+        if (self.body.framing == .none) req.complete = true;
         if (reply.error_value) |err| {
             reply.error_value = null;
             if (reply.status < 400) reply.status = err.status;
@@ -664,18 +1102,20 @@ const Connection = struct {
             .none => if (reply.status >= 200 and reply.status != 204 and reply.status != 304 and !is_head and reply.getHeader("content-length") == null) reply.header("content-length", "0"),
             .bytes => |b| {
                 const existing = reply.getHeader("content-length");
-                const len_text = try std.fmt.allocPrint(arena, "{d}", .{b.len});
+                const len_text = try std.fmt.allocPrint(a, "{d}", .{b.len});
                 if (existing == null or (!is_head and !std.mem.eql(u8, existing.?, len_text))) reply.header("content-length", len_text);
             },
         }
 
-        var keep_alive = ctx.keep_alive and !self.server.isClosing();
+        var keep_alive = ex.keep_alive and !self.server.isClosing();
         const user_connection = reply.getHeader("connection");
         if (user_connection) |c| {
             if (std.ascii.eqlIgnoreCase(std.mem.trim(u8, c, " "), "close")) keep_alive = false;
         }
+        ex.keep_after = keep_alive;
+        ex.route = route;
         const payload = reply.body() orelse "";
-        var out: std.Io.Writer.Allocating = try .initCapacity(arena, 512);
+        var out: std.Io.Writer.Allocating = try .initCapacity(a, 512);
         const w = &out.writer;
         try w.print("HTTP/1.1 {d} {s}\r\n", .{ reply.status, statusText(reply.status) });
         for (reply.headers.items) |h| try w.print("{s}: {s}\r\n", .{ h.name, h.value });
@@ -684,40 +1124,108 @@ const Connection = struct {
         try w.writeAll("\r\n");
         const send_body = !is_head and reply.status != 204 and reply.status != 304;
         // Head and body go out in one sendmsg; the body is never copied.
-        const written = writeVecFd(self.fd, &.{ out.written(), if (send_body) payload else "" });
-        if (route) |r| if (r.hooks.on_done) |hook| hook(r.ctx, req, reply, if (written) .finished else .closed);
-        if (!written or reply.destroy_after) return .close;
-        return self.afterResponse(keep_alive, body);
+        return self.write(out.written(), if (send_body) payload else "", .response);
     }
 
-    /// Writes a response that bypasses Fastify, then continues like `finish`.
-    fn complete(self: *Connection, bytes: []const u8, keep_alive: bool, body: *BodyReader) Keep {
-        if (!writeFd(self.fd, bytes)) return .close;
-        return self.afterResponse(keep_alive and !self.server.isClosing(), body);
+    fn afterReply(self: *Connection, written: bool) ?Step {
+        const ex = self.ex.?;
+        if (ex.route) |r| if (r.hooks.on_done) |hook| hook(r.ctx, &ex.req, &ex.reply, if (written) .finished else .closed);
+        if (!written or ex.reply.destroy_after) return self.destroy();
+        return self.afterResponse(ex.keep_after);
     }
 
     /// Node dumps an unconsumed request body after the response, keeping the
     /// connection; a malformed or late body becomes a client error.
-    fn afterResponse(self: *Connection, keep_alive: bool, body: *BodyReader) Keep {
+    fn afterResponse(self: *Connection, keep_alive: bool) ?Step {
+        self.endRequest();
         // llhttp reports HPE_INVALID_TRANSFER_ENCODING as soon as the request
         // was dispatched, so the client error follows even `Connection: close`.
-        if (body.framing == .invalid_te and !body.finished) {
-            self.clientError(.bad_request);
-            return .close;
-        }
-        if (!keep_alive) return .end;
-        body.drain() catch |e| switch (e) {
-            error.BadRequest => {
-                self.clientError(.bad_request);
-                return .close;
-            },
-            error.Timeout => {
-                self.clientError(.timeout);
-                return .close;
-            },
-            error.Closed => return .close,
+        if (self.body.framing == .invalid_te and !self.body.finished) return self.clientError(.bad_request);
+        if (!keep_alive) return self.startLinger();
+        self.phase = .drain;
+        return null;
+    }
+
+    fn stepDrain(self: *Connection) ?Step {
+        const progress = self.body.consume(self, null, null, std.math.maxInt(usize)) catch |e| switch (e) {
+            error.BadRequest => return self.clientError(.bad_request),
+            error.TooLarge, error.OutOfMemory => unreachable,
         };
-        return .keep_alive;
+        switch (progress) {
+            .done => {
+                // Back to waiting for the next request (Node: close() ends
+                // sockets that reach this point while it runs).
+                if (self.start == self.end and self.server.isClosing()) return self.destroy();
+                self.phase = .idle;
+                self.idle_since = monoMs();
+                return null;
+            },
+            .need_more => {},
+        }
+        _ = self.fill() catch |e| return switch (e) {
+            error.WouldBlock => self.park(),
+            error.Closed => self.destroy(),
+        };
+        return null;
+    }
+
+    /// Half-closes, then discards input until the peer closes (bounded; cut
+    /// short once the server is closing). The exchange is over: the socket no
+    /// longer holds up `close()`.
+    fn startLinger(self: *Connection) ?Step {
+        self.endRequest();
+        const server = self.server;
+        server.mutex.lock();
+        server.connections -= 1;
+        server.lingering += 1;
+        server.cond.broadcast();
+        server.mutex.unlock();
+        self.in_linger = true;
+        if (server.isClosing()) return self.destroy();
+        posix.shutdown(self.fd, .send) catch return self.destroy();
+        self.linger_until = monoMs() + @as(i64, server.options.request_timeout_ms);
+        self.phase = .linger;
+        return null;
+    }
+
+    fn stepLinger(self: *Connection) ?Step {
+        while (true) {
+            self.start = 0;
+            self.end = 0;
+            _ = self.fill() catch |e| return switch (e) {
+                error.WouldBlock => self.park(),
+                error.Closed => self.destroy(),
+            };
+        }
+    }
+
+    fn upgrade(self: *Connection, handler: UpgradeHandler) Step {
+        const ex = self.ex.?;
+        var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote };
+        handler.on_upgrade(handler.ctx, &ex.req, &socket);
+        const conn = socket.takeover orelse return self.destroy();
+        // The slot (and fd) now belong to the WebSocket, which closes it.
+        const server = self.server;
+        const index = self.index;
+        const gen = self.gen;
+        const write_armed = self.write_armed;
+        var register_failed = false;
+        if (!self.registered) {
+            server.loop.register(self.fd, index, gen) catch {
+                register_failed = true;
+            };
+        }
+        self.endRequest();
+        server.gpa.destroy(self);
+        server.loop.setKind(index, .ws, conn);
+        server.mutex.lock();
+        server.connections -= 1;
+        server.upgraded += 1;
+        server.cond.broadcast();
+        server.mutex.unlock();
+        if (register_failed) conn.terminate();
+        conn.attach(server, index, gen, write_armed);
+        return .gone;
     }
 
     fn connectionHeaders(self: *Connection, w: *std.Io.Writer, keep_alive: bool) !void {
@@ -727,9 +1235,30 @@ const Connection = struct {
     }
 };
 
-const default_body_limit = 100 * 1024;
+const WriteResult = enum { done, would_block, failed };
 
-const Exchange = struct { keep_alive: bool };
+/// One non-blocking `sendmsg` pass over `parts` (consumed in place).
+fn writeSome(fd: posix.socket_t, parts: *[2][]const u8) WriteResult {
+    const flags: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.NOSIGNAL else 0;
+    while (parts[0].len + parts[1].len > 0) {
+        var iov: [2]posix.iovec_const = undefined;
+        var count: usize = 0;
+        for (parts) |p| if (p.len > 0) {
+            iov[count] = .{ .base = p.ptr, .len = p.len };
+            count += 1;
+        };
+        const msg: posix.msghdr_const = .{ .name = null, .namelen = 0, .iov = &iov, .iovlen = @intCast(count), .control = null, .controllen = 0, .flags = 0 };
+        var n = posix.sendmsg(fd, &msg, flags) catch |e| return if (e == error.WouldBlock) .would_block else .failed;
+        for (parts) |*p| {
+            const take = @min(n, p.len);
+            p.* = p.*[take..];
+            n -= take;
+        }
+    }
+    return .done;
+}
+
+const default_body_limit = 100 * 1024;
 
 fn parserError(reply: *Reply, err: FastifyError) void {
     reply.header("connection", "close");
@@ -748,17 +1277,14 @@ fn notFound(req: *Request, reply: *Reply) void {
     reply.sendJson(.{ .object = &members });
 }
 
+/// Blocking-style write of all `bytes` (waits for writability on a
+/// non-blocking socket). For tests and handshake responses.
 pub fn writeFd(fd: posix.socket_t, bytes: []const u8) bool {
-    var off: usize = 0;
-    while (off < bytes.len) {
-        const flags: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.NOSIGNAL else 0;
-        const n = posix.send(fd, bytes[off..], flags) catch return false;
-        off += n;
-    }
-    return true;
+    return writeVecFd(fd, &.{bytes});
 }
 
-/// Writes all `parts` with as few `sendmsg` calls as possible.
+/// Writes all `parts` with as few `sendmsg` calls as possible, waiting for
+/// writability when the socket is non-blocking.
 pub fn writeVecFd(fd: posix.socket_t, parts: []const []const u8) bool {
     var iov_buf: [4]posix.iovec_const = undefined;
     std.debug.assert(parts.len <= iov_buf.len);
@@ -779,7 +1305,15 @@ pub fn writeVecFd(fd: posix.socket_t, parts: []const []const u8) bool {
             .controllen = 0,
             .flags = 0,
         };
-        var n = posix.sendmsg(fd, &msg, flags) catch return false;
+        var n = posix.sendmsg(fd, &msg, flags) catch |e| switch (e) {
+            error.WouldBlock => {
+                var fds = [_]posix.pollfd{.{ .fd = fd, .events = posix.POLL.OUT, .revents = 0 }};
+                _ = posix.poll(&fds, -1) catch return false;
+                if (fds[0].revents & posix.POLL.OUT == 0) return false;
+                continue;
+            },
+            else => return false,
+        };
         while (iov.len > 0 and n >= iov[0].len) {
             n -= iov[0].len;
             iov = iov[1..];
@@ -804,95 +1338,95 @@ fn defaultErrorBody(reply: *Reply, err: FastifyError) void {
     reply.sent = true;
 }
 
+/// Resumable request body framing: consumes whatever the connection has
+/// buffered and reports `need_more` when it runs dry.
 const BodyReader = struct {
-    conn: *Connection,
     framing: parse.Framing,
-    deadline: i64,
     finished: bool = false,
+    started: bool = false,
+    remaining: u64 = 0,
+    chunk: enum { size_line, data, data_end, trailer } = .size_line,
+    total: usize = 0,
 
-    const Error = ReadError || error{ BadRequest, TooLarge, OutOfMemory };
+    const Error = error{ BadRequest, TooLarge, OutOfMemory };
+    const Progress = enum { done, need_more };
 
     fn done(self: *const BodyReader) bool {
         return self.finished or self.framing == .none;
     }
 
-    /// Reads the whole body; fails with TooLarge beyond `limit` bytes.
-    fn readAll(self: *BodyReader, a: std.mem.Allocator, limit: usize) Error![]const u8 {
-        var out: std.ArrayList(u8) = .empty;
-        try self.consume(a, &out, limit);
-        return out.items;
-    }
-
-    /// Node `req._dump()`: discard whatever body remains.
-    fn drain(self: *BodyReader) (ReadError || error{BadRequest})!void {
-        self.consume(null, null, std.math.maxInt(usize)) catch |e| switch (e) {
-            error.TooLarge, error.OutOfMemory => unreachable,
-            else => |err| return err,
-        };
-    }
-
-    /// Walks the body framing, appending to `out` when given.
-    fn consume(self: *BodyReader, a: ?std.mem.Allocator, out: ?*std.ArrayList(u8), limit: usize) Error!void {
-        if (self.done()) return;
-        const c = self.conn;
+    /// Walks the body framing over `c`'s buffered bytes, appending to `out`
+    /// when given (TooLarge beyond `limit` chunked bytes).
+    fn consume(self: *BodyReader, c: *Connection, a: ?std.mem.Allocator, out: ?*std.ArrayList(u8), limit: usize) Error!Progress {
+        if (self.done()) return .done;
         switch (self.framing) {
             .none => {},
             // HPE_INVALID_TRANSFER_ENCODING right after dispatch.
             .invalid_te => return error.BadRequest,
             .length => |n| {
-                if (out) |o| try o.ensureTotalCapacity(a.?, @intCast(n));
-                var remaining = n;
-                while (remaining > 0) {
-                    if (c.end == c.start) _ = try c.fill(try Connection.remaining(self.deadline));
-                    const take: usize = @intCast(@min(remaining, c.end - c.start));
+                if (!self.started) {
+                    self.started = true;
+                    self.remaining = n;
+                    if (out) |o| try o.ensureTotalCapacity(a.?, @intCast(n));
+                }
+                while (self.remaining > 0) {
+                    if (c.end == c.start) return .need_more;
+                    const take: usize = @intCast(@min(self.remaining, c.end - c.start));
                     if (out) |o| o.appendSliceAssumeCapacity(c.buf[c.start .. c.start + take]);
                     c.start += take;
-                    remaining -= take;
+                    self.remaining -= take;
                 }
             },
-            .chunked => {
-                var total: usize = 0;
-                while (true) {
-                    const line = try self.readLine();
+            .chunked => chunks: while (true) switch (self.chunk) {
+                .size_line => {
+                    const line = (try takeLine(c)) orelse return .need_more;
                     const size64 = parse.parseChunkSize(line) orelse return error.BadRequest;
                     const size = std.math.cast(usize, size64) orelse return error.BadRequest;
                     if (size == 0) {
-                        while (true) {
-                            const trailer = try self.readLine();
-                            if (trailer.len == 0) break;
-                            if (!parse.validTrailer(trailer)) return error.BadRequest;
-                        }
-                        break;
+                        self.chunk = .trailer;
+                        continue;
                     }
-                    total +|= size;
-                    if (total > limit) return error.TooLarge;
-                    var remaining = size;
-                    while (remaining > 0) {
-                        if (c.end == c.start) _ = try c.fill(try Connection.remaining(self.deadline));
-                        const take = @min(remaining, c.end - c.start);
+                    self.total +|= size;
+                    if (self.total > limit) return error.TooLarge;
+                    self.remaining = size;
+                    self.chunk = .data;
+                },
+                .data => {
+                    while (self.remaining > 0) {
+                        if (c.end == c.start) return .need_more;
+                        const take: usize = @intCast(@min(self.remaining, c.end - c.start));
                         if (out) |o| try o.appendSlice(a.?, c.buf[c.start .. c.start + take]);
                         c.start += take;
-                        remaining -= take;
+                        self.remaining -= take;
                     }
-                    if ((try self.readLine()).len != 0) return error.BadRequest;
-                }
+                    self.chunk = .data_end;
+                },
+                .data_end => {
+                    const line = (try takeLine(c)) orelse return .need_more;
+                    if (line.len != 0) return error.BadRequest;
+                    self.chunk = .size_line;
+                },
+                .trailer => {
+                    const line = (try takeLine(c)) orelse return .need_more;
+                    if (line.len == 0) break :chunks;
+                    if (!parse.validTrailer(line)) return error.BadRequest;
+                },
             },
         }
         self.finished = true;
+        return .done;
     }
 
-    fn readLine(self: *BodyReader) (ReadError || error{BadRequest})![]const u8 {
-        const c = self.conn;
-        while (true) {
-            if (std.mem.indexOfScalar(u8, c.buf[c.start..c.end], '\n')) |pos| {
-                if (pos == 0 or c.buf[c.start + pos - 1] != '\r') return error.BadRequest;
-                const line = c.buf[c.start .. c.start + pos - 1];
-                c.start += pos + 1;
-                return line;
-            }
-            if (c.end - c.start > 4096) return error.BadRequest;
-            _ = try c.fill(try Connection.remaining(self.deadline));
+    /// A CRLF-terminated line from the buffer, or null until one arrives.
+    fn takeLine(c: *Connection) error{BadRequest}!?[]const u8 {
+        if (std.mem.indexOfScalar(u8, c.buf[c.start..c.end], '\n')) |pos| {
+            if (pos == 0 or c.buf[c.start + pos - 1] != '\r') return error.BadRequest;
+            const line = c.buf[c.start .. c.start + pos - 1];
+            c.start += pos + 1;
+            return line;
         }
+        if (c.end - c.start > 4096) return error.BadRequest;
+        return null;
     }
 };
 

@@ -22,11 +22,21 @@ const Echo = struct {
     done_finished: u32 = 0,
     done_closed: u32 = 0,
     reject_uploads: bool = false,
+    body_pending: bool = false,
+    write_blocked: u32 = 0,
+
+    fn onWriteBlocked(ctx: *anyopaque, _: *types.Request, _: *types.Reply) void {
+        const self: *Echo = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.write_blocked += 1;
+    }
 
     fn onRequest(ctx: *anyopaque, req: *types.Request, reply: *types.Reply) void {
         const self: *Echo = @ptrCast(@alignCast(ctx));
         self.mutex.lock();
         self.on_request += 1;
+        self.body_pending = req.body_pending;
         const reject = self.reject_uploads;
         self.mutex.unlock();
         if (reject and !std.mem.eql(u8, req.method, "GET")) {
@@ -43,6 +53,13 @@ const Echo = struct {
         self.mutex.lock();
         self.handled += 1;
         self.mutex.unlock();
+        // A slow handler: input arriving meanwhile is merged into one edge.
+        if (std.mem.eql(u8, req.query, "sleep")) std.Thread.sleep(300 * std.time.ns_per_ms);
+        if (std.mem.eql(u8, req.query, "big")) {
+            const big = req.arena.alloc(u8, 16 * 1024 * 1024) catch return;
+            @memset(big, 'b');
+            return reply.sendText(big);
+        }
         var b: core.json.ObjectBuilder = .{};
         b.putNew(req.arena, "method", .{ .string = req.method }) catch {};
         b.putNew(req.arena, "query", .{ .string = req.query }) catch {};
@@ -126,6 +143,7 @@ const WsEcho = struct {
             return;
         }
         if (std.mem.eql(u8, data, "ping-me")) return conn.ping();
+        if (std.mem.eql(u8, data, "sleep-me")) return std.Thread.sleep(300 * std.time.ns_per_ms);
         conn.send(data, binary, null) catch {};
     }
 
@@ -182,7 +200,7 @@ const Harness = struct {
                 .methods = &.{ "GET", "POST" },
                 .path = "/graphql",
                 .ctx = &self.echo,
-                .hooks = .{ .on_request = Echo.onRequest, .handler = Echo.handler, .error_handler = Echo.errorHandler, .on_done = Echo.onDone },
+                .hooks = .{ .on_request = Echo.onRequest, .handler = Echo.handler, .error_handler = Echo.errorHandler, .on_done = Echo.onDone, .on_write_blocked = Echo.onWriteBlocked },
                 .text_content_types = &.{"application/graphql"},
             },
         };
@@ -486,6 +504,79 @@ test "connection: close and HTTP/1.0 are honoured; requestTimeout covers the hea
     defer c4.close();
     const r4 = try c4.request(arena.allocator(), "GARBAGE\r\n\r\n");
     try testing.expectEqual(@as(u16, 400), r4.status);
+}
+
+test "a hangup that arrives with data during a slow request is not lost" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Keep-alive: a pipelined request plus the client's FIN reach the
+    // server while it is busy; both responses arrive, then EOF.
+    var c = try h.connect();
+    defer c.close();
+    _ = try c.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try c.send("GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n");
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try c.send("GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try posix.shutdown(c.fd, .send);
+    try testing.expectEqual(@as(u16, 200), (try c.read(a, false)).status);
+    try testing.expectEqual(@as(u16, 404), (try c.read(a, false)).status);
+    try testing.expect(c.closedByPeer());
+    // Upload: a partial body plus FIN behind a slow request reports on_done(.closed).
+    var c2 = try h.connect();
+    defer c2.close();
+    try c2.send("GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n");
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try c2.send("POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{");
+    try posix.shutdown(c2.fd, .send);
+    try testing.expectEqual(@as(u16, 200), (try c2.read(a, false)).status);
+    var waited: u32 = 0;
+    while (h.echo.snapshot().done_closed == 0 and waited < 200) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(u32, 1), h.echo.snapshot().done_closed);
+    // WebSocket: a frame plus close behind a slow message handler -> on_close.
+    var c3 = try h.connect();
+    defer c3.close();
+    _ = try wsHandshake(&c3, a, "/agents");
+    try c3.send(try wsFrame(a, 0x1, "sleep-me", true, true));
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try c3.send(try wsFrame(a, 0x1, "x", true, true));
+    try posix.shutdown(c3.fd, .send);
+    try h.wse.waitCloses(1);
+}
+
+test "body_pending before on_request; on_write_blocked once when a response parks" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var c = try h.connect();
+    defer c.close();
+    _ = try c.request(a, "POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nok");
+    try testing.expect(!h.echo.snapshot().body_pending);
+    _ = try c.request(a, "POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nok\r\n0\r\n\r\n");
+    try testing.expect(!h.echo.snapshot().body_pending);
+    try c.send("POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: text/plain\r\nContent-Length: 4\r\n\r\nok");
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try testing.expect(h.echo.snapshot().body_pending);
+    try c.send("ok");
+    _ = try c.read(a, false);
+    // 16 MiB the client does not read yet: the write parks once.
+    try c.send("GET /graphql?big HTTP/1.1\r\nHost: a\r\n\r\n");
+    std.Thread.sleep(200 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(u32, 1), h.echo.snapshot().write_blocked);
+    var got: usize = 0;
+    var buf: [256 * 1024]u8 = undefined;
+    while (got < 16 * 1024 * 1024) {
+        const n = try posix.read(c.fd, &buf);
+        if (n == 0) return error.EndOfStream;
+        got += n;
+    }
+    try testing.expectEqual(@as(u32, 1), h.echo.snapshot().write_blocked);
 }
 
 test "late requests during close get 503" {
@@ -890,6 +981,23 @@ test "trySendInline: full write completes once; close after it follows the data;
     defer testing.allocator.free(close.payload);
     try testing.expectEqual(@as(u8, 0x8), close.opcode);
     try testing.expectEqual(@as(u32, 1), counts.ok.load(.monotonic));
+}
+
+test "snapshot: readyState and bufferedAmount under one lock" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, arena_state.allocator());
+    defer conn.release();
+    const open = conn.snapshot();
+    try testing.expectEqual(ws.ReadyState.open, open.ready_state);
+    try testing.expectEqual(@as(usize, 0), open.buffered_amount);
+    conn.close(1000, "bye");
+    try testing.expectEqual(ws.ReadyState.closing, conn.snapshot().ready_state);
 }
 
 /// wsRead for frames larger than the client buffer.

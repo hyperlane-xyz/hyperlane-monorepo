@@ -200,6 +200,9 @@ pub const Stream = struct {
     started: bool = false,
     stopped: bool = false,
     thread: ?std.Thread = null,
+    /// The timer thread left its loop (idle); join it before starting another.
+    thread_exited: bool = false,
+    idle_exit_ms: u64 = 5_000,
 
     pub fn init(gpa: Allocator, service: *const Service) Allocator.Error!*Stream {
         return initWithTiming(gpa, service, NOTIFICATION_BATCH_MS, RETRY_MS);
@@ -222,8 +225,18 @@ pub const Stream = struct {
         self.gpa.destroy(self);
     }
 
+    /// Mutex held. The timer thread starts on demand and exits after
+    /// `idle_exit_ms` with nothing scheduled (no idle thread while nobody
+    /// uses diagnostics).
     fn ensureThread(self: *Stream) void {
-        if (self.thread != null or self.stopped) return;
+        if (self.thread) |thread| {
+            if (!self.thread_exited) return;
+            // It set `thread_exited` and released the mutex before returning.
+            thread.join();
+            self.thread = null;
+            self.thread_exited = false;
+        }
+        if (self.stopped) return;
         self.thread = std.Thread.spawn(.{}, timerLoop, .{self}) catch |err| {
             core.log.child("Diagnostics").err("diagnostics timer thread failed: {s}", .{@errorName(err)});
             return;
@@ -235,7 +248,6 @@ pub const Stream = struct {
         defer self.mutex.unlock();
         if (self.started or self.stopped) return;
         self.started = true;
-        self.ensureThread();
         self.connectListener();
     }
 
@@ -399,6 +411,7 @@ pub const Stream = struct {
         if (thread) |t| t.join();
         self.mutex.lock();
         defer self.mutex.unlock();
+        self.thread_exited = false;
         self.stopRetired();
         for (self.subscriptions.items) |sub| {
             sub.subscribed = false;
@@ -449,7 +462,15 @@ pub const Stream = struct {
             }
             if (wake) |at| {
                 self.cond.timedWait(&self.mutex, at - now) catch {};
-            } else self.cond.wait(&self.mutex);
+                continue;
+            }
+            if (self.retired.items.len > 0 or self.sink_releases.items.len > 0) continue;
+            self.cond.timedWait(&self.mutex, self.idle_exit_ms * std.time.ns_per_ms) catch {
+                if (self.stopped or self.timer_at != null or self.reconnect_at != null or
+                    self.retired.items.len > 0 or self.sink_releases.items.len > 0) continue;
+                self.thread_exited = true;
+                break;
+            };
         }
         self.mutex.unlock();
     }

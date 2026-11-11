@@ -21,24 +21,108 @@ const gpa = std.heap.c_allocator;
 
 pub const Kind = enum { counter, gauge, histogram };
 
-fn Series(comptime n: usize) type {
-    return struct { labels: [n][]const u8, value: f64 };
+// Hot-path updates are lock-free and mostly thread-private: every series
+// keeps `shard_count` cache-line-sized accumulators, a thread updates the one
+// assigned to it (round-robin on first use), and `render`/`get` sum them.
+// Series live in an append-only list (insertion order = prom-client order);
+// only creating a series takes the metric's mutex.
+
+pub const shard_count = 16;
+
+threadlocal var thread_shard: u8 = 0xff;
+var next_shard: std.atomic.Value(u32) = .init(0);
+
+inline fn shardIndex() usize {
+    if (thread_shard == 0xff) thread_shard = @intCast(next_shard.fetchAdd(1, .monotonic) % shard_count);
+    return thread_shard;
 }
 
-fn findOrInsert(comptime n: usize, list: *std.ArrayList(Series(n)), labels: [n][]const u8) *Series(n) {
-    for (list.items) |*s| {
-        var same = true;
-        for (s.labels, labels) |x, y| if (!std.mem.eql(u8, x, y)) {
-            same = false;
-            break;
-        };
-        if (same) return s;
+/// f64 stored as bits (threads beyond `shard_count` share a shard, so adds CAS).
+const AtomicF64 = struct {
+    bits: std.atomic.Value(u64) = .init(0),
+
+    fn add(self: *AtomicF64, v: f64) void {
+        var current = self.bits.load(.monotonic);
+        while (true) {
+            const next: u64 = @bitCast(@as(f64, @bitCast(current)) + v);
+            current = self.bits.cmpxchgWeak(current, next, .monotonic, .monotonic) orelse return;
+        }
     }
-    var owned: [n][]const u8 = undefined;
-    for (labels, 0..) |l, i| owned[i] = gpa.dupe(u8, l) catch @panic("OOM");
-    list.append(gpa, .{ .labels = owned, .value = 0 }) catch @panic("OOM");
-    return &list.items[list.items.len - 1];
+
+    fn store(self: *AtomicF64, v: f64) void {
+        self.bits.store(@bitCast(v), .monotonic);
+    }
+
+    fn load(self: *const AtomicF64) f64 {
+        return @bitCast(self.bits.load(.monotonic));
+    }
+};
+
+/// Append-only, lock-free-readable list of labeled series with sharded data.
+fn SeriesList(comptime n: usize, comptime Shard: type) type {
+    return struct {
+        const List = @This();
+        pub const Node = struct {
+            labels: [n][]const u8,
+            next: std.atomic.Value(?*Node) = .init(null),
+            shards: [shard_count]Shard = @splat(.{}),
+
+            pub fn shard(self: *Node) *Shard {
+                return &self.shards[shardIndex()];
+            }
+        };
+
+        mutex: std.Thread.Mutex = .{},
+        head: std.atomic.Value(?*Node) = .init(null),
+        tail: ?*Node = null,
+
+        fn find(self: *const List, labels: [n][]const u8) ?*Node {
+            var it = self.head.load(.acquire);
+            while (it) |node| : (it = node.next.load(.acquire)) {
+                var same = true;
+                for (node.labels, labels) |x, y| if (!std.mem.eql(u8, x, y)) {
+                    same = false;
+                    break;
+                };
+                if (same) return node;
+            }
+            return null;
+        }
+
+        pub fn get(self: *List, labels: [n][]const u8) *Node {
+            if (self.find(labels)) |node| return node;
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.find(labels)) |node| return node;
+            const node = gpa.create(Node) catch @panic("OOM");
+            node.* = .{ .labels = undefined };
+            for (labels, 0..) |l, i| node.labels[i] = gpa.dupe(u8, l) catch @panic("OOM");
+            if (self.tail) |t| t.next.store(node, .release) else self.head.store(node, .release);
+            self.tail = node;
+            return node;
+        }
+
+        pub fn first(self: *const List) ?*Node {
+            return self.head.load(.acquire);
+        }
+
+        /// Not safe against concurrent updates (registry reset).
+        pub fn clear(self: *List) void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            var it = self.head.load(.acquire);
+            while (it) |node| {
+                it = node.next.load(.acquire);
+                for (node.labels) |l| gpa.free(l);
+                gpa.destroy(node);
+            }
+            self.head.store(null, .release);
+            self.tail = null;
+        }
+    };
 }
+
+const ScalarShard = struct { value: AtomicF64 align(std.atomic.cache_line) = .{} };
 
 /// Counter/gauge with a fixed label order. Unlabeled metrics start with a
 /// single zero series like prom-client.
@@ -49,25 +133,19 @@ pub fn Scalar(comptime kind: Kind, comptime label_names: []const []const u8) typ
         pub const Labels = [n][]const u8;
         name: []const u8,
         help: []const u8,
-        mutex: std.Thread.Mutex = .{},
-        series: std.ArrayList(Series(n)) = .empty,
-        initialized: bool = false,
+        series: SeriesList(n, ScalarShard) = .{},
 
         pub fn init(comptime name: []const u8, comptime help: []const u8) Self {
             return .{ .name = prefix ++ name, .help = help };
         }
 
         fn ensureBase(self: *Self) void {
-            if (self.initialized) return;
-            self.initialized = true;
-            if (n == 0) _ = findOrInsert(n, &self.series, .{});
+            if (n == 0) _ = self.series.get(.{});
         }
 
         pub fn inc(self: *Self, labels: Labels, value: f64) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
             self.ensureBase();
-            findOrInsert(n, &self.series, labels).value += value;
+            self.series.get(labels).shard().value.add(value);
         }
 
         pub fn dec(self: *Self, labels: Labels, value: f64) void {
@@ -75,49 +153,43 @@ pub fn Scalar(comptime kind: Kind, comptime label_names: []const []const u8) typ
             self.inc(labels, -value);
         }
 
+        /// Replaces the value (a concurrent `inc` on the same series may be
+        /// lost; gauges here are either set or inc/dec'd, never both).
         pub fn set(self: *Self, labels: Labels, value: f64) void {
             comptime std.debug.assert(kind == .gauge);
-            self.mutex.lock();
-            defer self.mutex.unlock();
             self.ensureBase();
-            findOrInsert(n, &self.series, labels).value = value;
+            const node = self.series.get(labels);
+            for (&node.shards, 0..) |*sh, i| sh.value.store(if (i == 0) value else 0);
+        }
+
+        fn sum(node: *const SeriesList(n, ScalarShard).Node) f64 {
+            var total: f64 = 0;
+            for (&node.shards) |*sh| total += sh.value.load();
+            return total;
         }
 
         /// Current value of a series (0 when absent), like `metric.get()`.
         pub fn get(self: *Self, labels: Labels) f64 {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            for (self.series.items) |s| {
-                var same = true;
-                for (s.labels, labels) |x, y| if (!std.mem.eql(u8, x, y)) {
-                    same = false;
-                };
-                if (same) return s.value;
-            }
-            return 0;
+            const node = self.series.find(labels) orelse return 0;
+            return sum(node);
         }
 
         /// prom-client `reset()`: drop every series (unlabeled -> single 0).
         pub fn reset(self: *Self) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            for (self.series.items) |s| for (s.labels) |l| gpa.free(l);
-            self.series.clearRetainingCapacity();
-            self.initialized = false;
+            self.series.clear();
             self.ensureBase();
         }
 
         pub fn render(self: *Self, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
             self.ensureBase();
             try writeHeader(w, self.name, self.help, kind);
-            for (self.series.items) |s| {
+            var it = self.series.first();
+            while (it) |node| : (it = node.next.load(.acquire)) {
                 try w.writeByte('\n');
                 try w.writeAll(self.name);
-                try writeLabels(w, label_names, &s.labels, null);
+                try writeLabels(w, label_names, &node.labels, null);
                 try w.writeByte(' ');
-                try writeValue(w, s.value);
+                try writeValue(w, sum(node));
             }
         }
     };
@@ -133,81 +205,73 @@ pub fn Gauge(comptime label_names: []const []const u8) type {
 
 pub fn Histogram(comptime label_names: []const []const u8, comptime buckets: []const f64) type {
     const n = label_names.len;
+    const Shard = struct {
+        /// Per bucket (non-cumulative), plus observations above every bound;
+        /// `count` is their sum, so `+Inf` always equals `count`.
+        counts: [buckets.len + 1]std.atomic.Value(u64) align(std.atomic.cache_line) = @splat(.init(0)),
+        sum: AtomicF64 = .{},
+    };
     return struct {
         const Self = @This();
         pub const Labels = [n][]const u8;
-        const Entry = struct { labels: Labels, counts: [buckets.len]u64, sum: f64, count: u64 };
         name: []const u8,
         help: []const u8,
-        mutex: std.Thread.Mutex = .{},
-        series: std.ArrayList(Entry) = .empty,
-        initialized: bool = false,
+        series: SeriesList(n, Shard) = .{},
 
         pub fn init(comptime name: []const u8, comptime help: []const u8) Self {
             return .{ .name = prefix ++ name, .help = help };
         }
 
         fn ensureBase(self: *Self) void {
-            if (self.initialized) return;
-            self.initialized = true;
-            if (n == 0) _ = self.entry(.{});
-        }
-
-        fn entry(self: *Self, labels: Labels) *Entry {
-            for (self.series.items) |*s| {
-                var same = true;
-                for (s.labels, labels) |x, y| if (!std.mem.eql(u8, x, y)) {
-                    same = false;
-                };
-                if (same) return s;
-            }
-            var owned: Labels = undefined;
-            for (labels, 0..) |l, i| owned[i] = gpa.dupe(u8, l) catch @panic("OOM");
-            self.series.append(gpa, .{ .labels = owned, .counts = .{0} ** buckets.len, .sum = 0, .count = 0 }) catch @panic("OOM");
-            return &self.series.items[self.series.items.len - 1];
+            if (n == 0) _ = self.series.get(.{});
         }
 
         pub fn observe(self: *Self, labels: Labels, value: f64) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
             self.ensureBase();
-            const e = self.entry(labels);
+            const sh = self.series.get(labels).shard();
+            var slot: usize = buckets.len;
             for (buckets, 0..) |bound, i| if (value <= bound) {
-                e.counts[i] += 1;
+                slot = i;
                 break;
             };
-            e.sum += value;
-            e.count += 1;
+            _ = sh.counts[slot].fetchAdd(1, .monotonic);
+            sh.sum.add(value);
         }
 
         pub fn render(self: *Self, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
             self.ensureBase();
             try writeHeader(w, self.name, self.help, .histogram);
-            for (self.series.items) |s| {
+            var it = self.series.first();
+            while (it) |node| : (it = node.next.load(.acquire)) {
+                var counts: [buckets.len + 1]u64 = @splat(0);
+                var total_sum: f64 = 0;
+                for (&node.shards) |*sh| {
+                    for (&counts, &sh.counts) |*c, *src| c.* += src.load(.monotonic);
+                    total_sum += sh.sum.load();
+                }
                 var cumulative: u64 = 0;
                 for (buckets, 0..) |bound, i| {
-                    cumulative += s.counts[i];
+                    cumulative += counts[i];
                     var buf: [64]u8 = undefined;
                     try w.writeByte('\n');
                     try w.print("{s}_bucket", .{self.name});
-                    try writeLabels(w, label_names, &s.labels, json.formatNumber(&buf, bound));
+                    try writeLabels(w, label_names, &node.labels, json.formatNumber(&buf, bound));
                     try w.print(" {d}", .{cumulative});
                 }
+                const count = cumulative + counts[buckets.len];
                 try w.writeByte('\n');
                 try w.print("{s}_bucket", .{self.name});
-                try writeLabels(w, label_names, &s.labels, "+Inf");
-                try w.print(" {d}", .{s.count});
+                try writeLabels(w, label_names, &node.labels, "+Inf");
+                try w.print(" {d}", .{count});
                 try w.writeByte('\n');
                 try w.print("{s}_sum", .{self.name});
-                try writeLabels(w, label_names, &s.labels, null);
+                try writeLabels(w, label_names, &node.labels, null);
                 try w.writeByte(' ');
-                try writeValue(w, s.sum);
+                try writeValue(w, total_sum);
                 try w.writeByte('\n');
                 try w.print("{s}_count", .{self.name});
-                try writeLabels(w, label_names, &s.labels, null);
-                try w.print(" {d}", .{s.count});
+                try writeLabels(w, label_names, &node.labels, null);
+                try w.print(" {d}", .{count});
             }
         }
     };

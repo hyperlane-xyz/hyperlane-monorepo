@@ -98,6 +98,10 @@ pub fn main() !void {
     core.config.set(config);
     core.metrics.init();
     try installSignals();
+    // The process timer thread, shared by every module; lives until exit.
+    var timers = core.scheduler.Scheduler.init(gpa);
+    try timers.start();
+    core.scheduler.setGlobal(&timers);
 
     var app: App = .{ .gpa = gpa, .db = try db.DbService.init(gpa, null) };
     if (config.diagnostics_database_url) |url| app.diag = try diagnostics.Diagnostics.open(gpa, url);

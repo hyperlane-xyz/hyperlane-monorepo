@@ -94,6 +94,9 @@ pub const DbService = struct {
     stats_mutex: std.Thread.Mutex = .{},
     stats: Stats = .{},
     stats_thread: ?std.Thread = null,
+    /// `setInterval` for the stats log on the process scheduler (0: none).
+    stats_timer: u64 = 0,
+    stats_timers: ?*core.scheduler.Scheduler = null,
     stats_cond: std.Thread.Condition = .{},
     closing: bool = false,
     /// Set by `close` (under `mutex`): new queries/listens are rejected.
@@ -141,7 +144,10 @@ pub const DbService = struct {
             try self.warmUp(arena, failure);
             self.logger.info("warmed {d} GraphQL db connections role=primary in {d}ms", .{ MIN_POOL_CLIENTS, self.clock() - started });
         }
-        self.stats_thread = std.Thread.spawn(.{}, statsLoop, .{self}) catch null;
+        if (core.scheduler.current()) |timers| {
+            self.stats_timers = timers;
+            self.stats_timer = timers.every(STATS_INTERVAL_MS, self, statsTick) catch 0;
+        } else self.stats_thread = std.Thread.spawn(.{}, statsLoop, .{self}) catch null;
     }
 
     /// `Promise.all(Array.from({ length: 5 }, () => pool.connect()))`: open
@@ -189,6 +195,10 @@ pub const DbService = struct {
         if (self.stats_thread) |t| {
             t.join();
             self.stats_thread = null;
+        }
+        if (self.stats_timers) |timers| {
+            _ = timers.cancel(self.stats_timer);
+            self.stats_timers = null;
         }
         self.mutex.lock();
         self.ended = true;
@@ -245,12 +255,18 @@ pub const DbService = struct {
     /// GraphQL workload (`graphql_primary` or `graphql_replica`). Rows are
     /// allocated in `arena`.
     pub fn query(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
-        return self.run(.main, self.main_role, arena, sql, params, failure);
+        return self.run(.main, self.main_role, arena, sql, params, .{}, failure);
+    }
+
+    /// `query` for statements whose generic plan is safe to reuse
+    /// (`pq.QueryOptions.reuse_plan`): unique-key lookups and fixed SQL.
+    pub fn queryReusable(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
+        return self.run(.main, self.main_role, arena, sql, params, .{ .reuse_plan = true }, failure);
     }
 
     /// Live workload on the primary (`live_primary`).
     pub fn queryLive(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
-        return self.run(.live, .live_primary, arena, sql, params, failure);
+        return self.run(.live, .live_primary, arena, sql, params, .{}, failure);
     }
 
     /// `listen(channels, handler, onDisconnect)` on DATABASE_URL; stop with
@@ -421,7 +437,7 @@ pub const DbService = struct {
         return error.QueryFailed;
     }
 
-    fn run(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure_opt: ?*Failure) Error![]Value {
+    fn run(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error![]Value {
         const id = self.next_query_id.fetchAdd(1, .monotonic) + 1;
         const started = self.clock();
         var local_failure: Failure = .{};
@@ -447,7 +463,7 @@ pub const DbService = struct {
                 break :blk b.query(b.ctx, if (kind == .main) .main else .live, conninfo, arena, sql, params, failure);
             }
             const p = self.pool(kind) catch |e| break :blk e;
-            break :blk p.query(arena, sql, params, failure);
+            break :blk p.queryWith(arena, sql, params, opts, failure);
         } catch |e| {
             const duration = self.clock() - started;
             self.record(role, duration, 0, true);
@@ -477,6 +493,16 @@ pub const DbService = struct {
         metrics.database_rows.inc(.{role.label()}, @floatFromInt(rows));
     }
 
+    fn statsTick(ctx: *anyopaque, _: u64) void {
+        const self: *DbService = @ptrCast(@alignCast(ctx));
+        self.stats_mutex.lock();
+        const s = self.stats;
+        self.stats = .{};
+        self.stats_mutex.unlock();
+        self.logStats(s);
+    }
+
+    /// Fallback without a process scheduler (tests).
     fn statsLoop(self: *DbService) void {
         self.stats_mutex.lock();
         defer self.stats_mutex.unlock();

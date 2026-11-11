@@ -48,14 +48,7 @@ Each module owner keeps its own section. No silent gaps.
   `process_start_time_seconds`, `process_resident_memory_bytes` everywhere;
   `process_virtual_memory_bytes`, `process_heap_bytes`, `process_open_fds`,
   `process_max_fds` on Linux only (as prom-client). Values naturally differ.
-- **Threads, not an event loop:** one thread per HTTP connection (the same
-  thread becomes the WebSocket reader after an upgrade) plus one writer thread
-  per WebSocket. Connections beyond `max_connections` (8192) wait in the
-  kernel backlog; Node has no cap.
-- **requestTimeout is exact:** 10s from the first byte of a request until it
-  is fully received, then `408` + close. Node only checks every 30s
-  (`connectionsCheckingInterval`), so Node fires between 10s and 40s.
-  Headers timeout is the same 10s (Node: min(60s, requestTimeout)).
+- **HTTP/WebSocket runtime and timeouts:** see the http section below.
 - **Fastify request lifecycle is reproduced for this app only:** root CORS
   hook (`origin: true`, strict preflight answered for every path), route
   `onRequest`/handler/error handler/`onSend`/completion. Content-type
@@ -82,6 +75,22 @@ timeout`, `Query read timeout`, `timeout exceeded when trying to connect`).
   identical in the deployed environment. It differs only if TZ is set to a
   non-UTC zone. `interval[]` elements stay raw text (node-pg
   builds PostgresInterval objects). Point/circle types stay raw text.
+- **Prepared statements for unique-key lookups (not client-visible):**
+  node-pg sends every parameterised query as an unnamed statement, so it is
+  planned for its actual values on every execution. The GraphQL pool instead
+  keeps per-connection named statements for `*_by_pk`, selects pinning
+  `id`/`msg_id` with `_eq`, the fixed confirmation snapshot, and
+  confirmation projections bounded by `msg_id` `_eq`. PostgreSQL may then
+  reuse a generic plan. Results are identical: these shapes read at most one
+  row per key. A whole-proxy stress run with every statement forced generic
+  differed from TS only on non-unique lookups, which stay unnamed. SQL text,
+  errors and every other query are unchanged. Errors node-pg cannot produce
+  never reach clients:
+  - 0A000 after view DDL is re-prepared.
+  - 26000/42P05 (for example behind a transaction pooler) are retried
+    unnamed. Named statements are switched off for the pool, with one warning,
+    at a 42P05 or at a second 26000 within 60 s.
+    Backend memory is at most 8 statements (about 15 MB) per connection.
 - **Idle connection errors** are detected at checkout (pg-pool reacts to the
   socket event immediately); the log line and replacement behaviour match.
 - **Logs:** pino-shaped JSON lines on stdout with the same events/levels;
@@ -89,32 +98,30 @@ timeout`, `Query read timeout`, `timeout exceeded when trying to connect`).
 - **Startup failure output:** the error message is printed to stderr and the
   process exits 1 (Node prints a stack trace for the uncaught rejection).
 
-## http (owner: scraperdb; supersedes the http bullets in the foundation section)
+## http (owner: io; supersedes the http bullets in the foundation section)
 
-- **Threads, not an event loop:** one thread per connection (it becomes the
-  WebSocket reader after an upgrade) plus a writer thread per WebSocket.
-  Connections beyond `max_connections` (8192) wait in the kernel backlog
-  (Node has no cap). Rationale in `src/http/IMPLEMENTATION.md`.
-- **requestTimeout is exact and covers the head only:** 10 s from the start of
-  a request head (or from accept for a fresh socket) -> Fastify's 408 client
-  error. Node checks every 30 s (`connectionsCheckingInterval`), so it fires
-  between 10 s and 40 s. Measured: Node does not time out a stalled body;
-  neither does the Zig server.
+- **Evented, but not one thread:** sockets live on one epoll/kqueue set served
+  by an elastic pool of poller threads (`src/http/IMPLEMENTATION.md`). A hook
+  that blocks (database, live's loop) holds its poller while the others keep
+  serving, so unlike Node a slow handler does not delay other sockets. Pollers
+  are capped at 256; beyond that many simultaneously blocked hooks, ready
+  sockets wait (GraphQL admission keeps blocked hooks near 25). No socket cap.
+- **requestTimeout covers the head only and fires within one tick:** 10 s from
+  the start of a request head (or from accept for a fresh socket) -> Fastify's
+  408 client error, checked by a sweep every 250 ms (1/10 of the shortest
+  timeout, at most 250 ms). Node checks every 30 s
+  (`connectionsCheckingInterval`), so it fires between 10 s and 40 s.
+  Measured: Node does not time out a stalled body; neither does the Zig server.
 - **Lingering close:** after a `Connection: close` response the socket is
   half-closed and drained until the peer closes, like Node's `socket.end()`,
-  but bounded by 10 s (Node waits indefinitely), cut short when the server
-  closes, and counted against the connection cap.
-- **Stalled clients hold a thread each; capped at 8192:** a connection whose
-  client stops reading a response (blocking `send`, no send timeout) or never
-  finishes a request body (Node applies no timeout to bodies either) keeps its
-  thread until the peer goes away. HTTP connections + upgraded sockets +
-  lingering closes are capped at `max_connections` = 8192. At the cap the
-  accept loop pauses and new clients wait in the kernel backlog (511, clamped
-  by `somaxconn`), so about 8k such sockets stop new accepts. Node keeps
-  accepting and holds them in memory. The practical ceiling is the OS thread
-  limit (each WebSocket also has a writer thread). Stacks are 8 MiB of
-  virtual memory, touched lazily; shrinking them would not raise the thread
-  limit. The evented design in `src/http/IMPLEMENTATION.md` removes this.
+  but bounded by 10 s (Node waits indefinitely) and cut short when the server
+  closes.
+- **Stalled clients cost memory, not threads:** a client that stops reading a
+  response or never finishes a request body (Node applies no timeout to
+  either) parks its socket with its unsent bytes / buffered body, like Node.
+  The WebSocket handshake answer (101 or an abort response) is the exception:
+  if the socket buffer is full, a 101 tail is queued, but an abort response
+  waits for writability on its poller thread.
 - **Fastify is reproduced for this app only:** root CORS hook, find-my-way
   static routing (no params/wildcards beyond CORS preflight), route
   `onRequest`/handler/error handler/`onSend`/completion, built-in JSON and
@@ -179,6 +186,17 @@ timeout`, `Query read timeout`, `timeout exceeded when trying to connect`).
 - **Cache key text.** The response-cache key hashes a canonical print of the
   normalized document; it equals graphql-js `print` for executable documents
   but only hit/miss equivalence matters (the key is internal).
+
+- **Execution admission races.** Slots are counted like TS observes them
+  (requests yielded on I/O or on a blocked response write; see
+  `src/graphql/IMPLEMENTATION.md`). Two requests that pass the preHandler
+  check together and race for the last slot at their first I/O: the loser
+  gets the preHandler 503, but a `@cached(refresh: true)` loser has already
+  dropped its cache entry. Diagnostics resolvers take the slot just before
+  the call, so one failing argument validation briefly holds a slot. A
+  response write that blocks joins without the bound, so the count can
+  exceed the limit by the requests racing at that instant. All need a race
+  at exactly the last slot.
 
 ## live (`/agents`, `/messages`)
 

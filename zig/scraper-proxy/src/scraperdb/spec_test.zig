@@ -375,3 +375,52 @@ test "rejects excessive affected events before running a projection" {
     try testing.expect(contains(diag.message, "10000 affected events"));
     try testing.expectEqual(@as(usize, 1), db.calls);
 }
+
+test "routes only unique-key lookups and confirmation snapshots to reusable plans" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const cases = [_]struct { where: []const u8, point: bool }{
+        .{ .where = "{\"msg_id\":{\"_eq\":\"\\\\x01\"}}", .point = true },
+        .{ .where = "{\"send_occurred_at\":{\"_is_null\":false},\"msg_id\":{\"_eq\":\"\\\\x01\"}}", .point = true },
+        .{ .where = "{\"_and\":[{\"sender\":{\"_eq\":\"\\\\x99\"}},{\"id\":{\"_eq\":7}}]}", .point = true },
+        .{ .where = "{\"msg_id\":{\"_eq\":null}}", .point = false },
+        .{ .where = "{\"msg_id\":{\"_in\":[\"\\\\x01\"]}}", .point = false },
+        .{ .where = "{\"_or\":[{\"msg_id\":{\"_eq\":\"\\\\x01\"}}]}", .point = false },
+        .{ .where = "{\"_not\":{\"id\":{\"_eq\":1}}}", .point = false },
+        .{ .where = "{\"sender\":{\"_eq\":\"\\\\x99\"}}", .point = false },
+        .{ .where = "null", .point = false },
+    };
+    for (cases) |case| {
+        try testing.expectEqual(case.point, service.isPointLookup(try value.parseLeaky(a, case.where)));
+    }
+    const Routing = struct {
+        plans: std.ArrayList(service.Plan) = .empty,
+        arena: Allocator,
+        fn record(self: *@This(), plan: service.Plan) void {
+            self.plans.append(self.arena, plan) catch unreachable;
+        }
+        fn custom(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            self.record(.custom);
+            return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"message_ids\":[],\"domains\":[],\"heights\":[]}")});
+        }
+        fn reusable(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            self.record(.reusable);
+            return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"message_ids\":[],\"domains\":[],\"heights\":[]}")});
+        }
+    };
+    var routing: Routing = .{ .arena = a };
+    const svc = service.Service.init(.{ .ctx = &routing, .queryFn = Routing.custom, .reusableQueryFn = Routing.reusable });
+    var diag: sql.Diag = .{};
+    _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
+    _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"sender\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
+    _ = try svc.byPk(a, .raw_message_dispatch, .{ .string = "1" }, null, &diag);
+    _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), .confirmations = .{ .number = 0 } }, &diag);
+    _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"limit\":20}"), .confirmations = .{ .number = 2 } }, &diag);
+    _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"where\":{\"id\":{\"_eq\":7}}}"), .confirmations = .{ .number = 0 } }, &diag);
+    try testing.expectEqualSlices(service.Plan, &.{ .reusable, .custom, .reusable, .reusable, .reusable, .reusable, .custom, .reusable, .custom }, routing.plans.items);
+    try testing.expect(!service.isMessageIdLookup(try value.parseLeaky(a, "{\"id\":{\"_eq\":7}}")));
+    try testing.expect(service.isMessageIdLookup(try value.parseLeaky(a, "{\"_and\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}")));
+}

@@ -98,6 +98,8 @@ pub const Socket = struct {
         buffered_amount: *const fn (ptr: *anyopaque) usize,
         /// `readyState === WebSocket.OPEN`.
         is_open: *const fn (ptr: *anyopaque) bool,
+        /// `is_open` and `buffered_amount` read together (one lock per send).
+        snapshot: *const fn (ptr: *anyopaque) Snapshot,
         close: *const fn (ptr: *anyopaque, code: u16, reason: []const u8) void,
         terminate: *const fn (ptr: *anyopaque) void,
         ping: *const fn (ptr: *anyopaque) void,
@@ -106,6 +108,8 @@ pub const Socket = struct {
         /// queued (Node writes synchronously when the socket is writable).
         try_send_inline: ?*const fn (ptr: *anyopaque, bytes: []const u8) InlineResult = null,
     };
+
+    pub const Snapshot = struct { open: bool, buffered: usize };
 
     pub const InlineResult = enum {
         /// Handed to the kernel (a partial tail may still be queued in order).
@@ -124,6 +128,9 @@ pub const Socket = struct {
     }
     fn isOpen(self: Socket) bool {
         return self.vtable.is_open(self.ptr);
+    }
+    fn snapshot(self: Socket) Snapshot {
+        return self.vtable.snapshot(self.ptr);
     }
     fn close(self: Socket, code: u16, reason: []const u8) void {
         self.vtable.close(self.ptr, code, reason);
@@ -2060,6 +2067,8 @@ pub const Server = struct {
         self.explorer_clients_by_ip.clearRetainingCapacity();
     }
 
+    /// Runs on the process timer thread. Taking the loop mutex here is safe:
+    /// `SharedScheduler.cancel` never waits for a callback that already fired.
     fn onHeartbeatTimer(ctx: *anyopaque, id: u64) void {
         const self: *Server = @ptrCast(@alignCast(ctx));
         self.loop.lock();
@@ -2119,8 +2128,10 @@ pub const Server = struct {
     /// `sendSerialized`, also reporting a frame written inline (no completion
     /// follows for it).
     fn sendFrame(self: *Server, peer: *Peer, bytes: []const u8, kind: SendJob.Kind) SendOutcome {
-        if (peer.terminated or !peer.socket.isOpen()) return .failed;
-        if (peer.socket.bufferedAmount() + bytes.len > self.limits.max_buffered_bytes or
+        if (peer.terminated) return .failed;
+        const state = peer.socket.snapshot();
+        if (!state.open) return .failed;
+        if (state.buffered + bytes.len > self.limits.max_buffered_bytes or
             self.pending_bytes.load(.monotonic) + bytes.len > self.limits.max_total_buffered_bytes)
         {
             metrics.websocket_send_failures.inc(.{"buffer_limit"}, 1);

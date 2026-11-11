@@ -160,7 +160,9 @@ const PreparedDocument = struct {
     query: []const u8,
     used_variables: compat.UsedVariables,
     /// References: the cache (while `cached`) plus in-flight `prepare` calls.
-    refs: u32 = 1,
+    /// Taken under the cache mutex (a mapped document always holds the
+    /// cache's reference); dropped lock-free, last one frees.
+    refs: std.atomic.Value(u32) = .init(1),
     cached: bool = false,
     prev: ?*PreparedDocument = null,
     next: ?*PreparedDocument = null,
@@ -171,7 +173,8 @@ const Entry = struct {
     body: []const u8,
     expires: i64,
     /// The cache's reference (while stored) plus in-flight shared reads.
-    refs: u32 = 1,
+    /// Taken under the cache mutex; dropped lock-free, last one frees.
+    refs: std.atomic.Value(u32) = .init(1),
     prev: ?*Entry = null,
     next: ?*Entry = null,
 };
@@ -196,6 +199,13 @@ fn Lru(comptime T: type) type {
             if (self.tail) |t| t.next = n else self.head = n;
             self.tail = n;
             self.len += 1;
+        }
+
+        /// Marks `n` most recently used.
+        fn touch(self: *@This(), n: *T) void {
+            if (self.tail == n) return;
+            self.unlink(n);
+            self.push(n);
         }
     };
 }
@@ -272,9 +282,8 @@ pub const ResponseCache = struct {
     fn acquireDocument(self: *ResponseCache, a: Allocator, schema: *const Schema, doc_key: DocKey) !?*PreparedDocument {
         self.mutex.lock();
         if (self.documents.get(doc_key)) |p| {
-            self.document_order.unlink(p);
-            self.document_order.push(p);
-            p.refs += 1;
+            self.document_order.touch(p);
+            _ = p.refs.fetchAdd(1, .monotonic);
             self.mutex.unlock();
             return p;
         }
@@ -293,25 +302,20 @@ pub const ResponseCache = struct {
         if (self.documents.contains(doc_key)) return fresh; // lost the race: private copy
         self.documents.put(self.gpa, fresh.key, fresh) catch return fresh;
         fresh.cached = true;
-        fresh.refs += 1;
+        _ = fresh.refs.fetchAdd(1, .monotonic);
         self.document_order.push(fresh);
         if (self.document_order.len > max_prepared_documents) {
             const oldest = self.document_order.head.?;
             self.document_order.unlink(oldest);
             _ = self.documents.remove(oldest.key);
             oldest.cached = false;
-            oldest.refs -= 1;
-            if (oldest.refs == 0) self.freeDocument(oldest);
+            self.releaseDocument(oldest);
         }
         return fresh;
     }
 
     fn releaseDocument(self: *ResponseCache, p: *PreparedDocument) void {
-        self.mutex.lock();
-        p.refs -= 1;
-        const last = p.refs == 0;
-        self.mutex.unlock();
-        if (last) self.freeDocument(p);
+        if (p.refs.fetchSub(1, .acq_rel) == 1) self.freeDocument(p);
     }
 
     fn freeDocument(self: *ResponseCache, p: *PreparedDocument) void {
@@ -398,20 +402,15 @@ pub const ResponseCache = struct {
             self.remove(request.key);
             return null;
         }
-        self.entry_order.unlink(entry);
-        self.entry_order.push(entry);
-        entry.refs += 1;
+        self.entry_order.touch(entry);
+        _ = entry.refs.fetchAdd(1, .monotonic);
         const remaining: f64 = @floatFromInt(entry.expires - now);
         return .{ .entry = entry, .body = entry.body, .ttl = @max(0, @ceil(remaining / 1000)) };
     }
 
     pub fn release(self: *ResponseCache, hit: SharedHit) void {
         const entry: *Entry = @ptrCast(@alignCast(hit.entry));
-        self.mutex.lock();
-        entry.refs -= 1;
-        const last = entry.refs == 0;
-        self.mutex.unlock();
-        if (last) self.freeEntry(entry);
+        if (entry.refs.fetchSub(1, .acq_rel) == 1) self.freeEntry(entry);
     }
 
     fn freeEntry(self: *ResponseCache, entry: *Entry) void {
@@ -433,8 +432,7 @@ pub const ResponseCache = struct {
             self.remove(request.key);
             return null;
         }
-        self.entry_order.unlink(entry);
-        self.entry_order.push(entry);
+        self.entry_order.touch(entry);
         const remaining: f64 = @floatFromInt(entry.expires - now);
         return .{ .body = try a.dupe(u8, entry.body), .ttl = @max(0, @ceil(remaining / 1000)) };
     }
@@ -465,8 +463,7 @@ pub const ResponseCache = struct {
         const entry = kv.value;
         self.entry_order.unlink(entry);
         self.bytes -= entry.body.len;
-        entry.refs -= 1;
-        if (entry.refs == 0) self.freeEntry(entry);
+        if (entry.refs.fetchSub(1, .acq_rel) == 1) self.freeEntry(entry);
     }
 };
 

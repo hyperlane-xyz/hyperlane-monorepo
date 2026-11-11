@@ -340,6 +340,163 @@ test "libpq: node-pg row conversion, params and failures" {
     _ = try p.query(a, "CREATE TEMP TABLE IF NOT EXISTS t_rows (x int)", &.{}, &failure);
 }
 
+test "libpq: reusable statements match unnamed ones, evict, and survive result type changes" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .statement_timeout_ms = 15_000 }, .max = 1 });
+    defer p.deinit();
+    const reuse: pq.QueryOptions = .{ .reuse_plan = true };
+    var failure: root.Failure = .{};
+    const sql = "SELECT $1::int8 + 1 AS n, $2::text AS t, $3::bytea AS b";
+    const params = [_]Value{ .{ .number = 41 }, .{ .string = "x" }, .{ .string = "\\x01" } };
+    const unnamed = try core.json.stringifyAlloc(a, .{ .array = (try p.query(a, sql, &params, &failure)).rows });
+    // Past PostgreSQL's five custom plans, so a generic plan is in use.
+    for (0..8) |_| {
+        const named = try p.queryWith(a, sql, &params, reuse, &failure);
+        try testing.expectEqualStrings(unnamed, try core.json.stringifyAlloc(a, .{ .array = named.rows }));
+    }
+    const prepared = "SELECT count(*)::int AS n FROM pg_prepared_statements";
+    try testing.expectEqual(@as(f64, 1), (try p.query(a, prepared, &.{}, &failure)).rows[0].get("n").?.number);
+    // Errors carry the unnamed messages and are not cached.
+    try testing.expectError(error.QueryFailed, p.queryWith(a, "SELECT FROM WHERE $1", &.{.{ .number = 1 }}, reuse, &failure));
+    try testing.expectEqualStrings("syntax error at or near \"WHERE\"", failure.message);
+    try testing.expectError(error.QueryFailed, p.queryWith(a, sql, &.{ .{ .string = "x" }, .null, .null }, reuse, &failure));
+    try testing.expectEqualStrings("invalid input syntax for type bigint: \"x\"", failure.message);
+    try testing.expectEqual(@as(f64, 1), (try p.query(a, prepared, &.{}, &failure)).rows[0].get("n").?.number);
+    // One-off shapes never pay for a Parse round trip.
+    for (0..40) |i| {
+        const text = try std.fmt.allocPrint(a, "SELECT $1::int AS v{d}", .{i});
+        const r = try p.queryWith(a, text, &.{.{ .number = @floatFromInt(i) }}, reuse, &failure);
+        try testing.expectEqual(@as(f64, @floatFromInt(i)), r.rows[0].get(text["SELECT $1::int AS ".len..]).?.number);
+    }
+    try testing.expectEqual(@as(f64, 1), (try p.query(a, prepared, &.{}, &failure)).rows[0].get("n").?.number);
+    // Repeated shapes fill the cache; more hot shapes than slots run unnamed
+    // instead of thrashing DEALLOCATE/Parse.
+    for (0..3) |_| for (0..12) |i| {
+        _ = try p.queryWith(a, try std.fmt.allocPrint(a, "SELECT $1::int AS w{d}", .{i}), &.{.{ .number = 1 }}, reuse, &failure);
+    };
+    try testing.expectEqual(@as(f64, 8), (try p.query(a, prepared, &.{}, &failure)).rows[0].get("n").?.number);
+    // Entries idle for a while make room for a new hot shape.
+    for (0..70) |i| _ = try p.queryWith(a, try std.fmt.allocPrint(a, "SELECT $1::int AS w{d}", .{i % 3}), &.{.{ .number = 1 }}, reuse, &failure);
+    const fresh = "SELECT $1::int AS fresh";
+    for (0..2) |_| _ = try p.queryWith(a, fresh, &.{.{ .number = 1 }}, reuse, &failure);
+    try testing.expectEqual(@as(f64, 8), (try p.query(a, prepared, &.{}, &failure)).rows[0].get("n").?.number);
+    const has_fresh = try p.query(a, "SELECT count(*)::int AS n FROM pg_prepared_statements WHERE statement = $1", &.{.{ .string = fresh }}, &failure);
+    try testing.expectEqual(@as(f64, 1), has_fresh.rows[0].get("n").?.number);
+    // A view whose columns change under a cached statement: node-pg
+    // re-parses unnamed statements, so the named path must retry.
+    _ = try p.query(a, "CREATE OR REPLACE TEMP VIEW v_reuse AS SELECT 1 AS a", &.{}, &failure);
+    const view_sql = "SELECT * FROM v_reuse WHERE $1::int = 1";
+    for (0..7) |_| _ = try p.queryWith(a, view_sql, &.{.{ .number = 1 }}, reuse, &failure);
+    const has_view = try p.query(a, "SELECT count(*)::int AS n FROM pg_prepared_statements WHERE statement = $1", &.{.{ .string = view_sql }}, &failure);
+    try testing.expectEqual(@as(f64, 1), has_view.rows[0].get("n").?.number);
+    _ = try p.query(a, "DROP VIEW v_reuse", &.{}, &failure);
+    _ = try p.query(a, "CREATE TEMP VIEW v_reuse AS SELECT 2 AS a, 'b'::text AS b", &.{}, &failure);
+    const changed = try p.queryWith(a, view_sql, &.{.{ .number = 1 }}, reuse, &failure);
+    try testing.expectEqualStrings("[{\"a\":2,\"b\":\"b\"}]", try core.json.stringifyAlloc(a, .{ .array = changed.rows }));
+    // A statement that vanished server-side (as behind a transaction
+    // pooler) is retried unnamed; a second time within the window turns
+    // named statements off for the pool, so 26000 never reaches a client.
+    const expected_view = "[{\"a\":2,\"b\":\"b\"}]";
+    for (0..2) |round| {
+        _ = try p.query(a, "DEALLOCATE ALL", &.{}, &failure);
+        const again = try p.queryWith(a, view_sql, &.{.{ .number = 1 }}, reuse, &failure);
+        try testing.expectEqualStrings(expected_view, try core.json.stringifyAlloc(a, .{ .array = again.rows }));
+        try testing.expectEqual(round == 0, p.reuse_guard.active());
+        // Prepared again on the next use while still enabled.
+        _ = try p.queryWith(a, view_sql, &.{.{ .number = 1 }}, reuse, &failure);
+        const expected_count: f64 = if (round == 0) 1 else 0;
+        try testing.expectEqual(expected_count, (try p.query(a, prepared, &.{}, &failure)).rows[0].get("n").?.number);
+    }
+    try testing.expectEqual(@as(u32, 1), p.stats().total);
+}
+
+test "libpq: a prepared-statement name collision disables reuse and retries unnamed" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var failure: root.Failure = .{};
+    // Another client of a shared backend already owns our next name.
+    _ = try p.query(a, "PREPARE sp_1 AS SELECT 1", &.{}, &failure);
+    const sql = "SELECT $1::int + 1 AS n";
+    for (0..4) |_| {
+        const r = try p.queryWith(a, sql, &.{.{ .number = 1 }}, .{ .reuse_plan = true }, &failure);
+        try testing.expectEqual(@as(f64, 2), r.rows[0].get("n").?.number);
+    }
+    try testing.expect(!p.reuse_guard.active());
+    const names = try p.query(a, "SELECT string_agg(name, ',') AS n FROM pg_prepared_statements", &.{}, &failure);
+    try testing.expectEqualStrings("sp_1", names.rows[0].get("n").?.string);
+}
+
+test "libpq: the idle reaper runs on a shared scheduler and stops at deinit" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var timers = core.scheduler.Scheduler.init(testing.allocator);
+    try timers.start();
+    defer timers.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 4, .min = 1, .idle_timeout_ms = 50, .scheduler = &timers });
+    var conns: [3]pq.Conn = undefined;
+    for (&conns) |*c| c.* = try p.acquire(a, null);
+    for (conns) |c| p.release(c);
+    try testing.expectEqual(@as(u32, 3), p.stats().total);
+    var waited: usize = 0;
+    while (p.stats().total > 1 and waited < 100) : (waited += 1) std.Thread.sleep(10 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(u32, 1), p.stats().total);
+    p.deinit();
+    // The re-armed timer was cancelled with the pool.
+    try testing.expectEqual(@as(usize, 0), timers.pending());
+}
+
+test "libpq: socket and pool waits are bracketed by core.blocking" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    const Counter = struct {
+        var begins: usize = 0;
+        var ends: usize = 0;
+        var depth: isize = 0;
+        fn begin(_: *anyopaque) void {
+            begins += 1;
+            depth += 1;
+        }
+        fn end(_: *anyopaque) void {
+            ends += 1;
+            depth -= 1;
+        }
+    };
+    var dummy: u8 = 0;
+    core.blocking.hook = .{ .ctx = &dummy, .begin = Counter.begin, .end = Counter.end };
+    defer core.blocking.hook = null;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    _ = try p.query(a, "SELECT 1", &.{}, null);
+    try testing.expect(Counter.begins > 0);
+    try testing.expectEqual(Counter.begins, Counter.ends);
+    // A queued acquire (the only connection is checked out) brackets its wait.
+    const held = try p.acquire(a, null);
+    const Releaser = struct {
+        fn run(pool: *pool_mod.Pool, conn: pq.Conn) void {
+            std.Thread.sleep(50 * std.time.ns_per_ms);
+            pool.release(conn);
+        }
+    };
+    const t = try std.Thread.spawn(.{}, Releaser.run, .{ p, held });
+    const before = Counter.begins;
+    const again = try p.acquire(a, null);
+    t.join();
+    try testing.expect(Counter.begins > before);
+    try testing.expectEqual(@as(isize, 0), Counter.depth);
+    p.release(again);
+}
+
 test "libpq: pool waiters are served FIFO and capped at max" {
     const url = testUrl() orelse return error.SkipZigTest;
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 2 });
@@ -524,7 +681,7 @@ test "bench: query cpu cost (opt-in DB_BENCH=url, use -Drelease=true)" {
         const params = [_]Value{.{ .number = 100 }};
         const p: []const Value = if (std.mem.indexOf(u8, sql, "$1") != null) &params else &.{};
         _ = try svc.query(arena.allocator(), sql, p, null);
-        const n: u64 = 500;
+        const n: u64 = if (std.posix.getenv("DB_BENCH_N")) |v| std.fmt.parseInt(u64, v, 10) catch 500 else 500;
         const ru0 = std.posix.getrusage(std.posix.rusage.SELF);
         for (0..n) |_| {
             _ = arena.reset(.retain_capacity);

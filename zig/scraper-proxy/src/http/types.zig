@@ -44,6 +44,9 @@ pub const Request = struct {
     raw_body: []const u8 = "",
     /// `request.raw.complete`: the whole request (incl. body) was received.
     complete: bool = false,
+    /// Set before `on_request`: the request has a body that is not fully
+    /// buffered yet, so reading it will wait for the client.
+    body_pending: bool = false,
     /// Free slot for route hooks (TS WeakMap state keyed by request).
     state: ?*anyopaque = null,
 
@@ -283,6 +286,9 @@ pub const Hooks = struct {
     /// one). Must `send`. Null -> Fastify default JSON error.
     error_handler: ?*const fn (ctx: *anyopaque, req: *Request, reply: *Reply, err: FastifyError) void = null,
     on_send: ?*const fn (ctx: *anyopaque, req: *Request, reply: *Reply) void = null,
+    /// At most once per request, before `on_done`: the response write would
+    /// block and the rest waits for the client to read.
+    on_write_blocked: ?*const fn (ctx: *anyopaque, req: *Request, reply: *Reply) void = null,
     on_done: ?*const fn (ctx: *anyopaque, req: *Request, reply: *Reply, reason: DoneReason) void = null,
 };
 
