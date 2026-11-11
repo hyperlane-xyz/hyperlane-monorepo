@@ -1,28 +1,73 @@
 warpRouteId: USDC/radix
 
+deployment:
+  imageTag: 6040d28-20261110-130043
+  imageDigest: sha256:bca8117fd58bf6e824deee1206ee5182fc6ff15a910d618485b1392bd18a4ee5
+  registryCommit: d36ac66ef726bdce6691d4ce4be8ab3dab39cb29
+  swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
+
+pendingTransferMiddlewares:
+  - type: relayerDenylist
+    url: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json
+
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  sealevel: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo'
+
+externalBridges:
+  swapsxyz:
+    defaultSlippage: 0.005
+    maxQuoteLossBps: 50
+    maxEvmNativeFeeWei: '10000000000000000'
+    maxSolanaNativeSpendLamports: 10000000
+
 strategy:
-  rebalanceStrategy: weighted
+  rebalanceStrategy: minAmount
   chains:
     arbitrum:
-      weighted:
-        weight: 25
-        tolerance: 10
+      minAmount:
+        min: 10000
+        target: 10000
+        type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 10000
+      bridgeMinAcceptedAmount: 1000
       bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: swapsxyz
 
     base:
-      weighted:
-        weight: 25
-        tolerance: 10
+      minAmount:
+        min: 10000
+        target: 10000
+        type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 10000
+      bridgeMinAcceptedAmount: 1000
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: swapsxyz
 
     ethereum:
-      weighted:
-        weight: 50
-        tolerance: 10
+      minAmount:
+        min: 10000
+        target: 10000
+        type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 10000
+      bridgeMinAcceptedAmount: 1000
       bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: swapsxyz
+
+    solanamainnet:
+      minAmount:
+        min: 10000
+        target: 10000
+        type: 'absolute'
+      bridgeMinAcceptedAmount: 1000
+      executionType: inventory
+      externalBridge: swapsxyz
