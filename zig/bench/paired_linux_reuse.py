@@ -61,7 +61,7 @@ def read_header(header_pin,repo):
   artifact_row(row['artifact']);need(row['artifact']['name']==f"paired-linux-proof-{i}-{row['origin']['run_id']}-{row['origin']['run_attempt']}",'proof artifact name/attempt')
   need(row['artifact']['id']not in ids and row['origin']['job_id']not in jobs,'distinct actual proof artifacts/jobs');ids.add(row['artifact']['id']);jobs.add(row['origin']['job_id'])
   need(type(row['members'])is dict and set(row['members'])==MEMBERS,'complete actual proof/owner/worker/launch/consumer receipts')
-  for m in row['members'].values():member_row(m)
+  for name,m in row['members'].items():member_row(m,policy.proof_limits(row['kind'])[0]if name=='proof'else 64*1024**2)
   need(len({m['member']for m in row['members'].values()})==5,'distinct proof members')
  return value
 
@@ -103,14 +103,14 @@ def download(runner,reader,guard,row):
  archive_path=runner.api(f"repos/{REPOSITORY}/actions/artifacts/{row['id']}/zip",row['size_in_bytes']);need(size_sha(policy.pin(archive_path),4*GIB)=={'bytes':row['size_in_bytes'],'sha256':row['sha256']},'actual archive byte digest');archive=reader.Archive(archive_path,guard)
  return archive,archive_path
 
-def bound_member(archive,row,root):
+def bound_member(archive,row,root,maximum=64*1024**2):
  # Member identity comes from the Root-approved header, not an absolute path in
  # an old receipt. Local extraction root is the only filesystem authority.
- archive.match(row['member'],row);path=root/policy.relative(row['member']);actual=policy.pin(path);need(size_sha(actual,64*1024**2)==size_sha(row,64*1024**2),'actual relocated member bytes');return path
+ archive.match(row['member'],row);path=root/policy.relative(row['member']);actual=policy.pin(path);need(size_sha(actual,maximum)==size_sha(row,maximum),'actual relocated member bytes');return path
 
-def data_reference(row,expected):
+def data_reference(row,expected,maximum=64*1024**2):
  need(type(row)is dict and set(row)=={'path','bytes','sha256'}and type(row['path'])is str and str(PurePosixPath(row['path']))==row['path']and row['path'].startswith('/')and not any(c in row['path']for c in ['\\','\0','\r','\n'])and '..'not in PurePosixPath(row['path']).parts,'bounded old descriptor syntax')
- need(size_sha(row,64*1024**2)==size_sha(expected,64*1024**2),'old receipt byte link differs');return PurePosixPath(row['path'])
+ need(size_sha(row,maximum)==size_sha(expected,maximum),'old receipt byte link differs');return PurePosixPath(row['path'])
 
 def validate_input_provenance(value,root,header,profile=BASELINE_PROFILE,repo=None,authority=None):
  need(value.get('request_sha256')==header['original_request']['sha256']and value.get('execution_source_commit')==header['origin']['source_commit']and value.get('producer_source_commit')==header['producer_source_commit']and value.get('baseline_profile')==profile and type(value.get('baseline_profile'))is str and value['baseline_profile']in policy.PROFILE_RUSTFLAGS,'original input request/Source provenance')
@@ -124,7 +124,7 @@ def validate_input_provenance(value,root,header,profile=BASELINE_PROFILE,repo=No
  return {'actual_build_command_waits':len(rows),'actual_Git_waits':len(checks),'baseline_source_commit':policy.BASELINE,'all_declared_products_sha256':policy.sha(json.dumps(value['artifacts'],sort_keys=True,separators=(',',':')).encode())}
 
 def validate_proof(slot,files,manifest,header,semantic,repo):
- i=slot['index'];mode=slot['mode'];kind=slot['kind'];owner=policy.decode(files['owner'].read_bytes());worker=policy.decode(files['worker'].read_bytes());launches=policy.decode(files['launches'].read_bytes());consumer=policy.decode(files['consumer'].read_bytes());raw=policy.decode(files['proof'].read_bytes(),64*1024**2,2000000);expected=slot['members'];request=header['original_request']
+ i=slot['index'];mode=slot['mode'];kind=slot['kind'];owner=policy.decode(files['owner'].read_bytes());worker=policy.decode(files['worker'].read_bytes());launches=policy.decode(files['launches'].read_bytes());consumer=policy.decode(files['consumer'].read_bytes());raw=policy.decode_proof(files['proof'].read_bytes(),kind);expected=slot['members'];request=header['original_request']
  need(owner.get('schema')==1 and owner.get('kind')=='paired-linux-owned-functional'and owner.get('platform')=='linux-x86_64'and owner.get('passed')is True and type(owner.get('index'))is int and owner['index']==i and owner.get('error_type')is None and owner.get('native18_or_performance_acceptance')is False,'actual Linux functional owner receipt')
  data_reference(owner['request'],request);cleanup=owner.get('cleanup');need(type(cleanup)is dict and cleanup.get('actual_parent_wait')is True and type(cleanup.get('exit_code'))is int and cleanup['exit_code']==0 and cleanup.get('clean')is True and cleanup.get('cleanup_confirmed_absent')is True and cleanup.get('signals')==[]and cleanup.get('errors')==[]and not cleanup.get('remaining_identities')and not cleanup.get('unanchored_session_members'),'actual bounded clean no-signal owner wait/absence')
  for adopted in cleanup.get('actual_adopted_child_waits',[]):
@@ -133,7 +133,7 @@ def validate_proof(slot,files,manifest,header,semantic,repo):
  for field in ['started_monotonic','original_deadline_monotonic','ended_monotonic']:need(type(owner.get(field))in(int,float)and math.isfinite(owner[field]),'finite original owner clock')
  need(owner['original_deadline_monotonic']==owner['started_monotonic']+7200 and owner['started_monotonic']<=owner['ended_monotonic']<owner['original_deadline_monotonic']and integer(owner.get('sampled_tree_RSS_peak_bytes'),0,4*GIB)and integer(owner.get('new_allocated_peak_bytes'),0,512*1024**2)and integer(owner.get('minimum_host_free_bytes'),6*GIB),'actual original wall/RSS/disk/free limits')
  need(worker.get('schema')==1 and worker.get('kind')=='paired-linux-functional-result'and worker.get('platform')=='linux-x86_64'and worker.get('passed')is True and type(worker.get('index'))is int and worker['index']==i and worker.get('mode')==mode and worker.get('proof_kind')==kind and worker.get('production_confirm_seconds')==600 and worker.get('bounded_grace_seconds')==30 and worker.get('native18_or_timing_acceptance')is False,'actual exact-binary600+30 functional worker')
- old_worker=data_reference(owner['worker_receipt'],expected['worker']);old_proof=data_reference(worker['proof'],expected['proof']);need(old_worker.name=='functional-result.json'and old_proof.name=='proof.json'and old_worker.parent==old_proof.parent,'consistent old receipt paths; never local IO authority')
+ old_worker=data_reference(owner['worker_receipt'],expected['worker']);old_proof=data_reference(worker['proof'],expected['proof'],policy.proof_limits(kind)[0]);need(old_worker.name=='functional-result.json'and old_proof.name=='proof.json'and old_worker.parent==old_proof.parent,'consistent old receipt paths; never local IO authority')
  data_reference(worker['request'],request);data_reference(worker['input_manifest'],header['input_manifest']);need(consumer.get('schema')==1 and consumer.get('kind')=='paired-linux-input-consumer'and consumer.get('passed')is True and consumer.get('consumer_cpu_and_elf_admitted')is True and consumer.get('tool_manifest_admitted')is True and consumer.get('native18_or_timing_acceptance')is False,'original input admission')
  data_reference(consumer['input_manifest'],header['input_manifest']);data_reference(consumer['request'],request);remote=consumer.get('remote',{});need(remote.get('id')==header['input_artifact']['id']and remote.get('sha256')==header['input_artifact']['sha256']and remote.get('run_id')==header['origin']['run_id']and remote.get('run_attempt')==header['origin']['run_attempt']and remote.get('source_commit')==header['origin']['source_commit']and remote.get('bytes')==header['input_artifact']['size_in_bytes']and remote.get('name')==header['input_artifact']['name']and remote.get('job_id')==header['origin']['job_id'],'proof used exact original once artifact')
  commands=consumer.get('actual_commands');need(type(commands)is dict and commands.get('all_calls_actually_waited')is True and integer(commands.get('actual_calls'),1)and commands.get('actual_parent_waits')==commands['actual_calls']and commands.get('failure_count')==0,'actual original admission command waits')
@@ -166,7 +166,7 @@ def reuse(header_pin,repo,output,current_source_commit,gh,token):
   for slot in header['proofs']:
    guard();actual_remote(slot['origin'],slot['artifact'],*snapshot);archive,path=download(runner,reader,guard,slot['artifact']);archives.append(path);root=output/('proof-'+str(slot['index']))
    try:
-    stage.extract(archive,root);archive.finish();files={name:bound_member(archive,row,root)for name,row in slot['members'].items()};summary=validate_proof(slot,files,manifest,header,semantic,repo)
+    stage.extract(archive,root);archive.finish();files={name:bound_member(archive,row,root,policy.proof_limits(slot['kind'])[0]if name=='proof'else 64*1024**2)for name,row in slot['members'].items()};summary=validate_proof(slot,files,manifest,header,semantic,repo)
    finally:archive.close()
    proofs[slot['mode']][slot['kind']]=policy.pin(files['proof']);summaries.append(summary)
   for row in header['current_source']:policy.checked(row,repo)

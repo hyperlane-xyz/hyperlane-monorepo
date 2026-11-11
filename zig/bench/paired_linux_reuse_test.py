@@ -36,6 +36,27 @@ class Reuse(unittest.TestCase):
    with self.assertRaises(p.Refused):r.read_header({'path':'/not-read','bytes':2*1024**2+1,'sha256':'a'*64},self.repo)
  def test_closed_actual_header_accepts_finite_original_and_current_source(self):
   value=self.header();row=metadata(self.root/'header.json',value);self.assertEqual(r.read_header(row,self.repo),value)
+ def test_only_public_raw_proof_member_header_and_oldlink_get_128MiB(self):
+  original=self.header()
+  for index,name,allowed in [(2,'proof',True),(5,'proof',True),(0,'proof',False),(1,'proof',False),(2,'worker',False),(2,'owner',False),(2,'launches',False),(2,'consumer',False)]:
+   value=copy.deepcopy(original);value['proofs'][index]['members'][name]['bytes']=64*1024**2+1;row=metadata(self.root/'typed-header.json',value)
+   if allowed:self.assertEqual(r.read_header(row,self.repo),value)
+   else:
+    with self.assertRaises(p.Refused):r.read_header(row,self.repo)
+  value=copy.deepcopy(original);value['proofs'][2]['members']['proof']['bytes']=128*1024**2+1
+  with self.assertRaises(p.Refused):r.read_header(metadata(self.root/'typed-header.json',value),self.repo)
+  expected={'bytes':64*1024**2+1,'sha256':'a'*64};old={'path':'/old/proof.json',**expected}
+  self.assertEqual(r.data_reference(old,expected,p.proof_limits('public_relay_process')[0]),Path('/old/proof.json'))
+  with self.assertRaises(p.Refused):r.data_reference(old,expected)
+  self.assertEqual(r.PROFILE['metadata_bytes'],64*1024**2);self.assertEqual(r.PROFILE['inspector_RAM_bytes'],1024**3)
+ def test_relocated_public_proof_bound_and_kind_decode_are_consistent(self):
+  row={'member':'proof.json','bytes':64*1024**2+1,'sha256':'a'*64};archive=mock.Mock();root=self.root/'relocated';actual={'path':str(root/'proof.json'),'bytes':row['bytes'],'sha256':row['sha256']}
+  with mock.patch.object(p,'pin',return_value=actual):
+   self.assertEqual(r.bound_member(archive,row,root,p.proof_limits('public_relay_process')[0]),root/'proof.json')
+   with self.assertRaises(p.Refused):r.bound_member(archive,row,root)
+  slot,files,manifest,h,semantic=self.proof(2);original=p.decode_proof
+  with mock.patch.object(p,'decode_proof',wraps=original)as decode:r.validate_proof(slot,files,manifest,h,semantic,self.repo)
+  decode.assert_called_once_with(files['proof'].read_bytes(),'public_relay_process')
  def test_header_rejects_missing_duplicate_foreign_Mode_Source_request_or_paths(self):
   value=self.header();changes=[lambda v:v['proofs'].pop(),lambda v:v['proofs'][1].update(index=0),lambda v:v['proofs'][0].update(mode='ReleaseFast'),lambda v:v['proofs'][0]['origin'].update(source_commit='c'*40),lambda v:v['proofs'][0]['artifact'].update(id=v['input_artifact']['id']),lambda v:v['proofs'][0]['members']['proof'].update(member='../escape'),lambda v:v['original_request'].update(path='.git/config'),lambda v:v.update(Root_six_accepted=False),lambda v:v.update(extra=True)]
   for change in changes:

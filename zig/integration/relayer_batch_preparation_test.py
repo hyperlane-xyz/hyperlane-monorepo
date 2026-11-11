@@ -200,5 +200,18 @@ class HeldProbeDiagnosticsTests(unittest.TestCase):
                 self.assertIn('maxSubmitQueueLength',json.loads((config/'public.json').read_text())['chains']['test2'])
 
 
+class CompactSnapshotControls(unittest.TestCase):
+    def test_compact_snapshot_preserves_every_value_and_raw_response(self):
+        node=next(n for n in ast.parse(SOURCE.read_text()).body if isinstance(n,ast.FunctionDef)and n.name=='write_snapshot')
+        scope={'pathlib':pathlib,'json':json,'os':os};exec(compile(ast.Module([node],type_ignores=[]),str(SOURCE),'exec'),scope)
+        value={'passed':False,'errors':[],'observations':[{'request':{'method':'fixture','params':[' unicode \u2603 ',None,False,2**256]},'response':{'raw':' a \n b ','result':[0,1.25,True,{'nested':[]}]} }]*4}
+        with tempfile.TemporaryDirectory()as directory:
+            path=pathlib.Path(directory)/'proof.json';scope['write_snapshot'](path,value);raw=path.read_bytes()
+            self.assertEqual(json.loads(raw),value)
+            self.assertEqual(raw,(json.dumps(value,separators=(',',':'))+'\n').encode())
+            self.assertLess(len(raw),len((json.dumps(value,indent=2)+'\n').encode()))
+            self.assertFalse(path.with_name('.proof.json.tmp').exists())
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

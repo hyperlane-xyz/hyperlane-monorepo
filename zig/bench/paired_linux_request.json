@@ -163,11 +163,11 @@
     },
     {
       "path": "zig/bench/paired_linux.py",
-      "bytes": 23116,
+      "bytes": 23394,
       "sha256": {
         "sha256_hex_chunks": [
-          "04146a01bdd3a59d78ca410926a572c8",
-          "5e3757e7ab9c6b051084a0ae35f9dbcb"
+          "07f5d4dcae5ed89a5ec34fd82227c3dd",
+          "2141777d59a9c47efd0def99b1348e2c"
         ]
       }
     },
@@ -193,11 +193,11 @@
     },
     {
       "path": "zig/bench/paired_linux_owner.py",
-      "bytes": 25200,
+      "bytes": 26196,
       "sha256": {
         "sha256_hex_chunks": [
-          "9ac2314aa8fb098d1622591b176a1495",
-          "0a5d52ccd3d995e98e04856ba45eaa22"
+          "0584e7fda7b1c05fe21e9f3b57df9ec4",
+          "5576a87c84840a8104e3fc9e7dbfa2c4"
         ]
       }
     },
@@ -303,11 +303,11 @@
     },
     {
       "path": "zig/integration/relayer_process.py",
-      "bytes": 87454,
+      "bytes": 87466,
       "sha256": {
         "sha256_hex_chunks": [
-          "739cdaf77b071a2e54ef507ca303cfa2",
-          "82748a620d5fef6a40cc327a5dfe1d8f"
+          "f47d3e02f75d41fe71c71a77846d6337",
+          "652ff4d1ee8632696f27738753bf1175"
         ]
       }
     },

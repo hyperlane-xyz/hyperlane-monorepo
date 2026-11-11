@@ -605,7 +605,7 @@ class FunctionalFailureDiagnosticsControls(unittest.TestCase):
   self.assertIs(caught.exception,primary);self.assertEqual([name for name,_ in saved],['actual-agent-launches.json']);self.assertEqual(warnings.getvalue(),'FUNCTIONAL_DIAGNOSTIC_WRITE_FAILED\n')
  def test_actual_worker_also_records_postmain_proof_validation_failure(self):
   tree=ast.parse((HERE/'paired_linux_owner.py').read_text());worker=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='worker');node=next(n for n in worker.body if isinstance(n,ast.Try));record=mock.Mock();saved=[];path=self.out/'proof.json';path.write_text('{}')
-  scope={'module':N(main=lambda:None),'policy':N(write=lambda path,value:saved.append(path.name),decode=p.decode),'proof':path,'args':self.args,'events':[],'functional_failure':record,'authority':self.authority,'request_pin':self.request,'mode':'ReleaseSafe','kind':'relayer_process','value':{'artifacts':{'zig':{'ReleaseSafe':{'relayer':{'sha256':'a'*64}}}}},'sys':sys}
+  scope={'module':N(main=lambda:None),'policy':N(write=lambda path,value:saved.append(path.name),decode_proof=p.decode_proof),'proof':path,'args':self.args,'events':[],'functional_failure':record,'authority':self.authority,'request_pin':self.request,'mode':'ReleaseSafe','kind':'relayer_process','value':{'artifacts':{'zig':{'ReleaseSafe':{'relayer':{'sha256':'a'*64}}}}},'sys':sys}
   with self.assertRaisesRegex(RuntimeError,'actual functional proof failed')as caught:exec(compile(ast.Module(body=[node],type_ignores=[]),str(HERE/'paired_linux_owner.py'),'exec'),scope)
   self.assertIs(record.call_args.args[0],caught.exception);self.assertEqual(saved,['actual-agent-launches.json'])
 
@@ -963,5 +963,44 @@ class DrainedHandoffWorkflowInverseControls(unittest.TestCase):
    self.assertNotEqual(changed_body,functional);changed=text.replace(functional,changed_body,1)
    for node,inverse in self.actual_inverses():
     with self.assertRaises(AssertionError):self.assertEqual(hashlib.sha256(inverse(changed).encode()).hexdigest(),'e08ffd005159dd3915047706df9a1806b' '13cf3344795e5700980910bc38f9ef3')
+
+
+class PublicProofBudgetControls(unittest.TestCase):
+ def test_only_public_proof_gets_larger_typed_budget_metadata_unchanged(self):
+  self.assertEqual(p.proof_limits('public_relay_process'),(128*1024**2,8*1024**2))
+  for kind in ['relayer_process','relayer_stream']:self.assertEqual(p.proof_limits(kind),(64*1024**2,2000000))
+  for kind in [None,True,'public','runtime']:
+   with self.assertRaises(p.Refused):p.proof_limits(kind)
+  with self.assertRaises(p.Refused):p.decode(b' '*(32*1024**2+1))
+ def test_public_bytes_above_old_cap_preserve_full_response_other_kinds_refuse(self):
+  raw=b'{"response":"'+b'x'*(64*1024**2)+b'"}'
+  self.assertEqual(len(p.decode_proof(raw,'public_relay_process')['response']),64*1024**2)
+  for kind in ['relayer_process','relayer_stream']:
+   with self.assertRaises(p.Refused):p.decode_proof(raw,kind)
+  del raw
+  with self.assertRaises(p.Refused):p.decode_proof(b' '*(128*1024**2+1),'public_relay_process')
+ def test_public_actual_parser_nodes_above_old_cap_other_kinds_refuse(self):
+  raw=b'{"observations":['+b'0,'*2000000+b'0]}'
+  self.assertEqual(len(p.decode_proof(raw,'public_relay_process')['observations']),2000001)
+  for kind in ['relayer_process','relayer_stream']:
+   with self.assertRaises(p.Refused):p.decode_proof(raw,kind)
+  with mock.patch.object(p,'decode',return_value={'observations':[]})as decode:
+   p.decode_proof(b'{}','public_relay_process');decode.assert_called_once_with(b'{}',128*1024**2,8*1024**2)
+ def test_parent_final_sample_after_completed_worker_refuses_all_original_bounds(self):
+  import contextlib
+  import paired_linux_owner as owner
+  for case in ['ok','peak','late','disk','free']:
+   with self.subTest(case=case),tempfile.TemporaryDirectory()as directory:
+    root=Path(directory).resolve();repo=root/'repo';repo.mkdir();args=N(phase='functional',request=root/'request',request_sha256='a'*64,repo=repo,inputs=root/'inputs',index=2,output=root/'output');after={'worker':False};child=N(pid=123);custody=mock.Mock();custody.allocated.side_effect=lambda path:512*1024**2+1 if after['worker']and case=='disk'else 0;custody.processes.return_value={};custody.owned_processes.return_value={123:{'rss_bytes':1}};custody.stop_owned.return_value={'actual_parent_wait':True,'exit_code':0,'clean':True,'signals':[],'errors':[]}
+    def completed(*ignored):after['worker']=True;return {'path':'synthetic-worker','bytes':1,'sha256':'b'*64}
+    usage=mock.Mock(side_effect=lambda who:N(ru_maxrss=(4*1024**3+1024)//1024 if after['worker']and case=='peak'else 1))
+    with contextlib.ExitStack()as stack:
+     for target,name,replacement in [(owner.policy,'request',mock.Mock(return_value=({'root_approved':True,'functional_enabled':True},{'sha256':'a'*64}))),(owner.policy,'load_source',mock.Mock(return_value=custody)),(owner,'completed_worker',mock.Mock(side_effect=completed)),(owner.sys,'platform','linux'),(owner.os,'pidfd_open',mock.Mock()),(owner.signal,'pidfd_send_signal',mock.Mock()),(owner.signal,'getsignal',mock.Mock(return_value=0)),(owner.signal,'signal',mock.Mock()),(owner.signal,'pthread_sigmask',mock.Mock(return_value=set())),(owner.shutil,'disk_usage',mock.Mock(side_effect=lambda path:N(free=(5 if after['worker']and case=='free'else 7)*1024**3))),(owner.subprocess,'Popen',mock.Mock(return_value=child)),(owner.os,'waitid',mock.Mock(return_value=N())),(owner.time,'monotonic',mock.Mock(side_effect=lambda:7301 if after['worker']and case=='late'else 100)),(owner.resource,'getrusage',usage)]:stack.enter_context(mock.patch.object(target,name,replacement,create=True))
+     if case=='ok':owner.owner(args)
+     else:
+      with self.assertRaises(p.Refused):owner.owner(args)
+    row=json.loads((args.output/'owner-result.json').read_bytes());self.assertEqual(row['passed'],case=='ok');self.assertIsNotNone(row['worker_receipt']);self.assertIsNotNone(row['parent_final_resource_sample']);usage.assert_called_once_with(owner.resource.RUSAGE_SELF);custody.stop_owned.assert_called_once()
+    if case=='peak':self.assertGreater(row['sampled_tree_RSS_peak_bytes'],4*1024**3)
+    if case!='ok':self.assertEqual(row['error_type'],'FinalResourceRefused')
 
 if __name__=='__main__':unittest.main()

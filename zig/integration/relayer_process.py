@@ -44,7 +44,7 @@ def rpc_snapshot(proxy):
 def write_snapshot(path,value):
     path=pathlib.Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     temporary=path.with_name('.'+path.name+'.tmp')
-    temporary.write_text(json.dumps(value,indent=2)+'\n')
+    temporary.write_text(json.dumps(value,separators=(',',':'))+'\n')
     os.replace(temporary,path)
 
 def existing_snapshot(path):

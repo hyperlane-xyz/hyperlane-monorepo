@@ -1,6 +1,6 @@
 """Bounded Linux proof/timing custody outside existing daemon timers."""
 from pathlib import Path
-import argparse,hashlib,importlib.util,json,os,shutil,signal,subprocess,sys,time
+import argparse,hashlib,importlib.util,json,os,resource,shutil,signal,subprocess,sys,time
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 sys.path.insert(0,str(Path(__file__).resolve().parent))
@@ -18,11 +18,14 @@ def completed_worker(args,authority,request_pin):
  policy.need(value.get('input_manifest')==policy.pin(args.inputs/'input-manifest.json'),'same exact once-input manifest')
  proof=policy.checked(value['proof']);policy.need(Path(proof['path'])==args.output/'proof.json','fixed actual proof output')
  inputs=policy.decode((args.inputs/'input-manifest.json').read_bytes());expected=inputs['artifacts']['zig'][mode]['relayer']['sha256'];roles={inputs['artifacts']['zig'][mode][r]['sha256']for r in ['relayer','validator']};events=value.get('actual_role_launches');policy.need(isinstance(events,list)and events and all(type(e.get('pid'))is int and e['pid']>0 and e.get('mode')==mode and e.get('binary_sha256')in roles for e in events)and any(e['binary_sha256']==expected for e in events),'actual exact role launch records')
- validator=policy.load_source(args.repo/'zig/bench/paired_linux_proofs.py','paired_parent_proof_validator',authority,args.repo);summary=validator.validate(kind,policy.decode(Path(proof['path']).read_bytes(),64*1024**2,2000000),expected,args.repo)
+ validator=policy.load_source(args.repo/'zig/bench/paired_linux_proofs.py','paired_parent_proof_validator',authority,args.repo);summary=validator.validate(kind,policy.decode_proof(Path(proof['path']).read_bytes(),kind),expected,args.repo)
  policy.need(summary==value['strict_cases'],'actual worker and parent proof validation agree')
  for row in authority['required_source']:policy.checked(row,args.repo)
  for row in inputs.get('repository_source_files',[]):policy.checked(row,args.repo)
  return policy.pin(args.output/'functional-result.json')
+
+def final_owner_sample(output,custody,paths,baseline):
+ return {'monotonic':time.monotonic(),'self_peak_RSS_bytes':int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)*(1 if sys.platform=='darwin'else 1024),'new_allocated_bytes':max(0,sum(custody.allocated(p)for p in paths if p.exists())-baseline),'free_bytes':shutil.disk_usage(output).free}
 
 def owner(args):
  authority,request_pin=policy.request(args.request,args.request_sha256,args.repo);phase=args.phase;policy.need(authority['root_approved']and authority[{'functional':'functional_enabled','runtime':'runtime_enabled','handoff':'handoff_enabled'}[phase]],'explicit owner phase authority')
@@ -33,7 +36,7 @@ def owner(args):
  if phase=='handoff':cmd+=['--execution-deadline',str(deadline)]
  env={k:os.environ[k]for k in ['PATH','LANG','LC_ALL','HOME']if k in os.environ};env.update(TMPDIR=str(args.output/'tmp'),PYTHONDONTWRITEBYTECODE='1',PYTHONNOUSERSITE='1',LC_ALL='C.UTF-8')
  pg_module=handoff_pg_module(args,authority)if phase=='handoff'and args.index%3==2 else None;pg_cleanup=None
- child=None;known={};groups={};error=None;cleanup=None;worker_receipt=None;peak=0;maximum_growth=0;minimum_free=shutil.disk_usage(args.output).free;watched=[signal.SIGINT,signal.SIGTERM,signal.SIGHUP];previous={s:signal.getsignal(s)for s in watched}
+ child=None;known={};groups={};error=None;cleanup=None;worker_receipt=None;parent_final_sample=None;peak=0;maximum_growth=0;minimum_free=shutil.disk_usage(args.output).free;watched=[signal.SIGINT,signal.SIGTERM,signal.SIGHUP];previous={s:signal.getsignal(s)for s in watched}
  def interrupted(*ignored):raise TaskInterrupted('owned paired task interrupted')
  for s in watched:signal.signal(s,interrupted)
  try:
@@ -65,7 +68,11 @@ def owner(args):
   try:
    if error is None and cleanup is not None and cleanup.get('actual_parent_wait')is True and cleanup.get('exit_code')==0 and cleanup.get('clean')is True:worker_receipt=completed_worker(args,authority,request_pin)
   except BaseException as e:error=error or'WorkerReceipt'+type(e).__name__
-  result={'schema':1,'kind':'paired-linux-owned-'+phase,'platform':'linux-x86_64','passed':error is None and worker_receipt is not None and time.monotonic()<deadline and cleanup is not None and cleanup['actual_parent_wait']is True and cleanup['exit_code']==0 and cleanup['clean']is True and not cleanup['signals']and not cleanup['errors'],'index':args.index,'request':request_pin,'original_wall_seconds':limits['wall_seconds'],'limits':limits,'started_monotonic':started,'original_deadline_monotonic':deadline,'ended_monotonic':time.monotonic(),'sampled_tree_RSS_peak_bytes':peak,'new_allocated_peak_bytes':maximum_growth,'minimum_host_free_bytes':minimum_free,'cleanup':cleanup,'postgres_cleanup':pg_cleanup,'RSS_includes_PG_reserved_1GiB':pg_module is not None,'worker_receipt':worker_receipt,'error_type':error,'measured_agent_wait4_scope':'Unchanged benchmark daemon records; outer tree samples are separate','native18_or_performance_acceptance':False}
+  try:
+   parent_final_sample=final_owner_sample(args.output,custody,paths,baseline);peak=max(peak,parent_final_sample['self_peak_RSS_bytes']);maximum_growth=max(maximum_growth,parent_final_sample['new_allocated_bytes']);minimum_free=min(minimum_free,parent_final_sample['free_bytes'])
+   policy.need(parent_final_sample['monotonic']<deadline and peak<=limits['RSS_bytes']and maximum_growth<=limits['new_disk_bytes']and minimum_free>=limits['free_bytes'],'original owner final wall/RSS/disk/free bound')
+  except BaseException as e:error=error or'FinalResource'+type(e).__name__
+  result={'schema':1,'kind':'paired-linux-owned-'+phase,'platform':'linux-x86_64','passed':error is None and worker_receipt is not None and time.monotonic()<deadline and cleanup is not None and cleanup['actual_parent_wait']is True and cleanup['exit_code']==0 and cleanup['clean']is True and not cleanup['signals']and not cleanup['errors'],'index':args.index,'request':request_pin,'original_wall_seconds':limits['wall_seconds'],'limits':limits,'started_monotonic':started,'original_deadline_monotonic':deadline,'ended_monotonic':time.monotonic(),'sampled_tree_RSS_peak_bytes':peak,'parent_final_resource_sample':parent_final_sample,'new_allocated_peak_bytes':maximum_growth,'minimum_host_free_bytes':minimum_free,'cleanup':cleanup,'postgres_cleanup':pg_cleanup,'RSS_includes_PG_reserved_1GiB':pg_module is not None,'worker_receipt':worker_receipt,'error_type':error,'measured_agent_wait4_scope':'Unchanged benchmark daemon records; outer tree samples are separate','native18_or_performance_acceptance':False}
   try:policy.write(args.output/'owner-result.json',result)
   finally:
    for s,h in previous.items():signal.signal(s,h)
@@ -108,7 +115,7 @@ def worker(args,authority,request_pin):
   try:module.main()
   finally:policy.write(args.output/'actual-agent-launches.json',events)
   from paired_linux_proofs import validate
-  raw=policy.decode(proof.read_bytes(),64*1024**2,2000000);summary=validate(kind,raw,value['artifacts']['zig'][mode]['relayer']['sha256'],args.repo)
+  raw=policy.decode_proof(proof.read_bytes(),kind);summary=validate(kind,raw,value['artifacts']['zig'][mode]['relayer']['sha256'],args.repo)
   # Original per-ID600+30, crash/signing/public schemas remain checked. CI
   # correctness is not Root native18 or final quiet/performance authority.
   for row in authority['required_source']:policy.checked(row,args.repo)

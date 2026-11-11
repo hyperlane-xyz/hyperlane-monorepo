@@ -34,6 +34,11 @@ def decode(raw,maximum=32*1024**2,maximum_nodes=300000):
   if type(v)is float:need(math.isfinite(v),'nonfinite JSON')
   return v
  return walk(value)
+def proof_limits(kind):
+ need(type(kind)is str and kind in KINDS,'fixed functional proof kind')
+ return (128*1024**2,8*1024**2)if kind=='public_relay_process'else(64*1024**2,2000000)
+def decode_proof(raw,kind):
+ maximum,nodes=proof_limits(kind);return decode(raw,maximum,nodes)
 def relative(text):
  need(isinstance(text,str)and text and str(PurePosixPath(text))==text and not text.startswith('/')and not any(c in text for c in ['\\','\0','\n','\r'])and '..'not in PurePosixPath(text).parts,'canonical relative path');return text
 def pin(path):
