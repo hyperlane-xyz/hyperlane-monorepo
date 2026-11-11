@@ -26,13 +26,15 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{
-    ChainCommunicationError, ConfirmReason, HyperlaneMessage, ModuleType, PendingOperationStatus,
-    ReprepareReason, SubmissionStage, H160, H256, H512,
+    ChainCommunicationError, ConfirmReason, DiagnosticError, HyperlaneMessage, ModuleType,
+    PendingOperationStatus, ReprepareReason, SubmissionStage, H160, H256, H512,
 };
 
 use crate::msg::metadata::MetadataBuildError;
 
+mod error;
 mod state;
+pub use error::{metadata_diagnostic, offchain_diagnostic, retry_diagnostic};
 
 const QUEUE_CAPACITY: usize = 1024;
 const BATCH_SIZE: usize = 100;
@@ -57,10 +59,12 @@ pub enum Activity {
         reason: Option<ReprepareReason>,
         retry_count: u32,
         next_attempt_at_millis: Option<u64>,
+        error: Option<DiagnosticError>,
     },
     Metadata {
         ism: H256,
         error: Option<String>,
+        diagnostic: Option<DiagnosticError>,
     },
     Checkpoint {
         collection_id: String,
@@ -74,6 +78,7 @@ pub enum Activity {
     },
     ConfirmationError {
         reason: ConfirmReason,
+        error: DiagnosticError,
     },
     Progress {
         stage: Stage,
@@ -82,6 +87,7 @@ pub enum Activity {
     ChainFailure {
         stage: Stage,
         reason: &'static str,
+        error: DiagnosticError,
     },
     MerkleLeaf {
         index: u32,
@@ -99,6 +105,7 @@ pub enum Activity {
     IsmVerification {
         ism: H256,
         outcome: Outcome,
+        error: Option<DiagnosticError>,
     },
     Routing {
         ism: H256,
@@ -126,6 +133,7 @@ pub enum Activity {
         validator: H256,
         states: Vec<ValidatorStorageState>,
         usable: bool,
+        error: Option<DiagnosticError>,
     },
     OffchainRead {
         ism: H256,
@@ -133,6 +141,7 @@ pub enum Activity {
         attempt: u32,
         state: OffchainReadState,
         http_status: Option<u16>,
+        error: Option<DiagnosticError>,
     },
     Filtered {
         reason: FilterReason,
@@ -145,6 +154,30 @@ pub enum Activity {
     OriginSenderDenied,
     Delivered,
     Dropped,
+}
+
+impl Activity {
+    pub fn validator_storage(
+        validator: H256,
+        states: Vec<ValidatorStorageState>,
+        usable: bool,
+    ) -> Self {
+        let error = (!usable).then(|| {
+            DiagnosticError::new(
+                "validator_storage_unavailable",
+                "No usable validator checkpoint storage was discovered",
+                "validator",
+            )
+            .with_detail("validator", format!("{validator:#x}"))
+            .with_detail("states", serde_json::json!(states))
+        });
+        Self::ValidatorStorage {
+            validator,
+            states,
+            usable,
+            error,
+        }
+    }
 }
 
 /// Stable activity shapes stored for external consumers.
@@ -221,57 +254,15 @@ pub enum FilterReason {
 
 /// Fixed codes only: chain errors often wrap URLs, credentials or arbitrary revert text.
 pub fn chain_error(error: &ChainCommunicationError) -> &'static str {
-    use ChainCommunicationError::*;
-    match error {
-        HyperlaneProtocolError(_) => "protocol_error",
-        ContractError(_) => "contract_call_failed",
-        ContractNotFound(_) => "contract_not_found",
-        TransactionDropped(_) => "transaction_dropped",
-        TransactionTimeout => "transaction_timeout",
-        SignerUnavailable => "signer_unavailable",
-        HyperlaneSignerError(_) => "signer_error",
-        BatchingFailed => "batching_failed",
-        BatchIsEmpty => "empty_batch",
-        InsufficientFunds { .. } => "insufficient_funds",
-        RpcClientError(_) => "rpc_error",
-        InvalidRequest { .. } => "invalid_request",
-        InvalidReorgPeriod(_) => "invalid_reorg_period",
-        SimulationFailed(_) => "simulation_failed",
-        TokioJoinError(_) => "task_failed",
-        StrOrIntParseError(_)
-        | Utf8(_)
-        | JsonParseError(_)
-        | HexParseError(_)
-        | UintParseError(_)
-        | FromDecStrError(_)
-        | ParseIntError(_)
-        | HashParsingError(_)
-        | ParseError { .. }
-        | PrimitiveTypeError(_)
-        | ParseBigDecimalError(_)
-        | TryFromIntError(_) => "invalid_response_or_data",
-        Other(_) | CustomError(_) | EyreError(_) => "chain_error",
-    }
+    error.diagnostic_reason()
 }
 
 /// Explicitly strip every error variant that can contain external text.
 /// Exhaustive matching makes new error variants require a privacy decision.
 pub fn metadata_error(error: &MetadataBuildError) -> String {
     match error {
-        MetadataBuildError::FailedToBuild(_) => "Metadata build failed".to_owned(),
-        MetadataBuildError::FastPathError(_) => "Fast path metadata failed".to_owned(),
-        MetadataBuildError::Refused(_) => "Validator reported a reorg".to_owned(),
-        MetadataBuildError::CouldNotFetch
-        | MetadataBuildError::AwaitingValidatorSignatures
-        | MetadataBuildError::UnsupportedModuleType(_)
-        | MetadataBuildError::MaxIsmDepthExceeded(_)
-        | MetadataBuildError::MaxIsmCountReached(_)
-        | MetadataBuildError::MaxValidatorCountReached(_)
-        | MetadataBuildError::AggregationThresholdNotMet(_) => error.to_string(),
-        MetadataBuildError::MerkleRootMismatch {
-            root,
-            canonical_root,
-        } => format!("Merkle root mismatch ({root:#x}, {canonical_root:#x})"),
+        MetadataBuildError::ChainError(_) => "Metadata build failed".to_owned(),
+        _ => metadata_diagnostic(error).message,
     }
 }
 

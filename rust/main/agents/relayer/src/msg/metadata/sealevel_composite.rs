@@ -92,6 +92,10 @@ pub(crate) fn build_metadata_from_spec<'a>(
             message,
             Activity::Metadata {
                 ism: builder.root_ism,
+                diagnostic: result
+                    .as_ref()
+                    .err()
+                    .map(crate::message_activity::metadata_diagnostic),
                 error: result
                     .as_ref()
                     .err()

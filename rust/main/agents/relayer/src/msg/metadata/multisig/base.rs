@@ -160,7 +160,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
                 let result = multisig_ism
                     .validators_and_threshold(message)
                     .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                    .map_err(MetadataBuildError::from_chain)?;
 
                 self.as_ref()
                     .base_builder()
@@ -213,7 +213,7 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
         .base_builder()
         .build_multisig_ism(ism_address)
         .await
-        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        .map_err(MetadataBuildError::from_chain)?;
 
     let (validators, threshold) = ism_builder
         .call_validators_and_threshold(&multisig_ism, message)

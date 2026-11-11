@@ -23,6 +23,8 @@ use crate::settings::matching_list::MatchingList;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum MetadataBuildError {
+    #[error("Chain call failed while building metadata")]
+    ChainError(Box<hyperlane_core::DiagnosticError>),
     #[error("An external error causes the build to fail ({0})")]
     FailedToBuild(String),
     /// While building metadata, encountered something that should
@@ -50,6 +52,12 @@ pub enum MetadataBuildError {
     FastPathError(String),
     #[error("Merkle root mismatch ({root}, {canonical_root})")]
     MerkleRootMismatch { root: H256, canonical_root: H256 },
+}
+
+impl MetadataBuildError {
+    pub fn from_chain(error: impl Into<hyperlane_core::ChainCommunicationError>) -> Self {
+        Self::ChainError(Box::new(error.into().diagnostic()))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]

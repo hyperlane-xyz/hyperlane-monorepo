@@ -11,7 +11,7 @@ use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::{Activity, ObservationEvent, StoredActivity, StoredEvent, H256};
+use super::{Activity, DiagnosticError, ObservationEvent, StoredActivity, StoredEvent, H256};
 
 const STATE_CACHE_ENTRIES: u64 = 10_000;
 
@@ -25,6 +25,8 @@ struct MessageState {
     submitted_validation: Option<Value>,
     #[serde(skip)]
     persistence_pending: bool,
+    #[serde(skip)]
+    failure_in_current_attempt: bool,
 }
 
 impl Default for MessageState {
@@ -35,6 +37,7 @@ impl Default for MessageState {
             anchor_snapshot: None,
             submitted_validation: None,
             persistence_pending: false,
+            failure_in_current_attempt: false,
         }
     }
 }
@@ -282,7 +285,91 @@ fn state_key(id: H256) -> Vec<u8> {
     key
 }
 
+fn read_error(value: &Value) -> Option<DiagnosticError> {
+    serde_json::from_value(value.clone()).ok()
+}
+
 impl MessageState {
+    fn node_error(&self, id: &str, diagnostic: &DiagnosticError) -> DiagnosticError {
+        let mut error = diagnostic.clone().with_detail("node_id", id);
+        let Some(node) = self.current.get(&format!("node:{id}")) else {
+            return error;
+        };
+        if diagnostic.code == "metadata_chain_call_failed" {
+            return error;
+        }
+        let mut causes = std::mem::take(&mut error.causes);
+        for validator in node["validators"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
+            if let Some(cause) = self
+                .current
+                .get("validator_storage")
+                .and_then(|storage| storage.get(validator))
+                .and_then(|storage| read_error(&storage["error"]))
+            {
+                causes.push(cause);
+            }
+        }
+        for observation in node["offchain_reads"].as_array().into_iter().flatten() {
+            if let Some(cause) = read_error(&observation["error"]) {
+                causes.push(cause);
+            }
+        }
+        if let Some(signatures) = node.get("signatures").or_else(|| node.get("discovery")) {
+            for field in ["index", "root", "collected", "threshold"] {
+                if let Some(value) = signatures.get(field).filter(|value| !value.is_null()) {
+                    error
+                        .details
+                        .entry(field.to_owned())
+                        .or_insert_with(|| value.clone());
+                }
+            }
+            for field in ["unavailable", "discovery_unavailable"] {
+                for (validator, reason) in signatures[field].as_object().into_iter().flatten() {
+                    if field == "discovery_unavailable"
+                        && signatures["signers"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .any(|signer| signer["validator"] == *validator)
+                    {
+                        continue;
+                    }
+                    if let Some(reason) = reason.as_str() {
+                        causes.push(super::error::checkpoint_diagnostic(
+                            validator,
+                            reason,
+                            &signatures["index"],
+                            field == "discovery_unavailable",
+                        ));
+                    }
+                }
+            }
+        }
+        for child in node["children"].as_array().into_iter().flatten() {
+            if let Some(child) = child["node_id"]
+                .as_str()
+                .and_then(|id| self.current.get(&format!("node:{id}")))
+            {
+                let cause = child
+                    .get("verification_error")
+                    .filter(|v| !v.is_null())
+                    .or_else(|| child.get("error"));
+                if let Some(cause) = cause.and_then(read_error) {
+                    causes.push(cause);
+                }
+            }
+        }
+        if node["offchain_reads_truncated"] == true {
+            error = error.with_detail("causes_truncated", true);
+        }
+        error.with_causes(causes)
+    }
+
     /// Build the entire public tree here; the proxy only validates/returns this value.
     fn validation(&self) -> Value {
         let root = self.current.get("tree").and_then(Value::as_str);
@@ -302,6 +389,14 @@ impl MessageState {
                 .cloned()
                 .unwrap_or_else(|| json!({"node_id": id, "ism": address, "children": []}));
             node["discovered"] = json!(node.get("module_type").is_some());
+            if let Some(storage) = self.current.get("validator_storage") {
+                node["validator_storage"] = json!(node["validators"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|validator| storage.get(validator.as_str()?))
+                    .collect::<Vec<_>>());
+            }
             if let Some(children) = node["children"].as_array() {
                 pending.extend(children.iter().rev().filter_map(|child| {
                     Some((
@@ -324,9 +419,20 @@ impl MessageState {
                         .as_object()
                         .into_iter()
                         .flatten()
-                        .map(
-                            |(validator, value)| json!({"validator": validator, value_field: value})
-                        )
+                        .map(|(validator, value)| {
+                            let mut entry = json!({"validator": validator, value_field: value});
+                            if value_field == "reason" {
+                                if let Some(reason) = value.as_str() {
+                                    entry["error"] = json!(super::error::checkpoint_diagnostic(
+                                        validator,
+                                        reason,
+                                        &signatures["index"],
+                                        field == "discovery_unavailable",
+                                    ));
+                                }
+                            }
+                            entry
+                        })
                         .collect::<Vec<_>>());
                 }
                 node["signatures"] = signatures;
@@ -401,6 +507,21 @@ impl MessageState {
         }
         self.current
             .retain(|key, _| !key.starts_with("node:") || reachable.contains(key));
+        let validators = self
+            .current
+            .iter()
+            .filter(|(key, _)| key.starts_with("node:"))
+            .flat_map(|(_, node)| node["validators"].as_array().into_iter().flatten())
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect::<BTreeSet<_>>();
+        if let Some(storage) = self
+            .current
+            .get_mut("validator_storage")
+            .and_then(Value::as_object_mut)
+        {
+            storage.retain(|validator, _| validators.contains(validator));
+        }
     }
 
     fn observe(&mut self, event: &ObservationEvent) -> eyre::Result<()> {
@@ -413,10 +534,34 @@ impl MessageState {
         }
         // Activity contains only bounded, explicitly sanitized fields.
         let value = serde_json::to_value(&event.activity)?;
+        if let Activity::ValidatorStorage { validator, .. } = &event.activity {
+            let storage = self
+                .current
+                .entry("validator_storage".into())
+                .or_insert_with(|| json!({}));
+            storage[format!("{validator:#x}")] = value;
+            return Ok(());
+        }
+        if matches!(
+            event.activity,
+            Activity::Progress {
+                stage: super::Stage::Prepare,
+                outcome: super::Outcome::Started
+            }
+        ) {
+            self.failure_in_current_attempt = false;
+        }
         if let Some(id) = &event.node_id {
             let root = id.split('/').next().unwrap_or(id);
             self.current.insert("tree".into(), json!(root));
             let key = format!("node:{id}");
+            let diagnostic = match &event.activity {
+                Activity::Metadata {
+                    diagnostic: Some(error),
+                    ..
+                } => Some(self.node_error(id, error)),
+                _ => None,
+            };
             let node = self.current.entry(key).or_insert_with(|| {
                 json!({"node_id": id, "ism": id.rsplit(':').next().unwrap_or(id), "children": []})
             });
@@ -434,7 +579,18 @@ impl MessageState {
                     ).collect::<Vec<_>>());
                 }
                 Activity::MetadataModule { .. } => {
-                    node["module_type"] = value["module_type"].clone()
+                    node["module_type"] = value["module_type"].clone();
+                    // A new build replaces its gateway observations. Cached metadata
+                    // skips this event and retains the successful lookup provenance.
+                    if let Some(fields) = node.as_object_mut() {
+                        for field in [
+                            "offchain_read",
+                            "offchain_reads",
+                            "offchain_reads_truncated",
+                        ] {
+                            fields.remove(field);
+                        }
+                    }
                 }
                 Activity::Aggregation { modules, .. } => {
                     node["threshold"] = value["threshold"].clone();
@@ -458,6 +614,8 @@ impl MessageState {
                             "verification",
                             "metadata_status",
                             "metadata_error",
+                            "error",
+                            "verification_error",
                         ] {
                             node.as_object_mut().map(|n| n.remove(field));
                         }
@@ -469,6 +627,7 @@ impl MessageState {
                     node["metadata_status"] =
                         json!(if error.is_some() { "blocked" } else { "ready" });
                     node["metadata_error"] = json!(error);
+                    node["error"] = json!(diagnostic);
                     if error.is_some() {
                         node["verification"] = Value::Null;
                         if let Some(fields) = node.as_object_mut() {
@@ -484,7 +643,10 @@ impl MessageState {
                             .map(|child| child["node_id"].clone()))
                         .collect::<Vec<_>>());
                 }
-                Activity::IsmVerification { .. } => node["verification"] = value["outcome"].clone(),
+                Activity::IsmVerification { .. } => {
+                    node["verification"] = value["outcome"].clone();
+                    node["verification_error"] = value["error"].clone();
+                }
                 Activity::AggregationProgress { .. } => {
                     node["verified"] = value["verified"].clone()
                 }
@@ -518,6 +680,8 @@ impl MessageState {
                                 fields.remove("verification");
                                 fields.remove("metadata_status");
                                 fields.remove("metadata_error");
+                                fields.remove("error");
+                                fields.remove("verification_error");
                             }
                         }
                         node["signatures"] = summary;
@@ -530,6 +694,21 @@ impl MessageState {
                         o.remove("type");
                         o.remove("ism");
                         o.remove("attempt");
+                    }
+                    if node["offchain_reads"].as_array().is_none() {
+                        node["offchain_reads"] = json!([]);
+                    }
+                    if let Some(reads) = node["offchain_reads"].as_array_mut() {
+                        if let Some(previous) = reads
+                            .iter_mut()
+                            .find(|r| r["endpoint"] == observation["endpoint"])
+                        {
+                            *previous = observation.clone();
+                        } else if reads.len() < 50 {
+                            reads.push(observation.clone());
+                        } else {
+                            node["offchain_reads_truncated"] = json!(true);
+                        }
                     }
                     node["offchain_read"] = observation;
                 }
@@ -550,6 +729,16 @@ impl MessageState {
                 }
                 _ => {}
             }
+            if !id.contains('/') && matches!(event.activity, Activity::Metadata { .. }) {
+                self.failure_in_current_attempt = diagnostic.is_some();
+                let message = self
+                    .current
+                    .entry("message".into())
+                    .or_insert_with(|| json!({"phase": "preparing"}));
+                message["failure"] = diagnostic
+                    .map(|error| json!({"stage": "metadata", "reason": error.code, "error": error}))
+                    .unwrap_or(Value::Null);
+            }
             self.prune_tree();
             return Ok(());
         }
@@ -562,7 +751,14 @@ impl MessageState {
                 reason: Some(reason),
                 ..
             } => {
-                message["retry"] = json!({"reason": value["reason"], "count": value["retry_count"], "observed_at_millis": event.observed_at, "next_attempt_at_millis": value["next_attempt_at_millis"]});
+                if !self.failure_in_current_attempt {
+                    message["failure"] = Value::Null;
+                }
+                let error = message["failure"]
+                    .get("error")
+                    .filter(|error| !error.is_null())
+                    .unwrap_or(&value["error"]);
+                message["retry"] = json!({"reason": value["reason"], "count": value["retry_count"], "observed_at_millis": event.observed_at, "next_attempt_at_millis": value["next_attempt_at_millis"], "error": error});
                 Some(
                     if matches!(reason, super::ReprepareReason::AwaitingValidatorSignatures) {
                         "awaiting_signatures"
@@ -630,11 +826,18 @@ impl MessageState {
                 Some("dropped")
             }
             Activity::ChainFailure { .. } => {
+                self.failure_in_current_attempt = true;
                 message["failure"] = value.clone();
                 None
             }
             Activity::ConfirmationError { .. } => {
                 message["confirmation_error"] = value.clone();
+                if message["failure"]["stage"] == "confirm"
+                    && !message["failure"]["error"].is_null()
+                {
+                    message["confirmation_error"]["error"]["causes"] =
+                        json!([message["failure"]["error"]]);
+                }
                 None
             }
             Activity::TransactionOutcome { .. } => {
@@ -673,7 +876,6 @@ impl MessageState {
                 message["failure"] = json!({"stage": "prepare", "reason": value["type"]});
                 None
             }
-            Activity::ValidatorStorage { .. } => return Ok(()),
             // Preserve useful observations from non-tree paths, without repeated payloads.
             _ => {
                 self.current
@@ -694,6 +896,9 @@ impl MessageState {
             ) {
                 message["failure"] = Value::Null;
                 message["retry"] = Value::Null;
+                if phase != "confirming" {
+                    message["confirmation_error"] = Value::Null;
+                }
             }
         }
         Ok(())
@@ -704,10 +909,277 @@ impl MessageState {
 mod tests {
     use super::*;
     use crate::message_activity::{CheckpointSummary, Outcome, Stage};
+    use crate::msg::metadata::MetadataBuildError;
     use hyperlane_base::CheckpointSigner;
     use hyperlane_core::{
         ConfirmReason, ModuleType, PendingOperationStatus, ReprepareReason, SubmissionStage, H160,
     };
+
+    #[tokio::test]
+    async fn attaches_gateway_causes_to_metadata_and_retry_and_clears_recovered_errors() {
+        use crate::message_activity::OffchainReadState;
+        let states = ActivityState::new(None);
+        let offchain = |endpoint, state, error| {
+            event(
+                Some("root"),
+                Activity::OffchainRead {
+                    ism: H256::zero(),
+                    endpoint: Some(endpoint),
+                    attempt: 1,
+                    state,
+                    http_status: None,
+                    error: Some(error),
+                },
+            )
+        };
+        let failure = metadata_failure("root", MetadataBuildError::CouldNotFetch);
+        let _events = project(
+            &states,
+            &[
+                module("root"),
+                offchain(
+                    0,
+                    OffchainReadState::RequestTimeout,
+                    DiagnosticError::new(
+                        "gateway_request_timeout",
+                        "Gateway timed out",
+                        "ccip_gateway",
+                    ),
+                ),
+                offchain(
+                    1,
+                    OffchainReadState::Pending,
+                    DiagnosticError::new(
+                        "cctp_insufficient_fee",
+                        "Insufficient Circle fee",
+                        "circle_api",
+                    ),
+                ),
+                failure,
+                retry(ReprepareReason::CouldNotFetchMetadata, 2),
+            ],
+        )
+        .await;
+        let state = states
+            .messages
+            .get(&H256::zero())
+            .await
+            .expect("projected diagnostic state")
+            .snapshot();
+        assert_eq!(state["retry"]["error"]["code"], "metadata_unavailable");
+        assert_eq!(
+            state["retry"]["error"]["causes"]
+                .as_array()
+                .expect("projected diagnostic state")
+                .len(),
+            2
+        );
+        assert_eq!(
+            state["modules"][0]["offchain_reads"]
+                .as_array()
+                .expect("projected diagnostic state")
+                .len(),
+            2
+        );
+        assert_eq!(state["modules"][0]["error"], state["retry"]["error"]);
+
+        let recovered = project(
+            &states,
+            &[preparing(), module("root"), metadata("root", None), ready()],
+        )
+        .await;
+        let state = snapshot(&recovered);
+        assert!(state["retry"].is_null());
+        assert!(state["failure"].is_null());
+        assert!(state["modules"][0]["error"].is_null());
+        assert!(state["modules"][0]["offchain_reads"].is_null());
+    }
+
+    #[tokio::test]
+    async fn retains_validator_storage_and_signature_failure_evidence() {
+        use crate::message_activity::ValidatorStorageState;
+        use hyperlane_base::CheckpointUnavailableReason;
+        let states = ActivityState::new(None);
+        let validator = H256::repeat_byte(3);
+        let mut observation = checkpoint("collection", 12, 1);
+        if let Activity::Checkpoint { summary, .. } = &mut observation.activity {
+            summary
+                .unavailable
+                .insert(validator, CheckpointUnavailableReason::Missing);
+            summary.latest_indices.insert(validator.into(), Some(10));
+        }
+        let _events = project(
+            &states,
+            &[
+                module("root"),
+                event(
+                    Some("root"),
+                    Activity::ValidatorSet {
+                        ism: Some(H256::zero()),
+                        validators: vec![validator],
+                        threshold: 2,
+                    },
+                ),
+                event(
+                    None,
+                    Activity::validator_storage(
+                        validator,
+                        vec![ValidatorStorageState::NotAnnounced],
+                        false,
+                    ),
+                ),
+                observation,
+                metadata_failure("root", MetadataBuildError::AwaitingValidatorSignatures),
+            ],
+        )
+        .await;
+        let state = states
+            .messages
+            .get(&H256::zero())
+            .await
+            .expect("projected diagnostic state")
+            .snapshot();
+        assert_eq!(
+            state["modules"][0]["validator_storage"][0]["error"]["details"]["states"],
+            json!(["not_announced"])
+        );
+        assert_eq!(
+            state["modules"][0]["signatures"]["unavailable"][0]["error"]["code"],
+            "validator_checkpoint_missing"
+        );
+        assert_eq!(
+            state["modules"][0]["signatures"]["latest_indices"][0]["index"],
+            10
+        );
+        assert_eq!(state["modules"][0]["error"]["details"]["collected"], 1);
+        assert_eq!(
+            state["modules"][0]["error"]["causes"]
+                .as_array()
+                .expect("projected diagnostic state")
+                .len(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_errors_follow_current_failure_without_leaking_previous_attempts() {
+        let states = ActivityState::new(None);
+        let error = DiagnosticError::new("execution_reverted", "Contract reverted", "evm")
+            .with_detail("revert_selector", "0xdeadbeef");
+        let events = project(
+            &states,
+            &[
+                event(
+                    None,
+                    Activity::ChainFailure {
+                        stage: Stage::Simulate,
+                        reason: "contract_call_failed",
+                        error: error.clone(),
+                    },
+                ),
+                retry(ReprepareReason::ErrorEstimatingGas, 1),
+            ],
+        )
+        .await;
+        assert_eq!(snapshot(&events)["retry"]["error"], json!(error));
+        let events = project(
+            &states,
+            &[preparing(), retry(ReprepareReason::GasPaymentNotFound, 2)],
+        )
+        .await;
+        assert_eq!(
+            snapshot(&events)["retry"]["error"]["code"],
+            "gas_payment_missing"
+        );
+        assert!(snapshot(&events)["failure"].is_null());
+    }
+
+    #[tokio::test]
+    async fn aggregation_errors_preserve_child_causes_and_optional_failures_do_not_block_recovery()
+    {
+        let states = ActivityState::new(None);
+        let child = format!("root/0:{:#x}", H256::zero());
+        let child_failure = metadata_failure(
+            &child,
+            MetadataBuildError::from_chain(
+                hyperlane_core::ChainCommunicationError::SignerUnavailable,
+            ),
+        );
+        let events = project(
+            &states,
+            &[
+                module("root"),
+                event(
+                    Some("root"),
+                    Activity::Aggregation {
+                        ism: H256::zero(),
+                        modules: vec![H256::zero(), H256::zero()],
+                        threshold: 1,
+                    },
+                ),
+                module(&child),
+                child_failure,
+                metadata_failure("root", MetadataBuildError::AggregationThresholdNotMet(1)),
+            ],
+        )
+        .await;
+        let error = &snapshot(&events)["failure"]["error"];
+        assert_eq!(error["code"], "aggregation_threshold_not_met");
+        assert_eq!(error["causes"][0]["code"], "metadata_chain_call_failed");
+        assert_eq!(
+            error["causes"][0]["causes"][0]["code"],
+            "signer_unavailable"
+        );
+        let events = project(&states, &[metadata("root", None), ready()]).await;
+        let state = snapshot(&events);
+        assert!(state["failure"].is_null());
+        assert_eq!(
+            state["modules"][1]["error"]["code"],
+            "metadata_chain_call_failed"
+        );
+    }
+
+    fn metadata_failure(id: &str, error: MetadataBuildError) -> ObservationEvent {
+        event(
+            Some(id),
+            Activity::Metadata {
+                ism: H256::zero(),
+                error: Some(crate::message_activity::metadata_error(&error)),
+                diagnostic: Some(crate::message_activity::metadata_diagnostic(&error)),
+            },
+        )
+    }
+
+    fn retry(reason: ReprepareReason, count: u32) -> ObservationEvent {
+        event(
+            None,
+            Activity::Retry {
+                error: crate::message_activity::retry_diagnostic(&reason),
+                reason: Some(reason),
+                retry_count: count,
+                next_attempt_at_millis: Some(u64::from(count).saturating_mul(100)),
+            },
+        )
+    }
+
+    fn preparing() -> ObservationEvent {
+        event(
+            None,
+            Activity::Progress {
+                stage: Stage::Prepare,
+                outcome: Outcome::Started,
+            },
+        )
+    }
+
+    fn ready() -> ObservationEvent {
+        event(
+            None,
+            Activity::Status {
+                status: PendingOperationStatus::ReadyToSubmit,
+            },
+        )
+    }
 
     fn event(node: Option<&str>, activity: Activity) -> ObservationEvent {
         event_at(node, activity, 1_700_000_000_000)
@@ -739,6 +1211,9 @@ mod tests {
             Activity::Metadata {
                 ism: H256::zero(),
                 error: error.map(str::to_owned),
+                diagnostic: error.map(|_| {
+                    DiagnosticError::new("metadata_unavailable", "Metadata unavailable", "ism")
+                }),
             },
         )
     }
@@ -855,6 +1330,7 @@ mod tests {
                     event(
                         None,
                         Activity::Retry {
+                            error: None,
                             reason: Some(ReprepareReason::AwaitingValidatorSignatures),
                             retry_count: count,
                             next_attempt_at_millis: Some(u64::from(count) * 1000),
@@ -963,6 +1439,7 @@ mod tests {
             &[event(
                 None,
                 Activity::Retry {
+                    error: None,
                     reason: Some(ReprepareReason::AwaitingValidatorSignatures),
                     retry_count: 1,
                     next_attempt_at_millis: Some(1_000),
@@ -1196,6 +1673,7 @@ mod tests {
             &[event(
                 None,
                 Activity::Retry {
+                    error: None,
                     reason: None,
                     retry_count: 0,
                     next_attempt_at_millis: Some(600_000)
@@ -1323,6 +1801,7 @@ mod tests {
                 event(
                     None,
                     Activity::Retry {
+                        error: None,
                         reason: Some(ReprepareReason::RevertedOrReorged),
                         retry_count: 1,
                         next_attempt_at_millis: Some(1000),
@@ -1368,6 +1847,7 @@ mod tests {
                     event(
                         None,
                         Activity::Retry {
+                            error: None,
                             reason: Some(ReprepareReason::RevertedOrReorged),
                             retry_count: 1,
                             next_attempt_at_millis: Some(1000),
@@ -1484,6 +1964,7 @@ mod tests {
                 event(
                     None,
                     Activity::Retry {
+                        error: None,
                         reason: Some(ReprepareReason::Manual),
                         retry_count: 0,
                         next_attempt_at_millis: None,
@@ -1586,6 +2067,7 @@ mod tests {
                 event(
                     None,
                     Activity::Retry {
+                        error: None,
                         reason: Some(ReprepareReason::AwaitingValidatorSignatures),
                         retry_count: 7,
                         next_attempt_at_millis: Some(12345),
@@ -1649,6 +2131,7 @@ mod tests {
         let retry = [event(
             None,
             Activity::Retry {
+                error: None,
                 reason: Some(ReprepareReason::RevertedOrReorged),
                 retry_count: 1,
                 next_attempt_at_millis: Some(12345),
@@ -1674,6 +2157,7 @@ mod tests {
             &[event(
                 None,
                 Activity::Retry {
+                    error: None,
                     reason: None,
                     retry_count: 1,
                     next_attempt_at_millis: None,
@@ -1727,6 +2211,7 @@ mod tests {
             &[event(
                 None,
                 Activity::Retry {
+                    error: None,
                     reason: None,
                     retry_count: 0,
                     next_attempt_at_millis: None,

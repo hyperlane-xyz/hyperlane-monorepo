@@ -165,7 +165,7 @@ impl MessageMetadataBuilder {
                 let module_type = ism
                     .module_type()
                     .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                    .map_err(MetadataBuildError::from_chain)?;
 
                 self.base_builder()
                     .cache()
@@ -189,7 +189,7 @@ pub async fn ism_and_module_type(
         .base_builder()
         .build_ism(ism_address)
         .await
-        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        .map_err(MetadataBuildError::from_chain)?;
     let module_type = message_builder.call_module_type(&ism).await?;
     Ok((ism, module_type))
 }
@@ -218,6 +218,10 @@ pub async fn build_message_metadata(
             &node_id,
             crate::message_activity::Activity::Metadata {
                 ism: ism_address,
+                diagnostic: result
+                    .as_ref()
+                    .err()
+                    .map(crate::message_activity::metadata_diagnostic),
                 error: result
                     .as_ref()
                     .err()

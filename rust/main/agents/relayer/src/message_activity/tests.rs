@@ -177,7 +177,7 @@ async fn live_denylist_and_retry_limit_transitions_still_emit_diagnostics() {
 }
 
 #[tokio::test]
-async fn repeated_submission_stage_is_suppressed_before_enqueue() {
+async fn submission_stages_are_deduplicated_and_failures_retain_evidence() {
     test_utils::run_test_db(|raw_db| async move {
         let origin = dummy_domain(0, "origin");
         let destination = dummy_domain(1, "destination");
@@ -208,6 +208,10 @@ async fn repeated_submission_stage_is_suppressed_before_enqueue() {
             }
         ));
         assert!(activities.try_recv().is_err());
+        let error = DiagnosticError::new("payload_simulation_failed", "Payload failed simulation", "lander");
+        pending.on_submission_failure(error.clone());
+        assert!(matches!(activities.try_recv().expect("submission failure").activity,
+            Activity::ChainFailure { stage: Stage::Simulate, error: observed, .. } if observed == error));
     })
     .await;
 }
@@ -420,6 +424,7 @@ fn chain_error_codes_exclude_external_details() {
         let event = Activity::ChainFailure {
             stage: Stage::Submit,
             reason: chain_error(&error),
+            error: error.diagnostic(),
         };
         assert!(!serde_json::to_string(&event)
             .expect("serialize")
