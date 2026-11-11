@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use futures::{future::join_all, FutureExt, StreamExt};
-use prometheus::IntGauge;
+use prometheus::{IntCounter, IntGauge};
 use tokio::{
     sync::{watch, Notify},
     time::sleep,
@@ -263,10 +263,16 @@ impl ValidatorSubmitter {
 
     fn checkpoint_lag_retry_interval(&self) -> Duration {
         if self.checkpoint_wake.is_some() {
-            CHECKPOINT_LAG_RETRY_INTERVAL
+            CHECKPOINT_LAG_RETRY_INTERVAL.min(self.interval)
         } else {
             self.interval
         }
+    }
+
+    /// Keep the first stale retry fast, then back off until checkpoint progress resets it.
+    async fn wait_for_checkpoint_lag(&self, retry_interval: &mut Duration) {
+        sleep(*retry_interval).await;
+        *retry_interval = retry_interval.saturating_mul(2).min(self.interval);
     }
 
     fn checkpoint(&self, root: H256, index: u32) -> Checkpoint {
@@ -355,6 +361,7 @@ impl ValidatorSubmitter {
         let mut tree = CheckpointTree::new(restored_tree);
         let mut samples: Option<Vec<Option<CheckpointAtBlock>>> = None;
         let mut last_rpc_audit = tokio::time::Instant::now();
+        let mut lag_retry_interval = self.checkpoint_lag_retry_interval();
         loop {
             // The single worker is cancelled when the signing task exits.
             if let Some(result) = history.try_join_next() {
@@ -369,7 +376,8 @@ impl ValidatorSubmitter {
             }
             let mut verified_batch = None;
             if samples.is_none() || last_rpc_audit.elapsed() >= CHECKPOINT_SAMPLE_REFRESH_INTERVAL {
-                let mut responses = reader.checkpoint_stream(&self.reorg_period);
+                let mut responses =
+                    reader.checkpoint_stream(&self.reorg_period, &self.metrics.checkpoint_reads);
                 let mut received = vec![None; reader.endpoint_count()];
                 let mut verified = None;
                 let merge_response =
@@ -495,6 +503,9 @@ impl ValidatorSubmitter {
                     }
                     samples = None;
                     let advanced = latest.is_some();
+                    if advanced {
+                        lag_retry_interval = self.checkpoint_lag_retry_interval();
+                    }
                     if let Some(latest) = latest {
                         // Older indices are reconstructed by one worker from the DB.
                         self.sign_and_submit_checkpoints(std::iter::once(
@@ -512,7 +523,7 @@ impl ValidatorSubmitter {
                     if self.checkpoint_wake.is_none()
                         || (!advanced && self.has_pending_insertion(next_index))
                     {
-                        sleep(self.checkpoint_lag_retry_interval()).await;
+                        self.wait_for_checkpoint_lag(&mut lag_retry_interval).await;
                     }
                 }
             }
@@ -855,6 +866,7 @@ impl ValidatorSubmitter {
         };
 
         let mut last_rpc_audit = tokio::time::Instant::now();
+        let mut lag_retry_interval = self.checkpoint_lag_retry_interval();
         loop {
             let next_index = u32::try_from(tree.count()).expect("Merkle leaf count fits in u32");
             self.wait_for_checkpoint_work(next_index, last_rpc_audit)
@@ -864,6 +876,7 @@ impl ValidatorSubmitter {
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();
                 let reorg_period = self.reorg_period.clone();
+                self.metrics.checkpoint_reads.inc();
                 Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
             })
             .await;
@@ -892,7 +905,7 @@ impl ValidatorSubmitter {
                     tree_count = tree.count(),
                     "Latest checkpoint is behind tree, sleeping briefly"
                 );
-                sleep(self.checkpoint_lag_retry_interval()).await;
+                self.wait_for_checkpoint_lag(&mut lag_retry_interval).await;
                 continue;
             }
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
@@ -910,10 +923,13 @@ impl ValidatorSubmitter {
             // Set that initial consistency has been reached on first loop run. Subsequent runs are idempotent.
             self.metrics.reached_initial_consistency.set(1);
 
+            if tree.count() > previous_count {
+                lag_retry_interval = self.checkpoint_lag_retry_interval();
+            }
             if self.checkpoint_wake.is_none()
                 || (tree.count() == previous_count && self.has_pending_insertion(next_index))
             {
-                sleep(self.checkpoint_lag_retry_interval()).await;
+                self.wait_for_checkpoint_lag(&mut lag_retry_interval).await;
             }
         }
     }
@@ -1569,6 +1585,7 @@ fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) ->
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitterMetrics {
+    checkpoint_reads: IntCounter,
     merkle_tree_leaf_count: IntGauge,
     historical_reconstruction_leaf_count: IntGauge,
     backfill_merkle_tree_leaf_count: IntGauge,
@@ -1582,6 +1599,14 @@ impl ValidatorSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, mailbox_chain: &HyperlaneDomain) -> Self {
         let chain_name = mailbox_chain.name();
         Self {
+            checkpoint_reads: metrics
+                .new_int_counter(
+                    "validator_checkpoint_reads_total",
+                    "Checkpoint verification read attempts, including failed and timed-out endpoints",
+                    &["chain"],
+                )
+                .expect("Failed to register validator checkpoint read counter")
+                .with_label_values(&[chain_name]),
             merkle_tree_leaf_count: metrics
                 .validator_merkle_tree_leaf_count()
                 .with_label_values(&[chain_name, "verification"]),

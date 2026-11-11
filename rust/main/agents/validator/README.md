@@ -143,17 +143,22 @@ requests an uncached intermediate index, replay resumes from the committed tree
 using stored insertions. Roots are calculated only at sampled indices.
 
 Lightweight mode does not run an RPC indexer or WebSocket freshness probes.
-All modes retain the 60-second root audit after signing their first checkpoint.
+All modes retain the 60-second root audit once the local tree is non-empty.
 The next unsigned insertion in the local DB drives independent RPC verification.
 Both WebSocket and fallback RPC indexing notify the same verifier after persisting
 new insertions. It does not track which indexer is active, and no separate insertion
 counter or polling deadline gates new work. Once caught up, the verifier waits for a
 notification or the 60-second safety audit. A valid RPC quorum that has not advanced
 retries pending insertions after 500 ms, without needing another notification.
+Consecutive stale rounds double that delay up to the configured interval; checkpoint
+progress resets it. The first retry is also capped at the configured interval.
 Failed consensus reads or root verification retain the configured retry interval;
 notifications cannot bypass that delay. RPC indexing fallback keeps its configured
 polling interval. Without a WebSocket configured, the verifier checks the local DB
 at that interval. Single/fallback RPC failures retain the provider retry policy.
+On idle chains, including RPC-only validators and unhealthy WebSocket connections,
+`validator_observed` checkpoint metrics and same-count reorg detection update on the
+60-second audit rather than every configured interval.
 Each endpoint receives one checkpoint-method read per attempt, shared by a batch
 of insertions, with a 20-second timeout per endpoint, including deferred WebSocket connection setup. Responses
 are verified progressively: signing advances as soon as enough roots match local
@@ -162,12 +167,15 @@ retain their voting slots and retry initialization on subsequent reads. Without
 a matching threshold, reads remain bounded by the deadline.
 Wire call counts depend on the protocol adapter. Announcements and metrics retain
 their own RPC calls.
+`hyperlane_validator_checkpoint_reads_total{chain="..."}` counts checkpoint verification
+read attempts, including each consensus endpoint and failed or timed-out reads.
+It counts adapter method calls, not underlying wire requests or RPC indexing calls.
 
 Websocket failures trigger reconnection without indexing fallback. Insufficient
 responses or matching roots block signing until a later successful verification.
 Normal `single`/`fallback` retain classic checkpoint verification and recovery.
 Normal `quorum`/`majority` use the shared verifier and recovery policy described
-above, while preserving RPC indexing fallback and idle polling.
+above, while preserving RPC indexing fallback and the 60-second root audit.
 
 The separate additional RPC pool remains removed. Both modes reject obsolete
 `additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings, including empty

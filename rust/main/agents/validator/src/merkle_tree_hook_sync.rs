@@ -696,6 +696,7 @@ impl MerkleTreeHookWebSocketSync {
                     sequence,
                 } => {
                     if self.confirmations.is_some() {
+                        // The scraper sends no replay markers for cursorless subscriptions.
                         // Only a live event can anchor a cursorless stream's handoff.
                         warn!("Ignoring replay marker on a live confirmation stream");
                         continue;

@@ -133,6 +133,7 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
         let mut submitter = lightweight_test_submitter(available.clone(), signed.clone())
             .with_checkpoint_wake(Some(wake.clone()));
         submitter.interval = Duration::from_secs(5);
+        let checkpoint_reads = submitter.metrics.checkpoint_reads.clone();
         submitter.max_sign_concurrency = 5;
         let endpoints = if consensus.is_some() { 3 } else { 1 };
         let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = Vec::new();
@@ -184,6 +185,10 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
             assert_eq!(started.elapsed(), Duration::ZERO);
         }
         assert_eq!(reads.load(Ordering::SeqCst), 3 * endpoints);
+        assert_eq!(
+            checkpoint_reads.get(),
+            u64::try_from(reads.load(Ordering::SeqCst)).expect("read count")
+        );
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
     }
@@ -238,24 +243,31 @@ async fn websocket_insertion_received_during_rpc_wakes_the_next_round() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn stale_rpc_checkpoint_retries_without_another_websocket_event() {
-    for consensus in [false, true] {
+async fn stale_rpc_checkpoint_retries_back_off_and_reset_after_progress() {
+    for (consensus, interval) in [
+        (false, Duration::from_secs(5)),
+        (true, Duration::from_secs(5)),
+        (false, Duration::from_millis(250)),
+        (true, Duration::from_millis(250)),
+    ] {
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
         let wake = Arc::new(Notify::new());
         let mut submitter =
-            lightweight_test_submitter(Arc::new(AtomicUsize::new(2)), signed.clone())
+            lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone())
                 .with_checkpoint_wake(Some(wake.clone()));
-        submitter.interval = Duration::from_secs(5);
+        submitter.interval = interval;
+        let checkpoint_reads = submitter.metrics.checkpoint_reads.clone();
         let reads = Arc::new(AtomicUsize::new(0));
         let observed = reads.clone();
-        let checkpoints = lightweight_checkpoints(2);
+        let rpc_index = Arc::new(AtomicUsize::new(0));
+        let frontier = rpc_index.clone();
+        let checkpoints = lightweight_checkpoints(3);
         let mut hook = MockMerkleTreeHook::new();
         hook.expect_domain().return_const(dummy_domain(0, "test"));
         hook.expect_address().return_const(H256::zero());
         hook.expect_latest_checkpoint().returning(move |_| {
-            let call = observed.fetch_add(1, Ordering::SeqCst);
-            // RPC initially confirms only the first of two stored insertions.
-            Ok(checkpoints[usize::from(call >= 2)].clone())
+            observed.fetch_add(1, Ordering::SeqCst);
+            Ok(checkpoints[frontier.load(Ordering::SeqCst)].clone())
         });
         let task = if consensus {
             let reader = Arc::new(
@@ -268,24 +280,56 @@ async fn stale_rpc_checkpoint_retries_without_another_websocket_event() {
             tokio::spawn(submitter.checkpoint_submitter(IncrementalMerkle::default()))
         };
         for _ in 0..200 {
-            // Hints cannot turn the lag retry into a busy RPC loop.
-            wake.notify_one();
             tokio::task::yield_now().await;
         }
         assert_eq!(*signed.lock().expect("test fixture"), vec![0]);
-        assert_eq!(reads.load(Ordering::SeqCst), 2);
-        tokio::time::advance(Duration::from_millis(499)).await;
+        let mut expected_reads = 2;
+        assert_eq!(reads.load(Ordering::SeqCst), expected_reads);
+        for millis in [500, 1_000, 2_000, 4_000, 5_000, 5_000] {
+            // Notifications cannot bypass backoff, even after reaching its cap.
+            for _ in 0..100 {
+                wake.notify_one();
+                tokio::task::yield_now().await;
+            }
+            let delay = Duration::from_millis(millis).min(interval);
+            tokio::time::advance(delay.saturating_sub(Duration::from_millis(1))).await;
+            tokio::task::yield_now().await;
+            assert_eq!(reads.load(Ordering::SeqCst), expected_reads);
+            tokio::time::advance(Duration::from_millis(1)).await;
+            for _ in 0..200 {
+                tokio::task::yield_now().await;
+            }
+            expected_reads = expected_reads.saturating_add(1);
+            assert_eq!(reads.load(Ordering::SeqCst), expected_reads);
+        }
+
+        // Advancing one checkpoint resets the backoff for the remaining leaf.
+        rpc_index.store(1, Ordering::SeqCst);
+        tokio::time::advance(interval).await;
+        for _ in 0..200 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(*signed.lock().expect("test fixture"), vec![0, 1]);
+        expected_reads = expected_reads.saturating_add(2);
+        assert_eq!(reads.load(Ordering::SeqCst), expected_reads);
+        rpc_index.store(2, Ordering::SeqCst);
+        let first_retry = CHECKPOINT_LAG_RETRY_INTERVAL.min(interval);
+        tokio::time::advance(first_retry.saturating_sub(Duration::from_millis(1))).await;
         tokio::task::yield_now().await;
-        assert_eq!(reads.load(Ordering::SeqCst), 2);
+        assert_eq!(reads.load(Ordering::SeqCst), expected_reads);
         tokio::time::advance(Duration::from_millis(1)).await;
         for _ in 0..200 {
             tokio::task::yield_now().await;
-            if signed.lock().expect("test fixture").contains(&1) {
-                break;
-            }
         }
-        assert_eq!(*signed.lock().expect("test fixture"), vec![0, 1]);
-        assert_eq!(reads.load(Ordering::SeqCst), 3);
+        assert_eq!(*signed.lock().expect("test fixture"), vec![0, 1, 2]);
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            expected_reads.saturating_add(1)
+        );
+        assert_eq!(
+            checkpoint_reads.get(),
+            u64::try_from(expected_reads.saturating_add(1)).expect("read count")
+        );
         task.abort();
         assert!(task.await.expect_err("cancelled task").is_cancelled());
     }
@@ -302,6 +346,7 @@ async fn immediate_websocket_verification_preserves_agreement_and_failure_backof
         let mut submitter = lightweight_test_submitter(available.clone(), signed.clone())
             .with_checkpoint_wake(Some(wake.clone()));
         submitter.interval = Duration::from_secs(5);
+        let checkpoint_reads = submitter.metrics.checkpoint_reads.clone();
         let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = Vec::new();
         for endpoint in 0..3 {
             let observed = reads.clone();
@@ -376,6 +421,10 @@ async fn immediate_websocket_verification_preserves_agreement_and_failure_backof
         assert!(signed.lock().unwrap().contains(&2), "{invalid}");
         assert_eq!(reads.load(Ordering::SeqCst), 9, "{invalid}");
         assert_eq!(started.elapsed(), Duration::from_secs(5));
+        assert_eq!(
+            checkpoint_reads.get(),
+            u64::try_from(reads.load(Ordering::SeqCst)).expect("read count")
+        );
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
     }

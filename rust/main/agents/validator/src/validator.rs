@@ -1732,7 +1732,9 @@ mod tests {
             assert_eq!(reader.endpoint_count(), 3);
             assert_eq!(reader.consensus.required(reader.endpoint_count()), 2);
             let period = ReorgPeriod::None;
-            let mut stream = reader.checkpoint_stream(&period);
+            let reads = prometheus::IntCounter::new("test_checkpoint_reads", "Test read attempts")
+                .expect("test counter");
+            let mut stream = reader.checkpoint_stream(&period, &reads);
             for _ in 0..2 {
                 let (slot, checkpoint) =
                     tokio::time::timeout(Duration::from_secs(1), stream.next())
