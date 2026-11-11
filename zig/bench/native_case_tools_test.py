@@ -430,6 +430,93 @@ class EvmConsumerControls(unittest.TestCase):
         if debt:self.assertFalse(calls[0]['actual_parent_wait'])
         return tree,main
 
+    def compile_diagnostic_fixture(self, text):
+        output=self.root/'diagnostic';(output/'logs').mkdir(parents=True);(output/'public').mkdir()
+        copied=self.root/'Source';source=copied/'zig/src/example.zig';source.parent.mkdir(parents=True);source.write_text('const x = 1;\n')
+        entry=copied/'zig/src/consumer_txid_control.zig';entry.write_text('test "owned" {}\n')
+        row=m.descriptor(source);rows={'zig/src/example.zig':{k:row[k]for k in ['bytes','sha256']}}
+        stderr=output/'logs/compile-1.stderr';stderr.write_text(text)
+        calls=[{'phase':'compile-1','exit_code':1,'actual_parent_wait':True,'clean':True,'stderr':m.descriptor(stderr)}]
+        return output,copied,rows,[m.descriptor(entry)],calls
+
+    def test_compile_failure_projects_only_fixed_categories_and_hash_bound_Source(self):
+        args=self.compile_diagnostic_fixture('src/example.zig:1:2: error: SECRET reason URL key\n'+str(self.root/'Source/zig/src/consumer_txid_control.zig')+':1:1: note: SECRET\nerror: ld.lld: undefined symbol: SECRET\n')
+        value=m.evm_control_compile_failure(*args)
+        self.assertEqual(value['category'],'undefined-symbol');self.assertEqual(value['phase'],'compile-1')
+        self.assertEqual([r['source']for r in value['Source_locations']],['zig/src/example.zig','zig/src/consumer_txid_control.zig'])
+        self.assertNotIn('SECRET',json.dumps(value));self.assertNotIn(str(self.root),json.dumps(value));self.assertFalse(value['native_or_performance_acceptance'])
+        self.assertTrue(m.evm_control_publish_compile_failure(*args));self.assertEqual(json.loads((args[0]/'public/compile-failure-diagnostic.json').read_text()),value)
+        self.assertEqual((args[0]/'failure-diagnostics/compile-1.stderr').read_bytes(),(args[0]/'logs/compile-1.stderr').read_bytes());self.assertEqual({x.name for x in (args[0]/'failure-diagnostics').iterdir()},{'compile-1.stderr'})
+
+    def test_compile_failure_ignores_foreign_traversal_stale_or_invalid_locations(self):
+        args=self.compile_diagnostic_fixture('/foreign/key:1:1: error: SECRET\n../secret:1:1: error: SECRET\nsrc/example.zig:999:1: error: SECRET\nsrc/example.zig:1:999: note: SECRET\nsrc/example.zig:1:1: error: SECRET\n')
+        (args[1]/'zig/src/example.zig').write_text('mutated\n')
+        value=m.evm_control_compile_failure(*args);self.assertEqual(value['Source_locations'],[]);self.assertEqual(value['category'],'compiler-or-linker-error');self.assertNotIn('SECRET',json.dumps(value))
+
+    def test_compile_failure_stderr_pin_limit_and_symlink_refuse(self):
+        args=self.compile_diagnostic_fixture('error: duplicate symbol: SECRET\n');path=args[0]/'logs/compile-1.stderr'
+        path.write_text('changed')
+        with self.assertRaises(ValueError):m.evm_control_compile_failure(*args)
+        args[4][0]['stderr']=m.descriptor(path)
+        with mock.patch.dict(m.EVM_CONTROL_LIMITS,phase_log_bytes=1),self.assertRaises(ValueError):m.evm_control_compile_failure(*args)
+        path.unlink();path.symlink_to(args[1]/'zig/src/example.zig')
+        with self.assertRaises(ValueError):m.evm_control_compile_failure(*args)
+
+    def test_compile_failure_oversize_cannot_publish_raw_upload_candidate(self):
+        import contextlib,io
+        args=self.compile_diagnostic_fixture('error: duplicate symbol: SECRET\n')
+        with mock.patch.dict(m.EVM_CONTROL_LIMITS,phase_log_bytes=1),contextlib.redirect_stderr(io.StringIO()):
+            self.assertFalse(m.evm_control_publish_compile_failure(*args))
+        self.assertFalse((args[0]/'failure-diagnostics/compile-1.stderr').exists());self.assertFalse((args[0]/'public/compile-failure-diagnostic.json').exists())
+
+    def test_compile_failure_other_phases_and_success_do_not_read_files(self):
+        for phase,code in [('dependency-archive',1),('compiler-bootstrap',1),('compile-0',0),('compile-1',0)]:
+            with self.subTest(phase=phase,code=code),mock.patch.object(Path,'read_bytes',side_effect=AssertionError('no read')):
+                self.assertIsNone(m.evm_control_compile_failure(None,None,{},[],[{'phase':phase,'exit_code':code}]))
+
+    def test_compile_failure_publication_failure_preserves_primary_exception(self):
+        import ast,contextlib,io
+        args=self.compile_diagnostic_fixture('error: unable to find dynamic system library SECRET\n')
+        primary=RuntimeError('primary')
+        with mock.patch.object(m,'evm_control_compile_failure',side_effect=OSError('PRIVATE writer error')),contextlib.redirect_stderr(io.StringIO())as stderr:
+            try:raise primary
+            except BaseException as caught:
+                self.assertFalse(m.evm_control_publish_compile_failure(*args));self.assertIs(caught,primary)
+        self.assertEqual(stderr.getvalue(),'Closed EVM compiler diagnostic unavailable\n')
+        tree=ast.parse(Path(m.__file__).read_text());main=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='evm_control_main')
+        outer=next(n for n in main.body if isinstance(n,ast.Try)and any(isinstance(h.name,str)and h.name=='caught'for h in n.handlers))
+        handler=outer.handlers[0]
+        self.assertIsInstance(handler.body[0],ast.Assign);self.assertEqual(handler.body[0].targets[0].id,'error');self.assertEqual(handler.body[0].value.id,'caught')
+        self.assertTrue(any(isinstance(n,ast.Raise)and isinstance(n.exc,ast.Name)and n.exc.id=='error'for n in ast.walk(main)))
+
+    def test_compile_failure_original_resource_guard_refuses_before_read_or_write(self):
+        import contextlib,io
+        args=self.compile_diagnostic_fixture('compiler failed\n');guard=mock.Mock(side_effect=ValueError('Original resource refusal'))
+        with mock.patch.object(m,'evm_control_compile_failure',side_effect=AssertionError('must not parse')),contextlib.redirect_stderr(io.StringIO()):
+            self.assertFalse(m.evm_control_publish_compile_failure(*args,guard=guard))
+        guard.assert_called_once_with();self.assertFalse((args[0]/'failure-diagnostics').exists());self.assertFalse((args[0]/'public/compile-failure-diagnostic.json').exists())
+
+    def test_compile_failure_warning_write_cannot_replace_primary(self):
+        from types import SimpleNamespace as N
+        args=self.compile_diagnostic_fixture('compiler failed\n');primary=ValueError('primary')
+        with mock.patch.object(m,'evm_control_compile_failure',side_effect=OSError('PRIVATE')),mock.patch.object(m.sys,'stderr',N(write=mock.Mock(side_effect=BrokenPipeError('PRIVATE')))):
+            try:raise primary
+            except BaseException as caught:
+                self.assertFalse(m.evm_control_publish_compile_failure(*args));self.assertIs(caught,primary)
+
+    def test_separate_compiler_upload_exact_inverse_and_poison_refusals(self):
+        import ast,hashlib
+        repo=Path(__file__).resolve().parents[2];workflow=(repo/'.github/workflows/zig-agents.yml').read_text();functions=[]
+        for relative in ['zig/bench/paired_linux_test.py','zig/tools/aleo_linux_case/ci_fullcase_test.py']:
+            tree=ast.parse((repo/relative).read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow')
+            namespace={'hashlib':hashlib};exec(compile(ast.Module([fn],type_ignores=[]),'standalone-compiler-upload-inverse','exec'),namespace);functions.append(fn)
+            inverse=namespace['ordinary_native_http_workflow'];normalized=inverse(workflow)
+            self.assertEqual(hashlib.sha256(normalized.encode()).hexdigest(),'e08ffd005159dd3915047706df9a1806' 'b13cf3344795e5700980910bc38f9ef3')
+            block=next(n.value.value for n in fn.body if isinstance(n,ast.Assign)and any(isinstance(v,ast.Name)and v.id=='compiler_diagnostics'for v in n.targets))
+            for poison in [workflow.replace(block,'',1),workflow.replace(block,block+block,1),workflow.replace(block,block.replace('failure-diagnostics/compile-1.stderr','logs/dependency-archive.stderr'),1)]:
+                with self.assertRaises(AssertionError):inverse(poison)
+        self.assertEqual(ast.dump(functions[0],include_attributes=False),ast.dump(functions[1],include_attributes=False))
+
     def test_actual_run_cancellation_preserves_primary_and_waits_owned_child(self):self.actual_run(cancel=True)
 
     def test_actual_run_cleanup_debt_cannot_return_positive(self):self.actual_run(debt=True)

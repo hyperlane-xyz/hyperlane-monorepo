@@ -419,6 +419,74 @@ def evm_control_commands(copied, compiler, mode, libraries, output):
     return [common+['src/consumer_prepare_control.zig',*link,'--test-filter',EVM_CONTROL_TESTS[0],'--test-filter',EVM_CONTROL_TESTS[1],'-femit-bin='+str(output/'prepare-tests')],common+['src/consumer_txid_control.zig',*link,'--test-filter',EVM_CONTROL_TESTS[2],'-femit-bin='+str(output/'txid-tests')]]
 
 
+
+def evm_control_compile_failure(output, copied, source_rows, entries, calls):
+    # Auxiliary evidence only: never changes the primary command failure/result.
+    if not calls or calls[-1]['phase'] not in {'compile-0','compile-1'} or calls[-1]['exit_code'] == 0:
+        return None
+    call=calls[-1];phase=call['phase'];path=output/'logs'/(phase+'.stderr')
+    require(call['stderr'] is not None and call['stderr']['path']==str(path),'Exact failed compiler stderr required')
+    require(path.stat().st_size<=EVM_CONTROL_LIMITS['phase_log_bytes'] and descriptor(path)==call['stderr'],'Bounded unchanged compiler stderr required')
+    wire=regular(path).read_bytes();text=wire.decode('utf-8',errors='replace')
+    catalog={name:{'bytes':row['bytes'],'sha256':row['sha256']}for name,row in source_rows.items()}
+    for row in entries:
+        name=str(Path(row['path']).relative_to(copied))
+        require(name in {'zig/src/consumer_prepare_control.zig','zig/src/consumer_txid_control.zig'} and name not in catalog,'Exact generated control Source required')
+        catalog[name]={'bytes':row['bytes'],'sha256':row['sha256']}
+    locations=[];seen=set();source_cache={}
+    for match in re.finditer(r'(?m)^([^\r\n]+?):([0-9]{1,9}):([0-9]{1,9}): (?:error|note):',text):
+        raw,line,column=match.groups();candidate=Path(raw)
+        if candidate.is_absolute():
+            try:name=str(candidate.relative_to(copied))
+            except ValueError:continue
+        else:name='zig/'+raw
+        if name not in catalog or '..' in Path(name).parts:continue
+        line=int(line);column=int(column);key=(name,line,column)
+        if key in seen:continue
+        if name not in source_cache:
+            actual=copied/name
+            body=regular(actual).read_bytes();pin=catalog[name]
+            source_cache[name]=body.splitlines()if len(body)==pin['bytes']and hashlib.sha256(body).hexdigest()==pin['sha256']else None
+        # Source coordinates must designate actual retained Source lines.
+        lines=source_cache[name]
+        if lines is None or not (1<=line<=len(lines) and 1<=column<=len(lines[line-1])+1):continue
+        require(len(locations)<32,'Bounded Source diagnostic locations')
+        locations.append({'source':name,'line':line,'column':column,'fingerprint':catalog[name]});seen.add(key)
+    category='compiler-or-linker-error'
+    for literal,tag in [('undefined symbol:','undefined-symbol'),('duplicate symbol:','duplicate-symbol'),('unable to find dynamic system library','library-not-found'),('unable to find static system library','library-not-found')]:
+        if literal in text:category=tag;break
+    if category=='compiler-or-linker-error' and locations:category='source-error'
+    require(descriptor(path)==call['stderr'],'Compiler stderr changed during projection')
+    return {'schema':1,'kind':'closed-EVM-control-compile-failure','phase':phase,'category':category,'exit_code':call['exit_code'],'actual_parent_wait':call['actual_parent_wait'],'clean':call['clean'],'stderr':{'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()},'Source_locations':locations,'native_or_performance_acceptance':False}
+
+
+def evm_control_publish_compile_failure(output, copied, source_rows, entries, calls, guard=lambda:None):
+    try:
+        guard()
+        value=evm_control_compile_failure(output,copied,source_rows,entries,calls)
+        if value is None:return False
+        wire=(json.dumps(value,indent=2)+'\n').encode();require(len(wire)<=EVM_CONTROL_LIMITS['public_bytes'],'Closed compiler diagnostic cap')
+        guard();directory=output/'failure-diagnostics';directory.mkdir(mode=0o700)
+        selected=[row for row in calls if row['phase']in {'compile-0','compile-1'}]
+        require(len(selected)<=2 and len({row['phase']for row in selected})==len(selected),'Exact unique compiler stderr phases')
+        for row in selected:
+            guard();source=output/'logs'/(row['phase']+'.stderr')
+            require(row['stderr']is not None and row['stderr']['path']==str(source)and source.stat().st_size<=EVM_CONTROL_LIMITS['phase_log_bytes']and descriptor(source)==row['stderr'],'Bounded exact compiler stderr publication')
+            body=regular(source).read_bytes()
+            require(len(body)<=EVM_CONTROL_LIMITS['phase_log_bytes']and hashlib.sha256(body).hexdigest()==row['stderr']['sha256']and len(body)==row['stderr']['bytes'],'Unchanged compiler stderr publication')
+            guard();target=directory/(row['phase']+'.stderr')
+            with target.open('xb')as stream:stream.write(body)
+            target.chmod(0o600);guard()
+        guard();path=output/'public/compile-failure-diagnostic.json'
+        with path.open('xb')as stream:stream.write(wire)
+        path.chmod(0o600);guard();return True
+    except BaseException:
+        # Fixed warning only; preserve the original exception and case verdict.
+        try:print('Closed EVM compiler diagnostic unavailable',file=sys.stderr)
+        except BaseException:pass
+        return False
+
+
 def evm_control_test_verdict(text, targets, parser):
     parsed=parser(text);rows=parsed['per_test'];require(rows and all(r['status']!='FAIL' for r in rows),'Component test failed')
     for target in targets:
@@ -515,7 +583,11 @@ def evm_control_main(argv):
         last_census[0]=0.0;guard()
         result['cpu_contract']=cpu.make_record('evm-controls',mode,args.execution_source_commit,'amd64',cpu.cpu_flags(Path('/proc/cpuinfo').read_text()),{name:{k:descriptor(args.output/name)[k]for k in ['bytes','sha256']}for name in ['prepare-tests','txid-tests']},compiler_recipes)
         result.update(passed=True,published_agent_ELFs_executed=False,admitted_URL_DSO_used=True,admitted_Source_built_oracle_executed=True,required_tests=tests,component_entries=entries,fixture_JSON=fixture_result['fixture_json'],fixture_Rust_Source=fixture_rust,temporary_dependency_ZIP_removed=not archive.exists(),separate_ninth_dependency={**EVM_CONTROL_DEP,'whole_SHA_all_member_CRC':True,'catalog_sha256':hashlib.sha256(json.dumps(dep_catalog,sort_keys=True).encode()).hexdigest()},producer_Source_copy={'files':len(source_rows),'catalog_sha256':hashlib.sha256(json.dumps(source_rows,sort_keys=True).encode()).hexdigest()},consumer_Source={n:{k:v for k,v in r.items()if k!='path'}for n,r in consumer_sources.items()},compiler=compiler_pin,oracle=admitted['ziggy-rocks-oracle'],archive_inputs=[descriptor(Path(x))for x in libraries],main_scope_trees=scopes,all_component_waits_clean=True)
-    except BaseException as caught:error=caught;result['error_class']=type(caught).__name__
+    except BaseException as caught:
+        error=caught;result['error_class']=type(caught).__name__
+        def diagnostic_guard():
+            last_census[0]=0.0;guard()
+        evm_control_publish_compile_failure(args.output,locals().get('copied'),locals().get('source_rows',{}),locals().get('entries',[]),calls,diagnostic_guard)
     finally:
         for sig,previous in watched.items():signal.signal(sig,previous)
         wire=json.dumps(result,indent=2)+'\n';require(len(wire.encode())<=EVM_CONTROL_LIMITS['public_bytes'],'Closed public component result cap');(args.output/'public/result.json').write_text(wire)

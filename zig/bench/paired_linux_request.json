@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 158373,
+      "bytes": 159283,
       "sha256": {
         "sha256_hex_chunks": [
-          "f127a6426f9727cdbb5a1026eaefb4c4",
-          "b53ee3ff76c730bcc8ee892996f9dea4"
+          "e12a5ae7abf4e7ecd4e30874325583bc",
+          "674492bd879dbbffdff8feecc538416b"
         ]
       }
     },
@@ -113,11 +113,11 @@
     },
     {
       "path": "zig/bench/native_case_tools.py",
-      "bytes": 59526,
+      "bytes": 64764,
       "sha256": {
         "sha256_hex_chunks": [
-          "e99abef2cf0f16c98f224f465b383110",
-          "cf33c02adfbb6a0949c2ed6b8405df00"
+          "fd365e0ff11552aa46d24aaa1af1bbd9",
+          "20bb27f770bd1d64f5b816080c08788a"
         ]
       }
     },

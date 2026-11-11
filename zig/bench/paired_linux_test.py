@@ -12,6 +12,10 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the separate reviewed compiler-failure diagnostic artifact.
+ compiler_diagnostics = "      - name: Retain separate EVM compiler failure diagnostics\n        if: ${{ always() && steps.evm_controls.outcome == 'failure' && steps.request.outputs.enabled == 'true' && steps.request.outputs.scenario == 'evm' }}\n        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f\n        with:\n          name: native-evm-compiler-failure-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}\n          if-no-files-found: warn\n          retention-days: 14\n          path: |\n            ${{ runner.temp }}/evm-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}/public/compile-failure-diagnostic.json\n            ${{ runner.temp }}/evm-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}/failure-diagnostics/compile-0.stderr\n            ${{ runner.temp }}/evm-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}/failure-diagnostics/compile-1.stderr\n"
+ if text.count(compiler_diagnostics) != 1: raise AssertionError('Exact once-only compiler diagnostic upload required')
+ text = text.replace(compiler_diagnostics, '', 1)
  # Exact inverse of the two reviewed functional diagnostic-only uploads.
  functional_diagnostics_after = '            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-failure.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/worker.log\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json\n'
  functional_diagnostics_before = '            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json\n            ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json\n'
