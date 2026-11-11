@@ -673,6 +673,87 @@ class CaseOwnerTests(unittest.TestCase):
             with mock.patch.object(api,'snapshot_public_diagnostics',return_value=None),mock.patch.object(api,'diagnostic_module',return_value=module):row=api.write_public_failure_diagnostics({'execution_source_commit':'b'*40,'diagnostic_rust_sources':{}},{'scenario':'evm','mode':'ReleaseSafe','runtime_source_commit':'a'*40},{},case,out,result,90)
             value=json.loads(Path(row['path']).read_bytes());self.assertEqual(value['EVM_child_wait_text'],expected);self.assertIs(result['error'],primary);self.assertFalse(value['native_or_timing_credit']);self.assertNotIn('PRIVATE',json.dumps(value))
 
+    def evm_epoch_records(self):
+        # Source-only healthy three-epoch fixture: not actual failed-run counts.
+        case,manifest,plan=self.public_record_files();roles=['relayer','validator','validator','validator','scraper','scraper','scraper']
+        products={role:{'path':'/synthetic/'+role,'bytes':1,'sha256':str(index)*64}for index,role in enumerate(['relayer','validator','scraper'],1)};manifest.update(scenario='evm',artifacts=products)
+        def birth(pid,role):return {'pid':pid,'parent_pid':98,'os_start_token':'source-only-'+str(pid),'role':role,'executable':copy.deepcopy(products[role]),'scope':'DO-NOT-EXPORT-LAUNCH-SCOPE'}
+        old=[birth(100+i,role)for i,role in enumerate(roles)];new=[birth(200+i,role)for i,role in enumerate(roles)];replacement=birth(300,'relayer');launches=old+new+[replacement]
+        def wait(row,purpose):
+            value={k:copy.deepcopy(row[k])for k in ['pid','parent_pid','os_start_token','role','executable']};planned=purpose.startswith('intentional_');value.update(purpose=purpose,parent_wait_completed=True,already_exited=False,forced_kill=False,success=not planned,exit_code=None if planned else 0,signal=9 if planned else None,planned_exit=planned);return value
+        old_waits=[wait(row,'same_db_restart')for row in old];waits=old_waits+[wait(new[1],'intentional_reorg'),wait(new[0],'intentional_restart')]+[wait(row,'final')for row in new[2:]]+[wait(replacement,'final')]
+        snapshots={}
+        for phase in ['initial','before-restart','after-restart','final']:
+            row=self.public_snapshot_fixture();row.update(scenario='evm',capture_count=7 if phase in {'initial','before-restart'}else 14 if phase=='after-restart'else 15)
+            row['same_db_restart_observation']['new_child_identities']=[{k:copy.deepcopy(child[k])for k in ['pid','parent_pid','os_start_token','role','executable']}for child in new]
+            row['parent_wait_receipts']=copy.deepcopy(waits if phase=='final'else old_waits);snapshots[phase]=row
+        self.write_evm_epoch_records(case,snapshots,launches,waits);return case,manifest,plan,snapshots,launches,waits
+
+    def write_evm_epoch_records(self,case,snapshots,launches,waits):
+        names={'initial':'verified-initial-native.jsonl','before-restart':'verified-before-restart.jsonl','after-restart':'verified-after-restart.jsonl','final':'verified-final-native.jsonl'}
+        for phase,row in snapshots.items():(case/'evidence'/names[phase]).write_text(json.dumps(row)+'\n')
+        for name,rows in [('owned-children.jsonl',launches),('parent-child-exits.jsonl',waits)]:(case/'evidence'/name).write_text(''.join(json.dumps(row)+'\n'for row in rows))
+
+    def test_actual_EVM_all_births_waits_and_late_Source_replacement_pass(self):
+        case,manifest,plan,snapshots,launches,waits=self.evm_epoch_records();final=api.pin(case/'evidence/verified-final-native.jsonl');out=self.root/'evm-proof.json'
+        api.write_public_native_proof(plan,manifest,case,out,final,harness_parent=98);value=json.loads(out.read_text());proof=value['EVM_role_lifecycle']
+        self.assertEqual((proof['launch_count'],proof['wait_count'],proof['restart_witness_count'],proof['final_count']),(15,15,7,6));self.assertEqual((proof['intentional_reorg_count'],proof['intentional_restart_count'],proof['replacement_count']),(1,1,1));self.assertEqual(proof['launch_journal'],api.pin(case/'evidence/owned-children.jsonl'));self.assertEqual(proof['wait_journal'],api.pin(case/'evidence/parent-child-exits.jsonl'));self.assertNotIn('DO-NOT-EXPORT',out.read_text())
+
+    def test_original_intermediate_roster_guard_rejects_same_healthy_EVM_fixture(self):
+        import ast
+        # Existing non-EVM three-statement guard is the byte-exact old contract.
+        tree=ast.parse(Path(api.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='write_public_native_proof')
+        assignments=[n for n in fn.body if isinstance(n,ast.Assign)and isinstance(n.targets[0],ast.Name)and n.targets[0].id in {'actual_final','restarted'}]
+        branch=next(n for n in fn.body if isinstance(n,ast.If)and n.orelse and isinstance(n.orelse[0],ast.Expr)and isinstance(n.orelse[0].value,ast.Call)and len(n.orelse[0].value.args)>1 and isinstance(n.orelse[0].value.args[1],ast.Constant)and n.orelse[0].value.args[1].value=='Actual final parent waits do not cover the restarted children')
+        case,manifest,plan,snapshots,launches,waits=self.evm_epoch_records();scope={'waits':waits,'restart':snapshots['after-restart']['same_db_restart_observation'],'require':api.require}
+        with self.assertRaisesRegex(ValueError,'Actual final parent waits do not cover the restarted children'):exec(compile(ast.Module([*assignments,*branch.orelse],type_ignores=[]),'original-intermediate-roster-guard','exec'),scope)
+
+    def test_EVM_lifecycle_journal_identity_and_replacement_poisons_refuse(self):
+        cases=['missing_birth','extra_birth','duplicate_birth','missing_wait','duplicate_wait','start_token','parent','role','executable','witness_unknown','witness_product','journal_disagrees','forced_final','bad_planned_signal','unplanned_replacement','missing_reorg','extra_replacement','before_receipt_changed']
+        for change in cases:
+            with self.subTest(change=change):
+                case,manifest,plan,snapshots,launches,waits=self.evm_epoch_records()
+                if change=='missing_birth':launches.pop()
+                elif change=='extra_birth':launches.append(dict(launches[-1],pid=301,os_start_token='source-only-301'))
+                elif change=='duplicate_birth':launches.append(copy.deepcopy(launches[0]))
+                elif change=='missing_wait':waits.pop()
+                elif change=='duplicate_wait':waits.append(copy.deepcopy(waits[-1]))
+                elif change=='extra_replacement':
+                    child=dict(launches[-1],pid=301,os_start_token='source-only-301');launches.append(child);waits.append(dict(waits[-1],pid=301,os_start_token='source-only-301'))
+                elif change=='before_receipt_changed':snapshots['before-restart']['parent_wait_receipts'][0]['success']=False
+                elif change=='start_token':launches[-1]['os_start_token']='wrong-start'
+                elif change=='parent':
+                    for row in launches:row['parent_pid']=99
+                    for row in waits:row['parent_pid']=99
+                    for row in snapshots['before-restart']['parent_wait_receipts']:row['parent_pid']=99
+                    for snapshot in snapshots.values():
+                        for row in snapshot['same_db_restart_observation']['new_child_identities']:row['parent_pid']=99
+                elif change=='role':launches[-1].update(role='validator',executable=copy.deepcopy(manifest['artifacts']['validator']))
+                elif change=='executable':launches[-1]['executable']['sha256']='f'*64
+                elif change in {'witness_unknown','witness_product'}:
+                    for snapshot in snapshots.values():
+                        child=snapshot['same_db_restart_observation']['new_child_identities'][0]
+                        if change=='witness_unknown':child['pid']=999
+                        else:child['executable']['sha256']='f'*64
+                elif change=='forced_final':waits[-1]['forced_kill']=True
+                elif change=='bad_planned_signal':waits[7]['signal']=15
+                elif change=='unplanned_replacement':waits[8].update(purpose='final',success=True,exit_code=0,signal=None,planned_exit=False)
+                elif change=='missing_reorg':waits[7].update(purpose='final',success=True,exit_code=0,signal=None,planned_exit=False)
+                snapshots['final']['parent_wait_receipts']=copy.deepcopy(waits)
+                self.write_evm_epoch_records(case,snapshots,launches,waits)
+                if change=='journal_disagrees':(case/'evidence/parent-child-exits.jsonl').write_text(''.join(json.dumps(row)+'\n'for row in waits[:-1]))
+                with self.assertRaises((ValueError,KeyError)):api.write_public_native_proof(plan,manifest,case,self.root/(change+'.json'),api.pin(case/'evidence/verified-final-native.jsonl'),harness_parent=98)
+                import shutil
+                shutil.rmtree(case)
+
+    def test_EVM_missing_journal_or_actual_helper_parent_refuses(self):
+        case,manifest,plan,snapshots,launches,waits=self.evm_epoch_records();final=api.pin(case/'evidence/verified-final-native.jsonl')
+        for parent in [None,True,99]:
+            with self.subTest(parent=parent),self.assertRaises(ValueError):api.write_public_native_proof(plan,manifest,case,self.root/('parent-'+str(parent)+'.json'),final,harness_parent=parent)
+        (case/'evidence/owned-children.jsonl').unlink()
+        with self.assertRaises((ValueError,FileNotFoundError)):api.write_public_native_proof(plan,manifest,case,self.root/'missing-journal.json',final,harness_parent=98)
+
+
 class StarknetProgressTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='stark-progress-pure-')

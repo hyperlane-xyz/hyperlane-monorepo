@@ -549,9 +549,33 @@ def public_native_snapshot(snapshot):
     return out
 
 
-def write_public_native_proof(plan,manifest,case,output,expected_final):
+def evm_parent_wait_coverage(launches,waits,restart,before,manifest,parent):
+    """Reconcile Source EVM births and actual waits across all three epochs."""
+    require(type(parent)is int and 0<parent<2**31,'Actual EVM helper parent required')
+    roles={'relayer','validator','scraper'}
+    def identity(row):
+        require(isinstance(row,dict)and row.get('role')in roles and all(type(row.get(k))is int and 0<row[k]<2**31 for k in ('pid','parent_pid'))and row['parent_pid']==parent and isinstance(row.get('os_start_token'),str)and 0<len(row['os_start_token'])<=4096 and all(32<=ord(c)<127 for c in row['os_start_token']),'Actual EVM role child identity differs')
+        require(row.get('executable')==manifest['artifacts'][row['role']],'Actual EVM role executable differs')
+        return row['pid'],row['parent_pid'],row['os_start_token']
+    require(isinstance(launches,list)and 0<len(launches)<=4096,'Bounded complete EVM launch journal required')
+    born={identity(row):row for row in launches};reaped={identity(row):row for row in waits}
+    require(len(born)==len(launches)and len(reaped)==len(waits)and set(born)==set(reaped),'Every actual EVM birth requires one actual parent wait')
+    require(all(all(born[key][field]==row[field]for field in ('role','executable'))for key,row in reaped.items()),'Actual EVM wait differs from recorded birth')
+    old={identity(row)for row in before};new={identity(row)for row in restart['new_child_identities']}
+    require(len(old)==len(before)and len(new)==len(restart['new_child_identities'])and old and new and not old&new and old|new<=set(born),'Initial and restarted EVM birth coverage differs')
+    require(before==[row for row in waits if row['purpose']=='same_db_restart']and old=={key for key,row in reaped.items()if row['purpose']=='same_db_restart'},'Actual EVM initial sameDB wait coverage differs')
+    require(all(all(born[identity(row)][field]==row[field]for field in ('role','executable'))for row in [*before,*restart['new_child_identities']]),'Actual EVM restart witness differs from recorded birth')
+    require({row['role']for row in before}==roles and all(sum(row['role']==role for row in before)==sum(row['role']==role for row in restart['new_child_identities'])for role in roles),'Actual EVM sameDB role counts differ')
+    retired={key for key,row in reaped.items()if row['purpose']=='intentional_reorg'};replaced={key for key,row in reaped.items()if row['purpose']=='intentional_restart'};later=set(born)-old-new
+    require(len(retired)==len(replaced)==len(later)==1 and retired<=new and replaced<=new and all(born[key]['role']=='validator'for key in retired)and all(born[key]['role']=='relayer'for key in replaced|later)and sum(row['role']=='validator'for row in restart['new_child_identities'])>1,'Exact Source EVM reorg and relayer replacement required')
+    final={key for key,row in reaped.items()if row['purpose']=='final'}
+    require(final==(new-retired-replaced)|later and final,'Actual final EVM waits do not cover surviving and replaced children')
+    return {'launch_count':len(born),'wait_count':len(reaped),'initial_sameDB_count':len(old),'restart_witness_count':len(new),'intentional_reorg_count':len(retired),'intentional_restart_count':len(replaced),'replacement_count':len(later),'final_count':len(final),'births':[{key:row[key]for key in ('role','pid','parent_pid','os_start_token','executable')}for row in launches]}
+
+
+def write_public_native_proof(plan,manifest,case,output,expected_final,*,harness_parent=None):
     """Hash-match the real records, publish only explicit public evidence fields."""
-    def read(relative):
+    def read(relative,all_rows=False):
         path=case/'evidence'/relative
         before=pin(path);require(before['bytes']<=8*1024**2,'Bounded actual native proof record required')
         def unique(pairs):
@@ -560,10 +584,12 @@ def write_public_native_proof(plan,manifest,case,output,expected_final):
             return row
         rows=[json.loads(line,object_pairs_hook=unique) for line in path.read_text().splitlines()]
         require(rows and pin(path)==before,'Actual native proof changed while projecting')
-        return rows[-1],before
-    phases={};raw={}
+        require(not all_rows or len(rows)<=4096,'Bounded actual role journal required')
+        return (rows if all_rows else rows[-1]),before
+    phases={};raw={};final_waits=None;role_lifecycle=None
     for name,relative in [('initial','verified-initial-native.jsonl'),('before_restart','verified-before-restart.jsonl'),('after_restart','verified-after-restart.jsonl'),('final','verified-final-native.jsonl')]:
         value,raw[name]=read(relative);phases[name]=public_native_snapshot(value)
+        if name=='final':final_waits=value.get('parent_wait_receipts')
     require(raw['final']==expected_final and phases['final'].get('verified') is True,'Hash-matched actual verified final required')
     restart=phases['after_restart'].get('same_db_restart_observation');require(isinstance(restart,dict) and restart.get('minimum_live_ns')==30_000_000_000,'Actual timed30 restart proof missing; legacy SameDB is not30 credit')
     require(phases['final'].get('same_db_restart_observation')==restart,'Final/after-restart actual witness differs')
@@ -576,7 +602,12 @@ def write_public_native_proof(plan,manifest,case,output,expected_final):
         else:require(row.get('planned_exit')is True and row['success']is False and row['exit_code']is None and row['signal']==9,'Actual intentional role shutdown not planned')
     actual_final={(row['role'],row['pid'],row['parent_pid'],row['os_start_token'])for row in waits if row['purpose']=='final'}
     restarted={(row['role'],row['pid'],row['parent_pid'],row['os_start_token'])for row in restart['new_child_identities']}
-    require(actual_final==restarted and actual_final,'Actual final parent waits do not cover the restarted children')
+    if manifest['scenario']=='evm':
+        launches,launch_pin=read('owned-children.jsonl',all_rows=True);journal,wait_pin=read('parent-child-exits.jsonl',all_rows=True)
+        require(journal==final_waits,'Actual EVM wait journal differs from verified final snapshot')
+        role_lifecycle=evm_parent_wait_coverage(launches,waits,restart,phases['before_restart']['parent_wait_receipts'],manifest,harness_parent)
+        role_lifecycle.update(launch_journal=launch_pin,wait_journal=wait_pin)
+    else:require(actual_final==restarted and actual_final,'Actual final parent waits do not cover the restarted children')
     require(restart.get('schema')==2,'Legacy full-callback restart scope is historical; schema2 continuous proof required')
     require(restart['clock_scope']==RESTART_CLOCK_SCOPE and restart['checker_deadline_scope']==RESTART_DEADLINE_SCOPE,'Exact schema2 baseline/continuous/full-final clock scope required')
     entered=restart['checker_first_entry_monotonic_ns'];baseline=restart['full_baseline_completed_monotonic_ns'];deadline=restart['checker_deadline_monotonic_ns'];published=restart['checker_result_monotonic_ns']
@@ -621,6 +652,7 @@ def write_public_native_proof(plan,manifest,case,output,expected_final):
         for identity in before:
             for key in ('context','generation','identity','stored_canonical_intent','signed'):require(before[identity].get(key)==after[identity].get(key),'Native sameDB frozen signed operation changed')
     record={'schema':1,'kind':'public-actual-native-proof-v1','runtime_source_commit':manifest['runtime_source_commit'],'execution_source_commit':plan['execution_source_commit'],'scenario':manifest['scenario'],'mode':manifest['mode'],'raw_records':raw,'phase_evidence':phases,'actual_timed_restart_ns':elapsed,'source_and_products':{'manifest':plan['manifestArtifact'],'harness':plan['harnessArtifact'],'runtime_artifacts':manifest['artifacts']},'qualification':'Projection of hash-matched actual verifier records only. Raw signed wire, message bodies, keys, authorization and captured environment/config are never serialized. Canonical/signature/SQL verdicts are retained as actual Source verifier outputs, not independently reconstructed from this projection. Observed retirement is not an exact deletion timestamp.','native_or_performance_credit_from_projection_alone':False}
+    if role_lifecycle is not None:record['EVM_role_lifecycle']=role_lifecycle
     require(not output.exists() and not output.is_symlink(),'Preserve existing public proof')
     with output.open('x')as stream:json.dump(record,stream,sort_keys=True,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
     return pin(output)
@@ -1348,7 +1380,7 @@ def worker(args, plan, manifest, inputs, approval):
                 require(cid is not None and kernel,'Actual PG identity/kernel evidence missing')
                 require(inspect(cleaning=True) is None,'Source fixture did not remove owned PG')
             else:require(plan['scenario']=='sealevel-composite'and not result['docker_calls'],'NoPG Source composite must make zero Docker calls')
-            public_proof=write_public_native_proof(plan,manifest,case,out/'public-final-proof.json',pin(final))
+            public_proof=write_public_native_proof(plan,manifest,case,out/'public-final-proof.json',pin(final),harness_parent=harness.pid)
             result.update({'actual_fixture_parent_waits':waits,'actual_final_evidence':pin(final),'public_final_proof':public_proof,'passed':True,'native_case_acceptance':True})
     except BaseException as failure:
         if radix_publisher is not None:radix_publisher.revoke(failure)
