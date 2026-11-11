@@ -1,9 +1,10 @@
-//! Receipt enrichment is independent of indexing and of the other event stream.
+//! One receipt worker schedules independent pages for all indexed event types.
 use std::time::Duration;
 
+use futures::{stream::FuturesUnordered, StreamExt};
 use prometheus::GaugeVec;
 use tokio::{
-    sync::{Notify, Semaphore},
+    sync::{watch, Semaphore},
     time::{sleep, timeout},
 };
 use tracing::warn;
@@ -20,12 +21,6 @@ const RECEIPT_DB_CONCURRENCY: usize = 5;
 static RECEIPT_RPC_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_RPC_CONCURRENCY);
 static RECEIPT_DB_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_DB_CONCURRENCY);
 
-#[derive(Default)]
-pub(super) struct ReceiptWakeups {
-    pub delivery: Notify,
-    pub gas_payment: Notify,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 enum PageOutcome {
     More,
@@ -34,45 +29,84 @@ enum PageOutcome {
 }
 
 impl PageOutcome {
-    async fn wait(self, delay: Duration, wakeup: &Notify) {
+    async fn wait(self, delay: Duration, wakeup: &mut watch::Receiver<()>) {
         match self {
             Self::More => tokio::task::yield_now().await,
             Self::Idle => tokio::select! {
                 _ = sleep(delay) => {}
-                _ = wakeup.notified() => {}
+                changed = wakeup.changed() => { changed.expect("Receipt wake-up sender dropped"); }
             },
-            // A confirmation hint must not bypass RPC/DB failure backoff.
+            // New indexed work must not bypass RPC/DB failure backoff.
             Self::Retry => sleep(delay).await,
         }
     }
 }
 
 /// Drain healthy full pages immediately; back off on failures and between sweeps.
-/// Independent stream loops keep a slow delivery receipt from delaying gas work.
+/// Completed pages are rescheduled independently, so one slow receipt cannot block other types.
 pub(super) async fn run(
     store: &HyperlaneDbStore,
     poll_interval: Duration,
     oldest_pending_seconds: &GaugeVec,
-    wakeups: &ReceiptWakeups,
+    wakeup: watch::Receiver<()>,
 ) {
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
     tokio::join!(
-        run_stream(
-            store,
-            ReceiptStream::Delivery,
-            &wakeups.delivery,
-            poll_interval,
-            &domain_rpc_permits
-        ),
-        run_stream(
-            store,
-            ReceiptStream::GasPayment,
-            &wakeups.gas_payment,
-            poll_interval,
-            &domain_rpc_permits
-        ),
+        run_pages(store, poll_interval, wakeup, &domain_rpc_permits),
         monitor_backlog(store, poll_interval, oldest_pending_seconds),
     );
+}
+
+struct ReceiptScan {
+    stream: ReceiptStream,
+    after: i64,
+    outcome: PageOutcome,
+    wakeup: watch::Receiver<()>,
+}
+
+async fn run_pages(
+    store: &HyperlaneDbStore,
+    poll_interval: Duration,
+    wakeup: watch::Receiver<()>,
+    domain_rpc_permits: &Semaphore,
+) {
+    let mut pages = FuturesUnordered::new();
+    for stream in ReceiptStream::ALL {
+        pages.push(next_page(
+            store,
+            ReceiptScan {
+                stream,
+                after: 0,
+                outcome: PageOutcome::More,
+                wakeup: wakeup.clone(),
+            },
+            poll_interval,
+            domain_rpc_permits,
+        ));
+    }
+    while let Some(scan) = pages.next().await {
+        pages.push(next_page(store, scan, poll_interval, domain_rpc_permits));
+    }
+}
+
+async fn next_page(
+    store: &HyperlaneDbStore,
+    mut scan: ReceiptScan,
+    poll_interval: Duration,
+    domain_rpc_permits: &Semaphore,
+) -> ReceiptScan {
+    scan.outcome.wait(poll_interval, &mut scan.wakeup).await;
+    // Remember hints arriving during a read/fetch, so the next idle page runs immediately.
+    scan.wakeup.borrow_and_update();
+    scan.outcome = enrich_page(
+        store,
+        scan.stream,
+        &mut scan.after,
+        RECEIPT_TIMEOUT,
+        domain_rpc_permits,
+    )
+    .await;
+    scan
 }
 
 async fn monitor_backlog(
@@ -103,7 +137,7 @@ async fn update_pending_age(
     store: &HyperlaneDbStore,
     oldest_pending_seconds: &GaugeVec,
 ) -> eyre::Result<()> {
-    for stream in [ReceiptStream::Delivery, ReceiptStream::GasPayment] {
+    for stream in ReceiptStream::ALL {
         let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
         let age = store
             .db
@@ -114,44 +148,6 @@ async fn update_pending_age(
             .set(age);
     }
     Ok(())
-}
-
-async fn run_stream(
-    store: &HyperlaneDbStore,
-    stream: ReceiptStream,
-    wakeup: &Notify,
-    poll_interval: Duration,
-    domain_rpc_permits: &Semaphore,
-) {
-    let mut after = 0;
-    let salt = u64::from(matches!(stream, ReceiptStream::GasPayment));
-    let stagger_period = u64::try_from(poll_interval.as_millis())
-        .unwrap_or(u64::MAX)
-        .max(1);
-    let stagger = if cfg!(test) {
-        0
-    } else {
-        u64::from(store.domain.id())
-            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            .wrapping_mul(2)
-            .wrapping_add(salt)
-            .checked_rem(stagger_period)
-            .unwrap_or_default()
-    };
-    PageOutcome::Idle
-        .wait(Duration::from_millis(stagger), wakeup)
-        .await;
-    loop {
-        let outcome = enrich_page(
-            store,
-            stream,
-            &mut after,
-            RECEIPT_TIMEOUT,
-            domain_rpc_permits,
-        )
-        .await;
-        outcome.wait(poll_interval, wakeup).await;
-    }
 }
 
 /// Drain healthy full pages; distinguish idle waits from failure cooldowns.
@@ -222,7 +218,7 @@ async fn enrich_page(
                 domain = store.domain.id(),
                 table = stream.table(),
                 ?result,
-                "Confirmed event enrichment failed; retrying"
+                "Event transaction enrichment failed; retrying"
             );
             PageOutcome::Retry
         }

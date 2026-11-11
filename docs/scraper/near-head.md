@@ -159,28 +159,31 @@ confirmation proofs and database ownership guards remain unchanged.
   become confirmed, through either HTTP polling or WebSocket heads. Discovery
   still polls every 5 seconds as a fallback; wake-ups preserve failure backoff
   and active-page progress.
-- Confirmation does not wait for receipt enrichment. Gas/delivery transaction
-  metadata is filled in by independent gas and delivery loops. Each page contains
-  at most 100 event rows; healthy full pages drain immediately with a scheduler
-  yield. Newly confirmed events wake their respective receipt loop from idle
-  waits; polling remains a fallback, and failures retain the polling-interval
-  cooldown. Successful short pages restart the scan so old pending rows are
-  retried even when new events keep arriving.
-  Failed/timed-out pages advance their scan cursor so later pages are attempted;
-  missing receipts are retried on the next sweep. Cache lookups are batched per
-  page, and at most 16 missing receipts are fetched concurrently across all domains.
-  Database work uses a separate five-permit limit, and no database permit is held
-  while an RPC is pending. The two streams can briefly fetch the same uncached transaction;
-  uniqueness constraints and the linker handle concurrent inserts.
-  Fetching and linking each have a separate 30-second timeout. Completed receipts
-  are linked even when a neighboring receipt times out. Existing nullable
-  transaction relations remain nullable until enrichment succeeds. Generic
-  adapters store unavailable transaction hashes as NULL, excluding those rows
-  from receipt retries and backlog age. The
-  `hyperlane_scraper_receipt_oldest_pending_seconds{chain,event_type}` gauge tracks
-  age since creation of the oldest pending row by ID, including time it spent
-  provisional. It is sampled independently once per poll and returns zero when
-  the stream has no pending rows.
+- Confirmation does not wait for transaction enrichment. One worker per domain
+  schedules dispatch, delivery, and gas-payment pages as soon as events are indexed.
+  Each type retains its own cursor and failure cooldown, so a slow receipt cannot
+  block healthy pages of another type. Pages contain at most 100 events; healthy
+  full pages drain immediately with a scheduler yield. Indexing broadcasts wake-ups
+  to all idle pages, including hints received while a previous page was fetching.
+  Polling remains a fallback, and hints never bypass failure backoff.
+  Successful short pages restart their scan; failed/timed-out pages advance their
+  cursor so later rows are attempted and missing receipts retry on the next sweep.
+  Cache lookups are batched per page. At most 16 receipts are fetched concurrently
+  across domains, with a four-per-domain cap. Database work uses a separate
+  five-permit limit; no database permit is held during RPCs. Concurrent pages can
+  briefly fetch the same uncached transaction; uniqueness constraints and linking
+  handle concurrent inserts. Fetching and linking each have a 30-second timeout;
+  persisted successes are linked even when a neighboring receipt times out.
+  Links match both transaction and block identity. Successful enrichment notifies
+  the proxy through its existing Explorer channel, including provisional delivery
+  and gas-payment links. GraphQL and streams continue to enforce their requested
+  confirmation depths. Rollback atomically removes fork events, transaction links,
+  transactions and blocks; in-flight writes cannot recreate deleted block relations.
+  Confirmed dispatch reconciliation still owns canonical message publication and
+  historical retries; the early dispatch scan is bounded to the provisional suffix.
+  Unavailable transaction hashes are excluded from receipt retries and backlog age.
+  The `hyperlane_scraper_receipt_oldest_pending_seconds{chain,event_type}` gauge
+  samples the oldest pending row once per poll independently of receipt fetching.
 - Confirmation deletes superseded rows directly from the small
   `scraper_checkpoint` table by `(domain,height)`. There is no background header
   scanner. `block` receives only headers for blocks containing actual events;

@@ -44,7 +44,7 @@ impl HyperlaneDbStore {
         }
     }
 
-    /// Enrich a confirmed near-head page whose block headers are already retained.
+    /// Enrich a near-head page whose block headers are already retained.
     /// Look up the page's cache entries together, then persist missing receipts
     /// independently so one failed or timed-out fetch cannot discard successes.
     pub(crate) async fn ensure_transactions_for_known_blocks(
@@ -68,7 +68,7 @@ impl HyperlaneDbStore {
         let blocks: HashMap<_, _> = blocks.into_iter().map(|b| (b.hash, b.id)).collect();
         eyre::ensure!(
             requested.values().all(|hash| blocks.contains_key(hash)),
-            "Confirmed receipt page is missing retained block headers"
+            "Receipt page is missing retained block headers"
         );
         let missing = requested
             .into_iter()

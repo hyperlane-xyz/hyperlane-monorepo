@@ -145,7 +145,7 @@ pub async fn spawn(
         poll_interval,
         wakeup: Notify::new(),
         dispatch_wakeup: dispatch_wakeup.clone(),
-        receipt_wakeups: enrichment::ReceiptWakeups::default(),
+        receipt_wakeup: watch::channel(()).0,
         wanted: AtomicU64::new(0),
         heads: Mutex::new(head_rx),
         polled_head: polled_head_tx,
@@ -169,7 +169,7 @@ pub async fn spawn(
                 &enrichment_store,
                 poll_interval,
                 &receipt_age,
-                &worker.receipt_wakeups
+                worker.receipt_wakeup.subscribe()
             )
         );
     });

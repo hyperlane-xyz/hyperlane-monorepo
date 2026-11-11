@@ -277,8 +277,14 @@ impl Store {
             ))
             .await?;
         }
-        // Provisional blocks have no enriched transactions. FK failures stop
-        // rollback rather than deleting data owned by another writer.
+        // Early transaction enrichment belongs to the same provisional fork.
+        // References from canonical rows still stop rollback through FK checks.
+        db.execute(sql(
+            r#"DELETE FROM "transaction" t USING block b
+               WHERE t.block_id=b.id AND b.domain=$1 AND b.height>$2"#,
+            vec![self.domain(), number(after)?],
+        ))
+        .await?;
         db.execute(sql(
             "DELETE FROM block WHERE domain=$1 AND height>$2",
             vec![self.domain(), number(after)?],
