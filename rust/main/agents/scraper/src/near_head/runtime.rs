@@ -287,9 +287,12 @@ impl Worker {
             )
             .await
         } else {
-            Ok(false)
+            Ok((false, false))
         };
-        if bounded.indexed < bounded.head && ingestion.is_ok() && count_cache.wrote_events {
+        if ingestion
+            .as_ref()
+            .is_ok_and(|(_, wrote_events)| *wrote_events)
+        {
             self.receipt_wakeup.send_replace(());
         }
 
@@ -391,7 +394,7 @@ impl Worker {
                 ingestion_failed: ingestion.is_err(),
             });
         }
-        let more_ingestion = ingestion?;
+        let (more_ingestion, _) = ingestion?;
         let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
         let unproven =
             proof_gated && count_cache.proven_through.unwrap_or(state.confirmed) < state.indexed;

@@ -95,16 +95,29 @@ async fn all_transaction_types_enrich_before_confirmation_and_roll_back_with_the
     );
     let db = Database::connect(&url).await?;
     // Model an existing deployment with a restricted transaction writer.
-    migration::Migrator::up(&db, Some(21)).await?;
+    migration::Migrator::up(&db, Some(22)).await?;
     db.execute_unprepared(
         r#"CREATE ROLE receipt_writer;
-        GRANT SELECT,INSERT,UPDATE ON "transaction",block,raw_message_dispatch,
+        GRANT SELECT,INSERT ON "transaction" TO receipt_writer;
+        GRANT SELECT,INSERT,UPDATE ON block,raw_message_dispatch,
           delivered_message,gas_payment,merkle_tree_insertion,scraper_head,scraper_checkpoint TO receipt_writer;
         GRANT DELETE ON block,raw_message_dispatch,delivered_message,gas_payment,
           merkle_tree_insertion,scraper_checkpoint TO receipt_writer;
-        GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO receipt_writer;"#,
+        GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO receipt_writer;
+        CREATE FUNCTION notify_transaction_dispatch_enriched() RETURNS trigger LANGUAGE plpgsql
+          AS $$ BEGIN RETURN NEW; END $$;
+        CREATE TRIGGER transaction_dispatch_enriched AFTER INSERT ON "transaction"
+          FOR EACH ROW EXECUTE FUNCTION notify_transaction_dispatch_enriched();"#,
     ).await?;
     migration::Migrator::up(&db, None).await?;
+    let cleanup = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT to_regprocedure('notify_transaction_dispatch_enriched()') IS NULL AS cleaned",
+        ))
+        .await?
+        .expect("cleanup state");
+    assert!(cleanup.try_get::<bool>("", "cleaned")?);
     let store = Store { db, domain: 1 };
     let contracts = Contracts {
         mailbox: H256::repeat_byte(1),

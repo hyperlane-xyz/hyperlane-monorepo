@@ -5,7 +5,7 @@ use futures::future::join_all;
 use prometheus::GaugeVec;
 use tokio::{
     sync::{watch, Semaphore},
-    time::{sleep, timeout},
+    time::{sleep, timeout, Instant},
 };
 use tracing::warn;
 
@@ -72,6 +72,27 @@ async fn run_stream(
     domain_rpc_permits: &Semaphore,
     oldest_pending_seconds: &GaugeVec,
 ) {
+    let period_ms = u64::try_from(poll_interval.as_millis())
+        .unwrap_or(u64::MAX)
+        .max(1);
+    let salt = match stream {
+        ReceiptStream::Dispatch => 0,
+        ReceiptStream::Delivery => 1,
+        ReceiptStream::GasPayment => 2,
+    };
+    let stagger = u64::from(store.domain.id())
+        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        .wrapping_mul(3)
+        .wrapping_add(salt)
+        .checked_rem(period_ms)
+        .expect("Positive poll interval");
+    PageOutcome::Idle
+        .wait(
+            Duration::from_millis(if cfg!(test) { 0 } else { stagger }),
+            &mut wakeup,
+        )
+        .await;
+    let mut last_age_sample: Option<Instant> = None;
     let mut after = 0;
     let mut outcome = PageOutcome::More;
     loop {
@@ -86,11 +107,10 @@ async fn run_stream(
             domain_rpc_permits,
         )
         .await;
-        if outcome == PageOutcome::Idle && !matches!(stream, ReceiptStream::Dispatch) {
-            oldest_pending_seconds
-                .with_label_values(&[store.domain.name(), stream.metric_label()])
-                .set(0.0);
-        } else if outcome == PageOutcome::Retry && !matches!(stream, ReceiptStream::Dispatch) {
+        if !matches!(stream, ReceiptStream::Dispatch)
+            && last_age_sample.is_none_or(|last| last.elapsed() >= poll_interval)
+        {
+            last_age_sample = Some(Instant::now());
             if let result @ (Err(_) | Ok(Err(_))) = timeout(
                 RECEIPT_TIMEOUT,
                 update_pending_age(store, stream, oldest_pending_seconds),

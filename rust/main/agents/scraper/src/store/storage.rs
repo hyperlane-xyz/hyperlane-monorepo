@@ -89,7 +89,8 @@ impl HyperlaneDbStore {
                                 .as_ref()
                                 .and_then(|receipt| receipt.block_hash)
                                 .is_none_or(|received| received == block_hash),
-                            "Receipt belongs to another block"
+                            "Receipt for transaction {hash:?} belongs to another block: expected {block_hash:?}, received {:?}",
+                            info.receipt.as_ref().and_then(|receipt| receipt.block_hash)
                         );
                         drop(rpc_permit);
                         drop(domain_rpc_permit);

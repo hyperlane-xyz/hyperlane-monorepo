@@ -30,7 +30,9 @@ pub(super) async fn ingest(
     state: &State,
     chunk_size: u64,
 ) -> Result<bool> {
-    ingest_cached(source, store, state, chunk_size, &mut CountCache::default()).await
+    ingest_cached(source, store, state, chunk_size, &mut CountCache::default())
+        .await
+        .map(|(more, _)| more)
 }
 
 pub(super) fn validate_sequences(
@@ -540,7 +542,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     // Seed a legacy row before the migration. Existing IDs, visibility and
     // notifications must survive the additive schema change.
     migration::Migrator::up(&db, Some(14)).await?;
-    db.execute_unprepared("CREATE ROLE scraper_notification_reader; CREATE ROLE scraper_writer; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; GRANT SELECT,INSERT,UPDATE ON block,raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion,\"transaction\" TO scraper_writer; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
+    db.execute_unprepared("CREATE ROLE scraper_notification_reader; CREATE ROLE scraper_writer; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; GRANT SELECT,INSERT,UPDATE ON block,raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion TO scraper_writer; GRANT SELECT,INSERT ON \"transaction\" TO scraper_writer; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
     migration::Migrator::up(&db, None).await?;
     let permission = db
         .query_one(Statement::from_string(
@@ -554,7 +556,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     let writer_permission = db
         .query_one(Statement::from_string(
             DbBackend::Postgres,
-            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','transaction','DELETE') AS transaction_delete,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete,has_table_privilege('scraper_writer','scraper_checkpoint','SELECT') AS checkpoint_select,has_table_privilege('scraper_writer','scraper_checkpoint','INSERT') AS checkpoint_insert,has_table_privilege('scraper_writer','scraper_checkpoint','DELETE') AS checkpoint_delete,has_table_privilege('scraper_notification_reader','scraper_checkpoint','SELECT') AS reader_checkpoint_select",
+            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','transaction','DELETE') AS transaction_delete,has_table_privilege('scraper_writer','transaction','UPDATE') AS transaction_update,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete,has_table_privilege('scraper_writer','scraper_checkpoint','SELECT') AS checkpoint_select,has_table_privilege('scraper_writer','scraper_checkpoint','INSERT') AS checkpoint_insert,has_table_privilege('scraper_writer','scraper_checkpoint','DELETE') AS checkpoint_delete,has_table_privilege('scraper_notification_reader','scraper_checkpoint','SELECT') AS reader_checkpoint_select",
         ))
         .await?
         .unwrap();
@@ -571,6 +573,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         assert!(writer_permission.try_get::<bool>("", privilege)?);
     }
     assert!(!writer_permission.try_get::<bool>("", "reader_checkpoint_select")?);
+    assert!(!writer_permission.try_get::<bool>("", "transaction_update")?);
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_event").await?;
     let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
@@ -753,7 +756,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .await?;
     for stream in [ReceiptStream::GasPayment, ReceiptStream::Delivery] {
         let id = receipts.pending_receipts(store.domain, stream, 0).await?[0].0;
-        receipts.link_receipts(store.domain, stream, &[]).await?;
+        // A real pending ID in another domain must not be linked.
+        receipts.link_receipts(2, stream, &[id]).await?;
         assert_eq!(
             receipts
                 .pending_receipts(store.domain, stream, 0)
@@ -915,7 +919,10 @@ async fn idle_sequence_ingestion_advances_with_only_an_end_checkpoint() -> Resul
     chain.header_calls.store(0, Ordering::Relaxed);
     let mut cache = CountCache::default();
 
-    assert!(!ingest_cached(&chain, &store, &state, 100, &mut cache).await?);
+    assert_eq!(
+        ingest_cached(&chain, &store, &state, 100, &mut cache).await?,
+        (false, false)
+    );
     assert!(chain.ranges.lock().unwrap().is_empty());
     assert_eq!(store.state().await?.unwrap().indexed, 10);
     assert_eq!(count(&store, "scraper_checkpoint").await?, 2);

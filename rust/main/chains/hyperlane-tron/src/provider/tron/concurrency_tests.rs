@@ -196,3 +196,48 @@ async fn submission_overlaps_cost_reads_before_fetching_a_fresh_signing_referenc
 async fn submission_with_supplied_gas_skips_estimation_and_preserves_fee_limit() {
     submit_and_verify_fee(Some(200)).await;
 }
+
+#[tokio::test]
+async fn receipt_block_hash_matches_solidified_block_id() {
+    // Block identity from https://developers.tron.network/reference/eth_gettransactionreceipt.
+    let block_hash: H256 = concat!(
+        "0x000000000523cf27f4557c313730fe72",
+        "c9ee08340c9d6b4d01707249bf71f800"
+    )
+    .parse()
+    .expect("documented block hash");
+    let height = 0x523cf27;
+    timeout(Duration::from_secs(2), async {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let provider = provider(&listener, None);
+        let hash = H256::repeat_byte(0x44);
+        let server = async {
+            let request = read_request(&listener).await;
+            assert_eq!(request.path, "/walletsolidity/getblockbynum");
+            respond(request, json!({
+                "blockID": format!("{block_hash:x}"),
+                "block_header": {"raw_data": {"number": height, "timestamp": 1_700_000_000_000_i64}},
+            })).await;
+            let tx = ethers::types::Transaction { hash: hash.into(), ..Default::default() };
+            let receipt = ethers::types::TransactionReceipt {
+                transaction_hash: hash.into(), block_hash: Some(block_hash.into()),
+                gas_used: Some(ethers::types::U256::one()), ..Default::default()
+            };
+            for (method, result) in [
+                ("eth_getTransactionByHash", serde_json::to_value(tx).expect("transaction")),
+                ("eth_getTransactionReceipt", serde_json::to_value(receipt).expect("receipt")),
+            ] {
+                let request = read_request(&listener).await;
+                assert_eq!(request.body["method"], method);
+                let id = request.body["id"].clone();
+                respond(request, json!({"jsonrpc": "2.0", "id": id, "result": result})).await;
+            }
+        };
+        let client = async {
+            let block = provider.get_block_by_height(height).await.expect("solidified header");
+            let tx = provider.get_txn_by_hash(&hash.into()).await.expect("transaction metadata");
+            assert_eq!(tx.receipt.expect("receipt").block_hash, Some(block.hash));
+        };
+        tokio::join!(client, server);
+    }).await.expect("block and transaction requests complete");
+}

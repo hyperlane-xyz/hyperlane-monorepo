@@ -6,6 +6,9 @@
 
 - Index events and block headers, then wake dispatch/delivery/gas enrichment.
   Scan on startup and ingestion, with a 5-second fallback (`index.interval` overrides it).
+- Parallel streams may fetch the same uncached receipt; transaction uniqueness
+  prevents duplicate storage. Refresh notifications are best effort: a crash/link
+  failure after storing a receipt can delay a dispatch refresh until confirmation.
 - Confirm only complete, canonical history after `reorgPeriod`.
 - The proxy enforces default or requested confirmation depths; metadata availability
   never establishes confirmation.
@@ -281,4 +284,6 @@ An AltVM already using near-head needs an operator-reviewed cursor handoff or
 restore before returning to a legacy indexer.
 
 `hyperlane_scraper_receipt_oldest_pending_seconds{chain,event_type}` samples
-unlinked delivery/gas receipts during retries and resets when drained. Metrics have no separate polling loop.
+unlinked delivery/gas receipts at page boundaries, at most once per poll interval,
+including full-page drains. It reads pending rows instead of assuming an empty
+page means drained. Metrics have no separate polling loop.
