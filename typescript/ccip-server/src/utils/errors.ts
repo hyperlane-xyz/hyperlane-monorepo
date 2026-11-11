@@ -6,10 +6,10 @@ export class AttestationPendingError extends Error {
   }
 }
 
-/** A valid service identity is not authorized to read this commitment. */
+/** The caller may not read this commitment, or the reveal does not belong to it. */
 export class CommitmentAccessDeniedError extends Error {
-  constructor() {
-    super('Signer not authorized for this commitment');
+  constructor(message = 'Signer not authorized for this commitment') {
+    super(message);
     this.name = 'CommitmentAccessDeniedError';
   }
 }

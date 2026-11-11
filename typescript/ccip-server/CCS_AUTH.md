@@ -29,13 +29,16 @@ HTTPS and avoid logging signatures. Protected responses use `Cache-Control: no-s
 {
   "sender": "0x<ISM contract address>",
   "data": "0x<ABI lookup calldata>",
-  "signature": "0x<65-byte EVM signature>"
+  "signature": "0x<65-byte EVM signature>",
+  "origin_tx_hash": "0x<32-byte hash of the tx that dispatched the reveal>"
 }
 ```
 
 The signed URL is the configured public endpoint URL, including
 `/callCommitments/getCallsFromRevealMessage`. Existing Rust and TypeScript EVM clients
-continue working unchanged if their signer is whitelisted.
+keep their signing format if their signer is whitelisted, but a reveal is only served
+with `origin_tx_hash`, and its calls are resolved from the commitment dispatched
+alongside it (see the ccip-server README).
 
 ## General calldata lookup
 
@@ -110,6 +113,10 @@ It accepts only a localhost database named `ccs_e2e`. Prepare that disposable da
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover
 `127.0.0.1` and have `serverAuth` extended key usage. Ports 55440 and 55441 must be free.
+
+The reveal-lookup case of this manual harness predates the required
+`origin_tx_hash`: an allowed signer now also needs a hash, an origin receipt and
+registry ICA routers to get a 200. The 401/403 authentication cases are unaffected.
 
 From the repository root, with the SDK built:
 

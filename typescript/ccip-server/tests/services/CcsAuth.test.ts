@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet, providers, utils } from 'ethers';
+import { BigNumber, Wallet, providers, utils } from 'ethers';
 import Fastify from 'fastify';
 import { pino } from 'pino';
 import sinon from 'sinon';
@@ -9,17 +9,30 @@ import {
   InterchainAccountRouter__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import { InterchainAccount, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  type AccountConfig,
+  InterchainAccount,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk/ism/utils';
 import {
   commitmentFromIcaCalls,
   encodeIcaCalls,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
-import { addressToBytes32, formatMessage } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  assert,
+  bytes32ToAddress,
+  formatMessage,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
-import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
+import {
+  CallCommitmentsService,
+  type IcaRouters,
+} from '../../src/services/CallCommitmentsService.js';
 import { registerRateLimiting } from '../../src/utils/rateLimit.js';
 
 const origin = 'https://ccs.example';
@@ -55,9 +68,36 @@ async function headers(
   };
 }
 
+const defaultIcaRouters: ReadonlyMap<number, IcaRouters> = new Map([
+  [1, { interchainAccountRouter: '0x' + '0a'.repeat(20) }],
+]);
+
+/** Distinct, deterministic account per derivation input. */
+function fakeAccount(config: AccountConfig): string {
+  return utils.getAddress(
+    utils.hexDataSlice(
+      utils.id(
+        JSON.stringify([
+          config.origin,
+          config.owner,
+          config.userSalt,
+          config.localRouter,
+          config.routerOverride,
+          config.ismOverride ?? null,
+        ]).toLowerCase(),
+      ),
+      12,
+    ),
+  );
+}
+
 async function server(
   authorizedSigners: string[] = [wallet.address],
-  dependencies?: { multiProvider: MultiProvider; icaApp: InterchainAccount },
+  dependencies?: {
+    multiProvider: MultiProvider;
+    icaApp: InterchainAccount;
+    trustedIcaRouters: ReadonlyMap<number, IcaRouters>;
+  },
 ) {
   const app = Fastify({ loggerInstance: pino({ level: 'silent' }) });
   await registerRateLimiting(app);
@@ -70,6 +110,7 @@ async function server(
     },
     dependencies?.icaApp ?? sinon.createStubInstance(InterchainAccount),
     authorizedSigners,
+    dependencies?.trustedIcaRouters ?? defaultIcaRouters,
   );
   service.registerRoutes(app, '/callCommitments');
   return app;
@@ -369,13 +410,44 @@ describe('CCS read authentication', () => {
 describe('CCS authenticated reveal recovery integration', () => {
   afterEach(() => sinon.restore());
 
-  async function fixture() {
+  const originTxHash = '0x' + '34'.repeat(32);
+  const blockHash = '0x' + '37'.repeat(32);
+
+  function receiptWith(logs: providers.Log[]): providers.TransactionReceipt {
+    return {
+      to: '0x' + '38'.repeat(20),
+      from: wallet.address,
+      contractAddress: '0x' + '00'.repeat(20),
+      transactionIndex: 0,
+      gasUsed: BigNumber.from(21_000),
+      logsBloom: '0x' + '00'.repeat(256),
+      blockHash,
+      transactionHash: originTxHash,
+      logs,
+      blockNumber: 1,
+      confirmations: 1,
+      cumulativeGasUsed: BigNumber.from(21_000),
+      effectiveGasPrice: BigNumber.from(1),
+      byzantium: true,
+      type: 2,
+      status: 1,
+    };
+  }
+
+  async function fixture({
+    trustRouters = true,
+    registeredWithDispatchedRouters = false,
+    commitOwner = wallet.address,
+  }: {
+    trustRouters?: boolean;
+    registeredWithDispatchedRouters?: boolean;
+    commitOwner?: string;
+  } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
+    const originRouterV3 = '0x' + '51'.repeat(20);
+    const destinationRouterV3 = '0x' + '52'.repeat(20);
     const mailbox = '0x' + '33'.repeat(20);
-    const originTxHash = '0x' + '34'.repeat(32);
-    const oldIca = '0x' + '35'.repeat(20);
-    const correctIca = '0x' + '36'.repeat(20);
     const salt = '0x' + '00'.repeat(32);
     const calls = [{ to: sender, value: '0', data: '0x' }];
     const commitment = commitmentFromIcaCalls(normalizeCalls(calls), salt);
@@ -383,69 +455,152 @@ describe('CCS authenticated reveal recovery integration', () => {
       3,
       10,
       8453,
-      originRouter,
+      originRouterV3,
       42161,
-      destinationRouter,
+      destinationRouterV3,
       utils.solidityPack(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
-        [1, addressToBytes32(wallet.address), salt, salt, commitment],
+        [1, addressToBytes32(commitOwner), salt, salt, commitment],
       ),
     );
     const message = formatMessage(
       3,
       11,
       8453,
-      originRouter,
+      originRouterV3,
       42161,
-      destinationRouter,
+      destinationRouterV3,
       utils.solidityPack(
         ['uint8', 'bytes32', 'bytes32'],
         [2, salt, commitment],
       ),
     );
     const mailboxInterface = Mailbox__factory.createInterface();
-    const logs = [committedMessage, message].map((raw, logIndex) => ({
-      address: mailbox,
-      logIndex,
-      ...mailboxInterface.encodeEventLog(
-        mailboxInterface.getEvent('Dispatch'),
-        [originRouter, 42161, addressToBytes32(destinationRouter), raw],
-      ),
-    }));
+    const logs = [committedMessage, message].map(
+      (raw, logIndex): providers.Log => {
+        const { data, topics } = mailboxInterface.encodeEventLog(
+          mailboxInterface.getEvent('Dispatch'),
+          [originRouterV3, 42161, addressToBytes32(destinationRouterV3), raw],
+        );
+        return {
+          blockNumber: 1,
+          blockHash,
+          transactionIndex: 0,
+          removed: false,
+          address: mailbox,
+          data,
+          topics,
+          transactionHash: originTxHash,
+          logIndex,
+        };
+      },
+    );
     const originProvider = new providers.JsonRpcProvider();
     const destinationProvider = new providers.JsonRpcProvider();
     const receipt = sinon
       .stub(originProvider, 'getTransactionReceipt')
-      .resolves({ logs });
+      .resolves(receiptWith(logs));
     sinon
       .stub(originProvider, 'call')
       .resolves(utils.defaultAbiCoder.encode(['address'], [mailbox]));
+    // The dispatched router pair derives with the same model as the registry
+    // candidates below, so every ICA depends on the commit's owner and salt.
+    const routerInterface = InterchainAccountRouter__factory.createInterface();
     const destinationCall = sinon
       .stub(destinationProvider, 'call')
-      .resolves(utils.defaultAbiCoder.encode(['address'], [correctIca]));
+      .callsFake(async (transaction) => {
+        const [to, data] = await Promise.all([
+          transaction.to,
+          transaction.data,
+        ]);
+        assert(to && data, 'Expected a router call');
+        const [, owner, router, ism, userSalt] =
+          routerInterface.decodeFunctionData(
+            'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
+            data,
+          );
+        return utils.defaultAbiCoder.encode(
+          ['address'],
+          [
+            fakeAccount({
+              origin: 'base',
+              owner: bytes32ToAddress(owner),
+              userSalt,
+              localRouter: bytes32ToAddress(router),
+              routerOverride: to,
+              ismOverride: isZeroishAddress(ism) ? undefined : ism,
+            }),
+          ],
+        );
+      });
     const multiProvider = sinon.createStubInstance(MultiProvider);
     multiProvider.getChainName.withArgs(8453).returns('base');
+    multiProvider.getChainName.withArgs(42161).returns('arbitrum');
     multiProvider.getProvider.withArgs('base').returns(originProvider);
     multiProvider.getProvider.withArgs(42161).returns(destinationProvider);
     const icaApp = sinon.createStubInstance(InterchainAccount);
     icaApp.getContracts.withArgs('base').returns({
       interchainAccountRouter: InterchainAccountRouter__factory.connect(
-        originRouter,
+        originRouterV3,
         originProvider,
       ),
+    });
+    icaApp.getAccount.callsFake(async (_destination, config) =>
+      fakeAccount(config),
+    );
+    // Dispatched through the V3 pair; records registered without router
+    // overrides store the V2-derived ICA.
+    const v2Ica = fakeAccount({
+      origin: 'base',
+      owner: wallet.address,
+      userSalt: salt,
+      localRouter: originRouter,
+      routerOverride: destinationRouter,
+    });
+    const dispatchedIca = fakeAccount({
+      origin: 'base',
+      owner: wallet.address,
+      userSalt: salt,
+      localRouter: originRouterV3,
+      routerOverride: destinationRouterV3,
     });
     const record = {
       commitment,
       calls,
       salt,
-      ica: oldIca,
+      ica: registeredWithDispatchedRouters ? dispatchedIca : v2Ica,
       originDomain: 8453,
       relayers: [wallet.address],
     };
     const findUnique = sinon.stub().resolves(record);
     const updateMany = sinon.stub().resolves({ count: 1 });
     sinon.stub(prisma, 'commitment').value({ findUnique, updateMany });
-    const app = await server([wallet.address], { multiProvider, icaApp });
+    const trustedIcaRouters: ReadonlyMap<number, IcaRouters> = trustRouters
+      ? new Map([
+          [
+            8453,
+            {
+              interchainAccountRouter: originRouter,
+              interchainAccountRouterV3: originRouterV3,
+            },
+          ],
+          [
+            42161,
+            {
+              interchainAccountRouter: destinationRouter,
+              interchainAccountRouterV3: destinationRouterV3,
+            },
+          ],
+        ])
+      : new Map([
+          [8453, { interchainAccountRouter: '0x' + '41'.repeat(20) }],
+          [42161, { interchainAccountRouter: '0x' + '42'.repeat(20) }],
+        ]);
+    const app = await server([wallet.address], {
+      multiProvider,
+      icaApp,
+      trustedIcaRouters,
+    });
     const data =
       CommitmentReadIsmService__factory.createInterface().encodeFunctionData(
         'getCallsFromRevealMessage',
@@ -461,18 +616,22 @@ describe('CCS authenticated reveal recovery integration', () => {
       app,
       payload,
       receipt,
+      logs,
+      icaApp,
       destinationCall,
       record,
       updateMany,
-      correctIca,
+      dispatchedIca,
+      v2Ica,
       salt,
       calls,
       commitment,
     };
   }
 
-  it('authenticates and derives from the actual router pair without database writes', async () => {
+  it("authenticates and serves the dispatched V3 pair's ICA for a record that stores the V2-derived ICA, without database writes", async () => {
     const f = await fixture();
+    expect(f.dispatchedIca).not.to.equal(f.v2Ica);
     try {
       const response = await f.app.inject({
         method: 'POST',
@@ -481,7 +640,8 @@ describe('CCS authenticated reveal recovery integration', () => {
       });
       expect(response.statusCode).to.equal(200);
       expect(response.json().data).to.equal(
-        f.correctIca + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+        f.dispatchedIca +
+          encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
       );
       sinon.assert.notCalled(f.updateMany);
       sinon.assert.calledOnce(f.receipt);
@@ -491,24 +651,112 @@ describe('CCS authenticated reveal recovery integration', () => {
     }
   });
 
-  it('serves a Rust None/null hint from the stored ICA without RPC reads', async () => {
+  it('returns HTTP 500 for a null origin transaction hash', async () => {
     const f = await fixture();
     try {
       const response = await f.app.inject({
         method: 'POST',
         url: postPath,
-        payload: { ...f.payload, origin_tx_hash: null },
+        payload: {
+          sender: f.payload.sender,
+          data: f.payload.data,
+          signature: f.payload.signature,
+          origin_tx_hash: null,
+        },
       });
-      expect(response.statusCode).to.equal(200);
-      expect(response.json().data).to.equal(
-        f.record.ica + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
-      );
+      expect(response.statusCode).to.equal(500);
+      expect(response.json()).to.deep.equal({
+        error: 'Missing origin transaction hash for reveal message',
+      });
       sinon.assert.notCalled(f.receipt);
       sinon.assert.notCalled(f.updateMany);
     } finally {
       await f.app.close();
     }
   });
+
+  interface FailureCase {
+    name: string;
+    options: Parameters<typeof fixture>[0];
+    setup?: (f: Awaited<ReturnType<typeof fixture>>) => void;
+    statusCode: number;
+    error: string;
+    readsReceipt: boolean;
+    readsChain: boolean;
+  }
+
+  const failureCases: FailureCase[] = [
+    {
+      name: 'returns HTTP 403 when the paired commit derives a different ICA than the stored one',
+      options: { commitOwner: other.address },
+      statusCode: 403,
+      error: 'Reveal does not belong to this commitment',
+      readsReceipt: true,
+      readsChain: true,
+    },
+    {
+      name: 'returns HTTP 403 for routers not in the registry',
+      options: { trustRouters: false, registeredWithDispatchedRouters: true },
+      statusCode: 403,
+      error: 'Reveal was not dispatched between known ICA routers',
+      readsReceipt: false,
+      readsChain: false,
+    },
+    {
+      name: 'returns HTTP 500, not a denial, when a candidate ICA cannot be derived',
+      options: {},
+      setup: (f) => {
+        f.icaApp.getAccount.rejects(new Error('destination RPC unavailable'));
+      },
+      statusCode: 500,
+      error: 'Could not derive every ICA candidate for the reveal',
+      readsReceipt: true,
+      readsChain: true,
+    },
+    {
+      name: 'returns HTTP 500 when the dispatched router pair cannot derive the ICA',
+      options: {},
+      setup: (f) => {
+        f.destinationCall.rejects(new Error('destination RPC unavailable'));
+      },
+      statusCode: 500,
+      error: 'destination RPC unavailable',
+      readsReceipt: true,
+      readsChain: true,
+    },
+    {
+      name: 'returns HTTP 403 for a reveal with no commitment dispatched before it',
+      options: {},
+      setup: (f) => {
+        f.receipt.resolves(receiptWith([f.logs[1]]));
+      },
+      statusCode: 403,
+      error: 'Matching commitment dispatch not found',
+      readsReceipt: true,
+      readsChain: false,
+    },
+  ];
+
+  for (const c of failureCases) {
+    it(c.name, async () => {
+      const f = await fixture(c.options);
+      c.setup?.(f);
+      try {
+        const response = await f.app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: f.payload,
+        });
+        expect(response.statusCode).to.equal(c.statusCode);
+        expect(response.json()).to.deep.equal({ error: c.error });
+        expect(f.receipt.called).to.equal(c.readsReceipt);
+        expect(f.destinationCall.called).to.equal(c.readsChain);
+        sinon.assert.notCalled(f.updateMany);
+      } finally {
+        await f.app.close();
+      }
+    });
+  }
 
   for (const failure of ['missing receipt', 'origin RPC failure'] as const) {
     it(`returns HTTP 500 for ${failure}, without a successful metadata response`, async () => {
@@ -522,8 +770,12 @@ describe('CCS authenticated reveal recovery integration', () => {
           payload: f.payload,
         });
         expect(response.statusCode).to.equal(500);
-        expect(response.json()).to.have.property('error');
-        expect(response.json()).not.to.have.property('data');
+        expect(response.json()).to.deep.equal({
+          error:
+            failure === 'missing receipt'
+              ? `Transaction not found: ${originTxHash}`
+              : 'origin RPC unavailable',
+        });
         sinon.assert.notCalled(f.destinationCall);
         sinon.assert.notCalled(f.updateMany);
       } finally {

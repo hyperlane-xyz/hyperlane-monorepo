@@ -90,17 +90,29 @@ configuration, and compatibility with the existing EVM reveal endpoint.
 - `POST /getCallsFromRevealMessage`
   CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a reveal message.
 
-  Relayers may include `origin_tx_hash` in the authenticated request. The server
-  verifies the exact reveal and its matching commitment dispatch in that
-  transaction's mailbox events, then derives the ICA from the actual router pair.
-  Reads do not modify stored commitments. If the verified ICA differs from the
-  stored address, the server logs the mismatch and serves the verified address.
-  Existing records with incorrect addresses require a one-time database repair
-  for reads without a hash and `GET /calls/:commitment`.
-  Re-registration must identify the same router pair: stale config that derives a
-  different ICA still returns 409. Missing or null hashes use the stored ICA;
-  malformed hash strings return 400. Lookup or recovery failures return HTTP 500
-  so the relayer can retry.
+  The relayer must send `origin_tx_hash`, the transaction that dispatched the
+  reveal. Calls are resolved from the commitment dispatched alongside the
+  reveal. The server checks that
+
+  - the reveal was dispatched between ICA routers from the registry
+    (`interchainAccountRouter` and `interchainAccountRouterV3`), and
+  - the reveal is in the hinted transaction's mailbox events, with the
+    commitment dispatched before it, and the ICA the dispatched routers derive
+    for that commitment, or the ICA that any registry router version derives
+    for the same owner and user salt, equals the stored ICA. The latter covers
+    registrations made without router overrides.
+
+  The ICA of the dispatched router pair is served, which can differ from the
+  stored one. Reads do not modify stored commitments. A reveal that fails these
+  checks gets HTTP 403. A missing or null hash, a missing receipt, a failing
+  RPC, or a candidate ICA that could not be derived (when none of the others
+  match) get HTTP 500 so the relayer retries; malformed hash strings get 400.
+  Existing records with incorrect addresses still need a one-time database
+  repair for `GET /calls/:commitment`. Re-registration must identify the same
+  router pair: stale config that derives a different ICA still returns 409. A
+  separate ICA router deployment is only served if the registry CCS reads lists
+  its routers (otherwise run its own CCS). CCS fails to start if that registry
+  lists no ICA routers.
 
 ### Wormhole VAA lookup
 
