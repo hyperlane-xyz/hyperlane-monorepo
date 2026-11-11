@@ -557,6 +557,109 @@ for (const kind of ['query', 'unavailable']) {
   });
 }
 
+for (const available of [false, true]) {
+  void it(`preserves canonical replay with ${available ? 'partial' : 'no'} advisory near-head coverage`, async (context) => {
+    const original = db.queryLive.bind(db);
+    const reads: unknown[][] = [];
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('SELECT domain, head_height'))
+          return queryRows<T>(
+            available
+              ? [
+                  {
+                    domain: 1,
+                    head_height: '10',
+                    indexed_height: '10',
+                    confirmed_height: '5',
+                  },
+                ]
+              : [],
+          );
+        if (sql.includes('confirmation_events')) {
+          reads.push(values);
+          return queryRows<T>([
+            {
+              ...row(hookA, 1),
+              block_number: '11',
+              frontier_id: '2',
+              frontier_height: '11',
+            },
+          ]);
+        }
+        return original<T>(sql, values);
+      },
+    );
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              includeZeroConfirmations: true,
+              cursors: [1, 2].map((domain) => ({
+                domain,
+                address: hookA,
+                afterSequence: '-1',
+              })),
+            },
+          ],
+        }),
+      );
+      const ack = await waitFor(messages, 'subscribed');
+      assert(Array.isArray(ack.streams));
+      assert.equal(record(ack.streams[0]).includeZeroConfirmations, true);
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'caught_up').length === 2,
+      );
+      const replay = messages.filter(({ type }) => type === 'event');
+      assert.deepEqual(replay.map(({ domain }) => domain).sort(), [1, 2]);
+      assert(replay.every(({ confirmations }) => confirmations === undefined));
+      for (const domain of [1, 2])
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain,
+            headHeight: '11',
+            indexedHeight: '11',
+            previousIndexedHeight: '10',
+            confirmedHeight: '5',
+          }),
+        );
+      if (available) {
+        await waitUntil(() =>
+          messages.some(({ confirmations }) => confirmations === 0),
+        );
+        assert.deepEqual(
+          reads.map((values) => values[0]),
+          [1],
+        );
+        assert.deepEqual(reads[0]?.[5], [hookA]);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        assert.deepEqual(reads, []);
+      }
+      assert.equal(
+        messages.some(({ type }) => type === 'error'),
+        false,
+      );
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
+
 void it('acknowledges all subscriptions before canonical events or custom rollbacks', async (context) => {
   const original = db.queryLive.bind(db);
   let release = () => {};

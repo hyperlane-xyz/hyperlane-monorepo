@@ -402,6 +402,9 @@ The extra stream is live-only and respects cursor address filters; normal replay
 and cursors are unchanged. At depth 0, events are sent once. Rollback frames
 identify the affected stream by `eventType` and `confirmations`.
 Provisional Merkle event envelopes also include `blockHash`.
+The extra stream is best-effort: domains without near-head state are logged and
+skipped until reconnect, without rejecting normal replay. Explicit numeric
+confirmation subscriptions still require near-head state for every requested domain.
 
 Server frame types:
 

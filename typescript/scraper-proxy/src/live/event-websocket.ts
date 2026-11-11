@@ -627,6 +627,7 @@ export class EventWebSocketServer {
     domains: Set<number>,
     eventType?: EventType,
     cursors?: StreamCursor[],
+    allowUnavailable = eventType === undefined,
   ): Promise<ConfirmationStream> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
@@ -703,8 +704,12 @@ export class EventWebSocketServer {
     this.confirmationStreams.set(socket, streams);
     await stream.initialize(
       () => this.store.confirmationHeads(domains),
-      eventType === undefined,
+      allowUnavailable,
     );
+    if (eventType && stream.canonicalDomains.length)
+      this.logger.warn(
+        `websocket skipped advisory confirmations=${confirmations} eventType=${eventType} domains=${stream.canonicalDomains.join(',')}: near-head state unavailable`,
+      );
     return stream;
   }
 
@@ -767,6 +772,7 @@ export class EventWebSocketServer {
             request.confirmations,
             request.domains,
             request.eventType,
+            request.cursors,
           );
         if (
           request.includeZeroConfirmations &&
@@ -779,6 +785,7 @@ export class EventWebSocketServer {
             request.domains,
             request.eventType,
             request.cursors,
+            true,
           );
       }
     } catch (error) {
