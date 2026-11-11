@@ -246,7 +246,7 @@ class Workflow(unittest.TestCase):
             if line.startswith('  ')and not line.startswith('   ')and line.endswith(':'):name=line.strip()[:-1]
             if line.startswith('    if: '):cls.rows[name]=line[8:]
     def evaluate(self,event='push',ref=c.BRANCH,message='',**flags):
-        scope={'github':N(event_name=event,ref=ref,event=N(head_commit=N(message=message))),'inputs':N(paired_linux=flags.get('paired',False),svm_prerequisites=flags.get('svm',False),cold_full_feature=flags.get('cold',False),aleo_linux_prerequisite=flags.get('aleo',False),aleo_linux_sdk_prerequisite=flags.get('sdk',False),aleo_native_docker_prerequisite=flags.get('docker',False),aleo_full_case=flags.get('full',False)),'needs':N(paired_linux_inputs=N(outputs=N(functional_enabled='false',runtime_enabled='false'))),'contains':lambda text,needle:needle in text}
+        scope={'github':N(event_name=event,ref=ref,event=N(head_commit=N(message=message))),'inputs':N(paired_linux=flags.get('paired',False),svm_prerequisites=flags.get('svm',False),cold_full_feature=flags.get('cold',False),aleo_linux_prerequisite=flags.get('aleo',False),aleo_linux_sdk_prerequisite=flags.get('sdk',False),aleo_native_docker_prerequisite=flags.get('docker',False),aleo_full_case=flags.get('full',False)),'needs':N(paired_linux_inputs=N(outputs=N(functional_enabled='false',runtime_enabled='false',handoff_enabled='false'))),'contains':lambda text,needle:needle in text}
         selected=set()
         for name,value in self.rows.items():
             code=value.removeprefix('${{ ').removesuffix(' }}').replace('needs.paired-linux-inputs','needs.paired_linux_inputs');code=re.sub(r'!(?!=)',' not ',code).replace('&&',' and ').replace('||',' or ').strip()
