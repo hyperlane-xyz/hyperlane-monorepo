@@ -45,10 +45,9 @@ function configuredScraperAgentClients(
           0,
         )
       : 0;
-    // Each configured origin owns a socket, including shadow-mode subscriptions.
-    const relayerClients = config.relayer?.websocketUrl
-      ? config.contextChainNames.relayer.length
-      : 0;
+    // Reserve one connection for each relayer context as those contexts move
+    // onto the shared scraper stream.
+    const relayerClients = config.relayer ? 1 : 0;
     return total + validatorClients + relayerClients;
   }, 0);
 }
@@ -387,7 +386,7 @@ describe('Agent configs', () => {
 
       expect(
         maxAgentClients,
-        `${configuredClients} configured agent clients require 25% headroom`,
+        `${configuredClients} configured or planned agent clients require 25% headroom`,
       ).to.be.at.least(Math.ceil(configuredClients * 1.25));
     });
 

@@ -11,16 +11,18 @@ or use the scraper's default confirmed stream when there is no numeric depth.
 Their RPC indexers retain the existing confirmation/finality behavior. The scraper
 may itself wait for chain-native finality before making non-EVM events available.
 
-Each origin has one connection carrying its discovery streams. Gas payments are
-omitted when gas indexing is disabled. RPC remains active until it has covered history through
-an overlapping subscription checkpoint, including gas payments. Only then does the
-supervisor stop all three RPC indexers. Disconnects, rejected frames, missing receipt
-metadata and sequence gaps restore RPC. Reconnects repeat the overlap check. Sources
-fail independently. Progress probes and reorg audits still use RPC while event indexing
+Origins with the same effective confirmation policy share one connection. Each
+connection carries dispatch, Merkle and gas-payment streams for its domains; origins
+with gas indexing disabled are omitted from the gas stream. Each origin independently
+keeps RPC active until it has covered history through an overlapping subscription
+checkpoint, including gas payments. Only then does its supervisor pause RPC indexing.
+An origin's event or progress-probe errors restore RPC for that origin. A socket failure
+restores RPC for the whole group. EVM recovery reconnects the group to discard queued
+frames from the old fork. Reconnects repeat each origin's overlap check. Progress probes and reorg audits still use RPC while event indexing
 uses WebSockets. `websocketAuthorityEnabled: false` keeps RPC as the discovery source
 and validates WebSocket frames in shadow mode without writing them or pausing RPC.
-Proxy connection capacity must include one socket per configured relayer origin,
-in addition to validator connections and deployment headroom.
+Proxy connection capacity includes one socket per distinct confirmation policy per
+relayer instance, in addition to validator connections and deployment headroom.
 
 Destination delivery is still checked by the existing delivery/receipt confirmation
 pipeline; a zero-confirmation delivery notification is not a finalized receipt.

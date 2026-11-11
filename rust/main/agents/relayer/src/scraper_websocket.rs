@@ -22,7 +22,7 @@ use hyperlane_core::{
 use prometheus::IntGaugeVec;
 use serde::Deserialize;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt::Debug,
     ops::RangeInclusive,
     sync::{
@@ -127,6 +127,11 @@ impl ScraperSource {
                 }
             },
             control: Arc::new(Authority::new(origin.domain.id())),
+        }
+    }
+    fn resume_rpc(&self) {
+        if !self.database.discovery_recovery_pending().unwrap_or(true) {
+            self.control.resume();
         }
     }
     async fn block(&self, height: u64) -> Result<DiscoveryCheckpoint> {
@@ -546,79 +551,99 @@ impl ScraperWebSocketMonitor {
             .get(&domain)
             .map(|source| source.control.receiver())
     }
-    pub(crate) async fn run(self) {
-        futures_util::future::join_all(self.sources.values().map(|source| async {
-            tokio::join!(
-                async {
-                    source
-                        .audit()
-                        .await
-                        .expect("Confirmed origin reorg requires manual recovery");
-                },
-                async {
-                    let Some(url) = &self.url else {
-                        return;
-                    };
-                    source.database.wait_for_live_block_verification().await;
-                    loop {
-                        let result = self.stream(source, url, StreamTimeouts::default()).await;
-                        if !source.database.discovery_recovery_pending().unwrap_or(true) {
-                            source.control.resume();
-                        }
-                        self.active.with_label_values(&[&source.chain]).set(0);
-                        self.authority.with_label_values(&[&source.chain]).set(0);
-                        if let Err(error) = result {
-                            assert!(
-                                !error.is::<RollbackRecoveryRequired>(),
-                                "Confirmed origin reorg requires manual recovery: {error}"
-                            );
-                            warn!(
-                                chain = source.chain,
-                                ?error,
-                                "Scraper unavailable; using RPC discovery"
-                            );
-                        }
-                        tokio::time::sleep(AUDIT_INTERVAL).await;
-                    }
-                }
-            );
-        }))
-        .await;
+    fn connection_groups(&self) -> BTreeMap<Option<u32>, Vec<&ScraperSource>> {
+        let mut groups = BTreeMap::<_, Vec<_>>::new();
+        for source in self.sources.values() {
+            groups.entry(source.confirmations).or_default().push(source);
+        }
+        for sources in groups.values_mut() {
+            sources.sort_unstable_by_key(|source| source.domain);
+        }
+        groups
     }
+
+    pub(crate) async fn run(self) {
+        let groups = self.connection_groups();
+        tokio::join!(
+            futures_util::future::join_all(self.sources.values().map(|source| async {
+                source
+                    .audit()
+                    .await
+                    .expect("Confirmed origin reorg requires manual recovery");
+            })),
+            futures_util::future::join_all(groups.values().map(|sources| async {
+                let Some(url) = &self.url else { return };
+                loop {
+                    if let Err(error) = self.stream(sources, url, StreamTimeouts::default()).await {
+                        assert!(
+                            !error.is::<RollbackRecoveryRequired>(),
+                            "Confirmed origin reorg requires manual recovery: {error}"
+                        );
+                        warn!(confirmations = ?sources[0].confirmations, ?error,
+                            "Scraper connection unavailable; using RPC discovery");
+                    }
+                    tokio::time::sleep(AUDIT_INTERVAL).await;
+                }
+            })),
+        );
+    }
+
+    // A bad origin resumes RPC independently; the other origins keep their socket.
+    fn fallback(&self, state: &mut SourceState<'_>, error: eyre::Report) -> Result<()> {
+        state.source.ensure_confirmed_history()?;
+        warn!(
+            chain = state.source.chain,
+            ?error,
+            "Origin stream unavailable; using RPC discovery"
+        );
+        state.source.resume_rpc();
+        self.authority
+            .with_label_values(&[&state.source.chain])
+            .set(0);
+        let epoch = state.epoch;
+        *state = SourceState::new(state.source);
+        state.epoch = epoch;
+        Ok(())
+    }
+
     async fn stream(
         &self,
-        source: &ScraperSource,
+        sources: &[&ScraperSource],
         url: &Url,
         timeouts: StreamTimeouts,
     ) -> Result<()> {
-        let _fallback = RpcFallback(source);
-        source.ensure_confirmed_history()?;
-        source.database.ensure_no_indexed_event_conflict()?;
-        let epoch = source.database.discovery_generation();
+        let _fallback = RpcFallback(sources, self);
+        let confirmations = sources
+            .first()
+            .expect("Nonempty confirmation group")
+            .confirmations;
+        let mut states: HashMap<_, _> = sources
+            .iter()
+            .map(|source| (source.domain, SourceState::new(source)))
+            .collect();
         let mut session =
-            ScraperSession::<Result<([u32; 2], u32)>, bool>::connect(url, timeouts).await?;
+            ScraperSession::<(u32, Result<([u32; 2], u32)>), bool>::connect(url, timeouts).await?;
         let mut subscribed = false;
-        let mut target = None;
-        let mut next = [0; 2];
-        let mut health = [StreamHealth::default(), StreamHealth::default()];
-        let mut authoritative = false;
         while let Some(event) = session
             .next::<serde_json::Value>(subscribed, || {
-                let source = source.clone();
-                stream::once(async move {
-                    timeout(RPC_TIMEOUT, source.counts())
-                        .await
-                        .context("RPC progress timed out")?
-                })
-                .boxed()
+                let sources: Vec<_> = sources
+                    .iter()
+                    .filter(|source| !source.database.live_block_verification_pending())
+                    .map(|source| (*source).clone())
+                    .collect();
+                stream::iter(sources)
+                    .map(|source| async move {
+                        let result = timeout(RPC_TIMEOUT, source.counts())
+                            .await
+                            .context("RPC progress timed out")
+                            .and_then(|result| result);
+                        (source.domain, result)
+                    })
+                    .buffer_unordered(8)
+                    .boxed()
             })
             .await?
         {
-            ensure!(
-                epoch == source.database.discovery_generation(),
-                "Origin recovered; reconnect live discovery"
-            );
-            source.database.ensure_no_indexed_event_conflict()?;
             match event {
                 SessionEvent::Message(ServerMessage::Ready { .. }) => {
                     session
@@ -626,14 +651,22 @@ impl ScraperWebSocketMonitor {
                             message_type: "subscribe",
                             streams: Kind::ALL
                                 .into_iter()
-                                .filter(|kind| source.gas_enabled || !matches!(kind, Kind::Gas))
-                                .map(|kind| SubscribeStream {
-                                    event_type: kind.label(),
-                                    domains: Some(vec![source.domain]),
-                                    confirmations: source.confirmations,
-                                    include_zero_confirmations: None,
-                                    cursors: None,
-                                    stream_cursor_version: None,
+                                .filter_map(|kind| {
+                                    let domains: Vec<_> = sources
+                                        .iter()
+                                        .filter(|source| {
+                                            source.gas_enabled || !matches!(kind, Kind::Gas)
+                                        })
+                                        .map(|source| source.domain)
+                                        .collect();
+                                    (!domains.is_empty()).then_some(SubscribeStream {
+                                        event_type: kind.label(),
+                                        domains: Some(domains),
+                                        confirmations,
+                                        include_zero_confirmations: None,
+                                        cursors: None,
+                                        stream_cursor_version: None,
+                                    })
                                 })
                                 .collect(),
                         })
@@ -641,98 +674,94 @@ impl ScraperWebSocketMonitor {
                 }
                 SessionEvent::Message(ServerMessage::Subscribed { .. }) => {
                     subscribed = true;
-                    self.active.with_label_values(&[&source.chain]).set(1);
+                    for source in sources {
+                        self.active.with_label_values(&[&source.chain]).set(1);
+                    }
                 }
                 SessionEvent::Message(ServerMessage::Event(event)) => {
                     ensure!(subscribed, "Event before subscription acknowledgement");
-                    let Some(event) = source.decode(event)? else {
+                    let state = states
+                        .get_mut(&event.domain)
+                        .context("Unexpected event domain")?;
+                    if !state.ready()? {
                         continue;
-                    };
-                    if let Some((kind, sequence)) = event.sequence() {
-                        let current = &mut next[kind.index()];
-                        ensure!(
-                            (target.is_none() && *current == 0) || sequence <= *current,
-                            "Live discovery sequence gap"
-                        );
-                        *current =
-                            (*current).max(sequence.checked_add(1).context("Sequence overflow")?);
                     }
-                    if self.authority_enabled {
-                        source.store(event).await?;
+                    let result = state.ingest(event, self.authority_enabled).await;
+                    if let Err(error) = result {
+                        self.fallback(state, error)?;
                     }
                 }
                 SessionEvent::Message(ServerMessage::Rollback {
                     domain,
-                    confirmations,
+                    confirmations: depth,
                     to_height,
                     ..
                 }) => {
-                    ensure!(
-                        domain == source.domain && confirmations == source.confirmations,
-                        "Unexpected rollback scope"
-                    );
+                    let state = states
+                        .get_mut(&domain)
+                        .context("Unexpected rollback domain")?;
+                    ensure!(depth == confirmations, "Unexpected rollback scope");
+                    if !state.ready()? {
+                        continue;
+                    }
                     if !self.authority_enabled {
-                        bail!("Shadow stream rolled back; reconnecting");
+                        self.fallback(state, eyre::eyre!("Shadow stream rolled back"))?;
+                        continue;
                     }
-                    if source.finality_indexer.is_none() {
-                        source.confirmed_reorg(to_height.as_u64("rollback height")?)?;
+                    if state.source.finality_indexer.is_none() {
+                        state
+                            .source
+                            .confirmed_reorg(to_height.as_u64("rollback height")?)?;
                     }
-                    source.database.request_discovery_recovery()?;
+                    state.source.database.request_discovery_recovery()?;
                     bail!("Origin rollback; recovering through RPC");
                 }
                 SessionEvent::Message(ServerMessage::Error { error }) => {
                     bail!("Scraper rejected discovery: {error}")
                 }
-                SessionEvent::Progress(result) => {
-                    let (counts, height) = result?;
-                    if target.is_none() {
-                        // RPC must cover this prefix. Subsequent live frames must
-                        // be contiguous even while the overlap query is pending.
-                        for index in 0..2 {
-                            next[index] = next[index].max(counts[index]);
-                        }
+                SessionEvent::Progress((domain, result)) => {
+                    let state = states
+                        .get_mut(&domain)
+                        .context("Unexpected progress domain")?;
+                    if !state.ready()? {
+                        continue;
                     }
-                    let (since, block) = *target.get_or_insert((Instant::now(), height));
-                    if self.authority_enabled
-                        && !authoritative
-                        && !source.control.command.borrow().desired
-                    {
-                        let progress = *source
-                            .control
-                            .ack
-                            .recovery
-                            .lock()
-                            .expect("RPC progress lock");
-                        if Kind::ALL
-                            .into_iter()
-                            .filter(|kind| source.gas_enabled || !matches!(kind, Kind::Gas))
-                            .all(|kind| {
-                                progress[kind.index()].is_some_and(|progress| {
-                                    progress.at >= since && progress.block >= block
-                                })
-                            })
-                            && next == counts
-                        {
-                            let control = source.control.clone();
-                            let generation = control.request();
-                            session.start_cutover(source.domain, async move {
+                    match result.and_then(|(counts, height)| {
+                        state.observe_progress(counts, height, self.authority_enabled)
+                    }) {
+                        Ok(true) => {
+                            let control = state.source.control.clone();
+                            session.start_cutover(domain, async move {
+                                // Ignored duplicate futures must not issue pause commands.
+                                let generation = control.request();
                                 timeout(RPC_TIMEOUT, control.paused(generation))
                                     .await
                                     .unwrap_or(false)
                             });
                         }
-                    } else if authoritative {
-                        for index in 0..2 {
-                            // Frames can arrive after the RPC count snapshot was taken.
-                            // Hash audits detect reorgs; a newer live count is not one.
-                            health[index].observe(counts[index], next[index], false)?;
-                        }
+                        Ok(false) => {}
+                        Err(error) => self.fallback(state, error)?,
                     }
                 }
-                SessionEvent::Cutover { result, .. } => {
-                    ensure!(result, "RPC pause timed out");
-                    authoritative = true;
-                    self.authority.with_label_values(&[&source.chain]).set(1);
+                SessionEvent::Cutover { domain, result } => {
+                    let state = states
+                        .get_mut(&domain)
+                        .context("Unexpected cutover domain")?;
+                    if !state.ready()? {
+                        continue;
+                    }
+                    // A per-origin fallback can cancel a queued pause result.
+                    if !state.source.control.command.borrow().desired {
+                        continue;
+                    }
+                    if result {
+                        state.authoritative = true;
+                        self.authority
+                            .with_label_values(&[&state.source.chain])
+                            .set(1);
+                    } else {
+                        self.fallback(state, eyre::eyre!("RPC pause timed out"))?;
+                    }
                 }
                 _ => {}
             }
@@ -740,11 +769,100 @@ impl ScraperWebSocketMonitor {
         Ok(())
     }
 }
-struct RpcFallback<'a>(&'a ScraperSource);
+
+struct SourceState<'a> {
+    source: &'a ScraperSource,
+    epoch: u64,
+    target: Option<(Instant, u32)>,
+    next: [u32; 2],
+    health: [StreamHealth; 2],
+    authoritative: bool,
+}
+impl<'a> SourceState<'a> {
+    fn new(source: &'a ScraperSource) -> Self {
+        Self {
+            source,
+            epoch: source.database.discovery_generation(),
+            target: None,
+            next: [0; 2],
+            health: [StreamHealth::default(), StreamHealth::default()],
+            authoritative: false,
+        }
+    }
+    async fn ingest(&mut self, event: EventMessage<serde_json::Value>, write: bool) -> Result<()> {
+        let Some(event) = self.source.decode(event)? else {
+            return Ok(());
+        };
+        if let Some((kind, sequence)) = event.sequence() {
+            let next = &mut self.next[kind.index()];
+            ensure!(
+                (self.target.is_none() && *next == 0) || sequence <= *next,
+                "Live discovery sequence gap"
+            );
+            *next = (*next).max(sequence.checked_add(1).context("Sequence overflow")?);
+        }
+        if write {
+            self.source.store(event).await?;
+        }
+        Ok(())
+    }
+
+    fn observe_progress(&mut self, counts: [u32; 2], height: u32, takeover: bool) -> Result<bool> {
+        if self.target.is_none() {
+            for (next, count) in self.next.iter_mut().zip(counts) {
+                *next = (*next).max(count);
+            }
+        }
+        let (since, block) = *self.target.get_or_insert((Instant::now(), height));
+        let source = self.source;
+        if takeover && !self.authoritative && !source.control.command.borrow().desired {
+            let progress = *source
+                .control
+                .ack
+                .recovery
+                .lock()
+                .expect("RPC recovery lock");
+            return Ok(self.next == counts
+                && Kind::ALL
+                    .into_iter()
+                    .filter(|kind| source.gas_enabled || !matches!(kind, Kind::Gas))
+                    .all(|kind| {
+                        progress[kind.index()]
+                            .is_some_and(|progress| progress.at >= since && progress.block >= block)
+                    }));
+        }
+        if self.authoritative {
+            for (index, count) in counts.into_iter().enumerate() {
+                self.health[index].observe(count, self.next[index], false)?;
+            }
+        }
+        Ok(false)
+    }
+
+    fn ready(&mut self) -> Result<bool> {
+        self.source.ensure_confirmed_history()?;
+        if self.source.database.live_block_verification_pending()
+            || self.source.database.discovery_recovery_pending()?
+        {
+            return Ok(false);
+        }
+        let epoch = self.source.database.discovery_generation();
+        // Flush queued frames from the old fork by reconnecting the group after recovery.
+        ensure!(
+            self.epoch == epoch,
+            "Origin recovered; reconnect live discovery"
+        );
+        Ok(true)
+    }
+}
+
+struct RpcFallback<'a>(&'a [&'a ScraperSource], &'a ScraperWebSocketMonitor);
 impl Drop for RpcFallback<'_> {
     fn drop(&mut self) {
-        if !self.0.database.discovery_recovery_pending().unwrap_or(true) {
-            self.0.control.resume();
+        for source in self.0 {
+            source.resume_rpc();
+            self.1.active.with_label_values(&[&source.chain]).set(0);
+            self.1.authority.with_label_values(&[&source.chain]).set(0);
         }
     }
 }
@@ -1269,11 +1387,252 @@ mod tests {
         fn connect(&self, url: Url) -> tokio::task::JoinHandle<Result<()>> {
             let monitor = self.monitor.clone();
             let source = self.source.clone();
-            tokio::spawn(async move { monitor.stream(&source, &url, timeouts()).await })
+            tokio::spawn(async move { monitor.stream(&[&source], &url, timeouts()).await })
         }
     }
     fn event(kind: Kind, sequence: u32, data: Value) -> Value {
         json!({"type":"event", "domain":5, "eventType":kind.label(), "confirmations":0, "sequence":sequence.to_string(), "data":data})
+    }
+
+    fn peer(fixture: &Fixture, domain: u32, chain: &str) -> ScraperSource {
+        let mut source = fixture.source.clone();
+        source.domain = domain;
+        source.chain = chain.into();
+        source.control = Arc::new(Authority::new(domain));
+        source
+    }
+
+    fn dispatch_for(source: &ScraperSource, nonce: u32) -> Value {
+        let message = HyperlaneMessage {
+            origin: source.domain,
+            ..message(nonce)
+        };
+        let mut data = dispatch(nonce);
+        data["msg_id"] = json!(format!("{:#x}", message.id()));
+        let mut frame = event(Kind::Dispatch, nonce, data);
+        frame["domain"] = json!(source.domain);
+        frame["confirmations"] = json!(source.confirmations);
+        frame
+    }
+
+    fn group_monitor(url: Url, sources: Vec<ScraperSource>) -> Arc<ScraperWebSocketMonitor> {
+        let metrics = CoreMetrics::new("group-test", 9090, Registry::new()).unwrap();
+        Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(Some(url), sources, &metrics, true)
+                .unwrap(),
+        )
+    }
+
+    #[tokio::test]
+    async fn connections_group_by_policy_and_route_each_origin() {
+        let (listener, url) = listener().await;
+        let first = Fixture::new(url.clone());
+        let second = Fixture::new(url.clone());
+        let third = Fixture::with_confirmations(url.clone(), Some(7), false);
+        let fourth = Fixture::with_confirmations(url.clone(), None, false);
+        let mut second_source = peer(&second, 6, "second");
+        second_source.gas_enabled = false;
+        let mut third_source = peer(&third, 7, "third");
+        third_source.gas_enabled = false;
+        let fourth_source = peer(&fourth, 8, "fourth");
+        let sources = vec![
+            first.source.clone(),
+            second_source,
+            third_source,
+            fourth_source,
+        ];
+        let monitor = group_monitor(url, sources.clone());
+        assert_eq!(monitor.connection_groups().len(), 3);
+        let active = monitor.active.clone();
+        let monitor = Arc::try_unwrap(monitor).ok().unwrap();
+        let task = tokio::spawn(async move { monitor.run().await });
+        let mut sockets = BTreeMap::new();
+        for _ in 0..3 {
+            let (socket, subscription) = handshake(&listener).await;
+            let streams = subscription["streams"].as_array().unwrap();
+            let depth = streams[0]["confirmations"]
+                .as_u64()
+                .map(|depth| u32::try_from(depth).unwrap());
+            let expected = match depth {
+                Some(0) => vec![5, 6],
+                Some(7) => vec![7],
+                None => vec![8],
+                _ => unreachable!(),
+            };
+            assert_eq!(streams[0]["domains"], json!(expected));
+            assert_eq!(streams[1]["domains"], json!(expected));
+            assert_eq!(streams.len(), if depth == Some(7) { 2 } else { 3 });
+            if depth == Some(0) {
+                assert_eq!(streams[2]["domains"], json!([5]));
+            }
+            assert!(sockets.insert(depth, socket).is_none());
+        }
+        // Three shared sockets serve all four origins; no fourth connection opens.
+        assert!(timeout(Duration::from_millis(30), listener.accept())
+            .await
+            .is_err());
+        for source in &sources {
+            send(
+                sockets.get_mut(&source.confirmations).unwrap(),
+                dispatch_for(source, 0),
+            )
+            .await;
+        }
+        for source in &sources {
+            eventually(|| {
+                source
+                    .database
+                    .retrieve_message_by_nonce(0)
+                    .unwrap()
+                    .is_some()
+            })
+            .await;
+            assert_eq!(
+                source
+                    .database
+                    .retrieve_message_by_nonce(0)
+                    .unwrap()
+                    .unwrap()
+                    .origin,
+                source.domain
+            );
+        }
+        task.abort();
+        let _ = task.await;
+        for source in &sources {
+            assert_eq!(active.with_label_values(&[&source.chain]).get(), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn shared_group_keeps_healthy_origins_live_during_startup_and_probe_failures() {
+        let (listener, url) = listener().await;
+        let first = Fixture::new(url.clone());
+        let second = Fixture::new(url.clone());
+        let mut second_source = peer(&second, 6, "second");
+        let counts = Arc::new(Counts(AtomicU32::new(0), AtomicBool::new(false)));
+        second_source.freshness_indexer = counts.clone();
+        second_source
+            .database
+            .set_live_block_verification_pending(true);
+        let monitor = group_monitor(
+            url.clone(),
+            vec![first.source.clone(), second_source.clone()],
+        );
+        let first_ack = acknowledge(&first.source);
+        let second_ack = acknowledge(&second_source);
+        let state_monitor = monitor.clone();
+        let sources = vec![first.source.clone(), second_source.clone()];
+        let task = tokio::spawn(async move {
+            monitor
+                .stream(&sources.iter().collect::<Vec<_>>(), &url, timeouts())
+                .await
+        });
+        let (mut socket, _) = handshake(&listener).await;
+        send(&mut socket, dispatch_for(&second_source, 0)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        first
+            .source
+            .control
+            .ack
+            .recovery
+            .lock()
+            .unwrap()
+            .fill(Some(RpcProgress {
+                at: Instant::now(),
+                block: 100,
+            }));
+        eventually(|| state_monitor.authority.with_label_values(&["origin"]).get() == 1).await;
+        assert!(!second_source.control.command.borrow().desired);
+        assert!(second_source
+            .database
+            .retrieve_message_by_nonce(0)
+            .unwrap()
+            .is_none());
+
+        second_source
+            .database
+            .set_live_block_verification_pending(false);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        send(&mut socket, dispatch_for(&first.source, 0)).await;
+        eventually(|| {
+            first
+                .source
+                .database
+                .retrieve_message_by_nonce(0)
+                .unwrap()
+                .is_some()
+        })
+        .await;
+        assert_eq!(
+            state_monitor.authority.with_label_values(&["origin"]).get(),
+            1
+        );
+
+        counts.1.store(true, Ordering::Release);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        second_source
+            .control
+            .ack
+            .recovery
+            .lock()
+            .unwrap()
+            .fill(Some(RpcProgress {
+                at: Instant::now(),
+                block: 100,
+            }));
+        eventually(|| state_monitor.authority.with_label_values(&["second"]).get() == 1).await;
+        counts.1.store(false, Ordering::Release);
+        eventually(|| !second_source.control.command.borrow().desired).await;
+        assert!(first.source.control.command.borrow().desired);
+        assert_eq!(state_monitor.active.with_label_values(&["origin"]).get(), 1);
+        drop(socket);
+        assert!(task.await.unwrap().is_err());
+        assert!(!first.source.control.command.borrow().desired);
+        assert!(!second_source.control.command.borrow().desired);
+        first_ack.abort();
+        second_ack.abort();
+    }
+
+    #[tokio::test]
+    async fn recovery_flushes_shared_connection_before_old_fork_frames_can_be_ingested() {
+        let (listener, url) = listener().await;
+        let first = Fixture::new(url.clone());
+        let second = Fixture::new(url.clone());
+        let second_source = peer(&second, 6, "second");
+        let sources = vec![first.source.clone(), second_source.clone()];
+        let monitor = group_monitor(url.clone(), sources.clone());
+        let task = tokio::spawn(async move {
+            monitor
+                .stream(&sources.iter().collect::<Vec<_>>(), &url, timeouts())
+                .await
+        });
+        let (mut socket, _) = handshake(&listener).await;
+        let frame = dispatch_for(&second_source, 0);
+        send(&mut socket, frame.clone()).await;
+        eventually(|| {
+            second_source
+                .database
+                .retrieve_message_by_nonce(0)
+                .unwrap()
+                .is_some()
+        })
+        .await;
+        second_source.database.rollback_discovery().unwrap();
+        second_source.database.finish_discovery_recovery().unwrap();
+        send(&mut socket, frame).await;
+        assert!(timeout(Duration::from_secs(5), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_err());
+        assert!(second_source
+            .database
+            .retrieve_message_by_nonce(0)
+            .unwrap()
+            .is_none());
+        assert_eq!(second_source.database.discovery_generation(), 1);
+        assert_eq!(first.source.database.discovery_generation(), 0);
     }
 
     #[tokio::test]
@@ -1394,12 +1753,7 @@ mod tests {
             let mut gap = event(Kind::Dispatch, 3, dispatch(3));
             gap["confirmations"] = json!(confirmations);
             send(&mut socket, gap).await;
-            assert!(timeout(Duration::from_secs(5), task)
-                .await
-                .unwrap()
-                .unwrap()
-                .is_err());
-            assert!(!fixture.source.control.command.borrow().desired);
+            eventually(|| !fixture.source.control.command.borrow().desired).await;
             assert!(
                 fixture
                     .source
@@ -1414,6 +1768,7 @@ mod tests {
                 .database
                 .discovery_recovery_pending()
                 .unwrap());
+            task.abort();
             ack.abort();
         }
     }
@@ -1469,7 +1824,6 @@ mod tests {
             Arc::get_mut(&mut fixture.monitor)
                 .unwrap()
                 .authority_enabled = false;
-            let active = fixture.monitor.active.clone();
             let monitor = Arc::try_unwrap(fixture.monitor).ok().unwrap();
             let task = tokio::spawn(async move { monitor.run().await });
             let (mut socket, _) = handshake(&listener).await;
@@ -1515,7 +1869,15 @@ mod tests {
                 .is_none());
             assert!(!fixture.source.control.command.borrow().desired);
             send(&mut socket, json!({"type":"rollback", "domain":5, "eventType":"dispatch", "confirmations":confirmations, "toHeight":99})).await;
-            eventually(|| active.with_label_values(&["origin"]).get() == 0).await;
+            socket.send(Message::Ping(vec![2].into())).await.unwrap();
+            assert!(matches!(
+                timeout(Duration::from_secs(5), socket.next())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap(),
+                Message::Pong(_)
+            ));
             assert!(!fixture
                 .source
                 .database
