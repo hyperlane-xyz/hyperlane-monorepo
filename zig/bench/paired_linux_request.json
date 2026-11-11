@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "kind": "paired-linux-ci-v1",
-  "root_approved": false,
-  "inputs_enabled": false,
-  "functional_enabled": false,
+  "root_approved": true,
+  "inputs_enabled": true,
+  "functional_enabled": true,
   "runtime_enabled": false,
-  "producer_source_commit": "c83dff3d2047299cafaddd740a9a9444c2636ce6",
+  "producer_source_commit": "abf54588b1493e62d2a91445b467637d1eb8ddac",
   "baseline_source_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
   "baseline_profile": "locked-c520224-production-three-agent-linux-x86_64-v3-pclmul-native-abi-v4",
   "qualified_cohort": {
@@ -13,29 +13,29 @@
     "bytes": 19103,
     "sha256": {
       "sha256_hex_chunks": [
-        "761bdc62acb4cd758e9d0edd97689371",
-        "b2f8fc7bcb13b2e343e97e7f688a903c"
+        "92d072af3d57780a611a0618675f874c",
+        "93d87f5ab87cddbc22995a6d29ccecf4"
       ]
     }
   },
   "transport_requests": {
     "ReleaseSafe": {
       "path": "zig/bench/paired_linux_transport-ReleaseSafe.PENDING.json",
-      "bytes": 3106,
+      "bytes": 3105,
       "sha256": {
         "sha256_hex_chunks": [
-          "c76605eba78c9a9e7b08d86c21eacbe3",
-          "c1e8ced103347b1901eb17e78b5392ea"
+          "e86bdecd0797f0a19e644e117625d5ab",
+          "f22e34c91bb14f950894c10db9e252fe"
         ]
       }
     },
     "ReleaseFast": {
       "path": "zig/bench/paired_linux_transport-ReleaseFast.PENDING.json",
-      "bytes": 3106,
+      "bytes": 3105,
       "sha256": {
         "sha256_hex_chunks": [
-          "225cda51ded000a70d4cc29a46f18a89",
-          "c8e8136d7fedc2627a25857236943705"
+          "43d65e077491d80777ba37fed30806c7",
+          "ade7159fa58d203f9feaa914440d6d78"
         ]
       }
     }
