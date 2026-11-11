@@ -217,7 +217,7 @@ async fn test_fetch_storage_locations_helper_with_different_domains() {
 }
 
 #[tokio::test]
-async fn early_storage_reads_cache_announcements_but_not_absence() {
+async fn storage_reads_cache_announcements_but_not_absence() {
     let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
     let cache = LocalCache::new("early-storage-tests");
     let validators = [H256::from_low_u64_be(1), H256::from_low_u64_be(2)];
@@ -240,7 +240,7 @@ async fn early_storage_reads_cache_announcements_but_not_absence() {
             assert_eq!(validators, &[H256::from_low_u64_be(2)]);
             Ok(vec![vec!["s3://new/eu-central-1".into()]])
         });
-    prepare_storage_locations(&validators, &cache, &announce)
+    fetch_storage_locations_helper(&validators, &cache, &announce)
         .await
         .unwrap();
     let locations = fetch_storage_locations_helper(&validators, &cache, &announce)

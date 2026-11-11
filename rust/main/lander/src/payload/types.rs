@@ -24,6 +24,9 @@ pub struct PayloadDetails {
     /// Origin used to gate queued/retrying relayer work after indexed-data conflicts.
     #[serde(default)]
     pub origin: Option<u32>,
+    /// Origin history used to prepare the payload. Legacy payloads belong to generation zero.
+    #[serde(default)]
+    pub origin_generation: u64,
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
@@ -49,6 +52,7 @@ impl PayloadDetails {
             uuid,
             metadata: metadata.into(),
             origin: None,
+            origin_generation: 0,
             success_criteria,
         }
     }
@@ -124,6 +128,7 @@ impl FullPayload {
             uuid: payload_uuid.clone(),
             metadata: format!("payload-{payload_uuid}"),
             origin: None,
+            origin_generation: 0,
             success_criteria: None,
         };
         FullPayload {

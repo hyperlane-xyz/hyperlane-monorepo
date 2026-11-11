@@ -852,6 +852,7 @@ async fn mock_aleo_tx(
     };
     let payload = FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,

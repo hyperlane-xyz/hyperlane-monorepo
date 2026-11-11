@@ -250,6 +250,7 @@ fn create_test_payload_with_criteria(success_criteria: Option<Vec<u8>>) -> FullP
 
     FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,
@@ -274,6 +275,7 @@ fn create_test_payload_with_serialized_criteria() -> FullPayload {
 
     FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,
@@ -295,6 +297,7 @@ fn create_test_transaction() -> Transaction {
     Transaction::new(
         precursor,
         vec![PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,
@@ -314,6 +317,7 @@ fn create_test_transaction_with_criteria() -> Transaction {
     Transaction::new(
         precursor,
         vec![PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,

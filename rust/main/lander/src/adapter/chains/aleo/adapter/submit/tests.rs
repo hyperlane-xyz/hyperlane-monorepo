@@ -177,6 +177,7 @@ fn create_test_transaction() -> Transaction {
     let payload_uuid = PayloadUuid::random();
 
     let payload_details = PayloadDetails {
+        origin_generation: 0,
         uuid: payload_uuid,
         metadata: "test-payload".to_string(),
         origin: None,

@@ -814,79 +814,6 @@ async fn test_from_settings_and_run_bad_signer() {
     );
 }
 
-#[tokio::test]
-async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
-    struct Running(Arc<AtomicBool>);
-    impl Drop for Running {
-        fn drop(&mut self) {
-            self.0.store(false, Ordering::SeqCst);
-        }
-    }
-    let (sender, receiver) = tokio::sync::watch::channel(false);
-    let running = Arc::new(AtomicBool::new(false));
-    let authority_observed = Arc::new(AtomicBool::new(false));
-    let (started, mut starts) = tokio::sync::mpsc::unbounded_channel();
-    let observed = running.clone();
-    let observed_authority = authority_observed.clone();
-    let task = tokio::spawn(super::run_gas_payment_fallback(
-        Some(receiver),
-        move || observed_authority.store(true, Ordering::SeqCst),
-        move || {
-            let running = observed.clone();
-            let started = started.clone();
-            async move {
-                assert!(
-                    !running.swap(true, Ordering::SeqCst),
-                    "RPC tasks must not overlap"
-                );
-                let _guard = Running(running);
-                started.send(()).expect("start notification");
-                std::future::pending::<()>().await;
-            }
-        },
-    ));
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("startup RPC")
-        .expect("started");
-    sender.send(true).expect("connected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC cancelled on connection");
-    assert!(authority_observed.load(Ordering::SeqCst));
-    assert!(
-        tokio::time::timeout(Duration::from_millis(20), starts.recv())
-            .await
-            .is_err(),
-        "no parallel RPC while connected"
-    );
-    sender.send(false).expect("disconnected");
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("outage RPC")
-        .expect("started");
-    sender.send(true).expect("reconnected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC paused again");
-    drop(sender);
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("closed monitor RPC")
-        .expect("started");
-    task.abort();
-    let _ = task.await;
-    assert!(!running.load(Ordering::SeqCst));
-}
-
 #[tokio::test(start_paused = true)]
 async fn build_chain_with_retries_recovers_from_transient_failures() {
     use std::sync::atomic::AtomicUsize;
@@ -1114,8 +1041,7 @@ async fn build_chain_with_retries_allows_recovery_within_budget() {
 }
 
 #[tokio::test]
-async fn live_verification_retains_pending_origins_and_preserves_reorg_halt() {
-    use crate::scraper_websocket::RollbackRecoveryRequired;
+async fn live_verification_retries_outages_and_halts_on_confirmed_reorgs() {
     use axum::{routing::post, Json, Router};
     use ethers::types::{Block, H256 as EthersH256, U64};
     use hyperlane_base::db::HyperlaneRocksDB;
@@ -1136,6 +1062,9 @@ async fn live_verification_retains_pending_origins_and_preserves_reorg_halt() {
                 let calls = rpc_calls.clone();
                 let recovered = rpc_recovered.clone();
                 async move {
+                    if request["method"] == "eth_blockNumber" {
+                        return Json(json!({"jsonrpc":"2.0", "id":request["id"], "result":"0x64"}));
+                    }
                     assert_eq!(request["method"], "eth_getBlockByNumber");
                     let mut response = if calls.fetch_add(1, Ordering::SeqCst) < failures
                         && !recovered.load(Ordering::Acquire)
@@ -1191,17 +1120,14 @@ async fn live_verification_retains_pending_origins_and_preserves_reorg_halt() {
         let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
         let result = Relayer::build_origins(&settings, db, core_metrics, &critical_errors).await;
         if mismatch {
-            assert!(result.unwrap_err().is::<RollbackRecoveryRequired>());
-            assert_eq!(
-                calls.load(Ordering::SeqCst),
-                1,
-                "confirmed reorg must not retry"
-            );
-            assert!(affected_db
-                .retrieve_value_by_key::<_, u64>(b"scraper_websocket_rollback_recovery", &mailbox)
-                .unwrap()
-                .is_some());
-        } else {
+            assert!(result
+                .unwrap_err()
+                .is::<crate::scraper_websocket::RollbackRecoveryRequired>());
+            assert!(affected_db.confirmed_discovery_conflict().unwrap());
+            server.abort();
+            continue;
+        }
+        {
             let origins = result.unwrap();
             assert!(origins.contains_key(&healthy));
             assert!(origins.contains_key(&affected));
@@ -1211,7 +1137,10 @@ async fn live_verification_retains_pending_origins_and_preserves_reorg_halt() {
                     .live_block_verification_pending(),
                 failures == usize::MAX
             );
-            assert!(!origins[&healthy].database.live_block_verification_pending());
+            assert_eq!(
+                origins[&healthy].database.live_block_verification_pending(),
+                failures == usize::MAX
+            );
             assert!(
                 calls.load(Ordering::SeqCst) > 1,
                 "transient verification must retry"

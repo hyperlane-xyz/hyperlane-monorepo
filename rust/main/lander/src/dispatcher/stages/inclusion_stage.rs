@@ -1,6 +1,7 @@
 use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -581,6 +582,9 @@ impl InclusionStage {
         tx: Transaction,
         state: &DispatcherState,
     ) -> Result<SubmitOutcome, LanderError> {
+        // process_pending_tx counts this attempt before preflight. Preserve uncertain
+        // earlier broadcasts, including retries inside this call that returned no hash.
+        let attempted = AtomicBool::new(tx.submission_attempts > 1 || !tx.tx_hashes.is_empty());
         // Submission retries retain tx fields (e.g. gas price) set by previous
         // attempts. The retry future borrows this local mutex until it completes.
         let tx_shared = Mutex::new(tx);
@@ -593,25 +597,35 @@ impl InclusionStage {
                 let mut tx_guard = tx_shared.lock().await;
                 let origins = match state.origin_dbs.get() {
                     Some(origins) => {
-                        let mut selected = Vec::<&dyn HyperlaneDb>::new();
+                        let mut selected = Vec::<(&dyn HyperlaneDb, u64)>::new();
                         for payload in &tx_guard.payload_details {
                             match payload.origin {
                                 Some(origin) => match origins.get(&origin) {
-                                    Some(db) => selected.push(db),
+                                    Some(db) => selected.push((db, payload.origin_generation)),
                                     None => return Ok(Some(LanderError::TxSubmissionDeferred)),
                                 },
                                 // Older persisted payloads have no origin. Conservatively
                                 // gate them against every configured origin until drained.
-                                None => selected.extend(origins.values().map(|db| db as &dyn HyperlaneDb)),
+                                None => selected.extend(origins.values().map(|db| (db as &dyn HyperlaneDb, payload.origin_generation))),
                             }
                         }
                         selected
                     }
                     None => Vec::new(),
                 };
-                let submit_result = HyperlaneRocksDB::with_consistent_origins(
+                if origins.iter().any(|(db, generation)| db.discovery_generation() != *generation)
+                    && !attempted.load(Ordering::Relaxed)
+                {
+                    return Err(LanderError::TxDropped(TxDropReason::Other("Origin history changed before submission".into())));
+                }
+                // Previously broadcast transactions remain tracked, but are never rebroadcast
+                // with metadata prepared against an orphaned history.
+                let submit_result = HyperlaneRocksDB::with_origin_generations(
                     &origins,
-                    with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)),
+                    async {
+                        attempted.store(true, Ordering::Relaxed);
+                        with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)).await
+                    },
                 ).await.unwrap_or_else(|error| {
                     warn!(?error, "Origin recovery deferred queued transaction submission");
                     Err(LanderError::TxSubmissionDeferred)

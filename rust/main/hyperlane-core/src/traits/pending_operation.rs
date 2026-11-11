@@ -78,6 +78,16 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// The domain this originates from.
     fn origin_domain_id(&self) -> u32;
 
+    /// Origin discovery generation used while preparing this operation.
+    fn origin_generation(&self) -> u64 {
+        0
+    }
+
+    /// Whether origin recovery invalidated work that has not been submitted.
+    fn is_invalidated(&self) -> bool {
+        false
+    }
+
     /// Get the operation status from the local db, if there is one
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus>;
 

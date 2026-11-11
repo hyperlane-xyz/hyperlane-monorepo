@@ -35,6 +35,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
 
     FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,
@@ -72,6 +73,7 @@ pub(crate) fn create_test_transaction() -> Transaction {
         tx_hashes: vec![],
         vm_specific_data: VmSpecificTxData::Aleo(Box::new(precursor)),
         payload_details: vec![PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,

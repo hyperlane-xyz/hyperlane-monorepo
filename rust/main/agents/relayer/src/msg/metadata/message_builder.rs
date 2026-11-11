@@ -22,7 +22,6 @@ use super::{
     base::{IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
-    multisig::{MultisigIsmMetadataBuilder, MAX_VALIDATOR_SET_SIZE},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
     sealevel_composite::SealevelCompositeIsmMetadataBuilder,
@@ -73,99 +72,6 @@ impl MetadataBuilder for MessageMetadataBuilder {
 }
 
 impl MessageMetadataBuilder {
-    /// Discover reusable RPC data only. Never fetch signatures, replay Merkle leaves,
-    /// invoke CCIP services, report verification, or produce delivery metadata.
-    pub(crate) async fn prepare(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> Result<(), MetadataBuildError> {
-        let mut pending = vec![(self.root_ism, 0u32)];
-        let mut count = 0u32;
-        while let Some((address, depth)) = pending.pop() {
-            if depth >= self.max_ism_depth {
-                return Err(MetadataBuildError::MaxIsmDepthExceeded(self.max_ism_depth));
-            }
-            if count >= self.max_ism_count {
-                return Err(MetadataBuildError::MaxIsmCountReached(self.max_ism_count));
-            }
-            count = count.saturating_add(1);
-            let (_, module_type) = ism_and_module_type(self.clone(), address).await?;
-            match module_type {
-                ModuleType::Routing => {
-                    let ism = self
-                        .base
-                        .build_routing_ism(address)
-                        .await
-                        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-                    let policy = self
-                        .base
-                        .ism_cache_policy_classifier()
-                        .get_cache_policy(
-                            self.root_ism,
-                            ism.domain(),
-                            module_type,
-                            self.app_context.as_ref(),
-                        )
-                        .await;
-                    let module = RoutingIsmMetadataBuilder::new(self.clone())
-                        .route(ism.as_ref(), message, policy)
-                        .await?;
-                    pending.push((module, depth.saturating_add(1)));
-                }
-                ModuleType::Aggregation => {
-                    let ism = self
-                        .base
-                        .build_aggregation_ism(address)
-                        .await
-                        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-                    let (modules, _) = AggregationIsmMetadataBuilder::new(self.clone())
-                        .call_modules_and_threshold(ism, message)
-                        .await?;
-                    // Bound work before allocating another recursive frontier.
-                    if modules.len().saturating_add(pending.len())
-                        > usize::try_from(self.max_ism_count.saturating_sub(count))
-                            .expect("ISM limit fits in usize")
-                    {
-                        return Err(MetadataBuildError::MaxIsmCountReached(self.max_ism_count));
-                    }
-                    pending.extend(
-                        modules
-                            .into_iter()
-                            .map(|module| (module, depth.saturating_add(1))),
-                    );
-                }
-                ModuleType::MessageIdMultisig | ModuleType::MerkleRootMultisig => {
-                    let ism = self
-                        .base
-                        .build_multisig_ism(address)
-                        .await
-                        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-                    let (validators, _) = if module_type == ModuleType::MessageIdMultisig {
-                        MessageIdMultisigMetadataBuilder::new(self.clone())
-                            .call_validators_and_threshold(ism.as_ref(), message)
-                            .await?
-                    } else {
-                        MerkleRootMultisigMetadataBuilder::new(self.clone())
-                            .call_validators_and_threshold(ism.as_ref(), message)
-                            .await?
-                    };
-                    if validators.len() > MAX_VALIDATOR_SET_SIZE {
-                        return Err(MetadataBuildError::MaxValidatorCountReached(
-                            u32::try_from(validators.len()).unwrap_or(u32::MAX),
-                        ));
-                    }
-                    self.base
-                        .prepare_validator_storages(&validators)
-                        .await
-                        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-                }
-                // These modules still use their normal checked delivery path.
-                _ => {}
-            }
-        }
-        Ok(())
-    }
-
     /// Missing-signature probes use pooled clients. Only a normal checked build
     /// can produce delivery metadata, including any aggregation fallbacks.
     pub(crate) async fn build_for_delivery(

@@ -18,7 +18,7 @@ use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, Sender},
-        watch, RwLock,
+        RwLock,
     },
     task::{JoinHandle, JoinSet},
 };
@@ -46,7 +46,7 @@ use crate::relay_api::{
     RelayApiMetrics,
 };
 use crate::scraper_websocket::{
-    RollbackRecoveryRequired, ScraperAuthorityReceiver, ScraperWebSocketMonitor,
+    Kind, RollbackRecoveryRequired, RpcRecovery, ScraperAuthorityReceiver, ScraperWebSocketMonitor,
 };
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -58,7 +58,6 @@ use crate::{
     msg::{
         blacklist::AddressBlacklist,
         db_loader::{MessageDbLoader, MessageDbLoaderMetricsShared},
-        early_preparation::EarlyPreparation,
         message_processor::{
             MessageProcessor, MessageProcessorMetrics, MESSAGE_PROCESSOR_INGRESS_CAPACITY,
         },
@@ -264,9 +263,7 @@ pub struct Relayer {
     critical_errors: CriticalErrorTracker,
     runtime_metrics: RuntimeMetrics,
     scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
-    early_preparation: Option<Arc<EarlyPreparation>>,
     scraper_websocket_authority: HashMap<u32, ScraperAuthorityReceiver>,
-    gas_payment_websocket_authority: HashMap<u32, watch::Receiver<bool>>,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
@@ -508,62 +505,14 @@ impl BaseAgent for Relayer {
             .values()
             .map(Origin::scraper_source)
             .collect::<Result<Vec<_>>>()?;
-        let early_preparation = settings
-            .websocket_url
-            .as_ref()
-            .map(|_| {
-                EarlyPreparation::new(
-                    msg_ctxs
-                        .iter()
-                        .map(|(key, context)| {
-                            ((key.origin.id(), key.destination.id()), context.clone())
-                        })
-                        .collect(),
-                    message_whitelist.clone(),
-                    message_blacklist.clone(),
-                    address_blacklist.clone(),
-                    runtime_denylist.clone(),
-                    &core_metrics,
-                )
-                .map(Arc::new)
-            })
-            .transpose()?;
-        let scraper_websocket_monitor = settings
-            .websocket_url
-            .map(|url| {
-                let preparation = early_preparation
-                    .clone()
-                    .expect("websocket preparation initialized");
-                let early_domains = origins
-                    .values()
-                    .filter(|origin| {
-                        settings.allow_contract_call_caching
-                            && settings.websocket_authority_enabled
-                            && matches!(
-                                origin.chain_conf.connection,
-                                hyperlane_base::settings::ChainConnectionConf::Ethereum(_)
-                            )
-                    })
-                    .map(|origin| origin.domain.id())
-                    .collect();
-                ScraperWebSocketMonitor::new_with_authority(
-                    url.expose_secret().clone(),
-                    scraper_sources,
-                    &core_metrics,
-                    settings.websocket_authority_enabled,
-                )
-                .map(|monitor| monitor.with_preparation(preparation, &early_domains))
-            })
-            .transpose()?;
-        let gas_payment_websocket_authority = origins
-            .keys()
-            .filter_map(|domain| {
-                scraper_websocket_monitor
-                    .as_ref()
-                    .and_then(|monitor| monitor.gas_payment_authority_receiver(domain.id()))
-                    .map(|authority| (domain.id(), authority))
-            })
-            .collect();
+        let scraper_websocket_monitor = Some(ScraperWebSocketMonitor::new_with_authority(
+            settings
+                .websocket_url
+                .map(|url| url.expose_secret().clone()),
+            scraper_sources,
+            &core_metrics,
+            settings.websocket_authority_enabled,
+        )?);
         let scraper_websocket_authority = origins
             .keys()
             .filter_map(|domain| {
@@ -601,9 +550,7 @@ impl BaseAgent for Relayer {
             critical_errors,
             runtime_metrics,
             scraper_websocket_monitor,
-            early_preparation,
             scraper_websocket_authority,
-            gas_payment_websocket_authority,
             tokio_console_server: Some(tokio_console_server),
             origins,
             destinations,
@@ -638,12 +585,10 @@ impl BaseAgent for Relayer {
         let task_monitor = tokio_metrics::TaskMonitor::new();
         if let Some(monitor) = self.scraper_websocket_monitor.take() {
             let scraper_websocket = tokio::task::Builder::new()
-                .name("scraper_websocket_shadow")
+                .name("origin_discovery")
                 .spawn(TaskMonitor::instrument(
                     &task_monitor,
-                    monitor
-                        .run()
-                        .instrument(info_span!("ScraperWebSocketShadow")),
+                    monitor.run().instrument(info_span!("OriginDiscovery")),
                 ))
                 .expect("spawning tokio task from Builder is infallible");
             tasks.push(scraper_websocket);
@@ -825,29 +770,30 @@ impl BaseAgent for Relayer {
                 tasks.push(message_sync);
             }
 
-            let interchain_gas_payment_sync = match self
-                .run_interchain_gas_payment_sync(
-                    origin,
-                    maybe_broadcaster.clone(),
-                    task_monitor.clone(),
-                )
-                .await
-            {
-                Ok(task) => task,
-                Err(err) => {
-                    self.critical_errors.record(
-                        &origin.domain,
-                        CriticalErrorSource::GasPaymentSync,
-                        &err,
-                        "Failed to run interchain gas payment sync",
-                    );
-                    continue;
+            if scraper_authority.is_none() {
+                let interchain_gas_payment_sync = match self
+                    .run_interchain_gas_payment_sync(
+                        origin,
+                        maybe_broadcaster.clone(),
+                        task_monitor.clone(),
+                    )
+                    .await
+                {
+                    Ok(task) => task,
+                    Err(err) => {
+                        self.critical_errors.record(
+                            &origin.domain,
+                            CriticalErrorSource::GasPaymentSync,
+                            &err,
+                            "Failed to run interchain gas payment sync",
+                        );
+                        continue;
+                    }
+                };
+                if let Some(task) = interchain_gas_payment_sync {
+                    tasks.push(task);
                 }
-            };
-            if let Some(task) = interchain_gas_payment_sync {
-                tasks.push(task);
             }
-
             if scraper_authority.is_none() {
                 let merkle_tree_hook_sync = match self
                     .run_merkle_tree_hook_sync(
@@ -954,46 +900,6 @@ impl BaseAgent for Relayer {
 }
 
 type PrepQueue = HashMap<u32, OpQueue>;
-/// Gas RPC runs until the scraper subscription is usable, including replay recovery.
-/// Dropping the RPC future on cutover cancels its indexing before waiting for
-/// the next outage. Recreating it rebuilds the cursor from durable RPC progress.
-pub(super) async fn run_gas_payment_fallback<F: std::future::Future<Output = ()>>(
-    mut authority: Option<watch::Receiver<bool>>,
-    mut on_authority: impl FnMut(),
-    mut run_rpc: impl FnMut() -> F,
-) {
-    loop {
-        while let Some(receiver) = authority.as_mut() {
-            if !*receiver.borrow_and_update() {
-                break;
-            }
-            on_authority();
-            if receiver.changed().await.is_err() {
-                authority = None;
-            }
-        }
-        info!("Starting gas payment RPC indexing fallback");
-        tokio::select! {
-            biased;
-            changed = async { authority.as_mut().expect("guarded authority receiver").changed().await }, if authority.is_some() => {
-                if changed.is_err() {
-                    authority = None;
-                }
-                continue;
-            }
-            _ = run_rpc() => {
-                warn!("Gas payment RPC indexing exited; retrying");
-            }
-        }
-        // Retry failed RPC indexing, but react immediately if the socket returns.
-        tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(5)) => {},
-            changed = async { authority.as_mut().expect("guarded authority receiver").changed().await }, if authority.is_some() => {
-                if changed.is_err() { authority = None; }
-            }
-        }
-    }
-}
 
 impl Relayer {
     async fn build_router(
@@ -1178,6 +1084,7 @@ impl Relayer {
         let index_settings = origin.chain_conf.index_settings().clone();
         let message_sync = origin.message_sync.clone();
         let merkle_sync = origin.merkle_tree_hook_sync.clone();
+        let gas_sync = origin.interchain_gas_payment_sync.clone();
         let database = origin.database.clone();
         let critical_errors = self.critical_errors.clone();
         tokio::spawn(async move {
@@ -1209,6 +1116,7 @@ impl Relayer {
                 let message_index_settings = index_settings.clone();
                 let message_critical_errors = critical_errors.clone();
                 let message_contract_sync = message_sync.clone();
+                let message_recovery = authority.recovery(Kind::Dispatch);
                 syncs.spawn(TaskMonitor::instrument(
                     &task_monitor,
                     async move {
@@ -1217,6 +1125,7 @@ impl Relayer {
                             message_contract_sync,
                             message_index_settings,
                             message_critical_errors,
+                            Some(message_recovery),
                         )
                         .await;
                     }
@@ -1227,6 +1136,7 @@ impl Relayer {
                 let merkle_index_settings = index_settings.clone();
                 let merkle_critical_errors = critical_errors.clone();
                 let merkle_contract_sync = merkle_sync.clone();
+                let merkle_recovery = authority.recovery(Kind::Merkle);
                 let merkle_receiver =
                     BroadcastMpscSender::map_get_receiver(broadcaster.as_ref()).await;
                 syncs.spawn(TaskMonitor::instrument(
@@ -1238,11 +1148,32 @@ impl Relayer {
                             merkle_contract_sync,
                             merkle_critical_errors,
                             merkle_receiver,
+                            Some(merkle_recovery),
                         )
                         .await;
                     }
                     .instrument(info_span!("MerkleTreeHookSync")),
                 ));
+
+                if let Some(gas_sync) = gas_sync.clone() {
+                    let domain = origin_domain.clone();
+                    let settings = index_settings.clone();
+                    let errors = critical_errors.clone();
+                    let recovery = authority.recovery(Kind::Gas);
+                    let receiver =
+                        BroadcastMpscSender::map_get_receiver(broadcaster.as_ref()).await;
+                    syncs.spawn(async move {
+                        Self::interchain_gas_payments_sync_task(
+                            &domain,
+                            settings,
+                            gas_sync,
+                            errors,
+                            receiver,
+                            Some(recovery),
+                        )
+                        .await;
+                    });
+                }
 
                 tokio::select! {
                     changed = authority.changed(), if authority_channel_open => {
@@ -1310,6 +1241,7 @@ impl Relayer {
                         contract_sync,
                         index_settings,
                         critical_errors,
+                        None,
                     )
                     .await;
                 }
@@ -1323,6 +1255,7 @@ impl Relayer {
         contract_sync: Arc<dyn ContractSyncer<HyperlaneMessage>>,
         index_settings: IndexSettings,
         critical_errors: CriticalErrorTracker,
+        recovery: Option<RpcRecovery>,
     ) {
         let cursor_instantiation_result =
             Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings).await;
@@ -1342,7 +1275,10 @@ impl Relayer {
             }
         };
         let label = "dispatched_messages";
-        contract_sync.clone().sync(label, cursor.into()).await;
+        contract_sync
+            .clone()
+            .sync(label, RpcRecovery::track(cursor, recovery).into())
+            .await;
         info!(chain = origin.name(), label, "contract sync task exit");
     }
 
@@ -1360,10 +1296,6 @@ impl Relayer {
         };
         let critical_errors = self.critical_errors.clone();
         let database = origin.database.clone();
-        let authority = self
-            .gas_payment_websocket_authority
-            .get(&origin.domain.id())
-            .cloned();
 
         let origin_domain = origin.domain.clone();
         let index_settings = origin.chain_conf.index_settings().clone();
@@ -1376,34 +1308,24 @@ impl Relayer {
                 &task_monitor,
                 async move {
                     database.wait_for_live_block_verification().await;
-                    run_gas_payment_fallback(
-                        authority,
-                        || {
-                            critical_errors
-                                .clear(&origin_domain, CriticalErrorSource::GasPaymentSync);
-                        },
-                        || {
-                            let origin_domain = origin_domain.clone();
-                            let index_settings = index_settings.clone();
-                            let contract_sync = contract_sync.clone();
-                            let critical_errors = critical_errors.clone();
-                            let broadcaster = broadcaster.clone();
-                            async move {
-                                let tx_id_receiver =
-                                    BroadcastMpscSender::map_get_receiver(broadcaster.as_ref())
-                                        .await;
-                                Self::interchain_gas_payments_sync_task(
-                                    &origin_domain,
-                                    index_settings,
-                                    contract_sync,
-                                    critical_errors,
-                                    tx_id_receiver,
-                                )
-                                .await;
-                            }
-                        },
-                    )
-                    .await;
+                    loop {
+                        let tx_id_receiver =
+                            BroadcastMpscSender::map_get_receiver(broadcaster.as_ref()).await;
+                        Self::interchain_gas_payments_sync_task(
+                            &origin_domain,
+                            index_settings.clone(),
+                            contract_sync.clone(),
+                            critical_errors.clone(),
+                            tx_id_receiver,
+                            None,
+                        )
+                        .await;
+                        warn!(
+                            chain = origin_domain.name(),
+                            "Gas payment RPC indexing exited; retrying"
+                        );
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                    }
                 }
                 .instrument(info_span!("IgpSync")),
             ))
@@ -1417,6 +1339,7 @@ impl Relayer {
         contract_sync: Arc<dyn ContractSyncer<InterchainGasPayment>>,
         critical_errors: CriticalErrorTracker,
         tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
+        recovery: Option<RpcRecovery>,
     ) {
         let cursor = match Self::instantiate_cursor_with_retries(
             contract_sync.clone(),
@@ -1441,7 +1364,10 @@ impl Relayer {
         let label = "gas_payments";
         contract_sync
             .clone()
-            .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+            .sync(
+                label,
+                SyncOptions::new(Some(RpcRecovery::track(cursor, recovery)), tx_id_receiver),
+            )
             .await;
         info!(chain = origin.name(), label, "contract sync task exit");
     }
@@ -1472,6 +1398,7 @@ impl Relayer {
                         contract_sync,
                         critical_errors,
                         tx_id_receiver,
+                        None,
                     )
                     .await;
                 }
@@ -1486,6 +1413,7 @@ impl Relayer {
         contract_sync: Arc<dyn ContractSyncer<MerkleTreeInsertion>>,
         critical_errors: CriticalErrorTracker,
         tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
+        recovery: Option<RpcRecovery>,
     ) {
         let cursor_instantiation_result =
             Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
@@ -1508,7 +1436,10 @@ impl Relayer {
         let label = "merkle_tree_hook";
         contract_sync
             .clone()
-            .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+            .sync(
+                label,
+                SyncOptions::new(Some(RpcRecovery::track(cursor, recovery)), tx_id_receiver),
+            )
             .await;
         info!(chain = origin.name(), label, "contract sync task exit");
     }
@@ -1563,11 +1494,8 @@ impl Relayer {
         let runtime_denylist = self.runtime_denylist.clone();
         let metric_app_contexts = self.metric_app_contexts.clone();
         let max_retries = self.max_retries;
+        let discovery_notification = database.discovery_notification();
         let origin_domain = origin.domain.clone();
-        let preparation_notification = self
-            .early_preparation
-            .as_ref()
-            .and_then(|preparation| preparation.notification(origin.domain.id()));
         let critical_errors = self.critical_errors.clone();
         let task_name = format!("message_db_loader_init::{}", origin_domain.name());
         let span = info_span!("MessageDbLoader", origin=%origin_domain.name());
@@ -1623,7 +1551,8 @@ impl Relayer {
                         }
                     }
                 };
-                message_db_loader.set_preparation_notification(preparation_notification);
+
+                message_db_loader.set_discovery_notification(Some(discovery_notification));
                 message_db_loader.set_runtime_denylist(runtime_denylist);
                 message_db_loader.set_index_notifications(
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
@@ -1829,7 +1758,6 @@ impl Relayer {
                 Ok(origin) => {
                     origins.insert(domain, origin);
                 }
-                // A confirmed reorg still halts the entire relayer before consumers start.
                 Err(error) if error.is::<RollbackRecoveryRequired>() => return Err(error),
                 Err(error) => critical_errors.record(
                     &domain,

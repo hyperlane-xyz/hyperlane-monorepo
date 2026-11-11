@@ -23,6 +23,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
 
     FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{payload_uuid}"),
             origin: None,

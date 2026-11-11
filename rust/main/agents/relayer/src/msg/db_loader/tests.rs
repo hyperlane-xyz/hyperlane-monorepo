@@ -2408,7 +2408,7 @@ async fn denied_message_logs_again_after_the_ttl() {
 }
 
 #[tokio::test]
-async fn confirmed_preparation_wakes_loader_before_fallback_and_reopens_consumed_ranges() {
+async fn discovery_wakes_loader_before_fallback_and_reopens_consumed_ranges() {
     for with_index_notifications in [false, true] {
         test_utils::run_test_db(|db| async move {
             let origin = dummy_domain(0, "dummy_origin_domain");
@@ -2422,20 +2422,7 @@ async fn confirmed_preparation_wakes_loader_before_fallback_and_reopens_consumed
                 OptionalCache::new(None),
                 with_index_notifications.then_some(receiver),
             );
-            let preparation = crate::msg::early_preparation::EarlyPreparation::new(
-                loader
-                    .destination_ctxs
-                    .iter()
-                    .map(|(destination, ctx)| ((origin.id(), *destination), ctx.clone()))
-                    .collect(),
-                Default::default(),
-                Default::default(),
-                Arc::new(AddressBlacklist::new(vec![])),
-                Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([]))),
-                &CoreMetrics::new("early-loader", 9090, prometheus::Registry::new()).unwrap(),
-            )
-            .unwrap();
-            loader.set_preparation_notification(preparation.notification(origin.id()));
+            loader.set_discovery_notification(Some(db.discovery_notification()));
             finish_legacy_migration(&mut loader).await;
             loader.destination_iterators[0].high_nonce = Some(6);
             loader.destination_iterators[0].low_nonce = None;
@@ -2444,7 +2431,7 @@ async fn confirmed_preparation_wakes_loader_before_fallback_and_reopens_consumed
             let notify = async {
                 sleep(Duration::from_millis(10)).await;
                 add_db_entry(&db, &late, 0);
-                preparation.confirmed(&late);
+                db.discovery_notification().notify_waiters();
             };
             timeout(Duration::from_millis(250), async {
                 let (result, _) = tokio::join!(loader.tick(), notify);

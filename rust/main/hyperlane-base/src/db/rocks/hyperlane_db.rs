@@ -2,7 +2,7 @@ use std::{
     future::{poll_fn, Future},
     ops::Add,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, OnceLock,
     },
     task::Poll,
@@ -35,6 +35,10 @@ use super::{DbError, GasPaymentSequenceConflict, TypedDB, DB};
 // started with the same database and domain.
 
 const INDEXED_EVENT_CONFLICT: &str = "indexed_event_conflict_v1_";
+
+#[path = "discovery.rs"]
+mod discovery;
+pub use discovery::DiscoveryCheckpoint;
 
 const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
@@ -87,6 +91,9 @@ pub struct OriginConsistency {
     admission: Mutex<()>,
     changed: tokio::sync::Notify,
     verification_pending: AtomicBool,
+    discovery_changed: Arc<tokio::sync::Notify>,
+    discovery_enabled: AtomicBool,
+    discovery_generation: AtomicU64,
 }
 
 impl std::ops::Deref for HyperlaneRocksDB {
@@ -176,7 +183,20 @@ impl HyperlaneRocksDB {
         origins: &[&dyn HyperlaneDb],
         future: F,
     ) -> DbResult<F::Output> {
-        let mut origins = origins.to_vec();
+        let generations: Vec<_> = origins
+            .iter()
+            .map(|db| (*db, db.discovery_generation()))
+            .collect();
+        Self::with_origin_generations(&generations, future).await
+    }
+
+    /// Refuse stale prepared work, including after recovery has reopened an origin.
+    pub async fn with_origin_generations<F: Future>(
+        origins: &[(&dyn HyperlaneDb, u64)],
+        future: F,
+    ) -> DbResult<F::Output> {
+        let generations = origins.to_vec();
+        let mut origins: Vec<_> = origins.iter().map(|(db, _)| *db).collect();
         origins.sort_unstable_by_key(|db| db.domain().id());
         origins.dedup_by_key(|db| db.domain().id());
         let states: Vec<_> = origins
@@ -190,7 +210,12 @@ impl HyperlaneRocksDB {
         let mut future = std::pin::pin!(future);
         poll_fn(|cx| {
             let _admission: Vec<_> = states.iter().map(|state| state.admission.lock()).collect();
-            for db in &origins {
+            for (db, generation) in &generations {
+                if db.discovery_generation() != *generation {
+                    return Poll::Ready(Err(DbError::Other(
+                        "Prepared work belongs to an orphaned discovery generation".into(),
+                    )));
+                }
                 if let Err(error) = db.ensure_no_indexed_event_conflict() {
                     return Poll::Ready(Err(error));
                 }
@@ -209,7 +234,11 @@ impl HyperlaneRocksDB {
 
     fn check_event_consistency(&self, matches: bool, kind: &'static str) -> Result<()> {
         if !matches {
-            self.mark_indexed_event_conflict()?;
+            if self.6.discovery_enabled.load(Ordering::Acquire) {
+                self.request_discovery_recovery()?;
+            } else {
+                self.mark_indexed_event_conflict()?;
+            }
             return Err(ConflictingEvent(kind).into());
         }
         Ok(())
@@ -612,7 +641,9 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
         let _guard = self.2.lock();
+        self.ensure_discovery_writable()?;
         let payment = *(indexed_payment.inner());
+        self.check_discovery_gas(payment, log_meta)?;
         let gas_payment_sequence = if let Some(sequence) = indexed_payment.sequence {
             let stored_payment = self.retrieve_gas_payment_by_sequence(&sequence)?;
             let stored_block = self.retrieve_gas_payment_block_by_sequence(&sequence)?;
@@ -665,23 +696,8 @@ impl HyperlaneRocksDB {
             None
         };
 
-        let gas_processing_successful = self.process_gas_payment_inner(payment, log_meta)?;
-        let Some(gas_payment_sequence) = gas_payment_sequence else {
-            return Ok(gas_processing_successful);
-        };
-
-        let mut batch = self.batch();
-        batch.store_keyed_encodable(
-            GAS_PAYMENT_BY_SEQUENCE,
-            &gas_payment_sequence,
-            indexed_payment.inner(),
-        );
-        batch.store_keyed_encodable(
-            GAS_PAYMENT_BLOCK_BY_SEQUENCE,
-            &gas_payment_sequence,
-            &log_meta.block_number,
-        );
-        batch.commit()?;
+        let gas_processing_successful =
+            self.process_gas_payment_inner(payment, log_meta, gas_payment_sequence)?;
 
         Ok(gas_processing_successful)
     }
@@ -695,15 +711,18 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
         let _guard = self.2.lock();
-        self.process_gas_payment_inner(payment, log_meta)
+        self.process_gas_payment_inner(payment, log_meta, None)
     }
 
     fn process_gas_payment_inner(
         &self,
         payment: InterchainGasPayment,
         log_meta: &LogMeta,
+        sequence: Option<u32>,
     ) -> DbResult<bool> {
+        self.ensure_discovery_writable()?;
         let payment_meta = log_meta.into();
+        self.check_discovery_gas(payment, log_meta)?;
         // If the gas payment has already been processed, do nothing
         if self
             .retrieve_processed_by_gas_payment_meta(&payment_meta)?
@@ -726,11 +745,42 @@ impl HyperlaneRocksDB {
         let total = existing_payment.add(payment);
         let mut batch = self.batch();
         batch.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, &payment_meta, &true);
+        if self.6.discovery_enabled.load(Ordering::Acquire) {
+            batch.store_keyed_encodable(
+                discovery::GAS_FINGERPRINT,
+                &payment_meta,
+                &Self::gas_fingerprint(payment, log_meta),
+            );
+        }
         batch.store_keyed_encodable(
             GAS_PAYMENT_FOR_MESSAGE_ID,
             &gas_payment_key,
             &InterchainGasPaymentData::from(total),
         );
+        if let Some(sequence) = sequence {
+            batch.store_keyed_encodable(GAS_PAYMENT_BY_SEQUENCE, &sequence, &payment);
+            batch.store_keyed_encodable(
+                GAS_PAYMENT_BLOCK_BY_SEQUENCE,
+                &sequence,
+                &log_meta.block_number,
+            );
+        }
+        self.record_discovery(
+            &mut batch,
+            DiscoveryCheckpoint {
+                height: log_meta.block_number,
+                hash: log_meta.block_hash,
+            },
+            discovery::Event::Gas {
+                id: payment.message_id,
+                destination: payment.destination,
+                payment: payment.payment,
+                gas: payment.gas_amount,
+                tx: log_meta.transaction_id,
+                log: log_meta.log_index.as_u64(),
+                sequence,
+            },
+        )?;
         batch.commit()?;
 
         // Return true to indicate the gas payment was processed for the first time
@@ -1589,34 +1639,8 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored: u32 = 0;
         for (message, meta) in messages {
-            let _guard = self.4.lock();
-            if self
-                .retrieve_message_by_nonce(message.inner().nonce)?
-                .is_some_and(|stored| stored != *message.inner())
-            {
-                self.mark_indexed_event_conflict()?;
-                return Err(ConflictingEvent("dispatch").into());
-            }
-            self.check_event_consistency(
-                self.retrieve_dispatched_block_number_by_nonce(&message.inner().nonce)?
-                    .is_none_or(|block| block == meta.block_number),
-                "dispatch block",
-            )?;
-            let stored_message = self.store_message_inner(message.inner(), meta.block_number)?;
-            if stored_message {
+            if self.store_indexed_dispatch(message.inner(), meta)? {
                 stored = stored.saturating_add(1);
-            }
-            // Sealevel's basic log metadata carries a zero transaction ID, which
-            // parity backfill and CCIP-read treat as absent. Never write it, so it cannot
-            // replace a known ID (e.g. backfilled from the scraper); a nonzero ID
-            // still replaces it. Sealevel relayer indexing is finalized, so a kept
-            // ID is never orphaned by a reorg re-index.
-            if meta.transaction_id != H512::zero() {
-                self.store_value_by_key(
-                    MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID,
-                    &message.inner().id(),
-                    &meta.transaction_id,
-                )?;
             }
         }
         if stored > 0 {
@@ -1669,7 +1693,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     async fn store_logs(&self, leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)]) -> Result<u32> {
         let mut insertions: u32 = 0;
         for (insertion, meta) in leaves {
-            if self.process_tree_insertion(insertion.inner(), meta.block_number)? {
+            if self.store_indexed_merkle(insertion.inner(), meta)? {
                 insertions = insertions.saturating_add(1);
             }
         }
@@ -1792,11 +1816,33 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 impl HyperlaneDb for HyperlaneRocksDB {
+    fn discovery_generation(&self) -> u64 {
+        self.6.discovery_generation.load(Ordering::Acquire)
+    }
+
+    fn discovery_message_current(&self, message: &HyperlaneMessage) -> DbResult<bool> {
+        Ok(!self.6.discovery_enabled.load(Ordering::Acquire)
+            || self.retrieve_message_id_by_nonce(&message.nonce)? == Some(message.id()))
+    }
+    fn discovery_message_provisional(&self, nonce: u32) -> DbResult<bool> {
+        Ok(
+            match (
+                self.discovery_checkpoint()?,
+                self.retrieve_dispatched_block_number_by_nonce(&nonce)?,
+            ) {
+                (Some(checkpoint), Some(height)) => height > checkpoint.height,
+                _ => false,
+            },
+        )
+    }
     fn origin_consistency(&self) -> Option<&OriginConsistency> {
         Some(&self.6)
     }
 
     fn ensure_no_indexed_event_conflict(&self) -> DbResult<()> {
+        if self.discovery_recovery_pending()? {
+            return Err(DbError::Other("Origin discovery is recovering".into()));
+        }
         if self.6.verification_pending.load(Ordering::Acquire) {
             return Err(DbError::Other(
                 "Origin live-block verification is pending".into(),
@@ -1864,23 +1910,19 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_message_processed(&self, message: &HyperlaneMessage) -> DbResult<()> {
-        self.store_and_delete_batch(
-            [(
-                NONCE_PROCESSED.as_bytes().to_vec(),
-                message.nonce.to_vec(),
-                true.to_vec(),
-            )],
-            [
-                (
-                    Self::pending_message_destination_prefix(message.destination),
-                    message.nonce.to_vec(),
-                ),
-                (
-                    TERMINALLY_DROPPED_MESSAGE_BY_ID.as_bytes().to_vec(),
-                    message.id().to_vec(),
-                ),
-            ],
-        )
+        let _messages = self.4.lock();
+        let mut batch = self.batch();
+        batch.store_keyed_encodable(discovery::PROCESSED_MESSAGE, &message.id(), &true);
+        // A receipt for an orphaned message must never mark its replacement nonce delivered.
+        if self.retrieve_message_id_by_nonce(&message.nonce)? == Some(message.id()) {
+            batch.store_keyed_encodable(NONCE_PROCESSED, &message.nonce, &true);
+            batch.delete_keyed(
+                Self::pending_message_destination_prefix(message.destination),
+                &message.nonce,
+            );
+        }
+        batch.delete_keyed(TERMINALLY_DROPPED_MESSAGE_BY_ID, &message.id());
+        batch.commit()
     }
 
     fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>> {

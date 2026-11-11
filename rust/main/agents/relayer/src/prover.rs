@@ -49,6 +49,12 @@ pub enum ProverError {
 }
 
 impl Prover {
+    pub(crate) fn truncate(
+        &mut self,
+        count: usize,
+    ) -> hyperlane_core::accumulator::incremental::IncrementalMerkle {
+        self.tree.truncate(count)
+    }
     /// Push a leaf to the tree. Appends it to the first unoccupied slot
     ///
     /// This will fail if the underlying tree is full.

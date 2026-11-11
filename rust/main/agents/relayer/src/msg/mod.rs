@@ -18,7 +18,6 @@
 
 pub(crate) mod blacklist;
 pub(crate) mod db_loader;
-pub(crate) mod early_preparation;
 pub(crate) mod gas_payment;
 pub(crate) mod message_processor;
 pub(crate) mod metadata;

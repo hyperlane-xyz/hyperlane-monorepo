@@ -34,6 +34,8 @@ pub struct MerkleTreeDbLoader {
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     #[new(default)]
     leaf_index: u32,
+    #[new(default)]
+    generation: u64,
 }
 
 impl Debug for MerkleTreeDbLoader {
@@ -61,6 +63,11 @@ impl DbLoaderExt for MerkleTreeDbLoader {
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
         self.db.ensure_no_indexed_event_conflict()?;
+        let generation = self.db.discovery_generation();
+        if generation != self.generation {
+            self.leaf_index = self.prover_sync.read().await.count();
+            self.generation = generation;
+        }
         let begin = Instant::now();
         let insertions = self.retrieve_batch().await?;
         self.update_metrics(&insertions, &begin);
@@ -77,6 +84,9 @@ impl DbLoaderExt for MerkleTreeDbLoader {
                 .map(MerkleTreeInsertion::message_id)
                 .collect();
             let mut guard = self.prover_sync.write().await;
+            if generation != self.db.discovery_generation() {
+                return Ok(());
+            }
             let begin = Instant::now();
             guard.ingest_message_ids(&message_ids)?;
             self.leaf_index += insertions.len() as u32;

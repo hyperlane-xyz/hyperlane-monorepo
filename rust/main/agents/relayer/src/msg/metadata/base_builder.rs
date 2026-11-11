@@ -118,11 +118,6 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         }
     }
 
-    /// Warm independently read announcements without observing checkpoints or producing metadata.
-    async fn prepare_validator_storages(&self, _validators: &[H256]) -> eyre::Result<()> {
-        Ok(())
-    }
-
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
@@ -166,15 +161,6 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
 impl BuildsBaseMetadata for BaseMetadataBuilder {
     fn activity_reporter(&self) -> Option<&crate::message_activity::MessageActivityReporter> {
         self.activity_reporter.as_ref()
-    }
-
-    async fn prepare_validator_storages(&self, validators: &[H256]) -> eyre::Result<()> {
-        validator_announced_storages::prepare_storage_locations(
-            validators,
-            &self.cache,
-            self.origin_validator_announce.as_ref(),
-        )
-        .await
     }
 
     fn origin_domain(&self) -> &HyperlaneDomain {

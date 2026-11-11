@@ -105,14 +105,14 @@ impl OperationBatch {
         let mut last_error = None;
         let ops = self.operations.iter().collect_vec();
         let op_ids = ops.iter().map(|op| op.id()).collect_vec();
-        let origins: Vec<&dyn HyperlaneDb> = if self.origin_dbs.is_empty() {
+        let origins: Vec<(&dyn HyperlaneDb, u64)> = if self.origin_dbs.is_empty() {
             Vec::new()
         } else {
             ops.iter()
                 .map(|op| {
                     self.origin_dbs
                         .get(&op.origin_domain_id())
-                        .map(|db| db as &dyn HyperlaneDb)
+                        .map(|db| (db as &dyn HyperlaneDb, op.origin_generation()))
                         .ok_or_else(|| {
                             ChainCommunicationError::from_other_str("Batch origin DB is missing")
                         })
@@ -120,7 +120,7 @@ impl OperationBatch {
                 .collect::<ChainResult<_>>()?
         };
         for retry_number in 1..=max_retries {
-            match HyperlaneRocksDB::with_consistent_origins(
+            match HyperlaneRocksDB::with_origin_generations(
                 &origins,
                 mailbox.process_batch(ops.clone()),
             )

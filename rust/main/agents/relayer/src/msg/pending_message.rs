@@ -178,6 +178,7 @@ pub(super) struct LoadedMessageGuard {
     message_id: H256,
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
     db: HyperlaneRocksDB,
+    generation: u64,
     /// Hands the nonce back to the loader on release, when set.
     reconsider: Option<(u32, Arc<Mutex<Vec<u32>>>)>,
     reconsider_on_release: bool,
@@ -195,6 +196,7 @@ impl LoadedMessageGuard {
         Some(Self {
             message_id,
             loaded_messages,
+            generation: db.discovery_generation(),
             db,
             reconsider: None,
             reconsider_on_release: false,
@@ -217,7 +219,8 @@ impl LoadedMessageGuard {
     }
 
     fn mark_terminal(&self) -> hyperlane_base::db::DbResult<()> {
-        self.db.store_terminally_dropped_message(&self.message_id)
+        self.db
+            .store_terminal_discovery_message(&self.message_id, self.generation)
     }
 }
 
@@ -236,6 +239,8 @@ impl Drop for LoadedMessageGuard {
 #[derive(Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
+    #[serde(skip_serializing)]
+    origin_generation: u64,
     #[serde(skip_serializing)]
     ctx: Arc<MessageContext>,
     status: PendingOperationStatus,
@@ -347,6 +352,7 @@ impl PendingMessage {
                 .record_pending_message(message.id(), app_context.as_deref(), first_seen);
         }
         Self {
+            origin_generation: ctx.origin_db.discovery_generation(),
             message,
             ctx,
             status,
@@ -395,6 +401,9 @@ impl PendingMessage {
     }
 
     pub(super) fn terminal_drop(&mut self) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
         if let Some(guard) = self.loaded_message_guard.as_ref() {
             if let Err(err) = guard.mark_terminal() {
                 return self
@@ -452,6 +461,11 @@ impl Eq for PendingMessage {}
 impl TryBatchAs<HyperlaneMessage> for PendingMessage {
     fn try_batch(&self) -> ChainResult<BatchItem<HyperlaneMessage>> {
         self.ctx.origin_db.ensure_no_indexed_event_conflict()?;
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return Err(ChainCommunicationError::from_other_str(
+                "Prepared message was invalidated by origin recovery",
+            ));
+        }
         match self.submission_data.as_ref() {
             None => {
                 warn!("Cannot batch message without submission data, returning BatchingFailed");
@@ -518,6 +532,15 @@ impl PendingOperation for PendingMessage {
         self.message.nonce
     }
 
+    fn is_invalidated(&self) -> bool {
+        !matches!(self.status, PendingOperationStatus::Confirm(_))
+            && self.ctx.origin_db.discovery_generation() != self.origin_generation
+    }
+
+    fn origin_generation(&self) -> u64 {
+        self.origin_generation
+    }
+
     fn origin_domain_id(&self) -> u32 {
         self.message.origin
     }
@@ -554,6 +577,16 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
+        match self.ctx.origin_db.discovery_message_current(&self.message) {
+            Ok(true) => {}
+            Ok(false) => return PendingOperationResult::Drop,
+            Err(error) => {
+                return self.on_reprepare(Some(error), ReprepareReason::ErrorBuildingMetadata)
+            }
+        }
         if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
             warn!(?error, "Origin requires indexed event recovery");
             self.set_next_attempt_after(CONFIRM_DELAY);
@@ -852,6 +885,16 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
     async fn submit(&mut self) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
+        match self.ctx.origin_db.discovery_message_current(&self.message) {
+            Ok(true) => {}
+            Ok(false) => return PendingOperationResult::Drop,
+            Err(error) => {
+                return self.on_reprepare(Some(error), ReprepareReason::ErrorBuildingMetadata)
+            }
+        }
         if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
             warn!(?error, "Origin requires indexed event recovery");
             self.set_next_attempt_after(CONFIRM_DELAY);
@@ -904,8 +947,8 @@ impl PendingOperation for PendingMessage {
         self.report_progress(Stage::Submit, Outcome::Started);
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let tx_outcome = HyperlaneRocksDB::with_consistent_origins(
-            &[self.ctx.origin_db.as_ref()],
+        let tx_outcome = HyperlaneRocksDB::with_origin_generations(
+            &[(self.ctx.origin_db.as_ref(), self.origin_generation)],
             with_rpc_operation(
                 RpcOperation::TransactionLifecycle,
                 self.ctx.destination_mailbox.process(
@@ -1095,6 +1138,11 @@ impl PendingOperation for PendingMessage {
 
     async fn payload(&self) -> ChainResult<Vec<u8>> {
         self.ctx.origin_db.ensure_no_indexed_event_conflict()?;
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return Err(ChainCommunicationError::from_other_str(
+                "Prepared message was invalidated by origin recovery",
+            ));
+        }
         let mailbox = &self.ctx.destination_mailbox;
         let message = &self.message;
         let submission_data = self
@@ -1483,6 +1531,26 @@ impl PendingMessage {
         err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
+        if !self.fail_fast
+            && self
+                .first_seen
+                .elapsed()
+                .is_ok_and(|elapsed| elapsed < SIGNATURE_POLL_WINDOW)
+            && matches!(
+                reason,
+                ReprepareReason::GasPaymentNotFound | ReprepareReason::CouldNotFetchMetadata
+            )
+            && self
+                .ctx
+                .origin_db
+                .discovery_message_provisional(self.message.nonce)
+                .unwrap_or(false)
+        {
+            return self.delay_reprepare(SIGNATURE_POLL_INTERVAL, reason);
+        }
         *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
         self.submitted = false;
@@ -1495,6 +1563,9 @@ impl PendingMessage {
     }
 
     fn on_metadata_wait(&mut self, observation: MetadataWaitObservation) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
         let reason = ReprepareReason::AwaitingValidatorSignatures;
         *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
@@ -1618,6 +1689,20 @@ impl PendingMessage {
 
     /// Returns an accelerated polling delay, or `None` to consume a normal retry.
     fn signature_retry_delay(&mut self, now: SystemTime) -> Option<Duration> {
+        // Start the bounded fast window after origin maturity, not at discovery.
+        // Validators may legitimately be unable to sign for minutes before this.
+        match self
+            .ctx
+            .origin_db
+            .discovery_message_provisional(self.message.nonce)
+        {
+            Ok(true) => return Some(SIGNATURE_POLL_INTERVAL),
+            Ok(false) => {}
+            Err(error) => {
+                warn!(?error, "Could not read origin confirmation boundary");
+                return Some(Duration::from_secs(1));
+            }
+        }
         let state = self.signature_retry.get_or_insert(SignatureRetryState {
             started_at: now,
             backoff_retries: 0,
@@ -1935,7 +2020,7 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES, SIGNATURE_POLL_INTERVAL};
 
     fn unix_millis(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
@@ -1951,6 +2036,70 @@ mod test {
         fn write_to<W: Write>(&self, writer: &mut W) -> std::io::Result<usize> {
             writer.write(self.0)
         }
+    }
+
+    #[tokio::test]
+    async fn provisional_discovery_preserves_poll_window_and_invalidates_prepared_work() {
+        use hyperlane_base::db::DiscoveryCheckpoint;
+        let dir = tempfile::tempdir().unwrap();
+        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let db = HyperlaneRocksDB::new(&origin, DB::from_path(dir.path()).unwrap());
+        let checkpoint = |height| DiscoveryCheckpoint {
+            height,
+            hash: H256::from_low_u64_be(height),
+        };
+        db.enable_discovery(checkpoint(100)).unwrap();
+        let message = HyperlaneMessage {
+            origin: origin.id(),
+            ..Default::default()
+        };
+        db.store_indexed_dispatch(
+            &message,
+            &hyperlane_core::LogMeta {
+                block_number: 101,
+                block_hash: checkpoint(101).hash,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let cache = OptionalCache::new(None);
+        let base = Arc::new(dummy_metadata_builder(&origin, &origin, &db, cache.clone()));
+        let mut ctx = dummy_message_context(base, &db, cache);
+        ctx.destination_mailbox = Arc::new(contract_test_mailbox());
+        let mut pending = PendingMessage::new(
+            message,
+            Arc::new(ctx),
+            PendingOperationStatus::FirstPrepareAttempt,
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        let now = SystemTime::now();
+        for seconds in [0, 5, 15, 180, 600] {
+            assert_eq!(
+                pending.signature_retry_delay(now + Duration::from_secs(seconds)),
+                Some(SIGNATURE_POLL_INTERVAL)
+            );
+            assert!(pending.signature_retry.is_none());
+        }
+        db.confirm_discovery(checkpoint(101), &[checkpoint(101)])
+            .unwrap();
+        assert_eq!(
+            pending.signature_retry_delay(now + Duration::from_secs(600)),
+            Some(SIGNATURE_POLL_INTERVAL)
+        );
+        db.rollback_discovery().unwrap();
+        db.finish_discovery_recovery().unwrap();
+        assert!(pending.is_invalidated());
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+        assert!(matches!(
+            pending.submit().await,
+            PendingOperationResult::Drop
+        ));
+        assert!(pending.try_batch().is_err());
+        assert!(pending.payload().await.is_err());
     }
 
     #[tokio::test]

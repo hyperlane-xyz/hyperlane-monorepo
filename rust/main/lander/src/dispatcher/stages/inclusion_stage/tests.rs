@@ -1625,3 +1625,48 @@ async fn queued_batches_and_retries_observe_every_origin_gate() {
         assert_eq!(calls.load(Ordering::SeqCst), usize::from(!queued));
     }
 }
+
+#[tokio::test(start_paused = true)]
+async fn recovered_origin_drops_unsent_payloads_but_keeps_broadcast_receipts() {
+    use hyperlane_base::db::{DiscoveryCheckpoint, HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
+    for attempted in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &KnownHyperlaneDomain::Arbitrum.into(),
+            DB::from_path(dir.path()).unwrap(),
+        );
+        db.enable_discovery(DiscoveryCheckpoint {
+            height: 100,
+            hash: hyperlane_core::H256::from_low_u64_be(100),
+        })
+        .unwrap();
+        let mut adapter = MockAdapter::new();
+        adapter.expect_submit().never();
+        let (state, _) = reprocess_test_state(adapter);
+        state
+            .origin_dbs
+            .set([(db.domain().id(), db.clone())].into_iter().collect())
+            .unwrap();
+        let mut payload = FullPayload::random().details;
+        payload.origin = Some(db.domain().id());
+        let mut tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+        tx.payload_details = vec![payload];
+        tx.tx_hashes.clear();
+        tx.submission_attempts = 1 + u32::from(attempted);
+        db.rollback_discovery().unwrap();
+        db.finish_discovery_recovery().unwrap();
+        let result = InclusionStage::submit_tx(tx, &state).await;
+        if attempted {
+            assert!(matches!(
+                result,
+                Ok(SubmitOutcome::RetryLater(
+                    _,
+                    LanderError::TxSubmissionDeferred
+                ))
+            ));
+        } else {
+            assert!(matches!(result, Err(LanderError::NonRetryableError(_))));
+        }
+    }
+}

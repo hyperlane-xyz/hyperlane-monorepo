@@ -769,6 +769,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     );
 
     payload.details.origin = Some(op.origin_domain_id());
+    payload.details.origin_generation = op.origin_generation();
 
     // Payload construction can await RPCs, as can earlier operations in the
     // same batch. Apply the latest rules at the handoff to lander.

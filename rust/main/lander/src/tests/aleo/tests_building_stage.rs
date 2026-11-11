@@ -26,6 +26,7 @@ fn create_aleo_payload() -> FullPayload {
 
     FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
             origin: None,

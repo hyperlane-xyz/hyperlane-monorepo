@@ -1,61 +1,50 @@
-# Zero-confirmation preparation
+# Zero-confirmation discovery
 
-Depends on the scraper-proxy API in [#10026](https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/10026).
-Deploy the proxy before this relayer. The subscription requests
-`includeZeroConfirmations: true` for dispatches, with the usual confirmation
-policy and an optional block subscription on the same WebSocket. The accepted
-option must be echoed; an older proxy leaves RPC indexing active.
+EVM origin dispatches, Merkle insertions and gas payments enter the normal relayer
+pipeline immediately, through scraper-proxy WebSockets or RPC at depth zero.
+There is no separate cache-warming pipeline. Validator and destination finality
+settings are unchanged; non-EVM indexers keep their existing confirmation behavior.
 
-A dispatch with `confirmations: 0` only warms the existing recipient, ISM,
-validator-set and announcement caches. It never writes origin messages or leaves,
-advances a replay cursor, fetches signatures or authorizes delivery. Normal events
-must match the requested confirmation depth; canonical events omit that field.
-Normal ingestion wakes the message loader and hands control to checked preparation.
-A zero-depth rollback cancels read-ahead for that origin. Disconnects and stream
-failures cancel read-ahead for every origin on the connection. Existing cache
-policies and expiry still apply to completed, reusable RPC reads.
+The relayer subscribes at `confirmations: 0`. Each origin has one connection carrying
+its three discovery streams. RPC remains active until it has covered history through
+an overlapping subscription checkpoint, including gas payments. Only then does the
+supervisor stop all three RPC indexers. Disconnects, rejected frames, missing receipt
+metadata and sequence gaps restore RPC. Reconnects repeat the overlap check. Sources
+fail independently. Progress probes and reorg audits still use RPC while event indexing
+uses WebSockets. `websocketAuthorityEnabled: false` keeps RPC as the discovery source.
 
-The work is bounded to eight concurrent tasks, 256 tracked messages and a
-20-second task timeout. `hyperlane_relayer_early_preparation_dropped{origin,reason}`
-counts rejected hints at those limits. Runtime message/address denylist rules and
-cached origin-signer rules are checked before discovery. Gas-payment enforcement
-remains on normal preparation: a legitimate fresh dispatch may arrive before its
-payment is indexed, so missing early payment data is not proof of an unpaid message.
+Destination delivery is still checked by the existing delivery/receipt confirmation
+pipeline; a zero-confirmation delivery notification is not a finalized receipt.
 
-Canonical replay uses the existing lossless broadcaster. A full receipt-indexing
-subscriber applies up to 30 seconds of backpressure before retry; transaction IDs are not discarded. Pending
-notification intent survives cancellation before handoff, and the WebSocket cursor
-advances only after handoff. Live-only streams retain RPC history and gas indexing.
-Reconnects use exponential backoff capped at two minutes plus jitter, with the
-existing additional delay for rejected subscriptions. Live block hashes are
-verified at startup and after subscription. Transient startup verification errors
-retain the origin and retry in the background with backoff and jitter. Its RPC
-syncs wait for verification; loaders, proofs and submissions stay gated meanwhile.
-Other origins and this chain's destination role remain available.
+Every newly indexed event is journaled atomically with its database effects, including
+late RPC backfill. The relayer verifies block identities before pruning records through
+the configured origin confirmation boundary. The audit runs without WebSockets too.
 
-## Recovery
+A rollback notification or conflicting indexed event closes submission admission for
+the affected origin. The supervisor stops its RPC writers, rolls back the journal and
+rewinds the prover. It invalidates prepared work, rebuilds cursors and resumes discovery.
+Only the provisional suffix above the persisted configured-confirmation boundary is
+recovered automatically. A changed block at or below that boundary preserves the
+existing halt and manual-recovery behavior; confirmed data is never rewritten by
+recovery. A configured period of zero has no automatic recovery window.
+Recovery state and generation survive crashes. Transient RPC failures retry.
+Other origins remain available during provisional recovery.
 
-`hyperlane_relayer_origin_recovery_required{chain}` is one when conflicting
-indexed data requires coordinated recovery. It is restored from the DB at startup.
-The gate stops that origin's loaders and proof generation. Classic submissions,
-classic batches, and queued/retrying lander transactions check all participating
-origins at each submission attempt. Conflict marking is serialized with each poll
-of the send future; a new conflict wakes and cancels pending work. Locks are
-released whenever the future yields. A matching replay cannot clear the gate.
-Actual RPC-verified live-block reorgs retain the existing full-relayer halt.
-Fastpath WebSocket enablement is excluded until a compatible image and recovery
-policy are deployed separately.
+Destination transactions, payload references and gas expenditure survive recovery.
+Already-submitted transactions remain tracked; they cannot be revoked. Old prepared
+transactions cannot be submitted or rebroadcast after recovery. Processed markers are
+bound to message IDs so a replacement at the same nonce is not skipped.
 
-To recover, stop all relayer/lander processes using the affected state and reconcile
-already accepted transactions first. Archive the DB. Restore a known canonical
-snapshot with matching pending state, or rebuild into an empty DB with RPC indexing
-from the contract deployment heights so the complete Merkle history and outstanding
-messages are available. Restart with WebSockets disabled, verify indexing, queues
-and proofs, then re-enable the stream. An empty replacement DB has no recovery
-markers; do not copy back stale pending metadata or clear marker keys alone.
+Signature polling starts immediately. The bounded fast polling window starts after
+origin maturity, so an Ethereum confirmation wait does not exhaust it. A brief bounded
+retry also handles gas or Merkle data arriving just after a fresh dispatch.
 
-Requests already sent to a node cannot be revoked. Reconcile those transactions
-before recovery. New lander payloads persist their origin, including in batches;
-legacy payloads without it conservatively check every configured origin. Origin
-construction failures retain the existing bounded startup retry/skip policy;
-background recovery here applies to live-block verification of built origins.
+Submission still requires the destination ISM's verification and gas policy. Multisig
+ISMs wait for validator signatures; CCTP follows its attestation policy. Null/trusted
+ISMs do not inherently impose origin finality: zero-confirmation discovery can permit
+early irreversible delivery on those routes. Reorg recovery cannot undo delivery.
+
+Normal overhead is a journal write per new event, bounded progress probes and block
+identity verification. Journal size follows ingestion since the last successful audit
+and the unconfirmed tail. RPC outages can extend retention. Recovery may scan Merkle
+history to restore reverse lookups. There is no automatic full-history rebuild.
