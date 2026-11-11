@@ -118,9 +118,19 @@ def failure_observation(error,repo,authority):
     result['external_tool_mismatch']={'name':observed['name'],'expected':dict(pins[0]),'actual':dict(pins[1])}
  return result
 
+def prepared_handoff(args,authority,gh,token,current_source_commit):
+ policy.need(getattr(args,'prepared_handoff',False)is True and all(getattr(args,k,None)is None for k in ['input_run_id','input_run_attempt','input_source_commit','manifest_sha256']),'prepared handoff cannot mix same-run input arguments')
+ module,header,absolute=policy.handoff_reuse(authority,args.repo)
+ result=module.reuse(absolute,args.repo,args.output,current_source_commit,gh,token)
+ policy.need(result.get('enabled')is True and type(result.get('provenance'))is dict and result['provenance'].get('input_rebuilt')is False and result['provenance'].get('native_or_timing_acceptance')is False and result.get('inputs_root')==str(args.output/'published')and result.get('accepted_six')is not None,'authenticated original once and six must materialize without rebuild')
+ return result
+
 def main():
- p=argparse.ArgumentParser();p.add_argument('--request',type=Path,required=True);p.add_argument('--request-sha256',required=True);p.add_argument('--repo',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--input-run-id',type=int,required=True);p.add_argument('--input-run-attempt',type=int,required=True);p.add_argument('--input-source-commit',required=True);p.add_argument('--manifest-sha256',required=True);args=p.parse_args();authority,request_pin=policy.request(args.request,args.request_sha256,args.repo)
- policy.need(authority['root_approved']and (authority['functional_enabled']or authority['runtime_enabled']),'consumer phase authority');policy.need(sys.platform=='linux'and platform.machine()=='x86_64','native Linux consumer');policy.need(args.output.is_absolute()and args.output.parent.resolve()==args.output.parent and not args.output.exists()and not args.output.is_relative_to(args.repo),'fresh outside Source stage')
+ p=argparse.ArgumentParser();p.add_argument('--request',type=Path,required=True);p.add_argument('--request-sha256',required=True);p.add_argument('--repo',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--input-run-id',type=int);p.add_argument('--input-run-attempt',type=int);p.add_argument('--input-source-commit');p.add_argument('--manifest-sha256');p.add_argument('--prepared-handoff',action='store_true');args=p.parse_args();authority,request_pin=policy.request(args.request,args.request_sha256,args.repo)
+ policy.need(authority['root_approved']and (authority['functional_enabled']or authority['runtime_enabled']or authority['handoff_enabled']),'consumer phase authority');policy.need(sys.platform=='linux'and platform.machine()=='x86_64','native Linux consumer');policy.need(args.output.is_absolute()and args.output.parent.resolve()==args.output.parent and not args.output.exists()and not args.output.is_relative_to(args.repo),'fresh outside Source stage')
+ if args.prepared_handoff:
+  prepared_handoff(args,authority,Path(shutil.which('gh')).resolve(strict=True),os.environ.get('GH_TOKEN',''),os.environ.get('GITHUB_SHA',''));return
+ policy.need(not authority['handoff_enabled']and all(getattr(args,k)is not None for k in ['input_run_id','input_run_attempt','input_source_commit','manifest_sha256']),'original same-run inputs required')
  args.output.mkdir(mode=0o700);reader=policy.load_source(args.repo/'zig/bench/cohort_readback.py','paired_stage_reader',authority,args.repo);resource.setrlimit(resource.RLIMIT_AS,(GIB,GIB));guard=reader.Guard(args.output,LIMITS);runner=reader.Runner(args.output,args.repo,Path(shutil.which('gh')).resolve(strict=True),guard,os.environ.get('GH_TOKEN',''));remote=None;error=None;receipt=None;observation=None;previous=arm_interrupts(guard)
  try:
   guard();run=reader.unique_json(runner.api(f'repos/{REPO}/actions/runs/{args.input_run_id}').read_bytes());jobs=[];artifacts=[]

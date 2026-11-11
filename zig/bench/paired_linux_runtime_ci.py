@@ -22,7 +22,7 @@ WORKFLOW='.github/workflows/zig-agents.yml'
 SELF='zig/bench/paired_linux_runtime_ci.py'
 REQUEST='zig/bench/paired_linux_runtime_request.json'
 METHODS_SHA=('0ef8f04ec32387abf5cb0be2f72a96f1' '58bd33afd760c6ea1de05cf1257e95f1')
-FIELDS={'schema','kind','root_approved','reuse_header','cohort_qualification','native18_qualification','general_CI_qualification','final_Source_qualification','methods','required_source'}
+FIELDS={'schema','kind','root_approved','reuse_header','cohort_qualification','native18_qualification','handoff6_qualification','general_CI_qualification','final_Source_qualification','methods','required_source'}
 MODES=('ReleaseSafe','ReleaseFast')
 FAMILIES=('evm','cosmosnative','cosmwasm','starknet','tron','sealevel','sealevel-composite','radix','aleo')
 PRODUCTS={'relayer','validator','scraper','worker','aleoCrypto','aleoVm','starknetCrypto','regex','url'}
@@ -117,6 +117,14 @@ def request(path,expected,repo):
         need(type(case['runtime_products'])is dict and set(case['runtime_products'])==PRODUCTS,'All nine actual runtime input hashes')
         for product in case['runtime_products'].values():need(type(product)is dict and set(product)=={'bytes','sha256'}and integer(product['bytes'],1,2*1024**3)and type(product['sha256'])is str and re.fullmatch('[0-9a-f]{64}',product['sha256']),'Actual native runtime product identity')
     need(seen=={(family,mode)for family in FAMILIES for mode in MODES},'All nine families both modes required');context['native']=native
+    handoffs=data(value['handoff6_qualification'],repo)
+    need(type(handoffs)is dict and set(handoffs)=={'schema','kind','Root_passed','producer_source_commit','baseline_source_commit','input_manifest','cases'}and type(handoffs['schema'])is int and handoffs['schema']==1 and handoffs['kind']=='Root-accepted-drained-handoffs-v1'and handoffs['Root_passed']is True and handoffs['producer_source_commit']==context['producer']and handoffs['baseline_source_commit']=='c5202242cc6569da4a858ed7ddbb34170ab696aa','Actual Root drained-handoff qualification required')
+    need(type(handoffs['cases'])is list and len(handoffs['cases'])==6,'All six drained handoffs required');hand_seen=set()
+    for case in handoffs['cases']:
+        need(type(case)is dict and set(case)=={'role','mode','proof','owner','worker','Root_passed'}and case['Root_passed']is True,'Closed Root accepted handoff case')
+        identity=case['role'],case['mode'];need(case['role']in {'relayer','validator','scraper'}and case['mode']in MODES and identity not in hand_seen,'Unique handoff role/mode required');hand_seen.add(identity)
+        for field in ['proof','owner','worker']:captured(case[field],repo)
+    need(hand_seen=={(role,mode)for role in ['relayer','validator','scraper']for mode in MODES},'All role/mode handoffs required');context['handoffs']=handoffs
     ci=root_dto(context,'general_CI_qualification','paired-linux-Root-general-CI-v1',{'schema','kind','root_approved','passed','producer_source_commit','Source_scope_qualified','required_jobs','jobs'})
     need(ci['producer_source_commit']==context['producer']and ci['Source_scope_qualified']is True and type(ci['required_jobs'])is list and ci['required_jobs']and len(set(ci['required_jobs']))==len(ci['required_jobs'])and type(ci['jobs'])is list and{j['name']for j in ci['jobs']}==set(ci['required_jobs'])and len(ci['jobs'])==len(ci['required_jobs']),'Actual general CI qualification')
     for job in ci['jobs']:
@@ -132,6 +140,7 @@ def request(path,expected,repo):
 def evidence(context):
     rows=[context['request'][key]for key in FIELDS-{'schema','kind','root_approved','required_source'}]
     rows += [row[field]for row in context['native']['cases']for field in ['public_proof','Root_readback']]
+    rows += [case[field]for case in context['handoffs']['cases']for field in ['proof','owner','worker']]
     rows += [row['Root_readback']for row in context['general']['jobs']]+[context['final']['Root_readback']]
     unique={}
     for row in rows:
@@ -195,6 +204,13 @@ def mint(context,reuse_pin,output,gh,index,environment,owner_output):
         for case in context['native']['cases']:
             for name,expected in case['runtime_products'].items():
                 actual=manifest['artifacts']['zig'][case['mode']][name];need({k:actual[k]for k in ['bytes','sha256']}==expected,'Native18 does not use actual reused fresh SDK bytes')
+        # The actual Root six-set is checked against this reused once manifest,
+        # current Source/products and original owner/worker/raw hashes before
+        # authority minting or any timed main; no artifact path relabelling.
+        runtime=source_module(context,'zig/bench/paired_linux_runtime.py','paired_runtime_handoff_admission')
+        handoff_pin={**context['request']['handoff6_qualification'],'path':str(context['repo']/context['request']['handoff6_qualification']['path'])}
+        handoff_source={name:{**row,'path':str(context['repo']/name)}for name,row in context['source'].items()}
+        runtime.admit_handoffs(handoff_pin,{'producer_source_commit':context['producer']},handoff_source,manifest,binding['input_manifest'],context['repo'],Path(binding['inputs_root']))
         observed=quiet(custody);before_mono=time.monotonic_ns();before_utc=time.time_ns();base=f'repos/{REPO}/actions/runs/{run_id}/attempts/{attempt}'
         def api(endpoint):
             path,_=runner.call([str(runner.gh),'api','--hostname','github.com','-H','Accept: application/vnd.github+json',endpoint],'API_JSON',16*1024**2);return decode(path.read_bytes())
@@ -204,7 +220,7 @@ def mint(context,reuse_pin,output,gh,index,environment,owner_output):
             if len(jobs)>=total:break
         need(len(jobs)==total and len({j.get('id')for j in jobs})==total,'Complete unique current job membership');budget=actual_budget(run,jobs,source,run_id,attempt,index,before_mono,before_utc,time.monotonic_ns(),time.time_ns());observed['job_budget']=budget;quiet_pin=write(output/'actual-prework-quiet-and-budget.json',observed)
         accepted=data(binding['accepted_six']);need(accepted.get('passed')is True and accepted.get('whole_original_proof_source_unchanged')is True,'Actual accepted-six join');recheck(context);guard();commands=runner.summary();need(commands['all_calls_actually_waited']is True and commands['failure_count']==0,'Actual preparation waits required')
-        authority={'schema':1,'kind':'paired-linux-runtime-authority-v1','root_approved':True,'execution_source_commit':source,'producer_source_commit':context['producer'],'methods':{**context['request']['methods'],'path':str(context['repo']/context['request']['methods']['path'])},'required_source':list(context['source'].values()),'accepted_six':{'artifact':binding['accepted_six'],'Root_passed':True},'final_native18':{'artifact':{**context['request']['native18_qualification'],'path':str(context['repo']/context['request']['native18_qualification']['path'])},'Root_passed':True},'quiet':{'artifact':quiet_pin,'Root_passed':True}}
+        authority={'schema':1,'kind':'paired-linux-runtime-authority-v1','root_approved':True,'execution_source_commit':source,'producer_source_commit':context['producer'],'methods':{**context['request']['methods'],'path':str(context['repo']/context['request']['methods']['path'])},'required_source':list(context['source'].values()),'accepted_six':{'artifact':binding['accepted_six'],'Root_passed':True},'accepted_handoffs':{'artifact':handoff_pin,'Root_passed':True},'final_native18':{'artifact':{**context['request']['native18_qualification'],'path':str(context['repo']/context['request']['native18_qualification']['path'])},'Root_passed':True},'quiet':{'artifact':quiet_pin,'Root_passed':True}}
         need(min(budget['conservative_job_deadline_monotonic_ns'],budget['conservative_step_deadline_monotonic_ns'])-time.monotonic_ns()>=MINIMUM_REMAINING_NS,'Job or measured-step budget consumed before authority publication');result=write(output/'runtime-authority.json',authority);guard();write(output/'mint-result.json',{'schema':1,'passed':True,'authority':result,'reuse':reuse_pin,'actual_job_budget':budget,'actual_commands':commands,'Root_final_timing_acceptance':False});guard();emit_paths(context,result,owner_output,index);guard();return result
     except BaseException as error:failure=error;raise
     finally:

@@ -10,7 +10,7 @@ PROFILE_RUSTFLAGS={LEGACY_PROFILE:'--cfg tokio_unstable -Ctarget-cpu=native',POR
 ZIG={'relayer','validator','scraper','worker','aleoCrypto','aleoVm','starknetCrypto','regex','url'};RUST={'relayer','validator','scraper'};TOOLS={'init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference'}
 ENV={'aleoCrypto':'HYPERLANE_ALEO_CRYPTO_LIBRARY','aleoVm':'HYPERLANE_ALEO_VM_LIBRARY','starknetCrypto':'HYPERLANE_STARKNET_CRYPTO_LIBRARY','regex':'HYPERLANE_REGEX_LIBRARY','url':'HYPERLANE_URL_LIBRARY','worker':'HYPERLANE_ALEO_VM_WORKER'}
 SOURCE_PATHS={'zig/bench/native_tron_setup.py','zig/bench/native_tron_assets.py','zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json','.github/workflows/zig-agents.yml','.nvmrc','package.json','zig/reference/evm/Cargo.toml','zig/reference/evm/Cargo.lock.gz','zig/reference/evm/src/main.rs','zig/bench/paired_linux.py','zig/bench/paired_linux_stage.py','zig/bench/cohort_readback.py','zig/bench/paired_linux_owner.py','zig/bench/paired_linux_proofs.py','zig/bench/paired_linux_inputs.py','zig/bench/paired_linux_methods.json','zig/bench/validator.py','zig/bench/relayer.py','zig/bench/scraper.py','zig/bench/inventory.py','zig/bench/cold_matrix_owner.py','zig/integration/evm.py','zig/integration/validator.py','zig/integration/relayer_process.py','zig/integration/relayer_stream.py','zig/integration/tls_fixture.py','zig/integration/public_relay_process.py','zig/integration/faults/seal_crash.c','zig/integration/faults/seal_crash_test.c','zig/bench/native_case_ci.py','zig/bench/native_payload_export.py','zig/integration/native_case_inputs.py','zig/bench/native_case_tools.py','zig/bench/native_harness_census.py','zig/tools/build_cpu.py'}
-FIELDS={'schema','kind','root_approved','inputs_enabled','functional_enabled','runtime_enabled','producer_source_commit','baseline_source_commit','baseline_profile','qualified_cohort','transport_requests','required_source','prepared_inputs','accepted_six','runtime_authority'}
+FIELDS={'schema','kind','root_approved','inputs_enabled','functional_enabled','runtime_enabled','handoff_enabled','handoff_postgres_source','handoff_reuse_source','handoff_port8_source','producer_source_commit','baseline_source_commit','baseline_profile','qualified_cohort','transport_requests','required_source','prepared_inputs','accepted_six','runtime_authority'}
 class Refused(RuntimeError):pass
 
 def need(value,message):
@@ -57,11 +57,18 @@ def source_api(path,names,extra=None):
  raw=Path(path).read_bytes();tree=ast.parse(raw);nodes=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.ClassDef))and n.name in names];need({n.name for n in nodes}==set(names),'exact existing pure Source API');ns={'Path':Path,'pathlib':__import__('pathlib'),'hashlib':hashlib,'json':json,'gzip':gzip,'copy':copy,'math':math,'re':re,'time':time,**(extra or{})};exec(compile(ast.Module(body=nodes,type_ignores=[]),str(path),'exec'),ns);return ns
 def request(path,expected,repo):
  repo=Path(repo);need(repo.is_absolute()and repo.resolve()==repo,'canonical checkout');p=pin(path);raw=Path(path).read_bytes();need(p['sha256']==expected and sha(raw)==expected and len(raw)==p['bytes'],'request SHA/captured bytes');value=decode(raw);need(isinstance(value,dict)and set(value)==FIELDS and type(value['schema'])is int and value['schema']==1 and value['kind']=='paired-linux-ci-v1','closed paired request')
- for name in ['root_approved','inputs_enabled','functional_enabled','runtime_enabled']:need(type(value[name])is bool,'explicit gate booleans')
+ for name in ['root_approved','inputs_enabled','functional_enabled','runtime_enabled','handoff_enabled']:need(type(value[name])is bool,'explicit gate booleans')
+ need(value['handoff_postgres_source']is None or value['handoff_enabled'],'inactive handoff dependency Source must be null')
+ need(value['handoff_reuse_source']is None or value['handoff_enabled'],'inactive handoff dependency Source must be null')
+ need(value['handoff_port8_source']is None or value['handoff_enabled'],'inactive handoff dependency Source must be null')
  need(isinstance(value['producer_source_commit'],str)and re.fullmatch('[0-9a-f]{40}',value['producer_source_commit'])and value['baseline_source_commit']==BASELINE and type(value['baseline_profile'])is str and value['baseline_profile']in PROFILE_RUSTFLAGS,'separate real Linux cohorts')
  need(set(value['transport_requests'])==set(MODES),'both metadata transports')
  if not value['root_approved']:
-  need(not any(value[n]for n in ['inputs_enabled','functional_enabled','runtime_enabled']),'unapproved work flags');return value,p
+  need(not any(value[n]for n in ['inputs_enabled','functional_enabled','runtime_enabled','handoff_enabled']),'unapproved work flags');return value,p
+ need(not value['handoff_enabled']or(not any(value[k]for k in ['inputs_enabled','functional_enabled','runtime_enabled'])and value['prepared_inputs']is not None),'handoff is a separate exclusive prepared-input phase')
+ if value['handoff_enabled']:
+  for field,path in [('handoff_postgres_source','zig/bench/paired_linux_postgres.py'),('handoff_reuse_source','zig/bench/paired_linux_reuse.py'),('handoff_port8_source','zig/bench/paired_linux_platform_test.py')]:
+   row=value[field];need(type(row)is dict and row.get('path')==path,'exact explicit handoff dependency Source required');checked(row,repo)
  need(value['inputs_enabled']or value['prepared_inputs']is not None,'once inputs or exact existing input artifact required')
  need(type(value['functional_enabled'])is bool,'functional gate');
  need(isinstance(value['required_source'],list)and len(value['required_source'])==len(SOURCE_PATHS)and {r['path']for r in value['required_source']}==SOURCE_PATHS,'exact executed Source closure')
@@ -73,8 +80,25 @@ def request(path,expected,repo):
  for mode,row in value['transport_requests'].items():
   request_path=Path(checked(row,repo)['path']);v=dispatch.read_request(request_path);dispatch.validate_request(v);need(v.get('root_approved')is True and v.get('scenario')=='cosmosnative'and v.get('mode')==mode and v.get('producer_source_commit')==value['producer_source_commit']and v.get('producer_run_id')==cohort.get('run_id')and v.get('producer_run_attempt')==cohort.get('run_attempt'),'honest producer transport only')
   selection={**{key:eight[key]for key in ['helper','tools','writer_safe','writer_fast']},'sdk':eight['sdk_safe'if mode=='ReleaseSafe'else'sdk_fast']};need(v['artifact_pins']==selection,'transport pins must equal actual accepted cohort')
+ if value['handoff_enabled']:handoff_reuse(value,repo)
  need(value['runtime_enabled']is False,'phase1 timing execution is not implemented or authorized')
  return value,p
+
+def handoff_reuse(authority,repo):
+ """Authenticate existing reuse reader/port8/header before any fetch or owner."""
+ need(authority.get('root_approved')is True and authority.get('handoff_enabled')is True and not any(authority.get(k)for k in ['inputs_enabled','functional_enabled','runtime_enabled']),'exclusive prepared handoff authority')
+ extra=[]
+ for field,path in [('handoff_reuse_source','zig/bench/paired_linux_reuse.py'),('handoff_port8_source','zig/bench/paired_linux_platform_test.py')]:
+  row=authority.get(field);need(type(row)is dict and row.get('path')==path,'exact explicit handoff reuse dependency required');checked(row,repo);extra.append(row)
+ admitted={**authority,'required_source':[*authority['required_source'],*extra]}
+ module=load_source(Path(repo)/extra[0]['path'],'paired_handoff_checked_reuse',admitted,repo)
+ descriptor=authority.get('prepared_inputs');need(type(descriptor)is dict,'exact prepared reuse header descriptor required')
+ absolute=checked(descriptor,repo)if not Path(descriptor['path']).is_absolute()else checked(descriptor)
+ header=module.read_header(absolute,repo)
+ need(header.get('root_approved')is True and header.get('Root_input_accepted')is True and header.get('Root_six_accepted')is True and header.get('producer_source_commit')==authority['producer_source_commit']and header.get('baseline_source_commit')==authority['baseline_source_commit'],'accepted same-cohort once and original six required before handoff')
+ expected={r['path']:r for r in admitted['required_source']};actual={r['path']:r for r in header['current_source']}
+ need(actual==expected and len(expected)==39,'reuse header must bind exact current Source39')
+ return module,header,absolute
 
 def portable_build_provenance(build,repo,producer,authority):
  # The caller's checked Source37 already admits this module; retain and recheck
@@ -143,14 +167,15 @@ def write(path,value):
  with Path(path).open('x')as out:json.dump(value,out,indent=2);out.write('\n');out.flush();os.fsync(out.fileno())
 
 def main():
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=['select','functional-worker','runtime-worker']);parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--repo',type=Path,required=True);parser.add_argument('--inputs',type=Path);parser.add_argument('--index',type=int);parser.add_argument('--output',type=Path);args=parser.parse_args();authority,rp=request(args.request,args.request_sha256,args.repo)
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=['select','functional-worker','runtime-worker','handoff-worker']);parser.add_argument('--request',type=Path,required=True);parser.add_argument('--request-sha256',required=True);parser.add_argument('--repo',type=Path,required=True);parser.add_argument('--inputs',type=Path);parser.add_argument('--index',type=int);parser.add_argument('--output',type=Path);parser.add_argument('--execution-deadline',type=float);args=parser.parse_args();authority,rp=request(args.request,args.request_sha256,args.repo)
  if args.action=='select':
-  result={k:authority['root_approved']and authority[k]for k in ['inputs_enabled','functional_enabled','runtime_enabled']}
+  result={k:authority['root_approved']and authority[k]for k in ['inputs_enabled','functional_enabled','runtime_enabled','handoff_enabled']}
+  result['proof_phase']='handoff'if result['handoff_enabled']else'functional'
   if os.environ.get('GITHUB_OUTPUT'):
    with open(os.environ['GITHUB_OUTPUT'],'a')as out:
     for k,v in result.items():out.write(k+'='+str(v).lower()+'\n')
   print(json.dumps(result));return
- need(authority['root_approved']and authority['functional_enabled'if args.action=='functional-worker'else'runtime_enabled'],'explicit phase authority required')
+ need(authority['root_approved']and authority[{'functional-worker':'functional_enabled','runtime-worker':'runtime_enabled','handoff-worker':'handoff_enabled'}[args.action]],'explicit phase authority required')
  need(sys.platform=='linux'and platform.machine()=='x86_64','native Linux worker only');need(args.inputs and args.index is not None and args.output,'fixed admitted inputs/slot/output required')
  # Actual workers are separate checked Source, loaded only AFTER all phase gates.
  sys.path.insert(0,str(Path(__file__).resolve().parent))

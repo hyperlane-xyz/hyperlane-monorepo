@@ -5,7 +5,7 @@ P=pathlib.Path(__file__).with_name('paired_linux_inputs.py');S=importlib.util.sp
 REPO=pathlib.Path(__file__).resolve().parents[2]
 class Controls(unittest.TestCase):
  def test_failure_projection_retains_actual_Source_guard_and_coordinates_only(self):
-  source=P.resolve();repo=REPO.resolve();authority={'source':{'zig/bench/paired_linux_inputs.py':m.pin(source)}}
+  source=pathlib.Path(m.__file__).resolve();repo=source.parents[2];authority={'source':{'zig/bench/paired_linux_inputs.py':m.pin(source)}}
   try:m.need(False,'six-GiB preparation floor')
   except m.Refused as error:observed=m.failure_observation(error,repo,authority)
   self.assertEqual(observed['Source_guard'],'six-GiB preparation floor');self.assertEqual(observed['type'],'Refused');self.assertTrue(observed['Source_frames']);self.assertTrue(all(row['source']=='zig/bench/paired_linux_inputs.py'and row['sha256']==m.digest(source)for row in observed['Source_frames']))
@@ -46,7 +46,7 @@ class Controls(unittest.TestCase):
   p=self.repo/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data);return p
  def relative(self,p):return {**m.pin(p),'path':str(p.relative_to(self.repo))}
  def request(self,enabled=False):
-  v={k:None for k in m.FIELDS};v.update(schema=1,kind='paired-linux-ci-v1',root_approved=enabled,inputs_enabled=enabled,functional_enabled=False,runtime_enabled=False,producer_source_commit='a'*40,baseline_source_commit=m.BASELINE,baseline_profile=m.PROFILE,transport_requests={mode:None for mode in m.MODES})
+  v={k:None for k in m.FIELDS};v.update(schema=1,kind='paired-linux-ci-v1',root_approved=enabled,inputs_enabled=enabled,functional_enabled=False,runtime_enabled=False,handoff_enabled=False,handoff_postgres_source=None,producer_source_commit='a'*40,baseline_source_commit=m.BASELINE,baseline_profile=m.PROFILE,transport_requests={mode:None for mode in m.MODES})
   if enabled:
    v['required_source']=[self.relative(self.file(p))for p in sorted(m.CODE)]
    entries={k:{'id':i+1,'name':k,'size_in_bytes':1,'sha256':'b'*64}for i,k in enumerate(['sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference'])}

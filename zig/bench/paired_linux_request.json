@@ -414,5 +414,9 @@
   ],
   "prepared_inputs": null,
   "accepted_six": null,
-  "runtime_authority": null
+  "runtime_authority": null,
+  "handoff_enabled": false,
+  "handoff_postgres_source": null,
+  "handoff_reuse_source": null,
+  "handoff_port8_source": null
 }

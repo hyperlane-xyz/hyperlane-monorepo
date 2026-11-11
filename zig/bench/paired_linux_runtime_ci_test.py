@@ -38,7 +38,8 @@ class Fixture(unittest.TestCase):
         jobs=[{'name':'unit','run_id':1,'run_attempt':1,'job_id':1,'source_commit':'e'*40,'conclusion':'success','Root_readback':readback}];general={'schema':1,'kind':'paired-linux-Root-general-CI-v1','root_approved':True,'passed':True,'producer_source_commit':'b'*40,'Source_scope_qualified':True,'required_jobs':['unit'],'jobs':jobs}
         runtime=[self.file(f'zig/src/fixture-{i}.zig',b'// pure Source qualification fixture\n')for i in range(607)]+[self.file('zig/src/agents/relayer/queue_view.zig',b'// synthetic queue-view Source fixture\n')];final={'schema':2,'kind':'paired-linux-Root-final-Source-v2','root_approved':True,'passed':True,'producer_source_commit':'b'*40,'runtime_608':runtime,'Root_readback':readback}
         cohort={'passed':True,'root_approved':True,'Root_actual_cohort_acceptance':True,'all8_same_run_required_product_artifacts':True,'source_commit':'b'*40,'eight_artifacts':{key:{'id':i+1,'name':key,'size_in_bytes':1,'sha256':'a'*64}for i,key in enumerate(['sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference'])},'all4_required_jobs_actual_success':[{'name':name,'id':i+1}for i,name in enumerate(['full-sdk-native (ReleaseSafe)','full-sdk-native (ReleaseFast)','native-harness-controls','svm-prerequisites'])]}
-        self.documents={'native18_qualification':native,'general_CI_qualification':general,'final_Source_qualification':final,'cohort_qualification':cohort,'reuse_header':{'root_approved':True,'producer_source_commit':'b'*40,'Root_input_accepted':True,'Root_six_accepted':True}}
+        handoffs={'schema':1,'kind':'Root-accepted-drained-handoffs-v1','Root_passed':True,'producer_source_commit':'b'*40,'baseline_source_commit':'c5202242cc6569da4a858ed7ddbb34170ab696aa','input_manifest':{'path':'original-once/input-manifest.json','bytes':1,'sha256':'a'*64},'cases':[{'role':role,'mode':mode,'proof':proof,'owner':readback,'worker':readback,'Root_passed':True}for role in ['relayer','validator','scraper']for mode in c.MODES]}
+        self.documents={'handoff6_qualification':handoffs,'native18_qualification':native,'general_CI_qualification':general,'final_Source_qualification':final,'cohort_qualification':cohort,'reuse_header':{'root_approved':True,'producer_source_commit':'b'*40,'Root_input_accepted':True,'Root_six_accepted':True}}
         value={key:None for key in c.FIELDS};value.update(schema=1,kind='paired-linux-runtime-ci-v1',root_approved=True,required_source=source,methods=next(r for r in source if r['path']=='zig/bench/paired_linux_methods.json'))
         for key,doc in self.documents.items():value[key]=self.document(key+'.json',doc)
         return self.save(value),value
@@ -50,7 +51,7 @@ class Fixture(unittest.TestCase):
 
     def inert_request(self):
         # False-gate controls must stay independent of live runtime activation.
-        return {'schema':1,'kind':'paired-linux-runtime-ci-v1','root_approved':False,'reuse_header':None,'cohort_qualification':None,'native18_qualification':None,'general_CI_qualification':None,'final_Source_qualification':None,'methods':None,'required_source':[]}
+        return {'schema':1,'kind':'paired-linux-runtime-ci-v1','root_approved':False,'reuse_header':None,'cohort_qualification':None,'native18_qualification':None,'handoff6_qualification':None,'general_CI_qualification':None,'final_Source_qualification':None,'methods':None,'required_source':[]}
 
 class Request(Fixture):
     def test_inert_actual_request_before_any_module_setup_output_or_download(self):
@@ -196,8 +197,10 @@ class Mint(Fixture):
             calls.append('restore')
             if restore_error:raise c.Refused('fixed restore fixture')
         stage=N(arm_interrupts=lambda guard:calls.append('arm')or{},restore_interrupts=restore);reader=N(Guard=Guard,Runner=Runner,LIMITS={});custody=N(COMPILERS={'rustc'},processes=lambda:{})
+        def handoff_admit(descriptor,authority,source,actual_manifest,manifest_pin,repo,inputs):
+            calls.append('handoff-full-admission');outer.assertEqual(descriptor['sha256'],context['request']['handoff6_qualification']['sha256']);outer.assertEqual(actual_manifest,manifest);outer.assertEqual(authority['producer_source_commit'],'b'*40);outer.assertEqual(repo,context['repo']);outer.assertEqual(source.keys(),context['source'].keys());outer.assertFalse(any(isinstance(call,tuple)and call[0]=='API'for call in calls))
         def loader(ctx,relative,name):
-            calls.append(('load',relative));return reader if relative.endswith('cohort_readback.py')else custody if relative.endswith('cold_matrix_owner.py')else stage if relative.endswith('paired_linux_stage.py')else N()
+            calls.append(('load',relative));return reader if relative.endswith('cohort_readback.py')else custody if relative.endswith('cold_matrix_owner.py')else stage if relative.endswith('paired_linux_stage.py')else N(admit_handoffs=handoff_admit)if relative.endswith('paired_linux_runtime.py')else N()
         env={'GITHUB_REPOSITORY':c.REPO,'GITHUB_EVENT_NAME':'push','GITHUB_REF':c.BRANCH,'GITHUB_SHA':'a'*40,'GITHUB_RUN_ID':'10','GITHUB_RUN_ATTEMPT':'2','GH_TOKEN':'PRIVATE_TOKEN_FIXTURE'}
         with mock.patch.object(c,'source_module',side_effect=loader),mock.patch.object(c.resource,'setrlimit'),mock.patch.object(c.time,'monotonic_ns',side_effect=lambda:((400 if late_step_publication else 260)if(late_step_publication or late_job_publication)and(output/'actual-prework-quiet-and-budget.json').exists()else 100)*c.NS),mock.patch.object(c.time,'time_ns',return_value=now),mock.patch.dict(os.environ,{},clear=False):
             if cleanup_error or restore_error or bad_head or wrong_native or late_step_publication or late_job_publication:
@@ -207,7 +210,7 @@ class Mint(Fixture):
         self.assertIn('cleanup',calls);self.assertIn('restore',calls)
         return output,result,calls
     def test_real_mint_caller_separate_actualHEAD_products_jobclock_and_closed_authority(self):
-        output,result,calls=self.exercise();authority=c.data(result);self.assertEqual(set(authority),{'schema','kind','root_approved','execution_source_commit','producer_source_commit','methods','required_source','accepted_six','final_native18','quiet'});self.assertEqual(authority['execution_source_commit'],'a'*40);self.assertEqual(authority['producer_source_commit'],'b'*40);self.assertTrue(authority['root_approved']);self.assertEqual(len([x for x in calls if isinstance(x,tuple)and x[0]=='API']),2);self.assertNotIn('PRIVATE_TOKEN_FIXTURE',json.dumps(c.data(c.pin(output/'mint-result.json'))))
+        output,result,calls=self.exercise();authority=c.data(result);self.assertEqual(set(authority),{'schema','kind','root_approved','execution_source_commit','producer_source_commit','methods','required_source','accepted_six','accepted_handoffs','final_native18','quiet'});self.assertEqual(authority['execution_source_commit'],'a'*40);self.assertEqual(authority['producer_source_commit'],'b'*40);self.assertTrue(authority['root_approved']);self.assertIn('handoff-full-admission',calls);self.assertEqual(authority['accepted_handoffs']['artifact']['sha256'],c.pin(self.repo/'handoff6_qualification.json')['sha256']);self.assertEqual(len([x for x in calls if isinstance(x,tuple)and x[0]=='API']),2);self.assertNotIn('PRIVATE_TOKEN_FIXTURE',json.dumps(c.data(c.pin(output/'mint-result.json'))))
     def test_cleanup_or_restore_failure_revokes_published_authority_and_mintpass(self):
         for field in ['cleanup_error','restore_error']:
             # Each case has a separate independent fixture output root.
@@ -317,5 +320,23 @@ class RelayerCatchupMethodControls(unittest.TestCase):
         with self.assertRaises(RuntimeError):scope['pending_backlog_count']([{'id':'same'},{'id':'same'}],2,lambda row:False)
         with self.assertRaises(RuntimeError):scope['catchup_measurements'](7,0,0,0)
 
+
+
+
+class HandoffRootRequest(Fixture):
+    def test_missing_false_other_Source_and_wrong_role_mode_refuse_without_mint(self):
+        _,base=self.enabled()
+        for label,change in [('false',lambda doc:doc.update(Root_passed=False)),('other_Source',lambda doc:doc.update(producer_source_commit='c'*40)),('baseline',lambda doc:doc.update(baseline_source_commit='c'*40)),('role',lambda doc:doc['cases'][0].update(role='native18')),('mode',lambda doc:doc['cases'][0].update(mode='Debug')),('duplicate',lambda doc:doc['cases'].__setitem__(0,copy.deepcopy(doc['cases'][1]))),('missing',lambda doc:doc['cases'].pop())]:
+            doc=copy.deepcopy(self.documents['handoff6_qualification']);change(doc);value=copy.deepcopy(base);value['handoff6_qualification']=self.document('handoff6_qualification.json',doc)
+            with self.subTest(label=label),mock.patch.object(c,'source_module',side_effect=AssertionError('mint/import reached')),self.assertRaises(c.Refused):self.admit(value)
+            self.document('handoff6_qualification.json',self.documents['handoff6_qualification'])
+        value=copy.deepcopy(base);value['handoff6_qualification']=None
+        with self.assertRaises(c.Refused):self.admit(value)
+    def test_moved_retained_proof_owner_worker_descriptors_all_remain_pinned(self):
+        _,value=self.enabled();context=self.admit(value);rows=c.evidence(context)
+        for case in context['handoffs']['cases']:
+            for name in ['proof','owner','worker']:self.assertIn(case[name],rows)
+        Path(self.repo/context['handoffs']['cases'][0]['worker']['path']).write_bytes(b'changed retained worker')
+        with self.assertRaises(c.Refused):c.recheck(context)
 
 if __name__=='__main__':unittest.main(verbosity=2)

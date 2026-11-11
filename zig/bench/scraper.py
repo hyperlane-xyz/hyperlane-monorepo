@@ -611,6 +611,9 @@ def run_trial(implementation, sample, order, args, pinned, postgres, contracts, 
                     def event_complete(event):
                         return postgres.sql(database, event_query(event)) == "1|1|1|1"
 
+                    if getattr(args, 'drained_handoff', False):
+                        return _drained_handoff_context(args, pinned, postgres, database, db, temp, config_dir, config, metrics_port, events, produce, complete, event_complete, trial_dir)
+
                     daemon = launch("first")
                     startup_ns = wait_for(
                         lambda: int(postgres.sql(database, (
@@ -1005,3 +1008,65 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def _drained_handoff_context(args, binaries, postgres, database, db, temporary, config_dir, config, metrics_port, events, produce, complete, event_complete, output):
+    """Actual sequential daemons on one PG database; never a measured trial."""
+    epochs=[];previous={};daemon=None
+    identity=postgres.sql(database,"SELECT current_database()||'|'||(SELECT system_identifier::text FROM pg_control_system())||'|'||(SELECT oid::text FROM pg_database WHERE datname=current_database())")
+    parts=identity.split('|')
+    if len(parts)!=3 or parts[0]!=database or not all(v.isdecimal()and int(v)>0 for v in parts[1:]):raise RuntimeError('HandoffPostgresIdentityMissing')
+    if db['migrations']!=21:raise RuntimeError('HandoffMigrationCountMismatch')
+    def retained(count):
+        ids=','.join("decode('"+event['message_id'].removeprefix('0x')+"','hex')"for event in events[:count])
+        if not ids:return {}
+        return {table:postgres.sql(database,"SELECT (to_jsonb(r)-'time_updated'-'time_created')::text FROM "+table+" r WHERE "+column+" IN ("+ids+") ORDER BY 1")for table,column in [('raw_message_dispatch','msg_id'),('message','msg_id'),('delivered_message','msg_id'),('gas_payment','msg_id'),('merkle_tree_insertion','message_id')]}
+    normalized=dict(config);normalized.pop('db')
+    config_sha=hashlib.sha256(json.dumps(normalized,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    try:
+        for number,implementation in enumerate(('rust','zig','rust')):
+            if daemon is not None or epochs and not epochs[-1]['parent_wait']['completed']:raise RuntimeError('HandoffPredecessorNotReaped')
+            if postgres.sql(database,"SELECT current_database()||'|'||(SELECT system_identifier::text FROM pg_control_system())||'|'||(SELECT oid::text FROM pg_database WHERE datname=current_database())")!=identity:raise RuntimeError('HandoffPostgresIdentityChanged')
+            before=retained(number)
+            if number and before!=previous:raise RuntimeError('HandoffPriorSQLRowsChanged')
+            config['db']=db['rust_url']if implementation=='rust'else db['zig_conninfo']
+            file=config_dir/'fixture.json';file.write_text(json.dumps(config))
+            env={'CONFIG_FILES':str(file)}
+            if implementation=='zig':env.update(args.sdk_environment)
+            started=time.monotonic();daemon=MeasuredProcess(binaries[implementation],temporary,env,output,'handoff-'+'ABC'[number])
+            deadline=time.monotonic()+args.deadline
+            while True:
+                if daemon.poll()is not None:raise RuntimeError('HandoffScraperExited')
+                try:ready=metrics_probe(metrics_port,output/('ready-'+'ABC'[number]+'.json'))
+                except OSError:ready={'passed':False}
+                if ready['passed']:break
+                if time.monotonic()>=deadline:raise RuntimeError('HandoffScraperReadinessTimeout')
+                time.sleep(.01)
+            ready_at=time.monotonic()
+            if retained(number)!=before:raise RuntimeError('HandoffPriorSQLRowsChanged')
+            if number:produce(number)
+            wait_for(lambda:complete(number+1)and all(event_complete(event)for event in events),daemon,args.deadline,'handoff current SQL receipt/frontier drain')
+            state=db_semantics(postgres,database)
+            if state['receipt_or_identity_mismatches']!=0 or state['duplicate_rows_by_message_identity']!=0:raise RuntimeError('HandoffDuplicateOrIncorrectSQLRows')
+            head=state['head'].split('|')
+            if len(head)!=6 or int(head[3])<events[-1]['gas_block']or head[4:]!=['t','f']:raise RuntimeError('HandoffScraperFrontierNotDrained')
+            drained=time.monotonic();pid=daemon.p.pid;stop=daemon.stop(signal.SIGTERM);ended=time.monotonic()
+            if daemon.usage is None or daemon.poll()is None or stop['forced_kill']or stop['exit_code']not in([0]if implementation=='zig'else[0,-signal.SIGTERM]):raise RuntimeError('HandoffActualParentWaitFailed')
+            daemon.close();daemon=None
+            after=retained(number)
+            if after!=before:raise RuntimeError('HandoffPriorSQLRowsChanged')
+            frozen=retained(number+1)
+            epochs.append({'phase':'ABC'[number],'implementation':implementation,'pid':pid,'binary_sha256':''.join(digest(binaries[implementation])),'started_monotonic':started,'ready_monotonic':ready_at,'drained_monotonic':drained,'ended_monotonic':ended,'parent_wait':{'completed':True,'exit_code':stop['exit_code'],'forced':stop['forced_kill']},'store_identity':[database,identity],'store_initialized':number==0,'new_event':events[-1]['message_id'],'prior_rows_before':before,'prior_rows_after':after,'rows_after':frozen,'row_counts':state,'migrations':postgres.sql(database,'SELECT count(*) FROM seaql_migrations'),'normalized_config_sha256':config_sha,'readiness':ready,'fresh_SQL_events_verified':len(events)})
+            previous=frozen
+        return {'schema':1,'kind':'paired-linux-drained-role-handoff','role':'scraper','passed':True,'scope':'EVM PG same-database drained Rust->Zig->Rust; no lease override; not a benchmark','epochs':epochs,'performance_credit':False}
+    finally:
+        if daemon is not None:daemon.stop(signal.SIGTERM);daemon.close()
+
+
+def run_drained_handoff(context):
+    from types import SimpleNamespace
+    args=SimpleNamespace(output=context['output'],catchup=1,chunk=1999,deadline=120,fresh=0,fresh_interval_ms=1000,interval=1,reallocate_restart_metrics_port=False,receipt_stall_check=False,drained_handoff=True,sdk_environment=context['sdk_environment'])
+    args.output.mkdir(parents=True,exist_ok=True)
+    contracts=context['contracts']
+    with context['postgres'] as postgres:
+        return run_trial('rust',0,0,args,context['binaries'],postgres,contracts,{'production_migrations_applied':21},{})

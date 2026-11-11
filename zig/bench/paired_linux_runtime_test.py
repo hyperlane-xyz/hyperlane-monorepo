@@ -20,6 +20,27 @@ def audit(name,args):
     if name in {'socket.__new__','subprocess.Popen','os.system','os.fork','os.posix_spawn','ctypes.dlopen'}:raise AssertionError('Unexpected external effect: '+name)
 sys.addaudithook(audit)
 
+def handoff_fixture(role,mode,products,manifest,producer,source):
+    epochs=[];ids=[];before=[]if role=='relayer'else{}
+    for index,implementation in enumerate(('rust','zig','rust')):
+        identity=f'{index+1:064x}';ids.append(identity);started=10.0+index*1000
+        row={'phase':'ABC'[index],'implementation':implementation,'pid':101+index,'binary_sha256':products[implementation]['sha256'],'started_monotonic':started,'ready_monotonic':started+1,'drained_monotonic':started+620,'ended_monotonic':started+621,'parent_wait':{'completed':True,'exit_code':0 if implementation=='zig'else -15,'forced':False},'store_identity':['same-owned-store',991],'store_initialized':index==0,'new_event':identity,'readiness':{'actual':True}}
+        if role=='relayer':
+            current=[{'id_chunks':[v[:32],v[32:]],'present':True,'processed':True,'nonce':i,'gas_expenditure_record_present':True,'spent':{'gas_used':'21000','tokens_used':'42000'}}for i,v in enumerate(ids)]
+            row.update(prior_rows_before=before,prior_rows_after=before,canonical_rows=current,nonce_before=[index,0],nonce_after=[index+1,0],raw_sends_before=index,raw_sends_after=index+1,inclusion_ns=int((started+2)*10**9),retirement_ns=int((started+602)*10**9),settlement={'processed_count':1,'queues':{'confirmation':0}},accounting={'canonical_transaction_hash':'0x'+identity,'canonical_block_hash':'0x'+'a'*64,'receipt_gas_used':21000,'effective_gas_price':2,'receipt_tokens_used':42000,'database_gas_used':21000,'database_tokens_used':42000,'gas_expenditure_record_present':True,'preserved_Rust_absent_record_Source_gap':False,'exact_expenditure':True,'process_event_proof':{'status':'0x1','mailbox_emitter':'0x'+'c'*40,'process_ids':['0x'+identity]}});before=current
+        elif role=='validator':
+            row['readiness']={'agent':'validator','data_type':'merkle_tree_hook','chain':'test1','task':'cursor_task','launch_unix_seconds':100.5,'liveness':101,'http_status':200,'metrics_bytes':100}
+            current={f'{i}_with_id.json':v for i,v in enumerate(ids)}
+            row.update(prior_objects_before=before,prior_objects_after=before,objects_after=current,signature_count_verified=index+1,nonce_before=0 if index==0 else 1,nonce_after_takeover=1,nonce_after=1,metadata={'git_sha':products[implementation]['metadata_git_sha'],'rpcs':[],'allows_public_rpcs':False},expected_metadata_git_sha=products[implementation]['metadata_git_sha'],announcement_reply_sha256='e'*64,actual_URI_in_chain_reply=True);before=current
+        else:
+            row['store_identity']=['same_owned_database','same_owned_database|777777|12345']
+            current={str(i):','.join(ids)for i in range(5)};counts={key:index+1 for key in ['raw_dispatch','messages','deliveries','gas_payments','merkle_insertions','linked_messages','linked_deliveries','linked_gas_payments']};counts.update(receipt_or_identity_mismatches=0,duplicate_rows_by_message_identity=0,head='0|10|10|10|t|f')
+            row.update(prior_rows_before=before,prior_rows_after=before,rows_after=current,row_counts=counts,migrations='21',fresh_SQL_events_verified=index+1,normalized_config_sha256='d'*64);before=current
+        epochs.append(row)
+    actual=[{'pid':r['pid'],'direct_parent_pid':1,'implementation':r['implementation'],'role':role,'binary':{k:v for k,v in products[r['implementation']].items()if k!='metadata_git_sha'},'actual_parent_wait':True,'exit_code':r['parent_wait']['exit_code']}for r in epochs]
+    if role=='relayer':actual.append({'pid':104,'direct_parent_pid':1,'implementation':'rust','role':'validator','binary':products['rust_validator_companion'],'actual_parent_wait':True,'exit_code':-15})
+    return {'schema':1,'kind':'paired-linux-drained-role-handoff','passed':True,'role':role,'mode':mode,'baseline_source_commit':'c5202242cc6569da4a858ed7ddbb34170ab696aa','producer_source_commit':producer,'execution_source_commit':'a'*40,'input_manifest':manifest,'source_pins':source,'epochs':epochs,'performance_credit':False,'actual_role_launches':actual,'actual_consumer_CPU':{'required_flags':['sse2'],'available_intersection_flags':['sse2'],'cpuinfo_bytes':1,'cpuinfo_sha256':'f'*64}}
+
 class Fixture(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='paired-runtime-pure-');self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir();self.inputs=self.root/'inputs';self.inputs.mkdir();self.counter=0
@@ -36,7 +57,16 @@ class Fixture(unittest.TestCase):
         art['evm_oracle']=self.relative('oracle');art['tool_manifest']=self.relative('tools/manifest.json',b'{}')
         libs={'libcurl.so.4':self.file(self.root/'libcurl.so.4')};build=self.relative('build-receipt.json',b'{}')
         proofs={m:{name:self.file(self.root/(m+'-'+name+'.json'),b'{}')for name in ['relayer_process','relayer_stream','public_relay_process']}for m in api.MODES}
-        return {'method':methods['sequence'][index],'inputs_root':self.inputs,'manifest':{'artifacts':art,'producer_source_commit':'b'*40,'baseline_profile':'actual-profile-fixture','external':{'runtime_libraries':libs},'build_receipt':build,'files':[]},'reuse':{'proofs':proofs},'authority':{'execution_source_commit':'a'*40,'producer_source_commit':'b'*40},'authority_pin':{'path':'/not-executed/authority','bytes':1,'sha256':'cd'*32},'reuse_pin':{'path':'/not-executed/reuse','bytes':1,'sha256':'ef'*32},'source':{}}
+        return {'method':methods['sequence'][index],'inputs_root':self.inputs,'manifest':{'artifacts':art,'producer_source_commit':'b'*40,'execution_source_commit':'a'*40,'required_cpu_flags':['sse2'],'baseline_profile':'actual-profile-fixture','external':{'runtime_libraries':libs},'build_receipt':build,'files':[]},'reuse':{'proofs':proofs},'authority':{'execution_source_commit':'a'*40,'producer_source_commit':'b'*40},'authority_pin':{'path':'/not-executed/authority','bytes':1,'sha256':'cd'*32},'reuse_pin':{'path':'/not-executed/reuse','bytes':1,'sha256':'ef'*32},'source':{}}
+
+    def rebind_synthetic_handoffs(self,authority,manifest_pin):
+        # A fresh hypothetical once fixture requires fresh SYNTHETIC handoffs;
+        # real accepted receipts cannot be rebound by runtime admission.
+        review_path=Path(authority['accepted_handoffs']['artifact']['path']);review=api.read(review_path);review['input_manifest']=manifest_pin
+        for case in review['cases']:
+            raw_path=Path(case['proof']['path']);raw=api.read(raw_path);raw['input_manifest']=manifest_pin;case['proof']=self.file(raw_path,json.dumps(raw).encode())
+            owner_path=Path(case['owner']['path']);owner=api.read(owner_path);worker_path=Path(owner['worker_receipt']['path']);worker=api.read(worker_path);worker['proof']=case['proof'];owner['worker_receipt']=self.file(worker_path,json.dumps(worker).encode());case['worker']=owner['worker_receipt'];case['owner']=self.file(owner_path,json.dumps(owner).encode())
+        authority['accepted_handoffs']['artifact']=self.file(review_path,json.dumps(review).encode())
 
 class AuthorityControls(Fixture):
     def test_false_authority_has_no_platform_source_import_tool_or_output(self):
@@ -54,12 +84,32 @@ class AuthorityControls(Fixture):
         manifest['files']=[{**api.pin(path),'path':str(path.relative_to(self.inputs))}for path in sorted(self.inputs.rglob('*'))if path.is_file()]
         manifest_pin=self.file(self.inputs/'input-manifest.json',json.dumps(manifest).encode());accepted=self.file(self.root/'accepted-six.json',b'{}')
         joined={**context['reuse'],'enabled':True,'inputs_root':str(self.inputs),'input_manifest':manifest_pin,'accepted_six':accepted};reuse=self.root/'reuse-context.json';reuse_pin=self.file(reuse,json.dumps(joined).encode())
-        source=[]
-        for name in sorted(api.SOURCE_REQUIRED):
-            wire=(HERE/'paired_linux_runtime.py').read_bytes()if name=='zig/bench/paired_linux_runtime.py'else b'# Source fixture, not executed\n'
+        policy=Path(api.__file__).with_name('paired_linux.py');tree=ast.parse(policy.read_bytes());base=next(ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='SOURCE_PATHS'for t in n.targets));source=[]
+        for name in sorted(api.SOURCE_REQUIRED|base|{'zig/bench/paired_linux_postgres.py','zig/bench/paired_linux_reuse.py','zig/bench/paired_linux_platform_test.py'}):
+            actual=Path(api.__file__).with_name(Path(name).name)
+            wire=actual.read_bytes()if name in {'zig/bench/paired_linux_runtime.py','zig/bench/paired_linux.py','zig/bench/paired_linux_proofs.py'}else b'# Source fixture, not executed\n'
             row=self.file(self.repo/name,wire);row['path']=name;source.append(row)
+        handoff_source=[row for row in source if row['path']in base|{'zig/bench/paired_linux_postgres.py','zig/bench/paired_linux_reuse.py','zig/bench/paired_linux_platform_test.py'}]
+        cases=[]
+        for mode in api.MODES:
+            for role in ['relayer','validator','scraper']:
+                products={implementation:{**manifest['artifacts'][implementation][mode][role]}if implementation=='zig'else{**manifest['artifacts']['rust'][role]}for implementation in ['rust','zig']}
+                if role=='relayer':products['rust_validator_companion']={**manifest['artifacts']['rust']['validator']}
+                if role=='validator':
+                    products['rust']['metadata_git_sha']='a'*40;products['zig']['metadata_git_sha']='b'*40
+                raw=handoff_fixture(role,mode,products,manifest_pin,'b'*40,handoff_source)
+                if role=='scraper':raw['postgres_cleanup']={'passed':True,'container_absent':True,'cleanup_failures':[],'container_id':'e'*64,'context':{'token':'f'*32}}
+                raw_pin=self.file(self.root/(role+'-'+mode+'-handoff.json'),json.dumps(raw).encode());index=api.MODES.index(mode)*3+('relayer','validator','scraper').index(role)
+                spec=importlib.util.spec_from_file_location('synthetic_handoff_verifier',Path(api.__file__).with_name('paired_linux_proofs.py'));verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
+                summary=verifier.validate_handoff(raw,role,mode,products,manifest_pin,'b'*40,handoff_source,['sse2'])
+                worker={'kind':'paired-linux-handoff-result','passed':True,'role':role,'mode':mode,'index':index,'proof':raw_pin,'strict_handoff':summary,'performance_credit':False}
+                worker_pin=self.file(self.root/(role+'-'+mode+'-worker.json'),json.dumps(worker).encode())
+                owner={'platform':'linux-x86_64','error_type':None,'started_monotonic':1,'ended_monotonic':7000,'original_deadline_monotonic':7201,'sampled_tree_RSS_peak_bytes':100,'new_allocated_peak_bytes':100,'minimum_host_free_bytes':7*1024**3,'RSS_includes_PG_reserved_1GiB':role=='scraper','kind':'paired-linux-owned-handoff','passed':True,'index':index,'limits':{'wall_seconds':7200,'RSS_bytes':4*1024**3,'new_disk_bytes':512*1024**2,'free_bytes':6*1024**3},'original_wall_seconds':7200,'native18_or_performance_acceptance':False,'cleanup':{'actual_parent_wait':True,'exit_code':0,'clean':True,'cleanup_confirmed_absent':True,'remaining_identities':[],'unanchored_session_members':[],'signals':[],'errors':[]},'worker_receipt':worker_pin}
+                if role=='scraper':owner['postgres_cleanup']=raw['postgres_cleanup']
+                owner_pin=self.file(self.root/(role+'-'+mode+'-owner.json'),json.dumps(owner).encode());cases.append({'role':role,'mode':mode,'proof':raw_pin,'owner':owner_pin,'worker':worker_pin,'Root_passed':True})
+        handoffs=self.file(self.root/'accepted-synthetic-handoffs.json',json.dumps({'schema':1,'kind':'Root-accepted-drained-handoffs-v1','Root_passed':True,'producer_source_commit':'b'*40,'baseline_source_commit':'c5202242cc6569da4a858ed7ddbb34170ab696aa','input_manifest':manifest_pin,'cases':cases}).encode())
         methods=self.file(self.root/'methods.json',(HERE/'paired_linux_methods.json').read_bytes());gate={'artifact':accepted,'Root_passed':True}
-        authority={'schema':1,'kind':'paired-linux-runtime-authority-v1','root_approved':True,'execution_source_commit':'a'*40,'producer_source_commit':'b'*40,'methods':methods,'required_source':source,'accepted_six':gate,'final_native18':gate,'quiet':gate};path=self.root/'authority.json';pinned=self.file(path,json.dumps(authority).encode())
+        authority={'schema':1,'kind':'paired-linux-runtime-authority-v1','root_approved':True,'execution_source_commit':'a'*40,'producer_source_commit':'b'*40,'methods':methods,'required_source':source,'accepted_six':gate,'accepted_handoffs':{'artifact':handoffs,'Root_passed':True},'final_native18':gate,'quiet':gate};path=self.root/'authority.json';pinned=self.file(path,json.dumps(authority).encode())
         return path,pinned,reuse,reuse_pin,authority
 
     def test_actual_enabled_admit_keeps_authority_pin_and_published_manifest_identity(self):
@@ -133,7 +183,7 @@ class NativePsql16RuntimeControls(Fixture):
         import struct
         path,row,reuse,reuse_pin,authority=self.enabled_record();wire=bytearray(1024);wire[:8]=b'\x7fELF\x02\x01\x01\x00';struct.pack_into('<HHIQQ',wire,16,3,62,1,0x400100,64);struct.pack_into('<HHH',wire,52,64,56,2);struct.pack_into('<IIQQQQQQ',wire,64,1,5,0,0x400000,0,len(wire),len(wire),4096);loader=b'/lib64/ld-linux-x86-64.so.2\0';struct.pack_into('<IIQQQQQQ',wire,120,3,4,512,0,0,len(loader),len(loader),1);wire[512:512+len(loader)]=loader
         native=self.root/'usr/lib/postgresql/16/bin/psql';native_pin=self.file(native,wire);native.chmod(0o755);wrapper=self.root/'usr/share/postgresql-common/pg_wrapper';self.file(wrapper,b'#!/usr/bin/perl\n# public fixture, never executed\n');bare=self.root/'usr/bin/psql';bare.parent.mkdir(parents=True);bare.symlink_to(wrapper);cast=self.root/'cast';cast_pin=self.file(cast,b'public cast fixture, never executed')
-        joined=api.read(reuse);manifest=api.read(joined['input_manifest']['path']);manifest['external']['tools']={'psql':native_pin,'cast':cast_pin,'python3':api.pin(Path(sys.executable).resolve(strict=True))};joined['input_manifest']=self.file(self.inputs/'input-manifest.json',json.dumps(manifest).encode());reuse_pin=self.file(reuse,json.dumps(joined).encode());return path,row,reuse,reuse_pin,native,cast,bare
+        joined=api.read(reuse);manifest=api.read(joined['input_manifest']['path']);manifest['external']['tools']={'psql':native_pin,'cast':cast_pin,'python3':api.pin(Path(sys.executable).resolve(strict=True))};joined['input_manifest']=self.file(self.inputs/'input-manifest.json',json.dumps(manifest).encode());reuse_pin=self.file(reuse,json.dumps(joined).encode());self.rebind_synthetic_handoffs(authority,joined['input_manifest']);row=self.file(path,json.dumps(authority).encode());return path,row,reuse,reuse_pin,native,cast,bare
     def admit_native_fixture(self,fixture,cast_override=None):
         path,row,reuse,reuse_pin,native,cast,bare=fixture;lookups=[]
         def which(name):lookups.append(name);return str(bare if name=='psql'else cast_override or cast)
@@ -303,5 +353,30 @@ class WorkerBoundary(Fixture):
             if index in(4,5):
                 self.assertEqual(paths['raw_output'].parent,self.repo/'zig/bench/results');self.assertTrue(paths['raw_output'].name.startswith('scraper-process-'));self.assertEqual(paths['postgres']['receipts'],output/'postgres');self.assertEqual(paths['postgres']['token'],api.sha((str(output)+context['authority_pin']['sha256']).encode())[:32])
             else:self.assertIsNone(paths['postgres']);self.assertEqual(paths['raw_output'],output/'raw')
+
+
+
+class HandoffAdmissionControls(Fixture):
+    enabled_record=AuthorityControls.enabled_record
+    def admit(self,path,row,reuse,reuse_pin):
+        with mock.patch.object(api.sys,'platform','linux'),mock.patch.object(api.os,'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(api,'current_head',return_value='a'*40):return api.admit(path,row['sha256'],reuse,reuse_pin['sha256'],self.repo,0)
+    def test_actual_synthetic_six_required_before_any_timing_import(self):
+        path,row,reuse,reuse_pin,authority=self.enabled_record()
+        with mock.patch.object(api,'original_modules',side_effect=AssertionError('timed import reached')):self.assertIsNotNone(self.admit(path,row,reuse,reuse_pin))
+    def test_missing_false_or_wrong_handoff_Source_mode_role_Rust_phase_refuse(self):
+        mutations=[('missing_gate',lambda authority,review:authority.pop('accepted_handoffs')),('false_gate',lambda authority,review:authority['accepted_handoffs'].update(Root_passed=False)),('other_producer',lambda authority,review:review.update(producer_source_commit='c'*40)),('wrong_mode',lambda authority,review:review['cases'][0].update(mode='ReleaseFast')),('wrong_role',lambda authority,review:review['cases'][0].update(role='scraper')),('missing_case',lambda authority,review:review['cases'].pop())]
+        for label,mutate in mutations:
+            path,row,reuse,reuse_pin,authority=self.enabled_record();review_path=Path(authority['accepted_handoffs']['artifact']['path']);review=api.read(review_path);mutate(authority,review)
+            if 'accepted_handoffs'in authority:authority['accepted_handoffs']['artifact']=self.file(review_path,json.dumps(review).encode())
+            row=self.file(path,json.dumps(authority).encode())
+            with self.subTest(label=label),mock.patch.object(api,'original_modules',side_effect=AssertionError('timed import reached')),self.assertRaises((api.Refused,RuntimeError)):self.admit(path,row,reuse,reuse_pin)
+    def test_rehashed_failed_actual_Rust_phase_cannot_be_Root_promoted(self):
+        path,row,reuse,reuse_pin,authority=self.enabled_record();review_path=Path(authority['accepted_handoffs']['artifact']['path']);review=api.read(review_path);case=review['cases'][0];proof_path=Path(case['proof']['path']);raw=api.read(proof_path);raw['epochs'][2]['parent_wait']['exit_code']=1;case['proof']=self.file(proof_path,json.dumps(raw).encode());authority['accepted_handoffs']['artifact']=self.file(review_path,json.dumps(review).encode());row=self.file(path,json.dumps(authority).encode())
+        with mock.patch.object(api,'original_modules',side_effect=AssertionError('timed import reached')),self.assertRaises(RuntimeError):self.admit(path,row,reuse,reuse_pin)
+
+    def test_rehashed_late_excess_resource_or_unproven_owner_absence_refuses(self):
+        for change in [lambda v:v.update(ended_monotonic=7201),lambda v:v.update(sampled_tree_RSS_peak_bytes=5*1024**3),lambda v:v.update(new_allocated_peak_bytes=513*1024**2),lambda v:v.update(minimum_host_free_bytes=5*1024**3),lambda v:v['cleanup'].update(cleanup_confirmed_absent=False),lambda v:v['cleanup'].update(unanchored_session_members=[{'pid':9}])]:
+            path,row,reuse,reuse_pin,authority=self.enabled_record();review_path=Path(authority['accepted_handoffs']['artifact']['path']);review=api.read(review_path);case=review['cases'][0];owner_path=Path(case['owner']['path']);owner=api.read(owner_path);change(owner);case['owner']=self.file(owner_path,json.dumps(owner).encode());authority['accepted_handoffs']['artifact']=self.file(review_path,json.dumps(review).encode());row=self.file(path,json.dumps(authority).encode())
+            with mock.patch.object(api,'original_modules',side_effect=AssertionError('timed import reached')),self.assertRaises(api.Refused):self.admit(path,row,reuse,reuse_pin)
 
 if __name__=='__main__':unittest.main()

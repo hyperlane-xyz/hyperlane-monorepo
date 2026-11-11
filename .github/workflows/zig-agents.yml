@@ -257,6 +257,9 @@ jobs:
         run: '"$ZIG" fmt --check zig/build.zig zig/src zig/bench/main.zig'
       - name: Test
         run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all
+      - name: Build complete default utility targets
+        timeout-minutes: 10
+        run: python3 zig/tools/zig.py build -Dtarget=native -Dcpu=baseline -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all
 
   evm:
     if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux)) && (!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case)) && (!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-docker-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_native_docker_prerequisite)) && (!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-sdk-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_sdk_prerequisite)) && (!((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-native-case]')) && (!(github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-svm-prerequisites-only]')) && (github.event_name != 'workflow_dispatch' || !inputs.svm_prerequisites))))))) }}
@@ -1582,6 +1585,8 @@ jobs:
       actions: read
     outputs:
       functional_enabled: ${{ steps.authority.outputs.functional_enabled }}
+      handoff_enabled: ${{ steps.authority.outputs.handoff_enabled }}
+      proof_phase: ${{ steps.authority.outputs.proof_phase }}
       runtime_enabled: ${{ steps.authority.outputs.runtime_enabled }}
       request_sha256: ${{ steps.authority.outputs.request_sha256 }}
       manifest_sha256: ${{ steps.manifest.outputs.sha256 }}
@@ -1757,7 +1762,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   paired-linux-functional:
-    if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-docker-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_native_docker_prerequisite)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-sdk-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_sdk_prerequisite)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && needs.paired-linux-inputs.outputs.functional_enabled == 'true' }}
+    if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-fullcase-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_full_case)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-docker-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_native_docker_prerequisite)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-sdk-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_sdk_prerequisite)) && !((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-aleo-kernel-only]')) || (github.event_name == 'workflow_dispatch' && inputs.aleo_linux_prerequisite)) && (needs.paired-linux-inputs.outputs.functional_enabled == 'true' || needs.paired-linux-inputs.outputs.handoff_enabled == 'true') }}
+    name: ${{ matrix.phase == 'handoff' && 'paired-linux-handoff' || 'paired-linux-functional' }} (${{ matrix.index }})
     needs: paired-linux-inputs
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 180
@@ -1768,6 +1774,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
+        phase: ['${{ needs.paired-linux-inputs.outputs.proof_phase }}']
         index: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -1883,6 +1890,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ '${{ matrix.phase }}' = handoff ]; then
+            python3 -I -B zig/bench/paired_linux_stage.py \
+              --prepared-handoff \
+              --request "$GITHUB_WORKSPACE/zig/bench/paired_linux_request.json" \
+              --request-sha256 '${{ needs.paired-linux-inputs.outputs.request_sha256 }}' \
+              --repo "$GITHUB_WORKSPACE" --output "$RUNNER_TEMP/paired-linux-stage"
+          else
           python3 -I -B zig/bench/paired_linux_stage.py \
             --request "$GITHUB_WORKSPACE/zig/bench/paired_linux_request.json" \
             --request-sha256 '${{ needs.paired-linux-inputs.outputs.request_sha256 }}' \
@@ -1890,23 +1904,35 @@ jobs:
             --input-run-id "$GITHUB_RUN_ID" --input-run-attempt "$GITHUB_RUN_ATTEMPT" \
             --input-source-commit "$GITHUB_SHA" \
             --manifest-sha256 '${{ needs.paired-linux-inputs.outputs.manifest_sha256 }}'
-      - name: Run one original exact-binary600+30 functional proof
+          fi
+      - name: Run one separately authorized exact-binary proof phase
         timeout-minutes: 122
         run: |
           set -euo pipefail
-          python3 -I -B zig/bench/paired_linux_owner.py --phase functional \
+          PROOF_OUTPUT="$RUNNER_TEMP/paired-linux-proof-${{ matrix.index }}"
+          if [ '${{ matrix.phase }}' = handoff ]; then PROOF_OUTPUT="$RUNNER_TEMP/paired-linux-handoff-${{ matrix.index }}"; fi
+          python3 -I -B zig/bench/paired_linux_owner.py --phase '${{ matrix.phase }}' \
             --request "$GITHUB_WORKSPACE/zig/bench/paired_linux_request.json" \
             --request-sha256 '${{ needs.paired-linux-inputs.outputs.request_sha256 }}' \
             --repo "$GITHUB_WORKSPACE" --inputs "$RUNNER_TEMP/paired-linux-stage/published" \
-            --index '${{ matrix.index }}' --output "$RUNNER_TEMP/paired-linux-proof-${{ matrix.index }}"
+            --index '${{ matrix.index }}' --output "$PROOF_OUTPUT"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
-          name: paired-linux-proof-${{ matrix.index }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ matrix.phase == 'handoff' && 'paired-linux-handoff' || 'paired-linux-proof' }}-${{ matrix.index }}-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 14
           path: |
+            ${{ runner.temp }}/paired-linux-handoff-${{ matrix.index }}/owner-result.json
+            ${{ runner.temp }}/paired-linux-handoff-${{ matrix.index }}/handoff-result.json
+            ${{ runner.temp }}/paired-linux-handoff-${{ matrix.index }}/handoff-proof.json
+            ${{ runner.temp }}/paired-linux-handoff-${{ matrix.index }}/postgres/
+            ${{ runner.temp }}/paired-linux-handoff-${{ matrix.index }}/raw/
+            ${{ runner.temp }}/paired-linux-handoff-${{ matrix.index }}/resources.jsonl
+            ${{ runner.temp }}/paired-linux-handoff-${{ matrix.index }}/worker.log
             ${{ runner.temp }}/paired-linux-stage/consumer-result.json
+            ${{ runner.temp }}/paired-linux-stage/reuse-result.json
+            ${{ runner.temp }}/paired-linux-stage/accepted-six.json
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/owner-result.json
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/functional-result.json
             ${{ runner.temp }}/paired-linux-proof-${{ matrix.index }}/actual-agent-launches.json

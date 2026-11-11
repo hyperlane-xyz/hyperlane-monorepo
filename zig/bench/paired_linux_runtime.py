@@ -5,6 +5,7 @@ import ast
 import contextlib
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -83,11 +84,11 @@ def admit(authority,authority_sha,reuse,reuse_sha,repo,index):
     need(type(value.get('schema'))is int and value.get('schema')==1 and value.get('kind')=='paired-linux-runtime-authority-v1'and type(value.get('root_approved'))is bool,'Root runtime authority schema')
     if not value['root_approved']:return None
     need(sys.platform=='linux'and os.uname().machine in {'x86_64','amd64'}and sys.dont_write_bytecode,'Linux no-bytecode runtime worker required')
-    required={'schema','kind','root_approved','execution_source_commit','producer_source_commit','methods','required_source','accepted_six','final_native18','quiet'}
+    required={'schema','kind','root_approved','execution_source_commit','producer_source_commit','methods','required_source','accepted_six','accepted_handoffs','final_native18','quiet'}
     need(set(value)==required,'Closed runtime authority fields')
     for key in ['execution_source_commit','producer_source_commit']:need(type(value[key])is str and re.fullmatch('[0-9a-f]{40}',value[key]),'Exact runtime Source commit')
     need(current_head(repo)==value['execution_source_commit'],'Actual runtime checkout differs')
-    gates={key:gate(value[key])for key in ['accepted_six','final_native18','quiet']}
+    gates={key:gate(value[key])for key in ['accepted_six','accepted_handoffs','final_native18','quiet']}
     methods_path=checked(value['methods']);need(value['methods']['sha256']==METHODS_SHA,'Original immutable method authority differs');methods=read(methods_path);sequence=methods['sequence']
     need(methods.get('schema')==1 and methods.get('Linux_only')is True and len(sequence)==10,'Original ten-method authority required')
     for number,(entry,identity)in enumerate(zip(sequence,METHOD_ROWS)):
@@ -112,7 +113,48 @@ def admit(authority,authority_sha,reuse,reuse_sha,repo,index):
     for group in ['runtime_libraries','libraries']:
         for row in manifest['external'][group].values():checked(row)
     need(set(manifest['artifacts']['rust'])=={'relayer','validator','scraper'}and set(manifest['artifacts']['zig'])==set(MODES),'Prepared product closure differs')
+    admit_handoffs(gates['accepted_handoffs'],value,pins,manifest,joined['input_manifest'],repo,root)
     return {'authority':value,'authority_pin':authority_pin,'source':pins,'gates':gates,'method':sequence[index],'reuse':joined,'reuse_pin':reuse_pin,'inputs_root':root,'manifest':manifest,'manifest_pin':joined['input_manifest']}
+
+
+def admit_handoffs(descriptor,authority,pins,manifest,manifest_pin,repo,inputs_root):
+    """Require six separately owned actual daemon handoffs before any timing."""
+    path=checked(descriptor);review=read(path)
+    def retained(row):return checked(row)if Path(row['path']).is_absolute()else checked(row,repo)
+    need(type(review)is dict and set(review)=={'schema','kind','Root_passed','producer_source_commit','baseline_source_commit','input_manifest','cases'}and review['schema']==1 and type(review['schema'])is int and review['kind']=='Root-accepted-drained-handoffs-v1'and review['Root_passed']is True,'Independent Root accepted handoff set required')
+    need(review['producer_source_commit']==authority['producer_source_commit']and review['baseline_source_commit']=='c5202242cc6569da4a858ed7ddbb34170ab696aa','Handoff baseline/producer differs')
+    need(type(review['input_manifest'])is dict and all(review['input_manifest'].get(k)==manifest_pin[k]for k in ['bytes','sha256']),'Handoff set used another once-input manifest')
+    policy_path=repo/'zig/bench/paired_linux.py';tree=ast.parse(policy_path.read_bytes())
+    base=next(ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='SOURCE_PATHS'for t in n.targets))
+    need(len(base)==37,'Original base handoff closure changed');required=base|{'zig/bench/paired_linux_postgres.py','zig/bench/paired_linux_reuse.py','zig/bench/paired_linux_platform_test.py'}
+    need(required<=set(pins),'Current handoff closure not in runtime Source authority')
+    source_pins=[{**pins[p],'path':p}for p in sorted(required)]
+    proof_path=repo/'zig/bench/paired_linux_proofs.py';need('zig/bench/paired_linux_proofs.py'in pins,'Checked handoff verifier Source required')
+    module=types.ModuleType('paired_runtime_checked_handoff_proofs');module.__file__=str(proof_path);exec(compile(proof_path.read_bytes(),str(proof_path),'exec'),module.__dict__)
+    cases=review['cases'];need(type(cases)is list and len(cases)==6,'All six handoff role/mode cases required');seen=set()
+    for case in cases:
+        need(type(case)is dict and set(case)=={'role','mode','proof','owner','worker','Root_passed'}and case['Root_passed']is True,'Root accepted actual handoff case required')
+        role,mode=case['role'],case['mode'];key=role,mode
+        need(role in {'relayer','validator','scraper'}and mode in MODES and key not in seen,'Unique current role/mode handoff required');seen.add(key)
+        proof=read(retained(case['proof']));owner=read(retained(case['owner']))
+        expected={implementation:manifest['artifacts'][implementation][mode][role]if implementation=='zig'else manifest['artifacts']['rust'][role]for implementation in ['rust','zig']}
+        if role=='relayer':expected['rust_validator_companion']={**manifest['artifacts']['rust']['validator']}
+        if role=='validator':expected={k:{**v,'metadata_git_sha':manifest['execution_source_commit']if k=='rust'else manifest['producer_source_commit']}for k,v in expected.items()}
+        summary=module.validate_handoff(proof,role,mode,expected,manifest_pin,authority['producer_source_commit'],source_pins,manifest['required_cpu_flags'])
+        need(owner.get('kind')=='paired-linux-owned-handoff'and owner.get('passed')is True and type(owner.get('index'))is int and owner['index']==MODES.index(mode)*3+('relayer','validator','scraper').index(role),'Actual separate successful handoff owner missing')
+        need(owner.get('limits')=={'wall_seconds':7200,'RSS_bytes':4*1024**3,'new_disk_bytes':512*1024**2,'free_bytes':6*1024**3}and owner.get('native18_or_performance_acceptance')is False and owner.get('original_wall_seconds')==7200,'Handoff resource/credit scope differs')
+        cleanup=owner.get('cleanup');need(type(cleanup)is dict and cleanup.get('actual_parent_wait')is True and type(cleanup.get('exit_code'))is int and cleanup['exit_code']==0 and cleanup.get('clean')is True and not cleanup.get('signals')and not cleanup.get('errors'),'Handoff owner failed actual retirement')
+        need(owner.get('platform')=='linux-x86_64'and owner.get('error_type')is None and cleanup.get('cleanup_confirmed_absent')is True and cleanup.get('remaining_identities')==[]and cleanup.get('unanchored_session_members')==[],'Actual handoff owner absence not proven')
+        start=owner.get('started_monotonic');end=owner.get('ended_monotonic');deadline=owner.get('original_deadline_monotonic')
+        need(all(type(v)in(int,float)and math.isfinite(v)and v>0 for v in [start,end,deadline])and start<end<deadline and deadline-start==7200,'Handoff did not complete within original total wall bound')
+        need(type(owner.get('sampled_tree_RSS_peak_bytes'))is int and 0<=owner['sampled_tree_RSS_peak_bytes']<=4*1024**3 and type(owner.get('new_allocated_peak_bytes'))is int and 0<=owner['new_allocated_peak_bytes']<=512*1024**2 and type(owner.get('minimum_host_free_bytes'))is int and owner['minimum_host_free_bytes']>=6*1024**3,'Actual handoff resource bounds exceeded')
+        need(role!='scraper'or owner.get('RSS_includes_PG_reserved_1GiB')is True,'Handoff PG aggregate RSS charge missing')
+        need(all(owner['worker_receipt'][k]==case['worker'][k]for k in ['bytes','sha256']),'Owner does not bind retained handoff worker');worker=read(retained(case['worker']));need(worker.get('kind')=='paired-linux-handoff-result'and worker.get('passed')is True and worker.get('role')==role and worker.get('mode')==mode and worker.get('index')==owner['index']and worker.get('strict_handoff')==summary and worker.get('performance_credit')is False,'Handoff owner/worker scope or phase differs')
+        need(all(worker['proof'][k]==case['proof'][k]for k in ['bytes','sha256']),'Handoff owner proved different raw evidence')
+        if role=='scraper':
+            pg=proof.get('postgres_cleanup');final=owner.get('postgres_cleanup');need(type(pg)is dict and type(final)is dict and all(v.get('passed')is True and v.get('container_absent')is True and not v.get('cleanup_failures')for v in [pg,final])and pg.get('container_id')==final.get('container_id')and pg.get('context')==final.get('context'),'Handoff worker/parent PG identity not retired')
+    need(seen=={(role,mode)for role in ['relayer','validator','scraper']for mode in MODES},'Missing distinct handoff role/mode')
+    return review
 
 def source_recheck(context,repo):
     for item in context['source'].values():checked(item)

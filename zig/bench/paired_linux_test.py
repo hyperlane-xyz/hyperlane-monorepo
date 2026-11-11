@@ -142,7 +142,7 @@ class Controls(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
  def inert_request(self):
   # Explicit control fixture, independent of the live request approval state.
-  return {'schema':1,'kind':'paired-linux-ci-v1','root_approved':False,'inputs_enabled':False,'functional_enabled':False,'runtime_enabled':False,'producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'baseline_profile':'locked-c520224-production-three-agent-linux-v1','qualified_cohort':None,'transport_requests':{mode:None for mode in p.MODES},'required_source':None,'prepared_inputs':None,'accepted_six':None,'runtime_authority':None}
+  return {'schema':1,'kind':'paired-linux-ci-v1','root_approved':False,'inputs_enabled':False,'functional_enabled':False,'runtime_enabled':False,'handoff_enabled':False,'handoff_postgres_source':None,'handoff_reuse_source':None,'handoff_port8_source':None,'producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'baseline_profile':'locked-c520224-production-three-agent-linux-v1','qualified_cohort':None,'transport_requests':{mode:None for mode in p.MODES},'required_source':None,'prepared_inputs':None,'accepted_six':None,'runtime_authority':None}
  def test_false_gate_has_no_source_import_or_artifact_access(self):
   path=self.root/'request.json';path.write_text(json.dumps(self.inert_request()))
   with mock.patch.object(p,'checked',side_effect=AssertionError('artifact admission reached')),mock.patch.object(p,'load_source',side_effect=AssertionError('Source import reached')):
@@ -359,12 +359,17 @@ class OwnerPublication(unittest.TestCase):
   with self.assertRaises(p.Refused):stage.materialize({'repository_fixture_files':[{'repository_path':'zig/integration/.cache/new/file','file':row}]},source,self.repo)
   self.assertEqual(list(foreign.iterdir()),[])
 
+def default_utility_workflow_inverse(text):
+ step='      - name: Build complete default utility targets\n        timeout-minutes: 10\n        run: python3 zig/tools/zig.py build -Dtarget=native -Dcpu=baseline -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all\n'
+ if text.count(step)!=1:raise AssertionError('Exact bounded default utility build required')
+ return text.replace(step,'',1)
+
 class Workflow(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  cls.text=(HERE.parents[1]/'.github/workflows/zig-agents.yml').read_text();tree=ast.parse((HERE.parents[1]/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N};exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='conditions'],type_ignores=[]),'actual-condition-reader','exec'),ns);cls.rows=ns['conditions'](cls.text);cls.ordinary_rows=ns['conditions'](ordinary_native_http_workflow(cls.text))
+  cls.text=(Path(p.__file__).resolve().parents[2]/'.github/workflows/zig-agents.yml').read_text();tree=ast.parse((HERE.parents[1]/'zig/tools/aleo_linux/kernel_only_test.py').read_text());ns={'re':re,'N':N};exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='conditions'],type_ignores=[]),'actual-condition-reader','exec'),ns);cls.rows=ns['conditions'](cls.text);cls.ordinary_rows=ns['conditions'](ordinary_native_http_workflow(cls.text))
  def evaluate(self,rows,event='push',ref='refs/heads/feat/zig-agent-rewrite',message='',paired=False,functional=False,runtime=False,**flags):
-  scope={'github':N(event_name=event,ref=ref,event=N(head_commit=N(message=message))),'inputs':N(paired_linux=paired,svm_prerequisites=flags.get('svm',False),cold_full_feature=flags.get('cold',False),aleo_linux_prerequisite=flags.get('aleo',False),aleo_linux_sdk_prerequisite=flags.get('sdk',False),aleo_native_docker_prerequisite=flags.get('docker',False),aleo_full_case=flags.get('full',False)),'needs':N(paired_linux_inputs=N(outputs=N(functional_enabled=str(functional).lower(),runtime_enabled=str(runtime).lower()))),'contains':lambda text,needle:needle in text}
+  scope={'github':N(event_name=event,ref=ref,event=N(head_commit=N(message=message))),'inputs':N(paired_linux=paired,svm_prerequisites=flags.get('svm',False),cold_full_feature=flags.get('cold',False),aleo_linux_prerequisite=flags.get('aleo',False),aleo_linux_sdk_prerequisite=flags.get('sdk',False),aleo_native_docker_prerequisite=flags.get('docker',False),aleo_full_case=flags.get('full',False)),'needs':N(paired_linux_inputs=N(outputs=N(functional_enabled=str(functional).lower(),runtime_enabled=str(runtime).lower(),handoff_enabled=str(flags.get('handoff',False)).lower()))),'contains':lambda text,needle:needle in text}
   selected=set()
   for name,value in rows.items():
    code=value.removeprefix('${{ ').removesuffix(' }}').replace('needs.paired-linux-inputs','needs.paired_linux_inputs');code=re.sub(r'!(?!=)',' not ',code).replace('&&',' and ').replace('||',' or ').strip()
@@ -373,7 +378,7 @@ class Workflow(unittest.TestCase):
  def legacy(self):
   pd="((github.event_name == 'push' && github.ref == 'refs/heads/feat/zig-agent-rewrite' && contains(github.event.head_commit.message, '[zig-paired-linux]')) || (github.event_name == 'workflow_dispatch' && inputs.paired_linux))"
   block="      paired_linux:\n        description: Run reviewed Linux paired input/proof preparation; timings require separate final authority\n        type: boolean\n        default: false\n"
-  text=ordinary_native_http_workflow(self.text).split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0].rstrip()+'\n';text=text.replace(block,'',1);prefix='    if: ${{ !'+pd+' && (';lines=[];count=0
+  text=default_utility_workflow_inverse(ordinary_native_http_workflow(self.text)).split('  # BEGIN REVIEWED PAIRED LINUX JOBS',1)[0].rstrip()+'\n';text=text.replace(block,'',1);prefix='    if: ${{ !'+pd+' && (';lines=[];count=0
   for line in text.splitlines(True):
    if line.startswith(prefix):line='    if: ${{ '+line[len(prefix):-5]+' }}\n';count+=1
    lines.append(line)
@@ -622,5 +627,204 @@ class PortableNativeLinuxWorkflowInverseControls(unittest.TestCase):
   for hunk in hunks:
    for changed in [text.replace(hunk,'',1),text+hunk,text.replace(hunk,hunk.replace('python3','python_UNREVIEWED',1),1)]:
     with self.subTest(hunk=hunk[:80]),self.assertRaises(AssertionError):ordinary_native_http_workflow(changed)
+
+def handoff_fixture(role,mode,products,manifest,producer,source):
+    epochs=[];ids=[];before=[]if role=='relayer'else{}
+    for index,implementation in enumerate(('rust','zig','rust')):
+        identity=f'{index+1:064x}';ids.append(identity);started=10.0+index*1000
+        row={'phase':'ABC'[index],'implementation':implementation,'pid':101+index,'binary_sha256':products[implementation]['sha256'],'started_monotonic':started,'ready_monotonic':started+1,'drained_monotonic':started+620,'ended_monotonic':started+621,'parent_wait':{'completed':True,'exit_code':0 if implementation=='zig'else -15,'forced':False},'store_identity':['same-owned-store',991],'store_initialized':index==0,'new_event':identity,'readiness':{'actual':True}}
+        if role=='relayer':
+            current=[{'id_chunks':[v[:32],v[32:]],'present':True,'processed':True,'nonce':i,'gas_expenditure_record_present':True,'spent':{'gas_used':'21000','tokens_used':'42000'}}for i,v in enumerate(ids)]
+            row.update(prior_rows_before=before,prior_rows_after=before,canonical_rows=current,nonce_before=[index,0],nonce_after=[index+1,0],raw_sends_before=index,raw_sends_after=index+1,inclusion_ns=int((started+2)*10**9),retirement_ns=int((started+602)*10**9),settlement={'processed_count':1,'queues':{'confirmation':0}},accounting={'canonical_transaction_hash':'0x'+identity,'canonical_block_hash':'0x'+'a'*64,'receipt_gas_used':21000,'effective_gas_price':2,'receipt_tokens_used':42000,'database_gas_used':21000,'database_tokens_used':42000,'gas_expenditure_record_present':True,'preserved_Rust_absent_record_Source_gap':False,'exact_expenditure':True,'process_event_proof':{'status':'0x1','mailbox_emitter':'0x'+'c'*40,'process_ids':['0x'+identity]}});before=current
+        elif role=='validator':
+            row['readiness']={'agent':'validator','data_type':'merkle_tree_hook','chain':'test1','task':'cursor_task','launch_unix_seconds':100.5,'liveness':101,'http_status':200,'metrics_bytes':100}
+            current={f'{i}_with_id.json':v for i,v in enumerate(ids)}
+            row.update(prior_objects_before=before,prior_objects_after=before,objects_after=current,signature_count_verified=index+1,nonce_before=0 if index==0 else 1,nonce_after_takeover=1,nonce_after=1,metadata={'git_sha':products[implementation]['metadata_git_sha'],'rpcs':[],'allows_public_rpcs':False},expected_metadata_git_sha=products[implementation]['metadata_git_sha'],announcement_reply_sha256='e'*64,actual_URI_in_chain_reply=True);before=current
+        else:
+            row['store_identity']=['same_owned_database','same_owned_database|777777|12345']
+            current={str(i):','.join(ids)for i in range(5)};counts={key:index+1 for key in ['raw_dispatch','messages','deliveries','gas_payments','merkle_insertions','linked_messages','linked_deliveries','linked_gas_payments']};counts.update(receipt_or_identity_mismatches=0,duplicate_rows_by_message_identity=0,head='0|10|10|10|t|f')
+            row.update(prior_rows_before=before,prior_rows_after=before,rows_after=current,row_counts=counts,migrations='21',fresh_SQL_events_verified=index+1,normalized_config_sha256='d'*64);before=current
+        epochs.append(row)
+    actual=[{'pid':r['pid'],'direct_parent_pid':1,'implementation':r['implementation'],'role':role,'binary':{k:v for k,v in products[r['implementation']].items()if k!='metadata_git_sha'},'actual_parent_wait':True,'exit_code':r['parent_wait']['exit_code']}for r in epochs]
+    if role=='relayer':actual.append({'pid':104,'direct_parent_pid':1,'implementation':'rust','role':'validator','binary':products['rust_validator_companion'],'actual_parent_wait':True,'exit_code':-15})
+    return {'schema':1,'kind':'paired-linux-drained-role-handoff','passed':True,'role':role,'mode':mode,'baseline_source_commit':'c5202242cc6569da4a858ed7ddbb34170ab696aa','producer_source_commit':producer,'execution_source_commit':'a'*40,'input_manifest':manifest,'source_pins':source,'epochs':epochs,'performance_credit':False,'actual_role_launches':actual,'actual_consumer_CPU':{'required_flags':['sse2'],'available_intersection_flags':['sse2'],'cpuinfo_bytes':1,'cpuinfo_sha256':'f'*64}}
+
+
+
+class DrainedHandoffControls(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory(prefix='handoff-pure-');self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
+  self.products={'rust_validator_companion':{'path':'rust/validator','bytes':2,'sha256':'9'*64},'rust':{'path':'rust/role','bytes':1,'sha256':'c'*64,'metadata_git_sha':'a'*40},'zig':{'path':'zig/role','bytes':1,'sha256':'d'*64,'metadata_git_sha':'b'*40}};self.manifest={'path':'/actual-once/manifest.json','bytes':1,'sha256':'f'*64};self.source=[{'path':v,'bytes':1,'sha256':'e'*64}for v in sorted(p.SOURCE_PATHS|{'zig/bench/paired_linux_postgres.py','zig/bench/paired_linux_reuse.py','zig/bench/paired_linux_platform_test.py'})]
+ def value(self,role='relayer',mode='ReleaseSafe'):return handoff_fixture(role,mode,self.products,self.manifest,'b'*40,self.source)
+ def check(self,value):return proof.validate_handoff(value,value['role'],value['mode'],self.products,self.manifest,'b'*40,self.source,['sse2'])
+ def request(self):
+  value={k:None for k in p.FIELDS};value.update(schema=1,kind='paired-linux-ci-v1',root_approved=False,inputs_enabled=False,functional_enabled=False,runtime_enabled=False,handoff_enabled=False,producer_source_commit='b'*40,baseline_source_commit=p.BASELINE,baseline_profile=p.LEGACY_PROFILE,transport_requests={mode:None for mode in p.MODES});return value
+ def admitted_request(self,value):
+  path=self.root/'request.json';path.write_text(json.dumps(value));return p.request(path,p.pin(path)['sha256'],self.repo)
+ def test_all_six_actual_phase_shapes_have_distinct_functional_scope(self):
+  for role,mode in itertools.product(['relayer','validator','scraper'],p.MODES):
+   with self.subTest(role=role,mode=mode):self.assertEqual(self.check(self.value(role,mode))['actual_daemon_order'],['rust','zig','rust'])
+ def test_overlap_force_timeout_missing_drain_products_and_reinitialization_refuse(self):
+  mutations=[('overlap',lambda v:v['epochs'][1].update(started_monotonic=30)),('forced',lambda v:v['epochs'][2]['parent_wait'].update(forced=True)),('failed_Rust',lambda v:v['epochs'][2]['parent_wait'].update(exit_code=1)),('no_wait',lambda v:v['epochs'][2]['parent_wait'].update(completed=False)),('no_drain',lambda v:v['epochs'][1].update(drained_monotonic=None)),('wrong_product',lambda v:v['epochs'][1].update(binary_sha256='0'*64)),('reset',lambda v:v['epochs'][1].update(store_initialized=True)),('replaced_store',lambda v:v['epochs'][2].update(store_identity=['another',1])),('wrong_epoch',lambda v:v['epochs'][2].update(implementation='zig')),('counterfeit_parent',lambda v:v['actual_role_launches'][2].update(actual_parent_wait=False))]
+  for role in ['relayer','validator','scraper']:
+   for label,mutate in mutations:
+    value=self.value(role);mutate(value)
+    with self.subTest(role=role,label=label),self.assertRaises(RuntimeError):self.check(value)
+ def test_new_event_and_role_specific_drains_cannot_be_borrowed(self):
+  mutations={'relayer':[lambda v:v['epochs'][2].update(new_event=v['epochs'][0]['new_event']),lambda v:v['epochs'][2].update(retirement_ns=v['epochs'][2]['inclusion_ns']+599*10**9),lambda v:v['epochs'][2]['settlement']['queues'].update(confirmation=1),lambda v:v['epochs'][2]['canonical_rows'][-1].update(processed=False),lambda v:v['epochs'][2].update(nonce_before=[999,0])],'validator':[lambda v:v['epochs'][2].update(signature_count_verified=2),lambda v:v['epochs'][1]['metadata'].update(git_sha='0'*40),lambda v:v['epochs'][2].update(nonce_after=2),lambda v:v['epochs'][2].update(actual_URI_in_chain_reply=False),lambda v:v['epochs'][2].update(prior_objects_after={})],'scraper':[lambda v:v['epochs'][2]['row_counts'].update(messages=2),lambda v:v['epochs'][2]['row_counts'].update(duplicate_rows_by_message_identity=1),lambda v:v['epochs'][2]['row_counts'].update(head='0|10|10|10|f|f'),lambda v:v['epochs'][2].update(prior_rows_after={}),lambda v:v['epochs'][2].update(migrations='20')]}
+  for role,rows in mutations.items():
+   for index,mutate in enumerate(rows):
+    value=self.value(role);mutate(value)
+    with self.subTest(role=role,index=index),self.assertRaises(RuntimeError):self.check(value)
+ def test_actual_companion_force_failure_missing_or_other_product_refuses(self):
+  for change in [lambda v:v['actual_role_launches'][-1].update(exit_code=-9),lambda v:v['actual_role_launches'][-1].update(exit_code=1),lambda v:v['actual_role_launches'].pop(),lambda v:v['actual_role_launches'][-1]['binary'].update(sha256='8'*64),lambda v:v['actual_role_launches'][-1].update(actual_parent_wait=False)]:
+   raw=copy.deepcopy(self.value());change(raw)
+   with self.assertRaises(RuntimeError):self.check(raw)
+ def test_exact_Zig_receipt_cost_and_explicit_Rust_absent_gap(self):
+  for change in [lambda a:a.update(database_tokens_used=0),lambda a:a.update(receipt_tokens_used=1),lambda a:a.update(exact_expenditure=False),lambda a:a.update(preserved_Rust_absent_record_Source_gap=True),lambda a:a.update(process_event_proof={'status':'0x1','process_ids':[]})]:
+   value=self.value();change(value['epochs'][1]['accounting'])
+   with self.assertRaises(RuntimeError):self.check(value)
+  value=self.value();row=value['epochs'][2];row['canonical_rows'][-1].update(gas_expenditure_record_present=False,spent={'gas_used':'0','tokens_used':'0'});row['accounting'].update(database_gas_used=0,database_tokens_used=0,gas_expenditure_record_present=False,preserved_Rust_absent_record_Source_gap=True,exact_expenditure=False);self.check(value)
+ def test_wrong_once_Source_baseline_mode_or_performance_claim_refuses(self):
+  for name,value in [('producer_source_commit','0'*40),('baseline_source_commit','0'*40),('source_pins',[]),('performance_credit',True),('execution_source_commit',None),('input_manifest',{'bytes':1,'sha256':'0'*64})]:
+   raw=self.value();raw[name]=value
+   with self.subTest(field=name),self.assertRaises(RuntimeError):self.check(raw)
+  raw=self.value();self.assertRaises(RuntimeError,proof.validate_handoff,raw,'validator','ReleaseSafe',self.products,self.manifest,'b'*40,self.source,['sse2']);self.assertRaises(RuntimeError,proof.validate_handoff,raw,'relayer','ReleaseFast',self.products,self.manifest,'b'*40,self.source,['sse2'])
+ def test_false_handoff_never_admits_products_or_extra_Source(self):
+  with mock.patch.object(p,'checked',side_effect=AssertionError('product or PG reached')),mock.patch.object(p,'load_source',side_effect=AssertionError('import reached')):
+   value,_=self.admitted_request(self.request());self.assertFalse(value['handoff_enabled'])
+   raw=self.request();raw['handoff_postgres_source']={'path':'anything'}
+   with self.assertRaises(p.Refused):self.admitted_request(raw)
+ def test_exact_extra_PG_binding_required_before_import_or_Docker(self):
+  raw=self.request();raw.update(root_approved=True,handoff_enabled=True,prepared_inputs={'not':'admitted yet'})
+  for bad in [None,{},False,{'path':'zig/bench/ambient_pg.py','bytes':1,'sha256':'0'*64}]:
+   raw['handoff_postgres_source']=bad
+   with self.subTest(value=bad),mock.patch.object(p,'load_source',side_effect=AssertionError('import reached')),self.assertRaises(p.Refused):self.admitted_request(raw)
+  target=self.repo/'zig/bench/paired_linux_postgres.py';target.parent.mkdir(parents=True);target.write_bytes(b'public PG Source fixture');row={**p.pin(target),'path':'zig/bench/paired_linux_postgres.py'}
+  for changed in [dict(row,bytes=row['bytes']+1),dict(row,sha256='0'*64)]:
+   raw['handoff_postgres_source']=changed
+   with self.subTest(value=changed),self.assertRaises(p.Refused):self.admitted_request(raw)
+  other=self.root/'pg-real.py';other.write_bytes(target.read_bytes());target.unlink();target.symlink_to(other);raw['handoff_postgres_source']=row
+  with self.assertRaises(p.Refused):self.admitted_request(raw)
+
+
+
+class DefaultUtilityGraphCoverage(unittest.TestCase):
+ def test_default_complete_targets_follow_tests_in_all_existing_unit_modes(self):
+  text=(Path(p.__file__).resolve().parents[2]/'.github/workflows/zig-agents.yml').read_text();unit=text.split('\n  unit:\n',1)[1].split('\n  evm:\n',1)[0]
+  self.assertIn('os: [ubuntu-latest, macos-15]',unit);self.assertIn('mode: [ReleaseSafe, ReleaseFast]',unit);self.assertIn('    timeout-minutes: 30',unit)
+  self.assertLess(unit.index('zig.py build test '),unit.index('name: Build complete default utility targets'))
+  block=unit.split('name: Build complete default utility targets',1)[1];self.assertIn('timeout-minutes: 10',block);self.assertIn('build -Dtarget=native -Dcpu=baseline -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all',block)
+  self.assertNotIn('native-db',block);self.assertNotIn('aleo-vm-worker',block);self.assertIn('Xcode_16.3.app',unit);self.assertIn('HYPERLANE_ZIG_SDKROOT',unit)
+ def test_missing_duplicate_or_test_only_build_does_not_close_graph_regression(self):
+  text=(Path(p.__file__).resolve().parents[2]/'.github/workflows/zig-agents.yml').read_text();step='      - name: Build complete default utility targets\n        timeout-minutes: 10\n        run: python3 zig/tools/zig.py build -Dtarget=native -Dcpu=baseline -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all\n'
+  for bad in [text.replace(step,'',1),text+step,text.replace('name: Build complete default utility targets','name: Build utility test only',1)]:
+   with self.assertRaises(AssertionError):default_utility_workflow_inverse(bad)
+
+
+class PreparedHandoffRouteControls(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve();self.repo=self.root/'repo';self.repo.mkdir()
+  current=[]
+  for name in sorted(p.SOURCE_PATHS|{'zig/bench/paired_linux_platform_test.py','zig/bench/paired_linux_reuse.py'}):
+   target=self.repo/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/name).read_bytes()if name=='zig/bench/paired_linux_reuse.py'else b'# controlled Source\n');current.append({**p.pin(target),'path':name})
+  original=[copy.deepcopy(r)for r in current if r['path']!='zig/bench/paired_linux_reuse.py'];workflow=next(r for r in current if r['path']=='.github/workflows/zig-agents.yml');old=next(r for r in original if r['path']==workflow['path'])
+  origin={'run_id':42,'run_attempt':1,'source_commit':'a'*40,'job_id':100,'job_name':'paired-linux-inputs'}
+  self.header={'schema':1,'kind':'paired-linux-reuse-v1','root_approved':True,'Root_input_accepted':True,'Root_six_accepted':True,'producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'origin':origin,'original_request':{'path':'zig/bench/paired_linux_request.json','bytes':1,'sha256':'f'*64},'original_source':original,'input_artifact':{'id':200,'name':'paired-linux-inputs-42-1','size_in_bytes':123,'sha256':'c'*64},'input_manifest':{'member':'input-manifest.json','bytes':100,'sha256':'1'*64},'proofs':[{'index':i,'mode':p.MODES[i//3],'kind':p.KINDS[i%3],'origin':{**origin,'job_id':101+i,'job_name':f'paired-linux-functional ({i})'},'artifact':{'id':201+i,'name':f'paired-linux-proof-{i}-42-1','size_in_bytes':100,'sha256':'d'*64},'members':{name:{'member':f'proof-{i}/{name}.json','bytes':10,'sha256':'e'*64}for name in ['owner','worker','proof','launches','consumer']}}for i in range(6)],'current_source':current,'workflow_recipe_delta':{'original':old,'current':workflow}}
+  by={r['path']:r for r in current};self.authority={'root_approved':True,'handoff_enabled':True,'inputs_enabled':False,'functional_enabled':False,'runtime_enabled':False,'producer_source_commit':'b'*40,'baseline_source_commit':p.BASELINE,'required_source':[r for r in current if r['path']in p.SOURCE_PATHS],'handoff_reuse_source':by['zig/bench/paired_linux_reuse.py'],'handoff_port8_source':by['zig/bench/paired_linux_platform_test.py']};self.save()
+  self.args=N(repo=self.repo,output=self.root/'stage',prepared_handoff=True,input_run_id=None,input_run_attempt=None,input_source_commit=None,manifest_sha256=None)
+ def save(self):
+  path=self.repo/'prepared-header.json';path.write_text(json.dumps(self.header));self.authority['prepared_inputs']={**p.pin(path),'path':path.name}
+ def run_stage(self):
+  actual=p.load_source;calls=[]
+  def checked_reader(*args):
+   module=actual(*args)
+   def reuse(*args):
+    calls.append(args);return {'enabled':True,'inputs_root':str(self.args.output/'published'),'accepted_six':{'path':'actual-retained-six'},'provenance':{'input_rebuilt':False,'native_or_timing_acceptance':False}}
+   module.reuse=reuse;return module
+  with mock.patch.object(p,'load_source',side_effect=checked_reader):result=stage.prepared_handoff(self.args,self.authority,Path('/exact/gh'),'synthetic-token','c'*40)
+  return result,calls
+ def test_relative_Root_header_reaches_unchanged_checked_reuse_API_with_current_Source(self):
+  result,calls=self.run_stage();self.assertTrue(result['enabled']);self.assertEqual(len(calls),1);self.assertEqual(calls[0],(p.pin(self.repo/'prepared-header.json'),self.repo,self.args.output,'c'*40,Path('/exact/gh'),'synthetic-token'));self.assertFalse(self.args.output.exists())
+ def test_missing_false_other_cohort_or_unauthenticated_header_refuses_before_fetch(self):
+  for mutate in [lambda v:v.update(root_approved=False),lambda v:v.update(Root_six_accepted=False),lambda v:v.update(producer_source_commit='d'*40),lambda v:v.update(current_source=v['current_source'][:-1])]:
+   old=copy.deepcopy(self.header);mutate(self.header);self.save()
+   with self.assertRaises(p.Refused):self.run_stage()
+   self.header=old;self.save()
+  self.authority['prepared_inputs']=None
+  with self.assertRaises(p.Refused):self.run_stage()
+ def test_reuse_port8_hash_link_and_same_run_arguments_refuse_before_fetch(self):
+  for field in ['handoff_reuse_source','handoff_port8_source']:
+   row=self.authority[field];self.authority[field]={**row,'sha256':'0'*64}
+   with mock.patch.object(p,'load_source',side_effect=AssertionError('unchecked import')),self.assertRaises(p.Refused):self.run_stage()
+   self.authority[field]=row
+   target=self.repo/row['path'];wire=target.read_bytes();other=self.root/'other';other.write_bytes(wire);target.unlink();target.symlink_to(other)
+   with self.assertRaises(p.Refused):self.run_stage()
+   target.unlink();target.write_bytes(wire)
+  for name,value in [('input_run_id',42),('input_run_attempt',1),('input_source_commit','a'*40),('manifest_sha256','f'*64)]:
+   setattr(self.args,name,value)
+   with mock.patch.object(p,'handoff_reuse',side_effect=AssertionError('mixed branch imported')),self.assertRaises(p.Refused):self.run_stage()
+   setattr(self.args,name,None)
+ def test_real_main_and_workflow_select_prepared_branch_before_same_run_fetch(self):
+  source=Path(stage.__file__).read_text();self.assertLess(source.index('if args.prepared_handoff:'),source.index('args.output.mkdir(mode=0o700)'));self.assertIn('prepared_handoff(args,authority',source)
+  text=(Path(p.__file__).resolve().parents[2]/'.github/workflows/zig-agents.yml').read_text();self.assertIn("if [ '${{ matrix.phase }}' = handoff ]; then\n            python3 -I -B zig/bench/paired_linux_stage.py",text);branch=text.split('            --prepared-handoff',1)[1].split('          else',1)[0];self.assertNotIn('--input-run-id',branch);self.assertNotIn('--manifest-sha256',branch);self.assertIn('paired-linux-functional',text)
+
+
+class HandoffActualProxyInterfaceControls(unittest.TestCase):
+ def test_whole_role_signed_raw_capture_uses_existing_hash_verifier(self):
+  import threading,collections
+  role=ast.parse((Path(p.__file__).with_name('relayer.py')).read_bytes());proxy=copy.deepcopy(next(n for n in role.body if isinstance(n,ast.ClassDef)and n.name=='CountingProxy'));proxy.body=[n for n in proxy.body if isinstance(n,ast.FunctionDef)and n.name in {'__init__','signed_transactions'}]
+  helper=copy.deepcopy(next(n for n in role.body if isinstance(n,ast.FunctionDef)and n.name=='_handoff_message_transaction'))
+  rpc=ast.parse((ROOT/'zig/integration/relayer_process.py').read_bytes());verify=copy.deepcopy(next(n for n in rpc.body if isinstance(n,ast.FunctionDef)and n.name=='message_transaction'));namespace={};exec(compile(ast.Module(body=[verify],type_ignores=[]),'actual-rp-hash-verifier','exec'),namespace)
+  hashes={'0xraw-old':'0x'+'a'*64,'0xraw-new':'0x'+'b'*64};calls=[]
+  def run(command):calls.append(command);return hashes[command[2]]
+  chain=N(rpc=lambda method,args:{'hash':args[0],'blockNumber':'0x1','input':'0x1234'if args[0]==hashes['0xraw-new']else'0x0000'})
+  scope={'threading':threading,'collections':collections,'evm':N(run=run),'relayer_process':N(message_transaction=namespace['message_transaction'])};exec(compile(ast.Module(body=[proxy,helper],type_ignores=[]),'actual-whole-role-handoff-interface','exec'),scope)
+  capture=scope['CountingProxy']('unused','anvil-1');capture.signed=['0xraw-old','0xraw-new','0xraw-new'];self.assertFalse(hasattr(capture,'raw_transactions'));result=scope['_handoff_message_transaction'](chain,capture,{'wire':'1234'});self.assertEqual(result['hash'],hashes['0xraw-new']);self.assertEqual(calls,[['cast','keccak','0xraw-old'],['cast','keccak','0xraw-new']])
+  with self.assertRaises(AssertionError):scope['_handoff_message_transaction'](chain,capture,{'wire':'missing'})
+  canonical=copy.deepcopy(next(n for n in rpc.body if isinstance(n,ast.FunctionDef)and n.name=='canonical_receipt'));exec(compile(ast.Module(body=[canonical],type_ignores=[]),'actual-canonical-receipt','exec'),namespace)
+  chain.receipt=lambda identity:None
+  with self.assertRaises(TypeError):namespace['canonical_receipt'](chain,result)
+  transaction={**result,'blockHash':'0x'+'c'*64};receipt={'transactionHash':result['hash'],'blockHash':transaction['blockHash'],'blockNumber':'0x1'};chain.receipt=lambda identity:receipt;chain.rpc=lambda method,args:{'hash':transaction['blockHash'],'number':'0x1'};self.assertEqual(namespace['canonical_receipt'](chain,transaction)[0],receipt)
+  chain.rpc=lambda method,args:{'hash':'0x'+'f'*64,'number':'0x1'}
+  with self.assertRaises(AssertionError):namespace['canonical_receipt'](chain,transaction)
+
+
+class ValidatorActualReadinessInterfaceControls(unittest.TestCase):
+ def functions(self):
+  import math
+  role=ast.parse(Path(p.__file__).with_name('validator.py').read_bytes());helper=copy.deepcopy(next(n for n in role.body if isinstance(n,ast.FunctionDef)and n.name=='_handoff_wait_validator_ready'));rpc=ast.parse((ROOT/'zig/integration/relayer_process.py').read_bytes());parser=copy.deepcopy(next(n for n in rpc.body if isinstance(n,ast.FunctionDef)and n.name=='metric_value'));namespace={};exec(compile(ast.Module(body=[parser],type_ignores=[]),'actual-rp-metric-parser','exec'),namespace);return helper,N(metric_value=namespace['metric_value'])
+ def evaluate(self,body):
+  import contextlib
+  helper,actual_parser=self.functions();urls=[];ticks=iter([0,0,31]);response=N(status=200,read=lambda maximum:body);urlopen=lambda url,timeout:urls.append(url)or contextlib.nullcontext(response);scope={'time':N(monotonic=lambda:next(ticks),sleep=lambda seconds:None),'urllib':N(request=N(urlopen=urlopen))};exec(compile(ast.Module(body=[helper],type_ignores=[]),'actual-validator-handoff-ready','exec'),scope)
+  with mock.patch.dict(sys.modules,{'relayer_process':actual_parser}):result=scope['_handoff_wait_validator_ready'](12345,N(poll=lambda:None),100.5)
+  return result,urls
+ def test_actual_validator_metric_interface_freshness_and_metrics_only_endpoint(self):
+  labels='data_type="merkle_tree_hook",chain="test1",task="cursor_task",agent="validator",hyperlane_baselib_version="3.0.0"';wire=('hyperlane_contract_sync_liveness{'+labels+'} 101\n').encode();ready,urls=self.evaluate(wire);self.assertEqual(ready['agent'],'validator');self.assertEqual(ready['liveness'],101);self.assertEqual(urls,['http://127.0.0.1:12345/metrics'])
+  for wrong in [wire.replace(b'agent="validator"',b'agent="relayer"'),wire.replace(b' 101',b' 99'),wire.replace(b'merkle_tree_hook',b'dispatched_messages'),b'']:
+   with self.assertRaisesRegex(RuntimeError,'FreshValidatorCycleTimeout'):self.evaluate(wrong)
+  source=Path(p.__file__).with_name('validator.py').read_text();self.assertNotIn('relayer_process.wait_role_ready',source);self.assertNotIn('/list_operations',source)
+ def test_actual_Rust_first_event_is_seeded_before_cursor_readiness(self):
+  tree=ast.parse(Path(p.__file__).with_name('validator.py').read_bytes());function=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='run_drained_handoff');loop=next(n for n in ast.walk(function)if isinstance(n,ast.For)and isinstance(n.target,ast.Tuple)and any(isinstance(t,ast.Name)and t.id=='implementation'for t in n.target.elts));seed=[n for n in ast.walk(function)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='dispatch'and len(n.args)==1 and isinstance(n.args[0],ast.Constant)and n.args[0].value==0];self.assertEqual(len(seed),1);self.assertLess(seed[0].lineno,loop.lineno)
+  ready=next(n for n in ast.walk(loop)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='_handoff_wait_validator_ready');later=next(n for n in loop.body if isinstance(n,ast.If)and isinstance(n.test,ast.Name)and n.test.id=='number'and any(isinstance(x,ast.Call)and isinstance(x.func,ast.Name)and x.func.id=='dispatch'for x in ast.walk(n)));self.assertLess(ready.lineno,later.lineno);dispatches=[n for n in ast.walk(function)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='dispatch'];self.assertEqual(len(dispatches),2)
+ def test_actual_new_fixture_forced_shutdown_cleans_up_and_refuses_success(self):
+  import subprocess
+  tree=ast.parse(Path(p.__file__).with_name('validator.py').read_bytes());function=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='run_drained_handoff');boundary=next(n for n in ast.walk(function)if isinstance(n,ast.Try)and n.finalbody and any(isinstance(call,ast.Call)and isinstance(call.func,ast.Attribute)and isinstance(call.func.value,ast.Name)and call.func.value.id=='anvil'and call.func.attr=='terminate'for statement in n.finalbody for call in ast.walk(statement)));code=compile(ast.Module(body=copy.deepcopy(boundary.finalbody[-2:]),type_ignores=[]),'actual-new-fixture-shutdown','exec')
+  for forced in [False,True]:
+   events=[]
+   def wait(timeout):
+    events.append('wait')
+    if forced and events.count('wait')==1:raise subprocess.TimeoutExpired('owned-fixture',timeout)
+    return -15
+   scope={'subprocess':subprocess,'anvil':N(terminate=lambda:events.append('terminate'),wait=wait,kill=lambda:events.append('kill'))}
+   if forced:
+    with self.assertRaisesRegex(RuntimeError,'ForcedFixtureShutdown'):exec(code,scope)
+    self.assertEqual(events,['terminate','wait','kill','wait'])
+   else:exec(code,scope);self.assertEqual(events,['terminate','wait'])
+ def test_typed_readback_refuses_wrong_role_stale_or_missing_validator_cycle(self):
+  controls=DrainedHandoffControls();controls.setUp();self.addCleanup(controls.doCleanups)
+  for key,value in [('agent','relayer'),('data_type','dispatched_messages'),('chain','test2'),('task','tx_id_task'),('launch_unix_seconds',float('nan')),('liveness',99),('http_status',503),('metrics_bytes',0)]:
+   raw=controls.value('validator');raw['epochs'][1]['readiness'][key]=value
+   with self.subTest(field=key),self.assertRaises(RuntimeError):controls.check(raw)
 
 if __name__=='__main__':unittest.main()

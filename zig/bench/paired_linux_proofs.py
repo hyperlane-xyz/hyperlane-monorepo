@@ -90,3 +90,79 @@ def validate(kind,value,relayer_sha,repo):
     require(kind=='public_relay_process','fixed functional kind')
     source=Path(repo)/'zig/integration/public_relay_process.py';node=next(n for n in ast.parse(source.read_text()).body if isinstance(n,ast.ClassDef)and n.name=='PublicAdminReferences');space={'copy':copy,'json':json,'re':re,'time':time,'ORIGIN':9913371,'DESTINATION':9913372};exec(compile(ast.Module(body=[node],type_ignores=[]),str(source),'exec'),space)
     return strict_public_readback(value,{'roles':[{'role':'relayer','sha256':relayer_sha}]},settlement,space['PublicAdminReferences'])
+
+
+def validate_handoff(value, role, mode, expected_products, input_manifest, producer, source_pins, required_cpu_flags):
+    """Closed six-case drained handoff evidence, distinct from accepted_six."""
+    need(type(value)is dict and value.get('schema')==1 and type(value['schema'])is int and value.get('kind')=='paired-linux-drained-role-handoff'and value.get('passed')is True,'actual successful handoff proof required')
+    need(value.get('role')==role and role in {'relayer','validator','scraper'}and value.get('mode')==mode and mode in {'ReleaseSafe','ReleaseFast'},'handoff role/mode differs')
+    need(value.get('performance_credit')is False and value.get('baseline_source_commit')=='c5202242cc6569da4a858ed7ddbb34170ab696aa'and value.get('producer_source_commit')==producer,'handoff baseline/producer/scope differs')
+    need(type(value.get('execution_source_commit'))is str and re.fullmatch('[0-9a-f]{40}',value['execution_source_commit']),'actual handoff executed Source identity required')
+    need(value.get('source_pins')==source_pins,'actual handoff Source closure differs')
+    actual=value.get('input_manifest');need(type(actual)is dict and all(actual.get(k)==input_manifest[k]for k in ['bytes','sha256']),'same actual once-input manifest required')
+    cpu=value.get('actual_consumer_CPU');need(type(cpu)is dict and cpu.get('required_flags')==required_cpu_flags and type(required_cpu_flags)is list and required_cpu_flags and type(cpu.get('available_intersection_flags'))is list and all(type(v)is str for v in cpu['available_intersection_flags'])and set(required_cpu_flags)<=set(cpu['available_intersection_flags'])and type(cpu.get('cpuinfo_bytes'))is int and 0<cpu['cpuinfo_bytes']<=1024**2 and type(cpu.get('cpuinfo_sha256'))is str and re.fullmatch('[0-9a-f]{64}',cpu['cpuinfo_sha256']),'actual handoff consumer ISA evidence differs')
+    epochs=value.get('epochs');need(type(epochs)is list and len(epochs)==3,'exactly three actual daemon handoff epochs required')
+    store=None;previous_end=None;pids=set();events=set()
+    for index,(epoch,implementation)in enumerate(zip(epochs,('rust','zig','rust'),strict=True)):
+        need(type(epoch)is dict and epoch.get('phase')=='ABC'[index]and epoch.get('implementation')==implementation and epoch.get('binary_sha256')==expected_products[implementation]['sha256'],'actual handoff phase/product differs')
+        pid=epoch.get('pid');need(type(pid)is int and pid>0 and pid not in pids,'unique actual daemon PID required');pids.add(pid)
+        times=[epoch.get(k)for k in ['started_monotonic','ready_monotonic','drained_monotonic','ended_monotonic']]
+        need(all(type(t)in(int,float)and math.isfinite(t)and t>0 for t in times)and times==sorted(times),'handoff actual readiness/drain/wait ordering invalid')
+        need(previous_end is None or times[0]>previous_end,'handoff writers overlap');previous_end=times[-1]
+        wait=epoch.get('parent_wait');need(type(wait)is dict and set(wait)=={'completed','exit_code','forced'}and wait['completed']is True and wait['forced']is False and type(wait['exit_code'])is int and wait['exit_code']in([0]if implementation=='zig'else[0,-15]),'actual clean/planned parent wait required')
+        need(epoch.get('store_initialized')is(index==0),'state reset or missing initial store ownership')
+        current=epoch.get('store_identity');need(type(current)is list and len(current)>=2 and all(type(v)in(str,int)for v in current),'actual retained physical store identity required')
+        if store is None:store=current
+        need(current==store,'handoff physical store changed')
+        event=epoch.get('new_event');need(type(event)is str and re.fullmatch('(?:0x)?[0-9a-fA-F]{64}',event)and event.lower().removeprefix('0x')not in events,'actual unique fresh phase event required');events.add(event.lower().removeprefix('0x'))
+        need(type(epoch.get('readiness'))is dict and bool(epoch['readiness']),'actual daemon readiness evidence missing')
+        if role=='relayer':
+            need(epoch.get('prior_rows_before')==epoch.get('prior_rows_after')and type(epoch.get('canonical_rows'))is list and len(epoch['canonical_rows'])==index+1 and all(r.get('present')is True and r.get('processed')is True for r in epoch['canonical_rows']),'canonical pending/processed state not drained or prior rows changed')
+            need(epoch.get('prior_rows_before')==([]if index==0 else epochs[index-1]['canonical_rows']),'handoff canonical history was not retained')
+            identifiers=[''.join(r.get('id_chunks',[])).lower().removeprefix('0x')for r in epoch['canonical_rows']];need(set(identifiers)==events and len(set(identifiers))==index+1,'canonical rows do not bind actual fresh phase IDs')
+            accounting=epoch.get('accounting');need(type(accounting)is dict,'canonical receipt accounting required')
+            gas=accounting.get('receipt_gas_used');price=accounting.get('effective_gas_price');need(type(gas)is int and gas>0 and type(price)is int and price>0 and accounting.get('receipt_tokens_used')==gas*price,'actual positive canonical receipt fee required')
+            need(all(type(accounting.get(k))is str and re.fullmatch('0x[0-9a-fA-F]{64}',accounting[k])for k in ['canonical_transaction_hash','canonical_block_hash']),'canonical receipt identity required')
+            event=accounting.get('process_event_proof');need(type(event)is dict and event.get('status')=='0x1'and event.get('process_ids')==['0x'+epoch['new_event'].lower().removeprefix('0x')]and type(event.get('mailbox_emitter'))is str and re.fullmatch('0x[0-9a-f]{40}',event['mailbox_emitter']),'fresh event must bind canonical receipt')
+            latest=epoch['canonical_rows'][-1];spent=latest.get('spent');need(type(spent)is dict and type(accounting.get('database_gas_used'))is int and type(accounting.get('database_tokens_used'))is int and str(accounting['database_gas_used'])==str(spent.get('gas_used'))and str(accounting['database_tokens_used'])==str(spent.get('tokens_used'))and accounting.get('gas_expenditure_record_present')is latest.get('gas_expenditure_record_present'),'receipt accounting must bind actual stopped database row')
+            gap=accounting.get('preserved_Rust_absent_record_Source_gap');need(type(gap)is bool and type(accounting.get('exact_expenditure'))is bool,'typed expenditure scope required')
+            if gap:need(implementation=='rust'and accounting['gas_expenditure_record_present']is False and accounting['database_gas_used']==accounting['database_tokens_used']==0 and accounting['exact_expenditure']is False,'only existing absent Rust record gap may remain explicit')
+            else:need(accounting['gas_expenditure_record_present']is True and accounting['database_gas_used']==gas and accounting['database_tokens_used']==gas*price and accounting['exact_expenditure']is True,'Zig/current expenditure must equal actual canonical receipt')
+            before=epoch.get('nonce_before');after=epoch.get('nonce_after');need(type(after)is list and len(after)==2 and all(type(v)is int and v>=0 for v in after),'actual output nonce vector required');need(type(before)is list and len(before)==2 and all(type(v)is int and v>=0 for v in before)and after==[before[0]+1,before[1]],'actual fresh-event nonce coverage differs')
+            need(type(epoch.get('raw_sends_before'))is int and type(epoch.get('raw_sends_after'))is int and epoch.get('raw_sends_after')==epoch['raw_sends_before']+1,'handoff duplicate/missing actual submission')
+            if index:need(before==epochs[index-1]['nonce_after']and epoch['raw_sends_before']==epochs[index-1]['raw_sends_after'],'takeover replayed prior transaction')
+            included=epoch.get('inclusion_ns');retired=epoch.get('retirement_ns');need(type(included)is int and type(retired)is int and included>0 and included+600_000_000_000<=retired<=included+630_000_000_000,'actual per-ID600+30 drain missing')
+            settlement=epoch.get('settlement');need(type(settlement)is dict and type(settlement.get('processed_count'))in(int,float)and math.isfinite(settlement['processed_count'])and settlement['processed_count']==1 and type(settlement.get('queues'))is dict and settlement['queues']and all(type(v)in(int,float)and math.isfinite(v)and v==0 for v in settlement['queues'].values()),'actual owned queue drain missing')
+        elif role=='validator':
+            ready=epoch['readiness'];launched=ready.get('launch_unix_seconds');liveness=ready.get('liveness')
+            need(all(ready.get(k)==v for k,v in [('agent','validator'),('data_type','merkle_tree_hook'),('chain','test1'),('task','cursor_task'),('http_status',200)])and type(launched)in(int,float)and math.isfinite(launched)and launched>0 and type(liveness)in(int,float)and math.isfinite(liveness)and liveness>=int(launched)and type(ready.get('metrics_bytes'))is int and 0<ready['metrics_bytes']<=1024**2,'actual fresh validator role/source cycle readiness required')
+            before=epoch.get('prior_objects_before');after=epoch.get('prior_objects_after');objects=epoch.get('objects_after')
+            need(type(before)is dict and before==after and type(objects)is dict and len(objects)==index+1 and set(objects)=={str(i)+'_with_id.json'for i in range(index+1)}and all(type(d)is str and re.fullmatch('[0-9a-f]{64}',d)for d in objects.values()),'checkpoint publication/frontier not drained')
+            need(before==({}if index==0 else epochs[index-1]['objects_after'])and all(objects[k]==v for k,v in before.items()),'prior signed checkpoints changed')
+            need(type(epoch.get('signature_count_verified'))is int and epoch['signature_count_verified']==index+1,'full current checkpoint crypto proof missing')
+            metadata=epoch.get('metadata');need(type(metadata)is dict and metadata.get('git_sha')==epoch.get('expected_metadata_git_sha')==expected_products[implementation]['metadata_git_sha']and type(metadata.get('git_sha'))is str and re.fullmatch('[0-9a-f]{40}',metadata['git_sha']),'actual validator metadata/build provenance mismatch')
+            need(all(type(epoch.get(k))is int and epoch[k]>=0 for k in ['nonce_before','nonce_after_takeover','nonce_after'])and epoch.get('actual_URI_in_chain_reply')is True and type(epoch.get('announcement_reply_sha256'))is str and re.fullmatch('[0-9a-f]{64}',epoch['announcement_reply_sha256']),'actual announcement drain missing')
+            need(index!=0 or epoch['nonce_after']==epoch['nonce_before']+1,'initial announcement missing or duplicated')
+            if index:need(epoch['announcement_reply_sha256']==epochs[0]['announcement_reply_sha256'],'takeover mutated announcement')
+            if index:need(epoch.get('nonce_before')==epochs[index-1].get('nonce_after')==epoch.get('nonce_after_takeover')==epoch.get('nonce_after'),'validator takeover repeated announcement')
+        else:
+            identity=epoch['store_identity'];need(len(identity)==2 and type(identity[0])is str and type(identity[1])is str,'actual PG cluster/database identity required');parts=identity[1].split('|');need(len(parts)==3 and parts[0]==identity[0]and all(v.isdecimal()and int(v)>0 for v in parts[1:]),'PG cluster/database OID identity missing')
+            before=epoch.get('prior_rows_before');need(type(before)is dict and before==epoch.get('prior_rows_after')and before==({}if index==0 else epochs[index-1]['rows_after']),'prior scraper rows changed')
+            need(type(epoch.get('rows_after'))is dict and len(epoch['rows_after'])==5 and epoch.get('migrations')=='21'and type(epoch.get('fresh_SQL_events_verified'))is int and epoch['fresh_SQL_events_verified']==index+1,'actual scraper linked-row/schema coverage missing')
+            need(event.lower().removeprefix('0x')in str(epoch['rows_after']).lower(),'fresh scraper event absent from actual rows')
+            state=epoch.get('row_counts');keys=['raw_dispatch','messages','deliveries','gas_payments','merkle_insertions','linked_messages','linked_deliveries','linked_gas_payments']
+            need(type(state)is dict and all(type(state.get(k))is int and state[k]==index+1 for k in keys)and state.get('receipt_or_identity_mismatches')==0 and state.get('duplicate_rows_by_message_identity')==0,'scraper drain/duplicates differ')
+            head=state.get('head','').split('|');need(len(head)==6 and head[3].isdecimal()and head[4:]==['t','f'],'scraper actual healthy confirmed frontier missing')
+            need(index==0 or epoch.get('normalized_config_sha256')==epochs[0].get('normalized_config_sha256'),'scraper effective configuration changed')
+    need(epochs[-1]['ended_monotonic']-epochs[0]['started_monotonic']<7200,'handoff actual owner wall budget exceeded')
+    launches=value.get('actual_role_launches');need(type(launches)is list,'actual direct daemon launch/wait evidence missing')
+    need(len(launches)==(4 if role=='relayer'else 3)and all(type(r)is dict for r in launches),'complete actual primary and companion launch catalog required')
+    launch_pids=set()
+    for row in launches:
+        need(type(row.get('pid'))is int and row['pid']>0 and row['pid']not in launch_pids and row.get('actual_parent_wait')is True and type(row.get('direct_parent_pid'))is int and row['direct_parent_pid']>0 and row.get('implementation')in {'rust','zig'}and type(row.get('exit_code'))is int and row['exit_code']in([0]if row['implementation']=='zig'else[0,-15]),'every actual daemon including companion must have clean waited exit')
+        launch_pids.add(row['pid'])
+        if row.get('role')!=role:need(role=='relayer'and row.get('role')=='validator'and row['implementation']=='rust'and type(row.get('binary'))is dict and all(row['binary'].get(k)==expected_products['rust_validator_companion'][k]for k in ['bytes','sha256']),'only exact once Rust validator companion is admitted')
+    primary=[r for r in launches if type(r)is dict and r.get('role')==role]
+    need(len(primary)==3 and [r.get('pid')for r in primary]==[r['pid']for r in epochs]and [r.get('implementation')for r in primary]==['rust','zig','rust'],'actual role epoch binding differs')
+    for row,epoch in zip(primary,epochs,strict=True):need(row.get('actual_parent_wait')is True and type(row.get('direct_parent_pid'))is int and row['direct_parent_pid']>0 and type(row.get('exit_code'))is int and row['exit_code']==epoch['parent_wait']['exit_code']and type(row.get('binary'))is dict and row['binary'].get('sha256')==epoch['binary_sha256'],'actual daemon parent/product/wait differs')
+    return {'role':role,'mode':mode,'actual_daemon_order':['rust','zig','rust'],'drained':True,'same_physical_store':True,'no_writer_overlap':True,'fresh_rollback_event':epochs[2]['new_event'],'performance_credit':False}

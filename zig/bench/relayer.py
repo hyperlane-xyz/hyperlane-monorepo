@@ -1033,6 +1033,9 @@ def run_attempt(name, sample, args, binaries, output):
                     mailbox = domains[f"test{message['destination'] - ORIGIN + 1}"]["mailbox"]
                     return int(target.rpc("eth_call", [{"to": mailbox, "data": evm.calldata("delivered(bytes32)", message["id"])}, "latest"]), 16) == 1
 
+                if getattr(args, 'drained_handoff', False):
+                    return _drained_handoff_context(args, binaries, temporary, relayer_file, relayer_config, database, relayer_value, chain, chain_alt, domains, messages, dispatch, delivered, origin_rpc, destination_rpc, destination_alt_rpc, raw_dir)
+
                 backlog_count = pending_backlog_count(messages, args.catchup, delivered)
                 signer_nonce_before = int(chain.rpc("eth_getTransactionCount", [evm.TEST_SIGNER, "latest"]), 16)
                 signer_nonce_alt_before = int(chain_alt.rpc("eth_getTransactionCount", [evm.TEST_SIGNER, "latest"]), 16)
@@ -1495,3 +1498,91 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def _drained_handoff_context(args, binaries, temporary, config_file, config_dir, database, config, chain, chain_alt, domains, messages, dispatch, delivered, origin_rpc, destination_rpc, destination_alt_rpc, output):
+    """Separate functional phase; original six proofs and measured main unchanged."""
+    epochs = []
+    prior_rows = []
+    physical = None
+    process = None
+    def nonces():
+        return [int(c.rpc('eth_getTransactionCount', [evm.TEST_SIGNER, 'latest']), 16) for c in (chain, chain_alt)]
+    def sends():
+        return sum(len(p.signed) for p in (origin_rpc, destination_rpc, destination_alt_rpc))
+    try:
+        for number, implementation in enumerate(('rust', 'zig', 'rust')):
+            if process is not None or epochs and not epochs[-1]['parent_wait']['completed']:
+                raise RuntimeError('HandoffPredecessorNotReaped')
+            if number:
+                current = database.stat()
+                if (current.st_dev, current.st_ino) != physical:
+                    raise RuntimeError('HandoffDatabaseReplaced')
+            before_nonce, before_sends = nonces(), sends()
+            started = time.monotonic()
+            process = launch(implementation, binaries[implementation], temporary, config_file, config_dir)
+            ready = prove_restart(config['metricsPort'], process, args.deadline, time.time())
+            ready_at = time.monotonic()
+            if nonces() != before_nonce or sends() != before_sends:
+                raise RuntimeError('HandoffRebroadcastBeforeFreshEvent')
+            if number:
+                dispatch(len(messages))
+            target = messages[-1]
+            wait_for(process, lambda: delivered(target), args.deadline, 'fresh handoff delivery')
+            observations = origin_rpc.observations() + destination_rpc.observations() + destination_alt_rpc.observations()
+            included, coverage = inclusion_lower_bound([target], observations, {DESTINATION: domains['test2']['mailbox'], DESTINATION_ALT: domains['test3']['mailbox']})
+            sample, retired = settle_live(config['metricsPort'], process, 630, included, 1, coverage, active_ids_fn=presence_callback('smoke', implementation, config['metricsPort']))
+            if not included + 600_000_000_000 <= retired <= included + 630_000_000_000:
+                raise RuntimeError('HandoffActual600Plus30DrainMissing')
+            drained_at = time.monotonic()
+            child_pid = process.p.pid
+            stopped = process.stop_with_signal(signal.SIGTERM)
+            ended = time.monotonic()
+            if process.usage is None or process.poll() is None or stopped['exit_code'] not in ([0] if implementation == 'zig' else [0, -signal.SIGTERM]):
+                raise RuntimeError('HandoffActualParentWaitFailed')
+            process.close()
+            process = None
+            stat = database.stat()
+            if physical is None:
+                physical = stat.st_dev, stat.st_ino
+            if physical != (stat.st_dev, stat.st_ino):
+                raise RuntimeError('HandoffDatabaseReplaced')
+            probe = rust_probe_all(args.oracle, database, messages)
+            rows = probe['messages']
+            if rows[:-1] != prior_rows or not all(r['present'] and r['processed'] for r in rows):
+                raise RuntimeError('HandoffPriorCanonicalRowsChanged')
+            transaction = _handoff_message_transaction(chain, destination_rpc, target)
+            if transaction['from'].lower() != evm.TEST_SIGNER.lower() or transaction['to'].lower() != domains['test2']['mailbox'].lower():
+                raise RuntimeError('HandoffReceiptTransactionIdentityMismatch')
+            receipt, header = relayer_process.canonical_receipt(chain, transaction)
+            event_proof = relayer_process.verify_process_events(receipt, domains['test2']['mailbox'], [target['id']])
+            gas, price = int(receipt['gasUsed'], 16), int(receipt['effectiveGasPrice'], 16)
+            spent = rows[-1].get('spent') or {}
+            db_gas, db_tokens = int(spent.get('gas_used', 0)), int(spent.get('tokens_used', 0))
+            gap = implementation == 'rust' and rows[-1].get('gas_expenditure_record_present') is False and db_gas == 0 and db_tokens == 0
+            if gas <= 0 or price <= 0 or (not gap and (rows[-1].get('gas_expenditure_record_present') is not True or db_gas != gas or db_tokens != gas * price)):
+                raise RuntimeError('HandoffCanonicalReceiptExpenditureMismatch')
+            accounting = {'canonical_transaction_hash': transaction['hash'], 'canonical_block_hash': header['hash'], 'receipt_gas_used': gas, 'effective_gas_price': price, 'receipt_tokens_used': gas * price, 'database_gas_used': db_gas, 'database_tokens_used': db_tokens, 'gas_expenditure_record_present': rows[-1].get('gas_expenditure_record_present'), 'preserved_Rust_absent_record_Source_gap': gap, 'exact_expenditure': not gap, 'process_event_proof': event_proof}
+            after_nonce, after_sends = nonces(), sends()
+            if after_nonce != [before_nonce[0] + 1, before_nonce[1]] or after_sends != before_sends + 1:
+                raise RuntimeError('HandoffExtraNonceOrSubmission')
+            epochs.append({'phase': 'ABC'[number], 'implementation': implementation, 'pid': child_pid, 'binary_sha256': ''.join(digest(binaries[implementation])), 'started_monotonic': started, 'ready_monotonic': ready_at, 'drained_monotonic': drained_at, 'ended_monotonic': ended, 'parent_wait': {'completed': True, 'exit_code': stopped['exit_code'], 'forced': False}, 'store_identity': [str(database), *physical], 'store_initialized': number == 0, 'new_event': target['id'], 'prior_rows_before': prior_rows, 'prior_rows_after': rows[:-1], 'canonical_rows': rows, 'accounting': accounting, 'nonce_before': before_nonce, 'nonce_after': after_nonce, 'raw_sends_before': before_sends, 'raw_sends_after': after_sends, 'readiness': ready, 'inclusion_ns': included, 'retirement_ns': retired, 'settlement': sample})
+            prior_rows = rows
+        return {'schema': 1, 'kind': 'paired-linux-drained-role-handoff', 'role': 'relayer', 'passed': True, 'scope': 'EVM drained Rust->Zig->Rust; no inflight/all-protocol claim; not a benchmark', 'epochs': epochs, 'performance_credit': False}
+    finally:
+        if process is not None:
+            process.stop_with_signal(signal.SIGTERM)
+            process.close()
+
+
+def run_drained_handoff(context):
+    from types import SimpleNamespace
+    args = SimpleNamespace(catchup=1, deadline=90, max_batch_size=1, mode='smoke', oracle=context['oracle'], settlement_deadline=630, stall=False, steady=0, steady_interval_ms=1000, drained_handoff=True)
+    return run_attempt('rust', 0, args, context['binaries'], context['output'])
+
+
+def _handoff_message_transaction(chain, proxy, message):
+    """Bridge existing whole-role raw-request capture to the hash-only verifier."""
+    from types import SimpleNamespace
+    hashes = [evm.run(['cast', 'keccak', raw]) for raw in dict.fromkeys(proxy.signed_transactions())]
+    return relayer_process.message_transaction(chain, SimpleNamespace(raw_transactions=hashes), message)

@@ -16,7 +16,7 @@ LIMITS={'maximum_wall_seconds':9000,'maximum_tree_RAM_bytes':16*GIB,'maximum_own
 SDK_KEYS={'relayer':'relayer','validator':'validator','scraper':'scraper','hyperlane-aleo-vm-worker':'worker','libziggy_aleo_crypto.so':'aleoCrypto','libziggy_aleo_vm.so':'aleoVm','libziggy_starknet_crypto.so':'starknetCrypto','libziggy_regex.so':'regex','libziggy_url.so':'url'}
 TOOLS={'init-db','ziggy-rocks-oracle','ziggy-native-rows','ziggy-rust-reference'}
 CODE={'zig/bench/native_tron_setup.py','zig/bench/native_tron_assets.py','zig/tools/foundry_official.py','zig/tools/foundry_official_test.py','zig/tools/foundry_public_good_root.json','.nvmrc','package.json','zig/bench/paired_linux_inputs.py','zig/bench/native_case_ci.py','zig/bench/native_payload_export.py','zig/bench/native_case_tools.py','zig/bench/native_harness_census.py','zig/bench/cold_matrix_owner.py','zig/tools/build_cpu.py','zig/integration/native_case_inputs.py','zig/integration/evm.py','zig/integration/relayer_process.py','zig/integration/public_relay_process.py','zig/integration/validator.py','zig/bench/validator.py','zig/bench/scraper.py'}
-FIELDS={'schema','kind','root_approved','inputs_enabled','functional_enabled','runtime_enabled','producer_source_commit','qualified_cohort','transport_requests','baseline_source_commit','baseline_profile','required_source','prepared_inputs','accepted_six','runtime_authority'}
+FIELDS={'schema','kind','root_approved','inputs_enabled','functional_enabled','runtime_enabled','handoff_enabled','handoff_postgres_source','handoff_reuse_source','handoff_port8_source','producer_source_commit','qualified_cohort','transport_requests','baseline_source_commit','baseline_profile','required_source','prepared_inputs','accepted_six','runtime_authority'}
 PUBLIC_ERROR_NAMES={'Refused','TaskInterrupted','ValueError','AssertionError','FileNotFoundError','FileExistsError','PermissionError','OSError','TypeError','KeyError','RuntimeError','AttributeError','NameError','ImportError','ModuleNotFoundError','TimeoutExpired','CalledProcessError'}
 class Refused(RuntimeError):pass
 class TaskInterrupted(RuntimeError):pass
@@ -64,11 +64,15 @@ def checked(row,root=None):
 def request(path,expected_sha,repo):
  actual=pin(path);need(actual['bytes']<=1024**2 and actual['sha256']==expected_sha,'reviewed request changed');value=decode(path.read_bytes())
  need(type(value)is dict and set(value)==FIELDS and type(value['schema'])is int and value['schema']==1 and value['kind']=='paired-linux-ci-v1','paired request schema')
- need(all(type(value[k])is bool for k in ['root_approved','inputs_enabled','functional_enabled','runtime_enabled']),'literal stage approvals required')
+ need(all(type(value[k])is bool for k in ['root_approved','inputs_enabled','functional_enabled','runtime_enabled','handoff_enabled']),'literal stage approvals required')
  need(value['baseline_source_commit']==BASELINE and value['baseline_profile']==PROFILE,'original comparator profile required')
  need(type(value['producer_source_commit'])is str and re.fullmatch('[0-9a-f]{40}',value['producer_source_commit']),'exact coherent producer Source required')
+ need(not value['handoff_enabled']or(not any(value[k]for k in ['inputs_enabled','functional_enabled','runtime_enabled'])and value['prepared_inputs']is not None),'handoff is a separate exclusive prepared-input phase')
+ need(value['handoff_postgres_source']is None or value['handoff_enabled'],'inactive handoff dependency Source must be null')
+ need(value['handoff_reuse_source']is None or value['handoff_enabled'],'inactive handoff dependency Source must be null')
+ need(value['handoff_port8_source']is None or value['handoff_enabled'],'inactive handoff dependency Source must be null')
  if not value['root_approved']:
-  need(not any(value[k]for k in ['inputs_enabled','functional_enabled','runtime_enabled']),'unapproved work flags');return value,None
+  need(not any(value[k]for k in ['inputs_enabled','functional_enabled','runtime_enabled','handoff_enabled']),'unapproved work flags');return value,None
  if not value['inputs_enabled']:return value,None
  need(type(value['required_source'])is list and value['required_source'],'applied Source closure required')
  rows={}
