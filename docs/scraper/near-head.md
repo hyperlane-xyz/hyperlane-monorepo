@@ -34,6 +34,11 @@ For deployments, `websocketConfigSecret` loads the map through `CONFIG_FILES`.
 
 ## Operations
 
+For legacy cutovers, finish the RPC/log completeness audit (step 1 below) before
+migration; backfill gaps with the legacy writer first. After migration, keep writers
+stopped until verification and seeding succeed. Never restart an old writer against
+the migrated database.
+
 Stop every scraper sharing the database, including other environments. Use matching
 scraper/proxy/migration versions. For legacy migrations, wait 90 seconds after stopping.
 Run `init-db` as `postgres`; finish index verification and ANALYZE before restarting.
@@ -53,9 +58,12 @@ WHERE usename IN ('<scraper role>', ...);   -- expect no rows
 
 ### Checkpoint repair
 
-Before checkpoint migration, this query must return no rows:
+In `psql`, run this before checkpoint migration. It skips databases without
+`scraper_head`; otherwise the boundary check must return no rows:
 
 ```sql
+SELECT to_regclass('scraper_head') IS NOT NULL AS has_scraper_head \gset
+\if :has_scraper_head
 SELECT h.domain,h.confirmed_height,h.indexed_height
 FROM scraper_head h
 WHERE NOT EXISTS (
@@ -66,6 +74,7 @@ WHERE NOT EXISTS (
   WHERE b.domain=h.domain AND b.height=h.indexed_height
     AND b.hash=h.indexed_hash
 );
+\endif
 ```
 
 After migration, this must return no rows:
@@ -126,8 +135,8 @@ Only for existing history without `scraper_head`. Empty domains need no seed.
    The shared `cursor` stores the faster delivery/gas watermark; it is not proof.
    Audit any interval between the last event, cursor, and chosen `H`. Never skip
    missing history by choosing a newer boundary.
-3. Record canonical hash/timestamp and configured mailbox/hook/paymaster. Compare
-   every available contract count at `H` with the scoped database counts below.
+3. Record canonical hash/timestamp and configured mailbox/hook/paymaster. After
+   migration, compare contract counts at `H` with the scoped database counts below.
 4. Check overlap, seed under the per-domain advisory lock, verify readback against
    fresh RPC, then restart. Never overwrite existing head state.
 
@@ -152,7 +161,10 @@ FROM block
 WHERE domain=:'domain'::integer AND height=:'height'::bigint;
 ```
 
-Compare these counts with RPC at `H`, using the exact configured contract scopes:
+Compare these counts with RPC at `H`, using the exact configured contract scopes.
+Legacy NULL heights use the linked transaction's block in the same domain. If a row
+has neither an event height nor that block link, stop and verify/backfill it against
+RPC before comparing counts; an unknown height must not be treated as below `H`.
 
 ```sql
 SELECT
@@ -161,14 +173,18 @@ SELECT
    WHERE origin_domain=:'domain'::integer
      AND origin_mailbox=decode(:'mailbox','hex')
      AND origin_block_height<=:'height'::bigint) AS dispatch_count,
-  (SELECT count(*) FROM delivered_message
-   WHERE domain=:'domain'::integer
-     AND destination_mailbox=decode(:'mailbox','hex')
-     AND block_number<=:'height'::bigint) AS delivery_count,
-  (SELECT count(*) FROM gas_payment
-   WHERE domain=:'domain'::integer
-     AND interchain_gas_paymaster=decode(:'paymaster','hex')
-     AND block_number<=:'height'::bigint) AS gas_payment_count,
+  (SELECT count(*) FROM delivered_message e
+   LEFT JOIN "transaction" t ON e.block_number IS NULL AND t.id=e.destination_tx_id
+   LEFT JOIN block b ON b.id=t.block_id AND b.domain=e.domain
+   WHERE e.domain=:'domain'::integer
+     AND e.destination_mailbox=decode(:'mailbox','hex')
+     AND coalesce(e.block_number,b.height)<=:'height'::bigint) AS delivery_count,
+  (SELECT count(*) FROM gas_payment e
+   LEFT JOIN "transaction" t ON e.block_number IS NULL AND t.id=e.tx_id
+   LEFT JOIN block b ON b.id=t.block_id AND b.domain=e.domain
+   WHERE e.domain=:'domain'::integer
+     AND e.interchain_gas_paymaster=decode(:'paymaster','hex')
+     AND coalesce(e.block_number,b.height)<=:'height'::bigint) AS gas_payment_count,
   (SELECT count(*)
    FROM merkle_tree_insertion
    WHERE domain=:'domain'::integer
