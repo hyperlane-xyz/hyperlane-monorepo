@@ -1,7 +1,7 @@
 //! One receipt worker schedules independent pages for all indexed event types.
 use std::time::Duration;
 
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::future::join_all;
 use prometheus::GaugeVec;
 use tokio::{
     sync::{watch, Semaphore},
@@ -32,121 +32,104 @@ impl PageOutcome {
     async fn wait(self, delay: Duration, wakeup: &mut watch::Receiver<()>) {
         match self {
             Self::More => tokio::task::yield_now().await,
-            Self::Idle => tokio::select! {
-                _ = sleep(delay) => {}
-                changed = wakeup.changed() => { changed.expect("Receipt wake-up sender dropped"); }
-            },
+            Self::Idle => wakeup
+                .changed()
+                .await
+                .expect("Receipt wake-up sender dropped"),
             // New indexed work must not bypass RPC/DB failure backoff.
             Self::Retry => sleep(delay).await,
         }
     }
 }
 
-/// Drain healthy full pages immediately; back off on failures and between sweeps.
+/// Scan on startup and ingestion; timers only retry unfinished work.
 /// Completed pages are rescheduled independently, so one slow receipt cannot block other types.
 pub(super) async fn run(
     store: &HyperlaneDbStore,
-    poll_interval: Duration,
+    retry_interval: Duration,
     oldest_pending_seconds: &GaugeVec,
     wakeup: watch::Receiver<()>,
 ) {
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
-    tokio::join!(
-        run_pages(store, poll_interval, wakeup, &domain_rpc_permits),
-        monitor_backlog(store, poll_interval, oldest_pending_seconds),
-    );
-}
-
-struct ReceiptScan {
-    stream: ReceiptStream,
-    after: i64,
-    outcome: PageOutcome,
-    wakeup: watch::Receiver<()>,
-}
-
-async fn run_pages(
-    store: &HyperlaneDbStore,
-    poll_interval: Duration,
-    wakeup: watch::Receiver<()>,
-    domain_rpc_permits: &Semaphore,
-) {
-    let mut pages = FuturesUnordered::new();
-    for stream in ReceiptStream::ALL {
-        pages.push(next_page(
+    join_all(ReceiptStream::ALL.into_iter().map(|stream| {
+        run_stream(
             store,
-            ReceiptScan {
-                stream,
-                after: 0,
-                outcome: PageOutcome::More,
-                wakeup: wakeup.clone(),
-            },
-            poll_interval,
-            domain_rpc_permits,
-        ));
-    }
-    while let Some(scan) = pages.next().await {
-        pages.push(next_page(store, scan, poll_interval, domain_rpc_permits));
-    }
-}
-
-async fn next_page(
-    store: &HyperlaneDbStore,
-    mut scan: ReceiptScan,
-    poll_interval: Duration,
-    domain_rpc_permits: &Semaphore,
-) -> ReceiptScan {
-    scan.outcome.wait(poll_interval, &mut scan.wakeup).await;
-    // Remember hints arriving during a read/fetch, so the next idle page runs immediately.
-    scan.wakeup.borrow_and_update();
-    scan.outcome = enrich_page(
-        store,
-        scan.stream,
-        &mut scan.after,
-        RECEIPT_TIMEOUT,
-        domain_rpc_permits,
-    )
+            stream,
+            retry_interval,
+            wakeup.clone(),
+            &domain_rpc_permits,
+            oldest_pending_seconds,
+        )
+    }))
     .await;
-    scan
 }
 
-async fn monitor_backlog(
+async fn run_stream(
     store: &HyperlaneDbStore,
-    poll_interval: Duration,
+    stream: ReceiptStream,
+    retry_interval: Duration,
+    mut wakeup: watch::Receiver<()>,
+    domain_rpc_permits: &Semaphore,
     oldest_pending_seconds: &GaugeVec,
 ) {
+    let mut after = 0;
+    let mut outcome = PageOutcome::More;
+    let mut retry_sweep = false;
     loop {
-        if let result @ (Err(_) | Ok(Err(_))) = timeout(
+        outcome.wait(retry_interval, &mut wakeup).await;
+        // Remember hints arriving during a read/fetch, so the next idle page runs immediately.
+        wakeup.borrow_and_update();
+        outcome = enrich_page(
+            store,
+            stream,
+            &mut after,
             RECEIPT_TIMEOUT,
-            update_pending_age(store, oldest_pending_seconds),
+            domain_rpc_permits,
         )
-        .await
-        {
-            warn!(
-                domain = store.domain.id(),
-                ?result,
-                "Receipt backlog measurement failed; retrying"
-            );
+        .await;
+        // A failed page advances its cursor to let healthy later rows proceed.
+        // Remember that failure until the sweep wraps, so it retries without new events.
+        if outcome == PageOutcome::Retry {
+            retry_sweep = true;
+        } else if outcome == PageOutcome::Idle && retry_sweep {
+            retry_sweep = false;
+            outcome = PageOutcome::Retry;
         }
-        sleep(poll_interval).await;
+        if outcome == PageOutcome::Idle && !matches!(stream, ReceiptStream::Dispatch) {
+            oldest_pending_seconds
+                .with_label_values(&[store.domain.name(), stream.metric_label()])
+                .set(0.0);
+        } else if outcome == PageOutcome::Retry && !matches!(stream, ReceiptStream::Dispatch) {
+            if let result @ (Err(_) | Ok(Err(_))) = timeout(
+                RECEIPT_TIMEOUT,
+                update_pending_age(store, stream, oldest_pending_seconds),
+            )
+            .await
+            {
+                warn!(
+                    domain = store.domain.id(),
+                    ?result,
+                    "Receipt backlog measurement failed"
+                );
+            }
+        }
     }
 }
 
-/// Sample receipt backlogs, restricting dispatch to its provisional suffix.
-/// This runs on the polling cadence, independently of receipt fetches and pages.
+/// Sample backlog only while processing a stream, never on an idle timer.
 async fn update_pending_age(
     store: &HyperlaneDbStore,
+    stream: ReceiptStream,
     oldest_pending_seconds: &GaugeVec,
 ) -> eyre::Result<()> {
-    for stream in ReceiptStream::ALL {
-        let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
-        let age = store
-            .db
-            .pending_receipt_age(store.domain.id(), stream)
-            .await?;
-        oldest_pending_seconds
-            .with_label_values(&[store.domain.name(), stream.metric_label()])
-            .set(age);
-    }
+    let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
+    let age = store
+        .db
+        .pending_receipt_age(store.domain.id(), stream)
+        .await?;
+    oldest_pending_seconds
+        .with_label_values(&[store.domain.name(), stream.metric_label()])
+        .set(age);
     Ok(())
 }
 

@@ -15,8 +15,8 @@ Events + metadata + confirmation state
               Scraper Proxy -> GraphQL / WebSocket
 ```
 
-One worker per chain enriches transactions immediately. Confirmation controls
-visibility, not enrichment. Reorgs delete the provisional fork; a reorg past
+One worker per chain enriches transactions on startup and ingestion. Timers retry
+failures. Confirmation controls visibility, not enrichment. Reorgs delete the provisional fork; a reorg past
 confirmed history halts the chain.
 
 Code: [indexing](src/near_head/pipeline.rs), [enrichment](src/near_head/enrichment.rs),

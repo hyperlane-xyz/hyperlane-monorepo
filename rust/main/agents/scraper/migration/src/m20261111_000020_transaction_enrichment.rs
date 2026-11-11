@@ -13,15 +13,8 @@ impl MigrationTrait for Migration {
         Ok(())
     }
 
-    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .get_connection()
-            .execute_unprepared(
-                "DROP TRIGGER transaction_dispatch_enriched ON \"transaction\";\n\
-                 DROP FUNCTION notify_transaction_dispatch_enriched();",
-            )
-            .await?;
-        // Preserve DELETE grants: a role may have held them before this migration.
+    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+        // A role may have held DELETE before this migration; retain its grants.
         Ok(())
     }
 }

@@ -21,9 +21,8 @@ three frontier indexes and gas payment log index, which their down
 migrations drop. Scraper startup refuses to run until the collision-safe gas
 payment log index is valid and `gas_payment_transaction_log` is gone.
 
-Transaction enrichment also requires migration 20 (transaction DELETE grants and
-dispatch refresh notifications) and the concurrent `message_origin_tx_id_idx` and
-`gas_payment_tx_id_idx` indexes. Startup verifies both FK indexes; run `init-db`
+Transaction enrichment requires migration 20 (transaction DELETE grants) and
+the concurrent `message_origin_tx_id_idx` and `gas_payment_tx_id_idx` indexes. Startup verifies both FK indexes; run `init-db`
 before deploying the new scraper.
 
 Before dropping a column during rollback, stop or roll back every scraper binary

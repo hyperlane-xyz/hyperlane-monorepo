@@ -121,22 +121,38 @@ impl ScraperDb {
         stream: ReceiptStream,
         ids: &[i64],
     ) -> Result<()> {
-        // Dispatch refreshes are emitted atomically by the transaction INSERT
-        // trigger, including when another stream stores the shared receipt.
-        let Some(column) = stream.transaction_column() else {
-            return Ok(());
+        let query = if let Some(column) = stream.transaction_column() {
+            let table = stream.table();
+            format!(
+                r#"WITH linked AS (UPDATE {table} e SET {column}=t.id
+                   FROM "transaction" t JOIN block b ON b.id=t.block_id
+                   WHERE e.domain=$1 AND e.id=ANY($2)
+                   AND e.{column} IS NULL AND t.hash=e.transaction_hash
+                   AND b.domain=e.domain AND b.hash=e.block_hash
+                   RETURNING e.msg_id,e.block_number,e.block_hash,e.transaction_hash)
+                   SELECT pg_notify('scraper_explorer_event',
+                     json_build_object('messageId',encode(msg_id,'hex'))::text)
+                   FROM (
+                     SELECT msg_id FROM linked
+                     UNION
+                     SELECT d.msg_id FROM linked l CROSS JOIN LATERAL (
+                       SELECT msg_id FROM raw_message_dispatch
+                       WHERE origin_domain=$1 AND origin_block_height=l.block_number
+                         AND origin_block_hash=l.block_hash AND origin_tx_hash=l.transaction_hash
+                       OFFSET 0
+                     ) d
+                   ) refreshed"#
+            )
+        } else {
+            // Selected IDs stay eligible even if confirmation advanced during RPC fetching.
+            r#"SELECT pg_notify('scraper_explorer_event',
+                 json_build_object('messageId',encode(e.msg_id,'hex'))::text)
+               FROM raw_message_dispatch e
+               JOIN block b ON b.domain=e.origin_domain AND b.hash=e.origin_block_hash
+               JOIN "transaction" t ON t.block_id=b.id AND t.hash=e.origin_tx_hash
+               WHERE e.origin_domain=$1 AND e.id=ANY($2)"#
+                .to_owned()
         };
-        let table = stream.table();
-        let query = format!(
-            r#"WITH linked AS (UPDATE {table} e SET {column}=t.id
-               FROM "transaction" t JOIN block b ON b.id=t.block_id
-               WHERE e.domain=$1 AND e.id=ANY($2)
-               AND e.{column} IS NULL AND t.hash=e.transaction_hash
-               AND b.domain=e.domain AND b.hash=e.block_hash
-               RETURNING e.msg_id)
-               SELECT pg_notify('scraper_explorer_event',
-                 json_build_object('messageId',encode(msg_id,'hex'))::text) FROM linked"#
-        );
         self.0
             .execute(sql(
                 query,
@@ -149,28 +165,23 @@ impl ScraperDb {
         Ok(())
     }
 
-    /// Measure pending receipts; dispatch is restricted to the provisional suffix.
+    /// Sample the existing delivery/gas backlog metrics.
     pub(crate) async fn pending_receipt_age(
         &self,
         domain: u32,
         stream: ReceiptStream,
     ) -> Result<f64> {
         let table = stream.table();
-        let query = if let Some(column) = stream.transaction_column() {
-            format!(
-                "SELECT coalesce((SELECT greatest(0, extract(epoch FROM
-                 ((clock_timestamp() AT TIME ZONE 'UTC') - time_created))::double precision)
-                 FROM {table} WHERE domain=$1 AND {column} IS NULL
-                 AND block_hash IS NOT NULL AND transaction_hash IS NOT NULL
-                 ORDER BY id LIMIT 1),0::double precision) AS age"
-            )
-        } else {
-            format!(
-                r#"SELECT coalesce(greatest(0, extract(epoch FROM
-                   ((clock_timestamp() AT TIME ZONE 'UTC') - min(e.time_created)))
-                   ::double precision),0::double precision) AS age {DISPATCH_PENDING}"#
-            )
-        };
+        let column = stream
+            .transaction_column()
+            .ok_or_else(|| eyre::eyre!("Dispatch receipt age is not tracked"))?;
+        let query = format!(
+            "SELECT coalesce((SELECT greatest(0, extract(epoch FROM
+             ((clock_timestamp() AT TIME ZONE 'UTC') - time_created))::double precision)
+             FROM {table} WHERE domain=$1 AND {column} IS NULL
+             AND block_hash IS NOT NULL AND transaction_hash IS NOT NULL
+             ORDER BY id LIMIT 1),0::double precision) AS age"
+        );
         let row = self
             .0
             .query_one(sql(
