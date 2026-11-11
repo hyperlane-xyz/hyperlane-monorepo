@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "evm",
+  "root_approved": true,
+  "scenario": "cosmosnative",
   "mode": "ReleaseSafe",
   "producer_source_commit": "abf54588b1493e62d2a91445b467637d1eb8ddac",
   "producer_run_id": 42940378066,
@@ -43,7 +43,19 @@
       },
       "wheel_bytes": 34246
     },
-    "registry_commit": "a03afaa4fc6b8bd86616ef9986d80dcc1863e66a"
+    "registry_commit": null,
+    "native_cli": {
+      "name": "hypd",
+      "architecture": "amd64",
+      "source_url": "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0/hypd_linux_amd64",
+      "bytes": 69488792,
+      "sha256": {
+        "sha256_hex_chunks": [
+          "90a33bb46f87836675a2f0871d7d122c",
+          "1ecaa8c39014d6c7eae7815fb2e6706e"
+        ]
+      }
+    }
   },
   "artifact_pins": {
     "sdk": {
