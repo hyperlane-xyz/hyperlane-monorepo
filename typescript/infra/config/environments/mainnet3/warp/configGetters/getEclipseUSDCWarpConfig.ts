@@ -7,6 +7,7 @@ import {
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getDomainId } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
@@ -36,6 +37,7 @@ type DeploymentChains<T> = {
   arbitrum: T;
   base: T;
   bsc: T;
+  elysium: T;
   optimism: T;
   polygon: T;
   unichain: T;
@@ -57,13 +59,13 @@ export type DeploymentChain = keyof DeploymentChains<unknown>;
  * A multi-chain USDC warp route connecting Eclipse with major EVM chains and Solana.
  *
  * Chains:
- * - EVM (collateral): Arc, Ethereum, Arbitrum, Base, Optimism, Polygon, Unichain, ink, worldchain, avalanche, hyperevm, linea, monad
+ * - EVM (collateral): Arc, Ethereum, Arbitrum, Base, BSC, Elysium, Optimism, Polygon, Unichain, ink, worldchain, avalanche, hyperevm, linea, monad
  * - SVM (synthetic): Eclipse
  * - SVM (collateral): Solana
  *
  * Features:
  * - CCTP V2 rebalancing bridges (Standard + Fast) on CCTP EVM chains (monad: Standard only)
- * - Routing fee: 1.5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
+ * - Routing fee: 1.5 bps from EVM chains to EVM chains or Solana, 0 bps to Eclipse
  * - Fast Path validation for Ethereum, Base, and Arbitrum origins to EVM destinations
  */
 export const evmDeploymentChains = [
@@ -72,6 +74,7 @@ export const evmDeploymentChains = [
   'avalanche',
   'base',
   'bsc',
+  'elysium',
   'ethereum',
   'hyperevm',
   'ink',
@@ -129,7 +132,8 @@ export const rebalancingChains = [
 ] as const satisfies DeploymentChain[];
 
 const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
-  arc: undefined,
+  arc: '0xab1901caB3C7c93E12dFef8c6CFA4210dd58993D',
+  elysium: undefined,
   arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
   base: '0x4e60dB3117AB7322949dC0A8E952D0cD413B1132',
   ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
@@ -147,6 +151,7 @@ const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
 
 const awProxyAdminOwners: Record<EvmChain, string> = {
   arc: awIcas.arc,
+  elysium: awIcas.elysium,
   arbitrum: awSafes.arbitrum,
   base: awSafes.base,
   ethereum: awSafes.ethereum,
@@ -168,6 +173,7 @@ const awProxyAdminOwners: Record<EvmChain, string> = {
 
 const productionOwnersByChain: DeploymentChains<string> = {
   arc: awIcas.arc,
+  elysium: awIcas.elysium,
   ethereum: awSafes.ethereum,
   // Explicitly set from typescript/infra/config/environments/mainnet3/governance/ica/aw.ts
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
@@ -193,6 +199,7 @@ const chainDecimals: DeploymentChains<number> = {
   avalanche: 6,
   base: 6,
   bsc: 18,
+  elysium: 6,
   eclipsemainnet: 6,
   ethereum: 6,
   hyperevm: 6,
@@ -212,6 +219,7 @@ const contractVersionByChain: DeploymentChains<string | null> = {
   avalanche: '10.1.5',
   base: '10.1.3',
   bsc: '11.1.0',
+  elysium: '12.2.0',
   eclipsemainnet: null,
   ethereum: '10.1.3',
   hyperevm: '10.1.5',
@@ -264,12 +272,15 @@ const rebalancingConfigByChain: ChainMap<RebalancingConfig> = objMap(
   ]),
   (chain, standardConfig) => ({
     allowedRebalancers: standardConfig.allowedRebalancers,
-    allowedRebalancingBridges: objMap(
-      standardConfig.allowedRebalancingBridges,
-      (remote, standardBridges) =>
-        standardAndFastConfigByChain[chain]?.allowedRebalancingBridges[
-          remote
-        ] ?? standardBridges,
+    allowedRebalancingBridges: Object.fromEntries(
+      Object.entries(standardConfig.allowedRebalancingBridges).map(
+        ([remote, standardBridges]) => [
+          getDomainId(remote),
+          standardAndFastConfigByChain[chain]?.allowedRebalancingBridges[
+            remote
+          ] ?? standardBridges,
+        ],
+      ),
     ),
   }),
 );
@@ -329,8 +340,9 @@ export const buildEclipseUSDCWarpConfig = async (
       );
 
       // Fees
-      const feeDestinations = evmDeploymentChains.filter(
-        (otherChain) => otherChain !== currentChain,
+      const feeDestinations = deploymentChains.filter(
+        (otherChain) =>
+          otherChain !== currentChain && otherChain !== 'eclipsemainnet',
       );
       const feeConfig = getFixedRoutingFeeConfig(
         WARP_FEES_TURNKEY_OWNER,

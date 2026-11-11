@@ -69,6 +69,14 @@ export const validatorChainConfig = (
         'abstract',
       ),
     },
+    aevo: {
+      interval: DEFAULT_VALIDATOR_INTERVAL,
+      reorgPeriod: getReorgPeriod('aevo'),
+      validators: validatorsConfig(
+        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
+        'aevo',
+      ),
+    },
     aleo: {
       interval: 5,
       reorgPeriod: getReorgPeriod('aleo'),

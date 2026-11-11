@@ -1,5 +1,79 @@
 # @hyperlane-xyz/sdk
 
+## 45.2.0
+
+### Minor Changes
+
+- bdeb314: An optional `blockTag` parameter was added to `readBlacklistedIds` to read a Blacklist ISM's blacklisted IDs as of that block rather than the latest one. It was passed to `values()`, and the log replay for deployments that predate on-chain enumeration stopped at that block, with a named tag such as `finalized` resolved to its block number first. A deployment the explorer reported as made after that block read as an empty set.
+- fe5dfda: Added the initial 1-of-1 Abacus Works Elysium validator set for deployment testing.
+- d0ec60c: Support for the combined `LayerZeroV2HookIsm` hook/ISM router was added:
+
+  - The SDK gained `EvmLayerZeroV2HookIsmModule` and `EvmLayerZeroV2HookIsmReader`, the `layerZeroV2Hook` and `layerZeroV2Ism` config types, and Warp helpers that paired the hook and ISM leaves of a route into one mesh. One router was deployed per chain with its offchain lookup URLs, and every other chain was enrolled with its LayerZero endpoint ID, send and receive libraries, Executor config and send and receive ULN configs.
+  - Pathway configs were typed: each Executor and ULN config was either `default`, which inherited the library's mutable default, or `override`, whose fields replaced the default individually. Every enrollment wrote the complete policy, encoding defaults as all-zero configs, so a reset to `default` or a library change never left an old override active. Reads reported the app configs and, separately, the effective configs after LayerZero applied the defaults.
+  - The `expandNonDeployableHookIsms` reader option covered LayerZero hooks and ISMs, so LayerZero ISMs nested in aggregation and routing ISMs were derived as typed configs for Warp reads and relayer metadata.
+  - `warp deploy` deployed and enrolled the mesh before the Warp routers, and `warp apply` reused compatible routers and added the enrollment and URL updates for reused routers to the apply transactions. `warp check` compared the enrolled LayerZero peers and endpoint IDs with the deployed counterparts, in addition to the pathway libraries and policy.
+  - The relayer built CCIP-read metadata, `(receiveLibrary, packet)`, for the LayerZero router.
+  - The pairing and materialization of combined hook/ISM leaves were shared between Wormhole and LayerZero. `pairCombinedHookIsmConfigs` and `materializeCombinedHookIsmWarpConfig` took the protocol's leaf matcher, `WORMHOLE_LEAF_MATCHER` or `LAYER_ZERO_V2_LEAF_MATCHER`, and `collectHookAddresses` and `collectIsmAddresses` collected the addresses of derived hook and ISM trees.
+  - `EvmLayerZeroV2HookIsmModule.reconcileMesh` logged a warning naming every replaced router. Packets of messages dispatched through a replaced router named it as their sender or receiver, so they could not be verified once its replacement was installed, and transfers had to be paused and pending messages delivered before the returned transactions were submitted.
+  - `EvmLayerZeroV2HookIsmModule` unenrolled remote routers whose domain was not in the registry by their numeric domain ID.
+  - `EvmLayerZeroV2HookIsmModule.deployMesh` and `reconcileMesh` checked, before deploying anything, that the LayerZero domain ID of every pathway matched the ID reported by the remote chain's Endpoint.
+  - LayerZero ISMs read by `EvmIsmReader`, and so by `warp read`, included the effective send and receive configs of every pathway, showing the DVNs, confirmations and Executor that secured a `default` pathway. `warp check` ignored these read-only values and compared the configured pathway policy.
+  - The CLI examples gained `examples/layerzero/layerzero-warp-route.yaml`, a two-chain Warp route secured by the LayerZero hook/ISM. Its comments described the pathway fields, the configured and effective configs reported by `warp read`, and that `confirmations: 0` in a ULN override required zero confirmations instead of inheriting the library default.
+
+- 48cd574: Support for the combined `WormholeVaaHookIsm` hook/ISM router was added:
+
+  - The SDK gained `EvmWormholeHookIsmModule` and `EvmWormholeHookIsmReader`, the `wormholeHook` and `wormholeIsm` config types, and Warp helpers that paired the hook and ISM leaves of a route into one mesh. One router was deployed per chain, every other chain was enrolled with its Wormhole chain ID and the consistency level, custom base level and additional blocks it published with, and both leaves were replaced with the same local address before generic Warp processing.
+  - `EvmHookReader` and `EvmIsmReader` gained an `expandNonDeployableHookIsms` option. Warp route reads enabled it on both readers, so Wormhole hooks nested in aggregation, routing, fallback-routing and amount-routing hooks, and Wormhole ISMs nested in aggregation, routing and amount-routing ISMs, were derived as typed configs. The relayer enabled it on its ISM reader to build metadata for nested Wormhole ISMs; other readers kept them as addresses.
+  - Custom consistency levels were required to use a standard base level and at least one additional block.
+  - Wormhole consistency levels matched the values the router accepted. A router published at `zeroFinalized` (0), `instant` (200), `safe` (201), `finalized` (202) or `custom` (203). An enrolled remote router was expected at any of those levels or at the Solana VAA levels 1 (confirmed) and 32 (finalized), listed in `WormholeVaaConsistencyLevel` and validated by `WormholeVaaConsistencyLevelSchema`. Custom base levels stayed limited to `instant`, `safe` and `finalized`. Every level was read back and re-encoded to the same value.
+  - `warp deploy` deployed and enrolled the mesh before the Warp routers. `warp apply` reused compatible routers, redeployed routers whose immutable settings changed, and added the enrollment and URL updates for reused routers to the apply transactions. `warp check` reported drift in the enrolled remote routers, and reported each chain whose Wormhole hook and ISM were missing, duplicated or not the same router while still checking the enrollments between the remaining chains.
+  - The relayer built CCIP-read metadata for the Wormhole router and included `origin_tx_hash` in CCIP-read POST requests, so a lookup service could find the origin transaction without the Explorer.
+  - The final ownership pass of `warp deploy` described only the Wormhole router nodes of a route's hook and ISM by address, so a flow-control hybrid sharing an aggregation with the Wormhole router was handed to the route owner while the Wormhole router kept its own owner.
+  - `EvmWormholeHookIsmModule.reconcileMesh` logged a warning naming every replaced router, since messages dispatched through a replaced router could not be verified once its replacement was installed, so transfers had to be paused and pending messages delivered before the returned transactions were submitted.
+  - `warp deploy` and `warp apply` passed a `ContractVerifier` to the Wormhole mesh deployment, so newly deployed Wormhole routers were verified on the block explorer like the rest of the route.
+  - `EvmWormholeHookIsmModule` unenrolled remote routers whose domain was not in the registry by their numeric domain ID.
+  - The CLI examples gained `examples/wormhole/wormhole-warp-route.yaml`, a two-chain Warp route secured by the Wormhole hook/ISM.
+
+### Patch Changes
+
+- d2ea605: Included custom hooks in automatic Aleo remote-transfer quotes so transactions used the correct hook fee instead of failing with an insufficient maximum fee.
+- f265d2f: Token fee support was disabled for ERC4626, fiat token, xERC20, and xERC20 lockbox routers. Configured token fees caused quotes and outbound transfers to revert until the fee recipient was removed. The SDK rejected unsupported token fee deployments and fee hooks on incompatible router types, including when fee hook update transactions were built directly, rejected adding token fees to xERC20 and xERC20 lockbox routers without an existing fee regardless of the requested contract version, allowed existing fees on those routers to be updated or removed, and required fee removal before upgrading them.
+- 8b65668: Updated the default Elysium validator set to require signatures from both Abacus Works and Luganodes.
+- aa84958: Removed batch barriers from bounded async maps, parallelized independent gas simulation and fee reads, and bounded concurrent rebalancer monitor reads to reduce polling latency. Failed maps stopped scheduling new work and drained active calls before rejecting, preserving backpressure across retries.
+
+  Failed inventory or confirmed-block supply reads prevented the monitor from emitting a partial polling cycle, avoiding fabricated zero balances or latest-state supplies in confirmed-block events.
+
+  Failed numeric Tron block lookups also prevented latest-state supply from being emitted, while intentional optional named tags remained supported.
+
+- 63fa540: Added support for fractional-second polling intervals in chain indexing and validator checkpoint configuration, allowing operators to poll fast chains more frequently. Intervals must be at least 0.01 seconds (10 ms). Existing whole-second settings and defaults were preserved.
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- d770c3b: Preserved exact Radix local-transfer amounts when converting atomic units to decimal strings, preventing rounding and scientific notation in transaction requests.
+- 1baa78e: Added an optional PostgreSQL URL to enable shared relayer diagnostics storage.
+- 6e5db5f: Normalized Cairo token metadata and domains to the SDK's numeric types and remote router identifiers to 32-byte buffers, fixing Starknet route enumeration and metadata validation.
+
+  Added a reusable `ZUint32` schema for converting uint32 numbers, bigints, and decimal strings to validated numbers.
+
+- 7be44b5: Restored automatic interchain gas quotes for Starknet native and fee-token transfers, preventing omitted quotes from silently producing unfunded transactions while preserving explicitly supplied fees.
+- 9ef15ff: Added scraper WebSocket wake-ups configured through a single Secret Manager JSON map, retaining five-second HTTP polling for recovery, batching proxy head updates, and keeping endpoint credentials out of Helm values.
+- Updated dependencies [048d1f3]
+- Updated dependencies [f265d2f]
+- Updated dependencies [aa84958]
+- Updated dependencies [e48ffe7]
+- Updated dependencies [4623acb]
+- Updated dependencies [c520224]
+- Updated dependencies [8868234]
+- Updated dependencies [02c6ef4]
+- Updated dependencies [2bc0b3e]
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/aleo-sdk@45.2.0
+  - @hyperlane-xyz/cosmos-sdk@45.2.0
+  - @hyperlane-xyz/radix-sdk@45.2.0
+  - @hyperlane-xyz/tron-sdk@26.0.3
+  - @hyperlane-xyz/deploy-sdk@11.0.3
+  - @hyperlane-xyz/provider-sdk@11.0.3
+  - @hyperlane-xyz/starknet-core@45.2.0
+
 ## 45.1.0
 
 ### Minor Changes

@@ -493,6 +493,128 @@ fn checkpoint_summary_never_combines_roots_or_indices() {
     assert!(json["activity"]["summary"]["root"].is_null());
 }
 
+#[tokio::test]
+async fn late_checkpoint_discovery_is_published_without_resetting_signatures() {
+    for discovery_first in [true, false] {
+        let (reporter, mut receiver) = reporter(8);
+        let message = HyperlaneMessage::default();
+        let observer =
+            reporter.checkpoint_observer_for_node(&message, Some(H256::zero()), 2, Some("root"));
+        // The bounded telemetry task retains this Arc after metadata returns.
+        let telemetry = observer.clone();
+        let discover = || {
+            telemetry.observe(CheckpointObservation::LatestIndex {
+                validator: H160::repeat_byte(1),
+                index: Some(14),
+            });
+            telemetry.observe(CheckpointObservation::Unavailable {
+                validator: H256::repeat_byte(3),
+                index: None,
+                reason: CheckpointUnavailableReason::FetchError,
+            });
+        };
+        reporter.report_node(
+            &message,
+            "root",
+            Activity::MetadataModule {
+                ism: H256::zero(),
+                module_type: ModuleType::MessageIdMultisig,
+            },
+        );
+        if discovery_first {
+            discover();
+        }
+        observer.observe(CheckpointObservation::LatestIndex {
+            validator: H160::repeat_byte(2),
+            index: Some(13),
+        });
+        observer.observe(CheckpointObservation::Unavailable {
+            validator: H256::repeat_byte(4),
+            index: None,
+            reason: CheckpointUnavailableReason::NoStorage,
+        });
+        observer.observe(CheckpointObservation::Fetching { index: 12 });
+        observer.observe(CheckpointObservation::Signature {
+            index: 12,
+            root: H256::repeat_byte(2),
+            signers: vec![checkpoint_signer(1, None), checkpoint_signer(2, None)],
+        });
+        observer.report(); // Production metadata-return boundary drains the summary.
+        drop(observer);
+        reporter.report_node(
+            &message,
+            "root",
+            Activity::Metadata {
+                ism: H256::zero(),
+                error: None,
+            },
+        );
+        reporter.report_node(
+            &message,
+            "root",
+            Activity::IsmVerification {
+                ism: H256::zero(),
+                outcome: Outcome::Succeeded,
+            },
+        );
+        let mut batch = Vec::new();
+        while let Ok(event) = receiver.try_recv() {
+            batch.push(event);
+        }
+        let states = state::ActivityState::new(None);
+        let mut stored = states.project(&batch).await.unwrap();
+        if !discovery_first {
+            discover();
+        }
+        drop(telemetry); // Completion/error/timeout releases the task's last Arc.
+        let mut late = Vec::new();
+        while let Ok(event) = receiver.try_recv() {
+            late.push(event);
+        }
+        assert_eq!(late.len(), usize::from(!discovery_first));
+        stored.extend(states.project(&late).await.unwrap());
+        let (StoredActivity::Snapshot { state } | StoredActivity::SnapshotUpdate { state }) =
+            &stored.last().expect("published diagnostics").activity;
+        let node = &state["modules"][0];
+        assert_eq!(node["signatures"]["index"], 12);
+        assert_eq!(
+            node["signatures"]["root"],
+            serde_json::json!(H256::repeat_byte(2))
+        );
+        assert_eq!(node["signatures"]["collected"], 2);
+        assert_eq!(node["signatures"]["signers"].as_array().unwrap().len(), 2);
+        let latest_indices = node["signatures"]["latest_indices"].as_array().unwrap();
+        assert_eq!(latest_indices.len(), 2);
+        for (validator, index) in [(1, 14), (2, 13)] {
+            assert!(latest_indices.contains(&serde_json::json!({
+                "validator": H160::repeat_byte(validator),
+                "index": index,
+            })));
+        }
+        let discovery_unavailable = node["signatures"]["discovery_unavailable"]
+            .as_array()
+            .unwrap();
+        assert_eq!(discovery_unavailable.len(), 2);
+        for (validator, reason) in [(3, "fetch_error"), (4, "no_storage")] {
+            assert!(discovery_unavailable.contains(&serde_json::json!({
+                "validator": H256::repeat_byte(validator),
+                "reason": reason,
+            })));
+        }
+        assert_eq!(node["metadata_status"], "ready");
+        assert_eq!(node["verification"], "succeeded");
+    }
+}
+
+#[test]
+fn abandoned_checkpoint_collection_does_not_publish_on_drop() {
+    let (reporter, mut receiver) = reporter(1);
+    let observer = reporter.checkpoint_observer(&HyperlaneMessage::default(), None, 2);
+    observer.observe(CheckpointObservation::Fetching { index: 12 });
+    drop(observer);
+    assert!(receiver.try_recv().is_err());
+}
+
 #[test]
 fn checkpoint_summary_tracks_signers_for_the_selected_root() {
     let (reporter, mut receiver) = reporter(1);

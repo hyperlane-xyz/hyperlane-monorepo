@@ -7,7 +7,7 @@
 
 /** SHA-256 of Rust sealevel sources at generation time. Used for CI staleness detection. */
 export const SEALEVEL_SOURCE_HASH =
-  '46d188960ddb76f6a507153e11f954f0a37fb6f5fba69cf79fe86109265113dc';
+  'fe5ab54abd2a190ad216fc2239b8e23f94c7030a55e785ac790d945ed293fcc4';
 
 export const HYPERLANE_SVM_PROGRAM_BYTES = {
   mailbox: new Uint8Array([

@@ -17,13 +17,6 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const agentSpecificChainMetadataOverrides: ChainMap<
   Partial<ChainMetadata>
 > = {
-  elysium: {
-    transactionOverrides: {
-      // Temporary testing override: Alchemy does not expose eth_feeHistory
-      // on Elysium yet. Allow headroom above the observed ~0.1-gwei base fee.
-      gasPrice: 2 * 10 ** 8,
-    },
-  },
   coti: {
     transactionOverrides: {
       priorityFeeCap: 50 * 10 ** 9, // 50 gwei

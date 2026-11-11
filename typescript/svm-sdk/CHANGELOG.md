@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 45.2.0
+
+### Patch Changes
+
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- a72f027: Exported lightweight SHA-256 hashes and byte lengths for every embedded SVM program so consumers can verify program artifacts without bundling their bytes.
+- Updated dependencies [aa84958]
+- Updated dependencies [c520224]
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/forking-sdk@10.0.3
+  - @hyperlane-xyz/provider-sdk@11.0.3
+
 ## 45.1.0
 
 ### Patch Changes

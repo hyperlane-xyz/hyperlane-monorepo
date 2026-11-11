@@ -57,7 +57,8 @@ pub struct ValidatorSettings {
     pub checkpoint_syncer: CheckpointSyncerConf,
     /// The reorg configuration
     pub reorg_period: ReorgPeriod,
-    /// How frequently to check for new checkpoints. Defaults to 2s, overridable
+    /// RPC-only DB polling and failed-verification retry interval, in fractional seconds.
+    /// WebSocket insertions wake verification immediately. Defaults to 2s, overridable
     /// via `interval`, or via `chains.<originChainName>.index.interval` if
     /// `interval` is unset.
     pub interval: Duration,
@@ -87,6 +88,7 @@ struct RawValidatorSettings(Secret<Value>);
 impl_loadable_from_settings!(Validator, RawValidatorSettings -> ValidatorSettings);
 
 impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
+    /// Parse validator settings, preserving explicit interval, chain interval, then default precedence.
     fn from_config_filtered(
         raw: RawValidatorSettings,
         cwp: &ConfigPath,
@@ -226,32 +228,21 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         // avoid widening checkpoint-availability latency for validators that don't configure
         // either.
         const DEFAULT_INTERVAL: Duration = Duration::from_secs(2);
-        let explicit_interval_secs = p.chain(&mut err).get_opt_key("interval").parse_u64().end();
-        if explicit_interval_secs == Some(0) {
-            err.push(
-                cwp.clone(),
-                eyre::eyre!("`interval` must be greater than zero, or omitted for the 2s default"),
-            );
-        }
-        let chain_interval_secs = p
+        let explicit_interval = p
+            .chain(&mut err)
+            .get_opt_key("interval")
+            .parse_poll_interval_seconds()
+            .end();
+        let chain_interval = p
             .chain(&mut err)
             .get_key("chains")
             .get_key(origin_chain_name)
             .get_opt_key("index")
             .get_opt_key("interval")
-            .parse_u64()
+            .parse_poll_interval_seconds()
             .end();
-        if chain_interval_secs == Some(0) {
-            err.push(
-                cwp.clone(),
-                eyre::eyre!(
-                    "`chains.{origin_chain_name}.index.interval` must be greater than zero, or omitted for the 2s default"
-                ),
-            );
-        }
-        let interval = explicit_interval_secs
-            .map(Duration::from_secs)
-            .or(chain_interval_secs.map(Duration::from_secs))
+        let interval = explicit_interval
+            .or(chain_interval)
             .unwrap_or(DEFAULT_INTERVAL);
 
         let chain = p
@@ -978,6 +969,94 @@ mod test {
         .expect("classic configuration");
         assert!(!settings.lightweight);
         assert!(!settings.allow_public_rpcs);
+    }
+
+    /// Parse real validator settings so interval cases exercise startup validation and precedence.
+    fn parse_with_intervals(
+        top_level: Option<Value>,
+        chain_index: Option<Value>,
+    ) -> ConfigResult<ValidatorSettings> {
+        let mut raw = lightweight_settings_fixture();
+        raw["lightweight"] = false.into();
+        if let Some(interval) = top_level {
+            raw["interval"] = interval;
+        }
+        if let Some(interval) = chain_index {
+            raw["chains"]["test"]["index"] = serde_json::json!({ "interval": interval });
+        }
+        ValidatorSettings::from_config_filtered(
+            RawValidatorSettings(raw.into()),
+            &ConfigPath::default(),
+            (),
+            "validator",
+        )
+    }
+
+    /// Top-level `interval` wins over the origin chain's `index.interval`, which wins over the 2s
+    /// default; both are seconds and accept fractions as numbers or strings.
+    #[test]
+    fn interval_precedence_accepts_fractional_seconds() {
+        use serde_json::json;
+        let ms = Duration::from_millis;
+        for (top_level, chain_index, expected) in [
+            (None, None, Duration::from_secs(2)),
+            (Some(json!(0.1)), None, ms(100)),
+            (Some(json!("0.1")), None, ms(100)),
+            (None, Some(json!(0.1)), ms(100)),
+            (None, Some(json!("0.1")), ms(100)),
+            (Some(json!(0.25)), Some(json!(3)), ms(250)),
+            (Some(json!(3)), Some(json!(0.25)), Duration::from_secs(3)),
+            (Some(json!("1.5")), Some(json!("0.1")), ms(1500)),
+            (None, Some(json!(7)), Duration::from_secs(7)),
+            (Some(json!(0.01)), None, ms(10)),
+            (None, Some(json!("0.01")), ms(10)),
+        ] {
+            let case = format!("top={top_level:?} chain={chain_index:?}");
+            let settings = parse_with_intervals(top_level, chain_index)
+                .unwrap_or_else(|err| panic!("{case}: {err}"));
+            assert_eq!(settings.interval, expected, "{case}");
+        }
+    }
+
+    /// Invalid values are rejected wherever they appear, even when the other key is valid, so a
+    /// typo never silently falls back to another interval or becomes a near-zero wait.
+    #[test]
+    fn interval_rejects_nonpositive_malformed_and_unrepresentable_values() {
+        use serde_json::json;
+        for invalid in [
+            json!(0),
+            json!("0"),
+            json!(0.0),
+            json!(-1),
+            json!(-0.1),
+            json!("-0.1"),
+            json!(1e-10),
+            json!("1e-10"),
+            json!(0.009),
+            json!("0.009"),
+            json!(1e20),
+            json!("1e400"),
+            json!("NaN"),
+            json!("inf"),
+            json!(""),
+            json!("abc"),
+            json!(true),
+        ] {
+            let top = "config_path: `interval`";
+            let chain = "config_path: `chains.test.index.interval`";
+            for (top_level, chain_index, path) in [
+                (Some(invalid.clone()), None, top),
+                (Some(invalid.clone()), Some(json!(0.1)), top),
+                (None, Some(invalid.clone()), chain),
+                (Some(json!(0.1)), Some(invalid.clone()), chain),
+            ] {
+                let case = format!("top={top_level:?} chain={chain_index:?}");
+                let error = parse_with_intervals(top_level, chain_index)
+                    .expect_err(&format!("{case} must be rejected"))
+                    .to_string();
+                assert!(error.contains(path), "{case}: {error}");
+            }
+        }
     }
 
     #[test]

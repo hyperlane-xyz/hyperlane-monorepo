@@ -247,6 +247,7 @@ async function main(): Promise<void> {
             rebalancerConfig.intentTTL,
             mergedInventorySigners,
             rebalancerConfig.externalBridges,
+            rebalancerConfig.pendingTransferMiddlewares,
           )
         : rebalancerConfig;
 

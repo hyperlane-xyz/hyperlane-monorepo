@@ -14,6 +14,7 @@ import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
   DEFAULT_INTENT_TTL_MS,
   ExternalBridgeType,
+  type PendingTransferMiddlewareConfig,
   type StrategyConfig,
   getStrategyChainNames,
 } from '../../config/types.js';
@@ -108,6 +109,8 @@ export class TestRebalancerBuilder {
   private balanceConfig: BalanceConfig = 'BALANCED';
   private pendingTransfers: PendingTransferParams[] = [];
   private mockTransfers: ExplorerMessage[] = [];
+  private mockRebalanceActions: ExplorerMessage[] = [];
+  private pendingTransferMiddlewares: PendingTransferMiddlewareConfig[] = [];
   private executionMode: ExecutionMode = 'propose';
   private inventoryConfig: TestInventoryConfig | undefined;
   private erc20InventoryConfig: TestErc20InventoryConfig | undefined;
@@ -143,6 +146,18 @@ export class TestRebalancerBuilder {
 
   withMockTransfer(message: ExplorerMessage): this {
     this.mockTransfers.push(message);
+    return this;
+  }
+
+  withMockRebalanceAction(message: ExplorerMessage): this {
+    this.mockRebalanceActions.push(message);
+    return this;
+  }
+
+  withPendingTransferMiddlewares(
+    configs: PendingTransferMiddlewareConfig[],
+  ): this {
+    this.pendingTransferMiddlewares = configs;
     return this;
   }
 
@@ -306,6 +321,7 @@ export class TestRebalancerBuilder {
           },
         },
         { lifi: { integrator: 'test' } },
+        this.pendingTransferMiddlewares,
       );
       warpCoreConfig = buildErc20InventoryWarpRouteConfig(
         erc20InventoryModeConfig.erc20DeployedAddresses,
@@ -326,6 +342,7 @@ export class TestRebalancerBuilder {
           },
         },
         { lifi: { integrator: 'test' } },
+        this.pendingTransferMiddlewares,
       );
       warpCoreConfig = buildNativeWarpRouteConfig(
         inventoryModeConfig.nativeDeployedAddresses,
@@ -338,6 +355,9 @@ export class TestRebalancerBuilder {
         MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
+        undefined,
+        undefined,
+        this.pendingTransferMiddlewares,
       );
       warpCoreConfig = buildWarpRouteConfig(deployedAddresses);
     }
@@ -697,7 +717,7 @@ export class TestRebalancerBuilder {
 
     return {
       userTransfers,
-      rebalanceActions: [],
+      rebalanceActions: [...this.mockRebalanceActions],
     };
   }
 

@@ -557,6 +557,10 @@ impl BaseAgent for Validator {
             .websocket_url
             .as_ref()
             .map(|_| merkle_tree_cursor_state());
+        let checkpoint_wake = settings
+            .websocket_url
+            .as_ref()
+            .map(|_| Arc::new(Notify::new()));
         let rpc_sync = if settings.lightweight {
             None
         } else {
@@ -569,6 +573,9 @@ impl BaseAgent for Validator {
                         Arc::new(CheckpointingMerkleTreeStore::new(
                             msg_db.clone(),
                             cursor_state,
+                            checkpoint_wake
+                                .clone()
+                                .expect("WebSocket indexing initializes notifications"),
                         )),
                         false,
                         false,
@@ -595,33 +602,27 @@ impl BaseAgent for Validator {
         let websocket_active =
             sync_source.with_label_values(&[settings.origin_chain.name(), "websocket"]);
         let rpc_active = sync_source.with_label_values(&[settings.origin_chain.name(), "rpc"]);
-        let (merkle_tree_hook_sync, checkpoint_wake) =
-            if let Some(url) = settings.websocket_url.clone() {
-                let checkpoint_wake = Arc::new(Notify::new());
-                (
-                    MerkleTreeHookSync::WebSocket {
-                        fallback: rpc_sync,
-                        websocket: Box::new(MerkleTreeHookWebSocketSync::new_with_cursor_state(
-                            msg_db.clone(),
-                            settings.origin_chain.id(),
-                            origin_chain_conf.addresses.merkle_tree_hook,
-                            url.expose_secret().clone(),
-                            websocket_active,
-                            rpc_active,
-                            cursor_state.expect("WebSocket configuration initializes cursor state"),
-                            checkpoint_wake.clone(),
-                        )),
-                    },
-                    Some(checkpoint_wake),
-                )
-            } else {
-                websocket_active.set(0);
-                rpc_active.set(1);
-                (
-                    MerkleTreeHookSync::Rpc(rpc_sync.expect("RPC mode builds an indexer")),
-                    None,
-                )
-            };
+        let merkle_tree_hook_sync = if let Some(url) = settings.websocket_url.clone() {
+            MerkleTreeHookSync::WebSocket {
+                fallback: rpc_sync,
+                websocket: Box::new(MerkleTreeHookWebSocketSync::new_with_cursor_state(
+                    msg_db.clone(),
+                    settings.origin_chain.id(),
+                    origin_chain_conf.addresses.merkle_tree_hook,
+                    url.expose_secret().clone(),
+                    websocket_active,
+                    rpc_active,
+                    cursor_state.expect("WebSocket configuration initializes cursor state"),
+                    checkpoint_wake
+                        .clone()
+                        .expect("WebSocket indexing initializes notifications"),
+                )),
+            }
+        } else {
+            websocket_active.set(0);
+            rpc_active.set(1);
+            MerkleTreeHookSync::Rpc(rpc_sync.expect("RPC mode builds an indexer"))
+        };
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -912,10 +913,6 @@ impl Validator {
             Arc::clone(&self.readiness),
         )
         .with_checkpoint_wake(self.checkpoint_wake.clone())
-        .with_websocket_health(match &self.merkle_tree_hook_sync {
-            MerkleTreeHookSync::WebSocket { websocket, .. } => Some(websocket.health()),
-            MerkleTreeHookSync::Rpc(_) => None,
-        })
     }
 
     async fn run_checkpoint_submitters(
@@ -1735,7 +1732,9 @@ mod tests {
             assert_eq!(reader.endpoint_count(), 3);
             assert_eq!(reader.consensus.required(reader.endpoint_count()), 2);
             let period = ReorgPeriod::None;
-            let mut stream = reader.checkpoint_stream(&period);
+            let reads = prometheus::IntCounter::new("test_checkpoint_reads", "Test read attempts")
+                .expect("test counter");
+            let mut stream = reader.checkpoint_stream(&period, &reads);
             for _ in 0..2 {
                 let (slot, checkpoint) =
                     tokio::time::timeout(Duration::from_secs(1), stream.next())

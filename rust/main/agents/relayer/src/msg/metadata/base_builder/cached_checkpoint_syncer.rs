@@ -20,7 +20,7 @@ const LATEST_INDEX_METHOD: &str = "latest_index";
 // is picked up within ~1 retry cycle, while still absorbing the bulk of
 // per-validator `latest_index` RPC/S3 load. The message-id multisig path only
 // uses `latest_index` for metrics, so it is unaffected by this TTL.
-const LATEST_INDEX_CACHE_TTL: Duration = Duration::from_secs(2);
+const LATEST_INDEX_CACHE_TTL: Duration = Duration::from_millis(500);
 const MAX_INFLIGHT_CHECKPOINTS: u64 = 1024;
 // Retain completed flights briefly so a delayed waiter cannot invalidate a
 // newer generation. Errors and non-cacheable values are retried after the TTL.

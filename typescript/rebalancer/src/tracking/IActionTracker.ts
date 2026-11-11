@@ -90,7 +90,8 @@ export interface IActionTracker {
   getTransfer(id: string): Promise<Transfer | undefined>;
 
   /**
-   * Get all transfers currently in progress.
+   * Get all transfers currently in progress, excluding those a pending
+   * transfer middleware currently ignores.
    */
   getInProgressTransfers(): Promise<Transfer[]>;
 
@@ -107,7 +108,8 @@ export interface IActionTracker {
   getRebalanceIntent(id: string): Promise<RebalanceIntent | undefined>;
 
   /**
-   * Get all active rebalance intents (not_started + in_progress).
+   * Get in_progress rebalance intents, without the non-inventory ones whose
+   * in-progress messages a pending-transfer middleware all ignored.
    */
   getActiveRebalanceIntents(): Promise<RebalanceIntent[]>;
 

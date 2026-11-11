@@ -6,6 +6,7 @@ use futures_util::{stream::BoxStream, StreamExt};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, CheckpointAtBlock, MerkleTreeHook, ReorgPeriod,
 };
+use prometheus::IntCounter;
 use tokio::time::timeout;
 
 const RPC_TIMEOUT: Duration = Duration::from_secs(20);
@@ -63,7 +64,9 @@ impl CheckpointReader {
         period: &ReorgPeriod,
     ) -> ChainResult<Vec<Option<CheckpointAtBlock>>> {
         let mut checkpoints = vec![None; self.hooks.len()];
-        let mut stream = self.checkpoint_stream(period);
+        let reads = IntCounter::new("test_checkpoint_reads", "Test checkpoint read attempts")
+            .expect("test counter");
+        let mut stream = self.checkpoint_stream(period, &reads);
         while let Some((slot, checkpoint)) = stream.next().await {
             checkpoints[slot] = checkpoint;
         }
@@ -116,12 +119,15 @@ impl CheckpointReader {
         ))
     }
 
+    /// Count each endpoint attempt before awaiting it, including failures and cancellations.
     pub(crate) fn checkpoint_stream<'a>(
         &'a self,
         period: &'a ReorgPeriod,
+        reads: &'a IntCounter,
     ) -> BoxStream<'a, (usize, Option<CheckpointAtBlock>)> {
         futures_util::stream::iter(self.hooks.iter().enumerate().map(
             move |(endpoint_index, hook)| async move {
+                reads.inc();
                 let checkpoint = match timeout(RPC_TIMEOUT, hook.latest_checkpoint(period)).await {
                     Ok(Ok(checkpoint)) => {
                         tracing::debug!(
@@ -306,8 +312,13 @@ mod tests {
         let reader =
             CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(StalledHook)])
                 .expect("endpoint");
+        let reads =
+            IntCounter::new("test_checkpoint_reads", "Test read attempts").expect("test counter");
+        let period = ReorgPeriod::None;
+        let mut stream = reader.checkpoint_stream(&period, &reads);
         let started = tokio::time::Instant::now();
-        assert!(reader.checkpoints(&ReorgPeriod::None).await.is_err());
+        assert!(matches!(stream.next().await, Some((0, None))));
+        assert_eq!(reads.get(), 1, "timed-out reads must still be counted");
         assert_eq!(started.elapsed(), RPC_TIMEOUT);
     }
 

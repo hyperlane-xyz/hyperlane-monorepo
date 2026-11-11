@@ -197,7 +197,7 @@ export async function getDomainId(
  * Set the appropriate signer type on the MultiProvider based on the chain's
  * technical stack (TronWallet for Tron chains, ethers.Wallet otherwise).
  */
-function setSignerForChain(
+export function setSignerForChain(
   multiProvider: MultiProvider,
   chain: string,
   privateKey: string,
@@ -435,7 +435,7 @@ export function hyperlaneRelayer(chains: string[], warpRouteId?: string) {
 }
 
 /**
- * True for the two ways a relayer process can already be gone by the time it is
+ * True for the two ways a spawned process can already be gone by the time it is
  * signalled: zx refusing to signal a settled process, and the OS reporting no
  * such process.
  */
@@ -456,6 +456,66 @@ export async function stopRelayer(relayer: ProcessPromise): Promise<void> {
   } catch (error) {
     if (!isAlreadyExitedError(error)) throw error;
   }
+}
+
+/**
+ * Starts the real ccip-server with only the given modules enabled.
+ *
+ * Running the actual server — rather than re-mounting the routes in-process —
+ * keeps the Fastify wiring, the ABI handler, and the CCIP-read response shape
+ * inside the calling test's blast radius, which is the point of the E2E.
+ */
+export async function startCcipServer({
+  port,
+  modules,
+  env = {},
+}: {
+  port: number;
+  modules: string[];
+  env?: Record<string, string>;
+}): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  const serverProcess: ProcessPromise = $({
+    env: {
+      ...process.env,
+      ENABLED_MODULES: modules.join(','),
+      SERVER_PORT: String(port),
+      REGISTRY_URI: REGISTRY_PATH,
+      // The relayer supplies origin_tx_hash, so the Explorer is never reached.
+      HYPERLANE_EXPLORER_URL: 'http://127.0.0.1:1',
+      ...env,
+    },
+    nothrow: true,
+  })`pnpm --filter @hyperlane-xyz/ccip-server run start`;
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const close = async () => {
+    await serverProcess.kill();
+  };
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${baseUrl}/health`);
+      if (response.ok) return { baseUrl, close };
+    } catch {
+      // Not listening yet.
+    }
+    const exited = serverProcess.output;
+    assert(
+      !exited,
+      `ccip-server on port ${port} exited with code ${exited?.exitCode} before becoming healthy:\n${exited?.stdall}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  try {
+    await serverProcess.kill();
+  } catch (error) {
+    if (!isAlreadyExitedError(error)) throw error;
+  }
+  const output = await serverProcess;
+  throw new Error(
+    `ccip-server on port ${port} did not become healthy within 60s:\n${output.stdall}`,
+  );
 }
 
 export function createSnapshot(rpcUrl: string) {

@@ -9,6 +9,14 @@ import {Errors} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Errors.so
 import {Transfer} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Transfer.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
+interface IMockLayerZeroConfigLibrary {
+    function getEffectiveConfig(
+        address oapp,
+        uint32 remoteEndpointId,
+        uint32 configType
+    ) external view returns (bytes memory);
+}
+
 contract MockLayerZeroEndpointV2 {
     using TypeCasts for address;
 
@@ -345,6 +353,19 @@ contract MockLayerZeroEndpointV2 {
         uint32 remoteEndpointId,
         uint32 configType
     ) external view returns (bytes memory) {
+        // Like Endpoint V2, report the library's effective config when the
+        // library resolves defaults; otherwise return the stored app config.
+        if (libraryAddress.code.length != 0) {
+            try
+                IMockLayerZeroConfigLibrary(libraryAddress).getEffectiveConfig(
+                    oapp,
+                    remoteEndpointId,
+                    configType
+                )
+            returns (bytes memory effectiveConfig) {
+                return effectiveConfig;
+            } catch {}
+        }
         return configs[oapp][libraryAddress][remoteEndpointId][configType];
     }
 
