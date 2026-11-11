@@ -5,7 +5,7 @@
 ## Runtime
 
 - Index events and block headers, then wake dispatch/delivery/gas enrichment.
-  Scan once on startup; afterward sleep until ingestion or an unresolved receipt retry.
+  Scan on startup and ingestion, with a 5-second fallback (`index.interval` overrides it).
 - Confirm only complete, canonical history after `reorgPeriod`.
 - The proxy enforces default or requested confirmation depths; metadata availability
   never establishes confirmation.
@@ -265,5 +265,4 @@ An AltVM already using near-head needs an operator-reviewed cursor handoff or
 restore before returning to a legacy indexer.
 
 `hyperlane_scraper_receipt_oldest_pending_seconds{chain,event_type}` samples
-unlinked delivery/gas receipts during retries and resets when drained. Enrichment
-and its metrics perform no periodic DB reads while idle.
+unlinked delivery/gas receipts during retries and resets when drained. Metrics have no separate polling loop.

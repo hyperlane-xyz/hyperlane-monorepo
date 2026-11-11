@@ -32,21 +32,21 @@ impl PageOutcome {
     async fn wait(self, delay: Duration, wakeup: &mut watch::Receiver<()>) {
         match self {
             Self::More => tokio::task::yield_now().await,
-            Self::Idle => wakeup
-                .changed()
-                .await
-                .expect("Receipt wake-up sender dropped"),
+            Self::Idle => tokio::select! {
+                _ = sleep(delay) => {}
+                changed = wakeup.changed() => { changed.expect("Receipt wake-up sender dropped"); }
+            },
             // New indexed work must not bypass RPC/DB failure backoff.
             Self::Retry => sleep(delay).await,
         }
     }
 }
 
-/// Scan on startup and ingestion; timers only retry unfinished work.
+/// Scan on startup and ingestion, with a periodic fallback and failure cooldowns.
 /// Completed pages are rescheduled independently, so one slow receipt cannot block other types.
 pub(super) async fn run(
     store: &HyperlaneDbStore,
-    retry_interval: Duration,
+    poll_interval: Duration,
     oldest_pending_seconds: &GaugeVec,
     wakeup: watch::Receiver<()>,
 ) {
@@ -55,7 +55,7 @@ pub(super) async fn run(
         run_stream(
             store,
             stream,
-            retry_interval,
+            poll_interval,
             wakeup.clone(),
             &domain_rpc_permits,
             oldest_pending_seconds,
@@ -67,16 +67,15 @@ pub(super) async fn run(
 async fn run_stream(
     store: &HyperlaneDbStore,
     stream: ReceiptStream,
-    retry_interval: Duration,
+    poll_interval: Duration,
     mut wakeup: watch::Receiver<()>,
     domain_rpc_permits: &Semaphore,
     oldest_pending_seconds: &GaugeVec,
 ) {
     let mut after = 0;
     let mut outcome = PageOutcome::More;
-    let mut retry_sweep = false;
     loop {
-        outcome.wait(retry_interval, &mut wakeup).await;
+        outcome.wait(poll_interval, &mut wakeup).await;
         // Remember hints arriving during a read/fetch, so the next idle page runs immediately.
         wakeup.borrow_and_update();
         outcome = enrich_page(
@@ -87,14 +86,6 @@ async fn run_stream(
             domain_rpc_permits,
         )
         .await;
-        // A failed page advances its cursor to let healthy later rows proceed.
-        // Remember that failure until the sweep wraps, so it retries without new events.
-        if outcome == PageOutcome::Retry {
-            retry_sweep = true;
-        } else if outcome == PageOutcome::Idle && retry_sweep {
-            retry_sweep = false;
-            outcome = PageOutcome::Retry;
-        }
         if outcome == PageOutcome::Idle && !matches!(stream, ReceiptStream::Dispatch) {
             oldest_pending_seconds
                 .with_label_values(&[store.domain.name(), stream.metric_label()])

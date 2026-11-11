@@ -687,11 +687,7 @@ async fn receipt_wakeups_interrupt_idle_waits_but_preserve_failure_cooldowns() {
     PageOutcome::Idle.wait(interval, &mut second).await;
     assert_eq!(tokio::time::Instant::now(), start);
 
-    assert!(
-        timeout(interval, PageOutcome::Idle.wait(interval, &mut first))
-            .await
-            .is_err()
-    );
+    PageOutcome::Idle.wait(interval, &mut first).await;
     assert_eq!(tokio::time::Instant::now(), start + interval);
     wakeup.send_replace(());
     PageOutcome::Retry.wait(interval, &mut first).await;
