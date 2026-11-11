@@ -1,9 +1,6 @@
 use std::{
     collections::BTreeMap,
-    sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -212,11 +209,20 @@ impl MerkleTreeRpcRecovery {
 pub(crate) struct CheckpointingMerkleTreeStore {
     db: HyperlaneRocksDB,
     next_sequence: MerkleTreeCursorState,
+    checkpoint_wake: Arc<Notify>,
 }
 
 impl CheckpointingMerkleTreeStore {
-    pub(crate) fn new(db: HyperlaneRocksDB, next_sequence: MerkleTreeCursorState) -> Self {
-        Self { db, next_sequence }
+    pub(crate) fn new(
+        db: HyperlaneRocksDB,
+        next_sequence: MerkleTreeCursorState,
+        checkpoint_wake: Arc<Notify>,
+    ) -> Self {
+        Self {
+            db,
+            next_sequence,
+            checkpoint_wake,
+        }
     }
 
     fn refresh_cursor(&self) -> Result<()> {
@@ -268,6 +274,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for CheckpointingMerkleTreeStore {
                 .process_tree_insertion(insertion.inner(), meta.block_number)?
             {
                 insertions = insertions.saturating_add(1);
+                self.checkpoint_wake.notify_one();
             }
             self.advance_cursor()?;
         }
@@ -388,27 +395,14 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     url: Secret<Url>,
     confirmations: Option<u32>,
     websocket_active: IntGauge,
-    websocket_healthy: Arc<AtomicBool>,
     fallback_active: IntGauge,
     cursor_state: MerkleTreeCursorState,
     checkpoint_wake: Arc<Notify>,
-    // Exclusive insertion sequence, published after persistence. Scheduling only;
-    // the submitter must independently authenticate every leaf before signing.
-    insertion_sequence: Arc<AtomicU32>,
 }
 
 impl MerkleTreeHookWebSocketSync {
-    pub(crate) fn health(&self) -> Arc<AtomicBool> {
-        self.websocket_healthy.clone()
-    }
-
-    pub(crate) fn insertion_sequence(&self) -> Arc<AtomicU32> {
-        self.insertion_sequence.clone()
-    }
-
-    fn set_healthy(&self, healthy: bool) {
-        self.websocket_healthy.store(healthy, Ordering::Release);
-        self.websocket_active.set(i64::from(healthy));
+    fn set_active(&self, active: bool) {
+        self.websocket_active.set(i64::from(active));
     }
 
     #[cfg(test)]
@@ -453,11 +447,9 @@ impl MerkleTreeHookWebSocketSync {
             url: Secret::new(url),
             confirmations: None,
             websocket_active,
-            websocket_healthy: Arc::new(AtomicBool::new(false)),
             fallback_active,
             cursor_state,
             checkpoint_wake,
-            insertion_sequence: Arc::new(AtomicU32::new(0)),
         }
     }
 
@@ -562,7 +554,7 @@ impl MerkleTreeHookWebSocketSync {
                     &dependencies,
                 )
                 .await;
-            self.set_healthy(false);
+            self.set_active(false);
             if fallback.is_none() {
                 fallback = start_fallback();
                 if fallback.is_some() {
@@ -590,32 +582,32 @@ impl MerkleTreeHookWebSocketSync {
         dependencies: &StreamDependencies,
     ) -> Result<()> {
         let mut socket = ScraperSession::connect(self.url.expose_secret(), timeouts).await?;
-        let mut caught_up = false;
-        let mut activated = false;
         let mut health = StreamHealth::new(timeouts.progress_grace);
+        // A target proves replay completed or a live event anchored the handoff.
         let mut cutover_target = None;
+        let mut activated = false;
 
         loop {
             // Custom streams hand off on the periodic probe while RPC fills their live frontier.
             if self.confirmations.is_none()
-                && caught_up
                 && !activated
                 && *next_sequence >= backfill_target
-                && cutover_target.is_none_or(|target| *next_sequence >= target)
+                && cutover_target.is_some_and(|target| *next_sequence >= target)
             {
                 if dependencies.merkle_tree_hook.is_some() {
                     let sequence = *next_sequence;
-                    let probe = stream_count_probe(dependencies);
+                    let probe = count_probe(dependencies, RPC_PROBE_TIMEOUT);
                     socket.start_cutover(self.domain, async move { (sequence, probe.await) });
                 } else {
-                    self.set_healthy(true);
+                    self.set_active(true);
                     activated = true;
+                    cutover_target = None;
                 }
             }
             let sequence = *next_sequence;
             let Some(event) = socket
                 .next::<EventData>(dependencies.merkle_tree_hook.is_some(), || {
-                    let probe = stream_count_probe(dependencies);
+                    let probe = count_probe(dependencies, RPC_PROBE_TIMEOUT);
                     stream::once(async move { (sequence, probe.await) }).boxed()
                 })
                 .await?
@@ -656,11 +648,11 @@ impl MerkleTreeHookWebSocketSync {
                     } else {
                         health.observe(onchain_count, *next_sequence, fallback.is_none())?;
                     }
-                    if caught_up
-                        && !activated
+                    if !activated
                         && *next_sequence >= backfill_target
-                        && (self.confirmations.is_none()
-                            || cutover_target.is_some_and(|target| *next_sequence >= target))
+                        && cutover_target.is_some_and(|target| {
+                            self.confirmations.is_none() || *next_sequence >= target
+                        })
                     {
                         activated = self
                             .apply_cutover_count(
@@ -703,6 +695,12 @@ impl MerkleTreeHookWebSocketSync {
                     stream_cursor,
                     sequence,
                 } => {
+                    if self.confirmations.is_some() {
+                        // The scraper sends no replay markers for cursorless subscriptions.
+                        // Only a live event can anchor a cursorless stream's handoff.
+                        warn!("Ignoring replay marker on a live confirmation stream");
+                        continue;
+                    }
                     if legacy_max_stream_cursor.is_some()
                         || row_id.is_some()
                         || stream_cursor.is_some()
@@ -723,8 +721,10 @@ impl MerkleTreeHookWebSocketSync {
                     )?;
                     // Any valid, non-ahead marker proves historical replay has completed.
                     // A stale marker may still need live events to reach our local cursor.
-                    let first_caught_up = !caught_up;
-                    caught_up = true;
+                    let first_caught_up = !activated && cutover_target.is_none();
+                    if !activated {
+                        cutover_target = Some(cutover_target.unwrap_or(0).max(backfill_target));
+                    }
                     if reached_cursor {
                         self.persist_next_sequence(*next_sequence)?;
                         if first_caught_up {
@@ -756,7 +756,6 @@ impl MerkleTreeHookWebSocketSync {
                     )? {
                         if self.confirmations.is_some() {
                             // A live event anchors the handoff beyond the proxy's initial frontier.
-                            caught_up = true;
                             if !activated {
                                 let target = sequence
                                     .checked_add(1)
@@ -765,7 +764,7 @@ impl MerkleTreeHookWebSocketSync {
                             }
                         }
                         if *next_sequence > previous {
-                            health.record_progress(caught_up);
+                            health.record_progress(activated || cutover_target.is_some());
                         }
                     }
                 }
@@ -792,26 +791,6 @@ impl MerkleTreeHookWebSocketSync {
         }
     }
 
-    #[cfg(test)]
-    async fn try_activate_websocket(
-        &self,
-        next_sequence: u32,
-        fallback: &mut Option<RpcFallback>,
-        cutover_target: &mut Option<u32>,
-        rpc_probe_timeout: Duration,
-        dependencies: &StreamDependencies,
-    ) -> Result<bool> {
-        if fallback.is_none() {
-            return Ok(true);
-        }
-        if cutover_target.is_some_and(|target| next_sequence < target) {
-            return Ok(false);
-        }
-        let onchain_count = count_probe(dependencies, rpc_probe_timeout).await?;
-        self.apply_cutover_count(next_sequence, onchain_count, fallback, cutover_target)
-            .await
-    }
-
     async fn apply_cutover_count(
         &self,
         next_sequence: u32,
@@ -836,7 +815,7 @@ impl MerkleTreeHookWebSocketSync {
         }
         *cutover_target = None;
         self.stop_fallback(fallback).await;
-        self.set_healthy(true);
+        self.set_active(true);
         Ok(true)
     }
 
@@ -930,8 +909,6 @@ impl MerkleTreeHookWebSocketSync {
             }
             // This is only a wake hint: persistence does not authenticate a leaf.
             // The submitter checks the reconstructed root before signing.
-            self.insertion_sequence
-                .fetch_max(*next_sequence, Ordering::Release);
             self.checkpoint_wake.notify_one();
         }
         Ok(Some(leaf_index))
@@ -985,10 +962,6 @@ fn count_sample_is_stale(sampled_sequence: u32, next_sequence: u32, count: u32) 
     next_sequence > sampled_sequence && next_sequence > count
 }
 
-fn stream_count_probe(dependencies: &StreamDependencies) -> BoxFuture<'static, Result<u32>> {
-    count_probe(dependencies, RPC_PROBE_TIMEOUT)
-}
-
 fn count_probe(
     dependencies: &StreamDependencies,
     probe_timeout: Duration,
@@ -1036,7 +1009,6 @@ mod tests {
         calls: Option<Arc<AtomicUsize>>,
         delay: Option<Duration>,
         domain: HyperlaneDomain,
-        pending: bool,
     }
 
     impl HyperlaneChain for CountHook {
@@ -1067,9 +1039,6 @@ mod tests {
             }
             if let Some(delay) = self.delay {
                 sleep(delay).await;
-            }
-            if self.pending {
-                return pending().await;
             }
             Ok(self.count.load(Ordering::SeqCst) as u32)
         }
@@ -1133,7 +1102,6 @@ mod tests {
                 calls: None,
                 delay: None,
                 domain: HyperlaneDomain::new_test_domain("count-hook"),
-                pending: false,
             })),
             ..test_dependencies()
         }
@@ -1266,7 +1234,6 @@ mod tests {
                 calls: Some(probes.clone()),
                 delay: None,
                 domain: HyperlaneDomain::new_test_domain("custom-count"),
-                pending: false,
             })),
             ..test_dependencies()
         };
@@ -1443,162 +1410,27 @@ mod tests {
         assert!(!count_sample_is_stale(4, 5, 6));
     }
 
-    #[test]
-    fn cutover_requires_exact_canonical_count() {
-        assert!(!validate_cutover_freshness(4, 3).expect("lag keeps fallback"));
-        assert!(validate_cutover_freshness(4, 4).expect("matching canonical count"));
-        assert!(validate_cutover_freshness(3, 4).is_err());
-    }
-
     #[tokio::test]
-    async fn cutover_keeps_fallback_until_canonical_count_matches() {
+    async fn handoff_requires_canonical_count_before_stopping_rpc_indexing() {
         let (sync, _temp_dir) = test_sync();
-        let count = Arc::new(AtomicUsize::new(0));
-        let dependencies = test_dependencies_with_count(count.clone());
         let mut fallback = Some(test_fallback(&sync.fallback_active));
-        let mut cutover_target = None;
-
+        let mut target = Some(2);
         assert!(sync
-            .try_activate_websocket(
-                1,
-                &mut fallback,
-                &mut cutover_target,
-                Duration::from_millis(10),
-                &dependencies,
-            )
+            .apply_cutover_count(1, 0, &mut fallback, &mut target)
             .await
             .is_err());
-        assert!(fallback.is_some());
-        assert_eq!(sync.fallback_active.get(), 1);
         assert_eq!(sync.websocket_active.get(), 0);
-
-        count.store(2, Ordering::SeqCst);
-        assert!(!sync
-            .try_activate_websocket(
-                1,
-                &mut fallback,
-                &mut cutover_target,
-                Duration::from_millis(10),
-                &dependencies,
-            )
+        sync.apply_cutover_count(1, 2, &mut fallback, &mut target)
             .await
-            .expect("lagging cursor keeps fallback"));
+            .expect("test handoff");
         assert!(fallback.is_some());
-
-        count.store(2, Ordering::SeqCst);
-        assert!(sync
-            .try_activate_websocket(
-                2,
-                &mut fallback,
-                &mut cutover_target,
-                Duration::from_millis(10),
-                &dependencies,
-            )
+        assert_eq!(target, Some(2));
+        sync.apply_cutover_count(2, 2, &mut fallback, &mut target)
             .await
-            .expect("matching count permits cutover"));
+            .expect("test handoff");
         assert!(fallback.is_none());
-        assert_eq!(sync.fallback_active.get(), 0);
+        assert!(target.is_none());
         assert_eq!(sync.websocket_active.get(), 1);
-    }
-
-    #[tokio::test]
-    async fn cutover_probe_timeout_keeps_fallback_active() {
-        let (sync, _temp_dir) = test_sync();
-        let dependencies = StreamDependencies {
-            merkle_tree_hook: Some(Arc::new(CountHook {
-                count: Arc::new(AtomicUsize::new(1)),
-                calls: None,
-                delay: None,
-                domain: HyperlaneDomain::new_test_domain("pending-count-hook"),
-                pending: true,
-            })),
-            ..test_dependencies()
-        };
-        let mut fallback = Some(test_fallback(&sync.fallback_active));
-        let mut cutover_target = None;
-
-        assert!(sync
-            .try_activate_websocket(
-                1,
-                &mut fallback,
-                &mut cutover_target,
-                Duration::from_millis(1),
-                &dependencies,
-            )
-            .await
-            .is_err());
-        assert!(fallback.is_some());
-        assert_eq!(sync.fallback_active.get(), 1);
-        assert_eq!(sync.websocket_active.get(), 0);
-    }
-
-    #[tokio::test]
-    async fn catch_up_count_probes_only_when_cached_target_is_reached() {
-        let (sync, _temp_dir) = test_sync();
-        let count = Arc::new(AtomicUsize::new(100));
-        let calls = Arc::new(AtomicUsize::new(0));
-        let dependencies = StreamDependencies {
-            merkle_tree_hook: Some(Arc::new(CountHook {
-                count: count.clone(),
-                calls: Some(calls.clone()),
-                delay: None,
-                domain: HyperlaneDomain::new_test_domain("count-hook"),
-                pending: false,
-            })),
-            ..test_dependencies()
-        };
-        let mut fallback = Some(test_fallback(&sync.fallback_active));
-        let mut cutover_target = None;
-
-        assert!(!sync
-            .try_activate_websocket(
-                1,
-                &mut fallback,
-                &mut cutover_target,
-                Duration::from_millis(10),
-                &dependencies,
-            )
-            .await
-            .expect("initial probe caches target"));
-        for next_sequence in 2..100 {
-            assert!(!sync
-                .try_activate_websocket(
-                    next_sequence,
-                    &mut fallback,
-                    &mut cutover_target,
-                    Duration::from_millis(10),
-                    &dependencies,
-                )
-                .await
-                .expect("events below target skip probe"));
-        }
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-
-        count.store(101, Ordering::SeqCst);
-        assert!(!sync
-            .try_activate_websocket(
-                100,
-                &mut fallback,
-                &mut cutover_target,
-                Duration::from_millis(10),
-                &dependencies,
-            )
-            .await
-            .expect("target advance is cached"));
-        assert_eq!(calls.load(Ordering::SeqCst), 2);
-
-        assert!(sync
-            .try_activate_websocket(
-                101,
-                &mut fallback,
-                &mut cutover_target,
-                Duration::from_millis(10),
-                &dependencies,
-            )
-            .await
-            .expect("matching target permits cutover"));
-        assert_eq!(calls.load(Ordering::SeqCst), 3);
-        assert!(fallback.is_none());
     }
 
     #[tokio::test]
@@ -1777,7 +1609,11 @@ mod tests {
     #[tokio::test]
     async fn rpc_fallback_preserves_durable_backward_cursor_progress() {
         let (sync, _temp_dir) = test_sync();
-        let store = CheckpointingMerkleTreeStore::new(sync.db.clone(), sync.cursor_state.clone());
+        let store = CheckpointingMerkleTreeStore::new(
+            sync.db.clone(),
+            sync.cursor_state.clone(),
+            sync.checkpoint_wake.clone(),
+        );
         let progress = BackwardCursorProgress {
             sequence: 10,
             block: 100,
@@ -1803,8 +1639,11 @@ mod tests {
             .reset_backward_cursor(reset)
             .await
             .expect("reset progress");
-        let reopened =
-            CheckpointingMerkleTreeStore::new(sync.db.clone(), merkle_tree_cursor_state());
+        let reopened = CheckpointingMerkleTreeStore::new(
+            sync.db.clone(),
+            merkle_tree_cursor_state(),
+            sync.checkpoint_wake.clone(),
+        );
         assert_eq!(
             reopened
                 .retrieve_backward_cursors()
@@ -1831,7 +1670,11 @@ mod tests {
                 .expect("initialize sequence"),
             0
         );
-        let store = CheckpointingMerkleTreeStore::new(sync.db.clone(), sync.cursor_state.clone());
+        let store = CheckpointingMerkleTreeStore::new(
+            sync.db.clone(),
+            sync.cursor_state.clone(),
+            sync.checkpoint_wake.clone(),
+        );
         let leaves: Vec<_> = (0_u32..600)
             .map(|sequence| {
                 (
@@ -1854,6 +1697,12 @@ mod tests {
                 .expect("store fallback leaves"),
             600
         );
+        assert!(sync.checkpoint_wake.notified().now_or_never().is_some());
+        assert_eq!(
+            store.store_logs(&leaves).await.expect("duplicate leaves"),
+            0
+        );
+        assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
         let persisted: Option<u32> = sync
             .db
             .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
@@ -1940,7 +1789,6 @@ mod tests {
             .expect("valid event")
             .is_some());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_some());
-        assert_eq!(sync.insertion_sequence().load(Ordering::Acquire), 1);
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -1971,7 +1819,6 @@ mod tests {
             .expect("matching fallback insertion")
             .is_some());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
-        assert_eq!(sync.insertion_sequence().load(Ordering::Acquire), 1);
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
@@ -1996,7 +1843,6 @@ mod tests {
         };
         assert!(sync.process_event(gap, &mut next_sequence, false).is_err());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
-        assert_eq!(sync.insertion_sequence().load(Ordering::Acquire), 1);
     }
 
     #[test]
@@ -2592,7 +2438,6 @@ mod tests {
                 calls: None,
                 delay: Some(Duration::from_millis(8)),
                 domain: HyperlaneDomain::new_test_domain("delayed-count-hook"),
-                pending: false,
             })),
             ..test_dependencies()
         };
@@ -2703,7 +2548,6 @@ mod tests {
                 calls: Some(calls_in_hook),
                 delay: None,
                 domain: HyperlaneDomain::new_test_domain("retreat-count-hook"),
-                pending: false,
             })),
             ..test_dependencies()
         };
@@ -2807,7 +2651,6 @@ mod tests {
                 calls: None,
                 delay: None,
                 domain: HyperlaneDomain::new_test_domain("count-hook"),
-                pending: false,
             })),
             ..test_dependencies()
         };
