@@ -43,11 +43,11 @@
   "required_source": [
     {
       "path": ".github/workflows/zig-agents.yml",
-      "bytes": 154754,
+      "bytes": 156779,
       "sha256": {
         "sha256_hex_chunks": [
-          "7b267e2c987888becdd461aa9441473c",
-          "c12170697cf0fdf486ae068e0a07d0a1"
+          "bf6dc6c37246b3daa13fba36386fc9ea",
+          "60bec6b210440784ee67585c0907c845"
         ]
       }
     },
@@ -76,8 +76,8 @@
       "bytes": 85298,
       "sha256": {
         "sha256_hex_chunks": [
-          "5b0fa00ce85915e205ca19f88b2ddb62",
-          "a85367bd7ba8c8cc251a44d979fe43d4"
+          "98fb281b4c4603f9f50e6a01b16e7b5b",
+          "34bfe03de3737fa35d73ce53d324f2aa"
         ]
       }
     },
@@ -113,11 +113,11 @@
     },
     {
       "path": "zig/bench/native_case_tools.py",
-      "bytes": 59525,
+      "bytes": 59526,
       "sha256": {
         "sha256_hex_chunks": [
-          "d19c5016d07326dca6317ba89422dee0",
-          "436d18bf89e996bcf51763e5745d9f5f"
+          "e99abef2cf0f16c98f224f465b383110",
+          "cf33c02adfbb6a0949c2ed6b8405df00"
         ]
       }
     },
@@ -163,21 +163,21 @@
     },
     {
       "path": "zig/bench/paired_linux.py",
-      "bytes": 20045,
+      "bytes": 23116,
       "sha256": {
         "sha256_hex_chunks": [
-          "5e0c203d349e8d364439c84e1d9ffed2",
-          "36b6f2590a707e99f43384d65ee95739"
+          "04146a01bdd3a59d78ca410926a572c8",
+          "5e3757e7ab9c6b051084a0ae35f9dbcb"
         ]
       }
     },
     {
       "path": "zig/bench/paired_linux_inputs.py",
-      "bytes": 53117,
+      "bytes": 53829,
       "sha256": {
         "sha256_hex_chunks": [
-          "d79a16474a0bf7ebd7b31b21bdf94a67",
-          "79888262b2b9535c2e7894e4c7f451d6"
+          "b66fe711fe375722acc40656997392b6",
+          "2daa01c4e89e5cf013faf349ae92dc0e"
         ]
       }
     },
@@ -193,61 +193,61 @@
     },
     {
       "path": "zig/bench/paired_linux_owner.py",
-      "bytes": 11189,
+      "bytes": 23744,
       "sha256": {
         "sha256_hex_chunks": [
-          "20ad23c68b53f8666b63d18ddd719c04",
-          "27451ccd8c69898c3cac7111c9cc217b"
+          "48e4c5b30e83047294df1b3509e04ed8",
+          "f6e34aebd4147d5d1e58b955ef074d70"
         ]
       }
     },
     {
       "path": "zig/bench/paired_linux_proofs.py",
-      "bytes": 12232,
+      "bytes": 26851,
       "sha256": {
         "sha256_hex_chunks": [
-          "10eaf5ebc86b94fd7f5ef319b925f498",
-          "7c17907cd738f00bceca0855d9bfb87e"
+          "cf35da855d92e046fb3f18b85c96852f",
+          "87a58495fbef9eda534a0e42bc01ba20"
         ]
       }
     },
     {
       "path": "zig/bench/paired_linux_stage.py",
-      "bytes": 15016,
+      "bytes": 16281,
       "sha256": {
         "sha256_hex_chunks": [
-          "21cf28c95ee40e4677cb72ad0e8fe31c",
-          "fd6d530757e9689637d432b777b4a086"
+          "54ccc1c6a22267d92d9193ba4cdc717f",
+          "90cccf7b18d2e7cbf16187984aa52aa4"
         ]
       }
     },
     {
       "path": "zig/bench/relayer.py",
-      "bytes": 90809,
+      "bytes": 98241,
       "sha256": {
         "sha256_hex_chunks": [
-          "1263657b66feccd15a7ac695cfc8cef3",
-          "f28b02e758cc49ca7db355c9b6e032eb"
+          "35eb9071194789fc62836cb567fa081e",
+          "875057a8edbbcd61ba322346d444b172"
         ]
       }
     },
     {
       "path": "zig/bench/scraper.py",
-      "bytes": 51705,
+      "bytes": 57767,
       "sha256": {
         "sha256_hex_chunks": [
-          "ed536a38b776a78343231e0e86191c84",
-          "d7c5c4fccd9e8e644144f942540b790d"
+          "1a05316a18ce14340f7039d9e52ee5cf",
+          "3ff0707d091865b97674e996b65884fc"
         ]
       }
     },
     {
       "path": "zig/bench/validator.py",
-      "bytes": 24200,
+      "bytes": 34919,
       "sha256": {
         "sha256_hex_chunks": [
-          "9673bc2117531ddbf05b717e0bfd39e0",
-          "c36a99bc5e406e6296484541a5de5b6f"
+          "0645c889c0b8793f310b22f610a3113b",
+          "5476235f2d77894fd0c1238244dc8c58"
         ]
       }
     },

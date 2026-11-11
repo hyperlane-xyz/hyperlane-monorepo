@@ -7,7 +7,7 @@ from pathlib import Path,PurePosixPath
 GIB=1024**3
 REPOSITORY='hyperlane-xyz/hyperlane-monorepo'
 BRANCH='feat/zig-agent-rewrite'
-PRODUCER='822a929c67ebd2126ca96d7b59df395be95e8a83'  # Read-only inspection stays disabled until all eight publisher pins are approved.
+PRODUCER='abf54588b1493e62d2a91445b467637d1eb8ddac'  # Read-only inspection stays disabled until all eight publisher pins are approved.
 REQUIRED_JOBS=('full-sdk-native (ReleaseSafe)','full-sdk-native (ReleaseFast)','native-harness-controls','svm-prerequisites')
 PRODUCT_KEYS=('sdk_safe','sdk_fast','helper','tools','writer_safe','writer_fast','svm','radix_reference')
 LIMITS={'wall_seconds':1800,'cleanup_seconds':60,'inspector_RAM_bytes':GIB,'child_RAM_bytes':512*1024**2,'owned_disk_bytes':8*GIB,'host_free_bytes':6*GIB,'maximum_archive_bytes':4*GIB,'compressed_total_bytes':16*GIB,'streamed_total_bytes':24*GIB,'member_count':100000,'central_directory_bytes':32*1024**2,'metadata_bytes':64*1024**2,'report_bytes':2*1024**2}
