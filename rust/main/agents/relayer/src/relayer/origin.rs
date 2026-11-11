@@ -58,6 +58,14 @@ impl Origin {
             self.chain_conf.addresses.merkle_tree_hook,
             self.database.clone(),
         )?
+        .with_confirmations(if self.finality_indexer.is_some() {
+            Some(0)
+        } else {
+            match &self.chain_conf.reorg_period {
+                ReorgPeriod::Blocks(blocks) => Some(blocks.get()),
+                _ => None,
+            }
+        })
         .with_block_provider(Arc::from(self.validator_announce.provider()))
         .with_broadcaster(self.message_sync.get_broadcaster())
         .with_freshness_indexer(self.message_sequence_indexer.clone())

@@ -5,8 +5,14 @@ pipeline immediately, through scraper-proxy WebSockets or RPC at depth zero.
 There is no separate cache-warming pipeline. Validator and destination finality
 settings are unchanged; non-EVM indexers keep their existing confirmation behavior.
 
-The relayer subscribes at `confirmations: 0`. Each origin has one connection carrying
-its three discovery streams. RPC remains active until it has covered history through
+All configured origin VMs can use scraper-proxy WebSockets. EVM origins subscribe at
+`confirmations: 0`. Other origins subscribe at their configured numeric reorg depth,
+or use the scraper's default confirmed stream when there is no numeric depth.
+Their RPC indexers retain the existing confirmation/finality behavior. The scraper
+may itself wait for chain-native finality before making non-EVM events available.
+
+Each origin has one connection carrying its discovery streams. Gas payments are
+omitted when gas indexing is disabled. RPC remains active until it has covered history through
 an overlapping subscription checkpoint, including gas payments. Only then does the
 supervisor stop all three RPC indexers. Disconnects, rejected frames, missing receipt
 metadata and sequence gaps restore RPC. Reconnects repeat the overlap check. Sources
@@ -16,11 +22,14 @@ uses WebSockets. `websocketAuthorityEnabled: false` keeps RPC as the discovery s
 Destination delivery is still checked by the existing delivery/receipt confirmation
 pipeline; a zero-confirmation delivery notification is not a finalized receipt.
 
-Every newly indexed event is journaled atomically with its database effects, including
+For EVM, every newly indexed event is journaled atomically with its database effects, including
 late RPC backfill. The relayer verifies block identities before pruning records through
 the configured origin confirmation boundary. The audit runs without WebSockets too.
+Non-EVM streams use the same ingestion, RPC overlap/fallback and downstream processing,
+without enabling the EVM provisional journal or block-based recovery. Confirmed-stream
+rollback notifications halt for manual recovery.
 
-A rollback notification or conflicting indexed event closes submission admission for
+An EVM rollback notification or conflicting indexed event closes submission admission for
 the affected origin. The supervisor stops its RPC writers, rolls back the journal and
 rewinds the prover. It invalidates prepared work, rebuilds cursors and resumes discovery.
 Only the provisional suffix above the persisted configured-confirmation boundary is

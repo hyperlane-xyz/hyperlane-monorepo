@@ -1,5 +1,5 @@
-//! Zero-confirmation origin discovery. RPC fills subscription gaps; both transports
-//! use the same reversible DB writes. Confirmation policy remains with the ISM.
+//! Shared origin discovery. RPC fills subscription gaps; both transports use the
+//! same DB writes. EVM discovery is provisional; other VMs retain configured finality.
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use async_trait::async_trait;
 use eyre::{bail, ensure, Context, ContextCompat, Result};
@@ -91,6 +91,7 @@ pub(crate) struct ScraperSource {
     prover: Option<Arc<RwLock<MerkleTreeBuilder>>>,
     gas_enabled: bool,
     recover_provisional: bool,
+    confirmations: Option<u32>,
     control: Arc<Authority>,
 }
 impl ScraperSource {
@@ -117,11 +118,16 @@ impl ScraperSource {
             prover: None,
             gas_enabled: true,
             recover_provisional: false,
+            confirmations: None,
             control: Arc::new(Authority::new(domain)),
         })
     }
     pub(crate) fn with_block_provider(mut self, value: Arc<dyn HyperlaneProvider>) -> Self {
         self.block_provider = Some(value);
+        self
+    }
+    pub(crate) fn with_confirmations(mut self, confirmations: Option<u32>) -> Self {
+        self.confirmations = confirmations;
         self
     }
     pub(crate) fn with_broadcaster(
@@ -327,6 +333,9 @@ impl ScraperSource {
     }
     // This runs even without a WebSocket. The persisted boundary catches offline reorgs.
     async fn audit(&self) -> Result<()> {
+        if self.finality_indexer.is_none() {
+            return Ok(());
+        }
         self.database.wait_for_live_block_verification().await;
         let mut previous_head = None;
         loop {
@@ -413,7 +422,7 @@ impl ScraperSource {
     }
     async fn store(&self, event: EventMessage<serde_json::Value>) -> Result<Option<(Kind, u32)>> {
         ensure!(
-            event.domain == self.domain && event.confirmations == Some(0),
+            event.domain == self.domain && event.confirmations == self.confirmations,
             "Unexpected discovery stream"
         );
         let kind = Kind::parse(&event.event_type)?;
@@ -439,7 +448,7 @@ impl ScraperSource {
                 let meta = LogMeta {
                     address: self.mailbox,
                     block_number: data.origin_block_height.as_u64("dispatch height")?,
-                    block_hash: event_block_hash(hash, data.origin_block_hash.as_deref())?,
+                    block_hash: self.event_block_hash(hash, data.origin_block_hash.as_deref())?,
                     transaction_id: parse_tx(&data.origin_tx_hash)?,
                     transaction_index: 0,
                     log_index: U256::zero(),
@@ -464,7 +473,7 @@ impl ScraperSource {
                 if parse_address(&data.merkle_tree_hook)? != self.merkle_tree_hook {
                     return Ok(None);
                 }
-                let hash = event_block_hash(hash, data.block_hash.as_deref())?;
+                let hash = self.event_block_hash(hash, data.block_hash.as_deref())?;
                 let sequence = event.sequence.context("Missing Merkle sequence")?.parse()?;
                 let (leaf, height) = data.decode(self.domain, self.merkle_tree_hook, sequence)?;
                 self.database.store_indexed_merkle(
@@ -499,6 +508,15 @@ impl ScraperSource {
             }
         }
     }
+
+    fn event_block_hash(&self, envelope: Option<H256>, payload: Option<&str>) -> Result<H256> {
+        // Confirmed streams can contain legacy rows without a block hash. Only
+        // provisional discovery needs the identity for journal verification.
+        if self.finality_indexer.is_none() && envelope.is_none() && payload.is_none() {
+            return Ok(H256::zero());
+        }
+        event_block_hash(envelope, payload)
+    }
 }
 
 pub(crate) struct ScraperWebSocketMonitor {
@@ -518,7 +536,6 @@ impl ScraperWebSocketMonitor {
         Ok(Self {
             sources: sources
                 .into_iter()
-                .filter(|source| source.finality_indexer.is_some())
                 .map(|source| (source.domain, source))
                 .collect(),
             url,
@@ -565,6 +582,10 @@ impl ScraperWebSocketMonitor {
                         self.active.with_label_values(&[&source.chain]).set(0);
                         self.authority.with_label_values(&[&source.chain]).set(0);
                         if let Err(error) = result {
+                            assert!(
+                                !error.is::<RollbackRecoveryRequired>(),
+                                "Confirmed origin reorg requires manual recovery: {error}"
+                            );
                             warn!(
                                 chain = source.chain,
                                 ?error,
@@ -585,6 +606,7 @@ impl ScraperWebSocketMonitor {
         timeouts: StreamTimeouts,
     ) -> Result<()> {
         let _fallback = RpcFallback(source.clone());
+        source.ensure_confirmed_history()?;
         source.database.ensure_no_indexed_event_conflict()?;
         let epoch = source.database.discovery_generation();
         let mut session =
@@ -622,7 +644,7 @@ impl ScraperWebSocketMonitor {
                                 .map(|kind| SubscribeStream {
                                     event_type: kind.label(),
                                     domains: Some(vec![source.domain]),
-                                    confirmations: Some(0),
+                                    confirmations: source.confirmations,
                                     include_zero_confirmations: None,
                                     cursors: None,
                                     stream_cursor_version: None,
@@ -653,12 +675,16 @@ impl ScraperWebSocketMonitor {
                 SessionEvent::Message(ServerMessage::Rollback {
                     domain,
                     confirmations,
+                    to_height,
                     ..
                 }) => {
                     ensure!(
-                        domain == source.domain && confirmations == Some(0),
+                        domain == source.domain && confirmations == source.confirmations,
                         "Unexpected rollback scope"
                     );
+                    if source.finality_indexer.is_none() {
+                        source.confirmed_reorg(to_height.as_u64("rollback height")?)?;
+                    }
                     source.database.request_discovery_recovery()?;
                     bail!("Origin rollback; recovering through RPC");
                 }
@@ -1188,6 +1214,9 @@ mod tests {
     }
     impl Fixture {
         fn new(url: Url) -> Self {
+            Self::with_confirmations(url, Some(0), true)
+        }
+        fn with_confirmations(url: Url, confirmations: Option<u32>, provisional: bool) -> Self {
             let dir = tempfile::tempdir().unwrap();
             let db = HyperlaneRocksDB::new(
                 &HyperlaneDomain::new_test_domain("origin"),
@@ -1204,22 +1233,25 @@ mod tests {
                 db,
             )
             .unwrap()
+            .with_confirmations(confirmations)
             .with_block_provider(blocks.clone())
             .with_freshness_indexer(counts.clone())
             .with_merkle_freshness_indexer(counts.clone())
             .with_recovery(
-                Some(counts),
+                provisional.then_some(counts),
                 Arc::new(RwLock::new(MerkleTreeBuilder::new())),
                 true,
                 true,
             );
-            source
-                .database
-                .enable_discovery(DiscoveryCheckpoint {
-                    height: 99,
-                    hash: H256::from_low_u64_be(8),
-                })
-                .unwrap();
+            if provisional {
+                source
+                    .database
+                    .enable_discovery(DiscoveryCheckpoint {
+                        height: 99,
+                        hash: H256::from_low_u64_be(8),
+                    })
+                    .unwrap();
+            }
             let metrics = CoreMetrics::new("discovery-test", 9090, Registry::new()).unwrap();
             let monitor = Arc::new(
                 ScraperWebSocketMonitor::new_with_authority(
@@ -1245,6 +1277,152 @@ mod tests {
     }
     fn event(kind: Kind, sequence: u32, data: Value) -> Value {
         json!({"type":"event", "domain":5, "eventType":kind.label(), "confirmations":0, "sequence":sequence.to_string(), "data":data})
+    }
+
+    #[tokio::test]
+    async fn confirmed_vm_streams_ingest_cut_over_and_restore_rpc_on_gaps() {
+        for confirmations in [Some(7), None] {
+            let (listener, url) = listener().await;
+            let fixture = Fixture::with_confirmations(url.clone(), confirmations, false);
+            assert!(fixture.monitor.authority_receiver(5).is_some());
+            // These adapters need neither the EVM finality RPC nor its journal.
+            fixture.blocks.1.store(true, Ordering::Release);
+            fixture.source.verify_live_blocks().await.unwrap();
+            fixture.source.audit().await.unwrap();
+            let ack = acknowledge(&fixture.source);
+            let task = fixture.connect(url);
+            let (mut socket, subscription) = handshake(&listener).await;
+            for stream in subscription["streams"].as_array().unwrap() {
+                assert_eq!(
+                    stream["confirmations"].as_u64(),
+                    confirmations.map(u64::from)
+                );
+                assert!(stream.get("cursors").is_none());
+            }
+            // Cover the live subscription with RPC history before pausing writers.
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            fixture
+                .source
+                .control
+                .ack
+                .recovery
+                .lock()
+                .unwrap()
+                .fill(Some(RpcProgress {
+                    at: Instant::now(),
+                    block: 100,
+                }));
+            eventually(|| {
+                fixture
+                    .monitor
+                    .authority
+                    .with_label_values(&["origin"])
+                    .get()
+                    == 1
+            })
+            .await;
+            for (kind, mut data) in [
+                (Kind::Dispatch, dispatch(0)),
+                (Kind::Merkle, merkle(0)),
+                (Kind::Gas, gas(1)),
+            ] {
+                // Older confirmed dispatch/Merkle projections can omit hashes.
+                if !matches!(kind, Kind::Gas) {
+                    data.as_object_mut().unwrap().remove("origin_block_hash");
+                    data.as_object_mut().unwrap().remove("block_hash");
+                }
+                let mut frame = event(kind, 0, data);
+                frame["confirmations"] = json!(confirmations);
+                send(&mut socket, frame.clone()).await;
+                send(&mut socket, frame).await;
+            }
+            eventually(|| {
+                fixture
+                    .source
+                    .database
+                    .retrieve_gas_payment_by_gas_payment_key(hyperlane_core::GasPaymentKey {
+                        message_id: H256::from_low_u64_be(7),
+                        destination: 6,
+                    })
+                    .unwrap()
+                    .is_some()
+            })
+            .await;
+            assert_eq!(
+                fixture
+                    .source
+                    .database
+                    .retrieve_message_by_nonce(0)
+                    .unwrap(),
+                Some(message(0))
+            );
+            assert!(fixture
+                .source
+                .database
+                .retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                .unwrap()
+                .is_some());
+            assert!(fixture
+                .source
+                .database
+                .discovery_checkpoint()
+                .unwrap()
+                .is_none());
+            assert_eq!(fixture.source.database.discovery_generation(), 0);
+
+            let mut gap = event(Kind::Dispatch, 2, dispatch(2));
+            gap["confirmations"] = json!(confirmations);
+            send(&mut socket, gap).await;
+            assert!(timeout(Duration::from_secs(5), task)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_err());
+            assert!(!fixture.source.control.command.borrow().desired);
+            assert!(!fixture
+                .source
+                .database
+                .discovery_recovery_pending()
+                .unwrap());
+            ack.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn confirmed_vm_rejects_wrong_depth_and_halts_on_rollback() {
+        let (listener, url) = listener().await;
+        let fixture = Fixture::with_confirmations(url.clone(), Some(7), false);
+        assert!(fixture
+            .source
+            .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0)),).unwrap())
+            .await
+            .is_err());
+        assert!(fixture
+            .source
+            .database
+            .retrieve_message_by_nonce(0)
+            .unwrap()
+            .is_none());
+        let task = fixture.connect(url);
+        let (mut socket, _) = handshake(&listener).await;
+        send(&mut socket, json!({"type":"rollback", "domain":5, "eventType":"dispatch", "confirmations":7, "toHeight":99})).await;
+        let error = timeout(Duration::from_secs(5), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert!(error.is::<RollbackRecoveryRequired>());
+        assert!(fixture
+            .source
+            .database
+            .confirmed_discovery_conflict()
+            .unwrap());
+        assert!(!fixture
+            .source
+            .database
+            .discovery_recovery_pending()
+            .unwrap());
+        assert_eq!(fixture.source.database.discovery_generation(), 0);
     }
 
     #[tokio::test]
