@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  EVENT_TYPES,
   parseClientMessage,
   parseDatabaseDomain,
   parseEventNotification,
@@ -514,4 +515,27 @@ void it('validates optional shared message-ID filters', () => {
       new URLSearchParams(`messageIds=${Array(51).fill(id).join(',')}`),
     ),
   );
+});
+
+void it('validates zero-confirmation opt-in for every event type', () => {
+  for (const eventType of EVENT_TYPES) {
+    const message = parseClientMessage(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [{ eventType, domains: [1], includeZeroConfirmations: true }],
+      }),
+    );
+    assert(message.type === 'subscribe');
+    assert.equal(message.streams[0]?.includeZeroConfirmations, true);
+  }
+  for (const stream of [
+    { eventType: 'dispatch', domains: [1], includeZeroConfirmations: 2 },
+    { eventType: 'dispatch', includeZeroConfirmations: true },
+    { eventType: 'blocks', domains: [1], includeZeroConfirmations: true },
+  ])
+    assert.throws(() =>
+      parseClientMessage(
+        JSON.stringify({ type: 'subscribe', streams: [stream] }),
+      ),
+    );
 });
