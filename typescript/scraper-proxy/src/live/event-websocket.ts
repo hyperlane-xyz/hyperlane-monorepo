@@ -42,6 +42,7 @@ import {
   parseHeadNotification,
   parseId,
   type StreamRequest,
+  type StreamCursor,
   STREAM_CURSOR_VERSIONS,
 } from './protocol.js';
 import {
@@ -625,6 +626,8 @@ export class EventWebSocketServer {
     confirmations: number,
     domains: Set<number>,
     eventType?: EventType,
+    cursors?: StreamCursor[],
+    allowUnavailable = eventType === undefined,
   ): Promise<ConfirmationStream> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
@@ -639,6 +642,9 @@ export class EventWebSocketServer {
               after,
               through,
               confirmations,
+              cursors
+                ?.filter((cursor) => cursor.domain === domain)
+                .map((cursor) => cursor.address),
             )
           : this.store.confirmationMessageRows(
               domain,
@@ -698,8 +704,12 @@ export class EventWebSocketServer {
     this.confirmationStreams.set(socket, streams);
     await stream.initialize(
       () => this.store.confirmationHeads(domains),
-      eventType === undefined,
+      allowUnavailable,
     );
+    if (eventType && stream.canonicalDomains.length)
+      this.logger.warn(
+        `websocket skipped advisory confirmations=${confirmations} eventType=${eventType} domains=${stream.canonicalDomains.join(',')}: near-head state unavailable`,
+      );
     return stream;
   }
 
@@ -746,18 +756,6 @@ export class EventWebSocketServer {
       return;
     }
 
-    if (
-      message.streams.some(
-        ({ eventType, confirmations }) =>
-          eventType === 'delivery' && confirmations !== undefined,
-      )
-    ) {
-      this.rejectNegotiation(
-        socket,
-        'Custom confirmations unavailable for delivery streams',
-      );
-      return;
-    }
     client.subscribing = true;
     const eventStreams = message.streams.filter(
       (request) => request.eventType !== 'blocks',
@@ -774,6 +772,20 @@ export class EventWebSocketServer {
             request.confirmations,
             request.domains,
             request.eventType,
+            request.cursors,
+          );
+        if (
+          request.includeZeroConfirmations &&
+          request.confirmations !== 0 &&
+          request.domains
+        )
+          await this.createConfirmationStream(
+            socket,
+            0,
+            request.domains,
+            request.eventType,
+            request.cursors,
+            true,
           );
       }
     } catch (error) {
@@ -1560,6 +1572,9 @@ function subscriptionResponse(
 ): Record<string, unknown> {
   return {
     confirmations: request.confirmations,
+    ...(request.includeZeroConfirmations !== undefined
+      ? { includeZeroConfirmations: request.includeZeroConfirmations }
+      : {}),
     cursors: request.cursors?.map((cursor) =>
       cursor.kind === 'gas_payment'
         ? {

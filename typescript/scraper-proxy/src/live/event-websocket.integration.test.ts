@@ -512,7 +512,7 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   );
 });
 
-for (const kind of ['query', 'unavailable', 'delivery']) {
+for (const kind of ['query', 'unavailable']) {
   void it(`reports ${kind} confirmation negotiation errors before closing with 1008`, async (context) => {
     if (kind === 'unavailable')
       context.mock.method(db, 'queryLive', async () => []);
@@ -531,7 +531,7 @@ for (const kind of ['query', 'unavailable', 'delivery']) {
             type: 'subscribe',
             streams: [
               {
-                eventType: kind === 'delivery' ? 'delivery' : 'dispatch',
+                eventType: 'dispatch',
                 confirmations: 0,
                 domains: [1],
               },
@@ -553,6 +553,109 @@ for (const kind of ['query', 'unavailable', 'delivery']) {
       );
     } finally {
       socket.close();
+    }
+  });
+}
+
+for (const available of [false, true]) {
+  void it(`preserves canonical replay with ${available ? 'partial' : 'no'} advisory near-head coverage`, async (context) => {
+    const original = db.queryLive.bind(db);
+    const reads: unknown[][] = [];
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('SELECT domain, head_height'))
+          return queryRows<T>(
+            available
+              ? [
+                  {
+                    domain: 1,
+                    head_height: '10',
+                    indexed_height: '10',
+                    confirmed_height: '5',
+                  },
+                ]
+              : [],
+          );
+        if (sql.includes('confirmation_events')) {
+          reads.push(values);
+          return queryRows<T>([
+            {
+              ...row(hookA, 1),
+              block_number: '11',
+              frontier_id: '2',
+              frontier_height: '11',
+            },
+          ]);
+        }
+        return original<T>(sql, values);
+      },
+    );
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              includeZeroConfirmations: true,
+              cursors: [1, 2].map((domain) => ({
+                domain,
+                address: hookA,
+                afterSequence: '-1',
+              })),
+            },
+          ],
+        }),
+      );
+      const ack = await waitFor(messages, 'subscribed');
+      assert(Array.isArray(ack.streams));
+      assert.equal(record(ack.streams[0]).includeZeroConfirmations, true);
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'caught_up').length === 2,
+      );
+      const replay = messages.filter(({ type }) => type === 'event');
+      assert.deepEqual(replay.map(({ domain }) => domain).sort(), [1, 2]);
+      assert(replay.every(({ confirmations }) => confirmations === undefined));
+      for (const domain of [1, 2])
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain,
+            headHeight: '11',
+            indexedHeight: '11',
+            previousIndexedHeight: '10',
+            confirmedHeight: '5',
+          }),
+        );
+      if (available) {
+        await waitUntil(() =>
+          messages.some(({ confirmations }) => confirmations === 0),
+        );
+        assert.deepEqual(
+          reads.map((values) => values[0]),
+          [1],
+        );
+        assert.deepEqual(reads[0]?.[5], [hookA]);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        assert.deepEqual(reads, []);
+      }
+      assert.equal(
+        messages.some(({ type }) => type === 'error'),
+        false,
+      );
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
     }
   });
 }
@@ -596,7 +699,12 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
         type: 'subscribe',
         streams: [
           { eventType: 'merkle_tree_insertion' },
-          { eventType: 'dispatch', confirmations: 0, domains: [1] },
+          {
+            eventType: 'dispatch',
+            confirmations: 0,
+            domains: [1],
+            includeZeroConfirmations: true,
+          },
           { eventType: 'gas_payment', confirmations: 0, domains: [1] },
         ],
       }),
@@ -621,6 +729,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
     );
     release();
     await waitFor(messages, 'subscribed');
+    assert.equal(snapshots, 3); // Two readers plus the rollback snapshot retry.
     notify('scraper_event', notification('1'));
     await waitFor(messages, 'event');
     assert.deepEqual(
@@ -725,10 +834,7 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
   }
 });
 
-for (const eventType of [
-  ...EVENT_TYPES.filter((type) => type !== 'delivery'),
-  'messages',
-]) {
+for (const eventType of [...EVENT_TYPES, 'messages']) {
   void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
     const completions = delayServerSendCompletions(context);
     let replacement = false;
@@ -751,17 +857,15 @@ for (const eventType of [
           ]);
         const messageId = `\\x${(replacement ? '02' : '01').repeat(32)}`;
         const data = {
-          ...gasPaymentRow('1', null),
-          ...row(hookA, 0),
+          id: '1',
+          domain: 1,
+          origin: 1,
+          destination: 2,
           destination_domain: 2,
           origin_domain: 1,
-          origin_block_height: '10',
           origin_mailbox: hookA,
           nonce: 0,
           msg_id: messageId,
-          destination_mailbox: hookB,
-          destination_tx_id: null,
-          sequence: '0',
         };
         if (
           sql.includes('confirmation_events') ||
@@ -777,6 +881,19 @@ for (const eventType of [
           if (explorer)
             return queryRows<T>([
               { height: '10', source: 0, id: '1', msg_id: messageId },
+            ]);
+          if (eventType === 'merkle_tree_insertion')
+            return queryRows<T>([
+              {
+                domain: 1,
+                merkle_tree_hook: hookA,
+                leaf_index: 0,
+                message_id: messageId,
+                block_number: '10',
+                block_hash: `\\x${(replacement ? '09' : '08').repeat(32)}`,
+                frontier_id: '1',
+                frontier_height: '10',
+              },
             ]);
           const projected: Record<string, unknown> = {
             ...data,
@@ -830,14 +947,33 @@ for (const eventType of [
         socket.send(
           JSON.stringify({
             type: 'subscribe',
-            streams: [{ eventType, confirmations: 2, domains: [1] }],
+            streams: [
+              {
+                eventType,
+                confirmations: 2,
+                domains: [1],
+                includeZeroConfirmations: true,
+              },
+            ],
           }),
         );
-        await waitFor(messages, 'subscribed');
+        const ack = await waitFor(messages, 'subscribed');
+        assert(Array.isArray(ack.streams));
+        assert.equal(record(ack.streams[0]).includeZeroConfirmations, true);
       }
       advance('11', '10', '9');
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      assert.equal(completions.length, 0, 'height 10 needs head 12');
+      if (eventType !== 'messages') {
+        const zero = await waitFor(messages, 'event');
+        assert.equal(zero.confirmations, 0);
+        assert.equal(zero.height, '10');
+        await waitUntil(() => completions.length === 1);
+        completions.shift()?.();
+        messages.length = 0;
+        targets.length = 0;
+      } else {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        assert.equal(completions.length, 0, 'height 10 needs head 12');
+      }
       advance('12', '10', '10');
       advance('13', '10', '10');
       assert.deepEqual(targets, []); // Forward heads wait for the shared batch.
@@ -849,19 +985,50 @@ for (const eventType of [
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);
+      if (eventType === 'merkle_tree_insertion') {
+        assert.equal(frame.blockHash, `\\x${'08'.repeat(32)}`);
+        assert.equal(record(frame.data).block_hash, undefined);
+      }
       await waitUntil(() => completions.length === 1);
       advance('11', '9', '10');
       const rollback = await waitFor(messages, 'rollback');
       assert.equal(rollback.fromHeight, '10');
       assert.equal(rollback.toHeight, '9');
+      if (eventType !== 'messages') {
+        await waitUntil(
+          () => messages.filter(({ type }) => type === 'rollback').length === 2,
+        );
+        assert.deepEqual(
+          messages
+            .filter(({ type }) => type === 'rollback')
+            .map(({ confirmations }) => confirmations)
+            .sort(),
+          [0, 2],
+        );
+      }
       replacement = true;
       advance('12', '10', '9');
       completions.shift()?.();
       await waitUntil(() =>
         messages.some(
-          (m) => m.data && record(m.data).msg_id === `\\x${'02'.repeat(32)}`,
+          (m) =>
+            m.data &&
+            (record(m.data).msg_id ?? record(m.data).message_id) ===
+              `\\x${'02'.repeat(32)}`,
         ),
       );
+      if (eventType !== 'messages')
+        await waitUntil(
+          () =>
+            messages.filter(
+              (message) =>
+                message.data &&
+                (record(message.data).msg_id ??
+                  record(message.data).message_id) === `\\x${'02'.repeat(32)}`,
+            ).length === 2,
+        );
+      if (eventType === 'merkle_tree_insertion')
+        assert.equal(messages.at(-1)?.blockHash, `\\x${'09'.repeat(32)}`);
       assert.equal(socket.readyState, WebSocket.OPEN);
     } finally {
       socket.close();

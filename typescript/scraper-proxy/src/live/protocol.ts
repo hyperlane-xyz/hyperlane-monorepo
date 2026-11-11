@@ -39,6 +39,8 @@ export type GasPaymentCursor = {
 };
 export type StreamCursor = GasPaymentCursor | SequenceCursor;
 export type StreamRequest = {
+  /** Also stream live events at zero confirmations, without advancing replay cursors. */
+  includeZeroConfirmations?: boolean;
   confirmations?: number;
   cursors?: StreamCursor[];
   domains?: Set<number>;
@@ -50,6 +52,7 @@ export type ClientMessage =
   | { streams: (StreamRequest | BlockStreamRequest)[]; type: 'subscribe' };
 export type BlockStreamRequest = {
   eventType: 'blocks';
+  includeZeroConfirmations?: never;
   domains?: Set<number>;
   confirmations?: never;
   cursors?: never;
@@ -216,6 +219,7 @@ function parseStream(value: unknown): StreamRequest | BlockStreamRequest {
   }
   if (value.eventType === 'blocks') {
     if (
+      value.includeZeroConfirmations !== undefined ||
       value.confirmations !== undefined ||
       value.cursors !== undefined ||
       value.streamCursorVersion !== undefined
@@ -272,7 +276,21 @@ function parseStream(value: unknown): StreamRequest | BlockStreamRequest {
     }
     domains ??= cursorDomains;
   }
+  if (
+    value.includeZeroConfirmations !== undefined &&
+    typeof value.includeZeroConfirmations !== 'boolean'
+  ) {
+    throw new Error('includeZeroConfirmations must be a boolean');
+  }
+  if (value.includeZeroConfirmations && !domains) {
+    throw new Error(
+      'includeZeroConfirmations requires explicit domains or cursors',
+    );
+  }
   return {
+    ...(value.includeZeroConfirmations !== undefined
+      ? { includeZeroConfirmations: value.includeZeroConfirmations }
+      : {}),
     confirmations: parseConfirmations(value.confirmations, domains, cursors),
     cursors,
     domains,
