@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "kind": "paired-linux-ci-v1",
-  "root_approved": true,
-  "inputs_enabled": true,
-  "functional_enabled": true,
+  "root_approved": false,
+  "inputs_enabled": false,
+  "functional_enabled": false,
   "runtime_enabled": false,
   "producer_source_commit": "abf54588b1493e62d2a91445b467637d1eb8ddac",
   "baseline_source_commit": "c5202242cc6569da4a858ed7ddbb34170ab696aa",
