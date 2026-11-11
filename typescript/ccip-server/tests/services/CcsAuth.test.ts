@@ -98,6 +98,7 @@ async function server(
     icaApp: InterchainAccount;
     trustedIcaRouters: ReadonlyMap<number, IcaRouters>;
   },
+  { calldataLookupEnabled = true }: { calldataLookupEnabled?: boolean } = {},
 ) {
   const app = Fastify({ loggerInstance: pino({ level: 'silent' }) });
   await registerRateLimiting(app);
@@ -111,6 +112,7 @@ async function server(
     dependencies?.icaApp ?? sinon.createStubInstance(InterchainAccount),
     authorizedSigners,
     dependencies?.trustedIcaRouters ?? defaultIcaRouters,
+    calldataLookupEnabled,
   );
   service.registerRoutes(app, '/callCommitments');
   return app;
@@ -118,6 +120,34 @@ async function server(
 
 describe('CCS read authentication', () => {
   afterEach(() => sinon.restore());
+
+  it('does not register the calldata lookup when it is disabled, for any signer', async () => {
+    const db = sinon.stub();
+    sinon.stub(prisma, 'calldata').value({ findUnique: db });
+    const app = await server([wallet.address], undefined, {
+      calldataLookupEnabled: false,
+    });
+    try {
+      for (const requestHeaders of [
+        {},
+        await headers(),
+        await headers(other),
+      ]) {
+        expect(
+          (
+            await app.inject({
+              method: 'GET',
+              url: path,
+              headers: requestHeaders,
+            })
+          ).statusCode,
+        ).to.equal(404);
+      }
+      expect(db.called).to.equal(false);
+    } finally {
+      await app.close();
+    }
+  });
 
   it('requires an allowed signer before reading calldata, even with an empty record allowlist', async () => {
     const db = sinon.stub().resolves({

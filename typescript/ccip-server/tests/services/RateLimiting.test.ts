@@ -47,6 +47,7 @@ function registerServiceWithNoopHandlers(app: CcipApp): void {
       sinon.createStubInstance(InterchainAccount),
       [],
       new Map([[1, { interchainAccountRouter: '0x' + '01'.repeat(20) }]]),
+      true,
     );
     service.registerRoutes(app, '');
   } finally {

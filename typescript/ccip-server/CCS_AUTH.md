@@ -42,6 +42,9 @@ alongside it (see the ccip-server README).
 
 ## General calldata lookup
 
+This route is disabled by default while the Sealevel reveal flow is redesigned; set
+`CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
+
 For `GET /callCommitments/calldata/:commitment`, sign with:
 
 - `sender`: the service's EVM address;
@@ -109,6 +112,7 @@ Deploy authenticated GET clients before enabling the CCS whitelist:
 
 `tests/e2e/ccsAuthServer.mjs` runs the real CCS handlers behind local HTTPS, uploads
 four EVM/SVM fixtures to PostgreSQL, and checks unsigned reads and record restrictions.
+The harness constructs the service with the calldata lookup enabled.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover

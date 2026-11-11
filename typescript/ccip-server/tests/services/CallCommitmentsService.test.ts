@@ -27,6 +27,7 @@ import {
 import { prisma } from '../../src/db.js';
 import type { Prisma } from '../../src/generated/prisma/client.js';
 import {
+  CalldataLookupEnabledSchema,
   CallCommitmentsService,
   type IcaRouters,
   icaRoutersByDomain,
@@ -1516,6 +1517,32 @@ describe('icaRoutersByDomain', () => {
   });
 });
 
+describe('CalldataLookupEnabledSchema', () => {
+  interface Case {
+    value: string | undefined;
+    enabled: boolean;
+  }
+
+  const accepted: Case[] = [
+    { value: undefined, enabled: false },
+    { value: 'false', enabled: false },
+    { value: 'true', enabled: true },
+  ];
+  for (const c of accepted) {
+    it(`parses ${String(c.value)} as ${c.enabled}`, () => {
+      expect(CalldataLookupEnabledSchema.parse(c.value)).to.equal(c.enabled);
+    });
+  }
+
+  for (const value of ['', 'TRUE', 'True', '1', '0', 'yes', 'on', ' true']) {
+    it(`rejects ${JSON.stringify(value)}`, () => {
+      expect(CalldataLookupEnabledSchema.safeParse(value).success).to.equal(
+        false,
+      );
+    });
+  }
+});
+
 describe('CallCommitmentsService constructor', () => {
   const noRouters =
     'No ICA routers configured: callCommitments requires interchainAccountRouter or interchainAccountRouterV3 registry addresses';
@@ -1530,6 +1557,7 @@ describe('CallCommitmentsService constructor', () => {
       sinon.createStubInstance(InterchainAccount),
       [],
       trustedIcaRouters,
+      false,
     );
   }
 

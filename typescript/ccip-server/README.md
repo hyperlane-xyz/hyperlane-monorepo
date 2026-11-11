@@ -77,6 +77,8 @@ A lightweight Fastify server for CCIP Read/Write commitments, using Zod validati
 Commitment calldata reads require signed requests from a configured service address.
 See [CCS authentication and rollout](./CCS_AUTH.md) for EVM signing on both EVM/SVM reads, whitelist
 configuration, and compatibility with the existing EVM reveal endpoint.
+`GET /calldata/:commitment` is disabled by default while the Sealevel reveal flow is
+redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
 
 - `POST /calls`  
   Submit a new commitment payload. Validated via Zod; persists to the database.

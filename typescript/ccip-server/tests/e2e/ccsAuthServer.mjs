@@ -39,6 +39,7 @@ new CallCommitmentsService(
   new InterchainAccount({}, provider),
   wallets.slice(0, 2).map((w) => w.address),
   new Map([[10, { interchainAccountRouter: '0x' + '01'.repeat(20) }]]),
+  true,
 ).registerRoutes(app, '/callCommitments');
 await app.listen({ host: '127.0.0.1', port: 55441 });
 const tlsServer = https.createServer(

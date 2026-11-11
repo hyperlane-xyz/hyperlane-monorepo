@@ -55,6 +55,11 @@ import {
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
 
+export const CalldataLookupEnabledSchema = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true');
+
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
   SERVER_BASE_URL: z.string(),
@@ -63,6 +68,7 @@ const EnvSchema = z.object({
     .transform((value) =>
       z.array(CcsSignerSchema).min(1).parse(JSON.parse(value)),
     ),
+  CCS_CALLDATA_LOOKUP_ENABLED: CalldataLookupEnabledSchema,
 });
 
 const CommitmentMetadataSchema = z.object({
@@ -317,6 +323,7 @@ export class CallCommitmentsService extends BaseService {
     private icaApp: InterchainAccount,
     authorizedSigners: string[],
     private readonly trustedIcaRouters: ReadonlyMap<number, IcaRouters>,
+    private readonly calldataLookupEnabled: boolean,
   ) {
     super(config);
     assert(
@@ -350,6 +357,7 @@ export class CallCommitmentsService extends BaseService {
       icaApp,
       env.CCS_AUTHORIZED_SIGNERS,
       icaRoutersByDomain(coreAddresses, multiProvider),
+      env.CCS_CALLDATA_LOOKUP_ENABLED,
     );
   }
 
@@ -1286,11 +1294,15 @@ export class CallCommitmentsService extends BaseService {
       writeRateLimit,
       this.handleCalldataPost.bind(this),
     );
-    app.get<{ Params: CommitmentParams }>(
-      `${prefix}${RateLimitedRoute.CalldataByCommitment}`,
-      { preHandler: [readRateLimit.preHandler, this.auth.authenticate] },
-      this.handleCalldataGet.bind(this),
-    );
+    // GET /calldata/:commitment is disabled by default while the Sealevel
+    // reveal flow is redesigned.
+    if (this.calldataLookupEnabled) {
+      app.get<{ Params: CommitmentParams }>(
+        `${prefix}${RateLimitedRoute.CalldataByCommitment}`,
+        { preHandler: [readRateLimit.preHandler, this.auth.authenticate] },
+        this.handleCalldataGet.bind(this),
+      );
+    }
     app.post<AbiRoute>(
       `${prefix}/getCallsFromRevealMessage`,
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
