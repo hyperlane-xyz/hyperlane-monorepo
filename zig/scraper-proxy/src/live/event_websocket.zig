@@ -1,5 +1,5 @@
 //! `EventWebSocketServer` as `main.zig` uses it: owns the event-loop runtime
-//! (pool, scheduler, loop mutex) and adapts `server.zig` to the HTTP upgrade
+//! (pool, timers on the process timer thread, loop mutex) and adapts `server.zig` to the HTTP upgrade
 //! hook, `ws.Conn`, `DbService.queryLive/listen` and the diagnostics stream.
 const std = @import("std");
 const core = @import("core");
@@ -18,7 +18,7 @@ pub const EventWebSocketServer = struct {
     gpa: Allocator,
     db: *db.DbService,
     pool: runtime.Pool,
-    scheduler: runtime.ThreadScheduler,
+    scheduler: runtime.SharedScheduler,
     loop: runtime.Loop,
     server: *live.Server,
     diagnostics_stream: ?*diagnostics.stream.Stream,
@@ -34,7 +34,7 @@ pub const EventWebSocketServer = struct {
             .gpa = gpa,
             .db = db_service,
             .pool = .init(gpa),
-            .scheduler = .init(gpa),
+            .scheduler = .init(gpa, core.scheduler.global()),
             .loop = undefined,
             .server = undefined,
             .diagnostics_stream = null,
@@ -44,7 +44,6 @@ pub const EventWebSocketServer = struct {
         // One permanent worker: a later spawn failure queues instead of failing.
         try self.pool.start(1);
         errdefer self.pool.deinit();
-        try self.scheduler.start();
         errdefer self.scheduler.deinit();
         self.loop = .{ .allocator = gpa, .pool = &self.pool, .scheduler = self.scheduler.scheduler() };
         const config = core.config.get();
@@ -74,7 +73,7 @@ pub const EventWebSocketServer = struct {
 
     /// After `stop()` and the HTTP server closed (all upgraded sockets gone).
     pub fn deinit(self: *EventWebSocketServer) void {
-        // Scheduler first: a timer dequeued before stop() may still spawn a task.
+        // Timers first: one that fired before stop() may still spawn a task.
         self.scheduler.deinit();
         self.pool.deinit();
         // Sink releases for subscriptions freed after stop() run here and touch peers.
@@ -171,6 +170,7 @@ pub const EventWebSocketServer = struct {
         .send = connSend,
         .buffered_amount = connBuffered,
         .is_open = connOpen,
+        .snapshot = connSnapshot,
         .close = connClose,
         .terminate = connTerminate,
         .ping = connPing,
@@ -203,6 +203,10 @@ pub const EventWebSocketServer = struct {
     }
     fn connOpen(ptr: *anyopaque) bool {
         return asConn(ptr).readyState() == .open;
+    }
+    fn connSnapshot(ptr: *anyopaque) live.Socket.Snapshot {
+        const state = asConn(ptr).snapshot();
+        return .{ .open = state.ready_state == .open, .buffered = state.buffered_amount };
     }
     fn connClose(ptr: *anyopaque, code: u16, reason: []const u8) void {
         asConn(ptr).close(code, reason);

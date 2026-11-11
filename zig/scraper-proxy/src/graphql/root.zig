@@ -19,6 +19,7 @@ pub const cache = @import("cache.zig");
 pub const request_schema = @import("request_schema.zig");
 pub const v8json = @import("v8json.zig");
 pub const route = @import("route.zig");
+pub const root_pool = @import("root_pool.zig");
 pub const App = @import("app.zig").App;
 
 pub const Schema = schema.Schema;
@@ -35,4 +36,5 @@ test {
     _ = @import("fixtures_test.zig");
     _ = @import("module_test.zig");
     _ = @import("bench_test.zig");
+    _ = @import("execute_golden_test.zig");
 }

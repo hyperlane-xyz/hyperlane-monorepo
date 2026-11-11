@@ -15,6 +15,7 @@ const root = @import("root.zig");
 const pq = @import("pq.zig");
 
 const Value = core.json.Value;
+const Scheduler = core.scheduler.Scheduler;
 const Error = root.Error;
 const Failure = root.Failure;
 
@@ -30,6 +31,9 @@ pub const Options = struct {
     /// pg-pool default 10s; 0 disables reaping.
     idle_timeout_ms: u64 = 10_000,
     on_idle_error: ?IdleErrorHook = null,
+    /// Timer thread for the idle reaper; null uses the process scheduler
+    /// (`core.scheduler.current()`) or, without one (tests), a private thread.
+    scheduler: ?*Scheduler = null,
 };
 
 pub const Stats = struct { total: u32, idle: u32, waiting: u32 };
@@ -57,6 +61,11 @@ pub const Pool = struct {
     closed: bool = false,
     reaper: ?std.Thread = null,
     reaper_cond: std.Thread.Condition = .{},
+    /// Scheduler-driven reaper: the pending one-shot timer (under `mutex`).
+    timers: ?*Scheduler = null,
+    reap_timer: u64 = 0,
+    /// Disables named statements for this pool behind a transaction pooler.
+    reuse_guard: pq.ReuseGuard = .{},
     /// Signalled whenever `total` drops (for `deinit` draining).
     drained: std.Thread.Condition = .{},
 
@@ -69,7 +78,12 @@ pub const Pool = struct {
         opts.conn.conninfo = conninfo;
         if (opts.conn.options) |o| opts.conn.options = try gpa.dupe(u8, o);
         self.* = .{ .gpa = gpa, .options = opts, .conninfo = conninfo };
-        if (opts.idle_timeout_ms > 0) self.reaper = try std.Thread.spawn(.{}, reapLoop, .{self});
+        if (opts.idle_timeout_ms > 0) {
+            if (opts.scheduler orelse core.scheduler.current()) |timers| {
+                self.timers = timers;
+                self.reap_timer = try timers.schedule(opts.idle_timeout_ms, self, reapTick);
+            } else self.reaper = try std.Thread.spawn(.{}, reapLoop, .{self});
+        }
         return self;
     }
 
@@ -84,6 +98,14 @@ pub const Pool = struct {
         self.end();
         if (self.reaper) |t| t.join();
         self.reaper = null;
+        if (self.timers) |timers| {
+            // `end` set `closed`, so a running tick will not re-arm; `cancel`
+            // waits for it, or drops the pending one.
+            self.mutex.lock();
+            const id = self.reap_timer;
+            self.mutex.unlock();
+            _ = timers.cancel(id);
+        }
         self.mutex.lock();
         const deadline = pq.nowMs() + @as(i64, @intCast(drain_timeout_ms));
         while (self.total > 0) {
@@ -128,8 +150,14 @@ pub const Pool = struct {
 
     /// `pool.query(text, values)`.
     pub fn query(self: *Pool, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error!root.Result {
+        return self.queryWith(arena, sql, params, .{}, failure);
+    }
+
+    pub fn queryWith(self: *Pool, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure: ?*Failure) Error!root.Result {
         var conn = try self.acquire(arena, failure);
-        const result = conn.query(arena, sql, params, failure);
+        var with_guard = opts;
+        with_guard.guard = &self.reuse_guard;
+        const result = conn.queryWith(arena, sql, params, with_guard, failure);
         self.release(conn);
         return result;
     }
@@ -140,8 +168,11 @@ pub const Pool = struct {
         // the `connect()` call, also while its new client is connecting.
         const deadline: ?i64 = if (self.options.conn.connect_timeout_ms) |ms| (if (ms > 0) pq.nowMs() + @as(i64, @intCast(ms)) else null) else null;
         while (true) {
-            const got = try self.checkout(arena, failure, deadline);
-            switch (got) {
+            var blocked = false;
+            const got = self.checkout(arena, failure, deadline, &blocked);
+            // Paired with the `begin` in `checkout`, outside the pool mutex.
+            if (blocked) core.blocking.end();
+            switch (try got) {
                 .conn => |c| {
                     var conn = c;
                     var idle_failure: Failure = .{};
@@ -182,7 +213,8 @@ pub const Pool = struct {
     /// obtained after queueing.
     const Checkout = union(enum) { conn: pq.Conn, open: bool };
 
-    fn checkout(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure, deadline: ?i64) Error!Checkout {
+    /// Sets `blocked` after `core.blocking.begin()` (caller calls `end`).
+    fn checkout(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure, deadline: ?i64, blocked: *bool) Error!Checkout {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.closed) return error.PoolClosed;
@@ -198,6 +230,13 @@ pub const Pool = struct {
         self.tail = &waiter;
         self.waiting += 1;
         defer self.waiting -= 1;
+        // About to sleep: let an HTTP poller hand off its work. The hook runs
+        // with the pool mutex released; a hand-off meanwhile is seen by the
+        // loop condition below.
+        self.mutex.unlock();
+        core.blocking.begin();
+        blocked.* = true;
+        self.mutex.lock();
         while (waiter.conn == null and !waiter.slot and !self.closed) {
             if (deadline) |d| {
                 const remaining = d - pq.nowMs();
@@ -283,6 +322,44 @@ pub const Pool = struct {
         self.wakeOne();
         self.drained.broadcast();
         self.mutex.unlock();
+    }
+
+    /// One reaper pass on the shared timer thread: closes idle connections
+    /// past `idle_timeout_ms` (above `min`) and re-arms for the next expiry.
+    fn reapTick(ctx: *anyopaque, _: u64) void {
+        const self: *Pool = @ptrCast(@alignCast(ctx));
+        const timeout: i64 = @intCast(self.options.idle_timeout_ms);
+        var expired: [16]pq.Conn = undefined;
+        while (true) {
+            var n: usize = 0;
+            self.mutex.lock();
+            const now = pq.nowMs();
+            var next_check: i64 = timeout;
+            var i: usize = 0;
+            while (i < self.idle.items.len) {
+                const age = now - self.idle.items[i].since_ms;
+                if (age >= timeout and self.total > self.options.min and n < expired.len) {
+                    expired[n] = self.idle.orderedRemove(i).conn;
+                    n += 1;
+                    self.total -= 1;
+                    continue;
+                }
+                next_check = @min(next_check, timeout - age);
+                i += 1;
+            }
+            if (n > 0) self.drained.broadcast();
+            const more = n == expired.len;
+            if (!more and !self.closed) {
+                const wait_ms: u64 = @intCast(@max(next_check, 10));
+                // Out of memory leaves the pool without a reaper (as a
+                // failed thread spawn would): idle connections then stay open.
+                self.reap_timer = self.timers.?.schedule(wait_ms, self, reapTick) catch 0;
+            }
+            self.mutex.unlock();
+            // Quick: PQfinish sends Terminate and closes the socket.
+            for (expired[0..n]) |*conn| conn.deinit();
+            if (!more) return;
+        }
     }
 
     fn reapLoop(self: *Pool) void {

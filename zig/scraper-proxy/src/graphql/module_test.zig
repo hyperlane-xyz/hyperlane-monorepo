@@ -34,7 +34,12 @@ const FakeDb = struct {
 
     fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, _: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
         const self: *FakeDb = @ptrCast(@alignCast(ctx));
-        @import("execute.zig").io_events +%= 1;
+        const execute = @import("execute.zig");
+        if (!execute.beforeIo()) {
+            diag.message = route_mod.capacity_message;
+            return error.CapacityExceeded;
+        }
+        execute.afterIo();
         self.mutex.lock();
         self.queries += 1;
         self.started += 1;
@@ -374,6 +379,77 @@ test "bounds concurrent pathological GraphQL requests" {
     try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, "{ domain(limit: 1) { id } }")).status);
 }
 
+test "only requests parked on I/O hold execution slots (Node turn semantics)" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cached = "query @cached(ttl: 300) { domain(limit: 1) { id } }";
+    try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, cached)).status);
+    // 24 requests parked on the database leave one slot.
+    app.db.blocked = true;
+    const Parked = struct {
+        fn run(ap: *App, status: *u16) void {
+            var ar = std.heap.ArenaAllocator.init(testing.allocator);
+            defer ar.deinit();
+            status.* = (ap.postQuery(ar.allocator(), "{ domain(limit: 2) { id } }") catch return).status;
+        }
+    };
+    var parked: [24]std.Thread = undefined;
+    var parked_status = [_]u16{0} ** 24;
+    for (&parked, &parked_status) |*t, *st| t.* = try std.Thread.spawn(.{}, Parked.run, .{ &app, st });
+    app.db.waitStarted(25);
+    // Many concurrent keep-alive clients whose requests never yield: none is
+    // rejected (TS admits and finishes each within one event-loop turn).
+    const Hammer = struct {
+        fn run(ap: *App, rejected: *std.atomic.Value(u32), failed: *std.atomic.Value(u32)) void {
+            var ar = std.heap.ArenaAllocator.init(testing.allocator);
+            defer ar.deinit();
+            const c = testing.allocator.create(Client) catch return;
+            defer testing.allocator.destroy(c);
+            c.* = ap.connect() catch {
+                _ = failed.fetchAdd(1, .monotonic);
+                return;
+            };
+            defer c.close();
+            const hit = std.fmt.allocPrint(ar.allocator(), "POST /graphql HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {d}\r\n\r\n{{\"query\":\"{s}\"}}", .{ cached.len + 12, cached }) catch return;
+            const invalid_body = "{\"query\":\"{ domain { idx } }\"}";
+            const invalid = std.fmt.comptimePrint("POST /graphql HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {d}\r\n\r\n", .{invalid_body.len}) ++ invalid_body;
+            for (0..100) |i| {
+                const r = c.request(ar.allocator(), if (i % 4 == 3) invalid else hit) catch {
+                    _ = failed.fetchAdd(1, .monotonic);
+                    return;
+                };
+                if (r.status == 503) _ = rejected.fetchAdd(1, .monotonic);
+            }
+        }
+    };
+    var rejected: std.atomic.Value(u32) = .init(0);
+    var failed: std.atomic.Value(u32) = .init(0);
+    var hammers: [64]std.Thread = undefined;
+    for (&hammers) |*t| t.* = try std.Thread.spawn(.{}, Hammer.run, .{ &app, &rejected, &failed });
+    for (hammers) |t| t.join();
+    try testing.expectEqual(@as(u32, 0), failed.load(.monotonic));
+    try testing.expectEqual(@as(u32, 0), rejected.load(.monotonic));
+    // A 25th parked request fills the last slot; then even a cache hit is
+    // rejected at preHandler, as in TS.
+    var last_status: u16 = 0;
+    const last = try std.Thread.spawn(.{}, Parked.run, .{ &app, &last_status });
+    app.db.waitStarted(26);
+    const full = try app.postQuery(a, cached);
+    try testing.expectEqual(@as(u16, 503), full.status);
+    try testing.expectEqualStrings("GraphQL request capacity exceeded", full.body);
+    try testing.expect(full.header("cache-control") == null);
+    app.db.release();
+    for (parked) |t| t.join();
+    last.join();
+    for (parked_status) |st| try testing.expectEqual(@as(u16, 200), st);
+    try testing.expectEqual(@as(u16, 200), last_status);
+    try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, cached)).status);
+}
+
 test "rejects batch and oversized request bodies" {
     var app: App = .{};
     try app.start();
@@ -660,9 +736,7 @@ test "concurrent first-time identical queries serialize intact" {
 }
 
 fn activeUploads(route: *route_mod.GraphqlRoute) u32 {
-    route.mutex.lock();
-    defer route.mutex.unlock();
-    return route.active_uploads;
+    return route.active_uploads.load(.monotonic);
 }
 
 fn waitUploads(route: *route_mod.GraphqlRoute, want: u32, timeout_ms: u64) !void {

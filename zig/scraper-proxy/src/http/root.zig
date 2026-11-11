@@ -26,6 +26,8 @@ test {
     std.testing.refAllDeclsRecursive(server);
     std.testing.refAllDeclsRecursive(ws);
     std.testing.refAllDeclsRecursive(@import("parse.zig"));
+    _ = @import("loop.zig");
     _ = @import("tests.zig");
     _ = @import("corpus_test.zig");
+    _ = @import("bench_test.zig");
 }

@@ -22,12 +22,64 @@ pub const MAX_AFFECTED_EVENTS = 10_000;
 /// becomes the GraphQL error message, as in TS) and returns an error.
 pub const Database = struct {
     ctx: *anyopaque,
-    queryFn: *const fn (ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value,
+    queryFn: QueryFn,
+    /// Optional: same contract as `queryFn` for statements whose generic
+    /// plan is safe to reuse (see `Plan.reusable`); null falls back to `queryFn`.
+    reusableQueryFn: ?QueryFn = null,
+
+    pub const QueryFn = *const fn (ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value;
 
     pub fn query(self: Database, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
         return self.queryFn(self.ctx, arena, text, values, diag);
     }
+
+    pub fn queryPlanned(self: Database, arena: Allocator, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
+        const f = if (plan == .reusable) self.reusableQueryFn orelse self.queryFn else self.queryFn;
+        return f(self.ctx, arena, text, values, diag);
+    }
 };
+
+/// How PostgreSQL may plan a statement. `custom` (node-pg's unnamed
+/// statements) plans every execution with the actual parameter values.
+/// `reusable` lets the connection keep a named statement whose generic plan
+/// PostgreSQL may reuse; only for shapes where that plan cannot be worse:
+/// unique-key lookups and the fixed confirmation snapshot SQL (bench DB:
+/// generic never slower across 41 message ids and confirmations 0..1000).
+pub const Plan = enum { custom, reusable };
+
+/// True when `where` pins a unique key (`id` or `msg_id`, unique or
+/// near-unique in every public table) with `_eq` in a top-level conjunct.
+/// Call after the builder validated `where` (bounded depth).
+pub fn isPointLookup(where: ?Value) bool {
+    return pinsKey(where, true);
+}
+
+/// `isPointLookup` restricted to `msg_id`: the only key that also bounds a
+/// confirmation snapshot (`messageIds`); with `id` the projection still
+/// covers every affected message, and canonical/provisional ids can collide.
+pub fn isMessageIdLookup(where: ?Value) bool {
+    return pinsKey(where, false);
+}
+
+fn pinsKey(where: ?Value, allow_id: bool) bool {
+    const obj = value.object(value.present(where)) orelse return false;
+    for (0..value.len(obj)) |index| {
+        const key = value.keyAt(obj, index);
+        const item = value.valueAt(obj, index);
+        if (std.mem.eql(u8, key, "msg_id") or (allow_id and std.mem.eql(u8, key, "id"))) {
+            if (value.object(item.*)) |comparisons| {
+                if (value.present(value.get(comparisons, "_eq")) != null) return true;
+            }
+        } else if (std.mem.eql(u8, key, "_and")) {
+            for (value.listOrSingle(item)) |child| if (pinsKey(child, allow_id)) return true;
+        }
+    }
+    return false;
+}
+
+fn planFor(where: ?Value) Plan {
+    return if (isPointLookup(where)) .reusable else .custom;
+}
 
 /// `message_view` arguments: the select args plus `confirmations`.
 pub const MessageSelectArgs = struct {
@@ -44,7 +96,7 @@ pub const Service = struct {
 
     pub fn select(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror![]Value {
         const query = try sql.buildSelect(arena, table, args, null, diag);
-        return self.db.query(arena, query.sql, query.values, diag);
+        return self.db.queryPlanned(arena, planFor(args.where), query.sql, query.values, diag);
     }
 
     pub fn selectMessages(self: Service, arena: Allocator, args: MessageSelectArgs, diag: *Diag) anyerror![]Value {
@@ -52,14 +104,15 @@ pub const Service = struct {
         const confirmations = value.present(args.confirmations) orelse
             return self.select(arena, .message_view, select_args, diag);
         const queries = try buildMessageQueries(arena, select_args, confirmations, diag);
-        const rows = try self.db.query(arena, queries.snapshot.sql, queries.snapshot.values, diag);
+        const rows = try self.db.queryPlanned(arena, .reusable, queries.snapshot.sql, queries.snapshot.values, diag);
         const projection = try buildProjection(arena, select_args, if (rows.len > 0) rows[0] else null, diag);
-        return self.db.query(arena, projection.sql, projection.values, diag);
+        const plan: Plan = if (isMessageIdLookup(select_args.where)) .reusable else .custom;
+        return self.db.queryPlanned(arena, plan, projection.sql, projection.values, diag);
     }
 
     pub fn byPk(self: Service, arena: Allocator, table: Table, id: Value, columns: ?[]const []const u8, diag: *Diag) anyerror!?Value {
         const query = try sql.buildByPk(arena, table, id, columns, diag);
-        const rows = try self.db.query(arena, query.sql, query.values, diag);
+        const rows = try self.db.queryPlanned(arena, .reusable, query.sql, query.values, diag);
         return if (rows.len > 0) rows[0] else null;
     }
 

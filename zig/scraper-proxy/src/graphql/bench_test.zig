@@ -168,3 +168,153 @@ test "json stringify cost (opt-in)" {
     }
     std.debug.print("json.stringify 100 rows ({d} bytes): {d:.1} us\n", .{ out.written().len, @as(f64, @floatFromInt(t.read() / n)) / 1000 });
 }
+
+/// One /graphql exchange through the route hooks without sockets: body JSON
+/// parse (as the server does), on_request, handler, on_send, on_done.
+var last_body: [256]u8 = undefined;
+var last_len: usize = 0;
+
+fn directOnce(r: http.Route, arena: *std.heap.ArenaAllocator, body: []const u8) !usize {
+    _ = arena.reset(.retain_capacity);
+    const a = arena.allocator();
+    const text = try core.json.toWellFormedUtf8(a, body);
+    const parsed = try core.json.parse(a, text, .{ .secure = true, .strip_bom = true });
+    const headers = [_]http.Header{ .{ .name = "Host", .value = "x" }, .{ .name = "Content-Type", .value = "application/json" } };
+    var req: http.Request = .{ .arena = a, .method = "POST", .url = "/graphql", .path = "/graphql", .query = "", .headers = &headers, .remote_address = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, 1), .body = .{ .json = parsed }, .raw_body = body, .complete = true };
+    var reply: http.Reply = .{ .arena = a };
+    r.hooks.on_request.?(r.ctx, &req, &reply);
+    if (!reply.sent) r.hooks.handler(r.ctx, &req, &reply);
+    r.hooks.on_send.?(r.ctx, &req, &reply);
+    const n = if (reply.body()) |b| b.len else 0;
+    if (reply.body()) |b| {
+        last_len = @min(b.len, last_body.len);
+        @memcpy(last_body[0..last_len], b[0..last_len]);
+    }
+    r.hooks.on_done.?(r.ctx, &req, &reply, .finished);
+    return n;
+}
+
+fn direct(r: http.Route, name: []const u8, body: []const u8, iterations: usize) !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer arena.deinit();
+    var bytes: usize = 0;
+    for (0..100) |_| bytes = try directOnce(r, &arena, body);
+    const cpu0 = cpuMicros();
+    var timer = try std.time.Timer.start();
+    for (0..iterations) |_| bytes = try directOnce(r, &arena, body);
+    const wall = timer.read();
+    const cpu = cpuMicros() - cpu0;
+    std.debug.print("direct {s}: {d:.2} us wall, {d:.2} us cpu per request ({d} bytes out) {s}\n", .{ name, @as(f64, @floatFromInt(wall)) / 1000 / @as(f64, @floatFromInt(iterations)), @as(f64, @floatFromInt(cpu)) / @as(f64, @floatFromInt(iterations)), bytes, last_body[0..@min(last_len, 60)] });
+}
+
+const list_fields = "id msg_id nonce sender recipient is_delivered send_occurred_at delivery_occurred_at delivery_latency origin_tx_hash destination_tx_hash total_payment num_payments";
+const direct_cases = struct {
+    const list100 = "{\"query\":\"query ($o: [Int!]) { message_view(where: {origin_domain_id: {_in: $o}}, order_by: {id: desc}, limit: 100) { " ++ list_fields ++ " } }\",\"variables\":{\"o\":[42161,8453]}}";
+    const by_pk = "{\"query\":\"query ($id: bigint!) { raw_message_dispatch_by_pk(id: $id) { id msg_id nonce } }\",\"variables\":{\"id\":\"500000\"}}";
+    const domains = "{\"query\":\"{ domain(order_by: {id: asc}) { id name chain_id native_token is_test_net is_deprecated } }\"}";
+    const hit_small = "{\"query\":\"query @cached(ttl: 300) { domain(order_by: {id: asc}) { id name chain_id native_token is_test_net is_deprecated } }\"}";
+    const hit_large = "{\"query\":\"query @cached(ttl: 300) { message_view(order_by: {id: desc}, limit: 100) { " ++ list_fields ++ " } }\"}";
+    const hit_vars = "{\"query\":\"query ($o: [Int!]) @cached(ttl: 300) { message_view(where: {origin_domain_id: {_in: $o}}, order_by: {id: desc}, limit: 100) { id msg_id } }\",\"variables\":{\"o\":[42161,8453]}}";
+    const two_roots = "{\"query\":\"{ a: message_view(limit: 1) { id msg_id } b: message_view(limit: 1) { id msg_id } }\"}";
+    const validation = "{\"query\":\"{ domain { idx name } }\"}";
+};
+
+const Fixture = struct {
+    arena: std.heap.ArenaAllocator,
+    db: Db,
+    one: Db,
+    route: route_mod.GraphqlRoute,
+    route1: route_mod.GraphqlRoute,
+    route_seq: route_mod.GraphqlRoute,
+
+    fn init(self: *Fixture, gpa: Allocator) !void {
+        self.arena = std.heap.ArenaAllocator.init(gpa);
+        const rows = try core.json.parse(self.arena.allocator(), @embedFile("testdata/rows100.json"), .{});
+        self.db = .{ .rows = rows.array };
+        self.one = .{ .rows = rows.array[0..1] };
+        const schema = schema_mod.testing.scraper();
+        self.route = route_mod.GraphqlRoute.init(gpa, schema, .{ .db = scraperdb.Service.init(.{ .ctx = &self.db, .queryFn = Db.query }) }, .{ .max_active_requests = 1 << 20, .max_active_uploads = 1 << 20 });
+        self.route1 = route_mod.GraphqlRoute.init(gpa, schema, .{ .db = scraperdb.Service.init(.{ .ctx = &self.one, .queryFn = Db.query }) }, .{ .max_active_requests = 1 << 20, .max_active_uploads = 1 << 20 });
+        self.route_seq = route_mod.GraphqlRoute.init(gpa, schema, .{ .db = scraperdb.Service.init(.{ .ctx = &self.one, .queryFn = Db.query }) }, .{ .max_active_requests = 1 << 20, .max_active_uploads = 1 << 20, .root_field_threads = 0 });
+    }
+
+    fn deinit(self: *Fixture) void {
+        self.route.deinit();
+        self.route1.deinit();
+        self.route_seq.deinit();
+        self.arena.deinit();
+    }
+};
+
+test "graphql route direct cost (opt-in)" {
+    if (std.posix.getenv("GRAPHQL_BENCH") == null) return error.SkipZigTest;
+    const gpa = std.heap.c_allocator;
+    core.metrics.init();
+    core.log.setLevel(.@"error");
+    var f: Fixture = undefined;
+    try f.init(gpa);
+    defer f.deinit();
+    try direct(f.route.route(), "message_view list 100 rows", direct_cases.list100, 5_000);
+    try direct(f.route1.route(), "by_pk-like single row", direct_cases.by_pk, 50_000);
+    try direct(f.route1.route(), "domains-like (no vars)", direct_cases.domains, 50_000);
+    try direct(f.route1.route(), "cache hit small", direct_cases.hit_small, 100_000);
+    try direct(f.route.route(), "cache hit 100 rows", direct_cases.hit_large, 100_000);
+    try direct(f.route.route(), "cache hit keyed on variable", direct_cases.hit_vars, 100_000);
+    try direct(f.route1.route(), "two roots, threads", direct_cases.two_roots, 20_000);
+    try direct(f.route_seq.route(), "two roots, sequential", direct_cases.two_roots, 20_000);
+    try direct(f.route1.route(), "validation error", direct_cases.validation, 100_000);
+    // Explorer latest page @cached(ttl: 5) hit: prime the entry with a ~25 KB body.
+    {
+        var arena = std.heap.ArenaAllocator.init(gpa);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const explorer = @embedFile("testdata/explorer-cached.json");
+        const prepared = (try f.route.response_cache.prepare(a, schema_mod.testing.scraper(), try core.json.parse(a, explorer, .{}))).?;
+        const body = try a.alloc(u8, 25 * 1024);
+        @memset(body, 'x');
+        body[0] = '{';
+        try f.route.response_cache.write(.{ .key = prepared.key, .refresh = false, .ttl = 300 }, body);
+        try direct(f.route.route(), "Explorer @cached hit (1.7 KB request, 25 KB body)", explorer, 100_000);
+    }
+}
+
+fn hammer(r: http.Route, body: []const u8, iterations: usize, failed: *std.atomic.Value(u32)) void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer arena.deinit();
+    for (0..iterations) |_| _ = directOnce(r, &arena, body) catch {
+        _ = failed.fetchAdd(1, .monotonic);
+        return;
+    };
+}
+
+// CPU per request of the same exchange from N threads at once (lock contention).
+test "graphql route contention (opt-in)" {
+    if (std.posix.getenv("GRAPHQL_BENCH") == null) return error.SkipZigTest;
+    const gpa = std.heap.c_allocator;
+    core.metrics.init();
+    core.log.setLevel(.@"error");
+    var f: Fixture = undefined;
+    try f.init(gpa);
+    defer f.deinit();
+    const cases = [_]struct { name: []const u8, r: http.Route, body: []const u8, n: usize }{
+        .{ .name = "cache hit small", .r = f.route1.route(), .body = direct_cases.hit_small, .n = 100_000 },
+        .{ .name = "by_pk-like", .r = f.route1.route(), .body = direct_cases.by_pk, .n = 50_000 },
+        .{ .name = "validation error", .r = f.route1.route(), .body = direct_cases.validation, .n = 100_000 },
+    };
+    for (cases) |c| {
+        var failed: std.atomic.Value(u32) = .init(0);
+        for ([_]usize{ 1, 2, 4, 8, 16 }) |threads| {
+            hammer(c.r, c.body, 1000, &failed);
+            const per = c.n / threads;
+            const cpu0 = cpuMicros();
+            var timer = try std.time.Timer.start();
+            var list: [16]std.Thread = undefined;
+            for (list[0..threads]) |*t| t.* = try std.Thread.spawn(.{}, hammer, .{ c.r, c.body, per, &failed });
+            for (list[0..threads]) |t| t.join();
+            const wall = timer.read();
+            const total = per * threads;
+            std.debug.print("contention {s} x{d}: {d:.2} us cpu/req, {d:.0} req/s\n", .{ c.name, threads, @as(f64, @floatFromInt(cpuMicros() - cpu0)) / @as(f64, @floatFromInt(total)), @as(f64, @floatFromInt(total)) / (@as(f64, @floatFromInt(wall)) / 1e9) });
+        }
+        try std.testing.expectEqual(@as(u32, 0), failed.load(.monotonic));
+    }
+}

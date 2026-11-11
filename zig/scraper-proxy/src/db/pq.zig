@@ -41,6 +41,8 @@ extern "pq" fn PQsocket(conn: *const PGconn) c_int;
 extern "pq" fn PQfinish(conn: *PGconn) void;
 extern "pq" fn PQsendQuery(conn: *PGconn, command: [*:0]const u8) c_int;
 extern "pq" fn PQsendQueryParams(conn: *PGconn, command: [*:0]const u8, n: c_int, types: ?[*]const c_uint, values: ?[*]const ?[*:0]const u8, lengths: ?[*]const c_int, formats: ?[*]const c_int, result_format: c_int) c_int;
+extern "pq" fn PQsendPrepare(conn: *PGconn, name: [*:0]const u8, query: [*:0]const u8, n: c_int, types: ?[*]const c_uint) c_int;
+extern "pq" fn PQsendQueryPrepared(conn: *PGconn, name: [*:0]const u8, n: c_int, values: ?[*]const ?[*:0]const u8, lengths: ?[*]const c_int, formats: ?[*]const c_int, result_format: c_int) c_int;
 extern "pq" fn PQflush(conn: *PGconn) c_int;
 extern "pq" fn PQconsumeInput(conn: *PGconn) c_int;
 extern "pq" fn PQisBusy(conn: *PGconn) c_int;
@@ -86,6 +88,165 @@ pub const ConnOptions = struct {
     options: ?[]const u8 = null,
 };
 
+pub const QueryOptions = struct {
+    /// Run as a per-connection named prepared statement so PostgreSQL can
+    /// switch to a generic plan after its usual five custom plans
+    /// (`plan_cache_mode=auto`), skipping planning on later executions.
+    /// Only for shapes whose generic plan is known to match the custom one
+    /// (unique-key lookups, fixed SQL); everything else stays an unnamed
+    /// statement, custom-planned on every execution like node-pg.
+    reuse_plan: bool = false,
+    /// Pool-wide switch that turns `reuse_plan` off (set by `Pool`).
+    guard: ?*ReuseGuard = null,
+};
+
+/// Turns named statements off for a whole pool once the server behaves like
+/// a transaction pooler sits in front of it (statements vanish or collide
+/// between executions). Each such failure is retried unnamed; reuse is
+/// disabled permanently at a name collision (42P05) or at a second missing
+/// statement (26000) within `window_ms`, with one warning.
+pub const ReuseGuard = struct {
+    pub const window_ms = 60_000;
+    disabled: std.atomic.Value(bool) = .init(false),
+    last_missing_ms: std.atomic.Value(i64) = .init(0),
+
+    pub fn active(self: *const ReuseGuard) bool {
+        return !self.disabled.load(.monotonic);
+    }
+
+    fn report(self: *ReuseGuard, code: []const u8) void {
+        const disable = if (std.mem.eql(u8, code, STATEMENT_MISSING)) blk: {
+            const now = nowMs();
+            const previous = self.last_missing_ms.swap(now, .monotonic);
+            break :blk previous != 0 and now - previous <= window_ms;
+        } else true;
+        if (disable and !self.disabled.swap(true, .monotonic)) {
+            core.log.child("DbService").warn("prepared statements disabled for this pool after SQLSTATE {s} (transaction pooler?); queries run as unnamed statements", .{code});
+        }
+    }
+};
+
+/// Named statements of one connection, bounded because each holds its query
+/// tree and generic plan in the backend (measured: 0.17 MB for the
+/// confirmation snapshot, 0.57 MB for a message_view lookup, 1.9 MB for a
+/// confirmation projection), so at most ~15 MB per connection.
+///
+/// A statement costs one extra round trip (Parse) and pays off only after
+/// PostgreSQL's five custom plans, so churn must never make the connection
+/// slower than node-pg's unnamed statements: a text is prepared on its second
+/// sighting (one-off shapes run unnamed), and a full cache evicts only an
+/// entry idle for `stale_after` reusable queries (otherwise the newcomer runs
+/// unnamed instead of thrashing DEALLOCATE/Parse).
+const Statements = struct {
+    const capacity = 8;
+    const stale_after = 64;
+    const seen_capacity = 32;
+    entries: [capacity]Entry = undefined,
+    len: usize = 0,
+    /// Counts reusable queries on this connection (recency clock).
+    tick: u64 = 0,
+    next_id: u64 = 0,
+    /// Hashes of texts seen once and not prepared (ring).
+    seen: [seen_capacity]u64 = @splat(0),
+    seen_next: usize = 0,
+
+    const Entry = struct {
+        hash: u64,
+        sql: []u8,
+        name: [24]u8,
+        name_len: usize,
+        last_use: u64,
+
+        fn nameZ(self: *const Entry) [*:0]const u8 {
+            return @ptrCast(self.name[0..self.name_len :0].ptr);
+        }
+    };
+
+    const Decision = union(enum) {
+        hit: *Entry,
+        unnamed,
+        /// Prepare a new entry, first deallocating `evict` if set.
+        prepare: ?*Entry,
+    };
+
+    fn decide(self: *Statements, sql: []const u8) Decision {
+        self.tick += 1;
+        const hash = hashOf(sql);
+        for (self.entries[0..self.len]) |*e| {
+            if (e.hash == hash and std.mem.eql(u8, e.sql, sql)) {
+                e.last_use = self.tick;
+                return .{ .hit = e };
+            }
+        }
+        const seen_before = std.mem.indexOfScalar(u64, &self.seen, hash) != null;
+        if (!seen_before) {
+            self.seen[self.seen_next] = hash;
+            self.seen_next = (self.seen_next + 1) % seen_capacity;
+            return .unnamed;
+        }
+        if (self.len < capacity) return .{ .prepare = null };
+        var oldest = &self.entries[0];
+        for (self.entries[1..self.len]) |*e| if (e.last_use < oldest.last_use) {
+            oldest = e;
+        };
+        if (self.tick - oldest.last_use < stale_after) return .unnamed;
+        return .{ .prepare = oldest };
+    }
+
+    fn hashOf(sql: []const u8) u64 {
+        // 0 marks an empty `seen` slot.
+        return std.hash.Wyhash.hash(0, sql) | 1;
+    }
+
+    fn remove(self: *Statements, entry: *Entry) void {
+        std.heap.c_allocator.free(entry.sql);
+        const last = &self.entries[self.len - 1];
+        if (entry != last) entry.* = last.*;
+        self.len -= 1;
+    }
+
+    fn add(self: *Statements, sql: []const u8) error{OutOfMemory}!*Entry {
+        std.debug.assert(self.len < capacity);
+        const copy = try std.heap.c_allocator.dupe(u8, sql);
+        self.next_id += 1;
+        const e = &self.entries[self.len];
+        e.* = .{ .hash = hashOf(sql), .sql = copy, .name = undefined, .name_len = 0, .last_use = self.tick };
+        e.name_len = (std.fmt.bufPrintZ(&e.name, "sp_{d}", .{self.next_id}) catch unreachable).len;
+        self.len += 1;
+        return e;
+    }
+
+    fn deinit(self: *Statements) void {
+        for (self.entries[0..self.len]) |e| std.heap.c_allocator.free(e.sql);
+        std.heap.c_allocator.destroy(self);
+    }
+};
+
+/// SQLSTATE raised (as "cached plan must not change result type") when a
+/// relation behind a named statement changed its result columns; node-pg's
+/// unnamed statements never see it.
+const RESULT_TYPE_CHANGED = "0A000";
+/// SQLSTATE `invalid_sql_statement_name`: the named statement no longer
+/// exists server-side; prepared again transparently.
+const STATEMENT_MISSING = "26000";
+/// SQLSTATE `duplicate_prepared_statement`.
+const STATEMENT_EXISTS = "42P05";
+
+fn isPoolerCode(code: []const u8) bool {
+    return std.mem.eql(u8, code, STATEMENT_MISSING) or std.mem.eql(u8, code, STATEMENT_EXISTS);
+}
+
+/// SQLSTATE of a server error (`error.QueryFailed`), else "".
+fn serverCode(err: Error, failure: Failure) []const u8 {
+    return if (err == error.QueryFailed) failure.code orelse "" else "";
+}
+
+/// Hands a named-statement failure to the caller.
+fn pass(failure: ?*Failure, local: Failure, err: Error) Error {
+    if (failure) |f| f.* = local;
+    return err;
+}
+
 pub fn nowMs() i64 {
     return std.time.milliTimestamp();
 }
@@ -103,6 +264,8 @@ pub const Conn = struct {
     query_timeout_ms: ?u64,
     /// Set when the connection must not be reused (timeout, transport error).
     broken: bool = false,
+    /// Named statements (`QueryOptions.reuse_plan`), allocated on first use.
+    statements: ?*Statements = null,
 
     /// Connects within `connect_timeout_ms`. Failure messages follow node-pg:
     /// timeout -> "Connection terminated due to connection timeout", other
@@ -179,6 +342,8 @@ pub const Conn = struct {
     }
 
     pub fn deinit(self: *Conn) void {
+        if (self.statements) |s| s.deinit();
+        self.statements = null;
         PQfinish(self.pg);
     }
 
@@ -225,9 +390,17 @@ pub const Conn = struct {
     /// params — like node-pg) and converts rows. Timeouts and transport errors
     /// mark the connection broken.
     pub fn query(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error!root.Result {
+        return self.queryWith(arena, sql, params, .{}, failure);
+    }
+
+    pub fn queryWith(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: QueryOptions, failure: ?*Failure) Error!root.Result {
         const deadline: ?i64 = if (self.query_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
-        try self.send(arena, sql, params, deadline, failure);
-        return self.collect(arena, deadline, failure) catch |e| {
+        const reuse = opts.reuse_plan and params.len > 0 and (if (opts.guard) |g| g.active() else true);
+        const result = if (reuse)
+            self.runNamed(arena, sql, params, opts.guard, deadline, failure)
+        else
+            self.runUnnamed(arena, sql, params, deadline, failure);
+        return result catch |e| {
             // A server error leaves the connection idle and reusable; any
             // other early return (timeout, transport, OOM mid-result) may
             // leave unread results behind, so never reuse it.
@@ -236,15 +409,106 @@ pub const Conn = struct {
         };
     }
 
-    /// node-pg's query_timeout covers sending too: a server that stops
-    /// reading cannot block us past the deadline.
-    fn send(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!void {
+    fn runUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!root.Result {
         const sql_z = try arena.dupeZ(u8, sql);
         const sent = if (params.len == 0) PQsendQuery(self.pg, sql_z) else blk: {
-            const values = try arena.alloc(?[*:0]const u8, params.len);
-            for (params, values) |p, *v| v.* = if (try convert.prepareValue(arena, p)) |text| text.ptr else null;
+            const values = try textParams(arena, params);
             break :blk PQsendQueryParams(self.pg, sql_z, @intCast(params.len), null, values.ptr, null, null, 0);
         };
+        try self.flushSent(sent, arena, deadline, failure);
+        return self.collect(arena, deadline, failure);
+    }
+
+    /// Executes `sql` as this connection's named statement, preparing it
+    /// first (one extra round trip) when it is not cached yet. Parse and
+    /// bind errors carry the same server messages as the unnamed path.
+    fn runNamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, guard: ?*ReuseGuard, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+        const statements = self.statements orelse blk: {
+            const s = try std.heap.c_allocator.create(Statements);
+            s.* = .{};
+            self.statements = s;
+            break :blk s;
+        };
+        var evict: ?*Statements.Entry = null;
+        switch (statements.decide(sql)) {
+            .unnamed => return self.runUnnamed(arena, sql, params, deadline, failure),
+            .prepare => |old| evict = old,
+            .hit => |entry| {
+                var local: Failure = .{};
+                if (self.executeNamed(arena, entry, try textParams(arena, params), deadline, &local)) |result| {
+                    return result;
+                } else |e| {
+                    const code = serverCode(e, local);
+                    if (std.mem.eql(u8, code, RESULT_TYPE_CHANGED)) {
+                        // The relation's columns changed under the cached
+                        // statement: drop it and prepare again, as an
+                        // unnamed statement would.
+                        evict = entry;
+                    } else if (isPoolerCode(code)) {
+                        statements.remove(entry);
+                        return self.retryUnnamed(arena, sql, params, guard, code, deadline, failure);
+                    } else return pass(failure, local, e);
+                }
+            },
+        }
+        if (evict) |old| {
+            var local: Failure = .{};
+            self.deallocate(arena, old, deadline, &local) catch |e| {
+                statements.remove(old);
+                if (e != error.QueryFailed) return pass(failure, local, e);
+                // Housekeeping must not fail the caller's query.
+                return self.retryUnnamed(arena, sql, params, guard, serverCode(e, local), deadline, failure);
+            };
+            statements.remove(old);
+        }
+        const entry = try statements.add(sql);
+        var local: Failure = .{};
+        self.prepare(arena, entry, sql, params.len, deadline, &local) catch |e| {
+            statements.remove(entry);
+            const code = serverCode(e, local);
+            if (isPoolerCode(code)) return self.retryUnnamed(arena, sql, params, guard, code, deadline, failure);
+            // Parse errors carry the same server message as the unnamed path.
+            return pass(failure, local, e);
+        };
+        local = .{};
+        return self.executeNamed(arena, entry, try textParams(arena, params), deadline, &local) catch |e| {
+            const code = serverCode(e, local);
+            if (isPoolerCode(code)) {
+                statements.remove(entry);
+                return self.retryUnnamed(arena, sql, params, guard, code, deadline, failure);
+            }
+            return pass(failure, local, e);
+        };
+    }
+
+    /// A named-statement operation failed in a way node-pg's unnamed
+    /// statements cannot (e.g. a transaction pooler moved us to another
+    /// backend): run the query unnamed, so the caller never sees it.
+    fn retryUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, guard: ?*ReuseGuard, code: []const u8, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+        if (guard) |g| if (isPoolerCode(code)) g.report(code);
+        return self.runUnnamed(arena, sql, params, deadline, failure);
+    }
+
+    fn prepare(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, sql: []const u8, n_params: usize, deadline: ?i64, failure: ?*Failure) Error!void {
+        const sql_z = try arena.dupeZ(u8, sql);
+        try self.flushSent(PQsendPrepare(self.pg, entry.nameZ(), sql_z, @intCast(n_params), null), arena, deadline, failure);
+        _ = try self.collect(arena, deadline, failure);
+    }
+
+    fn executeNamed(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, values: []const ?[*:0]const u8, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+        try self.flushSent(PQsendQueryPrepared(self.pg, entry.nameZ(), @intCast(values.len), values.ptr, null, null, 0), arena, deadline, failure);
+        return self.collect(arena, deadline, failure);
+    }
+
+    fn deallocate(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, deadline: ?i64, failure: ?*Failure) Error!void {
+        const sql = try std.fmt.allocPrintSentinel(arena, "DEALLOCATE {s}", .{entry.name[0..entry.name_len]}, 0);
+        try self.flushSent(PQsendQuery(self.pg, sql), arena, deadline, failure);
+        _ = try self.collect(arena, deadline, failure);
+    }
+
+    /// node-pg's query_timeout covers sending too: a server that stops
+    /// reading cannot block us past the deadline.
+    fn flushSent(self: *Conn, sent: c_int, arena: std.mem.Allocator, deadline: ?i64, failure: ?*Failure) Error!void {
         if (sent == 0) return self.transportFailure(arena, failure);
         while (true) {
             const flushed = PQflush(self.pg);
@@ -343,6 +607,13 @@ pub fn trimMessage(message: []const u8) []const u8 {
     return m;
 }
 
+/// node-pg `prepareValue` text for each parameter (null -> SQL NULL).
+fn textParams(arena: std.mem.Allocator, params: []const Value) Error![]?[*:0]const u8 {
+    const values = try arena.alloc(?[*:0]const u8, params.len);
+    for (params, values) |p, *v| v.* = if (try convert.prepareValue(arena, p)) |text| text.ptr else null;
+    return values;
+}
+
 fn rowCount(res: *PGresult) usize {
     const text = std.mem.span(PQcmdTuples(res));
     return std.fmt.parseInt(usize, text, 10) catch 0;
@@ -435,6 +706,9 @@ pub fn waitSocket(fd: std.posix.fd_t, events: i16, deadline: ?i64) bool {
             timeout = @intCast(@min(remaining, std.math.maxInt(i32)));
         }
         var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = events, .revents = 0 }};
+        // Let an HTTP poller thread hand off its work while this one sleeps.
+        core.blocking.begin();
+        defer core.blocking.end();
         const n = std.posix.poll(&fds, timeout) catch return false;
         if (n > 0) return true;
     }

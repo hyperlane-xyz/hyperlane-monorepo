@@ -8,6 +8,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const json = @import("json.zig");
+const blocking = @import("blocking.zig");
 
 pub const Level = enum(u8) {
     trace = 10,
@@ -34,6 +35,8 @@ var format: Format = .json;
 var output_mutex: std.Thread.Mutex = .{};
 var sink: ?Sink = null;
 var sink_ctx: ?*anyopaque = null;
+/// `sink != null`, readable without the lock on the hot path.
+var sink_set: std.atomic.Value(bool) = .init(false);
 
 /// Reads `LOG_LEVEL` / `LOG_FORMAT` like `@hyperlane-xyz/utils` (invalid values ignored).
 pub fn configure(env: *const std.process.EnvMap) void {
@@ -59,6 +62,7 @@ pub fn setSink(new_sink: ?Sink, ctx: ?*anyopaque) void {
     defer output_mutex.unlock();
     sink = new_sink;
     sink_ctx = ctx;
+    sink_set.store(new_sink != null, .release);
 }
 
 pub const root: Logger = .{ .module = null };
@@ -116,12 +120,11 @@ pub const Logger = struct {
 };
 
 fn emit(a: std.mem.Allocator, module: ?[]const u8, lvl: Level, fields: ?json.Value, msg: []const u8) void {
-    output_mutex.lock();
-    if (sink) |s| {
+    if (sink_set.load(.acquire)) {
+        output_mutex.lock();
         defer output_mutex.unlock();
-        return s(sink_ctx, lvl, module orelse "", msg);
+        if (sink) |s| return s(sink_ctx, lvl, module orelse "", msg);
     }
-    output_mutex.unlock();
     var out: std.Io.Writer.Allocating = .init(a);
     defer out.deinit();
     const w = &out.writer;
@@ -129,12 +132,87 @@ fn emit(a: std.mem.Allocator, module: ?[]const u8, lvl: Level, fields: ?json.Val
         .json => writeJsonLine(w, module, lvl, fields, msg),
         .pretty => writePretty(w, fields, msg),
     }) catch return;
-    output_mutex.lock();
-    defer output_mutex.unlock();
     // stdout like pino; under `zig build test` stdout is the test-runner
     // protocol channel, so tests log to stderr.
     const file = if (builtin.is_test) std.fs.File.stderr() else std.fs.File.stdout();
-    file.writeAll(out.written()) catch {};
+    output.write(file, out.written(), @intFromEnum(lvl) >= @intFromEnum(Level.@"error"));
+}
+
+/// Combining writer: a thread that finds no write in progress writes the
+/// pending lines itself (one syscall per line when uncontended, like pino's
+/// synchronous stdout); lines logged while another thread is writing are
+/// appended and written by that thread in one batch. Per-thread order is
+/// kept. Error/fatal callers return only after their line is written (an
+/// exit right after them must not lose it). The pending batch is bounded;
+/// a full batch blocks callers until written (backpressure, like a sync write).
+const Output = struct {
+    mutex: std.Thread.Mutex = .{},
+    written_cond: std.Thread.Condition = .{},
+    pending: std.ArrayList(u8) = .empty,
+    spare: std.ArrayList(u8) = .empty,
+    writing: bool = false,
+    appended: u64 = 0,
+    written: u64 = 0,
+
+    const max_pending = 1 << 20;
+    const allocator = std.heap.c_allocator;
+
+    fn write(self: *Output, file: std.fs.File, line: []const u8, wait: bool) void {
+        self.mutex.lock();
+        while (self.writing and self.pending.items.len > 0 and self.pending.items.len + line.len > max_pending) {
+            blockingWait(&self.written_cond, &self.mutex);
+        }
+        if (!self.writing) {
+            // Fast path: nothing queued (the writer drains before clearing
+            // `writing`), so write this line directly.
+            self.writing = true;
+            self.appended += 1;
+            const seq = self.appended;
+            self.mutex.unlock();
+            file.writeAll(line) catch {};
+            self.mutex.lock();
+            self.written = seq;
+            self.drainLocked(file);
+            self.mutex.unlock();
+            return;
+        }
+        self.pending.appendSlice(allocator, line) catch {
+            // Out of memory: wait for the writer, then write directly.
+            while (self.writing) blockingWait(&self.written_cond, &self.mutex);
+            self.mutex.unlock();
+            file.writeAll(line) catch {};
+            return;
+        };
+        self.appended += 1;
+        const seq = self.appended;
+        if (wait) while (self.written < seq) blockingWait(&self.written_cond, &self.mutex);
+        self.mutex.unlock();
+    }
+
+    /// Writes queued batches until none is left, then releases the writer role.
+    fn drainLocked(self: *Output, file: std.fs.File) void {
+        while (self.pending.items.len > 0) {
+            std.mem.swap(std.ArrayList(u8), &self.pending, &self.spare);
+            const upto = self.appended;
+            self.mutex.unlock();
+            file.writeAll(self.spare.items) catch {};
+            self.spare.clearRetainingCapacity();
+            self.mutex.lock();
+            self.written = upto;
+            self.written_cond.broadcast();
+        }
+        self.writing = false;
+        self.written_cond.broadcast();
+    }
+};
+
+var output: Output = .{};
+
+/// Waiting for another thread's stdout write (a full pipe can stall it).
+fn blockingWait(cond: *std.Thread.Condition, mutex: *std.Thread.Mutex) void {
+    blocking.begin();
+    defer blocking.end();
+    cond.wait(mutex);
 }
 
 fn writeJsonLine(w: *std.Io.Writer, module: ?[]const u8, lvl: Level, fields: ?json.Value, msg: []const u8) !void {
@@ -203,4 +281,39 @@ test "json line format" {
     const line = w.buffered();
     try std.testing.expect(std.mem.startsWith(u8, line, "{\"level\":40,\"time\":"));
     try std.testing.expect(std.mem.endsWith(u8, line, ",\"module\":\"GraphQL\",\"graphqlError\":\"x\",\"msg\":\"GraphQL request error\"}\n"));
+}
+
+test "log write throughput to a pipe (opt-in LOG_BENCH=1)" {
+    if (std.posix.getenv("LOG_BENCH") == null) return error.SkipZigTest;
+    const fds = try std.posix.pipe();
+    const reader = try std.Thread.spawn(.{}, struct {
+        fn run(fd: std.posix.fd_t) void {
+            var buf: [1 << 16]u8 = undefined;
+            while (true) {
+                const n = std.posix.read(fd, &buf) catch return;
+                if (n == 0) return;
+            }
+        }
+    }.run, .{fds[0]});
+    const file: std.fs.File = .{ .handle = fds[1] };
+    const line = "{\"level\":40,\"time\":1762870000000,\"pid\":1234,\"module\":\"GraphQL\",\"graphqlError\":{\"message\":\"Cannot query field \\\"idx\\\" on type \\\"domain\\\".\"},\"msg\":\"GraphQL request error\"}\n";
+    for ([_]usize{ 1, 2, 4, 8, 16 }) |threads| {
+        const per: usize = 200_000 / threads;
+        const ru0 = std.posix.getrusage(std.posix.rusage.SELF);
+        var timer = try std.time.Timer.start();
+        var list: [16]std.Thread = undefined;
+        for (list[0..threads]) |*t| t.* = try std.Thread.spawn(.{}, struct {
+            fn run(f: std.fs.File, n: usize) void {
+                for (0..n) |_| output.write(f, line, false);
+            }
+        }.run, .{ file, per });
+        for (list[0..threads]) |t| t.join();
+        const wall = timer.read();
+        const ru1 = std.posix.getrusage(std.posix.rusage.SELF);
+        const cpu_us = (ru1.utime.sec - ru0.utime.sec + ru1.stime.sec - ru0.stime.sec) * 1_000_000 + (ru1.utime.usec - ru0.utime.usec) + (ru1.stime.usec - ru0.stime.usec);
+        std.debug.print("log x{d}: {d:.2} us cpu/line (incl. reader), {d:.0} lines/s\n", .{ threads, @as(f64, @floatFromInt(cpu_us)) / @as(f64, @floatFromInt(per * threads)), @as(f64, @floatFromInt(per * threads)) / (@as(f64, @floatFromInt(wall)) / 1e9) });
+    }
+    std.posix.close(fds[1]);
+    reader.join();
+    std.posix.close(fds[0]);
 }

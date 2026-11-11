@@ -60,6 +60,7 @@ pub const Result = struct {
 pub const Pool = pool.Pool;
 pub const PoolOptions = pool.Options;
 pub const ConnOptions = pq.ConnOptions;
+pub const QueryOptions = pq.QueryOptions;
 pub const DbService = service.DbService;
 pub const Listener = listener.Listener;
 pub const NotificationHandler = listener.Handler;

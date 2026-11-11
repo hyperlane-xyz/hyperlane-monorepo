@@ -460,51 +460,75 @@ const Parser = struct {
         return v;
     }
 
+    /// Index of the first `"`, `\\` or control character at or after `from`.
+    fn scanSpecial(s: []const u8, from: usize) usize {
+        var i = from;
+        while (i + lanes <= s.len) : (i += lanes) {
+            const block: Block = s[i..][0..lanes].*;
+            const special = (block < @as(Block, @splat(0x20))) |
+                (block == @as(Block, @splat('"'))) |
+                (block == @as(Block, @splat('\\')));
+            const mask: std.meta.Int(.unsigned, lanes) = @bitCast(special);
+            if (mask != 0) return i + @ctz(mask);
+        }
+        while (i < s.len) : (i += 1) {
+            const c = s[i];
+            if (c == '"' or c == '\\' or c < 0x20) return i;
+        }
+        return i;
+    }
+
     fn str(p: *Parser) ParseError![]const u8 {
         p.i += 1; // opening quote
+        const s = p.s;
         const start = p.i;
-        // Fast path: no escapes.
-        while (p.i < p.s.len) : (p.i += 1) {
-            const c = p.s[p.i];
-            if (c == '"') {
-                const out = try p.a.dupe(u8, p.s[start..p.i]);
-                p.i += 1;
-                return out;
-            }
-            if (c == '\\') break;
-            if (c < 0x20) return error.SyntaxError;
+        var i = scanSpecial(s, start);
+        if (i >= s.len or s[i] < 0x20) return error.SyntaxError;
+        if (s[i] == '"') {
+            // Fast path: no escapes.
+            p.i = i + 1;
+            return p.a.dupe(u8, s[start..i]);
         }
-        var out: std.ArrayList(u8) = .empty;
-        errdefer out.deinit(p.a);
-        try out.appendSlice(p.a, p.s[start..p.i]);
-        while (p.i < p.s.len) {
-            const c = p.s[p.i];
-            if (c == '"') {
-                p.i += 1;
-                return out.toOwnedSlice(p.a);
-            }
+        // Find the closing quote (escapes never contain a raw `"` or `\\`
+        // after their first character), so the output (never longer than
+        // the escaped input) is allocated once.
+        var end = i;
+        while (true) {
+            if (end >= s.len or s[end] < 0x20) return error.SyntaxError;
+            if (s[end] == '"') break;
+            end = scanSpecial(s, end + 2); // s[end] is a backslash: skip it and the escaped byte
+        }
+        const out = try p.a.alloc(u8, end - start);
+        var o = i - start;
+        @memcpy(out[0..o], s[start..i]);
+        while (true) {
+            const c = s[i];
+            if (c == '"') break;
             if (c < 0x20) return error.SyntaxError;
-            if (c != '\\') {
-                try out.append(p.a, c);
-                p.i += 1;
-                continue;
-            }
-            p.i += 1;
-            if (p.i >= p.s.len) return error.SyntaxError;
-            const e = p.s[p.i];
-            p.i += 1;
+            // c == '\\'
+            i += 1;
+            if (i >= s.len) return error.SyntaxError;
+            const e = s[i];
+            i += 1;
             switch (e) {
-                '"' => try out.append(p.a, '"'),
-                '\\' => try out.append(p.a, '\\'),
-                '/' => try out.append(p.a, '/'),
-                'b' => try out.append(p.a, 8),
-                'f' => try out.append(p.a, 12),
-                'n' => try out.append(p.a, '\n'),
-                'r' => try out.append(p.a, '\r'),
-                't' => try out.append(p.a, '\t'),
+                '"', '\\', '/' => {
+                    out[o] = e;
+                    o += 1;
+                },
+                'b', 'f', 'n', 'r', 't' => {
+                    out[o] = switch (e) {
+                        'b' => 8,
+                        'f' => 12,
+                        'n' => '\n',
+                        'r' => '\r',
+                        else => '\t',
+                    };
+                    o += 1;
+                },
                 'u' => {
+                    p.i = i;
                     var cp: u21 = try p.hex4();
-                    if (cp >= 0xd800 and cp <= 0xdbff and p.i + 6 <= p.s.len and p.s[p.i] == '\\' and p.s[p.i + 1] == 'u') {
+                    if (cp >= 0xd800 and cp <= 0xdbff and p.i + 6 <= s.len and s[p.i] == '\\' and s[p.i + 1] == 'u') {
                         const save = p.i;
                         p.i += 2;
                         const low = try p.hex4();
@@ -512,17 +536,23 @@ const Parser = struct {
                             cp = 0x10000 + ((cp - 0xd800) << 10) + (low - 0xdc00);
                         } else p.i = save;
                     }
-                    var enc: [4]u8 = undefined;
+                    i = p.i;
                     const len = if (cp >= 0xd800 and cp <= 0xdfff)
-                        std.unicode.wtf8Encode(cp, &enc) catch unreachable
+                        std.unicode.wtf8Encode(cp, out[o..][0..4]) catch unreachable
                     else
-                        std.unicode.utf8Encode(cp, &enc) catch unreachable;
-                    try out.appendSlice(p.a, enc[0..len]);
+                        std.unicode.utf8Encode(cp, out[o..][0..4]) catch unreachable;
+                    o += len;
                 },
                 else => return error.SyntaxError,
             }
+            const next = scanSpecial(s, i);
+            @memcpy(out[o..][0 .. next - i], s[i..next]);
+            o += next - i;
+            i = next;
+            if (i >= s.len) return error.SyntaxError;
         }
-        return error.SyntaxError;
+        p.i = i + 1;
+        return out[0..o];
     }
 
     fn array(p: *Parser, depth: usize) ParseError!Value {
@@ -808,6 +838,27 @@ test "parse matches JSON.parse semantics" {
     _ = try parse(a, "{\"constructor\":{\"x\":1}}", .{ .secure = true });
     _ = try parse(a, "\xef\xbb\xbf{}", .{ .strip_bom = true });
     try testing.expectError(error.SyntaxError, parse(a, "\xef\xbb\xbf{}", .{}));
+}
+
+test "parse decodes escapes at block boundaries and rejects bad strings" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const cases = [_]struct { in: []const u8, out: []const u8 }{
+        .{ .in = "\"\\n\"", .out = "\n" },
+        .{ .in = "\"abc\\\"\"", .out = "abc\"" },
+        .{ .in = "\"0123456789abcde\\n0123456789abcdef\\t\"", .out = "0123456789abcde\n0123456789abcdef\t" },
+        .{ .in = "\"0123456789abcdef\\/\\\\x\\u0041\\u00e9\\u20ac\\ud83d\\ude00\\b\\f\\r\"", .out = "0123456789abcdef/\\xAé€😀\x08\x0c\r" },
+        .{ .in = "\"\\\\\\\\\\\\\\\\\"", .out = "\\\\\\\\" },
+        .{ .in = "\"\\udc00x\"", .out = "\xed\xb0\x80x" },
+    };
+    for (cases) |c| {
+        const v = try parse(a, c.in, .{});
+        try testing.expectEqualStrings(c.out, v.string);
+    }
+    for ([_][]const u8{ "\"abc\\\"", "\"\\", "\"a\\n\x01\"", "\"\\\x0a\"", "\"\\x\"", "\"0123456789abcdef0123\\n0123456789abcdef", "\"\\u12\"" }) |bad| {
+        try testing.expectError(error.SyntaxError, parse(a, bad, .{}));
+    }
 }
 
 test "parse keeps first position for duplicates in large objects" {

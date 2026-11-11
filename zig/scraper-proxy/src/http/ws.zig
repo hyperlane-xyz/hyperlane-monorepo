@@ -6,14 +6,18 @@
 //! * auto-pong, 30s close timeout, peer close echoed with its code/reason;
 //! * `close` event code is the received close code (1005 none, 1006 abnormal).
 //!
-//! Threads: the reader loop runs on the HTTP connection thread after the
-//! upgrade; a per-connection writer thread drains a FIFO of frames so
-//! `bufferedAmount` (queued, not yet written to the kernel) and send
-//! callbacks (invoked once the frame is written) behave like `ws`.
+//! Evented (see `loop.zig`): after the upgrade the socket's slot turns into a
+//! WebSocket slot. Reads run on a poller thread holding the slot's R token
+//! (handler callbacks are serialized per connection); `send` queues a frame
+//! and hands the W token to a poller, which writes queued frames with one
+//! `sendmsg` and then fires their callbacks, so `bufferedAmount` (queued, not
+//! yet written to the kernel) and send callbacks behave like `ws`. No thread
+//! is tied to a socket.
 const std = @import("std");
 const builtin = @import("builtin");
 const server_mod = @import("server.zig");
 const types = @import("types.zig");
+const loop_mod = @import("loop.zig");
 
 const posix = std.posix;
 const Request = types.Request;
@@ -23,7 +27,8 @@ pub const ReadyState = enum(u8) { connecting = 0, open = 1, closing = 2, closed 
 pub const Handler = struct {
     ctx: *anyopaque,
     /// Complete message (text already UTF-8 validated). `data` is only valid
-    /// during the call. Runs on the connection's reader thread.
+    /// during the call. Runs on a poller thread, one callback at a time per
+    /// connection.
     on_message: *const fn (ctx: *anyopaque, conn: *Conn, data: []const u8, binary: bool) void,
     on_pong: ?*const fn (ctx: *anyopaque, conn: *Conn) void = null,
     /// ws 'error' (protocol violations, socket errors); always followed by on_close.
@@ -32,8 +37,8 @@ pub const Handler = struct {
     on_close: *const fn (ctx: *anyopaque, conn: *Conn, code: u16, reason: []const u8) void,
 };
 
-/// Invoked on the writer thread once the frame reached the kernel (ok=true)
-/// or the socket failed/closed first (ok=false).
+/// Invoked on a poller thread once the frame reached the kernel (ok=true)
+/// or the socket failed/closed first (ok=false); never from `send` itself.
 pub const SendCallback = struct {
     ctx: *anyopaque,
     func: *const fn (ctx: *anyopaque, conn: *Conn, ok: bool) void,
@@ -82,22 +87,20 @@ pub const Server = struct {
             std.fmt.bufPrint(&head_buf, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {s}\r\nSec-WebSocket-Protocol: {s}\r\n\r\n", .{ &accept, p }) catch return abort(socket, 400, "Invalid Sec-WebSocket-Protocol header", null)
         else
             std.fmt.bufPrint(&head_buf, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {s}\r\n\r\n", .{&accept}) catch unreachable;
-        // Create the connection (and its writer) before answering 101, so a
-        // failure never leaves the client with an upgraded but dead socket.
+        // Create the connection before answering 101, so a failure never
+        // leaves the client with an upgraded but dead socket.
         const conn = Conn.create(gpa, socket, self.options, handler) catch {
             socket.destroy();
             return null;
         };
-        if (!server_mod.writeFd(socket.fd, response)) {
+        if (!conn.writeHandshake(response)) {
             conn.abandon();
             socket.destroy();
             return null;
         }
-        // From here the socket is non-blocking: the writer waits in poll()
-        // (so `trySendInline` can never block, even where MSG_DONTWAIT is
-        // ignored, e.g. macOS) and `terminate` still wakes everyone.
-        setNonblocking(socket.fd);
-        socket.takeover = .{ .ctx = conn, .run = Conn.runThunk };
+        // The server attaches the connection to the poller set once
+        // `on_upgrade` returns (the reader starts then).
+        socket.takeover = conn;
         return conn;
     }
 };
@@ -110,34 +113,6 @@ fn abort(socket: *server_mod.UpgradeSocket, code: u16, message: []const u8, extr
     _ = server_mod.writeFd(socket.fd, text);
     socket.destroy();
     return null;
-}
-
-fn setNonblocking(fd: posix.socket_t) void {
-    const Bits = std.meta.Int(.unsigned, @bitSizeOf(posix.O));
-    const flags = posix.fcntl(fd, posix.F.GETFL, 0) catch return;
-    var o: posix.O = @bitCast(@as(Bits, @truncate(flags)));
-    o.NONBLOCK = true;
-    _ = posix.fcntl(fd, posix.F.SETFL, @as(Bits, @bitCast(o))) catch {};
-}
-
-/// Writes all of `bytes` to a non-blocking socket, waiting in poll() when
-/// the kernel buffer is full. Fails once the socket errors or is shut down.
-fn writeAllNonblocking(fd: posix.socket_t, bytes: []const u8) bool {
-    var off: usize = 0;
-    const flags: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.NOSIGNAL else 0;
-    while (off < bytes.len) {
-        const n = posix.send(fd, bytes[off..], flags) catch |e| switch (e) {
-            error.WouldBlock => {
-                var fds = [_]posix.pollfd{.{ .fd = fd, .events = posix.POLL.OUT, .revents = 0 }};
-                _ = posix.poll(&fds, -1) catch return false;
-                if (fds[0].revents & (posix.POLL.ERR | posix.POLL.HUP | posix.POLL.NVAL) != 0 and fds[0].revents & posix.POLL.OUT == 0) return false;
-                continue;
-            },
-            else => return false,
-        };
-        off += n;
-    }
-    return true;
 }
 
 fn validKey(key: []const u8) bool {
@@ -174,9 +149,13 @@ fn parseFirstProtocol(raw: []const u8) ?[]const u8 {
 
 const Frame = struct {
     bytes: []u8,
+    /// Bytes of `bytes` already written.
+    off: usize = 0,
     cb: ?SendCallback,
     is_close: bool,
 };
+
+const max_batch = 16;
 
 pub const Conn = struct {
     gpa: std.mem.Allocator,
@@ -188,7 +167,6 @@ pub const Conn = struct {
     user: ?*anyopaque = null,
 
     mutex: std.Thread.Mutex = .{},
-    cond: std.Thread.Condition = .{},
     queue: std.ArrayList(Frame) = .empty,
     queue_head: usize = 0,
     buffered: usize = 0,
@@ -203,9 +181,19 @@ pub const Conn = struct {
     close_deadline: ?i64 = null,
     destroyed: bool = false,
     reader_done: bool = false,
-    writer: ?std.Thread = null,
     refs: std.atomic.Value(u32) = .init(2),
     initial: []u8,
+
+    // Poller attachment (set once by `attach`, under `mutex`).
+    server: ?*server_mod.Server = null,
+    index: u32 = 0,
+    gen: u32 = 0,
+    // R holder only.
+    readable: bool = true,
+    hup: bool = false,
+    reader: Reader = undefined,
+    // W holder only.
+    write_armed: bool = false,
 
     fn create(gpa: std.mem.Allocator, socket: *server_mod.UpgradeSocket, options: ServerOptions, handler: Handler) !*Conn {
         const self = try gpa.create(Conn);
@@ -213,18 +201,32 @@ pub const Conn = struct {
         const initial = try gpa.dupe(u8, socket.head);
         errdefer gpa.free(initial);
         self.* = .{ .gpa = gpa, .fd = socket.fd, .options = options, .handler = handler, .remote_address = socket.remote_address, .initial = initial };
-        self.writer = try std.Thread.spawn(.{ .stack_size = 2 * 1024 * 1024 }, writerLoop, .{self});
+        self.reader = .{ .conn = self };
         return self;
+    }
+
+    /// Writes the 101 response; an unwritten tail is queued ahead of every
+    /// frame (counted in `bufferedAmount`, like bytes in the socket's buffer).
+    fn writeHandshake(self: *Conn, response: []const u8) bool {
+        const flags: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.NOSIGNAL else 0;
+        const sent = posix.send(self.fd, response, flags | posix.MSG.DONTWAIT) catch |e| switch (e) {
+            error.WouldBlock => 0,
+            else => return false,
+        };
+        if (sent == response.len) return true;
+        const tail = self.gpa.dupe(u8, response[sent..]) catch return false;
+        self.queue.append(self.gpa, .{ .bytes = tail, .cb = null, .is_close = false }) catch {
+            self.gpa.free(tail);
+            return false;
+        };
+        self.buffered += tail.len;
+        return true;
     }
 
     /// Undo `create` before the connection was handed out (fd stays with
     /// the caller).
     fn abandon(self: *Conn) void {
-        self.mutex.lock();
-        self.reader_done = true;
-        self.cond.broadcast();
-        self.mutex.unlock();
-        if (self.writer) |t| t.join();
+        for (self.queue.items) |f| self.gpa.free(f.bytes);
         self.queue.deinit(self.gpa);
         self.close_reason.deinit(self.gpa);
         self.gpa.free(self.initial);
@@ -278,6 +280,8 @@ pub const Conn = struct {
         const hlen = frameHeader(&header, if (binary) 0x2 else 0x1, data.len);
         const total = hlen + data.len;
         var outcome: enum { written, failed } = .written;
+        var queued_tail = false;
+        var kick = false;
         locked: {
             self.mutex.lock();
             defer self.mutex.unlock();
@@ -300,7 +304,7 @@ pub const Conn = struct {
             const sent = posix.sendmsg(self.fd, &msg, posix.MSG.DONTWAIT | nosignal) catch |e| switch (e) {
                 error.WouldBlock => return false,
                 else => blk: {
-                    self.destroyLocked();
+                    kick = self.destroyLocked();
                     outcome = .failed;
                     break :blk total;
                 },
@@ -309,7 +313,7 @@ pub const Conn = struct {
                 // Queue the tail as a raw frame so it goes out before anything
                 // queued later; the callback rides on it.
                 const tail = self.gpa.alloc(u8, total - sent) catch {
-                    self.destroyLocked(); // the stream is now unrecoverable
+                    kick = self.destroyLocked(); // the stream is now unrecoverable
                     outcome = .failed;
                     break :locked;
                 };
@@ -321,16 +325,30 @@ pub const Conn = struct {
                 } else @memcpy(tail, data[sent - hlen ..]);
                 self.queue.append(self.gpa, .{ .bytes = tail, .cb = cb, .is_close = false }) catch {
                     self.gpa.free(tail);
-                    self.destroyLocked();
+                    kick = self.destroyLocked();
                     outcome = .failed;
                     break :locked;
                 };
                 self.buffered += tail.len;
-                self.cond.signal();
-                return true;
+                queued_tail = true;
             }
         }
+        if (kick) self.kickReader();
+        if (queued_tail) {
+            // Before `attach` the server schedules the flush itself.
+            if (self.server != null) self.scheduleFlush();
+            return true;
+        }
         return self.finishInline(cb, outcome == .written);
+    }
+
+    pub const Snapshot = struct { ready_state: ReadyState, buffered_amount: usize };
+
+    /// `readyState` and `bufferedAmount` under one lock.
+    pub fn snapshot(self: *Conn) Snapshot {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return .{ .ready_state = self.state, .buffered_amount = self.buffered };
     }
 
     /// Fires an inline send's completion; the lock must not be held.
@@ -352,14 +370,17 @@ pub const Conn = struct {
             return;
         }
         if (self.state == .closing) {
-            // Under the lock: the reader sets `destroyed` before it closes
+            // Under the lock: teardown sets `destroyed` before it closes
             // the fd, so this can never half-close a reused descriptor.
             if (self.close_frame_sent and self.close_frame_received) posix.shutdown(self.fd, .send) catch {};
             self.mutex.unlock();
             return;
         }
         self.state = .closing;
-        self.close_deadline = std.time.milliTimestamp() + self.options.close_timeout_ms;
+        const deadline = loop_mod.monoMs() + self.options.close_timeout_ms;
+        self.close_deadline = deadline;
+        // The tick terminates the socket once the close handshake times out.
+        if (self.server) |server| server.loop.slot(self.index).deadline.store(deadline, .release);
         self.mutex.unlock();
         var payload: [125]u8 = undefined;
         var len: usize = 0;
@@ -375,16 +396,26 @@ pub const Conn = struct {
     /// `ws.terminate()`: destroy the socket now.
     pub fn terminate(self: *Conn) void {
         self.mutex.lock();
-        defer self.mutex.unlock();
-        self.destroyLocked();
+        const kick = self.destroyLocked();
+        self.mutex.unlock();
+        if (kick) self.kickReader();
     }
 
-    fn destroyLocked(self: *Conn) void {
-        if (self.destroyed) return;
+    /// Marks the socket destroyed and shuts it down. True when the reader
+    /// must be kicked (after unlocking): it may be parked with no event coming.
+    fn destroyLocked(self: *Conn) bool {
+        if (self.destroyed) return false;
         self.destroyed = true;
         if (self.state != .closed) self.state = .closing;
         posix.shutdown(self.fd, .both) catch {};
-        self.cond.broadcast();
+        return self.server != null and !self.reader_done;
+    }
+
+    /// Hands R (with KICK) to a poller, or flags KICK for the current reader.
+    fn kickReader(self: *Conn) void {
+        const server = self.server.?;
+        if (loop_mod.claim(server.loop.slot(self.index), self.gen, loop_mod.R, loop_mod.KICK) == .claimed)
+            server.loop.post(self.index, self.gen, loop_mod.R | loop_mod.KICK);
     }
 
     fn enqueue(self: *Conn, opcode: u8, data: []const u8, cb: ?SendCallback, is_close: bool) SendError!void {
@@ -417,102 +448,238 @@ pub const Conn = struct {
         @memcpy(bytes[0..hlen], header[0..hlen]);
         @memcpy(bytes[hlen..], data);
         self.mutex.lock();
-        defer self.mutex.unlock();
         // Checked under the same lock as the append: no data frame can be
         // queued behind the close frame.
         if (self.destroyed or (!is_close and self.state != .open)) {
+            self.mutex.unlock();
             self.gpa.free(bytes);
             return error.NotOpen;
         }
         self.queue.append(self.gpa, .{ .bytes = bytes, .cb = cb, .is_close = is_close }) catch {
+            self.mutex.unlock();
             self.gpa.free(bytes);
             return error.OutOfMemory;
         };
         self.buffered += bytes.len;
-        self.cond.signal();
+        const attached = self.server != null;
+        self.mutex.unlock();
+        if (attached) self.scheduleFlush();
     }
 
-    fn writerLoop(self: *Conn) void {
+    /// Takes W and hands the connection to a poller, or flags W_AGAIN for the
+    /// current writer. Never writes on the caller's thread.
+    fn scheduleFlush(self: *Conn) void {
+        const server = self.server.?;
+        if (loop_mod.claim(server.loop.slot(self.index), self.gen, loop_mod.W, loop_mod.W_AGAIN) == .claimed)
+            server.loop.post(self.index, self.gen, loop_mod.W);
+    }
+
+    // -- poller side ------------------------------------------------------------
+
+    /// Called by the server (holding the slot's R) once `on_upgrade` returned:
+    /// the slot now belongs to this connection. Feeds the bytes that followed
+    /// the request head, then reads until the socket would block.
+    pub fn attach(self: *Conn, server: *server_mod.Server, index: u32, gen: u32, write_armed: bool) void {
+        self.mutex.lock();
+        self.server = server;
+        self.index = index;
+        self.gen = gen;
+        self.write_armed = write_armed;
+        const queued = self.queue_head != self.queue.items.len;
+        self.mutex.unlock();
+        // Clear the HTTP park deadline (the tick would kick us forever).
+        server.loop.slot(index).deadline.store(self.close_deadline orelse loop_mod.no_deadline, .release);
+        if (queued) self.scheduleFlush();
+        // A terminate() before attach is seen by the reader below.
+        self.reader.feed(self.initial);
+        self.gpa.free(self.initial);
+        self.initial = &.{};
+        self.runReader(.io, false);
+    }
+
+    /// Reads and dispatches frames; R is held. Returns after parking (R
+    /// released) or once the reader finished.
+    pub fn runReader(self: *Conn, io: loop_mod.Io, kick: bool) void {
+        const server = self.server.?;
+        const slot = server.loop.slot(self.index);
+        var kicked = kick;
+        var woke = io;
+        while (true) {
+            switch (woke) {
+                .none => {},
+                .io => self.readable = true,
+                .hup => {
+                    self.readable = true;
+                    self.hup = true;
+                },
+            }
+            if (self.readStep(kicked)) return self.readerDone();
+            const pending = loop_mod.release(slot, loop_mod.R, loop_mod.r_pending);
+            if (pending == 0) return;
+            woke = loop_mod.Io.fromPending(pending);
+            kicked = pending & loop_mod.KICK != 0;
+        }
+    }
+
+    /// True once the socket is done (EOF, error, destroyed, close timeout).
+    fn readStep(self: *Conn, kicked: bool) bool {
+        if (kicked) {
+            self.mutex.lock();
+            const deadline = self.close_deadline;
+            self.mutex.unlock();
+            if (deadline) |d| if (loop_mod.monoMs() >= d) self.terminate();
+        }
+        const buf = server_mod.readBuffer() catch {
+            self.terminate();
+            return true;
+        };
         while (true) {
             self.mutex.lock();
-            while (self.queue_head == self.queue.items.len and !self.reader_done and !self.destroyed) self.cond.wait(&self.mutex);
-            if (self.queue_head == self.queue.items.len) {
+            const destroyed = self.destroyed;
+            self.mutex.unlock();
+            if (destroyed) return true;
+            if (!self.readable) return false;
+            const n = posix.read(self.fd, buf) catch |e| switch (e) {
+                error.WouldBlock => {
+                    self.readable = false;
+                    return false;
+                },
+                else => return true,
+            };
+            if (n == 0) return true;
+            // Edge-triggered: a short read drained the socket (unless the
+            // peer hung up in the same edge: then read on to EOF).
+            if (n < buf.len and !self.hup) self.readable = false;
+            self.reader.feed(buf[0..n]);
+        }
+    }
+
+    /// The reader is finished (R stays held): tear down now, or let the
+    /// current writer do it when it lets go of W.
+    fn readerDone(self: *Conn) void {
+        self.mutex.lock();
+        self.reader_done = true;
+        _ = self.destroyLocked();
+        self.state = .closed;
+        self.mutex.unlock();
+        const slot = self.server.?.loop.slot(self.index);
+        var s = slot.state.load(.acquire);
+        while (true) {
+            const writer_busy = loop_mod.Slot.bitsOf(s) & loop_mod.W != 0;
+            const next = s | (if (writer_busy) loop_mod.R_DONE else loop_mod.W);
+            if (slot.state.cmpxchgWeak(s, next, .acq_rel, .acquire)) |actual| {
+                s = actual;
+                continue;
+            }
+            if (!writer_busy) self.teardown();
+            return;
+        }
+    }
+
+    /// Writes queued frames; W is held.
+    pub fn runWriter(self: *Conn) void {
+        const slot = self.server.?.loop.slot(self.index);
+        while (true) {
+            self.flush();
+            var s = slot.state.load(.acquire);
+            const outcome: enum { released, again, teardown } = while (true) {
+                const bits = loop_mod.Slot.bitsOf(s);
+                if (bits & loop_mod.R_DONE != 0) break .teardown;
+                const next = if (bits & loop_mod.W_AGAIN != 0) s & ~@as(u64, loop_mod.W_AGAIN) else s & ~@as(u64, loop_mod.W);
+                if (slot.state.cmpxchgWeak(s, next, .acq_rel, .acquire)) |actual| {
+                    s = actual;
+                    continue;
+                }
+                break if (bits & loop_mod.W_AGAIN != 0) .again else .released;
+            };
+            switch (outcome) {
+                .released => return,
+                .again => continue,
+                .teardown => return self.teardown(),
+            }
+        }
+    }
+
+    /// Writes as many queued frames as the socket takes, then completes them.
+    fn flush(self: *Conn) void {
+        const server = self.server.?;
+        const slot = server.loop.slot(self.index);
+        // Writable events only matter while frames wait.
+        loop_mod.setBits(slot, loop_mod.WANT_W);
+        while (true) {
+            var iov: [max_batch]posix.iovec_const = undefined;
+            var count: usize = 0;
+            self.mutex.lock();
+            if (self.destroyed) {
+                self.mutex.unlock();
+                return; // teardown fails what is left
+            }
+            for (self.queue.items[self.queue_head..]) |f| {
+                if (count == max_batch) break;
+                iov[count] = .{ .base = f.bytes.ptr + f.off, .len = f.bytes.len - f.off };
+                count += 1;
+            }
+            if (count == 0) {
+                loop_mod.clearBits(slot, loop_mod.WANT_W);
                 self.mutex.unlock();
                 return;
             }
-            const frame = self.queue.items[self.queue_head];
-            const dead = self.destroyed;
             self.mutex.unlock();
-            const ok = !dead and writeAllNonblocking(self.fd, frame.bytes);
+            const msg: posix.msghdr_const = .{ .name = null, .namelen = 0, .iov = &iov, .iovlen = @intCast(count), .control = null, .controllen = 0, .flags = 0 };
+            const nosignal: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.NOSIGNAL else 0;
+            var sent = posix.sendmsg(self.fd, &msg, posix.MSG.DONTWAIT | nosignal) catch |e| switch (e) {
+                error.WouldBlock => {
+                    if (!self.write_armed) {
+                        self.write_armed = true;
+                        server.loop.enableWrite(self.fd, self.index, self.gen) catch self.terminate();
+                    }
+                    return;
+                },
+                else => {
+                    self.terminate();
+                    return;
+                },
+            };
+            // Pop what was fully written; callbacks run after the lock.
+            var done: [max_batch]Frame = undefined;
+            var n_done: usize = 0;
             self.mutex.lock();
-            self.queue_head += 1;
+            while (self.queue_head < self.queue.items.len) {
+                const f = &self.queue.items[self.queue_head];
+                const left = f.bytes.len - f.off;
+                if (sent < left) {
+                    f.off += sent;
+                    break;
+                }
+                sent -= left;
+                done[n_done] = f.*;
+                n_done += 1;
+                self.queue_head += 1;
+                self.buffered -= f.bytes.len;
+                if (f.is_close) {
+                    self.close_frame_sent = true;
+                    if ((self.close_frame_received or self.receiver_failed) and !self.destroyed) posix.shutdown(self.fd, .send) catch {};
+                }
+            }
             if (self.queue_head == self.queue.items.len) {
                 self.queue.clearRetainingCapacity();
                 self.queue_head = 0;
             }
-            self.buffered -= frame.bytes.len;
-            var shutdown_write = false;
-            if (ok and frame.is_close) {
-                self.close_frame_sent = true;
-                shutdown_write = self.close_frame_received or self.receiver_failed;
-            }
-            if (!ok) self.destroyLocked();
-            if (shutdown_write and !self.destroyed) posix.shutdown(self.fd, .send) catch {};
             self.mutex.unlock();
-            self.gpa.free(frame.bytes);
-            if (frame.cb) |cb| cb.func(cb.ctx, self, ok);
+            for (done[0..n_done]) |f| {
+                self.gpa.free(f.bytes);
+                if (f.cb) |cb| cb.func(cb.ctx, self, true);
+            }
         }
     }
 
-    fn runThunk(ctx: *anyopaque) void {
-        const self: *Conn = @ptrCast(@alignCast(ctx));
-        self.run();
-    }
-
-    fn run(self: *Conn) void {
-        var reader: Reader = .{ .conn = self };
-        // Freed before `release()` below: `self` may not outlive it.
-        const gpa = self.gpa;
-        defer {
-            reader.message.deinit(gpa);
-            reader.pending.deinit(gpa);
-        }
-        reader.feed(self.initial);
-        var buf: [16 * 1024]u8 = undefined;
-        while (true) {
-            self.mutex.lock();
-            const deadline = self.close_deadline;
-            const destroyed = self.destroyed;
-            self.mutex.unlock();
-            if (destroyed) break;
-            var timeout: i32 = -1;
-            if (deadline) |d| {
-                const remaining = d - std.time.milliTimestamp();
-                if (remaining <= 0) {
-                    self.terminate();
-                    break;
-                }
-                timeout = @intCast(@min(remaining, std.math.maxInt(i32)));
-            }
-            var fds = [_]posix.pollfd{.{ .fd = self.fd, .events = posix.POLL.IN, .revents = 0 }};
-            const ready = posix.poll(&fds, timeout) catch break;
-            if (ready == 0) continue;
-            const n = posix.read(self.fd, &buf) catch |e| switch (e) {
-                error.WouldBlock => continue,
-                else => break,
-            };
-            if (n == 0) break;
-            reader.feed(buf[0..n]);
-        }
-        // Socket closed: stop the writer, fail pending sends, emit 'close'.
+    /// Holding R and W: fail what is left, close the fd, emit 'close'.
+    fn teardown(self: *Conn) void {
+        const server = self.server.?;
         self.mutex.lock();
         self.reader_done = true;
-        self.destroyLocked();
+        _ = self.destroyLocked();
         self.state = .closed;
-        self.mutex.unlock();
-        if (self.writer) |t| t.join();
-        // Frames left behind (writer exited early) fail their callbacks.
-        self.mutex.lock();
         const pending = self.queue.items[self.queue_head..];
         const leftovers = self.gpa.dupe(Frame, pending) catch &.{};
         self.queue.clearRetainingCapacity();
@@ -525,8 +692,13 @@ pub const Conn = struct {
         }
         if (leftovers.len > 0) self.gpa.free(leftovers);
         posix.close(self.fd);
+        server.loop.freeSlot(self.index);
+        const gpa = self.gpa;
+        self.reader.message.deinit(gpa);
+        self.reader.pending.deinit(gpa);
         self.handler.on_close(self.handler.ctx, self, self.close_code, self.close_reason.items);
         self.release();
+        server.upgradedEnded();
     }
 
     /// Receiver error: close with `code` (no reason), emit 'error', ignore
@@ -667,7 +839,8 @@ const Reader = struct {
             const binary = opcode == 2;
             if (!binary and !std.unicode.utf8ValidateSlice(self.message.items)) return self.err(1007, true, "invalid UTF-8 sequence");
             self.conn.handler.on_message(self.conn.handler.ctx, self.conn, self.message.items, binary);
-            self.message.clearRetainingCapacity();
+            // Idle sockets keep no large message buffer.
+            if (self.message.capacity > 16 * 1024) self.message.clearAndFree(gpa) else self.message.clearRetainingCapacity();
             self.fragmented = 0;
             self.fragments = 0;
             self.total = 0;
