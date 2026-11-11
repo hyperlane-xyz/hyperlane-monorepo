@@ -112,15 +112,16 @@ Deploy authenticated GET clients before enabling the CCS whitelist:
 
 `tests/e2e/ccsAuthServer.mjs` runs the real CCS handlers behind local HTTPS, uploads
 four EVM/SVM fixtures to PostgreSQL, and checks unsigned reads and record restrictions.
-The harness constructs the service with the calldata lookup enabled.
+The harness constructs the service with the calldata lookup enabled. It also serves local
+JSON-RPC endpoints for an origin and a destination chain whose ICA routers are the
+service's registry routers: each EVM fixture gets an origin transaction whose mailbox
+dispatches the commitment and then its reveal, and the destination router derives the
+stored ICA. `fixtures.json` records each EVM fixture's `originTxHash`, and the harness
+checks a reveal lookup with it before printing `READY`.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover
 `127.0.0.1` and have `serverAuth` extended key usage. Ports 55440 and 55441 must be free.
-
-The reveal-lookup case of this manual harness predates the required
-`origin_tx_hash`: an allowed signer now also needs a hash, an origin receipt and
-registry ICA routers to get a 200. The 401/403 authentication cases are unaffected.
 
 From the repository root, with the SDK built:
 
@@ -139,7 +140,9 @@ CCS_E2E_FIXTURES="$CCS_E2E_DIR/fixtures.json" cargo test \
   -p relayer -p hyperlane-sealevel --lib ccs_e2e -- --ignored
 ```
 
-The POST test uses a real local EVM signer. The SVM test exercises the production GET
+The POST test uses a real local EVM signer. It sends each EVM fixture's
+`origin_tx_hash` and expects the bound calls, and without the hash expects HTTP 500 for
+allowed signers and 403 for others. The SVM test exercises the production GET
 client with valid pre-signed EVM fixtures and asserts its exact signing hash. Both check
 global and per-record authorization. These tests do not access production KMS or execute
 on-chain swaps. Stop the fixture server and disposable database afterward.
