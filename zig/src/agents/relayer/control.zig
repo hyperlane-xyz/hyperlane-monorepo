@@ -292,7 +292,7 @@ pub const Control = struct {
         defer current.deinit();
         var reserved = if (self.relay_reservation) |*reservation| try self.prepareContexts(lane, reservation.snapshot_rows.items(), null) else try self.snapshot.allocateRows(0);
         defer reserved.deinit();
-        self.snapshot.beginPublish();
+        self.snapshot.beginPolicyPublish();
         self.snapshot.swapLocked(&current);
         if (self.relay_reservation) |*reservation| std.mem.swap(queue_view.Rows, &reservation.snapshot_rows, &reserved);
         self.snapshot.finishPublish();
@@ -372,7 +372,7 @@ pub const Control = struct {
         defer current.deinit();
         var reserved = if (self.relay_reservation) |*reservation| try self.prepareContexts(lane, reservation.snapshot_rows.items(), replacements) else try self.snapshot.allocateRows(0);
         defer reserved.deinit();
-        self.snapshot.beginPublish();
+        self.snapshot.beginPolicyPublish();
         for (lane.origins, replacements) |*origin, *replacement| {
             if (replacement.* != null) std.mem.swap(?relay_policy.Policy, &origin.policy, replacement);
         }
@@ -894,16 +894,27 @@ fn queueRender(context: *anyopaque, a: A, domain: u32, cancel: Cancel) anyerror!
         defer a.free(body);
         return http.Response.init(a, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, body);
     };
-    var rows = try control.snapshot.capture(cancel);
-    defer rows.deinit();
-    const allocator = control.snapshot.renderAllocator();
-    const body = try renderSnapshot(allocator, rows.items(), cancel);
-    defer allocator.free(body);
-    var response = try http.Response.init(allocator, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, body);
-    errdefer response.deinit();
-    if (cancel.load(.acquire)) return error.RequestCancelled;
-    if (!control.snapshot.current(rows.generation)) return error.QueueViewChanged;
-    return response;
+    // Membership can advance during fresh Store reads. Discard the whole old
+    // response and retry a bounded capture; every successful response still
+    // passes the original generation/admission check under the same request.
+    var policy_generation: ?u64 = null;
+    for (0..3) |attempt| {
+        var rows = try control.snapshot.capture(cancel);
+        defer rows.deinit();
+        if (policy_generation) |original| {
+            if (rows.policy_generation != original) return error.QueueViewChanged;
+        } else policy_generation = rows.policy_generation;
+        const allocator = control.snapshot.renderAllocator();
+        const body = try renderSnapshot(allocator, rows.items(), cancel);
+        defer allocator.free(body);
+        var response = try http.Response.init(allocator, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, body);
+        errdefer response.deinit();
+        if (cancel.load(.acquire)) return error.RequestCancelled;
+        if (control.snapshot.current(rows.generation)) return response;
+        if (attempt == 2 or !control.snapshot.recapturable(&rows)) return error.QueueViewChanged;
+        response.deinit();
+    }
+    unreachable;
 }
 
 fn retryBroadcast(context: *anyopaque, _: A, uuid: []const u8, pattern: settings.MatchingList, cancel: Cancel) anyerror!api.RetryResult {

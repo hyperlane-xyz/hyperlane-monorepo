@@ -255,14 +255,14 @@ class Controls(unittest.TestCase):
                 with self.subTest(name=name, status=status), self.assertRaises(AssertionError):
                     c.native_test_results(log)
 
-    def test_admin_queue_view14_are_required_in_actual_native_census(self):
-        required = ('queue view cannot bypass startup cancellation halt or generation change', 'queue view concurrent captures cannot exceed original retained byte budget', 'queue view every allocation failure retires view rows captures and accounting', 'queue view render arena and owned response remain charged after membership retirement', 'queue view render quota allocation resize remap and failures release exact ownership', 'queue view retains retired message and charges every HTTP reference array', 'admin absent domain keeps bounded original response while configured view remains gated', 'admin queue observation progresses while destination mutation owner is held', 'admin queue policy publication owns contexts and leaves old captures immutable', 'admin queue response survives actor retirement and retains quota until actual response free', 'admin queue row and policy generation changes refuse after fresh store read without dangling actors', 'admin public authorized batch commits owned view rows without any later allocation', 'admin public reservation abort releases prepared rows and leaves current view untouched', 'admin public reservation allocation failures never partially publish or authorize')
-        self.assertEqual(len(c.NATIVE_REQUIRED), 68)
-        self.assertEqual(len(set(c.NATIVE_REQUIRED)), 68)
+    def test_admin_queue_view17_are_required_in_actual_native_census(self):
+        required = ('queue view cannot bypass startup cancellation halt or generation change', 'queue view concurrent captures cannot exceed original retained byte budget', 'queue view every allocation failure retires view rows captures and accounting', 'queue view render arena and owned response remain charged after membership retirement', 'queue view render quota allocation resize remap and failures release exact ownership', 'queue view retains retired message and charges every HTTP reference array', 'admin absent domain keeps bounded original response while configured view remains gated', 'admin queue observation progresses while destination mutation owner is held', 'admin queue policy publication owns contexts and leaves old captures immutable', 'admin queue response survives actor retirement and retains quota until actual response free', 'admin queue recaptures row churn but refuses policy halt and cancellation after fresh store reads', 'queue view recapture distinguishes membership churn from policy and admission revocation', 'admin queue repeated membership churn exhausts three fresh captures without stale response or quota leak', 'admin queue refuses policy publication between recapture eligibility and next capture', 'admin public authorized batch commits owned view rows without any later allocation', 'admin public reservation abort releases prepared rows and leaves current view untouched', 'admin public reservation allocation failures never partially publish or authorize')
+        self.assertEqual(len(c.NATIVE_REQUIRED), 71)
+        self.assertEqual(len(set(c.NATIVE_REQUIRED)), 71)
         self.assertTrue(set(required) <= set(c.NATIVE_REQUIRED))
         names = ['fixture.test.' + name for name in c.NATIVE_REQUIRED]
         log = '\n'.join(f'{i}/{len(names)} {name}...OK' for i, name in enumerate(names, 1))
-        self.assertEqual(c.native_test_results(log)['total'], 68)
+        self.assertEqual(c.native_test_results(log)['total'], 71)
         for name in required:
             for variant in ('missing', 'SKIP', 'FAIL', 'altered'):
                 selected = [row for row in names if row != 'fixture.test.' + name] if variant == 'missing' else list(names)

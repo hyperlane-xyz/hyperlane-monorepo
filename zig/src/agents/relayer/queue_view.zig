@@ -53,6 +53,7 @@ pub const Rows = struct {
     storage: []*Row,
     count: usize = 0,
     generation: u64 = 0,
+    policy_generation: u64 = 0,
     pub fn items(self: *const Rows) []*Row {
         return self.storage[0..self.count];
     }
@@ -89,6 +90,7 @@ pub const View = struct {
     mutex: std.Thread.Mutex = .{},
     rows: std.ArrayList(*Row) = .empty,
     generation: u64 = 0,
+    policy_generation: u64 = 0,
     valid: bool = false,
 
     pub fn bind(self: *View, budget: Budget, maximum_rows: usize, admission: Admission) void {
@@ -176,6 +178,7 @@ pub const View = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         self.generation +%= 1;
+        self.policy_generation +%= 1;
         self.valid = false;
     }
     /// Short publication transaction only: never allocate, read a Store or
@@ -184,6 +187,11 @@ pub const View = struct {
         self.mutex.lock();
         self.generation +%= 1;
         self.valid = false;
+    }
+    /// Policy/context revocation cannot be retried as ordinary membership churn.
+    pub fn beginPolicyPublish(self: *View) void {
+        self.beginPublish();
+        self.policy_generation +%= 1;
     }
     pub fn appendLocked(self: *View, row: *Row) void {
         std.debug.assert(!self.valid);
@@ -208,6 +216,7 @@ pub const View = struct {
         if (!self.valid or !(self.admission orelse return error.QueueViewUnavailable).allowed()) return error.QueueViewUnavailable;
         var result = try self.allocateRows(self.rows.items.len);
         result.generation = self.generation;
+        result.policy_generation = self.policy_generation;
         for (self.rows.items) |row| {
             row.retain();
             result.appendAssumeCapacity(row);
@@ -218,6 +227,15 @@ pub const View = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         return self.valid and self.generation == generation and (self.admission orelse return false).allowed();
+    }
+    /// Recapture only a newer, still-admitted membership epoch. Never cross a
+    /// policy/context invalidation, cancellation, quota error or halted owner.
+    pub fn recapturable(self: *View, rows: *const Rows) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.valid and self.generation != rows.generation and
+            self.policy_generation == rows.policy_generation and
+            (self.admission orelse return false).allowed();
     }
     /// Stable allocator context survives every HTTP Response until Server.stop
     /// joins workers and frees their output. Charges construction, not merely
@@ -494,4 +512,37 @@ test "queue view render quota allocation resize remap and failures release exact
     try std.testing.expectEqual(@as(usize, 16), budget.used);
     allocator.free(bytes);
     try std.testing.expectEqual(@as(usize, 0), budget.used);
+}
+
+test "queue view recapture distinguishes membership churn from policy and admission revocation" {
+    var budget: TestBudget = .{};
+    var ready = std.atomic.Value(bool).init(true);
+    var halt = std.atomic.Value(bool).init(false);
+    var cancel = std.atomic.Value(bool).init(false);
+    var view: View = .{ .allocator = std.testing.allocator };
+    defer view.deinit();
+    view.bind(budget.interface(), 1, .{ .ready = &ready, .halted = &halt });
+    try view.activate();
+    var rows = try view.capture(&cancel);
+    defer rows.deinit();
+    try std.testing.expect(!view.recapturable(&rows));
+    view.beginPublish();
+    view.finishPublish();
+    try std.testing.expect(!view.current(rows.generation));
+    try std.testing.expect(view.recapturable(&rows));
+    halt.store(true, .release);
+    try std.testing.expect(!view.recapturable(&rows));
+    halt.store(false, .release);
+    ready.store(false, .release);
+    try std.testing.expect(!view.recapturable(&rows));
+    ready.store(true, .release);
+    view.beginPolicyPublish();
+    view.finishPublish();
+    try std.testing.expect(!view.recapturable(&rows));
+    var next = try view.capture(&cancel);
+    defer next.deinit();
+    view.invalidate();
+    view.beginPublish();
+    view.finishPublish();
+    try std.testing.expect(!view.recapturable(&next));
 }

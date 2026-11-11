@@ -593,6 +593,54 @@ const SnapshotCaller = struct {
     }
 };
 
+const ChurningSnapshotBudget = struct {
+    view: *@import("agents/relayer/queue_view.zig").View,
+    original: @import("agents/relayer/queue_view.zig").Budget,
+    captures: usize = 0,
+    publications: usize = 0,
+    armed: bool = false,
+    policy_between_attempts: bool = false,
+    policy_publications: usize = 0,
+
+    fn reserve(context: *anyopaque, bytes: usize) bool {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        if (!self.original.reserve_fn(self.original.context, bytes)) return false;
+        // Capture reserves its reference array while holding View.mutex. The
+        // first render allocation runs outside both View and Store locks.
+        if (!self.view.mutex.tryLock()) {
+            self.captures += 1;
+            self.armed = true;
+            return true;
+        }
+        self.view.mutex.unlock();
+        if (self.armed) {
+            self.armed = false;
+            self.publications += 1;
+            self.view.beginPublish();
+            const row = self.view.removeLocked(0);
+            self.view.appendLocked(row);
+            self.view.finishPublish();
+        }
+        return true;
+    }
+    fn release(context: *anyopaque, bytes: usize) void {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        self.original.release_fn(self.original.context, bytes);
+        // The captured reference array retires after the stale response passed
+        // recapturable(), and before the next capture. Publish through the real
+        // policy API in precisely that otherwise-racy gap.
+        if (self.policy_between_attempts and self.captures == 1 and
+            bytes == @sizeOf(*@import("agents/relayer/queue_view.zig").Row) and
+            self.view.rows.items[0].references.load(.acquire) == 1)
+        {
+            self.policy_between_attempts = false;
+            self.policy_publications += 1;
+            self.view.beginPolicyPublish();
+            self.view.finishPublish();
+        }
+    }
+};
+
 fn waitFlag(flag: *const std.atomic.Value(bool)) !void {
     var timer = try std.time.Timer.start();
     while (!flag.load(.acquire)) {
@@ -601,9 +649,9 @@ fn waitFlag(flag: *const std.atomic.Value(bool)) !void {
     }
 }
 
-test "admin queue row and policy generation changes refuse after fresh store read without dangling actors" {
+test "admin queue recaptures row churn but refuses policy halt and cancellation after fresh store reads" {
     const a = std.testing.allocator;
-    for (0..3) |change| {
+    for (0..4) |change| {
         var temp = std.testing.tmpDir(.{});
         defer temp.cleanup();
         const path = try temporaryDatabase(a, &temp);
@@ -650,21 +698,84 @@ test "admin queue row and policy generation changes refuse after fresh store rea
             active.message.deinit();
             a.destroy(active);
         } else if (change == 1) {
-            // Same rows, policy generation changes; old in-flight read refuses.
-            fixture.control.snapshot.beginPublish();
+            // Actual policy publication revokes this in-flight read.
+            fixture.control.snapshot.beginPolicyPublish();
             fixture.control.snapshot.finishPublish();
-        } else {
+        } else if (change == 2) {
             fixture.owner.effects_halted.store(true, .release);
+        } else {
+            caller.cancel.store(true, .release);
         }
         gate.release.store(true, .release);
         gate_thread.join();
         gate_joined = true;
         reader.join();
         reader_joined = true;
-        try std.testing.expectEqual(error.QueueViewChanged, caller.failure.?);
-        try std.testing.expect(caller.response == null);
+        if (change == 0) {
+            try std.testing.expect(caller.failure == null);
+            try std.testing.expectEqual(@as(u16, 200), caller.response.?.status);
+            const parsed = try std.json.parseFromSlice(std.json.Value, a, caller.response.?.body, .{});
+            defer parsed.deinit();
+            try std.testing.expectEqual(@as(usize, 0), parsed.value.array.items.len);
+        } else {
+            try std.testing.expectEqual(if (change == 3) error.RequestCancelled else error.QueueViewChanged, caller.failure.?);
+            try std.testing.expect(caller.response == null);
+        }
         try std.testing.expectEqual(fixture.control.snapshot.retainedBytes(), fixture.owner.retained_bytes);
     }
+}
+
+test "admin queue repeated membership churn exhausts three fresh captures without stale response or quota leak" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const path = try temporaryDatabase(a, &temp);
+    defer a.free(path);
+    const fixture = try NativeFixture.init(a, path);
+    defer fixture.deinit(a);
+    const value = message(1);
+    try fixture.store.upsertMessage(value, 1, null);
+    _ = try fixture.addActive(value);
+    try fixture.drain();
+    const view = &fixture.control.snapshot;
+    const baseline = view.retainedBytes();
+    var churn: ChurningSnapshotBudget = .{ .view = view, .original = view.owner_budget.? };
+    view.owner_budget = .{ .context = &churn, .reserve_fn = ChurningSnapshotBudget.reserve, .release_fn = ChurningSnapshotBudget.release };
+    defer view.owner_budget = churn.original;
+    const queue = fixture.hub.queueOwner();
+    var cancel = std.atomic.Value(bool).init(false);
+    try std.testing.expectError(error.QueueViewChanged, queue.render_fn(queue.context, a, 2, &cancel));
+    try std.testing.expectEqual(@as(usize, 3), churn.captures);
+    try std.testing.expectEqual(@as(usize, 3), churn.publications);
+    try std.testing.expectEqual(baseline, view.retainedBytes());
+    try std.testing.expectEqual(baseline, fixture.owner.retained_bytes);
+}
+
+test "admin queue refuses policy publication between recapture eligibility and next capture" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const path = try temporaryDatabase(a, &temp);
+    defer a.free(path);
+    const fixture = try NativeFixture.init(a, path);
+    defer fixture.deinit(a);
+    const value = message(1);
+    try fixture.store.upsertMessage(value, 1, null);
+    _ = try fixture.addActive(value);
+    try fixture.drain();
+    const view = &fixture.control.snapshot;
+    const baseline = view.retainedBytes();
+    var churn: ChurningSnapshotBudget = .{ .view = view, .original = view.owner_budget.?, .policy_between_attempts = true };
+    view.owner_budget = .{ .context = &churn, .reserve_fn = ChurningSnapshotBudget.reserve, .release_fn = ChurningSnapshotBudget.release };
+    defer view.owner_budget = churn.original;
+    const queue = fixture.hub.queueOwner();
+    var cancel = std.atomic.Value(bool).init(false);
+    try std.testing.expectError(error.QueueViewChanged, queue.render_fn(queue.context, a, 2, &cancel));
+    try std.testing.expectEqual(@as(usize, 2), churn.captures);
+    try std.testing.expectEqual(@as(usize, 1), churn.publications);
+    try std.testing.expectEqual(@as(usize, 1), churn.policy_publications);
+    try std.testing.expectEqual(baseline, view.retainedBytes());
+    try std.testing.expectEqual(baseline, fixture.owner.retained_bytes);
 }
 
 test "admin queue response survives actor retirement and retains quota until actual response free" {
