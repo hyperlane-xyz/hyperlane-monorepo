@@ -58,7 +58,7 @@ describe('USDT Eclipse production manifest', () => {
         pino({ level: 'silent' }),
       );
     expect(() => construct(78_772_614_144n)).not.to.throw();
-    expect(() => construct(74_999_999_999n)).to.throw(
+    expect(() => construct(59_999_999_999n)).to.throw(
       'Consider reducing the targets',
     );
     const getWarpRoute = Sinon.stub(
@@ -174,7 +174,7 @@ describe('USDT Eclipse production manifest', () => {
           total + runtime.strategy.chains[chain].minAmount.target,
         0,
       ),
-    ).to.equal(75000);
+    ).to.equal(60000);
     for (const chain of strategyChains)
       expect(runtime.strategy.chains[chain].externalBridge).to.equal(
         'swapsxyz',
