@@ -232,9 +232,9 @@ def main():
     rust_cmd = ["cargo", f"+{args.rust_toolchain}", "build", "--manifest-path", "zig/reference/Cargo.toml", "--release", "--locked", "-j", "4"]
     if temporary:
         rust_cmd += ["--target-dir", str(Path(temporary.name) / "rust")]
-    zig_cmd = [args.zig, "build-exe", "-O", args.optimize, "--dep", "protocol",
+    zig_cmd = [args.zig, "build-exe", "-O", args.optimize, "--dep", "agents",
                "-Mroot=zig/bench/main.zig", "-O", args.optimize,
-               "-Mprotocol=zig/src/protocol/root.zig", "-lc", f"-femit-bin={zig}"]
+               "-Magents=zig/src/root.zig", "-lc", f"-femit-bin={zig}"]
     if temporary:
         zig_cmd += ["--cache-dir", str(Path(temporary.name) / "zig-local"),
                     "--global-cache-dir", str(Path(temporary.name) / "zig-global")]
@@ -267,6 +267,12 @@ def main():
     sources += [str(path.relative_to(ROOT)) for path in sorted((ROOT / "rust/main/hyperlane-core/src").rglob("*.rs"))]
     sources += ["rust/main/Cargo.toml", "rust/main/Cargo.lock", "rust/main/hyperlane-core/Cargo.toml"]
     sources = sorted(set(source+".gz" if (ROOT/(source+".gz")).exists() else source for source in sources))
+    if reference_lock.is_symlink() or not reference_lock.is_file():
+        raise ValueError("Restored reference Cargo lock must be a regular file")
+    with reference_lock.open("rb") as stream:
+        reference_lock_wire = stream.read(4 * 1024**2 + 1)
+    if len(reference_lock_wire) > 4 * 1024**2:
+        raise ValueError("Restored reference Cargo lock exceeds 4 MiB")
     metadata = {
         "started_at_utc": datetime.now(timezone.utc).isoformat(),
         "base_commit": git("rev-parse", "HEAD"), "git_status": git("status", "--short"),
@@ -274,7 +280,9 @@ def main():
         "cpu": command(["sysctl", "-n", "machdep.cpu.brand_string"]).stdout.strip() if sys.platform == "darwin" else platform.processor(),
         "zig_version": command([args.zig, "version"]).stdout.strip(),
         "rust_version": command(["rustc", f"+{args.rust_toolchain}", "--version"]).stdout.strip(),
-        "builds": build_stats, "rustflags": env["RUSTFLAGS"], "reference_lock_seeded_from_production": seeded_lock, "zig_optimize": args.optimize, "rust_release_overflow_checks": False,
+        "builds": build_stats, "rustflags": env["RUSTFLAGS"], "reference_lock": {"path": "zig/reference/Cargo.lock", "bytes": len(reference_lock_wire),
+                           "sha256_chunks": digest_chunks(reference_lock_wire),
+                           "restored_by": "zig/tools/fixture_pack.py restore-locks"}, "zig_optimize": args.optimize, "rust_release_overflow_checks": False,
         "allocator": {"rust": "Rust system allocator", "zig": "std.heap.smp_allocator"},
         "sample_count": args.samples, "execution": "alternating language order; one warmup each; fresh process per sample",
         "binary_sizes": {"rust_reference": rust.stat().st_size, "zig_benchmark": zig.stat().st_size},

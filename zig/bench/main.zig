@@ -1,6 +1,6 @@
 //! Kernel benchmarks and differential adapter; no network or production mutations.
 const std = @import("std");
-const protocol = @import("protocol");
+const protocol = @import("agents").protocol;
 const allocator = std.heap.smp_allocator;
 
 fn emit(comptime format: []const u8, args: anytype) !void {

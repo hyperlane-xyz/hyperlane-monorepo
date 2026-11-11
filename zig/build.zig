@@ -19,16 +19,11 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "agents", .module = module }},
     }) });
     b.installArtifact(exe);
-    const protocol = b.createModule(.{
-        .root_source_file = b.path("src/protocol/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
     const bench = b.addExecutable(.{ .name = "zig-agent-bench", .root_module = b.createModule(.{
         .root_source_file = b.path("bench/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "protocol", .module = protocol }},
+        .imports = &.{.{ .name = "agents", .module = module }},
     }) });
     b.installArtifact(bench);
     b.step("benchmark-driver", "Build only the protocol benchmark/reference driver").dependOn(&b.addInstallArtifact(bench, .{}).step);
