@@ -10,8 +10,8 @@ use crate::adapter::AdaptsChain;
 
 use super::tests_common::adapter_config;
 
-#[test]
-fn test_configuration_fields() {
+#[tokio::test]
+async fn test_configuration_fields() {
     // given
     let expected_estimated_block_time = Duration::from_secs_f64(2.6);
     let expected_max_batch_size = 43;
@@ -50,7 +50,7 @@ fn test_configuration_fields() {
         ignore_reorg_reports: false,
         native_token: Default::default(),
     };
-    let adapter = adapter_config(conf);
+    let adapter = adapter_config(conf).await;
 
     // when
     let estimated_block_time = adapter.estimated_block_time();

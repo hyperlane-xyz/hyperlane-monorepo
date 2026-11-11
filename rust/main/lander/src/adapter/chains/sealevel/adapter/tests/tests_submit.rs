@@ -8,17 +8,13 @@ use async_trait::async_trait;
 use futures_util::future::join_all;
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 use hyperlane_sealevel::{
-    PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander, SealevelTransactionFormat,
+    PriorityFeeOracle, SealevelProviderForLander, SealevelSigner, SealevelTransactionFormat,
     SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{
-    account::Account,
-    instruction::Instruction,
-    message::Message,
-    pubkey::Pubkey,
-    signature::{Signature, Signer},
-    transaction::Transaction as LegacyTransaction,
+    account::Account, instruction::Instruction, message::Message, pubkey::Pubkey,
+    signature::Signature, transaction::Transaction as LegacyTransaction,
 };
 
 use crate::adapter::AdaptsChain;
@@ -62,7 +58,7 @@ impl SealevelProviderForLander for YieldingEstimateProvider {
     async fn get_estimated_costs_for_instruction(
         &self,
         _instruction: Instruction,
-        _payer: &SealevelKeypair,
+        _payer: &SealevelSigner,
         _tx_submitter: Arc<dyn TransactionSubmitter>,
         _priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         _alt_addresses: &SealevelTransactionFormat,
@@ -85,11 +81,11 @@ impl SealevelProviderForLander for YieldingEstimateProvider {
         _compute_unit_limit: u32,
         _compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &'a SealevelKeypair,
+        payer: &'a SealevelSigner,
         _tx_submitter: Arc<dyn TransactionSubmitter>,
         _sign: bool,
         _alt_addresses: &SealevelTransactionFormat,
-        _additional_signers: &'a [&'a SealevelKeypair],
+        _additional_signers: &'a [&'a SealevelSigner],
     ) -> ChainResult<SealevelTxType> {
         Ok(SealevelTxType::Legacy(LegacyTransaction::new_unsigned(
             Message::new(&[instruction], Some(&payer.pubkey())),

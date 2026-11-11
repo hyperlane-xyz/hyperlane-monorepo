@@ -9,10 +9,7 @@ use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    instruction::AccountMeta,
-    message::Message,
-    pubkey::Pubkey,
-    signature::{Signature, Signer},
+    instruction::AccountMeta, message::Message, pubkey::Pubkey, signature::Signature,
 };
 use solana_transaction_status::{
     TransactionConfirmationStatus, TransactionStatus as SealevelTransactionStatus,
@@ -27,7 +24,7 @@ use hyperlane_base::{
     settings::{
         parser::h_sealevel::{
             client_builder::SealevelRpcClientBuilder, ConnectionConf, PriorityFeeOracle,
-            SealevelKeypair, TransactionSubmitter,
+            SealevelSigner, TransactionSubmitter,
         },
         BuildableWithSignerConf, ChainConf, ChainConnectionConf, RawChainConf, SignerConf,
     },
@@ -42,7 +39,7 @@ use hyperlane_sealevel::{
 use crate::{
     adapter::{
         chains::sealevel::{
-            conf::{create_identity_keypair, create_keypair, get_connection_conf},
+            conf::{create_identity_signer, create_signer, get_connection_conf},
             payload::processed_account,
             transaction::{Precursor, TransactionFactory, Update},
             SealevelTxPrecursor,
@@ -66,10 +63,10 @@ const MAX_CONCURRENT_ESTIMATES: usize = 16;
 pub struct SealevelAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
-    keypair: SealevelKeypair,
+    keypair: SealevelSigner,
     /// Optional identity keypair for co-signing transactions when a TrustedRelayer ISM is used.
     /// Only set when the identity key differs from the payer key.
-    identity: Option<SealevelKeypair>,
+    identity: Option<SealevelSigner>,
     client: Arc<dyn SubmitSealevelRpc>,
     provider: Arc<dyn SealevelProviderForLander>,
     oracle: Arc<dyn PriorityFeeOracle>,
@@ -81,7 +78,7 @@ pub struct SealevelAdapter {
 }
 
 impl SealevelAdapter {
-    pub fn new(
+    pub async fn new(
         conf: ChainConf,
         raw_conf: RawChainConf,
         metrics: &CoreMetrics,
@@ -124,9 +121,10 @@ impl SealevelAdapter {
             oracle,
             submitter,
         )
+        .await
     }
 
-    fn new_internal(
+    async fn new_internal(
         conf: ChainConf,
         _raw_conf: RawChainConf,
         client: Arc<dyn SubmitSealevelRpc>,
@@ -136,8 +134,8 @@ impl SealevelAdapter {
     ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
-        let keypair = create_keypair(&conf)?;
-        let identity = create_identity_keypair(&conf, &keypair)?;
+        let keypair = create_signer(&conf).await?;
+        let identity = create_identity_signer(&conf, &keypair).await?;
         Ok(Self {
             estimated_block_time,
             max_batch_size,
@@ -154,7 +152,7 @@ impl SealevelAdapter {
 
     #[cfg(test)]
     fn new_internal_default_with_identity(
-        identity: SealevelKeypair,
+        identity: SealevelSigner,
         client: Arc<dyn SubmitSealevelRpc>,
         provider: Arc<dyn SealevelProviderForLander>,
         oracle: Arc<dyn PriorityFeeOracle>,
@@ -163,7 +161,7 @@ impl SealevelAdapter {
         Self {
             estimated_block_time: Duration::from_secs(1),
             max_batch_size: 1,
-            keypair: SealevelKeypair::default(),
+            keypair: SealevelSigner::default(),
             identity: Some(identity),
             provider,
             client,
@@ -203,7 +201,7 @@ impl SealevelAdapter {
         Self {
             estimated_block_time,
             max_batch_size: 1,
-            keypair: SealevelKeypair::default(),
+            keypair: SealevelSigner::default(),
             identity: None,
             provider,
             client,
@@ -273,7 +271,7 @@ impl SealevelAdapter {
             estimate,
         } = precursor;
 
-        let additional_signers: Vec<&SealevelKeypair> = self
+        let additional_signers: Vec<&SealevelSigner> = self
             .identity
             .iter()
             .filter(|signer| {

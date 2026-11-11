@@ -45,11 +45,9 @@ impl AdapterFactory {
                 )
                 .await?,
             ),
-            ChainConnectionConf::Sealevel(_) => Arc::new(SealevelAdapter::new(
-                conf.clone(),
-                raw_conf.clone(),
-                core_metrics,
-            )?),
+            ChainConnectionConf::Sealevel(_) => {
+                Arc::new(SealevelAdapter::new(conf.clone(), raw_conf.clone(), core_metrics).await?)
+            }
             ChainConnectionConf::Cosmos(_) => {
                 Arc::new(CosmosAdapter::new(conf.clone(), raw_conf.clone()))
             }

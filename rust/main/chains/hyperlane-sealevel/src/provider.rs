@@ -16,7 +16,6 @@ use solana_sdk::message::AddressLookupTableAccount;
 use solana_sdk::message::{Message, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_sdk::signer::Signer;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedTransactionWithStatusMeta, UiTransaction,
@@ -36,6 +35,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 
 use crate::alt::{fetch_alt, NonEmptyAltAddresses};
+use crate::async_signer::transaction_signatures;
 use crate::error::HyperlaneSealevelError;
 use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use crate::priority_fee::PriorityFeeOracle;
@@ -43,7 +43,7 @@ use crate::provider::recipient::RecipientProvider;
 use crate::provider::transaction::{parsed_message, txn};
 use crate::tx_type::SealevelTxType;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
-use crate::{ConnectionConf, SealevelKeypair, SealevelTransactionFormat, TransactionSubmitter};
+use crate::{ConnectionConf, SealevelSigner, SealevelTransactionFormat, TransactionSubmitter};
 use hyperlane_core::utils::read_concurrently;
 
 mod recipient;
@@ -60,6 +60,9 @@ const PRIORITY_FEE_MULTIPLIER_DENOMINATOR: u64 = 100;
 
 /// The max amount of compute units for a transaction.
 const MAX_COMPUTE_UNITS: u32 = 1_400_000;
+
+// Bound remote signing work when KMS latency repeatedly outlasts the blockhash.
+const MAX_BLOCKHASH_SIGNING_ATTEMPTS: usize = 3;
 
 /// Transaction cost estimate
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq)]
@@ -90,11 +93,11 @@ pub trait SealevelProviderForLander: Send + Sync {
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &'a SealevelKeypair,
+        payer: &'a SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_addresses: &SealevelTransactionFormat,
-        additional_signers: &'a [&'a SealevelKeypair],
+        additional_signers: &'a [&'a SealevelSigner],
     ) -> ChainResult<SealevelTxType>;
 
     /// Estimates cost for Sealevel instruction.
@@ -102,7 +105,7 @@ pub trait SealevelProviderForLander: Send + Sync {
     async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         alt_addresses: &SealevelTransactionFormat,
@@ -163,11 +166,11 @@ impl SealevelProviderForLander for SealevelProvider {
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &'a SealevelKeypair,
+        payer: &'a SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_addresses: &SealevelTransactionFormat,
-        additional_signers: &'a [&'a SealevelKeypair],
+        additional_signers: &'a [&'a SealevelSigner],
     ) -> ChainResult<SealevelTxType> {
         let instructions = vec![
             // Set the compute unit limit.
@@ -181,76 +184,43 @@ impl SealevelProviderForLander for SealevelProvider {
             instruction,
         ];
 
-        // Get blockhash for signed transactions
-        let recent_blockhash = if sign {
-            // Getting the finalized blockhash eliminates the chance the blockhash
-            // gets reorged out, causing the tx to be invalid. The tradeoff is this
-            // will cause the tx to expire in about 47 seconds (instead of the typical 60).
-            self.rpc_client()
-                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
-                .await
-                .map_err(ChainCommunicationError::from_other)?
-        } else {
-            Hash::default()
-        };
-
-        match alt_addresses {
+        // Fetch ALTs before acquiring the blockhash so their latency does not
+        // consume the signing window. Simulation keeps the default hash.
+        let mut message = match alt_addresses {
             SealevelTransactionFormat::V0 { alt_addresses } => {
-                // Lazily fetch any ALTs not already cached, preserving config order so
-                // account indexes stay deterministic across runs.
                 let alt_accounts = self.get_or_fetch_alts(alt_addresses).await?;
-
-                let message = MessageV0::try_compile(
-                    &payer.pubkey(),
-                    &instructions,
-                    alt_accounts.as_ref(),
-                    recent_blockhash,
+                VersionedMessage::V0(
+                    MessageV0::try_compile(
+                        &payer.pubkey(),
+                        &instructions,
+                        alt_accounts.as_ref(),
+                        Hash::default(),
+                    )
+                    .map_err(ChainCommunicationError::from_other)?,
                 )
-                .map_err(ChainCommunicationError::from_other)?;
-
-                let versioned_tx = if sign {
-                    // Build signer list after all awaits to avoid Send issues with &dyn Signer.
-                    let all_signers: Vec<&dyn Signer> =
-                        std::iter::once(payer.keypair() as &dyn Signer)
-                            .chain(
-                                additional_signers
-                                    .iter()
-                                    .map(|k| k.keypair() as &dyn Signer),
-                            )
-                            .collect();
-                    VersionedTransaction::try_new(VersionedMessage::V0(message), &all_signers)
-                        .map_err(ChainCommunicationError::from_other)?
-                } else {
-                    let num_required_signatures = message.header.num_required_signatures as usize;
-                    VersionedTransaction {
-                        signatures: vec![Signature::default(); num_required_signatures],
-                        message: VersionedMessage::V0(message),
-                    }
-                };
-
-                Ok(SealevelTxType::Versioned(versioned_tx))
             }
             SealevelTransactionFormat::Legacy => {
-                // No ALT - use pure legacy Transaction (NOT wrapped in VersionedTransaction)
-                let message = Message::new(&instructions, Some(&payer.pubkey()));
-                let legacy_tx = if sign {
-                    // Build signer list after all awaits to avoid Send issues with &dyn Signer.
-                    let all_signers: Vec<&dyn Signer> =
-                        std::iter::once(payer.keypair() as &dyn Signer)
-                            .chain(
-                                additional_signers
-                                    .iter()
-                                    .map(|k| k.keypair() as &dyn Signer),
-                            )
-                            .collect();
-                    Transaction::new(&all_signers, message, recent_blockhash)
-                } else {
-                    Transaction::new_unsigned(message)
-                };
-
-                Ok(SealevelTxType::Legacy(legacy_tx))
+                VersionedMessage::Legacy(Message::new(&instructions, Some(&payer.pubkey())))
             }
-        }
+        };
+        let signatures = if sign {
+            self.sign_with_fresh_blockhash(&mut message, payer, additional_signers)
+                .await?
+        } else {
+            vec![Signature::default(); usize::from(message.header().num_required_signatures)]
+        };
+
+        // Preserve legacy transactions for chains that do not support v0.
+        Ok(match message {
+            VersionedMessage::Legacy(message) => SealevelTxType::Legacy(Transaction {
+                signatures,
+                message,
+            }),
+            VersionedMessage::V0(message) => SealevelTxType::Versioned(VersionedTransaction {
+                signatures,
+                message: VersionedMessage::V0(message),
+            }),
+        })
     }
 
     /// Gets the estimated costs for a given instruction.
@@ -259,7 +229,7 @@ impl SealevelProviderForLander for SealevelProvider {
     async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         alt_addresses: &SealevelTransactionFormat,
@@ -447,6 +417,32 @@ impl SealevelProvider {
         }
     }
 
+    /// Sign with a finalized blockhash and verify freshness after signing.
+    /// Re-sign every required account if signing outlasts the blockhash window.
+    async fn sign_with_fresh_blockhash(
+        &self,
+        message: &mut VersionedMessage,
+        payer: &SealevelSigner,
+        additional_signers: &[&SealevelSigner],
+    ) -> ChainResult<Vec<Signature>> {
+        for _ in 0..MAX_BLOCKHASH_SIGNING_ATTEMPTS {
+            let blockhash = self
+                .rpc_client()
+                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
+                .await?;
+            message.set_recent_blockhash(blockhash);
+            let signatures = transaction_signatures(message, payer, additional_signers)
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
+            if self.rpc_client().is_blockhash_valid(blockhash).await? {
+                return Ok(signatures);
+            }
+        }
+        Err(ChainCommunicationError::from_other_str(&format!(
+            "Blockhash expired during signing after {MAX_BLOCKHASH_SIGNING_ATTEMPTS} attempts"
+        )))
+    }
+
     /// Lazily fetches each ALT from the chain if not already cached.
     ///
     /// Order is preserved: `MessageV0::try_compile` assigns account indexes by ALT
@@ -594,17 +590,17 @@ impl SealevelProvider {
     /// Returns `SealevelTxType::Versioned` with ALTs if `alt_addresses` is non-empty,
     /// or `SealevelTxType::Legacy` otherwise.
     ///
-    /// `additional_signers` are extra keypairs that must co-sign the transaction (e.g. the
-    /// identity keypair when a TrustedRelayer ISM is in use). Pass an empty slice when not
+    /// `additional_signers` are extra signers that must co-sign the transaction (e.g. the
+    /// identity signer when a TrustedRelayer ISM is in use). Pass an empty slice when not
     /// needed.
     pub async fn build_estimated_tx_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         alt_addresses: SealevelTransactionFormat,
-        additional_signers: &[&SealevelKeypair],
+        additional_signers: &[&SealevelSigner],
     ) -> ChainResult<SealevelTxType> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -626,70 +622,17 @@ impl SealevelProvider {
             "Got compute units and compute unit price / priority fee for transaction"
         );
 
-        if additional_signers.is_empty() {
-            // Fast path: single signer — reuse the existing signing path.
-            let tx = self
-                .create_transaction_for_instruction(
-                    compute_units,
-                    compute_unit_price_micro_lamports,
-                    instruction,
-                    payer,
-                    tx_submitter,
-                    true,
-                    &alt_addresses,
-                    &[],
-                )
-                .await?;
-            return Ok(tx);
-        }
-
-        // Multi-signer path: build unsigned, then sign with all keypairs.
-        let unsigned_tx = self
-            .create_transaction_for_instruction(
-                compute_units,
-                compute_unit_price_micro_lamports,
-                instruction,
-                payer,
-                tx_submitter,
-                false,
-                &alt_addresses,
-                &[],
-            )
-            .await?;
-
-        let recent_blockhash = self
-            .rpc_client()
-            .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-
-        let all_signers: Vec<&dyn Signer> = std::iter::once(payer.keypair() as &dyn Signer)
-            .chain(
-                additional_signers
-                    .iter()
-                    .map(|k| k.keypair() as &dyn Signer),
-            )
-            .collect();
-
-        let signed_tx = match unsigned_tx {
-            SealevelTxType::Legacy(mut tx) => {
-                tx.sign(&all_signers, recent_blockhash);
-                SealevelTxType::Legacy(tx)
-            }
-            SealevelTxType::Versioned(vtx) => {
-                // Rebuild with the real blockhash then sign with all keypairs.
-                let mut message = vtx.message;
-                match &mut message {
-                    VersionedMessage::V0(msg) => msg.recent_blockhash = recent_blockhash,
-                    VersionedMessage::Legacy(msg) => msg.recent_blockhash = recent_blockhash,
-                }
-                let signed = VersionedTransaction::try_new(message, &all_signers)
-                    .map_err(ChainCommunicationError::from_other)?;
-                SealevelTxType::Versioned(signed)
-            }
-        };
-
-        Ok(signed_tx)
+        self.create_transaction_for_instruction(
+            compute_units,
+            compute_unit_price_micro_lamports,
+            instruction,
+            payer,
+            tx_submitter,
+            true,
+            &alt_addresses,
+            additional_signers,
+        )
+        .await
     }
 
     async fn block_info_by_height(&self, slot: u64) -> Result<BlockInfo, ChainCommunicationError> {
@@ -712,7 +655,7 @@ impl SealevelProvider {
     /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
-        payer: &SealevelKeypair,
+        payer: &SealevelSigner,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
         // If there's no data at all, default to an empty vec.
@@ -925,6 +868,7 @@ impl HyperlaneProvider for SealevelProvider {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::Mutex;
 
     use hyperlane_core::{rpc_clients::FallbackProvider, KnownHyperlaneDomain};
@@ -951,6 +895,10 @@ mod tests {
         account_gate: Option<Arc<tokio::sync::Notify>>,
         account_waiters: Arc<std::sync::atomic::AtomicUsize>,
         fail_accounts: Arc<std::sync::atomic::AtomicBool>,
+        blockhashes: Arc<Mutex<VecDeque<Hash>>>,
+        blockhash_validity: Arc<Mutex<VecDeque<bool>>>,
+        fail_blockhash: Arc<std::sync::atomic::AtomicBool>,
+        fail_validity: Arc<std::sync::atomic::AtomicBool>,
     }
 
     #[async_trait]
@@ -965,6 +913,25 @@ mod tests {
             let response = match &request {
                 RpcRequest::GetSlot => json!(self.slot),
                 RpcRequest::GetVersion => json!({"solana-core": "3.0.0", "feature-set": 1}),
+                RpcRequest::GetLatestBlockhash => {
+                    if self
+                        .fail_blockhash
+                        .load(std::sync::atomic::Ordering::SeqCst)
+                    {
+                        return Err(std::io::Error::other("blockhash RPC unavailable").into());
+                    }
+                    let hash = self.blockhashes.lock().unwrap().pop_front().unwrap();
+                    json!({"context": {"slot": self.slot}, "value": {
+                        "blockhash": hash.to_string(), "lastValidBlockHeight": 1000,
+                    }})
+                }
+                RpcRequest::IsBlockhashValid => {
+                    if self.fail_validity.load(std::sync::atomic::Ordering::SeqCst) {
+                        return Err(std::io::Error::other("freshness RPC unavailable").into());
+                    }
+                    let valid = self.blockhash_validity.lock().unwrap().pop_front().unwrap();
+                    json!({"context": {"slot": self.slot}, "value": valid})
+                }
                 RpcRequest::GetAccountInfo => {
                     if let Some(gate) = &self.account_gate {
                         let wait = gate.notified();
@@ -1055,6 +1022,220 @@ mod tests {
         .expect("test fixture should be valid")
     }
 
+    struct SigningFixture {
+        provider: Arc<SealevelProvider>,
+        sender: RecordingRpcSender,
+        payer: SealevelSigner,
+        co_signer: SealevelSigner,
+        instruction: Instruction,
+        format: SealevelTransactionFormat,
+        expected_hash: Hash,
+    }
+
+    fn signing_fixture(versioned: bool, validity: &[bool]) -> SigningFixture {
+        let payer = SealevelSigner::default();
+        let co_signer = SealevelSigner::default();
+        let account = Pubkey::new_unique();
+        let table = Pubkey::new_unique();
+        let hashes: Vec<_> = validity.iter().map(|_| Hash::new_unique()).collect();
+        let sender = RecordingRpcSender {
+            slot: 100,
+            blockhashes: Arc::new(Mutex::new(hashes.clone().into())),
+            blockhash_validity: Arc::new(Mutex::new(validity.to_vec().into())),
+            ..Default::default()
+        };
+        sender
+            .accounts
+            .lock()
+            .unwrap()
+            .insert(table, alt_fixture(vec![account]));
+        SigningFixture {
+            provider: Arc::new(recording_provider(sender.clone())),
+            sender,
+            instruction: Instruction::new_with_bytes(
+                Pubkey::new_unique(),
+                &[],
+                vec![
+                    AccountMeta::new_readonly(co_signer.pubkey(), true),
+                    AccountMeta::new(account, false),
+                ],
+            ),
+            payer,
+            co_signer,
+            format: if versioned {
+                SealevelTransactionFormat::V0 {
+                    alt_addresses: NonEmptyAltAddresses::try_from(vec![table]).unwrap(),
+                }
+            } else {
+                SealevelTransactionFormat::Legacy
+            },
+            expected_hash: *hashes.last().unwrap(),
+        }
+    }
+
+    impl SigningFixture {
+        async fn create(&self, sign: bool) -> ChainResult<SealevelTxType> {
+            self.provider
+                .create_transaction_for_instruction(
+                    100_000,
+                    0,
+                    self.instruction.clone(),
+                    &self.payer,
+                    Arc::new(crate::tx_submitter::RpcTransactionSubmitter::new(
+                        self.provider.clone(),
+                    )),
+                    sign,
+                    &self.format,
+                    &[&self.co_signer],
+                )
+                .await
+        }
+
+        fn calls(&self, request: RpcRequest) -> usize {
+            self.sender
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(actual, _)| *actual == request)
+                .count()
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_returns_verified_legacy_and_v0_signatures_after_blockhash_refresh() {
+        for versioned in [false, true] {
+            for estimated in [false, true] {
+                for validity in [vec![true], vec![false, true]] {
+                    let fixture = signing_fixture(versioned, &validity);
+                    let tx = if estimated {
+                        fixture
+                            .provider
+                            .build_estimated_tx_for_instruction(
+                                fixture.instruction.clone(),
+                                &fixture.payer,
+                                Arc::new(crate::tx_submitter::RpcTransactionSubmitter::new(
+                                    fixture.provider.clone(),
+                                )),
+                                Arc::new(crate::priority_fee::ConstantPriorityFeeOracle::new(0)),
+                                fixture.format.clone(),
+                                &[&fixture.co_signer],
+                            )
+                            .await
+                            .unwrap()
+                    } else {
+                        fixture.create(true).await.unwrap()
+                    };
+                    assert_eq!(tx.blockhash(), fixture.expected_hash);
+                    assert_eq!(tx.is_versioned(), versioned);
+                    match tx {
+                        SealevelTxType::Legacy(tx) => {
+                            assert_eq!(tx.signatures.len(), 2);
+                            tx.verify().unwrap();
+                        }
+                        SealevelTxType::Versioned(tx) => {
+                            assert_eq!(tx.signatures.len(), 2);
+                            tx.verify_and_hash_message().unwrap();
+                            assert_eq!(tx.message.address_table_lookups().unwrap().len(), 1);
+                        }
+                    }
+                    assert_eq!(
+                        fixture.calls(RpcRequest::GetLatestBlockhash),
+                        validity.len()
+                    );
+                    assert_eq!(fixture.calls(RpcRequest::IsBlockhashValid), validity.len());
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_bounds_repeated_blockhash_expiration() {
+        for versioned in [false, true] {
+            let fixture = signing_fixture(versioned, &[false; MAX_BLOCKHASH_SIGNING_ATTEMPTS]);
+            let error = fixture.create(true).await.unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Blockhash expired during signing"));
+            assert_eq!(
+                fixture.calls(RpcRequest::GetLatestBlockhash),
+                MAX_BLOCKHASH_SIGNING_ATTEMPTS
+            );
+            assert_eq!(
+                fixture.calls(RpcRequest::IsBlockhashValid),
+                MAX_BLOCKHASH_SIGNING_ATTEMPTS
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_keeps_unsigned_simulation_free_of_blockhash_rpcs() {
+        for versioned in [false, true] {
+            let fixture = signing_fixture(versioned, &[true]);
+            let tx = fixture.create(false).await.unwrap();
+            assert_eq!(tx.blockhash(), Hash::default());
+            assert_eq!(fixture.calls(RpcRequest::GetLatestBlockhash), 0);
+            assert_eq!(fixture.calls(RpcRequest::IsBlockhashValid), 0);
+            let signatures = match tx {
+                SealevelTxType::Legacy(tx) => tx.signatures,
+                SealevelTxType::Versioned(tx) => tx.signatures,
+            };
+            assert_eq!(signatures, vec![Signature::default(); 2]);
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_propagates_blockhash_and_freshness_rpc_failures() {
+        for versioned in [false, true] {
+            for fail_fetch in [true, false] {
+                let fixture = signing_fixture(versioned, &[true]);
+                if fail_fetch {
+                    fixture
+                        .sender
+                        .fail_blockhash
+                        .store(true, std::sync::atomic::Ordering::SeqCst);
+                } else {
+                    fixture
+                        .sender
+                        .fail_validity
+                        .store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+                let error = fixture.create(true).await.unwrap_err().to_string();
+                assert!(error.contains(if fail_fetch {
+                    "blockhash RPC unavailable"
+                } else {
+                    "freshness RPC unavailable"
+                }));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_propagates_signer_errors_without_refreshing() {
+        let fixture = signing_fixture(false, &[true]);
+        let error = fixture
+            .provider
+            .create_transaction_for_instruction(
+                100_000,
+                0,
+                fixture.instruction.clone(),
+                &fixture.payer,
+                Arc::new(crate::tx_submitter::RpcTransactionSubmitter::new(
+                    fixture.provider.clone(),
+                )),
+                true,
+                &fixture.format,
+                &[],
+            )
+            .await
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Missing required Sealevel signer"));
+        assert_eq!(fixture.calls(RpcRequest::GetLatestBlockhash), 1);
+        assert_eq!(fixture.calls(RpcRequest::IsBlockhashValid), 0);
+    }
+
     struct GatedPriorityFeeOracle {
         barrier: Arc<tokio::sync::Barrier>,
         gate: Arc<tokio::sync::Notify>,
@@ -1099,7 +1280,7 @@ mod tests {
                 finished: finished.clone(),
                 fail: oracle_failure,
             });
-            let payer = SealevelKeypair::default();
+            let payer = SealevelSigner::default();
             let read = provider.get_estimated_costs_for_instruction(
                 Instruction {
                     program_id: Pubkey::new_unique(),
