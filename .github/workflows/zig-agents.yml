@@ -1661,14 +1661,18 @@ jobs:
               need(policy['source_url']=='https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz'and policy['member']=='package/pnpm','Exact existing amd64 release required')
               root=base/'ziggy-paired-pnpm-12.3.0';root.mkdir(mode=0o700);identity=(root.stat().st_dev,root.stat().st_ino)
               archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False
-              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}
+              home=root/'home';home_identity=None
+              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(home)}
               def owned():
                   row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')
+              def owned_home():
+                  owned();row=home.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==home_identity,'Setup HOME identity changed')
               def actual():
                   need(binary.is_file()and not binary.is_symlink(),'Native pnpm file required');wire=binary.read_bytes()
                   need(len(wire)==policy['bytes']and hashlib.sha256(wire).hexdigest()==policy['sha256']and wire[:6]==b'\x7fELF\x02\x01'and int.from_bytes(wire[18:20],'little')==62,'Native pnpm identity differs')
                   return {'path':str(binary),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
               try:
+                  home.mkdir(mode=0o700);home_identity=(home.stat().st_dev,home.stat().st_ino)
                   curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')
                   with archive.open('xb')as output:
                       run_owned([curl,'-q','--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--retry','0','--connect-timeout','15','--max-time','60','--max-filesize',str(policy['archive_bytes']),'--output','-',policy['source_url']],clean,65,output,policy['archive_bytes'])
@@ -1677,12 +1681,15 @@ jobs:
                   before=actual()
                   with version.open('xb')as output:run_owned([str(binary),'--version'],clean,10,output,128)
                   need(version.read_bytes().strip()==b'12.3.0'and actual()==before,'Native pnpm version or postflight differs')
-                  owned();archive.unlink();version.unlink()
+                  owned_home();shutil.rmtree(home);owned();archive.unlink();version.unlink()
                   need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')
                   with Path(environ['GITHUB_PATH']).open('a')as output:output.write(str(root)+'\n')
                   passed=True;print(json.dumps({'native_pnpm':before,'version':'12.3.0','generated_launcher_used':False},sort_keys=True))
               finally:
-                  if not passed:owned();shutil.rmtree(root)
+                  if not passed:
+                      owned()
+                      if home.exists()or home.is_symlink():owned_home()
+                      shutil.rmtree(root)
 
           def interrupted(signum,frame):raise RuntimeError('Fixed pnpm setup interrupted')
 
@@ -1838,14 +1845,18 @@ jobs:
               need(policy['source_url']=='https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz'and policy['member']=='package/pnpm','Exact existing amd64 release required')
               root=base/'ziggy-paired-pnpm-12.3.0';root.mkdir(mode=0o700);identity=(root.stat().st_dev,root.stat().st_ino)
               archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False
-              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}
+              home=root/'home';home_identity=None
+              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(home)}
               def owned():
                   row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')
+              def owned_home():
+                  owned();row=home.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==home_identity,'Setup HOME identity changed')
               def actual():
                   need(binary.is_file()and not binary.is_symlink(),'Native pnpm file required');wire=binary.read_bytes()
                   need(len(wire)==policy['bytes']and hashlib.sha256(wire).hexdigest()==policy['sha256']and wire[:6]==b'\x7fELF\x02\x01'and int.from_bytes(wire[18:20],'little')==62,'Native pnpm identity differs')
                   return {'path':str(binary),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
               try:
+                  home.mkdir(mode=0o700);home_identity=(home.stat().st_dev,home.stat().st_ino)
                   curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')
                   with archive.open('xb')as output:
                       run_owned([curl,'-q','--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--retry','0','--connect-timeout','15','--max-time','60','--max-filesize',str(policy['archive_bytes']),'--output','-',policy['source_url']],clean,65,output,policy['archive_bytes'])
@@ -1854,12 +1865,15 @@ jobs:
                   before=actual()
                   with version.open('xb')as output:run_owned([str(binary),'--version'],clean,10,output,128)
                   need(version.read_bytes().strip()==b'12.3.0'and actual()==before,'Native pnpm version or postflight differs')
-                  owned();archive.unlink();version.unlink()
+                  owned_home();shutil.rmtree(home);owned();archive.unlink();version.unlink()
                   need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')
                   with Path(environ['GITHUB_PATH']).open('a')as output:output.write(str(root)+'\n')
                   passed=True;print(json.dumps({'native_pnpm':before,'version':'12.3.0','generated_launcher_used':False},sort_keys=True))
               finally:
-                  if not passed:owned();shutil.rmtree(root)
+                  if not passed:
+                      owned()
+                      if home.exists()or home.is_symlink():owned_home()
+                      shutil.rmtree(root)
 
           def interrupted(signum,frame):raise RuntimeError('Fixed pnpm setup interrupted')
 
@@ -2023,14 +2037,18 @@ jobs:
               need(policy['source_url']=='https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz'and policy['member']=='package/pnpm','Exact existing amd64 release required')
               root=base/'ziggy-paired-pnpm-12.3.0';root.mkdir(mode=0o700);identity=(root.stat().st_dev,root.stat().st_ino)
               archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False
-              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}
+              home=root/'home';home_identity=None
+              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(home)}
               def owned():
                   row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')
+              def owned_home():
+                  owned();row=home.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==home_identity,'Setup HOME identity changed')
               def actual():
                   need(binary.is_file()and not binary.is_symlink(),'Native pnpm file required');wire=binary.read_bytes()
                   need(len(wire)==policy['bytes']and hashlib.sha256(wire).hexdigest()==policy['sha256']and wire[:6]==b'\x7fELF\x02\x01'and int.from_bytes(wire[18:20],'little')==62,'Native pnpm identity differs')
                   return {'path':str(binary),'bytes':len(wire),'sha256':hashlib.sha256(wire).hexdigest()}
               try:
+                  home.mkdir(mode=0o700);home_identity=(home.stat().st_dev,home.stat().st_ino)
                   curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')
                   with archive.open('xb')as output:
                       run_owned([curl,'-q','--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--noproxy','*','--retry','0','--connect-timeout','15','--max-time','60','--max-filesize',str(policy['archive_bytes']),'--output','-',policy['source_url']],clean,65,output,policy['archive_bytes'])
@@ -2039,12 +2057,15 @@ jobs:
                   before=actual()
                   with version.open('xb')as output:run_owned([str(binary),'--version'],clean,10,output,128)
                   need(version.read_bytes().strip()==b'12.3.0'and actual()==before,'Native pnpm version or postflight differs')
-                  owned();archive.unlink();version.unlink()
+                  owned_home();shutil.rmtree(home);owned();archive.unlink();version.unlink()
                   need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')
                   with Path(environ['GITHUB_PATH']).open('a')as output:output.write(str(root)+'\n')
                   passed=True;print(json.dumps({'native_pnpm':before,'version':'12.3.0','generated_launcher_used':False},sort_keys=True))
               finally:
-                  if not passed:owned();shutil.rmtree(root)
+                  if not passed:
+                      owned()
+                      if home.exists()or home.is_symlink():owned_home()
+                      shutil.rmtree(root)
 
           def interrupted(signum,frame):raise RuntimeError('Fixed pnpm setup interrupted')
 

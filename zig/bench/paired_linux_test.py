@@ -12,6 +12,27 @@ def load(path,name):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 reader=load(ROOT/'zig/bench/cohort_readback.py','paired_control_archive')
 def ordinary_native_http_workflow(text):
+ # Exact inverse of the three reviewed pnpm temporary-HOME recipe changes.
+ pnpm_home_after = "              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False\n              home=root/'home';home_identity=None\n              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(home)}\n"
+ pnpm_home_before = "              archive=root/'archive.tgz';binary=root/'pnpm';version=root/'version.txt';passed=False\n              clean={'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8','HOME':str(root)}\n"
+ if text.count(pnpm_home_after) != 3: raise AssertionError('Exact three reviewed pnpm HOME workflow hunks required')
+ text = text.replace(pnpm_home_after, pnpm_home_before)
+ pnpm_home_after = "                  row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')\n              def owned_home():\n                  owned();row=home.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==home_identity,'Setup HOME identity changed')\n              def actual():\n"
+ pnpm_home_before = "                  row=root.lstat();need(stat.S_ISDIR(row.st_mode)and(row.st_dev,row.st_ino)==identity,'Setup root identity changed')\n              def actual():\n"
+ if text.count(pnpm_home_after) != 3: raise AssertionError('Exact three reviewed pnpm HOME workflow hunks required')
+ text = text.replace(pnpm_home_after, pnpm_home_before)
+ pnpm_home_after = "              try:\n                  home.mkdir(mode=0o700);home_identity=(home.stat().st_dev,home.stat().st_ino)\n                  curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')\n"
+ pnpm_home_before = "              try:\n                  curl=shutil.which('curl',path=clean['PATH']);need(curl is not None,'System curl required')\n"
+ if text.count(pnpm_home_after) != 3: raise AssertionError('Exact three reviewed pnpm HOME workflow hunks required')
+ text = text.replace(pnpm_home_after, pnpm_home_before)
+ pnpm_home_after = "                  owned_home();shutil.rmtree(home);owned();archive.unlink();version.unlink()\n                  need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')\n"
+ pnpm_home_before = "                  owned();archive.unlink();version.unlink()\n                  need({p.name for p in root.iterdir()}=={'pnpm'},'Unexpected setup output')\n"
+ if text.count(pnpm_home_after) != 3: raise AssertionError('Exact three reviewed pnpm HOME workflow hunks required')
+ text = text.replace(pnpm_home_after, pnpm_home_before)
+ pnpm_home_after = '              finally:\n                  if not passed:\n                      owned()\n                      if home.exists()or home.is_symlink():owned_home()\n                      shutil.rmtree(root)\n'
+ pnpm_home_before = '              finally:\n                  if not passed:owned();shutil.rmtree(root)\n'
+ if text.count(pnpm_home_after) != 3: raise AssertionError('Exact three reviewed pnpm HOME workflow hunks required')
+ text = text.replace(pnpm_home_after, pnpm_home_before)
  # Exact inverse of the reviewed default utility build and drained-handoff workflow route.
  handoff_after = '        run: \'"$ZIG" fmt --check zig/build.zig zig/src zig/bench/main.zig\'\n      - name: Test\n        run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all\n      - name: Build complete default utility targets\n        timeout-minutes: 10\n        run: python3 zig/tools/zig.py build -Dtarget=native -Dcpu=baseline -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all\n\n  evm:\n    if: ${{ !((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-paired-linux]\')) || (github.event_name == \'workflow_dispatch\' && inputs.paired_linux)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-fullcase-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_full_case)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-docker-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_native_docker_prerequisite)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-sdk-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_linux_sdk_prerequisite)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-kernel-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-native-case]\')) && (!(github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-svm-prerequisites-only]\')) && (github.event_name != \'workflow_dispatch\' || !inputs.svm_prerequisites))))))) }}\n'
  handoff_before = '        run: \'"$ZIG" fmt --check zig/build.zig zig/src zig/bench/main.zig\'\n      - name: Test\n        run: python3 zig/tools/zig.py build test -j"${BUILD_JOBS}" -Doptimize=${{ matrix.mode }} --summary all\n\n  evm:\n    if: ${{ !((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-paired-linux]\')) || (github.event_name == \'workflow_dispatch\' && inputs.paired_linux)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-fullcase-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_full_case)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-docker-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_native_docker_prerequisite)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-sdk-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_linux_sdk_prerequisite)) && (!((github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-aleo-kernel-only]\')) || (github.event_name == \'workflow_dispatch\' && inputs.aleo_linux_prerequisite)) && (!(github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-native-case]\')) && (!(github.event_name == \'push\' && github.ref == \'refs/heads/feat/zig-agent-rewrite\' && contains(github.event.head_commit.message, \'[zig-svm-prerequisites-only]\')) && (github.event_name != \'workflow_dispatch\' || !inputs.svm_prerequisites))))))) }}\n'
@@ -543,6 +564,21 @@ class ExternalToolMismatchDiagnostics(unittest.TestCase):
   error.external_tool_mismatch=valid;self.assertNotIn('external_tool_mismatch',stage.failure_observation(error,self.repo,{'required_source':[]}))
  def test_exact_actual_external_tool_loop_supplies_name_without_new_pin_calls(self):
   tree=ast.parse(Path(p.__file__).read_bytes());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef)and n.name=='input_manifest');loop=next(n for n in fn.body if isinstance(n,ast.For)and isinstance(n.target,ast.Name)and n.target.id=='name'and isinstance(n.iter,ast.Name)and n.iter.id=='required_tools');calls=[n for n in ast.walk(loop)if isinstance(n,ast.Call)and isinstance(n.func,ast.Name)and n.func.id=='checked'];self.assertEqual(len(calls),1);self.assertEqual([(k.arg,ast.unparse(k.value))for k in calls[0].keywords],[('external_tool','name')])
+
+
+class PnpmHomeWorkflowInverseControls(unittest.TestCase):
+ def test_exact_three_recipe_inverse_keeps_original_full_golden(self):
+  text=(ROOT/'.github/workflows/zig-agents.yml').read_text();functions=[]
+  for name in ['zig/bench/paired_linux_test.py','zig/tools/aleo_linux_case/ci_fullcase_test.py']:
+   source=(ROOT/name).read_text();node=next(n for n in ast.parse(source).body if isinstance(n,ast.FunctionDef)and n.name=='ordinary_native_http_workflow');scope={'hashlib':hashlib};exec(compile(ast.Module([node],type_ignores=[]),'actual-pnpm-HOME-workflow-inverse','exec'),scope);functions.append(node)
+   self.assertEqual(hashlib.sha256(scope['ordinary_native_http_workflow'](text).encode()).hexdigest(),'e08ffd005159dd3915047706df9a1806b' '13cf3344795e5700980910bc38f9ef3')
+   hunks=[ast.literal_eval(n.value)for n in node.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='pnpm_home_after'for t in n.targets)];self.assertEqual(len(hunks),5)
+   for index,hunk in enumerate(hunks):
+    self.assertEqual(text.count(hunk),3)
+    for changed in [text.replace(hunk,'',1),text+hunk,text.replace(hunk,'UNREVIEWED'+hunk[1:],1)]:
+     with self.subTest(hunk=index),self.assertRaisesRegex(AssertionError,'Exact three reviewed pnpm HOME workflow hunks'):scope['ordinary_native_http_workflow'](changed)
+  self.assertEqual(ast.dump(functions[0],include_attributes=False),ast.dump(functions[1],include_attributes=False))
+
 
 class FixedPnpmClosure(unittest.TestCase):
  def test_two_existing_helpers_are_required_without_dropping_old_members(self):

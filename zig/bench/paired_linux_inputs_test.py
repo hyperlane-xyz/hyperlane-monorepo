@@ -293,7 +293,7 @@ class FixedNativePnpm(unittest.TestCase):
   payload=bytearray(40);payload[:6]=b'\x7fELF\x02\x01';payload[18:20]=(62).to_bytes(2,'little');payload=bytes(payload);archive=b'closed fake downloaded package'
   policy={'source_url':'https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.3.0.tgz','archive_bytes':len(archive),'archive_sha256':hashlib.sha256(archive).hexdigest(),'member':'package/pnpm','bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()}
   helper.write_text('PNPM_RELEASE='+repr({'amd64':policy})+'\n');helper.with_name('native_tron_assets.py').write_text('# fixture helper\n');return root,base,repo,path,payload,archive,{'RUNNER_TEMP':str(base),'GITHUB_WORKSPACE':str(repo),'GITHUB_PATH':str(path)}
- def attempt(self,failure=None):
+ def attempt(self,failure=None,home_cache=False):
   scope,_=self.recipe();root,base,repo,path,payload,archive,env=self.fixture();calls=[]
   def run(argv,clean,seconds,stdout,file_limit):
    calls.append((argv,dict(clean),seconds,file_limit));self.assertEqual(path.read_text(),'existing\n');self.assertEqual(set(clean),{'PATH','LC_ALL','HOME'})
@@ -302,16 +302,36 @@ class FixedNativePnpm(unittest.TestCase):
    if kind=='download':stdout.write(archive[:-1]if failure=='short-download'else archive)
    elif kind=='admit':
     binary=pathlib.Path(argv[argv.index('--output')+1]);binary.write_bytes(b'#!/bin/sh\nforeign generated launcher\n'if failure=='changed-shim'else payload);binary.chmod(0o755)
-   else:stdout.write(b'foreign-version\n'if failure=='bad-version'else b'12.3.0\n')
+   else:
+    if home_cache:
+     cache=pathlib.Path(clean['HOME'])/'.cache/pnpm';cache.mkdir(parents=True);(cache/'version-check').write_bytes(b'owned cache')
+    if failure in ['home-replaced','home-symlink']:
+     home=pathlib.Path(clean['HOME']);home.rename(home.with_name('original-home'))
+     if failure=='home-replaced':home.mkdir();(home/'foreign').write_text('preserve')
+     else:
+      foreign=root/'foreign-home';foreign.mkdir();(foreign/'foreign').write_text('preserve');home.symlink_to(foreign,target_is_directory=True)
+    if failure=='version-binary-mutation':pathlib.Path(argv[0]).write_bytes(b'foreign mutated native')
+    stdout.write(b'foreign-version\n'if failure=='bad-version'else b'12.3.0\n')
   with mock.patch.dict(scope,run_owned=run),mock.patch.object(scope['sys'],'platform','linux'),mock.patch.object(scope['os'],'uname',return_value=types.SimpleNamespace(machine='x86_64')),mock.patch.object(scope['shutil'],'which',return_value='/usr/bin/curl'):
    if failure:
     with self.assertRaises(RuntimeError):scope['stage'](env)
-    self.assertEqual(path.read_text(),'existing\n');self.assertFalse((base/'ziggy-paired-pnpm-12.3.0').exists())
+    self.assertEqual(path.read_text(),'existing\n');target=base/'ziggy-paired-pnpm-12.3.0'
+    if failure in ['home-replaced','home-symlink']:
+     self.assertTrue(target.is_dir());self.assertEqual((target/'home/foreign').read_text(),'preserve');self.assertTrue((target/'original-home').is_dir())
+    else:self.assertFalse(target.exists())
    else:
     scope['stage'](env);target=base/'ziggy-paired-pnpm-12.3.0';self.assertEqual(path.read_text(),'existing\n'+str(target)+'\n');self.assertEqual([p.name for p in target.iterdir()],['pnpm']);self.assertEqual((target/'pnpm').read_bytes(),payload);self.assertEqual(target.stat().st_mode&0o777,0o700)
   return calls
  def test_same_actual_workflow_recipe_stages_only_exact_owned_native(self):
   rows=self.attempt();self.assertEqual([r[2]for r in rows],[65,30,10]);argv,clean,seconds,cap=rows[0];self.assertEqual(argv[1],'-q');self.assertIn('--proto',argv);self.assertEqual(argv[argv.index('--max-filesize')+1],str(cap));self.assertEqual(argv[argv.index('--max-time')+1],'60');self.assertEqual(argv[argv.index('--connect-timeout')+1],'15');self.assertEqual(argv[argv.index('--retry')+1],'0');self.assertEqual(argv[argv.index('--output')+1],'-');self.assertEqual(clean['PATH'],'/usr/bin:/bin')
+ def test_version_HOME_cache_is_removed_before_exact_native_PATH_publication(self):
+  rows=self.attempt(home_cache=True);home=pathlib.Path(rows[-1][1]['HOME']);self.assertEqual(home.name,'home');self.assertFalse(home.exists());self.assertEqual(home.parent.name,'ziggy-paired-pnpm-12.3.0');self.assertEqual([r[2]for r in rows],[65,30,10])
+ def test_changed_HOME_is_refused_without_deleting_foreign_directory_or_target(self):
+  for failure in ['home-replaced','home-symlink']:
+   with self.subTest(failure=failure):self.attempt(failure,home_cache=True)
+ def test_failed_version_or_postflight_removes_owned_HOME_cache_without_PATH_publish(self):
+  for failure in ['bad-version','version-binary-mutation']:
+   with self.subTest(failure=failure):self.attempt(failure,home_cache=True)
  def test_all_failure_boundaries_leave_PATH_unpublished_and_remove_only_owned_scratch(self):
   for phase in ['download','admit','version','bad-version','short-download','changed-shim']:
    with self.subTest(phase=phase):self.attempt(phase)
