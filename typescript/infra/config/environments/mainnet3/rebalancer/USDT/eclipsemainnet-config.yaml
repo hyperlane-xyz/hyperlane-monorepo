@@ -29,7 +29,7 @@ externalBridges:
     solanaTransactionFeeWarningLamports: 1000000
     maxSolanaNativeSpendLamports: 10000000
 
-# Targets total 75,000 USDT; minimum balances total 65,000 USDT.
+# Targets total 60,000 USDT; minimum balances total 50,000 USDT.
 # Refresh aggregate collateral before enabling execution.
 # Plasma remains in the pinned registry route, but is excluded from this strategy.
 strategy:
@@ -39,8 +39,8 @@ strategy:
       executionType: inventory
       externalBridge: swapsxyz
       minAmount:
-        min: 15000
-        target: 17000
+        min: 10000
+        target: 12000
         type: absolute
       override:
         ethereum:
@@ -74,8 +74,8 @@ strategy:
       executionType: inventory
       externalBridge: swapsxyz
       minAmount:
-        min: 15000
-        target: 17000
+        min: 10000
+        target: 12000
         type: absolute
       override:
         arbitrum:
@@ -109,8 +109,8 @@ strategy:
       executionType: inventory
       externalBridge: swapsxyz
       minAmount:
-        min: 15000
-        target: 17000
+        min: 10000
+        target: 12000
         type: absolute
       override:
         arbitrum:
