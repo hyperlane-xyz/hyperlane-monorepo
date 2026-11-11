@@ -2,10 +2,7 @@ use std::{
     cmp::max,
     collections::{BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter},
-    sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
 
@@ -79,7 +76,6 @@ pub struct MessageDbLoader {
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
     preparation_notification: Option<Arc<tokio::sync::Notify>>,
-    notification_overflow: Option<(Arc<AtomicU64>, u64)>,
     /// Denied messages already logged, for all destinations. Created on the
     /// first denial, so a loader that never denies anything allocates none.
     logged_denials: Option<LoggedDenials>,
@@ -484,10 +480,10 @@ impl DbLoaderExt for MessageDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        self.drain_index_notifications()?;
         self.db.ensure_no_indexed_event_conflict()?;
         self.check_runtime_denylist_version();
         self.reconsider_released_messages();
-        self.drain_index_notifications()?;
         let migration_was_active = self.migration_iterator.is_some();
         self.migrate_legacy_batch().await?;
 
@@ -599,7 +595,6 @@ impl MessageDbLoader {
             max_retries,
             index_notifications: None,
             preparation_notification: None,
-            notification_overflow: None,
             logged_denials: None,
             logged_denials_ttl: LOGGED_DENIALS_TTL,
         })
@@ -681,20 +676,9 @@ impl MessageDbLoader {
         self.index_notifications = index_notifications;
     }
 
-    pub fn set_notification_overflow(&mut self, counter: Option<Arc<AtomicU64>>) {
-        self.notification_overflow = counter.map(|counter| (counter, 0));
-    }
-
     /// Discard already-observed index notifications so this receiver cannot
     /// backpressure the message indexer while the loader is processing a backlog.
     fn drain_index_notifications(&mut self) -> Result<()> {
-        if let Some((counter, seen)) = &mut self.notification_overflow {
-            let current = counter.load(Ordering::Acquire);
-            if current != *seen {
-                *seen = current;
-                self.request_low_range_reopens();
-            }
-        }
         let mut disconnected = false;
         let mut notifications = Vec::new();
         if let Some(receiver) = self.index_notifications.as_mut() {

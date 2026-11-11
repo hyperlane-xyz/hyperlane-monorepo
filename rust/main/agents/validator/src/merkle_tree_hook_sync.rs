@@ -844,7 +844,7 @@ impl MerkleTreeHookWebSocketSync {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         SubscribeMessage {
             streams: vec![SubscribeStream {
-                include_unconfirmed: None,
+                include_zero_confirmations: None,
                 confirmations: self.confirmations,
                 cursors: self.confirmations.is_none().then(|| {
                     vec![StreamCursor::Sequence(SequenceCursor {
@@ -1742,7 +1742,7 @@ mod tests {
 
         for sequence in 0_u32..257 {
             let event = EventMessage {
-                stage: None,
+                confirmations: None,
                 block_hash: None,
                 data: EventData {
                     block_hash: None,
@@ -1884,7 +1884,7 @@ mod tests {
         let (sync, _temp_dir) = test_sync();
         let mut next_sequence = 0;
         let row_cursor_event = EventMessage {
-            stage: None,
+            confirmations: None,
             block_hash: None,
             data: EventData {
                 block_hash: None,
@@ -1907,7 +1907,7 @@ mod tests {
             .to_string()
             .contains("unexpectedly included a row/stream cursor"));
         let stream_cursor_event = EventMessage {
-            stage: None,
+            confirmations: None,
             block_hash: None,
             data: EventData {
                 block_hash: None,
@@ -1930,7 +1930,7 @@ mod tests {
             .to_string()
             .contains("unexpectedly included a row/stream cursor"));
         let event = EventMessage {
-            stage: None,
+            confirmations: None,
             block_hash: None,
             data: EventData {
                 block_hash: None,
@@ -1964,7 +1964,7 @@ mod tests {
         assert!(sync
             .process_event(
                 EventMessage {
-                    stage: None,
+                    confirmations: None,
                     block_hash: None,
                     data: EventData {
                         block_hash: None,
@@ -1996,7 +1996,7 @@ mod tests {
             Some(12)
         );
         let gap = EventMessage {
-            stage: None,
+            confirmations: None,
             block_hash: None,
             data: EventData {
                 block_hash: None,
@@ -2060,7 +2060,7 @@ mod tests {
             .store_tree_insertion(&existing, 12)
             .expect("store verified leaf");
         let event = EventMessage {
-            stage: None,
+            confirmations: None,
             block_hash: None,
             data: EventData {
                 block_hash: None,

@@ -38,16 +38,7 @@ export type GasPaymentCursor = {
   kind: 'gas_payment';
 };
 export type StreamCursor = GasPaymentCursor | SequenceCursor;
-export enum DispatchStage {
-  Observed = 'observed',
-  Confirmed = 'confirmed',
-}
-
 export type StreamRequest = {
-  /** Dispatch-only, live advisory observations alongside confirmed delivery/replay.
-   * Observations never advance the subscription's durable cursors.
-   */
-  includeUnconfirmed?: boolean;
   confirmations?: number;
   cursors?: StreamCursor[];
   domains?: Set<number>;
@@ -59,7 +50,6 @@ export type ClientMessage =
   | { streams: (StreamRequest | BlockStreamRequest)[]; type: 'subscribe' };
 export type BlockStreamRequest = {
   eventType: 'blocks';
-  includeUnconfirmed?: never;
   domains?: Set<number>;
   confirmations?: never;
   cursors?: never;
@@ -226,7 +216,6 @@ function parseStream(value: unknown): StreamRequest | BlockStreamRequest {
   }
   if (value.eventType === 'blocks') {
     if (
-      value.includeUnconfirmed !== undefined ||
       value.confirmations !== undefined ||
       value.cursors !== undefined ||
       value.streamCursorVersion !== undefined
@@ -283,24 +272,7 @@ function parseStream(value: unknown): StreamRequest | BlockStreamRequest {
     }
     domains ??= cursorDomains;
   }
-  if (
-    value.includeUnconfirmed !== undefined &&
-    typeof value.includeUnconfirmed !== 'boolean'
-  ) {
-    throw new Error('includeUnconfirmed must be a boolean');
-  }
-  if (
-    value.includeUnconfirmed &&
-    (value.eventType !== 'dispatch' || !domains)
-  ) {
-    throw new Error(
-      'includeUnconfirmed requires dispatch with explicit domains or cursors',
-    );
-  }
   return {
-    ...(value.includeUnconfirmed !== undefined
-      ? { includeUnconfirmed: value.includeUnconfirmed }
-      : {}),
     confirmations: parseConfirmations(value.confirmations, domains, cursors),
     cursors,
     domains,

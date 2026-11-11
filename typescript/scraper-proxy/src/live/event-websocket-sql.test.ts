@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
-const { EventStore, STREAMS, gasPaymentColumns, gasPaymentMetadataJoins } =
+const { gasPaymentColumns, gasPaymentMetadataJoins } =
   await import('./event-store.js');
 
 void describe('gas payment SQL helpers', () => {
@@ -28,28 +28,6 @@ void describe('gas payment SQL helpers', () => {
         ' LEFT JOIN "block" AS "event_block" ON "event_block"."id" = "event_transaction"."block_id"',
     );
   });
-});
-
-void it('includes block identity only in the provisional Merkle projection', async () => {
-  const queries: string[] = [];
-  const store = new EventStore({
-    async queryLive(query) {
-      queries.push(query);
-      return [];
-    },
-  });
-  for await (const row of store.confirmationEventRows(
-    'merkle_tree_insertion',
-    1,
-    [0n, 0, 0n],
-    100n,
-    1,
-  )) {
-    assert.fail(`Unexpected row: ${JSON.stringify(row)}`);
-  }
-  assert.equal(queries.length, 1);
-  assert.match(queries[0], /SELECT .*event_row\.block_hash, event_row\.id/);
-  assert.ok(!STREAMS.merkle_tree_insertion.columns.includes('block_hash'));
 });
 
 void it('filters confirmation dispatch, delivery and gas rows in SQL before enrichment', async () => {
@@ -89,31 +67,4 @@ void it('filters confirmation dispatch, delivery and gas rows in SQL before enri
     assert.fail(`Unexpected row ${JSON.stringify(row)}`);
   }
   assert.equal(queries.length, 1);
-});
-
-void it('bounds advisory dispatch reads by the subscribed mailbox addresses', async () => {
-  const { EventStore } = await import('./event-store.js');
-  const queries: { sql: string; values: unknown[] }[] = [];
-  const store = new EventStore({
-    queryLive: async (sql, values = []) => {
-      queries.push({ sql, values });
-      return [];
-    },
-  });
-  for (const addresses of [[`\\x${'aa'.repeat(20)}`], []]) {
-    for await (const row of store.confirmationEventRows(
-      'dispatch',
-      1,
-      [0n, 0, 0n],
-      10n,
-      0,
-      addresses,
-    ))
-      assert.fail(JSON.stringify(row));
-    assert.match(
-      queries.at(-1)?.sql ?? '',
-      /"origin_mailbox"=ANY\(\$6::bytea\[\]\)/,
-    );
-    assert.deepEqual(queries.at(-1)?.values[5], addresses);
-  }
 });

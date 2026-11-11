@@ -623,14 +623,16 @@ mod tests {
     }
 
     #[test]
-    fn legacy_payloads_decode_without_a_gas_floor() {
+    fn legacy_payloads_decode_without_a_gas_floor_or_origin() {
         use hyperlane_core::Decode;
 
         let mut legacy = serde_json::to_value(FullPayload::random()).unwrap();
         legacy.as_object_mut().unwrap().remove("gas_limit");
+        legacy["details"].as_object_mut().unwrap().remove("origin");
         let bytes = serde_json::to_vec(&legacy).unwrap();
         let decoded = FullPayload::read_from_slice(&bytes).unwrap();
         assert!(decoded.gas_limit.is_zero());
+        assert!(decoded.details.origin.is_none());
     }
 
     #[tokio::test]

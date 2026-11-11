@@ -27,7 +27,7 @@ impl SubscribeMessage<'_> {
         self.streams
             .iter()
             .map(|stream| SubscribedStream {
-                include_unconfirmed: stream.include_unconfirmed,
+                include_zero_confirmations: stream.include_zero_confirmations,
                 confirmations: stream.confirmations,
                 cursors: stream.cursors.as_ref().map(|cursors| {
                     cursors
@@ -71,9 +71,9 @@ pub fn validate_subscription(
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeStream<'a> {
-    /// Opt in to advisory observed dispatches alongside normal confirmed events.
+    /// Also receive live events at zero confirmations on this subscription.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_unconfirmed: Option<bool>,
+    pub include_zero_confirmations: Option<bool>,
     /// Custom live confirmation delay; omitted for canonical replay streams.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmations: Option<u32>,
@@ -166,8 +166,8 @@ pub enum ServerMessage<T> {
     /// Provisional history was rolled back; consumers must recover before resuming.
     #[serde(rename_all = "camelCase")]
     Rollback {
-        /// Observed rollbacks cancel read-ahead only.
-        stage: Option<DispatchStage>,
+        /// Confirmation depth of the affected stream; zero cancels read-ahead only.
+        confirmations: Option<u32>,
         /// Origin whose provisional history changed.
         domain: u32,
         /// Stream affected by the rollback.
@@ -203,8 +203,8 @@ pub enum ServerMessage<T> {
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SubscribedStream {
-    /// Echoed lifecycle opt-in; old proxies cannot silently downgrade it.
-    pub include_unconfirmed: Option<bool>,
+    /// Echoed zero-confirmation opt-in; old proxies cannot silently downgrade it.
+    pub include_zero_confirmations: Option<bool>,
     /// Custom confirmation delay accepted by the server.
     pub confirmations: Option<u32>,
     /// Durable cursors accepted for this stream.
@@ -231,22 +231,12 @@ pub struct SubscribedCursor {
     pub domain: u32,
 }
 
-/// Advisory observation or an event eligible at the subscription's confirmation policy.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum DispatchStage {
-    /// Read-ahead only; never advances canonical cursors or permits delivery.
-    Observed,
-    /// Eligible for normal indexing and processing.
-    Confirmed,
-}
-
 /// Common envelope around scraper event-specific data.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventMessage<T> {
-    /// Present only for opted-in dispatch lifecycle events.
-    pub stage: Option<DispatchStage>,
+    /// Zero for read-ahead events; otherwise the requested depth or canonical replay.
+    pub confirmations: Option<u32>,
     /// Provisional block identity, carried outside the stable event payload.
     pub block_hash: Option<String>,
     /// Event-specific payload.
@@ -401,7 +391,7 @@ mod tests {
     fn custom_confirmation_acknowledgement_must_match_requested_delay() {
         let request = SubscribeMessage {
             streams: vec![SubscribeStream {
-                include_unconfirmed: None,
+                include_zero_confirmations: None,
                 confirmations: Some(3),
                 cursors: None,
                 domains: Some(vec![1]),
@@ -428,7 +418,7 @@ mod tests {
     fn serializes_subscription_protocol() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
-                include_unconfirmed: None,
+                include_zero_confirmations: None,
                 confirmations: None,
                 cursors: Some(vec![StreamCursor::Sequence(SequenceCursor {
                     address: "0x1234".to_owned(),
@@ -465,7 +455,7 @@ mod tests {
     fn omits_optional_cursor_fields_for_live_streams() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
-                include_unconfirmed: None,
+                include_zero_confirmations: None,
                 confirmations: None,
                 cursors: None,
                 domains: Some(vec![5]),
@@ -491,7 +481,7 @@ mod tests {
     fn serializes_gas_payment_stream_cursor() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
-                include_unconfirmed: None,
+                include_zero_confirmations: None,
                 confirmations: None,
                 cursors: Some(vec![StreamCursor::GasPayment(GasPaymentCursor {
                     address: "0x1234".to_owned(),
@@ -629,7 +619,7 @@ mod tests {
             ServerMessage::Subscribed { streams } => assert_eq!(
                 streams,
                 vec![SubscribedStream {
-                    include_unconfirmed: None,
+                    include_zero_confirmations: None,
                     confirmations: None,
                     cursors: None,
                     domains: Some(vec![5, 9]),
@@ -686,11 +676,11 @@ mod tests {
         }
     }
     #[test]
-    fn lifecycle_opt_in_must_be_acknowledged_without_silent_downgrade() {
+    fn zero_confirmation_opt_in_must_be_acknowledged_without_silent_downgrade() {
         let request = SubscribeMessage {
             message_type: "subscribe",
             streams: vec![SubscribeStream {
-                include_unconfirmed: Some(true),
+                include_zero_confirmations: Some(true),
                 confirmations: None,
                 cursors: None,
                 domains: Some(vec![1]),
@@ -700,7 +690,7 @@ mod tests {
         };
         let expected = request.confirmation();
         let mut old_proxy = request.confirmation();
-        old_proxy[0].include_unconfirmed = None;
+        old_proxy[0].include_zero_confirmations = None;
         assert!(validate_subscription(&expected, &old_proxy).is_err());
     }
 }

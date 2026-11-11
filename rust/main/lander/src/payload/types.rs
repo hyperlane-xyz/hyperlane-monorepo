@@ -21,6 +21,10 @@ pub struct PayloadDetails {
     /// to be printed in logs for easier debugging. This may include the Hyperlane Message ID
     pub metadata: String,
 
+    /// Origin used to gate queued/retrying relayer work after indexed-data conflicts.
+    #[serde(default)]
+    pub origin: Option<u32>,
+
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
     pub success_criteria: Option<Vec<u8>>,
@@ -44,6 +48,7 @@ impl PayloadDetails {
         Self {
             uuid,
             metadata: metadata.into(),
+            origin: None,
             success_criteria,
         }
     }
@@ -118,6 +123,7 @@ impl FullPayload {
         let details = PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("payload-{payload_uuid}"),
+            origin: None,
             success_criteria: None,
         };
         FullPayload {

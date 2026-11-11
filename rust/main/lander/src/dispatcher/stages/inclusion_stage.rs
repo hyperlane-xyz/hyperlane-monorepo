@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::{future::try_join_all, try_join, StreamExt};
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
@@ -590,7 +591,31 @@ impl InclusionStage {
         let deferred_reason = call_until_success_or_nonretryable_error(
             || async {
                 let mut tx_guard = tx_shared.lock().await;
-                let submit_result = with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)).await;
+                let origins = match state.origin_dbs.get() {
+                    Some(origins) => {
+                        let mut selected = Vec::<&dyn HyperlaneDb>::new();
+                        for payload in &tx_guard.payload_details {
+                            match payload.origin {
+                                Some(origin) => match origins.get(&origin) {
+                                    Some(db) => selected.push(db),
+                                    None => return Ok(Some(LanderError::TxSubmissionDeferred)),
+                                },
+                                // Older persisted payloads have no origin. Conservatively
+                                // gate them against every configured origin until drained.
+                                None => selected.extend(origins.values().map(|db| db as &dyn HyperlaneDb)),
+                            }
+                        }
+                        selected
+                    }
+                    None => Vec::new(),
+                };
+                let submit_result = HyperlaneRocksDB::with_consistent_origins(
+                    &origins,
+                    with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)),
+                ).await.unwrap_or_else(|error| {
+                    warn!(?error, "Origin recovery deferred queued transaction submission");
+                    Err(LanderError::TxSubmissionDeferred)
+                });
 
                 match submit_result {
                     Ok(()) => Ok(None),

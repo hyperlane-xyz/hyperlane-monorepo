@@ -120,6 +120,7 @@ pub struct MessageProcessor {
     db: Arc<dyn HyperlaneDb>,
     /// Checked before lander payloads are created; see `with_runtime_denylist`.
     lander_denylist: Arc<RuntimeDenylist>,
+    origin_dbs: Arc<HashMap<u32, HyperlaneRocksDB>>,
 }
 
 impl MessageProcessor {
@@ -165,7 +166,13 @@ impl MessageProcessor {
             payload_dispatcher_entrypoint,
             db: Arc::new(db),
             lander_denylist: Default::default(),
+            origin_dbs: Default::default(),
         }
+    }
+
+    pub fn with_origin_databases(mut self, origins: Arc<HashMap<u32, HyperlaneRocksDB>>) -> Self {
+        self.origin_dbs = origins;
+        self
     }
 
     /// Drop operations matching `denylist` from the prepare and submit
@@ -289,6 +296,7 @@ impl MessageProcessor {
                     self.confirm_queue.clone(),
                     self.max_batch_size,
                     self.metrics.clone(),
+                    self.origin_dbs.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -627,6 +635,7 @@ async fn submit_classic_task(
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
+    origins: Arc<HashMap<u32, HyperlaneRocksDB>>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -644,6 +653,7 @@ async fn submit_classic_task(
             }
             std::cmp::Ordering::Greater => {
                 OperationBatch::new(batch, domain.clone())
+                    .with_origin_databases(origins.clone())
                     .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
                     .await;
             }
@@ -749,7 +759,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         .expect("Operation should contain Mailbox address")
         .address();
     let payload_uuid = PayloadUuid::random();
-    let payload = FullPayload::new(
+    let mut payload = FullPayload::new(
         payload_uuid,
         metadata,
         operation_payload,
@@ -757,6 +767,8 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         operation_success_criteria,
         mailbox,
     );
+
+    payload.details.origin = Some(op.origin_domain_id());
 
     // Payload construction can await RPCs, as can earlier operations in the
     // same batch. Apply the latest rules at the handoff to lander.

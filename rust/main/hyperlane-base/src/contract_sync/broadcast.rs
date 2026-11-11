@@ -1,7 +1,4 @@
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc, OnceLock,
-};
+use std::sync::{Arc, OnceLock};
 
 use derive_new::new;
 use eyre::{eyre, Result};
@@ -27,8 +24,6 @@ pub struct BroadcastMpscSender<T> {
     // Lazy initialization keeps construction usable outside a Tokio runtime.
     #[new(default)]
     actor: Arc<OnceLock<BroadcastActor<T>>>,
-    #[new(default)]
-    missed: Arc<AtomicU64>,
 }
 
 #[derive(Debug)]
@@ -81,39 +76,6 @@ impl IndexingNotification {
 }
 
 impl<T: Clone + Send + 'static> BroadcastMpscSender<T> {
-    /// Shared generation incremented when a nonblocking notification is missed.
-    /// Consumers rescan stored work; restarts already scan the DB.
-    pub fn missed_notifications(&self) -> Arc<AtomicU64> {
-        self.missed.clone()
-    }
-
-    /// Notify current subscribers without waiting for capacity or an earlier send.
-    /// Missed deliveries require consumers to rescan their durable work.
-    pub fn try_send(&self, message: T) -> bool {
-        let actor = self.actor();
-        let Ok(_turn) = actor.order.try_acquire() else {
-            self.missed.fetch_add(1, Ordering::Release);
-            return false;
-        };
-        let senders = actor.snapshot.borrow().clone();
-        let mut sent = !actor.commands.is_closed();
-        let mut closed = false;
-        for sender in senders.iter() {
-            match sender.try_send(message.clone()) {
-                Ok(()) => {}
-                Err(mpsc::error::TrySendError::Full(_)) => sent = false,
-                Err(mpsc::error::TrySendError::Closed(_)) => closed = true,
-            }
-        }
-        if closed {
-            let _ = actor.commands.try_send(RegistryCommand::Prune);
-        }
-        if !sent {
-            self.missed.fetch_add(1, Ordering::Release);
-        }
-        sent
-    }
-
     fn actor(&self) -> &BroadcastActor<T> {
         self.actor.get_or_init(|| {
             let (commands, receiver) = mpsc::channel(COMMAND_CAPACITY);
@@ -228,39 +190,6 @@ mod tests {
     use tokio::time::timeout;
 
     use super::*;
-
-    #[tokio::test]
-    async fn best_effort_send_skips_full_subscribers_and_keeps_them_registered() {
-        let broadcaster = BroadcastMpscSender::new(1);
-        let mut full = broadcaster.get_receiver().await;
-        broadcaster.send(1).await.unwrap();
-        let mut live = broadcaster.get_receiver().await;
-        assert!(!broadcaster.try_send(2));
-        assert_eq!(
-            broadcaster.missed_notifications().load(Ordering::Acquire),
-            1
-        );
-        assert_eq!(live.recv().await, Some(2));
-        assert_eq!(full.recv().await, Some(1));
-        assert!(broadcaster.try_send(3));
-        assert_eq!(full.recv().await, Some(3));
-        assert_eq!(live.recv().await, Some(3));
-        drop(full);
-        assert!(broadcaster.try_send(4));
-        assert_eq!(live.recv().await, Some(4));
-    }
-
-    #[tokio::test]
-    async fn contended_sender_records_a_missed_notification() {
-        let broadcaster = BroadcastMpscSender::new(1);
-        let _receiver = broadcaster.get_receiver().await;
-        let _guard = broadcaster.actor().order.acquire().await.unwrap();
-        assert!(!broadcaster.try_send(1));
-        assert_eq!(
-            broadcaster.missed_notifications().load(Ordering::Acquire),
-            1
-        );
-    }
 
     #[tokio::test]
     async fn ready_subscribers_complete_without_an_actor_round_trip() {

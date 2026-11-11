@@ -200,6 +200,7 @@ fn create_test_transaction() -> Transaction {
         vec![PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
+            origin: None,
             success_criteria: None,
         }],
     )

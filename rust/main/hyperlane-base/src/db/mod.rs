@@ -18,6 +18,11 @@ pub(crate) mod storage_types;
 #[allow(missing_docs)]
 /// Hyperlane database interface
 pub trait HyperlaneDb: Send + Sync {
+    /// Admission state shared with independent indexing writers, if supported.
+    fn origin_consistency(&self) -> Option<&OriginConsistency> {
+        None
+    }
+
     /// Refuse work after an indexed event conflict until DB/queue/prover recovery.
     /// Stores with independent indexing writers must check their durable gate.
     fn ensure_no_indexed_event_conflict(&self) -> DbResult<()> {

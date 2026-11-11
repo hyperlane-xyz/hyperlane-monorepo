@@ -179,6 +179,7 @@ fn create_test_transaction() -> Transaction {
     let payload_details = PayloadDetails {
         uuid: payload_uuid,
         metadata: "test-payload".to_string(),
+        origin: None,
         success_criteria: Some(vec![1, 2, 3]),
     };
 

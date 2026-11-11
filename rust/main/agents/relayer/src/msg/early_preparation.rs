@@ -16,9 +16,10 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use eyre::Result;
-use hyperlane_base::cache::FunctionCallCache;
+use hyperlane_base::{cache::FunctionCallCache, CoreMetrics};
 use hyperlane_core::{HyperlaneMessage, H256};
 use parking_lot::Mutex;
+use prometheus::IntCounterVec;
 use tokio::{
     sync::{Notify, Semaphore},
     task::JoinHandle,
@@ -26,6 +27,7 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 
+use super::runtime_denylist::RuntimeDenylist;
 use super::{
     blacklist::AddressBlacklist, metadata::MessageMetadataBuilder, pending_message::MessageContext,
 };
@@ -59,6 +61,8 @@ pub(crate) struct EarlyPreparation {
     address_blacklist: Arc<AddressBlacklist>,
     messages: Mutex<HashMap<H256, Preparation>>,
     permits: Arc<Semaphore>,
+    runtime_denylist: Arc<RuntimeDenylist>,
+    dropped: IntCounterVec,
 }
 
 impl EarlyPreparation {
@@ -67,12 +71,20 @@ impl EarlyPreparation {
         whitelist: Arc<MatchingList>,
         blacklist: Arc<MatchingList>,
         address_blacklist: Arc<AddressBlacklist>,
-    ) -> Self {
+        runtime_denylist: Arc<RuntimeDenylist>,
+        metrics: &CoreMetrics,
+    ) -> Result<Self> {
         let notifications = contexts
             .keys()
             .map(|(origin, _)| (*origin, Arc::new(Notify::new())))
             .collect();
-        Self {
+        Ok(Self {
+            dropped: metrics.new_int_counter(
+                "relayer_early_preparation_dropped",
+                "Early preparation hints dropped at capacity",
+                &["origin", "reason"],
+            )?,
+            runtime_denylist,
             notifications,
             contexts,
             whitelist,
@@ -80,11 +92,15 @@ impl EarlyPreparation {
             address_blacklist,
             messages: Mutex::default(),
             permits: Arc::new(Semaphore::new(MAX_CONCURRENT)),
-        }
+        })
     }
 
     pub(crate) fn discover(&self, message: HyperlaneMessage) {
-        if !self.whitelist.msg_matches(&message, true)
+        if self
+            .runtime_denylist
+            .deny_reason_for_message(&message)
+            .is_some()
+            || !self.whitelist.msg_matches(&message, true)
             || self.blacklist.msg_matches(&message, false)
             || self
                 .address_blacklist
@@ -106,10 +122,16 @@ impl EarlyPreparation {
             return;
         }
         if messages.len() >= MAX_MESSAGES {
+            self.dropped
+                .with_label_values(&[message.origin.to_string().as_str(), "tracked"])
+                .inc();
             return;
         }
         let message = Arc::new(message);
         let Some(task) = self.spawn(context.clone(), message.clone()) else {
+            self.dropped
+                .with_label_values(&[message.origin.to_string().as_str(), "concurrent"])
+                .inc();
             return;
         };
         let now = Instant::now();
@@ -210,6 +232,11 @@ fn needs_preparation(context: &MessageContext, message: &HyperlaneMessage) -> bo
 }
 
 async fn prepare(context: &MessageContext, message: &HyperlaneMessage) -> Result<()> {
+    if let Some(check) = &context.origin_sender_check {
+        if check.cached_deny_reason(message).await.is_some() {
+            return Ok(());
+        }
+    }
     let mailbox = &context.destination_mailbox;
     let domain = mailbox.domain().name();
     let is_contract = match context
@@ -339,6 +366,14 @@ mod tests {
         }
 
         fn preparer(&self) -> EarlyPreparation {
+            let metrics =
+                hyperlane_base::CoreMetrics::new("early-test", 9090, prometheus::Registry::new())
+                    .unwrap();
+            let denylist = RuntimeDenylist::new(
+                None,
+                super::super::runtime_denylist::RuntimeDenylistMetrics::new(&metrics).unwrap(),
+            )
+            .unwrap();
             EarlyPreparation::new(
                 HashMap::from([(
                     (self.message.origin, self.message.destination),
@@ -347,7 +382,10 @@ mod tests {
                 Default::default(),
                 Default::default(),
                 Arc::new(AddressBlacklist::new(vec![])),
+                Arc::new(denylist),
+                &metrics,
             )
+            .unwrap()
         }
 
         async fn cached<T: serde::de::DeserializeOwned>(
@@ -618,6 +656,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn runtime_denied_messages_do_not_start_rpc_discovery() {
+        let fixture = Fixture::new().await;
+        let mut preparation = fixture.preparer();
+        preparation.runtime_denylist = Arc::new(RuntimeDenylist::from_rules_for_test(
+            serde_json::json!([
+                { "reason": "test", "addedBy": "test", "match": {"messageId": format!("{:?}", fixture.message.id())} }
+            ]),
+        ));
+        preparation.discover(fixture.message.clone());
+        assert!(preparation.messages.lock().is_empty());
+        assert_eq!(preparation.permits.available_permits(), MAX_CONCURRENT);
+    }
+
+    #[tokio::test]
     async fn admission_is_bounded_and_does_not_queue_unlimited_rpc_work() {
         let fixture = Fixture::new().await;
         let preparation = fixture.preparer();
@@ -627,6 +679,13 @@ mod tests {
             preparation.discover(message);
         }
         assert_eq!(preparation.messages.lock().len(), MAX_CONCURRENT);
+        assert_eq!(
+            preparation
+                .dropped
+                .with_label_values(&[fixture.message.origin.to_string().as_str(), "concurrent"])
+                .get(),
+            1000 - MAX_CONCURRENT as u64
+        );
         preparation.invalidate(fixture.message.origin);
         for _ in 0..10 {
             tokio::task::yield_now().await;
@@ -681,7 +740,7 @@ mod tests {
             .unwrap();
         let frame = socket.next().await.unwrap().unwrap();
         let request: Value = serde_json::from_str(frame.to_text().unwrap()).unwrap();
-        assert_eq!(request["streams"][0]["includeUnconfirmed"], true);
+        assert_eq!(request["streams"][0]["includeZeroConfirmations"], true);
         let mut response = request["streams"].clone();
         for stream in response.as_array_mut().unwrap() {
             if let Some(cursors) = stream["cursors"].as_array_mut() {
@@ -703,7 +762,7 @@ mod tests {
             "destination_domain":fixture.message.destination, "msg_body":"0x01", "msg_id":format!("{:#x}", fixture.message.id()),
             "origin_block_height":"100", "origin_block_hash":format!("{:#x}", H256::from_low_u64_be(8)),
             "origin_tx_hash":format!("{:#x}", H256::from_low_u64_be(9))});
-        let mut event = json!({"type":"event", "stage":"observed", "domain":origin, "eventType":"dispatch", "sequence":"0", "data":data});
+        let mut event = json!({"type":"event", "confirmations":0, "domain":origin, "eventType":"dispatch", "sequence":"0", "data":data});
         // A bad advisory payload must not disconnect the confirmed stream.
         let mut bad = event.clone();
         bad["data"]["msg_id"] = json!(format!("{:#x}", H256::zero()));
@@ -742,7 +801,7 @@ mod tests {
             .is_none());
         assert!(fixture.base.requests.activities.lock().unwrap().is_empty());
         socket.send(Message::Text(json!({"type":"block", "domain":origin, "height":"999", "headHeight":"999", "hash":format!("{:#x}", H256::zero())}).to_string().into())).await.unwrap();
-        socket.send(Message::Text(json!({"type":"rollback", "stage":"observed", "domain":origin, "eventType":"dispatch", "toHeight":"99"}).to_string().into())).await.unwrap();
+        socket.send(Message::Text(json!({"type":"rollback", "confirmations":0, "domain":origin, "eventType":"dispatch", "toHeight":"99"}).to_string().into())).await.unwrap();
         tokio::time::timeout(Duration::from_secs(5), async {
             while !preparation.messages.lock().is_empty() {
                 tokio::task::yield_now().await;
@@ -759,7 +818,7 @@ mod tests {
             .send(Message::Text(event.to_string().into()))
             .await
             .unwrap();
-        event["stage"] = json!("confirmed");
+        event.as_object_mut().unwrap().remove("confirmations");
         socket
             .send(Message::Text(event.to_string().into()))
             .await

@@ -1,7 +1,9 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
+use hyperlane_base::db::HyperlaneRocksDB;
 
 use async_trait::async_trait;
 use eyre::{eyre, Result};
@@ -33,6 +35,11 @@ pub struct DispatcherEntrypoint {
 }
 
 impl DispatcherEntrypoint {
+    /// Configure origin gates shared by all queued and recovered submissions.
+    pub fn set_origin_databases(&self, origins: HashMap<u32, HyperlaneRocksDB>) {
+        self.inner.origin_dbs.get_or_init(|| origins);
+    }
+
     /// Create an entrypoint from shared dispatcher state.
     pub(crate) fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }

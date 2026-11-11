@@ -508,19 +508,26 @@ impl BaseAgent for Relayer {
             .values()
             .map(Origin::scraper_source)
             .collect::<Result<Vec<_>>>()?;
-        let early_preparation = settings.websocket_url.as_ref().map(|_| {
-            Arc::new(EarlyPreparation::new(
-                msg_ctxs
-                    .iter()
-                    .map(|(key, context)| {
-                        ((key.origin.id(), key.destination.id()), context.clone())
-                    })
-                    .collect(),
-                message_whitelist.clone(),
-                message_blacklist.clone(),
-                address_blacklist.clone(),
-            ))
-        });
+        let early_preparation = settings
+            .websocket_url
+            .as_ref()
+            .map(|_| {
+                EarlyPreparation::new(
+                    msg_ctxs
+                        .iter()
+                        .map(|(key, context)| {
+                            ((key.origin.id(), key.destination.id()), context.clone())
+                        })
+                        .collect(),
+                    message_whitelist.clone(),
+                    message_blacklist.clone(),
+                    address_blacklist.clone(),
+                    runtime_denylist.clone(),
+                    &core_metrics,
+                )
+                .map(Arc::new)
+            })
+            .transpose()?;
         let scraper_websocket_monitor = settings
             .websocket_url
             .map(|url| {
@@ -610,6 +617,24 @@ impl BaseAgent for Relayer {
 
         let mut tasks = vec![];
 
+        for origin in self.origins.values() {
+            if !origin.database.live_block_verification_pending() {
+                continue;
+            }
+            let source = origin
+                .scraper_source()
+                .expect("Origin source was validated during construction");
+            let domain = origin.domain.clone();
+            let critical_errors = self.critical_errors.clone();
+            tasks.push(tokio::spawn(async move {
+                source
+                    .retry_startup_verification()
+                    .await
+                    .expect("Origin live-block recovery required");
+                critical_errors.clear(&domain, CriticalErrorSource::Origin);
+            }));
+        }
+
         let task_monitor = tokio_metrics::TaskMonitor::new();
         if let Some(monitor) = self.scraper_websocket_monitor.take() {
             let scraper_websocket = tokio::task::Builder::new()
@@ -655,6 +680,17 @@ impl BaseAgent for Relayer {
             tasks.push(runtime_denylist);
         }
 
+        let origin_databases: HashMap<_, _> = self
+            .origins
+            .iter()
+            .map(|(domain, origin)| (domain.id(), origin.database.clone()))
+            .collect();
+        for destination in self.destinations.values() {
+            if let Some(entrypoint) = &destination.dispatcher_entrypoint {
+                entrypoint.set_origin_databases(origin_databases.clone());
+            }
+        }
+        let origin_databases = Arc::new(origin_databases);
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destinations.len());
@@ -715,7 +751,8 @@ impl BaseAgent for Relayer {
                 dispatcher_entrypoint,
                 db,
             )
-            .with_runtime_denylist(self.runtime_denylist.clone());
+            .with_runtime_denylist(self.runtime_denylist.clone())
+            .with_origin_databases(origin_databases.clone());
             prep_queues.insert(dest_domain.id(), message_processor.prepare_queue().await);
 
             tasks.push(self.run_destination_processor(
@@ -1141,8 +1178,10 @@ impl Relayer {
         let index_settings = origin.chain_conf.index_settings().clone();
         let message_sync = origin.message_sync.clone();
         let merkle_sync = origin.merkle_tree_hook_sync.clone();
+        let database = origin.database.clone();
         let critical_errors = self.critical_errors.clone();
         tokio::spawn(async move {
+            database.wait_for_live_block_verification().await;
             let mut authority_channel_open = true;
             loop {
                 let mut command = authority.borrow_and_update();
@@ -1257,6 +1296,7 @@ impl Relayer {
 
         let index_settings = origin.chain_conf.index_settings().clone();
         let critical_errors = self.critical_errors.clone();
+        let database = origin.database.clone();
 
         let name = Self::contract_sync_task_name("message::", origin_domain.name());
         Ok(tokio::task::Builder::new()
@@ -1264,6 +1304,7 @@ impl Relayer {
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
+                    database.wait_for_live_block_verification().await;
                     Self::message_sync_task(
                         &origin_domain,
                         contract_sync,
@@ -1318,6 +1359,7 @@ impl Relayer {
             }
         };
         let critical_errors = self.critical_errors.clone();
+        let database = origin.database.clone();
         let authority = self
             .gas_payment_websocket_authority
             .get(&origin.domain.id())
@@ -1333,6 +1375,7 @@ impl Relayer {
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
+                    database.wait_for_live_block_verification().await;
                     run_gas_payment_fallback(
                         authority,
                         || {
@@ -1410,6 +1453,7 @@ impl Relayer {
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
         let critical_errors = self.critical_errors.clone();
+        let database = origin.database.clone();
 
         let origin_domain = origin.domain.clone();
         let index_settings = origin.chain_conf.index_settings().clone();
@@ -1421,6 +1465,7 @@ impl Relayer {
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
+                    database.wait_for_live_block_verification().await;
                     Self::merkle_tree_hook_sync_task(
                         &origin_domain,
                         index_settings,
@@ -1583,11 +1628,6 @@ impl Relayer {
                 message_db_loader.set_index_notifications(
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                 );
-                message_db_loader.set_notification_overflow(
-                    maybe_broadcaster
-                        .as_ref()
-                        .map(BroadcastMpscSender::missed_notifications),
-                );
                 if init_failed {
                     critical_errors.clear(&origin_domain, CriticalErrorSource::MessageDbLoader);
                 }
@@ -1718,6 +1758,11 @@ impl Relayer {
         use origin::OriginFactory;
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
+        let recovery_metric = core_metrics.new_int_gauge(
+            "relayer_origin_recovery_required",
+            "Whether an origin requires coordinated DB and queue recovery",
+            &["chain"],
+        )?;
         let factory = OriginFactory::new(
             db,
             core_metrics,
@@ -1746,17 +1791,31 @@ impl Relayer {
                         },
                     )
                     .await?;
-                    // Do not construct consumers for an origin until its durable live
-                    // writes have been verified, including when WebSockets are disabled.
+                    // Gate consumers until durable live writes are verified, even
+                    // when WebSockets are disabled; retain the destination role.
+                    origin.database.set_indexed_event_conflict_metric(
+                        recovery_metric.with_label_values(&[domain.name()]),
+                    )?;
                     let source = origin.scraper_source()?;
-                    Self::build_chain_with_retries(
+                    origin.database.set_live_block_verification_pending(true);
+                    let verification = Self::build_chain_with_retries(
                         domain,
                         "origin live-block verification",
                         CHAIN_BUILD_RETRY,
                         |error: &eyre::Report| !error.is::<RollbackRecoveryRequired>(),
                         || source.verify_live_blocks(),
                     )
-                    .await?;
+                    .await;
+                    match verification {
+                        Ok(()) => origin.database.set_live_block_verification_pending(false),
+                        Err(error) if error.is::<RollbackRecoveryRequired>() => return Err(error),
+                        Err(error) => critical_errors.record(
+                            domain,
+                            CriticalErrorSource::Origin,
+                            &error,
+                            "Origin verification will retry in the background",
+                        ),
+                    }
                     Ok::<_, eyre::Report>(origin)
                 }
                 .await;

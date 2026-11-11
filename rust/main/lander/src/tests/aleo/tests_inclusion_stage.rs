@@ -854,6 +854,7 @@ async fn mock_aleo_tx(
         details: PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
+            origin: None,
             success_criteria: Some(serde_json::to_vec(&success_criteria).unwrap()),
         },
         data: serde_json::to_vec(&tx_data).unwrap(),

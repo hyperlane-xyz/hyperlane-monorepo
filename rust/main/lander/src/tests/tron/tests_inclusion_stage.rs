@@ -190,6 +190,7 @@ async fn mock_tron_tx(
         details: PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
+            origin: None,
             success_criteria: None, // Set by tests as needed
         },
         data,

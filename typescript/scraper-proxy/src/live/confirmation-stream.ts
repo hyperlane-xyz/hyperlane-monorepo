@@ -52,8 +52,6 @@ export class ConfirmationStream {
     readonly domains: Set<number>,
     private readonly io: {
       active: () => boolean;
-      /** Best-effort early updates; omit rows already eligible for normal delivery. */
-      early?: { confirmations?: number };
       read: (
         domain: number,
         after: Position,
@@ -88,12 +86,7 @@ export class ConfirmationStream {
           throw new ConfirmationUnavailableError(domain);
         }
         const height = confirmationHeight(head, this.confirmations);
-        this.confirmed.set(
-          domain,
-          this.io.early?.confirmations === undefined
-            ? head.confirmed
-            : confirmationHeight(head, this.io.early.confirmations),
-        );
+        this.confirmed.set(domain, head.confirmed);
         this.states.set(domain, {
           position: endOfHeight(height),
           target: height,
@@ -128,28 +121,16 @@ export class ConfirmationStream {
   }
 
   notify(head: HeadNotification): void {
-    if (!this.domains.has(head.domain)) return;
-    if (this.io.early && this.io.early.confirmations === undefined) {
-      this.confirmed.set(head.domain, head.confirmedHeight);
-    }
-    if (head.headHeight === undefined || head.indexedHeight === undefined)
+    if (
+      !this.domains.has(head.domain) ||
+      head.headHeight === undefined ||
+      head.indexedHeight === undefined
+    )
       return;
-    let state = this.states.get(head.domain);
+    const state = this.states.get(head.domain);
     const rollback =
       head.previousIndexedHeight !== undefined &&
       head.indexedHeight < head.previousIndexedHeight;
-    if (!state && this.io.early) {
-      const height = confirmationHeight(
-        { head: head.headHeight, indexed: head.indexedHeight },
-        this.confirmations,
-      );
-      state = {
-        position: endOfHeight(height),
-        target: height,
-        through: height,
-      };
-      this.states.set(head.domain, state);
-    }
     if (!state) {
       // Capabilities are fixed until reconnect. During negotiation, retry the
       // snapshot only if ancestry changed; afterwards this domain stays canonical.
@@ -161,15 +142,7 @@ export class ConfirmationStream {
       this.confirmations,
     );
     state.target = to;
-    this.confirmed.set(
-      head.domain,
-      this.io.early?.confirmations === undefined
-        ? head.confirmedHeight
-        : confirmationHeight(
-            { head: head.headHeight, indexed: head.indexedHeight },
-            this.io.early.confirmations,
-          ),
-    );
+    this.confirmed.set(head.domain, head.confirmedHeight);
     for (const [id, frontiers] of this.exposedIds) {
       if (this.isCanonical(frontiers)) this.exposedIds.delete(id);
     }
@@ -270,11 +243,6 @@ export class ConfirmationStream {
         if (!this.io.active()) return;
         if (revision !== this.revision) break;
         state.position = row.position;
-        if (
-          this.io.early &&
-          row.position[0] <= (this.confirmed.get(domain) ?? -1n)
-        )
-          continue;
         if (row.message) this.remember(row.message, frontiers, row.domains);
         if (row.message && !(await this.io.send(row.message))) {
           this.started = false;

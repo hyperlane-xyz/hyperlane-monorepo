@@ -55,6 +55,7 @@ mod tests {
         let payload_details = vec![PayloadDetails {
             uuid: hyperlane_core::identifiers::UniqueIdentifier::random(),
             metadata: "test-payload".to_string(),
+            origin: None,
             success_criteria: None,
         }];
         Transaction::new(precursor, payload_details)

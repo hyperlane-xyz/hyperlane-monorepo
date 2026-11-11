@@ -1114,7 +1114,7 @@ async fn build_chain_with_retries_allows_recovery_within_budget() {
 }
 
 #[tokio::test]
-async fn live_verification_isolates_failed_origins_and_preserves_reorg_halt() {
+async fn live_verification_retains_pending_origins_and_preserves_reorg_halt() {
     use crate::scraper_websocket::RollbackRecoveryRequired;
     use axum::{routing::post, Json, Router};
     use ethers::types::{Block, H256 as EthersH256, U64};
@@ -1126,15 +1126,20 @@ async fn live_verification_isolates_failed_origins_and_preserves_reorg_halt() {
     for (failures, mismatch) in [(usize::MAX, false), (2, false), (0, true)] {
         let calls = Arc::new(AtomicUsize::new(0));
         let rpc_calls = calls.clone();
+        let recovered = Arc::new(AtomicBool::new(false));
+        let rpc_recovered = recovered.clone();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let app = Router::new().route(
             "/",
             post(move |Json(request): Json<Value>| {
                 let calls = rpc_calls.clone();
+                let recovered = rpc_recovered.clone();
                 async move {
                     assert_eq!(request["method"], "eth_getBlockByNumber");
-                    let mut response = if calls.fetch_add(1, Ordering::SeqCst) < failures {
+                    let mut response = if calls.fetch_add(1, Ordering::SeqCst) < failures
+                        && !recovered.load(Ordering::Acquire)
+                    {
                         json!({"error": {"code": -32602, "message": "block lookup unavailable"}})
                     } else {
                         json!({"result": Block::<EthersH256> {
@@ -1199,7 +1204,14 @@ async fn live_verification_isolates_failed_origins_and_preserves_reorg_halt() {
         } else {
             let origins = result.unwrap();
             assert!(origins.contains_key(&healthy));
-            assert_eq!(origins.contains_key(&affected), failures != usize::MAX);
+            assert!(origins.contains_key(&affected));
+            assert_eq!(
+                origins[&affected]
+                    .database
+                    .live_block_verification_pending(),
+                failures == usize::MAX
+            );
+            assert!(!origins[&healthy].database.live_block_verification_pending());
             assert!(
                 calls.load(Ordering::SeqCst) > 1,
                 "transient verification must retry"
@@ -1215,6 +1227,18 @@ async fn live_verification_isolates_failed_origins_and_preserves_reorg_halt() {
                 .retrieve_value_by_key::<_, u64>(b"scraper_websocket_rollback_recovery", &mailbox)
                 .unwrap()
                 .is_none());
+            if failures == usize::MAX {
+                recovered.store(true, Ordering::Release);
+                origins[&affected]
+                    .scraper_source()
+                    .unwrap()
+                    .retry_startup_verification()
+                    .await
+                    .unwrap();
+                assert!(!origins[&affected]
+                    .database
+                    .live_block_verification_pending());
+            }
         }
         server.abort();
     }

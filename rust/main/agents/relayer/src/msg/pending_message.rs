@@ -556,6 +556,7 @@ impl PendingOperation for PendingMessage {
     async fn prepare(&mut self) -> PendingOperationResult {
         if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
             warn!(?error, "Origin requires indexed event recovery");
+            self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::NotReady;
         }
         if !self.is_ready() {
@@ -853,6 +854,7 @@ impl PendingOperation for PendingMessage {
     async fn submit(&mut self) -> PendingOperationResult {
         if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
             warn!(?error, "Origin requires indexed event recovery");
+            self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::NotReady;
         }
         if self.submitted {
@@ -902,13 +904,26 @@ impl PendingOperation for PendingMessage {
         self.report_progress(Stage::Submit, Outcome::Started);
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let tx_outcome = with_rpc_operation(
-            RpcOperation::TransactionLifecycle,
-            self.ctx
-                .destination_mailbox
-                .process(&self.message, &state.metadata, Some(gas_limit)),
+        let tx_outcome = HyperlaneRocksDB::with_consistent_origins(
+            &[self.ctx.origin_db.as_ref()],
+            with_rpc_operation(
+                RpcOperation::TransactionLifecycle,
+                self.ctx.destination_mailbox.process(
+                    &self.message,
+                    &state.metadata,
+                    Some(gas_limit),
+                ),
+            ),
         )
         .await;
+        let tx_outcome = match tx_outcome {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                warn!(?error, "Origin recovery interrupted submission");
+                self.set_next_attempt_after(CONFIRM_DELAY);
+                return PendingOperationResult::NotReady;
+            }
+        };
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, gas_limit).await;
@@ -1992,6 +2007,7 @@ mod test {
         .to_string()
         .contains("origin requires DB/queue/prover recovery"));
         assert_eq!(pending.num_retries, 0);
+        assert!(pending.next_attempt_after().unwrap() > Instant::now());
     }
 
     #[test]
@@ -2912,6 +2928,46 @@ mod test {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn classic_submit_rechecks_admission_after_dry_run() {
+        let db_slot = Arc::new(std::sync::OnceLock::<HyperlaneRocksDB>::new());
+        let mark_db = db_slot.clone();
+        let mut mailbox = contract_test_mailbox();
+        mailbox
+            .expect_process_estimate_costs()
+            .once()
+            .returning(move |_, _| {
+                mark_db
+                    .get()
+                    .unwrap()
+                    .mark_indexed_event_conflict()
+                    .unwrap();
+                Ok(TxCostEstimate {
+                    gas_limit: U256::from(100),
+                    gas_price: FixedPointNumber::zero(),
+                    l2_gas_limit: None,
+                })
+            });
+        mailbox.expect_process().never();
+        let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+        let other_dir = tempfile::tempdir().unwrap();
+        let raw = DB::from_path(other_dir.path()).unwrap();
+        let db = HyperlaneRocksDB::new(pending.ctx.origin_db.domain(), raw);
+        db_slot.set(db.clone()).unwrap();
+        Arc::get_mut(&mut pending.ctx).unwrap().origin_db = Arc::new(db);
+        pending.metadata = Some(Metadata::new(vec![9; 32]));
+        pending.submission_data = Some(Box::new(MessageSubmissionData {
+            metadata: Metadata::new(vec![7; 32]),
+            gas_limit: U256::from(100),
+        }));
+        assert!(matches!(
+            pending.submit().await,
+            PendingOperationResult::NotReady
+        ));
+        assert!(pending.next_attempt_after.unwrap() > Instant::now());
+        assert_eq!(pending.num_retries, 0);
     }
 
     #[tokio::test]

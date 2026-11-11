@@ -25,14 +25,12 @@ import {
 } from '../metrics.js';
 import {
   displayAddress,
-  DispatchStage,
   SUBSCRIPTION_TYPES,
   type BlockStreamRequest,
   type EventNotification,
   type EventType,
   type HeadNotification,
   parseDatabaseDomain,
-  type StreamCursor,
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
@@ -627,18 +625,10 @@ export class EventWebSocketServer {
     confirmations: number,
     domains: Set<number>,
     eventType?: EventType,
-    lifecycle?: {
-      stage: DispatchStage;
-      confirmations?: number;
-      cursors?: StreamCursor[];
-    },
   ): Promise<ConfirmationStream> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
     const stream = new ConfirmationStream(confirmations, domains, {
-      ...(lifecycle?.stage === DispatchStage.Observed
-        ? { early: { confirmations: lifecycle.confirmations } }
-        : {}),
       active: () =>
         this.clients.has(socket) || this.explorerClients.has(socket),
       read: (domain, after, through, frontiers) =>
@@ -649,9 +639,6 @@ export class EventWebSocketServer {
               after,
               through,
               confirmations,
-              lifecycle?.cursors
-                ?.filter((cursor) => cursor.domain === domain)
-                .map((cursor) => cursor.address),
             )
           : this.store.confirmationMessageRows(
               domain,
@@ -661,11 +648,7 @@ export class EventWebSocketServer {
               confirmations,
               this.explorerClients.get(socket)?.messageIds,
             ),
-      send: (message) =>
-        this.sendAndWait(
-          socket,
-          lifecycle ? { ...message, stage: lifecycle.stage } : message,
-        ),
+      send: (message) => this.sendAndWait(socket, message),
       messageId: eventType
         ? undefined
         : (message) => {
@@ -704,7 +687,6 @@ export class EventWebSocketServer {
           domain,
           eventType,
           confirmations,
-          ...(lifecycle ? { stage: lifecycle.stage } : {}),
           fromHeight: from.toString(),
           toHeight: to.toString(),
         });
@@ -716,7 +698,7 @@ export class EventWebSocketServer {
     this.confirmationStreams.set(socket, streams);
     await stream.initialize(
       () => this.store.confirmationHeads(domains),
-      eventType === undefined || lifecycle?.stage === DispatchStage.Observed,
+      eventType === undefined,
     );
     return stream;
   }
@@ -792,27 +774,7 @@ export class EventWebSocketServer {
             request.confirmations,
             request.domains,
             request.eventType,
-            request.includeUnconfirmed
-              ? { stage: DispatchStage.Confirmed }
-              : undefined,
           );
-        if (
-          request.includeUnconfirmed &&
-          request.domains &&
-          request.confirmations !== 0
-        ) {
-          await this.createConfirmationStream(
-            socket,
-            0,
-            request.domains,
-            request.eventType,
-            {
-              stage: DispatchStage.Observed,
-              confirmations: request.confirmations,
-              cursors: request.cursors,
-            },
-          );
-        }
       }
     } catch (error) {
       if (error instanceof ConfirmationUnavailableError)
@@ -1598,9 +1560,6 @@ function subscriptionResponse(
 ): Record<string, unknown> {
   return {
     confirmations: request.confirmations,
-    ...(request.includeUnconfirmed !== undefined
-      ? { includeUnconfirmed: request.includeUnconfirmed }
-      : {}),
     cursors: request.cursors?.map((cursor) =>
       cursor.kind === 'gas_payment'
         ? {

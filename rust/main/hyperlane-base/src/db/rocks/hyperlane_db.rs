@@ -1,14 +1,17 @@
 use std::{
+    future::{poll_fn, Future},
     ops::Add,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, OnceLock,
     },
+    task::Poll,
 };
 
 use async_trait::async_trait;
-use eyre::{bail, ensure, Result};
+use eyre::{bail, Result};
 use parking_lot::Mutex;
+use prometheus::IntGauge;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -74,7 +77,17 @@ pub struct HyperlaneRocksDB(
     Arc<Mutex<()>>,
     Arc<Mutex<()>>,
     Arc<Mutex<()>>,
+    Arc<OnceLock<IntGauge>>,
+    Arc<OriginConsistency>,
 );
+
+#[derive(Debug, Default)]
+/// Shared admission and startup verification state for cloned origin handles.
+pub struct OriginConsistency {
+    admission: Mutex<()>,
+    changed: tokio::sync::Notify,
+    verification_pending: AtomicBool,
+}
 
 impl std::ops::Deref for HyperlaneRocksDB {
     type Target = TypedDB;
@@ -105,6 +118,8 @@ impl HyperlaneRocksDB {
             Arc::new(Mutex::new(())),
             Arc::new(Mutex::new(())),
             Arc::new(Mutex::new(())),
+            Arc::default(),
+            Arc::default(),
         )
     }
 
@@ -112,7 +127,92 @@ impl HyperlaneRocksDB {
     /// Clear `indexed_event_conflict_v1_` only after coordinated DB, queue and
     /// prover recovery. A matching replay or restart must not clear this marker.
     pub fn mark_indexed_event_conflict(&self) -> DbResult<()> {
-        self.store_value_by_key(INDEXED_EVENT_CONFLICT, &false, &true)
+        let _admission = self.6.admission.lock();
+        self.store_value_by_key(INDEXED_EVENT_CONFLICT, &false, &true)?;
+        if let Some(metric) = self.5.get() {
+            metric.set(1);
+        }
+        self.6.changed.notify_waiters();
+        Ok(())
+    }
+
+    /// Observe both persisted conflicts at startup and subsequent writes from cloned handles.
+    pub fn set_indexed_event_conflict_metric(&self, metric: IntGauge) -> DbResult<()> {
+        let required = self
+            .retrieve_value_by_key(INDEXED_EVENT_CONFLICT, &false)?
+            .unwrap_or(false);
+        self.5.get_or_init(|| metric).set(i64::from(required));
+        Ok(())
+    }
+
+    /// Hold consumers while startup verification retries; this is not a durable conflict.
+    pub fn set_live_block_verification_pending(&self, pending: bool) {
+        self.6
+            .verification_pending
+            .store(pending, Ordering::Release);
+        self.6.changed.notify_waiters();
+    }
+
+    /// Whether consumers are waiting for initial RPC verification.
+    pub fn live_block_verification_pending(&self) -> bool {
+        self.6.verification_pending.load(Ordering::Acquire)
+    }
+
+    /// Wait without polling the database while startup verification is unavailable.
+    pub async fn wait_for_live_block_verification(&self) {
+        loop {
+            let changed = self.6.changed.notified();
+            if !self.6.verification_pending.load(Ordering::Acquire) {
+                return;
+            }
+            changed.await;
+        }
+    }
+
+    /// Serialize each poll of a submission with conflict marking. No lock survives
+    /// an await. A conflict cancels pending work; requests already sent to a node
+    /// cannot be revoked. Sort/deduplicate origins for transactions that batch them.
+    pub async fn with_consistent_origins<F: Future>(
+        origins: &[&dyn HyperlaneDb],
+        future: F,
+    ) -> DbResult<F::Output> {
+        let mut origins = origins.to_vec();
+        origins.sort_unstable_by_key(|db| db.domain().id());
+        origins.dedup_by_key(|db| db.domain().id());
+        let states: Vec<_> = origins
+            .iter()
+            .filter_map(|db| db.origin_consistency())
+            .collect();
+        let mut changed: Vec<_> = states
+            .iter()
+            .map(|state| Box::pin(state.changed.notified()))
+            .collect();
+        let mut future = std::pin::pin!(future);
+        poll_fn(|cx| {
+            let _admission: Vec<_> = states.iter().map(|state| state.admission.lock()).collect();
+            for db in &origins {
+                if let Err(error) = db.ensure_no_indexed_event_conflict() {
+                    return Poll::Ready(Err(error));
+                }
+            }
+            for (notification, state) in changed.iter_mut().zip(&states) {
+                // Register the submission's waker before releasing admission locks.
+                if notification.as_mut().poll(cx).is_ready() {
+                    *notification = Box::pin(state.changed.notified());
+                    let _ = notification.as_mut().poll(cx);
+                }
+            }
+            future.as_mut().poll(cx).map(Ok)
+        })
+        .await
+    }
+
+    fn check_event_consistency(&self, matches: bool, kind: &'static str) -> Result<()> {
+        if !matches {
+            self.mark_indexed_event_conflict()?;
+            return Err(ConflictingEvent(kind).into());
+        }
+        Ok(())
     }
 
     /// Get the domain this database is scoped to
@@ -194,20 +294,20 @@ impl HyperlaneRocksDB {
         let existing_message = self.retrieve_message_by_nonce(message.nonce)?;
         let existing_block = self.retrieve_dispatched_block_number_by_nonce(&message.nonce)?;
         let existing_tx = self.retrieve_dispatched_tx_hash_by_message_id(&message.id())?;
-        ensure!(
+        self.check_event_consistency(
             existing_message
                 .as_ref()
                 .is_none_or(|stored| stored == message),
-            ConflictingEvent("dispatch")
-        );
-        ensure!(
+            "dispatch",
+        )?;
+        self.check_event_consistency(
             existing_block.is_none_or(|stored| stored == block),
-            ConflictingEvent("dispatch block")
-        );
-        ensure!(
+            "dispatch block",
+        )?;
+        self.check_event_consistency(
             tx.is_zero() || existing_tx.is_none_or(|stored| stored.is_zero() || stored == tx),
-            ConflictingEvent("dispatch transaction")
-        );
+            "dispatch transaction",
+        )?;
         let fill_tx = !tx.is_zero() && existing_tx.is_none_or(|stored| stored.is_zero());
         if existing_message.is_none() || existing_block.is_none() || fill_tx {
             before_write()?;
@@ -241,6 +341,9 @@ impl HyperlaneRocksDB {
     ) -> DbResult<()> {
         let id = message.id();
         let previous = self.retrieve_message_by_nonce(message.nonce)?;
+        if previous.as_ref().is_some_and(|stored| stored != message) {
+            self.mark_indexed_event_conflict()?;
+        }
         let max_nonce = self
             .retrieve_highest_seen_message_nonce()?
             .unwrap_or_default()
@@ -704,21 +807,35 @@ impl HyperlaneRocksDB {
         let reverse = self.retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?;
         let block =
             self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())?;
-        ensure!(
+        self.check_event_consistency(
             existing.is_none_or(|stored| stored == *insertion),
-            ConflictingEvent("Merkle leaf")
-        );
-        ensure!(
-            reverse.is_none_or(|stored| stored == insertion.index()),
-            ConflictingEvent("Merkle reverse index")
-        );
-        ensure!(
+            "Merkle leaf",
+        )?;
+        self.check_event_consistency(
             block.is_none_or(|stored| stored == insertion_block_number),
-            ConflictingEvent("Merkle block")
-        );
-        if existing.is_none() || reverse.is_none() || block.is_none() {
+            "Merkle block",
+        )?;
+        if existing.is_none() {
             before_write()?;
             self.store_tree_insertion_inner(insertion, insertion_block_number)?;
+        } else if reverse.is_none() || block.is_none() {
+            before_write()?;
+            let mut batch = self.batch();
+            if reverse.is_none() {
+                batch.store_keyed_encodable(
+                    MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
+                    &insertion.message_id(),
+                    &insertion.index(),
+                );
+            }
+            if block.is_none() {
+                batch.store_keyed_encodable(
+                    MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
+                    &insertion.index(),
+                    &insertion_block_number,
+                );
+            }
+            batch.commit()?;
         }
         Ok(existing)
     }
@@ -812,6 +929,134 @@ mod pending_index_tests {
 
     use super::*;
     use crate::db::rocks::test_utils::run_test_db;
+
+    #[tokio::test]
+    async fn conflict_wakes_and_cancels_an_admitted_pending_submission() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let (started, waiting) = tokio::sync::oneshot::channel();
+            let submission_db = db.clone();
+            let submission = tokio::spawn(async move {
+                HyperlaneRocksDB::with_consistent_origins(
+                    &[&submission_db, &submission_db],
+                    async {
+                        started.send(()).unwrap();
+                        std::future::pending::<()>().await;
+                        panic!("conflicted submission resumed");
+                    },
+                )
+                .await
+            });
+            waiting.await.unwrap();
+            db.mark_indexed_event_conflict().unwrap();
+            let error = tokio::time::timeout(std::time::Duration::from_secs(1), submission)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap_err();
+            assert!(matches!(error, DbError::ConflictingEvent(_)));
+            assert!(HyperlaneRocksDB::with_consistent_origins(&[&db], async {
+                panic!("blocked submission was polled");
+            })
+            .await
+            .is_err());
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn startup_verification_gates_consumers_without_a_durable_conflict() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            db.set_live_block_verification_pending(true);
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+            let consumer_db = db.clone();
+            let mut consumer = tokio::spawn(async move {
+                consumer_db.wait_for_live_block_verification().await;
+                consumer_db.ensure_no_indexed_event_conflict()
+            });
+            assert!(
+                tokio::time::timeout(std::time::Duration::from_millis(10), &mut consumer)
+                    .await
+                    .is_err()
+            );
+            db.set_live_block_verification_pending(false);
+            consumer.await.unwrap().unwrap();
+            db.ensure_no_indexed_event_conflict().unwrap();
+        })
+        .await;
+    }
+
+    #[test]
+    fn repeated_merkle_ids_do_not_poison_or_rewind_reverse_indices() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &HyperlaneDomain::new_test_domain("origin"),
+            DB::from_path(dir.path()).unwrap(),
+        );
+        let id = H256::from_low_u64_be(1);
+        let first = MerkleTreeInsertion::new(0, id);
+        let second = MerkleTreeInsertion::new(1, id);
+        db.store_tree_insertion_if_consistent(&first, 100, || Ok(()))
+            .unwrap();
+        db.store_tree_insertion_if_consistent(&second, 101, || Ok(()))
+            .unwrap();
+        db.store_tree_insertion_if_consistent(&first, 100, || {
+            panic!("matching replay must not rewrite metadata")
+        })
+        .unwrap();
+        db.ensure_no_indexed_event_conflict().unwrap();
+        assert_eq!(
+            db.retrieve_merkle_leaf_index_by_message_id(&id).unwrap(),
+            Some(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_block_conflicts_and_manual_replacements_set_the_recovery_metric() {
+        run_test_db(|raw_db| async move {
+            let db =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db.clone());
+            let metric = IntGauge::new("test_recovery", "test").unwrap();
+            db.set_indexed_event_conflict_metric(metric.clone())
+                .unwrap();
+            assert_eq!(metric.get(), 0);
+            let original = message(0, 10);
+            db.store_message(&original, 100).unwrap();
+            let meta = LogMeta {
+                block_number: 101,
+                ..Default::default()
+            };
+            assert!(db
+                .store_logs(&[(Indexed::new(original.clone()), meta)])
+                .await
+                .is_err());
+            assert_eq!(metric.get(), 1);
+            assert_eq!(
+                db.retrieve_dispatched_block_number_by_nonce(&0).unwrap(),
+                Some(100)
+            );
+            let startup = IntGauge::new("test_recovery_reopened", "test").unwrap();
+            let reopened = HyperlaneRocksDB::new(db.domain(), raw_db);
+            reopened
+                .set_indexed_event_conflict_metric(startup.clone())
+                .unwrap();
+            assert_eq!(startup.get(), 1);
+        })
+        .await;
+    }
+
+    #[test]
+    fn manual_message_replacement_gates_already_loaded_work() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &HyperlaneDomain::new_test_domain("origin"),
+            DB::from_path(dir.path()).unwrap(),
+        );
+        db.store_message(&message(0, 10), 100).unwrap();
+        db.upsert_message(&message(0, 11), 101).unwrap();
+        assert!(db.ensure_no_indexed_event_conflict().is_err());
+    }
 
     #[tokio::test]
     async fn rpc_dispatch_conflicts_gate_only_the_affected_origin() {
@@ -1352,6 +1597,11 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
                 self.mark_indexed_event_conflict()?;
                 return Err(ConflictingEvent("dispatch").into());
             }
+            self.check_event_consistency(
+                self.retrieve_dispatched_block_number_by_nonce(&message.inner().nonce)?
+                    .is_none_or(|block| block == meta.block_number),
+                "dispatch block",
+            )?;
             let stored_message = self.store_message_inner(message.inner(), meta.block_number)?;
             if stored_message {
                 stored = stored.saturating_add(1);
@@ -1542,7 +1792,16 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 impl HyperlaneDb for HyperlaneRocksDB {
+    fn origin_consistency(&self) -> Option<&OriginConsistency> {
+        Some(&self.6)
+    }
+
     fn ensure_no_indexed_event_conflict(&self) -> DbResult<()> {
+        if self.6.verification_pending.load(Ordering::Acquire) {
+            return Err(DbError::Other(
+                "Origin live-block verification is pending".into(),
+            ));
+        }
         if self
             .retrieve_value_by_key(INDEXED_EVENT_CONFLICT, &false)?
             .unwrap_or(false)

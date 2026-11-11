@@ -26,12 +26,12 @@ use futures_util::{stream, stream::BoxStream, StreamExt};
 use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
     cursors::Indexable,
-    db::{ConflictingEvent, HyperlaneDb, HyperlaneRocksDB},
+    db::{ConflictingEvent, DbError, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
-        format_address, parse_address, reconnect_after, DispatchStage, EventMessage,
-        GasPaymentCursor, MerkleEventData, RejectedStream, ScraperSession, SequenceCursor,
-        ServerMessage, SessionEvent, StreamCursor, StreamHealth, StreamTimeouts, StringOrNumber,
-        SubscribeMessage, SubscribeStream, RETRY_DELAY, RPC_PROBE_TIMEOUT,
+        format_address, parse_address, reconnect_after, EventMessage, GasPaymentCursor,
+        MerkleEventData, RejectedStream, ScraperSession, SequenceCursor, ServerMessage,
+        SessionEvent, StreamCursor, StreamHealth, StreamTimeouts, StringOrNumber, SubscribeMessage,
+        SubscribeStream, RETRY_DELAY, RETRY_JITTER_MS, RPC_PROBE_TIMEOUT,
     },
     settings::SequenceIndexer,
     ContractSyncMetrics, CoreMetrics,
@@ -60,6 +60,7 @@ const ROW_RETRY_DELAY: Duration = Duration::from_secs(1);
 const DISPATCH_CURSOR: &[u8] = b"scraper_websocket_dispatch_cursor";
 const MERKLE_CURSOR: &[u8] = b"scraper_websocket_merkle_cursor";
 const GAS_CURSOR: &[u8] = b"scraper_websocket_gas_payment_cursor";
+const PENDING_NOTIFICATION: &[u8] = b"scraper_websocket_pending_notification";
 const PARITY_UNHEALTHY: &[u8] = b"scraper_websocket_parity_unhealthy_v2";
 const LIVE_BLOCK: &[u8] = b"scraper_websocket_live_block";
 const LIVE_BLOCK_HASH: &[u8] = b"scraper_websocket_live_block_hash";
@@ -198,7 +199,30 @@ impl ScraperSource {
             self.verify_live_block(kind, None).await?;
         }
         self.ensure_no_rollback_recovery()?;
-        Ok(self.database.ensure_no_indexed_event_conflict()?)
+        Ok(())
+    }
+
+    pub(crate) async fn retry_startup_verification(&self) -> Result<()> {
+        let mut delay = RETRY_DELAY;
+        while self.database.live_block_verification_pending() {
+            match self.verify_live_blocks().await {
+                Ok(()) => self.database.set_live_block_verification_pending(false),
+                Err(error) if error.is::<RollbackRecoveryRequired>() => return Err(error),
+                Err(error) => {
+                    warn!(
+                        chain = self.chain,
+                        ?error,
+                        "Retrying startup live-block verification"
+                    );
+                    tokio::time::sleep(delay.saturating_add(Duration::from_millis(u64::from(
+                        rand::random::<u32>() % RETRY_JITTER_MS,
+                    ))))
+                    .await;
+                    delay = delay.saturating_mul(2).min(Duration::from_secs(120));
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn verify_live_block(&self, kind: Kind, rollback_to: Option<u64>) -> Result<()> {
@@ -225,6 +249,7 @@ impl ScraperSource {
             "RPC returned the wrong live block height"
         );
         if block.hash != hash {
+            self.database.mark_indexed_event_conflict()?;
             let to_height = rollback_to.unwrap_or_else(|| height.saturating_sub(1));
             self.database
                 .store_value_by_key(ROLLBACK_RECOVERY, &address, &to_height)?;
@@ -400,7 +425,12 @@ impl ScraperSource {
         }
         Ok(())
     }
-    fn store(&self, kind: Kind, data: serde_json::Value, write: bool) -> Result<()> {
+    fn store(
+        &self,
+        kind: Kind,
+        data: serde_json::Value,
+        write: bool,
+    ) -> Result<Option<IndexingNotification>> {
         self.database.ensure_no_indexed_event_conflict()?;
         match kind {
             Kind::Dispatch => {
@@ -437,23 +467,31 @@ impl ScraperSource {
                                     .as_deref()
                                     .map(parse_address)
                                     .transpose()?,
-                            )
+                            )?;
+                            if self.confirmations.is_none()
+                                && self.broadcaster.is_some()
+                                && tx != H512::zero()
+                            {
+                                self.database.store_value_by_key(
+                                    PENDING_NOTIFICATION,
+                                    &nonce,
+                                    &tx,
+                                )?;
+                            }
+                            Ok(())
                         },
                     )?;
                     if let Some(preparation) = self.preparation.as_ref().filter(|_| inserted) {
                         preparation.confirmed(&message);
                     }
-                    if tx != H512::zero() {
-                        // Live-only streams already supply leaves and retain gas RPC
-                        // polling. Canonical replays notify only for new dispatches.
-                        if inserted && self.confirmations.is_none() {
-                            if let Some(broadcaster) = &self.broadcaster {
-                                broadcaster.try_send(IndexingNotification {
-                                    tx_id: tx,
-                                    sequences: vec![Some(nonce)],
-                                });
-                            }
-                        }
+                    if let Some(tx_id) = self
+                        .database
+                        .retrieve_value_by_key(PENDING_NOTIFICATION, &nonce)?
+                    {
+                        return Ok(Some(IndexingNotification {
+                            tx_id,
+                            sequences: vec![Some(nonce)],
+                        }));
                     }
                 }
             }
@@ -486,8 +524,16 @@ impl ScraperSource {
                 }
             }
         }
-        Ok(())
+        Ok(None)
     }
+}
+
+fn is_conflicting_event(error: &eyre::Report) -> bool {
+    error.is::<ConflictingEvent>()
+        || matches!(
+            error.downcast_ref::<DbError>(),
+            Some(DbError::ConflictingEvent(_))
+        )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -840,7 +886,7 @@ impl ScraperWebSocketMonitor {
     }
 
     pub(crate) async fn run(self) {
-        // One connection per confirmation policy; lifecycle stages share it.
+        // One connection per confirmation policy, including zero-depth read-ahead.
         let mut groups: HashMap<_, HashMap<_, _>> = HashMap::new();
         for (domain, source) in self.sources {
             groups
@@ -861,14 +907,21 @@ impl ScraperWebSocketMonitor {
     }
 
     async fn run_connection(self, confirmations: Option<u32>) {
+        let mut retry_delay = RETRY_DELAY;
         loop {
+            let started = Instant::now();
             let result = self.stream(StreamTimeouts::default(), confirmations).await;
             if let Err(error) = &result {
                 // Continuing with a stale in-memory Merkle tree or pending queue
                 // after a rollback is unsafe. The durable marker also blocks restarts.
                 assert!(!error.is::<RollbackRecoveryRequired>(), "{error:#}");
             }
-            reconnect_after(result, RETRY_DELAY).await;
+            if started.elapsed() >= Duration::from_secs(60) {
+                retry_delay = RETRY_DELAY;
+            }
+            let jitter = Duration::from_millis(u64::from(rand::random::<u32>() % RETRY_JITTER_MS));
+            reconnect_after(result, retry_delay.saturating_add(jitter)).await;
+            retry_delay = retry_delay.saturating_mul(2).min(Duration::from_secs(120));
         }
     }
     fn subscription(
@@ -879,7 +932,7 @@ impl ScraperWebSocketMonitor {
     ) -> SubscribeMessage<'static> {
         let mut sources = self.sources.values().collect::<Vec<_>>();
         sources.sort_unstable_by_key(|source| source.domain);
-        let lifecycle = sources.iter().any(|source| source.preparation.is_some());
+        let zero_confirmations = sources.iter().any(|source| source.preparation.is_some());
         let mut streams: Vec<_> = Kind::ALL
             .into_iter()
             .filter(|kind| gas || !matches!(kind, Kind::Gas))
@@ -908,8 +961,9 @@ impl ScraperWebSocketMonitor {
                     })
                     .collect();
                 SubscribeStream {
-                    include_unconfirmed: (lifecycle && matches!(kind, Kind::Dispatch))
-                        .then_some(true),
+                    include_zero_confirmations: (zero_confirmations
+                        && matches!(kind, Kind::Dispatch))
+                    .then_some(true),
                     confirmations,
                     cursors: confirmations.is_none().then_some(cursors),
                     domains: Some(sources.iter().map(|source| source.domain).collect()),
@@ -918,9 +972,9 @@ impl ScraperWebSocketMonitor {
                 }
             })
             .collect();
-        if lifecycle {
+        if zero_confirmations {
             streams.push(SubscribeStream {
-                include_unconfirmed: None,
+                include_zero_confirmations: None,
                 confirmations: None,
                 cursors: None,
                 domains: Some(sources.iter().map(|source| source.domain).collect()),
@@ -937,14 +991,11 @@ impl ScraperWebSocketMonitor {
         let _guard = ConnectionGuard(self);
         // Custom confirmations are live-only. RPC keeps indexing history and gas.
         let canonical = confirmations.is_none();
-        let lifecycle = self
+        let zero_confirmations = self
             .sources
             .values()
             .any(|source| source.preparation.is_some());
         let authority = self.authority_enabled && canonical;
-        for source in self.sources.values() {
-            source.verify_live_blocks().await?;
-        }
         let mut state = self
             .sources
             .iter()
@@ -1000,7 +1051,7 @@ impl ScraperWebSocketMonitor {
                         std::future::pending::<()>().await;
                     }
                 } => {
-                    self.retry_rows(&mut state, canonical)?;
+                    self.retry_rows(&mut state, canonical).await?;
                     continue;
                 },
             };
@@ -1082,31 +1133,24 @@ impl ScraperWebSocketMonitor {
                             .sources
                             .get(&domain)
                             .context("Unknown scraper domain")?;
-                        if event.stage == Some(DispatchStage::Observed) {
+                        if event.confirmations == Some(0) && confirmations != Some(0) {
                             ensure!(
-                                lifecycle && matches!(kind, Kind::Dispatch),
-                                "Unrequested observed dispatch"
+                                zero_confirmations && matches!(kind, Kind::Dispatch),
+                                "Unrequested zero-confirmation event"
                             );
                             if let Err(error) = source.prepare_dispatch(&event.data) {
                                 warn!(
                                     chain = source.chain,
                                     ?error,
-                                    "Ignoring invalid advisory dispatch"
+                                    "Ignoring invalid zero-confirmation dispatch"
                                 );
                             }
                             continue;
                         }
-                        if lifecycle && matches!(kind, Kind::Dispatch) {
-                            ensure!(
-                                event.stage == Some(DispatchStage::Confirmed),
-                                "Missing confirmed dispatch stage"
-                            );
-                        } else {
-                            ensure!(
-                                event.stage.is_none(),
-                                "Unrequested dispatch lifecycle stage"
-                            );
-                        }
+                        ensure!(
+                            event.confirmations == confirmations,
+                            "Unexpected scraper confirmation depth"
+                        );
                         let current = state.get_mut(&domain).context("Missing source state")?;
                         if source.confirmations.is_some() {
                             let field = if matches!(kind, Kind::Dispatch) {
@@ -1132,7 +1176,7 @@ impl ScraperWebSocketMonitor {
                         }
                         // Payload/storage errors affect this origin stream only. Later
                         // rows must not advance its cursor past an unprocessed event.
-                        match self.consume(source, current, kind, &event) {
+                        match self.consume(source, current, kind, &event).await {
                             Ok(()) => {
                                 self.metrics
                                     .degraded
@@ -1168,7 +1212,7 @@ impl ScraperWebSocketMonitor {
                                 } else {
                                     self.revoke(source, current);
                                 }
-                                if error.is::<ConflictingEvent>() {
+                                if is_conflicting_event(&error) {
                                     source.database.store_value_by_key(
                                         PARITY_UNHEALTHY,
                                         &source.address(kind),
@@ -1268,35 +1312,32 @@ impl ScraperWebSocketMonitor {
                         domain,
                         event_type,
                         to_height,
-                        stage,
+                        confirmations: depth,
                     } => {
-                        if stage == Some(DispatchStage::Observed) {
+                        let source = self
+                            .sources
+                            .get(&domain)
+                            .context("Unknown rollback domain")?;
+                        if depth == Some(0) && confirmations != Some(0) {
                             ensure!(
-                                lifecycle && event_type == "dispatch",
-                                "Unrequested observed rollback"
+                                zero_confirmations && event_type == "dispatch",
+                                "Unrequested zero-confirmation rollback"
                             );
-                            let source = self
-                                .sources
-                                .get(&domain)
-                                .context("Unknown rollback domain")?;
                             if let Some(preparation) = &source.preparation {
                                 preparation.invalidate(domain);
                             }
                             continue;
                         }
                         ensure!(
-                            stage.is_none()
-                                || (lifecycle
-                                    && event_type == "dispatch"
-                                    && stage == Some(DispatchStage::Confirmed)),
-                            "Unrequested rollback stage"
+                            depth == confirmations,
+                            "Unexpected rollback confirmation depth"
                         );
                         ensure!(!canonical, "Unexpected rollback on canonical stream");
                         self.rollback(domain, &event_type, to_height.as_u64("rollback height")?)
                             .await?;
                     }
                     ServerMessage::Block { domain, .. } => {
-                        ensure!(lifecycle, "Unrequested preparation head");
+                        ensure!(zero_confirmations, "Unrequested preparation head");
                         if let Some(preparation) = self
                             .sources
                             .get(&domain)
@@ -1311,7 +1352,11 @@ impl ScraperWebSocketMonitor {
             }
         }
     }
-    fn retry_rows(&self, state: &mut HashMap<u32, SourceState>, canonical: bool) -> Result<()> {
+    async fn retry_rows(
+        &self,
+        state: &mut HashMap<u32, SourceState>,
+        canonical: bool,
+    ) -> Result<()> {
         let mut replay = false;
         for (domain, current) in state {
             let source = &self.sources[domain];
@@ -1325,7 +1370,7 @@ impl ScraperWebSocketMonitor {
                     continue;
                 }
                 let mut retry = progress.retry.take().expect("due retry");
-                match self.consume(source, current, kind, &retry.event) {
+                match self.consume(source, current, kind, &retry.event).await {
                     Ok(()) => {
                         let progress = &mut current.streams[kind.index()];
                         progress.usable = true;
@@ -1342,7 +1387,7 @@ impl ScraperWebSocketMonitor {
                             .with_label_values(&[source.chain.as_str(), kind.label()])
                             .set(0);
                     }
-                    Err(error) if error.is::<ConflictingEvent>() => {
+                    Err(error) if is_conflicting_event(&error) => {
                         warn!(
                             chain = source.chain,
                             event_type = kind.label(),
@@ -1408,7 +1453,7 @@ impl ScraperWebSocketMonitor {
         }
     }
 
-    fn consume(
+    async fn consume(
         &self,
         source: &ScraperSource,
         state: &mut SourceState,
@@ -1493,7 +1538,16 @@ impl ScraperWebSocketMonitor {
                     serde_json::to_value(&event.block_hash)?,
                 );
         }
-        source.store(kind, data, self.authority_enabled)?;
+        if let Some(notification) = source.store(kind, data, self.authority_enabled)? {
+            if let Some(broadcaster) = &source.broadcaster {
+                timeout(HANDOFF_TIMEOUT, broadcaster.send(notification))
+                    .await
+                    .context("Index notification handoff timed out")??;
+                let mut batch = source.database.batch();
+                batch.delete_keyed(PENDING_NOTIFICATION, &u32::try_from(last)?);
+                batch.commit()?;
+            }
+        }
         progress.last = Some(progress.last.map_or(last, |previous| previous.max(last)));
         progress.legacy_max = legacy_max;
         progress.fingerprint = fingerprint;
@@ -2046,17 +2100,17 @@ mod tests {
                     if domains.contains(&json!(5)) {
                         let mut foreign = dispatch(99);
                         foreign["origin_mailbox"] = json!(format!("{:#x}", H256::zero()));
-                        send(&mut socket, event(Kind::Dispatch, 99, foreign)).await;
+                        let mut foreign = event(Kind::Dispatch, 99, foreign);
+                        foreign["confirmations"] = json!(confirmations);
+                        send(&mut socket, foreign).await;
                         for sequence in [5, 6, 8] {
-                            send(
-                                &mut socket,
-                                event(
-                                    Kind::Dispatch,
-                                    sequence,
-                                    dispatch(u32::try_from(sequence).expect("sequence")),
-                                ),
-                            )
-                            .await;
+                            let mut row = event(
+                                Kind::Dispatch,
+                                sequence,
+                                dispatch(u32::try_from(sequence).expect("sequence")),
+                            );
+                            row["confirmations"] = json!(confirmations);
+                            send(&mut socket, row).await;
                         }
                     }
                     sockets.push(socket);
@@ -2118,6 +2172,7 @@ mod tests {
                         ))
                         .expect("event"),
                     )
+                    .await
                     .expect("contiguous event or replay");
             }
             let mut mixed = event(kind, 2, payload(2));
@@ -2127,12 +2182,15 @@ mod tests {
                 (event(kind, 2, payload(3)), "Payload sequence"),
                 (mixed, "includes gas cursors"),
             ] {
-                let result = fixture.monitor.consume(
-                    source,
-                    &mut state,
-                    kind,
-                    &serde_json::from_value(row).expect("event"),
-                );
+                let result = fixture
+                    .monitor
+                    .consume(
+                        source,
+                        &mut state,
+                        kind,
+                        &serde_json::from_value(row).expect("event"),
+                    )
+                    .await;
                 assert!(result
                     .expect_err("reject event")
                     .to_string()
@@ -2162,6 +2220,7 @@ mod tests {
                     Kind::Gas,
                     &serde_json::from_value(event(Kind::Gas, cursor, gas(cursor))).expect("event"),
                 )
+                .await
                 .expect("legacy gaps, contiguous events and duplicates");
         }
         for (cursor, field, value) in [
@@ -2180,6 +2239,7 @@ mod tests {
                     Kind::Gas,
                     &serde_json::from_value(row).expect("event"),
                 )
+                .await
                 .is_err());
             assert_eq!(state.streams[Kind::Gas.index()].last, Some(4));
             assert_eq!(payment_total(source), U256::from(3000));
@@ -2199,10 +2259,11 @@ mod tests {
 
     #[tokio::test]
     async fn conflicting_replays_preserve_existing_messages_and_leaves() {
-        let fixture = Fixture::new(Url::parse("ws://localhost:1").expect("URL"), true);
-        let source = fixture.source();
         for (kind, data) in [(Kind::Dispatch, dispatch(0)), (Kind::Merkle, merkle(0))] {
-            source.store(kind, data.clone(), true).expect("RPC data");
+            let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+            let source = fixture.source();
+            source.store(Kind::Dispatch, dispatch(0), true).unwrap();
+            source.store(Kind::Merkle, merkle(0), true).unwrap();
             let mut conflict = data;
             if matches!(kind, Kind::Dispatch) {
                 let mut other = message(0);
@@ -2212,39 +2273,27 @@ mod tests {
             } else {
                 conflict["message_id"] = json!(format!("{:#x}", H256::zero()));
             }
-            assert!(source
-                .store(kind, conflict, true)
-                .expect_err("conflict")
-                .to_string()
-                .contains("Conflicting"));
+            assert!(is_conflicting_event(
+                &source.store(kind, conflict, true).unwrap_err()
+            ));
+            assert_eq!(
+                source.database.retrieve_message_by_nonce(0).unwrap(),
+                Some(message(0))
+            );
+            assert_eq!(
+                source
+                    .database
+                    .retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                    .unwrap(),
+                Some(MerkleTreeInsertion::new(0, message(0).id()))
+            );
+            assert!(source.database.ensure_no_indexed_event_conflict().is_err());
+            assert!(!source.has_sequence(Kind::Dispatch, 1).unwrap());
         }
-        assert_eq!(
-            source
-                .database
-                .retrieve_message_by_nonce(0)
-                .expect("message"),
-            Some(message(0))
-        );
-        assert_eq!(
-            source
-                .database
-                .retrieve_merkle_tree_insertion_by_leaf_index(&0)
-                .expect("leaf"),
-            Some(MerkleTreeInsertion::new(0, message(0).id()))
-        );
-        let mut invalid = dispatch(1);
-        invalid["msg_id"] = json!(format!("{:#x}", H256::zero()));
-        assert!(source.store(Kind::Dispatch, invalid, true).is_err());
-        assert!(!source
-            .has_sequence(Kind::Dispatch, 1)
-            .expect("invalid dispatch"));
     }
 
     #[tokio::test]
     async fn dispatch_metadata_conflicts_preserve_rpc_metadata() {
-        let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
-        let source = fixture.source();
-        source.store(Kind::Dispatch, dispatch(0), true).unwrap();
         for (field, value) in [
             ("origin_block_height", json!("101")),
             (
@@ -2253,57 +2302,80 @@ mod tests {
             ),
             ("origin_mailbox", json!(format!("{:#x}", H256::zero()))),
         ] {
+            let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+            let source = fixture.source();
+            source.store(Kind::Dispatch, dispatch(0), true).unwrap();
+            let mut unknown_tx = dispatch(0);
+            unknown_tx["origin_tx_hash"] = json!(format!("{:#x}", H256::zero()));
+            source.store(Kind::Dispatch, unknown_tx, true).unwrap();
             let mut conflicting = dispatch(0);
             conflicting[field] = value;
             assert!(source.store(Kind::Dispatch, conflicting, true).is_err());
+            assert_eq!(
+                source
+                    .database
+                    .retrieve_dispatched_block_number_by_nonce(&0)
+                    .unwrap(),
+                Some(100)
+            );
+            assert_eq!(
+                source
+                    .database
+                    .retrieve_dispatched_tx_hash_by_message_id(&message(0).id())
+                    .unwrap(),
+                Some(H512::from_low_u64_be(9))
+            );
+            assert_eq!(
+                source.database.ensure_no_indexed_event_conflict().is_err(),
+                field != "origin_mailbox"
+            );
         }
-        assert_eq!(
-            source
-                .database
-                .retrieve_dispatched_block_number_by_nonce(&0)
-                .unwrap(),
-            Some(100)
-        );
-        assert_eq!(
-            source
-                .database
-                .retrieve_dispatched_tx_hash_by_message_id(&message(0).id())
-                .unwrap(),
-            Some(H512::from_low_u64_be(9))
-        );
-        let mut unknown_tx = dispatch(0);
-        unknown_tx["origin_tx_hash"] = json!(format!("{:#x}", H256::zero()));
-        source.store(Kind::Dispatch, unknown_tx, true).unwrap();
-        assert_eq!(
-            source
-                .database
-                .retrieve_dispatched_tx_hash_by_message_id(&message(0).id())
-                .unwrap(),
-            Some(H512::from_low_u64_be(9))
-        );
     }
 
     #[tokio::test]
-    async fn dispatch_notifications_skip_replays_full_queues_and_live_only_sources() {
+    async fn dispatch_notification_backpressure_preserves_the_cursor_and_transaction() {
         let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
         let broadcaster = BroadcastMpscSender::new(1);
         let mut receiver = broadcaster.get_receiver().await;
-        let mut source = fixture.source().clone().with_broadcaster(Some(broadcaster));
-        source.store(Kind::Dispatch, dispatch(0), true).unwrap();
-        assert_eq!(receiver.recv().await.unwrap().sequences, vec![Some(0)]);
-        source.store(Kind::Dispatch, dispatch(0), true).unwrap();
-        assert!(receiver.try_recv().is_err(), "replays do not notify");
-        source.store(Kind::Dispatch, dispatch(1), true).unwrap();
-        source
-            .store(Kind::Dispatch, dispatch(2), true)
-            .expect("full queue must not block");
-        assert_eq!(receiver.recv().await.unwrap().sequences, vec![Some(1)]);
-        source.confirmations = Some(1);
-        source.store(Kind::Dispatch, dispatch(3), true).unwrap();
-        assert!(
-            receiver.try_recv().is_err(),
-            "live-only streams retain gas RPC polling"
+        let source = fixture.source().clone().with_broadcaster(Some(broadcaster));
+        let mut state = source.load().unwrap();
+        let first = serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap();
+        fixture
+            .monitor
+            .consume(&source, &mut state, Kind::Dispatch, &first)
+            .await
+            .unwrap();
+        let second = serde_json::from_value(event(Kind::Dispatch, 1, dispatch(1))).unwrap();
+        let mut consume = Box::pin(fixture.monitor.consume(
+            &source,
+            &mut state,
+            Kind::Dispatch,
+            &second,
+        ));
+        assert!(timeout(Duration::from_millis(20), &mut consume)
+            .await
+            .is_err());
+        assert_eq!(
+            source
+                .database
+                .retrieve_value_by_key::<_, u32>(DISPATCH_CURSOR, &source.mailbox)
+                .unwrap(),
+            Some(0)
         );
+        drop(consume);
+        assert_eq!(receiver.recv().await.unwrap().sequences, vec![Some(0)]);
+        fixture
+            .monitor
+            .consume(&source, &mut state, Kind::Dispatch, &second)
+            .await
+            .unwrap();
+        assert_eq!(receiver.recv().await.unwrap().sequences, vec![Some(1)]);
+        fixture
+            .monitor
+            .consume(&source, &mut state, Kind::Dispatch, &second)
+            .await
+            .unwrap();
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -2319,6 +2391,7 @@ mod tests {
                 Kind::Gas,
                 &serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap(),
             )
+            .await
             .unwrap();
         let mut restarted = source.load().unwrap();
         let mut changed = gas(1);
@@ -2332,6 +2405,7 @@ mod tests {
                 Kind::Gas,
                 &serde_json::from_value(event(Kind::Gas, 1, changed)).unwrap()
             )
+            .await
             .is_err());
         fixture
             .monitor
@@ -2341,6 +2415,7 @@ mod tests {
                 Kind::Gas,
                 &serde_json::from_value(event(Kind::Gas, 3, gas(3))).unwrap(),
             )
+            .await
             .unwrap();
         assert!(fixture
             .monitor
@@ -2350,6 +2425,7 @@ mod tests {
                 Kind::Gas,
                 &serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap()
             )
+            .await
             .is_err());
         assert_eq!(payment_total(source), U256::from(2000));
         assert_eq!(
@@ -2389,6 +2465,7 @@ mod tests {
                 Kind::Gas,
                 &serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap(),
             )
+            .await
             .unwrap();
         assert_eq!(payment_total(source), U256::from(1000));
         assert_eq!(
@@ -2416,6 +2493,7 @@ mod tests {
                 Kind::Dispatch,
                 &serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap(),
             )
+            .await
             .unwrap();
         fixture.monitor.rollback(5, "dispatch", 100).await.unwrap();
         fixture.monitor.rollback(6, "dispatch", 99).await.unwrap();
@@ -2470,8 +2548,36 @@ mod tests {
         );
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn transient_startup_verification_recovers_without_rebuilding_the_origin() {
+        let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+        let mut source = fixture.source().clone();
+        source.confirmations = Some(1);
+        source.store(Kind::Dispatch, dispatch(0), true).unwrap();
+        fixture.blocks.1.store(true, Ordering::Release);
+        assert!(source.verify_live_blocks().await.is_err());
+        source.database.set_live_block_verification_pending(true);
+        let retry_source = source.clone();
+        let retry = tokio::spawn(async move { retry_source.retry_startup_verification().await });
+        tokio::task::yield_now().await;
+        assert!(source.database.live_block_verification_pending());
+        assert!(source.database.ensure_no_indexed_event_conflict().is_err());
+        fixture.blocks.1.store(false, Ordering::Release);
+        timeout(Duration::from_secs(30), retry)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert!(!source.database.live_block_verification_pending());
+        source.database.ensure_no_indexed_event_conflict().unwrap();
+        assert_eq!(
+            source.database.retrieve_message_by_nonce(0).unwrap(),
+            Some(message(0))
+        );
+    }
+
     #[tokio::test]
-    async fn disconnected_reorg_is_detected_before_reconnect_without_a_rollback_frame() {
+    async fn disconnected_reorg_is_detected_by_persisted_hash_verification() {
         let mut fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
         Arc::get_mut(&mut fixture.monitor)
             .unwrap()
@@ -2484,11 +2590,7 @@ mod tests {
         source.store(Kind::Merkle, merkle(0), true).unwrap();
         source.verify_live_blocks().await.unwrap();
         fixture.blocks.0.store(9, Ordering::Release);
-        let error = fixture
-            .monitor
-            .stream(timeouts(), Some(1))
-            .await
-            .unwrap_err();
+        let error = source.verify_live_blocks().await.unwrap_err();
         assert!(error.is::<RollbackRecoveryRequired>());
         assert!(source.ensure_no_rollback_recovery().is_err());
     }
@@ -2551,7 +2653,7 @@ mod tests {
             .is::<ConflictingEvent>());
         assert!(!source.has_sequence(Kind::Dispatch, 1).unwrap());
         assert!(source.database.ensure_no_indexed_event_conflict().is_err());
-        assert!(source.verify_live_blocks().await.is_err());
+        source.verify_live_blocks().await.unwrap();
         fixture.monitor.sources[&6]
             .database
             .ensure_no_indexed_event_conflict()
@@ -2641,6 +2743,7 @@ mod tests {
         fixture
             .monitor
             .consume(source, &mut state, Kind::Gas, &original)
+            .await
             .unwrap();
         let mut extended = gas(1);
         extended["new_proxy_field"] = json!("ignored");
@@ -2652,6 +2755,7 @@ mod tests {
                 Kind::Gas,
                 &serde_json::from_value(event(Kind::Gas, 1, extended)).unwrap(),
             )
+            .await
             .unwrap();
         assert_eq!(payment_total(source), U256::from(1000));
     }
@@ -3086,6 +3190,7 @@ mod tests {
             fixture
                 .monitor
                 .consume(fixture.source(), &mut state, kind, &event)
+                .await
                 .expect("shadow");
         }
         assert!(fixture
@@ -3315,15 +3420,33 @@ mod tests {
         authority.resume();
         assert!(!authority.paused(next).await);
     }
+    #[test]
+    fn wrapped_database_conflicts_are_terminal() {
+        assert!(is_conflicting_event(&ConflictingEvent("dispatch").into()));
+        assert!(is_conflicting_event(
+            &DbError::ConflictingEvent(ConflictingEvent("dispatch")).into()
+        ));
+        assert!(!is_conflicting_event(
+            &DbError::Other("transient".into()).into()
+        ));
+    }
+
     #[tokio::test]
     async fn early_preparation_recovery_gate_is_scoped_to_the_affected_origin() {
         let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
-        let preparation = Arc::new(EarlyPreparation::new(
-            HashMap::new(),
-            Default::default(),
-            Default::default(),
-            Arc::new(crate::msg::blacklist::AddressBlacklist::new(vec![])),
-        ));
+        let preparation = Arc::new(
+            EarlyPreparation::new(
+                HashMap::new(),
+                Default::default(),
+                Default::default(),
+                Arc::new(crate::msg::blacklist::AddressBlacklist::new(vec![])),
+                Arc::new(
+                    crate::msg::runtime_denylist::RuntimeDenylist::from_rules_for_test(json!([])),
+                ),
+                &CoreMetrics::new("early-gate", 9090, Registry::new()).unwrap(),
+            )
+            .unwrap(),
+        );
         let monitor = fixture
             .monitor
             .as_ref()

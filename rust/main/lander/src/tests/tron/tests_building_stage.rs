@@ -31,6 +31,7 @@ fn create_tron_payload() -> FullPayload {
         details: PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("test-tron-payload-{}", payload_uuid),
+            origin: None,
             success_criteria,
         },
         data,

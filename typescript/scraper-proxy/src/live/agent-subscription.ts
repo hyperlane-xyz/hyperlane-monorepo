@@ -13,7 +13,6 @@ import {
 } from './event-store.js';
 import {
   displayAddress,
-  DispatchStage,
   parseId,
   type StreamCursor,
   type StreamRequest,
@@ -244,9 +243,6 @@ export class AgentSubscription {
       sequence:
         eventType !== 'gas_payment' ? cursor?.value.toString() : undefined,
       type: 'event',
-      ...(this.request.includeUnconfirmed
-        ? { stage: DispatchStage.Confirmed }
-        : {}),
     };
   }
 

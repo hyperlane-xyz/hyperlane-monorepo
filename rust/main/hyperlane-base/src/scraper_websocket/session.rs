@@ -219,7 +219,7 @@ mod tests {
             session
                 .subscribe(SubscribeMessage {
                     streams: vec![super::super::SubscribeStream {
-                        include_unconfirmed: None,
+                        include_zero_confirmations: None,
                         confirmations: None,
                         cursors: None,
                         domains: Some(vec![1]),

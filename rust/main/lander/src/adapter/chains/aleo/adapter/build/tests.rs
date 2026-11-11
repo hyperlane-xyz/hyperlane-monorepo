@@ -25,6 +25,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
         details: PayloadDetails {
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{payload_uuid}"),
+            origin: None,
             success_criteria,
         },
         data: serde_json::to_vec(&tx_data).unwrap(),

@@ -1570,3 +1570,58 @@ async fn mev_deferrals_keep_state_and_retry_unfinished_simulation() {
         );
     }
 }
+
+#[tokio::test(start_paused = true)]
+async fn queued_batches_and_retries_observe_every_origin_gate() {
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
+    for queued in [true, false] {
+        let dir = tempfile::tempdir().unwrap();
+        let raw = DB::from_path(dir.path()).unwrap();
+        let first = HyperlaneRocksDB::new(&KnownHyperlaneDomain::Arbitrum.into(), raw.clone());
+        let second = HyperlaneRocksDB::new(&KnownHyperlaneDomain::Ethereum.into(), raw);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let submitted = calls.clone();
+        let mut adapter = MockAdapter::new();
+        adapter
+            .expect_submit()
+            .times(usize::from(!queued))
+            .returning(move |_| {
+                submitted.fetch_add(1, Ordering::SeqCst);
+                Err(LanderError::TxSubmissionError("retry".into()))
+            });
+        let (state, _) = reprocess_test_state(adapter);
+        state
+            .origin_dbs
+            .set(
+                [
+                    (first.domain().id(), first.clone()),
+                    (second.domain().id(), second.clone()),
+                ]
+                .into_iter()
+                .collect(),
+            )
+            .unwrap();
+        let mut payloads = vec![FullPayload::random().details, FullPayload::random().details];
+        payloads[0].origin = Some(HyperlaneDomain::from(KnownHyperlaneDomain::Arbitrum).id());
+        payloads[1].origin = Some(second.domain().id());
+        let mut tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+        tx.payload_details = payloads;
+        if queued {
+            second.mark_indexed_event_conflict().unwrap();
+        }
+        let task = tokio::spawn(async move { InclusionStage::submit_tx(tx, &state).await });
+        if !queued {
+            while calls.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+            second.mark_indexed_event_conflict().unwrap();
+        }
+        let outcome = task.await.unwrap().unwrap();
+        assert!(matches!(
+            outcome,
+            SubmitOutcome::RetryLater(_, LanderError::TxSubmissionDeferred)
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), usize::from(!queued));
+    }
+}
