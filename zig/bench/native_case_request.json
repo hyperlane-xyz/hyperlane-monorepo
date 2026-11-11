@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "root_approved": false,
-  "scenario": "cosmwasm",
-  "mode": "ReleaseFast",
-  "producer_source_commit": "abf54588b1493e62d2a91445b467637d1eb8ddac",
-  "producer_run_id": 42940378066,
+  "root_approved": true,
+  "scenario": "evm",
+  "mode": "ReleaseSafe",
+  "producer_source_commit": "dfb159aedfe7bd7a5be292d9ead43e2c8b92085e",
+  "producer_run_id": 42995463682,
   "producer_run_attempt": 1,
   "limits": {
     "maximum_owned_RAM_bytes": 8589934592,
@@ -43,93 +43,61 @@
       },
       "wheel_bytes": 34246
     },
-    "registry_commit": null,
-    "native_cli": {
-      "name": "osmosisd",
-      "architecture": "amd64",
-      "source_url": "https://github.com/osmosis-labs/osmosis/releases/download/v20.5.0/osmosisd-20.5.0-linux-amd64",
-      "bytes": 72612632,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "f9ff6176e32499f22b20288c71dbc802",
-          "556eb5399baef23de164fe6158a55a69"
-        ]
-      }
-    },
-    "wasm_bundle": {
-      "schema": 1,
-      "source_release": "v0.0.6",
-      "source_url": "https://github.com/hyperlane-xyz/cosmwasm/releases/download/v0.0.6/wasm_codes.zip",
-      "bytes": 1640623,
-      "sha256": {
-        "sha256_hex_chunks": [
-          "5b0b3b76ef5daf8a69cbc4ee1e9762d3",
-          "c9108127842343bd59cd68862ed0aa9c"
-        ]
-      },
-      "member_count": 21,
-      "member_digest": {
-        "sha256_hex_chunks": [
-          "df340d9c357fea6e44a402a68e061ba3",
-          "484db11e00e19b11ebb282a8b698b7a7"
-        ]
-      },
-      "publisher_checksum": null
-    }
+    "registry_commit": "a03afaa4fc6b8bd86616ef9986d80dcc1863e66a"
   },
   "artifact_pins": {
     "sdk": {
-      "id": 13823541530,
-      "name": "zig-native-runtime-payload-ReleaseFast",
-      "size_in_bytes": 54116206,
+      "id": 13844783401,
+      "name": "zig-native-runtime-payload-ReleaseSafe",
+      "size_in_bytes": 52015183,
       "sha256": {
         "sha256_hex_chunks": [
-          "cce1e7963de87d703dc70bbba295417d",
-          "5a46d8a4bbac7aad947275686446d287"
+          "09c427ec11ae9505a9205e37310d179d",
+          "5efa8122d237912d8150f5831d40c2ac"
         ]
       }
     },
     "helper": {
-      "id": 13820984312,
+      "id": 13844229600,
       "name": "zig-native-harness-controls",
-      "size_in_bytes": 56236466,
+      "size_in_bytes": 56236524,
       "sha256": {
         "sha256_hex_chunks": [
-          "446b941e5b118fda50c7739c3c336823",
-          "e5bf79bece82b226a7294547891386fe"
+          "0d91a16f1194e128b9d19d0dcb13d757",
+          "a0cc305513f9cd2f6e57fa8a19c968dc"
         ]
       }
     },
     "tools": {
-      "id": 13821477362,
-      "name": "zig-native-case-tools-abf54588b1493e62d2a91445b467637d1eb8ddac",
-      "size_in_bytes": 19965799,
+      "id": 13844583171,
+      "name": "zig-native-case-tools-dfb159aedfe7bd7a5be292d9ead43e2c8b92085e",
+      "size_in_bytes": 19965818,
       "sha256": {
         "sha256_hex_chunks": [
-          "b4875e39de6ddc86ac983c630af83b25",
-          "e64425767fe97eee82582e83a7691799"
+          "df56ab1a93e70fa6c8717e8f688c86f2",
+          "e3d54c77a7e527afb3380439b2f21659"
         ]
       }
     },
     "writer_safe": {
-      "id": 13821129242,
+      "id": 13844484010,
       "name": "zig-native-interop-writer-ReleaseSafe",
-      "size_in_bytes": 5218373,
+      "size_in_bytes": 5218400,
       "sha256": {
         "sha256_hex_chunks": [
-          "22a07a2215e3bb157dad5131083c377a",
-          "c4452be37af1f2b44360c3f65f172869"
+          "3cbcfc738b8c1258c822ff5f459dff2a",
+          "67042217670cec86305d6ac8dffe523d"
         ]
       }
     },
     "writer_fast": {
-      "id": 13822784380,
+      "id": 13846742681,
       "name": "zig-native-interop-writer-ReleaseFast",
-      "size_in_bytes": 4929371,
+      "size_in_bytes": 4929368,
       "sha256": {
         "sha256_hex_chunks": [
-          "e6a7c6e762e4ace41474baf6bf28b9ef",
-          "daabf37fe17325d658fa8c007848bdea"
+          "5a8bfa36d748f7ca625e23d574193532",
+          "ac05074135257f5ae32171d3488fdd9e"
         ]
       }
     }
