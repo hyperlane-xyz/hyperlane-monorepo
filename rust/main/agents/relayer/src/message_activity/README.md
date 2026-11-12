@@ -12,7 +12,7 @@ observation/receipt timestamps and structured activity data. Storage is best eff
 | Retries | Status, reason, count, next attempt, retry limit and drops |
 | ISMs | Metadata build results, module types, routed children, aggregation members/threshold and verified count |
 | Validators | Validator sets and thresholds |
-| Signatures | One summary per completed collection: indices attempted, latest advertised indices and discovery failures, best matching signer addresses with exact HTTPS checkpoint object URL/count/root at the last attempted index, and exact-checkpoint unavailable validators |
+| Signatures | Progress when new matching signers arrive, plus a final collection summary: indices attempted, latest advertised indices and discovery failures, best matching signer addresses with exact HTTPS checkpoint object URL/count/root at the last attempted index, and exact-checkpoint unavailable validators |
 | Merkle data | Missing tree/leaf, leaf/highest-known index, proof failures and root mismatches |
 | CCIP / CCTP | First pending response, final outcome/attempt count per endpoint, HTTP status, timeouts and response failures |
 | Delivery | ISM verification outcomes, simulation/payload failures, typed chain errors, transaction outcomes/hashes, confirmation failures and delivery completion |
@@ -41,8 +41,11 @@ still produce activity events.
 
 Checkpoint summaries retain only the latest attempted index and at most the validated
 validator set (50 entries), regardless of how far the checkpoint search walks.
-Counts never combine different roots or indices. Collection summaries are emitted
-on completion, including failure, but not for canceled aggregation children.
+Counts never combine different roots or indices. New matching signers emit progress
+immediately, timestamped when observed, including before the first metadata build
+finishes. Each signer triggers progress once per collection, bounding updates during
+range walks. A final summary is emitted on completion, including failure; canceled
+aggregation children retain any published progress but emit no final summary.
 The reader accepts both compact summaries and the previous per-observation format;
 deploy the updated reader before the writer to display compact quorum progress.
 

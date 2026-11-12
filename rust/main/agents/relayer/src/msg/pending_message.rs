@@ -18,6 +18,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState, SignatureRetryState},
+    SIGNATURE_POLL_INTERVAL,
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -72,7 +73,6 @@ pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
-const SIGNATURE_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const SIGNATURE_POLL_WINDOW: Duration = Duration::from_secs(10);
 
 /// Revert string emitted by the ICA router when the originating commit has not
@@ -1687,16 +1687,6 @@ impl PendingMessage {
         true
     }
 
-    /// Whether accelerated signature polling is still within its fast window.
-    fn in_signature_poll_window(&self, now: SystemTime) -> bool {
-        self.signature_retry.as_ref().is_some_and(|state| {
-            state.backoff_retries == 0
-                && now
-                    .duration_since(state.started_at)
-                    .is_ok_and(|elapsed| elapsed < SIGNATURE_POLL_WINDOW)
-        })
-    }
-
     /// Returns an accelerated polling delay, or `None` to consume a normal retry.
     fn signature_retry_delay(&mut self, now: SystemTime) -> Option<Duration> {
         // Start the bounded fast window after origin maturity, not at discovery.
@@ -1911,12 +1901,9 @@ impl PendingMessage {
             self.status,
             PendingOperationStatus::Retry(ReprepareReason::AwaitingValidatorSignatures)
         );
-        // Probes only skip validators behind the leaf during the fast window, so
-        // a lagging latest index can delay delivery by at most that window.
-        let narrow_probe = self.in_signature_poll_window(SystemTime::now());
         let build_metadata_start = Instant::now();
         let metadata_res = message_metadata_builder
-            .build_for_delivery(ism_address, &self.message, polling, narrow_probe)
+            .build_for_delivery(ism_address, &self.message, polling)
             .await;
 
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");

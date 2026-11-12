@@ -301,7 +301,7 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
     let result = ism_builder
         .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
         .await;
-    // Report failures too, but not abandoned aggregation children.
+    // Flush failures too; canceled children keep only progress already sent.
     if let Some(observer) = observer {
         observer.report();
     }

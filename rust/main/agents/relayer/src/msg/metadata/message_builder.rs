@@ -38,10 +38,8 @@ pub struct MessageMetadataBuilder {
     pub node_id: String,
     pub max_ism_depth: u32,
     pub max_ism_count: u32,
-    /// Availability probes defer fresh reorg checks to the normal build before delivery.
+    /// Signature retries defer fresh reorg checks to the final build before delivery.
     pub(crate) signature_polling: bool,
-    /// Fast-window probes skip validators whose latest index is below the leaf.
-    pub(crate) narrow_signature_probe: bool,
     /// Offchain reads from a signature probe, reused by the delivery build that
     /// follows it. Scoped to one `build_for_delivery` call.
     pub(crate) offchain_reads: Option<Arc<OffchainReadMemo>>,
@@ -107,11 +105,9 @@ impl MessageMetadataBuilder {
         ism: H256,
         message: &HyperlaneMessage,
         polling: bool,
-        narrow_probe: bool,
     ) -> Result<Metadata, MetadataBuildError> {
         let mut builder = self.clone();
         builder.signature_polling = polling;
-        builder.narrow_signature_probe = polling && narrow_probe;
         if polling {
             // The delivery build repeats the whole tree to run fresh reorg checks;
             // offchain reads from the probe don't depend on them, so reuse those.
@@ -122,7 +118,6 @@ impl MessageMetadataBuilder {
             return Ok(metadata);
         }
         builder.signature_polling = false;
-        builder.narrow_signature_probe = false;
         builder.build(ism, message, Default::default()).await
     }
 
@@ -143,7 +138,6 @@ impl MessageMetadataBuilder {
             max_ism_depth: ISM_MAX_DEPTH,
             max_ism_count: ISM_MAX_COUNT,
             signature_polling: false,
-            narrow_signature_probe: false,
             offchain_reads: None,
         })
     }
