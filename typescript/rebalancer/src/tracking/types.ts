@@ -91,6 +91,7 @@ export interface RebalanceAction extends TrackedActionBase {
   txHash?: string; // Primary source transaction hash; never an approval hash.
   submissionState?: TransactionSubmissionState; // Missing on older records means unknown.
   pendingApproval?: PendingApproval;
+  finalizedSourceTxHash?: string; // Memoized finalized success for this exact primary identity.
   // Fields for inventory_movement (external bridge)
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')

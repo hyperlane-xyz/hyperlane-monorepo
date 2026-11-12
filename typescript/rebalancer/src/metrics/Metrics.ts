@@ -43,6 +43,9 @@ import {
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
 
+import type { RebalanceAction } from '../tracking/types.js';
+import { registerActionMetrics } from './ActionMetrics.js';
+
 const EXTRA_BRIDGE_IDENTITY_ABI = [
   ...MANAGED_LOCKBOX_MINIMAL_ABI,
   'function typeAndVersion() view returns (string)',
@@ -118,6 +121,10 @@ export class Metrics implements IMetrics {
         return this.tokenPriceGetter.tryGetTokenPrice(token);
       },
     };
+  }
+
+  observeInFlightActions(readActions: () => Promise<RebalanceAction[]>): void {
+    registerActionMetrics(metricsRegister, this.warpRouteId, readActions);
   }
 
   recordRebalancerSuccess() {

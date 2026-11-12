@@ -71,8 +71,12 @@ export interface IActionTracker {
   /**
    * Sync inflight user transfers from Explorer and verify delivery status.
    * @param confirmedBlockTags Optional block tags from Monitor for consistent state queries
+   * @returns Whether settlement at a moving block tag requires fresh balances
+   * Legacy implementations may return void without a refresh signal.
    */
-  syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void>;
+  syncTransfers(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<boolean | void>;
 
   /**
    * Sync rebalance intents by checking fulfillment status.
@@ -82,8 +86,12 @@ export interface IActionTracker {
   /**
    * Sync rebalance actions by verifying on-chain message delivery.
    * @param confirmedBlockTags Optional block tags from Monitor for consistent state queries
+   * @returns Whether settlement at a moving block tag requires fresh balances
+   * Legacy implementations may return void without a refresh signal.
    */
-  syncRebalanceActions(confirmedBlockTags?: ConfirmedBlockTags): Promise<void>;
+  syncRebalanceActions(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<boolean | void>;
 
   /**
    * Sync inventory_movement actions by checking their status via external bridge API.
