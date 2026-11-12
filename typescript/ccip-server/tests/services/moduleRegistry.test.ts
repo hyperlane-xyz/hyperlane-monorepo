@@ -22,7 +22,7 @@ describe('module registry', () => {
     ['wormhole', 'HYPERLANE_EXPLORER_URL'],
   ] as const) {
     it(`loads ${name} and preserves required configuration validation`, async function () {
-      if (name === 'callCommitments') this.timeout(10_000);
+      this.timeout(name === 'callCommitments' ? 10_000 : 5_000);
       const previous = process.env[requiredSetting];
       delete process.env[requiredSetting];
       let rejected: unknown;
