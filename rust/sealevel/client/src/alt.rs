@@ -9,7 +9,7 @@ use solana_address_lookup_table_interface::instruction::{
 use solana_program::pubkey;
 use solana_sdk::pubkey::Pubkey;
 
-use hyperlane_sealevel_mailbox::mailbox_inbox_pda_seeds;
+use hyperlane_sealevel_interface::mailbox::mailbox_inbox_pda_seeds;
 
 use crate::{AltCmd, AltOutputFormat, AltSubCmd, Context};
 

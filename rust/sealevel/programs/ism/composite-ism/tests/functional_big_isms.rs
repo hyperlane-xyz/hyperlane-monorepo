@@ -52,13 +52,16 @@ use common::{
 /// the `ProgramTest`.  Setting a global env var is acceptable here because
 /// the scale test runs as its own process (separate integration-test binary).
 fn bpf_program_test() -> ProgramTest {
-    let deploy_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../target/deploy")
-        .canonicalize()
-        .unwrap_or_else(|_| {
-            panic!("target/deploy/ not found — run `cargo build-sbf` from rust/sealevel/ first")
-        });
-    std::env::set_var("SBF_OUT_DIR", &deploy_dir);
+    // Respect an SBF_OUT_DIR set by the caller (e.g. the conformance harness).
+    if std::env::var_os("SBF_OUT_DIR").is_none() {
+        let deploy_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../target/deploy")
+            .canonicalize()
+            .unwrap_or_else(|_| {
+                panic!("target/deploy/ not found — run `cargo build-sbf` from rust/sealevel/ first")
+            });
+        std::env::set_var("SBF_OUT_DIR", &deploy_dir);
+    }
     let mut pt = ProgramTest::new(
         "hyperlane_sealevel_composite_ism",
         composite_ism_id(),

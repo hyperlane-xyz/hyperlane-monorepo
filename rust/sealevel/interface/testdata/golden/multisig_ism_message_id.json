@@ -1,0 +1,233 @@
+{
+  "program": "multisig_ism_message_id",
+  "values": [
+    {
+      "type": "multisig_ism_message_id.Instruction",
+      "variant": "Initialize",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": null,
+      "hex": "010101010101010100"
+    },
+    {
+      "type": "multisig_ism_message_id.Instruction",
+      "variant": "SetValidatorsAndThreshold",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": {
+        "domain": 1399811149,
+        "data": {
+          "validators": [
+            "0x0102030405060708090a0b0c0d0e0f1011121314",
+            "0x404142434445464748494a4b4c4d4e4f50515253",
+            "0x808182838485868788898a8b8c8d8e8f90919293"
+          ],
+          "threshold": 2
+        }
+      },
+      "hex": "0101010101010101014d6c6f53030000000102030405060708090a0b0c0d0e0f1011121314404142434445464748494a4b4c4d4e4f50515253808182838485868788898a8b8c8d8e8f9091929302"
+    },
+    {
+      "type": "multisig_ism_message_id.Instruction",
+      "variant": "GetOwner",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": null,
+      "hex": "010101010101010102"
+    },
+    {
+      "type": "multisig_ism_message_id.Instruction",
+      "variant": "TransferOwnership",
+      "name": "some",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw",
+      "hex": "010101010101010103010102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+    },
+    {
+      "type": "multisig_ism_message_id.Instruction",
+      "variant": "TransferOwnership",
+      "name": "none",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": null,
+      "hex": "01010101010101010300"
+    },
+    {
+      "type": "multisig_ism_message_id.DomainData",
+      "variant": null,
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 255,
+        "validators_and_threshold": {
+          "validators": [
+            "0x0102030405060708090a0b0c0d0e0f1011121314",
+            "0x404142434445464748494a4b4c4d4e4f50515253",
+            "0x808182838485868788898a8b8c8d8e8f90919293"
+          ],
+          "threshold": 2
+        }
+      },
+      "hex": "01ff030000000102030405060708090a0b0c0d0e0f1011121314404142434445464748494a4b4c4d4e4f50515253808182838485868788898a8b8c8d8e8f9091929302"
+    },
+    {
+      "type": "multisig_ism_message_id.AccessControlData",
+      "variant": null,
+      "name": "owned",
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 254,
+        "owner": "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e"
+      },
+      "hex": "01fe0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
+    },
+    {
+      "type": "multisig_ism_message_id.AccessControlData",
+      "variant": null,
+      "name": "unowned",
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 253,
+        "owner": null
+      },
+      "hex": "01fd00"
+    }
+  ],
+  "instructions": [
+    {
+      "name": "init_instruction",
+      "program_id": "C1o52bzzxGh9JK6CxqCS5HLuVRiRJzYS5BdCXLE7XgwT",
+      "accounts": [
+        {
+          "pubkey": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "CUNj9K49XNvfPgtpCyvAhh8NoUp2K7DhXYxuwtoPcp5N",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        }
+      ],
+      "hex": "010101010101010100"
+    },
+    {
+      "name": "transfer_ownership_instruction",
+      "program_id": "C1o52bzzxGh9JK6CxqCS5HLuVRiRJzYS5BdCXLE7XgwT",
+      "accounts": [
+        {
+          "pubkey": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "CUNj9K49XNvfPgtpCyvAhh8NoUp2K7DhXYxuwtoPcp5N",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "010101010101010103010405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"
+    },
+    {
+      "name": "set_validators_and_threshold_instruction",
+      "program_id": "C1o52bzzxGh9JK6CxqCS5HLuVRiRJzYS5BdCXLE7XgwT",
+      "accounts": [
+        {
+          "pubkey": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "CUNj9K49XNvfPgtpCyvAhh8NoUp2K7DhXYxuwtoPcp5N",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "BQKVtvZyGQNBHcu4fHrY4tfgWBQ296fZFTZ1bGaE8A1a",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        }
+      ],
+      "hex": "0101010101010101014d6c6f53030000000102030405060708090a0b0c0d0e0f1011121314404142434445464748494a4b4c4d4e4f50515253808182838485868788898a8b8c8d8e8f9091929302"
+    }
+  ],
+  "pdas": [
+    {
+      "name": "access_control",
+      "program_id": "C1o52bzzxGh9JK6CxqCS5HLuVRiRJzYS5BdCXLE7XgwT",
+      "seeds": [
+        "6d756c74697369675f69736d5f6d6573736167655f6964",
+        "2d",
+        "6163636573735f636f6e74726f6c"
+      ],
+      "address": "CUNj9K49XNvfPgtpCyvAhh8NoUp2K7DhXYxuwtoPcp5N",
+      "bump": 250
+    },
+    {
+      "name": "domain_data",
+      "program_id": "C1o52bzzxGh9JK6CxqCS5HLuVRiRJzYS5BdCXLE7XgwT",
+      "seeds": [
+        "6d756c74697369675f69736d5f6d6573736167655f6964",
+        "2d",
+        "4d6c6f53",
+        "2d",
+        "646f6d61696e5f64617461"
+      ],
+      "address": "BQKVtvZyGQNBHcu4fHrY4tfgWBQ296fZFTZ1bGaE8A1a",
+      "bump": 255
+    }
+  ],
+  "errors": [
+    {
+      "name": "Error.AccountOutOfOrder",
+      "code": 1
+    },
+    {
+      "name": "Error.AccountNotOwner",
+      "code": 2
+    },
+    {
+      "name": "Error.ProgramIdNotOwner",
+      "code": 3
+    },
+    {
+      "name": "Error.AccountNotInitialized",
+      "code": 4
+    },
+    {
+      "name": "Error.InvalidSignatureRecoveryId",
+      "code": 5
+    },
+    {
+      "name": "Error.InvalidSignature",
+      "code": 6
+    },
+    {
+      "name": "Error.ThresholdNotMet",
+      "code": 7
+    },
+    {
+      "name": "Error.InvalidValidatorsAndThreshold",
+      "code": 8
+    },
+    {
+      "name": "Error.AlreadyInitialized",
+      "code": 9
+    },
+    {
+      "name": "Error.InvalidMetadata",
+      "code": 10
+    }
+  ],
+  "constants": []
+}

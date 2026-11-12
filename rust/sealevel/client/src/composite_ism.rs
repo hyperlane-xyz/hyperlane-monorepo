@@ -10,7 +10,7 @@ use crate::{
     CompositeIsmCmd, CompositeIsmSubCmd, Context,
 };
 use hyperlane_core::{H160, H256, U256};
-use hyperlane_sealevel_composite_ism::{
+use hyperlane_sealevel_interface::composite_ism::{
     accounts::{CompositeIsmAccount, DomainIsmAccount, IsmNode},
     instruction::{
         initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,

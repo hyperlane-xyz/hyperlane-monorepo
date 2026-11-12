@@ -1,0 +1,144 @@
+package testism
+
+// SCRATCH CU MICROBENCH (never commit)
+
+import (
+	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
+	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/svm"
+	"gosvm/solana"
+)
+
+var microSeeds = [][]byte{[]byte("hyperlane_igp"), []byte("-"), []byte("igp"), []byte("-"), []byte("0123456789abcdef0123456789abcdef")}
+
+func micro(c solana.Context) {
+	pid := svm.ProgramID(c)
+	solana.ProbeCU(0x20) // empty bracket
+	solana.ProbeCU(0x120)
+	solana.ProbeCU(0x21)
+	_, code := svm.CreateProgramAddress(c, microSeeds, 255, pid)
+	solana.ProbeCU(0x121)
+	solana.ProbeCU(0x22)
+	s, _ := svm.NewSeeds(microSeeds, 255)
+	solana.ProbeCU(0x122)
+	var out [32]byte
+	solana.ProbeCU(0x23)
+	solana.CreateAddress(c, s.SignerBytes()[1:], pid[:], out[:])
+	solana.ProbeCU(0x123)
+	k := svm.Key(c, 0)
+	solana.ProbeCU(0x24)
+	ok := svm.KeyIs(c, 0, k)
+	solana.ProbeCU(0x124)
+	solana.ProbeCU(0x25)
+	ok = ok && k == out
+	solana.ProbeCU(0x125)
+	solana.ProbeCU(0x26)
+	m, _ := svm.MinimumBalance(c, 100)
+	solana.ProbeCU(0x126)
+	var rent [17]byte
+	solana.ProbeCU(0x27)
+	solana.Rent(c, rent[:])
+	solana.ProbeCU(0x127)
+	solana.ProbeCU(0x28)
+	msg := svm.NewMsg("Initialized IGP: ")
+	msg.Pubkey(&k)
+	msg.Emit(c)
+	solana.ProbeCU(0x128)
+	buf := make([]byte, 128)
+	solana.ProbeCU(0x29)
+	w := borsh.NewFixedWriter(buf)
+	for i := 0; i < 8; i++ {
+		w.U64(m + uint64(i))
+	}
+	solana.ProbeCU(0x129)
+	var sum uint64
+	solana.ProbeCU(0x2a)
+	r := borsh.NewReader(buf)
+	for i := 0; i < 8; i++ {
+		sum += r.U64()
+	}
+	solana.ProbeCU(0x12a)
+	solana.ProbeCU(0x2b)
+	k2 := svm.Key(c, 0)
+	solana.ProbeCU(0x12b)
+	solana.ProbeCU(0x2c)
+	w2 := borsh.NewFixedWriter(buf)
+	w2.Bytes32(k2)
+	solana.ProbeCU(0x12c)
+	solana.ProbeCU(0x2d)
+	_, _, code2 := svm.FindProgramAddress(c, microSeeds, pid)
+	solana.ProbeCU(0x12d)
+	if !ok && sum == 0 && code == 0 && code2 == 0 {
+		solana.ProbeCU(0x2f)
+	}
+}
+
+func eqUnrolled(b []byte, k *svm.Pubkey) bool {
+	if len(b) != 32 {
+		return false
+	}
+	d := (b[0] ^ k[0]) | (b[1] ^ k[1]) | (b[2] ^ k[2]) | (b[3] ^ k[3]) | (b[4] ^ k[4]) | (b[5] ^ k[5]) | (b[6] ^ k[6]) | (b[7] ^ k[7]) |
+		(b[8] ^ k[8]) | (b[9] ^ k[9]) | (b[10] ^ k[10]) | (b[11] ^ k[11]) | (b[12] ^ k[12]) | (b[13] ^ k[13]) | (b[14] ^ k[14]) | (b[15] ^ k[15]) |
+		(b[16] ^ k[16]) | (b[17] ^ k[17]) | (b[18] ^ k[18]) | (b[19] ^ k[19]) | (b[20] ^ k[20]) | (b[21] ^ k[21]) | (b[22] ^ k[22]) | (b[23] ^ k[23]) |
+		(b[24] ^ k[24]) | (b[25] ^ k[25]) | (b[26] ^ k[26]) | (b[27] ^ k[27]) | (b[28] ^ k[28]) | (b[29] ^ k[29]) | (b[30] ^ k[30]) | (b[31] ^ k[31])
+	return d == 0
+}
+
+func eqWords(b []byte, k *svm.Pubkey) bool {
+	if len(b) != 32 {
+		return false
+	}
+	for i := 0; i < 32; i += 8 {
+		x := uint64(b[i]^k[i]) | uint64(b[i+1]^k[i+1])<<8 | uint64(b[i+2]^k[i+2])<<16 | uint64(b[i+3]^k[i+3])<<24 |
+			uint64(b[i+4]^k[i+4])<<32 | uint64(b[i+5]^k[i+5])<<40 | uint64(b[i+6]^k[i+6])<<48 | uint64(b[i+7]^k[i+7])<<56
+		if x != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func putU64(w []byte, v uint64) {
+	_ = w[7]
+	w[0] = byte(v)
+	w[1] = byte(v >> 8)
+	w[2] = byte(v >> 16)
+	w[3] = byte(v >> 24)
+	w[4] = byte(v >> 32)
+	w[5] = byte(v >> 40)
+	w[6] = byte(v >> 48)
+	w[7] = byte(v >> 56)
+}
+
+func minBalFast(c solana.Context, size uint64) uint64 {
+	var rent [17]byte
+	solana.Rent(c, rent[:])
+	rate := uint64(rent[0]) | uint64(rent[1])<<8 | uint64(rent[2])<<16 | uint64(rent[3])<<24 | uint64(rent[4])<<32 | uint64(rent[5])<<40 | uint64(rent[6])<<48 | uint64(rent[7])<<56
+	th := uint64(rent[8]) | uint64(rent[9])<<8 | uint64(rent[10])<<16 | uint64(rent[11])<<24 | uint64(rent[12])<<32 | uint64(rent[13])<<40 | uint64(rent[14])<<48 | uint64(rent[15])<<56
+	if th == 0x4000000000000000 {
+		return 2 * (128 + size) * rate
+	}
+	return 0
+}
+
+func micro2(c solana.Context) {
+	k := svm.Key(c, 0)
+	solana.ProbeCU(0x30)
+	ok := eqUnrolled(solana.Key(c, 0), &k)
+	solana.ProbeCU(0x130)
+	solana.ProbeCU(0x31)
+	ok2 := eqWords(solana.Key(c, 0), &k)
+	solana.ProbeCU(0x131)
+	buf := make([]byte, 128)
+	solana.ProbeCU(0x32)
+	for i := 0; i < 8; i++ {
+		putU64(buf[i*8:], uint64(i)+uint64(k[0]))
+	}
+	solana.ProbeCU(0x132)
+	solana.ProbeCU(0x33)
+	m := minBalFast(c, 100)
+	solana.ProbeCU(0x133)
+	m2, _ := svm.MinimumBalance(c, 100)
+	if !ok || !ok2 || m != m2 || buf[9] == 7 {
+		solana.ProbeCU(0x3f)
+	}
+}

@@ -1,0 +1,570 @@
+{
+  "program": "composite_ism",
+  "values": [
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "Initialize",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": {
+        "Aggregation": {
+          "threshold": 2,
+          "sub_isms": [
+            {
+              "TrustedRelayer": {
+                "relayer": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw"
+              }
+            },
+            {
+              "MultisigMessageId": {
+                "validators": [
+                  "0x101112131415161718191a1b1c1d1e1f20212223",
+                  "0x202122232425262728292a2b2c2d2e2f30313233"
+                ],
+                "threshold": 1
+              }
+            },
+            {
+              "Test": {
+                "accept": true
+              }
+            },
+            {
+              "Pausable": {
+                "paused": false
+              }
+            },
+            {
+              "AmountRouting": {
+                "threshold": "1000000000000000000",
+                "lower": {
+                  "Test": {
+                    "accept": false
+                  }
+                },
+                "upper": {
+                  "RateLimited": {
+                    "max_capacity": "5000000",
+                    "recipient": "0x303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f",
+                    "filled_level": "1234",
+                    "last_updated": "1700000000",
+                    "mailbox": "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e"
+                  }
+                }
+              }
+            },
+            "Routing",
+            {
+              "FallbackRouting": {
+                "fallback_ism": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM"
+              }
+            }
+          ]
+        }
+      },
+      "hex": "010101010101010100020207000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102000000101112131415161718191a1b1c1d1e1f20212223202122232425262728292a2b2c2d2e2f30313233010301040005000064a7b3b6e00d000000000000000000000000000000000000000000000000030006404b4c000000000001303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4fd20400000000000000f153650000000002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20210708030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122"
+    },
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "UpdateConfig",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": {
+        "TrustedRelayer": {
+          "relayer": "Gh5GixNvrU87vKWcLLLp6dcgBGRDtP4EJesFu6rjif4"
+        }
+      },
+      "hex": "010101010101010101000405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"
+    },
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "GetOwner",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": null,
+      "hex": "010101010101010102"
+    },
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "TransferOwnership",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": "LcNR2RPX9mMG1a23dfG6yQNvLUctx4sniKXKH9TV3ym",
+      "hex": "0101010101010101030105060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324"
+    },
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "SetDomainIsm",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": {
+        "domain": 1399811149,
+        "ism": {
+          "MultisigMessageId": {
+            "validators": [
+              "0x404142434445464748494a4b4c4d4e4f50515253"
+            ],
+            "threshold": 1
+          }
+        }
+      },
+      "hex": "0101010101010101044d6c6f530101000000404142434445464748494a4b4c4d4e4f5051525301"
+    },
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "RemoveDomainIsm",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": {
+        "domain": 42161
+      },
+      "hex": "010101010101010105b1a40000"
+    },
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "Pause",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": null,
+      "hex": "010101010101010106"
+    },
+    {
+      "type": "composite_ism.Instruction",
+      "variant": "Unpause",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0101010101010101",
+      "fields": null,
+      "hex": "010101010101010107"
+    },
+    {
+      "type": "composite_ism.CompositeIsmStorage",
+      "variant": null,
+      "name": "configured",
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 255,
+        "owner": "QXfZKtQ7T4aQ6pXUvzBPrB9AVgpa1khM7zBNfC4EPJU",
+        "root": {
+          "Aggregation": {
+            "threshold": 2,
+            "sub_isms": [
+              {
+                "TrustedRelayer": {
+                  "relayer": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw"
+                }
+              },
+              {
+                "MultisigMessageId": {
+                  "validators": [
+                    "0x101112131415161718191a1b1c1d1e1f20212223",
+                    "0x202122232425262728292a2b2c2d2e2f30313233"
+                  ],
+                  "threshold": 1
+                }
+              },
+              {
+                "Test": {
+                  "accept": true
+                }
+              },
+              {
+                "Pausable": {
+                  "paused": false
+                }
+              },
+              {
+                "AmountRouting": {
+                  "threshold": "1000000000000000000",
+                  "lower": {
+                    "Test": {
+                      "accept": false
+                    }
+                  },
+                  "upper": {
+                    "RateLimited": {
+                      "max_capacity": "5000000",
+                      "recipient": "0x303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f",
+                      "filled_level": "1234",
+                      "last_updated": "1700000000",
+                      "mailbox": "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e"
+                    }
+                  }
+                }
+              },
+              "Routing",
+              {
+                "FallbackRouting": {
+                  "fallback_ism": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "hex": "01ff01060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242501020207000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102000000101112131415161718191a1b1c1d1e1f20212223202122232425262728292a2b2c2d2e2f30313233010301040005000064a7b3b6e00d000000000000000000000000000000000000000000000000030006404b4c000000000001303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4fd20400000000000000f153650000000002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20210708030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122"
+    },
+    {
+      "type": "composite_ism.CompositeIsmStorage",
+      "variant": null,
+      "name": "empty",
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 254,
+        "owner": null,
+        "root": null
+      },
+      "hex": "01fe0000"
+    },
+    {
+      "type": "composite_ism.DomainIsmStorage",
+      "variant": null,
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 253,
+        "domain": 1399811149,
+        "ism": {
+          "Pausable": {
+            "paused": true
+          }
+        }
+      },
+      "hex": "01fd4d6c6f53010401"
+    }
+  ],
+  "instructions": [
+    {
+      "name": "initialize_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "38Yxf9meYEJmT7bfS5UXmrz3FVi9jdgGTv94jJnGBJQb",
+          "is_signer": false,
+          "is_writable": false
+        }
+      ],
+      "hex": "010101010101010100020207000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102000000101112131415161718191a1b1c1d1e1f20212223202122232425262728292a2b2c2d2e2f30313233010301040005000064a7b3b6e00d000000000000000000000000000000000000000000000000030006404b4c000000000001303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4fd20400000000000000f153650000000002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20210708030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122"
+    },
+    {
+      "name": "update_config_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        }
+      ],
+      "hex": "01010101010101010107"
+    },
+    {
+      "name": "verify_metadata_spec_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "YNFqvpRJ3f2gHKYMXe1ybifep7Dv98LTwKVVRHFj3wt",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "cHYzEHRtLxFpNa3npxwGUVRtyKRbCpA2Lz9YoKrUPGb",
+          "is_signer": false,
+          "is_writable": false
+        }
+      ],
+      "hex": "311816da86843f9b50000000606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf"
+    },
+    {
+      "name": "set_domain_ism_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "8u97ssNLRw41E5tK8RELENaea9GtaxBErVxRZ3tAdEDp",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        }
+      ],
+      "hex": "0101010101010101044d6c6f530301"
+    },
+    {
+      "name": "remove_domain_ism_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "BHEdUDowVgKWiBKqNgAvksa9PVfL26D1YXjqruPFy4Da",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "010101010101010105b1a40000"
+    },
+    {
+      "name": "transfer_ownership_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "01010101010101010300"
+    },
+    {
+      "name": "pause_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "010101010101010106"
+    },
+    {
+      "name": "unpause_instruction",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "accounts": [
+        {
+          "pubkey": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "010101010101010107"
+    }
+  ],
+  "pdas": [
+    {
+      "name": "storage",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "seeds": [
+        "68797065726c616e655f69736d",
+        "2d",
+        "766572696679",
+        "2d",
+        "6163636f756e745f6d65746173"
+      ],
+      "address": "7qVTgVytv5TrewotZefpPECgyWKqVo2srCwWHJsEVj4E",
+      "bump": 254
+    },
+    {
+      "name": "domain_ism",
+      "program_id": "C5iNAuU1YZzNSQLiQ8XMNA7fjavcz4EFdbHraiGiH2GA",
+      "seeds": [
+        "646f6d61696e5f69736d",
+        "4d6c6f53"
+      ],
+      "address": "8u97ssNLRw41E5tK8RELENaea9GtaxBErVxRZ3tAdEDp",
+      "bump": 250
+    },
+    {
+      "name": "process_authority (derived under the mailbox)",
+      "program_id": "gCr8XkSUeFUxTpZE8HrZMGC98XdGGVyakeocBNTDibJ",
+      "seeds": [
+        "70726f636573735f617574686f72697479",
+        "a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3"
+      ],
+      "address": "5JNaQtj9BeC2gvFp5G7P9HzVN6cts1Q6D81V2ZX1pE27",
+      "bump": 253
+    }
+  ],
+  "errors": [
+    {
+      "name": "Error.ProgramIdNotOwner",
+      "code": 1
+    },
+    {
+      "name": "Error.AccountNotInitialized",
+      "code": 2
+    },
+    {
+      "name": "Error.AlreadyInitialized",
+      "code": 3
+    },
+    {
+      "name": "Error.ConfigNotSet",
+      "code": 4
+    },
+    {
+      "name": "Error.InvalidMetadata",
+      "code": 5
+    },
+    {
+      "name": "Error.InvalidSignature",
+      "code": 6
+    },
+    {
+      "name": "Error.ThresholdNotMet",
+      "code": 7
+    },
+    {
+      "name": "Error.NoRouteForDomain",
+      "code": 8
+    },
+    {
+      "name": "Error.InvalidRelayer",
+      "code": 9
+    },
+    {
+      "name": "Error.RelayerNotSigner",
+      "code": 10
+    },
+    {
+      "name": "Error.VerifyRejected",
+      "code": 11
+    },
+    {
+      "name": "Error.InvalidConfig",
+      "code": 12
+    },
+    {
+      "name": "Error.InvalidMessageBody",
+      "code": 13
+    },
+    {
+      "name": "Error.RateLimitExceeded",
+      "code": 14
+    },
+    {
+      "name": "Error.RecipientMismatch",
+      "code": 15
+    },
+    {
+      "name": "Error.MultipleRoutingNodes",
+      "code": 16
+    },
+    {
+      "name": "Error.RoutingInDomainIsm",
+      "code": 17
+    },
+    {
+      "name": "Error.DomainPdaNotWritable",
+      "code": 18
+    },
+    {
+      "name": "Error.InvalidSystemProgram",
+      "code": 19
+    },
+    {
+      "name": "Error.InvalidStoragePda",
+      "code": 20
+    },
+    {
+      "name": "Error.InvalidDomainPda",
+      "code": 21
+    },
+    {
+      "name": "Error.FallbackRoutingInDomainIsm",
+      "code": 22
+    },
+    {
+      "name": "Error.InvalidFallbackIsmAccount",
+      "code": 23
+    },
+    {
+      "name": "Error.FallbackIsmCallFailed",
+      "code": 24
+    },
+    {
+      "name": "Error.FallbackRoutingNotLast",
+      "code": 25
+    },
+    {
+      "name": "Error.InvalidProcessAuthority",
+      "code": 26
+    },
+    {
+      "name": "Error.ProcessAuthorityNotSigner",
+      "code": 27
+    },
+    {
+      "name": "Error.PausableInDomainIsm",
+      "code": 28
+    },
+    {
+      "name": "Error.InvalidProgramDataAccount",
+      "code": 29
+    }
+  ],
+  "constants": [
+    {
+      "name": "DOMAIN_ISM_SEED",
+      "value": "0x646f6d61696e5f69736d"
+    },
+    {
+      "name": "PROCESS_AUTHORITY_SEED",
+      "value": "0x70726f636573735f617574686f72697479"
+    }
+  ]
+}

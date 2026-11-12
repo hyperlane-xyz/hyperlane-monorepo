@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use hyperlane_core::H256;
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_hello_world::{
+use hyperlane_sealevel_interface::connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_interface::helloworld::{
     accounts::{HelloWorldStorage, HelloWorldStorageAccount},
     instruction::{
         enroll_remote_routers_instruction, init_instruction,
@@ -10,7 +10,7 @@ use hyperlane_sealevel_hello_world::{
     },
     program_storage_pda_seeds,
 };
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+use hyperlane_sealevel_interface::igp::accounts::InterchainGasPaymasterType;
 use serde::{Deserialize, Serialize};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 
