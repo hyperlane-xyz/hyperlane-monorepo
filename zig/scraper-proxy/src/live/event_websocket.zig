@@ -79,6 +79,7 @@ pub const EventWebSocketServer = struct {
         // Sink releases for subscriptions freed after stop() run here and touch peers.
         if (self.diagnostics_stream) |stream| stream.deinit();
         self.server.destroy();
+        self.loop.deinit();
         self.gpa.destroy(self);
     }
 
@@ -176,6 +177,7 @@ pub const EventWebSocketServer = struct {
         .ping = connPing,
         .release = connRelease,
         .try_send_inline = connTrySendInline,
+        .try_send_inline_many = connTrySendInlineMany,
     };
 
     fn asConn(ptr: *anyopaque) *ws.Conn {
@@ -185,14 +187,23 @@ pub const EventWebSocketServer = struct {
         asConn(ptr).send(bytes, false, .{ .ctx = job, .func = sendDone }) catch return false;
         return true;
     }
-    fn connTrySendInline(ptr: *anyopaque, bytes: []const u8) live.Socket.InlineResult {
-        const c = asConn(ptr);
-        // No callback: a partial write's tail stays queued in order, and its
-        // flush needs no completion (the frame was accepted, like Node).
-        const accepted = c.trySendInline(bytes, false, null) catch return .failed;
-        if (!accepted) return .busy;
-        // A socket error destroys the conn (readyState no longer open).
-        return if (c.readyState() == .open) .written else .failed;
+    fn connTrySendInline(ptr: *anyopaque, bytes: []const u8, job: *live.SendJob) live.Socket.InlineResult {
+        const callbacks = [1]ws.SendCallback{.{ .ctx = job, .func = sendDone }};
+        const outcome = asConn(ptr).trySendInlineMany(&.{bytes}, false, &callbacks) catch return .failed;
+        return switch (outcome) {
+            .written => |n| if (n == 1) .written else .partial,
+            .busy => .busy,
+        };
+    }
+    fn connTrySendInlineMany(ptr: *anyopaque, payloads: []const []const u8, jobs: []const *live.SendJob) live.Socket.ManyResult {
+        var callbacks: [ws.Conn.max_inline_frames]ws.SendCallback = undefined;
+        std.debug.assert(jobs.len <= callbacks.len);
+        for (jobs, callbacks[0..jobs.len]) |job, *cb| cb.* = .{ .ctx = job, .func = sendDone };
+        const outcome = asConn(ptr).trySendInlineMany(payloads, false, callbacks[0..jobs.len]) catch return .failed;
+        return switch (outcome) {
+            .written => |n| .{ .written = n },
+            .busy => .busy,
+        };
     }
     fn sendDone(ctx: *anyopaque, _: *ws.Conn, ok: bool) void {
         const job: *live.SendJob = @ptrCast(@alignCast(ctx));

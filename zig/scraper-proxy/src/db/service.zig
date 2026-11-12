@@ -259,9 +259,9 @@ pub const DbService = struct {
     }
 
     /// `query` for statements whose generic plan is safe to reuse
-    /// (`pq.QueryOptions.reuse_plan`): unique-key lookups and fixed SQL.
+    /// (`pq.Plan.reusable`): unique-key lookups and fixed SQL.
     pub fn queryReusable(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
-        return self.run(.main, self.main_role, arena, sql, params, .{ .reuse_plan = true }, failure);
+        return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .reusable }, failure);
     }
 
     /// Live workload on the primary (`live_primary`).

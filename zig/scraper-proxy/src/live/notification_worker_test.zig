@@ -23,6 +23,7 @@ pub const TestLoop = struct {
 
     pub fn deinit(self: *TestLoop) void {
         self.pool.deinit();
+        self.loop.deinit();
         self.fake.deinit();
     }
 };

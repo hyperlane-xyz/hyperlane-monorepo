@@ -489,16 +489,24 @@ const Parser = struct {
             p.i = i + 1;
             return p.a.dupe(u8, s[start..i]);
         }
-        // Find the closing quote (escapes never contain a raw `"` or `\\`
-        // after their first character), so the output (never longer than
-        // the escaped input) is allocated once.
-        var end = i;
-        while (true) {
-            if (end >= s.len or s[end] < 0x20) return error.SyntaxError;
-            if (s[end] == '"') break;
-            end = scanSpecial(s, end + 2); // s[end] is a backslash: skip it and the escaped byte
+        // Escaped: decode into one allocation that is never shorter than the
+        // output (the escaped input is never shorter), then give the unused
+        // tail back (the arena reclaims a shrunk last allocation). Sized for
+        // the rest of the input when that is small; otherwise the closing
+        // quote is found first (escapes never hide a raw `"` or `\\` after
+        // their first byte) so a long document is not over-allocated.
+        var bound = s.len - start;
+        if (bound > 64 * 1024) {
+            var end = i;
+            while (true) {
+                if (end >= s.len or s[end] < 0x20) return error.SyntaxError;
+                if (s[end] == '"') break;
+                end = scanSpecial(s, end + 2); // s[end] is a backslash: skip it and the escaped byte
+            }
+            bound = end - start;
         }
-        const out = try p.a.alloc(u8, end - start);
+        const out = try p.a.alloc(u8, bound);
+        errdefer p.a.free(out);
         var o = i - start;
         @memcpy(out[0..o], s[start..i]);
         while (true) {
@@ -552,7 +560,7 @@ const Parser = struct {
             if (i >= s.len) return error.SyntaxError;
         }
         p.i = i + 1;
-        return out[0..o];
+        return p.a.realloc(out, o);
     }
 
     fn array(p: *Parser, depth: usize) ParseError!Value {
@@ -855,6 +863,18 @@ test "parse decodes escapes at block boundaries and rejects bad strings" {
     for (cases) |c| {
         const v = try parse(a, c.in, .{});
         try testing.expectEqualStrings(c.out, v.string);
+    }
+    {
+        // Escaped string in a large document (bounded allocation path).
+        const big = try a.alloc(u8, 100 * 1024);
+        @memset(big, ' ');
+        const head = "[\"a\\nb\\\"c\",\"";
+        @memcpy(big[0..head.len], head);
+        big[big.len - 2] = '"';
+        big[big.len - 1] = ']';
+        const v = try parse(a, big, .{});
+        try testing.expectEqualStrings("a\nb\"c", v.array[0].string);
+        try testing.expectEqual(big.len - head.len - 2, v.array[1].string.len);
     }
     for ([_][]const u8{ "\"abc\\\"", "\"\\", "\"a\\n\x01\"", "\"\\\x0a\"", "\"\\x\"", "\"0123456789abcdef0123\\n0123456789abcdef", "\"\\u12\"" }) |bad| {
         try testing.expectError(error.SyntaxError, parse(a, bad, .{}));

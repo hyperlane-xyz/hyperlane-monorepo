@@ -114,3 +114,17 @@ test "bench: stringify components (opt-in CORE_BENCH, use -Drelease=true)" {
     }
     std.debug.print("writeString only: {d:.1} us\n", .{@as(f64, @floatFromInt(t.lap() / n)) / 1000});
 }
+
+test "bench: parse an Explorer request body (opt-in CORE_BENCH, use -Drelease=true)" {
+    if (std.posix.getenv("CORE_BENCH") == null) return error.SkipZigTest;
+    const body = @embedFile("testdata/explorer-body.json");
+    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer arena.deinit();
+    const n = 200_000;
+    var t = try std.time.Timer.start();
+    for (0..n) |_| {
+        _ = arena.reset(.retain_capacity);
+        _ = try json.parse(arena.allocator(), body, .{ .secure = true, .strip_bom = true });
+    }
+    std.debug.print("parse explorer body ({d} bytes): {d:.3} us\n", .{ body.len, @as(f64, @floatFromInt(t.read() / n)) / 1000 });
+}

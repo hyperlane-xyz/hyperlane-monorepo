@@ -83,6 +83,7 @@ test "scheduler-before-pool teardown never submits to a dead pool" {
         // the scheduler's timers are cancelled and drained; the pool then runs it.
         scheduler.deinit();
         pool.deinit();
+        loop.deinit();
         try testing.expect(timers.ran.load(.seq_cst) <= 4);
     }
 }
@@ -165,4 +166,41 @@ test "cancel never waits on a firing callback and frees each slot once" {
     }
     timer_thread.quiesce();
     try testing.expect(flag.hits.load(.seq_cst) >= 167);
+}
+
+test "tasks take the loop mutex in spawn order" {
+    var pool = runtime.Pool.init(testing.allocator);
+    try pool.start(1);
+    var timer_thread = core.scheduler.Scheduler.init(testing.allocator);
+    defer timer_thread.deinit();
+    var scheduler = runtime.SharedScheduler.init(testing.allocator, &timer_thread);
+    defer scheduler.deinit();
+    var loop: runtime.Loop = .{ .allocator = testing.allocator, .pool = &pool, .scheduler = scheduler.scheduler() };
+    const Order = struct {
+        seen: [64]u8 = undefined,
+        len: usize = 0,
+        fn task(self: *@This(), index: u8) void {
+            self.seen[self.len] = index;
+            self.len += 1;
+        }
+        fn done(self: *const @This()) bool {
+            return self.len == 64;
+        }
+    };
+    var order: Order = .{};
+    loop.lock();
+    for (0..64) |i| loop.spawn(Order.task, .{ &order, @as(u8, @intCast(i)) });
+    loop.unlock();
+    // Ordering, not speed, is under test: wait generously (64 thread
+    // hand-offs can be slow on a loaded machine).
+    for (0..30_000) |_| {
+        loop.lock();
+        const finished = order.done();
+        loop.unlock();
+        if (finished) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    pool.deinit();
+    loop.deinit();
+    for (order.seen, 0..) |index, i| try testing.expectEqual(@as(u8, @intCast(i)), index);
 }

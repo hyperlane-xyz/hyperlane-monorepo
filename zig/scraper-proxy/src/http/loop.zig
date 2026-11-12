@@ -57,8 +57,15 @@ pub const Kind = enum(u8) { free, listener, http, ws };
 
 pub const Slot = struct {
     state: std.atomic.Value(u64) = .init(0),
-    /// Monotonic ms after which the tick `KICK`s the slot (`no_deadline`: never).
+    /// Monotonic ms after which the slot is `KICK`ed (`no_deadline`: never).
+    /// Set with `Loop.setDeadline`.
     deadline: std.atomic.Value(i64) = .init(no_deadline),
+    /// Key of this slot's entry in the timer heap (`no_deadline`: none). It
+    /// is never later than `deadline`: an extended deadline is re-armed when
+    /// the earlier entry fires, so most parks take no lock.
+    armed: std.atomic.Value(i64) = .init(no_deadline),
+    /// Position in the timer heap (timer mutex).
+    heap_pos: u32 = none,
     kind: Kind = .free,
     ptr: ?*anyopaque = null,
     next_free: u32 = none,
@@ -188,8 +195,8 @@ pub const Handler = struct {
     on_event: *const fn (ctx: *anyopaque, index: u32, gen: u32, ev: Event) void,
     /// A slot whose `token` another thread claimed and handed to the pollers.
     on_posted: *const fn (ctx: *anyopaque, index: u32, gen: u32, token: u32) void,
-    /// Periodic sweep (one thread at a time) while sockets exist.
-    on_tick: *const fn (ctx: *anyopaque) void,
+    /// A slot's deadline passed (nothing claimed yet).
+    on_expired: *const fn (ctx: *anyopaque, index: u32, gen: u32) void,
     /// Runs on a poller thread just before it exits.
     on_thread_exit: *const fn (ctx: *anyopaque) void,
 };
@@ -200,9 +207,10 @@ pub const Options = struct {
     active: u32 = 1,
     max_threads: u32 = 256,
     stack_size: usize = 8 * 1024 * 1024,
-    tick_ms: u32 = 250,
-    /// A poller idle this long exits while another one is waiting.
-    idle_exit_ms: i32 = 60_000,
+    /// A poller idle (or parked) this long exits while another one keeps
+    /// waiting, so the count returns to one soon after load. The last poller
+    /// waits without a timeout (no wake-ups at idle).
+    idle_exit_ms: i32 = 1_000,
     /// A dispatch running this long without a `blockingBegin` is assumed
     /// blocked (e.g. on a mutex): the monitor hands its place to another.
     stall_us: u32 = 2_000,
@@ -217,6 +225,9 @@ const Rec = struct {
 
     const State = enum(u8) { idle, running, blocked, stalled };
 };
+
+/// How long a surplus poller waits as a spare before parking.
+const surplus_linger_ms = 50;
 
 const wake_udata: u64 = std.math.maxInt(u64) - 1;
 const tick_udata: u64 = std.math.maxInt(u64) - 2;
@@ -251,11 +262,11 @@ pub const Loop = struct {
     posted: std.ArrayList(Posted) = .empty,
     posted_spare: std.ArrayList(Posted) = .empty,
 
-    /// Socket slots plus pins; the tick runs while this is non-zero.
-    sockets: std.atomic.Value(u32) = .init(0),
-    tick_mutex: std.Thread.Mutex = .{},
-    tick_armed: std.atomic.Value(bool) = .init(false),
-    tick_busy: std.atomic.Value(bool) = .init(false),
+    /// Deadline min-heap of slot indices (keys in `Slot.armed`) and the
+    /// one-shot timer armed for its top.
+    timer_mutex: std.Thread.Mutex = .{},
+    heap: std.ArrayList(u32) = .empty,
+    timer_at: i64 = no_deadline,
 
     pub fn init(self: *Loop, gpa: std.mem.Allocator, options: Options, handler: Handler) !void {
         self.* = .{ .gpa = gpa, .options = options, .handler = handler, .fd = -1 };
@@ -308,6 +319,7 @@ pub const Loop = struct {
         posix.close(self.fd);
         self.posted.deinit(self.gpa);
         self.posted_spare.deinit(self.gpa);
+        self.heap.deinit(self.gpa);
         self.gpa.free(self.recs);
         self.slots.deinit(self.gpa);
     }
@@ -322,18 +334,22 @@ pub const Loop = struct {
         return self.slots.get(index);
     }
 
-    /// Allocates a slot (R held by the caller). Socket kinds keep the tick running.
+    /// Allocates a slot (R held by the caller).
     pub fn allocSlot(self: *Loop, kind: Kind, ptr: *anyopaque) !struct { index: u32, gen: u32 } {
         const r = try self.slots.alloc(self.gpa, kind, ptr);
-        if (kind != .listener) self.pinTick();
         return .{ .index = r.index, .gen = r.gen };
     }
 
     /// Frees a slot (the caller holds its tokens and has closed the fd).
     pub fn freeSlot(self: *Loop, index: u32) void {
-        const kind = self.slots.get(index).kind;
+        const sl = self.slots.get(index);
+        if (sl.armed.load(.acquire) != no_deadline) {
+            self.timer_mutex.lock();
+            if (sl.heap_pos != none) self.heapRemove(sl.heap_pos);
+            sl.armed.store(no_deadline, .release);
+            self.timer_mutex.unlock();
+        }
         self.slots.free(index);
-        if (kind != .listener) self.unpinTick();
     }
 
     /// Converts a held slot to another kind (HTTP -> WebSocket).
@@ -448,54 +464,139 @@ pub const Loop = struct {
         self.mutex.unlock();
     }
 
-    // -- tick -----------------------------------------------------------------------
+    // -- deadlines --------------------------------------------------------------------
 
-    /// Keeps the tick running (an extra holder besides socket slots).
-    pub fn pinTick(self: *Loop) void {
-        _ = self.sockets.fetchAdd(1, .seq_cst);
-        if (self.tick_armed.load(.seq_cst)) return;
-        self.tick_mutex.lock();
-        defer self.tick_mutex.unlock();
-        if (self.tick_armed.load(.seq_cst)) return;
-        self.setTimer(self.options.tick_ms);
-        self.tick_armed.store(true, .seq_cst);
+    /// Sets when `index` is kicked. O(1) without a lock unless the deadline
+    /// moves earlier than the slot's armed timer entry (an extended deadline
+    /// is re-armed when the earlier entry fires), so idle sockets cost
+    /// nothing per request and nothing per tick.
+    pub fn setDeadline(self: *Loop, index: u32, deadline: i64) void {
+        const sl = self.slots.get(index);
+        sl.deadline.store(deadline, .release);
+        if (deadline >= sl.armed.load(.acquire)) return;
+        self.timer_mutex.lock();
+        defer self.timer_mutex.unlock();
+        self.arm(index, deadline);
     }
 
-    pub fn unpinTick(self: *Loop) void {
-        _ = self.sockets.fetchSub(1, .seq_cst);
+    /// Timer mutex held.
+    fn arm(self: *Loop, index: u32, deadline: i64) void {
+        const sl = self.slots.get(index);
+        if (deadline >= sl.armed.load(.acquire)) return;
+        sl.armed.store(deadline, .release);
+        if (sl.heap_pos == none) {
+            self.heap.append(self.gpa, index) catch {
+                // Out of memory: the deadline waits for the next fired entry.
+                sl.armed.store(no_deadline, .release);
+                return;
+            };
+            sl.heap_pos = @intCast(self.heap.items.len - 1);
+        }
+        self.siftUp(sl.heap_pos);
+        if (deadline < self.timer_at) self.setTimer(deadline);
     }
 
-    fn setTimer(self: *Loop, ms: u32) void {
+    fn key(self: *Loop, pos: u32) i64 {
+        return self.slots.get(self.heap.items[pos]).armed.load(.monotonic);
+    }
+
+    fn place(self: *Loop, pos: u32, index: u32) void {
+        self.heap.items[pos] = index;
+        self.slots.get(index).heap_pos = pos;
+    }
+
+    fn siftUp(self: *Loop, from: u32) void {
+        var pos = from;
+        const index = self.heap.items[pos];
+        const k = self.slots.get(index).armed.load(.monotonic);
+        while (pos > 0) {
+            const parent = (pos - 1) / 2;
+            if (self.key(parent) <= k) break;
+            self.place(pos, self.heap.items[parent]);
+            pos = parent;
+        }
+        self.place(pos, index);
+    }
+
+    fn siftDown(self: *Loop, from: u32) void {
+        var pos = from;
+        const n: u32 = @intCast(self.heap.items.len);
+        const index = self.heap.items[pos];
+        const k = self.slots.get(index).armed.load(.monotonic);
+        while (true) {
+            var child = 2 * pos + 1;
+            if (child >= n) break;
+            if (child + 1 < n and self.key(child + 1) < self.key(child)) child += 1;
+            if (self.key(child) >= k) break;
+            self.place(pos, self.heap.items[child]);
+            pos = child;
+        }
+        self.place(pos, index);
+    }
+
+    fn heapRemove(self: *Loop, pos: u32) void {
+        const removed = self.heap.items[pos];
+        self.slots.get(removed).heap_pos = none;
+        const last = self.heap.pop().?;
+        if (pos == self.heap.items.len) return;
+        self.place(pos, last);
+        self.siftDown(pos);
+        self.siftUp(self.slots.get(last).heap_pos);
+    }
+
+    /// One-shot timer at monotonic `at` ms (`no_deadline`: disarm). Timer mutex held.
+    fn setTimer(self: *Loop, at: i64) void {
+        self.timer_at = at;
         if (is_linux) {
-            const ts: linux.timespec = .{ .sec = @intCast(ms / 1000), .nsec = @intCast(@as(u64, ms % 1000) * std.time.ns_per_ms) };
-            const spec: linux.itimerspec = .{ .it_interval = ts, .it_value = ts };
-            _ = linux.timerfd_settime(self.tick_fd, .{}, &spec, null);
-        } else if (ms > 0) {
-            self.kev(&.{.{ .ident = 1, .filter = std.c.EVFILT.TIMER, .flags = std.c.EV.ADD, .fflags = 0, .data = @intCast(ms), .udata = tick_udata }}) catch {};
+            const spec: linux.itimerspec = if (at == no_deadline)
+                .{ .it_interval = .{ .sec = 0, .nsec = 0 }, .it_value = .{ .sec = 0, .nsec = 0 } }
+            else
+                .{ .it_interval = .{ .sec = 0, .nsec = 0 }, .it_value = .{ .sec = @intCast(@divTrunc(at, 1000)), .nsec = @intCast(@as(i64, @rem(at, 1000)) * std.time.ns_per_ms) } };
+            _ = linux.timerfd_settime(self.tick_fd, .{ .ABSTIME = true }, &spec, null);
+        } else if (at == no_deadline) {
+            // A one-shot timer that already fired is gone: ENOENT is fine.
+            var none_out: [0]posix.Kevent = .{};
+            _ = posix.kevent(self.fd, &.{.{ .ident = 1, .filter = std.c.EVFILT.TIMER, .flags = std.c.EV.DELETE, .fflags = 0, .data = 0, .udata = tick_udata }}, &none_out, null) catch {};
         } else {
-            self.kev(&.{.{ .ident = 1, .filter = std.c.EVFILT.TIMER, .flags = std.c.EV.DELETE, .fflags = 0, .data = 0, .udata = tick_udata }}) catch {};
+            const ms = @max(1, at - monoMs());
+            self.kev(&.{.{ .ident = 1, .filter = std.c.EVFILT.TIMER, .flags = std.c.EV.ADD | std.c.EV.ONESHOT, .fflags = 0, .data = @intCast(ms), .udata = tick_udata }}) catch {};
         }
     }
 
+    /// The timer fired: pop due entries, re-arm extended deadlines, report
+    /// the expired ones.
     fn onTick(self: *Loop) void {
         if (is_linux) {
             var expirations: u64 = 0;
             _ = posix.read(self.tick_fd, std.mem.asBytes(&expirations)) catch {};
         }
-        if (self.tick_busy.swap(true, .acq_rel)) return;
-        defer self.tick_busy.store(false, .release);
-        self.handler.on_tick(self.handler.ctx);
-        if (self.sockets.load(.seq_cst) != 0) return;
-        self.tick_mutex.lock();
-        defer self.tick_mutex.unlock();
-        // Clear the flag before re-reading the count: pinTick bumps the count
-        // before reading the flag, so one of us sees the other.
-        self.tick_armed.store(false, .seq_cst);
-        if (self.sockets.load(.seq_cst) != 0) {
-            self.tick_armed.store(true, .seq_cst);
-            return;
+        var due: [256]struct { index: u32, gen: u32 } = undefined;
+        while (true) {
+            var n: usize = 0;
+            const now = monoMs();
+            self.timer_mutex.lock();
+            while (n < due.len and self.heap.items.len > 0 and self.key(0) <= now) {
+                const index = self.heap.items[0];
+                self.heapRemove(0);
+                const sl = self.slots.get(index);
+                sl.armed.store(no_deadline, .release);
+                due[n] = .{ .index = index, .gen = sl.gen() };
+                n += 1;
+            }
+            const more = n == due.len;
+            self.setTimer(if (self.heap.items.len > 0) self.key(0) else no_deadline);
+            self.timer_mutex.unlock();
+            for (due[0..n]) |d| {
+                const sl = self.slots.get(d.index);
+                if (sl.gen() != d.gen) continue;
+                const deadline = sl.deadline.load(.acquire);
+                if (deadline == no_deadline) continue;
+                if (deadline > now) {
+                    self.setDeadline(d.index, deadline);
+                } else self.handler.on_expired(self.handler.ctx, d.index, d.gen);
+            }
+            if (!more) return;
         }
-        self.setTimer(0);
     }
 
     // -- pollers ----------------------------------------------------------------------
@@ -525,7 +626,7 @@ pub const Loop = struct {
         var ev: [1]posix.Kevent = undefined;
         const ts: posix.timespec = .{ .sec = @divTrunc(timeout_ms, 1000), .nsec = @rem(timeout_ms, 1000) * std.time.ns_per_ms };
         var none_in: [0]posix.Kevent = .{};
-        const n = posix.kevent(self.fd, &none_in, &ev, &ts) catch return .interrupted;
+        const n = posix.kevent(self.fd, &none_in, &ev, if (timeout_ms < 0) null else &ts) catch return .interrupted;
         if (n == 0) return .timeout;
         return .{ .event = .{
             .udata = ev[0].udata,
@@ -545,18 +646,20 @@ pub const Loop = struct {
                 self.signalWake();
                 return self.exitThread(false);
             }
-            // A poller back from a blocking section parks while enough run.
-            if (self.active.load(.seq_cst) > self.options.active) {
-                if (self.park()) return self.exitThread(true);
-                continue;
-            }
+            // A poller back from a blocking section is surplus while enough
+            // run: it stays in the poller briefly as the spare the next
+            // `blockingBegin` finds waiting (no wake-up), then parks.
+            const surplus = self.active.load(.seq_cst) > self.options.active;
             _ = self.idle.fetchAdd(1, .seq_cst);
-            const got = self.wait(self.options.idle_exit_ms);
+            const alone = @atomicLoad(u32, &self.threads, .monotonic) <= 1;
+            const got = self.wait(if (surplus) surplus_linger_ms else if (alone) -1 else self.options.idle_exit_ms);
             const others = self.idle.fetchSub(1, .seq_cst) - 1;
             if (self.isStopping()) continue;
             switch (got) {
                 .interrupted => continue,
-                .timeout => if (self.retire()) return self.exitThread(true),
+                .timeout => if (surplus) {
+                    if (self.active.load(.seq_cst) > self.options.active and self.park()) return self.exitThread(true);
+                } else if (self.retire()) return self.exitThread(true),
                 .event => |ev| {
                     // Grow to `options.active` pollers on demand.
                     if (others == 0 and self.active.load(.seq_cst) < self.options.active) self.spawnWorker();
@@ -640,7 +743,7 @@ pub const Loop = struct {
 
     fn startMonitor(self: *Loop) void {
         if (self.monitor_running.swap(true, .acq_rel)) return;
-        const t = std.Thread.spawn(.{ .stack_size = 64 * 1024 }, monitor, .{self}) catch {
+        const t = std.Thread.spawn(.{ .stack_size = 512 * 1024 }, monitor, .{self}) catch {
             self.monitor_running.store(false, .release);
             return;
         };
@@ -664,7 +767,7 @@ pub const Loop = struct {
                 if (now - began < @as(i64, self.options.stall_us) * std.time.ns_per_us) continue;
                 if (r.state.cmpxchgStrong(.running, .stalled, .seq_cst, .seq_cst) != null) continue;
                 const left = self.active.fetchSub(1, .seq_cst) - 1;
-                if (left < self.options.active and !self.isStopping()) self.handOff();
+                if (left < self.options.active and self.idle.load(.seq_cst) == 0 and !self.isStopping()) self.handOff();
             }
             quiet_ms = if (busy) 0 else quiet_ms + 1;
         }
@@ -742,7 +845,8 @@ pub fn blockingBegin() void {
     // Already counted out by the monitor: nothing to hand off.
     if (rec.state.cmpxchgStrong(.running, .blocked, .seq_cst, .seq_cst) != null) return;
     const left = self.active.fetchSub(1, .seq_cst) - 1;
-    if (left < self.options.active and !self.isStopping()) self.handOff();
+    // A poller already waiting for events covers for us: no wake-up needed.
+    if (left < self.options.active and self.idle.load(.seq_cst) == 0 and !self.isStopping()) self.handOff();
 }
 
 pub fn blockingEnd() void {
