@@ -35,6 +35,67 @@ use super::{
     PROD_CHAIN_BUILD_RETRY,
 };
 
+struct UnavailableCursorSync {
+    domain: HyperlaneDomain,
+    attempts: std::sync::atomic::AtomicUsize,
+}
+
+#[async_trait::async_trait]
+impl super::ContractSyncer<super::HyperlaneMessage> for UnavailableCursorSync {
+    async fn cursor(
+        &self,
+        _: IndexSettings,
+    ) -> eyre::Result<Box<dyn super::ContractSyncCursor<super::HyperlaneMessage>>> {
+        self.attempts.fetch_add(1, Ordering::Relaxed);
+        Err(eyre!("gas indexer unavailable"))
+    }
+
+    async fn sync(&self, _: &'static str, _: super::SyncOptions<super::HyperlaneMessage>) {
+        panic!("sync cannot start without a cursor");
+    }
+
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn get_broadcaster(&self) -> Option<super::BroadcastMpscSender<super::IndexingNotification>> {
+        None
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn cursor_failure_retries_without_exiting_and_remains_cancellable() {
+    let sync = Arc::new(UnavailableCursorSync {
+        domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Base),
+        attempts: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let worker_sync = sync.clone();
+    let errors = generate_test_critical_error_tracker(&generate_test_chain_metrics());
+    let task = tokio::spawn(async move {
+        Relayer::rpc_sync_task(
+            &worker_sync.domain,
+            IndexSettings::default(),
+            worker_sync.clone(),
+            errors,
+            crate::scraper_websocket::Kind::Gas,
+            None,
+            None,
+        )
+        .await;
+    });
+    tokio::time::sleep(Duration::from_secs(6)).await;
+    assert!(sync.attempts.load(Ordering::Relaxed) > super::CURSOR_INSTANTIATION_ATTEMPTS);
+    assert!(
+        !task.is_finished(),
+        "cursor failures must not restart healthy sibling indexers"
+    );
+    task.abort();
+    assert!(task
+        .await
+        .expect_err("cutover can cancel retries")
+        .is_cancelled());
+}
+
 #[tokio::test]
 async fn cancelled_blocking_task_is_signalled_to_stop() {
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();

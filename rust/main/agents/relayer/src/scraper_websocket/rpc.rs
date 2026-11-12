@@ -180,10 +180,8 @@ struct RecoveryCursor<T> {
     cursor: Box<dyn ContractSyncCursor<T>>,
     recovery: RpcRecovery,
 }
-#[async_trait]
-impl<T: Send + Sync + Debug + 'static> ContractSyncCursor<T> for RecoveryCursor<T> {
-    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
-        let action = self.cursor.next_action().await?;
+impl<T: Send + Sync + Debug + 'static> RecoveryCursor<T> {
+    fn record_progress(&self) {
         if self.cursor.is_caught_up() {
             self.recovery.progress.lock().expect("RPC recovery lock")[self.recovery.kind.index()] =
                 Some(RpcProgress {
@@ -191,6 +189,13 @@ impl<T: Send + Sync + Debug + 'static> ContractSyncCursor<T> for RecoveryCursor<
                     block: self.cursor.latest_queried_block(),
                 });
         }
+    }
+}
+#[async_trait]
+impl<T: Send + Sync + Debug + 'static> ContractSyncCursor<T> for RecoveryCursor<T> {
+    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+        let action = self.cursor.next_action().await?;
+        self.record_progress();
         Ok(action)
     }
     fn latest_queried_block(&self) -> u32 {
@@ -201,6 +206,8 @@ impl<T: Send + Sync + Debug + 'static> ContractSyncCursor<T> for RecoveryCursor<
         logs: Vec<(Indexed<T>, LogMeta)>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
-        self.cursor.update(logs, range).await
+        self.cursor.update(logs, range).await?;
+        self.record_progress();
+        Ok(())
     }
 }

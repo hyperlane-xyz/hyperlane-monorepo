@@ -1326,19 +1326,23 @@ impl Relayer {
             Kind::Merkle => (CriticalErrorSource::MerkleTreeHookSync, "merkle_tree_hook"),
             Kind::Gas => (CriticalErrorSource::GasPaymentSync, "gas_payments"),
         };
-        let cursor = match Self::instantiate_cursor_with_retries(
-            contract_sync.clone(),
-            index_settings,
-        )
-        .await
-        {
-            Ok(cursor) => {
-                critical_errors.clear(origin, source);
-                cursor
-            }
-            Err(error) => {
-                critical_errors.record(origin, source, &error, CURSOR_BUILDING_ERROR);
-                return;
+        // Keep construction retries local to this indexer. The supervisor still
+        // aborts and joins every task before acknowledging a live cutover.
+        let cursor = loop {
+            match Self::instantiate_cursor_with_retries(
+                contract_sync.clone(),
+                index_settings.clone(),
+            )
+            .await
+            {
+                Ok(cursor) => {
+                    critical_errors.clear(origin, source);
+                    break cursor;
+                }
+                Err(error) => {
+                    critical_errors.record(origin, source, &error, CURSOR_BUILDING_ERROR);
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
             }
         };
         let cursor = RpcRecovery::track(cursor, recovery);

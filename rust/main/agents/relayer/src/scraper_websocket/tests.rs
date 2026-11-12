@@ -94,6 +94,7 @@ impl ContractSyncCursor<HyperlaneMessage> for CompleteCursor {
         _: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
         _: RangeInclusive<u32>,
     ) -> Result<()> {
+        self.0 = true;
         Ok(())
     }
 }
@@ -129,6 +130,25 @@ async fn overlap_requires_complete_rpc_history_including_gas() {
         "gas recovery must also finish"
     );
     progress(&source, &[Kind::Gas], true).await;
+    assert!(state.overlap_ready().unwrap());
+}
+
+#[tokio::test]
+async fn completed_gas_query_records_recovery_before_the_next_poll() {
+    let (_dir, source, _) = fixture();
+    let mut state = SourceState::new(&source);
+    for event in [dispatch(7), merkle(7)] {
+        source.store(&event).unwrap();
+        state.ingest(event).unwrap();
+    }
+    progress(&source, &[Kind::Dispatch, Kind::Merkle], true).await;
+    let mut gas = RpcRecovery::track(
+        Box::new(CompleteCursor(false)),
+        Some(source.control.receiver().recovery(Kind::Gas)),
+    );
+    gas.next_action().await.unwrap();
+    assert!(!state.overlap_ready().unwrap());
+    gas.update(vec![], 90..=100).await.unwrap();
     assert!(state.overlap_ready().unwrap());
 }
 
