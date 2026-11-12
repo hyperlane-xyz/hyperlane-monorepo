@@ -624,7 +624,7 @@ describe('ActionTracker', () => {
       expect(updated?.status).to.equal('in_progress');
     });
 
-    it('should mark unfulfilled intents as failed when TTL exceeded', async () => {
+    it('preserves source-started intents and actions beyond TTL', async () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
@@ -654,10 +654,34 @@ describe('ActionTracker', () => {
       await tracker.syncRebalanceIntents();
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.status).to.equal('failed');
+      expect(updatedIntent?.status).to.equal('in_progress');
 
       const updatedAction = await rebalanceActionStore.get('action-1');
-      expect(updatedAction?.status).to.equal('failed');
+      expect(updatedAction?.status).to.equal('in_progress');
+    });
+
+    it('expires an intent whose only source attempt was proven unsubmitted', async () => {
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        executionMethod: 'inventory',
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'inventory_movement',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      await tracker.failRebalanceAction(action.id);
+      await rebalanceIntentStore.update(intent.id, {
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
+      });
+      await tracker.syncRebalanceIntents();
+      expect((await tracker.getRebalanceIntent(intent.id))?.status).to.equal(
+        'failed',
+      );
     });
 
     it('should not expire intents within TTL', async () => {
@@ -876,7 +900,7 @@ describe('ActionTracker', () => {
       ).to.equal('complete');
     });
 
-    it('still fails a denylisted rebalance message past the intent TTL', async () => {
+    it('retains a denylisted source-started rebalance past the intent TTL', async () => {
       await rebalanceIntentStore.save({
         id: 'expired-intent',
         status: 'in_progress',
@@ -908,10 +932,12 @@ describe('ActionTracker', () => {
 
       await tracker.syncRebalanceIntents();
 
-      expect((await rebalanceActionStore.get(ID_A))?.status).to.equal('failed');
+      expect((await rebalanceActionStore.get(ID_A))?.status).to.equal(
+        'in_progress',
+      );
       expect(
         (await rebalanceIntentStore.get('expired-intent'))?.status,
-      ).to.equal('failed');
+      ).to.equal('in_progress');
     });
 
     it('keeps ignoring a denylisted rebalance message pushed off the Explorer page', async () => {
@@ -1030,10 +1056,9 @@ describe('ActionTracker', () => {
       const action = await rebalanceActionStore.get('action-not-found');
       expect(action?.status).to.equal('in_progress');
       expect(action?.lastBridgeStatus).to.equal('not_found');
-      expect(action?.nonPendingSince).to.be.a('number');
     });
 
-    it('clears nonPendingSince when status returns to pending', async () => {
+    it('updates the observed bridge status when it returns to pending', async () => {
       await rebalanceActionStore.save({
         id: 'action-back-to-pending',
         type: 'inventory_movement',
@@ -1045,7 +1070,6 @@ describe('ActionTracker', () => {
         txHash: '0xtx-back-pending',
         externalBridgeId: ExternalBridgeType.LiFi,
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - 60_000,
         createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
         updatedAt: Date.now(),
       });
@@ -1057,40 +1081,8 @@ describe('ActionTracker', () => {
 
       const action = await rebalanceActionStore.get('action-back-to-pending');
       expect(action?.lastBridgeStatus).to.equal('pending');
-      expect(action?.nonPendingSince).to.be.undefined;
     });
 
-    it('preserves existing nonPendingSince on repeated not_found polls', async () => {
-      const originalNonPendingSince = Date.now() - 120_000;
-      await rebalanceActionStore.save({
-        id: 'action-repeated-not-found',
-        type: 'inventory_movement',
-        status: 'in_progress',
-        intentId: 'intent-1',
-        origin: 1,
-        destination: 2,
-        amount: 100n,
-        txHash: '0xtx-repeated',
-        externalBridgeId: ExternalBridgeType.LiFi,
-        lastBridgeStatus: 'not_found',
-        nonPendingSince: originalNonPendingSince,
-        createdAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
-        updatedAt: Date.now(),
-      });
-
-      const getStatus = Sinon.stub().resolves({ status: 'not_found' });
-      await tracker.syncInventoryMovementActions({
-        lifi: { getStatus } as any,
-      });
-
-      const action = await rebalanceActionStore.get(
-        'action-repeated-not-found',
-      );
-      expect(action?.nonPendingSince).to.equal(originalNonPendingSince);
-    });
-  });
-
-  describe('getInProgressTransfers', () => {
     it('should return only in_progress transfers', async () => {
       await transferStore.save({
         id: 'transfer-1',
@@ -1572,7 +1564,7 @@ describe('ActionTracker', () => {
       expect(partialIntents).to.have.lengthOf(0);
     });
 
-    it('skips intent with recent in-flight inventory_movement', async () => {
+    it('returns intent with a blocking in-flight inventory movement', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-recent-movement',
         status: 'in_progress',
@@ -1599,10 +1591,11 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.equal(true);
     });
 
-    it('fails stale movement and returns intent', async () => {
+    it('retains stale movement and returns blocked intent', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-stale-movement',
         status: 'in_progress',
@@ -1620,7 +1613,6 @@ describe('ActionTracker', () => {
         type: 'inventory_movement',
         status: 'in_progress',
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
         intentId: 'intent-stale-movement',
         origin: 1,
         destination: 2,
@@ -1634,12 +1626,12 @@ describe('ActionTracker', () => {
       expect(partialIntents).to.have.lengthOf(1);
       expect(partialIntents[0].intent.id).to.equal('intent-stale-movement');
 
-      // Verify the stale movement was failed
+      // Staleness is not evidence that the source never committed.
       const failedAction = await rebalanceActionStore.get('movement-stale');
-      expect(failedAction?.status).to.equal('failed');
+      expect(failedAction?.status).to.equal('in_progress');
     });
 
-    it('fails stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
+    it('retains stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-undefined-status',
         status: 'in_progress',
@@ -1671,7 +1663,7 @@ describe('ActionTracker', () => {
       const action = await rebalanceActionStore.get(
         'movement-undefined-status',
       );
-      expect(action?.status).to.equal('failed');
+      expect(action?.status).to.equal('in_progress');
     });
 
     it('does not fail long-running pending movement', async () => {
@@ -1701,7 +1693,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.equal(true);
 
       const action = await rebalanceActionStore.get('movement-pending-old');
       expect(action?.status).to.equal('in_progress');
@@ -1725,7 +1718,6 @@ describe('ActionTracker', () => {
         type: 'inventory_movement',
         status: 'in_progress',
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - 60_000, // only 1 min ago
         intentId: 'intent-recent-not-found',
         origin: 1,
         destination: 2,
@@ -1736,7 +1728,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.equal(true);
 
       const action = await rebalanceActionStore.get(
         'movement-recent-not-found',
@@ -1762,7 +1755,6 @@ describe('ActionTracker', () => {
         type: 'inventory_movement',
         status: 'in_progress',
         lastBridgeStatus: 'not_found',
-        nonPendingSince: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
         intentId: 'intent-mixed-movements',
         origin: 1,
         destination: 2,
@@ -1785,10 +1777,11 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      // Should skip because there's still a recent movement
+      // Keep the intent visible and blocked while either movement is outstanding.
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.equal(true);
 
       const staleAction = await rebalanceActionStore.get('movement-old');
       expect(staleAction?.status).to.equal('in_progress');
@@ -1877,9 +1870,15 @@ describe('ActionTracker', () => {
     });
 
     it('persists external bridge transfer identifiers', async () => {
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 50n,
+        executionMethod: 'inventory',
+      });
       const result = await tracker.createRebalanceAction({
         type: 'inventory_movement',
-        intentId: 'intent-1',
+        intentId: intent.id,
         origin: 1,
         destination: 2,
         amount: 50n,
